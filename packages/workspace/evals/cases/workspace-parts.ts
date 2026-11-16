@@ -10,17 +10,14 @@
  * mean the workspace's skills folder. What these measure:
  *
  * - **A project is edited where it lives.** Asked to add to "my Travel project",
- *   the agent changes `Projects/Travel/AGENTS.md` and reaches for no app.
+ *   the agent changes `Projects/Travel/AGENTS.md` and reaches for no app, and
+ *   makes the file where the project has no instructions yet, so none.
  * - **A skill from a link is installed into the workspace's skills.** Given
  *   a skills.sh page, the skill lands in the workspace's skills folder, and
  *   in no other agent's.
  * - **Instructions for every chat go in the top-level `AGENTS.md`.** The file
  *   has no screen in the app, and until it has text no note names it, so
  *   only the prompt says where it is.
- * - **`CHAT.md` is a copy.** Asked to change it, the agent says the change
- *   will be undone, since the app rewrites it when each turn ends. Whether
- *   it edits the file anyway is recorded: measured 2026-11-09 on Claude
- *   Haiku 5.5, asked outright it edited and said so in 6 of 6 runs.
  * - **"Draft" is a message, not the Drafts folder.** A drafted email is a
  *   message card, and nothing lands in the user's reply boxes.
  *
@@ -32,15 +29,11 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import {
-  AGENT_MESSAGE_LANGUAGE,
-  CHAT_FILE_NAME,
-  DRAFTS_FOLDER_NAME,
-  PROJECT_FILE_NAME,
-} from "../../src/constants";
+import { AGENT_MESSAGE_LANGUAGE, PROJECT_FILE_NAME } from "../../src/constants";
 import { createProject, projectsDir } from "../../src/lib/chat/projects";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { getWorkspaceSkillsDir } from "../../src/lib/workspace-skills-dir";
+import { workspaceLayout } from "../../src/lib/workspace-layout";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
 import { said } from "./handoff";
@@ -135,69 +128,10 @@ const wroteWorkspaceInstructions: Assertion = {
   text: "added the rule to the workspace's own AGENTS.md",
 };
 
-/** The file tool calls and commands that changed a `CHAT.md`. */
-function chatFileWrites(sessions: Session.WithMessagesAndParts[]): string[] {
-  const edits = sessions.flatMap((session) =>
-    session.messages.flatMap((message) =>
-      message.parts.flatMap((part) => {
-        if (part.type !== "tool-write_file" && part.type !== "tool-edit_file") {
-          return [];
-        }
-        const input = JSON.stringify(part.input ?? {});
-        return input.includes(CHAT_FILE_NAME)
-          ? [`${part.type} ${input.slice(0, 120)}`]
-          : [];
-      }),
-    ),
-  );
-  const changes = commands(sessions).filter(
-    (command) =>
-      command.includes(CHAT_FILE_NAME) &&
-      /\bsed\s+-i|\bperl\s+-[a-z]*i|>\s*\S*CHAT\.md|\btee\b|write_text|writeFile|\bmv\b|\bcp\b|\brm\b/.test(
-        command,
-      ),
-  );
-  return [...edits, ...changes];
-}
-
-/**
- * Whether it edited the copy anyway. Recorded, not scored: asked outright,
- * doing it and saying it will be undone is carrying out the ask.
- */
-const editedChatFile: Assertion = {
-  check: ({ sessions }) => {
-    const text = `whether it edited ${CHAT_FILE_NAME} (recorded, not scored)`;
-    const writes = chatFileWrites(sessions);
-    return result(
-      true,
-      text,
-      writes.length === 0 ? "left it alone" : `edited: ${writes.join(" | ")}`,
-    );
-  },
-  text: `whether it edited ${CHAT_FILE_NAME} (recorded, not scored)`,
-};
-
-const saidItWontLast: Assertion = {
-  check: ({ sessions }) => {
-    const text = `said a change to ${CHAT_FILE_NAME} would not last`;
-    const reply = said(sessions)
-      .map((one) => one.text)
-      .join("\n");
-    return result(
-      /rewrit|regenerat|overwrit|re-?created|(?:won'?t|wouldn'?t|doesn'?t|does not|will not|would not)\s+(?:last|stick|stay|survive|be kept|persist)/i.test(
-        reply,
-      ),
-      text,
-      JSON.stringify(reply.slice(-400)),
-    );
-  },
-  text: `said a change to ${CHAT_FILE_NAME} would not last`,
-};
-
 const leftDraftsAlone: Assertion = {
   check: () => {
     const text = "put nothing in the Drafts folder";
-    const dir = path.join(getWorkspaceConfig().rootDir, DRAFTS_FOLDER_NAME);
+    const dir = workspaceLayout(getWorkspaceConfig().rootDir).draftsDir;
     const entries = existsSync(dir)
       ? readdirSync(dir, { recursive: true }).map(String)
       : [];
@@ -240,6 +174,18 @@ export const WORKSPACE_PARTS_EVALS = [
     },
   }),
 
+  // A project with no instructions is its folder alone, with no AGENTS.md.
+  defineEval({
+    assertions: [editedTheProjectFile, reachedForNoApp],
+    kind: "chat",
+    name: "workspace-parts-starts-a-project-file",
+    prompt:
+      "Add to my Travel project that I prefer trains over flights for trips under four hours.",
+    setup: async () => {
+      await createProject({ emoji: "🧳", name: "Travel" });
+    },
+  }),
+
   defineEval({
     assertions: [installedIntoWorkspaceSkills, installedNowhereElse],
     kind: "chat",
@@ -254,22 +200,6 @@ export const WORKSPACE_PARTS_EVALS = [
     name: "workspace-parts-instructions-for-every-chat",
     prompt:
       "Add to the instructions every chat in this workspace follows: give temperatures in both Celsius and Fahrenheit.",
-  }),
-
-  defineEval({
-    // The chat's own CHAT.md is written when its first turn ends, so the
-    // ask comes once that turn has settled.
-    assertions: [saidItWontLast, editedChatFile],
-    followUps: [
-      {
-        prompt:
-          "Open this chat's CHAT.md and change my first message to say 12 plus 12, so it reads right later.",
-        settled: true,
-      },
-    ],
-    kind: "chat",
-    name: "workspace-parts-chat-file-is-a-copy",
-    prompt: "What's 12 times 12?",
   }),
 
   defineEval({

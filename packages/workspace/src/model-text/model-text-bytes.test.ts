@@ -138,12 +138,11 @@ vi.mock(import("../lib/skills"), async (original) => ({
 }));
 
 const ENVIRONMENT: Environment = {
-  appsFolder: "/Users/mac-user/Instrument/Apps",
   commands: "Your shell on this computer also has `ps`.",
   computer: "A test Mac (macOS 27.0)",
   homeFolder: "/Users/mac-user",
   imageOptions: "Sizes: 1024x1024.",
-  outputFolder: "/Users/mac-user/Instrument/Chats/Test",
+  outputFolder: "/Users/mac-user/Instrument/Files",
   platform: "darwin",
   timeZone: "America/Los_Angeles",
   workspaceSkillsFolder: "/Users/mac-user/Instrument/Skills",
@@ -377,11 +376,9 @@ describe.skipIf(WINDOWS)("the rollover notice", () => {
       noNotes: contextRolloverNotice(undefined, notesPath),
       summarized: contextRolloverNotice("Notes.", notesPath, {
         summary: "A summary.",
-        transcriptPath: "/Users/mac-user/transcript.md",
       }),
-      summarizedNoTranscript: contextRolloverNotice(undefined, notesPath, {
+      summarizedNoNotes: contextRolloverNotice(undefined, notesPath, {
         summary: "A summary.",
-        transcriptPath: undefined,
       }),
       withNotes: contextRolloverNotice("Notes.", notesPath),
     }).toMatchSnapshot();

@@ -54,7 +54,7 @@ function at({ file }: DraftOnDisk): string {
 
 describe("the drafts folder", () => {
   it("keeps a key another writer left, through a save that knows nothing about it", () => {
-    const file = path.join(rootDir, "Drafts", "2026-10-14", "DRAFT.md");
+    const file = path.join(draftsFolderDir(rootDir), "2026-10-14", "DRAFT.md");
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(
       file,
@@ -94,7 +94,7 @@ describe("the drafts folder", () => {
   it("names a draft's folder for the day it was started", () => {
     expect(
       at(makeDraftFolder({ draft: draft(), rootDir, timeZone: ZONE })),
-    ).toMatchInlineSnapshot(`"Drafts/2026-10-14/DRAFT.md"`);
+    ).toMatchInlineSnapshot(`".instrument/drafts/2026-10-14/DRAFT.md"`);
   });
 
   it("reads the day in the writing device's own zone", () => {
@@ -107,7 +107,7 @@ describe("the drafts folder", () => {
           timeZone: "Europe/London",
         }),
       ),
-    ).toMatchInlineSnapshot(`"Drafts/2026-10-14/DRAFT.md"`);
+    ).toMatchInlineSnapshot(`".instrument/drafts/2026-10-14/DRAFT.md"`);
     expect(
       at(
         makeDraftFolder({
@@ -119,7 +119,7 @@ describe("the drafts folder", () => {
           timeZone: "Europe/London",
         }),
       ),
-    ).toMatchInlineSnapshot(`"Drafts/2026-10-15/DRAFT.md"`);
+    ).toMatchInlineSnapshot(`".instrument/drafts/2026-10-15/DRAFT.md"`);
   });
 
   it("numbers a second draft started the same day", () => {
@@ -161,7 +161,9 @@ describe("the drafts folder", () => {
           timeZone: ZONE,
         }),
       ),
-    ).toMatchInlineSnapshot(`"Drafts/Tidy up the big one two/DRAFT.md"`);
+    ).toMatchInlineSnapshot(
+      `".instrument/drafts/Tidy up the big one two/DRAFT.md"`,
+    );
   });
 
   it("holds the draft whatever its folder is called", async () => {
@@ -400,7 +402,7 @@ describe("the drafts folder", () => {
 });
 
 describe("reading every draft", () => {
-  /** The draft files opened, by name under `Drafts/`. */
+  /** The draft files opened, by name under the drafts folder. */
   const openedIn = (opened: { mock: { calls: unknown[][] } }) =>
     opened.mock.calls
       .map(([file]) =>

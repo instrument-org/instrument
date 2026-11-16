@@ -21,7 +21,7 @@ const UNFINISHED = /\.(?:crdownload|download|part|tmp)$/i;
  * caches, a custom icon): never anything a person made, and made again the
  * next time the folder is shown, so safe to delete with the folder.
  */
-function isFileManagerRecord(name: string): boolean {
+export function isFileManagerRecord(name: string): boolean {
   return (
     name === ".DS_Store" ||
     name === ".localized" ||

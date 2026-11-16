@@ -1,6 +1,9 @@
 description: >-
-  A task a 1.x build made, with no chat, for the boot migration that makes it
-  into a chat. Seeded as 1.x left it; the app moves it on boot.
+  Tasks a 1.x build made, with no chat, for the boot migration that makes each
+  into a chat and moves what it handed over in its output/ into the Files
+  folder. Seeded as 1.x left them; the app moves them on boot. The second and
+  third replay the first one's recorded conversation under their own names:
+  what they test is where their files land, not what was said.
 
 settings:
   preferences:
@@ -17,3 +20,16 @@ tasks:
         to: output/red-and-blue-squares.pdf
       - from: make_squares_pdf.py
         to: work/make_squares_pdf.py
+  # Two files handed over, which land together in one Files folder.
+  - key: two-outputs
+    name: Squares summary and table
+    agedMinutes: 90
+    files:
+      - from: summary.md
+        to: output/summary.md
+      - from: squares.csv
+        to: output/squares.csv
+  # Nothing handed over, which makes no Files folder.
+  - key: no-output
+    name: Squares question
+    agedMinutes: 120

@@ -7,7 +7,6 @@ import { osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
 import {
-  type ChatId,
   PROJECT_FILE_NAME,
   PROJECTS_FOLDER_NAME,
 } from "@instrument-org/workspace/client";
@@ -89,18 +88,6 @@ export function showInFolderLabel(kind: "file" | "folder") {
     return osConventions().showInFileManager;
   }
   return kind === "file" ? "Show in Folder" : "Open in Files";
-}
-
-/** Shows a chat's own folder, which is where what it and its tasks made lands, as `showInFolder` shows any folder. */
-export async function showChatFolder(chatId: ChatId) {
-  const [error, hostPath] = await safe(
-    rpcClient.utils.chatFolderPath.call({ id: chatId }),
-  );
-  if (error) {
-    toast.error("Couldn't find the chat's folder", { cause: error });
-    return;
-  }
-  await showInFolder(hostPath, { kind: "folder" });
 }
 
 /** A project's own folder, `Projects/<Name>/` at the top of the workspace kept in `rootDir`. */

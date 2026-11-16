@@ -338,7 +338,7 @@ describe("drafts into folders", () => {
       ]
     `);
     // The path names the file where this step put it; the step that takes
-    // the drafts out to `Drafts/` reads one inside the draft's own folder as
+    // that converts the drafts reads one inside the draft's own folder as
     // one of its files and moves it along with the draft.
     expect(read(path.join(drafts, "d1/.instrument/settings.json"))).toEqual({
       attached: [

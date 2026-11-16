@@ -1,10 +1,18 @@
+import fs from "node:fs";
+import path from "node:path";
+
+import { type DeviceId } from "../../schemas/device-id";
 import {
+  PROJECT_FILE_NAME,
+  PROJECTS_FOLDER_NAME,
   readProjectsSync,
-  type Project,
-  writeProjectSync,
 } from "../chat/projects";
-import { listedFolderPaths } from "../chat/project-file";
+import {
+  listedFolderPaths,
+  withoutFrontMatterKeys,
+} from "../chat/project-file";
 import { readJsonRecordSync, updateJsonRecordSync } from "../json-record-file";
+import { rewriteFileSync } from "../rewrite-file";
 import { permissionSettingsOf, permissionsFileIn } from "./rules";
 import { addedProjectFolders } from "./project-folders";
 
@@ -44,9 +52,12 @@ const MOVED_MARK = "topicFoldersMoved";
  * folders granted on a different computer.
  */
 export function moveProjectFolders({
+  device,
   machineDir,
   rootDir,
 }: {
+  /** The device a project's record is written as; the running workspace's when left out. */
+  device?: DeviceId;
   machineDir: string;
   rootDir: string;
 }): { moved: number } {
@@ -58,7 +69,7 @@ export function moveProjectFolders({
   if (read.kind === "read" && read.record[MOVED_MARK] === true) {
     return { moved: 0 };
   }
-  const listing = readProjectsSync(rootDir).flatMap((project) => {
+  const listing = readProjectsSync(rootDir, { device }).flatMap((project) => {
     if (project.others === undefined || !("folders" in project.others)) {
       return [];
     }
@@ -72,7 +83,9 @@ export function moveProjectFolders({
     return { [MOVED_MARK]: true, projects };
   });
   for (const { project } of listing) {
-    writeProjectSync(rootDir, withoutFolders(project));
+    stripKeySync(
+      path.join(rootDir, PROJECTS_FOLDER_NAME, project.name, PROJECT_FILE_NAME),
+    );
   }
   return {
     moved: listing.filter(({ paths }) => paths.length > 0).length,
@@ -101,8 +114,36 @@ export function markedWhereNoSettings(machineDir: string): boolean {
   return true;
 }
 
-function withoutFolders(project: Project): Project {
-  const { others, ...rest } = project;
-  const { folders: _folders, ...kept } = others ?? {};
-  return Object.keys(kept).length > 0 ? { ...rest, others: kept } : rest;
+/** The front-matter key the folders were listed under. */
+const FOLDERS_KEY: ReadonlySet<string> = new Set(["folders"]);
+
+/**
+ * Takes the `folders:` key out of a project's file, keeping the rest of it,
+ * and the file itself where nothing else is in it.
+ */
+function stripKeySync(file: string): void {
+  let held: string;
+  try {
+    // oxlint-disable-next-line studio/no-sync-content-read -- a launch step, synchronous like the settings write before it.
+    held = fs.readFileSync(file, "utf8");
+  } catch {
+    return;
+  }
+  const next = withoutFrontMatterKeys(held, FOLDERS_KEY);
+  if (next === undefined) {
+    return;
+  }
+  if (next === "") {
+    fs.rmSync(file, { force: true });
+    return;
+  }
+  rewriteFileSync(
+    file,
+    (current) =>
+      (current === undefined
+        ? undefined
+        : withoutFrontMatterKeys(current, FOLDERS_KEY)) ??
+      current ??
+      next,
+  );
 }

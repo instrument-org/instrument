@@ -1,9 +1,5 @@
-import fs from "node:fs/promises";
-
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { type StoreId } from "../../schemas/store-id";
-import { ensureChatFolder } from "../chat-folders/chat-folder";
-import { recordChatFolderName } from "../chat-folders/own-folder";
 import { newChatName } from "../chat-folder-name";
 import { getCurrentDate } from "../get-current-date";
 import { initializeChat } from "../initialize-chat";
@@ -13,7 +9,6 @@ import {
   chatIdTaken,
   sessionOfChat,
 } from "../record-folders";
-import { getWorkspaceConfig } from "../workspace-config";
 import { listedBefore } from "./chat-list-events";
 
 /**
@@ -39,36 +34,19 @@ export async function ensureChat(
       title: firstWords,
     }),
   );
-  // The folder the person sees, claimed before the chat exists rather than
-  // at the end of the turn: the agent's finished work goes in it, and what
-  // was pasted into the draft moves into it, both before the first command
-  // runs. It is named for the first words until the title settles.
-  const folder = await ensureChatFolder({
-    folder: undefined,
-    rootDir: getWorkspaceConfig().rootDir,
-    title: firstWords,
-  });
   const made = await initializeChat({
     chatId,
     opening: firstWords,
     sessionId,
   });
   if (made.isErr()) {
-    // Two sends racing for the same new chat: the other one made it, and
-    // the folder claimed here is nobody's, so it goes rather than sitting
-    // empty under `Chats/`.
-    await fs.rmdir(folder.path).catch(() => undefined);
+    // Two sends racing for the same new chat: the other one made it.
     const raced = chatOfSession(sessionId);
     if (raced) {
       return raced;
     }
     throw made.error;
   }
-  await recordChatFolderName(
-    getWorkspaceConfig().workspaceMachineDir,
-    chatId,
-    folder.name,
-  );
   return chatId;
 }
 

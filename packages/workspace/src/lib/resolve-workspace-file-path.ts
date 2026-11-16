@@ -4,9 +4,7 @@ import path from "node:path";
 import { unique } from "radashi";
 
 import {
-  APPS_FOLDER_NAME,
   CHAT_FOLDER_NAMES,
-  CHATS_FOLDER_NAME,
   SKILLS_FOLDER_NAME,
   TASKS_DIR_NAME,
 } from "../constants";
@@ -19,10 +17,13 @@ import {
   WorkspaceFilePathSchema,
 } from "../schemas/paths";
 import { type ChatId } from "../schemas/chat-id";
+import { filesFolderPath } from "./chat/output-folder";
 import { toldEnvironments } from "./environment";
+import { movedOutputOf } from "./moved-outputs";
 import { normalizePath } from "./normalize-path";
-import { chatDir, chatOwnFolder, resolveChat } from "./record-folders";
 import { relativeWithin } from "./path-containment";
+import { CHATS_FOLDER_NAME } from "./retire-chats-folder/chat-transcript";
+import { readChatFolderMoves } from "./retire-chats-folder/folder-moves";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 import { sessionLayout } from "./session-layout";
 import { nameVariants } from "./tool-fs";
@@ -33,6 +34,7 @@ import {
   type WorkspaceFsLayout,
 } from "./workspace-fs-layout";
 import { getWorkspaceConfig } from "./workspace-config";
+import { workspaceLayout } from "./workspace-layout";
 import {
   isInWorkspacePath,
   workspaceHostPath,
@@ -123,10 +125,10 @@ async function resolvePlaces<Given extends string>({
   chatId: ChatId;
 }): Promise<Map<Given, { here: AbsolutePath | null; on?: string }>> {
   const layout = await sessionLayout({ chatId });
-  const history = await chatHistoryPaths(layout, chatId, filePaths);
+  const history = await chatHistoryPaths(chatId, filePaths);
   return new Map(
     filePaths.map((given) => {
-      const here = onDiskOrNull(layout, given, history);
+      const here = onDiskOrNull(layout, given, history, chatId);
       const on = here === null ? computerHolding(given, history) : undefined;
       return [given, on === undefined ? { here } : { here, on }];
     }),
@@ -137,15 +139,15 @@ async function resolvePlaces<Given extends string>({
  * What the chat's records say about the computers its messages were written
  * on, read once for a surface's paths. A message keeps a path as the
  * computer that wrote it spelled it: under that computer's home and its
- * place for the workspace, and in the chat's folder under the name it had
- * then.
+ * place for the workspace, and in the chat's folder under `Chats/` that an
+ * earlier build kept, under the name it had then.
  */
 interface ChatHistoryPaths {
   /** This computer's home, in the shell's spelling. */
   home: string;
   /** This computer's workspace, in the shell's spelling. */
   here: string;
-  moved: MovedChatFolder | undefined;
+  moved: FolderMoves | undefined;
   /** The computers the chat's sessions were told they ran on, this one aside. */
   writers: Writer[];
 }
@@ -160,27 +162,28 @@ interface Writer {
 }
 
 /**
- * The names the chat's own folder had and the one it has, in the shell's
- * spelling. The folder is named for the chat's first words until its title
- * settles, after the first turn, so a file that turn made is named in the
- * folder under its first name and found in the titled folder after it.
+ * Where folders under `Chats/` went, in the shell's spelling: each folder an
+ * earlier build kept there, under any name it had, and the folder in `Files/`
+ * it was moved to when `Chats/` was emptied (`retire-chats-folder.ts`).
  */
-type MovedChatFolder = { from: string[]; to: string }[];
+type FolderMoves = { from: string[]; to: string }[];
 
 /**
- * The names the chat's folder had are the output folders its sessions were
- * told, which is the path the agent wrote with, read under this computer's
- * workspace. A name another chat holds now still means this chat's folder in
- * this chat's messages. The history is read only when a path names something
- * in `Chats/` or lies outside this computer's home, since only then can it
- * change an answer.
+ * The folders moved out of `Chats/` are read from the record the move
+ * wrote, by the names they had when they moved. The chat's own folder was
+ * named for its first words until its title settled, after the first turn,
+ * so a file that turn made is named under the folder's first name: the
+ * names it had are the output folders its sessions were told, which is the
+ * path the agent wrote with, read under this computer's workspace, and they
+ * mean wherever the chat's folder went. The history is read only when a path
+ * names something in `Chats/` or lies outside this computer's home, since
+ * only then can it change an answer.
  *
  * A branch's copied conversation names the folder of the chat it came from,
- * under whichever name it had then, so those names mean that chat's folder
- * as it is named now, while that chat is there.
+ * under whichever name it had then, so those names mean where that chat's
+ * folder went.
  */
 async function chatHistoryPaths(
-  layout: WorkspaceFsLayout,
   chatId: ChatId,
   filePaths: readonly string[],
 ): Promise<ChatHistoryPaths> {
@@ -189,6 +192,9 @@ async function chatHistoryPaths(
   const home = shellPath(os.homedir());
   const chats = shellPath(path.join(rootDir, CHATS_FOLDER_NAME));
   const asks = filePaths.some((given) => {
+    if (isInWorkspacePath(given.trim())) {
+      return given.trim().startsWith(`workspace:/${CHATS_FOLDER_NAME}/`);
+    }
     const spelled = absoluteSpelling(given);
     return (
       spelled !== undefined &&
@@ -208,36 +214,33 @@ async function chatHistoryPaths(
       (writer.root !== undefined && writer.root !== here) ||
       (writer.home !== undefined && writer.home !== home),
   );
-  const to = layout.folder?.shellRoot;
-  if (to === undefined) {
+  const records = await readChatFolderMoves(
+    workspaceLayout(rootDir).devicesDir,
+  );
+  if (records.size === 0) {
     return { home, here, moved: undefined, writers };
   }
-  const movedFrom = (environments: EnvironmentChange[], target: string) => ({
-    from: unique(
+  const files = shellPath(filesFolderPath());
+  const namesTold = (environments: EnvironmentChange[]) =>
+    unique(
       environments.flatMap(({ outputFolder }) =>
         outputFolder === undefined
           ? []
           : [inThisWorkspace(normalizePath(outputFolder), here, writers)],
       ),
-    ).filter(
-      (folder) => folder !== target && path.posix.dirname(folder) === chats,
-    ),
-    to: target,
-  });
-  const moves: MovedChatFolder = [];
-  const origin = copied && resolveChat(copied.chat);
-  const originFolder = origin && chatOwnFolder(chatDir(origin));
-  if (copied && originFolder !== undefined) {
-    moves.push(movedFrom(copied.told, shellPath(originFolder)));
+    ).filter((folder) => path.posix.dirname(folder) === chats);
+  const moved: FolderMoves = [];
+  for (const record of records.values()) {
+    const from = [`${chats}/${record.from}`];
+    if (record.chat === chatId) {
+      from.push(...namesTold(told));
+    }
+    if (copied && record.chat === copied.chat) {
+      from.push(...namesTold(copied.told));
+    }
+    moved.push({ from: unique(from), to: `${files}/${record.to}` });
   }
-  moves.push(movedFrom(told, to));
-  const kept = moves.filter((move) => move.from.length > 0);
-  return {
-    home,
-    here,
-    moved: kept.length === 0 ? undefined : kept,
-    writers,
-  };
+  return { home, here, moved, writers };
 }
 
 function writerOf(told: EnvironmentChange): Writer {
@@ -251,23 +254,16 @@ function writerOf(told: EnvironmentChange): Writer {
 
 /**
  * Where a computer kept the workspace, from the folders it was told: its
- * `Skills/` and `Apps/` are at the workspace's top level. A build that kept
- * them in `.instrument/` names neither by those names, and says nothing.
+ * `Skills/` is at the workspace's top level. A build that kept it in
+ * `.instrument/` names it by no such name, and says nothing.
  */
 function workspaceRootOf({
-  appsFolder,
   workspaceSkillsFolder,
 }: EnvironmentChange): string | undefined {
-  const named = [
-    [workspaceSkillsFolder, SKILLS_FOLDER_NAME],
-    [appsFolder, APPS_FOLDER_NAME],
-  ] as const;
-  for (const [folder, name] of named) {
-    if (folder !== undefined && path.posix.basename(folder) === name) {
-      return path.posix.dirname(folder);
-    }
-  }
-  return undefined;
+  return workspaceSkillsFolder !== undefined &&
+    path.posix.basename(workspaceSkillsFolder) === SKILLS_FOLDER_NAME
+    ? path.posix.dirname(workspaceSkillsFolder)
+    : undefined;
 }
 
 /**
@@ -312,10 +308,10 @@ function computerHolding(
   )?.computer;
 }
 
-/** A path in the chat's folder under a name it had, spelled under the one it has. */
+/** A path in a folder moved out of `Chats/`, spelled where the folder went. */
 function underCurrentName(
   spelled: string,
-  moved: MovedChatFolder | undefined,
+  moved: FolderMoves | undefined,
 ): string {
   if (moved === undefined) {
     return spelled;
@@ -354,13 +350,14 @@ function onDiskOrNull(
   layout: WorkspaceFsLayout,
   given: string,
   history: ChatHistoryPaths,
+  chatId: ChatId,
 ): AbsolutePath | null {
   const parsed = WorkspaceFilePathSchema.safeParse(shellSpelling(given));
   if (!parsed.success) {
     return null;
   }
   try {
-    return storedPathOnDisk(layout, parsed.data, history);
+    return storedPathOnDisk(layout, parsed.data, history, chatId);
   } catch {
     return null;
   }
@@ -385,13 +382,17 @@ function onDiskOrNull(
  * a chat's files and its records were once one folder, so a relative path
  * under `attachments/` the work folder does not hold is the file the person
  * sent, in the record folder, and an earlier build's `/tasks/<task>/...` is
- * in the work folder's `tasks/`, where those folders went. A name macOS
- * spells another way than the one kept is found too.
+ * in the work folder's `tasks/`, where those folders went. What a 1.x task
+ * handed over in its `output/` is in the Files folder, where the layout sweep
+ * moved it (`movedOutputOf`). A path in `Chats/`, absolute or by its place
+ * in the workspace, is read in the folder of `Files/` it went to. A name macOS spells another way than the one
+ * kept is found too.
  */
 function storedPathOnDisk(
   layout: WorkspaceFsLayout,
   stored: string,
   history: ChatHistoryPaths,
+  chatId: ChatId,
 ): AbsolutePath | null {
   const trimmed = stored.trim();
   // A file kept by its place in the workspace is under the workspace's root
@@ -401,11 +402,19 @@ function storedPathOnDisk(
       trimmed,
       getWorkspaceConfig().rootDir,
     );
-    return inWorkspace === null ? null : spelledOnDisk(inWorkspace);
+    if (inWorkspace === null) {
+      return null;
+    }
+    const found = spelledOnDisk(inWorkspace);
+    return existsSync(found)
+      ? found
+      : spelledOnDisk(
+          hostPathOf(underCurrentName(shellPath(inWorkspace), history.moved)),
+        );
   }
   const spelled = shellPath(trimmed);
   if (!path.posix.isAbsolute(spelled)) {
-    const found = relativeOnDisk(layout, spelled);
+    const found = relativeOnDisk(layout, spelled, chatId);
     return found === null ? null : spelledOnDisk(found);
   }
   const found =
@@ -470,6 +479,7 @@ function absoluteOnDisk(
 function relativeOnDisk(
   layout: WorkspaceFsLayout,
   spelled: string,
+  chatId: ChatId,
 ): AbsolutePath | null {
   const relative = normalizePath(spelled).replace(/^\.\//, "");
   const inWork = resolvePathWithinChatDir({
@@ -481,6 +491,14 @@ function relativeOnDisk(
   }
   if (existsSync(inWork)) {
     return inWork;
+  }
+  const inFiles = movedOutputOf({
+    chatId,
+    machineDir: getWorkspaceConfig().workspaceMachineDir,
+    relative,
+  });
+  if (inFiles !== undefined && existsSync(inFiles)) {
+    return AbsolutePathSchema.parse(inFiles);
   }
   const { record } = layout;
   if (!record || relative.split("/")[0] !== CHAT_FOLDER_NAMES.attachments) {

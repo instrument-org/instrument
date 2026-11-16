@@ -1,5 +1,4 @@
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
-import { getWorkspaceConfig } from "../workspace-config";
 import { type AppConnection, readConnection } from "./connection";
 import { loadApp } from "./store";
 
@@ -31,18 +30,17 @@ function standingOf(
 
 /**
  * Every app on a card as its connection now stands, in the card's order. An
- * app whose folder or connection is gone since the card asked has no row
+ * app or connection that is gone since the card asked has no row
  * left to answer, so it is left out; undefined when none is left.
  */
 export async function signInProgress(
   card: CardApp[],
 ): Promise<SignInProgress | undefined> {
-  const { appsDir } = getWorkspaceConfig();
   const rows = await Promise.all(
     card.map(async ({ slug }) => {
       const [connection, loaded] = await Promise.all([
         readConnection(slug),
-        loadApp(appsDir, slug),
+        loadApp(slug),
       ]);
       if (connection === undefined || loaded.isErr()) {
         return [];

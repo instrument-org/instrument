@@ -27,8 +27,8 @@ async function writePath(path: () => Promise<string>) {
 
 /**
  * A chat's Copy submenu, the same in every menu of a chat: the path of its
- * own folder, where what it made lands, and of its work folder, where its
- * scratch is; what another agent needs to pick up from it; and, in developer
+ * work folder, where its scratch is; what another agent needs to pick up
+ * from it; and, in developer
  * mode, where its records are and which build and computer it ran on, in the
  * developer color. Drawn with the parts of whichever menu it sits in.
  */
@@ -49,20 +49,6 @@ export function ChatCopyMenu({
         Copy
       </SubTrigger>
       <SubContent>
-        <Item
-          onSelect={() => {
-            void copying(
-              () =>
-                writePath(() => rpcClient.utils.chatFolderPath.call({ id })),
-              {
-                done: "Copied the chat folder's path",
-                failed: "Couldn't copy the chat folder's path",
-              },
-            );
-          }}
-        >
-          Chat Folder Path
-        </Item>
         <Item
           onSelect={() => {
             void copying(

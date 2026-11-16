@@ -26,7 +26,7 @@ import {
 } from "../src/lib/apps/manifest";
 import { callMcpTool, listMcpTools } from "../src/lib/apps/mcp/client";
 import { withAppMcpClient } from "../src/lib/apps/mcp/run";
-import { loadApp, writeAppFolder } from "../src/lib/apps/store";
+import { loadApp, writeApp } from "../src/lib/apps/store";
 import { formatAppTestReport, runAppTest } from "../src/lib/apps/test-app";
 import { setWorkspaceConfig } from "../src/lib/workspace-config";
 import { AbsolutePathSchema } from "../src/schemas/paths";
@@ -88,8 +88,7 @@ async function main(): Promise<number> {
   });
   setWorkspaceConfig(config);
 
-  await writeAppFolder({
-    appsDir: config.appsDir,
+  await writeApp({
     guide: "A local MCP server, for checking that it runs.\n",
     manifest: AppManifestSchema.parse({
       auth: { kind: "none" },
@@ -101,7 +100,7 @@ async function main(): Promise<number> {
     slug,
   });
 
-  const loaded = await loadApp(config.appsDir, slug);
+  const loaded = await loadApp(slug);
   if (loaded.isErr()) {
     console.error(loaded.error.message);
     return 1;
@@ -120,7 +119,6 @@ async function main(): Promise<number> {
 
   console.error(`Installing and starting ${packageSpec}…`);
   const report = await runAppTest({
-    appsDir: config.appsDir,
     signal: AbortSignal.timeout(300_000),
     slug,
   });

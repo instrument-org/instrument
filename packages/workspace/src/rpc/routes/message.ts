@@ -4,10 +4,6 @@ import { isEqual } from "radashi";
 import { z } from "zod";
 
 import { changedMessageBatches } from "../../lib/changed-message-batches";
-import {
-  attachmentsWaitingToMove,
-  rewriteChatFolder,
-} from "../../lib/chat-folders/write-chat-folder";
 import { ChatReads } from "../../lib/chat-reads";
 import { ChatWrites } from "../../lib/chat-writes";
 import { ensureChatSession } from "../../lib/create-session";
@@ -227,17 +223,6 @@ const create = base
           throw toORPCError(written.error, errors);
         }
         context.workspaceConfig.lookUpSentLinkTitles?.(prompt);
-        // The chat's `CHAT.md` takes the message the person just sent,
-        // without the send waiting on it, unless what they sent is still to
-        // move into the chat's folder: the turn names each file where it is,
-        // so it starts once they are there.
-        const moving = await attachmentsWaitingToMove(chatId);
-        const rewritten = rewriteChatFolder(chatId).catch((error: unknown) => {
-          context.workspaceConfig.captureException(error);
-        });
-        if (moving) {
-          await rewritten;
-        }
         context.workspaceRef.send({
           type: "addMessage",
           value: {

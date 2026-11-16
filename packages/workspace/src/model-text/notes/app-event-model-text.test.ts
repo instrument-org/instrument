@@ -75,7 +75,7 @@ describe("the note an app event wakes the chat with", () => {
       "
       <instrument-system-note>
       An app changed:
-      - Slack (slack) was removed: its folder is gone along with its sign-in or key. Set it up again with \`instrument app new\` only if the user asks for it.
+      - Slack (slack) was removed, along with its sign-in or key. Set it up again with \`instrument app new\` only if the user asks for it.
       This changed outside the conversation since your last turn. It is only so you know: answer what the user wrote.
       </instrument-system-note>"
     `);

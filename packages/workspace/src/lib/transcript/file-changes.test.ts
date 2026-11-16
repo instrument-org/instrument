@@ -3,11 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  CHAT_FILE_NAME,
-  CHAT_FOLDER_NAMES,
-  FOLDER_VARIABLES,
-} from "../../constants";
+import { CHAT_FOLDER_NAMES, FOLDER_VARIABLES } from "../../constants";
 import {
   fileTouches,
   foldersEntered,
@@ -77,12 +73,11 @@ describe("fileTouches", () => {
     expect(files.filter((file) => file.change === "deleted")).toEqual([]);
   });
 
-  it("leaves out the chat's own file, command logs and the system's clutter", async () => {
+  it("leaves out command logs and the system's clutter", async () => {
     const watching = await watch();
     await fs.mkdir(path.join(work, CHAT_FOLDER_NAMES.toolOutput));
     const log = path.join(work, CHAT_FOLDER_NAMES.toolOutput, "bg_1.log");
     await write(log);
-    await write(path.join(work, CHAT_FILE_NAME));
     await write(path.join(work, ".DS_Store"));
     await write(path.join(work, "report.csv"));
     const { files } = await fileTouches(watching, {
@@ -126,7 +121,7 @@ describe("fileTouches", () => {
     await write(inHome);
     await write(inSub);
     const { files } = await fileTouches(watching, {
-      command: `cat > "$${FOLDER_VARIABLES.output}/note.md"; cp x ~/home-note.md; cd "${elsewhere}/sub" && touch deep.txt`,
+      command: `cat > "$${FOLDER_VARIABLES.files}/note.md"; cp x ~/home-note.md; cd "${elsewhere}/sub" && touch deep.txt`,
       output: "",
     });
     expect(files.map((touch) => touch.path).toSorted()).toEqual(

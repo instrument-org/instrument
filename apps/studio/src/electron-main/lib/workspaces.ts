@@ -246,6 +246,18 @@ export function unchosenOutputFolder(
 }
 
 /**
+ * Where finished work goes for a workspace kept in the app's own data:
+ * `INSTRUMENT_OUTPUT_FOLDER`, a driven fixture's or a test's own folder so
+ * its agents never write into the developer's real Instrument folder, and
+ * otherwise {@link unchosenOutputFolder}.
+ */
+export function appDataOutputFolder(userDataDir: string): string {
+  return process.env.INSTRUMENT_OUTPUT_FOLDER
+    ? path.resolve(process.env.INSTRUMENT_OUTPUT_FOLDER)
+    : unchosenOutputFolder(userDataDir);
+}
+
+/**
  * Whether this computer has used the app before, by whether the workspace
  * the app keeps in its own data holds a chat.
  *

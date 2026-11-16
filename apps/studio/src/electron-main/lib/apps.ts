@@ -28,17 +28,17 @@ import {
   type WorkspaceConfig,
 } from "@instrument-org/workspace/electron";
 
-// The workspace's apps directory, kept here once the workspace boots: the
-// sign-in callback names an app by its manifest and runs outside any RPC
-// context that would carry the config.
-let appsDirRef: undefined | WorkspaceConfig["appsDir"];
+// Whether the workspace has booted, so its apps can be read: the sign-in
+// callback names an app by its manifest and runs outside any RPC context
+// that would carry the config.
+let appsReadable = false;
 
-export function getAppsDir(): undefined | WorkspaceConfig["appsDir"] {
-  return appsDirRef;
+export function appsReady(): boolean {
+  return appsReadable;
 }
 
-export function rememberAppsDir(appsDir: WorkspaceConfig["appsDir"]): void {
-  appsDirRef = appsDir;
+export function rememberAppsReady(): void {
+  appsReadable = true;
 }
 
 const DEFAULT_PORT =
@@ -57,12 +57,9 @@ export async function announceConnected(slug: string) {
   });
 }
 
-/** The app's own name for a note, falling back to the slug when the folder is gone. */
-export async function appName(
-  appsDir: WorkspaceConfig["appsDir"],
-  slug: string,
-): Promise<string> {
-  const loaded = await loadApp(appsDir, slug);
+/** The app's own name for a note, falling back to the slug when the app is gone. */
+export async function appName(slug: string): Promise<string> {
+  const loaded = await loadApp(slug);
   return loaded.isOk() ? loaded.value.name : slug;
 }
 
@@ -70,16 +67,13 @@ export async function appName(
  * The app's mark for the page a sign-in lands on, as a data address: its own
  * icon, else the directory's for the service it reaches.
  */
-export async function appMark(
-  appsDir: WorkspaceConfig["appsDir"],
-  slug: string,
-): Promise<string | undefined> {
-  const loaded = await loadApp(appsDir, slug);
+export async function appMark(slug: string): Promise<string | undefined> {
+  const loaded = await loadApp(slug);
   if (loaded.isErr()) {
     return undefined;
   }
-  const { dir, manifest } = loaded.value;
-  const own = await findAppIcon(dir).catch(() => undefined);
+  const { manifest } = loaded.value;
+  const own = await findAppIcon(loaded.value.slug).catch(() => undefined);
   if (own) {
     return iconDataUri(own.bytes, own.fileName);
   }
@@ -142,15 +136,15 @@ export function createAppsConfig(): WorkspaceConfig["apps"] {
 }
 
 /**
- * Take an app's key, tokens, and connection away, leaving its folder, and
- * tell both the window and the chat.
+ * Take an app's key, tokens, and connection away, leaving the app set up,
+ * and tell both the window and the chat.
  */
 export async function disconnectApp(
   slug: string,
   {
     event = "disconnected",
   }: {
-    /** Whether the folder goes too, which the note to the chat says. */
+    /** Whether the app goes too, which the note to the chat says. */
     event?: "disconnected" | "removed";
   } = {},
 ): Promise<void> {
@@ -220,7 +214,7 @@ export async function receiveAppCallback(
   const state = params.get("state") ?? undefined;
   const oauthError = params.get("error") ?? undefined;
   const oauthErrorDescription = params.get("error_description") ?? undefined;
-  const appsDir = getAppsDir();
+  const readable = appsReady();
   const slug = state === undefined ? undefined : pendingMcpOAuthSlug(state);
   // The sign-in's pages in the window's browser end with this one: where
   // the tab goes next is the person's own history again.
@@ -231,7 +225,7 @@ export async function receiveAppCallback(
     // Denied, refused, or abandoned in the provider's page: the flow is torn
     // down.
     await cancelMcpOAuth(state);
-    if (slug === undefined || !appsDir) {
+    if (slug === undefined || !readable) {
       return { outcome: "expired" };
     }
     if (oauthError === undefined) {
@@ -268,7 +262,7 @@ export async function receiveAppCallback(
     if (slug === undefined) {
       return { outcome: "expired" };
     }
-    if (appsDir) {
+    if (readable) {
       await settleConnection(slug, {
         error: result.error.message,
         status: "failed",
@@ -276,7 +270,7 @@ export async function receiveAppCallback(
     }
     return { error: result.error.message, outcome: "failed", slug };
   }
-  if (appsDir) {
+  if (readable) {
     await announceConnected(result.value.slug);
   }
   return {

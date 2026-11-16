@@ -19,6 +19,7 @@ import { type ModelRoutes } from "./route-model";
 export async function fetchAISDKModel({
   captureException,
   configs,
+  fetch,
   modelCache,
   modelRoutes,
   modelURI,
@@ -26,6 +27,8 @@ export async function fetchAISDKModel({
 }: {
   captureException: CaptureExceptionFunction;
   configs: AIGatewayProviderConfig.Type[];
+  /** The fetch the model's requests go through; see `aiSDKForProviderConfig`. */
+  fetch?: typeof globalThis.fetch;
   modelCache: ModelCache;
   modelRoutes?: ModelRoutes;
   modelURI: AIGatewayModelURI.Type;
@@ -65,6 +68,7 @@ export async function fetchAISDKModel({
     }
 
     const sdk = await aiSDKForProviderConfig(routed, workspaceServerURL, {
+      fetch,
       sourceModelIdOf: (modelId) =>
         modelId === model.providerId ? model.sourceModelId : undefined,
     });

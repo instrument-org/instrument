@@ -119,10 +119,12 @@ export function openCodeAuthor(modelId: string): string {
 export async function createOpenCodeLanguageModel(
   config: OpenCodeProviderConfig,
   workspaceServerURL: WorkspaceServerURL,
+  fetch?: typeof globalThis.fetch,
 ): Promise<(modelId: string) => LanguageModelV4> {
   const settings = {
     apiKey: internalAPIKey(),
     baseURL: internalURL({ config, workspaceServerURL }),
+    fetch,
   };
   const [
     { createAnthropic },

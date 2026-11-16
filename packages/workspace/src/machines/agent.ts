@@ -20,6 +20,7 @@ import { ChatReads } from "../lib/chat-reads";
 import { ChatWrites } from "../lib/chat-writes";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getErrorAction } from "../lib/get-error-action";
+import { MAX_RETRY_AFTER_MS, retryDelayMs } from "../lib/provider-retry";
 import { isToolPart } from "../lib/is-tool-part";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import { isArriving } from "../lib/records/arriving";
@@ -418,9 +419,12 @@ export const agentMachine = setup({
     capacityWait: ({ context }) =>
       context.baseLLMRetryDelayMs * CAPACITY_WAIT_FACTOR,
     requestAbortBackstop: REQUEST_ABORT_BACKSTOP_MS,
-    retryBackoff: ({ context }) => {
-      return context.baseLLMRetryDelayMs * Math.pow(2, context.retryCount - 1);
-    },
+    retryBackoff: ({ context }) =>
+      retryDelayMs({
+        baseMs: context.baseLLMRetryDelayMs,
+        retryAfterMs: context.retryAfterMs,
+        retryCount: context.retryCount,
+      }),
   },
 
   types: {
@@ -443,6 +447,8 @@ export const agentMachine = setup({
       partsLeftBehind: boolean;
       /** Aborts the request in flight, with why, while the machine waits for it; one per request. */
       requestStop?: AbortController;
+      /** How long the failed attempt's provider asked to wait before the next; cleared as each starts. */
+      retryAfterMs?: number;
       /** The attempt in flight timed out or failed in a way another attempt can fix; cleared as each starts. */
       retryable: boolean;
       retryCount: number;
@@ -481,7 +487,7 @@ export const agentMachine = setup({
     baseLLMRetryDelayMs: input.baseLLMRetryDelayMs,
     capacityWaitCount: 0,
     llmRequestChunkTimeoutMs: input.llmRequestChunkTimeoutMs,
-    maxAttemptCount: 3,
+    maxAttemptCount: MAX_ATTEMPT_COUNT,
     maxStepCount: input.maxStepCount,
     model: input.model,
     outputLimitContinuations: 0,
@@ -644,7 +650,7 @@ export const agentMachine = setup({
         /**
          * The turn is over once what it wrote is in the chat's files, so
          * everything that hears `agent.done` (the session's end, and the
-         * wake, retitle, unread mark and CHAT.md it starts) reads all of it.
+         * wake, retitle and unread mark it starts) reads all of it.
          */
         LandingRecords: {
           invoke: {
@@ -699,6 +705,7 @@ export const agentMachine = setup({
     LLMStreaming: {
       entry: assign({
         requestStop: () => new AbortController(),
+        retryAfterMs: undefined,
         retryable: false,
       }),
       initial: "Streaming",
@@ -753,7 +760,12 @@ export const agentMachine = setup({
               }
               const action = getErrorAction(output.message).type;
               if (action === "retry") {
-                return { retryable: true };
+                const error = output.message.metadata.error;
+                return {
+                  retryAfterMs:
+                    error?.kind === "api-call" ? error.retryAfterMs : undefined,
+                  retryable: true,
+                };
               }
               return action === "stop" ? { stopReason: "manual" as const } : {};
             }),
@@ -827,6 +839,9 @@ export const agentMachine = setup({
           guard: ({ context }) =>
             context.stopReason === undefined &&
             context.retryable &&
+            // A provider asking for a longer wait than that has a limit the
+            // person should see now, rather than a turn that sits silent.
+            (context.retryAfterMs ?? 0) <= MAX_RETRY_AFTER_MS &&
             // The first request spent one of the attempts.
             context.retryCount + 1 < context.maxAttemptCount,
           target: "RetryingWithDelay",
@@ -1029,6 +1044,12 @@ const MAX_CONCURRENT_TOOL_CALLS = 8;
  * count this low.
  */
 const CAPACITY_WAIT_FACTOR = 10;
+
+/**
+ * Attempts a turn's request gets, the first included. Five retries at waits
+ * doubling to ten seconds outlast a provider's busy spell of half a minute.
+ */
+const MAX_ATTEMPT_COUNT = 6;
 const MAX_CAPACITY_WAITS = 30;
 
 /**

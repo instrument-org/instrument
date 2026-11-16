@@ -41,13 +41,13 @@ Letters go to the finding; a `plus N similar` names siblings with the same root 
 ### F. Two lists of "what the person sees in the chat" already disagree
 
 - Status: open
-- Where: [views.ts:40](/packages/workspace/src/lib/records/views.ts#L40), [chat-markdown.ts:61](/packages/workspace/src/lib/chat-folders/chat-markdown.ts#L61)
+- Where: [views.ts:40](/packages/workspace/src/lib/records/views.ts#L40), [chat-markdown.ts:61](/packages/workspace/src/lib/chat-markdown/chat-markdown.ts#L61)
 - What: `CONVERSATION_PARTS` ("Parts the chat view draws for everyone") has `data-branchedFrom`, `data-chatChanges`, `data-fileChanges`, `data-folderChanges`, `data-fromChat`, `data-maxSteps`, `data-ratingCard`, `data-viewContext` and the feedback tool; `VISIBLE` ("Parts of a message the person sees in the chat") lacks all of those and adds `data-questionAnswer`, `data-taskEvent` and `file`. The renderer is the third copy. Whichever is right, `CHAT.md` either omits task events and question answers the person saw or includes rows the chat never draws, and the steps view keeps blobs for parts nobody shows.
 
 ### G. The chat's shown title is derived twice, with the same three lines
 
 - Status: open
-- Where: [chat-info.ts:130](/packages/workspace/src/lib/chat-info.ts#L130), [chat-markdown.ts:193](/packages/workspace/src/lib/chat-folders/chat-markdown.ts#L193)
+- Where: [chat-info.ts:130](/packages/workspace/src/lib/chat-info.ts#L130), [chat-markdown.ts:193](/packages/workspace/src/lib/chat-markdown/chat-markdown.ts#L193)
 - What: `shownTitle` exists "so the chat list and the chat's folder read the same", and each caller picks the root message itself before calling it. Change the pick in one (first user message with text, skipping a dictated placeholder) and the chat list row and the `Chats/<title>/` folder name diverge. Plus 1 similar: "the chat's own session" is found by `!session.parent` at `chat-info.ts:106`, `chat-markdown.ts:203` and `convert-chat-settings.ts:112` while the index answers it through `chatSessionIn` (`record-folders.ts:316`); they agree only because the fold sorts sessions by id.
 
 ### H. The task command's word and its handle shape are typed by hand beside `TASK_COMMAND`

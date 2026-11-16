@@ -1,4 +1,5 @@
 import os from "node:os";
+import path from "node:path";
 
 import { type ChatGrant } from "../permissions/rules";
 import { MountedFolder } from "../../schemas/mounted-folder";
@@ -11,7 +12,7 @@ import { chatGrants } from "./grants";
 import { type PlaceId, placePaths } from "../permissions/places";
 import { readPermissionSettings } from "../permissions/rules";
 import { outputFolderPath } from "./output-folder";
-import { listProjects } from "./projects";
+import { listProjects, projectsDir } from "./projects";
 import { type ChatId } from "../../schemas/chat-id";
 
 /**
@@ -111,6 +112,26 @@ function standingFolder(folderPath: string): MountedFolder.Type {
     id: MountedFolder.IdSchema.parse(`reach:${folderPath}`),
     path: AbsolutePathSchema.parse(folderPath),
   };
+}
+
+/**
+ * The folder of the project the chat is filed under, under `Projects/`, or
+ * nothing for a chat filed under none.
+ */
+export async function filedProjectFolder(
+  chatId: ChatId,
+): Promise<string | undefined> {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    return undefined;
+  }
+  const session = await ChatReads.session({ chatId, sessionId });
+  const filed = session.isOk() ? session.value.project : undefined;
+  if (filed === undefined) {
+    return undefined;
+  }
+  const project = (await listProjects()).find((entry) => entry.id === filed);
+  return project ? path.join(projectsDir(), project.name) : undefined;
 }
 
 /**

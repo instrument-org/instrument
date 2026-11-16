@@ -6,7 +6,6 @@ import {
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StopIcon } from "@phosphor-icons/react/Stop";
@@ -296,8 +295,7 @@ export interface ChatProjectMenu {
 
 /**
  * A chat's own menu, in a dropdown or under a right-click alike: while the
- * chat works, Stop, which ends its turn and every task's; the chat's own
- * folder where the menu opens it; then the inbox
+ * chat works, Stop, which ends its turn and every task's; then the inbox
  * row's menu in the same groups and order (see `chatMenuGroups`), with
  * renaming it among the ways to organize it, and deleting it at the foot.
  */
@@ -307,7 +305,6 @@ export function ChatMenuItems({
   onArchived,
   onDelete,
   onRename,
-  onShowFolder,
   projectMenu,
 }: {
   chat: Chat;
@@ -316,8 +313,6 @@ export function ChatMenuItems({
   onArchived?: (() => void) | undefined;
   onDelete: () => void;
   onRename: () => void;
-  /** Opens the chat's own folder beside it, where the menu offers that: while the folder has files. */
-  onShowFolder?: (() => void) | undefined;
   /** The projects to file the chat under, as a submenu, where the menu files it. */
   projectMenu?: ChatProjectMenu | undefined;
 }) {
@@ -347,15 +342,6 @@ export function ChatMenuItems({
           >
             <StopIcon className="size-4" />
             Stop
-          </menu.Item>
-          <menu.Separator />
-        </>
-      )}
-      {onShowFolder && (
-        <>
-          <menu.Item onSelect={onShowFolder}>
-            <FolderSimpleIcon className="size-4" />
-            Show Chat Folder
           </menu.Item>
           <menu.Separator />
         </>

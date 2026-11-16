@@ -1,4 +1,7 @@
-import { type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
+import {
+  type SDKMessage,
+  type SDKResultMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -50,6 +53,79 @@ describe("nextMessage", () => {
         ]),
       ),
     ).rejects.toThrow("out of turns");
+  });
+
+  it.each<{
+    expected: { statusCode: number; type: string };
+    name: string;
+    result: Partial<Extract<SDKResultMessage, { subtype: "success" }>>;
+  }>([
+    {
+      expected: { statusCode: 400, type: "claude_account_prompt_too_long" },
+      name: "a prompt too long",
+      result: {
+        result: "Prompt is too long",
+        terminal_reason: "prompt_too_long",
+      },
+    },
+    {
+      expected: { statusCode: 400, type: "claude_account_prompt_too_long" },
+      name: "the window's blocking limit",
+      result: {
+        result: "Context limit reached",
+        terminal_reason: "blocking_limit",
+      },
+    },
+    {
+      expected: { statusCode: 429, type: "rate_limit_error" },
+      name: "the blocking limit while throttled",
+      result: {
+        api_error_status: 429,
+        result: "API Error: 429",
+        terminal_reason: "blocking_limit",
+      },
+    },
+    {
+      expected: { statusCode: 400, type: "claude_account_image_error" },
+      name: "an image the API would not take",
+      result: {
+        result: "Could not process image",
+        terminal_reason: "image_error",
+      },
+    },
+    {
+      expected: { statusCode: 400, type: "invalid_request_error" },
+      name: "repeated malformed tool calls",
+      result: {
+        result: "Gave up",
+        terminal_reason: "malformed_tool_use_exhausted",
+      },
+    },
+    {
+      expected: { statusCode: 529, type: "overloaded_error" },
+      name: "an overloaded API after Claude Code's own retries",
+      result: { api_error_status: 529, result: "API Error: 529 Overloaded" },
+    },
+    {
+      expected: { statusCode: 502, type: "api_error" },
+      name: "a server error after Claude Code's own retries",
+      result: { api_error_status: 500, result: "API Error: 500" },
+    },
+    {
+      expected: { statusCode: 500, type: "api_error" },
+      name: "a failure that says nothing more",
+      result: { result: "Something went wrong" },
+    },
+  ])("names $name from the result", async ({ expected, result }) => {
+    const failure = await nextMessage(
+      source([
+        { is_error: true, subtype: "success", type: "result", ...result },
+      ]),
+    ).catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      responseBody: expect.stringContaining(`"type":"${expected.type}"`),
+      statusCode: expected.statusCode,
+    });
   });
 
   it("fails with what the CLI said when it exits", async () => {

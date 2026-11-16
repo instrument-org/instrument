@@ -528,11 +528,20 @@ describe("finishPendingMove", () => {
       }),
     );
     // A draft carrying a file from the folder.
-    fs.mkdirSync(path.join(workspace.path, "Drafts", "2026-10-16"), {
-      recursive: true,
-    });
+    fs.mkdirSync(
+      path.join(workspace.path, ".instrument", "drafts", "2026-10-16"),
+      {
+        recursive: true,
+      },
+    );
     fs.writeFileSync(
-      path.join(workspace.path, "Drafts", "2026-10-16", "DRAFT.md"),
+      path.join(
+        workspace.path,
+        ".instrument",
+        "drafts",
+        "2026-10-16",
+        "DRAFT.md",
+      ),
       [
         "---",
         'id: "d1"',
@@ -565,7 +574,7 @@ describe("finishPendingMove", () => {
     // The draft still names the file it was given.
     expect(
       fs.readFileSync(
-        path.join(picked, "Drafts", "2026-10-16", "DRAFT.md"),
+        path.join(picked, ".instrument", "drafts", "2026-10-16", "DRAFT.md"),
         "utf8",
       ),
     ).toContain(JSON.stringify(path.join(moved, "a.zip")));

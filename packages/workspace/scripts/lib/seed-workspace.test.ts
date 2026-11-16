@@ -199,16 +199,14 @@ describe("seedWorkspace", () => {
     const { fixtures, seeded } = await seedInto(userDataDir, {
       fixtures: ["legacy-tasks"],
     });
-    const task = at(at(fixtures, 0).tasks, 0);
-
-    expect(seeded).toEqual([
-      {
-        id: task.task.key,
-        key: task.task.key,
+    expect(seeded).toEqual(
+      at(fixtures, 0).tasks.map(({ task }) => ({
+        id: task.key,
+        key: task.key,
         kind: "task",
-        name: task.task.name,
-      },
-    ]);
+        name: task.name,
+      })),
+    );
     const settings = JSON.parse(
       await fs.readFile(
         path.join(

@@ -259,14 +259,10 @@ describe("isRecordPath", () => {
       data("chats", "c", "attachments", "..", "chat.db"),
       true,
     ],
+    ["a draft", data("drafts", "2026-10-14", "DRAFT.md"), false],
     [
-      "a draft in Drafts",
-      "/Users/sam/Instrument/Drafts/2026-10-14/DRAFT.md",
-      false,
-    ],
-    [
-      "what a build left in the folder drafts were hidden in",
-      data("drafts", "d", "draft.md"),
+      "a record folder inside a draft's folder",
+      data("drafts", "d", ".instrument", "settings.json"),
       true,
     ],
     [

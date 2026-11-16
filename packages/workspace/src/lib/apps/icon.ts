@@ -1,16 +1,16 @@
-import fs from "node:fs/promises";
 import path from "node:path";
 
-import { type AbsolutePath } from "../../schemas/paths";
-import { ownFolder, writeOwnFile } from "../own-file";
 import { readBytes } from "../workspace-files";
+import { type AppSlug } from "./manifest";
+import { readAppIcon, writeAppIcon } from "./store";
 
 /**
- * An app's own icon: a file in its folder, drawn in place of its Mac app's
- * icon and its site's. The agent authors it (a mark drawn for a service whose
- * site has none worth showing, a local server with no Mac app, or one the
- * user asked for) and `instrument app icon` puts it there after checking it draws well.
- * SVG first, since it is sharp at every size.
+ * An app's own icon, drawn in place of its Mac app's icon and its site's,
+ * kept in the apps store beside the app. The agent authors it (a mark drawn
+ * for a service whose site has none worth showing, a local server with no
+ * Mac app, or one the user asked for) and `instrument app icon` sets it after
+ * checking it draws well. SVG first, since it is sharp at every size; an
+ * earlier build's app folder kept it as one of these files.
  */
 const APP_ICON_FILE_NAMES = ["icon.svg", "icon.png"] as const;
 
@@ -73,9 +73,12 @@ export function checkAppIcon(
   return { error: "the file is neither a PNG nor an SVG." };
 }
 
-/** The app's own icon file, when its folder has one. */
-export async function findAppIcon(
-  appDir: AbsolutePath,
+/**
+ * An icon file an earlier build kept in an app's folder, when it has one: what
+ * the launch takes into the store with the app.
+ */
+export async function readIconInFolder(
+  appDir: string,
 ): Promise<undefined | { bytes: Buffer; fileName: IconFileName }> {
   for (const fileName of APP_ICON_FILE_NAMES) {
     try {
@@ -92,23 +95,24 @@ export async function findAppIcon(
   return undefined;
 }
 
-/** Puts the icon in the folder, replacing whichever one was there. */
-export async function writeAppIcon(
-  appDir: AbsolutePath,
+/** The app's own icon, when it has one. */
+export async function findAppIcon(
+  slug: AppSlug,
+): Promise<undefined | { bytes: Buffer; fileName: IconFileName }> {
+  const icon = await readAppIcon(slug);
+  return icon
+    ? { bytes: Buffer.from(icon.data, "base64"), fileName: icon.fileName }
+    : undefined;
+}
+
+/** Draws the app with the icon, replacing whichever one it had. */
+export async function setAppIcon(
+  slug: AppSlug,
   bytes: Uint8Array,
   fileName: IconFileName,
 ) {
-  // The apps folder is the agent's, so a removal through a link it put in
-  // place of the app's folder would land wherever that leads.
-  ownFolder({ dir: appDir, folder: path.dirname(appDir) });
-  await Promise.all(
-    APP_ICON_FILE_NAMES.filter((name) => name !== fileName).map((name) =>
-      fs.rm(path.join(appDir, name), { force: true }),
-    ),
-  );
-  writeOwnFile({
-    data: bytes,
-    file: path.join(appDir, fileName),
-    folder: path.dirname(appDir),
+  await writeAppIcon(slug, {
+    data: Buffer.from(bytes).toString("base64"),
+    fileName,
   });
 }

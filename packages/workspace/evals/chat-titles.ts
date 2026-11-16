@@ -42,15 +42,12 @@ import { list } from "radashi";
 import { ulid } from "ulid";
 import { createActor } from "xstate";
 
-import { CHATS_FOLDER_NAME } from "../src/constants";
 import { attachChats, workspaceMachine } from "../src/electron";
 import { loadChatIndex } from "../src/lib/record-folders";
 import { workspaceLayout } from "../src/lib/workspace-layout";
 import { createMemoryAppsConfig } from "../src/lib/apps/memory-config";
 import { ensureChat } from "../src/lib/chat/chat-records";
 import { renameChat } from "../src/lib/chat/chats";
-import { followTitle } from "../src/lib/chat-folders/follow-title";
-import { chatFolderNames } from "../src/lib/chat-folders/own-folder";
 import { nameChat, nameKey } from "../src/lib/chat/chat-name";
 import { generateTitleFromUserMessage } from "../src/lib/generate-title-from-user-message";
 import { ChatWrites } from "../src/lib/chat-writes";
@@ -428,26 +425,14 @@ async function main() {
     for (const seed of SEEDS) {
       const { chatId } = await openChat(seed.ask, uri);
       await renameChat(chatId, seed.title);
-      await followTitle(chatId, seed.title);
     }
     const model = await modelFor(uri, workspaceConfig);
-    const chatsDir = path.join(rootDir, CHATS_FOLDER_NAME);
     const context: CaseContext = {
       ask: (prompt) => openChat(prompt, uri),
       model,
-      // What the chat may not be called: every seeded title and every folder
-      // but its own, the way the folder layer counts a collision.
-      taken: async (chatId) => {
-        const own = chatFolderNames(workspaceConfig.workspaceMachineDir).get(
-          chatId,
-        );
-        const folders = (await fs.readdir(chatsDir)).filter(
-          (name) => name !== own,
-        );
-        return new Set(
-          [...SEEDS.map((seed) => seed.title), ...folders].map(nameKey),
-        );
-      },
+      // What the chat may not be called: every seeded title.
+      taken: () =>
+        Promise.resolve(new Set(SEEDS.map((seed) => nameKey(seed.title)))),
       workspaceConfig,
     };
     const picked = CASES.filter(

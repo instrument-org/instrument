@@ -9,7 +9,7 @@ import { z } from "zod";
  * tabs, `layout` the rest of where the person left off, and `view` how they
  * like things laid out. All stay on this computer, in the workspace's
  * machine folder. Drafts are not kept here: main owns them
- * as a folder each in the workspace's `Drafts/` (`shared/drafts.ts`). Nor are
+ * as a folder each in the workspace's `.instrument/drafts/` (`shared/drafts.ts`). Nor are
  * bookmarks: they are a synced store every device writes its own file of
  * (`shared/bookmarks.ts`).
  */

@@ -297,9 +297,8 @@ function moveKeptDraftsToFolders(workspacePath: string, done: string[]) {
 /**
  * One draft in a folder of its own under the drafts folder, in the shape the
  * build after the beta read: its words in `draft.md` and the rest of its
- * record in its own `.instrument/settings.json`. The drafts move again from
- * there, out to `Drafts/` at the workspace's top level
- * (`lib/drafts/migrate.ts`), which is why this writes the old shape rather
+ * record in its own `.instrument/settings.json`. The drafts are converted
+ * again where they are (`lib/drafts/migrate.ts`), which is why this writes the old shape rather
  * than today's: a workspace two shapes behind takes one hop at a time, and
  * each hop is a migration that can be run again.
  */

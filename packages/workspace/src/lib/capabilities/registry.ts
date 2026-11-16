@@ -16,6 +16,7 @@ import {
   appsGuide,
   appsIcon,
   appsNew,
+  appsSetup,
   appsTest,
 } from "./apps-setup";
 import { activityList } from "./activity";
@@ -76,6 +77,7 @@ export const CAPABILITIES: readonly Capability[] = [
   appsRead,
   appsRequest,
   appsGuide,
+  appsSetup,
   appsIcon,
   appsAccount,
   appsDisconnect,

@@ -29,7 +29,7 @@ import { type AppConnectionStatus, readConnection } from "./connection";
 import { startAppEvents } from "./events";
 import { AppSlugSchema } from "./manifest";
 import { createMemoryAppsConfig } from "./memory-config";
-import { writeAppFolder } from "./store";
+import { writeApp } from "./store";
 
 const woken = vi.hoisted(() =>
   vi.fn(
@@ -160,8 +160,7 @@ async function chatWithCard({
     });
   }
   for (const [slug, name] of apps) {
-    await writeAppFolder({
-      appsDir: getWorkspaceConfig().appsDir,
+    await writeApp({
       guide: "",
       manifest: {
         auth: { kind: "oauth" },
@@ -335,6 +334,7 @@ describe("a card asking for several apps", () => {
 
     await answerRow("docs", "failed");
 
+    await vi.waitFor(() => expect(wakes()).not.toEqual([]));
     expect(wakes().map(({ events, signIns }) => ({ events, signIns }))).toEqual(
       [
         {
@@ -439,6 +439,7 @@ describe("a card asking for several apps", () => {
     expect(wakes()).toEqual([]);
     await answerRow("gmail", "connected");
 
+    await vi.waitFor(() => expect(wakes()).not.toEqual([]));
     expect(wakes()).toEqual([
       expect.objectContaining({ notOnCard: [{ reason, slug: "sheets" }] }),
     ]);
@@ -495,6 +496,16 @@ describe("Not now from another computer", () => {
   it("settles a card with a sign-in that failed, and leaves an app that just connected", async () => {
     const { chatId, sessionId } = await chatWithCard();
     await answerRow("drive", "failed");
+    // The failed row wakes the chat on its own; on a slow machine that wake
+    // can land after the fixed wait, so wait for it before counting.
+    await vi.waitFor(() => {
+      expect(
+        wakes().some(
+          (wake) =>
+            wake.chatId === chatId && wake.events.includes("drive failed"),
+        ),
+      ).toBe(true);
+    });
     // Connected on this computer since the card's rows were last written.
     await setStatus("gmail", "connected");
     woken.mockClear();

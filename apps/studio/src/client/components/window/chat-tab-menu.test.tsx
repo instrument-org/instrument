@@ -165,20 +165,15 @@ describe("a chat tab's menu", () => {
     });
   });
 
-  it("copies the folder paths of the chat it was raised on", async () => {
+  it("copies the work folder path of the chat it was raised on", async () => {
     const [, second] = strip();
 
-    await openSubmenu(second, "Copy");
-    fireEvent.click(
-      await screen.findByRole("menuitem", { name: "Chat Folder Path" }),
-    );
     await openSubmenu(second, "Copy");
     fireEvent.click(
       await screen.findByRole("menuitem", { name: "Work Folder Path" }),
     );
 
     expect(calls.rpc.mock.calls).toEqual([
-      ["utils.chatFolderPath", { id: SECOND }],
       ["utils.chatWorkFolderPath", { id: SECOND }],
     ]);
   });

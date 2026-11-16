@@ -7,7 +7,7 @@ import { type ToldApps } from "../schemas/told";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
 import { AppSlugSchema } from "./apps/manifest";
 import { createMemoryAppsConfig } from "./apps/memory-config";
-import { loadApp, writeAppFolder } from "./apps/store";
+import { loadApp, writeApp } from "./apps/store";
 import {
   appEventsBetween,
   appWakeNote,
@@ -68,8 +68,7 @@ describe("detectChatAppChanges", () => {
       ...getWorkspaceConfig(),
       apps: createMemoryAppsConfig(),
     });
-    await writeAppFolder({
-      appsDir: getWorkspaceConfig().appsDir,
+    await writeApp({
       guide: "",
       manifest: {
         auth: { kind: "none" },
@@ -131,15 +130,13 @@ describe("appWakeNote", () => {
       { createdAt: new Date(), id: sessionId, title: "Test session" },
       chatId,
     );
-    const { appsDir } = getWorkspaceConfig();
     const apps = createMemoryAppsConfig();
     setWorkspaceConfig({ ...getWorkspaceConfig(), apps });
     for (const [slug, name] of [
       ["wake-linear", "Linear"],
       ["wake-notion", "Notion"],
     ] as const) {
-      await writeAppFolder({
-        appsDir,
+      await writeApp({
         guide: "",
         manifest: {
           auth: { kind: "none" },
@@ -151,7 +148,7 @@ describe("appWakeNote", () => {
       });
     }
     const hashOf = async (slug: string) =>
-      (await loadApp(appsDir, slug))._unsafeUnwrap().manifestHash;
+      (await loadApp(slug))._unsafeUnwrap().manifestHash;
     await apps.connections.set("wake-linear", {
       manifestHash: await hashOf("wake-linear"),
       status: "connected",

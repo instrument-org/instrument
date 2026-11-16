@@ -27,6 +27,12 @@ import { fromPromise } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
 import { classifyProviderError } from "../lib/classify-provider-error";
+import { fetchWithActivity } from "../lib/fetch-activity";
+import { readRetryHeaders } from "../lib/provider-retry";
+import {
+  REPLY_CONTENT_PART_TYPES,
+  unfinishedReply,
+} from "../lib/unfinished-reply";
 import { describeErrorCause } from "../lib/describe-error-cause";
 import { getCurrentDate } from "../lib/get-current-date";
 import { isStorageFullError } from "../lib/is-storage-full-error";
@@ -432,6 +438,12 @@ export const llmRequestLogic = fromPromise<
     const aiSDKModelResult = await fetchAISDKModel({
       captureException: workspaceConfig.captureException,
       configs: workspaceConfig.getAIProviderConfigs(),
+      // Bytes arriving start the chunk timeout over, so a request a provider
+      // holds in its queue, sending only keep-alive comments, is not aborted
+      // as one that went quiet.
+      fetch: fetchWithActivity(() => {
+        input.self.send({ type: "llmRequest.chunkReceived" });
+      }),
       modelCache: workspaceConfig.modelCache,
       modelRoutes: workspaceConfig.modelRoutes,
       modelURI: input.model.uri,
@@ -501,6 +513,7 @@ export const llmRequestLogic = fromPromise<
       tools: request.tools,
     });
 
+    let repliedWithContent = false;
     for await (const part of result.stream) {
       if (isSignalAborted() || part.type === "abort") {
         // Ensures we don't try to process any more parts
@@ -510,6 +523,9 @@ export const llmRequestLogic = fromPromise<
         throw storageFullError;
       }
       input.self.send({ type: "llmRequest.chunkReceived" });
+      if (REPLY_CONTENT_PART_TYPES.has(part.type)) {
+        repliedWithContent = true;
+      }
       if (isNativeSearchPart(part, request.ownToolNames, nativeCallIds)) {
         continue;
       }
@@ -545,6 +561,14 @@ export const llmRequestLogic = fromPromise<
           throw part.error;
         }
         case "finish": {
+          const unfinished = unfinishedReply({
+            finishReason: part.finishReason,
+            repliedWithContent,
+            usage: part.totalUsage,
+          });
+          if (unfinished !== undefined) {
+            throw unfinished;
+          }
           msToFinish = msSinceRequestStart();
           const completionTokensPerSecond =
             part.totalUsage.outputTokens && msToFinish
@@ -1103,6 +1127,7 @@ export const llmRequestLogic = fromPromise<
           message: error.message,
           name: error.name,
           responseBody: error.responseBody,
+          ...readRetryHeaders(error.responseHeaders),
           statusCode: error.statusCode,
           url: error.url,
         };

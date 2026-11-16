@@ -56,3 +56,12 @@ export type ProviderErrorKind = z.output<typeof ProviderErrorKindSchema>;
 export const STREAM_ENDED_EARLY_CODE = "stream_ended_early";
 export const STREAM_ENDED_EARLY_MESSAGE =
   "The model's reply stopped before it finished.";
+
+/**
+ * A reply that finished normally with nothing in it: no text, no reasoning,
+ * no tool call. A provider's degenerate answer that the next attempt usually
+ * does not repeat, so it reads as transient. The message is how a stored
+ * error is recognized again.
+ */
+export const EMPTY_RESPONSE_CODE = "empty_response";
+export const EMPTY_RESPONSE_MESSAGE = "The model's reply was empty.";

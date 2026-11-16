@@ -6,8 +6,9 @@ import { filesUnder, fingerprintOf } from "./folder-fingerprint";
 
 /**
  * What each item of the person's setup is right now: whether it is there (its
- * `SKILL.md`, `APP.md` or memory file exists, or a project's folder does) and a fingerprint of
- * the files it holds. Keyed `kind:name`.
+ * `SKILL.md` or memory file exists, or a project's folder does) and a
+ * fingerprint of the files it holds. Keyed `kind:name`. An app is no file a
+ * program can change, so `instrument app` says what it changed itself.
  *
  * Read from the disk rather than from anyone's account of a write, so it sees
  * what any program changed. It is cheap because these folders are small once
@@ -31,7 +32,7 @@ export async function snapshotSetup(): Promise<SetupSnapshot> {
     snapshot.set(`${item.kind}:${item.name}`, item);
   };
   await Promise.all([
-    ...(["app", "skill", "project"] as const).map(async (kind) => {
+    ...(["skill", "project"] as const).map(async (kind) => {
       const dir = SETUP_KINDS[kind].folder();
       // The marker's place inside an item's folder.
       const marker = SETUP_KINDS[kind].marker("").slice(1);

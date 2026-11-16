@@ -1,12 +1,12 @@
-import { DRAFTS_FOLDER_NAME } from "../../src/constants";
 import { chooseQuestions } from "../../src/lib/choose-call";
+import { WORKSPACE_DATA_ENTRIES } from "../../src/lib/workspace-layout";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
 
 /**
  * A person asking for "a draft" means a draft of their own work, and the
- * app's `Drafts/` (their unsent replies) is never where it goes or a place
- * to offer it. A person who knows the app well enough to mean that folder
+ * app's drafts folder (`.instrument/drafts/`, their unsent replies) is never
+ * where it goes or a place to offer it. A person who knows the app well enough to mean that folder
  * says so, so the cases never name it.
  */
 
@@ -35,11 +35,11 @@ function whatItReachedFor(sessions: Session.WithMessagesAndParts[]) {
 const leavesTheAppsDraftsAlone: Assertion = {
   check: ({ sessions }) => {
     const { calls, choices } = whatItReachedFor(sessions);
-    const segment = new RegExp(`[/"']${DRAFTS_FOLDER_NAME}(/|["'\\s]|$)`);
-    const touched = calls.filter((call) => segment.test(call));
-    const offered = choices.filter((choice) =>
-      new RegExp(`\\b${DRAFTS_FOLDER_NAME}\\b`).test(choice),
+    const segment = new RegExp(
+      `\\.instrument/${WORKSPACE_DATA_ENTRIES.drafts}(/|["'\\s]|$)`,
     );
+    const touched = calls.filter((call) => segment.test(call));
+    const offered = choices.filter((choice) => /\bDrafts\b/.test(choice));
     return {
       evidence:
         touched.length > 0 || offered.length > 0

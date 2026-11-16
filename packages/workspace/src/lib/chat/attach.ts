@@ -1,7 +1,5 @@
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import { startAppEvents } from "../apps/events";
-import { startChatFolderWrites } from "../chat-folders/on-turn-end";
-import { startChatFolderNames } from "../chat-folders/record-found-folders";
 import { setWorkspaceActorRef } from "../workspace-actor-ref";
 import { startAskDriver } from "./drive-asks";
 import { startChatListFile } from "./chat-list-file";
@@ -50,8 +48,6 @@ export function attachChats(workspaceRef: WorkspaceActorRef): void {
   startWorkSummaries();
   startHandedFileOpens();
   startChatUnreadOnSettle();
-  startChatFolderWrites();
-  startChatFolderNames();
   startWorkDirReap(workspaceRef);
   startChatListFile();
 }

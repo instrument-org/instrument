@@ -1,6 +1,6 @@
 import { type StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
-import { cappedTitle } from "./chat-folders/folder-name";
+import { cappedTitle } from "./folder-name";
 import { ChatWrites } from "./chat-writes";
 import { isUntitledChatSessionTitle } from "./generate-session-title";
 import { ChatReads } from "./chat-reads";

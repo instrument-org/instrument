@@ -4,7 +4,7 @@ import { type ChatId } from "@instrument-org/workspace/client";
  * The drafts every window shows, and the one way they change.
  *
  * The main process owns them (`electron-main/drafts/draft-store.ts`): it is
- * the only writer of `Drafts/`, and it takes in what another device or a file
+ * the only writer of `.instrument/drafts/`, and it takes in what another device or a file
  * manager changes there. A window changes a draft by sending a {@link DraftOp}
  * and shows the drafts as main last said they were, with the ops it has sent
  * since applied over them, so its own changes show at once and a change from

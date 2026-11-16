@@ -137,9 +137,7 @@ beforeAll(async () => {
   );
   expect(created.stderr).toBe("");
   expect(created.exitCode).toBe(0);
-  const { manifestHash } = (
-    await loadApp(getWorkspaceConfig().appsDir, slug)
-  )._unsafeUnwrap();
+  const { manifestHash } = (await loadApp(slug))._unsafeUnwrap();
   await getWorkspaceConfig().apps.connections.set(slug, {
     manifestHash,
     status: "connected",

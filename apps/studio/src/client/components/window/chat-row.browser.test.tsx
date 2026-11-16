@@ -2,7 +2,7 @@ import type * as FaviconUrl from "@/client/lib/favicon-url";
 
 import { resetDrafts } from "@/client/drafts/store";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
-import { isMacOS, osConventions } from "@/client/lib/utils";
+import { isMacOS } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
@@ -1151,7 +1151,7 @@ describe("the row's actions", () => {
       "Star",
       "Rename",
       "Project",
-      osConventions().showInFileManager,
+      "Export as Markdown…",
       "Copy",
       "Send Feedback…",
       "Archive",

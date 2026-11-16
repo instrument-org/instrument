@@ -10,7 +10,7 @@ import { PageFavicon } from "@/client/components/favicon";
 import { folderHref } from "@/shared/computer-href";
 
 import { useAppsBySlug } from "./apps-by-slug";
-import { ChatFolderButton, useChatFolderWithFiles } from "./chat-folder-button";
+import { ChatFolderButton, useChatWrittenFolders } from "./chat-folder-button";
 import { ChatHeader } from "./chat-header";
 import { useListedChat } from "./chat-tab-menu";
 import { useWindow } from "./context";
@@ -71,9 +71,9 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
 /**
  * The head over a chat in its tab: the toggle for the chat list, its title,
  * which renames it, and the
- * caret that opens its menu at the left; at the right, the chat's folder
- * while it has files, opened beside the chat as a click in the chat opens
- * a folder.
+ * caret that opens its menu at the left; at the right, the folders the
+ * chat saved files in, each opened beside the chat as a click in the chat
+ * opens a folder.
  */
 function ChatTabHead({ chatId }: { chatId: ChatId }) {
   const groupTab = useGroupTab();
@@ -81,14 +81,12 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
   const chat = useListedChat(chatId);
-  const folder = useChatFolderWithFiles(chatId);
+  const writtenFolders = useChatWrittenFolders(chatId);
   const tabId = groupTab?.id;
   const beside = tabId === undefined ? undefined : windowTabs.besideOf(tabId);
-  const folderAt = folder === null ? undefined : folderHref(folder);
-  const isFolderShown =
-    folderAt !== undefined &&
-    beside?.kind === "screen" &&
-    beside.href === folderAt;
+  const shownFolder = writtenFolders.find(
+    (folder) => beside?.kind === "screen" && beside.href === folderHref(folder),
+  );
   return (
     <ChatHeader
       chat={chat}
@@ -107,22 +105,22 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
       }}
       projects={shell.projects}
       trailing={
-        folderAt !== undefined && (
-          <ChatFolderButton
-            isOpen={isFolderShown}
-            onToggle={() => {
-              if (isFolderShown && beside) {
-                windowTabs.select(beside.id);
-                return;
-              }
-              appWindow.openScreen(folderAt, {
-                chat: chatId,
-                ...(tabId === undefined ? {} : { from: tabId }),
-                show: true,
-              });
-            }}
-          />
-        )
+        <ChatFolderButton
+          folders={writtenFolders}
+          onHide={() => {
+            if (beside) {
+              windowTabs.select(beside.id);
+            }
+          }}
+          onOpen={(folder) => {
+            appWindow.openScreen(folderHref(folder), {
+              chat: chatId,
+              ...(tabId === undefined ? {} : { from: tabId }),
+              show: true,
+            });
+          }}
+          shown={shownFolder}
+        />
       }
     />
   );

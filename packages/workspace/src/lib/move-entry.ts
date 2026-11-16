@@ -18,6 +18,21 @@ export const ASIDE_INFIX = ".moved-";
 const PARTIAL_INFIX = ".partial-";
 
 /**
+ * A name nothing in `dir` holds: the one asked for, or it numbered before its
+ * extension (`a.png`, then `a-2.png`), as every other name a person reads is
+ * made free.
+ */
+export function freeEntryName(dir: string, name: string): string {
+  const extension = path.extname(name);
+  const stem = name.slice(0, name.length - extension.length);
+  let candidate = name;
+  for (let suffix = 2; entryExists(path.join(dir, candidate)); suffix += 1) {
+    candidate = `${stem}-${suffix.toString()}${extension}`;
+  }
+  return candidate;
+}
+
+/**
  * Moves a file or folder to a place that is free: renamed where both are on
  * one volume, and otherwise copied as {@link placeEntrySync} copies it, and
  * the original then renamed aside and deleted (`setAsideSync`), so neither a

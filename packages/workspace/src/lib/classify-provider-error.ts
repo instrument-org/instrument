@@ -1,4 +1,5 @@
 import {
+  EMPTY_RESPONSE_CODE,
   isExpectedNetworkError,
   type ProviderErrorEvidence,
   type ProviderErrorKind,
@@ -24,8 +25,12 @@ const KIND_BY_CODE = new Map<string, ProviderErrorKind>([
   ["api_error", "transient"], // Anthropic `error.type`
   ["authentication_error", "auth"], // Anthropic `error.type`
   ["chatpass_v2_invalid_authorization_context", "auth"], // ChatGPT account
+  ["claude_account_image_error", "unsendable-content"], // Claude account, our own
+  ["claude_account_prompt_too_long", "context-overflow"], // Claude account, our own
   ["claude_account_usage_limit_exceeded", "usage-limit"], // Claude account, our own
   ["chatpass_v2_scope_not_authorized", "auth"], // ChatGPT account
+  ["1261", "context-overflow"], // z.ai: "Prompt too long", "Prompt 超长"
+  ["API_KEY_INVALID", "auth"], // Google, a 400 naming it in `error.details[].reason`
   ["context_length_exceeded", "context-overflow"], // OpenAI
   ["empty_image_file", "unsendable-content"], // OpenAI
   ["failed_to_download_image", "unsendable-content"], // OpenAI
@@ -47,8 +52,10 @@ const KIND_BY_CODE = new Map<string, ProviderErrorKind>([
   ["rate_limit_error", "rate-limit"], // Anthropic `error.type`
   ["rate_limit_exceeded", "rate-limit"], // OpenAI
   ["request_too_large", "context-overflow"], // Anthropic `error.type`, on a 413
-  // Our gateway's, for a Responses stream that closed before it finished.
+  // Our gateway's, for a Responses stream that closed before it finished, and
+  // a turn's own, for a chat-completions stream that did.
   [STREAM_ENDED_EARLY_CODE, "transient"],
+  [EMPTY_RESPONSE_CODE, "transient"], // A turn's own, for a reply with nothing in it
   // The ChatGPT account's usage codes. The limit arrives inside a stream that
   // opened with a 200, so the SDK reports it under a 400 and the code is the
   // only evidence of what it was. Switching the app off in ChatGPT's usage
@@ -62,6 +69,54 @@ const KIND_BY_CODE = new Map<string, ProviderErrorKind>([
   ["token_revoked", "auth"], // ChatGPT account, disconnected in ChatGPT's settings
   ["unsupported_image_media_type", "unsendable-content"], // OpenAI
 ]);
+
+/**
+ * An allowance the account has spent or is not entitled to, by code. Read
+ * ahead of the status, because most of these arrive on a 429, which would
+ * otherwise read as throttling that waiting ends. Compared lowercased, since
+ * opencode Zen names its own in `error.type` as class names.
+ */
+const USAGE_LIMIT_CODES = new Set([
+  "claude_account_usage_limit_exceeded", // Claude account, our own
+  "insufficient_quota", // OpenAI, a spent balance on a 429
+  "subscription_sharing_usage_limit_exceeded", // ChatGPT account
+  // ChatGPT Business: a cap the workspace admin set, which only they can raise.
+  "subscription_sharing_workplace_individual_usage_limit_exceeded",
+  "budgetlimiterror", // opencode Zen
+  "creditlimitexceeded", // opencode Zen
+  "freeusagelimiterror", // opencode Zen
+  "gousagelimiterror", // opencode Go
+  "1113", // z.ai: "Insufficient balance or no resource package. Please recharge."
+  "1308", // z.ai: "Usage limit reached for 5 hours. Your limit will reset at ..."
+  "1309", // z.ai: "Your GLM Coding Plan package has expired ..."
+  "1310", // z.ai: "Weekly/Monthly Limit Exhausted. Your limit will reset at ..."
+  "1311", // z.ai: "Your current subscription plan does not yet include access to glm-5"
+  "1314", // z.ai: "Your enterprise package has expired. ..."
+]);
+
+/**
+ * A spent allowance named only in prose, read on a 429 alone, where it and
+ * throttling share the status. Cerebras's `token_quota_exceeded` is its
+ * per-minute throttle, which the lookbehind leaves to the status.
+ */
+const SPENT_ALLOWANCE_PATTERN =
+  /insufficient[-_\s]?(?:quota|balance)|(?<!token_)quota[-_\s]?exceeded|budget exceeded|(?<!rate[-_\s]?)limit exhausted|package has expired|plan does not yet include/i;
+
+/**
+ * A provider's own failure, by code. Read only when no 4xx status says the
+ * request itself was refused: a gateway may put `server_error` on a rejection
+ * whose real code it did not pass on.
+ */
+const SERVER_ERROR_CODES = new Set([
+  "internal_error",
+  "server_error", // OpenAI, in a Responses stream's `response.failed`
+  "server_is_overloaded",
+  "service_unavailable",
+  "slow_down", // Bedrock
+]);
+
+/** xAI answers a wrong key with a 400 and a generic code. */
+const INVALID_KEY_PATTERN = /incorrect api key provided/i;
 
 /**
  * Our own platform's refusals of a hosted request, by `error.code`. Read ahead
@@ -115,6 +170,7 @@ const UNSENDABLE_CONTENT_PATTERNS = [
  * (`subscription_sharing_unsupported_capability`).
  */
 const ONE_FILE_CODES = new Set([
+  "claude_account_image_error",
   "empty_image_file",
   "failed_to_download_image",
   "image_content_policy_violation",
@@ -140,6 +196,7 @@ const ONE_FILE_CODES = new Set([
  */
 const CONTEXT_OVERFLOW_PATTERNS = [
   /prompt is too long/i, // Anthropic: "prompt is too long: 213462 tokens > 200000 maximum"
+  /prompt (?:too long|exceeds max length|超长)/i, // z.ai, code 1261: "Prompt too long", "Prompt exceeds max length"
   /request_too_large/i, // Anthropic, on a 413
   /exceeds the context window/i, // OpenAI
   /exceeds (?:the )?(?:model'?s )?maximum context length(?: of [\d,]+ tokens?|\s*\([\d,]+\))/i, // OpenAI, and proxies speaking its dialect
@@ -148,7 +205,14 @@ const CONTEXT_OVERFLOW_PATTERNS = [
   /reduce the length of the messages/i, // Groq
   /maximum context length is \d+ tokens/i, // OpenRouter: "This endpoint's maximum context length is X tokens. However, you requested about Y tokens"
   /exceeds (?:the )?maximum allowed input length of [\d,]+ tokens?/i, // OpenRouter
-  /input \(\d+ tokens\) is longer than the model'?s context length \(\d+ tokens\)/i, // Together
+  // Together: "The input (516368 tokens) is longer than the model's context
+  // length (262144 tokens)." Novita leaves the counts out.
+  /input(?: \(\d+ tokens\))? is longer than the model'?s context length/i,
+  /requested input length \d+ exceeds maximum input length/i, // DeepInfra: "Requested input length 600010 exceeds maximum input length 131071"
+  /exceeds the available context size/i, // llama.cpp, behind Jan and LocalAI
+  /`inputs` tokens \+ `max_new_tokens` must be <= \d+/i, // Hugging Face Text Generation Inference
+  /too large for the model'?s configured input limit/i, // opencode Go
+  /context window exceeded/i, // LiteLLM's own check: "Context Window exceeded for given call."
   /greater than the context length/i, // LM Studio
   /context window exceeds limit/i, // MiniMax: "invalid params, context window exceeds limit"
   /too large for model with \d+ maximum context length/i, // Mistral
@@ -164,7 +228,16 @@ const CONTEXT_OVERFLOW_PATTERNS = [
  * patterns would otherwise claim. The 429 check covers most of it; this covers
  * a provider that reports throttling under some other status.
  */
-const NOT_CONTEXT_OVERFLOW_PATTERNS = [/rate limit/i, /too many requests/i];
+const NOT_CONTEXT_OVERFLOW_PATTERNS = [
+  /rate limit/i,
+  /too many requests/i,
+  // Cohere: "too many tokens: max tokens must be less than or equal to 4096,
+  // the maximum output length for this model". The output limit, which a
+  // smaller context does not change.
+  /max[_ ]tokens must be less than/i,
+  // Bedrock's throttle: "Too many tokens, please wait before trying again."
+  /too many tokens(?: per day)?, please wait/i,
+];
 
 /**
  * xAI's "Requests per Minute (actual/limit): 0/0": an allowance of nothing,
@@ -342,13 +415,24 @@ function readStreamedError(error: unknown) {
     return;
   }
 
-  return { codes, isRetryable: false, statusCode, text: message };
+  // The upstream status, relayed inside a stream that opened with a 200, read
+  // the way the SDK reads a failed response's own: OpenRouter's
+  // `{"code": 502, "message": "Provider returned error"}` is a provider's
+  // failure that the next attempt may not meet.
+  const isRetryable =
+    statusCode !== undefined &&
+    (statusCode === 408 || statusCode === 409 || statusCode >= 500);
+
+  return { codes, isRetryable, statusCode, text: message };
 }
 
 /**
  * Every field a provider might have put a code in, in the order they are worth
  * trusting. OpenAI uses `error.code`, Anthropic uses `error.type`, and the
- * top-level `type` is the last place left to look.
+ * top-level `type` is the last place left to look. Google names its status in
+ * `error.status` and the specific reason in `error.details[].reason`; Azure
+ * puts its own under `error.innererror.code`, and OpenRouter its upstream's
+ * under `error.metadata.error_type`.
  */
 function structuredCodes(responseBody: string | undefined) {
   if (!responseBody) {
@@ -363,10 +447,17 @@ function structuredCodes(responseBody: string | undefined) {
   }
 
   const error = property(body, "error");
+  const details = property(error, "details");
   return [
     asString(property(error, "code")),
     asString(property(error, "type")),
     asString(property(body, "type")),
+    asString(property(error, "status")),
+    ...(Array.isArray(details)
+      ? details.map((detail: unknown) => asString(property(detail, "reason")))
+      : []),
+    asString(property(property(error, "innererror"), "code")),
+    asString(property(property(error, "metadata"), "error_type")),
   ].filter((value) => value !== undefined);
 }
 
@@ -394,10 +485,7 @@ function weighEvidence({
   // `rate-limit`, which promises that waiting is the fix.
   // A spent plan allowance is answered with a 429 when it is refused up
   // front, and throttling is the wrong reading of it: waiting may not end it.
-  if (
-    codes.includes("subscription_sharing_usage_limit_exceeded") ||
-    codes.includes("claude_account_usage_limit_exceeded")
-  ) {
+  if (codes.some((code) => USAGE_LIMIT_CODES.has(code.toLowerCase()))) {
     return { evidence: "structured", kind: "usage-limit" };
   }
   for (const code of codes) {
@@ -415,6 +503,9 @@ function weighEvidence({
   if (statusCode === 429 && NO_ALLOWANCE_PATTERN.test(text)) {
     return { evidence: "prose", kind: "auth" };
   }
+  if (statusCode === 429 && SPENT_ALLOWANCE_PATTERN.test(text)) {
+    return { evidence: "prose", kind: "usage-limit" };
+  }
   if (statusCode === 429) {
     return { evidence: "status", kind: "rate-limit" };
   }
@@ -427,6 +518,16 @@ function weighEvidence({
     if (kind) {
       return { evidence: "structured", kind };
     }
+  }
+  if (
+    (statusCode === undefined || statusCode >= 500) &&
+    codes.some((code) => SERVER_ERROR_CODES.has(code.toLowerCase()))
+  ) {
+    return { evidence: "structured", kind: "transient" };
+  }
+
+  if (statusCode === 400 && INVALID_KEY_PATTERN.test(text)) {
+    return { evidence: "prose", kind: "auth" };
   }
 
   if (UNSENDABLE_CONTENT_PATTERNS.some((pattern) => pattern.test(text))) {

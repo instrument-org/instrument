@@ -2,21 +2,27 @@ import {
   PRIVATE_FOLDER_NAME,
   SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { WorkspaceDirSchema } from "../schemas/paths";
+import { readProjectRecords } from "./chat/project-records";
 import {
+  folderProjectId,
   readProjectsSync,
   PROJECT_FILE_NAME,
+  PROJECT_ID_FILE_NAME,
   PROJECTS_FOLDER_NAME,
+  writeProjectSync,
 } from "./chat/projects";
 import {
   convertProjectsToProjectFiles,
   moveProjectsToFolder,
   moveTopicsToProjects,
+  settleProjectFiles,
 } from "./projects-move";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { workspaceLayout } from "./workspace-layout";
@@ -117,7 +123,7 @@ describe("moveProjectsToFolder", () => {
 });
 
 describe("convertProjectsToProjectFiles", () => {
-  it("makes one AGENTS.md of the two files, and takes the old ones away", async () => {
+  it("makes a record and an AGENTS.md of the two files, and takes the old ones away", async () => {
     await writeOldProject(folder(), "Kitchen", {
       about: "Kitchen plans and appliances",
       color: "amber",
@@ -130,30 +136,27 @@ describe("convertProjectsToProjectFiles", () => {
     const converted = await convertProjectsToProjectFiles(root);
 
     expect(converted).toEqual({
-      done: ["converted Kitchen to AGENTS.md"],
+      done: ["converted Kitchen to its record"],
       left: [],
     });
-    expect(
-      (await projectFile("Kitchen")).replace(
-        /^created: .+$/m,
-        "created: <made>",
-      ),
-    ).toMatchInlineSnapshot(`
+    expect(await projectFile("Kitchen")).toMatchInlineSnapshot(`
       "---
-      id: top_Kitchen
-      emoji: 🍳
-      color: amber
-      about: Kitchen plans and appliances
-      created: <made>
       folders:
         - path: /Users/someone/Kitchen plans
-      projectId: prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1
       ---
 
       The standing instructions.
       "
     `);
+    expect(readProjectRecords(root).get("top_Kitchen")).toEqual({
+      about: "Kitchen plans and appliances",
+      color: "amber",
+      created: "2026-09-02T14:14:00Z",
+      emoji: "🍳",
+      legacyId: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
+    });
     expect(await fs.readdir(path.join(folder(), "Kitchen"))).toEqual([
+      PROJECT_ID_FILE_NAME,
       PROJECT_FILE_NAME,
     ]);
     // And the project reads back as the one the two files held, its folders a
@@ -167,11 +170,9 @@ describe("convertProjectsToProjectFiles", () => {
         emoji: "🍳",
         id: "top_Kitchen",
         instructions: "The standing instructions.",
+        legacyId: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
         name: "Kitchen",
-        others: {
-          folders: [{ path: "/Users/someone/Kitchen plans" }],
-          projectId: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
-        },
+        others: { folders: [{ path: "/Users/someone/Kitchen plans" }] },
       },
     ]);
   });
@@ -184,9 +185,8 @@ describe("convertProjectsToProjectFiles", () => {
 
     await convertProjectsToProjectFiles(root);
 
-    const file = await projectFile("Trips");
-    expect(file).toContain("retired: true");
-    expect(file).toContain("sortsAfter: Kitchen");
+    expect(readProjectRecords(root).get("top_Trips")?.retired).toBe(true);
+    expect(await projectFile("Trips")).toBe("---\nsortsAfter: Kitchen\n---\n");
   });
 
   it("leaves a project that already has its file alone", async () => {
@@ -368,5 +368,149 @@ describe("moveTopicsToProjects", () => {
 
   it("does nothing for a workspace with no Topics folder", async () => {
     expect(await moveTopicsToProjects(root)).toEqual({ done: [], left: [] });
+  });
+});
+
+describe("settleProjectFiles", () => {
+  const device = () => getWorkspaceConfig().deviceId;
+
+  async function writeFile(name: string, text: string, at?: Date) {
+    await fs.mkdir(path.join(folder(), name), { recursive: true });
+    const file = path.join(folder(), name, PROJECT_FILE_NAME);
+    await fs.writeFile(file, text);
+    if (at) {
+      await fs.utimes(file, at, at);
+    }
+  }
+
+  it("takes an earlier build's front matter into the store, leaving the person's words", async () => {
+    await writeFile(
+      "Kitchen",
+      "---\nid: prj_kitchen\nemoji: 🍳\ncolor: amber\nabout: Plans\ncreated: 2026-09-02T09:14:00Z\nretired: true\nprojectId: prj_old\nsortsAfter: Trips\n---\n\nInduction only.\n",
+    );
+    await writeFile(
+      "Trips",
+      "---\nid: prj_trips\ncreated: 2026-09-03T09:14:00Z\n---\n",
+    );
+    await writeFile("Garden", "Water on Sundays.\n");
+
+    const settled = settleProjectFiles(root, device());
+
+    expect(settled).toMatchInlineSnapshot(`
+      {
+        "done": [
+          "took Trips's front matter into its record, and removed its empty AGENTS.md",
+          "took Kitchen's front matter into its record",
+        ],
+        "left": [],
+      }
+    `);
+    expect(await projectFile("Kitchen")).toMatchInlineSnapshot(`
+      "---
+      sortsAfter: Trips
+      ---
+
+      Induction only.
+      "
+    `);
+    expect(await projectFile("Garden")).toBe("Water on Sundays.\n");
+    expect(await fs.readdir(path.join(folder(), "Trips"))).toEqual([
+      PROJECT_ID_FILE_NAME,
+    ]);
+    const records = Object.fromEntries(readProjectRecords(root));
+    expect(records).toHaveProperty(folderProjectId("Garden"));
+    expect({
+      prj_kitchen: records.prj_kitchen,
+      prj_trips: records.prj_trips,
+    }).toMatchInlineSnapshot(`
+      {
+        "prj_kitchen": {
+          "about": "Plans",
+          "color": "amber",
+          "created": "2026-09-02T09:14:00Z",
+          "emoji": "🍳",
+          "legacyId": "prj_old",
+          "retired": true,
+        },
+        "prj_trips": {
+          "created": "2026-09-03T09:14:00Z",
+        },
+      }
+    `);
+    expect(settleProjectFiles(root, device())).toEqual({ done: [], left: [] });
+  });
+
+  // An older build on another computer reads a file with no front matter as
+  // a project with an id drawn from its name, and writes that id and its own
+  // look back into the file.
+  it("absorbs what an older build writes back, keeping the record's id", async () => {
+    await writeFile(
+      "Kitchen",
+      "---\nid: prj_kitchen\ncreated: 2026-09-02T09:14:00Z\n---\n\nInduction only.\n",
+    );
+    settleProjectFiles(root, device());
+
+    await writeFile(
+      "Kitchen",
+      "---\nid: prj_drawnfromname\nemoji: 🔪\ncreated: 2026-11-01T00:00:00Z\n---\n\nInduction only.\n",
+      new Date(Date.now() + 60_000),
+    );
+    settleProjectFiles(root, device());
+
+    expect(readProjectRecords(root).get("prj_kitchen")).toEqual({
+      created: "2026-09-02T09:14:00Z",
+      emoji: "🔪",
+    });
+    expect(readProjectRecords(root).has("prj_drawnfromname")).toBe(false);
+    expect(await projectFile("Kitchen")).toBe("Induction only.\n");
+  });
+
+  it("lets a change made in the app since the file was written outrank it", async () => {
+    await writeFile(
+      "Kitchen",
+      "---\nid: prj_kitchen\ncreated: 2026-09-02T09:14:00Z\n---\n",
+    );
+    settleProjectFiles(root, device());
+    const [kitchen] = readProjectsSync(root);
+    expect(kitchen).toBeDefined();
+    if (kitchen) {
+      writeProjectSync(root, { ...kitchen, emoji: "🍳" });
+    }
+
+    await writeFile(
+      "Kitchen",
+      "---\nemoji: 🔪\n---\n",
+      new Date(Date.now() - 60 * 60_000),
+    );
+    settleProjectFiles(root, device());
+
+    expect(readProjectRecords(root).get("prj_kitchen")?.emoji).toBe("🍳");
+    await expect(projectFile("Kitchen")).rejects.toThrow();
+  });
+
+  it("keeps a project's id through a rename in a file manager", async () => {
+    await writeFile(
+      "Kitchen",
+      "---\nid: prj_kitchen\ncreated: 2026-09-02T09:14:00Z\n---\n\nInduction only.\n",
+    );
+    settleProjectFiles(root, device());
+
+    await fs.rename(
+      path.join(folder(), "Kitchen"),
+      path.join(folder(), "Cooking"),
+    );
+    settleProjectFiles(root, device());
+
+    expect(readProjectsSync(root)).toMatchObject([
+      { id: "prj_kitchen", instructions: "Induction only.", name: "Cooking" },
+    ]);
+    expect(
+      fsSync
+        .readFileSync(
+          path.join(folder(), "Cooking", PROJECT_ID_FILE_NAME),
+          "utf8",
+        )
+        .trim(),
+    ).toBe("prj_kitchen");
   });
 });

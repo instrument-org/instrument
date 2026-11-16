@@ -25,7 +25,6 @@ import { SubprocessTreeTerminationError } from "../subprocess-tree";
  * commands that need one run there (`MAIN_THREAD_COMMANDS`).
  */
 export const WORKER_CONFIG_KEYS = [
-  "appsDir",
   "appVersion",
   "chatsDir",
   // Where this computer's folder is, which the rules close.
@@ -39,7 +38,7 @@ export const WORKER_CONFIG_KEYS = [
   "nodeExecEnv",
   // The person's choice to run programs where no sandbox holds them.
   "programsWithoutSandbox",
-  // Where finished work goes, which the shell names `INSTRUMENT_OUTPUT`.
+  // The Instrument folder, whose Files folder the shell names `INSTRUMENT_FILES`.
   "outputDir",
   "pnpmBinPath",
   "registryDir",

@@ -20,12 +20,20 @@ import { openRouterCacheShape } from "./openrouter-cache-shape";
 import { createOpenRouterLanguageModel } from "./openrouter-language-model";
 import { repairWorkersAiStream } from "./workers-ai-stream-repair";
 
+type Fetch = typeof globalThis.fetch;
+
 export async function aiSDKForProviderConfig(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
   {
+    fetch,
     sourceModelIdOf,
   }: {
+    /**
+     * The fetch every request to the provider goes through, which a caller
+     * wraps to watch the response arrive. The provider's own fixes wrap it.
+     */
+    fetch?: Fetch;
     /** The model an alias resolves to right now, by its provider id. */
     sourceModelIdOf?: (modelId: string) => string | undefined;
   } = {},
@@ -48,48 +56,48 @@ export async function aiSDKForProviderConfig(
   }
 
   if (isOpenCodeProviderConfig(config)) {
-    return createOpenCodeLanguageModel(config, workspaceServerURL);
+    return createOpenCodeLanguageModel(config, workspaceServerURL, fetch);
   }
 
   switch (packageName) {
     case "@ai-sdk/anthropic": {
-      return createAnthropicSDK(config, workspaceServerURL);
+      return createAnthropicSDK(config, workspaceServerURL, fetch);
     }
     case "@ai-sdk/cerebras": {
       const { createCerebras } = await import("@ai-sdk/cerebras");
-      return createCerebras({ apiKey, baseURL });
+      return createCerebras({ apiKey, baseURL, fetch });
     }
     case "@ai-sdk/deepinfra": {
       const { createDeepInfra } = await import("@ai-sdk/deepinfra");
-      return createDeepInfra({ apiKey, baseURL });
+      return createDeepInfra({ apiKey, baseURL, fetch });
     }
     case "@ai-sdk/deepseek": {
       const { createDeepSeek } = await import("@ai-sdk/deepseek");
-      return createDeepSeek({ apiKey, baseURL });
+      return createDeepSeek({ apiKey, baseURL, fetch });
     }
     case "@ai-sdk/fireworks": {
-      return createFireworksSDK(config, workspaceServerURL);
+      return createFireworksSDK(config, workspaceServerURL, fetch);
     }
     case "@ai-sdk/gateway": {
-      return createVercelSDK(config, workspaceServerURL);
+      return createVercelSDK(config, workspaceServerURL, fetch);
     }
     case "@ai-sdk/google": {
-      return createGoogleSDK(config, workspaceServerURL);
+      return createGoogleSDK(config, workspaceServerURL, fetch);
     }
     case "@ai-sdk/groq": {
       const { createGroq } = await import("@ai-sdk/groq");
-      return createGroq({ apiKey, baseURL });
+      return createGroq({ apiKey, baseURL, fetch });
     }
     case "@ai-sdk/minimax": {
       const { createMiniMax } = await import("@ai-sdk/minimax");
-      return createMiniMax({ apiKey, baseURL });
+      return createMiniMax({ apiKey, baseURL, fetch });
     }
     case "@ai-sdk/mistral": {
       const { createMistral } = await import("@ai-sdk/mistral");
-      return createMistral({ apiKey, baseURL });
+      return createMistral({ apiKey, baseURL, fetch });
     }
     case "@ai-sdk/openai": {
-      return createOpenAISDK(config, workspaceServerURL);
+      return createOpenAISDK(config, workspaceServerURL, fetch);
     }
     case "@ai-sdk/openai-compatible": {
       const { createOpenAICompatible } =
@@ -100,26 +108,27 @@ export async function aiSDKForProviderConfig(
         // Workers AI is reached as an OpenAI-compatible provider, because that
         // is the only type whose model listing knows its models/search API.
         // Its stream needs the same repair here as on the `openai` path.
-        ...(isWorkersAiProviderConfig(config)
-          ? { fetch: repairWorkersAiStream() }
-          : {}),
+        fetch: isWorkersAiProviderConfig(config)
+          ? repairWorkersAiStream(fetch)
+          : fetch,
         name: config.type,
       });
     }
     case "@ai-sdk/togetherai": {
       const { createTogetherAI } = await import("@ai-sdk/togetherai");
-      return createTogetherAI({ apiKey, baseURL });
+      return createTogetherAI({ apiKey, baseURL, fetch });
     }
     case "@ai-sdk/xai": {
-      return createXAISDK(config, workspaceServerURL);
+      return createXAISDK(config, workspaceServerURL, fetch);
     }
     case "@ai-sdk/zai": {
       const { createZai } = await import("@ai-sdk/zai");
-      return createZai({ apiKey, baseURL });
+      return createZai({ apiKey, baseURL, fetch });
     }
     case "@openrouter/ai-sdk-provider": {
       return createOpenRouterLanguageModel({
-        chat: await createOpenRouterSDK(config, workspaceServerURL),
+        chat: await createOpenRouterSDK(config, workspaceServerURL, fetch),
+        fetch,
         config,
         sourceModelIdOf,
         workspaceServerURL,
@@ -129,6 +138,7 @@ export async function aiSDKForProviderConfig(
       const { createOllama } = await import("ai-sdk-ollama");
       return createOllama({
         baseURL,
+        fetch,
         headers: { Authorization: `Bearer ${apiKey}` },
       });
     }
@@ -138,46 +148,51 @@ export async function aiSDKForProviderConfig(
 export async function createAnthropicSDK(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
+  fetch?: Fetch,
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
   const { createAnthropic } = await import("@ai-sdk/anthropic");
-  return createAnthropic({ apiKey, baseURL });
+  return createAnthropic({ apiKey, baseURL, fetch });
 }
 
 export async function createDeepInfraSDK(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
+  fetch?: Fetch,
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
   const { createDeepInfra } = await import("@ai-sdk/deepinfra");
-  return createDeepInfra({ apiKey, baseURL });
+  return createDeepInfra({ apiKey, baseURL, fetch });
 }
 
 export async function createFireworksSDK(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
+  fetch?: Fetch,
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
   const { createFireworks } = await import("@ai-sdk/fireworks");
-  return createFireworks({ apiKey, baseURL });
+  return createFireworks({ apiKey, baseURL, fetch });
 }
 
 export async function createGoogleSDK(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
+  fetch?: Fetch,
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
   const { createGoogle } = await import("@ai-sdk/google");
-  return createGoogle({ apiKey, baseURL });
+  return createGoogle({ apiKey, baseURL, fetch });
 }
 
 export async function createOpenAISDK(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
+  fetch?: Fetch,
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
@@ -186,15 +201,16 @@ export async function createOpenAISDK(
     apiKey,
     baseURL,
     // Workers AI streams what the SDK refuses; see the repair for what.
-    ...(isWorkersAiProviderConfig(config)
-      ? { fetch: repairWorkersAiStream() }
-      : {}),
+    fetch: isWorkersAiProviderConfig(config)
+      ? repairWorkersAiStream(fetch)
+      : fetch,
   });
 }
 
 export async function createOpenRouterSDK(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
+  fetch?: Fetch,
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
@@ -211,7 +227,7 @@ export async function createOpenRouterSDK(
     appName: APP_NAME,
     appUrl: APP_URL,
     baseURL,
-    fetch: openRouterCacheShape(),
+    fetch: openRouterCacheShape(fetch),
     ...extraConfig,
   });
 }
@@ -219,22 +235,25 @@ export async function createOpenRouterSDK(
 export async function createTogetherAISDK(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
+  fetch?: Fetch,
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
   const { createTogetherAI } = await import("@ai-sdk/togetherai");
-  return createTogetherAI({ apiKey, baseURL });
+  return createTogetherAI({ apiKey, baseURL, fetch });
 }
 
 export function createVercelSDK(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
+  fetch?: Fetch,
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
   return createGateway({
     apiKey,
     baseURL,
+    fetch,
     headers: {
       "http-referer": APP_URL,
       "x-title": APP_NAME,
@@ -245,9 +264,10 @@ export function createVercelSDK(
 export async function createXAISDK(
   config: AIGatewayProviderConfig.Type,
   workspaceServerURL: WorkspaceServerURL,
+  fetch?: Fetch,
 ) {
   const baseURL = internalURL({ config, workspaceServerURL });
   const apiKey = internalAPIKey();
   const { createXai } = await import("@ai-sdk/xai");
-  return createXai({ apiKey, baseURL });
+  return createXai({ apiKey, baseURL, fetch });
 }

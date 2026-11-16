@@ -18,7 +18,7 @@ import { setAuthServerPort } from "@/electron-main/auth/state";
 import {
   appMark,
   appName,
-  getAppsDir,
+  appsReady,
   receiveAppCallback,
 } from "@/electron-main/lib/apps";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
@@ -241,10 +241,10 @@ export function createAuthCallbackApp() {
     if (result.outcome === "expired") {
       return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
-    const appsDir = getAppsDir();
-    const name = appsDir ? await appName(appsDir, result.slug) : result.slug;
+    const readable = appsReady();
+    const name = readable ? await appName(result.slug) : result.slug;
     const service = {
-      mark: appsDir ? await appMark(appsDir, result.slug) : undefined,
+      mark: readable ? await appMark(result.slug) : undefined,
       name,
     };
     switch (result.outcome) {

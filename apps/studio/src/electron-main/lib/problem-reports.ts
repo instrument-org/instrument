@@ -6,7 +6,7 @@ import {
 } from "@/electron-main/lib/get-signed-in-user";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import { getProblemsStore } from "@/electron-main/stores/machine/problems";
-import { getAppsDir } from "@/electron-main/lib/apps";
+import { appsReady } from "@/electron-main/lib/apps";
 import {
   type ChatFeedbackDescription,
   type ChatTrim,
@@ -964,12 +964,11 @@ export function actionsFeedback(
  * names, for the redactor to take out with the person's own.
  */
 async function appAccounts(): Promise<{ email: string; name?: string }[]> {
-  const appsDir = getAppsDir();
-  if (!appsDir) {
+  if (!appsReady()) {
     return [];
   }
   try {
-    const { apps } = await listApps(appsDir);
+    const { apps } = await listApps();
     return apps.flatMap(({ manifest }) =>
       manifest.account?.includes("@") ? [{ email: manifest.account }] : [],
     );

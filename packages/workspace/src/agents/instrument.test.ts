@@ -432,7 +432,7 @@ describe("instrumentAgent", () => {
   it("names its folders by the variables the shell sets", () => {
     for (const named of [
       "Every command starts in your work folder, `$INSTRUMENT_WORK`",
-      "`$INSTRUMENT_OUTPUT`",
+      "`$INSTRUMENT_FILES`",
       "Throwaway files go in `$TMPDIR`",
       "`$INSTRUMENT_SKILL_DIR` is its folder",
     ]) {
@@ -472,7 +472,7 @@ describe("instrumentAgent", () => {
       "the save and the start go in one command, the save first",
       "name scratch files and folders after the job",
       "Nothing of theirs is deleted or overwritten unless they said so",
-      "a finished file goes straight in it by its own name, and a folder the user names is made inside it",
+      "each piece of work in a folder named for it in the user's words",
       "IMPORTANT: Never fabricate a URL.",
       "links it the first time",
       "Every call carries an `activity`",

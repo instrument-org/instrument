@@ -1,13 +1,7 @@
 import { err, ok, type Result } from "neverthrow";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CHATS_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
-import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
-import { recordChatFolderName } from "../chat-folders/own-folder";
 import {
   nameKey,
   namesBeside,
@@ -125,39 +119,13 @@ describe("numberedTitle", () => {
 });
 
 describe("namesBeside", () => {
-  const roots: string[] = [];
   afterEach(() => {
     chats.value = [];
-    for (const root of roots.splice(0)) {
-      fs.rmSync(root, { force: true, recursive: true });
-    }
   });
-
-  function workspace(folders: string[]) {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "chat-name-"));
-    roots.push(rootDir);
-    for (const folder of folders) {
-      fs.mkdirSync(path.join(rootDir, CHATS_FOLDER_NAME, folder), {
-        recursive: true,
-      });
-    }
-    return {
-      rootDir: WorkspaceDirSchema.parse(rootDir),
-      workspaceMachineDir: AbsolutePathSchema.parse(
-        path.join(rootDir, "machine"),
-      ),
-    };
-  }
 
   const id = (name: string) => ChatIdSchema.parse(name);
 
-  it("shows the newest titled chats and takes every name but the chat's own", async () => {
-    const config = workspace(["What's the weather", "Weather", "Old notes"]);
-    await recordChatFolderName(
-      config.workspaceMachineDir,
-      id("this"),
-      "What's the weather",
-    );
+  it("shows the newest titled chats and takes every other chat's title", async () => {
     chats.value = [
       {
         archived: false,
@@ -195,7 +163,7 @@ describe("namesBeside", () => {
         updatedAt: 4,
       },
     ];
-    const beside = await namesBeside(id("this"), config);
+    const beside = await namesBeside(id("this"));
     expect({
       recent: beside.recent,
       taken: [...beside.taken].toSorted(),
@@ -206,7 +174,6 @@ describe("namesBeside", () => {
           "Weather",
         ],
         "taken": [
-          "old notes",
           "plant watering tracker app",
           "weather",
           "weather today",
@@ -223,7 +190,7 @@ describe("namesBeside", () => {
       titled: true,
       updatedAt: index,
     }));
-    const beside = await namesBeside(id("this"), workspace([]));
+    const beside = await namesBeside(id("this"));
     expect([beside.recent.length, beside.recent[0], beside.taken.size])
       .toMatchInlineSnapshot(`
       [

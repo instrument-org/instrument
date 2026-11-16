@@ -934,7 +934,7 @@ export namespace SessionMessageDataPart {
   export const BranchedFromDataPartSchema = z.object({
     /** The chat's id, which the line links to. */
     chat: z.string().min(1),
-    /** Its own folder under `Chats/`, when the person opens it. */
+    /** Its own folder under `Chats/`, from a build that gave each chat one; none since. */
     folder: z.string().optional(),
     records: z.string().min(1),
     title: z.string(),

@@ -174,7 +174,6 @@ const uvBinPath = AbsolutePathSchema.parse(
 
 setWorkspaceConfig({
   apps: createMemoryAppsConfig(),
-  appsDir: AbsolutePathSchema.parse(layout.appsDir),
   appVersion: "0.0.0-repl",
   browser: createStubBrowserConfig(),
   captureException: () => {

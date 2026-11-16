@@ -8,6 +8,13 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+// The workspace's own config module, the one `saveProjectId` reads the
+// running device from, which the package does not export.
+import {
+  getWorkspaceConfig,
+  hasWorkspaceConfig,
+  setWorkspaceConfig,
+} from "../../../../../packages/workspace/src/lib/workspace-config";
 import { createDraftStore } from "./draft-store";
 
 vi.mock("../lib/electron-logger", () => ({
@@ -29,6 +36,12 @@ let trashDir: string;
 beforeEach(() => {
   root = fs.mkdtempSync(path.join(os.tmpdir(), "draft-store-"));
   trashDir = fs.mkdtempSync(path.join(os.tmpdir(), "draft-store-trash-"));
+  // Only the device a project record is written as is read here, so the rest
+  // of the config is left unset.
+  setWorkspaceConfig({
+    ...(hasWorkspaceConfig() ? getWorkspaceConfig() : {}),
+    deviceId: "dev_TESTDEV1",
+  } as never);
 });
 
 afterEach(() => {
@@ -84,7 +97,7 @@ function tree(): string[] {
 }
 
 const fileOf = (folder = "2026-10-19") =>
-  path.join(root, "Drafts", folder, "DRAFT.md");
+  path.join(root, ".instrument", "drafts", folder, "DRAFT.md");
 
 const read = (folder?: string) => fs.readFileSync(fileOf(folder), "utf8");
 
@@ -101,7 +114,7 @@ describe("a window's ops", () => {
       set: { words: "Plan the trip" },
       type: "update",
     });
-    expect(tree()).toEqual(["Drafts/2026-10-19/DRAFT.md"]);
+    expect(tree()).toEqual([".instrument/drafts/2026-10-19/DRAFT.md"]);
     expect(read()).toMatchInlineSnapshot(`
       "---
       id: "a"
@@ -135,9 +148,7 @@ describe("a window's ops", () => {
       type: "create",
     });
     await vi.waitFor(() => {
-      expect(
-        fs.existsSync(path.join(root, "Projects", "Travel", "AGENTS.md")),
-      ).toBe(true);
+      expect(projectRecordLines()).toContain(id);
     });
     fs.renameSync(
       path.join(root, "Projects", "Travel"),
@@ -146,11 +157,8 @@ describe("a window's ops", () => {
 
     expect(read()).toContain(`project: "${id}"`);
     expect(
-      fs.readFileSync(
-        path.join(root, "Projects", "Trips", "AGENTS.md"),
-        "utf8",
-      ),
-    ).toContain(`id: ${id}\n`);
+      fs.existsSync(path.join(root, "Projects", "Trips", "AGENTS.md")),
+    ).toBe(false);
   });
 
   it("take a thrown-away draft away, with what was pasted into it moved to the Trash", async () => {
@@ -398,9 +406,9 @@ describe("the folder changing under the app", () => {
     const { apply, store } = await open();
     apply({ draft: draft("a", { words: "Plan" }), type: "create" });
     fs.writeFileSync(fileOf(), read().replace("Plan", "Plan the trip"));
-    fs.mkdirSync(path.join(root, "Drafts", "copied in"));
+    fs.mkdirSync(path.join(root, ".instrument", "drafts", "copied in"));
     fs.writeFileSync(
-      path.join(root, "Drafts", "copied in", "DRAFT.md"),
+      path.join(root, ".instrument", "drafts", "copied in", "DRAFT.md"),
       '---\nid: "b"\ncreated: 2026-10-19T13:00:00.000Z\n---\n\nFrom the phone\n',
     );
 
@@ -588,7 +596,7 @@ describe("a paste into a draft", () => {
     });
 
     expect(path.relative(root, path.dirname(first.path))).toBe(
-      "Drafts/2026-10-19",
+      ".instrument/drafts/2026-10-19",
     );
     expect(path.dirname(second.path)).toBe(path.dirname(first.path));
     expect(path.basename(second.path)).toBe("image 2.png");
@@ -608,8 +616,8 @@ describe("a paste into a draft", () => {
     const first = stage();
     expect(stage().path).toBe(first.path);
     expect(tree()).toEqual([
-      "Drafts/2026-10-19/DRAFT.md",
-      "Drafts/2026-10-19/notes.txt",
+      ".instrument/drafts/2026-10-19/DRAFT.md",
+      ".instrument/drafts/2026-10-19/notes.txt",
     ]);
   });
 
@@ -762,3 +770,17 @@ describe("a draft's folder as what goes with it", () => {
     expect(fs.existsSync(shared)).toBe(true);
   });
 });
+
+/** Every device's lines in the projects synced store, as one string. */
+function projectRecordLines(): string {
+  const devices = path.join(root, ".instrument", "devices");
+  if (!fs.existsSync(devices)) {
+    return "";
+  }
+  return fs
+    .readdirSync(devices)
+    .map((device) => path.join(devices, device, "projects.jsonl"))
+    .filter((file) => fs.existsSync(file))
+    .map((file) => fs.readFileSync(file, "utf8"))
+    .join("");
+}

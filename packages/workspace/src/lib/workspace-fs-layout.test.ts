@@ -1,7 +1,4 @@
-import {
-  APP_NAME_SLUG,
-  WORKSPACE_MACHINE_ENTRIES,
-} from "@instrument-org/shared";
+import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { Bash } from "just-bash";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -253,34 +250,6 @@ describe("buildBashFs", () => {
       ).resolves.toBe("hi\n");
     });
 
-    it("names the chat's own folder, where its finished work goes", async () => {
-      await fs.writeFile(
-        path.join(
-          getWorkspaceConfig().workspaceMachineDir,
-          WORKSPACE_MACHINE_ENTRIES.chatFolders,
-        ),
-        JSON.stringify({ [path.basename(record)]: "Quiet dishwashers" }),
-      );
-
-      const layout = buildWorkspaceFsLayout({
-        chatHostRoot: WorkDirSchema.parse(work),
-        recordHostRoot: ChatDirSchema.parse(record),
-      });
-
-      expect(layout.folder?.hostRoot).toBe(
-        path.join(getWorkspaceConfig().rootDir, "Chats", "Quiet dishwashers"),
-      );
-    });
-
-    it("names no folder for a chat this computer recorded none for", async () => {
-      const layout = buildWorkspaceFsLayout({
-        chatHostRoot: WorkDirSchema.parse(work),
-        recordHostRoot: ChatDirSchema.parse(record),
-      });
-
-      expect(layout.folder).toBeUndefined();
-    });
-
     it("reads what the person sent and changes none of it", async () => {
       const bash = await makeChatBash();
       const read = await bash.exec(
@@ -296,11 +265,11 @@ describe("buildBashFs", () => {
       );
     });
 
-    // The workspace folder is one every chat reaches (`folderReach`), and
-    // a draft in it can ask a computer to send it.
-    it("reads a draft in the workspace it reaches and changes none of the drafts", async () => {
+    // The drafts are in the workspace's `.instrument/`, which is otherwise
+    // closed, and a draft can ask a computer to send it.
+    it("reads a draft and changes none of the drafts", async () => {
       const root = getWorkspaceConfig().rootDir;
-      const drafts = path.join(root, "Drafts");
+      const drafts = workspaceLayout(root).draftsDir;
       await fs.mkdir(path.join(drafts, "2026-10-27"), { recursive: true });
       await fs.writeFile(path.join(drafts, "2026-10-27", "DRAFT.md"), "words");
       const layout = buildWorkspaceFsLayout({
@@ -615,7 +584,6 @@ describe("buildBashFs skills mount", () => {
     const machine = path.join(tmpDir, "machine");
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
-      appsDir: AbsolutePathSchema.parse(workspaceLayout(tmpDir).appsDir),
       chatsDir: AbsolutePathSchema.parse(workspaceLayout(tmpDir).chatsDir),
       userDataDir: AbsolutePathSchema.parse(machine),
       rootDir: WorkspaceDirSchema.parse(tmpDir),
@@ -694,13 +662,13 @@ describe("buildBashFs skills mount", () => {
     ).resolves.toBe("body\n");
   });
 
-  it("leaves skills and apps for the first one to make inside a granted workspace folder", async () => {
+  it("leaves skills for the first one to make inside a granted workspace folder", async () => {
     await fs.rm(path.join(tmpDir, SKILLS_FOLDER_NAME), {
       force: true,
       recursive: true,
     });
     const layout = buildWorkspaceFsLayout({
-      apps: true,
+      keepsMemory: true,
       chatHostRoot: WorkDirSchema.parse(path.join(tmpDir, "task")),
       folders: {
         workspace: {
@@ -715,7 +683,6 @@ describe("buildBashFs skills mount", () => {
       fs: await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 }),
     });
     expect(existsSync(getWorkspaceSkillsDir())).toBe(false);
-    expect(existsSync(getWorkspaceConfig().appsDir)).toBe(false);
 
     const written = await bash.exec(
       `mkdir -p ${WORKSPACE_SKILLS()}/first && echo body > ${WORKSPACE_SKILLS()}/first/SKILL.md`,

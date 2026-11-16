@@ -77,6 +77,13 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     return { type: "stop" };
   }
 
+  // The provider's own verdict on its response, which the OpenAI and
+  // Anthropic SDKs put ahead of the status too. A "yes" waits below the
+  // refusals no retry can change.
+  if (error.kind === "api-call" && error.shouldRetry === false) {
+    return { type: "stop" };
+  }
+
   // Waiting is the whole fix for these two, and the machine already knows how
   // to wait. Checked ahead of `kind`, which says how the rejection reached us
   // rather than what it was: an upstream throttle reported inside a 200 stream
@@ -93,6 +100,10 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
     return { type: "stop" };
   }
 
+  if (error.kind === "api-call" && error.shouldRetry === true) {
+    return { type: "retry" };
+  }
+
   // A refusal blamed on media its request newly carried: the next request
   // leaves that media out (`lib/refused-media.ts`), and a retry is how the
   // blame is put to the test.
@@ -104,6 +115,12 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
   // refused again. Stopping leaves the error on the message for the user.
   if (classification === "unsendable-content") {
     return { type: "stop" };
+  }
+
+  // The provider refused the request for size. The next request is the one
+  // that answers it, by rolling the window over (`lib/context-overflow.ts`).
+  if (classification === "context-overflow") {
+    return { type: "retry" };
   }
 
   if (error.kind === "unknown") {
@@ -149,6 +166,19 @@ export function getErrorAction(message: SessionMessage.Assistant): ErrorAction {
         return { type: "stop" };
       }
       return { type: "retry" };
+    }
+
+    // Any other 4xx refused this request as it stands, and the same request
+    // sent again is refused again. 408 and 409 are the two the SDK counts as
+    // worth another try.
+    if (
+      error.statusCode !== undefined &&
+      error.statusCode >= 400 &&
+      error.statusCode < 500 &&
+      error.statusCode !== 408 &&
+      error.statusCode !== 409
+    ) {
+      return { type: "stop" };
     }
 
     // For other providers with API errors, default to retryable

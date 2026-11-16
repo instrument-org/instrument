@@ -36,7 +36,7 @@ export function roleLayout({
   rules?: Rules;
 }): WorkspaceFsLayout {
   return buildWorkspaceFsLayout({
-    apps: role === "chat",
+    keepsMemory: role === "chat",
     folders,
     rules,
     chatHostRoot: workDir(chatId),

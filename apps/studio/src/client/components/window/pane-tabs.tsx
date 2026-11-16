@@ -546,13 +546,11 @@ function PaneTabMenu({
           <ChatTabItems
             chatId={chat}
             components={dropdownMenuComponents}
-            group={split?.group}
             onArchived={() => {
               onClose(tab.id);
             }}
             onDelete={onDelete}
             onRename={onRename}
-            tabId={tab.id}
           />
         ) : draft !== undefined ? (
           <DraftTabItems components={dropdownMenuComponents} draft={draft} />

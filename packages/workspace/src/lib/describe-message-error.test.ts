@@ -1,4 +1,7 @@
-import { STREAM_ENDED_EARLY_MESSAGE } from "@instrument-org/shared";
+import {
+  EMPTY_RESPONSE_MESSAGE,
+  STREAM_ENDED_EARLY_MESSAGE,
+} from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -172,6 +175,21 @@ describe("describeMessageError", () => {
       {
         "detail": "The model stopped partway through its reply. Try again.",
         "summary": "Reply was cut off",
+      }
+    `);
+  });
+
+  it("says a reply with nothing in it was empty", () => {
+    expect(
+      describeMessageError({
+        classification: "transient",
+        kind: "unknown",
+        message: EMPTY_RESPONSE_MESSAGE,
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "detail": "The model sent back an empty reply. Try again.",
+        "summary": "Empty reply",
       }
     `);
   });

@@ -17,7 +17,7 @@ import { lastAssistantTextIn } from "./chat/reply-excerpt";
 import { sessionSteps } from "./chat/steps";
 import { taskStatus } from "./chat/task-status";
 import { isStopNote } from "./chat/wake-event";
-import { renderChatMarkdown } from "./chat-folders/chat-markdown";
+import { renderChatMarkdown } from "./chat-markdown/chat-markdown";
 import { ChatReads } from "./chat-reads";
 import { ChatWrites } from "./chat-writes";
 import {

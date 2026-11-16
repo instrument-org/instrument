@@ -12,7 +12,6 @@ import nodePath from "node:path";
 
 import {
   CHAT_FOLDER_NAMES,
-  DRAFTS_FOLDER_NAME,
   HANDOFF_NOTES_FILE_NAME,
   MEMORY_FOLDER_NAME,
 } from "../constants";
@@ -39,7 +38,6 @@ import {
   realRoot,
 } from "./host-path";
 import { normalizePath } from "./normalize-path";
-import { chatOwnFolder } from "./record-folders";
 import { relativeWithin } from "./path-containment";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
@@ -73,10 +71,10 @@ const DEV_MOUNT_POINT = "/dev";
  */
 export interface WorkspaceFsLayout {
   /**
-   * The workspace's own apps directory, writable, for the agent that authors
-   * apps. Absent for a task, which reaches its apps through the `app` command.
+   * Whether the session is the chat's own, which keeps the workspace's
+   * memories; a task's reads them, and reports what the chat should keep.
    */
-  apps?: WorkspaceFsMount & { readOnly: false };
+  keepsMemory?: true;
   /** The folders the chat reaches. */
   folders: WorkspaceFsMount[];
   /**
@@ -111,12 +109,6 @@ export interface WorkspaceFsLayout {
    * window.
    */
   chats?: WorkspaceFsMount & { readOnly: false };
-  /**
-   * The chat's own folder under `Chats/`, which the person sees: where its
-   * finished work goes and what they sent it lives. Absent for the window,
-   * and for a chat whose settings name no folder yet.
-   */
-  folder?: WorkspaceFsMount & { readOnly: false };
   /**
    * The system's temp folders, writable, where any program keeps scratch
    * files (the config's, or {@link tempFolders}). Listed whether or not each exists;
@@ -255,15 +247,18 @@ export async function buildBashFs(
         })
       : new ReadWriteFs({ maxFileReadSize, root });
     // The setup folders this mount reaches, whose writes say what a turn
-    // did to the person's skills, apps, projects and memories.
-    const setupFolders = (
-      ["app", "memory", "skill", "project"] as const
-    ).flatMap((kind) => {
-      const within = hostPathWithin(mount.hostRoot, SETUP_KINDS[kind].folder());
-      return within === null
-        ? []
-        : [{ kind, root: within === "/" ? "" : within.replace(/\/+$/, "") }];
-    });
+    // did to the person's skills, projects and memories.
+    const setupFolders = (["memory", "skill", "project"] as const).flatMap(
+      (kind) => {
+        const within = hostPathWithin(
+          mount.hostRoot,
+          SETUP_KINDS[kind].folder(),
+        );
+        return within === null
+          ? []
+          : [{ kind, root: within === "/" ? "" : within.replace(/\/+$/, "") }];
+      },
+    );
     if (setupFolders.length > 0) {
       mounted = setupTrackingFs(mounted, setupFolders);
     }
@@ -353,26 +348,20 @@ function linkedFs(fs: IFileSystem, links: FolderLink[]): IFileSystem {
  * config set can only build a layout whose folders are all read-only.
  */
 export function buildWorkspaceFsLayout({
-  apps = false,
+  keepsMemory = false,
   folders,
   rules,
   chatHostRoot,
   recordHostRoot,
 }: {
-  /** Whether the workspace's apps directory is mounted, writable. */
-  apps?: boolean;
+  /** Whether the session is the chat's own, which writes the memories. */
+  keepsMemory?: boolean;
   folders?: Record<string, MountedFolder.Type>;
   rules?: Rules;
   chatHostRoot: WorkDir;
   /** The chat's record folder; none for the window. */
   recordHostRoot?: ChatDir;
 }): WorkspaceFsLayout {
-  // The folder the person sees, found from the name the chat's settings
-  // hold. Read here rather than passed in, so every caller that builds a
-  // layout for a chat gets it without knowing to ask.
-  const ownFolder =
-    recordHostRoot === undefined ? undefined : chatOwnFolder(recordHostRoot);
-  const chatFolderHostRoot = ownFolder;
   const chatsHostRoot = workspaceLayout(getWorkspaceConfig().rootDir).chatsDir;
   const mounts: WorkspaceFsMount[] = Object.values(folders ?? {}).map(
     (folder) => ({
@@ -384,15 +373,7 @@ export function buildWorkspaceFsLayout({
   );
 
   const layout: Omit<WorkspaceFsLayout, "rules"> & { rules?: Rules } = {
-    ...(apps
-      ? {
-          apps: {
-            hostRoot: getWorkspaceConfig().appsDir,
-            shellRoot: shellPath(getWorkspaceConfig().appsDir),
-            readOnly: false as const,
-          },
-        }
-      : {}),
+    ...(keepsMemory ? { keepsMemory: true as const } : {}),
     folders: mounts,
     ...(rules && { rules }),
     skills: buildSkillMounts(),
@@ -414,13 +395,6 @@ export function buildWorkspaceFsLayout({
         hostRoot: recordHostRoot,
         shellRoot: shellPath(recordHostRoot),
         // What in it the agent reads or writes is the rules' to say.
-        readOnly: false as const,
-      },
-    }),
-    ...(chatFolderHostRoot && {
-      folder: {
-        hostRoot: chatFolderHostRoot,
-        shellRoot: shellPath(chatFolderHostRoot),
         readOnly: false as const,
       },
     }),
@@ -535,7 +509,6 @@ export function otherFolders(layout: WorkspaceFsLayout): WorkspaceFsMount[] {
   return [
     ...layout.folders,
     ...layout.skills,
-    ...(layout.apps ? [layout.apps] : []),
     ...(layout.chats ? [layout.chats] : []),
     ...(layout.record ? [layout.record] : []),
   ];
@@ -881,7 +854,7 @@ export function shellPathOfHostSpelling(
  * share everything of the person's; every chat's records, which it reads;
  * and in the chat's record folder the attachments it reads and the handoff
  * notes it writes; the skills it
- * reads and the apps and memories the chat writes, which a task only reads; the runtime's caches and config, which the
+ * reads and the memories the chat writes, which a task only reads; the runtime's caches and config, which the
  * programs it runs write, and its managed Python, skills, skill
  * environments, preload and `bin` links, which they read; its build
  * folders stay closed. Outside it, the temp folders open, and on Windows
@@ -950,17 +923,13 @@ function layoutRules(
     ...layout.skills.map((mount) =>
       system(mount.readOnly ? "readOnly" : "allow", mount.hostRoot),
     ),
-    // The chat authors apps. A task's layout has no apps folder, and every
-    // chat uses what is in it, so a folder of the person's holding it opens
-    // nothing in it to the task's writes either.
-    system(layout.apps ? "allow" : "readOnly", config.appsDir),
     // What every chat remembers is the chat's to keep, from what a task
     // reports, so a task reads the memories and changes none.
-    ...(layout.apps ? [] : [system("readOnly", memoryDir)]),
+    ...(layout.keepsMemory ? [] : [system("readOnly", memoryDir)]),
     // The person's drafts, readable and never changed: a draft can ask a
     // computer to send it (its `send`), so one the agent wrote would start a
     // turn nobody asked for.
-    system("readOnly", nodePath.join(config.rootDir, DRAFTS_FOLDER_NAME)),
+    system("readOnly", workspaceLayout(config.rootDir).draftsDir),
     system("allow", runtime.caches),
     system("allow", runtime.config),
     ...[
@@ -996,14 +965,10 @@ function layoutRules(
   // Windows' `resolve` has to read for a path that names no drive, so the
   // command dies on a security violation instead of reading the file.
   // Resolved here, before the shell starts.
-  // A task's grant inside the apps or memory folder (an app's own folder,
-  // say) is deeper than that folder's rule and would win there, so it reads
-  // only.
-  const chatsOwn = [config.appsDir, memoryDir].flatMap((folder) => [
-    folder,
-    realHostPath(folder),
-  ]);
-  const held = layout.apps
+  // A task's grant inside the memory folder is deeper than that folder's
+  // rule and would win there, so it reads only.
+  const chatsOwn = [memoryDir, realHostPath(memoryDir)];
+  const held = layout.keepsMemory
     ? outsideAppData
     : outsideAppData.map((rule) =>
         rule.level === "allow" &&
@@ -1028,7 +993,7 @@ function layoutRules(
  * The app's own data as a walk meets it, each folder where it really is:
  * the folders closed to the agent (`closed`), and the folders and files in
  * them its rules open again (`open`: the chat's work folder, what it was
- * sent, its handoff notes, the skills and apps, the runtime's own folders).
+ * sent, its handoff notes, the skills, the runtime's own folders).
  * A walk the app runs for the agent with nothing else to hold it (`du`'s,
  * and `rg`'s on Windows) leaves out a path whose deepest holder is closed,
  * and goes on through it to what is open.
@@ -1069,7 +1034,6 @@ async function mountRoots(
   const ours = [
     layout.chat,
     ...layout.skills.filter((mount) => !mount.readOnly),
-    ...(layout.apps ? [layout.apps] : []),
   ];
   for (const mount of allMounts(layout)) {
     if (await pathExists(mount.hostRoot)) {
@@ -1078,9 +1042,9 @@ async function mountRoots(
       missingOurs.push(mount);
     }
   }
-  // Skills and apps inside a folder that is there already (the workspace's
+  // Skills inside a folder that is there already (the workspace's
   // top level, once the person picked it) are reached through it and made
-  // by the first skill or app put there, so a workspace that never used them
+  // by the first skill put there, so a workspace that never used them
   // has none. The chat's work folder is always made: the shell starts in it.
   for (const mount of missingOurs) {
     const reached =

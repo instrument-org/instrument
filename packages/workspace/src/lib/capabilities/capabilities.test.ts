@@ -564,6 +564,7 @@ describe("the registry", () => {
           "read",
           "request",
           "resources",
+          "setup",
           "test",
           "tool",
           "tools",

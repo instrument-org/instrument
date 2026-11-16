@@ -18,9 +18,7 @@ import { absolutePathJoin } from "./absolute-path-join";
 import { TypedError } from "./errors";
 import { findAvailableName } from "./find-available-name";
 import { getMimeType } from "./get-mime-type";
-import { chatFolderTheyOpen } from "./chat/output-folder";
 import { draftsFolderDir } from "./drafts/draft-folder";
-import { chatOwnFolder } from "./record-folders";
 import { pathExists } from "./path-exists";
 import { pathIsWithin } from "./path-is-within";
 import { getWorkspaceConfig, hasWorkspaceConfig } from "./workspace-config";
@@ -47,7 +45,7 @@ export async function writeUploadedAttachments({
   sessionId,
 }: {
   files?: FileUpload.Type[];
-  /** The chat whose folder pasted bytes land in, named by its record folder. */
+  /** The chat's record folder, where pasted bytes land. */
   recordDir: ChatDir;
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
@@ -144,14 +142,8 @@ export async function copyDraftFolders({
   if (!folders.some((folder) => pastedIntoADraft(folder.path))) {
     return folders;
   }
-  const sentTo = chatFolderTheyOpen(chatOwnFolder(recordDir)) ?? recordDir;
-  const inputDir = absolutePathJoin(sentTo, CHAT_FOLDER_NAMES.attachments);
-  const takenIn = [
-    ...new Set([
-      inputDir,
-      absolutePathJoin(recordDir, CHAT_FOLDER_NAMES.attachments),
-    ]),
-  ];
+  const inputDir = absolutePathJoin(recordDir, CHAT_FOLDER_NAMES.attachments);
+  const takenIn = [inputDir];
   await fs.mkdir(inputDir, { recursive: true });
   const reserved = new Set<string>();
   const copied: { path: string }[] = [];
@@ -214,28 +206,10 @@ function prepareUploadedFiles({
   recordDir: ChatDir;
 }) {
   return safeTry(async function* () {
-    // Into the chat's own folder under `Chats/`, beside the transcript the
-    // person reads, so what they sent is theirs to open rather than
-    // something in the records.
-    //
-    // Unless that folder is not one they open: a workspace kept in the
-    // app's own data is inside the folder the rules close to every command,
-    // so a file written there is refused outright, with no card to allow
-    // it, and the agent cannot read what the person just sent it. Those
-    // keep it in the record folder, which the rules open for reading. The
-    // stored path is `attachments/<name>` either way, so what resolves it
-    // is which folder holds them and nothing stored has to change.
-    const sentTo = chatFolderTheyOpen(chatOwnFolder(recordDir)) ?? recordDir;
-    const inputDir = absolutePathJoin(sentTo, CHAT_FOLDER_NAMES.attachments);
-    // A name what the chat was sent before still has in the record folder
-    // is taken too: both are `attachments/<name>` to the records, and those
-    // files move in beside these when the chat's folder is next written.
-    const takenIn = [
-      ...new Set([
-        inputDir,
-        absolutePathJoin(recordDir, CHAT_FOLDER_NAMES.attachments),
-      ]),
-    ];
+    // Into the chat's record folder, which the rules open for reading, and
+    // which the stored path `attachments/<name>` is resolved against.
+    const inputDir = absolutePathJoin(recordDir, CHAT_FOLDER_NAMES.attachments);
+    const takenIn = [inputDir];
     yield* ResultAsync.fromPromise(
       fs.mkdir(inputDir, { recursive: true }),
       fileSystemError,
@@ -285,7 +259,7 @@ function prepareUploadedFiles({
 
       preparedFiles.push({
         filename: uniqueFilename,
-        filePath: absolutePathJoin(sentTo, relativePath),
+        filePath: absolutePathJoin(recordDir, relativePath),
         input: file,
         inPlace: false,
         mimeType: getMimeType(uniqueFilename),

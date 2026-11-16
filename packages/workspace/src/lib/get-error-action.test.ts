@@ -172,6 +172,59 @@ describe("getErrorAction", () => {
       expected: { type: "retry" },
       provider: "openai",
     },
+    {
+      case: "retries another provider's 5xx",
+      error: apiCall({ classification: "unknown", statusCode: 500 }),
+      expected: { type: "retry" },
+      provider: "openai",
+    },
+    ...([400, 404, 422] as const).map((statusCode) => ({
+      case: `stops on another provider's ${statusCode} it cannot name`,
+      error: apiCall({ classification: "unknown", statusCode }),
+      expected: { type: "stop" } as const,
+      provider: "openai" as const,
+    })),
+    ...([408, 409] as const).map((statusCode) => ({
+      case: `retries another provider's ${statusCode}`,
+      error: apiCall({ classification: "unknown", statusCode }),
+      expected: { type: "retry" } as const,
+      provider: "openai" as const,
+    })),
+    {
+      case: "stops when the provider says not to retry",
+      error: apiCall({
+        classification: "transient",
+        shouldRetry: false,
+        statusCode: 503,
+      }),
+      expected: { type: "stop" },
+      provider: "openai",
+    },
+    {
+      case: "retries when the provider says to, whatever the status",
+      error: apiCall({
+        classification: "unknown",
+        shouldRetry: true,
+        statusCode: 400,
+      }),
+      expected: { type: "retry" },
+      provider: "openai",
+    },
+    {
+      case: "retries a 400 that refused the request for size, so it rolls over",
+      error: apiCall({ classification: "context-overflow", statusCode: 400 }),
+      expected: { type: "retry" },
+      provider: "openai",
+    },
+    {
+      case: "retries an overflow reported inside a 200 stream",
+      error: {
+        classification: "context-overflow",
+        kind: "unknown",
+        message: "Prompt too long",
+      },
+      expected: { type: "retry" },
+    },
     ...([429, 502, 529] as const).map((statusCode) => ({
       case: `stops on a Claude account ${statusCode}, which Claude Code already retried`,
       error: apiCall({ classification: "transient", statusCode }),

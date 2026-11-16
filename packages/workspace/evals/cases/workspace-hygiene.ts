@@ -2,9 +2,8 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import { finishedWorkFolder } from "../../src/lib/chat/output-folder";
+import { filesFolderPath } from "../../src/lib/chat/output-folder";
 import { FFMPEG_PATH, FFPROBE_PATH } from "../../src/lib/ffmpeg";
-import { chatDir, chatOwnFolder } from "../../src/lib/record-folders";
 import { workDir } from "../../src/lib/work-dir";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { workspaceLayout } from "../../src/lib/workspace-layout";
@@ -316,13 +315,13 @@ function filesUnder(root: string, name: RegExp): string[] {
 
 /**
  * A chart with no place given lands where the person sees it: the
- * conversation's own folder, or anywhere else in their Instrument folder,
+ * Files folder, or anywhere else in their Instrument folder,
  * never only in the work folder.
  */
 const deliversTheChartWhereTheyLook: Assertion = {
   check: ({ chatId, sessions }) => {
     const chart = /\.(?:png|svg|jpe?g|pdf|html)$/i;
-    const own = finishedWorkFolder(chatOwnFolder(chatDir(chatId)));
+    const own = filesFolderPath();
     const visible = filesUnder(own, chart);
     const workOnly = filesUnder(workDir(chatId), chart);
     return {
@@ -333,10 +332,10 @@ const deliversTheChartWhereTheyLook: Assertion = {
             ? `Only in the work folder: ${workOnly.slice(0, 5).join(", ")}`
             : `No chart anywhere. Reply: ${replyText(sessions).slice(-300)}`,
       passed: visible.length > 0,
-      text: "Puts the chart in the conversation's own folder, where the person sees it",
+      text: "Puts the chart in the Files folder, where the person sees it",
     };
   },
-  text: "Puts the chart in the conversation's own folder, where the person sees it",
+  text: "Puts the chart in the Files folder, where the person sees it",
 };
 
 const CONTACTS = [

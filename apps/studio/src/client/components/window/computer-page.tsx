@@ -210,7 +210,6 @@ import {
   relativeHostPath,
   segmentsOf,
 } from "./host-path";
-import { useChatFolderTrash } from "./chat-folder-trash";
 import { useClashQuestions } from "./clash-dialog";
 import { createPasteTarget } from "./paste-target";
 import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
@@ -830,22 +829,7 @@ export function ComputerPage({
     // Read before they go, while their rows still say what follows them.
     const next =
       fileSystemRef.current?.rowAfter(picked.map((item) => item.path)) ?? null;
-    // A chat's own folder is asked about first, since the chat may be what
-    // the person means to delete.
-    const choice = await chatFolderTrash.ask(hostPaths);
-    if (choice.kind === "stop") {
-      focusBrowser();
-      return;
-    }
-    const toTrash = choice.rest;
-    if (toTrash.length === 0) {
-      reread();
-      if (next !== null) {
-        fileSystemRef.current?.select([next]);
-      }
-      focusBrowser();
-      return;
-    }
+    const toTrash = hostPaths;
     // What went, by the journal entries that bring each back: the toast's
     // Undo is about these whatever is done after them.
     const undoable: string[] = [];
@@ -901,19 +885,10 @@ export function ComputerPage({
               },
             }
           : null,
-        choice.kind === "folders" && choice.kept > 0
-          ? {
-              description:
-                choice.kept === 1
-                  ? "The chat is still in your list."
-                  : "The chats are still in your list.",
-            }
-          : {},
       );
     }
   };
   const clashQuestions = useClashQuestions();
-  const chatFolderTrash = useChatFolderTrash();
   // Copies things into a folder of this computer, as a drop from outside or
   // a paste does, or moves the Finder's own rows there, as a drop of them
   // does. Any name already taken there is asked about first, every one
@@ -2927,7 +2902,6 @@ export function ComputerPage({
               </div>
             </ContextMenuTrigger>
             {clashQuestions.dialog}
-            {chatFolderTrash.dialog}
             <FolderMenu
               {...menuActionsFor(menuItem)}
               isRecents={isRecents}

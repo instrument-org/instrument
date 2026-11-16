@@ -162,7 +162,7 @@ type WorkspaceInputPath =
  */
 type WorkspaceInput = Omit<
   WorkspaceConfig,
-  "appsDir" | "chatsDir" | "legacyTasksDir" | "rootDir" | WorkspaceInputPath
+  "chatsDir" | "legacyTasksDir" | "rootDir" | WorkspaceInputPath
 > & {
   [K in keyof Pick<
     WorkspaceConfig,
@@ -291,7 +291,6 @@ export const workspaceMachine = setup({
     const layout = workspaceLayout(rootDir);
     const workspaceConfig: WorkspaceConfig = {
       ...omit(input, ["aiGatewayApp", "legacyTasks"]),
-      appsDir: AbsolutePathSchema.parse(layout.appsDir),
       chatsDir: AbsolutePathSchema.parse(layout.chatsDir),
       ...(input.legacyTasks && {
         legacyTasksDir: absolutePathJoin(rootDir, TASKS_DIR_NAME),

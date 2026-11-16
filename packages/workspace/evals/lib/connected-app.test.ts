@@ -24,20 +24,19 @@ afterEach(async () => {
 it("a signed-out app is refused as a lost sign-in until it has the card's token", async () => {
   const apps = { ...createMemoryAppsConfig(), oauth: cardOnlySignIns() };
   setWorkspaceConfig({ ...getWorkspaceConfig(), apps });
-  const { appsDir } = getWorkspaceConfig();
   ({ close } = await seedConnectedApps(
     [{ kind: "signed-out", name: "Beacon", slug: "beacon" }],
-    { apps, appsDir },
+    { apps },
   ));
 
-  expect(await checkAppSignIns({ appsDir })).toEqual(["beacon"]);
+  expect(await checkAppSignIns()).toEqual(["beacon"]);
   expect(await apps.connections.get("beacon")).toMatchObject({
     status: "needs-sign-in",
   });
 
-  await answerSignIn("beacon", "connected", { appsDir });
+  await answerSignIn("beacon", "connected");
 
-  expect(await checkAppSignIns({ appsDir })).toEqual([]);
+  expect(await checkAppSignIns()).toEqual([]);
   expect(await apps.connections.get("beacon")).toMatchObject({
     status: "connected",
   });

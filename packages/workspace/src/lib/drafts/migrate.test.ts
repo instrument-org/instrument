@@ -6,11 +6,11 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { workspaceLayout } from "../workspace-layout";
 import { makeDraftFolder, readDrafts } from "./draft-folder";
-import { migrateDraftsToFolder } from "./migrate";
+import { convertBetaDrafts } from "./migrate";
 
 /**
- * The drafts an earlier build kept hidden, brought out to `Drafts/`. Over a
- * real folder, since what is being checked is where the files end up.
+ * The drafts an early beta kept in its own shape, converted where they are.
+ * Over a real folder, since what is being checked is where the files end up.
  */
 
 const ZONE = "America/New_York";
@@ -55,7 +55,7 @@ function hiddenDraft(
   return dir;
 }
 
-/** What is in `Drafts/` now, as paths under the workspace. */
+/** What is in the drafts folder now, as paths under the workspace. */
 function tree(): string[] {
   const walk = (dir: string): string[] =>
     fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -66,15 +66,15 @@ function tree(): string[] {
           // the same whatever this computer writes between its own.
           [path.relative(rootDir, where).split(path.sep).join("/")];
     });
-  const drafts = path.join(rootDir, "Drafts");
+  const drafts = workspaceLayout(rootDir).draftsDir;
   return fs.existsSync(drafts) ? walk(drafts).toSorted() : [];
 }
 
 function migrate() {
-  return migrateDraftsToFolder({ rootDir, timeZone: ZONE });
+  return convertBetaDrafts({ rootDir, timeZone: ZONE });
 }
 
-describe("bringing the hidden drafts out", () => {
+describe("converting the beta's drafts where they are", () => {
   it("makes a folder named for the day, with the words and the record in one file", async () => {
     hiddenDraft("01KFD1", { record: { topicId: "tpc_01KF" } });
 
@@ -83,7 +83,7 @@ describe("bringing the hidden drafts out", () => {
     expect(migration.left).toEqual([]);
     expect(tree()).toMatchInlineSnapshot(`
       [
-        "Drafts/2026-10-14/DRAFT.md",
+        ".instrument/drafts/2026-10-14/DRAFT.md",
       ]
     `);
     expect(fs.readFileSync(path.join(rootDir, tree()[0] ?? ""), "utf8"))
@@ -120,8 +120,8 @@ describe("bringing the hidden drafts out", () => {
 
     expect(tree()).toMatchInlineSnapshot(`
       [
-        "Drafts/2026-10-14/DRAFT.md",
-        "Drafts/2026-10-14/pasted-image.png",
+        ".instrument/drafts/2026-10-14/DRAFT.md",
+        ".instrument/drafts/2026-10-14/pasted-image.png",
       ]
     `);
     expect((await readDrafts(rootDir))[0]?.draft.context).toBeUndefined();
@@ -171,7 +171,11 @@ describe("bringing the hidden drafts out", () => {
       },
     });
     fs.writeFileSync(
-      path.join(rootDir, "Drafts", "2026-10-14", "pasted-image.png"),
+      path.join(
+        workspaceLayout(rootDir).draftsDir,
+        "2026-10-14",
+        "pasted-image.png",
+      ),
       "another one",
     );
 
@@ -181,15 +185,19 @@ describe("bringing the hidden drafts out", () => {
     // name already taken is numbered rather than written over.
     expect(tree()).toMatchInlineSnapshot(`
       [
-        "Drafts/2026-10-14 2/DRAFT.md",
-        "Drafts/2026-10-14 2/pasted-image.png",
-        "Drafts/2026-10-14/DRAFT.md",
-        "Drafts/2026-10-14/pasted-image.png",
+        ".instrument/drafts/2026-10-14 2/DRAFT.md",
+        ".instrument/drafts/2026-10-14 2/pasted-image.png",
+        ".instrument/drafts/2026-10-14/DRAFT.md",
+        ".instrument/drafts/2026-10-14/pasted-image.png",
       ]
     `);
     expect(
       fs.readFileSync(
-        path.join(rootDir, "Drafts", "2026-10-14 2", "pasted-image.png"),
+        path.join(
+          workspaceLayout(rootDir).draftsDir,
+          "2026-10-14 2",
+          "pasted-image.png",
+        ),
         "utf8",
       ),
     ).toBe("the bytes");
@@ -201,7 +209,9 @@ describe("bringing the hidden drafts out", () => {
     await migrate();
 
     expect(fs.existsSync(was)).toBe(false);
-    expect(fs.existsSync(workspaceLayout(rootDir).draftsDir)).toBe(false);
+    expect(fs.readdirSync(workspaceLayout(rootDir).draftsDir)).toEqual([
+      "2026-10-14",
+    ]);
   });
 
   it("brings a file left in the old folder out with the draft", async () => {
@@ -214,8 +224,8 @@ describe("bringing the hidden drafts out", () => {
 
     expect(tree()).toMatchInlineSnapshot(`
       [
-        "Drafts/2026-10-14/DRAFT.md",
-        "Drafts/2026-10-14/notes.txt",
+        ".instrument/drafts/2026-10-14/DRAFT.md",
+        ".instrument/drafts/2026-10-14/notes.txt",
       ]
     `);
     expect(fs.existsSync(was)).toBe(false);
@@ -237,7 +247,7 @@ describe("bringing the hidden drafts out", () => {
     ]);
   });
 
-  it("leaves a draft already in Drafts alone, whatever the old folder holds", async () => {
+  it("leaves a draft already in the drafts folder alone, whatever the old folder holds", async () => {
     hiddenDraft("01KFD1", { words: "the old words" });
     await migrate();
     hiddenDraft("01KFD1", { words: "written again by an older build" });
@@ -247,7 +257,7 @@ describe("bringing the hidden drafts out", () => {
     expect(migration.left).toMatchInlineSnapshot(`
       [
         {
-          "reason": "the draft it holds is already in Drafts",
+          "reason": "the draft it holds is already in the drafts folder",
           "where": "${path.join(workspaceLayout(rootDir).draftsDir, "01KFD1")}",
         },
       ]

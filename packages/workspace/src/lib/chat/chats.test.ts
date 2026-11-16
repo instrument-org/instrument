@@ -24,7 +24,8 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { APP_FILE_NAME } from "../apps/app-file";
+import { closeAppStores } from "../apps/store";
+import { seedApp } from "../../test/helpers/seed-app";
 import { chatRecords } from "../records/chat-records";
 import { type WorkspaceActorRef } from "../../machines/workspace";
 import {
@@ -159,7 +160,8 @@ beforeEach(() => {
   pendingWakes.value = new Set();
 });
 
-afterEach(() => {
+afterEach(async () => {
+  await closeAppStores();
   for (const root of roots.splice(0)) {
     fs.rmSync(root, { force: true, recursive: true });
   }
@@ -1109,26 +1111,15 @@ describe("listChats", () => {
 
   it("waits on a sign-in card until its app is answered, and not once the user writes past it", async () => {
     const chatId = await freshChat();
-    const appsDir = path.join(getWorkspaceConfig().rootDir, "apps");
-    setWorkspaceConfig({
-      ...getWorkspaceConfig(),
-      appsDir: AbsolutePathSchema.parse(appsDir),
+    await seedApp("apple-reminders", {
+      name: "Reminders",
+      setup: {
+        auth: { kind: "none" },
+        package: "apple-reminders",
+        runtime: "bundled",
+        type: "mcp-local",
+      },
     });
-    fs.mkdirSync(path.join(appsDir, "Reminders"), { recursive: true });
-    fs.writeFileSync(
-      path.join(appsDir, "Reminders", APP_FILE_NAME),
-      [
-        "---",
-        "id: apple-reminders",
-        "type: mcp-local",
-        "package: apple-reminders",
-        "runtime: bundled",
-        "auth:",
-        "  kind: none",
-        "---",
-        "",
-      ].join("\n"),
-    );
     const connections = getWorkspaceConfig().apps.connections;
     await connections.set("apple-reminders", {
       status: "needs-approval",
@@ -1226,26 +1217,15 @@ describe("listChats", () => {
 
   it("stops waiting on a sign-in card once the user stops the chat", async () => {
     const chatId = await freshChat();
-    const appsDir = path.join(getWorkspaceConfig().rootDir, "apps");
-    setWorkspaceConfig({
-      ...getWorkspaceConfig(),
-      appsDir: AbsolutePathSchema.parse(appsDir),
+    await seedApp("apple-reminders", {
+      name: "Reminders",
+      setup: {
+        auth: { kind: "none" },
+        package: "apple-reminders",
+        runtime: "bundled",
+        type: "mcp-local",
+      },
     });
-    fs.mkdirSync(path.join(appsDir, "Reminders"), { recursive: true });
-    fs.writeFileSync(
-      path.join(appsDir, "Reminders", APP_FILE_NAME),
-      [
-        "---",
-        "id: apple-reminders",
-        "type: mcp-local",
-        "package: apple-reminders",
-        "runtime: bundled",
-        "auth:",
-        "  kind: none",
-        "---",
-        "",
-      ].join("\n"),
-    );
     await getWorkspaceConfig().apps.connections.set("apple-reminders", {
       status: "needs-approval",
       updatedAt: 1,
@@ -1928,11 +1908,6 @@ describe("liveChatRows", () => {
 
   it("moves a row's apps when the workspace's apps change", async () => {
     const chatId = await freshChat();
-    const appsDir = path.join(getWorkspaceConfig().rootDir, "apps");
-    setWorkspaceConfig({
-      ...getWorkspaceConfig(),
-      appsDir: AbsolutePathSchema.parse(appsDir),
-    });
     const sessionId = await session(chatId, "Groceries");
     await userSays(
       chatId,
@@ -1941,24 +1916,18 @@ describe("liveChatRows", () => {
       1,
     );
     const { first, next, stop } = await open();
-    // No apps folder yet: nothing is known, so nothing is filtered.
+    // No apps yet: nothing is known, so nothing is filtered.
     expect(first?.[0]?.holds.apps).toEqual(["linear"]);
 
-    fs.mkdirSync(path.join(appsDir, "Drafts"), { recursive: true });
-    fs.writeFileSync(
-      path.join(appsDir, "Drafts", APP_FILE_NAME),
-      [
-        "---",
-        "id: drafts",
-        "type: mcp-local",
-        "package: '@agiletortoise/drafts-mcp-server'",
-        "runtime: node",
-        "auth:",
-        "  kind: none",
-        "---",
-        "",
-      ].join("\n"),
-    );
+    await seedApp("drafts", {
+      name: "Drafts",
+      setup: {
+        auth: { kind: "none" },
+        package: "@agiletortoise/drafts-mcp-server",
+        runtime: "node",
+        type: "mcp-local",
+      },
+    });
     publisher.publish("app.updated", null);
 
     expect((await next())?.[0]?.holds.apps).toEqual([]);

@@ -1,6 +1,5 @@
 import { WINDOW_CARD_GAP } from "@/shared/constants";
 import {
-  chatOutputFolder,
   workDir,
   ChatIdSchema,
   liveRead,
@@ -617,16 +616,29 @@ function readWindowState(webContentsId: number) {
 }
 
 /**
- * Where a chat's finished work goes (`$INSTRUMENT_OUTPUT`), for the window to
- * show it in its own folder view. Made when nothing has landed there yet, so
- * what is shown is the folder its work will land in rather than nothing.
+ * Saves a text file wherever the person picks in the system's save dialog,
+ * offered under `fileName` in Downloads: how a chat exported as Markdown
+ * reaches the person's disk.
  */
-const chatFolderPath = base
-  .input(z.object({ id: ChatIdSchema }))
-  .handler(async ({ input }) => {
-    const dir = chatOutputFolder(input.id);
-    await fs.mkdir(dir, { recursive: true });
-    return dir;
+const saveTextFile = base
+  .input(z.object({ fileName: z.string().min(1), text: z.string() }))
+  .output(z.object({ status: z.enum(["canceled", "saved"]) }))
+  .handler(async ({ context, input }) => {
+    const parent = getCallingWindow(context.webContentsId);
+    const options = {
+      defaultPath: path.join(app.getPath("downloads"), input.fileName),
+      filters: [{ extensions: ["md"], name: "Markdown" }],
+    };
+    // Parented, so macOS shows a sheet on the window rather than blocking
+    // the whole app.
+    const result = await (parent
+      ? dialog.showSaveDialog(parent, options)
+      : dialog.showSaveDialog(options));
+    if (result.canceled || !result.filePath) {
+      return { status: "canceled" as const };
+    }
+    await fs.writeFile(result.filePath, input.text, "utf8");
+    return { status: "saved" as const };
   });
 
 /**
@@ -756,6 +768,7 @@ export const utils = {
   prepareDrag,
   readDiagnosticLog,
   saveDiagnosticLog,
+  saveTextFile,
   sendTargets,
   shareText,
   showContextMenu,
@@ -763,7 +776,6 @@ export const utils = {
   showFolderPicker,
   showTrafficLights,
   syncZoom,
-  chatFolderPath,
   chatWorkFolderPath,
   toggleMaximizeWindow,
 };

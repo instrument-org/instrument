@@ -15,7 +15,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { ChatReads } from "./chat-reads";
-import { chatOutputFolder, outputFolderPath } from "./chat/output-folder";
+import { filesFolderPath } from "./chat/output-folder";
 import { getCurrentDate } from "./get-current-date";
 import { getSystemInfo } from "./get-system-info";
 import { baselineRecorded, partsAfter } from "./last-told";
@@ -26,11 +26,9 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 /**
  * The computer this process runs on, as a session's model is told it.
  *
- * The output folder is worked out exactly as `$INSTRUMENT_OUTPUT` is
- * (`finishedWorkFolder`), so what the model reads and what its shell holds
- * are the same folder; a change to it between turns is told as any other
- * move of a folder is. Without a chat, as for the window, it is the
- * Instrument folder.
+ * The output folder is the Files folder, worked out exactly as
+ * `$INSTRUMENT_FILES` is (`filesFolderPath`), so what the model reads and
+ * what its shell holds are the same folder.
  *
  * The image options are for the image model `runsOn` would pick among the
  * providers connected now: the chat's model, which every session of it runs
@@ -38,21 +36,18 @@ import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
  * provider is told as a change.
  */
 export async function currentEnvironment(
-  chatId?: ChatId,
+  _chatId?: ChatId,
   runsOn?: AIGatewayModelURI.Type,
 ): Promise<Environment> {
   // Imported when asked: the shell's module reaches this one through the
   // commands that send a task a message.
   const { computerCommandsText } = await import("./create-bash-env");
   return {
-    appsFolder: shellPath(getWorkspaceConfig().appsDir),
     commands: computerCommandsText(),
     computer: await getSystemInfo(),
     homeFolder: shellPath(os.homedir()),
     imageOptions: imageOptionsFor(runsOn),
-    outputFolder: shellPath(
-      chatId === undefined ? outputFolderPath() : chatOutputFolder(chatId),
-    ),
+    outputFolder: shellPath(filesFolderPath()),
     platform: process.platform,
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     workspaceSkillsFolder: shellPath(getWorkspaceSkillsDir()),

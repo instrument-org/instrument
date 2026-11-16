@@ -8,7 +8,6 @@
  * chat says the account is not named yet; the case is scored on whether the
  * app ends up named after the workspace and the reply says which one.
  */
-import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { loadApp } from "../../src/lib/apps/store";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
@@ -28,7 +27,7 @@ const NAMED = `the app's account is named ${WORKSPACE}`;
 
 const named: Assertion = {
   check: async () => {
-    const loaded = await loadApp(getWorkspaceConfig().appsDir, "notion");
+    const loaded = await loadApp("notion");
     const account = loaded.isOk() ? loaded.value.manifest.account : undefined;
     return {
       evidence: account ?? "no account named",

@@ -199,7 +199,6 @@ import {
   windowTabsAtom,
 } from "./window-tabs";
 import { flashStripTab } from "./tab-strip";
-import { useFollowFolderMoves } from "./follow-folder-moves";
 import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
 import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 
@@ -665,8 +664,6 @@ function WindowShell({
   const windowSteps = useWindowSteps();
   // Every screen a group's tab stands on is walked by a router of its own.
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
-  // And each follows a chat's folder moving to the chat's title.
-  useFollowFolderMoves(opened !== undefined);
 
   // The folder a tab last stood in is where Files in the rail takes a tab.
   // A file's address names where it was opened from rather than the folder

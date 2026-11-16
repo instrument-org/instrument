@@ -5,7 +5,6 @@ import { ok } from "neverthrow";
 import { dedent } from "radashi";
 import { z } from "zod";
 
-import { APP_FILE_NAME } from "../lib/apps/app-file";
 import {
   isConnected,
   readConnection,
@@ -20,7 +19,6 @@ import {
 } from "../lib/apps/store";
 import { APP_COMMAND } from "../model-text/commands/app-command";
 import { getWorkspaceConfig } from "../lib/workspace-config";
-import { shellPath } from "../lib/workspace-fs-layout";
 import {
   type ConnectAppResult,
   askedOnCard,
@@ -58,7 +56,7 @@ const connectAppCapability = defineCapability({
       .min(1)
       .max(MAX_APPS_PER_CARD)
       .meta({
-        description: `The apps to connect: the \`id\` in the ${APP_FILE_NAME} you have already written for each. Every app the work needs goes in one call, one card for them all.`,
+        description: `The apps to connect: the \`id\` each was set up under with \`${APP_COMMAND.name} new\`. Every app the work needs goes in one call, one card for them all.`,
       }),
   }),
   name: "apps.connect",
@@ -66,7 +64,7 @@ const connectAppCapability = defineCapability({
   surfaces: {
     tool: {
       description: dedent`
-    Ask the user to connect apps whose folders you have written in the apps folder. One card appears in the conversation with a row for each app: sign-in buttons for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. Name every app the work needs in one call: several calls make several cards. Your turn ends on this call, so do what does not depend on the connection first. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
+    Ask the user to connect apps you have set up with \`${APP_COMMAND.name} new\`. One card appears in the conversation with a row for each app: sign-in buttons for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a button that opens its sign-in in the window's browser. Name every app the work needs in one call: several calls make several cards. Your turn ends on this call, so do what does not depend on the connection first. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
       execute: async ({ input, messageId, partId, sessionId, chatId }) => {
         const slugs = [...new Set(input.slugs)];
@@ -112,15 +110,15 @@ export const ConnectApp = modelTool(connectAppCapability);
 /** What asking for one app comes to: a row on the card, already connected, or why it could not be asked. */
 async function askFor(requested: string): Promise<ConnectAppResult> {
   const config = getWorkspaceConfig();
-  const loaded = await loadApp(config.appsDir, requested);
+  const loaded = await loadApp(requested);
   if (loaded.isErr()) {
     return {
-      message: `${loaded.error.message} Write the app's folder first (\`${APP_COMMAND.name} new\`), then ask.`,
+      message: `${loaded.error.message} Set the app up first (\`${APP_COMMAND.name} new\`), then ask.`,
       slug: requested,
       state: "failure",
     };
   }
-  const { dir, manifest, manifestHash, name, slug } = loaded.value;
+  const { manifest, manifestHash, name, slug } = loaded.value;
   // Asking again would set a working connection back to waiting, for every
   // chat that uses it.
   const connection = await readConnection(slug);
@@ -131,16 +129,16 @@ async function askFor(requested: string): Promise<ConnectAppResult> {
   // unwritten guide, so a card asked for before it is written puts that
   // failure in front of the user, after their click, as something they
   // cannot fix.
-  const guide = await readAppGuide(dir);
+  const guide = await readAppGuide(slug);
   const unanswered =
     guide === null ? [] : guidePlaceholdersLeft(manifest, guide);
   if (manifest.type === "api" && (guide === null || unanswered.length > 0)) {
-    const write = `Write it yourself with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\` (the whole file on stdin), then ask again.`;
+    const write = `Write it yourself with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\` (the whole guide on stdin), then ask again.`;
     return {
       message:
         guide === null
-          ? `The guide in \`${shellPath(dir)}/${APP_FILE_NAME}\` is missing: what ${name} is for, the endpoints a request needs, and what a request has to get right. ${write}`
-          : `The guide in ${shellPath(dir)}/${APP_FILE_NAME} still has prompts \`${APP_COMMAND.name} new\` left, a few lines each from what you know about ${name}. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
+          ? `The guide is missing: what ${name} is for, the endpoints a request needs, and what a request has to get right. ${write}`
+          : `The guide still has prompts \`${APP_COMMAND.name} new\` left, a few lines each from what you know about ${name}. ${write} Still there: ${unanswered.map((prompt) => `"${prompt}"`).join(" ")}`,
       slug,
       state: "failure",
     };

@@ -1,16 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
-/** The apps folder's watches: what each would call on an edit, and how many stopped. */
+/** The apps store's subscriptions: what each would call on a change, and how many stopped. */
 const watches = vi.hoisted(() => {
   const onChanges: (() => void)[] = [];
   return { onChanges, stopped: 0 };
 });
-vi.mock("./folder-watch", () => ({
-  watchFolder: (_dir: string, { onChange }: { onChange: () => void }) => {
+vi.mock("./apps/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./apps/store")>()),
+  subscribeApps: (onChange: () => void) => {
     watches.onChanges.push(onChange);
-    return () => {
+    return Promise.resolve(() => {
       watches.stopped += 1;
-    };
+    });
   },
 }));
 
@@ -43,7 +44,7 @@ describe("host events", () => {
     controller.abort();
   });
 
-  it("says one edit to the apps folder once, however many listen", () => {
+  it("says one change to the apps store once, however many listen", async () => {
     watches.onChanges.length = 0;
     watches.stopped = 0;
     const heard: null[] = [];
@@ -60,6 +61,7 @@ describe("host events", () => {
     first.abort();
     expect(watches.stopped).toBe(0);
     second.abort();
+    await new Promise((resolve) => setTimeout(resolve, 0));
     expect(watches.stopped).toBe(1);
     unsubscribe();
   });

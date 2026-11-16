@@ -715,17 +715,17 @@ describe("migrateLegacyTasks", () => {
       [
         {
           "folders": [
-            "/Users/someone/2025",
-          ],
-          "id": "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
-          "name": "Marketing campaign sprin",
-        },
-        {
-          "folders": [
             "/Users/someone/2026",
           ],
           "id": "prj_01M00Q67JH4P7FHH53ZBHH2XWZ",
           "name": "Marketing campaign spr 2",
+        },
+        {
+          "folders": [
+            "/Users/someone/2025",
+          ],
+          "id": "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
+          "name": "Marketing campaign sprin",
         },
       ]
     `);

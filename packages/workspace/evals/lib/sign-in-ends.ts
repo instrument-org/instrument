@@ -11,7 +11,6 @@ import {
 import { type McpOAuthStore } from "../../src/lib/apps/mcp/oauth-provider";
 import { loadApp } from "../../src/lib/apps/store";
 import { getWorkspaceConfig } from "../../src/lib/workspace-config";
-import { AbsolutePathSchema } from "../../src/schemas/paths";
 import {
   credentialOrigin,
   type OriginBound,
@@ -73,14 +72,14 @@ export async function endSignIn(
 export async function answerSignIn(
   slug: string,
   answer: "connected" | "declined",
-  { account, appsDir }: { account?: string; appsDir: string },
+  { account }: { account?: string } = {},
 ): Promise<void> {
   if (answer === "declined") {
     await recordConnection(slug, { status: "declined" });
     await appChanged(slug, { event: "declined" });
     return;
   }
-  const loaded = await loadApp(AbsolutePathSchema.parse(appsDir), slug);
+  const loaded = await loadApp(slug);
   if (loaded.isErr()) {
     throw new Error(`${slug}: ${loaded.error.message}`);
   }

@@ -68,12 +68,22 @@ afterEach(() => {
 
 /** Writes a `folders:` key into a project's file, as the agent could. */
 function listInProjectFile(name: string, folder: string) {
-  const file = path.join(projectsDir(), name, PROJECT_FILE_NAME);
-  const text = fs.readFileSync(file, "utf8");
   fs.writeFileSync(
-    file,
-    text.replace(/\n---\n/, `\nfolders:\n  - path: ${folder}\n---\n`),
+    path.join(projectsDir(), name, PROJECT_FILE_NAME),
+    `---\nfolders:\n  - path: ${folder}\n---\n${projectFileText(name)}`,
   );
+}
+
+/** A project's `AGENTS.md`, empty where it has none. */
+function projectFileText(name: string): string {
+  try {
+    return fs.readFileSync(
+      path.join(projectsDir(), name, PROJECT_FILE_NAME),
+      "utf8",
+    );
+  } catch {
+    return "";
+  }
 }
 
 /** Leaves the permission settings a build before this one kept on this computer. */
@@ -101,12 +111,7 @@ describe("a project's folders", () => {
       reached: true,
       write: "allow",
     });
-    expect(
-      fs.readFileSync(
-        path.join(projectsDir(), "Taxes", PROJECT_FILE_NAME),
-        "utf8",
-      ),
-    ).not.toContain(outside);
+    expect(projectFileText("Taxes")).not.toContain(outside);
     expect((await listProjects())[0]?.folders).toEqual([{ path: outside }]);
   });
 
@@ -188,12 +193,10 @@ describe("moveProjectFolders", () => {
         folders: [{ addedAt: expect.any(Date), path: outside }],
       },
     });
-    const file = fs.readFileSync(
-      path.join(projectsDir(), "Taxes", PROJECT_FILE_NAME),
-      "utf8",
-    );
-    expect(file).not.toContain("folders");
-    expect(file).toContain(`id: ${project.id}`);
+    // Nothing else was in it, so the file goes with the key.
+    expect(
+      fs.existsSync(path.join(projectsDir(), "Taxes", PROJECT_FILE_NAME)),
+    ).toBe(false);
     expect(await reachOfChat(outside)).toEqual({
       reached: true,
       write: "allow",
@@ -230,12 +233,7 @@ describe("moveProjectFolders", () => {
     });
     // The file is left for the computer that granted it, and no launch of
     // this one reads it after.
-    expect(
-      fs.readFileSync(
-        path.join(projectsDir(), "Taxes", PROJECT_FILE_NAME),
-        "utf8",
-      ),
-    ).toContain(outside);
+    expect(projectFileText("Taxes")).toContain(outside);
     expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
       moved: 0,
     });

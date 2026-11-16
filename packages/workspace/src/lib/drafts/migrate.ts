@@ -9,7 +9,7 @@ import { readOldFile } from "../read-old-file";
 import { isRecord } from "../skills";
 import { workspaceLayout } from "../workspace-layout";
 import { contextLineOf } from "./context-line";
-import { type DraftFile } from "./draft-file";
+import { type DraftFile, isDraftFileName } from "./draft-file";
 import { ensureDraftFolder, readDrafts, writeDraftFile } from "./draft-folder";
 
 /** Something the old draft was given, by its path: absolute, or relative to its folder. */
@@ -19,15 +19,18 @@ interface Attached {
 }
 
 /**
- * Brings the drafts an earlier build hid into the folder the person opens:
- * `.instrument/drafts/<id>/`, whose words were in `draft.md` and whose record
- * was in a `settings.json` beside them, becomes `Drafts/<date>/DRAFT.md` with
- * what was pasted into it beside it.
+ * Converts the drafts an early beta kept in the drafts folder
+ * (`.instrument/drafts/`) in its own shape, where they still are: a folder
+ * named by the draft's id, whose words are in `draft.md` and whose record is
+ * in a `settings.json` beside them, becomes a folder there named for the
+ * draft's day holding its `DRAFT.md`, with what was pasted into it beside it.
+ * A folder is one of those when it holds no `DRAFT*.md` and does hold the
+ * beta's `draft.md` or record folder.
  *
- * Safe to run again: a draft already in `Drafts/` is left alone, whatever is
- * in the old folder. Nothing is written over and nothing is deleted outright:
- * each draft's files are moved into a folder of its own, and the old folder
- * goes only once it is empty.
+ * Safe to run again: a draft whose id a `DRAFT.md` already has is left
+ * alone, whatever is in the old folder. Nothing is written over and nothing
+ * is deleted outright: each draft's files are moved into a folder of its
+ * own, and the old folder goes only once it is empty.
  */
 
 export interface DraftsMigration {
@@ -37,7 +40,7 @@ export interface DraftsMigration {
   left: { reason: string; where: string }[];
 }
 
-export async function migrateDraftsToFolder({
+export async function convertBetaDrafts({
   rootDir,
   timeZone,
 }: {
@@ -55,14 +58,24 @@ export async function migrateDraftsToFolder({
   } catch {
     return migration;
   }
+  const beta = (
+    await Promise.all(
+      folders.map(async (name) =>
+        (await isBetaDraftFolder(path.join(was, name))) ? [name] : [],
+      ),
+    )
+  ).flat();
+  if (beta.length === 0) {
+    return migration;
+  }
   const already = new Set(
     (await readDrafts(rootDir)).map((entry) => entry.draft.id),
   );
-  for (const id of folders.toSorted()) {
+  for (const id of beta.toSorted()) {
     const from = path.join(was, id);
     if (already.has(id)) {
       migration.left.push({
-        reason: "the draft it holds is already in Drafts",
+        reason: "the draft it holds is already in the drafts folder",
         where: from,
       });
       continue;
@@ -76,11 +89,27 @@ export async function migrateDraftsToFolder({
       migration.left.push({ reason: String(error), where: from });
     }
   }
-  await removeIfEmpty(was);
   return migration;
 }
 
-/** One old draft folder as a folder in `Drafts/`, and the line that says so. */
+/**
+ * Whether a folder in the drafts folder is a draft in the beta's shape: no
+ * `DRAFT*.md`, and the beta's `draft.md` or record folder.
+ */
+async function isBetaDraftFolder(dir: string): Promise<boolean> {
+  let names: string[];
+  try {
+    names = await fs.readdir(dir);
+  } catch {
+    return false;
+  }
+  return (
+    !names.some((name) => isDraftFileName(name)) &&
+    (names.includes("draft.md") || names.includes(PRIVATE_FOLDER_NAME))
+  );
+}
+
+/** One old draft folder as a folder of the current shape, and the line that says so. */
 async function moveDraftFolder({
   from,
   id,

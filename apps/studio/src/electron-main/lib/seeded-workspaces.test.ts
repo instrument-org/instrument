@@ -80,6 +80,10 @@ async function seedAndLaunch(
   fs.mkdirSync(userDataDir, { recursive: true });
   fs.mkdirSync(home, { recursive: true });
   userData.dir = userDataDir;
+  // Where finished work goes, as studio-drive points a fixture's, so the
+  // launch never writes into the developer's real Instrument folder.
+  const outputFolder = path.join(root, "output");
+  vi.stubEnv("INSTRUMENT_OUTPUT_FOLDER", outputFolder);
 
   const loaded = await loadWorkspaceFixture(name);
   // Pins beyond what the fixture does, so every kind of preference is seen to
@@ -124,6 +128,9 @@ async function seedAndLaunch(
 
   const chats = await readWorkspace({
     machineDir: opened.machineDir,
+    resolving: fixture.tasks.flatMap(({ files }) =>
+      files.map((file) => file.to),
+    ),
     rootDir: opened.path,
     userDataDir,
     workFoldersDir: opened.workFoldersDir,
@@ -133,7 +140,14 @@ async function seedAndLaunch(
     userDataDir,
     workspaceDir: opened.path,
   });
-  return { chats, fixture, home, opened, rule };
+  return {
+    chats,
+    filesDir: path.join(outputFolder, "Files"),
+    fixture,
+    home,
+    opened,
+    rule,
+  };
 }
 
 /** A file as the person's viewers see it: there, and not refused. */
@@ -152,7 +166,8 @@ const names = await listFixtureNames();
 
 describe.each(names)("the %s fixture, after a launch", (name) => {
   it("shows every chat, task and file its manifest names", async () => {
-    const { chats, fixture, home, opened, rule } = await seedAndLaunch(name);
+    const { chats, filesDir, fixture, home, opened, rule } =
+      await seedAndLaunch(name);
 
     // Its chats work beside its own data, never in the developer's home.
     expect(opened.workFoldersDir.startsWith(`${home}${path.sep}`)).toBe(true);
@@ -195,19 +210,44 @@ describe.each(names)("the %s fixture, after a launch", (name) => {
       }
     }
 
-    // A 1.x task is a chat once the launch has made it one.
+    // A 1.x task is a chat once the launch has made it one. What it handed
+    // over in its `output/` is in the Files folder, in a folder named for
+    // the chat, where the path its messages name it by opens; the rest of
+    // its files stay in its work folder.
     for (const { files, task } of fixture.tasks) {
       const found = chats.find((each) => each.title === task.name);
       expect(found, `1.x task "${task.name}"`).toBeDefined();
       for (const file of files) {
-        expect(
-          await viewable(path.join(found?.workDir ?? "", file.to), rule),
-        ).toEqual({
+        const handedOver = /^output\/(.+)$/.exec(file.to)?.[1];
+        const lands =
+          handedOver === undefined
+            ? path.join(found?.workDir ?? "", file.to)
+            : path.join(filesDir, task.name, handedOver);
+        expect(await viewable(lands, rule)).toEqual({
           exists: true,
-          file: path.join(found?.workDir ?? "", file.to),
+          file: lands,
           refused: false,
         });
+        expect({ [file.to]: found?.resolved[file.to] }).toEqual({
+          [file.to]: lands,
+        });
       }
+      expect(
+        fs.existsSync(path.join(filesDir, task.name)),
+        `Files folder for "${task.name}"`,
+      ).toBe(files.some((file) => file.to.startsWith("output/")));
+    }
+    if (name === "legacy-tasks") {
+      const squares = chats.find(
+        (each) => each.title === "Red and blue squares PDF",
+      );
+      expect(squares?.resolved["output/red-and-blue-squares.pdf"]).toBe(
+        path.join(
+          filesDir,
+          "Red and blue squares PDF",
+          "red-and-blue-squares.pdf",
+        ),
+      );
     }
 
     const preferences = WorkspacePreferencesSchema.parse(
@@ -288,6 +328,8 @@ describe("a 1.x workspace left in bad shape, after a launch", () => {
       "Crashed mid-write",
       "Held open",
       "Red and blue squares PDF",
+      "Squares question",
+      "Squares summary and table",
     ]);
     expect(fs.readdirSync(path.join(opened.path, "Memory")).toSorted()).toEqual(
       ["newer.md", "older.md"],

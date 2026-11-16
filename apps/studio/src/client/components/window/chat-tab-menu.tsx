@@ -1,7 +1,5 @@
 import { type MenuComponents } from "@/client/components/ui/menu-components";
 import { updateDraftAtom } from "@/client/drafts/store";
-import { rpcClient } from "@/client/rpc/client";
-import { folderHref } from "@/shared/computer-href";
 import { type Draft } from "@/shared/drafts";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -14,7 +12,6 @@ import { ChatTitleField } from "./chat-title";
 import { type Chat } from "./chats";
 import { useShell } from "./shell-context";
 import { useChatRename } from "./use-chat-rename";
-import { useWindowTabs } from "./window-tabs";
 
 /** A chat from the window's list, by its id, while the list has it. */
 export function useListedChat(id: ChatId): Chat | undefined {
@@ -27,35 +24,24 @@ export function useListedChat(id: ChatId): Chat | undefined {
 
 /**
  * A chat tab's own items, after the tab's in its menu: the chat's menu as
- * its head had it (`ChatMenuItems`), with Show Chat Folder opening the
- * folder right after the tab, renaming in the tab, and archiving closing
- * the tab.
+ * its head had it (`ChatMenuItems`), with renaming in the tab and archiving
+ * closing the tab.
  */
 export function ChatTabItems({
   chatId,
   components,
-  group,
   onArchived,
   onDelete,
   onRename,
-  tabId,
 }: {
   chatId: ChatId;
   components: MenuComponents;
-  group: string | undefined;
   onArchived: () => void;
   onDelete: (chat: Chat) => void;
   onRename: () => void;
-  tabId: string;
 }) {
   const shell = useShell();
-  const windowTabs = useWindowTabs();
   const chat = useListedChat(chatId);
-  const { data: folder = null } = useQuery(
-    rpcClient.workspace.chats.live.folderWithFiles.experimental_liveOptions({
-      input: { id: chatId },
-    }),
-  );
   if (!chat) {
     return null;
   }
@@ -68,17 +54,6 @@ export function ChatTabItems({
         onDelete(chat);
       }}
       onRename={onRename}
-      {...(folder === null
-        ? {}
-        : {
-            onShowFolder: () => {
-              windowTabs.openOrFocusScreen(folderHref(folder), {
-                after: tabId,
-                ...(group === undefined ? {} : { group }),
-                select: true,
-              });
-            },
-          })}
       projectMenu={{
         onNew: (name) => {
           shell.onNewProject(chat.id, name);

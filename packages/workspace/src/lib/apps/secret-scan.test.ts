@@ -1,48 +1,36 @@
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
-import { afterEach, beforeEach, expect, it } from "vitest";
+import { expect, it } from "vitest";
 
-import { AbsolutePathSchema } from "../../schemas/paths";
-import { scanAppFolder } from "./secret-scan";
+import { scanAppRecord } from "./secret-scan";
 
-let dir: string;
-
-beforeEach(async () => {
-  dir = await fs.mkdtemp(path.join(os.tmpdir(), "secret-scan-test-"));
-});
-
-afterEach(async () => {
-  await fs.rm(dir, { force: true, recursive: true });
-});
-
-it("names each kind of secret an app's files hold, and passes placeholders", async () => {
-  await fs.writeFile(
-    path.join(dir, "APP.md"),
-    [
+it("names each kind of secret an app's setup and guide hold, and passes placeholders", () => {
+  const findings = scanAppRecord({
+    credential: null,
+    guide: [
       "Send `Authorization: Bearer $LINEAR_API_KEY` with every request.",
       `Example: LINEAR_API_KEY=lin_api_${"aB3dE5gH7j".repeat(4)}`,
+      "Call `GET /v1/items?api_key=$KEY`; the key lives in the app's store.",
     ].join("\n"),
-  );
-  await fs.writeFile(
-    path.join(dir, "config.json"),
-    JSON.stringify({ maps: `AIza${"aB3dE5gH7j".repeat(3)}aB3dE`, user: "sam" }),
-  );
-  await fs.writeFile(
-    path.join(dir, "notes.md"),
-    "Call `GET /v1/items?api_key=$KEY`; the key lives in the app's store.",
-  );
-
-  const findings = await scanAppFolder({
-    credential: null,
-    dir: AbsolutePathSchema.parse(dir),
+    setup: {
+      headers: { "X-Maps": `AIza${"aB3dE5gH7j".repeat(3)}aB3dE` },
+      type: "api",
+    },
   });
 
   expect(findings.map(({ detail, file }) => `${file}: ${detail}`).toSorted())
     .toMatchInlineSnapshot(`
     [
-      "APP.md: Contains a string that looks like a secret (Linear key). App files must not contain secrets.",
-      "config.json: Contains a string that looks like a secret (Google API key). App files must not contain secrets.",
+      "guide: Contains a string that looks like a secret (Linear key). An app's setup and guide must not contain secrets.",
+      "setup: Contains a string that looks like a secret (Google API key). An app's setup and guide must not contain secrets.",
     ]
   `);
+});
+
+it("finds the stored credential written into the guide", () => {
+  expect(
+    scanAppRecord({
+      credential: "s3cr3t-value",
+      guide: "Use s3cr3t-value as the key.",
+      setup: { type: "api" },
+    }).map(({ file }) => file),
+  ).toEqual(["guide"]);
 });

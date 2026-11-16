@@ -32,8 +32,9 @@ export const CHAT_FOLDER_NAMES = {
 
 /**
  * The variables the agent's shell sets, naming the folders it works with:
- * the workspace's apps; its chat's work folder, where every command starts;
- * the output folder, where finished work goes; the folder of the skill it
+ * its chat's work folder, where every command starts;
+ * the user's Files folder, where finished work goes; the folder of the
+ * project the chat is filed under, when it is; the folder of the skill it
  * loaded last, where that skill's scripts run from; and the workspace's own
  * writable skills; and every chat's records, read-only. Every program the shell starts sees them too. The system
  * prompt names folders by these, never by path, so it reads the same on
@@ -41,9 +42,9 @@ export const CHAT_FOLDER_NAMES = {
  * variable names a folder of copies.
  */
 export const FOLDER_VARIABLES = {
-  apps: "INSTRUMENT_APPS",
   chats: "INSTRUMENT_CHATS",
-  output: "INSTRUMENT_OUTPUT",
+  files: "INSTRUMENT_FILES",
+  project: "INSTRUMENT_PROJECT",
   skill: "INSTRUMENT_SKILL_DIR",
   work: "INSTRUMENT_WORK",
   workspaceSkills: "INSTRUMENT_WORKSPACE_SKILLS",
@@ -60,37 +61,19 @@ export const LEGACY_TASK_DB_FILE_NAME = "task.db";
 export const TASK_STATE_FILE_NAME = "state.json";
 
 /**
- * Where every chat's own folder is, at the workspace's top level: the one
- * folder of the six a person opens that the app writes rather than reads,
- * holding a folder per chat named for what the chat is about.
- */
-export const CHATS_FOLDER_NAME = "Chats";
-/**
- * A chat's transcript in its folder, written from its records at the end of
- * each turn. Capitalized like the one file that says what a folder is in each
- * of the six: a folder in `Chats/` without it is not a chat's.
- */
-export const CHAT_FILE_NAME = "CHAT.md";
-
-/**
- * Where the person's drafts are, at the workspace's top level: a folder per
- * draft, named for the day the draft was started, holding what was pasted
- * into it beside the draft itself.
- */
-export const DRAFTS_FOLDER_NAME = "Drafts";
-/**
- * A draft in its folder: its front matter says which draft it is and, for a
- * reply, which chat it goes into, and the body is the person's own words.
- * Capitalized like the one file that says what a folder is in each of the
- * six. A folder may hold more than one, since two devices can each write a
- * draft on the same day offline, so the name is matched as a prefix
- * (`DRAFT 2.md`, a sync engine's conflict copy) rather than exactly.
+ * A draft in its folder (`.instrument/drafts/<date>/`): its front matter says
+ * which draft it is and, for a reply, which chat it goes into, and the body
+ * is the person's own words. Capitalized like the one file that says what a
+ * folder is in each of the key folders. A folder may hold more than one,
+ * since two devices can each write a draft on the same day offline, so the
+ * name is matched as a prefix (`DRAFT 2.md`, a sync engine's conflict copy)
+ * rather than exactly.
  */
 export const DRAFT_FILE_NAME = "DRAFT.md";
 
 /**
  * Where the person's projects are, at the workspace's top level: every folder
- * in it is a project named for it. One of the six folders a person opens.
+ * in it is a project named for it. One of the five folders a person opens.
  * Here rather than beside the file's own reader (`lib/chat/project-file.ts`,
  * which re-exports it) because the note naming the file to the model is drawn
  * in the app too, and depends on nothing else.
@@ -106,43 +89,52 @@ export const PROJECTS_FOLDER_NAME = "Projects";
 export const PROJECT_FILE_NAME = "AGENTS.md";
 
 /**
+ * The hidden file in a project's folder that names the project's id, one
+ * line, so the id goes wherever the folder goes: a rename in a file manager,
+ * or the folder syncing to another computer ahead of the projects store.
+ */
+export const PROJECT_ID_FILE_NAME = ".instrument-project";
+
+/**
  * Where the person's memories are, at the workspace's top level: one
  * Markdown file per memory, which they read and edit in a file manager like
- * any other file. One of the six folders a person opens, and the one with no
+ * any other file. One of the five folders a person opens, and the one with no
  * file saying what it is: a memory is a file rather than a folder.
  */
 export const MEMORY_FOLDER_NAME = "Memory";
 
 /**
  * The workspace's own skills, at its top level: a folder per skill, each
- * with the `SKILL.md` that says what it is. One of the six folders a person
+ * with the `SKILL.md` that says what it is. One of the five folders a person
  * opens, and the only one the agent writes into as part of its work, since
  * a chat can leave a skill behind for the chats after it.
  */
 export const SKILLS_FOLDER_NAME = "Skills";
 
 /**
- * Where the person's apps are, at the workspace's top level: a folder per
- * app named for it, each with the `APP.md` that says what it is and what it
- * is for. One of the six folders a person opens. Here rather than beside the
- * file's own reader (`lib/apps/app-file.ts`, which re-exports it) because
- * the workspace's layout names the folder and depends on nothing else.
+ * Where earlier builds kept the person's apps, at the workspace's top level:
+ * a folder per app named for it, each with the `APP.md` that said what it
+ * was. Apps are in the apps store now (`lib/apps/store.ts`), and only the
+ * launch that takes these folders in reads it (`lib/apps-move.ts`).
  */
 export const APPS_FOLDER_NAME = "Apps";
 
 /**
- * The six folders a person opens, at the workspace's top level, in the order
+ * Where the work agents made for the person is kept, at the top of their
+ * Instrument folder: a folder per piece of work, named for it.
+ */
+export const FILES_FOLDER_NAME = "Files";
+
+/**
+ * The key folders a person opens, at the workspace's top level, in the order
  * they are listed to a reader. Collected so that something which has to treat
  * them as a set -- the notice for one the person deleted, say -- cannot miss
  * one that is added later.
  */
 export const KEY_FOLDER_NAMES = [
-  CHATS_FOLDER_NAME,
-  DRAFTS_FOLDER_NAME,
   PROJECTS_FOLDER_NAME,
   MEMORY_FOLDER_NAME,
   SKILLS_FOLDER_NAME,
-  APPS_FOLDER_NAME,
 ] as const;
 
 export type KeyFolderName = (typeof KEY_FOLDER_NAMES)[number];

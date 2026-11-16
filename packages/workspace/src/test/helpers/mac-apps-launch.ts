@@ -7,8 +7,7 @@ import { z } from "zod";
 import { macAppNamed } from "../../lib/mac-apps/apps";
 import { recordConnection } from "../../lib/apps/connection";
 import { AppManifestSchema, AppSlugSchema } from "../../lib/apps/manifest";
-import { guideSkeleton, loadApp, writeAppFolder } from "../../lib/apps/store";
-import { type AbsolutePath } from "../../schemas/paths";
+import { guideSkeleton, loadApp, writeApp } from "../../lib/apps/store";
 import { type WorkspaceConfig } from "../../types";
 
 const require = createRequire(import.meta.url);
@@ -58,11 +57,11 @@ export function macAppsStandIn(dir: string) {
 }
 
 /**
- * One of the Mac's own apps set up and connected in `appsDir`, as Connect
- * on its card leaves it: its folder under the Mac app's name, and the
+ * One of the Mac's own apps set up and connected, as Connect on its card
+ * leaves it: under the Mac app's name, with the
  * go-ahead and the test on record for the manifest as written.
  */
-export async function connectMacApp(appsDir: AbsolutePath, server: string) {
+export async function connectMacApp(server: string) {
   const app = macAppNamed(server);
   if (app === undefined) {
     throw new Error(`no Mac app server is called ${server}`);
@@ -75,14 +74,13 @@ export async function connectMacApp(appsDir: AbsolutePath, server: string) {
     runtime: "bundled",
     type: "mcp-local",
   });
-  await writeAppFolder({
-    appsDir,
+  await writeApp({
     guide: guideSkeleton(manifest, undefined, slug),
     manifest,
     name: app.name,
     slug,
   });
-  const { manifestHash } = (await loadApp(appsDir, slug))._unsafeUnwrap();
+  const { manifestHash } = (await loadApp(slug))._unsafeUnwrap();
   await recordConnection(slug, {
     approvedManifestHash: manifestHash,
     manifestHash,

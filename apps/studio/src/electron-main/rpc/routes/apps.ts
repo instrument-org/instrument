@@ -36,6 +36,7 @@ import {
   moveAppToWeb,
   nameAppAccount,
   pendingMcpOAuthSlug,
+  removeApp,
   removeLocalServer,
   setUpFromDirectory,
   requireAppCredential,
@@ -82,14 +83,12 @@ const AppListItemBaseSchema = z.object({
    * back with the key, so the user approves the place along with the secret.
    */
   credentialOrigin: z.string(),
-  /** The app's folder on this computer, for showing it in Files or the Finder. */
-  dir: z.string(),
   /** API base URL, MCP server URL, or the package a local server runs from. */
   endpoint: z.string(),
   hasCredential: z.boolean(),
   /** The signed-in web app, for the page's primary action. */
   home: z.string().optional(),
-  /** The app's own icon from its folder, else its Mac app's for a local server that drives one, else the directory's; drawn in place of the site's. */
+  /** The app's own icon, else its Mac app's for a local server that drives one, else the directory's; drawn in place of the site's. */
   icon: z.string().optional(),
   name: z.string(),
   /** The directory's slug for the service the app reaches, shared by every app of that service. */
@@ -137,11 +136,10 @@ const AppListItemSchema = z.discriminatedUnion("type", [
  * for the service it reaches is drawn with; none leaves the site's to draw.
  */
 async function iconFor(app: {
-  dir: Parameters<typeof findAppIcon>[0];
   manifest: AppManifest;
-  slug: string;
+  slug: Parameters<typeof findAppIcon>[0];
 }): Promise<{ icon?: string }> {
-  const own = await findAppIcon(app.dir).catch(() => undefined);
+  const own = await findAppIcon(app.slug).catch(() => undefined);
   const url = own
     ? await storedOwnIcon(own)
     : app.manifest.type === "mcp-local" && app.manifest.macApp
@@ -156,9 +154,9 @@ async function iconFor(app: {
 }
 
 /**
- * Where an app's own icon file is stored to be drawn, by the file's bytes:
- * `list` reads again on every change to any app, and only a changed file
- * needs decoding and resizing again. A failure is dropped so the next read
+ * Where an app's own icon is stored to be drawn, by its bytes: `list` reads
+ * again on every change to any app, and only a changed icon needs decoding
+ * and resizing again. A failure is dropped so the next read
  * tries again.
  */
 const ownIcons = new Map<string, Promise<null | string>>();
@@ -228,8 +226,8 @@ const AppListSchema = z.object({
   invalid: z.array(z.object({ message: z.string(), slug: z.string() })),
 });
 
-const list = base.output(AppListSchema).handler(async ({ context }) => {
-  const { apps, invalid } = await listApps(context.workspaceConfig.appsDir);
+const list = base.output(AppListSchema).handler(async () => {
+  const { apps, invalid } = await listApps();
   const connections = await appConnectionStore.list();
   return {
     apps: await Promise.all(
@@ -239,7 +237,6 @@ const list = base.output(AppListSchema).handler(async ({ context }) => {
           ...(app.manifest.account ? { account: app.manifest.account } : {}),
           connection,
           credentialOrigin: credentialOrigin(app.manifest),
-          dir: app.dir,
           hasCredential: hasAppCredential(app.slug),
           home: appHomeFor(app.slug, app.manifest),
           ...(await iconFor(app)),
@@ -411,9 +408,8 @@ const InspectorToolSchema = z.object({
 const inspect = base
   .input(z.object({ slug: AppSlugSchema }))
   .output(z.array(InspectorToolSchema))
-  .handler(async ({ context, errors, input, signal }) => {
+  .handler(async ({ errors, input, signal }) => {
     const listed = await withInspectorClient({
-      context,
       errors,
       run: (client) => listMcpTools(client),
       signal,
@@ -473,9 +469,8 @@ const read = base
       text: z.string(),
     }),
   )
-  .handler(async ({ context, errors, input, signal }) =>
+  .handler(async ({ errors, input, signal }) =>
     withInspectorClient({
-      context,
       errors,
       run: async (client) => {
         const listed = await listMcpTools(client);
@@ -518,17 +513,11 @@ const read = base
   );
 
 async function withInspectorClient<T>({
-  context,
   errors,
   run,
   signal,
   slug: rawSlug,
 }: {
-  context: {
-    workspaceConfig: {
-      appsDir: Parameters<typeof loadApp>[0];
-    };
-  };
   errors: {
     API_ERROR: (options: { cause?: unknown; message: string }) => Error;
     NOT_FOUND: (options: { message: string }) => Error;
@@ -542,7 +531,7 @@ async function withInspectorClient<T>({
   signal?: AbortSignal;
   slug: string;
 }): Promise<T> {
-  const loaded = await loadApp(context.workspaceConfig.appsDir, rawSlug);
+  const loaded = await loadApp(rawSlug);
   if (loaded.isErr()) {
     throw errors.NOT_FOUND({ message: loaded.error.message });
   }
@@ -612,12 +601,10 @@ async function withInspectorClient<T>({
  * shows the new place for the user to confirm.
  */
 async function requireShownOrigin({
-  appsDir,
   errors,
   origin,
   slug,
 }: {
-  appsDir: Parameters<typeof loadApp>[0];
   errors: {
     API_ERROR: (options: { message: string }) => Error;
     NOT_FOUND: (options: { message: string }) => Error;
@@ -625,7 +612,7 @@ async function requireShownOrigin({
   origin: string;
   slug: string;
 }): Promise<void> {
-  const loaded = await loadApp(appsDir, slug);
+  const loaded = await loadApp(slug);
   if (loaded.isErr()) {
     throw errors.NOT_FOUND({ message: loaded.error.message });
   }
@@ -668,9 +655,8 @@ const startOAuth = base
       z.object({ status: z.literal("started"), url: z.string() }),
     ]),
   )
-  .handler(async ({ context, errors, input }) => {
+  .handler(async ({ errors, input }) => {
     await requireShownOrigin({
-      appsDir: context.workspaceConfig.appsDir,
       errors,
       origin: input.origin,
       slug: input.slug,
@@ -682,7 +668,6 @@ const startOAuth = base
     // it has to be up, on a port this redirect names, before the flow starts.
     await startAuthCallbackServer();
     const result = await beginMcpOAuth({
-      appsDir: context.workspaceConfig.appsDir,
       opensIn: input.opensIn,
       redirectUrl: appOAuthRedirectUrl(),
       relayRedirectUrl: appOAuthRelayUrl,
@@ -775,11 +760,10 @@ const setCredential = base
       value: z.string().min(1),
     }),
   )
-  .handler(async ({ context, errors, input, signal }) => {
+  .handler(async ({ errors, input, signal }) => {
     // The key is approved for the origin the card showed, and goes nowhere
     // else: a manifest pointed elsewhere later asks again.
     await requireShownOrigin({
-      appsDir: context.workspaceConfig.appsDir,
       errors,
       origin: input.origin,
       slug: input.slug,
@@ -789,7 +773,6 @@ const setCredential = base
     }
     setAppCredential(input.slug, { origin: input.origin, value: input.value });
     const report = await runAppTest({
-      appsDir: context.workspaceConfig.appsDir,
       signal: signal ?? AbortSignal.timeout(60_000),
       slug: input.slug,
     });
@@ -814,8 +797,8 @@ const setCredential = base
  */
 const allow = base
   .input(AnsweredOnCardSchema)
-  .handler(async ({ context, errors, input, signal }) => {
-    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
+  .handler(async ({ errors, input, signal }) => {
+    const loaded = await loadApp(input.slug);
     if (loaded.isErr()) {
       throw errors.NOT_FOUND({ message: loaded.error.message });
     }
@@ -827,7 +810,6 @@ const allow = base
       status: "needs-approval",
     });
     const report = await runAppTest({
-      appsDir: context.workspaceConfig.appsDir,
       // An install from a registry runs the first time, so this waits on the
       // network rather than on a request to a service that is already up.
       signal: signal ?? AbortSignal.timeout(180_000),
@@ -851,8 +833,8 @@ const allow = base
  */
 const markWebSignedIn = base
   .input(AnsweredOnCardSchema)
-  .handler(async ({ context, errors, input }) => {
-    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
+  .handler(async ({ errors, input }) => {
+    const loaded = await loadApp(input.slug);
     if (loaded.isErr()) {
       throw errors.NOT_FOUND({ message: loaded.error.message });
     }
@@ -898,9 +880,8 @@ const setAccount = base
       slug: AppSlugSchema,
     }),
   )
-  .handler(async ({ context, input }) => {
+  .handler(async ({ input }) => {
     await nameAppAccount(
-      context.workspaceConfig.appsDir,
       input.slug,
       input.account === "" ? undefined : input.account,
     );
@@ -915,27 +896,24 @@ const dismiss = base
   });
 
 /**
- * Take the key or sign-in away; the folder stays, for connecting again. The
+ * Take the key or sign-in away; the app stays, for connecting again. The
  * person asked from the app's page, so the action log keeps it, by the
  * app's name.
  */
 const disconnect = base
   .input(z.object({ slug: AppSlugSchema }))
-  .handler(async ({ context, input }) => {
-    const name = await appName(context.workspaceConfig.appsDir, input.slug);
+  .handler(async ({ input }) => {
+    const name = await appName(input.slug);
     await disconnectApp(input.slug);
     recordPersonAction({ did: "disconnected", kind: "app", name });
   });
 
-/** The app's folder to the trash, with everything the stores hold about it. */
+/** The app out of the apps store, with everything the other stores hold about it. */
 const remove = base
   .input(z.object({ slug: AppSlugSchema }))
-  .handler(async ({ context, input }) => {
-    const loaded = await loadApp(context.workspaceConfig.appsDir, input.slug);
+  .handler(async ({ input }) => {
     await disconnectApp(input.slug, { event: "removed" });
-    if (loaded.isOk()) {
-      await context.workspaceConfig.trashItem(loaded.value.dir);
-    }
+    await removeApp(input.slug);
     await removeLocalServer(input.slug);
     await appChanged(input.slug);
   });
@@ -943,9 +921,8 @@ const remove = base
 /** The red/green loop, from the app's page. */
 const test = base
   .input(z.object({ slug: AppSlugSchema }))
-  .handler(async ({ context, input, signal }) => {
+  .handler(async ({ input, signal }) => {
     const report = await runAppTest({
-      appsDir: context.workspaceConfig.appsDir,
       signal: signal ?? AbortSignal.timeout(60_000),
       slug: input.slug,
     });

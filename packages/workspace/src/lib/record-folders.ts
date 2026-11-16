@@ -2,22 +2,14 @@ import { SETTINGS_FILE_NAME } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 
-import { CHATS_FOLDER_NAME } from "../constants";
 import { type ChatId, ChatIdSchema } from "../schemas/chat-id";
 import {
   type AbsolutePath,
-  AbsolutePathSchema,
   type ChatDir,
   ChatDirSchema,
 } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { WINDOW_ID } from "../schemas/window-id";
-import {
-  chatFolderNames,
-  chatLinkedInFolder,
-  folderLinkedTo,
-  recordChatFolderName,
-} from "./chat-folders/own-folder";
 import { chatIndexReadOnFirstUse } from "./chat-index-first-use";
 import { parseRecordFileName } from "./records/file-names";
 import { TypedError } from "./errors";
@@ -238,62 +230,6 @@ export function resolveChat(id: string): ChatId | undefined {
 /** The session a chat's record holds. */
 export function sessionOfChat(id: ChatId): StoreId.Session | undefined {
   return read().chats.get(id);
-}
-
-/**
- * Where the chat's own folder under `Chats/` is, the one the person sees,
- * or nothing for a chat that has none yet and for the window: the folder
- * this computer last recorded while it is there, else the one folder no
- * other chat claims whose `CHAT.md` names this chat (a folder renamed in a
- * file manager), else the recorded name, for a folder the next turn makes
- * again.
- *
- * Read synchronously because the filesystem layout a chat's shell runs
- * under is built synchronously, and the folder is one of its mounts. The
- * one place that answer is worked out, so the shell's `$INSTRUMENT_OUTPUT`
- * and what the model is told about it cannot drift apart after the folder
- * follows a title.
- */
-export function chatOwnFolder(chatFolder: string): AbsolutePath | undefined {
-  const { rootDir, workspaceMachineDir } = getWorkspaceConfig();
-  const names = chatFolderNames(workspaceMachineDir);
-  const id = ChatIdSchema.safeParse(path.basename(chatFolder));
-  const name = names.get(path.basename(chatFolder));
-  const chats = path.join(rootDir, CHATS_FOLDER_NAME);
-  if (name !== undefined && isDir(path.join(chats, name))) {
-    return AbsolutePathSchema.parse(path.join(chats, name));
-  }
-  const linked = id.success ? folderLinkedTo(chats, id.data, names) : undefined;
-  const found = linked?.folder;
-  // Recorded, so the next ask finds it by name rather than by another scan;
-  // a scan that passed over a file leaves recording to the next launch's
-  // read of every one.
-  if (id.success && found !== undefined && linked?.sure === true) {
-    recordChatFolderName(workspaceMachineDir, id.data, found).catch(
-      (error: unknown) => {
-        getWorkspaceConfig().captureException(error);
-      },
-    );
-  }
-  const own = found ?? name;
-  return own === undefined
-    ? undefined
-    : AbsolutePathSchema.parse(path.join(chats, own));
-}
-
-/**
- * The chat whose own folder `at` is: a folder whose `CHAT.md` names a chat
- * that is still there and that the chat takes as its own (`chatOwnFolder`).
- * A copy of one names the chat too and is only files, so it has none.
- */
-export function chatOfOwnFolder(at: string): ChatId | undefined {
-  const named = chatLinkedInFolder(at);
-  const id = named && resolveChat(named);
-  const own = id && chatOwnFolder(chatDir(id));
-  const comparable = (each: string) => path.resolve(each).normalize("NFC");
-  return own !== undefined && comparable(own) === comparable(at)
-    ? id
-    : undefined;
 }
 
 /**

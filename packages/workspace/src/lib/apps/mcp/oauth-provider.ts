@@ -18,7 +18,7 @@ import { fetchForMcp } from "./fetch";
 /**
  * Everything the OAuth flow must persist for one app, keyed by slug. The
  * host app backs this with its encrypted store (tokens, client secret) so
- * secrets never touch the app folder or the model. All methods are async
+ * secrets never touch the apps store or the model. All methods are async
  * to allow a keychain/IPC-backed implementation.
  *
  * - client info: the result of dynamic client registration (RFC 7591).

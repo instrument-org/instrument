@@ -420,7 +420,9 @@ class OfficeRun {
       new Set([...RENDERS, ".csv", ".html", ".txt"]),
     );
     const outDir = await this.outFolder(options.get("--out"), this.ctx.cwd);
-    const before = new Set(await this.ctx.fs.readdir(outDir.spelled));
+    // Each file's time before the call, so a sheet's CSV written over one
+    // of the same name counts as written and an older one does not.
+    const before = await this.modifiedTimes(outDir.spelled);
     const install = await this.office();
     const result = await this.soffice(install, [
       "--convert-to",
@@ -429,13 +431,14 @@ class OfficeRun {
       outDir.host,
       file.host,
     ]);
-    const written = (await this.ctx.fs.readdir(outDir.spelled)).filter(
+    const after = await this.modifiedTimes(outDir.spelled);
+    const written = [...after.keys()].filter(
       (name) =>
         name.toLowerCase().endsWith(`.${to}`) &&
         (name === `${file.stem}.${to}` ||
           (to === "csv" &&
             name.startsWith(`${file.stem}-`) &&
-            !before.has(name))),
+            after.get(name) !== before.get(name))),
     );
     if (result.exitCode !== 0 || written.length === 0) {
       throw this.failed(`convert it to ${to}`, result);
@@ -445,6 +448,16 @@ class OfficeRun {
         `✓ ${this.display(nodePath.posix.join(outDir.spelled, name))}`,
       );
     }
+  }
+
+  /** Each entry of a folder by name, with when it last changed. */
+  private async modifiedTimes(dir: string) {
+    const times = new Map<string, number>();
+    for (const name of await this.ctx.fs.readdir(dir)) {
+      const stat = await this.ctx.fs.stat(nodePath.posix.join(dir, name));
+      times.set(name, stat.mtime.getTime());
+    }
+    return times;
   }
 
   async recalc(args: string[]) {

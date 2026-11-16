@@ -4,13 +4,24 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 
-import { AbsolutePathSchema } from "../schemas/paths";
-import { convertAppsToAppFiles, moveAppsToFolder } from "./apps-move";
+import { takeInAppFolders } from "./apps-move";
 import { APP_FILE_NAME, APPS_FOLDER_NAME } from "./apps/app-file";
 import { isConnected } from "./apps/connection";
-import { manifestHash } from "./apps/manifest";
+import { findAppIcon } from "./apps/icon";
+import { AppSlugSchema, manifestHash } from "./apps/manifest";
 import { createMemoryAppsConfig } from "./apps/memory-config";
-import { loadApp } from "./apps/store";
+import {
+  closeAppStores,
+  listApps,
+  loadApp,
+  readAppGuide,
+  readAppSetup,
+  writeAppGuide,
+} from "./apps/store";
+import { type DeviceId, newDeviceId } from "./records/device-id";
+import { WorkspaceDirSchema } from "../schemas/paths";
+import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { workspaceLayout } from "./workspace-layout";
 
 /** The manifest an earlier build wrote: a name of its own, and `baseUrl`. */
 const notion = {
@@ -23,24 +34,46 @@ const notion = {
   type: "api",
 };
 
+const previous = getWorkspaceConfig();
 let root: string;
+let device: DeviceId;
+let trashed: string[];
 
 beforeEach(async () => {
   root = await fs.mkdtemp(path.join(os.tmpdir(), "apps-move-"));
+  device = newDeviceId();
+  trashed = [];
+  // The store the launch writes is the one the workspace then reads.
+  setWorkspaceConfig({
+    ...previous,
+    deviceId: device,
+    rootDir: WorkspaceDirSchema.parse(root),
+  });
 });
 
 afterEach(async () => {
+  setWorkspaceConfig(previous);
+  await closeAppStores();
   await fs.rm(root, { force: true, recursive: true });
 });
 
-/** An app folder as an earlier build left it, hidden or out at the top. */
-async function writeOldApp(
-  where: string,
+/** Sends a folder to a stand-in Trash: away from where it was. */
+async function trash(dir: string) {
+  trashed.push(path.relative(root, dir));
+  await fs.rm(dir, { recursive: true });
+}
+
+function takeIn(connections = createMemoryAppsConfig().connections) {
+  return takeInAppFolders(root, { connections, device, trash });
+}
+
+/** An app folder as the betas left it, hidden in `.instrument/apps/`. */
+async function writeLegacyApp(
   slug: string,
   manifest: object,
   files: Record<string, string> = {},
 ) {
-  const dir = path.join(where, slug);
+  const dir = path.join(root, PRIVATE_FOLDER_NAME, "apps", slug);
   await fs.mkdir(dir, { recursive: true });
   await fs.writeFile(
     path.join(dir, "app.json"),
@@ -51,126 +84,204 @@ async function writeOldApp(
   }
 }
 
-function hiddenApps() {
-  return path.join(root, PRIVATE_FOLDER_NAME, "apps");
+/** An app folder as the build before this one left it, in `Apps/`. */
+async function writeAppFolder(
+  name: string,
+  text: string,
+  files: Record<string, string> = {},
+) {
+  const dir = path.join(root, APPS_FOLDER_NAME, name);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(path.join(dir, APP_FILE_NAME), text);
+  for (const [file, body] of Object.entries(files)) {
+    await fs.writeFile(path.join(dir, file), body);
+  }
 }
 
-function apps() {
-  return AbsolutePathSchema.parse(path.join(root, APPS_FOLDER_NAME));
+/** The lines this device's file of the apps store has. */
+async function storeLines() {
+  const file = path.join(
+    workspaceLayout(root).devicesDir,
+    device,
+    "apps.jsonl",
+  );
+  return (await fs.readFile(file, "utf8")).trim().split("\n").length;
 }
 
-const connections = () => createMemoryAppsConfig().connections;
+const linearFile = [
+  "---",
+  "id: linear",
+  "type: mcp",
+  "url: https://mcp.linear.app/mcp",
+  "auth:",
+  "  kind: oauth",
+  "color: teal",
+  "---",
+  "",
+  "Issues by team.",
+  "",
+].join("\n");
 
-it("brings the hidden apps folder out to the top level", async () => {
-  await writeOldApp(hiddenApps(), "notion", notion);
+it("takes each APP.md into the store, named for its folder, and sends Apps/ to the Trash", async () => {
+  await writeAppFolder("My Linear", linearFile, { "icon.svg": "<svg/>" });
 
-  expect(await moveAppsToFolder(root)).toMatchObject({ kind: "moved" });
-  expect(await fs.readdir(apps())).toEqual(["notion"]);
-  expect(await moveAppsToFolder(root)).toEqual({ kind: "none" });
+  const taken = await takeIn();
+
+  expect(taken.left).toEqual([]);
+  expect(trashed).toEqual([APPS_FOLDER_NAME]);
+  const app = (await loadApp("linear"))._unsafeUnwrap();
+  expect(app.name).toBe("My Linear");
+  expect(await readAppGuide(app.slug)).toBe("Issues by team.\n");
+  expect((await findAppIcon(app.slug))?.fileName).toBe("icon.svg");
 });
 
-it("brings a hidden app in beside the ones the person already has", async () => {
-  await writeOldApp(hiddenApps(), "notion", notion);
-  await fs.mkdir(path.join(apps(), "Theirs"), { recursive: true });
+it("keeps front matter this build does not read in the app's setup", async () => {
+  await writeAppFolder("Linear", linearFile);
 
-  expect(await moveAppsToFolder(root)).toMatchObject({ kind: "moved" });
-  expect((await fs.readdir(apps())).toSorted()).toEqual(["Theirs", "notion"]);
+  await takeIn();
+
+  expect(await readAppSetup(AppSlugSchema.parse("linear"))).toEqual({
+    auth: { kind: "oauth" },
+    color: "teal",
+    type: "mcp",
+    url: "https://mcp.linear.app/mcp",
+  });
 });
 
-it("turns an app's two files into one APP.md in a folder named for it", async () => {
-  await writeOldApp(apps(), "notion", notion, {
+it("writes nothing when it runs again over a folder still there", async () => {
+  await writeAppFolder("Linear", linearFile);
+  const keep = async () => {
+    // A Trash that could not take the folder leaves it for the next launch.
+  };
+  await takeInAppFolders(root, {
+    connections: createMemoryAppsConfig().connections,
+    device,
+    trash: keep,
+  });
+  const lines = await storeLines();
+
+  await takeInAppFolders(root, {
+    connections: createMemoryAppsConfig().connections,
+    device,
+    trash: keep,
+  });
+
+  expect(await storeLines()).toBe(lines);
+});
+
+it("leaves an app the store changed since its file did as the store has it", async () => {
+  await writeAppFolder("Linear", linearFile);
+  const old = new Date(Date.now() - 60_000);
+  await fs.utimes(
+    path.join(root, APPS_FOLDER_NAME, "Linear", APP_FILE_NAME),
+    old,
+    old,
+  );
+  await takeIn();
+  await writeAppGuide(AppSlugSchema.parse("linear"), "Changed since.");
+
+  // A computer still on the earlier build writes the folder again.
+  await writeAppFolder("Linear", linearFile);
+  await fs.utimes(
+    path.join(root, APPS_FOLDER_NAME, "Linear", APP_FILE_NAME),
+    old,
+    old,
+  );
+  await takeIn();
+
+  expect(await readAppGuide(AppSlugSchema.parse("linear"))).toBe(
+    "Changed since.\n",
+  );
+});
+
+it("takes in an app whose setup this build cannot read, for the Apps page to say so", async () => {
+  await writeAppFolder("Odd", "---\nid: odd\ntype: telepathy\n---\n");
+
+  await takeIn();
+
+  expect(trashed).toEqual([APPS_FOLDER_NAME]);
+  expect((await listApps()).invalid.map((entry) => entry.slug)).toEqual([
+    "odd",
+  ]);
+});
+
+it("leaves Apps/ where it is when one app's file cannot be read", async () => {
+  await writeAppFolder("Linear", linearFile);
+  await writeAppFolder("Broken", "---\nid: broken\nurl: [unclosed\n---\n");
+
+  const taken = await takeIn();
+
+  expect(taken.left.map((entry) => path.basename(entry.where))).toEqual([
+    "Broken",
+  ]);
+  expect(trashed).toEqual([]);
+  expect((await loadApp("linear")).isOk()).toBe(true);
+});
+
+it("ignores a folder of the person's own that was never an app", async () => {
+  await fs.mkdir(path.join(root, APPS_FOLDER_NAME, "Notes to self"), {
+    recursive: true,
+  });
+
+  const taken = await takeIn();
+
+  expect(taken.left).toEqual([]);
+  expect((await listApps()).apps).toEqual([]);
+});
+
+it("takes the betas' app.json and guide.md straight into the store", async () => {
+  await writeLegacyApp("notion", notion, {
     "guide.md": "# Notion\n\nWhat it is for.\n",
     "icon.svg": "<svg/>",
   });
 
-  const converted = await convertAppsToAppFiles(root, {
-    connections: connections(),
-  });
+  await takeIn();
 
-  expect(converted).toMatchInlineSnapshot(`
+  expect(trashed).toEqual([path.join(PRIVATE_FOLDER_NAME, "apps")]);
+  const app = (await loadApp("notion"))._unsafeUnwrap();
+  expect(app.name).toBe("Notion");
+  expect(await readAppSetup(app.slug)).toMatchInlineSnapshot(`
     {
-      "done": [
-        "converted notion to Notion/APP.md",
-      ],
-      "left": [],
+      "auth": {
+        "kind": "bearer",
+      },
+      "headers": {
+        "Notion-Version": "2022-06-28",
+      },
+      "service": "notion",
+      "test": {
+        "path": "/users/me",
+      },
+      "type": "api",
+      "url": "https://api.notion.com/v1",
     }
   `);
-  expect(await fs.readdir(apps())).toEqual(["Notion"]);
-  expect(await fs.readdir(path.join(apps(), "Notion"))).toEqual([
-    APP_FILE_NAME,
-    "icon.svg",
-  ]);
-  expect(await fs.readFile(path.join(apps(), "Notion", APP_FILE_NAME), "utf8"))
-    .toMatchInlineSnapshot(`
-    "---
-    id: notion
-    type: api
-    url: https://api.notion.com/v1
-    auth:
-      kind: bearer
-    headers:
-      Notion-Version: 2022-06-28
-    test:
-      path: /users/me
-    service: notion
-    ---
-
-    # Notion
-
-    What it is for.
-    "
-  `);
+  expect(await readAppGuide(app.slug)).toBe("# Notion\n\nWhat it is for.\n");
+  expect((await findAppIcon(app.slug))?.fileName).toBe("icon.svg");
 });
 
-it("leaves a converted app alone when it runs again", async () => {
-  await writeOldApp(apps(), "notion", notion, { "guide.md": "What for.\n" });
-  await convertAppsToAppFiles(root, { connections: connections() });
-  const file = path.join(apps(), "Notion", APP_FILE_NAME);
-  const written = await fs.readFile(file, "utf8");
-
-  const again = await convertAppsToAppFiles(root, {
-    connections: connections(),
-  });
-
-  expect(again).toEqual({ done: [], left: [] });
-  expect(await fs.readFile(file, "utf8")).toBe(written);
-});
-
-it("gives the second app of one service a numbered folder", async () => {
+it("gives the second legacy app of one service a numbered name", async () => {
   const gmail = { name: "Gmail", type: "web", url: "https://mail.google.com" };
-  await writeOldApp(apps(), "gmail", gmail);
-  await writeOldApp(apps(), "gmail-2", gmail);
+  await writeLegacyApp("gmail", gmail);
+  await writeLegacyApp("gmail-2", gmail);
 
-  await convertAppsToAppFiles(root, { connections: connections() });
+  await takeIn();
 
-  expect(await fs.readdir(apps())).toEqual(["Gmail", "Gmail 2"]);
-  const second = await loadApp(apps(), "gmail-2");
-  expect(second._unsafeUnwrap().name).toBe("Gmail 2");
-});
-
-it("leaves a folder of the person's own that was never an app", async () => {
-  await fs.mkdir(path.join(apps(), "Notes to self"), { recursive: true });
-  await fs.writeFile(path.join(apps(), "Notes to self", "a.md"), "Mine.");
-
-  const converted = await convertAppsToAppFiles(root, {
-    connections: connections(),
-  });
-
-  expect(converted).toEqual({ done: [], left: [] });
-  expect(await fs.readdir(path.join(apps(), "Notes to self"))).toEqual([
-    "a.md",
+  expect((await listApps()).apps.map((app) => app.name)).toEqual([
+    "Gmail",
+    "Gmail 2",
   ]);
 });
 
-it("keeps a connected app connected, and leaves a record that was already stale", async () => {
-  await writeOldApp(apps(), "notion", notion, { "guide.md": "What for.\n" });
-  await writeOldApp(apps(), "linear", {
+it("keeps a connected legacy app connected, and leaves a record that was already stale", async () => {
+  await writeLegacyApp("notion", notion, { "guide.md": "What for.\n" });
+  await writeLegacyApp("linear", {
     auth: { kind: "oauth" },
     name: "Linear",
     type: "mcp",
     url: "https://mcp.linear.app/mcp",
   });
-  const store = connections();
+  const store = createMemoryAppsConfig().connections;
   // What the build before this one recorded when each app passed its test.
   const was = manifestHash(notion);
   await store.set("notion", {
@@ -187,9 +298,9 @@ it("keeps a connected app connected, and leaves a record that was already stale"
     updatedAt: 3,
   });
 
-  await convertAppsToAppFiles(root, { connections: store });
+  await takeIn(store);
 
-  const app = (await loadApp(apps(), "notion"))._unsafeUnwrap();
+  const app = (await loadApp("notion"))._unsafeUnwrap();
   const record = await store.get("notion");
   expect(app.manifestHash).not.toBe(was);
   expect(isConnected(record, app.manifestHash)).toBe(true);
@@ -199,7 +310,7 @@ it("keeps a connected app connected, and leaves a record that was already stale"
     connectedAt: 1,
     updatedAt: 2,
   });
-  const linear = (await loadApp(apps(), "linear"))._unsafeUnwrap();
+  const linear = (await loadApp("linear"))._unsafeUnwrap();
   expect(isConnected(await store.get("linear"), linear.manifestHash)).toBe(
     false,
   );

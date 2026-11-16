@@ -7,16 +7,15 @@ import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type ToldApps } from "../schemas/told";
 import { isConnected } from "./apps/connection";
-import { listApps } from "./apps/store";
-import { folderFingerprint } from "./folder-fingerprint";
+import { appFingerprint, listApps } from "./apps/store";
 import { ChatReads } from "./chat-reads";
 import { baselineRecorded, partsAfter } from "./last-told";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /** The workspace's apps as a chat's agent is told about them: each one's name and whether it is connected on this computer. */
 export async function currentChatApps(): Promise<ToldApps> {
-  const { apps: config, appsDir, deviceId } = getWorkspaceConfig();
-  const { apps } = await listApps(appsDir);
+  const { apps: config, deviceId } = getWorkspaceConfig();
+  const { apps } = await listApps();
   const connections = await config.connections.list();
   return Object.fromEntries(
     await Promise.all(
@@ -26,7 +25,7 @@ export async function currentChatApps(): Promise<ToldApps> {
           {
             connected: isConnected(connections[app.slug], app.manifestHash),
             device: deviceId,
-            fingerprint: await folderFingerprint(app.dir),
+            fingerprint: await appFingerprint(app.slug),
             name: app.name,
             ...(app.manifest.type === "web" ? { web: app.manifest.url } : {}),
           },

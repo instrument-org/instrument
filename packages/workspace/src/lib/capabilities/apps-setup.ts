@@ -3,7 +3,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { findSecrets } from "@instrument-org/shared/secrets";
 import { APP_CATEGORIES } from "@instrument-org/shared/app-directory";
 import ms from "ms";
-import { basename } from "node:path";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 
 import { appChanged } from "../apps/changed";
@@ -22,12 +22,14 @@ import {
   serviceManifestFields,
 } from "../apps/catalog";
 import { nameAppAccount } from "../apps/connection";
-import { APP_FILE_NAME } from "../apps/app-file";
+import { appFileOf } from "../apps/app-file";
 import {
+  APP_MANIFEST_EXAMPLE,
   type AppManifest,
   AppManifestSchema,
   type AppSlug,
   AppSlugSchema,
+  manifestHash,
 } from "../apps/manifest";
 import {
   credentialMovedMessage,
@@ -40,10 +42,12 @@ import {
   listApps,
   loadApp,
   readAppGuide,
-  writeAppFolder,
+  readAppSetup,
+  writeApp,
   writeAppGuide,
+  writeAppSetup,
 } from "../apps/store";
-import { checkAppIcon, writeAppIcon } from "../apps/icon";
+import { checkAppIcon, setAppIcon } from "../apps/icon";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
 import { catalogWayIn, parseAuth } from "../apps/way-in";
 import { macAppNamed } from "../mac-apps/apps";
@@ -51,13 +55,13 @@ import { bundledMacAppHere } from "../apps/mac-app";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
 import { recordAppGuideHandOff } from "../apps/guide-hand-off";
 import { getWorkspaceConfig } from "../workspace-config";
-import { shellPath } from "../workspace-fs-layout";
 import {
   APP_COMMAND,
   APP_SETUP_IS_THE_CHATS,
   APPS_ARE_THE_CHATS,
 } from "../../model-text/commands/app-command";
-import { AppField, appsFolder, requireApp, withTimeout } from "./apps";
+import { isRecord } from "../skills";
+import { AppField, requireApp, withTimeout } from "./apps";
 import {
   CapabilityFailure,
   type CapabilityContext,
@@ -66,8 +70,8 @@ import {
 } from "./define";
 
 /**
- * The words that set an app up: the directory, writing its folder, testing
- * it until it connects, its guide, icon and account, and taking its key
+ * The words that set an app up: the directory, writing it, testing it
+ * until it connects, its setup, guide, icon and account, and taking its key
  * away. On the command line only: a script calls connected apps, and
  * setting one up is the agent's own step, with its output in front of it.
  */
@@ -186,7 +190,7 @@ async function runCatalog(
       );
     }
     return ok(
-      `Nothing in the directory matches "${query}". Set it up by hand. For a service you do not know, look up what this command can actually take, not a manifest shape of your own: the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`, or write the app's ${APP_FILE_NAME} yourself.\n`,
+      `Nothing in the directory matches "${query}". Set it up by hand. For a service you do not know, look up what this command can actually take, not a manifest shape of your own: the service's MCP endpoint if it has one, otherwise its API base URL, one cheap GET that proves a key, and which of oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, or none the key rides in -- those words, not a scheme of its own. Then \`${APP_COMMAND.name} new\`.\n`,
     );
   }
   // Every entry in full runs past what a command's output keeps, and what gets
@@ -220,7 +224,7 @@ async function runDisconnect(slug: string) {
   const app = await requireApp(slug, { connected: false });
   await getWorkspaceConfig().apps.disconnect(app.slug);
   return ok(
-    `Disconnected ${app.slug}. Its folder at ${appsFolder()}/${app.name}/ stays; ${TOOL_NAMES.connectApp} asks the user again.\n`,
+    `Disconnected ${app.slug}. It stays set up; ${TOOL_NAMES.connectApp} asks the user again.\n`,
   );
 }
 
@@ -239,25 +243,25 @@ async function runGuide(slug: string, text: string | undefined, role: Role) {
     ];
     if (secrets.length > 0) {
       throw new Error(
-        `guide: not written, it has a secret in it (${secrets.join(", ")}). A guide never keeps a key, token or password: write how the service works without it. The app's key is kept apart from its folder and added to each request.`,
+        `guide: not written, it has a secret in it (${secrets.join(", ")}). A guide never keeps a key, token or password: write how the service works without it. The app's key is kept apart from its guide and added to each request.`,
       );
     }
-    await writeAppGuide(app.dir, written);
-    const stored = await readAppGuide(app.dir);
+    await writeAppGuide(app.slug, written);
+    const stored = await readAppGuide(app.slug);
     if (stored !== null) {
       recordAppGuideHandOff({ app: app.slug, guide: stored });
     }
     const left = guidePlaceholdersLeft(app.manifest, written);
     return ok(
       left.length > 0
-        ? `Wrote the guide in ${appsFolder()}/${app.name}/${APP_FILE_NAME}, but these prompts are still in it: ${left.map((prompt) => `"${prompt}"`).join(" ")} Replace each with its answer and write it again.\n`
-        : `Wrote the guide in ${appsFolder()}/${app.name}/${APP_FILE_NAME}. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with ${TOOL_NAMES.connectApp}.\n`,
+        ? `Wrote the guide, but these prompts are still in it: ${left.map((prompt) => `"${prompt}"`).join(" ")} Replace each with its answer and write it again.\n`
+        : `Wrote the guide. Run \`${APP_COMMAND.name} test ${app.slug}\`, or ask with ${TOOL_NAMES.connectApp}.\n`,
     );
   }
-  const guide = await readAppGuide(app.dir);
+  const guide = await readAppGuide(app.slug);
   if (guide === null) {
     throw new Error(
-      `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}.`,
+      `"${app.slug}" has no guide. Write one with \`${APP_COMMAND.name} guide ${app.slug} <<'EOF'\`.`,
     );
   }
   const printed = `${guide.trimEnd()}\n`;
@@ -289,10 +293,10 @@ async function runIcon(
   if ("error" in checked) {
     throw new Error(`${source} cannot be ${app.slug}'s icon: ${checked.error}`);
   }
-  await writeAppIcon(app.dir, bytes, checked.fileName);
+  await setAppIcon(app.slug, bytes, checked.fileName);
   await appChanged(app.slug);
   return ok(
-    `${app.slug} is drawn with ${appsFolder()}/${app.name}/${checked.fileName} now, everywhere it appears.\n`,
+    `${app.slug} is drawn with ${source} now, everywhere it appears.\n`,
   );
 }
 
@@ -314,7 +318,7 @@ async function runAccount(
     throw new CapabilityFailure(APP_SETUP_IS_THE_CHATS, "refused");
   }
   if (clear) {
-    await nameAppAccount(getWorkspaceConfig().appsDir, app.slug, undefined);
+    await nameAppAccount(app.slug, undefined);
     await appChanged(app.slug);
     return ok(`${app.slug} no longer names an account.\n`);
   }
@@ -325,11 +329,7 @@ async function runAccount(
         : `${app.slug} names no account yet. Name it with \`${APP_COMMAND.name} account ${app.slug} '<account>'\` once you have seen which one it is.\n`,
     );
   }
-  const manifest = await nameAppAccount(
-    getWorkspaceConfig().appsDir,
-    app.slug,
-    named,
-  );
+  const manifest = await nameAppAccount(app.slug, named);
   await appChanged(app.slug);
   const moved =
     manifest.type === "web" &&
@@ -340,6 +340,111 @@ async function runAccount(
   return ok(
     `${app.slug} is ${app.name} (${named}) wherever it appears now.${moved}\n`,
   );
+}
+
+/**
+ * How an app is signed in to where it connects: a key, a sign-in, nothing,
+ * or the user's session on the site. A key placed another way (a header in
+ * place of a bearer token) is the same key, so the stored one is tried again
+ * rather than asked for.
+ */
+function signInKind(manifest: AppManifest): string {
+  if (manifest.type === "web") {
+    return "web";
+  }
+  return manifest.auth.kind === "oauth" || manifest.auth.kind === "none"
+    ? manifest.auth.kind
+    : "key";
+}
+
+/** Where an app connects: its server's address, or the package that runs one here. */
+function endpointOf(manifest: AppManifest): string {
+  return manifest.type === "mcp-local"
+    ? `${manifest.runtime}:${manifest.package}`
+    : manifest.url;
+}
+
+/**
+ * Clears an app's key, sign-in and connection when its new setup connects
+ * somewhere else or signs in another way, since what the user gave was given
+ * for the old one; answers the sentence that says so, or nothing where
+ * nothing was held or the app still connects as it did.
+ */
+async function signOutWhereReachChanged(
+  slug: AppSlug,
+  before: AppManifest,
+  after: AppManifest,
+): Promise<string> {
+  if (
+    endpointOf(before) === endpointOf(after) &&
+    signInKind(before) === signInKind(after)
+  ) {
+    return "";
+  }
+  const { apps } = getWorkspaceConfig();
+  const [credential, connection, tokens] = await Promise.all([
+    apps.getCredential(slug),
+    apps.connections.get(slug),
+    apps.oauth?.store.getTokens(slug),
+  ]);
+  if (credential === null && connection === undefined && tokens === undefined) {
+    return "";
+  }
+  await apps.disconnect(slug);
+  return ` It connects ${endpointOf(after) === endpointOf(before) ? "another way" : "somewhere else"} now, so the key or sign-in it had is cleared and the user signs in again: ask with ${TOOL_NAMES.connectApp}.`;
+}
+
+async function runSetup(slug: string, text: string | undefined, role: Role) {
+  const app = await requireApp(slug, { connected: false });
+  const written = text?.trim();
+  if (!written) {
+    return ok(
+      stringifyYaml((await readAppSetup(app.slug)) ?? {}, { lineWidth: 0 }),
+    );
+  }
+  if (role !== "chat") {
+    throw new CapabilityFailure(APP_SETUP_IS_THE_CHATS, "refused");
+  }
+  let parsed: unknown;
+  try {
+    parsed = parseYaml(written);
+  } catch (error) {
+    throw new Error(
+      `setup: not written, it is not YAML: ${String(error).split("\n")[0] ?? ""}`,
+    );
+  }
+  if (!isRecord(parsed)) {
+    throw new Error(
+      `setup: not written, it is not a set of fields. \`${APP_COMMAND.name} setup ${app.slug}\` prints the one it has.`,
+    );
+  }
+  const secrets = [...new Set(findSecrets(written).map(({ label }) => label))];
+  if (secrets.length > 0) {
+    throw new Error(
+      `setup: not written, it has a secret in it (${secrets.join(", ")}). A key is never part of an app's setup: ${TOOL_NAMES.connectApp} asks the user for it, and it is added to each request.`,
+    );
+  }
+  // Read as the store would, so nothing is cleared for a setup that is then
+  // refused.
+  const read = appFileOf({ ...parsed, id: app.slug }, { what: "The setup" });
+  if (read.kind !== "app") {
+    throw new Error(
+      `setup: not written. ${read.kind === "invalid" ? read.message : "It names no app."}\nExpected shape:\n${APP_MANIFEST_EXAMPLE}`,
+    );
+  }
+  const signedOut = await signOutWhereReachChanged(
+    app.slug,
+    app.manifest,
+    read.app.manifest,
+  );
+  await writeAppSetup(app.slug, parsed);
+  recordSetupTouch({ existedBefore: true, kind: "app", name: app.name });
+  await appChanged(app.slug);
+  const retest =
+    manifestHash(read.app.manifest) === app.manifestHash
+      ? ""
+      : ` ${signedOut ? "Once the user is signed in, it" : "It"} has to pass \`${APP_COMMAND.name} test ${app.slug}\` again before it connects.`;
+  return ok(`Wrote ${app.slug}'s setup.${signedOut}${retest}\n`);
 }
 
 /**
@@ -413,8 +518,7 @@ async function runNew(input: z.output<typeof NewInput>) {
     );
   }
   const slug = slugResult.data;
-  const appsDir = getWorkspaceConfig().appsDir;
-  const existing = await loadApp(appsDir, slug);
+  const existing = await loadApp(slug);
   // An app written over keeps its name unless another is given.
   const givenName =
     input.name?.trim() ||
@@ -435,7 +539,7 @@ async function runNew(input: z.output<typeof NewInput>) {
   const siblings =
     entry === undefined
       ? []
-      : (await listApps(appsDir)).apps.filter(
+      : (await listApps()).apps.filter(
           (app) =>
             app.slug !== slug &&
             catalogEntryForApp(app.slug, app.manifest)?.slug === entry.slug,
@@ -569,7 +673,7 @@ async function runNew(input: z.output<typeof NewInput>) {
   const manifest: AppManifest = parsed.data;
   if (existing.isOk() && !force) {
     throw new Error(
-      `${appsFolder()}/${existing.value.name}/${APP_FILE_NAME} is already "${slug}". Edit it with your file tools, or pass --force to replace it.`,
+      `"${slug}" is already set up, as ${existing.value.name}. Change its setup with \`${APP_COMMAND.name} setup ${slug}\`, or pass --force to replace it.`,
     );
   }
   await refuseWhatCannotConnect(slug, name, manifest, signInSupport);
@@ -577,8 +681,10 @@ async function runNew(input: z.output<typeof NewInput>) {
   // A guide written for another way in describes tools this one does not have.
   const reachChanged =
     existing.isOk() && existing.value.manifest.type !== manifest.type;
-  const dir = await writeAppFolder({
-    appsDir,
+  const signedOut = existing.isOk()
+    ? await signOutWhereReachChanged(slug, existing.value.manifest, manifest)
+    : "";
+  const named = await writeApp({
     guide,
     manifest,
     name,
@@ -588,7 +694,7 @@ async function runNew(input: z.output<typeof NewInput>) {
   recordSetupTouch({
     existedBefore: existing.isOk(),
     kind: "app",
-    name: basename(dir),
+    name: named,
   });
   const prompts = guidePlaceholdersLeft(manifest, guide);
   // A key already in the store outlives the manifest that asked for it, so
@@ -620,7 +726,7 @@ async function runNew(input: z.output<typeof NewInput>) {
       ? ` It is another ${name} account beside ${siblings.map((app) => (app.manifest.account ? `${app.slug} (${app.manifest.account})` : app.slug)).join(", ")}, so it keeps the name ${name}${givenName === name ? "" : ` rather than "${givenName}"`}: its account is what tells them apart, named when the user has signed in.`
       : "";
   return ok(
-    `Wrote ${shellPath(dir)}/${APP_FILE_NAME}, the setup over ${existing.isOk() && !reachChanged ? "the guide that was there" : "its guide"}.${another}${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole guide back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
+    `Wrote ${slug} (${named}): its setup, ${existing.isOk() && !reachChanged ? "keeping the guide it had" : "and its guide"}.${signedOut}${another}${!existing.isOk() && prompts.length > 0 ? ` The guide has ${prompts.length} prompts to answer before it connects: read it with \`${APP_COMMAND.name} guide ${slug}\`, then write the whole guide back with \`${APP_COMMAND.name} guide ${slug} <<'EOF'\`, a few lines each from what you know about the service.` : ""} ${next}\n`,
   );
 }
 
@@ -706,7 +812,6 @@ function mcpEndpointListed(url: string) {
 async function runTest(slug: string, signal: AbortSignal | undefined) {
   const app = await requireApp(slug, { connected: false });
   const report = await runAppTest({
-    appsDir: getWorkspaceConfig().appsDir,
     signal: withTimeout(signal, TEST_TIMEOUT_MS),
     slug: app.slug,
   });
@@ -818,12 +923,12 @@ export const appsNew = defineCapability({
   name: "apps.new",
   output: Said,
   run: (input) => runNew(input),
-  summary: `Write the app's ${APP_FILE_NAME} in the apps folder, from the directory's entry for the service when it has one: the setup as front matter over the guide.`,
+  summary:
+    "Set an app up, from the directory's entry for the service when it has one: its setup, and a guide for what it is for.",
   surfaces: {
     cli: {
-      help: `<app> is the \`id\` in it, which every ${APP_COMMAND.name} subcommand names the
-app by; --name names its folder, which is what the user sees and is
-theirs to rename. It takes exactly one of --mcp, --api, --local or --web. An
+      help: `<app> is its id, which every ${APP_COMMAND.name} subcommand names the
+app by and its sign-in is kept under; --name is what the user sees. It takes exactly one of --mcp, --api, --local or --web. An
 MCP app's guide is done as written; an API app's may leave prompts to
 answer with \`${APP_COMMAND.name} guide\`. An MCP app defaults to oauth (a one-click sign-in, no key);
 an API app to bearer, and needs --test, a cheap GET that proves the key
@@ -849,8 +954,8 @@ user signs in there (at --sign-in, when the login page is not the
 url), and a task works the site in a tab. It is also where an app
 goes when its own sign-in fails or is refused: \`${APP_COMMAND.name} new <slug>
 --web <url> --force\` moves it there, keeping its name. Refuses to
-overwrite an app that is already there without --force. You can also write the
-file yourself with your file tools.`,
+overwrite an app that is already there without --force; \`${APP_COMMAND.name} setup\`
+changes its setup.`,
       positional: ["app"],
       words: ["app", "new"],
     },
@@ -869,10 +974,10 @@ export const appsTest = defineCapability({
       : { exitCode: 1, stderr: `${report}\n`, stdout: "" },
   run: ({ app }, ctx) => runTest(app, ctx.signal),
   summary:
-    "The red/green loop: manifest, guide, key or sign-in, a scan for secrets in the folder, then the service for real.",
+    "The red/green loop: manifest, guide, key or sign-in, a scan of the setup and guide for secrets, then the service for real.",
   surfaces: {
     cli: {
-      help: "A pass connects the app; a failure says what to fix. A manifest edited after a pass has to pass again.",
+      help: "A pass connects the app; a failure says what to fix. A setup changed after a pass has to pass again.",
       positional: ["app"],
       words: ["app", "test"],
     },
@@ -889,13 +994,35 @@ export const appsGuide = defineCapability({
   name: "apps.guide",
   output: Said,
   run: ({ app, text }, ctx) => runGuide(app, text, ctx.role),
-  summary: `The app's guide, the body of its ${APP_FILE_NAME}.`,
+  summary:
+    "The app's guide: what it is for, and what a request or a tool call has to get right.",
   surfaces: {
     cli: {
-      help: "With the whole guide on stdin through a quoted heredoc (<<'EOF' ... EOF),\nwrite it instead, leaving the setup above it alone: how an API app's\nprompts get answered.",
+      help: "With the whole guide on stdin through a quoted heredoc (<<'EOF' ... EOF),\nwrite it instead, leaving the setup alone: how an API app's\nprompts get answered.",
       positional: ["app"],
       stdin: "text",
       words: ["app", "guide"],
+    },
+  },
+  text: (said) => said,
+});
+
+export const appsSetup = defineCapability({
+  input: z.object({
+    app: AppField,
+    text: z.string().optional(),
+  }),
+  name: "apps.setup",
+  output: Said,
+  run: ({ app, text }, ctx) => runSetup(app, text, ctx.role),
+  summary:
+    "The app's setup as YAML: how the service is reached and signed in to, and what it is called there.",
+  surfaces: {
+    cli: {
+      help: "With the whole setup on stdin through a quoted heredoc (<<'EOF' ... EOF),\nwrite it instead, leaving the guide alone: how a broken local server's\npackage, args or runtime get fixed. A setup that connects somewhere else\nor signs in another way clears the key or sign-in the app had.",
+      positional: ["app"],
+      stdin: "text",
+      words: ["app", "setup"],
     },
   },
   text: (said) => said,
@@ -951,7 +1078,7 @@ export const appsDisconnect = defineCapability({
   name: "apps.disconnect",
   output: Said,
   run: ({ app }) => runDisconnect(app),
-  summary: "Take the app's key or sign-in away. Its folder stays.",
+  summary: "Take the app's key or sign-in away. The app stays set up.",
   surfaces: {
     cli: { help: "", positional: ["app"], words: ["app", "disconnect"] },
   },

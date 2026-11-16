@@ -43,7 +43,6 @@ export async function currentEnvironment(
   // commands that send a task a message.
   const { computerCommandsText } = await import("./create-bash-env");
   return {
-    appsFolder: shellPath(getWorkspaceConfig().appsDir),
     commands: computerCommandsText(),
     computer: await getSystemInfo(),
     homeFolder: shellPath(os.homedir()),

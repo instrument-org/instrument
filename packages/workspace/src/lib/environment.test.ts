@@ -18,7 +18,6 @@ import { environmentChangeModelNote } from "../model-text/context/environment-mo
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 
 const MAC: Environment = {
-  appsFolder: "/Users/mytop/Instrument/.instrument/apps",
   computer: "macOS (darwin 25.6.0)",
   homeFolder: "/Users/mytop",
   outputFolder: "/Users/mytop/Instrument",
@@ -163,7 +162,6 @@ describe("environmentChangeModelNote", () => {
   it("tells a move to a Windows computer with that platform's guidance", () => {
     expect(
       environmentChangeModelNote({
-        appsFolder: "/c/Users/windows-user/Instrument/.instrument/apps",
         computer: "Windows (win32 10.0.26200)",
         homeFolder: "/c/Users/windows-user",
         outputFolder: "/c/Users/windows-user/Instrument",
@@ -178,7 +176,6 @@ describe("environmentChangeModelNote", () => {
       - The computer: Windows (win32 10.0.26200)
       - The user's home folder: \`/c/Users/windows-user\`
       - Their Files folder (\`$INSTRUMENT_FILES\`): \`/c/Users/windows-user/Instrument\`
-      - The apps folder (\`$INSTRUMENT_APPS\`): \`/c/Users/windows-user/Instrument/.instrument/apps\`
       - The workspace's skills folder (\`$INSTRUMENT_WORKSPACE_SKILLS\`): \`/c/Users/windows-user/Instrument/.instrument/skills\`
       Paths named earlier in this conversation may belong to the computer it ran on before; check one before you rely on it.
       The shell spells a Windows path the POSIX way (\`C:\\Users\\sam\` is \`/c/Users/sam\`); when you name a path to the user, write it the Windows way. Paths you pass a program as arguments are converted, but paths written inside a script's own code are not: write those the Windows way. \`/tmp\` in the shell is the temp folder (\`%TEMP%\`); a script gets it from its language (\`tempfile.gettempdir()\`, \`os.tmpdir()\`, \`$env:TEMP\`) rather than writing \`/tmp\`. \`tasklist\` lists every process on the computer; a program you start (PowerShell's \`Get-Process\` included) may see only its own.

@@ -93,7 +93,7 @@ export {
 } from "./lib/apps/directory-icon";
 export { findAppIcon } from "./lib/apps/icon";
 export { moveAppToWeb, setUpFromDirectory } from "./lib/apps/set-up";
-export { listApps, loadApp, readAppGuide } from "./lib/apps/store";
+export { listApps, loadApp, readAppGuide, removeApp } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {
   BACKGROUND_PROCESS_TEARDOWN_MS,
@@ -160,11 +160,7 @@ export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
 export { writeDataDirReadme } from "./lib/data-dir-readme";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";
 export { listMemories, memoryDir, settleMemoryFiles } from "./lib/memory/store";
-export {
-  type AppFilesConverted,
-  convertAppsToAppFiles,
-  moveAppsToFolder,
-} from "./lib/apps-move";
+export { type AppFoldersTaken, takeInAppFolders } from "./lib/apps-move";
 export { type FolderMoved } from "./lib/move-out-of-data-dir";
 export { moveSkillsToFolder, type SkillsMoved } from "./lib/skills-move";
 export { settleKeyFolderCase } from "./lib/key-folder-case";

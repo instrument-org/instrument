@@ -8,7 +8,7 @@ import { type AppManifest } from "./manifest";
 
 /**
  * The Mac app an app's manifest runs the bundled server of, whatever the
- * app's own slug: what decides the gate below, so an app folder of any name
+ * app's own slug: what decides the gate below, so an app of any name
  * pointed at Mail is held to Mail's.
  */
 export function bundledMacApp(

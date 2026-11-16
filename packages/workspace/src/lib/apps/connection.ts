@@ -1,7 +1,6 @@
 import { TOOL_NAMES } from "../../tools/name";
 import { z } from "zod";
 
-import { type AbsolutePath } from "../../schemas/paths";
 import { getWorkspaceConfig } from "../workspace-config";
 import { appChanged } from "./changed";
 import { type AppManifest, type AppSlug } from "./manifest";
@@ -129,13 +128,12 @@ export function isConnected(
  * the directory chose the address, not the agent.
  */
 export async function nameAppAccount(
-  appsDir: AbsolutePath,
   slug: AppSlug,
   account: string | undefined,
 ): Promise<AppManifest> {
-  const before = await loadApp(appsDir, slug);
-  const manifest = await setAppAccount(appsDir, slug, account);
-  const after = await loadApp(appsDir, slug);
+  const before = await loadApp(slug);
+  const manifest = await setAppAccount(slug, account);
+  const after = await loadApp(slug);
   if (before.isErr() || after.isErr()) {
     return manifest;
   }

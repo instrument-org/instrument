@@ -9,8 +9,6 @@ import { z } from "zod";
  * as the agent writes them.
  */
 export const EnvironmentSchema = z.object({
-  /** Where the workspace's apps are, behind `$INSTRUMENT_APPS`. */
-  appsFolder: z.string(),
   /**
    * What this computer's shell has beyond the bash tool's list, as
    * `computerCommandsText` words it; empty for nothing. Absent on a baseline

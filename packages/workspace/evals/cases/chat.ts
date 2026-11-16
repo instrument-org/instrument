@@ -29,9 +29,10 @@ import {
   outputFolderPath,
 } from "../../src/lib/chat/output-folder";
 import { getCurrentFileInfo } from "../../src/lib/get-file-info";
+import { AppSlugSchema } from "../../src/lib/apps/manifest";
+import { readAppIcon } from "../../src/lib/apps/store";
 import { filesNamedIn } from "../../src/lib/parse-files-block";
 import { workDir } from "../../src/lib/work-dir";
-import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { WorkspaceFilePathSchema } from "../../src/schemas/paths";
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, type AssertionResult, defineEval } from "../harness";
@@ -214,16 +215,14 @@ function loadedSkill(name: string): Assertion {
   };
 }
 
-function landedInAppFolder(name: string, file: string): Assertion {
-  const text = `${file} is in ${name}'s app folder`;
+function drawnWithIcon(slug: string): Assertion {
+  const text = `${slug} is drawn with an icon of its own`;
   return {
-    check: () => {
-      // The folder is the app's name, so that is what the file is looked for
-      // in rather than the slug its `id` carries.
-      const target = path.join(getWorkspaceConfig().appsDir, name, file);
-      return fs.existsSync(target)
-        ? pass(text, `${fs.statSync(target).size} bytes`)
-        : fail(text, `nothing at ${target}`);
+    check: async () => {
+      const icon = await readAppIcon(AppSlugSchema.parse(slug));
+      return icon === undefined
+        ? fail(text, "the apps store has no icon for it")
+        : pass(text, `${icon.fileName}, ${icon.data.length} base64 characters`);
     },
     text,
   };
@@ -495,13 +494,13 @@ export const CHAT_EVALS = [
   }),
 
   defineEval({
-    // A file bound for an app's folder, which the agent writes like any other.
+    // An icon made for an app, which goes in through `instrument app icon`.
     apps: [{ name: "Beacon", slug: "beacon" }],
-    assertions: [landedInAppFolder("Beacon", "icon.png")],
+    assertions: [drawnWithIcon("beacon")],
     kind: "chat",
-    name: "chat-places-a-file-in-an-app-folder",
+    name: "chat-gives-an-app-its-icon",
     prompt:
-      "Make a simple square PNG icon for my Beacon app, a lighthouse on a dark blue background, and put it in Beacon's app folder as icon.png.",
+      "Make a simple square PNG icon for my Beacon app, a lighthouse on a dark blue background, and use it as Beacon's icon.",
   }),
 
   defineEval({

@@ -1,4 +1,3 @@
-import { type AbsolutePath } from "../../schemas/paths";
 import { getWorkspaceConfig } from "../workspace-config";
 import { performSignedInRequest, SignInNeededError } from "./api-oauth";
 import { isConnected, readConnection, recordConnection } from "./connection";
@@ -82,13 +81,11 @@ export async function noteIfSignInLost(
  * is asked.
  */
 export async function checkAppSignIns({
-  appsDir,
   signal,
 }: {
-  appsDir: AbsolutePath;
   signal?: AbortSignal;
-}): Promise<string[]> {
-  const { apps } = await listApps(appsDir);
+} = {}): Promise<string[]> {
+  const { apps } = await listApps();
   const connections = await getWorkspaceConfig().apps.connections.list();
   const lost: string[] = [];
   for (const app of apps) {

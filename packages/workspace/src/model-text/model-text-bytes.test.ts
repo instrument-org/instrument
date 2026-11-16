@@ -138,7 +138,6 @@ vi.mock(import("../lib/skills"), async (original) => ({
 }));
 
 const ENVIRONMENT: Environment = {
-  appsFolder: "/Users/mac-user/Instrument/Apps",
   commands: "Your shell on this computer also has `ps`.",
   computer: "A test Mac (macOS 27.0)",
   homeFolder: "/Users/mac-user",

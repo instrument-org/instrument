@@ -53,7 +53,6 @@ export const MOCK_WORKSPACE_DIRS = {
   root: MOCK_WORKSPACE_DIR,
   runtime: path.join(MOCK_WORKSPACE_DIR, "runtime"),
   systemSkills: path.join(MOCK_WORKSPACE_DIR, "system-skills"),
-  apps: MOCK_WORKSPACE_LAYOUT.appsDir,
   chats: MOCK_WORKSPACE_LAYOUT.chatsDir,
   machine: MOCK_WORKSPACE_MACHINE_DIR,
   tasks: path.join(MOCK_WORKSPACE_DIR, TASKS_DIR_NAME),
@@ -128,7 +127,6 @@ export function createMockChatConfig(
 
   const workspaceConfig: WorkspaceConfig = {
     apps: createMemoryAppsConfig(),
-    appsDir: AbsolutePathSchema.parse(MOCK_WORKSPACE_DIRS.apps),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureException: (...args: unknown[]) => {

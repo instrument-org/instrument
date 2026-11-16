@@ -109,7 +109,6 @@ function branchedFrom(
 }
 
 const OTHER_MAC: Environment = {
-  appsFolder: `${OTHER_ROOT}/Apps`,
   computer: "Other Mac, macOS 27.0.1",
   homeFolder: OTHER_HOME,
   outputFolder: `${OTHER_ROOT}/Chats/Is there something new`,
@@ -119,7 +118,6 @@ const OTHER_MAC: Environment = {
 };
 
 const WINDOWS_PC: Environment = {
-  appsFolder: `${OTHER_WINDOWS_ROOT}/Apps`,
   computer: "Windows PC, Windows 11",
   homeFolder: "/c/Users/windows-user",
   outputFolder: `${OTHER_WINDOWS_ROOT}/Chats/Is there something new`,

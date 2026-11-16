@@ -83,7 +83,7 @@ async function chatWith(
   });
   await mkdir(chatDir(chatId), { recursive: true });
   await mkdir(workDir(chatId), { recursive: true });
-  await connectMacApp(getWorkspaceConfig().appsDir, server);
+  await connectMacApp(server);
   // The chat's own session, whose log a card is written to.
   const sessionId = sessionOfChat(chatId) ?? StoreId.newSessionId();
   await ChatWrites.saveSession(
@@ -245,9 +245,7 @@ describe("connecting a Mac app from the directory", () => {
     });
     const set = await setUpFromDirectory({ slug: "apple-notes" });
     expect(set).toEqual({ kind: "set-up", slug: "apple-notes" });
-    const app = (
-      await loadApp(getWorkspaceConfig().appsDir, "apple-notes")
-    )._unsafeUnwrap();
+    const app = (await loadApp("apple-notes"))._unsafeUnwrap();
     expect(app.name).toBe("Notes");
     expect(app.manifest).toMatchObject({
       macApp: "com.apple.Notes",
@@ -258,7 +256,7 @@ describe("connecting a Mac app from the directory", () => {
     expect((await readConnection("apple-notes"))?.status).toBe(
       "needs-approval",
     );
-    const guide = await readAppGuide(app.dir);
+    const guide = await readAppGuide(app.slug);
     expect(guide).toContain(
       "- create_note(account?, body?, folder?, title?): Make a new note.",
     );

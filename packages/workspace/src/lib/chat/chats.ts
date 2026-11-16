@@ -966,11 +966,11 @@ function knownAmong(slugs: string[], known: Set<string>): string[] {
 
 /**
  * The slugs of the apps this workspace has, for telling a real app apart from
- * a word that looked like one. Empty when the workspace has no apps folder
+ * a word that looked like one. Empty when the workspace has no apps
  * yet, in which case nothing is known and nothing is filtered.
  */
 export async function knownAppSlugs(): Promise<Set<string>> {
-  const { apps } = await listApps(getWorkspaceConfig().appsDir);
+  const { apps } = await listApps();
   return new Set(apps.map((app) => app.slug));
 }
 

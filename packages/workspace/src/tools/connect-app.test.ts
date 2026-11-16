@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { readConnection } from "../lib/apps/connection";
 import { type AppManifest } from "../lib/apps/manifest";
 import { createMemoryAppsConfig } from "../lib/apps/memory-config";
-import { loadApp, writeAppFolder } from "../lib/apps/store";
+import { loadApp, writeApp } from "../lib/apps/store";
 import {
   getWorkspaceConfig,
   setWorkspaceConfig,
@@ -55,8 +55,7 @@ beforeEach(async () => {
       },
     },
   });
-  await writeAppFolder({
-    appsDir: getWorkspaceConfig().appsDir,
+  await writeApp({
     guide: "",
     manifest,
     name: "Linear",
@@ -129,9 +128,7 @@ describe("connect_app", () => {
   it("answers that a connected app is connected, leaving its record alone", async () => {
     const connected = {
       connectedAt: 1,
-      manifestHash: (
-        await loadApp(getWorkspaceConfig().appsDir, "linear")
-      )._unsafeUnwrap().manifestHash,
+      manifestHash: (await loadApp("linear"))._unsafeUnwrap().manifestHash,
       status: "connected" as const,
       updatedAt: 1,
     };
@@ -145,8 +142,7 @@ describe("connect_app", () => {
   });
 
   it("puts every app it names on one card, waiting on each, and says why one was not asked", async () => {
-    await writeAppFolder({
-      appsDir: getWorkspaceConfig().appsDir,
+    await writeApp({
       guide: "",
       manifest: { ...manifest, url: "https://mcp.notion.com/mcp" },
       name: "Notion",
@@ -173,7 +169,7 @@ describe("connect_app", () => {
             "state": "asked",
           },
           {
-            "message": "No app is "jira": no APP.md in Apps/ gives that as its id. Write the app's folder first (\`instrument app new\`), then ask.",
+            "message": "No app is "jira". \`instrument app list\` lists the apps set up here. Set the app up first (\`instrument app new\`), then ask.",
             "slug": "jira",
             "state": "failure",
           },
@@ -193,7 +189,7 @@ describe("connect_app", () => {
         {
           "type": "text",
           "value": "One card asking the user to connect Linear (linear), Notion (notion) is in the conversation, a row for each. Your turn ended on it. You are woken once, when every row is answered, with a note saying which apps they connected, as which account where it is known, and which they skipped. Do not poll, and do not test before the note.
-        - jira is not on the card and is not connected: No app is "jira": no APP.md in Apps/ gives that as its id. Write the app's folder first (\`instrument app new\`), then ask.
+        - jira is not on the card and is not connected: No app is "jira". \`instrument app list\` lists the apps set up here. Set the app up first (\`instrument app new\`), then ask.
         The user cannot connect an app that is not on the card. Fix each one now and ask for it with connect_app on its own, or tell the user, in your line, that it is not connected and why.",
         }
       `);

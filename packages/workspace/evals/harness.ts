@@ -1122,7 +1122,6 @@ export async function runEvals(
     );
     const appFixtures = await seedConnectedApps(declaredApps, {
       apps: appsConfig,
-      appsDir: workspaceLayout(personFolder).appsDir,
     });
     for (const app of declaredApps) {
       write(
@@ -1132,7 +1131,7 @@ export async function runEvals(
     for (const server of _.unique(
       runs.flatMap((run) => run.evalCase.macApps?.connected ?? []),
     )) {
-      await connectMacApp(getWorkspaceConfig().appsDir, server);
+      await connectMacApp(server);
       write(
         `${c.dim}App       :${c.reset} ${server} ${c.dim}connected, on the stand-in server${c.reset}\n`,
       );
@@ -1739,7 +1738,6 @@ export async function runEvals(
             );
             await answerSignIn(slug, answer, {
               ...(served ? {} : { account: "you@example.com" }),
-              appsDir: workspaceLayout(personFolder).appsDir,
             });
           }
           signInCards.clear();

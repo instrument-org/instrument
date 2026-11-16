@@ -39,7 +39,6 @@ describe("brokenLinksIn", () => {
     const systemSkills = path.join(root, "system-skills");
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
-      appsDir: AbsolutePathSchema.parse(path.join(root, "Apps")),
       registryDir: AbsolutePathSchema.parse(path.join(root, "registry")),
       rootDir: WorkspaceDirSchema.parse(root),
       systemSkillsDir: AbsolutePathSchema.parse(systemSkills),

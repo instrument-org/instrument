@@ -62,7 +62,6 @@ export function instrumentFolderOf(
 }
 
 const KEY_FOLDER_WORDS = {
-  Apps: "apps",
   Memory: "memories",
   Skills: "skills",
   Projects: "projects",

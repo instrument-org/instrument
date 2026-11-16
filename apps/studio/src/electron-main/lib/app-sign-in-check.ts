@@ -1,7 +1,7 @@
 import { checkAppSignIns } from "@instrument-org/workspace/electron";
 import { app, net } from "electron";
 
-import { getAppsDir } from "./apps";
+import { appsReady } from "./apps";
 import { createScopedLogger } from "./electron-logger";
 
 const log = createScopedLogger("AppSignIns");
@@ -35,13 +35,12 @@ export function startAppSignInChecks(): void {
 }
 
 function checkNow(): Promise<void> {
-  const appsDir = getAppsDir();
-  if (appsDir === undefined || !net.isOnline()) {
+  if (!appsReady() || !net.isOnline()) {
     return Promise.resolve();
   }
   inFlight ??= (async () => {
     try {
-      const lost = await checkAppSignIns({ appsDir });
+      const lost = await checkAppSignIns();
       checkedAt = Date.now();
       if (lost.length > 0) {
         log.info(`Signed out of ${lost.join(", ")}`);

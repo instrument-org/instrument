@@ -24,7 +24,7 @@ vi.mock("./page", () => ({
 vi.mock("../lib/apps", () => ({
   appMark: vi.fn(),
   appName: vi.fn(),
-  getAppsDir: () => undefined,
+  appsReady: () => false,
   receiveAppCallback: mocks.app,
 }));
 vi.mock("../lib/chatgpt-account", () => ({

@@ -32,7 +32,7 @@ export const CHAT_FOLDER_NAMES = {
 
 /**
  * The variables the agent's shell sets, naming the folders it works with:
- * the workspace's apps; its chat's work folder, where every command starts;
+ * its chat's work folder, where every command starts;
  * the user's Files folder, where finished work goes; the folder of the
  * project the chat is filed under, when it is; the folder of the skill it
  * loaded last, where that skill's scripts run from; and the workspace's own
@@ -42,7 +42,6 @@ export const CHAT_FOLDER_NAMES = {
  * variable names a folder of copies.
  */
 export const FOLDER_VARIABLES = {
-  apps: "INSTRUMENT_APPS",
   chats: "INSTRUMENT_CHATS",
   files: "INSTRUMENT_FILES",
   project: "INSTRUMENT_PROJECT",
@@ -74,7 +73,7 @@ export const DRAFT_FILE_NAME = "DRAFT.md";
 
 /**
  * Where the person's projects are, at the workspace's top level: every folder
- * in it is a project named for it. One of the six folders a person opens.
+ * in it is a project named for it. One of the five folders a person opens.
  * Here rather than beside the file's own reader (`lib/chat/project-file.ts`,
  * which re-exports it) because the note naming the file to the model is drawn
  * in the app too, and depends on nothing else.
@@ -92,25 +91,24 @@ export const PROJECT_FILE_NAME = "AGENTS.md";
 /**
  * Where the person's memories are, at the workspace's top level: one
  * Markdown file per memory, which they read and edit in a file manager like
- * any other file. One of the six folders a person opens, and the one with no
+ * any other file. One of the five folders a person opens, and the one with no
  * file saying what it is: a memory is a file rather than a folder.
  */
 export const MEMORY_FOLDER_NAME = "Memory";
 
 /**
  * The workspace's own skills, at its top level: a folder per skill, each
- * with the `SKILL.md` that says what it is. One of the six folders a person
+ * with the `SKILL.md` that says what it is. One of the five folders a person
  * opens, and the only one the agent writes into as part of its work, since
  * a chat can leave a skill behind for the chats after it.
  */
 export const SKILLS_FOLDER_NAME = "Skills";
 
 /**
- * Where the person's apps are, at the workspace's top level: a folder per
- * app named for it, each with the `APP.md` that says what it is and what it
- * is for. One of the six folders a person opens. Here rather than beside the
- * file's own reader (`lib/apps/app-file.ts`, which re-exports it) because
- * the workspace's layout names the folder and depends on nothing else.
+ * Where earlier builds kept the person's apps, at the workspace's top level:
+ * a folder per app named for it, each with the `APP.md` that said what it
+ * was. Apps are in the apps store now (`lib/apps/store.ts`), and only the
+ * launch that takes these folders in reads it (`lib/apps-move.ts`).
  */
 export const APPS_FOLDER_NAME = "Apps";
 
@@ -130,7 +128,6 @@ export const KEY_FOLDER_NAMES = [
   PROJECTS_FOLDER_NAME,
   MEMORY_FOLDER_NAME,
   SKILLS_FOLDER_NAME,
-  APPS_FOLDER_NAME,
 ] as const;
 
 export type KeyFolderName = (typeof KEY_FOLDER_NAMES)[number];

@@ -7,7 +7,6 @@ import { ServerError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import { err, ok, type Result } from "neverthrow";
 import { noop } from "radashi";
 
-import { type AbsolutePath } from "../../../schemas/paths";
 import { APP_COMMAND } from "../../../model-text/commands/app-command";
 import {
   performSignedInRequest,
@@ -52,7 +51,6 @@ export type SignInOpensIn = "app" | "external";
 type PendingFlow = PendingApiFlow | PendingMcpFlow;
 
 interface PendingApiFlow {
-  appsDir: AbsolutePath;
   expiresAt: number;
   expiry?: ReturnType<typeof setTimeout>;
   kind: "api";
@@ -64,7 +62,6 @@ interface PendingApiFlow {
 }
 
 interface PendingMcpFlow {
-  appsDir: AbsolutePath;
   expiresAt: number;
   expiry?: ReturnType<typeof setTimeout>;
   kind: "mcp";
@@ -96,7 +93,6 @@ const pendingFlows = new Map<string, PendingFlow>();
  * there is one, the system browser otherwise.
  */
 export async function beginMcpOAuth({
-  appsDir,
   opensIn = "app",
   redirectUrl,
   relayRedirectUrl,
@@ -104,7 +100,6 @@ export async function beginMcpOAuth({
   slug,
   store,
 }: {
-  appsDir: AbsolutePath;
   opensIn?: SignInOpensIn;
   redirectUrl: string;
   relayRedirectUrl: (service: string) => string;
@@ -121,7 +116,7 @@ export async function beginMcpOAuth({
   const now = Date.now();
   evictExpiredFlows(now);
 
-  const loaded = await loadApp(appsDir, slug);
+  const loaded = await loadApp(slug);
   if (loaded.isErr()) {
     return err({ message: loaded.error.message, reason: "connect" });
   }
@@ -143,7 +138,6 @@ export async function beginMcpOAuth({
 
   if (manifest.type === "api") {
     return beginApiOAuth({
-      appsDir,
       manifest,
       manifestHash,
       now,
@@ -242,7 +236,6 @@ export async function beginMcpOAuth({
     });
   }
   park(state, {
-    appsDir,
     expiresAt: now + PENDING_FLOW_TTL_MS,
     kind: "mcp",
     opensIn,
@@ -261,7 +254,6 @@ export async function beginMcpOAuth({
  * back and the redemption parked for the callback.
  */
 async function beginApiOAuth({
-  appsDir,
   manifest,
   manifestHash,
   now,
@@ -272,7 +264,6 @@ async function beginApiOAuth({
   slug,
   store,
 }: {
-  appsDir: AbsolutePath;
   manifest: ApiAppManifest;
   manifestHash: string;
   now: number;
@@ -335,7 +326,6 @@ async function beginApiOAuth({
     });
   }
   park(started.state, {
-    appsDir,
     expiresAt: now + PENDING_FLOW_TTL_MS,
     kind: "api",
     opensIn,
@@ -410,7 +400,7 @@ export async function completeMcpOAuth({
     await flow.transport.finishAuth(code);
     await client.connect(transport);
     const tools = await client.listTools();
-    const loaded = await loadApp(flow.appsDir, flow.slug);
+    const loaded = await loadApp(flow.slug);
     if (loaded.isErr()) {
       return err({
         message: `Signed in, but app "${flow.slug}" no longer exists.`,
@@ -514,7 +504,6 @@ async function completeApiOAuth(
     await flow.store.clearTransient(flow.slug).catch(noop);
   }
   const report = await runAppTest({
-    appsDir: flow.appsDir,
     signal: AbortSignal.timeout(API_PROBE_TIMEOUT_MS),
     slug: flow.slug,
   });

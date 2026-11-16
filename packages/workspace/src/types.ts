@@ -201,7 +201,6 @@ export interface WorkspaceAppsConfig {
 
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
-  appsDir: AbsolutePath;
   appVersion: string;
   browser: BrowserConfig;
   captureException: CaptureExceptionFunction;

@@ -449,9 +449,8 @@ export async function finderFavorites(): Promise<string[] | undefined> {
   const { stdout } = await execFileAsync(helper, ["finder-favorites"], {
     timeout: 10_000,
   });
-  return z
-    .object({ folders: z.string().array() })
-    .parse(JSON.parse(stdout)).folders;
+  return z.object({ folders: z.string().array() }).parse(JSON.parse(stdout))
+    .folders;
 }
 
 /**

@@ -4,7 +4,6 @@ import path from "node:path";
 import { unique } from "radashi";
 
 import {
-  APPS_FOLDER_NAME,
   CHAT_FOLDER_NAMES,
   SKILLS_FOLDER_NAME,
   TASKS_DIR_NAME,
@@ -252,23 +251,16 @@ function writerOf(told: EnvironmentChange): Writer {
 
 /**
  * Where a computer kept the workspace, from the folders it was told: its
- * `Skills/` and `Apps/` are at the workspace's top level. A build that kept
- * them in `.instrument/` names neither by those names, and says nothing.
+ * `Skills/` is at the workspace's top level. A build that kept it in
+ * `.instrument/` names it by no such name, and says nothing.
  */
 function workspaceRootOf({
-  appsFolder,
   workspaceSkillsFolder,
 }: EnvironmentChange): string | undefined {
-  const named = [
-    [workspaceSkillsFolder, SKILLS_FOLDER_NAME],
-    [appsFolder, APPS_FOLDER_NAME],
-  ] as const;
-  for (const [folder, name] of named) {
-    if (folder !== undefined && path.posix.basename(folder) === name) {
-      return path.posix.dirname(folder);
-    }
-  }
-  return undefined;
+  return workspaceSkillsFolder !== undefined &&
+    path.posix.basename(workspaceSkillsFolder) === SKILLS_FOLDER_NAME
+    ? path.posix.dirname(workspaceSkillsFolder)
+    : undefined;
 }
 
 /**

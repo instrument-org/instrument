@@ -1,7 +1,7 @@
 /**
  * Standing instructions as a session is given them: a project's and a connected
  * app's alike, inlined up to a budget and cut on a paragraph break past it,
- * with the file holding them named so the rest is a read away.
+ * with where the whole of them is named so the rest is a read away.
  */
 
 /** How much of one set of instructions is inlined, the budget a 1.x project had. */
@@ -16,7 +16,11 @@ export function instructionsInContext({
   file,
   instructions,
 }: {
-  /** The file they are in, by its path under the workspace's top level. */
+  /**
+   * Where the whole of them is, read as "the rest is in …": the file they
+   * are in, by its path under the workspace's top level, or the command that
+   * prints them.
+   */
   file: string;
   instructions: string | undefined;
 }): string | undefined {

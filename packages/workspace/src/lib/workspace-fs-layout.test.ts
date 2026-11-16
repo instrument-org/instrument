@@ -584,7 +584,6 @@ describe("buildBashFs skills mount", () => {
     const machine = path.join(tmpDir, "machine");
     setWorkspaceConfig({
       ...getWorkspaceConfig(),
-      appsDir: AbsolutePathSchema.parse(workspaceLayout(tmpDir).appsDir),
       chatsDir: AbsolutePathSchema.parse(workspaceLayout(tmpDir).chatsDir),
       userDataDir: AbsolutePathSchema.parse(machine),
       rootDir: WorkspaceDirSchema.parse(tmpDir),
@@ -663,13 +662,13 @@ describe("buildBashFs skills mount", () => {
     ).resolves.toBe("body\n");
   });
 
-  it("leaves skills and apps for the first one to make inside a granted workspace folder", async () => {
+  it("leaves skills for the first one to make inside a granted workspace folder", async () => {
     await fs.rm(path.join(tmpDir, SKILLS_FOLDER_NAME), {
       force: true,
       recursive: true,
     });
     const layout = buildWorkspaceFsLayout({
-      apps: true,
+      keepsMemory: true,
       chatHostRoot: WorkDirSchema.parse(path.join(tmpDir, "task")),
       folders: {
         workspace: {
@@ -684,7 +683,6 @@ describe("buildBashFs skills mount", () => {
       fs: await buildBashFs(layout, { maxFileReadSize: 1024 * 1024 }),
     });
     expect(existsSync(getWorkspaceSkillsDir())).toBe(false);
-    expect(existsSync(getWorkspaceConfig().appsDir)).toBe(false);
 
     const written = await bash.exec(
       `mkdir -p ${WORKSPACE_SKILLS()}/first && echo body > ${WORKSPACE_SKILLS()}/first/SKILL.md`,

@@ -9,7 +9,6 @@ import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
   AGENT_NEEDS_LANGUAGE,
-  APPS_FOLDER_NAME,
   CHAT_FOLDER_NAMES as F,
   DRAFT_FILE_NAME,
   FOLDER_VARIABLES as V,
@@ -20,7 +19,6 @@ import {
   PROJECT_FILE_NAME,
   PROJECTS_FOLDER_NAME,
 } from "../constants";
-import { APP_FILE_NAME } from "../lib/apps/app-file";
 import { PYTHON_BASE_PACKAGES, pythonBaseReady } from "../lib/python-base";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
 import { WORKSPACE_DATA_ENTRIES } from "../lib/workspace-layout";
@@ -88,7 +86,6 @@ export function systemPrompt(): string {
     - \`${PROJECTS_FOLDER_NAME}/<Name>/\`: a project, how the user files chats. Every folder there is one, and the folder's name is the project's, so renaming it renames the project. Its \`${PROJECT_FILE_NAME}\` is what every chat filed under it is told: the user's instructions, and what stays true about the project (its setup, where things are, what they are doing in it). Asked to update a project, or told something lasting about one, add it to its \`${PROJECT_FILE_NAME}\` in a few lines, making the file where the folder has none, so every chat under it knows; other agents opened in the folder read it too. Make, rename, mark and delete one with \`${PROJECTS_COMMAND.name}\`, and by hand only what it cannot change: deleting is \`${PROJECTS_COMMAND.name} retire\`, which the user can undo. Its other files are finished work. "My travel project" is one of these.
     - \`${MEMORY_FOLDER_NAME}/<name>.md\`: a memory, one fact each, kept with \`${MEMORY_COMMAND.name}\`.
     - \`${SKILLS_FOLDER_NAME}/<name>/SKILL.md\`: a skill of the workspace's own.
-    - \`${APPS_FOLDER_NAME}/<Name>/${APP_FILE_NAME}\`: an app: front matter saying how the service is reached, over its guide. Set it up and change it with \`${APP_COMMAND.name}\`, and by hand only what the command cannot change. The folder's name is the app's, and its \`id\` is what its sign-in is kept under.
     - \`${PRIVATE_FOLDER_NAME}/${WORKSPACE_DATA_ENTRIES.drafts}/<date>/${DRAFT_FILE_NAME}\`: a message to you the user has not sent yet, shown in their reply box, with what sits beside it going along when they send it. Read one when they ask about the message in their box; you cannot change it. A draft they ask you to write (a post, a letter, a document) is their work, never one of these.
 
     # Memory
@@ -116,7 +113,7 @@ export function systemPrompt(): string {
     - A note wakes you when a task finishes, stops, waits on you, or is taking a while, and says what you can do about it. What it found or made is yours to pass on, as the answer, in the conversation as it stands now. One doing what it should needs no word from you.
 
     # Apps
-    An app is a service you reach for the user (Notion, Linear, GitHub, any API), set up as a folder in \`$${V.apps}\`. Your context lists the apps and where each stands; \`${APP_COMMAND.name}\` in your bash tool sets one up and uses it, and every task reaches the same apps.
+    An app is a service you reach for the user (Notion, Linear, GitHub, any API). Your context lists the apps and where each stands; \`${APP_COMMAND.name}\` in your bash tool sets one up, changes it and uses it, and every task reaches the same apps.
     - Connect one when the user asks for it or names the service, never for work this computer can do. A kind of thing is not a service: "my calendar" names no app, so ask where it lives. \`${APP_COMMAND.name} catalog <name>\` says what the directory knows. Prefer an MCP endpoint: \`${APP_COMMAND.name} new <slug> --name '<Name>' --mcp <url>\` (or \`--api <base-url> --auth bearer --test /me\`), whose output says what comes next. For a service the directory does not know, look up its MCP endpoint or API base and how it signs in first; never guess one.
     - A service with no hosted server ships a local MCP server the directory names: \`${APP_COMMAND.name} new <slug> --name '<Name>' --local <package> --runtime node\` (\`--runtime python\`, \`--auth env:<VAR>\`, \`--mac-app <bundle-id>\` as fits). Only when there is no hosted one, and only a package you can stand behind: the service's own, or one plainly maintained and widely used; otherwise say there is none. \`${APP_COMMAND.name} icon <slug> <file>\` sets an icon you drew as a square SVG.
     - A local app or program macOS stops needs that permission for ${APP_NAME} itself: say which setting under System Settings, Privacy & Security, and what it lets the app do, in the user's words, never naming a process, runtime, or package.

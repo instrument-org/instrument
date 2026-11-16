@@ -2,8 +2,7 @@ import http from "node:http";
 
 import { AppManifestSchema, AppSlugSchema } from "../../src/lib/apps/manifest";
 import { credentialOrigin } from "../../src/lib/apps/origin-bound";
-import { loadApp, writeAppFolder } from "../../src/lib/apps/store";
-import { AbsolutePathSchema } from "../../src/schemas/paths";
+import { loadApp, writeApp } from "../../src/lib/apps/store";
 import { type WorkspaceAppsConfig } from "../../src/types";
 import { startMcpTracker } from "./mcp-tracker";
 
@@ -92,7 +91,7 @@ async function jsonBody(request: http.IncomingMessage): Promise<unknown> {
 
 /**
  * Stands up the apps a case declared: a real HTTP server on loopback, a real
- * manifest in the workspace's apps directory, and a connection on record, so
+ * record in the workspace's apps store, and a connection on record, so
  * `instrument app request` goes end to end against something real.
  *
  * Loopback rather than a stub inside the process because the whole path is what
@@ -105,14 +104,13 @@ async function jsonBody(request: http.IncomingMessage): Promise<unknown> {
  */
 export async function seedConnectedApps(
   fixtures: AppFixture[],
-  { apps, appsDir }: { apps: WorkspaceAppsConfig; appsDir: string },
+  { apps }: { apps: WorkspaceAppsConfig },
 ): Promise<{ close: () => Promise<void> }> {
   const servers: http.Server[] = [];
   const closers: (() => Promise<void>)[] = [];
   for (const fixture of fixtures) {
     if (fixture.kind === "web") {
-      await writeApp(
-        appsDir,
+      await seedApp(
         fixture,
         {
           ...(fixture.account ? { account: fixture.account } : {}),
@@ -121,7 +119,7 @@ export async function seedConnectedApps(
         },
         `Worked on the web${fixture.url === undefined ? "" : ` at ${fixture.url}`}.\n`,
       );
-      await recordConnected(fixture.slug, { apps, appsDir });
+      await recordConnected(fixture.slug, { apps });
       continue;
     }
     if (fixture.kind === "sign-in") {
@@ -132,8 +130,7 @@ export async function seedConnectedApps(
       if (tracker) {
         closers.push(tracker.close);
       }
-      await writeApp(
-        appsDir,
+      await seedApp(
         fixture,
         {
           auth: { kind: "oauth" },
@@ -158,8 +155,7 @@ export async function seedConnectedApps(
         type: "mcp",
         url: tracker.url,
       });
-      await writeApp(
-        appsDir,
+      await seedApp(
         fixture,
         manifest,
         `${fixture.name} tracks the team's issues.\n`,
@@ -178,12 +174,11 @@ export async function seedConnectedApps(
         origin,
         value: { access_token: "lapsed", token_type: "Bearer" },
       });
-      await recordConnected(fixture.slug, { apps, appsDir });
+      await recordConnected(fixture.slug, { apps });
       continue;
     }
     if (fixture.kind === "unfinished") {
-      await writeApp(
-        appsDir,
+      await seedApp(
         fixture,
         {
           auth: { kind: "bearer" },
@@ -199,8 +194,7 @@ export async function seedConnectedApps(
     if (fixture.kind === "mcp") {
       const tracker = await startMcpTracker();
       closers.push(tracker.close);
-      await writeApp(
-        appsDir,
+      await seedApp(
         fixture,
         {
           auth: { kind: "none" },
@@ -209,7 +203,7 @@ export async function seedConnectedApps(
         },
         `${fixture.name} tracks the team's issues.\n`,
       );
-      await recordConnected(fixture.slug, { apps, appsDir });
+      await recordConnected(fixture.slug, { apps });
       continue;
     }
     const { service } = fixture;
@@ -246,8 +240,7 @@ export async function seedConnectedApps(
       throw new Error(`${fixture.slug}: the fixture server has no port`);
     }
 
-    await writeApp(
-      appsDir,
+    await seedApp(
       fixture,
       {
         auth: { kind: "none" },
@@ -269,7 +262,7 @@ export async function seedConnectedApps(
       ].join("\n"),
     );
 
-    await recordConnected(fixture.slug, { apps, appsDir });
+    await recordConnected(fixture.slug, { apps });
   }
 
   return {
@@ -290,18 +283,15 @@ export async function seedConnectedApps(
 }
 
 /**
- * Writes the app's folder the way the product writes one, so a case runs
- * against a real `APP.md` in a folder named for the app rather than a layout
- * of the fixture's own.
+ * Writes the app into the apps store the way the product writes one, so a
+ * case runs against a real record rather than a layout of the fixture's own.
  */
-async function writeApp(
-  appsDir: string,
+async function seedApp(
   fixture: AppFixture,
   manifest: unknown,
   guide: string,
 ): Promise<void> {
-  await writeAppFolder({
-    appsDir: AbsolutePathSchema.parse(appsDir),
+  await writeApp({
     guide,
     manifest: AppManifestSchema.parse(manifest),
     name: fixture.name,
@@ -315,9 +305,9 @@ async function writeApp(
  */
 async function recordConnected(
   slug: string,
-  { apps, appsDir }: { apps: WorkspaceAppsConfig; appsDir: string },
+  { apps }: { apps: WorkspaceAppsConfig },
 ) {
-  const loaded = await loadApp(AbsolutePathSchema.parse(appsDir), slug);
+  const loaded = await loadApp(slug);
   if (loaded.isErr()) {
     throw new Error(`${slug}: ${loaded.error.message}`);
   }

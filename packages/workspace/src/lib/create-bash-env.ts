@@ -836,8 +836,8 @@ export function createBashDescription() {
 }
 
 /**
- * The folders the agent works with, by the names the shell gives them: the
- * workspace's apps, every chat's records (none for the window), its work
+ * The folders the agent works with, by the names the shell gives them:
+ * every chat's records (none for the window), its work
  * folder, the user's Files folder, the folder of the project the chat is
  * filed under, the folder of the skill it loaded last,
  * where it has loaded one, and the workspace's own skills, in the shell's
@@ -849,7 +849,6 @@ function folderVariables(
   projectFolder: string | undefined,
 ): Record<string, string> {
   return {
-    [FOLDER_VARIABLES.apps]: shellPath(getWorkspaceConfig().appsDir),
     ...(layout.chats && { [FOLDER_VARIABLES.chats]: layout.chats.shellRoot }),
     [FOLDER_VARIABLES.files]: shellPath(filesFolderPath()),
     ...(projectFolder !== undefined && {

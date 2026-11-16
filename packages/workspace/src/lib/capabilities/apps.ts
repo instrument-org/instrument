@@ -9,7 +9,6 @@ import {
   isConnected,
   readConnection,
 } from "../apps/connection";
-import { APP_FILE_NAME } from "../apps/app-file";
 import { isMcpManifest } from "../apps/manifest";
 import {
   bundledMacApp,
@@ -39,15 +38,19 @@ import { SignInAgainError } from "../apps/mcp/tool-auth";
 import { performSignedInRequest, SignInNeededError } from "../apps/api-oauth";
 import { noteIfSignInLost, noteSignInLost } from "../apps/sign-in-lost";
 import { performAppRequest, redactCredential } from "../apps/request";
-import { type AppInfo, listApps, loadApp, readAppGuide } from "../apps/store";
+import {
+  appFingerprint,
+  type AppInfo,
+  listApps,
+  loadApp,
+  readAppGuide,
+} from "../apps/store";
 import { webInsteadUrl } from "../apps/site";
 import { webInsteadCommand } from "../apps/web-instead";
-import { folderFingerprint } from "../folder-fingerprint";
 import { INSTRUCTIONS_MAX } from "../instructions-in-context";
 import { baselineRecorded } from "../last-told";
 import { ChatReads } from "../chat-reads";
 import { getWorkspaceConfig } from "../workspace-config";
-import { shellPath } from "../workspace-fs-layout";
 import {
   APP_COMMAND,
   APPS_ARE_THE_CHATS,
@@ -76,11 +79,6 @@ export const AppField = z
   .min(1, `an app slug is required. See \`${APP_COMMAND.name} list\`.`)
   .meta({ description: "The app's slug, as `instrument app list` names it." });
 
-/** The apps folder as the shell spells it. */
-export function appsFolder() {
-  return shellPath(getWorkspaceConfig().appsDir);
-}
-
 /** The call's own signal, bounded by a timeout so a hung service cannot hold a turn. */
 export function withTimeout(
   signal: AbortSignal | undefined,
@@ -103,7 +101,7 @@ export async function requireApp(
       `an app slug is required. See \`${APP_COMMAND.name} list\`.`,
     );
   }
-  const loaded = await loadApp(getWorkspaceConfig().appsDir, rawSlug);
+  const loaded = await loadApp(rawSlug);
   if (loaded.isErr()) {
     throw new Error(loaded.error.message);
   }
@@ -206,8 +204,7 @@ function refusalHint({
 const SERVER_INSTRUCTIONS_LIMIT = 8000;
 
 /**
- * An MCP app's guide as the model is handed it: the body of its `APP.md`,
- * then what its server says about itself (its instructions, and that it
+ * An MCP app's guide as the model is handed it: its own guide, then what its server says about itself (its instructions, and that it
  * offers documents), so the guide is what the server says today and a
  * change to it hands the guide over again. Nothing where neither has words.
  */
@@ -295,7 +292,7 @@ async function mcpGuideGate(
   const guide = mcpGuide({
     app,
     guidance,
-    guide: await readAppGuide(app.dir),
+    guide: await readAppGuide(app.slug),
   });
   if (guide === undefined || (await guideInWindow(app, guide, ctx))) {
     return { kind: "allowed" };
@@ -632,7 +629,7 @@ export const appsTools = defineCapability({
       // line the guide comes first in it when the model does not have it.
       const guide =
         ctx.surface === "cli"
-          ? mcpGuide({ app, guidance, guide: await readAppGuide(app.dir) })
+          ? mcpGuide({ app, guidance, guide: await readAppGuide(app.slug) })
           : undefined;
       const handOff =
         guide !== undefined && !(await guideInWindow(app, guide, ctx))
@@ -742,9 +739,8 @@ async function guideInWindow(
 
 /**
  * Whether the session's start told the model this guide whole: the guide is
- * the app's `APP.md` body, short enough to be inlined uncut
- * (`apps/context.ts`), and the session's baseline found the app connected
- * with its folder as it is now. The baseline is read from the session's
+ * the app's own, short enough to be inlined uncut (`apps/context.ts`), and
+ * the session's baseline found the app connected and as it is now. The baseline is read from the session's
  * history, since the model window leaves it out.
  */
 async function guideToldAtStart(
@@ -762,12 +758,12 @@ async function guideToldAtStart(
   if (!told?.connected) {
     return false;
   }
-  const body = (await readAppGuide(app.dir))?.trim();
+  const body = (await readAppGuide(app.slug))?.trim();
   return (
     body !== undefined &&
     body === guide.trim() &&
     body.length <= INSTRUCTIONS_MAX &&
-    told.fingerprint === (await folderFingerprint(app.dir))
+    told.fingerprint === (await appFingerprint(app.slug))
   );
 }
 
@@ -782,7 +778,7 @@ async function otherGuidesToRead(
 ): Promise<{ app: string; guide: string }[]> {
   const config = getWorkspaceConfig();
   const [{ apps }, connections] = await Promise.all([
-    listApps(config.appsDir),
+    listApps(),
     config.apps.connections.list(),
   ]);
   const others = apps.filter(
@@ -793,7 +789,7 @@ async function otherGuidesToRead(
   );
   const guides = await Promise.all(
     others.map(async (app) => {
-      const guide = await readAppGuide(app.dir);
+      const guide = await readAppGuide(app.slug);
       return guide === null || (await guideInWindow(app, guide, ctx))
         ? []
         : [{ app: app.slug, guide }];
@@ -810,11 +806,11 @@ export const appsRequest = defineCapability({
     }
     // The guide is the app's only documentation, so it enters the context
     // before the first real request the session makes.
-    const guide = await readAppGuide(app.dir);
+    const guide = await readAppGuide(app.slug);
     if (guide === null) {
       return {
         kind: "refused",
-        message: `"${app.slug}" has no guide. Write one under the front matter in ${appsFolder()}/${app.name}/${APP_FILE_NAME}: the endpoints and conventions a request needs.`,
+        message: `"${app.slug}" has no guide. Write one with \`${APP_COMMAND.name} guide ${app.slug} <<'EOF'\`: the endpoints and conventions a request needs.`,
       };
     }
     if (await guideInWindow(app, guide, ctx)) {
@@ -1147,7 +1143,7 @@ export const appsList = defineCapability({
   async run() {
     const config = getWorkspaceConfig();
     const [{ apps, invalid }, connections] = await Promise.all([
-      listApps(config.appsDir),
+      listApps(),
       config.apps.connections.list(),
     ]);
     return {
@@ -1169,7 +1165,7 @@ export const appsList = defineCapability({
   },
   text({ apps, invalid }) {
     if (apps.length === 0 && invalid.length === 0) {
-      return `No apps yet. \`${APP_COMMAND.name} catalog <name>\` to look one up, \`${APP_COMMAND.name} new\` to write its folder.\n`;
+      return `No apps yet. \`${APP_COMMAND.name} catalog <name>\` to look one up, \`${APP_COMMAND.name} new\` to set it up.\n`;
     }
     return `${[
       ...apps.map(

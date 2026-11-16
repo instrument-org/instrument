@@ -10,7 +10,6 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { knowChat } from "../../test/helpers/mock-chat-config";
 import { readAppGuide, loadApp } from "../apps/store";
-import { getWorkspaceConfig } from "../workspace-config";
 import { createAppCommand } from "./app";
 import {
   APP_SETUP_IS_THE_CHATS,
@@ -94,17 +93,15 @@ describe("app setup from a task", () => {
     ["disconnect", ["disconnect", "task-force"]],
   ])("refuses %s, saying how to hand it to the chat", async (_word, args) => {
     await chatSetsUp("task-force");
-    const before = await loadApp(getWorkspaceConfig().appsDir, "task-force");
+    const before = await loadApp("task-force");
     const result = await app("task", args, {
       files: { "icon.svg": '<svg viewBox="0 0 16 16"></svg>' },
     });
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe(`instrument app: ${APP_SETUP_IS_THE_CHATS}\n`);
-    expect(
-      (
-        await loadApp(getWorkspaceConfig().appsDir, "task-force")
-      )._unsafeUnwrap().manifestHash,
-    ).toBe(before._unsafeUnwrap().manifestHash);
+    expect((await loadApp("task-force"))._unsafeUnwrap().manifestHash).toBe(
+      before._unsafeUnwrap().manifestHash,
+    );
   });
 
   it("says what to do in words a task can act on", () => {
@@ -115,10 +112,8 @@ describe("app setup from a task", () => {
 
   it("reads a guide and refuses to write one", async () => {
     await chatSetsUp("task-guide");
-    const { dir } = (
-      await loadApp(getWorkspaceConfig().appsDir, "task-guide")
-    )._unsafeUnwrap();
-    const guide = await readAppGuide(dir);
+    const { slug } = (await loadApp("task-guide"))._unsafeUnwrap();
+    const guide = await readAppGuide(slug);
 
     const read = await app("task", ["guide", "task-guide"]);
     expect(read.exitCode).toBe(0);
@@ -129,7 +124,7 @@ describe("app setup from a task", () => {
     });
     expect(written.exitCode).toBe(1);
     expect(written.stderr).toBe(`instrument app: ${APP_SETUP_IS_THE_CHATS}\n`);
-    expect(await readAppGuide(dir)).toBe(guide);
+    expect(await readAppGuide(slug)).toBe(guide);
   });
 
   it("reads the account an app names and refuses to name one", async () => {

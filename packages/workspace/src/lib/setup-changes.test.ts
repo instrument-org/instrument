@@ -62,7 +62,7 @@ async function agentFs({ folders }: { folders?: string[] } = {}) {
   const files = await toolFs(
     // The chat's, which keeps the memories.
     buildWorkspaceFsLayout({
-      apps: true,
+      keepsMemory: true,
       chatHostRoot: WorkDirSchema.parse(path.join(rootDir, "work")),
       ...(folders && {
         folders: Object.fromEntries(

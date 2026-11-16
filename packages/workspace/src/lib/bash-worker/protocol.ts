@@ -25,7 +25,6 @@ import { SubprocessTreeTerminationError } from "../subprocess-tree";
  * commands that need one run there (`MAIN_THREAD_COMMANDS`).
  */
 export const WORKER_CONFIG_KEYS = [
-  "appsDir",
   "appVersion",
   "chatsDir",
   // Where this computer's folder is, which the rules close.

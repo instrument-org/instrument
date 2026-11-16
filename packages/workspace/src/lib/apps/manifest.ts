@@ -283,7 +283,7 @@ function withoutRetiredKeys(value: unknown): unknown {
 }
 
 /**
- * What an app folder's manifest describes: how to call a service, and nothing
+ * What an app's manifest describes: how to call a service, and nothing
  * about whether it may be called. Whether it may is the connection record,
  * which the app keeps where the agent cannot write it.
  */
@@ -316,35 +316,27 @@ export function isMcpManifest(
 /**
  * Canonical manifests shown to the agent in the command's help and in
  * validation failures, so a broken manifest is a one-round fix instead of a
- * guessing game. Each is the front matter of an app's `APP.md`, whose folder
- * is the app's name and whose body is its guide.
+ * guessing game. Each is an app's setup as `app setup` prints and takes it.
  *
- * There is no name key: the folder is the name. The `id` is what the `app`
- * command, the stored key, and the connection record all name the app by.
+ * There is no name or id key: the app's name and its id (what the `app`
+ * command, the stored key, and the connection record all name it by) are
+ * set when it is made, beside the setup.
  */
-export const APP_MANIFEST_EXAMPLE = `MCP app (tools on a hosted MCP server; "oauth" means a one-click sign-in in the browser, no key), in Apps/Linear/APP.md:
----
-id: linear
+export const APP_MANIFEST_EXAMPLE = `MCP app (tools on a hosted MCP server; "oauth" means a one-click sign-in in the browser, no key), the setup of linear:
 type: mcp
 url: https://mcp.linear.app/mcp
 auth:
   kind: oauth
----
 
-Local MCP app (an MCP server that runs on this machine, installed from npm ("node") or PyPI ("python")), in Apps/Drafts/APP.md:
----
-id: drafts
+Local MCP app (an MCP server that runs on this machine, installed from npm ("node") or PyPI ("python")), the setup of drafts:
 type: mcp-local
 package: "@agiletortoise/drafts-mcp-server"
 runtime: node
 macApp: com.agiletortoise.Drafts-OSX
 auth:
   kind: none
----
 
-API app (authenticated HTTP requests; auth kinds: bearer, basic (optionally with "user"), header (with "header"), query (with "param"), none), in Apps/Notion/APP.md:
----
-id: notion
+API app (authenticated HTTP requests; auth kinds: bearer, basic (optionally with "user"), header (with "header"), query (with "param"), none), the setup of notion:
 type: api
 url: https://api.notion.com/v1
 auth:
@@ -353,14 +345,10 @@ headers:
   Notion-Version: 2022-06-28
 test:
   path: /users/me
----
 
-Web app (a service worked on its own site in ${APP_NAME}'s browser, for one with no sign-in the card can open; "signIn" is optional, the login page when it is not "url"), in Apps/Google Drive/APP.md:
----
-id: google-drive
+Web app (a service worked on its own site in ${APP_NAME}'s browser, for one with no sign-in the card can open; "signIn" is optional, the login page when it is not "url"), the setup of google-drive:
 type: web
-url: https://drive.google.com
----`;
+url: https://drive.google.com`;
 
 /**
  * A digest of the manifest as parsed, so a connection record can say which

@@ -1,7 +1,4 @@
 import { call, os } from "@orpc/server";
-import fs from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type InitialRPCContext } from "../context";
@@ -9,7 +6,10 @@ import { apps } from "./apps";
 
 const mocks = vi.hoisted(() => ({
   appChanged: vi.fn(() => Promise.resolve()),
+  /** The apps store, by slug: what each app's setup says and what it is called. */
+  apps: new Map<string, { manifest: Record<string, unknown>; name: string }>(),
   beginMcpOAuth: vi.fn(),
+  loadApp: vi.fn(),
   cancelMcpOAuth: vi.fn(() => Promise.resolve()),
   oauthState: undefined as string | undefined,
   pending: new Map<string, string>(),
@@ -55,6 +55,8 @@ vi.mock(
     // What the workspace says to its lists and the chat, which has no
     // workspace to say it to here.
     appChanged: mocks.appChanged,
+    // The apps store of a workspace this test has none of.
+    loadApp: mocks.loadApp,
     beginMcpOAuth: mocks.beginMcpOAuth,
     cancelMcpOAuth: mocks.cancelMcpOAuth,
     pendingMcpOAuthSlug: (state: string) => mocks.pending.get(state),
@@ -65,15 +67,24 @@ vi.mock(
   }),
 );
 
-let appsDir: string;
-let options: { context: InitialRPCContext };
+// Nothing of the context is read on these paths.
+const options = { context: {} as unknown as InitialRPCContext };
 
-beforeEach(async () => {
-  appsDir = await fs.mkdtemp(path.join(tmpdir(), "apps-route-"));
-  // Only the apps directory is read on these paths.
-  options = {
-    context: { workspaceConfig: { appsDir } } as unknown as InitialRPCContext,
-  };
+beforeEach(() => {
+  mocks.loadApp.mockImplementation((slug: string) => {
+    const app = mocks.apps.get(slug);
+    return Promise.resolve(
+      app
+        ? {
+            isErr: () => false,
+            value: { ...app, manifestHash: `hash-of-${slug}`, slug },
+          }
+        : {
+            error: { message: `No app is "${slug}".`, reason: "not-found" },
+            isErr: () => true,
+          },
+    );
+  });
   mocks.runAppTest.mockResolvedValue({ checks: [], passed: true, slug: "" });
   mocks.beginMcpOAuth.mockResolvedValue({
     isErr: () => false,
@@ -81,30 +92,21 @@ beforeEach(async () => {
   });
 });
 
-afterEach(async () => {
+afterEach(() => {
   vi.clearAllMocks();
   mocks.oauthState = undefined;
   mocks.pending.clear();
-  await fs.rm(appsDir, { force: true, recursive: true });
+  mocks.apps.clear();
 });
 
-/** An app folder as the agent leaves it: the manifest over a guide. */
-async function writeApp(
+/** An app in the apps store, as `instrument app new` leaves one. */
+function writeApp(
   name: string,
   slug: string,
   manifest: Record<string, unknown>,
 ) {
-  const dir = path.join(appsDir, name);
-  await fs.mkdir(dir, { recursive: true });
-  // JSON is YAML, so each value goes in as it stands rather than through a
-  // serializer this test would have to keep in step with the real one.
-  const front = Object.entries({ id: slug, ...manifest })
-    .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
-    .join("\n");
-  await fs.writeFile(
-    path.join(dir, "APP.md"),
-    `---\n${front}\n---\n\nWhat the service is for.\n`,
-  );
+  mocks.apps.set(slug, { manifest, name });
+  return Promise.resolve();
 }
 
 describe("setCredential", () => {

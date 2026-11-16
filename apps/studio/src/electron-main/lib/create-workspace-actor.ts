@@ -77,7 +77,7 @@ import { getBrowserViewManager } from "../browser-view/manager";
 import { flushKeptState } from "../stores/workspace/kept-state";
 import { searchWeb } from "../platform-api/web-search";
 import { recordInstalledUpdate } from "./actions";
-import { createAppsConfig, rememberAppsDir } from "./apps";
+import { createAppsConfig, rememberAppsReady } from "./apps";
 import { timeBootStep } from "./boot-timing";
 import { captureFor, captureServerException } from "./capture-server-exception";
 import { isDictationInProgress } from "./dictation-in-progress";
@@ -268,7 +268,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   }
 
   const workspaceConfig = snapshot.context.config;
-  rememberAppsDir(workspaceConfig.appsDir);
+  rememberAppsReady();
   recordInstalledUpdate();
   startAppSignInChecks();
   // What another device writes into the chats folder reaches the app while

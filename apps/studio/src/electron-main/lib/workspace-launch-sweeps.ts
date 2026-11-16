@@ -4,7 +4,6 @@ import {
 } from "@/electron-main/lib/notices";
 import {
   type ChatRecordsSplit,
-  convertAppsToAppFiles,
   convertChatSettingsFiles,
   convertProjectsToProjectFiles,
   type DeviceId,
@@ -12,7 +11,6 @@ import {
   type FolderMoved,
   markedWhereNoSettings,
   migrateWorkspaceLayout,
-  moveAppsToFolder,
   moveMemoriesToFolder,
   moveSkillsToFolder,
   moveProjectFolders,
@@ -24,6 +22,7 @@ import {
   settleKeyFolderCase,
   settleMemoryFiles,
   settleProjectFiles,
+  takeInAppFolders,
   withholdChats,
   settleWorkspaceDb,
   writeDataDirReadme,
@@ -140,10 +139,9 @@ export async function sweepWorkspaceFolder({
   );
   await moveFolderOut("Skills", () => moveSkillsToFolder(rootDir));
   await moveFolderOut("Projects", () => moveProjectsToFolder(rootDir));
-  await moveFolderOut("Apps", () => moveAppsToFolder(rootDir));
-  // And once the projects and the apps are out, each one's files become what
-  // this build reads, which is its own step: the folder moves whatever is
-  // inside it, and one already converted is left alone.
+  // And once the projects are out, each one's files become what this build
+  // reads, which is its own step: the folder moves whatever is inside it, and
+  // one already converted is left alone.
   await timeBootStep("sweep.convertProjectFiles", () =>
     convertProjectFiles(deviceId, rootDir),
   );
@@ -157,7 +155,9 @@ export async function sweepWorkspaceFolder({
   // computer's permission settings, before the moves below rewrite the paths
   // those settings hold.
   carryProjectFolders(deviceId, rootDir);
-  await timeBootStep("sweep.convertAppFiles", () => convertAppFiles(rootDir));
+  await timeBootStep("sweep.takeInAppFolders", () =>
+    takeInApps(deviceId, rootDir),
+  );
   // The `Chats/` an earlier build kept, a folder per chat, empties into the
   // places this build keeps those things, once every chat is on its records,
   // which take back what the person sent.
@@ -542,16 +542,20 @@ function logProjectSteps({
 }
 
 /**
- * Turn each app's manifest and guide into the one `APP.md` a person reads and
- * edits, in a folder named for the app. Runs after the folder itself is out,
- * for every workspace rather than only one in the app's own data, and carries
- * each connected app's approval onto the manifest as this build hashes it, so
- * nothing is asked for again. Idempotent; a failure must not block boot.
+ * Take every app an earlier build kept as a folder (`Apps/` at the
+ * workspace's top level, and the betas' `.instrument/apps/`) into the apps
+ * store, then send the folder to the Trash. Runs at every launch, for every
+ * workspace, since a computer still on an earlier build writes `Apps/`
+ * again, and carries each connected app's approval onto the manifest as this
+ * build hashes it, so nothing is asked for again. Idempotent; a failure must
+ * not block boot.
  */
-async function convertAppFiles(rootDir: string) {
+async function takeInApps(deviceId: DeviceId, rootDir: string) {
   try {
-    const converted = await convertAppsToAppFiles(rootDir, {
+    const converted = await takeInAppFolders(rootDir, {
       connections: appConnectionStore,
+      device: deviceId,
+      trash: (dir) => shell.trashItem(dir),
     });
     for (const line of converted.done) {
       logger.info(`Apps: ${line}`);

@@ -29,7 +29,7 @@ import { type AppConnectionStatus, readConnection } from "./connection";
 import { startAppEvents } from "./events";
 import { AppSlugSchema } from "./manifest";
 import { createMemoryAppsConfig } from "./memory-config";
-import { writeAppFolder } from "./store";
+import { writeApp } from "./store";
 
 const woken = vi.hoisted(() =>
   vi.fn(
@@ -160,8 +160,7 @@ async function chatWithCard({
     });
   }
   for (const [slug, name] of apps) {
-    await writeAppFolder({
-      appsDir: getWorkspaceConfig().appsDir,
+    await writeApp({
       guide: "",
       manifest: {
         auth: { kind: "oauth" },

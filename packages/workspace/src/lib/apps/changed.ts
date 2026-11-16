@@ -1,7 +1,6 @@
 import { publisher } from "../../rpc/publisher";
 import { recordAction } from "../actions/log";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
-import { getWorkspaceConfig } from "../workspace-config";
 import { type SignInEnd } from "./connection";
 import { loadApp } from "./store";
 import { signsInDirectly, webInsteadUrl } from "./site";
@@ -20,7 +19,7 @@ export type AppEvent =
   | "removed";
 
 /**
- * Says an app changed: its folder, its connection, its key. Every list of
+ * Says an app changed: its setup, its connection, its key. Every list of
  * apps reads again (`app.updated`), and, given what the user did, the chat
  * hears it under the app's own name (`app.event`), so the two can never be
  * published apart. The name is read before anything is said, so call this
@@ -64,7 +63,7 @@ export async function appEventOf(
   slug: string,
   happened: Happened,
 ): Promise<AppEventPayload> {
-  const loaded = await loadApp(getWorkspaceConfig().appsDir, slug);
+  const loaded = await loadApp(slug);
   const app = loaded.isOk() ? loaded.value : undefined;
   const manifest = app?.manifest;
   return {

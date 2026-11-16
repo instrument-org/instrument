@@ -4,12 +4,11 @@
  * Two Notion apps are connected, the same service under two accounts, and
  * nothing in the listing says which workspace each reaches. The Reading list
  * lives only in the second. Finding it takes trying both, and the next chat
- * would have to try both again unless the body of an `APP.md` says where it
+ * would have to try both again unless the app's guide says where it
  * is. The case asks for the list and is scored on the answer and on whether
  * a guide mentions the Reading list once the run is over, whether the chat
  * found it itself or a task told it in its report.
  */
-import { getWorkspaceConfig } from "../../src/lib/workspace-config";
 import { listApps, readAppGuide } from "../../src/lib/apps/store";
 import { type Session } from "../../src/schemas/session";
 import { type AppFixture, type StandInService } from "../lib/connected-app";
@@ -101,11 +100,10 @@ const KEPT = "a Notion guide says where the Reading list is";
 
 const keptInGuide: Assertion = {
   check: async () => {
-    const { appsDir } = getWorkspaceConfig();
-    const { apps } = await listApps(appsDir);
+    const { apps } = await listApps();
     const guides = await Promise.all(
       apps.map(async (app) => ({
-        guide: (await readAppGuide(app.dir)) ?? "",
+        guide: (await readAppGuide(app.slug)) ?? "",
         slug: app.slug,
       })),
     );

@@ -148,7 +148,6 @@ function homeShaped(appFiles: string, workspaceIn?: string) {
     `${workspace}/.instrument/preferences.json`,
     `${data.skillsDir}/mine/SKILL.md`,
     `${workspace}/Skills/mine/SKILL.md`,
-    `${data.appsDir}/Linear/APP.md`,
     `${workspace}/.instrument/apps/linear/app.json`,
     `${workspaceMachine}/keys/x`,
     `${workspaceMachine}/browser/Cookies`,
@@ -193,7 +192,6 @@ type Paths = ReturnType<typeof homeShaped>;
 function useApp(paths: Paths) {
   setWorkspaceConfig({
     ...previous,
-    appsDir: AbsolutePathSchema.parse(paths.data.appsDir),
     chatsDir: AbsolutePathSchema.parse(paths.data.chatsDir),
     userDataDir: AbsolutePathSchema.parse(paths.userData),
     // A folder the person picked is where their finished work goes too,
@@ -219,13 +217,13 @@ function useApp(paths: Paths) {
 function layoutUnder(
   paths: Paths,
   {
-    apps = true,
+    keepsMemory = true,
     grants = [],
     opened = [],
     dangerouslyAllowEveryFolder = false,
   }: {
-    /** Whether the apps folder is the session's to write, as the chat's is. */
-    apps?: boolean;
+    /** Whether the memories are the session's to write, as the chat's are. */
+    keepsMemory?: boolean;
     /** Folders the chat was allowed by a card. */
     grants?: string[];
     /** Folders Settings › Permissions allows. */
@@ -254,7 +252,7 @@ function layoutUnder(
     asker: { chatId: ChatIdSchema.parse("2026-10-13-chat"), sessionId },
   };
   return buildWorkspaceFsLayout({
-    apps,
+    keepsMemory,
     chatHostRoot: WorkDirSchema.parse(paths.work),
     folders: {
       [paths.home]: {
@@ -402,12 +400,6 @@ function reachTable(p: Paths) {
       "never",
     ],
     [
-      "the workspace's apps",
-      "write",
-      `${p.data.appsDir}/Linear/APP.md`,
-      "allow",
-    ],
-    [
       "where an older build hid the apps",
       "write",
       `${p.workspace}/.instrument/apps/linear/app.json`,
@@ -530,11 +522,6 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
 
   describe.each(personRules(paths))("under $name", (person) => {
     const layout = layoutUnder(paths, person);
-    // The same rules for a task, which leaves the apps to the chat; built
-    // once, on first use.
-    let taskLayout: ReturnType<typeof layoutUnder> | undefined;
-    const taskUnder = () =>
-      (taskLayout ??= layoutUnder(paths, { ...person, apps: false }));
 
     it("reaches each place in and around it as the table says", () => {
       const table = reachTable(paths);
@@ -577,29 +564,6 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
       },
     );
 
-    // Every chat uses the apps, so a task reads them and changes none, whatever
-    // folder of the person's holds them.
-    it("leaves the apps to the chat to change", () => {
-      const app = path.join(getWorkspaceConfig().appsDir, "Linear", "APP.md");
-      expect(reachOf(taskUnder().rules, app, "read").level).toBe("allow");
-      expect(reachOf(taskUnder().rules, app, "write").level).not.toBe("allow");
-      expect(reachOf(layout.rules, app, "write").level).toBe("allow");
-    });
-
-    // A grant deeper than the apps folder would otherwise win there.
-    it("keeps a grant to an app's own folder from opening it to a task", () => {
-      const folder = path.join(getWorkspaceConfig().appsDir, "Linear");
-      const app = path.join(folder, "APP.md");
-      const task = layoutUnder(paths, {
-        ...person,
-        apps: false,
-        grants: [folder],
-        opened: [folder],
-      });
-      expect(reachOf(task.rules, app, "read").level).toBe("allow");
-      expect(reachOf(task.rules, app, "write").level).not.toBe("allow");
-    });
-
     // What every chat remembers is the chat's to keep, so a task reads the
     // memories and changes none, granted their folder or not.
     it.runIf(shape.workspace !== undefined).each([false, true])(
@@ -610,7 +574,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
         const grants = granted ? [folder] : [];
         const task = layoutUnder(paths, {
           ...person,
-          apps: false,
+          keepsMemory: false,
           grants,
           opened: grants,
         });
@@ -633,7 +597,7 @@ describe.each(SHAPES)("the app's data $name", (shape) => {
           1,
         ],
       ])("a task's native command %s", async (_name, script, exitCode) => {
-      const task = layoutUnder(paths, { ...person, apps: false });
+      const task = layoutUnder(paths, { ...person, keepsMemory: false });
       const spawned = wrapNativeCommand(
         "/bin/sh",
         ["-c", script],

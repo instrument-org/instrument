@@ -2,8 +2,6 @@ import {
   convertChatSettingsFiles,
   migrateWorkspaceLayout,
   type AppConnectionStore,
-  convertAppsToAppFiles,
-  moveAppsToFolder,
   moveMemoriesToFolder,
   moveSkillsToFolder,
   moveProjectsToFolder,
@@ -13,6 +11,7 @@ import {
   retireChatsFolder,
   settleDrafts,
   settleWorkspaceDb,
+  takeInAppFolders,
 } from "@instrument-org/workspace/electron";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -243,23 +242,14 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
     expect(problems).toEqual([]);
   });
 
-  it("turns each app's two files into the one APP.md, named for the app", () => {
+  it("takes every app into the apps store and leaves no app folder behind", () => {
     const problems: string[] = [];
-    for (const name of foldersUnder(path.join(clone, "Apps"))) {
-      const folder = path.join(clone, "Apps", name);
-      const file = path.join(folder, "APP.md");
-      if (!fs.existsSync(file)) {
-        problems.push(`${name}: no APP.md`);
-        continue;
-      }
-      const front = frontMatterOf(fs.readFileSync(file, "utf8"));
-      if (front === undefined || typeof front.id !== "string") {
-        problems.push(`${name}: APP.md names no app`);
-      }
-      for (const left of ["app.json", "guide.md"]) {
-        if (fs.existsSync(path.join(folder, left))) {
-          problems.push(`${name}: still holds ${left}`);
-        }
+    for (const left of [
+      path.join(clone, "Apps"),
+      path.join(clone, ".instrument", "apps"),
+    ]) {
+      if (fs.existsSync(left)) {
+        problems.push(`${path.relative(clone, left)} is still there`);
       }
     }
     expect(problems).toEqual([]);
@@ -352,9 +342,13 @@ async function runLaunchMigrations(): Promise<void> {
   await moveMemoriesToFolder(clone);
   await moveSkillsToFolder(clone);
   await moveProjectsToFolder(clone);
-  await moveAppsToFolder(clone);
   await convertProjectsToProjectFiles(clone);
-  await convertAppsToAppFiles(clone, { connections: forgottenConnections() });
+  // The clone is a copy, so sending an app folder "to the Trash" deletes it.
+  await takeInAppFolders(clone, {
+    connections: forgottenConnections(),
+    device: deviceId,
+    trash: (dir) => fsp.rm(dir, { force: true, recursive: true }),
+  });
   await retireChatsFolder({
     device: deviceId,
     filesDir: path.join(clone, "Files"),

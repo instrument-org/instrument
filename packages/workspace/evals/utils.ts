@@ -60,7 +60,6 @@ export function buildReportWorkspaceConfig(
   const layout = workspaceLayout(absoluteWorkspaceDir);
   return {
     apps: createMemoryAppsConfig(),
-    appsDir: AbsolutePathSchema.parse(layout.appsDir),
     appVersion: "0.0.0-test",
     browser: createStubBrowserConfig(),
     captureException: () => {

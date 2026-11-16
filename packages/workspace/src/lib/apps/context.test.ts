@@ -1,55 +1,38 @@
-import fs from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { AbsolutePathSchema } from "../../schemas/paths";
+import { forgetApps, seedApp } from "../../test/helpers/seed-app";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { APP_FILE_NAME, renderAppFile } from "./app-file";
 import { buildAppsContextText } from "./context";
-import { AppManifestSchema, AppSlugSchema } from "./manifest";
 import { createMemoryAppsConfig } from "./memory-config";
 import { loadApp } from "./store";
 
 const previous = getWorkspaceConfig();
-let appsDir: string;
 
-beforeEach(async () => {
-  appsDir = await fs.mkdtemp(path.join(os.tmpdir(), "apps-context-"));
-  setWorkspaceConfig({
-    ...previous,
-    apps: createMemoryAppsConfig(),
-    appsDir: AbsolutePathSchema.parse(appsDir),
-  });
+beforeEach(() => {
+  setWorkspaceConfig({ ...previous, apps: createMemoryAppsConfig() });
 });
 
 afterEach(async () => {
   setWorkspaceConfig(previous);
-  await fs.rm(appsDir, { force: true, recursive: true });
+  await forgetApps();
 });
 
-/** An app's folder, with the instructions under its manifest. */
+/** An app in the store, with the instructions as its guide. */
 async function writeApp(name: string, id: string, instructions: string) {
-  await fs.mkdir(path.join(appsDir, name), { recursive: true });
-  await fs.writeFile(
-    path.join(appsDir, name, APP_FILE_NAME),
-    renderAppFile({
-      guide: instructions,
-      id: AppSlugSchema.parse(id),
-      manifest: AppManifestSchema.parse({
-        auth: { kind: "none" },
-        type: "mcp",
-        url: "https://mcp.example.com",
-      }),
-    }),
-  );
+  await seedApp(id, {
+    guide: instructions,
+    name,
+    setup: {
+      auth: { kind: "none" },
+      type: "mcp",
+      url: "https://mcp.example.com",
+    },
+  });
 }
 
 /** Records the app as connected on the manifest its file holds. */
 async function connect(id: string) {
-  const app = (
-    await loadApp(AbsolutePathSchema.parse(appsDir), id)
-  )._unsafeUnwrap();
+  const app = (await loadApp(id))._unsafeUnwrap();
   await getWorkspaceConfig().apps.connections.set(id, {
     manifestHash: app.manifestHash,
     status: "connected",
@@ -58,13 +41,13 @@ async function connect(id: string) {
 }
 
 describe("the apps a session starts with", () => {
-  it("gives a connected app's instructions, naming the file they are in", async () => {
+  it("gives a connected app's instructions, as its guide", async () => {
     await writeApp("Linear", "linear", "Issues are `/issues`.\n\nTeams first.");
     await connect("linear");
 
     expect(await buildAppsContextText()).toContain(
       [
-        'The instructions for "Linear" (linear), in Apps/Linear/APP.md:',
+        'The instructions for "Linear" (linear), its guide:',
         "<app_instructions>",
         "Issues are `/issues`.",
         "",
@@ -89,7 +72,7 @@ describe("the apps a session starts with", () => {
     expect(await buildAppsContextText()).not.toContain("app_instructions");
   });
 
-  it("cuts long instructions on a paragraph break, naming the app's own file", async () => {
+  it("cuts long instructions on a paragraph break, naming the command that reads the rest", async () => {
     await writeApp(
       "Linear",
       "linear",
@@ -100,7 +83,7 @@ describe("the apps a session starts with", () => {
     const text = await buildAppsContextText();
     expect(text).not.toContain("ZZZ");
     expect(text).toContain(
-      "[Cut off here: the rest is in Apps/Linear/APP.md.]",
+      "[Cut off here: the rest is in `instrument app guide linear`.]",
     );
   });
 });

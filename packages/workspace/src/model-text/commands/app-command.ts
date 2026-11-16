@@ -7,7 +7,7 @@ import { INSTRUMENT_COMMAND } from "./instrument-command";
  */
 export const APP_COMMAND = {
   description:
-    "Reach the services connected to this workspace: look one up in the directory, write its folder, test it until it connects, then list and call its tools or make requests. `instrument app help` prints the full surface.",
+    "Reach the services connected to this workspace: look one up in the directory, set it up, test it until it connects, then list and call its tools or make requests. `instrument app help` prints the full surface.",
   name: `${INSTRUMENT_COMMAND.name} app`,
   summary: "Connect services and call their tools.",
   word: "app",

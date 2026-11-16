@@ -35,17 +35,17 @@ describe("isAgentDrivenCommand", () => {
 });
 
 describe("bouncesGuestFocus", () => {
-  // Input is the exclusion that matters: keyboard input only reaches a guest
-  // that holds focus, so rejecting the focus a CDP click grants would send the
-  // agent's next keystroke into the host renderer.
+  // Keyboard input is the exclusion that matters: typing that cannot go
+  // focus-free only reaches a guest that holds focus.
   it.each([
     ["DOM.focus", true],
+    ["Input.dispatchMouseEvent", true],
+    ["Input.dispatchTouchEvent", true],
     ["Page.bringToFront", true],
     ["Page.navigate", true],
     ["Page.navigateToHistoryEntry", true],
     ["Page.reload", true],
     ["Input.dispatchKeyEvent", false],
-    ["Input.dispatchMouseEvent", false],
     ["Input.insertText", false],
     ["Runtime.evaluate", false],
   ])("%s -> %s", (method, expected) => {
@@ -169,6 +169,15 @@ describe("createFocusGuard", () => {
     expect(guard.bounceGuestFocus(TARGET_ID)).toBe(true);
     settleNavigate();
     vi.advanceTimersByTime(COMMAND_TAIL_MS);
+    expect(guard.bounceGuestFocus(TARGET_ID)).toBe(false);
+  });
+
+  it("a click's tail does not bounce focus handed to the guest for typing", () => {
+    const guard = makeGuard();
+    const settleClick = guard.armCommand(TARGET_ID, true, true);
+    settleClick();
+    expect(guard.bounceGuestFocus(TARGET_ID)).toBe(true);
+    guard.allowGuestFocus(TARGET_ID);
     expect(guard.bounceGuestFocus(TARGET_ID)).toBe(false);
   });
 

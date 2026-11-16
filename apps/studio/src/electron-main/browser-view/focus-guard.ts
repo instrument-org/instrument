@@ -9,19 +9,25 @@ const COMMAND_TAIL_MS = 500;
 
 // The subset whose focus transfer is incidental to what the agent asked for,
 // and is therefore rejected on the user's behalf: a load that pulls focus out
-// of whatever they were typing in is never what they wanted.
+// of whatever they were typing in is never what they wanted, and neither is a
+// click or tap in a page they may not even be looking at.
 //
-// `Input.*` is deliberately absent. Chromium delivers keyboard input to the
-// widget holding keyboard focus rather than to the WebContents whose debugger
-// carried the command, so a guest that does not hold focus cannot be typed
-// into at all -- the keystrokes land in the host renderer instead. A CDP click
-// focusing the element the agent is about to type into is that command working
-// correctly, and bouncing it is what sends the next keystroke into the app's
-// own UI. Guest focus taken this way is handed back once the agent goes quiet
-// (see `armCommand`) instead of being refused up front.
+// A pointer press focuses the guest's WebContents in the browser process
+// however it is sent (CDP or `sendInputEvent` alike), so the press is let
+// through and host focus is handed back as soon as it acknowledges. The page
+// keeps believing it has focus because the manager turns on CDP focus
+// emulation for every guest an agent drives, so a menu the press opened stays
+// open for the snapshot after it, and the clicked field keeps its caret for
+// focus-free typing (`keyboard-without-focus.ts`).
+//
+// Keyboard `Input.*` is absent: the typing that cannot go focus-free (a chord,
+// IME) has to hold the guest's focus for the keys to reach it, and that focus
+// is handed back once the agent goes quiet (see `armCommand`).
 export function bouncesGuestFocus(method: string): boolean {
   return (
     method === "DOM.focus" ||
+    method === "Input.dispatchMouseEvent" ||
+    method === "Input.dispatchTouchEvent" ||
     method === "Page.bringToFront" ||
     method === "Page.navigate" ||
     method === "Page.navigateToHistoryEntry" ||
@@ -118,6 +124,11 @@ export function createFocusGuard({
         return true;
       }
       return false;
+    },
+    // Typing that cannot go focus-free hands the guest focus on purpose; a
+    // click's tail just before it must not bounce that focus straight back.
+    allowGuestFocus(targetId: BrowserTargetId) {
+      bounceGuards.delete(targetId);
     },
     claimHost() {
       hostFocusClaimed = true;

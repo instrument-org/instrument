@@ -324,6 +324,7 @@ function createBrowserViewManager(): BrowserViewManager {
   // the one way the main process can make agent keyboard input land in the
   // page it was addressed to.
   function requestGuestFocus(targetId: BrowserTargetId) {
+    focusGuard.allowGuestFocus(targetId);
     publisher.publish("browser.focus-guest", { targetId });
   }
 
@@ -337,6 +338,7 @@ function createBrowserViewManager(): BrowserViewManager {
     }
     const { targetId } = entry;
     wc.debugger.attach("1.3");
+    entry.focusEmulated = false;
     entry.frameSessions.clear();
     // Pairs with the guest session's product-branded client hints: the headers
     // and navigator.userAgentData have to name the same browser, and this is
@@ -374,6 +376,28 @@ function createBrowserViewManager(): BrowserViewManager {
       handleDetach(entries, targetId);
       notifyEntriesChanged();
     });
+  }
+
+  // A pointer press focuses the guest in the browser process, and the focus
+  // guard hands that focus straight back (`bouncesGuestFocus`). Under focus
+  // emulation the page sees none of it: no blur closes the menu the press
+  // opened, and the clicked field keeps its caret. It stays on for the life of
+  // the debugger, since turning it off would blur the page then.
+  async function emulateFocus(entry: BrowserEntry) {
+    const wc = entry.webContents;
+    if (entry.focusEmulated || !wc || wc.isDestroyed()) {
+      return;
+    }
+    ensureDebuggerAttached(entry);
+    entry.focusEmulated = true;
+    await wc.debugger
+      .sendCommand("Emulation.setFocusEmulationEnabled", { enabled: true })
+      .catch((error: unknown) => {
+        entry.focusEmulated = false;
+        log.warn(
+          `focus emulation failed targetId=${entry.targetId}: ${String(error)}`,
+        );
+      });
   }
 
   function bindGuest(entry: BrowserEntry, guest: WebContents) {
@@ -1152,6 +1176,7 @@ function createBrowserViewManager(): BrowserViewManager {
     if (driven && byAgent) {
       noteAgentCommand(driven);
       driven.hasAgentInput ||= method.startsWith("Input.");
+      await emulateFocus(driven);
     }
     const settle = focusGuard.armCommand(
       targetId,

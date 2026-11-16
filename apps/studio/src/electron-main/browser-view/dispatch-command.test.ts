@@ -39,12 +39,15 @@ interface FakeWebContents {
   executeJavaScriptInIsolatedWorld: ReturnType<typeof vi.fn>;
   hostWebContents?: {
     capturePage: ReturnType<typeof vi.fn>;
+    executeJavaScript: Mock<(code: string) => Promise<unknown>>;
     isDestroyed: () => boolean;
   };
   isDestroyed: () => boolean;
   isOffscreen: () => boolean;
   printToPDF?: ReturnType<typeof vi.fn>;
 }
+
+const isKeyboardProbe = (code: string) => code.includes("getWebContentsId");
 
 const isRenderingProbe = (code: string) =>
   code.includes("resolve(true)") && code.includes("requestAnimationFrame");
@@ -85,19 +88,19 @@ function makeEntry({
           const answer = isRenderingProbe(code) ? rendering : hasFocus;
           return answer instanceof Promise ? answer : Promise.resolve(answer);
         }),
-        // Both worlds read one document, so the focus probe in the isolated
-        // one answers as the page's own does, whatever a test makes that
-        // answer. Nothing else there (the agent's pointer) answers.
-        executeJavaScriptInIsolatedWorld: vi
-          .fn()
-          .mockImplementation(
-            (_world: number, [{ code }]: [{ code: string }]) =>
-              code === "document.hasFocus()"
-                ? wc!.executeJavaScript(code)
-                : Promise.resolve(undefined),
+        // Nothing in the isolated world (the agent's pointer) answers.
+        executeJavaScriptInIsolatedWorld: vi.fn().mockResolvedValue(undefined),
+        // The window's renderer, which answers whether the guest holds the
+        // keyboard.
+        hostWebContents: {
+          capturePage: hostCapturePage ?? vi.fn().mockResolvedValue(undefined),
+          executeJavaScript: vi.fn((code: string) =>
+            isKeyboardProbe(code)
+              ? hasFocus instanceof Promise
+                ? hasFocus
+                : Promise.resolve(hasFocus)
+              : Promise.resolve(undefined),
           ),
-        hostWebContents: hostCapturePage && {
-          capturePage: hostCapturePage,
           isDestroyed: () => false,
         },
         isDestroyed: () => destroyed,
@@ -1016,14 +1019,10 @@ describe("sendCommand", () => {
       });
       const wcSendCommand = vi.fn().mockResolvedValue({});
       const entry = makeEntry({ sendCommand: wcSendCommand });
-      const wc = entry.webContents as unknown as {
-        executeJavaScript: ReturnType<typeof vi.fn>;
-      };
-      wc.executeJavaScript = vi
-        .fn()
-        .mockImplementation((code: string) =>
-          Promise.resolve(isRenderingProbe(code) ? true : focused),
-        );
+      const wc = entry.webContents as unknown as FakeWebContents;
+      wc.hostWebContents!.executeJavaScript.mockImplementation((code: string) =>
+        Promise.resolve(isKeyboardProbe(code) && focused),
+      );
       return { entry, requestGuestFocus, wcSendCommand };
     }
 
@@ -1160,6 +1159,11 @@ describe("typing without focus", () => {
     const entry = makeEntry({ sendCommand: wcSendCommand });
     const insertText = vi.fn().mockResolvedValue(undefined);
     const sendInputEvent = vi.fn();
+    const host = (entry.webContents as unknown as FakeWebContents)
+      .hostWebContents!;
+    host.executeJavaScript.mockImplementation((code: string) =>
+      Promise.resolve(isKeyboardProbe(code) && focused),
+    );
     Object.assign(entry.webContents!, {
       executeJavaScript: vi
         .fn()
@@ -1169,15 +1173,11 @@ describe("typing without focus", () => {
       executeJavaScriptInIsolatedWorld: vi
         .fn()
         .mockImplementation((_world: number, [{ code }]: [{ code: string }]) =>
-          code === "document.hasFocus()"
-            ? Promise.resolve(focused)
-            : code.includes(".seen()")
-              ? seen instanceof Promise
-                ? seen
-                : Promise.resolve(seen)
-              : Promise.resolve(
-                  code.includes(".handled()") ? "keypress" : where,
-                ),
+          code.includes(".seen()")
+            ? seen instanceof Promise
+              ? seen
+              : Promise.resolve(seen)
+            : Promise.resolve(code.includes(".handled()") ? "keypress" : where),
         ),
       insertText,
       sendInputEvent,
@@ -1298,14 +1298,27 @@ describe("typing without focus", () => {
     expect(wcSendCommand).not.toHaveBeenCalled();
   });
 
-  it("asks the isolated world whether the guest holds focus, past a page that claims it", async () => {
+  it("asks the window whether the guest holds focus, past a page that claims it", async () => {
     const { entries, insertText, requestGuestFocus, wcSendCommand } =
       makeUnfocusedEntry();
-    const wc = entries.get(TARGET_ID)!.webContents as unknown as {
-      executeJavaScript: ReturnType<typeof vi.fn>;
-    };
-    // The page's own world, where a script redefined document.hasFocus.
+    const wc = entries.get(TARGET_ID)!
+      .webContents as unknown as FakeWebContents;
+    // The page says it has focus: under focus emulation it always does, and a
+    // script can redefine document.hasFocus.
     wc.executeJavaScript.mockResolvedValue(true);
+    wc.executeJavaScriptInIsolatedWorld = vi
+      .fn()
+      .mockImplementation((_world: number, [{ code }]: [{ code: string }]) =>
+        Promise.resolve(
+          code === "document.hasFocus()"
+            ? true
+            : code.includes(".seen()")
+              ? 2
+              : code.includes(".handled()")
+                ? "keypress"
+                : "armed",
+        ),
+      );
 
     await dispatch({
       entries,
@@ -1402,9 +1415,9 @@ describe("typing without focus", () => {
 
   it("sends a frame's keys on its own session, with no focus check", async () => {
     const { entries, requestGuestFocus, wcSendCommand } = makeUnfocusedEntry();
-    const wc = entries.get(TARGET_ID)!.webContents as unknown as {
-      executeJavaScriptInIsolatedWorld: ReturnType<typeof vi.fn>;
-    };
+    const host = (
+      entries.get(TARGET_ID)!.webContents as unknown as FakeWebContents
+    ).hostWebContents!;
 
     await dispatch({
       entries,
@@ -1421,9 +1434,7 @@ describe("typing without focus", () => {
     );
     expect(requestGuestFocus).not.toHaveBeenCalled();
     expect(
-      wc.executeJavaScriptInIsolatedWorld.mock.calls.some(([, scripts]) =>
-        JSON.stringify(scripts).includes("hasFocus"),
-      ),
+      host.executeJavaScript.mock.calls.some(([code]) => isKeyboardProbe(code)),
     ).toBe(false);
   });
 });

@@ -5,6 +5,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
+import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { WindowContext } from "@/client/components/window/context";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { toast } from "@/client/lib/toast";
@@ -17,7 +18,7 @@ import {
   chromeWebStorePageOf,
   desktopAppSteps,
 } from "@/shared/browser-extensions";
-import { SCREEN_ROUTES } from "@/client/components/window/window-href";
+import { SCREENS } from "@/shared/instrument-screens";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
@@ -80,7 +81,9 @@ export function useExtensionActions() {
   };
   return {
     manage: () => {
-      appWindow?.openScreen(SCREEN_ROUTES.extensions);
+      if (appWindow) {
+        openBuiltInPage(SCREENS.extensions.href);
+      }
     },
     openDesktopApp: (extension: BrowserExtension) => {
       openDesktopApp({ id: extension.id });

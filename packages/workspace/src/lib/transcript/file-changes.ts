@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { CHAT_FOLDER_NAMES, FOLDER_VARIABLES } from "../../constants";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { pathIsWithin } from "../path-is-within";
 import { isSystemClutter } from "../system-clutter";
 
 export type FileTouch =
@@ -54,16 +55,27 @@ interface FolderSnapshot {
 }
 
 /**
- * What the folders hold now, by size and modified time. A script is a black
- * box, so what it did is read from the disk: comparing two of these says what
- * changed whatever the program was, with nothing about it understood.
+ * What the places hold now, by size and modified time: every file under a
+ * folder, a file itself, and nothing for a place not there yet. A script is a
+ * black box, so what it did is read from the disk: comparing two of these
+ * says what changed whatever the program was, with nothing about it
+ * understood.
  */
-async function snapshotFolders(
-  folders: readonly string[],
+async function snapshotPlaces(
+  places: readonly string[],
 ): Promise<FolderSnapshot> {
   const snapshot: FolderSnapshot = { files: new Map(), isPartial: false };
-  await Promise.all(folders.map((folder) => addFolder(folder, snapshot)));
+  await Promise.all(places.map((place) => addPlace(place, snapshot)));
   return snapshot;
+}
+
+async function addPlace(place: string, snapshot: FolderSnapshot) {
+  const stat = await fs.stat(place).catch(() => undefined);
+  if (stat?.isDirectory()) {
+    await addFolder(place, snapshot);
+  } else if (stat?.isFile() && isTheWork(place)) {
+    snapshot.files.set(place, { mtimeMs: stat.mtimeMs, size: stat.size });
+  }
 }
 
 async function addFolder(root: string, snapshot: FolderSnapshot) {
@@ -287,39 +299,117 @@ async function readsNamedIn(
   return touches.filter((touch) => touch !== undefined);
 }
 
+/**
+ * A folder variable written alone as a word (`"$INSTRUMENT_FILES"`,
+ * `${INSTRUMENT_PROJECT}/`), which names the folder itself and so is not
+ * path-shaped enough for {@link pathsNamedIn}.
+ */
+const LONE_VARIABLE = /(?:^|[\s"'=(])\$\{?(\w+)\}?\/?(?=$|[\s"'`;&|)])/g;
+
+/**
+ * The places in the shared folders a command names before it runs: paths in
+ * its words, folders it moves to, and a shared folder's variable on its own,
+ * kept to those under `shared` and left out where one already covers another.
+ */
+function sharedPlacesNamed(
+  command: string,
+  {
+    home,
+    shared,
+    variables,
+    workFolder,
+  }: {
+    home: string | undefined;
+    shared: readonly string[];
+    variables: Readonly<Record<string, string>>;
+    workFolder: string;
+  },
+): string[] {
+  const entered = foldersEntered(command).flatMap((folder) =>
+    placesOf(folder, { bases: [workFolder], home, variables }),
+  );
+  const bases = [workFolder, ...entered];
+  const lone = [...command.matchAll(LONE_VARIABLE)].flatMap((match) => {
+    const folder = match[1] === undefined ? undefined : variables[match[1]];
+    return folder === undefined ? [] : [folder];
+  });
+  const places = [
+    ...entered,
+    ...lone,
+    ...pathsNamedIn(command).flatMap((word) =>
+      placesOf(word, { bases, home, variables }),
+    ),
+  ]
+    .map((place) => path.resolve(place))
+    .filter(
+      (place) =>
+        !pathIsWithin(place, workFolder) &&
+        shared.some((folder) => pathIsWithin(place, folder)) &&
+        isTheWork(place),
+    );
+  const unique = [...new Set(places)].toSorted();
+  return unique
+    .filter(
+      (place) =>
+        !unique.some((other) => other !== place && pathIsWithin(place, other)),
+    )
+    .slice(0, NAMED_PATHS_CHECKED);
+}
+
 /** A look around one shell call, taken before it runs. */
 export interface CallWatch {
   before: FolderSnapshot;
-  folders: readonly string[];
   home: string | undefined;
+  /** What the look compares: the work folder and what the command names. */
+  places: readonly string[];
   startedAtMs: number;
   variables: Readonly<Record<string, string>>;
   workFolder: string;
 }
 
-/** Starts watching: what the chat's folders hold before the call. */
+/**
+ * Starts watching: what the chat's work folder holds before the call, and
+ * what the places the command names in the Files folder and the project's
+ * folder hold. Those two are shared with every chat, its tasks, the person
+ * and the sync engine, so a change there is the call's only where the call's
+ * own words point; the work folder is the chat's alone, so all of it is
+ * compared.
+ */
 export async function watchCall({
-  folders,
+  command,
+  filesFolder,
   home,
-  outputFolder,
+  projectFolder,
   workFolder,
 }: {
-  folders: readonly string[];
+  command: string;
+  filesFolder: string | undefined;
   home: string | undefined;
-  outputFolder: string | undefined;
+  projectFolder: string | undefined;
   workFolder: string;
 }): Promise<CallWatch> {
+  const variables = {
+    [FOLDER_VARIABLES.work]: workFolder,
+    ...(filesFolder !== undefined && {
+      [FOLDER_VARIABLES.files]: filesFolder,
+    }),
+    ...(projectFolder !== undefined && {
+      [FOLDER_VARIABLES.project]: projectFolder,
+    }),
+  };
+  const shared = [filesFolder, projectFolder].filter(
+    (folder) => folder !== undefined,
+  );
+  const places = [
+    workFolder,
+    ...sharedPlacesNamed(command, { home, shared, variables, workFolder }),
+  ];
   return {
-    before: await snapshotFolders(folders),
-    folders,
+    before: await snapshotPlaces(places),
     home,
+    places,
     startedAtMs: Date.now(),
-    variables: {
-      [FOLDER_VARIABLES.work]: workFolder,
-      ...(outputFolder !== undefined && {
-        [FOLDER_VARIABLES.files]: outputFolder,
-      }),
-    },
+    variables,
     workFolder,
   };
 }
@@ -334,7 +424,7 @@ export async function fileTouches(
 ): Promise<{ files: FileTouch[]; moreFiles?: number }> {
   const disk = changesBetween(
     watch.before,
-    await snapshotFolders(watch.folders),
+    await snapshotPlaces(watch.places),
     watch.startedAtMs - CLOCK_SLACK_MS,
   );
   const bases = [

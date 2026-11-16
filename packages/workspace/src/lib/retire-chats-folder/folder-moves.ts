@@ -49,23 +49,51 @@ export async function recordChatFolderMoves({
   if (moves.length === 0) {
     return;
   }
+  const store = await openChatFolderMoves({ device, devicesDir });
+  try {
+    await store.record(moves);
+  } finally {
+    store.close();
+  }
+}
+
+/** This device's file of the store, open for one sweep's moves. */
+export interface ChatFolderMovesWriter {
+  close(): void;
+  /** Takes back where a folder was to go, when it stayed where it was. */
+  forget(from: string): Promise<void>;
+  record(moves: readonly ChatFolderMove[]): Promise<void>;
+}
+
+export async function openChatFolderMoves({
+  device,
+  devicesDir,
+}: {
+  device: DeviceId;
+  devicesDir: string;
+}): Promise<ChatFolderMovesWriter> {
   const store = await openSyncedStore({
     device,
     devicesDir,
     domain: DOMAIN,
     watch: false,
   });
-  try {
-    await store.apply(
-      moves.map(({ chat, from, to }) => ({
-        key: `${KEY_PREFIX}${from.normalize("NFC")}`,
-        t: "set",
-        value: chat === undefined ? { to } : { chat, to },
-      })),
-    );
-  } finally {
-    store.close();
-  }
+  return {
+    close: () => store.close(),
+    forget: (from) => store.apply([{ key: keyOf(from), t: "del" }]),
+    record: (moves) =>
+      store.apply(
+        moves.map(({ chat, from, to }) => ({
+          key: keyOf(from),
+          t: "set",
+          value: chat === undefined ? { to } : { chat, to },
+        })),
+      ),
+  };
+}
+
+function keyOf(from: string): string {
+  return `${KEY_PREFIX}${from.normalize("NFC")}`;
 }
 
 /**

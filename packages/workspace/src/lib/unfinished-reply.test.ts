@@ -1,4 +1,5 @@
 import {
+  CONTENT_FILTERED_MESSAGE,
   EMPTY_RESPONSE_MESSAGE,
   STREAM_ENDED_EARLY_MESSAGE,
 } from "@instrument-org/shared";
@@ -29,6 +30,15 @@ describe("unfinishedReply", () => {
         usage: uncounted,
       },
       name: "a stream that closed before its last chunk",
+    },
+    {
+      expected: CONTENT_FILTERED_MESSAGE,
+      input: {
+        finishReason: "content-filter",
+        repliedWithContent: true,
+        usage: counted,
+      },
+      name: "a reply the content filter stopped partway",
     },
     {
       expected: undefined,
@@ -66,6 +76,18 @@ describe("unfinishedReply", () => {
     expect(classifyProviderError(error)).toEqual({
       evidence: "structured",
       kind: "transient",
+    });
+  });
+
+  it("reads a filtered reply as the content rules, so the turn stops", () => {
+    const error = unfinishedReply({
+      finishReason: "content-filter",
+      repliedWithContent: false,
+      usage: counted,
+    });
+    expect(classifyProviderError(error)).toEqual({
+      evidence: "structured",
+      kind: "content-policy",
     });
   });
 });

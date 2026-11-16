@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { utcStamp } from "../utc-stamp";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
-import { readProjectRecords } from "./project-records";
+import { DeviceIdSchema } from "../../schemas/device-id";
+import { readProjectRecords, writeProjectRecords } from "./project-records";
 import {
   createProject,
   folderProjectId,
@@ -316,6 +317,58 @@ describe("project folders", () => {
     expect(await listProjects()).toMatchObject([
       { emoji: "🧳", id: made.id, name: "Away" },
     ]);
+  });
+
+  it("takes the record of the computer that made a project when it syncs in after the folder", async () => {
+    const id = folderProjectId("Trips");
+    // The folder and its id file arrive from the other computer first.
+    await fs.mkdir(path.join(projectsDir(), "Trips"), { recursive: true });
+    await fs.writeFile(
+      path.join(projectsDir(), "Trips", PROJECT_ID_FILE_NAME),
+      `${id}\n`,
+    );
+    expect(await listProjects()).toMatchObject([{ id, name: "Trips" }]);
+
+    // Then its record, written there before this computer read the folder.
+    writeProjectRecords(
+      getWorkspaceConfig().rootDir,
+      DeviceIdSchema.parse("dev_Z9Y8X7W6"),
+      [
+        {
+          at: Date.UTC(2026, 0, 1),
+          id,
+          record: { color: "blue", created: "2026-01-01T00:00:00Z", emoji: "🧳" },
+        },
+      ],
+    );
+
+    expect(await listProjects()).toMatchObject([
+      { color: "blue", emoji: "🧳", id, name: "Trips" },
+    ]);
+  });
+
+  it("leaves a folder whose id file cannot be read, and lists the others", async () => {
+    const home = await createProject({ name: "Home" });
+    const trips = path.join(projectsDir(), "Trips");
+    // A folder in the id file's place reads as an error that is not "missing".
+    await fs.mkdir(path.join(trips, PROJECT_ID_FILE_NAME), { recursive: true });
+
+    expect(readProjectsSync(getWorkspaceConfig().rootDir)).toMatchObject([
+      { id: home.id },
+    ]);
+    expect(await listProjects()).toMatchObject([{ id: home.id }]);
+    expect(
+      fsSync.statSync(path.join(trips, PROJECT_ID_FILE_NAME)).isDirectory(),
+    ).toBe(true);
+  });
+
+  it("gives a new project named like a deleted one an id of its own", async () => {
+    const first = await createProject({ name: "Taxes" });
+    await fs.rm(path.join(projectsDir(), "Taxes"), { recursive: true });
+
+    const second = await createProject({ name: "Taxes" });
+
+    expect(second.id).not.toBe(first.id);
   });
 
   it("keeps working when another agent rewrites AGENTS.md whole", async () => {

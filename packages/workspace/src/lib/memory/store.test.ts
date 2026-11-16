@@ -316,6 +316,47 @@ describe("settleMemoryFiles", () => {
     });
   });
 
+  it("takes the first betas' from, thread and at into the store, the thread as its chat", async () => {
+    const chat = path.join(root, ".instrument", "chats", "2026-09-19-import");
+    await fs.mkdir(chat, { recursive: true });
+    await fs.writeFile(path.join(chat, "ses_01M2XW1SK8HN5PW5TA1M3JDQKP.dev_A1B2C3D4.jsonl"), "");
+    await fs.writeFile(
+      path.join(dir, "two-macs.md"),
+      '---\nfrom: "Importing my facts"\nthread: "ses_01M2XW1SK8HN5PW5TA1M3JDQKP"\nat: 2026-09-19T22:28:58.837Z\n---\nYou work across two Macs.\n',
+    );
+    await fs.writeFile(
+      path.join(dir, "gone.md"),
+      '---\nfrom: "Deleted chat"\nthread: "ses_01M2XW1SK8HN5PW5TA1M3JDQKQ"\nat: 2026-09-20T10:00:00Z\n---\nThe chat is gone.\n',
+    );
+    await fs.writeFile(
+      path.join(dir, "mine.md"),
+      "---\nat: home\n---\nKeys by the door.\n",
+    );
+
+    await settleMemoryFiles(root, device());
+
+    expect(await fs.readFile(path.join(dir, "two-macs.md"), "utf8")).toBe(
+      "You work across two Macs.\n",
+    );
+    expect(await fs.readFile(path.join(dir, "gone.md"), "utf8")).toBe(
+      "The chat is gone.\n",
+    );
+    expect(await fs.readFile(path.join(dir, "mine.md"), "utf8")).toBe(
+      "---\nat: home\n---\nKeys by the door.\n",
+    );
+    expect(Object.fromEntries(readMemoryRecords(dir))).toMatchInlineSnapshot(`
+      {
+        "gone.md": {
+          "updated": "2026-09-20T10:00:00Z",
+        },
+        "two-macs.md": {
+          "chat": "2026-09-19-import",
+          "updated": "2026-09-19T22:28:58Z",
+        },
+      }
+    `);
+  });
+
   it("lets a memory saved since the file was written outrank it", async () => {
     await saveMemory(dir, { name: "roofer", text: "Your roofer is Dave." });
     const { at } = (await readMemory(dir, "roofer")) ?? { at: 0 };

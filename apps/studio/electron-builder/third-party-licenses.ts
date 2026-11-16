@@ -220,7 +220,13 @@ export const THIRD_PARTY_COMPONENTS: ThirdPartyComponent[] = [
     version: packageVersion,
   },
   {
-    files: ["LICENSE"],
+    // The package carries the notices of what its WebAssembly bundles, but
+    // not its own license file; that text is the repository's.
+    checkedIn: ["LICENSE"],
+    files: [
+      { from: "dist/OfficeArt-NOTICES.txt", to: "OfficeArt-NOTICES.txt" },
+      { from: "dist/Office-Font-Licenses.txt", to: "Office-Font-Licenses.txt" },
+    ],
     id: "react-docx",
     license: () => "MIT",
     name: "@extend-ai/react-docx",

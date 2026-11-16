@@ -1,4 +1,6 @@
 import {
+  CONTENT_FILTERED_CODE,
+  CONTENT_FILTERED_MESSAGE,
   EMPTY_RESPONSE_CODE,
   EMPTY_RESPONSE_MESSAGE,
   STREAM_ENDED_EARLY_CODE,
@@ -43,8 +45,10 @@ export class UnfinishedReplyError extends Error {
 /**
  * Why a reply that finished was not one, or undefined for one that was.
  *
- * Two shapes:
+ * Three shapes:
  *
+ * - A reply the provider's content filter stopped, whatever came before it,
+ *   which otherwise ends as if the model had finished.
  * - A normal stop with nothing in it: no text, no reasoning, no tool call. A
  *   reply that only reasoned is still a reply.
  * - A finish with no reason and no usage, which is what the SDK reports for a
@@ -61,6 +65,12 @@ export function unfinishedReply({
   repliedWithContent: boolean;
   usage: Pick<LanguageModelUsage, "inputTokens" | "outputTokens">;
 }): UnfinishedReplyError | undefined {
+  if (finishReason === "content-filter") {
+    return new UnfinishedReplyError(
+      CONTENT_FILTERED_CODE,
+      CONTENT_FILTERED_MESSAGE,
+    );
+  }
   if (finishReason === "stop" && !repliedWithContent) {
     return new UnfinishedReplyError(
       EMPTY_RESPONSE_CODE,

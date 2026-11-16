@@ -653,6 +653,143 @@ const cases: {
     expected: { evidence: "none", kind: "unknown" },
     name: "Cohere's output limit, which a smaller context does not fix",
   },
+  // Content-rule refusals, as opencode's provider-error tests record them.
+  {
+    error: apiCallError({
+      message: "The response was filtered",
+      responseBody: JSON.stringify({
+        error: {
+          code: "content_filter",
+          innererror: {
+            code: "ResponsibleAIPolicyViolation",
+            content_filter_result: {},
+          },
+          message: "The response was filtered",
+          param: "prompt",
+          status: 400,
+          type: null,
+        },
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "structured", kind: "content-policy" },
+    name: "Azure OpenAI's content filter on a 400",
+  },
+  {
+    error: apiCallError({
+      message: "The response was filtered",
+      responseBody: JSON.stringify({
+        error: {
+          code: null,
+          innererror: { code: "ResponsibleAIPolicyViolation" },
+          message: "The response was filtered",
+        },
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "structured", kind: "content-policy" },
+    name: "Azure OpenAI's content filter named only underneath",
+  },
+  {
+    error: apiCallError({
+      message:
+        "Invalid prompt: your prompt was flagged as potentially violating our usage policy. Please try again with a different prompt.",
+      responseBody: JSON.stringify({
+        error: {
+          code: "invalid_prompt",
+          message:
+            "Invalid prompt: your prompt was flagged as potentially violating our usage policy. Please try again with a different prompt.",
+          param: null,
+          type: "invalid_request_error",
+        },
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "prose", kind: "content-policy" },
+    name: "OpenAI's usage-policy refusal under invalid_prompt",
+  },
+  {
+    error: apiCallError({
+      message: "Output blocked by content filtering policy",
+      responseBody: JSON.stringify({
+        error: {
+          message: "Output blocked by content filtering policy",
+          type: "invalid_request_error",
+        },
+        type: "error",
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "prose", kind: "content-policy" },
+    name: "Anthropic's blocked output",
+  },
+  {
+    error: {
+      code: 403,
+      message: "Your input was flagged",
+      metadata: {
+        error_type: "content_policy_violation",
+        flagged_input: "...",
+        reasons: ["violence"],
+      },
+    },
+    expected: { evidence: "structured", kind: "content-policy" },
+    name: "OpenRouter's flagged input inside a stream, on a 403",
+  },
+  {
+    error: {
+      error_type: "refusal",
+      message: "Claude refused to respond",
+      type: "invalid_request_error",
+    },
+    expected: { evidence: "structured", kind: "content-policy" },
+    name: "OpenRouter's Claude refusal inside a stream",
+  },
+  {
+    error: {
+      code: "image_content_policy_violation",
+      message: "Your input was flagged",
+    },
+    expected: { evidence: "structured", kind: "unsendable-content" },
+    name: "OpenRouter's flagged image, left to the one-file recovery",
+  },
+  {
+    error: apiCallError({
+      message:
+        "Green net check failed for text (input): Input data may contain inappropriate content.",
+      responseBody: JSON.stringify({
+        code: "DataInspectionFailed",
+        message:
+          "Green net check failed for text (input): Input data may contain inappropriate content.",
+        request_id: "1537ecc9-6873-93f7-9865-6fe4eb1d7851",
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "structured", kind: "content-policy" },
+    name: "Alibaba Model Studio's data inspection failure",
+  },
+  {
+    error: apiCallError({
+      message:
+        "Your request was rejected by the safety system. If you believe this is an error, contact us at help.openai.com and include the request ID req_123.",
+      responseBody: JSON.stringify({
+        error: {
+          code: "moderation_blocked",
+          message:
+            "Your request was rejected by the safety system. If you believe this is an error, contact us at help.openai.com and include the request ID req_123.",
+          moderation_details: {
+            categories: ["other"],
+            moderation_stage: "input",
+          },
+          param: null,
+          type: "image_generation_user_error",
+        },
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "structured", kind: "content-policy" },
+    name: "OpenAI's moderation block",
+  },
 ];
 
 describe("classifyProviderError", () => {

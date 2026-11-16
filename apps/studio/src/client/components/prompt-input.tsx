@@ -256,16 +256,6 @@ interface PromptInputProps {
   onEmptyChange?: (empty: boolean) => void;
   /** The box's words, as it opens and each time they change. */
   onWordsChange?: (words: string) => void;
-  /**
-   * What stands between the notes and the box, such as a question waiting on
-   * the person. With `isBoxHidden` it takes the box's place: the box stays
-   * mounted, its words and model out of sight and out of reach, and
-   * `keyboardHome` marks this instead.
-   */
-  above?: React.ReactNode;
-  isBoxHidden?: boolean;
-  /** Asks for the hidden box back, as the model picker opens from it. */
-  onShowBox?: () => void;
 }
 
 /**
@@ -306,9 +296,6 @@ export const PromptInput = ({
   onCommandEnterWhenEmpty,
   onEmptyChange,
   onWordsChange,
-  above,
-  isBoxHidden = false,
-  onShowBox,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -474,13 +461,6 @@ export const PromptInput = ({
       : notice;
   // Counts the sends the notice refused, for the row to flash at each one.
   const [noticeNudge, setNoticeNudge] = useState(0);
-  // The picker opens from the box, so a hidden box is asked back first.
-  const openPicker = () => {
-    if (isBoxHidden) {
-      onShowBox?.();
-    }
-    setPickerOpen(true);
-  };
   const addProvider = () => {
     openLogin();
   };
@@ -491,7 +471,7 @@ export const PromptInput = ({
         break;
       }
       case "choose": {
-        openPicker();
+        setPickerOpen(true);
         break;
       }
       case "retry": {
@@ -535,7 +515,7 @@ export const PromptInput = ({
       ? note.render({
           nudge: noticeNudge,
           openModelPicker: () => {
-            openPicker();
+            setPickerOpen(true);
           },
         })
       : undefined;
@@ -771,7 +751,7 @@ export const PromptInput = ({
       });
     },
     openModelPicker: () => {
-      openPicker();
+      setPickerOpen(true);
     },
     pickFiles: () => {
       fileInputRef.current?.click();
@@ -1053,7 +1033,7 @@ export const PromptInput = ({
   return (
     <div
       className={cn("relative flex flex-col", className)}
-      data-keyboard-home={keyboardHome && !isBoxHidden ? "1" : undefined}
+      data-keyboard-home={keyboardHome ? "1" : undefined}
     >
       {/* Notes dock over the box, never inside it: the chat's note, then the
           model's, nearest the words it holds back. */}
@@ -1077,25 +1057,10 @@ export const PromptInput = ({
           </motion.div>
         )}
       </AnimatePresence>
-      {above === undefined ? null : (
-        <div data-keyboard-home={keyboardHome && isBoxHidden ? "1" : undefined}>
-          {above}
-        </div>
-      )}
-      {/* Always this wrapper, so hiding the box never remounts it. Hidden, it
-          takes no room and no keyboard. */}
-      <div
-        className={
-          isBoxHidden
-            ? "pointer-events-none invisible absolute inset-x-0 bottom-0"
-            : "contents"
-        }
-        inert={isBoxHidden}
-      >
         {/* The box itself takes files, so the page around it still takes them
           as a page does. */}
         <FileDropRegion
-          enabled={isActiveTab && !isBoxHidden}
+          enabled={isActiveTab}
           note="Drop to attach to your message"
           onFilesDropped={processFiles}
           onFoldersDropped={attachFolders}
@@ -1320,7 +1285,6 @@ export const PromptInput = ({
             />
           </ComposerFrame>
         </FileDropRegion>
-      </div>
 
       <input
         className="hidden"

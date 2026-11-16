@@ -10,7 +10,6 @@ import {
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
@@ -82,25 +81,17 @@ function hasReply(draft: Draft) {
  *
  * While focus is in an open card and not in a field, a digit picks that
  * choice of the question on show and Enter sends (or moves on) once it has
- * an answer. `onChatAbout` offers writing back in the chat instead, under
- * the choices; `collapsed` then draws the card as one row naming the
- * question, with `onBack` to open it again, and keeps what was picked.
+ * an answer.
  */
 export function QuestionCard({
-  collapsed = false,
   onAnswer,
-  onBack,
-  onChatAbout,
   output,
   place,
   questions,
   sending,
   status,
 }: {
-  collapsed?: boolean;
   onAnswer: (output: ChooseOutput) => void;
-  onBack?: () => void;
-  onChatAbout?: () => void;
   output?: ChooseOutput;
   place?: string;
   questions: ChooseQuestion[];
@@ -152,18 +143,17 @@ export function QuestionCard({
   if (!isDictating(ownDictation.phase) && ownAt !== step) {
     setOwnAt(step);
   }
-  // The boxes go once the card stops being open or folds to its row, so a
-  // take still recording into one is thrown away rather than left on with no
+  // The boxes go once the card stops being open, so a take still recording into one is thrown away rather than left on with no
   // controls.
   const cancelDictation = useEffectEvent(() => {
     noteDictation.cancel();
     ownDictation.cancel();
   });
   useEffect(() => {
-    if (!isOpen || collapsed) {
+    if (!isOpen) {
       cancelDictation();
     }
-  }, [isOpen, collapsed]);
+  }, [isOpen]);
   // Moving between steps hides the one the keyboard was in, so it goes on to
   // the step on show rather than falling out of the card.
   const shownStep = useRef(step);
@@ -201,27 +191,6 @@ export function QuestionCard({
   const isReview = isSeveral && step >= questions.length;
   const current = draftAt(step);
   const question = questions[step];
-
-  if (collapsed) {
-    return (
-      <ToolCard>
-        <div className="flex h-10 items-center gap-2 pr-1.5 pl-4">
-          <QuestionIcon className="size-4 shrink-0 text-muted-foreground" />
-          <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-            {(question ?? questions[0])?.question}
-          </span>
-          <Button
-            className="shrink-0 font-medium"
-            onClick={onBack}
-            size="xs"
-            variant="ghost"
-          >
-            Back to question
-          </Button>
-        </div>
-      </ToolCard>
-    );
-  }
 
   const send = (replies: SessionMessageDataPart.QuestionReply[]) => {
     if (isHolding) {
@@ -411,26 +380,6 @@ export function QuestionCard({
             onSubmitOwn={submitOwn}
             question={question}
           />
-        ) : null}
-
-        {onChatAbout ? (
-          // Across the card under a hairline, apart from the choices it is
-          // not one of, with its mark where theirs are.
-          <div className="-mx-4 mt-2 border-t border-border px-2 pt-2">
-            <button
-              className={cn(rowClassName(false), "text-muted-foreground")}
-              onClick={onChatAbout}
-              type="button"
-            >
-              <span
-                aria-hidden
-                className="grid size-4.5 shrink-0 place-items-center"
-              >
-                <ChatCircleIcon className="size-4" />
-              </span>
-              Chat about this
-            </button>
-          </div>
         ) : null}
 
         {!isSeveral && isNoteOpen ? noteBox : null}
@@ -730,7 +679,7 @@ function revealTypedRow(list: HTMLElement) {
  * card under `root`, or on its first button where no choice is on show (the
  * review of a card of several). Returns whether anything took it.
  */
-export function focusQuestionCard(root: HTMLElement) {
+function focusQuestionCard(root: HTMLElement) {
   const reachable = (element: HTMLElement) =>
     element.closest("[inert]") === null &&
     element.checkVisibility({ visibilityProperty: true });

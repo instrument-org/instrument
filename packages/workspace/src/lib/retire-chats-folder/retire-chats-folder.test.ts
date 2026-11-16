@@ -28,8 +28,39 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  for (const at of locked.splice(0)) {
+    fs.chmodSync(at, 0o755);
+  }
   fs.rmSync(root, { force: true, recursive: true });
 });
+
+/** Folders made unwritable or unreadable, opened again before cleanup. */
+const locked: string[] = [];
+
+function lock(at: string, mode: number) {
+  const full = path.join(rootDir, at);
+  fs.chmodSync(full, mode);
+  locked.push(full);
+}
+
+function names(owners: Record<string, string>) {
+  fs.writeFileSync(
+    path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.chatFolders),
+    JSON.stringify(owners),
+  );
+}
+
+function hasNames() {
+  return fs.existsSync(
+    path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.chatFolders),
+  );
+}
+
+async function moves() {
+  return Object.fromEntries(
+    await readChatFolderMoves(workspaceLayout(rootDir).devicesDir),
+  );
+}
 
 function transcript(id: string) {
   return `---\ntitle: Quiet dishwashers\nchat: instrument://chat/${id}\n---\n\n[Open this chat in Instrument](instrument://chat/${id})\n`;
@@ -64,6 +95,7 @@ function retire() {
 
 describe("retireChatsFolder", () => {
   it("deletes a folder that holds only its transcript, and Chats/ with it", async () => {
+    records(CHAT);
     write({
       "Chats/Quiet dishwashers/.DS_Store": "",
       "Chats/Quiet dishwashers/CHAT.md": transcript(CHAT),
@@ -80,6 +112,7 @@ describe("retireChatsFolder", () => {
   });
 
   it("deletes the sync engines' copies of the transcript", async () => {
+    records(CHAT);
     write({
       "Chats/Quiet dishwashers/CHAT 2.md": transcript(CHAT),
       "Chats/Quiet dishwashers/CHAT-notes.md": "# My own notes\n",
@@ -94,6 +127,7 @@ describe("retireChatsFolder", () => {
   });
 
   it("moves a folder with files into Files/ and records where it went", async () => {
+    records(CHAT);
     write({
       "Chats/Quiet dishwashers/CHAT.md": transcript(CHAT),
       "Chats/Quiet dishwashers/report/.env": "KEY=1",
@@ -164,34 +198,176 @@ describe("retireChatsFolder", () => {
     ).toBe(false);
   });
 
-  it("merges into a Files/ folder of the same name, numbering a taken file", async () => {
+  it.each([
+    ["a folder", "Files/Quiet dishwashers/notes.md"],
+    ["a file", "Files/Quiet dishwashers"],
+  ])(
+    "moves the folder whole under a numbered name where %s in Files/ has its name",
+    async (_label, taken) => {
+      records(CHAT);
+      write({
+        "Chats/Quiet dishwashers/CHAT.md": transcript(CHAT),
+        "Chats/Quiet dishwashers/notes.md": "from the chat",
+        "Files/Quiet dishwashers 2/notes.md": "also there",
+        [taken]: "already there",
+      });
+
+      expect((await retire()).moved).toBe(1);
+      expect(
+        fs.readFileSync(
+          path.join(filesDir, "Quiet dishwashers 3", "notes.md"),
+          "utf8",
+        ),
+      ).toBe("from the chat");
+      expect(await moves()).toEqual({
+        "Quiet dishwashers": {
+          chat: CHAT,
+          from: "Quiet dishwashers",
+          to: "Quiet dishwashers 3",
+        },
+      });
+    },
+  );
+
+  it.each([
+    [
+      "a folder whose CHAT.md names no chat",
+      { "Chats/Recipes/CHAT.md": "# Chat with Grandma\n" },
+    ],
+    ["a folder with no CHAT.md", { "Chats/Recipes/soup.md": "soup" }],
+  ])("leaves a Chats/ the person made whole: %s", async (_label, files) => {
+    write({ ...files, "Chats/loose.txt": "mine" });
+    const before = tree();
+
+    expect(await retire()).toEqual({
+      deleted: 0,
+      left: [],
+      moved: 0,
+      returned: 0,
+    });
+    expect(tree()).toEqual(before);
+  });
+
+  it("leaves a folder that is no chat's beside one that is, and keeps the names file", async () => {
+    records(CHAT);
+    names({ [CHAT]: "Quiet dishwashers" });
     write({
-      "Chats/Quiet dishwashers/CHAT.md": transcript(CHAT),
-      "Chats/Quiet dishwashers/notes.md": "from the chat",
-      "Chats/Quiet dishwashers/photos/a.jpg": "a",
-      "Files/Quiet dishwashers/notes.md": "already there",
-      "Files/Quiet dishwashers/notes 2.md": "also there",
-      "Files/Quiet dishwashers/photos/b.jpg": "b",
+      "Chats/Quiet dishwashers/shortlist.csv": "brand,dB",
+      "Chats/Recipes/CHAT.md": "# Chat with Grandma\n",
+      "Chats/Recipes/soup.md": "soup",
     });
 
-    expect((await retire()).moved).toBe(1);
+    expect(await retire()).toMatchObject({ left: [], moved: 1 });
     expect(tree()).toMatchInlineSnapshot(`
       [
         ".instrument/devices/dev_7Q2M4K9X/chatfoldermoves.jsonl",
-        "Files/Quiet dishwashers/notes 2.md",
-        "Files/Quiet dishwashers/notes 3.md",
-        "Files/Quiet dishwashers/notes.md",
-        "Files/Quiet dishwashers/photos/a.jpg",
-        "Files/Quiet dishwashers/photos/b.jpg",
+        "Chats/Recipes/CHAT.md",
+        "Chats/Recipes/soup.md",
+        "Files/Quiet dishwashers/shortlist.csv",
       ]
     `);
-    expect(
-      fs.readFileSync(
-        path.join(filesDir, "Quiet dishwashers", "notes 3.md"),
-        "utf8",
-      ),
-    ).toBe("from the chat");
+    expect(hasNames()).toBe(true);
   });
+
+  it("keeps a deleted chat's transcript with the rest of its folder", async () => {
+    write({
+      "Chats/Quiet dishwashers/CHAT.md": transcript(CHAT),
+      "Chats/Quiet dishwashers/attachments/manual.pdf": "pdf",
+    });
+
+    expect(await retire()).toMatchObject({ moved: 1, returned: 0 });
+    expect(tree()).toMatchInlineSnapshot(`
+      [
+        ".instrument/devices/dev_7Q2M4K9X/chatfoldermoves.jsonl",
+        "Files/Quiet dishwashers/CHAT.md",
+        "Files/Quiet dishwashers/attachments/manual.pdf",
+      ]
+    `);
+  });
+
+  it("waits on a folder whose CHAT.md cannot be read", async () => {
+    records(CHAT);
+    names({ [CHAT]: "Quiet dishwashers" });
+    write({
+      "Chats/Quiet dishwashers/CHAT.md": transcript(CHAT),
+      "Chats/Quiet dishwashers/attachments/manual.pdf": "pdf",
+    });
+    lock("Chats/Quiet dishwashers/CHAT.md", 0o000);
+    const before = tree();
+
+    const retired = await retire();
+
+    expect(retired.left.map(({ where }) => path.relative(rootDir, where)))
+      .toMatchInlineSnapshot(`
+      [
+        "Chats/Quiet dishwashers",
+      ]
+    `);
+    expect(retired).toMatchObject({ moved: 0, returned: 0 });
+    expect(tree()).toEqual(before);
+    expect(hasNames()).toBe(true);
+  });
+
+  it("keeps the names file when Chats/ cannot be listed", async () => {
+    names({ [CHAT]: "Quiet dishwashers" });
+    write({ "Chats/Quiet dishwashers/notes.md": "notes" });
+    lock("Chats", 0o000);
+
+    const retired = await retire();
+
+    expect(retired.left.map(({ where }) => path.relative(rootDir, where)))
+      .toMatchInlineSnapshot(`
+      [
+        "Chats",
+      ]
+    `);
+    expect(hasNames()).toBe(true);
+  });
+
+  it.each([
+    [
+      "its move is refused",
+      // Nothing in it can move, as when another program holds it.
+      () => lock("Chats/A held folder", 0o555),
+      `.instrument/chats/${CHAT}/attachments/manual.pdf`,
+    ],
+    [
+      "putting back what the person sent throws",
+      () => lock(`.instrument/chats/${CHAT}`, 0o555),
+      "Chats/A held folder/attachments/manual.pdf",
+    ],
+  ])(
+    "goes on to the next folder when one cannot be emptied: %s",
+    async (_label, hold, sent) => {
+      records(CHAT);
+      records(OTHER);
+      write({
+        "Chats/A held folder/CHAT.md": transcript(CHAT),
+        "Chats/A held folder/attachments/manual.pdf": "pdf",
+        "Chats/A held folder/notes.md": "held",
+        "Chats/Taxes/CHAT.md": transcript(OTHER),
+        "Chats/Taxes/w2.pdf": "pdf",
+      });
+      hold();
+
+      const retired = await retire();
+
+      expect(
+        retired.left.map(({ where }) => path.relative(rootDir, where)),
+      ).toEqual(["Chats/A held folder"]);
+      expect(retired.moved).toBe(1);
+      expect(tree()).toEqual(
+        [
+          ".instrument/devices/dev_7Q2M4K9X/chatfoldermoves.jsonl",
+          "Chats/A held folder/CHAT.md",
+          "Chats/A held folder/notes.md",
+          "Files/Taxes/w2.pdf",
+          sent,
+        ].toSorted(),
+      );
+      expect(Object.keys(await moves())).toEqual(["Taxes"]);
+    },
+  );
 
   it("changes nothing on a second run", async () => {
     records(CHAT);

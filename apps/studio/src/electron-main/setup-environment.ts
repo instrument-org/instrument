@@ -94,18 +94,20 @@ app.commandLine.appendSwitch(
   "enable-blink-features",
   blink ? `${blink},WebMCP` : "WebMCP",
 );
-// Windows draws classic scrollbars, colored by a page's `color-scheme`, which
-// most dark sites never declare, so a dark page gets a white track. Overlay
-// scrollbars float over the content, fade when idle, and take their colors
-// from the background under them, the way macOS shows them; this covers the
-// app's own scrollers as well as every page.
-if (platform.isWindows) {
-  const features = app.commandLine.getSwitchValue("enable-features");
-  app.commandLine.appendSwitch(
-    "enable-features",
-    features ? `${features},OverlayScrollbar` : "OverlayScrollbar",
-  );
-}
+// A page that declares no `color-scheme` gets a dark main scrollbar while it
+// prefers dark only when the browser says its own frame is dark, a setting
+// Chrome fills from its toolbar color and Electron leaves at light; dark sites
+// then show a white track beside a dark page on Windows and Linux. Saying dark
+// here follows the theme, since Blink also requires the page to prefer dark.
+// The value is `PreferredColorScheme.kDark`, and macOS's overlay scrollbars
+// never read it.
+const blinkSettings = app.commandLine.getSwitchValue("blink-settings");
+app.commandLine.appendSwitch(
+  "blink-settings",
+  [blinkSettings, "preferredRootScrollbarColorScheme=0"]
+    .filter(Boolean)
+    .join(","),
+);
 // A dev build is a different binary in every checkout, so macOS asks again for
 // the keychain's Safe Storage item on each one's first launch. Dev keeps its
 // own stores in plaintext, and the mock keychain leaves Chromium's cookie

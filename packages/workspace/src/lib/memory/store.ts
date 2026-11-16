@@ -16,6 +16,7 @@ import { chatIdNamedBy, splitFrontMatter } from "@instrument-org/shared";
 
 import { isRecord } from "../skills";
 import { getWorkspaceConfig } from "../workspace-config";
+import { workspaceLayout } from "../workspace-layout";
 import {
   type MemoryRecord,
   readMemoryRecords,
@@ -345,6 +346,60 @@ function memoryFile({
 const OWN_KEYS = new Set(["chat", "updated"]);
 
 /**
+ * The keys the first 2.0 betas wrote: the chat's title (`from`), its
+ * session (`thread`) and when (`at`). Theirs only where `at` comes with one
+ * of the others and no `updated`, so a person's own `at` stays.
+ */
+const BETA_KEYS = new Set(["at", "from", "thread"]);
+
+function isBetaFront(front: Record<string, unknown> | undefined): boolean {
+  return (
+    front !== undefined &&
+    front.updated === undefined &&
+    front.at !== undefined &&
+    (front.from !== undefined || front.thread !== undefined)
+  );
+}
+
+function isOwnKey(front: Record<string, unknown> | undefined, key: string) {
+  return OWN_KEYS.has(key) || (isBetaFront(front) && BETA_KEYS.has(key));
+}
+
+/** What the first betas' front matter says, its session turned into the chat it was in where that chat is still here. */
+function recordInBetaFront(
+  front: Record<string, unknown> | undefined,
+  chatOfSession: (session: string) => string | undefined,
+): MemoryRecord | undefined {
+  if (!isBetaFront(front)) {
+    return undefined;
+  }
+  return recordInFront({
+    ...(typeof front?.thread === "string" && chatOfSession(front.thread)
+      ? { chat: chatOfSession(front.thread) }
+      : {}),
+    updated: front?.at,
+  });
+}
+
+/** Each session's chat, read from the names of the chats' log files. */
+async function sessionChats(
+  rootDir: string,
+): Promise<(session: string) => string | undefined> {
+  const chatsDir = workspaceLayout(rootDir).chatsDir;
+  const map = new Map<string, string>();
+  for (const chat of await fs.readdir(chatsDir).catch(() => [])) {
+    for (const name of await fs
+      .readdir(path.join(chatsDir, chat))
+      .catch(() => [])) {
+      if (name.startsWith("ses_") && name.endsWith(".jsonl")) {
+        map.set(name.split(".")[0] ?? name, chat);
+      }
+    }
+  }
+  return (session) => map.get(session);
+}
+
+/**
  * Front matter in what the file held that this build does not know, so a
  * correction keeps it. A file with none, or one nobody can parse, has
  * nothing to keep.
@@ -352,7 +407,7 @@ const OWN_KEYS = new Set(["chat", "updated"]);
 function othersIn(held: string | undefined): Record<string, unknown> {
   const front = held === undefined ? undefined : splitMemoryFile(held).front;
   return Object.fromEntries(
-    Object.entries(front ?? {}).filter(([key]) => !OWN_KEYS.has(key)),
+    Object.entries(front ?? {}).filter(([key]) => !isOwnKey(front, key)),
   );
 }
 
@@ -387,6 +442,7 @@ export async function settleMemoryFiles(
   } catch {
     return settled;
   }
+  let chatOfSession: ((session: string) => string | undefined) | undefined;
   for (const fileName of names.filter(isMemoryFileName).toSorted()) {
     const filePath = path.join(dir, fileName);
     try {
@@ -396,10 +452,14 @@ export async function settleMemoryFiles(
       }
       const raw = await fs.readFile(filePath, "utf8");
       const { front, text } = splitMemoryFile(raw);
-      if (!front || !Object.keys(front).some((key) => OWN_KEYS.has(key))) {
+      if (!front || !Object.keys(front).some((key) => isOwnKey(front, key))) {
         continue;
       }
-      const record = recordInFront(front) ?? {
+      const record = recordInFront(front) ??
+        recordInBetaFront(
+          front,
+          (chatOfSession ??= await sessionChats(rootDir)),
+        ) ?? {
         updated: utcStamp(stat.mtime),
       };
       writeMemoryRecords(

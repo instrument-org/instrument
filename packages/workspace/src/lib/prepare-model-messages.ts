@@ -351,8 +351,8 @@ export async function prepareModelMessages({
   /**
    * Asks the model for a summary of the conversation in `messages`, the
    * request as it would be sent, for a rollover taken before the request
-   * reaches the model's price step. Undefined, or no summary, and none is
-   * taken.
+   * reaches its clearing step (the price step or the usable window).
+   * Undefined, or no summary, and none is taken.
    */
   summarize?: (messages: ModelMessage[]) => Promise<
     | {
@@ -575,6 +575,7 @@ export async function prepareModelMessages({
     modelMessages,
     readOnly,
     sessionId,
+    usableTokens: usable,
   });
   if (cleared === undefined) {
     return err(new Error("The request would record a clearing."));
@@ -653,7 +654,8 @@ export async function prepareModelMessages({
     );
   }
 
-  // Near the price step with nothing left worth clearing: the model writes a
+  // Near the clearing step (the price step or the usable window, whichever is
+  // smaller) with nothing left worth clearing: the model writes a
   // summary of the conversation from this very request, so it reads the
   // prefix from cache, and the session rolls over onto it before the request
   // crosses the step. The request is then built again, from the boundary.

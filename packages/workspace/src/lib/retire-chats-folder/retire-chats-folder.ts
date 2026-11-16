@@ -9,35 +9,50 @@ import { type DeviceId } from "../records/device-id";
 import { readJsonRecordSync } from "../json-record-file";
 import { isFileManagerRecord, removeFolderLeftEmpty } from "../system-clutter";
 import { workspaceLayout } from "../workspace-layout";
-import { chatLinkedInFile } from "./chat-link";
+import { type ChatLink, chatLinkedInFile, readChatLink } from "./chat-link";
 import { CHAT_FILE_NAME, CHATS_FOLDER_NAME } from "./chat-transcript";
-import { deleteChatFileConflictCopies } from "./conflict-copies";
-import { type ChatFolderMove, recordChatFolderMoves } from "./folder-moves";
+import {
+  deleteChatFileConflictCopies,
+  isChatFileConflictCopy,
+} from "./conflict-copies";
+import {
+  type ChatFolderMovesWriter,
+  openChatFolderMoves,
+} from "./folder-moves";
 
 /**
  * Empties the `Chats/` folder earlier builds kept at the workspace's top
  * level, one folder per chat, into the places this build keeps those
- * things:
+ * things. Only a folder that is surely a chat's is touched: its `CHAT.md`
+ * names the chat, or this computer's names file (`chat-folders.json`) says
+ * the chat's folder had that name. Anything else under `Chats/` is the
+ * person's and stays, and a `Chats/` where no folder is a chat's is left
+ * whole. A folder whose `CHAT.md` cannot be read (kept by name only, or held
+ * by another program) waits for a later launch. For a chat's folder:
  *
- * - `CHAT.md`, the transcript the app wrote, and every sync engine's copy of
- *   it are deleted: the chat's records say everything they did.
  * - What the person sent (`attachments/`) and the chat's handoff notes go
  *   back into the chat's records, `.instrument/chats/<id>/`. A name the
  *   records already have stays behind and moves on with the rest.
  * - Whatever else is there, the work the agent kept, goes to
- *   `Files/<same name>/`, merged into a folder of that name already there,
- *   where a file whose name is taken gets a numbered one (`notes 2.md`).
+ *   `Files/<same name>/`, or `Files/<name> 2/` where that name is taken, by
+ *   one rename of the whole folder.
+ * - Then `CHAT.md`, the transcript the app wrote, and every sync engine's
+ *   copy of it are deleted: the chat's records say everything they did.
+ *   Where the chat's records are gone (the chat was deleted and its folder
+ *   kept), the transcript is all that is left of it and stays with the rest.
  * - The emptied folders go, `Chats/` once it is empty, and the machine file
  *   that named each chat's folder on this computer.
  *
  * Each move is a rename, so a file a cloud service keeps by name only moves
  * without downloading, and nothing's contents are read but the head of a
- * `CHAT.md` here on disk, which names the chat it was for. Where to go next
- * is in a synced record (`folder-moves.ts`), so a path in an older chat's
- * messages opens where its file is now. Idempotent: a launch after the one
- * that emptied `Chats/` finds nothing to do, and one interrupted partway
- * carries on.
+ * `CHAT.md` here on disk, which names the chat it was for. Where each folder
+ * went is recorded before it moves, in a synced record (`folder-moves.ts`),
+ * so a path in an older chat's messages opens where its file is now.
+ * Idempotent: a launch after the one that emptied `Chats/` finds nothing to
+ * do, and one interrupted partway carries on.
  */
+
+const TRANSCRIPT_TEMP_NAME = `.~${CHAT_FILE_NAME}.tmp`;
 
 /** What emptying `Chats/` did. */
 export interface ChatsFolderRetired {
@@ -75,63 +90,170 @@ export async function retireChatsFolder({
     machineDir,
     WORKSPACE_MACHINE_ENTRIES.chatFolders,
   );
-  const entries = await entriesIn(chats);
-  if (entries === undefined) {
+  const listed = await listChatsFolder(chats);
+  if (listed.kind === "absent") {
     await fs.rm(namesFile, { force: true });
     return done;
   }
+  if (listed.kind === "unreadable") {
+    // The names file is the only clue to a folder whose transcript cannot
+    // be read, so it stays until `Chats/` is gone.
+    done.left.push({ reason: listed.reason, where: chats });
+    return done;
+  }
   const owners = chatsByFolderName(namesFile);
+  const folders: { chat: ChatId; link: ChatLink; name: string }[] = [];
+  const loose: string[] = [];
+  for (const entry of listed.entries) {
+    if (isFileManagerRecord(entry.name)) {
+      continue;
+    }
+    if (!entry.isDirectory()) {
+      loose.push(entry.name);
+      continue;
+    }
+    const link = await readChatLink(
+      path.join(chats, entry.name, CHAT_FILE_NAME),
+    );
+    if (link.kind === "unreadable") {
+      done.left.push({
+        reason: `its ${CHAT_FILE_NAME} could not be read (${link.reason})`,
+        where: path.join(chats, entry.name),
+      });
+      continue;
+    }
+    const chat =
+      link.kind === "chat"
+        ? link.chat
+        : owners.get(entry.name.normalize("NFC"));
+    if (chat !== undefined) {
+      folders.push({ chat, link, name: entry.name });
+    }
+  }
+  if (folders.length === 0) {
+    // Not a folder the app made, or nothing in it is sure to be a chat's yet.
+    return done;
+  }
   const layout = workspaceLayout(rootDir);
-  const moves: ChatFolderMove[] = [];
+  let store: Promise<ChatFolderMovesWriter> | undefined;
+  const openStore = () =>
+    (store ??= openChatFolderMoves({ device, devicesDir: layout.devicesDir }));
   try {
-    for (const entry of entries) {
-      const from = path.join(chats, entry.name);
-      if (isFileManagerRecord(entry.name)) {
-        continue;
-      }
-      if (!entry.isDirectory()) {
-        // A file of the person's left loose in `Chats/`.
-        await moveInto(from, filesDir, done);
-        continue;
-      }
-      const chat =
-        (await chatLinkedInFile(path.join(from, CHAT_FILE_NAME))) ??
-        owners.get(entry.name.normalize("NFC"));
-      await fs.rm(path.join(from, CHAT_FILE_NAME), { force: true });
-      // What an interrupted write of the transcript left.
-      await fs.rm(path.join(from, `.~${CHAT_FILE_NAME}.tmp`), { force: true });
-      await deleteChatFileConflictCopies(from);
-      if (chat !== undefined) {
-        const records = path.join(layout.chatsDir, chat);
-        if (await isDir(records)) {
-          done.returned += await returnToRecords(from, records);
-        }
-      }
-      if (removeFolderLeftEmpty(from)) {
-        done.deleted += 1;
-        continue;
-      }
-      const to = path.join(filesDir, entry.name);
-      if (await moveFolder(from, to, done)) {
-        done.moved += 1;
-        moves.push({
-          ...(chat !== undefined && { chat }),
-          from: entry.name,
-          to: entry.name,
+    for (const name of loose) {
+      await moveInto(path.join(chats, name), filesDir, done);
+    }
+    for (const folder of folders) {
+      try {
+        await retireFolder({
+          chats,
+          done,
+          filesDir,
+          folder,
+          openStore,
+          recordsDir: path.join(layout.chatsDir, folder.chat),
+        });
+      } catch (error) {
+        // One folder another program holds leaves the rest to go on.
+        done.left.push({
+          reason: String(error),
+          where: path.join(chats, folder.name),
         });
       }
     }
   } finally {
-    await recordChatFolderMoves({
-      device,
-      devicesDir: layout.devicesDir,
-      moves,
-    });
+    (await store?.catch(() => undefined))?.close();
   }
   if (removeFolderLeftEmpty(chats)) {
     await fs.rm(namesFile, { force: true });
   }
   return done;
+}
+
+/**
+ * Empties one chat's folder. The transcript goes only once what goes back
+ * into the records has and the folder has moved, so a launch cut short, or a
+ * move another program holds up, still finds the chat named next time.
+ */
+async function retireFolder({
+  chats,
+  done,
+  filesDir,
+  folder: { chat, link, name },
+  openStore,
+  recordsDir,
+}: {
+  chats: string;
+  done: ChatsFolderRetired;
+  filesDir: string;
+  folder: { chat: ChatId; link: ChatLink; name: string };
+  openStore: () => Promise<ChatFolderMovesWriter>;
+  recordsDir: string;
+}): Promise<void> {
+  const from = path.join(chats, name);
+  // Where the chat's records are gone, its transcript is all that is left
+  // of it, and stays with the rest.
+  const recorded = await isDir(recordsDir);
+  if (recorded) {
+    done.returned += await returnToRecords(from, recordsDir);
+    if (await holdsOnlyTranscripts(from, link)) {
+      await deleteTranscripts(from, link);
+      if (removeFolderLeftEmpty(from)) {
+        done.deleted += 1;
+      }
+      return;
+    }
+  }
+  if (removeFolderLeftEmpty(from)) {
+    done.deleted += 1;
+    return;
+  }
+  const taken = path.join(filesDir, name);
+  const to = (await exists(taken)) ? await freeName(taken, true) : taken;
+  const store = await openStore();
+  // Recorded first, so a launch cut short after the rename still maps old
+  // paths to where the folder went.
+  await store.record([{ chat, from: name, to: path.basename(to) }]);
+  await fs.mkdir(filesDir, { recursive: true });
+  try {
+    await fs.rename(from, to);
+  } catch (error) {
+    await store.forget(name);
+    done.left.push({ reason: String(error), where: from });
+    return;
+  }
+  done.moved += 1;
+  if (recorded) {
+    await deleteTranscripts(to, link);
+  }
+}
+
+/** Deletes the transcript the app wrote in a chat's folder, and what was left of it. */
+async function deleteTranscripts(folder: string, link: ChatLink) {
+  if (link.kind === "chat") {
+    await fs.rm(path.join(folder, CHAT_FILE_NAME), { force: true });
+  }
+  // What an interrupted write of the transcript left.
+  await fs.rm(path.join(folder, TRANSCRIPT_TEMP_NAME), { force: true });
+  await deleteChatFileConflictCopies(folder);
+}
+
+/** Whether a chat's folder has nothing but its transcripts and the system's clutter. */
+async function holdsOnlyTranscripts(
+  folder: string,
+  link: ChatLink,
+): Promise<boolean> {
+  for (const entry of (await entriesIn(folder)) ?? []) {
+    const transcript =
+      (entry.name === CHAT_FILE_NAME && link.kind === "chat") ||
+      entry.name === TRANSCRIPT_TEMP_NAME ||
+      (entry.isFile() &&
+        isChatFileConflictCopy(entry.name) &&
+        (await chatLinkedInFile(path.join(folder, entry.name))) !== undefined);
+    if (!transcript && !isFileManagerRecord(entry.name)) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -166,67 +288,22 @@ async function returnToRecords(from: string, records: string): Promise<number> {
   return returned;
 }
 
-/**
- * Moves a folder to `to`: whole, by one rename, where nothing is there yet,
- * and otherwise entry by entry into the folder there. Answers whether
- * anything moved.
- */
-async function moveFolder(
-  from: string,
-  to: string,
-  done: ChatsFolderRetired,
-): Promise<boolean> {
-  await fs.mkdir(path.dirname(to), { recursive: true });
-  if (!(await exists(to))) {
-    try {
-      await fs.rename(from, to);
-      return true;
-    } catch (error) {
-      done.left.push({ reason: String(error), where: from });
-      return false;
-    }
-  }
-  if (!(await isDir(to))) {
-    // A file holds the name: the folder takes a numbered one beside it.
-    return renamedOrLeft(from, await freeName(to, true), done);
-  }
-  let moved = false;
-  for (const entry of (await entriesIn(from)) ?? []) {
-    const each = path.join(from, entry.name);
-    const there = path.join(to, entry.name);
-    if (isFileManagerRecord(entry.name) && (await exists(there))) {
-      continue;
-    }
-    if (entry.isDirectory() && (await isDir(there))) {
-      moved = (await moveFolder(each, there, done)) || moved;
-    } else {
-      moved =
-        (await renamedOrLeft(
-          each,
-          (await exists(there))
-            ? await freeName(there, entry.isDirectory())
-            : there,
-          done,
-        )) || moved;
-    }
-  }
-  removeFolderLeftEmpty(from);
-  return moved;
-}
-
 /** Moves a loose file into `dir`, under a numbered name where its own is taken. */
 async function moveInto(
   file: string,
   dir: string,
   done: ChatsFolderRetired,
 ): Promise<void> {
-  await fs.mkdir(dir, { recursive: true });
-  const there = path.join(dir, path.basename(file));
-  await renamedOrLeft(
-    file,
-    (await exists(there)) ? await freeName(there, false) : there,
-    done,
-  );
+  try {
+    await fs.mkdir(dir, { recursive: true });
+    const there = path.join(dir, path.basename(file));
+    await fs.rename(
+      file,
+      (await exists(there)) ? await freeName(there, false) : there,
+    );
+  } catch (error) {
+    done.left.push({ reason: String(error), where: file });
+  }
 }
 
 /**
@@ -244,20 +321,6 @@ async function freeName(taken: string, isFolder: boolean): Promise<string> {
     if (!(await exists(candidate))) {
       return candidate;
     }
-  }
-}
-
-async function renamedOrLeft(
-  from: string,
-  to: string,
-  done: ChatsFolderRetired,
-): Promise<boolean> {
-  try {
-    await fs.rename(from, to);
-    return true;
-  } catch (error) {
-    done.left.push({ reason: String(error), where: from });
-    return false;
   }
 }
 
@@ -286,6 +349,25 @@ function chatsByFolderName(namesFile: string): Map<string, ChatId> {
         : [];
     }),
   );
+}
+
+async function listChatsFolder(
+  dir: string,
+): Promise<
+  | { entries: Dirent[]; kind: "listed" }
+  | { kind: "absent" }
+  | { kind: "unreadable"; reason: string }
+> {
+  try {
+    return {
+      entries: await fs.readdir(dir, { withFileTypes: true }),
+      kind: "listed",
+    };
+  } catch (error) {
+    return error instanceof Error && "code" in error && error.code === "ENOENT"
+      ? { kind: "absent" }
+      : { kind: "unreadable", reason: String(error) };
+  }
 }
 
 async function entriesIn(dir: string): Promise<Dirent[] | undefined> {

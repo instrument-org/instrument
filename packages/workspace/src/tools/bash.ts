@@ -37,7 +37,7 @@ import { executeError } from "../lib/execute-error";
 import { ignoredBuildsNote } from "../model-text/commands/ignored-builds-note";
 import { lastLoadedSkillDir } from "../lib/loaded-skill";
 import { sessionRole } from "../lib/chat/children";
-import { folderReach } from "../lib/chat/folder-reach";
+import { filedProjectFolder, folderReach } from "../lib/chat/folder-reach";
 import {
   FG_COMMAND,
   JOBS_COMMAND,
@@ -281,14 +281,13 @@ const bashOutputSchema = z.object({
 });
 
 /** Starts a look at the folders a chat's programs write in. */
-function watchChatFolders(chatId: ChatId) {
-  const workFolder = workDir(chatId);
-  const outputFolder = filesFolderPath();
+async function watchChatFolders(chatId: ChatId, command: string) {
   return watchCall({
-    folders: [workFolder, outputFolder],
+    command,
+    filesFolder: filesFolderPath(),
     home: os.homedir(),
-    outputFolder,
-    workFolder,
+    projectFolder: await filedProjectFolder(chatId),
+    workFolder: workDir(chatId),
   });
 }
 
@@ -344,7 +343,7 @@ const bashCapability = defineCapability({
         }
         const folders = await folderReach(chatId);
         const yieldMs = clampYieldMs(input.yieldMs);
-        const watch = await watchChatFolders(chatId);
+        const watch = await watchChatFolders(chatId, input.command);
         // What the call touched goes on record once it is over, which for one
         // moved to the background is when its process ends.
         const settleFacts = async (output = "") => {

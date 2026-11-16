@@ -782,6 +782,26 @@ body {
     content: none;
   }
 
+  /* A quote, a list and its items have no padding above or below, so the
+     margins of what they open or close with collapse straight through them.
+     Typography zeroes only the outer margin of the block that opens or closes
+     the text, so a quote's paragraph or a list's item at that edge still lets
+     its margin out, as dead space between the text and the row beside it.
+     Zero the margin all the way down each edge. */
+  > :first-child,
+  > :first-child > :first-child,
+  > :first-child > :first-child > :first-child,
+  > :first-child > :first-child > :first-child > :first-child {
+    margin-top: 0;
+  }
+
+  > :last-child,
+  > :last-child > :last-child,
+  > :last-child > :last-child > :last-child,
+  > :last-child > :last-child > :last-child > :last-child {
+    margin-bottom: 0;
+  }
+
   /* A code block renders inside a wrapper that positions its hover controls,
      so Typography's own first/last-child margin reset lands on the wrapper
      while the block's margin collapses straight through it and out of the
@@ -1607,6 +1627,12 @@ a.cursor-pointer {
   /* The rhythm the table's own margins carried before they moved onto the
      frame, where they would have been inside the scroll area. */
   margin-block: 2em;
+}
+
+/* The edge rule in `prose-custom` loses to the margin above, which is
+   unlayered. Only the bottom: the top is where the toolbar stands. */
+.prose-custom > .markdown-table-row:last-child {
+  margin-bottom: 0;
 }
 
 /* A transcript needs paragraph rhythm around an inline table; its dedicated

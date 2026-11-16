@@ -75,7 +75,7 @@ overrides:
   neverthrow>@rollup/rollup-linux-x64-gnu: '-'
 
 patchedDependencies:
-  '@extend-ai/react-docx@0.8.4': b9c98629c5f4822f3883ef9e88760f6cbab06da1fbf10d676d10601d23bcb2dd
+  '@extend-ai/react-docx@0.15.0': e7a6a5a08d4a4e777d68fa74bd5f232beb75c8aa3e10a0acf1c51abcf4c9d04d
   '@milkdown/plugin-block@7.22.3': b9318632951eb16125b92ecbd278cb0ec78cb55b6d3470261e4d68edb9b61a4c
   '@shadcn/react@0.2.11': da1bf28bb1f6016f67560c8850b6dc0c60acb8e50ff0e178e97cac6f1e1ebaff
   conf@14.0.0: 56254a98f20461a96d6b30db95d31a459ca15443a73844e166da79dcb6392d02
@@ -326,8 +326,8 @@ importers:
         specifier: 0.18.1
         version: 0.18.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@extend-ai/react-docx':
-        specifier: 0.8.4
-        version: 0.8.4(patch_hash=b9c98629c5f4822f3883ef9e88760f6cbab06da1fbf10d676d10601d23bcb2dd)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+        specifier: 0.15.0
+        version: 0.15.0(patch_hash=e7a6a5a08d4a4e777d68fa74bd5f232beb75c8aa3e10a0acf1c51abcf4c9d04d)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
       '@extend-ai/react-pptx':
         specifier: 0.1.2
         version: 0.1.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1385,8 +1385,8 @@ packages:
   '@bundled-es-modules/tough-cookie@0.1.6':
     resolution: {integrity: sha512-dvMHbL464C0zI+Yqxbz6kZ5TOEp7GLW+pry/RWndAR8MJQAXZ2rPmIs8tziTZjeIyhSNZgZbCePtfSbdWqStJw==}
 
-  '@chenglou/pretext@0.0.8':
-    resolution: {integrity: sha512-yqm2GMxnPI7VHcHwe84P8ZF0JK/2d2DMKPqMN+s95jQhwDMYYXKVFVJUMEaVWckQStdsjdLav/0Vu+d9YbtGxA==}
+  '@chenglou/pretext@1.0.0':
+    resolution: {integrity: sha512-BxKiDMxWJhyzL8asvcgg3T9YnUU7OUFsKO8oRaR2SYAPX4Sh2wM9gqTBjrBaZ4fnl84cEQ8czC0Q1M83z3chsA==}
 
   '@chevrotain/cst-dts-gen@11.0.3':
     resolution: {integrity: sha512-BvIKpRLeS/8UbfxXxgC33xOumsacaeCKAjAeLyOn7Pcp95HiRbrpl14S+9vaZLolnbssPIUuiUd8IvgkRyt6NQ==}
@@ -1965,11 +1965,16 @@ packages:
       '@noble/hashes':
         optional: true
 
-  '@extend-ai/react-docx@0.8.4':
-    resolution: {integrity: sha512-FheeFE4J54Z2r0C05QMCQYJr1C14QBnDw0hwytN5Cqq4HtWcsMQBgEDaHphLI+kwSg3dCrDeTWz/uwGKPNOIGg==}
+  '@extend-ai/react-docx@0.15.0':
+    resolution: {integrity: sha512-R1khJ85YXpXR9WJxqsZrulEXCmvMsPa50qAicEOohSlz62Cz7Gw7VMoYjsSA98yL0dNdfhoHoKgSe+4lvqZ8gQ==}
     peerDependencies:
       react: '>=18'
       react-dom: '>=18'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
 
   '@extend-ai/react-pptx@0.1.2':
     resolution: {integrity: sha512-eT1whkI0BjjNOXgBiJlR2wiAWDydhNY1DL0+2xBFzu0O88XPR+COuqkY6ia1JeXHegA/jjhxyHvMgurdOttReg==}
@@ -10248,7 +10253,7 @@ snapshots:
       tough-cookie: 4.1.4
     optional: true
 
-  '@chenglou/pretext@0.0.8': {}
+  '@chenglou/pretext@1.0.0': {}
 
   '@chevrotain/cst-dts-gen@11.0.3':
     dependencies:
@@ -10984,14 +10989,15 @@ snapshots:
     optionalDependencies:
       '@noble/hashes': 2.2.0
 
-  '@extend-ai/react-docx@0.8.4(patch_hash=b9c98629c5f4822f3883ef9e88760f6cbab06da1fbf10d676d10601d23bcb2dd)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
+  '@extend-ai/react-docx@0.15.0(patch_hash=e7a6a5a08d4a4e777d68fa74bd5f232beb75c8aa3e10a0acf1c51abcf4c9d04d)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:
-      '@chenglou/pretext': 0.0.8
-      '@tanstack/react-virtual': 3.14.22(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@chenglou/pretext': 1.0.0
+      csstype: 3.2.3
       fast-png: 8.0.0
+      utif: 3.1.0
+    optionalDependencies:
       react: 19.3.0
       react-dom: 19.3.0(react@19.3.0)
-      utif: 3.1.0
 
   '@extend-ai/react-pptx@0.1.2(react-dom@19.3.0(react@19.3.0))(react@19.3.0)':
     dependencies:

@@ -1,6 +1,6 @@
 import { execa } from "execa";
 import { createHash } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -124,8 +124,17 @@ export async function unpackMsi(msi: string, dest: string): Promise<void> {
  * folders of their own: its bundled fonts (Carlito, Caladea, Liberation,
  * DejaVu) in `Fonts`, which LibreOffice never reads there, so a document set
  * in one of them renders in a stand-in. They go to `share\fonts\truetype`,
- * where LibreOffice loads fonts for itself alone. The image also keeps a
- * copy of the MSI, emptied of its files, which nothing reads.
+ * where LibreOffice loads fonts for itself alone. The Visual C++ runtime
+ * the program folder imports (`msvcp140.dll`, `vcruntime140.dll`,
+ * `vcruntime140_1.dll` and their kin) comes from a merge module whose
+ * components a real install puts in `System32`; the image leaves them in
+ * `System64`, where nothing finds them, so on a computer without that
+ * runtime installed `soffice` would not start. Those that match
+ * `soffice.exe`'s architecture move into `program`, beside what imports
+ * them. The arm64 MSI's image holds only the x64 ones (the merge module's
+ * x64 and arm64 files share names and one folder), so an arm64 computer
+ * still needs the runtime installed. The image also keeps a copy of the
+ * MSI, emptied of its files, which nothing reads.
  */
 export async function settleMsiImage(
   dest: string,
@@ -142,7 +151,49 @@ export async function settleMsiImage(
     await fs.mkdir(path.dirname(bundled), { recursive: true });
     await fs.rename(fonts, bundled);
   }
+  const program = path.join(dest, "program");
+  const system64 = path.join(dest, "System64");
+  const machine = await peMachine(path.join(program, "soffice.exe"));
+  if (machine !== undefined && (await isDirectory(system64))) {
+    for (const name of await fs.readdir(system64)) {
+      const from = path.join(system64, name);
+      const to = path.join(program, name);
+      if (
+        name.toLowerCase().endsWith(".dll") &&
+        !existsSync(to) &&
+        (await peMachine(from)) === machine
+      ) {
+        await fs.rename(from, to);
+      }
+    }
+  }
   await fs.rm(path.join(dest, msiName), { force: true });
+}
+
+/**
+ * The machine a Windows executable or DLL is built for, from its PE header
+ * (`0x8664` x64, `0xaa64` arm64, `0x14c` x86), or nothing when the file is
+ * not one.
+ */
+export async function peMachine(file: string): Promise<number | undefined> {
+  const handle = await fs.open(file, "r").catch(() => undefined);
+  if (!handle) {
+    return undefined;
+  }
+  try {
+    const head = Buffer.alloc(4096);
+    const { bytesRead } = await handle.read(head, 0, head.length, 0);
+    if (bytesRead < 0x40 || head.toString("latin1", 0, 2) !== "MZ") {
+      return undefined;
+    }
+    const pe = head.readUInt32LE(0x3c);
+    return pe + 6 <= bytesRead &&
+      head.toString("latin1", pe, pe + 4) === "PE\0\0"
+      ? head.readUInt16LE(pe + 4)
+      : undefined;
+  } finally {
+    await handle.close();
+  }
 }
 
 async function isDirectory(dir: string): Promise<boolean> {

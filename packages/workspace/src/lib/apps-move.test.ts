@@ -238,6 +238,52 @@ it("leaves what the person keeps in Apps/ beside the apps it takes in", async ()
   ).toEqual([".DS_Store", "Scripts", "notes.md"]);
 });
 
+it("leaves what else an app's folder holds, sending only the files taken in", async () => {
+  await writeAppFolder("Linear", linearFile, {
+    "api-notes.md": "mine",
+    "icon.svg": "<svg/>",
+  });
+
+  await takeIn();
+
+  expect(trashed).toEqual([
+    path.join(APPS_FOLDER_NAME, "Linear", APP_FILE_NAME),
+    path.join(APPS_FOLDER_NAME, "Linear", "icon.svg"),
+  ]);
+  expect(
+    await fs.readdir(path.join(root, APPS_FOLDER_NAME, "Linear")),
+  ).toEqual(["api-notes.md"]);
+  expect((await loadApp("linear")).isOk()).toBe(true);
+});
+
+it("leaves an app folder whose guide is a link, unread", async () => {
+  const outside = path.join(root, "secret.txt");
+  await fs.writeFile(outside, "do not read");
+  await writeLegacyApp("notion", notion, {});
+  const dir = path.join(root, PRIVATE_FOLDER_NAME, "apps", "notion");
+  await fs.symlink(outside, path.join(dir, "guide.md"));
+  await fs.mkdir(path.join(root, APPS_FOLDER_NAME, "Linked"), {
+    recursive: true,
+  });
+  await fs.writeFile(
+    path.join(root, APPS_FOLDER_NAME, "Linked", "app.json"),
+    JSON.stringify(notion),
+  );
+  await fs.symlink(
+    outside,
+    path.join(root, APPS_FOLDER_NAME, "Linked", APP_FILE_NAME),
+  );
+
+  const taken = await takeIn();
+
+  expect(taken.left.map((entry) => path.basename(entry.where))).toEqual([
+    "notion",
+    "Linked",
+  ]);
+  expect((await listApps()).apps).toEqual([]);
+  expect(trashed).toEqual([]);
+});
+
 it("ignores a folder of the person's own that was never an app", async () => {
   await fs.mkdir(path.join(root, APPS_FOLDER_NAME, "Notes to self"), {
     recursive: true,

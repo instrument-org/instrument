@@ -8,6 +8,7 @@ import {
   arMembers,
   findSoffice,
   msiAdminInstallArgs,
+  peMachine,
   settleMsiImage,
   sha256Of,
   tdfSignatureRequirement,
@@ -189,6 +190,62 @@ describe("the Windows administrative install", () => {
       "/qn",
       'TARGETDIR="C:\\Users\\windows-user\\AppData\\Roaming\\Instrument\\runtime\\office\\.26.2.7.3.building"',
     ]);
+  });
+
+  /** A file with just enough of a PE header to name its machine. */
+  function peStub(machine: number): Buffer {
+    const file = Buffer.alloc(0x100);
+    file.write("MZ", 0, "latin1");
+    file.writeUInt32LE(0x80, 0x3c);
+    file.write("PE\0\0", 0x80, "latin1");
+    file.writeUInt16LE(machine, 0x84);
+    return file;
+  }
+
+  it("moves the Visual C++ runtime of soffice's architecture into program", async () => {
+    const dir = await tempDir();
+    await fs.mkdir(path.join(dir, "program"), { recursive: true });
+    await fs.mkdir(path.join(dir, "System64"), { recursive: true });
+    await fs.writeFile(
+      path.join(dir, "program", "soffice.exe"),
+      peStub(0x8664),
+    );
+    await fs.writeFile(
+      path.join(dir, "System64", "msvcp140.dll"),
+      peStub(0x8664),
+    );
+    await fs.writeFile(
+      path.join(dir, "System64", "vcruntime140_1.dll"),
+      peStub(0x8664),
+    );
+    await fs.writeFile(
+      path.join(dir, "System64", "concrt140.dll"),
+      peStub(0xaa64),
+    );
+    await fs.writeFile(path.join(dir, "System64", "readme.txt"), "");
+    await settleMsiImage(dir, "LibreOffice.msi");
+    expect(
+      (await fs.readdir(dir, { recursive: true }))
+        .map((entry) => entry.split(path.sep).join("/"))
+        .sort(),
+    ).toMatchInlineSnapshot(`
+      [
+        "System64",
+        "System64/concrt140.dll",
+        "System64/readme.txt",
+        "program",
+        "program/msvcp140.dll",
+        "program/soffice.exe",
+        "program/vcruntime140_1.dll",
+      ]
+    `);
+  });
+
+  it("reads no machine from a file that is not a PE image", async () => {
+    const dir = await tempDir();
+    await fs.writeFile(path.join(dir, "a.dll"), "not a program");
+    expect(await peMachine(path.join(dir, "a.dll"))).toBeUndefined();
+    expect(await peMachine(path.join(dir, "missing.dll"))).toBeUndefined();
   });
 
   it("moves the image's fonts where LibreOffice reads them and drops the MSI copy", async () => {

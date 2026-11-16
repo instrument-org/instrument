@@ -103,6 +103,30 @@ const SPENT_ALLOWANCE_PATTERN =
   /insufficient[-_\s]?(?:quota|balance)|(?<!token_)quota[-_\s]?exceeded|budget exceeded|(?<!rate[-_\s]?)limit exhausted|package has expired|plan does not yet include/i;
 
 /**
+ * The provider's content rules refusing a request, by code, compared
+ * lowercased. Read ahead of the status, since OpenRouter relays one on a 403,
+ * which would otherwise read as a refused credential. An image the rules
+ * refused is left to its own code (`ONE_FILE_CODES`), since the request
+ * recovers by leaving that file out.
+ */
+const CONTENT_POLICY_CODES = new Set([
+  "content_filter", // Azure OpenAI; ours for a reply its filter stopped
+  "content_policy_violation", // OpenRouter `error.metadata.error_type`
+  "datainspectionfailed", // Alibaba Model Studio
+  "moderation_blocked", // OpenAI images
+  "refusal", // OpenRouter, a Claude refusal
+  "responsibleaipolicyviolation", // Azure OpenAI `error.innererror.code`
+]);
+
+/**
+ * Content-rule refusals that carry no code of their own: OpenAI puts one under
+ * `invalid_prompt`, Anthropic under `invalid_request_error`, and gateways
+ * drop OpenAI's `moderation_blocked`.
+ */
+const CONTENT_POLICY_PATTERN =
+  /violating our usage policy|blocked by content filtering policy|rejected (?:as a result of our|by the) safety system/i;
+
+/**
  * A provider's own failure, by code. Read only when no 4xx status says the
  * request itself was refused: a gateway may put `server_error` on a rejection
  * whose real code it did not pass on.
@@ -408,6 +432,7 @@ function readStreamedError(error: unknown) {
     asString(code),
     asString(property(error, "type")),
     asString(property(property(error, "metadata"), "error_type")),
+    asString(property(error, "error_type")),
   ].filter((value) => value !== undefined);
   const statusCode = typeof code === "number" ? code : undefined;
 
@@ -431,8 +456,9 @@ function readStreamedError(error: unknown) {
  * trusting. OpenAI uses `error.code`, Anthropic uses `error.type`, and the
  * top-level `type` is the last place left to look. Google names its status in
  * `error.status` and the specific reason in `error.details[].reason`; Azure
- * puts its own under `error.innererror.code`, and OpenRouter its upstream's
- * under `error.metadata.error_type`.
+ * puts its own under `error.innererror.code`, OpenRouter its upstream's
+ * under `error.metadata.error_type` or `error.error_type`, and Alibaba Model
+ * Studio its own in a top-level `code`.
  */
 function structuredCodes(responseBody: string | undefined) {
   if (!responseBody) {
@@ -458,6 +484,8 @@ function structuredCodes(responseBody: string | undefined) {
       : []),
     asString(property(property(error, "innererror"), "code")),
     asString(property(property(error, "metadata"), "error_type")),
+    asString(property(error, "error_type")),
+    asString(property(body, "code")),
   ].filter((value) => value !== undefined);
 }
 
@@ -487,6 +515,12 @@ function weighEvidence({
   // front, and throttling is the wrong reading of it: waiting may not end it.
   if (codes.some((code) => USAGE_LIMIT_CODES.has(code.toLowerCase()))) {
     return { evidence: "structured", kind: "usage-limit" };
+  }
+  if (
+    codes.some((code) => CONTENT_POLICY_CODES.has(code.toLowerCase())) &&
+    !codes.some((code) => ONE_FILE_CODES.has(code))
+  ) {
+    return { evidence: "structured", kind: "content-policy" };
   }
   for (const code of codes) {
     const kind = PLATFORM_KIND_BY_CODE.get(code);
@@ -528,6 +562,10 @@ function weighEvidence({
 
   if (statusCode === 400 && INVALID_KEY_PATTERN.test(text)) {
     return { evidence: "prose", kind: "auth" };
+  }
+
+  if (CONTENT_POLICY_PATTERN.test(text)) {
+    return { evidence: "prose", kind: "content-policy" };
   }
 
   if (UNSENDABLE_CONTENT_PATTERNS.some((pattern) => pattern.test(text))) {

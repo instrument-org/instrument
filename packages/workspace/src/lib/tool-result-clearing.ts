@@ -14,10 +14,13 @@ import { workDir } from "./work-dir";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
- * Old tool results sent as placeholders, for a model billed at a higher rate
- * past a prompt size (`higherPriceFromPromptTokens`).
+ * Old tool results sent as placeholders, once a request comes near its step:
+ * the prompt size a model is billed at a higher rate past
+ * (`higherPriceFromPromptTokens`), or the usable context window, whichever is
+ * smaller. Near the window, clearing is what keeps a long task from rolling
+ * over, which drops everything before the boundary.
  *
- * Once a request would come near that size, the oldest results are cleared
+ * Once a request would come near the step, the oldest results are cleared
  * in one batch, enough to bring it to well under half of it, and the point
  * they were cleared up to is recorded on the newest message as a
  * `data-toolResultsCleared` part. Every request after reads the newest such
@@ -39,14 +42,14 @@ import { getWorkspaceConfig } from "./workspace-config";
  * changes, and the transcript shows every result.
  */
 
-/** Fraction of the price step a request may reach before results are cleared. */
+/** Fraction of the step a request may reach before results are cleared. */
 const CLEAR_FROM_FRACTION = 0.85;
 
-/** Fraction of the price step a clearing aims to bring the request down to. */
+/** Fraction of the step a clearing aims to bring the request down to. */
 const CLEAR_TO_FRACTION = 0.45;
 
 /**
- * Least a clearing must free, as a fraction of the price step. Each clearing
+ * Least a clearing must free, as a fraction of the step. Each clearing
  * rewrites the cached prefix from the first result it clears, so one that
  * frees little costs more than it saves, and a history whose bulk is not tool
  * results would otherwise clear a sliver on every step.
@@ -97,6 +100,21 @@ function priceStepOf(model: AIGatewayModel.Type): number | undefined {
     return listed;
   }
   return Math.min(listed ?? Infinity, Math.floor(override));
+}
+
+/**
+ * The prompt size clearing keeps a request under: the price step or the
+ * usable window, whichever is smaller, or undefined when neither is known.
+ */
+function clearingStepOf(
+  model: AIGatewayModel.Type,
+  usableTokens: number | undefined,
+): number | undefined {
+  const step = Math.min(
+    priceStepOf(model) ?? Infinity,
+    usableTokens ?? Infinity,
+  );
+  return Number.isFinite(step) ? step : undefined;
 }
 
 /** A stored tool call whose result or input may be cleared. */
@@ -289,22 +307,23 @@ export function projectedPromptTokens({
  * {@link KEPT_NEWEST_RESULTS} calls with something to clear.
  */
 export function nextToolResultClearing({
-  priceStepTokens,
   projectedTokens,
   results,
+  stepTokens,
   through,
 }: {
-  priceStepTokens: number;
   projectedTokens: number;
   /**
    * The calls in the window with something to clear, oldest first, with the
    * tokens clearing each would free.
    */
   results: readonly { messageId: StoreId.Message; tokens: number }[];
+  /** The prompt size the request is kept under (`clearingStepOf`). */
+  stepTokens: number;
   /** Where the clearing in force ends. */
   through: StoreId.Message | undefined;
 }): { results: number; through: StoreId.Message } | undefined {
-  if (projectedTokens < priceStepTokens * CLEAR_FROM_FRACTION) {
+  if (projectedTokens < stepTokens * CLEAR_FROM_FRACTION) {
     return undefined;
   }
   const open = results.filter(
@@ -314,7 +333,7 @@ export function nextToolResultClearing({
   if (keptFrom === undefined || open.length <= KEPT_NEWEST_RESULTS) {
     return undefined;
   }
-  const wanted = projectedTokens - priceStepTokens * CLEAR_TO_FRACTION;
+  const wanted = projectedTokens - stepTokens * CLEAR_TO_FRACTION;
   let freed = 0;
   let cleared = 0;
   let end: StoreId.Message | undefined;
@@ -330,7 +349,7 @@ export function nextToolResultClearing({
     cleared += 1;
     end = result.messageId;
   }
-  if (end === undefined || freed < priceStepTokens * MIN_CLEARED_FRACTION) {
+  if (end === undefined || freed < stepTokens * MIN_CLEARED_FRACTION) {
     return undefined;
   }
   return { results: cleared, through: end };
@@ -455,8 +474,8 @@ function withToolResultsCleared(
 
 /**
  * The request's messages with old tool results cleared: the clearing in
- * force, and a new one first when the request is near the model's price step
- * and recording it succeeds. A clearing that cannot be recorded is not
+ * force, and a new one first when the request is near its step
+ * (`clearingStepOf`) and recording it succeeds. A clearing that cannot be recorded is not
  * applied, so the request reads only what is stored.
  *
  * `summaryDue` says the request is near the step with nothing left worth
@@ -471,6 +490,7 @@ export async function clearOldToolResults({
   modelMessages,
   readOnly = false,
   sessionId,
+  usableTokens,
 }: {
   chatId: ChatId;
   /** The stored messages the request is built from, oldest first. */
@@ -479,6 +499,8 @@ export async function clearOldToolResults({
   modelMessages: ModelMessage[];
   readOnly?: boolean;
   sessionId: StoreId.Session;
+  /** The model's usable context window, when it has one. */
+  usableTokens: number | undefined;
 }): Promise<{ messages: ModelMessage[]; summaryDue: boolean } | undefined> {
   const rendered = renderedToolResults(modelMessages);
   const tokensOf = (toolCallId: string) => {
@@ -488,9 +510,9 @@ export async function clearOldToolResults({
   const results = clearableResults(messages, rendered);
   let through = toolResultsClearedThrough(messages);
 
-  const priceStepTokens = priceStepOf(model);
+  const stepTokens = clearingStepOf(model, usableTokens);
   const projectedTokens =
-    priceStepTokens === undefined
+    stepTokens === undefined
       ? undefined
       : projectedPromptTokens({
           messages,
@@ -498,12 +520,12 @@ export async function clearOldToolResults({
           tokensOf,
         });
   const next =
-    priceStepTokens === undefined || projectedTokens === undefined
+    stepTokens === undefined || projectedTokens === undefined
       ? undefined
       : nextToolResultClearing({
-          priceStepTokens,
           projectedTokens,
           results: savings(messages, results, tokensOf),
+          stepTokens,
           through,
         });
   const newest = messages.at(-1);
@@ -543,9 +565,9 @@ export async function clearOldToolResults({
     messages: withRecordedClearing({ messages, modelMessages, through }),
     summaryDue:
       next === undefined &&
-      priceStepTokens !== undefined &&
+      stepTokens !== undefined &&
       projectedTokens !== undefined &&
-      projectedTokens >= priceStepTokens * CLEAR_FROM_FRACTION,
+      projectedTokens >= stepTokens * CLEAR_FROM_FRACTION,
   };
 }
 

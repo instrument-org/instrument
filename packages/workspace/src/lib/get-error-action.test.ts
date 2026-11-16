@@ -97,6 +97,21 @@ describe("getErrorAction", () => {
       provider: "openai",
     },
     {
+      case: "stops on a request the provider's content rules refused",
+      error: apiCall({ classification: "content-policy", statusCode: 400 }),
+      expected: { type: "stop" },
+      provider: "openai",
+    },
+    {
+      case: "stops on a reply the provider's content filter stopped partway",
+      error: {
+        classification: "content-policy",
+        kind: "unknown",
+        message: "The provider's content filter stopped the model's reply.",
+      },
+      expected: { type: "stop" },
+    },
+    {
       case: "retries refused content once the media it blames is named",
       error: apiCall({ classification: "unsendable-content", statusCode: 400 }),
       expected: { type: "retry" },

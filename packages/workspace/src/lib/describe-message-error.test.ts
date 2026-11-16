@@ -39,6 +39,11 @@ const cases: Record<string, MessageError> = {
     message: "The reply kept repeating itself and was stopped",
   },
   "a turn the user stopped": { kind: "aborted", message: "Aborted" },
+  "a reply the provider's content rules blocked": {
+    classification: "content-policy",
+    kind: "unknown",
+    message: "The provider's content filter stopped the model's reply.",
+  },
   "content the provider refused": {
     classification: "unsendable-content",
     kind: "api-call",
@@ -78,6 +83,10 @@ describe("describeMessageError", () => {
         "a reply that fell into a loop": {
           "detail": "The model got stuck saying the same thing over and over, so Instrument stopped it. Try again, or switch to another model.",
           "summary": "Model got stuck repeating itself",
+        },
+        "a reply the provider's content rules blocked": {
+          "detail": "The model's provider stopped this reply under its content rules. Rewording your message, or switching to another model, can get past it.",
+          "summary": "Blocked by the provider's content rules",
         },
         "a throttle reported inside a 200 stream": {
           "detail": "The model is busy right now. Trying again in a moment usually clears it.",

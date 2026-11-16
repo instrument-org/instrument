@@ -121,6 +121,27 @@ describe("where a screen opens", () => {
       { kind: "window-navigate" },
     ],
     [
+      "an app in a tab beside the one up, behind it, when asked",
+      "/apps/linear",
+      { behind: true, newTab: true },
+      inChat(SCREEN),
+      { behind: true, kind: "group-new-tab" },
+    ],
+    [
+      "an app in a tab beside the one up when asked",
+      "/apps/linear",
+      { newTab: true },
+      inChat(SCREEN),
+      { behind: false, kind: "group-new-tab" },
+    ],
+    [
+      "a screen no group's tab stands on in the window's tab, even when asked for a tab",
+      "/debug/errors",
+      { behind: true, newTab: true },
+      inChat(SCREEN),
+      { kind: "window-navigate" },
+    ],
+    [
       "a screen no group's tab stands on in the window's tab",
       "/debug/errors",
       { group: OTHER },
@@ -198,7 +219,11 @@ describe("a gesture inside the window", () => {
 
   it.each<[string, OpenOptions, ReturnType<typeof gestureOf>]>([
     ["a plain click", { show: true }, "click"],
-    ["a Cmd-click or a middle click", { behind: true, newTab: true }, "background"],
+    [
+      "a Cmd-click or a middle click",
+      { behind: true, newTab: true },
+      "background",
+    ],
     ["Open in New Tab", { newTab: true }, "newTab"],
     ["a Shift-click", { newWindow: true }, "newTab"],
   ])("reads %s as its gesture", (_label, options, gesture) => {

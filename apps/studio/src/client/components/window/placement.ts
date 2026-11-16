@@ -104,7 +104,7 @@ export type ScreenPlacement =
 
 /**
  * Where a screen opens (a chat, a memory, a skill and a chat's tasks are
- * placed before this): the window's tab up for an app and for any screen no
+ * placed before this): the window's tab up for an app not asked for in a tab of its own, and for any screen no
  * group's tab stands on (the release notes); asked for in a new tab, right
  * after the tab up in the group on screen, or a window tab of its own with
  * no group on screen; into a group other than the one on screen, waiting there;
@@ -124,7 +124,11 @@ export function screenPlacementOf(
   }: OpenOptions,
   { groupOnScreen, isChatOnScreen, up }: PlacementContext,
 ): ScreenPlacement {
-  if (matchScreen(href).kind === "app" || !isGroupScreenHref(href)) {
+  // An app comes up where it already is, unless asked for in a tab of its own.
+  if (
+    !isGroupScreenHref(href) ||
+    (matchScreen(href).kind === "app" && !newTab)
+  ) {
     return { kind: "window-navigate" };
   }
   if (newTab) {
@@ -161,9 +165,7 @@ export function screenPlacementOf(
  */
 export function inGroup(options: OpenOptions): OpenOptions {
   const { newWindow, ...rest } = options;
-  return newWindow === true
-    ? { ...rest, behind: false, newTab: true }
-    : rest;
+  return newWindow === true ? { ...rest, behind: false, newTab: true } : rest;
 }
 
 /**

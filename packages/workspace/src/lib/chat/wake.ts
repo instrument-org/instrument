@@ -81,12 +81,12 @@ const overdueReportedAt = new Map<StoreId.Session, number>();
 
 /**
  * Who stopped a task's working turn, and whether the chat hears of it.
- * The chat's own `instrument task stop` is a step it took, and the user's Stop on the
- * whole chat stops the chat too, so the chat hears of neither. The user
- * stopping one task while the chat carries on is written into the chat as a
- * note, so its agent knows the task did not finish and leaves it stopped,
- * but wakes nothing: the person who stopped it knows already, and the agent
- * reads the note with their next message, the way a quit's note is read.
+ * The chat's own `instrument task stop` is a step it took, so the chat hears
+ * nothing of it. The user's Stop, of one task or of the whole chat, is
+ * written into the chat as a note, so its agent knows the task did not
+ * finish and leaves it stopped, but wakes nothing: the person who stopped it
+ * knows already, and the agent reads the note with their next message, the
+ * way a quit's note is read.
  */
 /**
  * Wakes a chat about one of its tasks with an event composed elsewhere,

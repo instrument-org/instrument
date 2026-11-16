@@ -7,6 +7,7 @@ import { stopRunningProcesses } from "../../lib/background-processes";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { isWorking } from "../../lib/chat/activity";
 import { markChatStopped } from "../../lib/chat/chats";
+import { listChildTasks } from "../../lib/chat/children";
 import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
 import { enqueueWake, saveNote } from "../../lib/chat/wake-queue";
 import { askWindow } from "../../lib/chat/window-tab";
@@ -113,13 +114,23 @@ export const stop = base
       reachesChat && (await openQuestions(input.id)).length > 0;
     // A task whose turn ended with a card still up has no turn for the stop
     // to end, so nothing would say it stopped; read before its cards go.
-    const waitingOnCard =
-      input.sessionId !== undefined &&
-      input.sessionId !== chatSessionId &&
-      !isWorking(input.id, input.sessionId) &&
-      (await openAsksOf(input.id, input.sessionId)).length > 0
-        ? input.sessionId
-        : undefined;
+    // The whole chat's Stop reaches every task of it.
+    const stopsTasks =
+      input.sessionId === undefined
+        ? (await listChildTasks(input.id)).map((task) => task.id)
+        : input.sessionId === chatSessionId
+          ? []
+          : [input.sessionId];
+    const waitingOnCard = (
+      await Promise.all(
+        stopsTasks.map(async (sessionId) =>
+          !isWorking(input.id, sessionId) &&
+          (await openAsksOf(input.id, sessionId)).length > 0
+            ? sessionId
+            : undefined,
+        ),
+      )
+    ).filter((sessionId) => sessionId !== undefined);
     // A task the person stops ends what it runs in the background too, as
     // the agent's `instrument task stop --all` does. A job handed to the task is the
     // task's, so this reaches it. A process can take seconds to go, so the
@@ -130,15 +141,16 @@ export const stop = base
         context.workspaceConfig.captureException,
       );
     }
-    // The user's stop, which the task's page ends on. One task stopped
-    // while the chat carries on is written into the chat as a note that
-    // starts no turn; the chat's own session tells it nothing, since only a
-    // task reports to its chat, and nor does a stop of the whole chat.
+    // The user's stop, which the task's page ends on. Every task it ends,
+    // one stopped alone or all of them with the whole chat, is written into
+    // the chat as a note that starts no turn, so its agent does not wait on a
+    // task nobody is running; the chat's own session tells it nothing, since
+    // only a task reports to its chat.
     context.workspaceRef.send({
       type: "stopSessions",
       value: {
         id: input.id,
-        notice: { by: "person", wakesChat: input.sessionId !== undefined },
+        notice: { by: "person", wakesChat: true },
         ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       },
     });
@@ -155,10 +167,10 @@ export const stop = base
     ]);
     // Not waited on, as a turn's end is not: its note waits out the
     // processes the stop ends.
-    if (waitingOnCard !== undefined) {
+    for (const sessionId of waitingOnCard) {
       noteTaskStoppedOnCard(
         input.id,
-        waitingOnCard,
+        sessionId,
         context.workspaceRef,
         "person",
       ).catch(context.workspaceConfig.captureException);

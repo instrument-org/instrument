@@ -63,6 +63,11 @@ interface PublisherEvents {
     targetId: BrowserTargetId;
     url: string;
   };
+  // A page whose first navigation became a person's download, which leaves it
+  // nothing to show. The window takes its tab back to what it showed before,
+  // or closes it, as Chromium closes a tab whose initial navigation was a
+  // download.
+  "browser.page-became-download": { targetId: BrowserTargetId };
   // Agent-driven browser input can move Chromium keyboard focus into a guest.
   // The renderer owns the exact Studio element that must be restored.
   "browser.restore-host-focus": { targetId: BrowserTargetId };

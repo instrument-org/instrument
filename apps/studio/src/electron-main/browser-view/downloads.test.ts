@@ -21,6 +21,7 @@ import {
   saveAsFromPage,
 } from "./downloads";
 import { type BrowserEntry, createEntry } from "./entry";
+import { type GuestRecord } from "./guest-registry";
 
 // A person's download lands in their Downloads folder, and otherwise
 // wherever they say. A temp home stands in for it, laid out as
@@ -183,14 +184,41 @@ describe("captureDownloadWillBeginGuid", () => {
 // What the guest registry answers for the downloads: the entry bound to a
 // guest, found by its contents id, and the document a guest loaded, as the
 // fake guest's main frame names it.
-function lookupIn(entries: Map<BrowserTargetId, BrowserEntry>) {
+function lookupIn(
+  entries: Map<BrowserTargetId, BrowserEntry>,
+  records: GuestRecord[] = [],
+) {
   const entryOf = (id: number | undefined) =>
     [...entries.values()].find((entry) => entry.webContents?.id === id);
   return {
     documentOf: (id: number | undefined) =>
       entryOf(id)?.webContents?.mainFrame.url,
     entryOf,
-    get: () => undefined,
+    get: (id: number) => records.find((record) => record.id === id),
+  };
+}
+
+// The registry's record of an entry's guest, as a page that has or has not
+// committed a document leaves it.
+function recordOf(
+  entry: BrowserEntry,
+  { committed, userInputAt = 0 }: { committed: boolean; userInputAt?: number },
+): GuestRecord {
+  const contents = entry.webContents;
+  if (!contents) {
+    throw new Error("entry has no guest bound");
+  }
+  return {
+    committed,
+    contents,
+    edit: null,
+    entry,
+    frames: new Map(),
+    htmlFullScreen: false,
+    id: contents.id,
+    role: "webview",
+    userInputAt,
+    wasScrolled: false,
   };
 }
 
@@ -807,5 +835,148 @@ describe("routeGuestDownloads", () => {
     (item as unknown as EventEmitter).emit("done", {}, "completed");
 
     expect(onEvent).not.toHaveBeenCalled();
+  });
+});
+
+describe("an agent's authorization a person's click comes after", () => {
+  it("leaves the person's download theirs, in Downloads", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const entry = makeEntry();
+    entries.set(TARGET_ID, entry);
+    applyDownloadBehavior(entry, {
+      behavior: "allowAndName",
+      downloadPath: "/tmp/agent",
+    });
+    const onEvent = vi.fn();
+    entry.eventListeners.add(onEvent);
+    const { session, trigger } = makeSession();
+    routeGuestDownloads(
+      session,
+      lookupIn(entries, [
+        recordOf(entry, {
+          committed: true,
+          userInputAt: entry.authorizedDownloadAt + 1,
+        }),
+      ]),
+    );
+
+    const item = makeFakeItem();
+    trigger(item, entry);
+
+    expect(item.setSavePath).toHaveBeenCalledWith(
+      path.join(home.downloads, "report.pdf"),
+    );
+    expect(onEvent).not.toHaveBeenCalled();
+  });
+
+  it("still claims a download no person's input came before", () => {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const entry = makeEntry();
+    entries.set(TARGET_ID, entry);
+    const record = recordOf(entry, { committed: true, userInputAt: 1 });
+    applyDownloadBehavior(entry, {
+      behavior: "allowAndName",
+      downloadPath: "/tmp/agent",
+    });
+    const { session, trigger } = makeSession();
+    routeGuestDownloads(session, lookupIn(entries, [record]));
+
+    const item = makeFakeItem();
+    trigger(item, entry);
+
+    expect(item.savePath.startsWith("/tmp/agent/")).toBe(true);
+  });
+});
+
+describe("a download that was all a page's first navigation did", () => {
+  function setUp({ committed }: { committed: boolean }) {
+    const entries = new Map<BrowserTargetId, BrowserEntry>();
+    const entry = makeEntry();
+    entries.set(TARGET_ID, entry);
+    const pageBecameDownload = vi.fn();
+    const { session, trigger } = makeSession();
+    routeGuestDownloads(
+      session,
+      lookupIn(entries, [recordOf(entry, { committed })]),
+      { pageBecameDownload },
+    );
+    return { entry, pageBecameDownload, trigger };
+  }
+
+  it("says so once the person's file has its place", () => {
+    const { entry, pageBecameDownload, trigger } = setUp({ committed: false });
+
+    trigger(makeFakeItem(), entry);
+
+    expect(pageBecameDownload).toHaveBeenCalledExactlyOnceWith(TARGET_ID);
+  });
+
+  it("says nothing for a page that committed one first", () => {
+    const { entry, pageBecameDownload, trigger } = setUp({ committed: true });
+
+    trigger(makeFakeItem(), entry);
+
+    expect(pageBecameDownload).not.toHaveBeenCalled();
+  });
+
+  it("waits for the person to answer where it goes", () => {
+    home.downloads = unwritableDir();
+    const { entry, pageBecameDownload, trigger } = setUp({ committed: false });
+
+    const item = makeFakeItem();
+    trigger(item, entry);
+    expect(pageBecameDownload).not.toHaveBeenCalled();
+    item.savePath = path.join(home.dir, "Desktop", "report.pdf");
+    item.emit("updated", {}, "progressing");
+    item.emit("done", {}, "completed");
+
+    expect(pageBecameDownload).toHaveBeenCalledOnce();
+  });
+
+  it("leaves the tab to the agent whose download it is", () => {
+    const { entry, pageBecameDownload, trigger } = setUp({ committed: false });
+    applyDownloadBehavior(entry, {
+      behavior: "allowAndName",
+      downloadPath: "/tmp/agent",
+    });
+
+    trigger(makeFakeItem(), entry);
+
+    expect(pageBecameDownload).not.toHaveBeenCalled();
+  });
+});
+
+describe("retryDownloadFrom a page that is still open", () => {
+  it("starts the retry from that page's guest", () => {
+    const entry = makeEntry();
+    const downloadURL = vi.fn();
+    const record = recordOf(entry, { committed: true });
+    const fromPage = {
+      ...record,
+      contents: Object.assign(record.contents, {
+        downloadURL,
+        isDestroyed: () => false,
+      }),
+    };
+    const { session } = makeSession();
+
+    retryDownloadFrom(session, "https://example.com/a.zip", TARGET_ID, {
+      records: () => [fromPage].values(),
+    });
+
+    expect(downloadURL).toHaveBeenCalledWith("https://example.com/a.zip");
+    expect(session.downloadURL).not.toHaveBeenCalled();
+  });
+
+  it("starts it from the session once that page is gone", () => {
+    const { session } = makeSession();
+
+    retryDownloadFrom(session, "https://example.com/a.zip", TARGET_ID, {
+      records: () => [].values(),
+    });
+
+    expect(session.downloadURL).toHaveBeenCalledWith(
+      "https://example.com/a.zip",
+    );
   });
 });

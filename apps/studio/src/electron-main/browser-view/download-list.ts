@@ -175,9 +175,13 @@ export function removeDownload(id: string) {
 /**
  * Starts a download that stopped or failed again from its address, the new
  * download taking its row's place, as a browser's Retry does. `start` begins
- * the download and says whether it could.
+ * the download, from the page it started from (`from`, its target) when this
+ * run still knows it, and says whether it could.
  */
-export function retryDownload(id: string, start: (url: string) => boolean) {
+export function retryDownload(
+  id: string,
+  start: (url: string, from: string | undefined) => boolean,
+) {
   const download = list().find((each) => each.id === id);
   if (
     download === undefined ||
@@ -186,7 +190,7 @@ export function retryDownload(id: string, start: (url: string) => boolean) {
   ) {
     return;
   }
-  if (start(download.url)) {
+  if (start(download.url, origins.get(id)?.targetId)) {
     removeDownload(id);
   }
 }

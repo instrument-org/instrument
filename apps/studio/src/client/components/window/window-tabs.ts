@@ -23,6 +23,7 @@ import {
   normalizeWindowTabs,
   openOrFocusScreen,
   openPage,
+  pageBecameDownload,
   pageNavigated,
   pageTakesOver,
   patchPage,
@@ -251,6 +252,12 @@ export function useWindowTabs() {
     },
     dropGroup: (group: string) => {
       apply((current) => dropGroup(current, group));
+    },
+    /** A page whose first navigation became a download: its tab goes back, or closes (`pageBecameDownload`). */
+    pageBecameDownload: (id: string) => {
+      apply((current) =>
+        pageBecameDownload(current, id, { homeId: newScreenId() }),
+      );
     },
     /** The group on screen, by the chat's id or the site's key, or nothing while none is. */
     groupOnScreen,

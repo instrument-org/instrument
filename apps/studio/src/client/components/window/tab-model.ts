@@ -500,6 +500,32 @@ export function closeTab(
 }
 
 /**
+ * A page whose first navigation became a download, so it has nothing to
+ * show, handled as Chromium's `DownloadUIController` handles one. A tab that
+ * showed something before goes back to it, and the page leaves its history.
+ * One that showed nothing else closes when its strip has another tab, and a
+ * strip's only tab stays.
+ */
+export function pageBecameDownload(
+  state: WindowTabs,
+  id: string,
+  { homeId }: { homeId: string },
+): WindowTabs {
+  const tab = state.tabs.find((entry) => entry.id === id);
+  if (tab?.kind !== "page") {
+    return state;
+  }
+  if (tab.past?.length) {
+    const back = stepTabVisit(tab, -1);
+    return back
+      ? replaceTab(state, id, { ...back, future: tab.future })
+      : state;
+  }
+  const strip = state.tabs.filter((entry) => entry.group === tab.group);
+  return strip.length > 1 ? closeTab(state, id, { homeId }) : state;
+}
+
+/**
  * A group handed over to a chat: what a draft gathered becomes the chat's
  * tabs exactly as they are, guests and all, the one up still up. A tab
  * already filed under the chat (a task's browser that arrived before the

@@ -8,9 +8,11 @@ import { z } from "zod";
 
 import type { BrowserEntry } from "./entry";
 
+import { publisher } from "@/electron-main/rpc/publisher";
+
 import { type DownloadOrigin, trackDownload } from "./download-list";
 import { markFromInternet } from "../lib/download-mark";
-import { type GuestRegistry } from "./guest-registry";
+import { type GuestRegistry, guests } from "./guest-registry";
 import { isAllowedLocalDownload } from "./local-file-policy";
 import { log } from "./log";
 
@@ -32,6 +34,7 @@ export function applyDownloadBehavior(
   params: unknown,
 ): Record<string, never> {
   const parsed = DownloadBehaviorSchema.safeParse(params);
+  entry.authorizedDownloadAt = Date.now();
   entry.authorizedDownloadPath =
     parsed.success &&
     (parsed.data.behavior === "allow" ||
@@ -96,14 +99,29 @@ function takeAskedSave(webContentsId: number, item: DownloadItem) {
 // never from Chromium itself, see {@link holdsDownloadEvent}), since
 // agent-browser moves the file off its GUID name the moment it hears, and a
 // rename keeps the mark where a write after it finds no file.
+//
+// The agent's authorization covers a download only while no person has used
+// the guest since it was given: a click of the agent's that starts no download
+// leaves it in place, and the person's own click afterwards is theirs. A
+// person's download from a guest that never committed a page leaves its tab
+// with nothing to show, and `pageBecameDownload` says so once the file has a
+// place, or the person declined to give it one, as Chromium's
+// `DownloadUIController` closes such a tab.
 export function routeGuestDownloads(
   session: Session,
   registry: Pick<GuestRegistry, "documentOf" | "entryOf" | "get">,
   {
     markDownloaded = markFromInternet,
-  }: { markDownloaded?: (file: string) => Promise<void> } = {},
+    pageBecameDownload = (targetId) => {
+      publisher.publish("browser.page-became-download", { targetId });
+    },
+  }: {
+    markDownloaded?: (file: string) => Promise<void>;
+    pageBecameDownload?: (targetId: BrowserEntry["targetId"]) => void;
+  } = {},
 ) {
   session.on("will-download", (_event, item, webContents) => {
+    logDownload(item);
     // Settles once the download is done and, when it completed, its mark is
     // written or could not be.
     const marked = new Promise<void>((resolve) => {
@@ -125,11 +143,15 @@ export function routeGuestDownloads(
     // A download the person asked for again from the list comes from the
     // session rather than a page, so it is theirs whatever page is open.
     if (takeRetry(item)) {
+      log.info(`download for=retry ${describeDownload(item)}`);
       saveForPerson(item, null);
       return;
     }
     const entry = registry.entryOf(webContents.id);
     if (!entry) {
+      log.info(
+        `download refused from=${registry.get(webContents.id)?.role ?? "unknown"} ${describeDownload(item)}`,
+      );
       item.cancel();
       return;
     }
@@ -140,6 +162,7 @@ export function routeGuestDownloads(
         registry.documentOf(webContents.id, webContents.mainFrame),
       )
     ) {
+      log.info(`download refused local file targetId=${entry.targetId}`);
       item.cancel();
       if (entry.authorizedDownloadPath) {
         refuseForAgent(entry, item);
@@ -151,16 +174,38 @@ export function routeGuestDownloads(
     item.once("done", () => {
       entry.downloadsRunning -= 1;
     });
-    const pressed = registry.get(webContents.id)?.pressedAt;
+    const record = registry.get(webContents.id);
+    const pressed = record?.pressedAt;
     const origin: DownloadOrigin = {
       targetId: entry.targetId,
       ...(pressed && Date.now() - pressed.at < PRESS_STARTS_DOWNLOAD_MS
         ? { x: pressed.x, y: pressed.y }
         : {}),
     };
-    if (takeAskedSave(webContents.id, item)) {
+    const usedSinceAuthorized =
+      (record?.userInputAt ?? 0) > entry.authorizedDownloadAt;
+    // Chromium's test is the guest's alone: whatever opened the tab, a
+    // download is all its first navigation did.
+    const leftNothing = record !== undefined && !record.committed;
+    const onceItHasAPlace = () => {
+      if (leftNothing) {
+        whenPlaced(item, () => {
+          pageBecameDownload(entry.targetId);
+        });
+      }
+    };
+    const owner = takeAskedSave(webContents.id, item)
+      ? "asked"
+      : entry.authorizedDownloadPath && !usedSinceAuthorized
+        ? "agent"
+        : "person";
+    log.info(
+      `download for=${owner} targetId=${entry.targetId} committed=${String(!leftNothing)} ${describeDownload(item)}`,
+    );
+    if (owner === "asked") {
       askWhereToSave(item, origin);
-    } else if (entry.authorizedDownloadPath) {
+      onceItHasAPlace();
+    } else if (owner === "agent" && entry.authorizedDownloadPath) {
       saveForAgent(entry, item, {
         authorizedDownloadPath: entry.authorizedDownloadPath,
         marked,
@@ -168,7 +213,46 @@ export function routeGuestDownloads(
       });
     } else {
       saveForPerson(item, origin);
+      onceItHasAPlace();
     }
+  });
+}
+
+// Runs `then` once the download has a place on disk, or ended without one:
+// at once for a save path set before the handler returns, otherwise once the
+// system's question is answered and the transfer moves or stops.
+function whenPlaced(item: DownloadItem, then: () => void) {
+  if (item.getSavePath()) {
+    then();
+    return;
+  }
+  let ran = false;
+  const once = () => {
+    if (!ran) {
+      ran = true;
+      then();
+    }
+  };
+  item.once("updated", once);
+  item.once("done", once);
+}
+
+// A download's host and nothing more of its address, which can carry tokens
+// and says what the person was looking at.
+function describeDownload(item: DownloadItem) {
+  const hostOf = (url: string | undefined) =>
+    URL.parse(url ?? "")?.host || "unknown";
+  const first = hostOf(item.getURLChain()[0]);
+  const last = hostOf(item.getURL());
+  return `host=${first}${last === first ? "" : ` via=${last}`}`;
+}
+
+// Every download's end goes in the log, whoever it was for.
+function logDownload(item: DownloadItem) {
+  item.once("done", (_event, state) => {
+    log.info(
+      `download ${state} received=${String(item.getReceivedBytes())} total=${String(item.getTotalBytes())} ${describeDownload(item)}`,
+    );
   });
 }
 
@@ -194,13 +278,35 @@ function takeRetry(item: DownloadItem): boolean {
  * person's Downloads folder and onto the list. Only a web address, since a
  * page's own file is only ever downloaded from that page. Says whether it
  * started.
+ *
+ * Chromium's Retry sends the request as the original one's initiator rather
+ * than the downloads page's, which a site that checks where a request came
+ * from needs. Electron offers no initiator, so the retry starts from the
+ * tab the download came from (`from`) while its guest is still open, and
+ * from the session alone otherwise.
  */
-export function retryDownloadFrom(session: Session, url: string): boolean {
+export function retryDownloadFrom(
+  session: Session,
+  url: string,
+  from?: string,
+  registry: Pick<GuestRegistry, "records"> = guests,
+): boolean {
   if (!/^https?:/i.test(url)) {
     return false;
   }
   retries.add(url);
-  session.downloadURL(url);
+  const page =
+    from === undefined
+      ? undefined
+      : [...registry.records()].find(
+          (record) =>
+            record.entry?.targetId === from && !record.contents.isDestroyed(),
+        );
+  if (page) {
+    page.contents.downloadURL(url);
+  } else {
+    session.downloadURL(url);
+  }
   return true;
 }
 

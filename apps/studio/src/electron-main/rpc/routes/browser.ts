@@ -93,6 +93,16 @@ const events = {
       }
     }
   }),
+  pageBecameDownload: base.handler(async function* ({ context, signal }) {
+    for await (const event of publisher.subscribe(
+      "browser.page-became-download",
+      { signal },
+    )) {
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
+    }
+  }),
   restoreHostFocus: base.handler(async function* ({ context, signal }) {
     for await (const { targetId } of publisher.subscribe(
       "browser.restore-host-focus",
@@ -335,8 +345,12 @@ const downloads = {
   }),
   /** Downloads a stopped or failed one again, in the in-app browser's session. */
   retry: base.input(z.object({ id: z.string() })).handler(({ input }) => {
-    retryDownload(input.id, (url) =>
-      retryDownloadFrom(configureGuestSession(getBrowserSessionDir()), url),
+    retryDownload(input.id, (url, from) =>
+      retryDownloadFrom(
+        configureGuestSession(getBrowserSessionDir()),
+        url,
+        from,
+      ),
     );
   }),
 };

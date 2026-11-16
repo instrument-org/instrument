@@ -51,6 +51,12 @@ interface PageEdit {
 export interface GuestRecord {
   /** The contents itself, for the hooks that act on it. */
   readonly contents: WebContents;
+  /**
+   * Whether the main frame has committed a document, which Chromium's
+   * `NavigationController::IsInitialNavigation()` is the reverse of. A
+   * contents whose first navigation became a download has none.
+   */
+  committed: boolean;
   /** The page being edited in place, when the guest shows one. */
   edit: null | PageEdit;
   /** The tab's entry a `webview` is bound to, from `did-attach-webview` on: its target, task and download authorization. */
@@ -115,6 +121,7 @@ export function createGuestRegistry() {
   function track(contents: WebContents, role: GuestRole): GuestRecord {
     const { id } = contents;
     const record: GuestRecord = {
+      committed: false,
       contents,
       edit: null,
       entry: null,
@@ -134,7 +141,10 @@ export function createGuestRegistry() {
     });
     contents.on(
       "did-frame-navigate",
-      (_event, url, _code, _status, _isMainFrame, processId, routingId) => {
+      (_event, url, _code, _status, isMainFrame, processId, routingId) => {
+        if (isMainFrame) {
+          record.committed = true;
+        }
         forgetGoneFrames(record.frames);
         record.frames.set(keyOf({ processId, routingId }), {
           processId,

@@ -6,6 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
+import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { toast } from "@/client/lib/toast";
@@ -14,7 +15,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { FileMark } from "./file-mark";
 import { segmentsOf } from "./host-path";
@@ -28,16 +29,30 @@ const IMAGE = /\.(?:avif|bmp|gif|heic|jpe?g|png|svg|webp)$/iu;
 
 /**
  * The versions a chat kept of the file up in its pane: one per reply that
- * handed it over, and any the person put back. Read when the file opens and
- * again whenever the list does, since a turn can add one at any time.
+ * handed it over, and any the person put back. Read when the file opens,
+ * whenever the list does, and each time the chat stops working, since a
+ * turn keeps its versions as it ends.
  */
 function useFileVersions(chatId: ChatId, path: string) {
-  return useQuery(
+  const query = useQuery(
     rpcClient.workspace.chats.fileVersions.queryOptions({
       input: { id: chatId, path },
       staleTime: 0,
     }),
   );
+  const { isChatRunning } = useAgentSessionStatus({
+    id: chatId,
+    sessionId: undefined,
+  });
+  const wasRunning = useRef(isChatRunning);
+  const { refetch } = query;
+  useEffect(() => {
+    if (wasRunning.current && !isChatRunning) {
+      void refetch();
+    }
+    wasRunning.current = isChatRunning;
+  }, [isChatRunning, refetch]);
+  return query;
 }
 
 /**
@@ -94,7 +109,7 @@ export function FileVersionsButton({
           {isTooBig ? null : versions.length}
         </PopoverTrigger>
       </ToolbarTooltip>
-      <PopoverContent align="end" className="w-87 p-1">
+      <PopoverContent align="end" className="w-87 overflow-y-auto p-1">
         {isTooBig ? (
           <p className="p-2 text-[13px]">
             This file is too big to keep versions of, so each reply’s card shows

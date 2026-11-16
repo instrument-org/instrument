@@ -61,7 +61,7 @@ export function UndoReplyFiles({
     const { left, restored } = done;
     toast(
       restored.length === 0
-        ? "Nothing to put back. These files didn’t exist before this reply."
+        ? "Nothing to put back. No copy of these files was kept from before this reply."
         : `Put back ${restored.join(", ")}`,
       left.length > 0 && restored.length > 0
         ? { description: `${left.join(", ")} stayed as it is.` }

@@ -10,7 +10,7 @@ Overall: the shape is right and simpler than what it replaces. Records stay in `
 
 ### A. Every shell call is credited with whatever changed anywhere in `Files/` while it ran, so one chat's folder button and file cards show another chat's work
 
-- Status: open
+- Status: fixed `396a8fc39`
 - Severity: S2. Before this commit the watch covered the chat's own `Chats/<title>/`, so the comparison was only wrong when the person edited there; `Files/` is shared by every chat, its tasks, the person and the sync engine, and a call moved to the background keeps its window open until its process ends.
 - Where: [bash.ts:277](/packages/workspace/src/tools/bash.ts#L277), [file-changes.ts:106](/packages/workspace/src/lib/transcript/file-changes.ts#L106), [written-folders.ts:82](/packages/workspace/src/lib/chat/written-folders.ts#L82)
 - What: `watchChatFolders` snapshots `filesFolderPath()` before and after each call, and `changesBetween` records every created, changed or deleted file in between as the call's. Chat A starts a dev server in the background; while it runs, chat B saves `Files/Kyoto trip/day1.md` and the person deletes `Files/Old/x.pdf` in Finder. When A's server stops, A's step says it created the Kyoto file and deleted `x.pdf`, and `foldersChatWrote` offers `Files/Kyoto trip` in A's header. The same happens for a foreground call when two chats run at once. Separately, the walk stops at 2,000 files per folder ([file-changes.ts:41](/packages/workspace/src/lib/transcript/file-changes.ts#L41)), which a shared `Files/` reaches far sooner than one chat's folder did; past it, a `cp` into a folder the walk does not reach goes unrecorded.
@@ -18,7 +18,7 @@ Overall: the shape is right and simpler than what it replaces. Records stay in `
 
 ### B. Work a project chat saves into its project's folder from the shell is never recorded, so it gets no file card and no folder button
 
-- Status: open
+- Status: fixed `396a8fc39`
 - Severity: S2. The prompt sends project chats there, and before this commit they saved into the watched `Chats/<title>/`, so this is a regression for every project chat that finishes with `cp`/`mv`.
 - Where: [system-prompt.ts:134](/packages/workspace/src/model-text/system-prompt.ts#L134), [bash.ts:277](/packages/workspace/src/tools/bash.ts#L277), [file-changes.ts:316](/packages/workspace/src/lib/transcript/file-changes.ts#L316), [file-changes.ts:181](/packages/workspace/src/lib/transcript/file-changes.ts#L181)
 - What: the watch's folders are the work folder and `Files/`, and its variables only `INSTRUMENT_WORK` and `INSTRUMENT_FILES`; a word still starting with `$` after expansion is dropped. `cp plan.docx "$INSTRUMENT_PROJECT/"` in a chat filed under "Trip" is seen by neither the folder comparison nor the named-path check. Only `write_file`/`edit_file` writes there show up.
@@ -26,7 +26,7 @@ Overall: the shape is right and simpler than what it replaces. Records stay in `
 
 ### C. A project folder that reaches a computer before its record gets a blank record stamped "now", which then outranks the real one everywhere
 
-- Status: open
+- Status: fixed `e544c51be`
 - Severity: S2. This is the two-computer case the id file was introduced for, and the outcome is silent loss of every project's mark, color, about line and retired state across all devices. The architecture doc promises the opposite.
 - Where: [projects.ts:344](/packages/workspace/src/lib/chat/projects.ts#L344), [project-records.ts:80](/packages/workspace/src/lib/chat/project-records.ts#L80), [synced-record.ts:160](/packages/workspace/src/lib/synced-store/synced-record.ts#L160), [synced-stores.md:39](/docs/architecture/synced-stores.md#L39)
 - What: when a folder's id has no record, `settled()` builds one from the folder alone (front matter is already stripped by the first computer) and writes it with no `at`, so it is stamped with the current time. Computer A migrates and appends `devices/A/projects.jsonl`; the cloud drive delivers `Projects/*/.instrument-project` to B first (or B's copy of A's file is a placeholder that fails to read, which `synced-files.ts:51` skips silently). B lists projects, writes `{created}` for each, and when A's file lands its older stamps lose. The doc says "a folder that syncs ahead of the store keeps its project"; the test of that name runs on one device, where the record already exists.
@@ -34,7 +34,7 @@ Overall: the shape is right and simpler than what it replaces. Records stay in `
 
 ### D. Any error reading a project's `.instrument-project` counts as no id file, so the real id is written over, or every project read throws
 
-- Status: open
+- Status: fixed `e544c51be`
 - Severity: S2. `REVIEW.md` names this pattern by name ("a read error taken as missing and the default then written back"), and the id file is now the only thing tying a renamed or 1.x project to its chats.
 - Where: [projects.ts:731](/packages/workspace/src/lib/chat/projects.ts#L731), [projects.ts:759](/packages/workspace/src/lib/chat/projects.ts#L759), [projects.ts:318](/packages/workspace/src/lib/chat/projects.ts#L318), [projects.ts:406](/packages/workspace/src/lib/chat/projects.ts#L406)
 - What: `readTextIfThere` and the async `.catch(() => undefined)` swallow every error. With no id file and no front matter id, the folder takes `unusedFolderId(name)` and `writeIdFileSync` writes that over the file. An evicted iCloud id file that fails to download while offline, under a folder renamed in Finder, loses its chats, and the wrong id syncs out. Where the write also fails (Windows sharing violation, read-only folder, `.instrument-project` being a directory), `writeIdFileSync` throws out of `settled()` uncaught, and `listProjects`, `createProject` and the folder-reach lookups fail for every project until that one folder is writable. `AGENTS.md` beside it already has the missing/unreadable split (`isMissing`).
@@ -42,7 +42,7 @@ Overall: the shape is right and simpler than what it replaces. Records stay in `
 
 ### E. The `Chats/` sweep deletes `CHAT.md` by its name before it knows whose folder it is, on every launch and for any top-level `Chats/`
 
-- Status: open
+- Status: fixed `87c44aa87`
 - Severity: S2. Two failures from one cause. The branch commit that wrote this rejected deleting a copied `CHAT.md` by its name alone (`d921af4a1`, `Rejected: delete a copied CHAT.md by its name alone`), and `conflict-copies.ts` requires the head to name a chat; the main file skips that test.
 - Where: [retire-chats-folder.ts:97](/packages/workspace/src/lib/retire-chats-folder/retire-chats-folder.ts#L97), [retire-chats-folder.ts:104](/packages/workspace/src/lib/retire-chats-folder/retire-chats-folder.ts#L104), [chat-link.ts:23](/packages/workspace/src/lib/retire-chats-folder/chat-link.ts#L23), [workspace-launch-sweeps.ts:348](/apps/studio/src/electron-main/lib/workspace-launch-sweeps.ts#L348)
 - What: (1) The owner comes from the transcript's head, or else this computer's `chat-folders.json`. A `CHAT.md` kept by name only by a cloud drive yields nothing by design, and a chat made on the other computer has no entry here, yet line 100 deletes the transcript anyway. Its `attachments/` and handoff notes then go to `Files/<name>/` instead of back into the records, the move is recorded without a `chat`, and old messages' `attachments/<name>` links stay broken; the next launch cannot recover the owner because the transcript is gone. (2) The sweep runs at every launch over any `Chats/`, with no check that the folder is the app's. A person who later makes their own `Chats/` (or `chats/` on a case-insensitive disk) has its contents moved into `Files/` and any `Chats/*/CHAT.md` of theirs deleted.
@@ -50,7 +50,7 @@ Overall: the shape is right and simpler than what it replaces. Records stay in `
 
 ### F. The move record always says a folder kept its name, so old paths open the wrong file when the folder or a file in it was numbered
 
-- Status: open
+- Status: fixed `87c44aa87`
 - Severity: S2. The wrong-file case is silent: a link in an older chat opens a different document with nothing to say so.
 - Where: [retire-chats-folder.ts:114](/packages/workspace/src/lib/retire-chats-folder/retire-chats-folder.ts#L114), [retire-chats-folder.ts:189](/packages/workspace/src/lib/retire-chats-folder/retire-chats-folder.ts#L189), [retire-chats-folder.ts:203](/packages/workspace/src/lib/retire-chats-folder/retire-chats-folder.ts#L203), [resolve-workspace-file-path.ts:312](/packages/workspace/src/lib/resolve-workspace-file-path.ts#L312)
 - What: `moves.push({ from: entry.name, to: entry.name })` regardless of what `moveFolder` did. When `Files/X/` already exists (a 1.x output moved to `Files/<title>/`, or an agent-named folder), clashing files land as `notes 2.md`, and `Chats/X/notes.md` then resolves by prefix to the pre-existing `Files/X/notes.md`. When a file holds the name, the folder lands as `X 2` and every old path under it resolves to nothing.
@@ -58,7 +58,7 @@ Overall: the shape is right and simpler than what it replaces. Records stay in `
 
 ### G. Taking an app in sends its whole `Apps/<Name>/` folder to the Trash, with whatever else the person or the agent kept in it
 
-- Status: open
+- Status: fixed `b78537de9`
 - Severity: S2. Recoverable from the Trash, but nothing in the app or log says files went there, and the branch's own `dab7efb16` commits to the launch never trashing a top-level folder that holds anything the person put there; the rule was applied to `Apps/` but not to the folders inside it.
 - Where: [apps-move.ts:105](/packages/workspace/src/lib/apps-move.ts#L105), [apps-move.ts:116](/packages/workspace/src/lib/apps-move.ts#L116)
 - What: once `APP.md` (or `app.json`/`guide.md`) and the icon are in the store, `trash(path.join(dir, folder))` takes the folder. `Apps/Linear/api-notes.md` or a script the earlier build's agent kept there goes with it; the log line says only "took in … as linear".
@@ -66,7 +66,7 @@ Overall: the shape is right and simpler than what it replaces. Records stay in `
 
 ### H. The `Apps/` sweep reads `guide.md` through a link outside the sandbox and the agent can print what it pointed at
 
-- Status: open
+- Status: fixed `b78537de9`
 - Severity: S2. A containment crossing: the read happens in the main process, outside every rule, and the result comes back to the agent through `instrument app guide`. It predates this commit, but the commit rewrote these lines and runs them at every launch over a top-level `Apps/` the agent can create.
 - Where: [apps-move.ts:190](/packages/workspace/src/lib/apps-move.ts#L190), [apps-setup.ts:260](/packages/workspace/src/lib/capabilities/apps-setup.ts#L260)
 - What: the agent writes `Apps/x/app.json` (any valid setup) and makes `Apps/x/guide.md` a link to a file its settings refuse, such as `~/.ssh/id_rsa` or a document in a Not allowed folder. The next launch reads the target with `readOldFile` (plain `readFile`, which follows links) into `apps.jsonl`, and `instrument app guide x` prints it. The icon read beside it already refuses links (`readBytes(…, { ownFolder })`, `icon.ts:86`).
@@ -75,7 +75,7 @@ Overall: the shape is right and simpler than what it replaces. Records stay in `
 
 ### I. A new project named like a deleted one takes the deleted one's id, with its chats and the folders granted to it
 
-- Status: open
+- Status: fixed `e544c51be`
 - Severity: S3. A consequence of a deliberate choice, recorded here so it is weighed rather than rediscovered. `311677b17` draws a new project's id from its name "so two computers that see a folder before its id file agree on it", and in the same breath says the removed rename guess was wrong because "it gave a deleted project's id, chats and retired state to the next folder made". Same name, same id: that outcome is back for a reused name.
 - Where: [projects.ts:656](/packages/workspace/src/lib/chat/projects.ts#L656), [projects.ts:365](/packages/workspace/src/lib/chat/projects.ts#L365)
 - What: make "Taxes", grant it `~/Documents/Finance`, file chats under it, delete the folder in Finder; a later "Taxes" made in the app gets the same id, shows the old chats, and its chats reach the old grant without a new card. The grant does show in the project's settings, so this is not hidden, but the person did not grant it to this project.
@@ -83,7 +83,7 @@ Overall: the shape is right and simpler than what it replaces. Records stay in `
 
 ### J. Smaller notes from the `Chats/` sweep
 
-- Status: open
+- Status: fixed `87c44aa87`
 - Severity: S4
 - Where: [retire-chats-folder.ts:78](/packages/workspace/src/lib/retire-chats-folder/retire-chats-folder.ts#L78), [retire-chats-folder.ts:124](/packages/workspace/src/lib/retire-chats-folder/retire-chats-folder.ts#L124)
 - What: moves are recorded only in the `finally`, so a killed process leaves folders moved but unrecorded and their old paths unresolved (`legacy-outputs.ts` records before moving); the loop has no per-folder catch, so one `EBUSY` on Windows stops every later folder for that launch; any `readdir` error on `Chats/` deletes the names file, the only clue to folders whose `CHAT.md` cannot be read; and an absolute `…/Chats/X/attachments/a.png` maps into `Files/X/attachments/` although the sweep put that file back in the chat's records.

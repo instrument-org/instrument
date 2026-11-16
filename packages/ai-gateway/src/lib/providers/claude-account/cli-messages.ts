@@ -3,6 +3,7 @@ import {
   type SDKAssistantMessageError,
   type SDKMessage,
   type SDKRateLimitInfo,
+  type SDKResultMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 
 import { OLDEST_CLAUDE_CODE, runsClaudeCode } from "./release";
@@ -36,7 +37,7 @@ export async function nextMessage(source: MessageSource): Promise<SDKMessage> {
       (message.subtype !== "success" || message.is_error)
     ) {
       throw planError(
-        "unknown",
+        resultFailureKind(message),
         message.subtype === "success"
           ? message.result
           : message.errors.join("\n") || message.subtype,
@@ -45,6 +46,54 @@ export async function nextMessage(source: MessageSource): Promise<SDKMessage> {
     }
     return message;
   }
+}
+
+/**
+ * Why a turn Claude Code ended in failure stopped, from what its result says:
+ * its own reason for ending, then the status the API last answered with. A
+ * result can be the only word of a failure, with no assistant message
+ * carrying an error before it.
+ */
+function resultFailureKind(message: SDKResultMessage): PlanErrorKind {
+  const status =
+    message.subtype === "success" ? message.api_error_status : undefined;
+  switch (message.terminal_reason) {
+    case "prompt_too_long":
+    case "rapid_refill_breaker": {
+      return "prompt_too_long";
+    }
+    // Also the window filling up, unless the API was throttling it.
+    case "blocking_limit": {
+      return status === 429 ? "rate_limit" : "prompt_too_long";
+    }
+    case "image_error": {
+      return "image_error";
+    }
+    // Claude Code tried and gave up on its own; the same request ends the
+    // same way.
+    case "budget_exhausted":
+    case "malformed_tool_use_exhausted":
+    case "structured_output_retry_exhausted":
+    case "tool_deferred_unavailable": {
+      return "invalid_request";
+    }
+  }
+  if (status === undefined || status === null) {
+    return "unknown";
+  }
+  if (status === 429) {
+    return "rate_limit";
+  }
+  if (status === 529) {
+    return "overloaded";
+  }
+  if (status === 401 || status === 403) {
+    return "authentication_failed";
+  }
+  if (status >= 500) {
+    return "server_error";
+  }
+  return status >= 400 ? "invalid_request" : "unknown";
 }
 
 /**
@@ -113,12 +162,24 @@ export function assistantErrorText(message: {
 }
 
 /**
+ * What a Claude Code failure was: an assistant message's own error, or one of
+ * the reasons a result gives for a turn that ended, which an assistant
+ * message has no name for.
+ */
+type PlanErrorKind =
+  | SDKAssistantMessageError
+  | "image_error"
+  | "prompt_too_long"
+  | "unknown";
+
+/**
  * A failure in the shape our error classification reads: a status and an
- * Anthropic `error.type`, plus our own code for a spent plan allowance, which
- * waiting a moment does not fix.
+ * Anthropic `error.type`, plus our own codes for a spent plan allowance, which
+ * waiting a moment does not fix, and for a prompt too long or an image the
+ * API would not take, which Claude Code names only in its result.
  */
 export function planError(
-  kind: SDKAssistantMessageError | "unknown",
+  kind: PlanErrorKind,
   message: string,
   rateLimit?: SDKRateLimitInfo,
 ) {
@@ -146,6 +207,12 @@ export function planError(
       case "invalid_request":
       case "model_not_found": {
         return [400, "invalid_request_error", false];
+      }
+      case "prompt_too_long": {
+        return [400, "claude_account_prompt_too_long", false];
+      }
+      case "image_error": {
+        return [400, "claude_account_image_error", false];
       }
       default: {
         return [500, "api_error", false];

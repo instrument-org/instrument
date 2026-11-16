@@ -24,6 +24,8 @@ const KIND_BY_CODE = new Map<string, ProviderErrorKind>([
   ["api_error", "transient"], // Anthropic `error.type`
   ["authentication_error", "auth"], // Anthropic `error.type`
   ["chatpass_v2_invalid_authorization_context", "auth"], // ChatGPT account
+  ["claude_account_image_error", "unsendable-content"], // Claude account, our own
+  ["claude_account_prompt_too_long", "context-overflow"], // Claude account, our own
   ["claude_account_usage_limit_exceeded", "usage-limit"], // Claude account, our own
   ["chatpass_v2_scope_not_authorized", "auth"], // ChatGPT account
   ["1261", "context-overflow"], // z.ai: "Prompt too long", "Prompt 超长"
@@ -165,6 +167,7 @@ const UNSENDABLE_CONTENT_PATTERNS = [
  * (`subscription_sharing_unsupported_capability`).
  */
 const ONE_FILE_CODES = new Set([
+  "claude_account_image_error",
   "empty_image_file",
   "failed_to_download_image",
   "image_content_policy_violation",

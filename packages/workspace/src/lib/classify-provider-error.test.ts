@@ -439,6 +439,36 @@ const cases: {
     expected: { evidence: "structured", kind: "transient" },
     name: "a Responses stream that closed partway through its output",
   },
+  // The Claude account's own codes, which `planError` in the AI gateway puts
+  // on a turn Claude Code ended for that reason.
+  {
+    error: apiCallError({
+      message: "Prompt is too long",
+      responseBody: JSON.stringify({
+        error: {
+          message: "Prompt is too long",
+          type: "claude_account_prompt_too_long",
+        },
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "structured", kind: "context-overflow" },
+    name: "a Claude account turn that ended on a prompt too long",
+  },
+  {
+    error: apiCallError({
+      message: "Could not process image",
+      responseBody: JSON.stringify({
+        error: {
+          message: "Could not process image",
+          type: "claude_account_image_error",
+        },
+      }),
+      statusCode: 400,
+    }),
+    expected: { evidence: "structured", kind: "unsendable-content" },
+    name: "a Claude account turn that ended on an image",
+  },
   // From opencode's provider-error suite, which records each one from the
   // provider named.
   {

@@ -25,11 +25,13 @@ import { internalAPIKey } from "./key-for-provider";
 export async function createOpenRouterLanguageModel({
   chat,
   config,
+  fetch,
   sourceModelIdOf = () => undefined,
   workspaceServerURL,
 }: {
   chat: (modelId: string) => LanguageModelV4;
   config: AIGatewayProviderConfig.Type;
+  fetch?: typeof globalThis.fetch;
   sourceModelIdOf?: (modelId: string) => string | undefined;
   workspaceServerURL: WorkspaceServerURL;
 }): Promise<(modelId: string) => LanguageModelV4> {
@@ -37,6 +39,7 @@ export async function createOpenRouterLanguageModel({
   const openai = createOpenAI({
     apiKey: internalAPIKey(),
     baseURL: internalURL({ config, workspaceServerURL }),
+    fetch,
     // The app attribution the OpenRouter provider sends on the chat path.
     headers: { "HTTP-Referer": APP_URL, "X-OpenRouter-Title": APP_NAME },
   });

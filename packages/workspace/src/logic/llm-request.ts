@@ -27,6 +27,7 @@ import { fromPromise } from "xstate";
 
 import { type AnyAgent } from "../agents/types";
 import { classifyProviderError } from "../lib/classify-provider-error";
+import { fetchWithActivity } from "../lib/fetch-activity";
 import { readRetryHeaders } from "../lib/provider-retry";
 import {
   REPLY_CONTENT_PART_TYPES,
@@ -437,6 +438,12 @@ export const llmRequestLogic = fromPromise<
     const aiSDKModelResult = await fetchAISDKModel({
       captureException: workspaceConfig.captureException,
       configs: workspaceConfig.getAIProviderConfigs(),
+      // Bytes arriving start the chunk timeout over, so a request a provider
+      // holds in its queue, sending only keep-alive comments, is not aborted
+      // as one that went quiet.
+      fetch: fetchWithActivity(() => {
+        input.self.send({ type: "llmRequest.chunkReceived" });
+      }),
       modelCache: workspaceConfig.modelCache,
       modelRoutes: workspaceConfig.modelRoutes,
       modelURI: input.model.uri,

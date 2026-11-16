@@ -75,6 +75,43 @@ A standalone Electron 45.2.3 rig, 2026-11-12: a never-shown window whose host `<
 
 Translating input into in-page JavaScript, which a comparable Electron product with the same `<webview>` architecture does for every input command, was the other way out. It was not taken: synthetic events carry `isTrusted: false`, which matters most on the sign-in pages we support, and a translator reimplements text editing while still failing on cross-origin frames. `execCommand('paste')` returns false inside a guest and a bare synthetic `ClipboardEvent` carries a null `clipboardData`; constructing it with a `DataTransfer` does deliver the payload. Paste and IME composition were not tried on any focus-free route.
 
+## A click that leaves the person's caret alone, measured
+
+What the rest of this finding cannot avoid on a `<webview>` is the press itself: whatever carries it, a mouse-down routed to the guest focuses the guest's WebContents in the browser process, and the window's keyboard goes with it until the renderer moves DOM focus back. Measured on 2026-11-15 with Electron 45.2.3.
+
+How the press is sent, on a `<webview>` guest, with the host's input holding the caret and the guest under focus emulation (a never-shown window; the host's focus tree read through a key on the host's own debugger):
+
+| Route | Host keeps the caret | The page gets |
+| --- | --- | --- |
+| CDP `Input.dispatchMouseEvent` | no | `mousedown`, `click` |
+| `webContents.sendInputEvent` mouse events | no | `mousedown`, `click` |
+| CDP `Input.dispatchMouseEvent`, right button | no | `mousedown` |
+| CDP `Input.dispatchTouchEvent` under touch emulation | no | `mousedown`, `click` |
+| CDP `Input.synthesizeTapGesture` | no (the host's focus goes to its body) | nothing |
+| `sendInputEvent` `gestureTapDown`, `gestureTap` | yes | nothing |
+| In-page `el.focus()`, then `sendInputEvent` Enter | yes | a trusted `click`, no `mousedown` |
+
+Keyboard activation is the only route that keeps the caret and clicks, and only for what Enter activates (buttons, links, form controls). A menu that opens on `mousedown`, most custom widgets and anything clicked by coordinates would stop working, so it is no general route.
+
+Where the guest lives, in a shown window holding OS focus on the MacBook, with a CDP press into the agent's page and the window's host input holding the caret (read through `BrowserWindow.isFocused`, `webContents.isFocused` and the host's focus tree, since nothing on that machine could send a real key):
+
+| Host of the agent's page | Host keeps the caret | Plain CDP typing lands in the page |
+| --- | --- | --- |
+| `<webview>` in the window | no | yes, having taken focus |
+| `WebContentsView` in the window | yes | yes |
+| `<webview>` in a hidden second window | yes | yes |
+| `WebContentsView` in a hidden window | yes | yes |
+| Offscreen-rendered window | yes | yes |
+
+In every case the click fired, a menu it opened stayed open and the window stayed key. Only the `<webview>` takes the caret, because only it shares the window's focus tree. The other hosts are ruled out by what they cost rather than by focus: a `WebContentsView` paints above everything the renderer draws, which is what the guest left the main process to avoid ([browser-guest-stacks-under-the-renderer](browser-guest-stacks-under-the-renderer.md), [the separate-renderers decision](../decisions/2026-11-03-windows-are-separate-renderers.md)), and a `<webview>` cannot move into a hidden window without reloading its page ([in-app-browser](../architecture/in-app-browser.md#a-page-is-in-one-window-at-a-time)).
+
+What ships is the bounce at the press's acknowledgement under focus emulation (`focus-guard.ts`). In the running app on the MacBook, with the window in front and an agent clicking a parked tab about every 280 ms while the chat box was typed into at about 12 keys a second, 0 to 2 of 132 characters went astray, against 126 and 127 before it. The same agent-browser run in that tab (a menu opened on `mousedown` and an item picked, an autocomplete list that closes on blur, `fill`, `type`, `press Meta+a`, a contenteditable, `select`, `check`, `press Enter` to submit, `press Tab`) left the page in the same state with and without it, in a window in front and one off screen.
+
+Tried and dropped:
+
+- **Refusing focus on a parked guest in the window's renderer**, as its `focus` event arrives, without the round trip through the main process. A person cannot click a parked guest (it takes no pointer events), so the refusal needs no guess at who pressed; a reclaim for typing has to be let through. It measured 0 of 132 dropped, the same as the bounce alone, so it is not worth another place that decides where an agent's tab's focus goes.
+- **Replaying a person's keys** that reached a guest during an agent's press into the host afterwards (`before-input-event`). Not built: whether a guest's native key events reach the main process is unconfirmed, keys have to be rebuilt from Electron's names with modifiers, dead keys and repeat, held keys reorder against later ones unless every key waits, and dictated text arrives as inserted text rather than key events, so it would miss dictation altogether.
+
 ## Related
 
 - [in-app-browser.md](../architecture/in-app-browser.md) covers the guest's ownership and the focus model.

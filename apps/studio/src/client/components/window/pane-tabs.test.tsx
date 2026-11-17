@@ -1,12 +1,27 @@
 import { renderWithProviders } from "@/tests/render";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
+import { queryOptions } from "@tanstack/react-query";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
+import { type Chat } from "./chats";
 import { PaneTabs } from "./pane-tabs";
 import { taskHref } from "./tab-location";
+import { chatHref } from "./window-href";
 
 const CHAT = ChatIdSchema.parse("2026-11-17-compare-plans");
+// The chat list as a test sets it, read by the list's mock at each render.
+const LISTED = vi.hoisted(() => ({ chats: [] as Chat[] }));
+
+vi.mock("./chat-list-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./chat-list-query")>()),
+  chatListOptions: () =>
+    queryOptions({
+      initialData: LISTED.chats,
+      queryFn: () => Promise.resolve(LISTED.chats),
+      queryKey: ["chat-list"],
+    }),
+}));
 // Read by the tasks mock as it is made, ahead of the file's own lines.
 const TASKS = vi.hoisted(() => ({
   done: "ses_01JAAAAAAAAAAAAAAAAAAAAAAA",
@@ -254,6 +269,54 @@ describe("PaneTabs", () => {
     expect(finished?.querySelector(".brand-shiny-icon")).toBeNull();
   });
 
+  // As a window's tab on the earlier strip wears its chat's state: the
+  // shimmer wherever the tab stands, the dot only on a tab behind.
+  it.each<[string, Partial<Chat>, boolean, ReturnType<typeof lookOf>]>([
+    ["at work, behind", { status: "working", working: true }, false, "shimmer"],
+    ["at work, up", { status: "working", working: true }, true, "shimmer"],
+    ["unread, behind", { unread: true }, false, "unread"],
+    ["unread, up", { unread: true }, true, "plain"],
+    ["asking, behind", { status: "waiting", working: true }, false, "waiting"],
+    ["asking, up", { status: "waiting", working: true }, true, "plain"],
+    ["failed, behind", { status: "failed" }, false, "plain"],
+    ["idle, behind", {}, false, "plain"],
+  ])("draws a chat's tab %s as its state says", (_label, state, isUp, look) => {
+    LISTED.chats = [listedChat(state)];
+    renderWithProviders(
+      <PaneTabs
+        chatTitles={new Map([[CHAT, "Compare plans"]])}
+        chosenId={isUp ? "c" : "other"}
+        onClose={() => {}}
+        onDuplicate={() => {}}
+        onNew={() => {}}
+        onSelect={() => {}}
+        tabs={[{ href: chatHref(CHAT), id: "c", kind: "screen" }]}
+        taskTitles={new Map()}
+      />,
+    );
+
+    expect(lookOf(screen.getByRole("tab"))).toBe(look);
+  });
+
+  it("keeps a task's tab free of its chat's dot", () => {
+    const working = StoreId.SessionSchema.parse(TASKS.working);
+    LISTED.chats = [listedChat({ status: "waiting", unread: true })];
+    renderWithProviders(
+      <PaneTabs
+        chatTitles={new Map()}
+        chosenId="other"
+        onClose={() => {}}
+        onDuplicate={() => {}}
+        onNew={() => {}}
+        onSelect={() => {}}
+        tabs={[{ href: taskHref(working, CHAT), id: "w", kind: "screen" }]}
+        taskTitles={new Map([[working, "Compare plans"]])}
+      />,
+    );
+
+    expect(lookOf(screen.getByRole("tab"))).toBe("shimmer");
+  });
+
   it("opens and closes a tab with the window's motions", () => {
     const view = renderWithProviders(panes([tab("a"), tab("b")]));
 
@@ -266,6 +329,41 @@ describe("PaneTabs", () => {
     ).not.toBeNull();
   });
 });
+
+/** The chat the tests' chat tab is on, idle and read unless `state` says otherwise. */
+function listedChat(state: Partial<Chat>): Chat {
+  return {
+    archived: false,
+    firstAsk: "Compare plans",
+    holds: { apps: [], files: [], sites: [] },
+    id: CHAT,
+    lastUserMessageAt: 0,
+    sessionId: StoreId.newSessionId(),
+    starred: false,
+    status: "idle",
+    title: "Compare plans",
+    titleByApp: true,
+    unread: false,
+    unreadByUser: false,
+    working: false,
+    ...state,
+  };
+}
+
+/** What a tab wears for where its chat or task stands: a shimmer, one of the chat's dots, or neither. */
+function lookOf(
+  drawn: HTMLElement,
+): "plain" | "shimmer" | "unread" | "waiting" | "both" {
+  const isShimmering =
+    drawn.querySelector(".brand-shiny-text") !== null &&
+    drawn.querySelector(".brand-shiny-icon") !== null;
+  const dot =
+    drawn.querySelector<HTMLElement>("[data-chat-mark]")?.dataset.chatMark;
+  if (isShimmering) {
+    return dot === undefined ? "shimmer" : "both";
+  }
+  return dot === "unread" || dot === "waiting" ? dot : "plain";
+}
 
 function panes(tabs: ReturnType<typeof tab>[]) {
   return (

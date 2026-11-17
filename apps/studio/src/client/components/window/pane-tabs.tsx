@@ -186,6 +186,8 @@ export function PaneTabs({
       tooltip = tabTooltip("", named);
     }
     const chat = chatOfTab(tab);
+    const listed =
+      chat === undefined ? undefined : chats?.find((each) => each.id === chat);
     let icon: ReactNode = null;
     // A page using the microphone or camera wears that in place of its
     // favicon, so the tab in a call is the one to look for.
@@ -215,7 +217,7 @@ export function PaneTabs({
           dot={
             chat === undefined || tab.id === chosenId
               ? undefined
-              : chatDotOf(chats?.find((each) => each.id === chat))
+              : chatDotOf(listed)
           }
           icon={
             <ScreenMark
@@ -227,11 +229,13 @@ export function PaneTabs({
         />
       );
     }
-    // A task at work shimmers its tab's name, as a page its agent is using
-    // does, and its mark with it.
+    // A chat or a task at work shimmers its tab's name, as a page its agent
+    // is using does, and its mark with it, the tab up included. A chat with
+    // a question waiting is not at work: its dot says so instead.
     const task = taskOf(tab);
-    const isTaskWorking =
-      task !== undefined && tasks.get(task.task)?.working === true;
+    const isScreenWorking =
+      listed?.status === "working" ||
+      (task !== undefined && tasks.get(task.task)?.working === true);
     const chord = chords?.get(tab.id);
     return {
       ...(chord === undefined ? {} : { chord }),
@@ -247,7 +251,7 @@ export function PaneTabs({
             ),
           }
         : {}),
-      ...(isTaskWorking && tab.kind !== "page"
+      ...(isScreenWorking && tab.kind !== "page"
         ? {
             glintIcon: (
               <ScreenMark
@@ -260,7 +264,7 @@ export function PaneTabs({
         : {}),
       icon,
       isWorking:
-        isTaskWorking || (tab.kind === "page" && drivenIds.has(tab.id)),
+        isScreenWorking || (tab.kind === "page" && drivenIds.has(tab.id)),
       key: named.key,
       title: short.get(named.key) ?? named.title,
       ...(tooltip ? { tooltip } : {}),

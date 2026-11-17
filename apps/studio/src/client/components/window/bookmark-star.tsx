@@ -1,4 +1,9 @@
 import { useBookmarkActions } from "@/client/bookmarks/actions";
+import { useBookmarkFolders } from "@/client/bookmarks/folders";
+import {
+  bookmarksStateAtom,
+  lastBookmarkFolderAtom,
+} from "@/client/bookmarks/store";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
@@ -9,9 +14,24 @@ import {
 } from "@/client/components/ui/popover";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { keyboardPlace } from "@/client/lib/keyboard-place";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectSeparator,
+  SelectTrigger,
+  SelectValue,
+} from "@/client/components/ui/select";
 import { cn } from "@/client/lib/utils";
+import { type BookmarkFolder, folderOf } from "@/shared/bookmarks";
+import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
+import { useAtomValue, useSetAtom } from "jotai";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
+
+import { AddressMark } from "./app-chip";
+import { BookmarkEditor } from "./bookmark-editor";
 
 /**
  * The stars on screen that ⌘D may mean, each with the element it is drawn
@@ -52,9 +72,10 @@ export function requestBookmarkTab() {
 
 /**
  * The star at the end of the address field: hollow until the address is
- * kept, filled once it is. A press keeps it on the bookmarks bar and opens
- * its card, where it can be renamed or removed; pressed again, the card
- * opens on the bookmark kept. ⌘D does the same.
+ * kept, filled once it is. A press keeps it where a new bookmark goes (the
+ * folder picked last, or the bar) and opens its card, where it can be
+ * renamed, filed or removed; pressed again, the card opens on the bookmark
+ * kept. ⌘D does the same.
  */
 export function BookmarkStar({
   address,
@@ -67,7 +88,12 @@ export function BookmarkStar({
 }) {
   const actions = useBookmarkActions();
   const kept = actions.bookmarkOf(address);
+  const state = useAtomValue(bookmarksStateAtom);
+  const folders = useBookmarkFolders();
+  const setLastFolder = useSetAtom(lastBookmarkFolderAtom);
   const [card, setCard] = useState<"added" | "edit">();
+  // The editor Choose another folder… opens, with the folder picked as it opened.
+  const [editing, setEditing] = useState<{ folder: string | undefined }>();
   useCloseOnWindowBlur(card !== undefined, () => {
     setCard(undefined);
   });
@@ -100,92 +126,140 @@ export function BookmarkStar({
     };
   }, []);
 
+  const keep = (name: string, folder: string | undefined) => {
+    if (!kept) {
+      return;
+    }
+    actions.rename(kept, name);
+    if (folder !== folderOf(state, kept)?.id) {
+      folders.moveTo(kept, folder);
+      setLastFolder(folder ?? null);
+    }
+  };
+
   return (
-    <Popover
-      onOpenChange={(isOpen) => {
-        if (!isOpen) {
-          setCard(undefined);
-        }
-      }}
-      open={card !== undefined && kept !== undefined}
-    >
-      <ToolbarTooltip
-        chord="bookmarkTab"
-        label={kept ? "Edit bookmark" : "Bookmark this tab"}
-      >
-        <PopoverAnchor asChild>
-          <button
-            className={cn(
-              "-mr-1 grid size-6 shrink-0 cursor-default place-items-center rounded-md hover:bg-foreground/8",
-              kept
-                ? "text-brand-600"
-                : "text-foreground/45 hover:text-foreground",
-            )}
-            data-bookmark-star={kept ? "kept" : ""}
-            onClick={press}
-            ref={button}
-            type="button"
-          >
-            <StarIcon className="size-4" weight={kept ? "fill" : "regular"} />
-          </button>
-        </PopoverAnchor>
-      </ToolbarTooltip>
-      {kept && card && (
-        <BookmarkCard
-          // A fresh card for each bookmark, so the name typed is its own.
-          key={kept.id}
-          name={kept.title}
-          onAnchor={(target) =>
-            target instanceof Node && button.current?.contains(target) === true
+    <>
+      <Popover
+        onOpenChange={(isOpen) => {
+          if (!isOpen) {
+            setCard(undefined);
           }
+        }}
+        open={card !== undefined && kept !== undefined}
+      >
+        <ToolbarTooltip
+          chord="bookmarkTab"
+          label={kept ? "Edit bookmark" : "Bookmark this tab"}
+        >
+          <PopoverAnchor asChild>
+            <button
+              className={cn(
+                "-mr-1 grid size-6 shrink-0 cursor-default place-items-center rounded-md hover:bg-foreground/8",
+                kept
+                  ? "text-brand-600"
+                  : "text-foreground/45 hover:text-foreground",
+              )}
+              data-bookmark-star={kept ? "kept" : ""}
+              onClick={press}
+              ref={button}
+              type="button"
+            >
+              <StarIcon className="size-4" weight={kept ? "fill" : "regular"} />
+            </button>
+          </PopoverAnchor>
+        </ToolbarTooltip>
+        {kept && card && (
+          <BookmarkCard
+            address={kept.url}
+            folder={folderOf(state, kept)?.id}
+            folders={state.folders}
+            // A fresh card for each bookmark, so the name typed is its own.
+            key={kept.id}
+            name={kept.title}
+            onAnchor={(target) =>
+              target instanceof Node &&
+              button.current?.contains(target) === true
+            }
+            onChooseFolder={(folder) => {
+              setCard(undefined);
+              setEditing({ folder });
+            }}
+            onClose={() => {
+              setCard(undefined);
+            }}
+            onKeep={keep}
+            onRemove={() => {
+              actions.remove(kept);
+              setCard(undefined);
+            }}
+            title={card === "added" ? "Bookmark added" : "Edit bookmark"}
+          />
+        )}
+      </Popover>
+      {kept && editing && (
+        <BookmarkEditor
+          bookmark={kept}
+          initialFolder={editing.folder}
           onClose={() => {
-            setCard(undefined);
+            setEditing(undefined);
           }}
-          onRemove={() => {
-            actions.remove(kept);
-            setCard(undefined);
-          }}
-          onRename={(name) => {
-            actions.rename(kept, name);
-          }}
-          title={card === "added" ? "Bookmark added" : "Edit bookmark"}
         />
       )}
-    </Popover>
+    </>
   );
 }
 
+/** Where the card's folder list stands for the bar, which has no id. */
+const BAR = "bar";
+/** The folder list's last row, which opens the editor. */
+const CHOOSE = "choose";
+
 /**
- * The star's card, the way a browser's is: the name, and Remove or Done. The name typed is kept as the card goes away,
- * by Done or a press elsewhere; Esc leaves the name as it was.
+ * The star's card, the way a browser's is: the page's mark beside its name,
+ * the folder it is filed in, and Remove or Done. The folder list has the bar
+ * and its folders, and Choose another folder… for the editor, where the
+ * address can change and a folder be made. What is typed and picked is kept
+ * as the card goes away, by Done, Escape or a press elsewhere; only Remove
+ * lets the bookmark go.
  */
 function BookmarkCard({
+  address,
+  folder,
+  folders,
   name,
   onAnchor,
+  onChooseFolder,
   onClose,
+  onKeep,
   onRemove,
-  onRename,
   title,
 }: {
+  address: string;
+  /** The folder it is filed in, the bar without one. */
+  folder: string | undefined;
+  folders: readonly BookmarkFolder[];
   name: string;
   /** Whether a press is on the star, which puts the card away itself rather than as a press elsewhere. */
   onAnchor: (target: EventTarget | null) => boolean;
+  /** Choose another folder…, with the folder picked so far, once the card has kept what was typed (`onKeep`). */
+  onChooseFolder: (folder: string | undefined) => void;
   onClose: () => void;
+  onKeep: (name: string, folder: string | undefined) => void;
   onRemove: () => void;
-  onRename: (name: string) => void;
   title: string;
 }) {
   const [typed, setTyped] = useState(name);
+  const [picked, setPicked] = useState(folder);
   const ids = useId();
-  const isCanceled = useRef(false);
-  const keepName = useEffectEvent(() => {
-    if (!isCanceled.current) {
-      onRename(typed);
+  const isSettled = useRef(false);
+  const keepEdits = useEffectEvent(() => {
+    if (!isSettled.current) {
+      onKeep(typed, picked);
     }
   });
   useEffect(
     () => () => {
-      keepName();
+      keepEdits();
     },
     [],
   );
@@ -194,9 +268,6 @@ function BookmarkCard({
       align="end"
       className="w-80 p-4"
       data-bookmark-card=""
-      onEscapeKeyDown={() => {
-        isCanceled.current = true;
-      }}
       onInteractOutside={(event) => {
         if (onAnchor(event.target)) {
           event.preventDefault();
@@ -221,23 +292,62 @@ function BookmarkCard({
         }}
       >
         <p className="text-sm font-semibold">{title}</p>
-        <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 text-[13px]">
+        <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 text-[13px]">
           <label className="text-muted-foreground" htmlFor={`${ids}-name`}>
             Name
           </label>
-          <Input
-            className="h-8"
-            id={`${ids}-name`}
-            onChange={(event) => {
-              setTyped(event.currentTarget.value);
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="grid size-5 shrink-0 place-items-center">
+              <AddressMark address={address} />
+            </span>
+            <Input
+              className="h-8"
+              id={`${ids}-name`}
+              onChange={(event) => {
+                setTyped(event.currentTarget.value);
+              }}
+              value={typed}
+            />
+          </div>
+          <label className="text-muted-foreground" htmlFor={`${ids}-folder`}>
+            Folder
+          </label>
+          <Select
+            onValueChange={(value) => {
+              if (value === CHOOSE) {
+                // Kept now, so the editor opens on the name typed.
+                isSettled.current = true;
+                onKeep(typed, picked);
+                onChooseFolder(picked);
+                return;
+              }
+              setPicked(value === BAR ? undefined : value);
             }}
-            value={typed}
-          />
+            value={picked ?? BAR}
+          >
+            <SelectTrigger className="w-full" id={`${ids}-folder`} size="sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent position="popper">
+              <SelectItem value={BAR}>
+                <BookmarksSimpleIcon className="size-4" />
+                Bookmarks bar
+              </SelectItem>
+              {folders.map((each) => (
+                <SelectItem key={each.id} value={each.id}>
+                  <FolderSimpleIcon className="size-4" />
+                  <span className="min-w-0 truncate">{each.title}</span>
+                </SelectItem>
+              ))}
+              <SelectSeparator />
+              <SelectItem value={CHOOSE}>Choose another folder…</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex justify-end gap-2">
           <Button
             onClick={() => {
-              isCanceled.current = true;
+              isSettled.current = true;
               onRemove();
             }}
             size="sm"

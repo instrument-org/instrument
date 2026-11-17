@@ -1,3 +1,4 @@
+import { keptAtom } from "@/client/lib/kept-state";
 import { createOpMirror, memoryMirrorBridge } from "@/client/lib/op-mirror";
 import {
   applyBookmarkOps,
@@ -35,3 +36,14 @@ export const bookmarksAtom = atom((get) => get(bookmarksStateAtom).bookmarks);
 
 /** Sends ops to main and shows them at once; a batch main refused is taken back off. */
 export const applyBookmarkOpsAtom = mirror.applyOpsAtom;
+
+/**
+ * The folder a new bookmark is filed in, by id: the one last picked for a
+ * bookmark, as a browser's star remembers it, or the bar (`null`) until one
+ * is. A folder removed since leaves the bar.
+ */
+export const lastBookmarkFolderAtom = keptAtom<string | null>(
+  "layout",
+  "bookmark-folder.v1",
+  null,
+);

@@ -1,14 +1,19 @@
-import { type Bookmark, orderOnBar } from "@/shared/bookmarks";
+import { type Bookmark } from "@/shared/bookmarks";
 import { toast } from "@/client/lib/toast";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 
 import { sameAddress } from "./address";
-import { applyBookmarkOpsAtom, bookmarksStateAtom } from "./store";
+import { newBookmarkPlace } from "./edit";
+import {
+  applyBookmarkOpsAtom,
+  bookmarksStateAtom,
+  lastBookmarkFolderAtom,
+} from "./store";
 
 export { addressOfTab } from "./address";
 
 /**
- * Keeping any address as a bookmark on the bookmarks bar, for whatever
+ * Keeping any address as a bookmark, for whatever
  * offers to: the star at the end of the address field, ⌘D, a row's menu. An
  * address is kept once, however it is spelled (`sameAddress`), so keeping it
  * again returns the one already kept.
@@ -17,10 +22,11 @@ export function useBookmarkActions() {
   const state = useAtomValue(bookmarksStateAtom);
   const { bookmarks } = state;
   const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
+  const lastFolder = useAtomValue(lastBookmarkFolderAtom);
   const bookmarkOf = (url: string) =>
     bookmarks.find((bookmark) => sameAddress(bookmark.url, url));
   return {
-    /** Keeps `url` under `title` last on the bar, and returns the bookmark. */
+    /** Keeps `url` under `title` where a new bookmark goes (`newBookmarkPlace`), and returns the bookmark. */
     bookmark: ({ title, url }: { title: string; url: string }): Bookmark => {
       const kept = bookmarkOf(url);
       if (kept) {
@@ -28,7 +34,7 @@ export function useBookmarkActions() {
       }
       const bookmark: Bookmark = {
         id: crypto.randomUUID(),
-        order: orderOnBar(state),
+        ...newBookmarkPlace(state, lastFolder),
         title,
         url,
       };
@@ -60,7 +66,7 @@ export function useBookmarkActions() {
  * Keeping an address from a menu over a link or a file, for a surface that
  * draws many: the bookmarks are read at the press rather than followed, so
  * a change to them redraws none of the links. An address not kept yet goes
- * last on the bookmarks bar, and one kept already stays where it is; the
+ * where a new bookmark goes (`newBookmarkPlace`), and one kept already stays where it is; the
  * toast says which.
  */
 export function useAddBookmark() {
@@ -76,7 +82,7 @@ export function useAddBookmark() {
     }
     const bookmark: Bookmark = {
       id: crypto.randomUUID(),
-      order: orderOnBar(state),
+      ...newBookmarkPlace(state, store.get(lastBookmarkFolderAtom)),
       title,
       url,
     };

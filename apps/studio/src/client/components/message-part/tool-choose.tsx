@@ -421,7 +421,7 @@ export function QuestionCard({
                 >
                   Skip all
                 </Button>
-                <SendButton disabled={isHolding} onClick={sendDrafts}>
+                <SendButton disabled={isHolding} isHome onClick={sendDrafts}>
                   Send answers
                 </SendButton>
               </>
@@ -679,17 +679,17 @@ function revealTypedRow(list: HTMLElement) {
 
 /**
  * Puts the keyboard on the first choice of the question on show in an open
- * card under `root`, or on its first button where no choice is on show (the
- * review of a card of several). Returns whether anything took it.
+ * card under `root`, on Send answers in the review of a card of several, or
+ * else on its first button. Returns whether anything took it.
  */
 function focusQuestionCard(root: HTMLElement) {
   const reachable = (element: HTMLElement) =>
     element.closest("[inert]") === null &&
     element.checkVisibility({ visibilityProperty: true });
   const target =
-    [...root.querySelectorAll<HTMLElement>("[data-card-home]")].find(
-      reachable,
-    ) ??
+    [
+      ...root.querySelectorAll<HTMLElement>("[data-card-home]:not([disabled])"),
+    ].find(reachable) ??
     [...root.querySelectorAll<HTMLElement>("button:not([disabled])")].find(
       reachable,
     );
@@ -786,16 +786,25 @@ function SendButton({
   children,
   disabled,
   icon = "send",
+  isHome = false,
   onClick,
 }: {
   children: ReactNode;
   disabled: boolean;
   icon?: "next" | "send";
+  /** Takes the keyboard when its step comes on show, for a step with no choices (the review). */
+  isHome?: boolean;
   onClick: () => void;
 }) {
   const Icon = icon === "next" ? ArrowRightIcon : ArrowUpIcon;
   return (
-    <Button disabled={disabled} onClick={onClick} size="xs" variant="brand">
+    <Button
+      data-card-home={isHome ? "" : undefined}
+      disabled={disabled}
+      onClick={onClick}
+      size="xs"
+      variant="brand"
+    >
       {children}
       <Icon className="size-3" weight="bold" />
     </Button>

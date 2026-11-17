@@ -196,6 +196,33 @@ it("moves the keyboard on to the next step's first choice as a digit answers a s
   expect(document.activeElement?.textContent).toContain("Hiking");
 });
 
+it("answers every step with digits and sends from the review with Enter", async () => {
+  const onAnswer = vi.fn();
+  const screen = await renderInBrowser(
+    <QuestionCard onAnswer={onAnswer} questions={SEVERAL} status="open" />,
+  );
+  screen
+    .getByRole("radio", { name: /Coffee/ })
+    .element()
+    .focus();
+
+  await userEvent.keyboard("1");
+  await userEvent.keyboard("2");
+  await userEvent.keyboard("1");
+  await expect
+    .element(screen.getByRole("button", { name: /Send answers/ }))
+    .toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+
+  expect(onAnswer).toHaveBeenCalledWith({
+    replies: [
+      { picked: ["Coffee"] },
+      { picked: ["Reading"] },
+      { picked: ["Yes"] },
+    ],
+  });
+});
+
 const MANY: ChooseQuestion[] = [
   {
     choices: Array.from({ length: 8 }, (_, index) => ({

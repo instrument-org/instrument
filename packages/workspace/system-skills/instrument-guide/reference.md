@@ -17,7 +17,7 @@ How Instrument looks, notifications, dictation, suggested messages, updates, and
 - **Dictation language** (`dictation-language`): Pick the language you speak, or let dictation detect it.
 - **Dictation sounds** (`dictation-sounds`): A sound when dictation starts and stops.
 - **Microphone access** (`microphone-access`): Whether your computer lets Instrument use the microphone.
-- **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: Release notes (`release-notes`), Check for updates (`check-for-updates`).
+- **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: What's new (`release-notes`), Check for updates (`check-for-updates`).
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Send feedback (`send-feedback`), Third-party licenses (`third-party-licenses`).
 - **Suggest a next message** (`suggest-next-message`): After a reply, show a few things you might say next.
 - **Show ideas** (`show-ideas`): Show ideas for what to ask about the pages and files you have open.
@@ -85,7 +85,7 @@ Link one as `[Label](instrument://screen/<name>)`. A row listed under one is lin
 - **Memory** (`memory`): What Instrument remembers about you, one file per memory, to search, forget, or import from another AI.
   - **Import from another AI** (`memory-import`): Bring in what another AI knows about you.
   - **Memory folder** (`memory-folder`): Open the folder of your memories, where each one is a file you can read or change.
-- **Release notes** (`release-notes`): What changed in each version.
+- **What's new** (`release-notes`): What changed in each version.
 - **Settings** (`settings`): Instrument's settings, a page per part. Link a part or a row with `instrument://settings/<name>`.
 - **Keyboard shortcuts** (`shortcuts`): Every keyboard shortcut, by section.
 - **Skills** (`skills`): The skills tasks can use, and making a new one.

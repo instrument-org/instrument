@@ -132,6 +132,7 @@ export const FILES_FOLDER_NAME = "Files";
  * one that is added later.
  */
 export const KEY_FOLDER_NAMES = [
+  FILES_FOLDER_NAME,
   PROJECTS_FOLDER_NAME,
   MEMORY_FOLDER_NAME,
   SKILLS_FOLDER_NAME,

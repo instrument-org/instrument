@@ -1,5 +1,6 @@
 import { type IFileSystem } from "just-bash";
 
+import { type KeepOriginal } from "./original-keeping-fs";
 import { type Listings } from "./permissions/rules-fs";
 import { createWalkBudget, type WalkBudget } from "./walk-budget";
 import { buildBashFs, type WorkspaceFsLayout } from "./workspace-fs-layout";
@@ -31,7 +32,10 @@ const HOME_MAX_TRAVERSAL = 20_000;
  * are refused the same paths with the same note, and spell a path the same
  * way.
  */
-export async function shellFs(layout: WorkspaceFsLayout): Promise<{
+export async function shellFs(
+  layout: WorkspaceFsLayout,
+  { keep }: { keep?: KeepOriginal } = {},
+): Promise<{
   fs: IFileSystem;
   /** The home folder's own walk budget, which the shell resets per command. */
   homeWalkBudget: WalkBudget;
@@ -54,6 +58,7 @@ export async function shellFs(layout: WorkspaceFsLayout): Promise<{
   const listings: Listings = { count: 0 };
   const fs = await buildBashFs(layout, {
     homeWalkBudget,
+    ...(keep && { keep }),
     listings,
     maxFileReadSize: SANDBOX_MAX_BYTES,
     onRefusal: (refusal) => refusals.add(refusal),

@@ -1,4 +1,5 @@
 import { OFFER_SNAPSHOT_OPTIONS } from "@/client/lib/billing-offer-snapshot";
+import { captureException } from "@/client/lib/capture-exception";
 import { type router } from "@/electron-main/rpc/routes";
 import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/message-port";
@@ -18,6 +19,31 @@ const link = new RPCLink({
 });
 
 clientPort.start();
+
+// The port closes under a page still open only when the main process's end
+// went away without it, which leaves every request unanswered from then on:
+// the page loads again for a port of its own, and reports it from there
+// (`reportClosedRPCPort`), since nothing can be sent over this one. Once a
+// minute at most, so a port that closes again at once leaves the failure on
+// screen rather than a window reloading forever.
+const RELOADED_FOR_PORT_KEY = "rpc.reloadedForClosedPort";
+/** Set across the reload for the page that loads to report. */
+export const CLOSED_PORT_TO_REPORT_KEY = "rpc.closedPortToReport";
+const RELOAD_SPACING_MS = 60_000;
+clientPort.addEventListener("close", () => {
+  const last = Number(sessionStorage.getItem(RELOADED_FOR_PORT_KEY));
+  if (Date.now() - last <= RELOAD_SPACING_MS) {
+    captureException(
+      new Error(
+        "The window's RPC port closed again within a minute of a reload",
+      ),
+    );
+    return;
+  }
+  sessionStorage.setItem(RELOADED_FOR_PORT_KEY, String(Date.now()));
+  sessionStorage.setItem(CLOSED_PORT_TO_REPORT_KEY, "1");
+  location.reload();
+});
 
 const baseClient: RouterClient<typeof router> = createORPCClient(link);
 

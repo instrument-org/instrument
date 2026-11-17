@@ -122,6 +122,12 @@ export function initializeRPC({
     const run = getWorkspaceRun();
 
     meterRPCPayloads(serverPort, webContentsId);
+    // Said whatever closed it, since the page reloading or closing looks the
+    // same from here as a port lost under a page still open, which the
+    // window's own report tells apart.
+    serverPort.on("close", () => {
+      logger.scope("rpc").info(`Window ${webContentsId}'s RPC port closed`);
+    });
     handler.upgrade(serverPort, {
       context: {
         appUpdater,

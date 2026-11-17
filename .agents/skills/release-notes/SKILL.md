@@ -22,7 +22,8 @@ Turn the commits since a version into plain, human-readable release notes for en
 5. Size the notes to the release (see Length below), then write a one-line summary of the release and the grouped bullets. Omit the app name and version: GitHub provides that context around the release body.
    - Lead each bullet with one short sentence, a dozen words or fewer, and put any detail in a second sentence. Slack shows the summary line and only the lead sentence of the first two bullets in each section (`apps/studio/scripts/release-summary.ts`), so the lead has to stand alone.
    - Order each section's bullets by what a reader most needs to know, since the first two are the ones Slack shows.
-6. Return the result in a markdown code block.
+6. When the release has features worth leading with, put them first under `## What's new`, one bullet each, led by the feature's name in bold: `- **Find in chats.** Press Command-F to find words in a chat.` The app's What's new page shows these above every version's notes, and leaves the section out of the notes below. Keep it to a few features a person would go and try; fixes stay in their sections. When pictures or videos will follow, the section also carries the note the monitored-release skill describes.
+7. Return the result in a markdown code block.
 
 ## Length
 

@@ -156,6 +156,8 @@ import { type ChatId } from "../schemas/chat-id";
 import { type WalkBudget } from "./walk-budget";
 import { roleLayout } from "./session-layout";
 import { SANDBOX_MAX_BYTES, shellFs } from "./shell-fs";
+import { keepOriginal } from "./chat/turn-originals";
+import { type KeepOriginal } from "./original-keeping-fs";
 
 /**
  * Lines, records, and JSON values one command may hold, against just-bash's
@@ -929,7 +931,12 @@ export async function createLocalBashEnv({
   // and the output a promoted command streams all take it from here.
   const layout = roleLayout({ chatId, folders, role, rules });
   // Refusals heard during one exec are told to the agent after its output.
-  const { fs, homeWalkBudget, listings, refusals } = await shellFs(layout);
+  const { fs, homeWalkBudget, listings, refusals } = await shellFs(layout, {
+    // A session's writes keep what they replace for its turn's Undo; on the
+    // shell's own thread, `keepOriginal` hands them to the main one.
+    keep: (before: Parameters<KeepOriginal>[0]) =>
+      keepOriginal({ ...before, chatId, sessionId }),
+  });
 
   const allowedCommands = [
     ...getCommandNames(),

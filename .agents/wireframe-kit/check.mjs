@@ -145,7 +145,10 @@ const REPORT = `(() => {
       return { label: g.label, el: describe(g.el), box: b, off: Boolean(b && (b.x + b.w <= 0 || b.y + b.h <= 0 || b.x >= w || b.y >= h)) };
     });
     const strip = (list) => list.map((x) => ({ ...x, el: describe(x.el) }));
-    return { w, h, s, title, caption, painted, past: strip(past), tight: strip(tight), marks, rings: root.querySelectorAll(".marks .mark-ring").length };
+    // A frame of a part of frames that failed draws as an error tile saying why.
+    const tile = root.querySelector("[data-wf-error] div");
+    const failed = tile ? Array.from(tile.children, (p) => p.textContent.replace(/\\s+/g, " ").trim()).slice(1).join(", ") : "";
+    return { w, h, s, title, caption, painted, failed, past: strip(past), tight: strip(tight), marks, rings: root.querySelectorAll(".marks .mark-ring").length };
   });
 })()`;
 
@@ -221,9 +224,11 @@ try {
   fs.writeFileSync(outPath, await page.screenshot(clip));
 
   const blank = frames.map((f, i) => (f.painted ? 0 : i + 1)).filter(Boolean);
+  const failed = frames.filter((f) => f.failed).length;
   const lines = [...errors, ...loads];
   for (const [i, f] of frames.entries()) {
     const at = `frame ${i + 1} "${f.title}":`;
+    if (f.failed) lines.push(`${at} didn't draw: ${f.failed}`);
     const px = (/** @type {{ dx: number; dy: number }} */ d) => [d.dx ? `${d.dx}px past the right` : "", d.dy ? `${d.dy}px past the bottom` : ""].filter(Boolean).join(" and ");
     for (const p of f.past.slice(0, 3)) lines.push(`${at} ${p.el} reaches ${px(p)} of the ${f.w}x${f.h} frame, where the frame clips it`);
     if (f.past.length > 3) lines.push(`${at} ${f.past.length - 3} more reach past the frame`);
@@ -245,10 +250,10 @@ try {
   for (const line of lines) console.log(line);
   const scale = frameN ? 1 : Math.round((frames.reduce((sum, f) => sum + f.s, 0) / frames.length) * 100) / 100;
   console.log(
-    `${path.basename(pagePath)}: ${frames.length} frames${blank.length ? `, blank: ${blank.join(", ")}` : ", all drawn"}, ${errors.length} errors, ${loads.length} failed loads. ` +
+    `${path.basename(pagePath)}: ${frames.length} frames${blank.length ? `, blank: ${blank.join(", ")}` : ", all drawn"}${failed ? `, ${failed} error tiles` : ""}, ${errors.length} errors, ${loads.length} failed loads. ` +
       `${outPath} (${clip.width}x${clip.height}${frameN ? `, frame ${frameN} at true size` : `, ${layout.columns} per row at ${scale} of true size`})`,
   );
-  process.exitCode = errors.length || blank.length ? 1 : 0;
+  process.exitCode = errors.length || blank.length || failed ? 1 : 0;
 } finally {
   close();
 }

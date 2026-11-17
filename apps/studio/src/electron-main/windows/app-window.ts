@@ -1192,6 +1192,12 @@ function createAppWindow(
       setupSized = null;
     }
     stopListening(webContentsId);
+    // What waited for this window, which may never have come up to take it,
+    // goes to the window now in front when that one is listening.
+    const front = comingToFront ?? getAppWindow();
+    if (front && listening.has(front.webContents.id)) {
+      asks.takeOver();
+    }
     // A quit closes windows too, and those are what the next launch brings
     // back. A window the person closed can come back on request instead.
     // A spare has nothing of anyone's to come back to.

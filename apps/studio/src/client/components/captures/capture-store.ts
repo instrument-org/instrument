@@ -154,7 +154,7 @@ const SCREEN_NAMES: Record<string, string> = {
   memory: "Memory",
   namedScreen: "Screen",
   newTab: "New tab",
-  releaseNotes: "Release notes",
+  releaseNotes: "What's new",
   setting: "Settings",
   site: "Browser",
   skill: "Skill",

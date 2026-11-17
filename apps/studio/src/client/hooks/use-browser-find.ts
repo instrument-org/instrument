@@ -8,6 +8,16 @@ import { type RefObject, useEffect, useRef, useState } from "react";
 /** The last search run in any browser panel, which an empty find card opens with. */
 let lastFindQuery = "";
 
+/** The find card of each page's panel on screen, by its guest. */
+const pageFindOpeners = new Map<BrowserTargetId, () => void>();
+
+/** Opens the find card of the panel showing this page; false when none is on screen. */
+export function openPageFind(targetId: BrowserTargetId): boolean {
+  const open = pageFindOpeners.get(targetId);
+  open?.();
+  return open !== undefined;
+}
+
 /**
  * Find-in-page state and wiring for a browser panel's guest. Owns the find card's
  * open/query/result state, mirrors the guest's `found-in-page` matches, registers
@@ -34,6 +44,11 @@ export function useBrowserFind({
   targetId: BrowserTargetId;
 }) {
   const findInputRef = useRef<HTMLInputElement>(null);
+  // The latest opener, for a menu outside the panel to call.
+  const openFindRef = useRef(() => {});
+  useEffect(() => {
+    openFindRef.current = openFind;
+  });
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   // Active match / total from the guest's `found-in-page` event; null before any
@@ -120,6 +135,20 @@ export function useBrowserFind({
       return;
     }
     return registerForegroundBrowser({ targetId });
+  }, [isForeground, targetId]);
+  useEffect(() => {
+    if (!isForeground) {
+      return;
+    }
+    const open = () => {
+      openFindRef.current();
+    };
+    pageFindOpeners.set(targetId, open);
+    return () => {
+      if (pageFindOpeners.get(targetId) === open) {
+        pageFindOpeners.delete(targetId);
+      }
+    };
   }, [isForeground, targetId]);
   useFindTarget({
     anchor: surfaceRef,

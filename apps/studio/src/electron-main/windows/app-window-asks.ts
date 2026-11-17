@@ -141,6 +141,14 @@ export function createAppWindowAsks({
     pending = [];
     return asks;
   };
+  const release = () => {
+    if (!isTaking || isHeld()) {
+      return;
+    }
+    for (const ask of handOver()) {
+      deliver(ask);
+    }
+  };
 
   return {
     ask(ask: AppWindowAsk) {
@@ -151,13 +159,14 @@ export function createAppWindowAsks({
       pending.push(ask);
     },
     /** The window lifted its hold: what waited goes to a page listening. */
-    release() {
-      if (!isTaking || isHeld()) {
-        return;
-      }
-      for (const ask of handOver()) {
-        deliver(ask);
-      }
+    release,
+    /**
+     * A page that is listening takes over from the one asks waited for, which
+     * went away without ever taking them: what waited goes to it, unless held.
+     */
+    takeOver() {
+      isTaking = true;
+      release();
     },
     /** The page went away or is loading afresh, and is not listening. */
     stopTaking() {

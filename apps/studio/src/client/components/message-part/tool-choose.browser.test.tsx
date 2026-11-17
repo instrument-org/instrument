@@ -116,6 +116,40 @@ it("picks with a digit and sends with Enter while the keyboard is on a choice", 
   });
 });
 
+it("sends a digit's pick on Enter when the keyboard came into the card on Skip", async () => {
+  const onAnswer = vi.fn();
+  const screen = await renderInBrowser(
+    <QuestionCard
+      onAnswer={onAnswer}
+      questions={[COMPETITORS]}
+      status="open"
+    />,
+  );
+  // Shift+Tab from the reply box under the card lands on its last button.
+  screen.getByRole("button", { name: "Skip" }).element().focus();
+
+  await userEvent.keyboard("2{Enter}");
+
+  expect(onAnswer).toHaveBeenCalledWith({
+    replies: [{ picked: ["Intercom"] }],
+  });
+});
+
+it("shows each choice's digit only while the keyboard is on the card's buttons", async () => {
+  const screen = await renderInBrowser(
+    <QuestionCard onAnswer={noop} questions={[COMPETITORS]} status="open" />,
+  );
+  const digit = screen.getByText("3", { exact: true });
+  await expect.element(digit).not.toBeVisible();
+
+  screen.getByRole("button", { name: "Skip" }).element().focus();
+  await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+  await expect.element(digit).toBeVisible();
+
+  await screen.getByRole("textbox", { name: "Your own answer" }).click();
+  await expect.element(digit).not.toBeVisible();
+});
+
 it("leaves digits to the own-answer row, where Shift+Enter starts a line and Enter sends", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(
@@ -175,6 +209,33 @@ it("moves the keyboard on to the next step's first choice as a digit answers a s
     .element(screen.getByText("What does a good weekend look like?"))
     .toBeVisible();
   expect(document.activeElement?.textContent).toContain("Hiking");
+});
+
+it("answers every step with digits and sends from the review with Enter", async () => {
+  const onAnswer = vi.fn();
+  const screen = await renderInBrowser(
+    <QuestionCard onAnswer={onAnswer} questions={SEVERAL} status="open" />,
+  );
+  screen
+    .getByRole("radio", { name: /Coffee/ })
+    .element()
+    .focus();
+
+  await userEvent.keyboard("1");
+  await userEvent.keyboard("2");
+  await userEvent.keyboard("1");
+  await expect
+    .element(screen.getByRole("button", { name: /Send answers/ }))
+    .toHaveFocus();
+  await userEvent.keyboard("{Enter}");
+
+  expect(onAnswer).toHaveBeenCalledWith({
+    replies: [
+      { picked: ["Coffee"] },
+      { picked: ["Reading"] },
+      { picked: ["Yes"] },
+    ],
+  });
 });
 
 const MANY: ChooseQuestion[] = [

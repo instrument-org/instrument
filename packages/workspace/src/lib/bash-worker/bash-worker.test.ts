@@ -10,6 +10,7 @@ import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId } from "../../schemas/chat-id";
 import { type ChannelAnswer } from "../capabilities/channel";
+import { beginTurnFileVersions, takeOriginals } from "../chat/turn-originals";
 import { writingChatRecords } from "../records/chat-records";
 import { logFileName } from "../records/file-names";
 import { recordLine } from "../records/record";
@@ -243,6 +244,25 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     await expect(consumeSetupChanges(turn)).resolves.toEqual([
       { change: "added", kind: "skill", name: "tracked" },
     ]);
+  });
+
+  it("keeps what a write replaces for the turn on main", async () => {
+    const bashOptions = options();
+    const turn = { id: chatId, sessionId: bashOptions.sessionId };
+    const file = path.join(getWorkspaceSkillsDir(), "kept", "SKILL.md");
+    await fs.mkdir(path.dirname(file), { recursive: true });
+    await fs.writeFile(file, "before\n");
+    beginTurnFileVersions(bashOptions.sessionId);
+
+    await withTurnContext(turn, () =>
+      remoteBash(bashOptions).exec(`echo after > ${shellPath(file)}`),
+    );
+
+    const [original] = takeOriginals(bashOptions.sessionId);
+    await expect(fs.readFile(original?.copy ?? "", "utf8")).resolves.toBe(
+      "before\n",
+    );
+    await expect(fs.readFile(file, "utf8")).resolves.toBe("after\n");
   });
 
   it.skipIf(process.platform === "win32")(

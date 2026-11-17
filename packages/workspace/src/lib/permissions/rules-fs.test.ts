@@ -1,4 +1,4 @@
-import { InMemoryFs } from "just-bash";
+import { InMemoryFs, MountableFs, OverlayFs, ReadWriteFs } from "just-bash";
 import nodeFs from "node:fs";
 import nodePath from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -511,3 +511,56 @@ describe.skipIf(process.platform === "win32")(
     });
   },
 );
+
+describe("the filesystem methods the shell can call", () => {
+  it("are the ones rulesFs and originalKeepingFs were written for", () => {
+    // What every filesystem just-bash ships has in common: its interface,
+    // without each one's own helpers. A method a just-bash update adds
+    // passes rulesFs unchecked, and passes originalKeepingFs without a copy
+    // when it replaces a file's contents, until each is given its place
+    // there; then add it here.
+    const methods = [InMemoryFs, MountableFs, OverlayFs, ReadWriteFs].map(
+      (each) =>
+        new Set(
+          Object.getOwnPropertyNames(each.prototype).filter(
+            (name) =>
+              name !== "constructor" &&
+              typeof Object.getOwnPropertyDescriptor(each.prototype, name)
+                ?.value === "function",
+          ),
+        ),
+    );
+    const [first = new Set<string>()] = methods;
+    expect(
+      [...first]
+        .filter((name) => methods.every((each) => each.has(name)))
+        .sort(),
+    ).toMatchInlineSnapshot(`
+      [
+        "appendFile",
+        "chmod",
+        "cp",
+        "createExclusive",
+        "exists",
+        "getAllPaths",
+        "link",
+        "lstat",
+        "mkdir",
+        "mv",
+        "readFile",
+        "readFileBuffer",
+        "readFileBytes",
+        "readdir",
+        "readdirWithFileTypes",
+        "readlink",
+        "realpath",
+        "resolvePath",
+        "rm",
+        "stat",
+        "symlink",
+        "utimes",
+        "writeFile",
+      ]
+    `);
+  });
+});

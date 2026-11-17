@@ -33,7 +33,7 @@ One engine ([player/engine.js](player/engine.js)) serves every cut at a differen
 - The pointer is a real CDP pointer, so the app's own hover states happen. It moves on an eased arc taking `clamp(300 + 0.75 × distance, 340, 820)` ms. Typing jitter comes from a fixed seed, so a take types the same way each time.
 - Presentation mode hides the development pills, swaps the signed-in account's photo, and trims the address bar to the workspace (`rootCrumb`).
 - Native menu shortcuts (⌘I and the like) are handled by the menu bar, which CDP cannot reach: walk through the context menu instead.
-- Files loads pictures over `instrument-local://`, which a shared page cannot fetch, so `in-page.js` keeps each one as data while recording. `<video>` frames and the in-app browser's pages, which run in their own processes, are not in a DOM recording at all.
+- Files loads pictures over `instrument-local://`, which a shared page cannot fetch, so `in-page.js` keeps each one as data while recording. A `<video>` is recorded as its element (its address and where it is in its time), and the replay plays the file from that address. The in-app browser's pages, which run in their own processes, are not in a DOM recording at all.
 
 ## Building
 
@@ -54,6 +54,8 @@ One engine ([player/engine.js](player/engine.js)) serves every cut at a differen
 
 - rrweb leaves a frame's document open after it rebuilds one, and an open document keeps the frame loading, so the engine closes it on `fullsnapshot-rebuilded`.
 - The replay runs with `pauseAnimation: false`, so CSS animations play on the engine's clock.
+- rrweb sets each `<video>`'s `currentTime` on every seek. `renderAt` waits for every video's `seeked` before its two animation frames: without that wait 180 of 256 frames of a test take were captured mid-seek, each showing the frame before, and the video stuttered. A live player seeks on every animation frame, which would keep a video seeking forever, so `liveMedia` in the engine drops seeks within a quarter second of where the video is, plays it muted while its wanted time moves, and pauses it when that stops.
+- The replay's frame runs no scripts, and Chrome draws its own controls on every video in such a frame, so the engine hides them on videos without `controls`.
 - [scripts/render.mjs](scripts/render.mjs) seeks the player to each frame and captures it with the DevTools protocol (`Emulation.setDeviceMetricsOverride`, `Page.captureScreenshot`) at twice the pixels, scaled down to 1080p. Playwright's own screenshot waits on fonts inside the replay frames and can hang there.
 - A looping replay rewrites its frames' documents on every loop, so the page's network never goes quiet. instrument.page's link-preview render waits for quiet and takes the picture as the page stands when the wait runs out.
 

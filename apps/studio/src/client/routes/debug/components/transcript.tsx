@@ -75,6 +75,7 @@ import { z } from "zod";
 
 import { buildFrames, type Frame, type FrameMark } from "../-transcript/frames";
 import { chatFrames, lastTurns, readOnlyClient } from "../-transcript/replay";
+import { ReplayPicker } from "../-transcript/replay-picker";
 import { RowInspector } from "../-transcript/row-inspector";
 import { type DebugScenario, scenarios } from "../-transcript/scenarios";
 import {
@@ -791,8 +792,8 @@ function Viewer({ scenario }: { scenario: Playable }) {
       </div>
 
       <aside className="flex w-96 shrink-0 flex-col border-l bg-muted/20">
-        <div className="border-b px-3 py-2">
-          <h2 className="text-sm font-medium">{scenario.name}</h2>
+        <div className="border-b px-1 py-1">
+          <ReplayPicker name={scenario.name} />
         </div>
 
         {replays && (

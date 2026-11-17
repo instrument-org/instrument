@@ -18,9 +18,6 @@ import {
   SidebarMenuSubItem,
   SidebarProvider,
 } from "@/client/components/ui/sidebar";
-import { chatListOptions } from "@/client/components/window/chat-list-query";
-import { byLastUserMessage } from "@/client/components/window/chats";
-import { useQuery } from "@tanstack/react-query";
 import {
   createFileRoute,
   Outlet,
@@ -40,39 +37,11 @@ export const Route = createFileRoute("/debug")({
   staticData: { tabIcon: "code" },
 });
 
-/** The real chats the transcript page can replay, most recent first. */
-function ChatsToReplay() {
-  const { chat: active } = useSearch({ strict: false });
-  const { data: chats = [] } = useQuery(chatListOptions());
-  return (
-    <div className="max-h-48 shrink-0 overflow-y-auto border-b pb-1">
-      {byLastUserMessage(chats).map(({ id, title }) => (
-        <SidebarMenuSubItem key={id}>
-          <SidebarMenuSubButton asChild isActive={id === active}>
-            <InternalLink
-              allowOpenNewTab={false}
-              search={{ chat: id }}
-              to="/debug/components/transcript"
-            >
-              <span>{title}</span>
-            </InternalLink>
-          </SidebarMenuSubButton>
-        </SidebarMenuSubItem>
-      ))}
-    </div>
-  );
-}
-
 /** Every debug page behind one sidebar, whichever one is up. */
 function RouteComponent() {
   const { pathname } = useLocation();
   const search = useSearch({ strict: false });
-  const transcriptPage = componentPages.find(
-    (page) => page.id === "transcript",
-  );
   const defaultScenarioId = scenarios[0]?.id;
-  const activeScenarioId = search.scenario ?? defaultScenarioId;
-  const isTranscriptRoute = pathname === transcriptPage?.to;
   const isTrialModesRoute = pathname === "/debug/trial-modes";
   const activeSurfaceId = search.surface ?? trialSurfaces[0].id;
 
@@ -140,9 +109,8 @@ function RouteComponent() {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {componentPages.map((page) => {
-                    const isTranscriptPage = page.id === "transcript";
                     const pageSearch =
-                      isTranscriptPage && defaultScenarioId
+                      page.id === "transcript" && defaultScenarioId
                         ? { scenario: defaultScenarioId }
                         : undefined;
 
@@ -161,40 +129,6 @@ function RouteComponent() {
                             <span>{page.label}</span>
                           </InternalLink>
                         </SidebarMenuButton>
-                        {isTranscriptPage && transcriptPage && (
-                          <Collapsible open={isTranscriptRoute}>
-                            <CollapsibleContent>
-                              <SidebarMenuSub>
-                                <ChatsToReplay />
-                                {scenarios.map((scenario) => (
-                                  <SidebarMenuSubItem key={scenario.id}>
-                                    <SidebarMenuSubButton
-                                      asChild
-                                      // Wrapped rather than truncated. A
-                                      // scenario is picked by reading its name,
-                                      // and the ends are where several of them
-                                      // differ from each other.
-                                      className="h-auto py-1 [&>span:last-child]:whitespace-normal"
-                                      isActive={
-                                        isTranscriptRoute &&
-                                        !search.chat &&
-                                        scenario.id === activeScenarioId
-                                      }
-                                    >
-                                      <InternalLink
-                                        allowOpenNewTab={false}
-                                        search={{ scenario: scenario.id }}
-                                        to={transcriptPage.to}
-                                      >
-                                        <span>{scenario.name}</span>
-                                      </InternalLink>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                ))}
-                              </SidebarMenuSub>
-                            </CollapsibleContent>
-                          </Collapsible>
-                        )}
                       </SidebarMenuItem>
                     );
                   })}

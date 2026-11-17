@@ -76,6 +76,7 @@ Link one as `[Label](instrument://screen/<name>)`. A row listed under one is lin
 
 - **History** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
+- **Bookmarks** (`bookmarks`): Every bookmark, in the bookmarks bar's order with its folders, to search, edit, sort and tidy.
 - **Browser** (`browser`): The web's start page, with the sites you kept and lately saw.
 - **Chats** (`chats`): Every chat there is, open or not, to search and open.
 - **Extensions** (`extensions`): The Chrome extensions in your browser, and adding more from the Chrome Web Store.
@@ -97,7 +98,7 @@ On a Mac these are the menu bar's menus, the first named for Instrument; on Wind
 - **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
 - **View**: Toggle Sidebar, Show Bookmarks Bar, Edit Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
 - **History**: Back, Forward, Show History, Clear Browsing Data…
-- **Bookmarks**: Bookmark This Tab…
+- **Bookmarks**: Bookmark Manager, Bookmark This Tab…, Bookmark All Tabs…
 - **Tab**: Show Next Tab, Show Previous Tab, New Tab in Split, Close Split, Focus Left Side, Focus Right Side, Move Tab to New Window
 - **Window**: Merge All Windows
 - **Help**: Send Feedback…, Support, Keyboard Shortcuts
@@ -108,6 +109,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 ### General
 
+- Bookmark Manager: ⌥⌘B / Ctrl+Shift+O
 - Close Window: ⇧⌘W / Ctrl+Shift+W
 - Command Menu: ⌘K / Ctrl+K
 - Find: ⌘F / Ctrl+F
@@ -159,6 +161,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 ### Pages
 
 - Back: ⌘[ / Alt+←
+- Bookmark All Tabs…: ⇧⌘D / Ctrl+Shift+D
 - Bookmark This Tab…: ⌘D / Ctrl+D
 - Edit Page: ⌘E / Ctrl+E
 - Forward: ⌘] / Alt+→

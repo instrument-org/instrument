@@ -39,6 +39,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
     );
     expect(lines).toMatchInlineSnapshot(`
       [
+        "General: Bookmark Manager  ⌥⌘B",
         "General: Close Window  ⇧⌘W",
         "General: Command Menu  ⌘K",
         "General: Find  ⌘F",
@@ -78,6 +79,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "Tabs: Show Previous Tab  ⌃⇧Tab",
         "Tabs: Tab 1 to 8  ⌘1…8",
         "Pages: Back  ⌘[",
+        "Pages: Bookmark All Tabs…  ⇧⌘D",
         "Pages: Bookmark This Tab…  ⌘D",
         "Pages: Edit Page  ⌘E",
         "Pages: Forward  ⌘]",
@@ -90,7 +92,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "View: Zoom Out  ⌘-",
         "Developer: Capture Window  ⇧⌘2",
         "Developer: Reload App  ⇧⌘R",
-        "Developer: Set Theme: Dark  ⇧⌘D",
+        "Developer: Set Theme: Dark  ⌥⇧⌘D",
         "Developer: Set Theme: Light  ⇧⌘L",
         "Developer: Set Theme: System  ⇧⌘M",
       ]
@@ -128,6 +130,7 @@ describe("matchShortcuts", () => {
         "Show Previous [Tab]",
         "Toggle Sidebar",
         "Close Split",
+        "Bookmark All [Tab]s…",
         "Focus Left Side",
         "Focus Right Side",
       ]

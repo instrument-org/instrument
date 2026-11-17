@@ -156,6 +156,7 @@ interface PublisherEvents {
 /** What one window is asked to do; see `window.command`. */
 export type WindowCommand =
   | "back"
+  | "bookmarkAllTabs"
   | "bookmarkTab"
   | "clearBrowsingData"
   | "closeTab"
@@ -186,6 +187,7 @@ export type WindowCommand =
   | "search"
   | "searchChats"
   | "showActivity"
+  | "showBookmarks"
   | "toggleBookmarksBar"
   | "toggleSidebar"
   | "zoomIn"

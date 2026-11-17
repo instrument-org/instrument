@@ -15,6 +15,7 @@ import {
 } from "@/client/atoms/tab-navigation-block";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestBookmarkTab } from "@/client/components/window/bookmark-star";
+import { requestBookmarkAllTabs } from "./bookmark-all-tabs";
 import { requestFileInfo } from "@/client/components/window/file-info";
 import { interruptHeldHints } from "@/client/components/window/held-chord-hints";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
@@ -121,6 +122,8 @@ export function useWindowCommands(
     searchChats: () => void;
     /** Activity, in the tab showing it or one of its own. */
     showActivity: () => void;
+    /** The Bookmarks page, in the tab showing it or one of its own. */
+    showBookmarks: () => void;
     /** The next or previous chat of the inbox, as listed. */
     selectChat: (direction: -1 | 1) => void;
     /** A sidebar row by its place, 1 to 9. */
@@ -326,6 +329,14 @@ export function useWindowCommands(
               // The star of the tab the keyboard is in; nothing where no
               // address is shown.
               requestBookmarkTab();
+              break;
+            }
+            case "bookmarkAllTabs": {
+              requestBookmarkAllTabs();
+              break;
+            }
+            case "showBookmarks": {
+              latest.current.showBookmarks();
               break;
             }
             case "newTabInSplit": {

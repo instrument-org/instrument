@@ -44,7 +44,7 @@ export function BrowserStartTail({
       <BrowserExtensionButtons />
       <BrowserDownloadsButton surfaceRef={noSurface} targetId="" />
       <BrowserPageMenu
-        bookmark={{ isBookmarked: false, toggle: undefined }}
+        bookmark={{ canBookmark: false }}
         onOpenHistory={onOpenPage}
         page={undefined}
         zoom={<ZoomStepper />}

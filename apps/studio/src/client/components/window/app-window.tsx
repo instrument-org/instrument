@@ -117,6 +117,9 @@ import {
   useAppTabs,
 } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
+import { addressOfTab } from "@/client/bookmarks/address";
+import { BookmarkAllTabs } from "./bookmark-all-tabs";
+import { useTabTitle } from "./tab-title";
 import { editField } from "./omnibar-field";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions, chromeOfChats } from "./chat-list-query";
@@ -784,6 +787,7 @@ function WindowShell({
   }, [pageHost, stage]);
 
   const appsBySlug = useAppsBySlug();
+  const tabTitle = useTabTitle(chatTitles);
   const { openNamedPath, openPage, openScreen } = useOpeners({
     appsBySlug,
     appTabs,
@@ -1514,6 +1518,9 @@ function WindowShell({
       showActivity: () => {
         openBuiltInPage(SCREENS.activity.href);
       },
+      showBookmarks: () => {
+        openBuiltInPage(SCREENS.bookmarks.href);
+      },
       // The tab chords step the tabs of the group up, as a browser's step
       // its strip, across both sides and round from either end.
       selectRelative: (direction) => {
@@ -1770,6 +1777,16 @@ function WindowShell({
               </ActiveTabProvider>,
               stage,
             )}
+            <BookmarkAllTabs
+              pages={() =>
+                tabsLeftToRight().flatMap((tab) => {
+                  const url = addressOfTab(tab);
+                  return url === undefined
+                    ? []
+                    : [{ title: tabTitle(tab), url }];
+                })
+              }
+            />
             {/* Asked for from a chat's head or a draft's, so the project it
               makes is filed on that chat or draft as it lands. */}
             <ProjectDialog

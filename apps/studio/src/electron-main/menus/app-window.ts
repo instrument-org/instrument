@@ -59,6 +59,7 @@ interface WindowChord {
  */
 const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   back: "chevron.backward",
+  bookmarkAllTabs: "star.square.on.square",
   bookmarkTab: "star",
   closeSplit: "xmark.rectangle",
   closeTab: "xmark.square",
@@ -84,6 +85,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   search: "magnifyingglass",
   searchChats: "text.magnifyingglass",
   showActivity: "clock.arrow.circlepath",
+  showBookmarks: "book.closed",
   toggleBookmarksBar: "book",
   toggleSidebar: "sidebar.left",
 };
@@ -233,8 +235,26 @@ const HISTORY_CHORDS: WindowChord[] = [chord("back"), chord("forward")];
 /** The tab groups closed to History, as a browser's History menu shows all of it. */
 const ACTIVITY_CHORDS: WindowChord[] = [chord("showActivity")];
 
-/** The star at the end of the address field of the tab the keyboard is in. */
-const BOOKMARK_CHORDS: WindowChord[] = [chord("bookmarkTab")];
+/**
+ * Chrome's Bookmarks menu: its manager, the Bookmarks page, which the
+ * window brings up and gives the keyboard (taken back from a page guest
+ * first); then the star at the end of the address field of the tab the
+ * keyboard is in, and every tab of the group on screen into a new folder,
+ * whose dialog is the window's too.
+ */
+const BOOKMARK_MANAGER_CHORDS: WindowChord[] = [
+  chord("showBookmarks", (window) => {
+    window.webContents.focus();
+    commandWindow(window, "showBookmarks");
+  }),
+];
+const BOOKMARK_CHORDS: WindowChord[] = [
+  chord("bookmarkTab"),
+  chord("bookmarkAllTabs", (window) => {
+    window.webContents.focus();
+    commandWindow(window, "bookmarkAllTabs");
+  }),
+];
 
 /** A new tab on the other side of the group, made where it has one side, the side with the keyboard closed, and the keyboard to either side. */
 const SIDE_CHORDS: WindowChord[] = [
@@ -277,6 +297,7 @@ const WINDOW_CHORDS = [
   ...TAB_SWITCH_ALIAS_CHORDS,
   ...HISTORY_CHORDS,
   ...ACTIVITY_CHORDS,
+  ...BOOKMARK_MANAGER_CHORDS,
   ...BOOKMARK_CHORDS,
   ...SIDE_CHORDS,
 ];
@@ -430,7 +451,11 @@ export function createAppWindowMenu(
   // Chrome's Bookmarks menu, after History where Chrome has it.
   const bookmarksMenu: MenuItemConstructorOptions = {
     label: "Bookmarks",
-    submenu: menuItems(BOOKMARK_CHORDS, windows),
+    submenu: [
+      ...menuItems(BOOKMARK_MANAGER_CHORDS, windows),
+      { type: "separator" },
+      ...menuItems(BOOKMARK_CHORDS, windows),
+    ],
   };
 
   // The other windows' View menu with the sidebar's chord at its head, and the

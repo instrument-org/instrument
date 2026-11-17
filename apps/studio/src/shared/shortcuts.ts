@@ -41,8 +41,9 @@ export const SHORTCUTS = {
     group: "General",
     label: "Settings…",
   },
+  // Option with Shift+Cmd+D, which is Bookmark All Tabs as in Chrome.
   themeDark: {
-    accelerator: "CmdOrCtrl+Shift+D",
+    accelerator: "CmdOrCtrl+Alt+Shift+D",
     group: "Developer",
     label: "Set Theme: Dark",
   },

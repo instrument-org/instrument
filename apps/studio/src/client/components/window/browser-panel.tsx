@@ -1,8 +1,3 @@
-import {
-  applyBookmarkOpsAtom,
-  bookmarksStateAtom,
-} from "@/client/bookmarks/store";
-import { orderOnBar } from "@/shared/bookmarks";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
 import { BrowserExtensionButtons } from "@/client/components/window/browser-extension-buttons";
 import { BrowserFindCard } from "@/client/components/window/browser-find-card";
@@ -95,7 +90,7 @@ import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import {
   type ReactNode,
   useContext,
@@ -106,7 +101,6 @@ import {
 } from "react";
 import { PageCaptureMark } from "@/client/components/window/page-capture-mark";
 import { createPortal } from "react-dom";
-import { toast } from "@/client/lib/toast";
 import { tabCarryViewAtom } from "@/client/components/window/tab-carry-view";
 
 /** How many times a page on screen is opened inside `AUTO_OPEN_WINDOW_MS` before its crashing is shown instead. */
@@ -611,40 +605,6 @@ export function BrowserPanel({
           windowContext.openPage(url, { newTab: true });
         }
       : undefined;
-  const bookmarksState = useAtomValue(bookmarksStateAtom);
-  const { bookmarks } = bookmarksState;
-  const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
-  const isBookmarked = bookmarks.some((bookmark) => bookmark.url === pageUrl);
-  const toggleBookmark = () => {
-    if (!pageUrl) {
-      return;
-    }
-    if (isBookmarked) {
-      void applyBookmarkOps(
-        bookmarks
-          .filter((bookmark) => bookmark.url === pageUrl)
-          .map((bookmark) => ({ id: bookmark.id, type: "remove" })),
-      );
-      toast("Removed from Bookmarks");
-      return;
-    }
-    // Untitled until the guest is ready; the start view names it by its site instead.
-    const title = guestNow()?.title() ?? "";
-    void applyBookmarkOps([
-      {
-        bookmark: {
-          id: crypto.randomUUID(),
-          order: orderOnBar(bookmarksState),
-          title,
-          url: pageUrl,
-        },
-        type: "add",
-      },
-    ]);
-    // Said, since nothing on the page itself changes: it shows on the
-    // browser's starting view, where it can be renamed.
-    toast("Added to Bookmarks", { description: title || undefined });
-  };
 
   return (
     <div
@@ -665,10 +625,7 @@ export function BrowserPanel({
             afterBlockAds={() => guestNow()?.reload()}
             {...(inWindow
               ? {
-                  bookmark: {
-                    isBookmarked,
-                    toggle: pageUrl ? toggleBookmark : undefined,
-                  },
+                  bookmark: { canBookmark: Boolean(pageUrl) },
                 }
               : {})}
             editSource={onEditSource}

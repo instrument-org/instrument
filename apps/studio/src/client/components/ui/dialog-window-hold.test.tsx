@@ -61,6 +61,7 @@ function Commands({
       receiveGroupTab: vi.fn(),
       receiveTab: vi.fn(),
       showActivity: vi.fn(),
+      showBookmarks: vi.fn(),
       toggleSidebar: vi.fn(),
     },
     { isReady: false },

@@ -19,6 +19,7 @@ import {
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { ManageItems } from "@/client/components/window/browser-extension-buttons";
 import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
+import { BookmarksSubmenu } from "@/client/components/window/bookmarks-submenu";
 import { type OpenInAppTarget } from "@/client/hooks/use-open-in-app";
 import {
   EMULATED_DEVICES,
@@ -29,7 +30,6 @@ import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
-import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
 import { CodeIcon } from "@phosphor-icons/react/Code";
@@ -82,8 +82,8 @@ export function BrowserPageMenu({
 }: {
   /** Run once the ad choice is saved: a page reloads to show it. */
   afterBlockAds?: () => void;
-  /** Add to or Remove from Bookmarks, for the page loaded; absent where nothing keeps bookmarks. */
-  bookmark?: { isBookmarked: boolean; toggle: (() => void) | undefined };
+  /** The Bookmarks submenu, and whether the tab has an address to keep; absent where nothing keeps bookmarks. */
+  bookmark?: { canBookmark: boolean };
   editSource?: (() => void) | undefined;
   onOpenChange?: (open: boolean) => void;
   /** A page picked from History. */
@@ -136,15 +136,10 @@ export function BrowserPageMenu({
         )}
         <BrowserHistoryMenu onOpen={onOpenHistory} />
         {bookmark && (
-          <DropdownMenuItem
-            disabled={!bookmark.toggle}
-            onSelect={bookmark.toggle}
-          >
-            <BookmarkSimpleIcon className="size-4" />
-            {bookmark.isBookmarked
-              ? "Remove from bookmarks"
-              : "Add to bookmarks"}
-          </DropdownMenuItem>
+          <BookmarksSubmenu
+            canBookmark={bookmark.canBookmark}
+            onOpenPage={onOpenHistory}
+          />
         )}
         <DropdownMenuItem onSelect={openClearBrowsingData}>
           <BroomIcon className="size-4" />

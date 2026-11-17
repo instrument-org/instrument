@@ -47,6 +47,11 @@ const historyChord = (bracket: "[" | "]", arrow: "Left" | "Right") => ({
 
 export const WINDOW_SHORTCUTS = {
   back: { accelerator: historyChord("[", "Left"), label: "Back" },
+  // Every tab of the group on screen, into a new folder: Chrome's own key.
+  bookmarkAllTabs: {
+    accelerator: "Shift+CmdOrCtrl+D",
+    label: "Bookmark All Tabs…",
+  },
   // A browser's own key for the star at the end of its address field.
   bookmarkTab: { accelerator: "CmdOrCtrl+D", label: "Bookmark This Tab…" },
   // The side with the keyboard closed whole, where the group has two: Close
@@ -99,6 +104,12 @@ export const WINDOW_SHORTCUTS = {
   searchChats: {
     accelerator: "Shift+CmdOrCtrl+F",
     label: "Search Chats",
+  },
+  // The Bookmarks page: Chrome's Bookmark Manager key, Option and Command
+  // and B on a Mac, and Ctrl+Shift+O elsewhere.
+  showBookmarks: {
+    accelerator: { darwin: "Alt+CmdOrCtrl+B", default: "Ctrl+Shift+O" },
+    label: "Bookmark Manager",
   },
   // Show All History's key: ⌘Y in Safari and Chrome on a Mac, and Ctrl+H in
   // browsers elsewhere.

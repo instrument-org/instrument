@@ -67,6 +67,7 @@ const handlers = {
   receiveGroupTab: vi.fn(),
   receiveTab: vi.fn(),
   showActivity: vi.fn(),
+  showBookmarks: vi.fn(),
   toggleSidebar: vi.fn(),
 };
 
@@ -241,6 +242,17 @@ describe("useWindowCommands", () => {
     await vi.waitFor(
       () => {
         expect(handlers.showActivity).toHaveBeenCalledTimes(1);
+      },
+      { interval: 1 },
+    );
+  });
+
+  it("shows the Bookmarks page from the Bookmarks menu's Bookmark Manager", async () => {
+    renderWithDefaultStore(<Window />);
+    stream.push("showBookmarks");
+    await vi.waitFor(
+      () => {
+        expect(handlers.showBookmarks).toHaveBeenCalledTimes(1);
       },
       { interval: 1 },
     );

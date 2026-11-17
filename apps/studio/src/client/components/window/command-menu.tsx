@@ -101,6 +101,7 @@ import { MoonIcon } from "@phosphor-icons/react/Moon";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
+import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { ShapesIcon } from "@phosphor-icons/react/Shapes";
@@ -412,6 +413,15 @@ export function useCommandMenuRows({
       label: "History",
       run: () => {
         openBuiltInPage(SCREENS.activity.href);
+      },
+    },
+    {
+      chord: WINDOW_SHORTCUTS.showBookmarks.accelerator,
+      icon: <BookmarksIcon />,
+      id: "bookmarks",
+      label: "Bookmarks",
+      run: () => {
+        openBuiltInPage(SCREENS.bookmarks.href);
       },
     },
     {

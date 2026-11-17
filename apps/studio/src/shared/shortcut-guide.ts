@@ -55,6 +55,7 @@ const WINDOW_GROUPS: Record<
 > = {
   actualSize: "View",
   back: "Pages",
+  bookmarkAllTabs: "Pages",
   bookmarkTab: "Pages",
   closeSplit: "Tabs",
   closeTab: "Tabs",
@@ -85,6 +86,7 @@ const WINDOW_GROUPS: Record<
   search: "General",
   searchChats: "General",
   showActivity: "General",
+  showBookmarks: "General",
   tabByPlace: "Tabs",
   toggleBookmarksBar: "View",
   toggleFullScreen: "View",

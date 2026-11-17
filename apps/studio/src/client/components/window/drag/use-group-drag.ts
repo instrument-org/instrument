@@ -9,6 +9,7 @@ import { useWindowTabs } from "../window-tabs";
 import { pageLandingOf, type SideShows, type UnderPoint } from "./accepts";
 import { heldKeysOf, heldTabsOf } from "./held-tabs";
 import {
+  edgeAt,
   type HeldInGroup,
   holds,
   onPages,
@@ -20,11 +21,13 @@ import {
 import {
   currentDrag,
   dragAtom,
+  dragPoint,
   pressToHold,
   steadyAt,
   useDropTarget,
 } from "./session";
-import { type Held, type Landing } from "./types";
+import { type Held, isBookmark, type Landing } from "./types";
+import { pullOf } from "./use-sidebar-drag";
 
 /**
  * How far past a strip's row, up and down, something held still stands
@@ -271,6 +274,10 @@ function heldInGroup(
   if (held.kind === "group") {
     return { kind: "group" };
   }
+  // A bookmark opens as its tab wherever a tab from elsewhere lands.
+  if (isBookmark(held)) {
+    return { kind: "tab" };
+  }
   if (held.kind !== "tab") {
     return { kind: "content" };
   }
@@ -317,6 +324,29 @@ function underPointOf(
   return isField ? "text" : undefined;
 }
 
+/**
+ * A whole group pulled free of the sidebar with the pointer already at a
+ * page's outer edge, as the sidebar's reach past its own edge leaves it at
+ * the left one: that end waits, arming nothing, until the pointer has been
+ * out of its edge once. The pull that freed it (`pullOf`), and the end
+ * still waiting.
+ */
+let freed: { pull: object; waits: 0 | 1 | undefined } | undefined;
+
+/** The end of a group's pages waiting for a whole group held, with the pointer at the edge of `at` or at none. */
+function waitingEnd(held: Held, at: 0 | 1 | undefined) {
+  const pull = pullOf(held);
+  if (!pull) {
+    return undefined;
+  }
+  if (freed?.pull !== pull) {
+    freed = { pull, waits: at };
+  } else if (freed.waits !== at) {
+    freed.waits = undefined;
+  }
+  return freed.waits;
+}
+
 /** What a side shows up, as a drop over its page reads it. */
 function sideShows(tab: WindowTab | undefined): SideShows {
   if (tab?.kind === "page") {
@@ -333,12 +363,14 @@ function sideShows(tab: WindowTab | undefined): SideShows {
  * content goes to whatever in the page takes it (a composer, a field, a web
  * page, a folder in Files); a new tab nobody has written in turns into
  * files or a link; and content anywhere else joins the side under the
- * pointer. A tab or a bookmark lands nowhere on a page but its edge, a
- * place nowhere on a page at all, and a whole group from this window makes
- * a side of its own of the half of a lone side under the pointer. The
- * margin between an outer page and the window's edge counts as that page's
- * edge (`pagesReach`). Nothing in the group is drawn again while something
- * is held over it, so the pages stay put under the pointer.
+ * pointer. A tab, a bookmark or a whole group from this window lands
+ * nowhere on a page but its edge, which reaches deeper for them
+ * (`edgeAt`), a place nowhere on a page at all, and a whole group that
+ * came free of the sidebar inside an edge waits until the pointer has been
+ * out of it (`waitingEnd`). The margin between an outer page and the
+ * window's edge counts as that page's edge (`pagesReach`). Nothing in the
+ * group is drawn again while something is held over it, so the pages stay
+ * put under the pointer.
  */
 export function useSidePagesTarget({
   group,
@@ -383,14 +415,16 @@ export function useSidePagesTarget({
             const at = sides.findIndex((rect) => holds(rect, point));
             const up = upOf(at);
             const was = currentDrag()?.landing;
+            const heldIn = heldInGroup(held, group, layout);
             const zone = sideZoneAt({
               armed:
                 was?.kind === "side" && was.group === group && was.edge
                   ? was.side
                   : undefined,
-              held: heldInGroup(held, group, layout),
+              held: heldIn,
               point,
               sides,
+              waits: waitingEnd(held, edgeAt({ held: heldIn, point, sides })),
             });
             return pageLandingOf({
               group,
@@ -406,7 +440,26 @@ export function useSidePagesTarget({
               zone,
             });
           },
-          rect: () => pagesReach(pages(), window.innerWidth),
+          // Read once a frame wherever the pointer is, so a whole group
+          // waiting at an edge it came free inside sees the pointer leave
+          // it over the strip or past the pages too.
+          rect: ({ held }) => {
+            const sides = pages();
+            const reach = pagesReach(sides, window.innerWidth);
+            if (held.kind === "group") {
+              waitingEnd(
+                held,
+                reach && holds(reach, dragPoint)
+                  ? edgeAt({
+                      held: { kind: "group" },
+                      point: onPages(dragPoint, sides),
+                      sides,
+                    })
+                  : undefined,
+              );
+            }
+            return reach;
+          },
           scrolls: { axis: "x", element: scroller },
         }
       : undefined,

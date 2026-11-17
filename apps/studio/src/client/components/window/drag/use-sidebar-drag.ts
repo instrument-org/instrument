@@ -25,8 +25,8 @@ import { type Held } from "./types";
  */
 const SIDEBAR_PULL_PX = 72;
 
-/** The row that has pulled free of the list, until it comes back over the sidebar. */
-let pulledFree: Held | undefined;
+/** The row that has pulled free of the list, until it comes back over the sidebar: a pull of its own each time it pulls free. */
+let pulledFree: { held: Held } | undefined;
 
 /**
  * Whether a whole group held has pulled free of the sidebar it was lifted
@@ -35,7 +35,12 @@ let pulledFree: Held | undefined;
  * the sidebar.
  */
 export function isPulledFree(held: Held) {
-  return pulledFree === held;
+  return pulledFree?.held === held;
+}
+
+/** The pull that freed a whole group held from the sidebar, a new one each time it pulls free, or none while it keeps to the list. */
+export function pullOf(held: Held): object | undefined {
+  return pulledFree?.held === held ? pulledFree : undefined;
 }
 
 /**
@@ -49,12 +54,13 @@ function sidebarReach(bounds: Rect): Rect {
     return bounds;
   }
   const edge = bounds.left + bounds.width;
-  if (pulledFree === drag.held && dragPoint.x < edge) {
+  const isFree = isPulledFree(drag.held);
+  if (isFree && dragPoint.x < edge) {
     pulledFree = undefined;
-  } else if (pulledFree !== drag.held && dragPoint.x > edge + SIDEBAR_PULL_PX) {
-    pulledFree = drag.held;
+  } else if (!isFree && dragPoint.x > edge + SIDEBAR_PULL_PX) {
+    pulledFree = { held: drag.held };
   }
-  return pulledFree === drag.held
+  return isPulledFree(drag.held)
     ? bounds
     : { ...bounds, width: bounds.width + SIDEBAR_PULL_PX };
 }

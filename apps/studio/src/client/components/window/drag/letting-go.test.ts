@@ -87,13 +87,6 @@ const LANDINGS: Record<string, Landing | undefined> = {
     side: 1,
     split: true,
   },
-  "right half, one side": {
-    group: "g1",
-    kind: "side",
-    lit: LIT,
-    side: 1,
-    split: true,
-  },
   "middle, one side": {
     group: "g1",
     isLone: true,
@@ -176,7 +169,6 @@ describe("outcomeOf", () => {
         strip tab → nothing
         left edge, one side → move · "Move to the left"
         right edge, one side → move · "Move to the right"
-        right half, one side → move · "Move to the right"
         middle, one side → nothing
         right side of two → move · "Move to the right"
         right edge, two sides → move · "Move to the right"
@@ -199,7 +191,6 @@ describe("outcomeOf", () => {
         strip tab → nothing
         left edge, one side → move · "Open on the left"
         right edge, one side → move · "Open on the right"
-        right half, one side → move · "Open on the right"
         middle, one side → nothing
         right side of two → move · "Open on the right"
         right edge, two sides → move · "Open on the right"
@@ -222,7 +213,6 @@ describe("outcomeOf", () => {
         strip tab → open · "Open in this tab"
         left edge, one side → open · "Open on the left"
         right edge, one side → open · "Open on the right"
-        right half, one side → open · "Open on the right"
         middle, one side → open · "Open in a new tab"
         right side of two → open · "Open on the right"
         right edge, two sides → open · "Open on the right"
@@ -245,7 +235,6 @@ describe("outcomeOf", () => {
         strip tab → open · "Open in this tab"
         left edge, one side → open · "Open on the left"
         right edge, one side → open · "Open on the right"
-        right half, one side → open · "Open on the right"
         middle, one side → open · "Open in a new tab"
         right side of two → open · "Open on the right"
         right edge, two sides → open · "Open on the right"
@@ -268,7 +257,6 @@ describe("outcomeOf", () => {
         strip tab → open · "Open in this tab"
         left edge, one side → open · "Open on the left"
         right edge, one side → open · "Open on the right"
-        right half, one side → open · "Open on the right"
         middle, one side → open · "Open in a new tab"
         right side of two → open · "Open on the right"
         right edge, two sides → open · "Open on the right"
@@ -291,7 +279,6 @@ describe("outcomeOf", () => {
         strip tab → open · "Open in this tab"
         left edge, one side → open · "Open on the left"
         right edge, one side → open · "Open on the right"
-        right half, one side → nothing
         middle, one side → nothing
         right side of two → nothing
         right edge, two sides → open · "Open on the right"
@@ -314,7 +301,6 @@ describe("outcomeOf", () => {
         strip tab → open · "Open in this tab"
         left edge, one side → nothing
         right edge, one side → nothing
-        right half, one side → nothing
         middle, one side → nothing
         right side of two → nothing
         right edge, two sides → nothing
@@ -337,7 +323,6 @@ describe("outcomeOf", () => {
         strip tab → open · "Open in this tab"
         left edge, one side → nothing
         right edge, one side → nothing
-        right half, one side → nothing
         middle, one side → nothing
         right side of two → nothing
         right edge, two sides → nothing

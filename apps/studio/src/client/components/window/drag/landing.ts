@@ -96,15 +96,25 @@ export function onPages(point: Point, pages: readonly Rect[]): Point {
 }
 
 /**
- * How far in from a group's outer edge the pointer arms a split, or joins
- * the side at that edge of a group of two: the outer edge alone, so
- * whatever the page takes itself (a folder in Files, a message box) keeps
- * the rest of it.
+ * How far in from a group's outer edge the pointer arms a split for
+ * content, or joins the side at that edge of a group of two: the outer edge
+ * alone, so whatever the page takes itself (a folder in Files, a message
+ * box, a site) keeps the rest of it.
  */
 export const EDGE_PX = 24;
 
 /** How far in from that edge a split once armed holds, so a hand resting on the edge does not flicker it. */
 const EDGE_KEEP_PX = 40;
+
+/**
+ * How far in from a group's outer edge a piece of the window (a tab, a
+ * bookmark, a whole group) arms a split: no page's middle takes one, so the
+ * deeper edge takes nothing from the page.
+ */
+export const PIECE_EDGE_PX = 96;
+
+/** How far in from that edge a piece's split once armed holds, in the same proportion to it as `EDGE_KEEP_PX` to `EDGE_PX`. */
+const PIECE_EDGE_KEEP_PX = 160;
 
 /** How far in from an outer edge the line down it stands, how far short of the page's ends, and how wide. */
 const EDGE_LINE_INSET_PX = 3;
@@ -114,9 +124,9 @@ const EDGE_LINE_WIDTH_PX = 3;
 /**
  * What is held, in terms of the group the sides are: what kind of thing it
  * is, the side it stands on there, if any, and whether it is that side's
- * only tab. Content is files, a link, a place or a bookmark, which open as
- * tabs; a tab and a whole group are pieces of the window, which land only in
- * a strip or a split.
+ * only tab. Content is files, a link or a place, which open as tabs; a tab
+ * (a bookmark is held as a tab from elsewhere) and a whole group are pieces
+ * of the window, which land only in a strip or at an edge.
  */
 export interface HeldInGroup {
   kind: "content" | "group" | "tab";
@@ -148,19 +158,56 @@ function edgeLineOf(page: Rect, side: 0 | 1): Rect {
 }
 
 /**
+ * Which end of a group's pages a point on them is at the outer edge of, for
+ * what is held: `EDGE_PX` in for content and `PIECE_EDGE_PX` for a piece of
+ * the window, each held farther in at the end `armed`.
+ */
+export function edgeAt({
+  armed,
+  held,
+  point,
+  sides,
+}: {
+  armed?: 0 | 1 | undefined;
+  held: HeldInGroup;
+  point: Point;
+  sides: readonly Rect[];
+}): 0 | 1 | undefined {
+  const first = sides[0];
+  const last = sides.at(-1);
+  if (!first || !last || !sides.some((rect) => holds(rect, point))) {
+    return undefined;
+  }
+  const isPiece = held.kind !== "content";
+  const reach = (end: 0 | 1) =>
+    armed === end
+      ? isPiece
+        ? PIECE_EDGE_KEEP_PX
+        : EDGE_KEEP_PX
+      : isPiece
+        ? PIECE_EDGE_PX
+        : EDGE_PX;
+  return point.x < first.left + reach(0)
+    ? 0
+    : point.x >= last.left + last.width - reach(1)
+      ? 1
+      : undefined;
+}
+
+/**
  * What a side's page does with something held over it at a point: make a
  * side of its own of one half of a group of one side (`split`), that half
  * lit; or join a side, the side lit (`join`). `edge` is the line down the
  * group's outer edge, where the pointer is at it.
  *
- * - At a group's outer edge (`EDGE_PX` in, and the margin past it, which
+ * - At a group's outer edge (`edgeAt`, and the margin past it, which
  *   `onPages` brings onto the page), a lone side splits at that end, and of
  *   two sides the side at that end takes it. Nothing for a side's only tab
- *   splitting its own side, or for a tab already on the side at that edge.
- * - Anywhere else on the pages, content joins the side under the pointer;
- *   a whole group makes a side of its own of the half of a lone side under
- *   the pointer; and a tab lands nowhere, since a tab is a piece of the
- *   window and never something a page takes.
+ *   splitting its own side, for a tab already on the side at that edge, for
+ *   a whole group over two sides, or at the end `waits`.
+ * - Anywhere else on the pages, content joins the side under the pointer,
+ *   and a tab or a whole group lands nowhere, since a piece of the window is
+ *   never something a page takes.
  */
 export type SideZone =
   | {
@@ -178,6 +225,7 @@ export function sideZoneAt({
   held,
   point,
   sides,
+  waits,
 }: {
   /** The edge the last measure was at, which holds a little farther in. */
   armed?: 0 | 1 | undefined;
@@ -185,21 +233,16 @@ export function sideZoneAt({
   point: Point;
   /** Each side's page, left first, in the window's px. */
   sides: readonly Rect[];
+  /** An end whose edge arms nothing yet: a whole group's that came free of the sidebar inside it, until the pointer has been out of it. */
+  waits?: 0 | 1 | undefined;
 }): SideZone | undefined {
   const at = sides.findIndex((rect) => holds(rect, point));
   const rect = sides[at];
-  const first = sides[0];
-  const last = sides.at(-1);
-  if (!rect || !first || !last) {
+  if (!rect) {
     return undefined;
   }
-  const reach = (end: 0 | 1) => (armed === end ? EDGE_KEEP_PX : EDGE_PX);
-  const edge: 0 | 1 | undefined =
-    point.x < first.left + reach(0)
-      ? 0
-      : point.x >= last.left + last.width - reach(1)
-        ? 1
-        : undefined;
+  const reached = edgeAt({ armed, held, point, sides });
+  const edge = reached === waits ? undefined : reached;
   if (sides.length === 1) {
     if (edge !== undefined) {
       // A side's only tab makes no side of its own side.
@@ -211,10 +254,6 @@ export function sideZoneAt({
             lit: halfOf(rect, edge),
             side: edge,
           };
-    }
-    if (held.kind === "group") {
-      const half: 0 | 1 = point.x < rect.left + rect.width / 2 ? 0 : 1;
-      return { kind: "split", lit: halfOf(rect, half), side: half };
     }
     return held.kind === "content"
       ? { isLone: true, kind: "join", lit: rect, side: 0 }

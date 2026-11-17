@@ -30,8 +30,8 @@ export type SideShows = "newTab" | "other" | "site";
  *    anything standing over the page.
  * 3. A new tab nobody has written in turns into files or a link.
  * 4. Anything else does what the side under the pointer does with it
- *    (`sideZoneAt`): content joins it, a whole group splits a lone side by
- *    the half under the pointer, and a tab lands nowhere.
+ *    (`sideZoneAt`): content joins it, and a tab or a whole group lands
+ *    nowhere.
  *
  * A piece of the window (a tab, a group, a bookmark, a place) skips step 2:
  * it is never handed to a page. A bookmark stops after step 1, as a tab

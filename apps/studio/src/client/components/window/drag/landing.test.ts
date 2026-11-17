@@ -6,6 +6,7 @@ import {
   isOffWindow,
   onPages,
   pagesReach,
+  PIECE_EDGE_PX,
   REST_MS,
   scrollSpeed,
   sideZoneAt,
@@ -31,8 +32,18 @@ function said(zone: ReturnType<typeof sideZoneAt>) {
 }
 
 describe("a side's page under something held", () => {
-  it("over a lone side, splits only at its outer edges", () => {
-    const xs = [101, 100 + EDGE_PX + 1, 400, 700, 1000 - EDGE_PX - 1, 999];
+  it("over a lone side, splits only at its outer edges, deeper for a piece of the window than for content", () => {
+    const xs = [
+      101,
+      100 + EDGE_PX,
+      100 + PIECE_EDGE_PX - 1,
+      100 + PIECE_EDGE_PX,
+      550,
+      1000 - PIECE_EDGE_PX - 1,
+      1000 - PIECE_EDGE_PX,
+      1000 - EDGE_PX - 1,
+      1000 - EDGE_PX,
+    ];
     const table = Object.entries({
       content: CONTENT,
       "a tab from elsewhere": OTHER_TAB,
@@ -48,32 +59,44 @@ describe("a side's page under something held", () => {
     expect(table.join("\n")).toMatchInlineSnapshot(`
       "content:
         101 → split 0 at the edge
-        125 → join 0 as a new tab
-        400 → join 0 as a new tab
-        700 → join 0 as a new tab
+        124 → join 0 as a new tab
+        195 → join 0 as a new tab
+        196 → join 0 as a new tab
+        550 → join 0 as a new tab
+        903 → join 0 as a new tab
+        904 → join 0 as a new tab
         975 → join 0 as a new tab
-        999 → split 1 at the edge
+        976 → split 1 at the edge
       a tab from elsewhere:
         101 → split 0 at the edge
-        125 → none
-        400 → none
-        700 → none
-        975 → none
-        999 → split 1 at the edge
+        124 → split 0 at the edge
+        195 → split 0 at the edge
+        196 → none
+        550 → none
+        903 → none
+        904 → split 1 at the edge
+        975 → split 1 at the edge
+        976 → split 1 at the edge
       its own tab:
         101 → split 0 at the edge
-        125 → none
-        400 → none
-        700 → none
-        975 → none
-        999 → split 1 at the edge
+        124 → split 0 at the edge
+        195 → split 0 at the edge
+        196 → none
+        550 → none
+        903 → none
+        904 → split 1 at the edge
+        975 → split 1 at the edge
+        976 → split 1 at the edge
       a whole group:
         101 → split 0 at the edge
-        125 → split 0
-        400 → split 0
-        700 → split 1
-        975 → split 1
-        999 → split 1 at the edge"
+        124 → split 0 at the edge
+        195 → split 0 at the edge
+        196 → none
+        550 → none
+        903 → none
+        904 → split 1 at the edge
+        975 → split 1 at the edge
+        976 → split 1 at the edge"
     `);
   });
 
@@ -120,24 +143,39 @@ describe("a side's page under something held", () => {
         ),
       );
     }
-    expect(500 + zones.indexOf("split 1 at the edge") * 4).toBe(1000 - EDGE_PX);
+    expect(500 + zones.indexOf("split 1 at the edge") * 4).toBe(
+      1000 - PIECE_EDGE_PX,
+    );
     expect(new Set(zones)).toEqual(new Set(["none", "split 1 at the edge"]));
   });
 
-  it("keeps an edge it armed a little farther in, so a hand resting there holds it", () => {
-    const at = (armed?: 0 | 1) =>
+  it.each([
+    ["content", CONTENT, 1000 - 40, "join 0 as a new tab"],
+    ["a tab", OWN_TAB, 1000 - 160, "none"],
+  ] satisfies [string, HeldInGroup, number, string][])(
+    "keeps an edge it armed farther in for %s, so a hand resting there holds it",
+    (_, held, kept, middle) => {
+      const at = (x: number, armed?: 0 | 1) =>
+        said(sideZoneAt({ armed, held, point: { x, y: 120 }, sides: [page] }));
+      expect([at(kept), at(kept, 1), at(kept, 0), at(kept - 1, 1)]).toEqual([
+        middle,
+        "split 1 at the edge",
+        middle,
+        middle,
+      ]);
+    },
+  );
+
+  it("arms nothing at an end that waits, and the other end as ever", () => {
+    const at = (x: number, waits?: 0 | 1) =>
       said(
-        sideZoneAt({
-          armed,
-          held: OWN_TAB,
-          point: { x: 1000 - 32, y: 120 },
-          sides: [page],
-        }),
+        sideZoneAt({ held: GROUP, point: { x, y: 300 }, sides: [page], waits }),
       );
-    expect([at(), at(1), at(0)]).toEqual([
+    expect([at(150), at(150, 0), at(150, 1), at(990, 0)]).toEqual([
+      "split 0 at the edge",
       "none",
+      "split 0 at the edge",
       "split 1 at the edge",
-      "none",
     ]);
   });
 
@@ -156,6 +194,13 @@ describe("a side's page under something held", () => {
       990,
       "join 1 at the edge",
     ],
+    [
+      "a tab 90px in from the other side's edge",
+      { kind: "tab", side: 0 },
+      910,
+      "join 1 at the edge",
+    ],
+    ["content 90px in from the right side's edge", CONTENT, 910, "join 1"],
     ["a tab at its own side's edge", { kind: "tab", side: 0 }, 110, "none"],
     ["a whole group anywhere", GROUP, 990, "none"],
     ["content in the gutter", CONTENT, 544, "none"],

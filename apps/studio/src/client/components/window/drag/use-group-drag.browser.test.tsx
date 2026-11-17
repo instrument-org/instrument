@@ -1,9 +1,10 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { afterEach, expect, it, vi } from "vitest";
 
-import { REST_MS } from "./landing";
+import { PIECE_EDGE_PX, REST_MS } from "./landing";
 import { currentDrag, pressToDrag, setLander } from "./session";
 import { useSidePagesTarget, useStripTarget } from "./use-group-drag";
+import { useSidebarTarget } from "./use-sidebar-drag";
 
 const ROW_Y = 300;
 const STRIP_Y = 20;
@@ -46,8 +47,8 @@ function Strip({ group }: { group: string }) {
   );
 }
 
-/** A group's sides, each a 400px page from the window's left edge, a screen up on each. */
-function Pages({ sides }: { sides: 1 | 2 }) {
+/** A group's sides, each a 400px page from `left` (the window's left edge), a screen up on each. */
+function Pages({ left = 0, sides }: { left?: number; sides: 1 | 2 }) {
   const layout = {
     focused: 0 as const,
     sides: Array.from({ length: sides }, (_, side) => ({
@@ -67,7 +68,7 @@ function Pages({ sides }: { sides: 1 | 2 }) {
       style={{
         display: "flex",
         height: 600,
-        left: 0,
+        left,
         position: "fixed",
         top: 100,
       }}
@@ -226,11 +227,13 @@ it("lands a sidebar row nowhere on its own group's strip", async () => {
 });
 
 it.each([
-  { at: 120, expected: { side: 0, split: true }, sides: 1 },
-  { at: 300, expected: { side: 1, split: true }, sides: 1 },
-  { at: 600, expected: undefined, sides: 2 },
+  { at: PIECE_EDGE_PX - 1, expected: { side: 0, split: true }, sides: 1 },
+  { at: PIECE_EDGE_PX, expected: undefined, sides: 1 },
+  { at: 400 - PIECE_EDGE_PX - 1, expected: undefined, sides: 1 },
+  { at: 400 - PIECE_EDGE_PX, expected: { side: 1, split: true }, sides: 1 },
+  { at: 790, expected: undefined, sides: 2 },
 ] as const)(
-  "opens a sidebar row held over a group's page beside it, on the half under the pointer, only beside a lone side (x $at, $sides sides)",
+  "opens a sidebar row held over a group's page beside it only at a lone side's outer edge (x $at, $sides sides)",
   async ({ at, expected, sides }) => {
     await renderInBrowser(<Pages sides={sides} />);
     pressToDrag(
@@ -240,7 +243,8 @@ it.each([
         held: { group: "other", height: 40, kind: "group" },
       }),
     );
-    pointer("pointermove", 10, ROW_Y - 40);
+    // Starts above the pages, so no edge is armed on the way.
+    pointer("pointermove", 10, STRIP_Y);
     pointer("pointermove", at, 400);
     const { landing } = currentDrag() ?? {};
     expect(
@@ -251,12 +255,83 @@ it.each([
   },
 );
 
+/** The window's sidebar of groups, 200px wide, its list holding only New. */
+function Sidebar() {
+  useSidebarTarget(() =>
+    document.querySelector<HTMLElement>('nav[aria-label="Tab groups"]'),
+  );
+  return (
+    <nav
+      aria-label="Tab groups"
+      style={{ height: 800, left: 0, position: "fixed", top: 0, width: 200 }}
+    >
+      <div data-group-list="" style={{ height: 800, position: "relative" }}>
+        <div data-drop-item=":new" style={{ height: 36 }} />
+      </div>
+    </nav>
+  );
+}
+
+it("arms nothing at the left edge a sidebar row comes free inside until the pointer has been out of it, each time it comes free", async () => {
+  // The sidebar ends at 200 and lets go of a row 72px past it, at 272; the
+  // page starts at 208, so its left edge reaches to 208 + 96 = 304.
+  await renderInBrowser(
+    <>
+      <Sidebar />
+      <Pages left={208} sides={1} />
+    </>,
+  );
+  pressToDrag(
+    { button: 0, clientX: 10, clientY: ROW_Y, isPrimary: true },
+    () => ({
+      grab: { x: 0, y: 0 },
+      held: { group: "other", height: 40, kind: "group" },
+    }),
+  );
+  const at = (x: number) => {
+    pointer("pointermove", x, 400);
+    const landing = currentDrag()?.landing;
+    return landing?.kind === "side"
+      ? `${landing.split ? "split" : "join"} ${String(landing.side)}`
+      : (landing?.kind ?? "none");
+  };
+  pointer("pointermove", 10, ROW_Y - 40);
+  expect([
+    at(260),
+    at(290),
+    at(220),
+    at(320),
+    at(290),
+    at(220),
+    at(100),
+    at(290),
+    at(500),
+    at(290),
+  ]).toEqual([
+    // In the sidebar's reach past its edge, the row keeps to the list.
+    "sidebar",
+    // Free, inside the left edge: it waits.
+    "none",
+    "none",
+    // Out of the edge once, over the page's middle.
+    "none",
+    "split 0",
+    "split 0",
+    // Back over the sidebar, and free again inside the edge: it waits again.
+    "sidebar",
+    "none",
+    "none",
+    "split 0",
+  ]);
+});
+
 it.each([
   { at: 200, expected: undefined, sides: 1 },
   { at: 600, expected: undefined, sides: 2 },
-  { at: 395, expected: { side: 1, split: true }, sides: 1 },
+  { at: 400 - PIECE_EDGE_PX - 1, expected: undefined, sides: 1 },
+  { at: 400 - PIECE_EDGE_PX, expected: { side: 1, split: true }, sides: 1 },
 ] as const)(
-  "lands a bookmark nowhere in a page's content, and splits at its outer edge (x $at, $sides sides)",
+  "lands a bookmark nowhere in a page's content, and splits at its outer edge, as deep as a tab's (x $at, $sides sides)",
   async ({ at, expected, sides }) => {
     await renderInBrowser(<Pages sides={sides} />);
     carryTo(BOOKMARK, at, 400);

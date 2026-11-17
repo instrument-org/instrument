@@ -1,4 +1,3 @@
-import { draftGroupOf } from "@/shared/drafts";
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { fileHref } from "@/shared/computer-href";
@@ -87,8 +86,8 @@ describe("tab visits", () => {
     });
   });
 
-  it("steps a draft's page with nothing behind it back to the draft's new tab", () => {
-    const back = stepped({ ...page, group: draftGroupOf("draft") }, -1);
+  it("steps a new chat's page with nothing behind it back to the group's new tab", () => {
+    const back = stepped({ ...page, group: "new-chat-group" }, -1);
     expect(back).toMatchObject({ href: NEW_TAB_HREF, kind: "screen" });
   });
 

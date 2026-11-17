@@ -1,8 +1,4 @@
-import {
-  draftKeyString,
-  draftSnapshotsAtom,
-} from "@/client/atoms/prompt-value";
-import { cancelWords } from "@/client/drafts/settle-words";
+import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
 import {
   claimDraftAtom,
   createDraftAtom,
@@ -310,9 +306,8 @@ export function useDrafts({
       // message naming the draft is what says it was sent and a launch after
       // a crash finds that message by the chat the draft names. A draft whose
       // file cannot be written is still sent; what is lost is the chance to
-      // finish the send later. The words go with the claim, so nothing typed
-      // a beat before the press is left to be written after it.
-      cancelWords(draftKeyString({ draftId: id, scope: "draft" }));
+      // finish the send later. The words go with the claim, and the composer
+      // sending them dropped what it had waiting to be written.
       await claimDraft({ chatId, id, words: send.prompt }).catch(
         () => undefined,
       );

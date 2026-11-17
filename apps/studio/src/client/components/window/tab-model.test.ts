@@ -1,4 +1,3 @@
-import { draftGroupOf } from "@/shared/drafts";
 import {
   BROWSER_HREF,
   NEW_TAB_HREF,
@@ -60,7 +59,7 @@ import { stepOf, stepStackOf } from "./tab-steps";
 
 const CHAT = StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA");
 const OTHER = StoreId.SessionSchema.parse("ses_01JBBBBBBBBBBBBBBBBBBBBBBB");
-const DRAFT = draftGroupOf("d1");
+const DRAFT = "new-chat-group";
 
 function screenTab(id: string, href: string, group: string): ScreenTab {
   return { group, href, id, kind: "screen" };

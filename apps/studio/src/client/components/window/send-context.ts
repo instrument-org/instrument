@@ -1,4 +1,4 @@
-import { type Draft, draftGroupOf } from "@/shared/drafts";
+import { type Draft } from "@/shared/drafts";
 import { type ScreenView, type WindowTab } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { type RPCOutput } from "@/client/rpc/client";
@@ -385,27 +385,25 @@ export function contextReaders({
    * address yet.
    */
   const draftItems = (draft: Draft, tabId?: string) => {
-    const group = draftGroupOfTab(draft.id, tabId);
-    const tab = windowTabs.allTabs.find((each) =>
-      tabId === undefined ? draftOfTab(each) === draft.id : each.id === tabId,
-    );
-    if (tab !== undefined) {
-      return chatContextItems({
-        finderOf,
-        group,
-        up: windowTabs.besideOf(tab.id),
-      });
-    }
-    return [];
+    const tab = draftTabOf(draft.id, tabId);
+    return tab?.group === undefined
+      ? []
+      : chatContextItems({
+          finderOf,
+          group: tab.group,
+          up: windowTabs.besideOf(tab.id),
+        });
   };
-  /** What a draft carries as its chat starts, from the tab it was written in when it was. */
+  /** What a draft carries as its chat starts, from the tab it was written in when it was; nothing with no such tab. */
   const draftContext = async (
     draft: Draft,
     tabId: string | undefined,
-  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> =>
-    contextOf(draftGroupOfTab(draft.id, tabId), draftItems(draft, tabId), {
-      isReply: false,
-    });
+  ): Promise<SessionMessageDataPart.ViewContextDataPart | undefined> => {
+    const group = draftTabOf(draft.id, tabId)?.group;
+    return group === undefined
+      ? undefined
+      : contextOf(group, draftItems(draft, tabId), { isReply: false });
+  };
   /**
    * What goes with a message in a chat: the tab up on the other side of the
    * chat's tab, and the files open in the chat's group.
@@ -430,10 +428,10 @@ export function contextReaders({
       { isReply: true },
     );
   };
-  /** The group a draft's new chat tab is in, or the key an earlier build kept the draft's tabs under. */
-  const draftGroupOfTab = (draftId: string, tabId?: string) =>
+  /** The tab a draft is written in: the one named, else the one whose address names the draft. */
+  const draftTabOf = (draftId: string, tabId?: string) =>
     windowTabs.allTabs.find((each) =>
       tabId === undefined ? draftOfTab(each) === draftId : each.id === tabId,
-    )?.group ?? draftGroupOf(draftId);
+    );
   return { draftContext, draftItems, sendContext };
 }

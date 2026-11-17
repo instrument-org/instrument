@@ -1,4 +1,4 @@
-import { type Draft, draftGroupOf } from "@/shared/drafts";
+import { type Draft } from "@/shared/drafts";
 import { CHATS_HREF, type WindowTab } from "@/client/atoms/window";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { folderHref } from "@/shared/computer-href";
@@ -282,7 +282,7 @@ describe("draftContext", () => {
     updatedAt: 0,
     words: "Plan the trip",
   };
-  const GROUP = draftGroupOf(DRAFT.id);
+  const GROUP = "group:trip";
 
   it("shows the tab up as the chat starts, attaching none of the draft's tabs", async () => {
     const band: WindowTab = {

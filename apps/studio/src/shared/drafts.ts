@@ -391,8 +391,3 @@ export function repliesOf(drafts: Draft[], chatId: ChatId): Draft[] {
     (draft) => draft.chatId === chatId && draft.sendingTo === undefined,
   );
 }
-
-/** The group key a draft's tabs are kept under. */
-export function draftGroupOf(draftId: string): string {
-  return `draft:${draftId}`;
-}

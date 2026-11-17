@@ -144,6 +144,24 @@ describe("applyBookmarkOps", () => {
     expect(drawn(barItems(state))).toEqual(["g []", "f []"]);
   });
 
+  it("keeps a bookmark at a new address in its place, and leaves a folder or an empty address alone", () => {
+    const state = of([page("a", 0, "f"), page("b", 1)], [folder("f", 2)]);
+    const next = applyBookmarkOps(state, [
+      { id: "a", type: "setUrl", url: "https://example.org/moved" },
+      { id: "b", type: "setUrl", url: "" },
+      { id: "f", type: "setUrl", url: "https://example.org/folder" },
+    ]);
+    expect(next).toEqual(
+      of(
+        [
+          { ...page("a", 0, "f"), url: "https://example.org/moved" },
+          page("b", 1),
+        ],
+        [folder("f", 2)],
+      ),
+    );
+  });
+
   it("refuses a folder whose id a bookmark has, and the other way round", () => {
     const state = of([page("a", 0)], [folder("f", 1)]);
     expect(

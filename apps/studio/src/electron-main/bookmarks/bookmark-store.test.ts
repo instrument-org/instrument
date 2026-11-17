@@ -111,6 +111,24 @@ describe("createBookmarkStore", () => {
     ]);
   });
 
+  it("writes a bookmark's new address over its key, keeping its name and place", async () => {
+    const { bookmarks } = await bookmarksOf(HERE);
+    await bookmarks.apply({
+      client: "w1",
+      ops: [{ bookmark: page("a", 0), type: "add" }],
+      seq: 1,
+    });
+    await bookmarks.apply({
+      client: "w1",
+      ops: [{ id: "a", type: "setUrl", url: "https://example.org/new" }],
+      seq: 2,
+    });
+    const reread = await bookmarksOf(HERE);
+    expect(reread.bookmarks.snapshot().bookmarks).toEqual([
+      { ...page("a", 0), url: "https://example.org/new" },
+    ]);
+  });
+
   it("acks a batch that changes nothing", async () => {
     const { bookmarks, heard } = await bookmarksOf(HERE);
     await bookmarks.apply({

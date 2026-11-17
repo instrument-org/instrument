@@ -65,7 +65,12 @@ export type BookmarkOp =
   /** No longer kept; a folder goes with every bookmark filed in it. */
   | { id: string; type: "remove" }
   /** A bookmark or a folder under a new name. */
-  | { id: string; title: string; type: "rename" };
+  | { id: string; title: string; type: "rename" }
+  /**
+   * A bookmark kept at another address. A folder has none, so one is left
+   * as it is, and so is a bookmark given no address at all.
+   */
+  | { id: string; type: "setUrl"; url: string };
 
 /** Main's bookmarks as a window receives them, with the last batch it applied from each window. */
 export interface BookmarksSnapshot extends Bookmarks {
@@ -176,6 +181,17 @@ function applyBookmarkOp(state: Bookmarks, op: BookmarkOp): Bookmarks {
         folders: folders.map((folder) =>
           folder.id === op.id ? { ...folder, title: op.title } : folder,
         ),
+      };
+    }
+    case "setUrl": {
+      if (op.url === "") {
+        return state;
+      }
+      return {
+        bookmarks: bookmarks.map((bookmark) =>
+          bookmark.id === op.id ? { ...bookmark, url: op.url } : bookmark,
+        ),
+        folders,
       };
     }
   }

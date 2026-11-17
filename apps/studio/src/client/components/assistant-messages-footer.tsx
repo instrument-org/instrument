@@ -134,14 +134,14 @@ export function AssistantMessagesFooter({
     await navigator.clipboard.writeText(messageText);
   };
 
-  // The files the reply handed over that its turn kept versions of.
-  const handedOver = messages.flatMap((message) =>
-    message.parts.flatMap((part) =>
-      part.type === "data-fileVersions" && part.data.kind === undefined
-        ? [{ files: part.data.files.map((file) => file.path), id: message.id }]
-        : [],
+  // The message that recorded the files the reply handed over, which Undo
+  // is asked about.
+  const handedOver = messages.find((message) =>
+    message.parts.some(
+      (part) =>
+        part.type === "data-fileVersions" && part.data.kind === undefined,
     ),
-  )[0];
+  );
 
   const generationDuration = messages.reduce(
     (sum, message) => sum + (message.metadata.msToFinish ?? 0),
@@ -193,11 +193,7 @@ export function AssistantMessagesFooter({
               />
             )}
             {chatId !== undefined && handedOver && (
-              <UndoReplyFiles
-                chatId={chatId}
-                files={handedOver.files}
-                messageId={handedOver.id}
-              />
+              <UndoReplyFiles chatId={chatId} messageId={handedOver.id} />
             )}
           </div>
           <div className="flex min-w-0 items-center gap-2.5 text-xs text-muted-foreground">

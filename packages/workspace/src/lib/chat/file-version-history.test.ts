@@ -8,6 +8,7 @@ import { keepVersion } from "../file-versions";
 import {
   fileVersionHistory,
   restoreFileVersion,
+  undoableReplies,
   undoReplyFiles,
 } from "./file-version-history";
 
@@ -146,6 +147,58 @@ describe("undoReplyFiles", () => {
     turn("s-task", "t1", [[[await kept(file, "task")]]]);
     await undoReplyFiles({ chatId: "c" as never, messageId: "t1" as never });
     expect(await fs.readFile(file, "utf8")).toBe("first");
+  });
+});
+
+describe("undoableReplies", () => {
+  const undoable = async () =>
+    (await undoableReplies({ chatId: "c" as never })).map((reply) => ({
+      back: reply.back.map(({ file }) => path.relative(dir, file)),
+      messageId: reply.messageId,
+      stay: reply.stay,
+    }));
+
+  it("leaves out a reply that only made a new file", async () => {
+    turn("s-chat", "m1", [[[await kept(path.join(dir, "sheet.png"), "new")]]]);
+    expect(await undoable()).toEqual([]);
+  });
+
+  it("offers a reply that changed a file kept before it, naming what stays", async () => {
+    const notes = path.join(dir, "notes.md");
+    turn("s-chat", "m1", [[[await kept(notes, "A")]]]);
+    turn("s-chat", "m2", [
+      [[await kept(notes, "B"), await kept(path.join(dir, "new.md"), "N")]],
+    ]);
+    expect(await undoable()).toMatchInlineSnapshot(`
+      [
+        {
+          "back": [
+            "notes.md",
+          ],
+          "messageId": "m2",
+          "stay": [
+            "new.md",
+          ],
+        },
+      ]
+    `);
+  });
+
+  it("leaves out a reply whose file already holds what it was before", async () => {
+    const notes = path.join(dir, "notes.md");
+    turn("s-chat", "m1", [[[await kept(notes, "A")]]]);
+    turn("s-chat", "m2", [[[await kept(notes, "B")]]]);
+    await fs.writeFile(notes, "A");
+    expect(await undoable()).toEqual([]);
+  });
+
+  it("leaves out a reply whose earlier copy was edited since it was kept", async () => {
+    const notes = path.join(dir, "notes.md");
+    const first = await kept(notes, "A");
+    turn("s-chat", "m1", [[[first]]]);
+    turn("s-chat", "m2", [[[await kept(notes, "B")]]]);
+    await fs.writeFile(first.copy ?? "", "edited");
+    expect(await undoable()).toEqual([]);
   });
 });
 

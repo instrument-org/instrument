@@ -27,12 +27,16 @@ vi.mock("../resolve-workspace-file-path", () => ({
   resolveWorkspaceFilePaths: ({ filePaths }: { filePaths: string[] }) =>
     Promise.resolve(new Map(filePaths.map((at) => [at, at]))),
 }));
-vi.mock("../tool-fs", () => ({
-  sessionToolFs: () =>
-    Promise.resolve({
-      fs: { readFileBuffer: (at: string) => fs.readFile(at) },
-    }),
-}));
+// Reads a shell-spelled path (`/c/...` on Windows) as the agent's filesystem does.
+vi.mock("../tool-fs", async () => {
+  const { hostPathOf } = await import("../workspace-fs-layout");
+  return {
+    sessionToolFs: () =>
+      Promise.resolve({
+        fs: { readFileBuffer: (at: string) => fs.readFile(hostPathOf(at)) },
+      }),
+  };
+});
 vi.mock("../work-dir", () => ({ workDir: () => path.join(dir, "work") }));
 vi.mock("./asks", () => ({ thisDevice: () => "mac" }));
 vi.mock("../chat-reads", () => ({

@@ -1,3 +1,4 @@
+import { instrumentLinkOf } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -31,6 +32,23 @@ describe("built-in pages", () => {
       expect(screenOfHref(href)).toBeUndefined();
     },
   );
+});
+
+describe("a task's address", () => {
+  const href = "/tasks/ses_01J9TASK?chat=2026-11-17-hotels";
+
+  it("names its chat, which opens it from anywhere", () => {
+    expect(instrumentAddressOf(href)).toBe(
+      "instrument://task/ses_01J9TASK?chat=2026-11-17-hotels",
+    );
+    expect(instrumentLinkOf(instrumentAddressOf(href) ?? "")?.href).toBe(href);
+  });
+
+  it("is the bare task where the tab names no chat", () => {
+    expect(instrumentAddressOf("/tasks/ses_01J9TASK")).toBe(
+      "instrument://task/ses_01J9TASK",
+    );
+  });
 });
 
 it("offers every built-in page by name, each part of Settings with it", () => {

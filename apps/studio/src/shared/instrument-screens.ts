@@ -150,9 +150,11 @@ export function screenOfHref(
  * app answers to it: a part of Settings by its own name
  * (`instrument://settings/providers`), any other built-in page as a screen
  * (`instrument://screen/chats`), and a chat, an app or a task by the
- * address a reply links it with. Files stands as a screen only at its start,
- * since a folder or a file is named by its path. Undefined for an address
- * nothing names.
+ * address a reply links it with, a task's naming its chat after it
+ * (`?chat=<id>`): a task is a session in its chat's store, so only its
+ * chat finds it again from anywhere else. Files stands as a screen only at
+ * its start, since a folder or a file is named by its path. Undefined for
+ * an address nothing names.
  */
 export function instrumentAddressOf(href: string): string | undefined {
   const screen = screenOfHref(href);
@@ -162,7 +164,11 @@ export function instrumentAddressOf(href: string): string | undefined {
   if (screen && (screen.name !== "files" || isBare(href))) {
     return `${APP_NAME_SLUG}://screen/${screen.name}`;
   }
-  return instrumentUrlOf(href);
+  const address = instrumentUrlOf(href);
+  const chat = new URL(href, "http://tabs").searchParams.get("chat");
+  return address?.startsWith(`${APP_NAME_SLUG}://task/`) && chat
+    ? `${address}?chat=${encodeURIComponent(chat)}`
+    : address;
 }
 
 /** A built-in page the address field offers by name, and the address it opens. */

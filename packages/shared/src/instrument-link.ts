@@ -333,7 +333,16 @@ export function instrumentLinkOf(url: string): InstrumentLink | undefined {
   if (name === undefined) {
     return undefined;
   }
-  return { href: `${prefix}/${name}`, kind, name };
+  // A task is a session in its chat's store: an address that names the
+  // chat too opens it from anywhere, where one without it needs a chat on
+  // screen to stand beside.
+  const chat = kind === "task" ? parsed.searchParams.get("chat") : null;
+  const href = `${prefix}/${name}`;
+  return {
+    href: chat !== null && NAME.test(chat) ? `${href}?chat=${chat}` : href,
+    kind,
+    name,
+  };
 }
 
 /**

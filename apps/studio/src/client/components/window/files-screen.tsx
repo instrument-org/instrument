@@ -67,6 +67,14 @@ import { useGroupTab } from "./group-tab";
 import { type SettledStep } from "./files-step";
 import { scrollOpenFileOnSpace } from "./scroll-open-file";
 import { useFilesStep } from "./use-files-step";
+import {
+  type FolderFold,
+  foldToWidth,
+  hideFolder,
+  KEPT_FOLDER,
+  showsFolder,
+  toggleFolder,
+} from "./folder-fold";
 import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
 import {
   useHostedPage,
@@ -98,8 +106,8 @@ const BESIDE_BOUNDS: RailBounds = {
   min: 260,
 };
 /**
- * The least room a file opening needs beside the folder, in CSS px. A tab
- * narrower than that opens the file with the folder folded away.
+ * The least room a file needs beside the folder, in CSS px. A tab with less
+ * folds the folder away, and the folder's edge stops short of taking it.
  */
 const FILE_ROOM = 420;
 /** How long a held arrow rests on a file before it shows, as the chat list does. */
@@ -110,10 +118,11 @@ const BESIDE_EXIT_TRANSITION = {
   ease: [0.2, 0, 0, 1],
 } as const;
 /**
- * Whether the folder beside a file was shown or folded away, by tab, with the
- * file it was beside, for the screen drawn again as its tab comes back up.
+ * The folder beside a file by tab, whether the person kept it or hid it and
+ * whether the tab last had room for it, with the file it was beside, for
+ * the screen drawn again as its tab comes back up.
  */
-const folderShownByTab = keptByTab<{ file: string; isShown: boolean }>();
+const folderFoldByTab = keptByTab<{ file: string; fold: FolderFold }>();
 /** The pile several picked make beside the folder, the way the columns draw one. */
 const PILE_POSES = [
   { rotate: 9, x: 24, y: -12 },
@@ -215,13 +224,12 @@ export function FilesScreen({
   // scrolled to is all still there either way.
   const isBesideLayout = file === undefined || tree !== undefined;
   const isFileOpen = isBesideLayout && file !== undefined;
-  // Drawn again as its tab comes back up, the folder is shown or folded away
-  // as it was left beside the same file.
-  const [keptFolderShown] = useState(() => {
-    const kept = folderShownByTab.get(tabId);
-    return kept !== undefined && kept.file === file ? kept.isShown : undefined;
+  // Drawn again as its tab comes back up, the folder is as the person left
+  // it beside the same file, fitted again to the width the tab comes up at.
+  const [fold, setFold] = useState(() => {
+    const kept = folderFoldByTab.get(tabId);
+    return kept !== undefined && kept.file === file ? kept.fold : KEPT_FOLDER;
   });
-  const [isFolderShown, setFolderShown] = useState(keptFolderShown ?? true);
   const [besidePicked, setBesidePicked] = useState<ChosenItem[]>([]);
   // Where the folder puts Ask and its menu for several picked.
   const [pickedSlot, setPickedSlot] = useState<HTMLDivElement | null>(null);
@@ -310,38 +318,55 @@ export function FilesScreen({
       observer.disconnect();
     };
   }, [layout]);
-  const besideWidth = Math.min(
-    draggedWidth ?? storedBesideWidth,
-    layoutWidth === null
-      ? Number.POSITIVE_INFINITY
-      : Math.max(BESIDE_BOUNDS.min, Math.round(layoutWidth / 2)),
-  );
-  // A file opening from the folder leaves the folder beside it only when the
-  // tab has room for both, measured once the tab is laid out with a width.
+  const besideWidthIn = (tabWidth: number) =>
+    Math.min(
+      draggedWidth ?? storedBesideWidth,
+      Math.max(BESIDE_BOUNDS.min, Math.round(tabWidth / 2)),
+    );
+  const besideWidth = besideWidthIn(layoutWidth ?? Number.POSITIVE_INFINITY);
+  // A file opening from the folder opens beside it, kept, and the folder
+  // shows while the tab has room for both: as a split's divider narrows the
+  // tab it folds away, and it comes back as the tab widens again. Measured
+  // once the tab is laid out with a width.
   const isFileShown = file !== undefined;
   const [wasFileShown, setWasFileShown] = useState(isFileShown);
-  const [isFitPending, setFitPending] = useState(
-    isFileShown && keptFolderShown === undefined,
-  );
+  let fitted = fold;
   if (wasFileShown !== isFileShown) {
     setWasFileShown(isFileShown);
-    setFitPending(isFileShown);
-  }
-  if (isFitPending && isLaidOut && layoutWidth !== null && layoutWidth > 0) {
-    setFitPending(false);
-    if (isBesideLayout) {
-      setFolderShown(layoutWidth - besideWidth >= FILE_ROOM);
+    if (isFileShown) {
+      fitted = KEPT_FOLDER;
     }
   }
+  const isFitted = isLaidOut && layoutWidth !== null && layoutWidth > 0;
+  if (isFitted) {
+    fitted = foldToWidth(
+      fitted,
+      layoutWidth,
+      (width) => width - besideWidthIn(width) >= FILE_ROOM,
+    );
+  }
+  if (fitted !== fold) {
+    setFold(fitted);
+  }
+  const isFolderShown = showsFolder(fold);
   useEffect(() => {
     if (file === undefined) {
-      folderShownByTab.delete(tabId);
-    } else if (!isFitPending) {
-      folderShownByTab.set(tabId, { file, isShown: isFolderShown });
+      folderFoldByTab.delete(tabId);
+    } else if (isFitted) {
+      folderFoldByTab.set(tabId, { file, fold });
     }
-  }, [file, isFitPending, isFolderShown, tabId]);
+  }, [file, fold, isFitted, tabId]);
+  // The folder's edge stops where the file beside it would have less than
+  // its room, so dragging it never folds it away.
+  const besideMax = Math.max(
+    BESIDE_BOUNDS.min,
+    Math.min(
+      BESIDE_BOUNDS.max,
+      (layoutWidth ?? Number.POSITIVE_INFINITY) - FILE_ROOM,
+    ),
+  );
   const clampBesideWidth = (width: number) =>
-    Math.min(BESIDE_BOUNDS.max, Math.max(BESIDE_BOUNDS.min, Math.round(width)));
+    Math.min(besideMax, Math.max(BESIDE_BOUNDS.min, Math.round(width)));
   const closeBeside = () => {
     go({ type: "closeFile" });
   };
@@ -355,10 +380,7 @@ export function FilesScreen({
   const besideFileRef = useRef<HTMLDivElement>(null);
   // The folder and the file land at their first fit, the folder folded away
   // in a narrow tab above all, and slide only for what comes after it.
-  const isFitInstant = useInstantUntilFitted(
-    isLaidOut && !isFitPending && (layoutWidth ?? 0) > 0,
-    besideFolderRef,
-  );
+  const isFitInstant = useInstantUntilFitted(isFitted, besideFolderRef);
   const heldShow = useRef<{ path: string; timer: number } | null>(null);
   const clearHeldShow = () => {
     if (heldShow.current) {
@@ -865,9 +887,12 @@ export function FilesScreen({
           }}
           ref={setLayout}
         >
+          {/* While a split's divider or a tab is held, the folder and the
+              file follow the tab's width at once, folding included: a slide
+              started at every step would trail the divider. */}
           <div
             className={cn(
-              "relative h-full shrink-0 overflow-hidden transition-[width]",
+              "relative h-full shrink-0 overflow-hidden transition-[width] in-data-tab-held:transition-none",
               BESIDE_MOTION_CLASSNAME,
               (draggedWidth !== null || isFitInstant) && "transition-none",
             )}
@@ -903,7 +928,7 @@ export function FilesScreen({
                           <FolderToggle
                             isOpen={isFolderShown}
                             onToggle={() => {
-                              setFolderShown((shown) => !shown);
+                              setFold(toggleFolder);
                             }}
                           />
                         ),
@@ -939,13 +964,13 @@ export function FilesScreen({
                   onCollapse: () => {
                     draggedWidthNow.current = null;
                     setDraggedWidth(null);
-                    setFolderShown(false);
+                    setFold(hideFolder);
                   },
                 }}
                 getWidth={() => besideWidth}
                 grows="right"
                 label="Resize the folder"
-                max={BESIDE_BOUNDS.max}
+                max={besideMax}
                 min={BESIDE_BOUNDS.min}
                 onReset={() => {
                   setStoredBesideWidth(BESIDE_BOUNDS.initial);
@@ -984,7 +1009,7 @@ export function FilesScreen({
                   // whole rather than unfolding from a sliver.
                   <motion.div
                     className={cn(
-                      "absolute inset-y-0 left-0 bg-background transition-[width]",
+                      "absolute inset-y-0 left-0 bg-background transition-[width] in-data-tab-held:transition-none",
                       BESIDE_MOTION_CLASSNAME,
                       (draggedWidth !== null || isFitInstant) &&
                         "transition-none",

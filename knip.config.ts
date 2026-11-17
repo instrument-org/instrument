@@ -61,6 +61,7 @@ const config: KnipConfig = {
         "swift", // Xcode toolchain that builds the Mac helper (scripts/build-mac-helper.ts)
         "clang", // Xcode toolchain that links the Mac helper's native module
         "plutil", // macOS tool that names the dev Electron clone (scripts/dev-supervisor.ts)
+        "pgrep", // Finds WindowServer and a dev run's processes (scripts/window-server.ts, scripts/dev-supervisor.ts)
         "tail",
         "op",
         "xdg-open",

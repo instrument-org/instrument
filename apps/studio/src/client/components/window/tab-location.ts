@@ -155,14 +155,12 @@ export function locationCrumbs(
 
 /**
  * The place a location belongs to whose rail mark leads the field, ahead of
- * its parts. Only where there are parts to lead, so the location's own mark
- * sits beside its name with words between the two marks, and at the top of
- * the computer, which has no mark of its own to keep. A location with one
- * part keeps its own mark in front.
+ * its parts: Apps ahead of an app's name, and Files at the top of the
+ * computer, which has no mark of its own to keep. A path leads with nothing,
+ * since each of its folders shows its own mark.
  */
 export function locationSection(
   location: TabLocation,
-  crumbs: LocationCrumb[],
 ): "apps" | "files" | undefined {
   switch (location.kind) {
     case "app": {
@@ -170,8 +168,7 @@ export function locationSection(
     }
     case "file":
     case "folder": {
-      return crumbs.length > 1 ||
-        (location.kind === "folder" && location.path === COMPUTER_ROOT)
+      return location.kind === "folder" && location.path === COMPUTER_ROOT
         ? "files"
         : undefined;
     }

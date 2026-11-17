@@ -279,17 +279,17 @@ describe("locationSection", () => {
     [
       "a file under folders",
       { kind: "file", name: "a.md", path: "~/Documents/a.md" },
-      "files",
+      undefined,
     ],
     [
       "a folder under folders",
       { kind: "folder", path: "~/Documents/Instrument" },
-      "files",
+      undefined,
     ],
     [
       "several picked in a folder",
       { kind: "folder", path: "~/Documents", picked: 3 },
-      "files",
+      undefined,
     ],
     ["the home folder alone", { kind: "folder", path: "~" }, undefined],
     [
@@ -304,18 +304,14 @@ describe("locationSection", () => {
     ["a new tab", { kind: "newTab" }, undefined],
     ["Extensions", { kind: "screen", screen: "extensions" }, undefined],
   ])("%s", (_, location, section) => {
-    expect(
-      locationSection(location, locationCrumbs(location, { home: HOME })),
-    ).toBe(section);
+    expect(locationSection(location)).toBe(section);
   });
 
   // The top of the computer is one part, named for the system it runs on.
   it("leads the top of the computer with Files", () => {
-    expect(
-      locationSection({ kind: "folder", path: COMPUTER_ROOT }, [
-        { label: "This Mac" },
-      ]),
-    ).toBe("files");
+    expect(locationSection({ kind: "folder", path: COMPUTER_ROOT })).toBe(
+      "files",
+    );
   });
 });
 

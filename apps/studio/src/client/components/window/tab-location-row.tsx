@@ -310,10 +310,14 @@ function Field({ location }: { location: TabLocation }) {
       </>
     );
   }
-  const section = locationSection(location, crumbs);
-  // Where the place's rail mark leads, the location's own mark moves beside
-  // its name, so two marks never sit side by side.
-  const itemMark = section ? locationItemMark(location) : null;
+  const section = locationSection(location);
+  // A path's folders each show their mark, so nothing leads it.
+  const isPath =
+    (location.kind === "file" || location.kind === "folder") &&
+    crumbs.length > 1;
+  // Where a rail mark leads or the path leads with nothing, the location's
+  // own mark sits beside its name, so two marks never sit side by side.
+  const itemMark = section || isPath ? locationItemMark(location) : null;
   const separator = (
     <CaretRightIcon className="size-3 shrink-0 text-muted-foreground/50" />
   );
@@ -378,7 +382,7 @@ function Field({ location }: { location: TabLocation }) {
     <>
       {section ? (
         <SectionMark place={section} />
-      ) : (
+      ) : isPath ? null : (
         <LocationMark location={location} />
       )}
       {/* The parts pulled out to the box's own edge, so the place reads from

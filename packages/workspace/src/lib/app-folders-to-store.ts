@@ -30,7 +30,7 @@ const MANIFEST_FILE_NAME = "app.json";
 const GUIDE_FILE_NAME = "guide.md";
 
 /** What taking the app folders in came to, for the boot log. */
-export interface AppFoldersTaken {
+export interface AppFoldersMovedToStore {
   /** A line per app taken in, and per folder sent to the Trash. */
   done: string[];
   /** Each app folder left as it was, with why. */
@@ -60,7 +60,7 @@ export interface AppFoldersTaken {
  * each app's folder goes once that app is in the store, and `Apps/` itself
  * only once nothing of anyone's is left in it.
  */
-export async function takeInAppFolders(
+export async function moveAppFoldersToStore(
   rootDir: string,
   {
     connections,
@@ -71,8 +71,8 @@ export async function takeInAppFolders(
     device: DeviceId;
     trash: (dir: string) => Promise<void>;
   },
-): Promise<AppFoldersTaken> {
-  const taken: AppFoldersTaken = { done: [], left: [] };
+): Promise<AppFoldersMovedToStore> {
+  const taken: AppFoldersMovedToStore = { done: [], left: [] };
   const layout = workspaceLayout(rootDir);
   const store = await appsStore({ device, devicesDir: layout.devicesDir });
   const topLevel = path.join(rootDir, APPS_FOLDER_NAME);
@@ -351,7 +351,10 @@ async function readOwnFile(
   try {
     stat = await fs.lstat(file);
   } catch (error) {
-    if (isRecord(error) && (error.code === "ENOENT" || error.code === "ENOTDIR")) {
+    if (
+      isRecord(error) &&
+      (error.code === "ENOENT" || error.code === "ENOTDIR")
+    ) {
       return undefined;
     }
     throw error;

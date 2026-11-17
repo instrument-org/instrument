@@ -29,6 +29,7 @@ import { ScreenToolsRow, useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { BrowserStartTail } from "./browser-start-controls";
 import { PageAgentOverlay } from "./page-agent-overlay";
+import { FileVersionsButton, FileVersionStrip } from "./file-versions";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { KeptScrolls } from "./kept-scrolls";
@@ -43,6 +44,7 @@ import { useTabSteps } from "./use-tab-steps";
 import { matchScreen, type Screen } from "./window-href";
 import { useShell } from "./shell-context";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { fileHref } from "@/shared/computer-href";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { useWindowTabs } from "./window-tabs";
 
@@ -235,12 +237,29 @@ export function GroupItem({
       : liveFileAddress(targetId, path);
 
   /**
+   * A file a chat's replies handed over keeps a version per reply, listed
+   * from its row, and a kept copy open here says which one it is in a strip
+   * over it.
+   */
+  const versionsOf = (location: TabLocation) =>
+    chatId !== undefined && location.kind === "file"
+      ? {
+          chatId,
+          onOpen: (hostPath: string) => {
+            windowTabs.visitHref(up.id, fileHref(hostPath));
+          },
+          path: location.path,
+        }
+      : undefined;
+
+  /**
    * The row over what is up, and over the bookmarks bar, the one the pane
    * beside a chat draws: its arrows walk the page's own history or the
    * screen's trail, and its field sends a page somewhere else, or takes a
    * screen's tab to a site.
    */
   const row = (location: TabLocation) => {
+    const versions = versionsOf(location);
     return (
       <TabLocationRow
         address={addressOfTab(up)}
@@ -278,6 +297,7 @@ export function GroupItem({
             {/* The extensions' buttons go before the page's own controls. */}
             {location.kind === "page" && <BrowserExtensionButtons />}
             {rowProps.trailing}
+            {versions && <FileVersionsButton {...versions} />}
           </>
         }
       />
@@ -286,26 +306,28 @@ export function GroupItem({
 
   if (up.kind === "page") {
     const filePath = hostPathOfFileUrl(up.url);
+    const pageLocation: TabLocation =
+      filePath === undefined
+        ? { kind: "page", url: up.url ?? "" }
+        : {
+            asPage: true,
+            kind: "file",
+            name: segmentsOf(filePath).at(-1) ?? filePath,
+            path: filePath,
+          };
+    const pageVersions = versionsOf(pageLocation);
     return (
       <Bare
         anchorRef={anchorRef}
         head={
           <>
-            {row(
-              filePath === undefined
-                ? { kind: "page", url: up.url ?? "" }
-                : {
-                    asPage: true,
-                    kind: "file",
-                    name: segmentsOf(filePath).at(-1) ?? filePath,
-                    path: filePath,
-                  },
-            )}
+            {row(pageLocation)}
             <BookmarksBar
               files={{ group }}
               onOpen={openHere}
               onVisit={takeOver}
             />
+            {pageVersions && <FileVersionStrip {...pageVersions} />}
           </>
         }
       >
@@ -352,6 +374,7 @@ export function GroupItem({
   ) : (
     row(location)
   );
+  const versions = versionsOf(location);
   const content = router ? (
     <RouterProvider key={reloads} router={router} />
   ) : null;
@@ -368,6 +391,7 @@ export function GroupItem({
             onVisit={takeOver}
           />
           {isFiles && <ScreenToolsRow>{rowProps.leading}</ScreenToolsRow>}
+          {versions && <FileVersionStrip {...versions} />}
         </>
       }
     >

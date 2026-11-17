@@ -167,5 +167,17 @@ export const DATA_PART_SAMPLES = {
     ],
   },
   workSummary: { words: "Read two pages" },
+  fileVersions: {
+    device: "dev_0123ABCD",
+    files: [
+      {
+        copy: "/work/.versions/moon.svg/2026-11-15 12.01 make it bigger.svg",
+        hash: "ab12",
+        hostPath: "/Users/sam/Moon/moon.svg",
+        path: "/Users/sam/Moon/moon.svg",
+        size: 1820,
+      },
+    ],
+  },
   workspaceInstructions: { file: "AGENTS.md", instructions: "Sample words." },
 } satisfies Record<SessionMessageDataPart.Name, unknown>;

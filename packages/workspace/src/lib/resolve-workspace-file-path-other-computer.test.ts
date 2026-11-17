@@ -9,7 +9,7 @@ import { type ChatId } from "../schemas/chat-id";
 import { ensureChat } from "./chat/chat-records";
 import { ChatWrites } from "./chat-writes";
 import { sessionOfChat } from "./record-folders";
-import { recordChatFolderMoves } from "./retire-chats-folder/folder-moves";
+import { recordChatFolderMoves } from "./chats-folder/folder-moves";
 import {
   computersHolding,
   resolveWorkspaceFilePaths,

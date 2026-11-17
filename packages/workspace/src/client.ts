@@ -74,6 +74,10 @@ export {
   toolWorkingLabel,
 } from "./lib/transcript/activity-lines";
 export {
+  type CardFileVersion,
+  cardFileVersions,
+} from "./lib/transcript/card-file-versions";
+export {
   applyFeedEvent,
   applyOlder,
   type TranscriptFeed,

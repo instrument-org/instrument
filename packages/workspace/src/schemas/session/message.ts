@@ -33,6 +33,7 @@ import {
   undoneChatsModelNote,
   undoneMemoriesModelNote,
   undoneProjectsModelNote,
+  restoredFileModelNote,
 } from "../../model-text/notes/undone-changes-model-text";
 import { branchedFromModelNote } from "../../model-text/notes/branched-from-model-text";
 import { formatBytes } from "../../lib/format-bytes";
@@ -470,7 +471,8 @@ export namespace SessionMessage {
       parts: new Set<SessionMessagePart.DataPart>(),
       updated: new Set<string>(),
     };
-    // Changes cards the person took back with Undo, each with when.
+    // Changes cards the person took back with Undo, and versions of files
+    // they put back, each with when.
     const undoneCards = messages.flatMap((message) =>
       message.parts.flatMap(
         (
@@ -503,6 +505,12 @@ export namespace SessionMessage {
                   ]
                 : []),
             ];
+          }
+          if (part.type === "data-fileVersions") {
+            const text = restoredFileModelNote(part.data, shellPath);
+            return text
+              ? [{ at: part.metadata.createdAt.getTime(), part, text }]
+              : [];
           }
           if (part.type === "data-chatChanges") {
             const text = undoneChatsModelNote(part.data);

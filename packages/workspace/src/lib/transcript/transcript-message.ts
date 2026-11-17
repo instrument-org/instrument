@@ -121,6 +121,7 @@ export type TranscriptMessage =
 /** Parts that are no row of their own, yet shape what the transcript draws. */
 const READ_THOUGH_HIDDEN = new Set<SessionMessagePart.DataPart["type"]>([
   "data-attachments",
+  "data-fileVersions",
   "data-intent",
   "data-stepFacts",
   "data-viewContext",

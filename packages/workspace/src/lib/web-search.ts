@@ -35,6 +35,12 @@ export interface WebSearchFailure {
     | "no-search-backend"
     | "not-authenticated"
     | "payment-required";
+  /**
+   * Our endpoint turned the search away because too many of the user's
+   * requests were running at once, or ran in the last minute. It clears as
+   * they end.
+   */
+  busy?: boolean;
   /** The platform refused the search for the account's plan. */
   refusal?: PlatformSearchRefusal;
   responseBody?: string;
@@ -52,6 +58,29 @@ const USER_ACTIONABLE = new Set<WebSearchFailure["errorType"]>([
 // once. One short retry usually gets it back rather than moving the rest of
 // the task to the fallback.
 const RETRY_DELAY_MS = 250;
+
+// Waits before asking our endpoint again after it said the user has too many
+// requests running, about four seconds in all. Each is stretched by up to half
+// again at random, so the searches of one batch do not all ask at once.
+const BUSY_RETRY_DELAYS_MS = [500, 1000, 2000];
+
+// The codes our endpoint answers a busy user with, in `{ error: { code } }`.
+const BusyResponseSchema = z.object({
+  error: z.object({
+    code: z.enum(["concurrency-limit", "rate-limit-exceeded"]),
+  }),
+});
+
+function isBusyResponse(body: string | undefined) {
+  if (!body) {
+    return false;
+  }
+  try {
+    return BusyResponseSchema.safeParse(JSON.parse(body)).success;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * The two backends return genuinely different things, so they stay separate all
@@ -141,6 +170,10 @@ export async function* webSearch({
       sessionId,
       signal,
       chatId,
+      // The fallback for a model on our provider runs through the same
+      // gateway and limits, so it waits for our endpoint first; a model on
+      // the person's own provider falls back to a backend that is not busy.
+      waitWhenBusy: ours,
       workspaceConfig,
     });
     if (
@@ -166,6 +199,12 @@ export async function* webSearch({
   for await (const result of searchWithProviderModel({
     callingModel,
     configs,
+    // On our provider the fallback meets the same limits that refused the
+    // search, so the SDK's own retries would only add to the load.
+    maxRetries:
+      ours && platformAttempt?.isErr() && platformAttempt.error.busy
+        ? 0
+        : undefined,
     prompt,
     sessionId,
     signal,
@@ -188,6 +227,7 @@ export async function* webSearch({
           sessionId,
           signal,
           chatId,
+          waitWhenBusy: true,
           workspaceConfig,
         }));
       // A signed-out user cannot reach our endpoint, so a keyless search gives
@@ -307,6 +347,7 @@ async function requestPlatformSearch({
           ? "api-call"
           : response.errorType,
       ...(response.refusal && { refusal: response.refusal }),
+      ...(isBusyResponse(response.responseBody) && { busy: true }),
       responseBody: response.responseBody,
     });
   }
@@ -343,6 +384,8 @@ async function searchWithPlatform(args: {
   sessionId: StoreId.Session;
   signal: AbortSignal;
   chatId: ChatId;
+  /** Ask again over a few seconds when the endpoint says the user is busy. */
+  waitWhenBusy: boolean;
   workspaceConfig: WorkspaceConfig;
 }): Promise<Result<WebSearchResults, WebSearchFailure>> {
   const first = await requestPlatformSearch(args);
@@ -354,6 +397,24 @@ async function searchWithPlatform(args: {
     first.error.refusal
   ) {
     return first;
+  }
+
+  if (first.error.busy) {
+    if (!args.waitWhenBusy) {
+      return first;
+    }
+    let latest = first;
+    for (const ms of BUSY_RETRY_DELAYS_MS) {
+      await delay(ms * (1 + Math.random() / 2), args.signal);
+      if (args.signal.aborted) {
+        return latest;
+      }
+      latest = await requestPlatformSearch(args);
+      if (latest.isOk() || !latest.error.busy) {
+        return latest;
+      }
+    }
+    return latest;
   }
 
   await delay(RETRY_DELAY_MS, args.signal);
@@ -390,6 +451,7 @@ async function searchWithKeyless({
 async function* searchWithProviderModel({
   callingModel,
   configs,
+  maxRetries,
   prompt,
   sessionId,
   signal,
@@ -399,6 +461,8 @@ async function* searchWithProviderModel({
 }: {
   callingModel: AIGatewayModel.Type;
   configs: AIGatewayProviderConfig.Type[];
+  /** The SDK's retries of the search request; its default when undefined. */
+  maxRetries?: number;
   prompt: string;
   sessionId: StoreId.Session;
   signal: AbortSignal;
@@ -452,6 +516,7 @@ async function* searchWithProviderModel({
       // A search runs inside a turn, so it groups with the turn that asked for it.
       headers: { [CLIENT_SESSION_ID_HEADER]: sessionId },
       instructions: searchSystemPrompt(),
+      maxRetries,
       model,
       prompt,
       providerOptions,

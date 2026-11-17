@@ -153,7 +153,6 @@ export function generated({
       modelId: OUR_MODELS.image.id,
       provider: OUR_PROVIDER,
       quality: "low",
-      renamedToAvoidOverwrite: false,
       sourceImages: sourceImages.map((path) => ({
         filePath: RelativePathSchema.parse(path),
         modifiedAt: MODIFIED_AT,

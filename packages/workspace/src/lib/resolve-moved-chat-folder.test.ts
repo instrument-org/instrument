@@ -9,7 +9,7 @@ import { ensureChat } from "./chat/chat-records";
 import { ChatWrites } from "./chat-writes";
 import { currentEnvironment } from "./environment";
 import { sessionOfChat } from "./record-folders";
-import { recordChatFolderMoves } from "./retire-chats-folder/folder-moves";
+import { recordChatFolderMoves } from "./chats-folder/folder-moves";
 import { resolveWorkspaceFilePaths } from "./resolve-workspace-file-path";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { shellPath } from "./workspace-fs-layout";

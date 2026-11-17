@@ -11,7 +11,7 @@ import {
  * it now (`store.ts`): its `id`, the manifest, the keys this build does not
  * read, and the guide. The file was plain YAML front matter holding the
  * manifest over the guide; the launch takes each one into the store
- * (`lib/apps-move.ts`), and nothing writes one.
+ * (`lib/app-folders-to-store.ts`), and nothing writes one.
  */
 
 /** Where earlier builds kept the person's apps, a folder each at the workspace's top level. */

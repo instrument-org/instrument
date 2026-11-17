@@ -4,7 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it } from "vitest";
 
-import { takeInAppFolders } from "./apps-move";
+import { moveAppFoldersToStore } from "./app-folders-to-store";
 import { APP_FILE_NAME, APPS_FOLDER_NAME } from "./apps/app-file";
 import { isConnected } from "./apps/connection";
 import { findAppIcon } from "./apps/icon";
@@ -40,7 +40,7 @@ let device: DeviceId;
 let trashed: string[];
 
 beforeEach(async () => {
-  root = await fs.mkdtemp(path.join(os.tmpdir(), "apps-move-"));
+  root = await fs.mkdtemp(path.join(os.tmpdir(), "app-folders-to-store-"));
   device = newDeviceId();
   trashed = [];
   // The store the launch writes is the one the workspace then reads.
@@ -64,7 +64,7 @@ async function trash(dir: string) {
 }
 
 function takeIn(connections = createMemoryAppsConfig().connections) {
-  return takeInAppFolders(root, { connections, device, trash });
+  return moveAppFoldersToStore(root, { connections, device, trash });
 }
 
 /** An app folder as the betas left it, hidden in `.instrument/apps/`. */
@@ -156,14 +156,14 @@ it("writes nothing when it runs again over a folder still there", async () => {
   const keep = async () => {
     // A Trash that could not take the folder leaves it for the next launch.
   };
-  await takeInAppFolders(root, {
+  await moveAppFoldersToStore(root, {
     connections: createMemoryAppsConfig().connections,
     device,
     trash: keep,
   });
   const lines = await storeLines();
 
-  await takeInAppFolders(root, {
+  await moveAppFoldersToStore(root, {
     connections: createMemoryAppsConfig().connections,
     device,
     trash: keep,
@@ -250,9 +250,9 @@ it("leaves what else an app's folder holds, sending only the files taken in", as
     path.join(APPS_FOLDER_NAME, "Linear", APP_FILE_NAME),
     path.join(APPS_FOLDER_NAME, "Linear", "icon.svg"),
   ]);
-  expect(
-    await fs.readdir(path.join(root, APPS_FOLDER_NAME, "Linear")),
-  ).toEqual(["api-notes.md"]);
+  expect(await fs.readdir(path.join(root, APPS_FOLDER_NAME, "Linear"))).toEqual(
+    ["api-notes.md"],
+  );
   expect((await loadApp("linear")).isOk()).toBe(true);
 });
 

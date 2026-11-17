@@ -7,7 +7,7 @@ import { AbsolutePathSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { ensureChat } from "./chat/chat-records";
 import { resolveWorkspaceFilePaths } from "./resolve-workspace-file-path";
-import { retireChatsFolder } from "./retire-chats-folder/retire-chats-folder";
+import { moveChatFoldersToFiles } from "./chats-folder/move-chat-folders-to-files";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { workspaceLayout } from "./workspace-layout";
 
@@ -39,7 +39,7 @@ describe("a path in a chat's folder under Chats/", () => {
       });
       await fs.writeFile(path.join(rootDir, at), text);
     }
-    await retireChatsFolder({
+    await moveChatFoldersToFiles({
       device: config.deviceId,
       filesDir: path.join(rootDir, "Files"),
       machineDir: config.workspaceMachineDir,

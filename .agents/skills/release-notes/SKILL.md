@@ -19,10 +19,16 @@ Turn the commits since a version into plain, human-readable release notes for en
 2. List commits: `git log --oneline <range> --no-merges`.
 3. Keep only user-facing changes (see filtering below). Inspect larger or ambiguous commits before deciding what they mean to a user.
 4. Group the survivors by product area, not by commit type.
-5. Write a one-line summary of the release, then the grouped bullets. Omit the app name and version: GitHub provides that context around the release body.
+5. Size the notes to the release (see Length below), then write a one-line summary of the release and the grouped bullets. Omit the app name and version: GitHub provides that context around the release body.
    - Lead each bullet with one short sentence, a dozen words or fewer, and put any detail in a second sentence. Slack shows the summary line and only the lead sentence of the first two bullets in each section (`apps/studio/scripts/release-summary.ts`), so the lead has to stand alone.
    - Order each section's bullets by what a reader most needs to know, since the first two are the ones Slack shows.
 6. Return the result in a markdown code block.
+
+## Length
+
+- **A beta or a patch release** (anything but a new `X.Y.0` stable) is short: the summary line and at most five bullets in all, under one or two headings. Keep only what a person will notice in their everyday use of the app. Leave out fixes for rare cases, small visual tweaks and anything that needs a second sentence to make sense. When nothing clears that bar, the summary line alone is the notes.
+- **A new `X.Y.0` stable** gets the full notes below, grouped by product area, with a person reading them before it is published.
+- Fewer, plainer lines read as care; a long list of small fixes reads as filler.
 
 ## Filtering
 
@@ -46,6 +52,19 @@ Drop anything a user never sees:
 - Prefer product-area headings (Browser, Tasks, Image generation, etc.) with a final "Fixes and polish" catch-all.
 
 ## Example output
+
+A beta:
+
+```markdown
+Find in a chat, and undo what a chat changed.
+
+## Chats
+
+- Press Command-F to find words in the chat you have open.
+- Undo puts back the files, projects and memories a chat changed.
+```
+
+A new `X.Y.0` stable:
 
 ```markdown
 A maintenance and refinement release focused on the built-in browser, task handling, and image generation.

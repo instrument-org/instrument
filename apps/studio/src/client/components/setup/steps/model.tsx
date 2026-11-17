@@ -60,7 +60,7 @@ export function ModelStep({ onBack, onContinue }: SetupStepProps) {
     <SetupPage
       footer={
         <SetupFooter
-          label={choice.doneLabel("Continue")}
+          label="Continue"
           next={
             choice.isLoading
               ? "off"

@@ -15,7 +15,7 @@ import { isRecord } from "../skills";
  * about line, when it was made, whether it was retired) as plain YAML front
  * matter over the instructions. That now lives in the projects store
  * (`project-records.ts`), and the launch takes it out of each file
- * (`settleProjectFiles`); a build that still writes it may put it back, and
+ * (`moveProjectFrontMatterToStore`); a build that still writes it may put it back, and
  * the next launch takes it out again. A key in the front matter this build
  * does not know is the person's, or another program's, and stays in the file.
  *

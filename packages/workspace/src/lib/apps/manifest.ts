@@ -363,7 +363,7 @@ url: https://drive.google.com`;
  *
  * Takes a loose record as well as a parsed manifest, so the migration can
  * digest the manifest an older build wrote and find the approval given for
- * it (`lib/apps-move.ts`).
+ * it (`lib/app-folders-to-store.ts`).
  */
 export function manifestHash(manifest: Record<string, unknown>): string {
   const reached =

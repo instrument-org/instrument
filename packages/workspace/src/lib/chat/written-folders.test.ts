@@ -7,7 +7,7 @@ import { AbsolutePathSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { ChatWrites } from "../chat-writes";
 import { sessionOfChat } from "../record-folders";
-import { recordChatFolderMoves } from "../retire-chats-folder/folder-moves";
+import { recordChatFolderMoves } from "../chats-folder/folder-moves";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
 import { ensureChat } from "./chat-records";

@@ -14,7 +14,7 @@ import {
   MemoryNameSchema,
   readMemory,
   saveMemory,
-  settleMemoryFiles,
+  moveMemoryFrontMatterToStore,
 } from "./store";
 import { getWorkspaceConfig } from "../workspace-config";
 import { readMemoryRecords } from "./memory-records";
@@ -261,7 +261,7 @@ describe("memoryDigests", () => {
   });
 });
 
-describe("settleMemoryFiles", () => {
+describe("moveMemoryFrontMatterToStore", () => {
   const device = () => getWorkspaceConfig().deviceId;
 
   it("takes an earlier build's front matter into the store, leaving the text", async () => {
@@ -276,7 +276,8 @@ describe("settleMemoryFiles", () => {
     await fs.writeFile(path.join(dir, "address.md"), "1420 Alder St.\n");
     const before = await listMemories(dir);
 
-    expect(await settleMemoryFiles(root, device())).toMatchInlineSnapshot(`
+    expect(await moveMemoryFrontMatterToStore(root, device()))
+      .toMatchInlineSnapshot(`
       {
         "done": [
           "took roofer.md's front matter into the memory store",
@@ -310,7 +311,7 @@ describe("settleMemoryFiles", () => {
     `);
     // What Settings › Memory shows is the same before and after.
     expect(await listMemories(dir)).toEqual(before);
-    expect(await settleMemoryFiles(root, device())).toEqual({
+    expect(await moveMemoryFrontMatterToStore(root, device())).toEqual({
       done: [],
       left: [],
     });
@@ -319,7 +320,10 @@ describe("settleMemoryFiles", () => {
   it("takes the first betas' from, thread and at into the store, the thread as its chat", async () => {
     const chat = path.join(root, ".instrument", "chats", "2026-09-19-import");
     await fs.mkdir(chat, { recursive: true });
-    await fs.writeFile(path.join(chat, "ses_01M2XW1SK8HN5PW5TA1M3JDQKP.dev_A1B2C3D4.jsonl"), "");
+    await fs.writeFile(
+      path.join(chat, "ses_01M2XW1SK8HN5PW5TA1M3JDQKP.dev_A1B2C3D4.jsonl"),
+      "",
+    );
     await fs.writeFile(
       path.join(dir, "two-macs.md"),
       '---\nfrom: "Importing my facts"\nthread: "ses_01M2XW1SK8HN5PW5TA1M3JDQKP"\nat: 2026-09-19T22:28:58.837Z\n---\nYou work across two Macs.\n',
@@ -333,7 +337,7 @@ describe("settleMemoryFiles", () => {
       "---\nat: home\n---\nKeys by the door.\n",
     );
 
-    await settleMemoryFiles(root, device());
+    await moveMemoryFrontMatterToStore(root, device());
 
     expect(await fs.readFile(path.join(dir, "two-macs.md"), "utf8")).toBe(
       "You work across two Macs.\n",
@@ -369,7 +373,7 @@ describe("settleMemoryFiles", () => {
     const past = new Date("2026-01-01T00:00:00Z");
     await fs.utimes(file, past, past);
 
-    await settleMemoryFiles(root, device());
+    await moveMemoryFrontMatterToStore(root, device());
 
     expect((await readMemory(dir, "roofer"))?.at).toBe(at);
     expect(await fs.readFile(file, "utf8")).toBe("Your roofer is Dave.\n");

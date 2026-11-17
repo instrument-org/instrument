@@ -8,10 +8,10 @@ import {
   convertProjectsToProjectFiles,
   newDeviceId,
   renameChatDatabases,
-  retireChatsFolder,
+  moveChatFoldersToFiles,
   settleDrafts,
   settleWorkspaceDb,
-  takeInAppFolders,
+  moveAppFoldersToStore,
 } from "@instrument-org/workspace/electron";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -344,12 +344,12 @@ async function runLaunchMigrations(): Promise<void> {
   await moveProjectsToFolder(clone);
   await convertProjectsToProjectFiles(clone);
   // The clone is a copy, so sending an app folder "to the Trash" deletes it.
-  await takeInAppFolders(clone, {
+  await moveAppFoldersToStore(clone, {
     connections: forgottenConnections(),
     device: deviceId,
     trash: (dir) => fsp.rm(dir, { force: true, recursive: true }),
   });
-  await retireChatsFolder({
+  await moveChatFoldersToFiles({
     device: deviceId,
     filesDir: path.join(clone, "Files"),
     machineDir,

@@ -60,7 +60,7 @@ describe("a manifest's hash", () => {
   });
 
   // The digest the migration restamps a connected local app's approval to
-  // (`lib/apps-move.ts`). A change to what goes into it disconnects every
+  // (`lib/app-folders-to-store.ts`). A change to what goes into it disconnects every
   // app in every workspace, so it is pinned here rather than computed.
   it("is what this build's manifest keys come to", async () => {
     expect(await hashOf(drafts)).toMatchInlineSnapshot(

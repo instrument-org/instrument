@@ -22,7 +22,7 @@ import {
   convertProjectsToProjectFiles,
   moveProjectsToFolder,
   moveTopicsToProjects,
-  settleProjectFiles,
+  moveProjectFrontMatterToStore,
 } from "./projects-move";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { workspaceLayout } from "./workspace-layout";
@@ -371,7 +371,7 @@ describe("moveTopicsToProjects", () => {
   });
 });
 
-describe("settleProjectFiles", () => {
+describe("moveProjectFrontMatterToStore", () => {
   const device = () => getWorkspaceConfig().deviceId;
 
   async function writeFile(name: string, text: string, at?: Date) {
@@ -394,7 +394,7 @@ describe("settleProjectFiles", () => {
     );
     await writeFile("Garden", "Water on Sundays.\n");
 
-    const settled = settleProjectFiles(root, device());
+    const settled = moveProjectFrontMatterToStore(root, device());
 
     expect(settled).toMatchInlineSnapshot(`
       {
@@ -437,7 +437,10 @@ describe("settleProjectFiles", () => {
         },
       }
     `);
-    expect(settleProjectFiles(root, device())).toEqual({ done: [], left: [] });
+    expect(moveProjectFrontMatterToStore(root, device())).toEqual({
+      done: [],
+      left: [],
+    });
   });
 
   // An older build on another computer reads a file with no front matter as
@@ -448,14 +451,14 @@ describe("settleProjectFiles", () => {
       "Kitchen",
       "---\nid: prj_kitchen\ncreated: 2026-09-02T09:14:00Z\n---\n\nInduction only.\n",
     );
-    settleProjectFiles(root, device());
+    moveProjectFrontMatterToStore(root, device());
 
     await writeFile(
       "Kitchen",
       "---\nid: prj_drawnfromname\nemoji: 🔪\ncreated: 2026-11-01T00:00:00Z\n---\n\nInduction only.\n",
       new Date(Date.now() + 60_000),
     );
-    settleProjectFiles(root, device());
+    moveProjectFrontMatterToStore(root, device());
 
     expect(readProjectRecords(root).get("prj_kitchen")).toEqual({
       created: "2026-09-02T09:14:00Z",
@@ -470,7 +473,7 @@ describe("settleProjectFiles", () => {
       "Kitchen",
       "---\nid: prj_kitchen\ncreated: 2026-09-02T09:14:00Z\n---\n",
     );
-    settleProjectFiles(root, device());
+    moveProjectFrontMatterToStore(root, device());
     const [kitchen] = readProjectsSync(root);
     expect(kitchen).toBeDefined();
     if (kitchen) {
@@ -482,7 +485,7 @@ describe("settleProjectFiles", () => {
       "---\nemoji: 🔪\n---\n",
       new Date(Date.now() - 60 * 60_000),
     );
-    settleProjectFiles(root, device());
+    moveProjectFrontMatterToStore(root, device());
 
     expect(readProjectRecords(root).get("prj_kitchen")?.emoji).toBe("🍳");
     await expect(projectFile("Kitchen")).rejects.toThrow();
@@ -493,13 +496,13 @@ describe("settleProjectFiles", () => {
       "Kitchen",
       "---\nid: prj_kitchen\ncreated: 2026-09-02T09:14:00Z\n---\n\nInduction only.\n",
     );
-    settleProjectFiles(root, device());
+    moveProjectFrontMatterToStore(root, device());
 
     await fs.rename(
       path.join(folder(), "Kitchen"),
       path.join(folder(), "Cooking"),
     );
-    settleProjectFiles(root, device());
+    moveProjectFrontMatterToStore(root, device());
 
     expect(readProjectsSync(root)).toMatchObject([
       { id: "prj_kitchen", instructions: "Induction only.", name: "Cooking" },

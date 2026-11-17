@@ -332,7 +332,7 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
         <SetupPage
           footer={
             <SetupFooter
-              label={opens ? "Open" : "Continue"}
+              label="Continue"
               next={target === undefined ? "off" : "primary"}
               onBack={
                 isFirst
@@ -381,8 +381,8 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
                   icon={<FolderOpenIcon />}
                   line={
                     openedChats > 0
-                      ? `Open it to pick up your ${openedChats === 1 ? "chat" : `${String(openedChats)} chats`} from before, or press Change to start fresh somewhere else.`
-                      : "Open it to pick up where you left off, or press Change to start fresh somewhere else."
+                      ? `Continue to pick up your ${openedChats === 1 ? "chat" : `${String(openedChats)} chats`} from before, or press Change to start fresh somewhere else.`
+                      : "Continue to pick up where you left off, or press Change to start fresh somewhere else."
                   }
                   title="You already have an Instrument folder here"
                 />

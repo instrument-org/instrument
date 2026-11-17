@@ -102,13 +102,22 @@ describe("sidebar places", () => {
       first: "/Users/casey/Desktop",
     },
     {
-      name: "the top of an adopted order",
+      name: "the top of an adopted order, past Applications",
       places: adoptSystemSidebar(
         NO_SIDEBAR_CHANGES,
         ["/Applications", "/Users/casey/Desktop"],
         defaults.map((place) => place.path),
       ),
-      first: "/Applications",
+      first: "/Users/casey/Desktop",
+    },
+    {
+      name: "the next row past a home folder of apps",
+      places: adoptSystemSidebar(
+        NO_SIDEBAR_CHANGES,
+        ["/Users/casey/Applications", "/Users/casey"],
+        defaults.map((place) => place.path),
+      ),
+      first: "/Users/casey",
     },
     {
       name: "nothing with nothing pinned",
@@ -123,7 +132,8 @@ describe("sidebar places", () => {
       firstPinnedFolder(
         [
           { kind: "output", path: "/Users/casey/Instrument/Files" },
-          ...defaults.map((place) => ({ kind: "folder", path: place.path })),
+          { kind: "home", path: "/Users/casey" },
+          { kind: "folder", path: "/Users/casey/Desktop" },
         ],
         places,
       ),

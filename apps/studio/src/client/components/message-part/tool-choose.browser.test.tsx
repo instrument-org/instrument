@@ -116,6 +116,25 @@ it("picks with a digit and sends with Enter while the keyboard is on a choice", 
   });
 });
 
+it("sends a digit's pick on Enter when the keyboard came into the card on Skip", async () => {
+  const onAnswer = vi.fn();
+  const screen = await renderInBrowser(
+    <QuestionCard
+      onAnswer={onAnswer}
+      questions={[COMPETITORS]}
+      status="open"
+    />,
+  );
+  // Shift+Tab from the reply box under the card lands on its last button.
+  screen.getByRole("button", { name: "Skip" }).element().focus();
+
+  await userEvent.keyboard("2{Enter}");
+
+  expect(onAnswer).toHaveBeenCalledWith({
+    replies: [{ picked: ["Intercom"] }],
+  });
+});
+
 it("leaves digits to the own-answer row, where Shift+Enter starts a line and Enter sends", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(

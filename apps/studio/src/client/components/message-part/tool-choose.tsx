@@ -269,6 +269,9 @@ export function QuestionCard({
       if (choice) {
         event.preventDefault();
         pick(choice.label);
+        // The keyboard goes with the pick, so the next Enter sends it rather
+        // than pressing the button it was on (Skip, Add a note).
+        shownChoices(event.currentTarget)[Number(event.key) - 1]?.focus();
       }
       return;
     }
@@ -692,6 +695,13 @@ function focusQuestionCard(root: HTMLElement) {
     );
   target?.focus({ preventScroll: true });
   return target !== undefined;
+}
+
+/** The choice rows of the question on show in a card, in order. */
+function shownChoices(card: HTMLElement) {
+  return [...card.querySelectorAll<HTMLElement>("[data-choice]")].filter(
+    (choice) => choice.closest("[inert]") === null,
+  );
 }
 
 /** The headers of a card of several questions, each a way back to its question, then Review. */

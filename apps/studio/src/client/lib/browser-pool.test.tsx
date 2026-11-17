@@ -15,6 +15,7 @@ import {
   giveKeyboardTo,
   holdKeyboardFromPages,
   initBrowserPool,
+  setPagePanes,
   setPaintHost,
   showOverSlot,
 } from "./browser-pool";
@@ -358,4 +359,25 @@ it("lays out a page no slot has shown at the size the pane shows pages at", asyn
   setPaintHost(target, pane);
   await new Promise((resolve) => setTimeout(resolve, 200));
   expect(container()?.width).toBe("900px");
+});
+
+it("lays out a page behind at its own side's size, beside a side of another width", async () => {
+  const width = (index: number) =>
+    document.querySelectorAll("webview")[index]?.parentElement?.style.width;
+  setPagePanes(
+    new Map([
+      [target, "group:0"],
+      [behind, "group:1"],
+    ]),
+  );
+  const left = Symbol("left side");
+  const right = Symbol("right side");
+  showOverSlot(behind, { height: 600, width: 400, x: 900, y: 40 }, right);
+  setPaintHost(behind, right);
+  showOverSlot(target, { height: 600, width: 880, x: 0, y: 40 }, left);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(width(0)).toBe("880px");
+  expect(width(1)).toBe("400px");
+  setPaintHost(target, left);
+  setPagePanes(new Map());
 });

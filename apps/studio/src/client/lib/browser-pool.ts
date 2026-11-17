@@ -101,8 +101,8 @@ interface PooledWebview {
   handle: GuestHandle | null;
   // Last size the guest was shown at, which it keeps while parked when that
   // was in a host above the pane (a draft window), since it is shown there
-  // again; a guest last shown in the pane, or never shown, parks at
-  // `paneSize`.
+  // again; a guest last shown in the pane, or never shown, parks at its
+  // pane's size (`paneSizeOf`).
   lastVisibleBounds: Bounds | null;
   shownAbovePane: boolean;
   targetId: BrowserTargetId;
@@ -243,6 +243,13 @@ const pool = new Map<BrowserTargetId, PooledWebview>();
 // the pane resized, is already that size when its tab comes up rather than
 // relaying out from another one in front of the person.
 let paneSize: null | { height: number; width: number } = null;
+
+// The size each pane last showed a page at, by the pane its tab stands in (a
+// side of a tab group, two of which stand side by side at widths of their
+// own), and the pane each page's tab stands in, as `setPagePanes` was last
+// told. A page whose pane has shown nothing yet parks at `paneSize`.
+const paneSizes = new Map<string, { height: number; width: number }>();
+let pagePanes: ReadonlyMap<BrowserTargetId, string> = new Map();
 
 // How long the pane's size holds before parked guests follow it, so dragging
 // a window edge does not relayout every page behind the one on screen at
@@ -1042,16 +1049,19 @@ function applyDesiredSurface(
 
 // On-screen-sized but visually hidden. NOT display:none / far-offscreen, which
 // would drop the compositor surface and break CDP capture/input. Held at the
-// size it will be shown at (the pane's, or a default before the pane has shown
-// a page) so showing it doesn't jump, and clamped to what this window can actually rasterize: a guest shown in a
-// panel is bounded by the window anyway, but the default is not, so in a window
-// narrower than 985px or shorter than 616px it would otherwise park over the cap.
+// size it will be shown at (its pane's, or a default before a pane has shown a
+// page) so showing it doesn't jump, and clamped to what this window can
+// actually rasterize: a guest shown in a panel is bounded by the window anyway,
+// but the default is not, so in a window narrower than 985px or shorter than
+// 616px it would otherwise park over the cap.
 function applyPaintHost(pooled: PooledWebview) {
   const { container, desiredSurface, webview } = pooled;
   const budget = maxRasterSize();
   const requested =
     desiredSurface ??
-    (pooled.shownAbovePane ? pooled.lastVisibleBounds : paneSize);
+    (pooled.shownAbovePane
+      ? pooled.lastVisibleBounds
+      : paneSizeOf(pooled.targetId));
   const width = Math.min(requested?.width ?? VIEW_W, budget.width);
   const height = Math.min(requested?.height ?? VIEW_H, budget.height);
   reportEffectiveSurface(pooled, { height, width });
@@ -1381,15 +1391,60 @@ function parkAgain() {
   }
 }
 
-// The pane is a slot on the window's own layer; a host above it (a draft
+function paneSizeOf(targetId: BrowserTargetId) {
+  const pane = pagePanes.get(targetId);
+  return (pane === undefined ? undefined : paneSizes.get(pane)) ?? paneSize;
+}
+
+// A pane is a slot on the window's own layer; a host above it (a draft
 // window, a look) shows its page at a size of its own.
-function notePaneSize(size: { height: number; width: number }) {
-  if (paneSize?.width === size.width && paneSize.height === size.height) {
+function notePaneSize(
+  targetId: BrowserTargetId,
+  size: { height: number; width: number },
+) {
+  const pane = pagePanes.get(targetId);
+  const kept = pane === undefined ? undefined : paneSizes.get(pane);
+  const same = (other: null | undefined | typeof size) =>
+    other?.width === size.width && other.height === size.height;
+  if (same(paneSize) && (pane === undefined || same(kept))) {
     return;
   }
   paneSize = size;
+  if (pane !== undefined) {
+    paneSizes.set(pane, size);
+  }
   clearTimeout(paneSettle);
   paneSettle = setTimeout(parkAgain, PANE_SETTLE_MS);
+}
+
+/**
+ * Says which pane each page's tab stands in, whole on each change: a parked
+ * page is laid out at the size its own pane last showed a page at, so a tab
+ * behind the one up on either side of a group comes up at its side's width.
+ */
+export function setPagePanes(panes: ReadonlyMap<BrowserTargetId, string>) {
+  pagePanes = panes;
+  // A page already up was shown before its pane was known.
+  for (const [targetId, pooled] of pool) {
+    const pane = panes.get(targetId);
+    if (
+      pane !== undefined &&
+      paintOwners.has(targetId) &&
+      !pooled.shownAbovePane &&
+      pooled.lastVisibleBounds &&
+      !paneSizes.has(pane)
+    ) {
+      const { height, width } = pooled.lastVisibleBounds;
+      paneSizes.set(pane, { height, width });
+    }
+  }
+  const standing = new Set(panes.values());
+  for (const pane of paneSizes.keys()) {
+    if (!standing.has(pane)) {
+      paneSizes.delete(pane);
+    }
+  }
+  parkAgain();
 }
 
 /**
@@ -1473,7 +1528,7 @@ function placeGuest(targetId: BrowserTargetId) {
   pooled.lastVisibleBounds = bounds;
   pooled.shownAbovePane = layer > 0;
   if (layer === 0) {
-    notePaneSize({ height: bounds.height, width: bounds.width });
+    notePaneSize(targetId, { height: bounds.height, width: bounds.width });
   }
   // After the commit that put it here, once the view it replaced is gone.
   queueMicrotask(() => {

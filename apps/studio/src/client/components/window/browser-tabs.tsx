@@ -11,6 +11,7 @@ import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import {
   getGuest,
   type GuestHandle,
+  setPagePanes,
   takeGuestTraversal,
 } from "@/client/lib/browser-pool";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
@@ -61,6 +62,7 @@ import {
   replaceTab,
   selectTab,
   selectedTabIn,
+  sideOf,
 } from "./tab-model";
 import {
   everyTabIdAtom,
@@ -336,6 +338,24 @@ export function BrowserTabs({
   const everyTabId = useAtomValue(everyTabIdAtom);
   const tabs = allTabs.filter((tab): tab is PageTab => tab.kind === "page");
   const attached = useBrowserTargets();
+  // Each page stands in its group's side, two of which show pages side by
+  // side at widths of their own, so a page behind is laid out at its side's.
+  const panes = tabs
+    .map((tab) => `${tab.id} ${tab.group}:${sideOf(tab)}`)
+    .join("\n");
+  useEffect(() => {
+    setPagePanes(
+      new Map(
+        panes
+          .split("\n")
+          .filter((line) => line !== "")
+          .map((line) => {
+            const [id = "", pane = ""] = line.split(" ");
+            return [browserTargetOf(id), pane];
+          }),
+      ),
+    );
+  }, [panes]);
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
     browserTargetOf(tab.id);

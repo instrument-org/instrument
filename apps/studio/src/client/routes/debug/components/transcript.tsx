@@ -7,7 +7,6 @@ import {
   TranscriptRecordsContext,
 } from "@/client/components/transcript/transcript-data";
 import { Transcript } from "@/client/components/transcript/transcript";
-import { useHoldAtReplyStart } from "@/client/components/transcript/use-hold-at-reply-start";
 import { TranscriptScrollContext } from "@/client/components/transcript-scroll-context";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -554,24 +553,9 @@ function Toggle({
   );
 }
 
-/** The chat's hold at a reply's first line, inside the scroller it needs. */
-function HoldAtReplyStart({
-  children,
-  contentRef,
-  isFollowing,
-}: {
-  children: ReactNode;
-  contentRef: React.RefObject<HTMLElement | null>;
-  isFollowing: boolean;
-}) {
+/** What a row's controls hand following back through, inside the scroller it needs. */
+function ScrollRelease({ children }: { children: ReactNode }) {
   const { releaseAutoScroll } = useMessageScroller();
-  useHoldAtReplyStart({
-    contentRef,
-    isFollowing,
-    // The debug page draws no jump button to put a dot on.
-    onArrivedBelow: noop,
-    release: releaseAutoScroll,
-  });
   return (
     <TranscriptScrollContext value={releaseAutoScroll}>
       {children}
@@ -677,7 +661,6 @@ function Viewer({ scenario }: { scenario: Playable }) {
         )}
         <MessageScrollerProvider
           autoScroll={autoScrolls}
-          defaultScrollPosition="end"
         >
           <MessageScroller className="min-h-0 flex-1">
             <MessageScrollerViewport
@@ -688,10 +671,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
                 className="mx-auto w-full max-w-3xl gap-4 p-4 pb-8 [--transcript-room:100cqi]"
                 ref={contentRef}
               >
-                <HoldAtReplyStart
-                  contentRef={contentRef}
-                  isFollowing={frame.isAgentRunning}
-                >
+                <ScrollRelease>
                   <Profiler
                     id="transcript"
                     onRender={(_id, _phase, actualDuration) => {
@@ -709,7 +689,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
                       tasks={tasks}
                     />
                   </Profiler>
-                </HoldAtReplyStart>
+                </ScrollRelease>
               </MessageScrollerContent>
             </MessageScrollerViewport>
           </MessageScroller>

@@ -278,8 +278,6 @@ function TurnBody({
   // and only while that work is the last thing in the turn: words after it
   // end it (`workCardOf`).
   const cardAt = turn.rows.findLastIndex((row) => row.kind === "activity");
-  // The row a reply is held at: a note under the reply leaves it the reply.
-  const replyTailAt = turn.rows.findLastIndex((row) => row.kind !== "note");
   const rows = turn.rows.flatMap((row, index) => {
     const out = [];
     if (isFolded && row.id === turn.foldLineAt) {
@@ -308,7 +306,6 @@ function TurnBody({
             isLive={live !== undefined}
             isLast={isLast}
             isNewest={isLast && index === turn.rows.length - 1}
-            isReplyTail={isLast && index === replyTailAt}
             row={row}
             thought={live?.thought}
           />
@@ -590,7 +587,6 @@ function RowView({
   isLast,
   isLive,
   isNewest = false,
-  isReplyTail = false,
   row,
   thought,
 }: {
@@ -599,8 +595,6 @@ function RowView({
   isLive: boolean;
   /** Nothing comes after it in the chat. */
   isNewest?: boolean;
-  /** The chat's last reply, held at its start while following. */
-  isReplyTail?: boolean;
   row: TurnRow;
   thought?: StepPart;
 }) {
@@ -660,11 +654,7 @@ function RowView({
       return (
         // As tall as the row it replaces, so the transcript does not shrink under
         // a message held at the top when Thinking gives way to a one-line reply.
-        <div
-          className="min-h-7"
-          data-reply-row={row.part.metadata.id}
-          data-reply-tail={isReplyTail || undefined}
-        >
+        <div className="min-h-7" data-reply-row={row.part.metadata.id}>
           <AssistantMessage chatId={chatId} part={row.part} />
         </div>
       );

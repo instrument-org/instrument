@@ -23,10 +23,6 @@
       "directory": "packages/electron-builder",
       "description": "How Studio is packaged and its updates published. Monorepo, so directory points at the package; the root manifest is private and carries no version."
     },
-    "shadcn-react": {
-      "source": "github:mutewinter/ui",
-      "description": "The component library apps/studio installs as @shadcn/react, a fork of shadcn-ui/ui. packages/react/ holds the source and its co-located tests; the shadcn-react-dist branch carries the built package a git dependency resolves to."
-    },
     "@tanstack/react-router": {
       "source": "npm:@tanstack/react-router@1.170.16",
       "directory": ".",

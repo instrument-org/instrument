@@ -78,8 +78,6 @@ import {
 import { Spinner } from "../ui/spinner";
 import { LiveTranscriptSurface } from "../transcript/live-surface";
 import { NextStepsContext } from "../transcript/next-steps";
-import { useHoldAtReplyStart } from "../transcript/use-hold-at-reply-start";
-import { useSlideToSent } from "../transcript/use-slide-to-sent";
 import { Transcript } from "../transcript/transcript";
 import { ThinkingRow } from "../transcript/turn-view";
 import { useTranscriptFeed } from "../transcript/use-transcript-feed";
@@ -323,9 +321,6 @@ export function ChatConversation({
   // it stops, so any live session of the chat is output arriving.
   const isSettlingTurn = useTurnSettleWindow(isChatAlive);
   const isFollowingOutput = isChatAlive || isFollowingSubmit || isSettlingTurn;
-  // Something drawn after a reply held at its start, which the reader has not
-  // scrolled down to yet.
-  const [hasArrivedBelow, setHasArrivedBelow] = useState(false);
 
   // A question the chat is stopped on, which a reader scrolled back from the
   // end is told about by the scroll button rather than taken down to.
@@ -746,7 +741,6 @@ export function ChatConversation({
         <MessageScrollerProvider
           // Never while the find is up, which puts the reader on a match.
           autoScroll={isFollowingOutput && !isFindOpen}
-          defaultScrollPosition="end"
           key={selectedSessionId}
           scrollPreviousItemPeek={TRANSCRIPT_PREVIOUS_TURN_PEEK}
         >
@@ -757,7 +751,6 @@ export function ChatConversation({
         other part: they are read after the conversation mounts, and the end
         of a spinner is not the end of the chat. */}
           <ScrollToEndBridge
-            contentRef={contentRef}
             signal={`${selectedSessionId}:${isLoadingMessages ? "loading" : "loaded"}`}
           />
           <div
@@ -823,11 +816,6 @@ export function ChatConversation({
                       <FoldsOpenedByFind value={foldsOpenedByFind}>
                         <TranscriptStream
                           chatId={chatId}
-                          contentRef={contentRef}
-                          isFollowing={isFollowingOutput}
-                          onArrivedBelow={() => {
-                            setHasArrivedBelow(true);
-                          }}
                           hasOlder={messagesQuery.data?.hasOlder ?? false}
                           isDeveloperMode={isDeveloperMode}
                           isLoadingOlder={messagesQuery.isLoadingOlder}
@@ -891,14 +879,7 @@ export function ChatConversation({
               <div className="pointer-events-none absolute right-3 bottom-0 left-0 h-6 bg-linear-to-t from-background to-transparent" />
 
               <div className="pointer-events-none absolute inset-x-0 bottom-0 flex justify-center pb-4">
-                <JumpToLatest
-                  busy={isAgentRunning}
-                  hasArrivedBelow={hasArrivedBelow}
-                  onReachedEnd={() => {
-                    setHasArrivedBelow(false);
-                  }}
-                  waiting={isWaiting}
-                />
+                <JumpToLatest busy={isAgentRunning} waiting={isWaiting} />
               </div>
             </MessageScroller>
 
@@ -1004,32 +985,19 @@ function SentPrompt({
 // The conversation, wired to the scroller it is drawn in: what a bubble opens
 // (a long table, a code block) hands following the end back through it.
 function TranscriptStream({
-  contentRef,
-  isFollowing,
-  onArrivedBelow,
   slideToSentRef,
   ...props
 }: ComponentProps<typeof Transcript> & {
-  contentRef: RefObject<HTMLElement | null>;
-  /** The scroller is following the end, rather than left where the reader put it. */
-  isFollowing: boolean;
-  /** Something was drawn after a reply held at its start. */
-  onArrivedBelow: () => void;
   /** What a send calls, so the move to its message animates. */
   slideToSentRef: RefObject<() => void>;
 }) {
-  const { releaseAutoScroll } = useMessageScroller();
-  useHoldAtReplyStart({
-    contentRef,
-    isFollowing,
-    onArrivedBelow,
-    release: releaseAutoScroll,
-  });
-  useSlideToSent({
-    armRef: slideToSentRef,
-    contentRef,
-    release: releaseAutoScroll,
-  });
+  const { armSlide, releaseAutoScroll } = useMessageScroller();
+  useLayoutEffect(() => {
+    slideToSentRef.current = armSlide;
+    return () => {
+      slideToSentRef.current = noop;
+    };
+  }, [armSlide, slideToSentRef]);
 
   return (
     <TranscriptScrollContext value={releaseAutoScroll}>
@@ -1038,35 +1006,14 @@ function TranscriptStream({
   );
 }
 
-/**
- * The button to the end, with a dot for a question the chat waits on or for
- * what was drawn under a reply held at its start. Reaching the end, by the
- * button or by scrolling, clears the second.
- */
-function JumpToLatest({
-  busy,
-  hasArrivedBelow,
-  onReachedEnd,
-  waiting,
-}: {
-  busy: boolean;
-  hasArrivedBelow: boolean;
-  onReachedEnd: () => void;
-  waiting: boolean;
-}) {
-  const scrollable = useMessageScrollerScrollable();
-  const isAtEnd = !scrollable.end;
-  useEffect(() => {
-    if (hasArrivedBelow && isAtEnd) {
-      onReachedEnd();
-    }
-  }, [hasArrivedBelow, isAtEnd, onReachedEnd]);
+/** The button to the end, with a dot for a question the chat waits on. */
+function JumpToLatest({ busy, waiting }: { busy: boolean; waiting: boolean }) {
   return (
     <MessageScrollerButton
       busy={busy}
       // A slide counts as room left to scroll while it runs.
       className="pointer-events-auto group-data-sliding/message-scroller:opacity-0"
-      waiting={waiting || (hasArrivedBelow && scrollable.end)}
+      waiting={waiting}
     />
   );
 }

@@ -170,7 +170,6 @@
     "@replit/codemirror-lang-solidity": "6.0.2",
     "@replit/codemirror-lang-svelte": "6.0.0",
     "@rolldown/plugin-babel": "^0.2.0",
-    "@shadcn/react": "github:mutewinter/ui#83bafff9a6312d885ff152be2e594a18ab82122c",
     "@sqlite.org/sqlite-wasm": "3.53.4-build2",
     "@tailwindcss/browser": "^4.3.3",
     "@tailwindcss/typography": "^0.5.19",

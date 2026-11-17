@@ -22,7 +22,7 @@ function Harness({ zoom }: { zoom: number }) {
     setSent(true);
   };
   return (
-    <MessageScrollerProvider autoScroll={false} defaultScrollPosition="end">
+    <MessageScrollerProvider autoScroll={false}>
       <div style={{ zoom }}>
         <MessageScroller>
           <MessageScrollerViewport style={{ height: 300 }}>

@@ -1,8 +1,9 @@
-// What a slide does to the real scroller: its hold on the message reads a
-// transform as distance, so only a browser can say the two get along.
+// The scroll owner in a real browser: where it puts a message just sent, how
+// it follows a reply that outgrows the room under it, and what the reader's
+// own scrolling does. Measured, since jsdom has no layout.
 import { renderInBrowser } from "@/tests/render-browser";
 import { noop } from "radashi";
-import { Fragment, type RefObject, useRef, useState } from "react";
+import { Fragment, type RefObject, useLayoutEffect, useState } from "react";
 import { expect, it, vi } from "vitest";
 
 import {
@@ -12,30 +13,25 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
   useMessageScroller,
-} from "../ui/message-scroller";
-import { useSlideToSent } from "./use-slide-to-sent";
+} from "../message-scroller";
 
 const PEEK = 80;
 const PADDING = 16;
 
 let send: (options?: { armed: boolean }) => void = noop;
-let grow = noop;
+let grow: (by?: number) => void = noop;
 
-function Slide({
-  armRef,
-  contentRef,
-}: {
-  armRef: RefObject<() => void>;
-  contentRef: RefObject<HTMLElement | null>;
-}) {
-  const { releaseAutoScroll } = useMessageScroller();
-  useSlideToSent({ armRef, contentRef, release: releaseAutoScroll });
+function Arm({ armRef }: { armRef: RefObject<() => void> }) {
+  const { armSlide } = useMessageScroller();
+  useLayoutEffect(() => {
+    armRef.current = armSlide;
+  }, [armRef, armSlide]);
   return null;
 }
 
+const armRef: RefObject<() => void> = { current: noop };
+
 function Harness() {
-  const armRef = useRef<() => void>(noop);
-  const contentRef = useRef<HTMLDivElement>(null);
   const [sent, setSent] = useState(2);
   const [reply, setReply] = useState(40);
   send = ({ armed } = { armed: true }) => {
@@ -44,20 +40,15 @@ function Harness() {
     }
     setSent((count) => count + 1);
   };
-  grow = () => {
-    setReply((height) => height + 30);
+  grow = (by = 30) => {
+    setReply((height) => height + by);
   };
   return (
-    <MessageScrollerProvider
-      autoScroll
-      defaultScrollPosition="end"
-      scrollPreviousItemPeek={PEEK}
-    >
+    <MessageScrollerProvider autoScroll scrollPreviousItemPeek={PEEK}>
       <MessageScroller>
         <MessageScrollerViewport style={{ height: 400 }}>
           <MessageScrollerContent
             data-content
-            ref={contentRef}
             style={{
               display: "flex",
               flexDirection: "column",
@@ -77,7 +68,7 @@ function Harness() {
               </Fragment>
             ))}
           </MessageScrollerContent>
-          <Slide armRef={armRef} contentRef={contentRef} />
+          <Arm armRef={armRef} />
         </MessageScrollerViewport>
       </MessageScroller>
     </MessageScrollerProvider>
@@ -175,4 +166,76 @@ it("stops where it is when the reader scrolls, and is not pulled back", async ()
   grow();
   const seen = await frames(120);
   expect(seen.at(-1)?.top).toBeCloseTo(before, 0);
+});
+
+/** How far the content ends below the viewport's bottom edge. */
+function below() {
+  const element = viewport();
+  const rows = document.querySelectorAll("[data-message-scroller-item]");
+  const last = rows[rows.length - 1];
+  return (
+    (last?.getBoundingClientRect().bottom ?? 0) +
+    PADDING -
+    element.getBoundingClientRect().bottom
+  );
+}
+
+it("follows the reply's end once it outgrows the room under the message", async () => {
+  await renderInBrowser(<Harness />);
+  await frames(100);
+  send({ armed: false });
+  await frames(50);
+  // Taller than the room left under the message.
+  const seen = await frames(400, {
+    0: () => {
+      grow(200);
+    },
+    80: () => {
+      grow(200);
+    },
+    160: () => {
+      grow(200);
+    },
+  });
+  expect(seen.at(-1)?.top).toBeLessThan(PADDING + PEEK - 100);
+  expect(below()).toBeCloseTo(0, 0);
+});
+
+it("leaves the reader where they scrolled to, and follows again once they scroll back", async () => {
+  await renderInBrowser(<Harness />);
+  await frames(100);
+  send({ armed: false });
+  await frames(50);
+  grow(800);
+  await frames(50);
+  expect(below()).toBeCloseTo(0, 0);
+  const element = viewport();
+  element.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+  element.scrollTop -= 200;
+  await frames(50);
+  const kept = element.scrollTop;
+  grow(300);
+  await frames(50);
+  expect(element.scrollTop).toBeCloseTo(kept, 0);
+  element.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+  element.scrollTop = element.scrollHeight;
+  await frames(50);
+  grow(300);
+  await frames(50);
+  expect(below()).toBeCloseTo(0, 0);
+});
+
+it("keeps following when the content gets shorter for a moment", async () => {
+  await renderInBrowser(<Harness />);
+  await frames(100);
+  send({ armed: false });
+  await frames(50);
+  grow(800);
+  await frames(50);
+  // A row closing lowers the scroll position with no one scrolling.
+  grow(-300);
+  await frames(50);
+  grow(500);
+  await frames(50);
+  expect(below()).toBeCloseTo(0, 0);
 });

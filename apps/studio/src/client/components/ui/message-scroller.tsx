@@ -1,28 +1,101 @@
 import { cn } from "@/client/lib/utils";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { MessageScroller as MessageScrollerPrimitive } from "@shadcn/react/message-scroller";
 import * as React from "react";
 
 import { Button } from "./button";
+import { type ScrollOptions, ScrollOwner } from "./scroll-owner/scroll-owner";
 import { Spinner } from "./spinner";
 
-export {
-  useMessageScroller,
-  useMessageScrollerScrollable,
-  useMessageScrollerVisibility,
-} from "@shadcn/react/message-scroller";
+const ScrollOwnerContext = React.createContext<ScrollOwner | null>(null);
+
+function useScrollOwner(): ScrollOwner {
+  const owner = React.use(ScrollOwnerContext);
+  if (!owner) {
+    throw new Error("A message scroller part must be inside its provider.");
+  }
+  return owner;
+}
+
+/** The commands a transcript's controls reach the scroller through. */
+function useMessageScroller(): {
+  armSlide: () => void;
+  releaseAutoScroll: () => void;
+  scrollToEnd: (options?: { behavior?: ScrollBehavior }) => boolean;
+  scrollToMessage: (messageId: string, options?: ScrollOptions) => boolean;
+  scrollToStart: () => boolean;
+} {
+  const owner = useScrollOwner();
+  return {
+    armSlide: owner.armSlide,
+    releaseAutoScroll: owner.releaseAutoScroll,
+    scrollToEnd: owner.scrollToEnd,
+    scrollToMessage: owner.scrollToMessage,
+    scrollToStart: owner.scrollToStart,
+  };
+}
+
+/** Whether there is more to scroll to at the start and at the end. */
+function useMessageScrollerScrollable() {
+  const owner = useScrollOwner();
+  return React.useSyncExternalStore(
+    owner.subscribe,
+    owner.getScrollable,
+    owner.getScrollable,
+  );
+}
+
+/**
+ * Owns a transcript's scroll position (`ScrollOwner`). `autoScroll` says
+ * whether anything can still arrive at the end, so following it means
+ * anything; `scrollPreviousItemPeek` is the room left above a message just
+ * sent, so the end of what came before stays in sight.
+ */
+function MessageScrollerProvider({
+  autoScroll = false,
+  children,
+  defaultScrollPosition = "end",
+  scrollPreviousItemPeek = 64,
+}: {
+  autoScroll?: boolean;
+  children?: React.ReactNode;
+  /** Where the transcript opens, read once. */
+  defaultScrollPosition?: "end" | "start";
+  scrollPreviousItemPeek?: number;
+}) {
+  const [owner] = React.useState(
+    () =>
+      new ScrollOwner(
+        { anchorRoom: scrollPreviousItemPeek, autoScroll },
+        defaultScrollPosition,
+      ),
+  );
+  React.useLayoutEffect(() => {
+    owner.updateSettings({ anchorRoom: scrollPreviousItemPeek, autoScroll });
+  }, [owner, autoScroll, scrollPreviousItemPeek]);
+  React.useEffect(() => {
+    owner.connect();
+    return () => {
+      owner.dispose();
+    };
+  }, [owner]);
+  return <ScrollOwnerContext value={owner}>{children}</ScrollOwnerContext>;
+}
 
 function MessageScroller({
   className,
+  ref,
   ...props
-}: React.ComponentProps<typeof MessageScrollerPrimitive.Root>) {
+}: React.ComponentProps<"div">) {
+  const owner = useScrollOwner();
+  const attach = useAttach(owner.setRoot, ref);
   return (
-    <MessageScrollerPrimitive.Root
+    <div
       className={cn(
         "group/message-scroller relative flex size-full min-h-0 flex-col overflow-hidden",
         className,
       )}
       data-slot="message-scroller"
+      ref={attach}
       {...props}
     />
   );
@@ -39,15 +112,19 @@ function MessageScrollerButton({
   children,
   className,
   direction = "end",
-  render,
+  onClick,
   waiting = false,
   ...props
-}: React.ComponentProps<typeof MessageScrollerPrimitive.Button> & {
+}: React.ComponentProps<typeof Button> & {
   busy?: boolean;
+  direction?: "end" | "start";
   waiting?: boolean;
 }) {
+  const owner = useScrollOwner();
+  const scrollable = useMessageScrollerScrollable();
+  const isActive = direction === "start" ? scrollable.start : scrollable.end;
   return (
-    <MessageScrollerPrimitive.Button
+    <Button
       className={cn(
         "relative rounded-full bg-background hover:bg-background/90 data-[active=false]:pointer-events-none data-[active=false]:opacity-0",
         // Spelled as a variable so `cn` knows it for a shadow and drops the
@@ -62,9 +139,25 @@ function MessageScrollerButton({
         "ring-1 ring-[color-mix(in_oklab,var(--foreground)_6%,var(--background))] dark:ring-[color-mix(in_oklab,var(--foreground)_11%,var(--background))]",
         className,
       )}
+      data-active={isActive ? "true" : "false"}
       data-slot="message-scroller-button"
-      direction={direction}
-      render={render ?? <Button size="icon-sm" variant="secondary" />}
+      inert={!isActive}
+      onClick={(event) => {
+        onClick?.(event);
+        if (event.defaultPrevented) {
+          return;
+        }
+        event.currentTarget.blur();
+        if (direction === "start") {
+          owner.scrollToStart();
+        } else {
+          owner.scrollToEnd({ behavior: "smooth" });
+        }
+      }}
+      size="icon-sm"
+      tabIndex={isActive ? undefined : -1}
+      type="button"
+      variant="secondary"
       {...props}
     >
       {children ?? (
@@ -90,20 +183,40 @@ function MessageScrollerButton({
           </span>
         </>
       )}
-    </MessageScrollerPrimitive.Button>
+    </Button>
   );
 }
 
+/**
+ * The transcript's column. Its last child is the room the scroller leaves under
+ * a message just sent, so the reply has somewhere to arrive.
+ */
 function MessageScrollerContent({
+  children,
   className,
+  ref,
   ...props
-}: React.ComponentProps<typeof MessageScrollerPrimitive.Content>) {
+}: React.ComponentProps<"div">) {
+  const owner = useScrollOwner();
+  const attach = useAttach(owner.setContent, ref);
+  const attachSpacer = useAttach(owner.setSpacer);
   return (
-    <MessageScrollerPrimitive.Content
+    <div
+      aria-relevant="additions"
       className={cn("flex h-max flex-col gap-6", className)}
       data-slot="message-scroller-content"
+      ref={attach}
+      role="log"
       {...props}
-    />
+    >
+      {children}
+      <div
+        aria-hidden="true"
+        data-message-scroller-spacer=""
+        hidden
+        ref={attachSpacer}
+      />
+    </div>
   );
 }
 
@@ -112,23 +225,46 @@ function MessageScrollerContent({
 // shadows), which we need to stay visible.
 function MessageScrollerItem({
   className,
+  messageId,
+  ref,
   scrollAnchor = false,
   ...props
-}: React.ComponentProps<typeof MessageScrollerPrimitive.Item>) {
+}: React.ComponentProps<"div"> & {
+  /** Names the row, for `scrollToMessage`. */
+  messageId?: string;
+  /** A message the person sent, which the scroller brings near the top as it arrives. */
+  scrollAnchor?: boolean;
+}) {
+  const owner = useScrollOwner();
+  const elementRef = React.useRef<HTMLDivElement | null>(null);
+  const attach = React.useCallback(
+    (element: HTMLDivElement | null) => {
+      elementRef.current = element;
+      assignRef(ref, element);
+    },
+    [ref],
+  );
+  React.useLayoutEffect(() => {
+    const element = elementRef.current;
+    owner.registerItem(messageId, element);
+    return () => {
+      owner.registerItem(messageId, null);
+      if (element) {
+        owner.unregisterElement(element);
+      }
+    };
+  }, [owner, messageId]);
   return (
-    <MessageScrollerPrimitive.Item
+    <div
       className={cn("min-w-0 shrink-0", className)}
+      data-message-id={messageId}
+      data-message-scroller-item=""
+      data-scroll-anchor={scrollAnchor ? "true" : "false"}
       data-slot="message-scroller-item"
-      scrollAnchor={scrollAnchor}
+      ref={attach}
       {...props}
     />
   );
-}
-
-function MessageScrollerProvider(
-  props: React.ComponentProps<typeof MessageScrollerPrimitive.Provider>,
-) {
-  return <MessageScrollerPrimitive.Provider {...props} />;
 }
 
 // The transcript is not a tab stop and never draws a focus ring. It is a
@@ -151,24 +287,57 @@ function MessageScrollerProvider(
 // the viewport in the tree without a z-index of their own.
 function MessageScrollerViewport({
   className,
+  ref,
   tabIndex = -1,
   ...props
-}: React.ComponentProps<typeof MessageScrollerPrimitive.Viewport>) {
+}: React.ComponentProps<"div">) {
+  const owner = useScrollOwner();
+  const attach = useAttach(owner.setViewport, ref);
   return (
-    <MessageScrollerPrimitive.Viewport
+    <div
+      aria-label="Messages"
       className={cn(
         "isolate size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-x-hidden overflow-y-auto overscroll-contain outline-none",
         className,
       )}
       data-slot="message-scroller-viewport"
+      ref={attach}
+      role="region"
       tabIndex={tabIndex}
       {...props}
     />
   );
 }
 
+/**
+ * A ref callback that keeps its identity while what it hands the element to
+ * does, so the scroller is not detached and attached again on every render.
+ */
+function useAttach<T>(
+  attach: (element: T | null) => void,
+  ref?: React.Ref<T>,
+): React.RefCallback<T> {
+  return React.useCallback(
+    (element: T | null) => {
+      attach(element);
+      assignRef(ref, element);
+    },
+    [attach, ref],
+  );
+}
+
+function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
+  if (typeof ref === "function") {
+    ref(value);
+  } else if (ref) {
+    ref.current = value;
+  }
+}
+
 export {
   MessageScroller,
+  useMessageScroller,
+  useMessageScrollerScrollable,
   MessageScrollerButton,
   MessageScrollerContent,
   MessageScrollerItem,

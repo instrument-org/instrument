@@ -770,6 +770,7 @@ const DID: Record<Purpose, string> = {
   "emoji-suggestion": "Suggested an emoji",
   image: "Made an image",
   "next-message": "Suggested a reply",
+  "ambient-ideas": "Suggested ideas for your tabs",
   other: "Made an AI request",
   "project-backfill": "Sorted chats into projects",
   "project-suggestion": "Suggested a project",

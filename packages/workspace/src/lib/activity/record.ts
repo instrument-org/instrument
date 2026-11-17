@@ -35,6 +35,14 @@ import { insertActivity } from "./store";
 export interface ActivityCall {
   /** The chat the request was for. */
   chatId?: ChatId;
+  /**
+   * What only the caller learns about the request (its cost, when its first
+   * words came, what set it off), read once the request has settled.
+   */
+  details?: () => Pick<
+    ActivityEntry,
+    "costUsd" | "firstOutputMs" | "trigger"
+  >;
   /** The connection the request goes through; never its key. */
   connection?: { displayName?: string; id: string; type: string };
   /** Language unless said otherwise: an image made by a language model is still an image. */
@@ -89,6 +97,7 @@ export function recordActivity(
       purpose: call.purpose,
       sessionId: call.sessionId ?? null,
       surface: call.surface ?? null,
+      ...call.details?.(),
       ...entry,
     });
   });

@@ -284,7 +284,7 @@ async function suggestOnSettle(
  * there's no next message to suggest"), or giving its reason on a line after
  * one ("because they asked for three").
  */
-function looksLikeCommentary(line: string): boolean {
+export function looksLikeCommentary(line: string): boolean {
   return (
     /\b(?:next message|to suggest|suggestion|the person|the user|the conversation)\b/i.test(
       line,
@@ -299,7 +299,7 @@ function looksLikeCommentary(line: string): boolean {
  * it" and "Yes. Save it" are the person answering an offer, so neither a
  * "sure" nor a second sentence rules one out.
  */
-function looksUnsendable(line: string): boolean {
+export function looksUnsendable(line: string): boolean {
   return (
     !/[\p{L}\p{N}]/u.test(line) ||
     /^(?:thanks|thank you|looks good|sounds good|great|perfect|nice|makes sense)\b[\s!.]*$/i.test(

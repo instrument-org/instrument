@@ -39,6 +39,7 @@ const PURPOSE_LABELS: Record<ActivityRequest["purpose"], string> = {
   "chat-title": "Chat title",
   "emoji-suggestion": "Emoji suggestion",
   "next-message": "Suggested reply",
+  "ambient-ideas": "Tab ideas",
   image: "Image",
   other: "Other",
   "settings-search": "Settings search",
@@ -61,6 +62,7 @@ const SURFACE_LABELS: Record<
   draft: "Draft",
   settings: "Settings",
   projects: "Projects",
+  tabs: "Tabs",
 };
 
 const STATUS_LABELS: Record<ActivityRequest["status"], string> = {

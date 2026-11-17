@@ -1,4 +1,3 @@
-import { type WindowTab } from "@/client/atoms/window";
 import { getDefaultStore, useAtomValue } from "jotai";
 import { useRef } from "react";
 
@@ -8,8 +7,6 @@ import {
   ROW_GAP_PX,
   sidebarDropAt,
 } from "../sidebar-drop";
-import { useWindowTabs } from "../window-tabs";
-import { heldTabsOf } from "./held-tabs";
 import { type Rect } from "./landing";
 import {
   currentDrag,
@@ -116,16 +113,13 @@ export function useSidebarTarget(nav: () => HTMLElement | null) {
 
 /**
  * What the sidebar draws of a drag: the row of a group of its list in the
- * pointer's hand, whose place in the list shuts; and what is held, as the
- * tabs it would be, joining the row it goes into. The room a lifted row
+ * pointer's hand, whose place in the list shuts. The room a lifted row
  * first opens is its own place, so it opens at once.
  */
 export function useSidebarDrag(): {
-  adding: readonly WindowTab[];
   lifted: string | undefined;
 } {
   const drag = useAtomValue(dragAtom);
-  const { allTabs } = useWindowTabs();
   const snappedFor = useRef<object>(undefined);
   useDragFrame(() => {
     const store = getDefaultStore();
@@ -140,14 +134,10 @@ export function useSidebarDrag(): {
     }
   });
   if (!drag) {
-    return { adding: [], lifted: undefined };
+    return { lifted: undefined };
   }
-  const { held, landing } = drag;
+  const { held } = drag;
   return {
-    adding:
-      landing?.kind === "sidebar" && landing.drop.kind === "into"
-        ? heldTabsOf(held, allTabs)
-        : [],
     lifted:
       held.kind === "group" && drag.input === "pointer"
         ? held.group

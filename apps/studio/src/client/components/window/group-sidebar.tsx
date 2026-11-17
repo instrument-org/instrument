@@ -60,7 +60,6 @@ import {
 import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { sidebarTopInset } from "./inbox-toggle";
-import { useAppsBySlug } from "./apps-by-slug";
 import { type Project } from "./chats";
 import { ActiveChatsList } from "./active-chats-list";
 import { NotificationsBell } from "./notifications-bell";
@@ -68,7 +67,7 @@ import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
-import { RowHalf, RowLinesView, TabMark } from "./row-half";
+import { RowHalf, RowLinesView } from "./row-half";
 import { quiet } from "./row-lines";
 import { useTabTitle } from "./tab-title";
 import {
@@ -224,7 +223,7 @@ export function GroupSidebar({
   const drop = useAtomValue(sidebarDropAtom);
   const navRef = useRef<HTMLElement>(null);
   useSidebarTarget(() => navRef.current);
-  const { adding, lifted } = useSidebarDrag();
+  const { lifted } = useSidebarDrag();
   const roomSnaps = useAtomValue(roomSnapsAtom);
   const filled = useAtomValue(filledRoomAtom);
   const room = drop?.kind === "between" ? drop : undefined;
@@ -281,11 +280,6 @@ export function GroupSidebar({
 
   const row = (entry: TabGroup) => (
     <GroupRow
-      adding={
-        drop?.kind === "into" && drop.group === entry.group
-          ? adding[0]
-          : undefined
-      }
       chatTitles={chatTitles}
       chord={groupNumbers?.get(entry.group)}
       entry={entry}
@@ -689,10 +683,9 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
  * the first click asks in the half's place and a second there closes
  * (`RowLinesView`). A middle click closes the group. While a tab held over
  * it would land in its group, it is raised and ringed in place of any other
- * tone, the mark of what would join it faded at its end. A right click raises its menu (`GroupRowMenu`).
+ * tone. A right click raises its menu (`GroupRowMenu`).
  */
 export function GroupRow({
-  adding,
   chatTitles,
   chord,
   entry,
@@ -706,8 +699,6 @@ export function GroupRow({
   onPress,
   onShow,
 }: {
-  /** What a drag would add to the group, its mark shown faded at the row's end. */
-  adding?: WindowTab | undefined;
   chatTitles: Map<ChatId, string>;
   /** The group chord's number that picks it, shown at its end while that modifier is held. */
   chord?: number | undefined;
@@ -729,7 +720,6 @@ export function GroupRow({
 }) {
   const { layoutOf } = useWindowTabs();
   const titleOf = useTabTitle(chatTitles);
-  const appsBySlug = useAppsBySlug();
   const layout = layoutOf(entry.group);
   const ups = layout.sides.flatMap((side) => {
     const up = side.tabs.find((tab) => tab.id === side.up) ?? side.tabs[0];
@@ -858,20 +848,6 @@ export function GroupRow({
       {...(isLifted ? {} : { "aria-label": label, role: "button" })}
     >
       {inner}
-      {adding && (
-        <span
-          aria-hidden
-          className="absolute top-1/2 right-2 flex -translate-y-1/2 animate-in items-center gap-0.5 rounded-md bg-card py-0.5 pl-1 text-[11px] text-muted-foreground opacity-70 duration-120 fade-in-0"
-          data-adding=""
-        >
-          +
-          <TabMark
-            appsBySlug={appsBySlug}
-            chatTitles={chatTitles}
-            tab={adding}
-          />
-        </span>
-      )}
       {chord !== undefined && (
         <ChordHint className="absolute top-1/2 right-2 -translate-y-1/2">
           {groupChordLabel(chord)}

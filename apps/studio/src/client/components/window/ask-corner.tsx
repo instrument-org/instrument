@@ -7,11 +7,13 @@ import {
 import { ShortcutKeys } from "@/client/components/shortcut-keys";
 import { makeNewChatDraftAtom } from "@/client/drafts/new-chat-box";
 import { isDictating, useDictation } from "@/client/hooks/use-dictation";
+import { onPagePress } from "@/client/lib/browser-pool";
 import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { useAskCornerRequest } from "./ask-corner-state";
 import { IdeaRows } from "./idea-rows";
@@ -34,13 +36,16 @@ const LABEL = "Ask about this page";
 /**
  * The Ask corner, at the top right of a tab group with no chat in it: a
  * label until an idea for the group's tabs is ready, then that idea, rising
- * in, and never changing under the pointer. A click or ⌘J opens it into a
- * field with the ideas as next-message rows under it: ⌘↩ takes the first,
- * typing writes your own. The microphone talks into it in place, without
- * ideas. Sending makes a chat with the message sent, as the group's right
- * side, or as a new tab on that side when it already has one. It never
- * answers in place. A group with a chat (or a new tab, which has ideas of its
- * own) has no corner, and neither does a connection with no fast model.
+ * in, and never changing under the pointer; ⌘J beside it either way. A
+ * click or ⌘J opens it into a field with the ideas as next-message rows
+ * under it: ↓ and ↑ move through them and ↩ takes the one marked, ⌘↩ takes
+ * the first, typing writes your own. The microphone talks into it in place,
+ * without ideas. Sending makes a chat with the message sent, as the group's
+ * right side, or as a new tab on that side when it already has one. It never
+ * answers in place. Esc steps back from a marked idea, then closes; a click
+ * anywhere else folds it back, keeping what was typed. A group with a
+ * chat (or a new tab, which has ideas of its own) has no corner, and neither
+ * does a connection with no fast model.
  */
 export function AskCorner({
   group,
@@ -69,6 +74,8 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
   const [words, setWords] = useState("");
   const [isDictated, setIsDictated] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  // The idea the arrow keys are on; none while the field itself is.
+  const [highlighted, setHighlighted] = useState<number>();
   const inputRef = useRef<HTMLInputElement>(null);
   const cornerRef = useRef<HTMLDivElement>(null);
   const ideasOn = useIdeasAvailable();
@@ -105,17 +112,28 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
   });
 
   const open = () => {
-    setIsOpen(true);
-    requestAnimationFrame(() => inputRef.current?.focus());
+    // The field takes the keyboard before the next frame, when a press in
+    // the group puts the keyboard it finds on nothing in the group's page
+    // (`placeCaretAfterPress`).
+    flushSync(() => {
+      setIsOpen(true);
+    });
+    inputRef.current?.focus();
+  };
+  /** Back to rest, what was typed kept. */
+  const collapse = () => {
+    setIsOpen(false);
+    setHighlighted(undefined);
   };
   const close = () => {
-    setIsOpen(false);
+    collapse();
     setWords("");
     setIsDictated(false);
   };
   useAskCornerRequest(open);
 
-  // Click-away closes it.
+  // A click anywhere else folds it back. A click into a page reaches its
+  // guest, never this document, so main reports that one.
   useEffect(() => {
     if (!isOpen) {
       return;
@@ -125,12 +143,14 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
         event.target instanceof Node &&
         !cornerRef.current?.contains(event.target)
       ) {
-        close();
+        collapse();
       }
     };
     window.addEventListener("pointerdown", onDown, { capture: true });
+    const stopPagePresses = onPagePress(collapse);
     return () => {
       window.removeEventListener("pointerdown", onDown, { capture: true });
+      stopPagePresses();
     };
   }, [isOpen]);
 
@@ -167,6 +187,8 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
 
   const idea = shown[0];
   const hasWords = words.trim() !== "";
+  const rows = !isDictated && !talking ? shown : [];
+  const marked = highlighted === undefined ? undefined : rows[highlighted];
 
   return (
     <div
@@ -179,7 +201,7 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
       {isOpen ? (
         <div
           className={cn(
-            "absolute top-0 right-0 z-30 flex flex-col rounded-2xl bg-popover text-popover-foreground shadow-lg ring-1 ring-foreground/8",
+            "absolute top-0 right-0 z-30 flex flex-col rounded-2xl bg-popover text-popover-foreground shadow-float-lg ring-1 ring-foreground/8",
             OPEN_WIDTH,
           )}
         >
@@ -187,7 +209,7 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
             className="flex h-8 items-center gap-0.5 pr-1 pl-2.5 text-[13px]"
             onSubmit={(event) => {
               event.preventDefault();
-              send(words);
+              send(marked ?? words);
             }}
           >
             <input
@@ -195,14 +217,31 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
               className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
               onChange={(event) => {
                 setWords(event.target.value);
+                setHighlighted(undefined);
               }}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   event.preventDefault();
-                  close();
+                  if (highlighted === undefined) {
+                    close();
+                  } else {
+                    setHighlighted(undefined);
+                  }
+                } else if (event.key === "ArrowDown" && rows.length > 0) {
+                  event.preventDefault();
+                  setHighlighted(
+                    Math.min((highlighted ?? -1) + 1, rows.length - 1),
+                  );
+                } else if (event.key === "ArrowUp" && rows.length > 0) {
+                  event.preventDefault();
+                  setHighlighted(
+                    highlighted === undefined || highlighted === 0
+                      ? undefined
+                      : highlighted - 1,
+                  );
                 } else if (event.key === "Enter" && commandKeyHeld(event)) {
                   event.preventDefault();
-                  send(hasWords ? words : (idea ?? ""));
+                  send(marked ?? (hasWords ? words : (idea ?? "")));
                 }
               }}
               placeholder={LABEL}
@@ -216,21 +255,22 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
               aria-label="Send"
               className={cn(
                 "grid size-[22px] shrink-0 place-items-center rounded-full",
-                hasWords
+                hasWords || marked
                   ? "bg-brand-600 text-white"
                   : "bg-foreground/10 text-background",
               )}
-              disabled={!hasWords}
+              disabled={!hasWords && !marked}
               type="submit"
             >
               <ArrowUpIcon size={13} weight="bold" />
             </button>
           </form>
-          {!isDictated && !talking && shown.length > 0 && (
+          {rows.length > 0 && (
             <IdeaRows
               className="px-3 pt-0.5 pb-2"
+              highlighted={highlighted}
               isBoxEmpty={!hasWords}
-              lines={shown}
+              lines={rows}
               onSend={send}
             />
           )}
@@ -260,13 +300,7 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
           ) : (
             <button
               className="flex h-full min-w-0 flex-1 items-center overflow-hidden text-left"
-              onClick={() => {
-                if (hasWords) {
-                  setIsOpen(true);
-                } else {
-                  open();
-                }
-              }}
+              onClick={open}
               type="button"
             >
               {hasWords ? (
@@ -279,24 +313,15 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
                   {idea}
                 </span>
               ) : (
-                <>
-                  <span
-                    className={cn(
-                      "truncate text-muted-foreground",
-                      ideas.isWaiting && ideasOn && "animate-pulse",
-                    )}
-                  >
-                    {LABEL}
-                  </span>
-                  <span className="ml-auto shrink-0 pr-1 pl-2 opacity-70">
-                    <ShortcutKeys
-                      accelerator={WINDOW_SHORTCUTS.askAboutPage.accelerator}
-                    />
-                  </span>
-                </>
+                <span className="truncate text-muted-foreground">{LABEL}</span>
               )}
             </button>
           )}
+          <span className="shrink-0 pr-1 pl-2 opacity-70">
+            <ShortcutKeys
+              accelerator={WINDOW_SHORTCUTS.askAboutPage.accelerator}
+            />
+          </span>
           {canDictate && <DictationControls dictation={dictation} size="sm" />}
           {hasWords && !talking && (
             <button

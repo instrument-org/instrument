@@ -86,6 +86,9 @@ export const WorkspacePreferencesSchema = z.object({
   // The bookmarks bar under every tab's address row, in every window; put
   // away and brought back from the View menu or the bar's own menu.
   showBookmarksBar: z.boolean().catch(true),
+  // Ideas in the Ask corner of a tab group with no chat, and under a new
+  // tab's box; see ask-ideas.ts in the workspace package.
+  showIdeas: z.boolean().catch(true),
   // A next message offered in a chat's empty box once it settles; see
   // next-message.ts in the workspace package.
   suggestNextMessage: z.boolean().catch(true),

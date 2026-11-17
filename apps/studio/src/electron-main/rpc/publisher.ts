@@ -155,6 +155,7 @@ interface PublisherEvents {
 
 /** What one window is asked to do; see `window.command`. */
 export type WindowCommand =
+  | "askAboutPage"
   | "back"
   | "bookmarkAllTabs"
   | "bookmarkTab"

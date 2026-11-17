@@ -20,6 +20,7 @@ How Instrument looks, notifications, dictation, suggested messages, updates, and
 - **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: Release notes (`release-notes`), Check for updates (`check-for-updates`).
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Send feedback (`send-feedback`), Third-party licenses (`third-party-licenses`).
 - **Suggest a next message** (`suggest-next-message`): After a reply, show a few things you might say next.
+- **Show ideas** (`show-ideas`): Show ideas for what to ask about the pages and files you have open.
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
 
 ### Account (`account`)
@@ -96,7 +97,7 @@ On a Mac these are the menu bar's menus, the first named for Instrument; on Wind
 
 - **Instrument**: Check for Updates…, Settings…
 - **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
-- **View**: Toggle Sidebar, Show Bookmarks Bar, Edit Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
+- **View**: Toggle Sidebar, Show Bookmarks Bar, Edit Page, Ask About This Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
 - **History**: Back, Forward, Show History, Clear Browsing Data…
 - **Bookmarks**: Bookmark Manager, Bookmark This Tab…, Bookmark All Tabs…
 - **Tab**: Show Next Tab, Show Previous Tab, New Tab in Split, Close Split, Focus Left Side, Focus Right Side, Move Tab to New Window
@@ -160,6 +161,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 ### Pages
 
+- Ask About This Page: ⌘J / Ctrl+J
 - Back: ⌘[ / Alt+←
 - Bookmark All Tabs…: ⇧⌘D / Ctrl+Shift+D
 - Bookmark This Tab…: ⌘D / Ctrl+D

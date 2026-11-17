@@ -57,6 +57,7 @@ import {
   SIDE_SHARE_DEFAULT,
   SIDE_WIDTH_MIN,
 } from "./side-widths";
+import { AskCorner } from "./ask-corner";
 import { useTabSurface } from "./tab-surface";
 import { WINDOW_CARD, WINDOW_CARD_GAP } from "./window-frame";
 import { groupOnScreenAtom, newScreenId, useWindowTabs } from "./window-tabs";
@@ -822,7 +823,14 @@ function SideCard({
         split={split}
         tabs={drawn.tabs}
         taskTitles={shell.childTitles}
-        trailing={isLast ? <CaptionRoom /> : undefined}
+        trailing={
+          isLast ? (
+            <>
+              <AskCorner group={group} key={group} layout={layout} />
+              <CaptionRoom />
+            </>
+          ) : undefined
+        }
       />
       <div className="relative min-h-0 flex-1" data-side-page={sideIndex}>
         {up && (

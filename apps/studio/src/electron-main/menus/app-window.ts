@@ -58,6 +58,7 @@ interface WindowChord {
  * window's menus goes without while the rows around it have one.
  */
 const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
+  askAboutPage: "sparkles",
   back: "chevron.backward",
   bookmarkAllTabs: "star.square.on.square",
   bookmarkTab: "star",
@@ -175,6 +176,7 @@ const BOOKMARKS_BAR_CHORD = chord("toggleBookmarksBar", () => {
 const VIEW_CHORDS: WindowChord[] = [
   chord("toggleSidebar"),
   chord("editPage"),
+  chord("askAboutPage"),
   // The page in front of the user, never the window: reloading the window
   // takes every browser guest down with its document. The window decides
   // which page that is (page-chords.ts).

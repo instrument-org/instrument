@@ -19,6 +19,7 @@ import { requestBookmarkAllTabs } from "./bookmark-all-tabs";
 import { requestFileInfo } from "@/client/components/window/file-info";
 import { interruptHeldHints } from "@/client/components/window/held-chord-hints";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
+import { requestAskCorner } from "@/client/components/window/ask-corner-state";
 import {
   findAgainForKeyboard,
   openFindForKeyboard,
@@ -216,6 +217,15 @@ export function useWindowCommands(
         event.preventDefault();
         requestPageEditToggle();
       }
+      if (
+        commandKeyHeld(event) &&
+        !event.altKey &&
+        !event.shiftKey &&
+        event.key.toLowerCase() === "j"
+      ) {
+        event.preventDefault();
+        requestAskCorner();
+      }
     };
     // Backspace at the rows goes back a folder where the file manager's does,
     // after the rows have had it: one that was taking back a typed name is theirs.
@@ -349,6 +359,10 @@ export function useWindowCommands(
             }
             case "closeTab": {
               latest.current.closeTab();
+              break;
+            }
+            case "askAboutPage": {
+              requestAskCorner();
               break;
             }
             case "editPage": {

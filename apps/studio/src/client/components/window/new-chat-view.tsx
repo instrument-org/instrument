@@ -59,6 +59,9 @@ import { useGroupTab } from "./group-tab";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
+import { IdeaRows } from "./idea-rows";
+import { openSettings } from "@/client/atoms/settings-modal";
+import { ideaTabsOf, useIdeasAvailable, useTabIdeas } from "./use-tab-ideas";
 import { arrivingNewChatTabsAtom, useWindowTabs } from "./window-tabs";
 
 /**
@@ -297,6 +300,30 @@ export function NewChatView({
       windowTabs.visitHref(tabId, hrefOfTarget(target));
     }
   };
+  // Ideas for a new chat, from what else its group has open and what the
+  // person did lately, as next-message rows under the centered box.
+  const ideasOn = useIdeasAvailable() && isCentered;
+  const ownGroup = windowTabs.allTabs.find((tab) => tab.id === tabId)?.group;
+  const ideas = useTabIdeas({
+    isOn: ideasOn && ownGroup !== undefined,
+    tabs:
+      ownGroup === undefined
+        ? []
+        : ideaTabsOf(windowTabs.layoutOf(ownGroup), tabId),
+    trigger: "new-tab",
+  });
+  const sendIdea = (line: string) => {
+    if (shell.defaultModelURI === undefined) {
+      return;
+    }
+    cancelWords(newChatWordsKey(tabId));
+    const id = draft?.id ?? makeDraft({ tabId, words: line });
+    shell.startChat(
+      id,
+      { modelURI: shell.defaultModelURI, prompt: line },
+      tabId,
+    );
+  };
   const places = {
     computerName: osConventions().computer,
     onOpenApps: () => {
@@ -394,6 +421,13 @@ export function NewChatView({
             }
           }}
           shownPath={shownPath}
+          onCommandEnterWhenEmpty={
+            ideas.lines[0] === undefined
+              ? undefined
+              : () => {
+                  sendIdea(ideas.lines[0] ?? "");
+                }
+          }
           onModelChange={shell.setDefaultModelURI}
           onWordsChange={setWords}
           // Once, as a new tab's composer first comes up: never as the tab
@@ -447,6 +481,25 @@ export function NewChatView({
             </span>
             <Kbd>↵</Kbd>
           </button>
+        )}
+        {!goTo && ideasOn && (
+          <IdeaRows
+            className="absolute inset-x-6 top-full mt-3"
+            isBoxEmpty={words.trim() === ""}
+            lines={ideas.lines}
+            onSend={sendIdea}
+            trailing={
+              <button
+                className="px-1 text-[11px] text-muted-foreground/60 hover:text-muted-foreground"
+                onClick={() => {
+                  openSettings({ setting: "show-ideas" });
+                }}
+                type="button"
+              >
+                Turn off ideas
+              </button>
+            }
+          />
         )}
       </div>
       {/* As much room under the composer as over it, so it stands at the

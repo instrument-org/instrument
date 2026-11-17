@@ -54,6 +54,7 @@ const WINDOW_GROUPS: Record<
   ShortcutGuideGroup
 > = {
   actualSize: "View",
+  askAboutPage: "Pages",
   back: "Pages",
   bookmarkAllTabs: "Pages",
   bookmarkTab: "Pages",

@@ -108,6 +108,7 @@ describe("formatAcceleratorFor", () => {
         "pictureZoomOut: ⌘ -  /  Ctrl -  /  Ctrl -",
         "pictureFit: ⌘ 0  /  Ctrl 0  /  Ctrl 0",
         "picturePan: ↑↓←→  /  ↑↓←→  /  ↑↓←→",
+        "askAboutPage: ⌘ J  /  Ctrl J  /  Ctrl J",
         "back: ⌘ [  /  Alt ←  /  Alt ←",
         "bookmarkAllTabs: ⇧ ⌘ D  /  Ctrl Shift D  /  Ctrl Shift D",
         "bookmarkTab: ⌘ D  /  Ctrl D  /  Ctrl D",

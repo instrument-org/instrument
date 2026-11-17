@@ -99,6 +99,7 @@ export function GeneralSection() {
       <About />
       <SettingsSection title="Chats">
         <NextMessageSuggestions />
+        <ShowIdeas />
       </SettingsSection>
       <SettingsSection title="Advanced">
         <DiagnosticLog />
@@ -811,6 +812,45 @@ function NextMessageSuggestions() {
         disabled={setSuggestNextMessage.isPending}
         onCheckedChange={(enabled) => {
           setSuggestNextMessage.mutate({ enabled });
+        }}
+      />
+    </label>
+  );
+}
+
+/**
+ * Whether a tab group with no chat, and a new tab, show ideas for what to ask
+ * about what's open. Each set of ideas is a request on the connection's fast
+ * model.
+ */
+function ShowIdeas() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setShowIdeas = useMutation(
+    rpcClient.preferences.setShowIdeas.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't change that setting", { cause: error });
+      },
+    }),
+  );
+  return (
+    <label
+      className="flex items-start justify-between gap-4"
+      {...settingAnchor("show-ideas")}
+    >
+      <span className="space-y-1">
+        <span className="block text-sm font-medium">Show ideas</span>
+        <span className="block text-xs text-muted-foreground">
+          {APP_NAME} suggests things to ask about the pages and files you have
+          open. It adds a little to your AI usage.
+        </span>
+      </span>
+      <Switch
+        checked={preferences?.showIdeas !== false}
+        disabled={setShowIdeas.isPending}
+        onCheckedChange={(enabled) => {
+          setShowIdeas.mutate({ enabled });
         }}
       />
     </label>

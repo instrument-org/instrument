@@ -333,12 +333,12 @@ function sideShows(tab: WindowTab | undefined): SideShows {
  * content goes to whatever in the page takes it (a composer, a field, a web
  * page, a folder in Files); a new tab nobody has written in turns into
  * files or a link; and content anywhere else joins the side under the
- * pointer. A tab lands nowhere on a page but its edge, and a whole group
- * from this window makes a side of its own of the half of a lone side under
- * the pointer. The margin between an outer page and the window's edge
- * counts as that page's edge (`pagesReach`). Nothing in the group is drawn
- * again while something is held over it, so the pages stay put under the
- * pointer.
+ * pointer. A tab or a bookmark lands nowhere on a page but its edge, a
+ * place nowhere on a page at all, and a whole group from this window makes
+ * a side of its own of the half of a lone side under the pointer. The
+ * margin between an outer page and the window's edge counts as that page's
+ * edge (`pagesReach`). Nothing in the group is drawn again while something
+ * is held over it, so the pages stay put under the pointer.
  */
 export function useSidePagesTarget({
   group,

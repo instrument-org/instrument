@@ -109,6 +109,14 @@ const LANDINGS: Record<string, Landing | undefined> = {
     side: 1,
     split: false,
   },
+  "right edge, two sides": {
+    edge: EDGE,
+    group: "g1",
+    kind: "side",
+    lit: LIT,
+    side: 1,
+    split: false,
+  },
   "new tab's page": { group: "g1", kind: "newTab", lit: LIT, tab: "n1" },
   "sidebar row": {
     drop: { group: "g3", kind: "into" },
@@ -170,6 +178,7 @@ describe("outcomeOf", () => {
         right half, one side → move · "Move to the right"
         middle, one side → nothing
         right side of two → move · "Move to the right"
+        right edge, two sides → move · "Move to the right"
         new tab's page → nothing
         sidebar row → move · "Move to Reading"
         sidebar room → move · "New tab group"
@@ -191,6 +200,7 @@ describe("outcomeOf", () => {
         right half, one side → move · "Open on the right"
         middle, one side → nothing
         right side of two → move · "Open on the right"
+        right edge, two sides → move · "Open on the right"
         new tab's page → nothing
         sidebar row → nothing
         sidebar room → move
@@ -212,6 +222,7 @@ describe("outcomeOf", () => {
         right half, one side → open · "Open on the right"
         middle, one side → open · "Open in a new tab"
         right side of two → open · "Open on the right"
+        right edge, two sides → open · "Open on the right"
         new tab's page → open · "Open in this tab"
         sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"
@@ -233,6 +244,7 @@ describe("outcomeOf", () => {
         right half, one side → open · "Open on the right"
         middle, one side → open · "Open in a new tab"
         right side of two → open · "Open on the right"
+        right edge, two sides → open · "Open on the right"
         new tab's page → open · "Open in this tab"
         sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"
@@ -254,6 +266,7 @@ describe("outcomeOf", () => {
         right half, one side → open · "Open on the right"
         middle, one side → open · "Open in a new tab"
         right side of two → open · "Open on the right"
+        right edge, two sides → open · "Open on the right"
         new tab's page → open · "Open in this tab"
         sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"
@@ -272,10 +285,11 @@ describe("outcomeOf", () => {
         strip tab → open · "Open in this tab"
         left edge, one side → open · "Open on the left"
         right edge, one side → open · "Open on the right"
-        right half, one side → open · "Open on the right"
-        middle, one side → open · "Open in a new tab"
-        right side of two → open · "Open on the right"
-        new tab's page → open · "Open in this tab"
+        right half, one side → nothing
+        middle, one side → nothing
+        right side of two → nothing
+        right edge, two sides → open · "Open on the right"
+        new tab's page → nothing
         sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
@@ -291,12 +305,13 @@ describe("outcomeOf", () => {
         own strip → open
         strip line → open · "Open in a new tab"
         strip tab → open · "Open in this tab"
-        left edge, one side → open · "Open on the left"
-        right edge, one side → open · "Open on the right"
-        right half, one side → open · "Open on the right"
-        middle, one side → open · "Open in a new tab"
-        right side of two → open · "Open on the right"
-        new tab's page → open · "Open in this tab"
+        left edge, one side → nothing
+        right edge, one side → nothing
+        right half, one side → nothing
+        middle, one side → nothing
+        right side of two → nothing
+        right edge, two sides → nothing
+        new tab's page → nothing
         sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
@@ -312,12 +327,13 @@ describe("outcomeOf", () => {
         own strip → open
         strip line → open · "Open in a new tab"
         strip tab → open · "Open in this tab"
-        left edge, one side → open · "Open on the left"
-        right edge, one side → open · "Open on the right"
-        right half, one side → open · "Open on the right"
-        middle, one side → open · "Open in a new tab"
-        right side of two → open · "Open on the right"
-        new tab's page → open · "Open in this tab"
+        left edge, one side → nothing
+        right edge, one side → nothing
+        right half, one side → nothing
+        middle, one side → nothing
+        right side of two → nothing
+        right edge, two sides → nothing
+        new tab's page → nothing
         sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"

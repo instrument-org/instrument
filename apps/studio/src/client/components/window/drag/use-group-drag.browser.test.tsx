@@ -122,23 +122,40 @@ it("lands a sidebar row dropped on another group's strip at the gap nearest the 
   );
 });
 
-/** Presses a bookmark of the bar and carries it to `x` over the strip. */
-const carryBookmarkTo = (x: number) => {
+const BOOKMARK = {
+  bookmark: "b1",
+  id: "tab_b1",
+  kind: "link",
+  title: "Example",
+  url: "https://example.com/",
+} as const;
+
+/** A place of the bar's Files menu. */
+const PLACE = {
+  id: "tab_p1",
+  kind: "link",
+  place: { path: "/Users/mac-user/Documents" },
+  title: "Documents",
+  url: "file:///Users/mac-user/Documents/",
+} as const;
+
+/** Presses something of the window and carries it to a point. */
+const carryTo = (
+  held: typeof BOOKMARK | typeof PLACE,
+  x: number,
+  y = STRIP_Y,
+) => {
   pressToDrag(
     { button: 0, clientX: 10, clientY: ROW_Y, isPrimary: true },
-    () => ({
-      grab: { x: 0, y: 0 },
-      held: {
-        bookmark: "b1",
-        id: "tab_b1",
-        kind: "link",
-        title: "Example",
-        url: "https://example.com/",
-      },
-    }),
+    () => ({ grab: { x: 0, y: 0 }, held }),
   );
   pointer("pointermove", 10, ROW_Y - 40);
-  pointer("pointermove", x, STRIP_Y);
+  pointer("pointermove", x, y);
+};
+
+/** Presses a bookmark of the bar and carries it to `x` over the strip. */
+const carryBookmarkTo = (x: number) => {
+  carryTo(BOOKMARK, x);
 };
 
 const rest = (ms: number) =>
@@ -233,3 +250,47 @@ it.each([
     ).toEqual(expected && { group: "up", ...expected });
   },
 );
+
+it.each([
+  { at: 200, expected: undefined, sides: 1 },
+  { at: 600, expected: undefined, sides: 2 },
+  { at: 395, expected: { side: 1, split: true }, sides: 1 },
+] as const)(
+  "lands a bookmark nowhere in a page's content, and splits at its outer edge (x $at, $sides sides)",
+  async ({ at, expected, sides }) => {
+    await renderInBrowser(<Pages sides={sides} />);
+    carryTo(BOOKMARK, at, 400);
+    const { landing } = currentDrag() ?? {};
+    expect(
+      landing?.kind === "side"
+        ? { side: landing.side, split: landing.split }
+        : landing,
+    ).toEqual(expected);
+  },
+);
+
+it.each([5, 200, 395])(
+  "lands a place nowhere on a page, its edges included (x %i)",
+  async (at) => {
+    await renderInBrowser(<Pages sides={1} />);
+    carryTo(PLACE, at, 400);
+    expect(currentDrag()?.landing).toBeUndefined();
+  },
+);
+
+it("opens a place as a tab from a strip's line", async () => {
+  const landed = vi.fn();
+  setLander(landed);
+  await renderInBrowser(<Strip group="up" />);
+  carryTo(PLACE, 150);
+  const strip = {
+    group: "up",
+    index: 1,
+    kind: "strip",
+    line: { height: 28, left: 99, top: 6, width: 2 },
+    side: 0,
+  };
+  expect(currentDrag()?.landing).toEqual(strip);
+  pointer("pointerup", 150, STRIP_Y);
+  expect(landed).toHaveBeenCalledWith(PLACE, strip);
+});

@@ -17,6 +17,10 @@ import { isBookmark, type Held, type Landing, placeOf } from "./types";
  * Let go where nothing takes it, a bookmark stays where it is kept, as in a
  * browser's bar.
  *
+ * A bookmark or a place held is a piece of the window, as a tab is, which
+ * no page's content takes: a bookmark opens as a tab from a strip or a
+ * page's outer edge, and a place from a strip alone.
+ *
  * No line where what is held already stands where it would go: its own
  * strip, a whole group's room in the list.
  */
@@ -41,6 +45,9 @@ export function outcomeOf(
   } = {},
 ): Outcome {
   const isOwnTab = held.kind === "tab" || held.kind === "group";
+  // A bookmark or a place held by the pointer, a link that is a piece of the
+  // window, which a page's content never takes.
+  const isPiece = isBookmark(held) || placeOf(held) !== undefined;
   const goes = (line: string | undefined): Outcome => ({
     does: isOwnTab ? "move" : "open",
     line,
@@ -74,10 +81,18 @@ export function outcomeOf(
     }
     case "replace":
     case "newTab": {
-      // Only content opens in a tab's place; a tab never replaces another.
-      return isOwnTab ? nothing : goes("Open in this tab");
+      // Only content opens in a tab's place; a tab never replaces another,
+      // and a new tab's page takes no bookmark or place, as no page does.
+      return isOwnTab || (landing.kind === "newTab" && isPiece)
+        ? nothing
+        : goes("Open in this tab");
     }
     case "side": {
+      // A place opens as a tab from a strip alone, and a bookmark from a
+      // strip or a page's outer edge.
+      if (placeOf(held) || (isBookmark(held) && !landing.edge)) {
+        return nothing;
+      }
       if (landing.isLone) {
         // Only content opens as a new tab of a page it is let go on.
         return isOwnTab ? nothing : goes("Open in a new tab");

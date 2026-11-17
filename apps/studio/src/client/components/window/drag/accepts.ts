@@ -1,5 +1,5 @@
 import { type Rect, type SideZone } from "./landing";
-import { type Held, type Landing } from "./types";
+import { type Held, isBookmark, type Landing, placeOf } from "./types";
 
 /**
  * What a side's page has under the pointer that takes a drop itself, as the
@@ -34,7 +34,9 @@ export type SideShows = "newTab" | "other" | "site";
  *    the half under the pointer, and a tab lands nowhere.
  *
  * A piece of the window (a tab, a group, a bookmark, a place) skips step 2:
- * it is never handed to a page.
+ * it is never handed to a page. A bookmark stops after step 1, as a tab
+ * does, so it opens as a tab only from a strip or an edge; a place lands
+ * nowhere on a page, its edge included, and opens as a tab from a strip.
  */
 export function pageLandingOf({
   group,
@@ -66,8 +68,14 @@ export function pageLandingOf({
     side: of.side,
     split: of.kind === "split",
   });
+  if (placeOf(held)) {
+    return undefined;
+  }
   if (zone?.edge) {
     return landingOf(zone);
+  }
+  if (isBookmark(held)) {
+    return undefined;
   }
   const isContent =
     input === "native" && (held.kind === "files" || held.kind === "link");

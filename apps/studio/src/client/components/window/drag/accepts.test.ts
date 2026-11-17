@@ -33,6 +33,16 @@ const PLACE: Held = {
   title: "Documents",
   url: "file:///Users/mac-user/Documents/",
 };
+const PINNED_PLACE: Held = {
+  id: "p",
+  kind: "link",
+  place: {
+    path: "/Users/mac-user/Documents",
+    pinned: ["/Users/mac-user/Documents"],
+  },
+  title: "Documents",
+  url: "file:///Users/mac-user/Documents/",
+};
 const TAB: Held = { group: "g", id: "t", key: "t", kind: "tab", side: 0 };
 
 /** What letting go over a side's page does, said in a word. */
@@ -103,12 +113,27 @@ describe("pageLandingOf", () => {
     },
   );
 
-  it.each([FILES, LINK, TAB, BOOKMARK, PLACE])(
+  it.each([FILES, LINK, TAB, BOOKMARK])(
     "the group's outer edge wins over what the page takes ($kind)",
     (held) => {
       expect(landing({ held, shows: "site", under: "box", zone: EDGE })).toBe(
         "split",
       );
+    },
+  );
+
+  it.each([
+    { shows: "other", zone: EDGE },
+    { shows: "other", zone: JOIN },
+    { shows: "site", zone: JOIN },
+    { shows: "newTab", zone: JOIN },
+  ] satisfies { shows: SideShows; zone: SideZone }[])(
+    "lands a place nowhere on a page, its edge included ($shows, $zone.kind)",
+    (over) => {
+      expect([
+        landing({ held: PLACE, ...over }),
+        landing({ held: PINNED_PLACE, ...over }),
+      ]).toEqual(["nothing", "nothing"]);
     },
   );
 
@@ -123,11 +148,15 @@ describe("pageLandingOf", () => {
     // A tab lands on no page, only at its edge (`sideZoneAt` says none).
     { expected: "nothing", held: TAB, under: "box", zone: null },
     { expected: "nothing", held: TAB, shows: "newTab", zone: null },
-    { expected: "side", held: BOOKMARK, shows: "site" },
-    { expected: "side", held: BOOKMARK, under: "text" },
-    { expected: "newTab", held: BOOKMARK, shows: "newTab" },
+    // A bookmark opens as a tab from a strip or an edge, never from a
+    // page's content.
+    { expected: "nothing", held: BOOKMARK },
+    { expected: "nothing", held: BOOKMARK, shows: "site" },
+    { expected: "nothing", held: BOOKMARK, under: "text" },
+    { expected: "nothing", held: BOOKMARK, under: "box" },
+    { expected: "nothing", held: BOOKMARK, shows: "newTab" },
     // A place of Files' sidebar is a link to Files there, never the folder.
-    { expected: "side", held: PLACE, under: "folder" },
+    { expected: "nothing", held: PLACE, under: "folder" },
   ] satisfies {
     expected: string;
     held: Held;

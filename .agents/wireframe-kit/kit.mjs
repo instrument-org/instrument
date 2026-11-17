@@ -45,6 +45,39 @@ export const kitSource = () =>
     "\n",
   );
 
+/**
+ * What a part of frames loads, in order: the skill's neutral pieces, then the kit with its
+ * own pieces (`kit/pieces.js`), whose win, card and composer replace the neutral ones. A
+ * JS part never loads pieces.js: it shares one scope with the kit, where a part's own
+ * `card` would collide with it.
+ */
+export const framesKits = () => [
+  { src: fs.readFileSync(path.join(SKILL, "pieces.js"), "utf8") },
+  {
+    src: `${kitSource()}\n${fs.readFileSync(path.join(here, "kit", "pieces.js"), "utf8")}`,
+  },
+];
+
+/** A snap() host for a Node run of a part of frames, and the library states it named. */
+export const snapRecorder = () => {
+  /** @type {Set<string>} */
+  const used = new Set();
+  return {
+    used,
+    host: {
+      use: (/** @type {string} */ name) => {
+        const s = loadState(name);
+        used.add(name);
+        return { w: s.w, h: s.h };
+      },
+    },
+  };
+};
+
+/** Whether a part is a part of frames (an HTML file of scripts) rather than a JS part. */
+export const isFramesPart = (/** @type {string} */ partPath) =>
+  partPath.endsWith(".html");
+
 /** Whether a part builds a prototype (it defines SCREEN) rather than frames. */
 export const isPrototype = (/** @type {string} */ part) =>
   /^const SCREEN\s*=/m.test(part);

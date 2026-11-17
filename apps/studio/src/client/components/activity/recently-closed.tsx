@@ -117,34 +117,23 @@ export function ClosedTabRows({ closed }: { closed: ClosedTabs }) {
 }
 
 /** How many of a side's tabs its strip draws before the rest go in a count. */
-const STRIP_SHOWN = { split: 3, whole: 8 } as const;
-
 /**
- * Closed tabs drawn as they stood: each side's tab up as its half of the
- * sidebar's row draws it (`RowHalf`), two sides split by the row's
- * hairline, and under each the side's tabs as its strip had them, squeezed:
- * the one up raised and named, the rest by their marks, and past a few a
- * count of the rest. The one up is always among those drawn.
+ * A closed group drawn as the sidebar draws its row: each side's tab up as
+ * its half (`RowHalf`), two sides split by the row's hairline.
  */
 export function ClosedTabsPicture({ closed }: { closed: ClosedTabs }) {
   const shell = useContext(ShellContext);
   const chatTitles = shell?.chatTitles ?? NO_TITLES;
-  const titles = new Map(closed.tabs.map(({ tab, title }) => [tab.id, title]));
-  const most = closed.sides.length > 1 ? STRIP_SHOWN.split : STRIP_SHOWN.whole;
   return (
-    <div className="flex min-w-0 items-stretch rounded-lg px-2.5 py-1.5 ring-1 ring-foreground/8">
+    <div className="flex min-w-0 items-stretch rounded-lg px-2.5 py-1 ring-1 ring-foreground/8">
       {closed.sides.map((side, index) => {
         const up = side.tabs.find((tab) => tab.id === side.up) ?? side.tabs[0];
-        const first = side.tabs.slice(0, most);
-        const shown =
-          up && !first.includes(up) ? [...first.slice(0, -1), up] : first;
-        const rest = side.tabs.length - shown.length;
         return (
           // Even padding on both sides of the hairline, so the halves are
           // the same width.
           <div
             className={cn(
-              "relative flex min-w-0 flex-1 basis-0 flex-col",
+              "relative flex min-w-0 flex-1 basis-0",
               index > 0 && "pl-2",
               index < closed.sides.length - 1 && "pr-2",
             )}
@@ -156,31 +145,6 @@ export function ClosedTabsPicture({ closed }: { closed: ClosedTabs }) {
             {up && (
               <RowHalf chatTitles={chatTitles} isOnScreen={false} tab={up} />
             )}
-            {/* Marks only, under the row that names the tab up; a side of one
-                tab gets its strip too, so the two sides line up. */}
-            <div className="flex min-w-0 items-center gap-0.5 pb-0.5">
-              {shown.map((tab) => (
-                <span
-                  className={cn(
-                    "grid size-6 shrink-0 place-items-center rounded-lg",
-                    tab === up
-                      ? "bg-background shadow-xs-soft"
-                      : "text-foreground/55 dark:text-foreground/65",
-                  )}
-                  key={tab.id}
-                  title={titles.get(tab.id)}
-                >
-                  <span className="grid size-3.5 place-items-center">
-                    <ClosedTabMark tab={tab} />
-                  </span>
-                </span>
-              ))}
-              {rest > 0 && (
-                <span className="shrink-0 px-1 text-[12px] text-muted-foreground tabular-nums">
-                  +{rest} more
-                </span>
-              )}
-            </div>
           </div>
         );
       })}

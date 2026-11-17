@@ -196,6 +196,7 @@ export function fitTrail(
  */
 export function FoldingTrail({
   className,
+  cutsAtEnd,
   labelClassName,
   labels,
   mark,
@@ -205,6 +206,8 @@ export function FoldingTrail({
   separator,
 }: {
   className?: string;
+  /** Whether a part's name, once cut, ends in an ellipsis rather than losing its middle: a title, which reads from its start. */
+  cutsAtEnd?: (index: number) => boolean;
   /** Each part's padding, measured with its mark and name. */
   labelClassName?: string;
   labels: string[];
@@ -339,8 +342,9 @@ export function FoldingTrail({
       {labels.map((label, index) => {
         const fit = current?.parts[index] ?? { kind: "whole" };
         const isPointed = pointedAt === index;
+        const isEndCut = fit.kind === "cut" && cutsAtEnd?.(index) === true;
         const shown =
-          isPointed || fit.kind === "whole"
+          isPointed || fit.kind === "whole" || isEndCut
             ? label
             : fit.kind === "folded" || !current?.font
               ? ""
@@ -353,6 +357,7 @@ export function FoldingTrail({
               aria-hidden={shown === label ? undefined : true}
               className={cn(
                 "overflow-hidden whitespace-pre",
+                isEndCut && !isPointed && "text-ellipsis",
                 markOf !== null && markOf !== undefined && "ml-1",
                 !isPointed && fit.kind === "folded" && "ml-0",
                 moving.includes(index) &&

@@ -341,7 +341,7 @@ export function BrowserTabs({
   // Each page stands in its group's side, two of which show pages side by
   // side at widths of their own, so a page behind is laid out at its side's.
   const panes = tabs
-    .map((tab) => `${tab.id} ${tab.group}:${sideOf(tab)}`)
+    .map((tab) => `${tab.id} ${tab.group ?? ""}:${sideOf(tab)}`)
     .join("\n");
   useEffect(() => {
     setPagePanes(
@@ -656,7 +656,10 @@ export function BrowserTabs({
             },
             { ...ask, ...(previous === undefined ? {} : { previous }) },
           );
-          opened = { front: placed.front, id: StoreId.TabSchema.parse(placed.id) };
+          opened = {
+            front: placed.front,
+            id: StoreId.TabSchema.parse(placed.id),
+          };
           return placed.state;
         });
         // A page already loaded is opened with no address, so it stays as

@@ -1,4 +1,10 @@
-import { useAddBookmark } from "@/client/bookmarks/actions";
+import {
+  addSortedBookmark,
+  bookmarkListing,
+  listedBookmark,
+  useAddBookmark,
+} from "@/client/bookmarks/actions";
+import { bookmarksStateAtom } from "@/client/bookmarks/store";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
@@ -997,6 +1003,19 @@ export function useOpeners({
     }
     if (action.kind === "history") {
       return { history: await historyRows(action) };
+    }
+    if (action.kind === "bookmarks") {
+      return { bookmarks: bookmarkListing(store.get(bookmarksStateAtom)) };
+    }
+    if (action.kind === "addBookmark") {
+      // Kept as a menu's Add to Bookmarks keeps it, by this window's store.
+      const { bookmark, isNew } = addSortedBookmark(store, action);
+      return {
+        bookmark: {
+          ...listedBookmark(store.get(bookmarksStateAtom), bookmark),
+          isNew,
+        },
+      };
     }
     if (action.kind === "reopenClosed") {
       const entry = store

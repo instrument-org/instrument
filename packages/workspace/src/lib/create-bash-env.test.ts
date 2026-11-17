@@ -74,6 +74,7 @@ describe("createBashDescription", () => {
         "instrument window",
         "instrument chats",
         "instrument projects",
+        "instrument bookmarks",
       ]
     `);
   });
@@ -145,14 +146,15 @@ describe("instrument", () => {
     expect(bare.stdout).toMatchInlineSnapshot(`
       "Usage: instrument <command> ...
 
-        activity  What the user did in this app lately, with names and paths.
-        app       Connect services and call their tools.
-        chats     Organizing the user's chats: rename, archive, file and star them.
-        memory    What you keep about the user for every chat.
-        projects  The user's projects: list, create, rename, mark and delete them.
-        task      Start, message, stop and read your tasks.
-        window    What the user sees: list, show, read and close the tabs and tab groups in their windows, or ask for one of theirs.
-        x         Search posts on X through the user's Grok account.
+        activity   What the user did in this app lately, with names and paths.
+        app        Connect services and call their tools.
+        bookmarks  The user's bookmarks: list them, and add one.
+        chats      Organizing the user's chats: rename, archive, file and star them.
+        memory     What you keep about the user for every chat.
+        projects   The user's projects: list, create, rename, mark and delete them.
+        task       Start, message, stop and read your tasks.
+        window     What the user sees: list, show, read and close the tabs and tab groups in their windows, or ask for one of theirs.
+        x          Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
       "
@@ -199,6 +201,7 @@ describe("instrument", () => {
       expect(listed).toEqual([
         "activity",
         "app",
+        "bookmarks",
         "memory",
         "projects",
         "window",
@@ -214,12 +217,13 @@ describe("instrument", () => {
     expect((await bash.exec("instrument")).stdout).toMatchInlineSnapshot(`
       "Usage: instrument <command> ...
 
-        activity  What the user did in this app lately, with names and paths.
-        app       Connect services and call their tools.
-        memory    What you keep about the user for every chat.
-        projects  The user's projects: list, create, rename, mark and delete them.
-        window    What the user sees: list, show, read and close the tabs and tab groups in their windows, or ask for one of theirs.
-        x         Search posts on X through the user's Grok account.
+        activity   What the user did in this app lately, with names and paths.
+        app        Connect services and call their tools.
+        bookmarks  The user's bookmarks: list them, and add one.
+        memory     What you keep about the user for every chat.
+        projects   The user's projects: list, create, rename, mark and delete them.
+        window     What the user sees: list, show, read and close the tabs and tab groups in their windows, or ask for one of theirs.
+        x          Search posts on X through the user's Grok account.
 
       \`instrument <command> help\` prints one command's own usage.
       "

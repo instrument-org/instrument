@@ -1,9 +1,16 @@
 import {
   type Bookmark,
+  type BookmarkRoot,
+  type Bookmarks,
+  folderOf,
+  OTHER_ROOT,
   OTHER_ROOT_TITLE,
+  rootItems,
+  rootOf,
   sortedAddOps,
 } from "@/shared/bookmarks";
 import { toast } from "@/client/lib/toast";
+import { type WindowTabAnswer } from "@instrument-org/workspace/client";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 
 import { sameAddress, sortedKindOf } from "./address";
@@ -109,4 +116,49 @@ export function useAddBookmark() {
     }
     toast(`Added to ${OTHER_ROOT_TITLE}`, { description: title || url });
   };
+}
+
+type ListedBookmark = NonNullable<WindowTabAnswer["bookmarks"]>[number];
+
+/** The root as the agent is told it: the bar, or Other bookmarks. */
+function listedRoot(root: BookmarkRoot | undefined): ListedBookmark["root"] {
+  return root === OTHER_ROOT ? "other" : "bar";
+}
+
+/** A bookmark as `instrument bookmarks` tells the agent of it: where it is, its name and its address. */
+export function listedBookmark(
+  state: Bookmarks,
+  bookmark: Bookmark,
+): ListedBookmark {
+  const folder = folderOf(state, bookmark);
+  return {
+    kind: "bookmark",
+    root: listedRoot(rootOf(state, bookmark)),
+    title: bookmark.title,
+    url: bookmark.url,
+    ...(folder ? { folder: folder.title } : {}),
+  };
+}
+
+/**
+ * Every folder and bookmark as `instrument bookmarks list` reads them, in the
+ * Bookmarks page's order: the bar's, then Other bookmarks', each folder
+ * before what is filed in it.
+ */
+export function bookmarkListing(state: Bookmarks): ListedBookmark[] {
+  const roots: (BookmarkRoot | undefined)[] = [undefined, OTHER_ROOT];
+  return roots.flatMap((root) =>
+    rootItems(state, root).flatMap((item): ListedBookmark[] =>
+      item.kind === "bookmark"
+        ? [listedBookmark(state, item.bookmark)]
+        : [
+            {
+              kind: "folder",
+              root: listedRoot(root),
+              title: item.folder.title,
+            },
+            ...item.items.map((bookmark) => listedBookmark(state, bookmark)),
+          ],
+    ),
+  );
 }

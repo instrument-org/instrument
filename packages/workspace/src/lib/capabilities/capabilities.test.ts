@@ -511,6 +511,7 @@ describe("the registry", () => {
         "apps.icon": "only the chat sets up and changes apps, since every chat uses them. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.",
         "apps.new": "only the chat sets up and changes apps, since every chat uses them. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.",
         "apps.test": "only the chat sets up and changes apps, since every chat uses them. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.",
+        "bookmarks.add": "only the chat adds to the user's bookmarks. Say in your report what the chat should bookmark.",
         "chats.archive": "only the chat organizes the user's chats. Say in your report what the chat should rename, archive, file or star.",
         "chats.list": "only the chat organizes the user's chats. Say in your report what the chat should rename, archive, file or star.",
         "chats.project": "only the chat organizes the user's chats. Say in your report what the chat should rename, archive, file or star.",

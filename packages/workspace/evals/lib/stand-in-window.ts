@@ -191,6 +191,12 @@ export function createStandInWindow(chrome?: SharedChrome) {
     if (action.kind === "history") {
       return { history: [] };
     }
+    if (action.kind === "bookmarks") {
+      return { bookmarks: [] };
+    }
+    if (action.kind === "addBookmark") {
+      return { error: "the stand-in window keeps no bookmarks." };
+    }
     // What the app opens on its own as a turn ends is no ask of the agent's.
     if (action.kind === "handOver") {
       return {};

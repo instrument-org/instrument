@@ -86,6 +86,18 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
    * date, and answered whether or not a page's guest is up.
    */
   z.object({ group: z.string().optional(), kind: z.literal("list") }),
+  /** Every bookmark and bookmark folder, as the Bookmarks page lists them. */
+  z.object({ kind: z.literal("bookmarks") }),
+  /**
+   * Keeps an address as a bookmark the way a menu's Add to Bookmarks does:
+   * into its kind's folder of Other bookmarks, or left where it is when it
+   * is kept already.
+   */
+  z.object({
+    kind: z.literal("addBookmark"),
+    title: z.string(),
+    url: z.string(),
+  }),
 ]);
 
 export type WindowTabAction = z.output<typeof WindowTabActionSchema>;
@@ -99,6 +111,19 @@ export const WindowTabRequestSchema = z.object({
 });
 
 export type WindowTabRequest = z.output<typeof WindowTabRequestSchema>;
+
+/**
+ * A bookmark or a bookmark folder as the window names it to the agent: the
+ * root it is in (the bar, or Other bookmarks), the folder it is filed in by
+ * name, its name, and a bookmark's address.
+ */
+export const ListedBookmarkSchema = z.object({
+  folder: z.string().optional(),
+  kind: z.enum(["bookmark", "folder"]),
+  root: z.enum(["bar", "other"]),
+  title: z.string(),
+  url: z.string().optional(),
+});
 
 /** The window's answer: the tab acted on or made, or why nothing was done. */
 export const WindowTabAnswerSchema = z.object({
@@ -151,6 +176,10 @@ export const WindowTabAnswerSchema = z.object({
     .optional(),
   /** The page's text, for a read. */
   text: z.string().optional(),
+  /** For a bookmarks list: every folder and bookmark, the bar's then Other bookmarks', each folder before what is filed in it. */
+  bookmarks: z.array(ListedBookmarkSchema).optional(),
+  /** For a bookmark's add: the bookmark, and whether it was kept already. */
+  bookmark: ListedBookmarkSchema.extend({ isNew: z.boolean() }).optional(),
 });
 
 export type WindowTabAnswer = z.output<typeof WindowTabAnswerSchema>;

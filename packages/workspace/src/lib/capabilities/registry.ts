@@ -20,6 +20,7 @@ import {
   appsTest,
 } from "./apps-setup";
 import { activityList } from "./activity";
+import { bookmarksAdd, bookmarksList } from "./bookmarks";
 import {
   chatsArchive,
   chatsList,
@@ -81,6 +82,8 @@ export const CAPABILITIES: readonly Capability[] = [
   appsIcon,
   appsAccount,
   appsDisconnect,
+  bookmarksList,
+  bookmarksAdd,
   chatsList,
   chatsRename,
   chatsArchive,

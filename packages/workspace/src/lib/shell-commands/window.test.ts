@@ -293,7 +293,9 @@ function answeringWindow() {
                     action.entry === "tab_closed2"
                     ? {}
                     : { error: `nothing in History is ${action.entry}.` }
-                  : action.kind === "handOver"
+                  : action.kind === "handOver" ||
+                      action.kind === "bookmarks" ||
+                      action.kind === "addBookmark"
                     ? {}
                     : action.kind === "show" && refusedShows.has(action.tabId)
                       ? {

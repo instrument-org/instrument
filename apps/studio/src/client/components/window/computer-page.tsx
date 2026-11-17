@@ -4716,10 +4716,11 @@ function PlaceList({
 /**
  * A place in the sidebar, which drags as a place, held by the pointer: a
  * link to Files at its folder, never the folder itself, so nothing is
- * handed out of the app to copy (`pressPlace`). It opens as a tab, joins a
- * strip, goes on the bookmarks bar, or moves along Pinned; a row of Pinned
- * let go past the window leaves Pinned, as in Finder's sidebar. The recents
- * and the computer are no folder, and stay put.
+ * handed out of the app to copy (`pressPlace`). It joins a strip as a tab,
+ * goes on the bookmarks bar, moves along Pinned, or goes into a message as
+ * its folder; a row of Pinned let go where nothing takes it leaves Pinned,
+ * as in Finder's sidebar. The recents and the computer are no folder, and
+ * stay put.
  */
 function PlaceRow({
   menu,

@@ -80,7 +80,11 @@ function wordBeats(part: Extract<Part, { text: string }>, at: number): Beat[] {
   const kind = part.type === "text" ? "prose" : "reasoning";
   const end = Math.max(at, part.metadata.endedAt?.getTime() ?? at);
   const metadata = { ...part.metadata, endedAt: undefined };
-  const chunks = growingChunks(part.text, 6);
+  // About as fine as a provider streams, so the recorded pace has pieces to pace.
+  const chunks = growingChunks(
+    part.text,
+    Math.max(6, Math.ceil(part.text.split(" ").length / 4)),
+  );
   return [
     ...chunks.map((text, index) => ({
       at: at + ((end - at) * index) / chunks.length,
@@ -150,7 +154,7 @@ export function chatFrames(stored: readonly Message[]): Frame[] {
   const shown = new Map<Message, Message>();
   const landed = new Map<StoreId.Part, Part>();
   const frames: Frame[] = [];
-  for (const { head, mark, message, parts } of beats) {
+  for (const { at, head, mark, message, parts } of beats) {
     for (const part of parts ?? []) {
       landed.set(part.metadata.id, part);
     }
@@ -167,7 +171,7 @@ export function chatFrames(stored: readonly Message[]): Frame[] {
         last?.role !== "assistant" ||
         !last.metadata.finishedAt ||
         last.metadata.finishReason === "tool-calls";
-      frames.push({ isAgentRunning, mark, messages });
+      frames.push({ at, isAgentRunning, mark, messages });
     }
   }
   Object.assign(frames.at(-1) ?? {}, { isAgentRunning: false });

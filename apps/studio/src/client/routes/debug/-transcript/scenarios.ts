@@ -351,6 +351,41 @@ const devNotesLong: Act[] = Array.from({ length: 40 }, (_, index) =>
  * work card moving from kind to kind, a burst, a task's card, a message cutting
  * across a turn, and what a failure leaves open.
  */
+const LONG_REPLY_INTRO =
+  "Most of them match. The plan picker and the receipt changed, and the trial banner moved above the fold. I can go through them one at a time if that helps.";
+
+const LONG_REPLY = [
+  "Here is every screen from the October run against today's, in the order the flow shows them.",
+  "",
+  "## Plan picker",
+  "",
+  "The three plans keep their order, but the yearly toggle now sits above the cards instead of under them, and the savings badge reads as a percentage. The card heights match across plans now, which they did not before.",
+  "",
+  "## Checkout",
+  "",
+  "No change to the fields. The total line moved into the summary card and the tax row only shows once an address is in.",
+  "",
+  "## Points to note",
+  "",
+  "- The trial banner is above the fold on every width now, so the first screen of the picker is shorter by its height.",
+  "- The receipt's line items are grouped by plan, and the discount shows as its own row with its code.",
+  "- The upgrade dialog lost its second button. Cancel is now the close control in its corner, which matches the other dialogs.",
+  "- Two screens were captured at a different zoom, so their text looks heavier. Nothing in them changed.",
+  "- The yearly price on the picker rounds to whole dollars, while checkout shows cents.",
+  "",
+  "| Screen | October | Today | Changed |",
+  "| --- | --- | --- | --- |",
+  "| Plan picker | Toggle under the cards | Toggle above the cards | Yes |",
+  "| Checkout | Total in the footer | Total in the summary | Yes |",
+  "| Receipt | One list of items | Items grouped by plan | Yes |",
+  "| Upgrade dialog | Two buttons | One button and a close control | Yes |",
+  "| Trial banner | Below the fold | Above the fold | Yes |",
+  "| Account page | Same | Same | No |",
+  "| Invoices | Same | Same | No |",
+  "",
+  "The one to look at first is the rounding: a person comparing the picker with checkout sees two different yearly prices for the same plan.",
+].join("\n");
+
 export const scenarios: DebugScenario[] = [
   {
     id: "research",
@@ -653,6 +688,22 @@ export const scenarios: DebugScenario[] = [
         "**Today:** sunny and dry, high near 70°F, around 40°F tonight.\n\n**This week:** mild through Wednesday with rain likely midweek, then much colder, with the first widespread freeze of the season this weekend.",
         12,
       ),
+    ],
+  },
+  {
+    // A reply taller than the window, with a list and then a table, sent after
+    // a turn that already fills the window: the end has to be followed as the
+    // reply grows past the room under the message, and the table must not
+    // shift the column when it lays out.
+    id: "long-reply-table",
+    name: "A long reply with a list and a table",
+    script: [
+      user("What changed in the billing screens since the October run?"),
+      prose(LONG_REPLY_INTRO),
+      user("Compare them screen by screen, and list what to look at."),
+      activity("Comparing the screenshots"),
+      prose("Reading both runs side by side."),
+      prose(LONG_REPLY),
     ],
   },
   {

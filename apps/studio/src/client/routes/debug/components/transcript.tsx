@@ -6,6 +6,7 @@ import {
   type TranscriptRecords,
   TranscriptRecordsContext,
 } from "@/client/components/transcript/transcript-data";
+import { stage } from "@/client/components/transcript/stage/stage";
 import { Transcript } from "@/client/components/transcript/transcript";
 import { TranscriptScrollContext } from "@/client/components/transcript-scroll-context";
 import { Button } from "@/client/components/ui/button";
@@ -64,6 +65,7 @@ import {
   Profiler,
   use,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -76,15 +78,25 @@ import { chatFrames, lastTurns, readOnlyClient } from "../-transcript/replay";
 import { RowInspector } from "../-transcript/row-inspector";
 import { type DebugScenario, scenarios } from "../-transcript/scenarios";
 import {
+  arrivalAtom,
   autoScrollAtom,
   developerModeAtom,
+  rateAtom,
   replayAtom,
   showsBottomEdgeAtom,
   speedAtom,
   SPEEDS,
 } from "../-transcript/settings";
+import {
+  frameAt,
+  frameTimes,
+  PROFILES,
+  RATES,
+  recordedTimes,
+} from "../-transcript/timing";
 import { TranscriptEdgeOverlay } from "../-transcript/transcript-edge";
 import { usePlaybackKeys } from "../-transcript/use-playback-keys";
+import { useScrollTrace } from "../-transcript/use-scroll-trace";
 import { useTranscriptEdge } from "../-transcript/use-transcript-edge";
 
 const searchSchema = z.object({
@@ -104,11 +116,14 @@ export const Route = createFileRoute("/debug/components/transcript")({
 // that has not finished measures itself against the wall clock, and a turn folds
 // a few seconds after its last event. So a settled scenario folds right after it
 // lands, as it would, and an earlier frame has the time a real one would have had.
-function framesOf(script: DebugScenario["script"]): Frame[] {
+function framesOf(
+  script: DebugScenario["script"],
+  chunkWords?: number,
+): Frame[] {
   const startedAt = Date.now();
-  const first = buildFrames(script, startedAt).at(-1)?.messages;
+  const first = buildFrames(script, startedAt, chunkWords).at(-1)?.messages;
   const lastAt = first?.at(-1)?.metadata.createdAt.getTime() ?? startedAt;
-  return buildFrames(script, startedAt - (lastAt - startedAt));
+  return buildFrames(script, startedAt - (lastAt - startedAt), chunkWords);
 }
 
 // One timeline row, in pixels. The list turns scroll position into a frame by
@@ -570,10 +585,25 @@ function Viewer({ scenario }: { scenario: Playable }) {
   // Built once per scenario, and not because it is slow: every part keeps the
   // id it was born with, so React sees a row change rather than a row replaced,
   // which is the thing being looked at on this page.
+  const [arrival, setArrival] = useAtom(arrivalAtom);
+  const profile = PROFILES.find((entry) => entry.id === arrival);
   const frames = useMemo(
-    () => scenario.frames ?? framesOf(scenario.script),
-    [scenario.frames, scenario.script],
+    () => scenario.frames ?? framesOf(scenario.script, profile?.chunkWords),
+    [scenario.frames, scenario.script, profile?.chunkWords],
   );
+  const [seed, setSeed] = useState(1);
+  const recorded = useMemo(() => recordedTimes(frames), [frames]);
+  // When each frame lands, for a timed run; none for one played a step at a time.
+  const times = useMemo(
+    () =>
+      arrival === "recorded" && recorded
+        ? recorded
+        : profile
+          ? frameTimes(frames, profile, seed)
+          : undefined,
+    [arrival, frames, profile, recorded, seed],
+  );
+  const [rate, setRate] = useAtom(rateAtom);
   const tasks = useMemo(
     () =>
       new Map(
@@ -595,6 +625,9 @@ function Viewer({ scenario }: { scenario: Playable }) {
   const [showsBottomEdge, setShowsBottomEdge] = useAtom(showsBottomEdgeAtom);
   const [shownMs, setShownMs] = useState<number>();
   const renderMs = useRef(0);
+  /** Stage time into a timed run, which is what decides the frame on screen. */
+  const elapsed = useRef(0);
+  const [jumps, setJumps] = useState(0);
   const transcript = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -604,8 +637,61 @@ function Viewer({ scenario }: { scenario: Playable }) {
   const frame = frames[shown];
   const edge = useTranscriptEdge({ frameRef: transcript, index: shown });
 
+  const trace = useScrollTrace({
+    active: replays,
+    autoScroll: autoScrolls,
+    frameIndex: shown,
+    frameRef: transcript,
+  });
+
+  /**
+   * Puts a frame on screen at once, as a scrub or a step does: the run's time
+   * moves to when that frame landed, and every reply shows as far as its text
+   * goes, since no reveal could have kept up with the jump.
+   */
+  const jumpTo = (next: number) => {
+    const landed = Math.min(Math.max(next, 0), lastIndex);
+    elapsed.current = times?.[landed] ?? 0;
+    setIndex(landed);
+    setJumps((count) => count + 1);
+  };
+  useLayoutEffect(() => {
+    if (jumps > 0) {
+      stage.catchUp();
+    }
+  }, [jumps]);
+
+  // A timed run plays on the stage's clock, so slowing or pausing it slows or
+  // stops the reveals with it, and arrivals and reveals never drift apart.
   useEffect(() => {
-    if (!replays || !isPlaying) {
+    if (!replays || !times) {
+      stage.setRate(1);
+      return;
+    }
+    if (!isPlaying) {
+      stage.setRate(0);
+      return;
+    }
+    stage.setRate(rate);
+    const last = times.at(-1) ?? 0;
+    return stage.onTick((dtMs) => {
+      elapsed.current += dtMs;
+      setIndex(frameAt(times, elapsed.current));
+      // A little past the last frame, so its reveal finishes before the clock stops.
+      if (elapsed.current > last + 2000) {
+        setIsPlaying(false);
+      }
+    });
+  }, [isPlaying, rate, replays, times]);
+  useEffect(
+    () => () => {
+      stage.setRate(1);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!replays || !isPlaying || times) {
       return;
     }
     const timer = setInterval(() => {
@@ -620,7 +706,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
     return () => {
       clearInterval(timer);
     };
-  }, [isPlaying, lastIndex, replays, speed]);
+  }, [isPlaying, lastIndex, replays, speed, times]);
 
   usePlaybackKeys({
     onStep: (by) => {
@@ -628,7 +714,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
         return;
       }
       setIsPlaying(false);
-      setIndex((current) => Math.min(Math.max(current + by, 0), lastIndex));
+      jumpTo(shown + by);
     },
     onTogglePlay: () => {
       if (!replays) {
@@ -659,9 +745,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
         {replays && showsBottomEdge && edge && (
           <TranscriptEdgeOverlay edge={edge} />
         )}
-        <MessageScrollerProvider
-          autoScroll={autoScrolls}
-        >
+        <MessageScrollerProvider autoScroll={autoScrolls}>
           <MessageScroller className="min-h-0 flex-1">
             <MessageScrollerViewport
               className="@container/transcript"
@@ -707,7 +791,8 @@ function Viewer({ scenario }: { scenario: Playable }) {
               aria-label="Back to the start"
               onClick={() => {
                 setIsPlaying(false);
-                setIndex(0);
+                jumpTo(0);
+                trace.clear();
               }}
               size="icon-sm"
               variant="ghost"
@@ -720,7 +805,8 @@ function Viewer({ scenario }: { scenario: Playable }) {
                 // Playing from the end restarts, so the button never does
                 // nothing.
                 if (!isPlaying && index >= lastIndex) {
-                  setIndex(0);
+                  jumpTo(0);
+                  trace.clear();
                 }
                 setIsPlaying(!isPlaying);
               }}
@@ -733,7 +819,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
               aria-label="Skip to the end"
               onClick={() => {
                 setIsPlaying(false);
-                setIndex(lastIndex);
+                jumpTo(lastIndex);
               }}
               size="icon-sm"
               variant="ghost"
@@ -741,24 +827,101 @@ function Viewer({ scenario }: { scenario: Playable }) {
               <SkipForwardIcon />
             </Button>
 
+            {times && !isPlaying && (
+              <Button
+                aria-label="One frame of time on"
+                className="font-mono"
+                onClick={() => {
+                  stage.step(16);
+                }}
+                size="sm"
+                variant="ghost"
+              >
+                +16ms
+              </Button>
+            )}
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button className="ml-auto font-mono" size="sm" variant="ghost">
-                  {speed} steps/s
+                <Button className="ml-auto" size="sm" variant="ghost">
+                  {arrival === "recorded" && recorded
+                    ? "As recorded"
+                    : (profile?.name ?? "Steps")}
                   <CaretDownIcon />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                {SPEEDS.map((option) => (
+                <DropdownMenuItem
+                  onSelect={() => {
+                    setArrival("steps");
+                  }}
+                >
+                  Steps
+                </DropdownMenuItem>
+                {recorded && (
                   <DropdownMenuItem
-                    key={option}
                     onSelect={() => {
-                      setSpeed(option);
+                      setIsPlaying(false);
+                      setArrival("recorded");
                     }}
                   >
-                    {option} steps/s
+                    As recorded
+                  </DropdownMenuItem>
+                )}
+                {PROFILES.map((option) => (
+                  <DropdownMenuItem
+                    key={option.id}
+                    onSelect={() => {
+                      setIsPlaying(false);
+                      setArrival(option.id);
+                    }}
+                  >
+                    {option.name}
                   </DropdownMenuItem>
                 ))}
+                {times && times !== recorded && (
+                  <DropdownMenuItem
+                    onSelect={() => {
+                      setSeed((current) => current + 1);
+                    }}
+                  >
+                    New timing
+                  </DropdownMenuItem>
+                )}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button className="font-mono" size="sm" variant="ghost">
+                  {times
+                    ? `${rate.toString()}×`
+                    : `${speed.toString()} steps/s`}
+                  <CaretDownIcon />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {times
+                  ? RATES.map((option) => (
+                      <DropdownMenuItem
+                        key={option}
+                        onSelect={() => {
+                          setRate(option);
+                        }}
+                      >
+                        {option}×
+                      </DropdownMenuItem>
+                    ))
+                  : SPEEDS.map((option) => (
+                      <DropdownMenuItem
+                        key={option}
+                        onSelect={() => {
+                          setSpeed(option);
+                        }}
+                      >
+                        {option} steps/s
+                      </DropdownMenuItem>
+                    ))}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -810,6 +973,17 @@ function Viewer({ scenario }: { scenario: Playable }) {
             watching is what each frame costs, and what it did to the column. */}
         <div className="flex items-center gap-3 border-b px-3 py-1.5 font-mono text-xs text-muted-foreground tabular-nums">
           <span>{shownMs === undefined ? "--" : shownMs.toFixed(1)}ms</span>
+          {replays && times && (
+            <span>{((times[shown] ?? 0) / 1000).toFixed(2)}s</span>
+          )}
+          {replays && (
+            <span
+              className={cn(trace.events.length > 0 && "text-destructive")}
+              title="Moves the scroller made that nothing the reader did asked for"
+            >
+              {trace.events.length} moves
+            </span>
+          )}
           {edge && (
             <span
               className={cn(
@@ -827,6 +1001,17 @@ function Viewer({ scenario }: { scenario: Playable }) {
           )}
         </div>
 
+        {replays && trace.events.length > 0 && (
+          <ol className="max-h-28 shrink-0 overflow-y-auto border-b px-3 py-1.5 font-mono text-xs text-muted-foreground tabular-nums">
+            {trace.events.map((event, at) => (
+              <li key={trace.events.length - at}>
+                frame {event.frame}: {event.kind} {event.px}px in {event.mode}
+                {event.detail ? ` (${event.detail})` : ""}
+              </li>
+            ))}
+          </ol>
+        )}
+
         {replays && (
           <Timeline
             frames={frames}
@@ -834,9 +1019,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
             onInterrupt={() => {
               setIsPlaying(false);
             }}
-            onScrub={(next) => {
-              setIndex(Math.min(Math.max(next, 0), lastIndex));
-            }}
+            onScrub={jumpTo}
           />
         )}
         <RowInspector

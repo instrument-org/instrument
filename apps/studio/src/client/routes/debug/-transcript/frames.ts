@@ -15,6 +15,8 @@ import {
 
 /** One moment in the transcript: what the chat stream would draw right then. */
 export interface Frame {
+  /** When it happened, in ms since the epoch, for a real chat's frame. */
+  at?: number;
   /** Whether the agent is still working as of this frame. */
   isAgentRunning: boolean;
   /** What happened to produce it, for the timeline to draw. */
@@ -114,7 +116,11 @@ class Playback {
   // Where that clock starts still matters: a row that is still running measures
   // itself against now, so a transcript stamped in 1970 reports a step as
   // having taken decades.
-  constructor(startedAt: number) {
+  constructor(
+    startedAt: number,
+    /** Words per streamed piece, for every text and thought; a scenario's own split otherwise. */
+    private readonly chunkWords?: number,
+  ) {
     this.clock = startedAt;
   }
 
@@ -481,7 +487,10 @@ class Playback {
     }
     const metadata = this.openPartMetadata();
     const kind = type === "text" ? "prose" : "reasoning";
-    for (const partial of growingChunks(text, chunkCount)) {
+    const count = this.chunkWords
+      ? Math.ceil(text.split(" ").length / this.chunkWords)
+      : chunkCount;
+    for (const partial of growingChunks(text, count)) {
       this.put({ metadata, state: "streaming", text: partial, type });
       this.snapshot({ kind, phase: "streaming" });
     }
@@ -545,8 +554,12 @@ class Playback {
  * changed, so React's identity checks see exactly what a live stream would
  * change and the memoized layout pass is exercised the way it is in the app.
  */
-export function buildFrames(script: Act[], startedAt = 0): Frame[] {
-  return new Playback(startedAt).run(script);
+export function buildFrames(
+  script: Act[],
+  startedAt = 0,
+  chunkWords?: number,
+): Frame[] {
+  return new Playback(startedAt, chunkWords).run(script);
 }
 
 /**

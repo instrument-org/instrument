@@ -27,6 +27,7 @@ import {
 import { AssistantMessage } from "../assistant-message";
 import { AssistantMessagesFooter } from "../assistant-messages-footer";
 import { SentFileChips } from "../sent-file-chips";
+import { SessionMarkdown } from "../session-markdown";
 import { CommandCard } from "../task/command-card";
 import { ChatSeparatorRow } from "../chat-separator";
 import { InstructionsChangesNote } from "../instructions-changes-note";
@@ -541,6 +542,8 @@ function WorkedRow({
                     <div data-transcript-row={row.id} key={row.id}>
                       {row.kind === "activity" ? (
                         <FoldedActivityView chatId={chatId} row={row} />
+                      ) : row.kind === "text" ? (
+                        <FoldedWords chatId={chatId} part={row.part} />
                       ) : (
                         <RowView
                           chatId={chatId}
@@ -557,6 +560,28 @@ function WorkedRow({
         </AnimatePresence>
       </RowLine>
     </motion.div>
+  );
+}
+
+/**
+ * What the agent said between steps, in an opened Worked row: at a step
+ * label's size and from its edge, a shade stronger than a label, so the fold
+ * reads as one list rather than replies between its rows.
+ */
+function FoldedWords({
+  chatId,
+  part,
+}: {
+  chatId: ChatId;
+  part: SessionMessagePart.TextPart;
+}) {
+  return (
+    <SessionMarkdown
+      assetVersion={part.metadata.id}
+      chatId={chatId}
+      className="w-full py-1 pl-7 leading-5 opacity-80"
+      markdown={part.text}
+    />
   );
 }
 

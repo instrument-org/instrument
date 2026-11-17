@@ -220,7 +220,7 @@ export type BarItem =
   | { folder: BookmarkFolder; items: Bookmark[]; kind: "folder" };
 
 /** The bookmark or folder a bar item is. */
-export function memberOf(item: BarItem): Bookmark | BookmarkFolder {
+function memberOf(item: BarItem): Bookmark | BookmarkFolder {
   return item.kind === "folder" ? item.folder : item.bookmark;
 }
 

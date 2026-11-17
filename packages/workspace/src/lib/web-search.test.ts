@@ -1,6 +1,6 @@
 import { type LanguageModelV4StreamPart } from "@ai-sdk/provider";
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
-import { simulateReadableStream } from "ai";
+import { APICallError, simulateReadableStream } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { describe, expect, it, vi } from "vitest";
 
@@ -95,6 +95,20 @@ const unavailable = {
   errorMessage: "Web search failed with status 429.",
   errorType: "request-failed" as const,
   ok: false as const,
+};
+
+/** What our endpoint answers when the user has too many requests running. */
+const busy = {
+  errorMessage: "Web search failed with status 429.",
+  errorType: "request-failed" as const,
+  ok: false as const,
+  responseBody: JSON.stringify({
+    error: {
+      code: "concurrency-limit",
+      message: "Too many requests are running at once.",
+      retryable: true,
+    },
+  }),
 };
 
 /** Stands in where the provider path must not be reached. */
@@ -353,6 +367,58 @@ describe("webSearch", () => {
       );
     });
 
+    it("waits for our endpoint when the user has too many requests running", async () => {
+      const model = createMockAIGatewayModel();
+      const searchWeb = vi
+        .fn<WebSearchClient>()
+        .mockResolvedValueOnce(busy)
+        .mockResolvedValueOnce(busy)
+        .mockResolvedValue({ data: { results: [] }, ok: true });
+
+      createMockChatConfig(ChatIdSchema.parse("2026-11-17-web-search-busy"), {
+        model,
+        webSearch: searchWeb,
+        webSearchModel: { model: neverCalledSearchModel() },
+      });
+
+      const results = await collect(model);
+
+      expect(searchWeb).toHaveBeenCalledTimes(3);
+      expect(results.at(-1)?._unsafeUnwrap().kind).toBe("excerpts");
+    });
+
+    it("falls back once, without the SDK's retries, when the user stays busy", async () => {
+      const model = createMockAIGatewayModel();
+      const searchWeb = vi.fn<WebSearchClient>(() => Promise.resolve(busy));
+      const providerSearch = new MockLanguageModelV4({
+        doStream: () =>
+          Promise.reject(
+            new APICallError({
+              isRetryable: true,
+              message: "Too many requests are running at once.",
+              requestBodyValues: {},
+              statusCode: 429,
+              url: "https://api.example.com/v1/chat/completions",
+            }),
+          ),
+      });
+
+      createMockChatConfig(
+        ChatIdSchema.parse("2026-11-17-web-search-stays-busy"),
+        {
+          model,
+          webSearch: searchWeb,
+          webSearchModel: { model: providerSearch },
+        },
+      );
+
+      const last = (await collect(model)).at(-1);
+
+      expect(searchWeb).toHaveBeenCalledTimes(4);
+      expect(providerSearch.doStreamCalls).toHaveLength(1);
+      expect(last?.isErr()).toBe(true);
+    });
+
     it("surfaces being out of credits without retrying or falling back", async () => {
       const model = createMockAIGatewayModel();
       const searchWeb = vi.fn<WebSearchClient>(() =>
@@ -466,6 +532,11 @@ describe("webSearch", () => {
         situation: "the person signed out",
       },
       { failure: unavailable, platformCalls: 2, situation: "it is down" },
+      {
+        failure: busy,
+        platformCalls: 1,
+        situation: "the person has too many requests running",
+      },
     ] satisfies {
       failure: Awaited<ReturnType<WebSearchClient>>;
       platformCalls: number;

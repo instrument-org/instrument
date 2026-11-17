@@ -5,16 +5,25 @@ import {
   useCanDictate,
 } from "@/client/components/dictation-controls";
 import { ShortcutKeys } from "@/client/components/shortcut-keys";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { makeNewChatDraftAtom } from "@/client/drafts/new-chat-box";
+import { createDraftAtom } from "@/client/drafts/store";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { isDictating, useDictation } from "@/client/hooks/use-dictation";
 import { onPagePress } from "@/client/lib/browser-pool";
 import { cn, commandKeyHeld } from "@/client/lib/utils";
+import { type Draft } from "@/shared/drafts";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { useSetAtom } from "jotai";
 import { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
+import { ulid } from "ulid";
 
 import { useAskCornerRequest } from "./ask-corner-state";
 import { IdeaRows } from "./idea-rows";
@@ -28,6 +37,7 @@ import {
   useIdeasPaceOnMoves,
   useTabIdeas,
 } from "./use-tab-ideas";
+import { newChatHref } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 /** The corner's width at rest, whatever it shows, and open. */
@@ -46,7 +56,9 @@ const LABEL = "Ask about this page";
  * typing writes your own. The microphone talks into it in place, without
  * ideas. Sending makes a chat with the message sent, as the group's right
  * side, or as a new tab on that side when it already has one. It never
- * answers in place. Esc steps back from a marked idea, then closes; a click
+ * answers in place. ⇧↩ or the expand button opens that new tab's full box
+ * instead, with the words or the marked idea in it and nothing sent, for a
+ * message that wants files, another model or more room. Esc steps back from a marked idea, then closes; a click
  * anywhere else folds it back, keeping what was typed. A group with a chat
  * (or a new tab, which has ideas of its own) has no corner, and neither
  * does a connection with no fast model.
@@ -75,6 +87,7 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
   const shell = useShell();
   const windowTabs = useWindowTabs();
   const makeDraft = useSetAtom(makeNewChatDraftAtom);
+  const createDraft = useSetAtom(createDraftAtom);
   const [isOpen, setIsOpen] = useState(false);
   const [words, setWords] = useState("");
   const [isDictated, setIsDictated] = useState(false);
@@ -164,19 +177,24 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
     };
   }, [isOpen]);
 
+  /** A new tab as the group's right side, or beside what that side shows. */
+  const openOnRight = (href = NEW_TAB_HREF) => {
+    const right = layout.sides[1];
+    return windowTabs.openScreen(href, {
+      group,
+      select: true,
+      side: 1,
+      ...(right?.up === undefined ? {} : { after: right.up }),
+    });
+  };
+
   const send = (prompt: string) => {
     const text = prompt.trim();
     if (!text) {
       return;
     }
     close();
-    const right = layout.sides[1];
-    const tabId = windowTabs.openScreen(NEW_TAB_HREF, {
-      group,
-      select: true,
-      side: 1,
-      ...(right?.up === undefined ? {} : { after: right.up }),
-    });
+    const tabId = openOnRight();
     if (tabId === undefined) {
       return;
     }
@@ -207,6 +225,31 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
   const hasWords = words.trim() !== "";
   const rows = !isDictated && !talking ? shown : [];
   const marked = highlighted === undefined ? undefined : rows[highlighted];
+
+  /**
+   * The new tab send would make, its box holding the words, unsent: a draft
+   * with them, opened at its address, which puts them in the box.
+   */
+  const openInChat = () => {
+    const text = (marked ?? words).trim();
+    if (marked !== undefined) {
+      noteIdeaTaken();
+    }
+    close();
+    if (!text) {
+      openOnRight();
+      return;
+    }
+    const now = Date.now();
+    const draft = {
+      createdAt: now,
+      id: ulid(),
+      updatedAt: now,
+      words: text,
+    } satisfies Draft;
+    createDraft(draft);
+    openOnRight(newChatHref(draft.id));
+  };
 
   return (
     <div
@@ -261,6 +304,13 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
                       ? undefined
                       : highlighted - 1,
                   );
+                } else if (
+                  event.key === "Enter" &&
+                  event.shiftKey &&
+                  !commandKeyHeld(event)
+                ) {
+                  event.preventDefault();
+                  openInChat();
                 } else if (event.key === "Enter" && commandKeyHeld(event)) {
                   event.preventDefault();
                   if (marked === undefined && hasWords) {
@@ -274,6 +324,22 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
               ref={inputRef}
               value={words}
             />
+            <Tooltip delayDuration={300}>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label="Open in a chat"
+                  className="grid size-[22px] shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-foreground/8 hover:text-foreground"
+                  onClick={openInChat}
+                  type="button"
+                >
+                  <ArrowsOutSimpleIcon size={14} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent className="flex items-center gap-2" side="bottom">
+                Open in a chat
+                <ShortcutKeys accelerator="Shift+Enter" />
+              </TooltipContent>
+            </Tooltip>
             {canDictate && (
               <DictationControls dictation={dictation} size="sm" />
             )}

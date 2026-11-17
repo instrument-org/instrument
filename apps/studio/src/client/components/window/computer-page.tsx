@@ -189,6 +189,7 @@ import { DROP_LOOK } from "./drag/tone";
 import { arrivalView } from "./files-step";
 import { useGroupTab } from "./group-tab";
 import { pressPlace } from "./drag/press-bookmark";
+import { dragAtom } from "./drag/session";
 import { usePinnedTarget } from "./pinned-drops";
 import { maySpring, SPRING_FLASH_MS, springTimer } from "./spring-loading";
 import { type GoFiles } from "./use-files-step";
@@ -1457,6 +1458,15 @@ export function ComputerPage({
             numbersInPlace: copies && isMacOS(),
           }));
     };
+    // Where the window takes the drag itself (a page's edge), it never
+    // reaches the listing, which would otherwise keep its ring and its rest.
+    const drags = getDefaultStore();
+    const stopWatching = drags.sub(dragAtom, () => {
+      if (drags.get(dragAtom)?.landing) {
+        clear();
+        spring.rest(null);
+      }
+    });
     browser.addEventListener("dragenter", over);
     browser.addEventListener("dragover", over);
     browser.addEventListener("dragleave", leave);
@@ -1466,6 +1476,7 @@ export function ComputerPage({
     return () => {
       clear();
       spring.stop();
+      stopWatching();
       window.removeEventListener("pointermove", pointerBack, {
         capture: true,
       });

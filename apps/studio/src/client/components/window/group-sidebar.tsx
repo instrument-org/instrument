@@ -720,8 +720,7 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
 /**
  * One tab group as two lines, drawing each tab up: a group of one side its
  * tab across the row, a group of two each side's tab in a half of its own,
- * a hairline between them, the half of the side with the keyboard twice as
- * wide as the other so its title reads (`RowHalf`). A tab's
+ * a hairline between them, the two halves equally wide (`RowHalf`). A tab's
  * mark leads its title, and what it says goes under them, its state among
  * it: a chat's is its own, so a chat in two groups says the same in both.
  * The whole row is one press. While the pointer is on it, an X stands at
@@ -824,7 +823,11 @@ export function GroupRow({
       <div className="flex min-w-0 items-stretch">
         <AnimatePresence initial={false}>
           {ups.map((tab, index) => (
-            <RowHalfPlace isLater={index > 0} key={keys[index] ?? index}>
+            <RowHalfPlace
+              isEarlier={index < ups.length - 1}
+              isLater={index > 0}
+              key={keys[index] ?? index}
+            >
               {half(tab, index)}
             </RowHalfPlace>
           ))}
@@ -904,26 +907,34 @@ export function GroupRow({
 /**
  * A half's place in a row, which opens and closes on the curve its side
  * opens and closes on in the group (`SIDE_MOTION`), the half beside it
- * narrowing or widening with it. A later half leads with the hairline.
+ * narrowing or widening with it. Halves beside each other each give half
+ * the gap between them, so both have the same room, and the later one
+ * draws the hairline on their shared edge.
  */
 function RowHalfPlace({
   children,
+  isEarlier,
   isLater,
 }: {
   children: ReactNode;
+  isEarlier: boolean;
   isLater: boolean;
 }) {
   const isReduced = useReducedMotion() === true;
   return (
     <motion.div
       animate={{ flexGrow: 1, opacity: 1 }}
-      className="flex min-w-0 basis-0 overflow-hidden"
+      className={cn(
+        "relative flex min-w-0 basis-0 overflow-hidden",
+        isEarlier && "pr-2",
+        isLater && "pl-2",
+      )}
       exit={{ flexGrow: 0, opacity: 0 }}
       initial={{ flexGrow: 0, opacity: 0 }}
       transition={isReduced ? { duration: 0 } : SIDE_MOTION}
     >
       {isLater && (
-        <span className="mx-2 my-0.5 w-px shrink-0 self-stretch bg-foreground/12" />
+        <span className="absolute inset-y-0.5 left-0 w-px bg-foreground/12" />
       )}
       {children}
     </motion.div>

@@ -156,7 +156,7 @@ export function BookmarkStar({
               className={cn(
                 "-mr-1 grid size-6 shrink-0 cursor-default place-items-center rounded-md hover:bg-foreground/8",
                 kept
-                  ? "text-brand-600"
+                  ? "text-warning-500"
                   : "text-foreground/45 hover:text-foreground",
               )}
               data-bookmark-star={kept ? "kept" : ""}

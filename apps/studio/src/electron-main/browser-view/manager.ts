@@ -178,6 +178,11 @@ export interface BrowserViewManager {
   // Record whether a slot in the window shows a guest or the pool parks it,
   // as the renderer pool reports each change.
   setGuestShown: (targetId: BrowserTargetId, shown: boolean) => void;
+  // Zoom a guest for the agent's side, keeping its zoom to its own tab from
+  // then on rather than to every page of its site, so it never reaches the
+  // person's own tabs on the same site. One call, so the zoom is never set
+  // while the guest still shares its site's.
+  zoomGuestAlone: (targetId: BrowserTargetId, factor: number) => void;
   // Which of one window's pages it holds only as a step of a tab's history;
   // one of them making sound is closed (`put-away-sound.ts`).
   setGuestsPutAway: (
@@ -1405,6 +1410,16 @@ function createBrowserViewManager(): BrowserViewManager {
     },
     setEmulatedDevice,
     setGuestFocus,
+    zoomGuestAlone: (targetId, factor) => {
+      const guest = entries.get(targetId)?.webContents;
+      if (!guest || guest.isDestroyed()) {
+        return;
+      }
+      if (guest.getZoomMode() !== "isolated") {
+        guest.setZoomMode("isolated");
+      }
+      guest.setZoomFactor(factor);
+    },
     setGuestShown: (targetId, shown) => {
       const entry = entries.get(targetId);
       if (entry) {

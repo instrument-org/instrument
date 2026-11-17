@@ -24,6 +24,7 @@ export function useBrowserSlot({
   hasLoadError,
   isVisible,
   layer,
+  layoutWidth,
   relayoutKey,
   targetId,
 }: {
@@ -41,6 +42,9 @@ export function useBrowserSlot({
   // The window layer the shown guest stands on; see showOverSlot. For a host
   // that floats over the page and would otherwise cover its own guest.
   layer?: number;
+  // The width an agent's page lays out at when the first slot to show it is
+  // narrower, zoomed out to fit (see showOverSlot).
+  layoutWidth?: number;
   // Something that changes whenever the host moves without resizing (a
   // floating window taking a neighbor's place along a row): a move changes
   // nothing the resize observer can see, so the slot is measured again
@@ -137,6 +141,7 @@ export function useBrowserSlot({
           seen
             ? { height: seen.height, width: seen.width, x: seen.x, y: seen.y }
             : undefined,
+          layoutWidth,
         );
         syncEmulation(device);
       } else {
@@ -208,6 +213,7 @@ export function useBrowserSlot({
     isVisible,
     hasLoadError,
     layer,
+    layoutWidth,
     relayoutKey,
     slotOwner,
     targetId,

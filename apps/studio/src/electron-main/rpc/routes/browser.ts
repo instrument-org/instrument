@@ -236,6 +236,21 @@ const syncGuestShown = base
     }
   });
 
+// A guest zoomed for the agent's side, whose zoom stays its own rather than
+// its site's.
+const zoomGuestAlone = base
+  .input(
+    z.object({
+      factor: z.number().positive(),
+      targetId: BrowserTargetIdSchema,
+    }),
+  )
+  .handler(({ context, input }) => {
+    if (isForHost(context.webContentsId, input.targetId)) {
+      getBrowserViewManager().zoomGuestAlone(input.targetId, input.factor);
+    }
+  });
+
 // The window's pages it holds only as a step of a tab's history, back or
 // forward from what the tab shows, reported whole on each change. Main closes
 // one of them that makes sound.
@@ -576,6 +591,7 @@ export const browser = {
   setEmulatedDevice,
   syncFocus,
   syncGuestShown,
+  zoomGuestAlone,
   syncGuestsPutAway,
   syncGuestSurface,
   syncHostFocus,

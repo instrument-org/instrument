@@ -8,6 +8,8 @@ import {
 import { rpcClient } from "@/client/rpc/client";
 import {
   BROWSER_GUEST_VIEWPORT,
+  BROWSER_ZOOM_MAX,
+  BROWSER_ZOOM_MIN,
   type BrowserGuestTarget,
   browserPartition,
 } from "@/shared/browser";
@@ -510,6 +512,8 @@ interface SlotClaim {
   /** The part of the window the slot is seen through, which the guest is cut to. */
   clip?: Bounds;
   layer: number;
+  /** The width a page an agent opened first lays out at, when this slot is narrower (see showOverSlot). */
+  layoutWidth?: number;
   renderedSize: null | undefined | { height: number; width: number };
   // Order the slot first asked in, which breaks a tie between two slots on one
   // layer in favor of the newer; re-measuring keeps a slot's place.
@@ -534,6 +538,26 @@ const desiredSurfaces = new Map<
   BrowserTargetId,
   { height: number; width: number }
 >();
+
+// The zoom an agent's page was given so it lays out at a width the side is
+// too narrow for: the desktop width a page the agent opened starts at, or the
+// width the agent asked for with a viewport request while the page was shown.
+// It holds across the tab's navigations until the person zooms the page
+// themselves, which takes it out of here, and is what the address field's
+// zoom chip tells apart from the person's own zoom.
+const agentZooms = new Map<BrowserTargetId, number>();
+
+// A layout width waiting to become a zoom: worked out once, against the
+// slot's width, the next time a slot shows the guest and it is ready to drive.
+const pendingLayouts = new Map<BrowserTargetId, number>();
+
+// Targets a slot has shown, so the desktop width a page the agent opened starts
+// at is decided once, by the first slot that shows it.
+const shownOnce = new Set<BrowserTargetId>();
+
+// The narrowest zoom an agent's page starts at. Under it the text is too small
+// to read, and the page lays out narrower than desktop instead.
+const AGENT_PAGE_MIN_ZOOM = 0.5;
 
 // Ids of targets whose guest has attached, mirrored from the desired-targets
 // stream so the UI can show the live guest vs a placeholder without a second
@@ -999,6 +1023,10 @@ export function showOverSlot(
   // scroller: the guest is cut to it, since a guest on the body is no child
   // of the scroller to be clipped by it.
   clip?: Bounds,
+  // The width a page an agent opened lays out at when this slot is the first
+  // to show it and is narrower: the page is zoomed out once, so it lays out at
+  // that width and fits the slot, and keeps that zoom wherever it goes after.
+  layoutWidth?: number,
 ) {
   if (!pool.has(targetId)) {
     return;
@@ -1010,6 +1038,7 @@ export function showOverSlot(
     bounds,
     ...(clip === undefined ? {} : { clip }),
     layer,
+    ...(layoutWidth === undefined ? {} : { layoutWidth }),
     renderedSize,
     since: claims.get(owner)?.since ?? nextClaimOrder++,
   });
@@ -1024,17 +1053,20 @@ export function subscribeAttachedTargets(listener: () => void): () => void {
   };
 }
 
-// Record a size the agent asked for and put the guest at it if it is parked.
-// A guest a slot is showing keeps the slot's bounds: the user is looking at it,
-// and the request takes effect the next time it parks.
+// Record a size the agent asked for. A parked guest is put at it, at its own
+// size. A guest a slot shows keeps the slot's bounds, since the user is looking
+// at it, and lays out at the width asked for by zooming to fit the slot, which
+// it also does the next time a slot shows a guest asked about while parked.
 function applyDesiredSurface(
   targetId: BrowserTargetId,
   size: null | { height: number; width: number },
 ) {
   if (size) {
     desiredSurfaces.set(targetId, size);
+    pendingLayouts.set(targetId, size.width);
   } else {
     desiredSurfaces.delete(targetId);
+    pendingLayouts.delete(targetId);
   }
 
   const pooled = pool.get(targetId);
@@ -1042,9 +1074,64 @@ function applyDesiredSurface(
     return;
   }
   pooled.desiredSurface = size;
-  if (!paintOwners.has(targetId)) {
-    applyPaintHost(pooled);
+  if (paintOwners.has(targetId)) {
+    placeGuest(targetId);
+    return;
   }
+  // At its own size a parked guest lays out at the size asked for only unzoomed.
+  if (size && agentZooms.has(targetId)) {
+    setAgentZoom(pooled, 1);
+  }
+  applyPaintHost(pooled);
+}
+
+// Zoom a guest for the agent's side, as the address field's chip shows it.
+// Main zooms it, keeping the zoom to this guest: a page's zoom is otherwise
+// its site's, and would reach the person's own tabs on the same site.
+function setAgentZoom(pooled: PooledWebview, factor: number) {
+  if (factor === 1) {
+    agentZooms.delete(pooled.targetId);
+  } else {
+    agentZooms.set(pooled.targetId, factor);
+  }
+  zoomAlone(pooled.targetId, factor);
+  pooled.webview.dispatchEvent(new Event("zoom-set"));
+  const shownAt = paintOwners.has(pooled.targetId)
+    ? pooled.lastVisibleBounds
+    : null;
+  if (shownAt) {
+    reportEffectiveSurface(pooled, layoutOf(pooled, shownAt));
+  }
+}
+
+// Turn a layout width waiting for this guest into a zoom against the slot
+// showing it, once the guest can be driven. A request it answers is spent, so
+// parking the guest keeps the slot's size and zoom rather than the size asked.
+function applyPendingLayout(pooled: PooledWebview, bounds: Bounds) {
+  const { targetId } = pooled;
+  const layoutWidth = pendingLayouts.get(targetId);
+  if (layoutWidth === undefined || !pooled.handle) {
+    return;
+  }
+  pendingLayouts.delete(targetId);
+  desiredSurfaces.delete(targetId);
+  pooled.desiredSurface = null;
+  setAgentZoom(
+    pooled,
+    Math.min(
+      BROWSER_ZOOM_MAX,
+      Math.max(BROWSER_ZOOM_MIN, bounds.width / layoutWidth),
+    ),
+  );
+}
+
+function zoomAlone(targetId: BrowserTargetId, factor: number) {
+  void rpcClient.browser.zoomGuestAlone.call({ factor, targetId });
+}
+
+/** The zoom the agent's side gave the target's page, while the person has not zoomed it themselves. */
+export function agentZoomOf(targetId: BrowserTargetId): number | undefined {
+  return agentZooms.get(targetId);
 }
 
 // On-screen-sized but visually hidden. NOT display:none / far-offscreen, which
@@ -1064,7 +1151,7 @@ function applyPaintHost(pooled: PooledWebview) {
       : paneSizeOf(pooled.targetId));
   const width = Math.min(requested?.width ?? VIEW_W, budget.width);
   const height = Math.min(requested?.height ?? VIEW_H, budget.height);
-  reportEffectiveSurface(pooled, { height, width });
+  reportEffectiveSurface(pooled, layoutOf(pooled, { height, width }));
 
   Object.assign(container.style, {
     borderRadius: "",
@@ -1108,6 +1195,9 @@ function disposeWebview(targetId: BrowserTargetId) {
   slotClaims.delete(targetId);
   keyboardHeirs.delete(targetId);
   layeredPages.delete(targetId);
+  agentZooms.delete(targetId);
+  pendingLayouts.delete(targetId);
+  shownOnce.delete(targetId);
 }
 
 // Guest creation happens only here, driven by `reconcile` off the main
@@ -1181,9 +1271,15 @@ function ensureWebview(
     stepPage(targetId, args?.[0] === "forward" ? "forward" : "back");
   });
 
-  // A new document has nothing of its own open until it says so.
+  // A new document has nothing of its own open until it says so. The agent's
+  // zoom is given again on each one, as a document from another site is laid
+  // out at its own zoom while the guest still answers with the old one.
   webview.addEventListener("did-navigate", () => {
     layeredPages.delete(targetId);
+    const zoom = agentZooms.get(targetId);
+    if (zoom !== undefined) {
+      zoomAlone(targetId, zoom);
+    }
   });
 
   // A file's page keeps the color it paints behind itself on its element, so
@@ -1233,6 +1329,13 @@ function ensureWebview(
           targetId,
           webview.getWebContentsId(),
         );
+        const zoom = agentZooms.get(targetId);
+        if (zoom !== undefined) {
+          zoomAlone(targetId, zoom);
+        }
+        if (paintOwners.has(targetId)) {
+          placeGuest(targetId);
+        }
         publishAttached();
         passKeyboardTo(targetId);
       }
@@ -1330,6 +1433,8 @@ function guestHandle(
       }, undefined);
     },
     setZoom: (factor) => {
+      // The person's own zoom, which the agent's side never gives back.
+      agentZooms.delete(targetId);
       guard(() => {
         webview.setZoomFactor(factor);
       }, undefined);
@@ -1519,7 +1624,10 @@ function placeGuest(targetId: BrowserTargetId) {
     leaveFullScreen(pooled);
     return;
   }
-  const [owner, { bottomRadius, bounds, clip, layer, renderedSize }] = winner;
+  const [
+    owner,
+    { bottomRadius, bounds, clip, layer, layoutWidth, renderedSize },
+  ] = winner;
   const [bottomLeft = bottomRadius, bottomRight = bottomLeft] = bottomRadius
     .trim()
     .split(/\s+/);
@@ -1530,14 +1638,28 @@ function placeGuest(targetId: BrowserTargetId) {
   if (layer === 0) {
     notePaneSize(targetId, { height: bounds.height, width: bounds.width });
   }
+  if (layoutWidth !== undefined && !shownOnce.has(targetId)) {
+    shownOnce.add(targetId);
+    if (
+      bounds.width < layoutWidth &&
+      !pendingLayouts.has(targetId) &&
+      !agentZooms.has(targetId)
+    ) {
+      pendingLayouts.set(
+        targetId,
+        Math.min(layoutWidth, bounds.width / AGENT_PAGE_MIN_ZOOM),
+      );
+    }
+  }
+  applyPendingLayout(pooled, bounds);
   // After the commit that put it here, once the view it replaced is gone.
   queueMicrotask(() => {
     passKeyboardTo(targetId);
   });
-  reportEffectiveSurface(pooled, {
-    height: bounds.height,
-    width: bounds.width,
-  });
+  reportEffectiveSurface(
+    pooled,
+    layoutOf(pooled, { height: bounds.height, width: bounds.width }),
+  );
   const { container, webview } = pooled;
 
   Object.assign(container.style, {
@@ -1627,6 +1749,20 @@ function publishAttached() {
   for (const listener of targetListeners) {
     listener();
   }
+}
+
+// The size a page laid out in an element of `size` sees, at the guest's zoom.
+function layoutOf(
+  pooled: PooledWebview,
+  size: { height: number; width: number },
+): { height: number; width: number } {
+  // The agent's zoom as set, since the guest answers with the old one until
+  // the change reaches it.
+  const zoom = agentZooms.get(pooled.targetId) ?? pooled.handle?.zoom() ?? 1;
+  return {
+    height: Math.round(size.height / zoom),
+    width: Math.round(size.width / zoom),
+  };
 }
 
 // Tell main what the guest is actually laid out at. `desiredSurfaces` in main

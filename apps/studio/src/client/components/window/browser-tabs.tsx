@@ -906,6 +906,9 @@ export function BrowserTabs({
           // shows the panel, and a card inset in the pane reads as a frame.
           className="h-full rounded-none shadow-none"
           key={active.id}
+          {...(active.openedBy === undefined
+            ? {}
+            : { layoutWidth: AGENT_PAGE_LAYOUT_WIDTH })}
           {...(editableId === undefined
             ? {}
             : {
@@ -945,6 +948,9 @@ export function BrowserTabs({
             attached={attached.has(targetOf(hostUp))}
             host={host}
             key={group}
+            {...(hostUp.openedBy === undefined
+              ? {}
+              : { layoutWidth: AGENT_PAGE_LAYOUT_WIDTH })}
             place={host.place ?? `${group}:${rowWidth}`}
             tab={hostUp}
           />
@@ -953,6 +959,14 @@ export function BrowserTabs({
     </div>
   );
 }
+
+/**
+ * The width a page an agent opened lays out at. Most sites switch to their
+ * tablet or phone layout below 1024px, which hides content the agent reads
+ * the page by, so a side narrower than this shows such a page zoomed out to
+ * its desktop layout.
+ */
+const AGENT_PAGE_LAYOUT_WIDTH = 1024;
 
 export function TabIcon({
   favicon,
@@ -975,11 +989,14 @@ export function TabIcon({
 function ComposePagePanel({
   attached,
   host,
+  layoutWidth,
   place,
   tab,
 }: {
   attached: boolean;
   host: PageHost;
+  /** The width an agent's page lays out at (`AGENT_PAGE_LAYOUT_WIDTH`), zoomed out to fit a narrower side. */
+  layoutWidth?: number;
   place: string;
   tab: BrowserTab;
 }) {
@@ -995,6 +1012,7 @@ function ComposePagePanel({
         insideOverlay={host.insideOverlay ?? false}
         key={tab.id}
         {...(host.layer === undefined ? {} : { layer: host.layer })}
+        {...(layoutWidth === undefined ? {} : { layoutWidth })}
         relayoutKey={place}
         restoreUrl={tab.url}
         tabId={StoreId.TabSchema.parse(tab.id)}

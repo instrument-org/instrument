@@ -7,7 +7,13 @@ import {
   SignInSheet,
   useGuestSignIn,
 } from "@/client/components/window/browser-guest-security";
+import { ShortcutKeys } from "@/client/components/shortcut-keys";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { Button } from "@/client/components/ui/button";
 import { Delayed } from "@/client/components/ui/delayed";
 import {
@@ -38,6 +44,7 @@ import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { openInAppTargetOfUrl } from "@/client/hooks/use-open-in-app";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import {
+  agentZoomOf,
   getGuest,
   type GuestEventMap,
   stepPage,
@@ -75,6 +82,7 @@ import {
   BROWSER_ZOOM_MIN,
   isCertificateError,
 } from "@/shared/browser";
+import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { steppedZoom } from "@/shared/zoom";
 import { withoutPageEditParam } from "@instrument-org/shared";
 import {
@@ -124,6 +132,7 @@ export function BrowserPanel({
   focusAddress = true,
   insideOverlay = false,
   layer,
+  layoutWidth,
   onEditSource,
   pageControls,
   relayoutKey,
@@ -163,6 +172,8 @@ export function BrowserPanel({
    * guest's own black default over the surface.
    */
   layer?: number;
+  /** The width an agent's page lays out at when the first slot to show it is narrower, zoomed out to fit (see showOverSlot). */
+  layoutWidth?: number;
   /** Opens the page's text for editing, when the page is a file; the menu offers it. */
   onEditSource?: () => void;
   /** Drawn ahead of the menu in the row the bar is drawn into, for a page with a mode of its own. */
@@ -185,6 +196,9 @@ export function BrowserPanel({
   const isBeneath = useAtomValue(tabCarryViewAtom).kind === "beneath";
   const [draftUrl, setDraftUrl] = useState("");
   const [zoomFactor, setZoomFactor] = useState(1);
+  // The zoom is the agent's: an agent's page zoomed out to lay out at a
+  // width its side is too narrow for, until the person zooms it themselves.
+  const [agentZoomed, setAgentZoomed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   // null = the panel's natural size ("Actual size"). Applied via CDP device
@@ -267,6 +281,7 @@ export function BrowserPanel({
       (layer !== undefined && blankPage),
     isVisible,
     layer,
+    layoutWidth,
     relayoutKey,
     targetId,
   });
@@ -450,7 +465,9 @@ export function BrowserPanel({
     // The zoom is the guest's, and moves without the panel: a chord pressed
     // in the page, or a site the guest's zoom was already set for.
     const readZoom = () => {
-      setZoomFactor(guest.zoom());
+      const agentZoom = agentZoomOf(targetId);
+      setZoomFactor(agentZoom ?? guest.zoom());
+      setAgentZoomed(agentZoom !== undefined);
     };
     readZoom();
     const stops = [
@@ -733,19 +750,48 @@ export function BrowserPanel({
         // The zoom, said in the address field only while the page is not at
         // its own size, the one setting people forget they changed. A press
         // on it is the zoom's stepper, the same one the menu holds.
+        // A zoom the agent's side set wears the agent's color and says why on
+        // hover, so it reads apart from one the person set and forgot.
         const isZoomed = Math.abs(zoomFactor - 1) > 0.001;
+        const agentZoomText =
+          zoomFactor < 1
+            ? "Instrument zoomed out to work faster on the desktop site."
+            : "Instrument zoomed in to work faster on the mobile site.";
+        const zoomTrigger = (
+          <DropdownMenuTrigger
+            aria-label={agentZoomed ? agentZoomText : "Zoom"}
+            className={cn(
+              "flex h-5 shrink-0 items-center rounded-full px-1.5 font-medium tabular-nums",
+              agentZoomed
+                ? "bg-brand-500/12 text-brand-text hover:bg-brand-500/18 data-[state=open]:bg-brand-500/18"
+                : "bg-foreground/8 text-foreground/70 hover:bg-foreground/12 hover:text-foreground data-[state=open]:bg-foreground/12",
+            )}
+          >
+            {Math.round(zoomFactor * 100)}%
+          </DropdownMenuTrigger>
+        );
         const fieldZoom = isZoomed && (
           <DropdownMenu
             modal={false}
             onOpenChange={setZoomOpen}
             open={zoomOpen}
           >
-            <DropdownMenuTrigger
-              aria-label="Zoom"
-              className="flex h-5 shrink-0 items-center rounded-full bg-foreground/8 px-1.5 font-medium text-foreground/70 tabular-nums hover:bg-foreground/12 hover:text-foreground data-[state=open]:bg-foreground/12"
-            >
-              {Math.round(zoomFactor * 100)}%
-            </DropdownMenuTrigger>
+            {agentZoomed ? (
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>{zoomTrigger}</TooltipTrigger>
+                <TooltipContent
+                  className="flex items-center gap-2"
+                  side="bottom"
+                >
+                  {agentZoomText}
+                  <ShortcutKeys
+                    accelerator={WINDOW_MENU_SHORTCUTS.actualSize.accelerator}
+                  />
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              zoomTrigger
+            )}
             <DropdownMenuContent
               align="end"
               className="flex items-center gap-1.5 p-1.5"

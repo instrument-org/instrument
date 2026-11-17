@@ -217,7 +217,7 @@ const CHOOSE = "choose";
 /**
  * The star's card, the way a browser's is: the page's mark beside its name,
  * the folder it is filed in, and Remove or Done. The folder list has the bar
- * and its folders, Other bookmarks and its folders, and Choose another
+ * and its folders, All Bookmarks and its folders, and Choose another
  * folder… for the editor, where the address can change and a folder be
  * made. What is typed and picked is kept as the card goes away, by Done,
  * Escape or a press elsewhere; only Remove lets the bookmark go.

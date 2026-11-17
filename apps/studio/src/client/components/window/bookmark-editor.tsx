@@ -33,7 +33,7 @@ import { useId, useState } from "react";
 
 /**
  * Chrome's Edit bookmark dialog: the name, the address, and the bar and
- * Other bookmarks with their folders as a tree to file it in, with New
+ * All Bookmarks with their folders as a tree to file it in, with New
  * folder under it, which makes one on the bar. Nothing changes
  * until Save, folders made here included, so Cancel leaves everything as it
  * was. An address the app itself names (a chat, a built-in page) is not

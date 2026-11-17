@@ -44,7 +44,7 @@ export const applyBookmarkOpsAtom = mirror.applyOpsAtom;
 
 /**
  * Where the address bar's star files a new bookmark, by the place's key
- * (`placeOfKey`): the folder or Other bookmarks last picked for a bookmark,
+ * (`placeOfKey`): the folder or All Bookmarks last picked for a bookmark,
  * as a browser's star remembers it, or the bar (`null`) until one is. A
  * folder removed since leaves the bar.
  */

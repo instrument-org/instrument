@@ -22,7 +22,7 @@ import { type CapabilityContext, defineCapability } from "./define";
 const NAME = BOOKMARKS_COMMAND.name;
 
 /** What each root is called, as the app names it. */
-const ROOT_TITLES = { bar: "Bookmarks bar", other: "Other bookmarks" };
+const ROOT_TITLES = { all: "All Bookmarks", bar: "Bookmarks bar" };
 
 /** A bookmark or folder as the agent reads it: a file's address as its own path. */
 const Listed = ListedBookmarkSchema.omit({ url: true }).extend({
@@ -51,7 +51,7 @@ function addressFor(url: string, ctx: CapabilityContext): string {
   return agentPathOfFileUrl(ctx.layout, url) ?? "a file outside your folders";
 }
 
-/** Where a bookmark or folder is, as a list or a line names it: `Other bookmarks/Files`. */
+/** Where a bookmark or folder is, as a list or a line names it: `All Bookmarks`, `Bookmarks bar/Work`. */
 function placeWords({ folder, root }: Pick<Listed, "folder" | "root">) {
   return `${ROOT_TITLES[root]}${folder === undefined ? "" : `/${folder}`}`;
 }
@@ -105,7 +105,7 @@ export const bookmarksList = defineCapability({
     );
   },
   summary:
-    "The user's bookmarks, as the Bookmarks page lists them: the bookmarks bar, then Other bookmarks, each folder with what is filed in it.",
+    "The user's bookmarks, as the Bookmarks page lists them: the bookmarks bar, then All Bookmarks, each folder with what is filed in it.",
   surfaces: {
     cli: {
       help: "",
@@ -209,7 +209,7 @@ export const bookmarksAdd = defineCapability({
     };
   },
   summary:
-    "Keep a page, a file or a folder as the user's bookmark, as the app's Add to Bookmarks does: in Other bookmarks, in its kind's folder (Files, Chats or Pages).",
+    "Keep a page, a file or a folder as the user's bookmark, as the app's Add to Bookmarks does: last in All Bookmarks.",
   surfaces: {
     cli: {
       help: "",

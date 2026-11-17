@@ -1,5 +1,5 @@
 import {
-  addSortedBookmark,
+  addToAllBookmarks,
   bookmarkListing,
   listedBookmark,
   useAddBookmark,
@@ -1009,7 +1009,7 @@ export function useOpeners({
     }
     if (action.kind === "addBookmark") {
       // Kept as a menu's Add to Bookmarks keeps it, by this window's store.
-      const { bookmark, isNew } = addSortedBookmark(store, action);
+      const { bookmark, isNew } = addToAllBookmarks(store, action);
       return {
         bookmark: {
           ...listedBookmark(store.get(bookmarksStateAtom), bookmark),

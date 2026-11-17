@@ -76,8 +76,8 @@ const DRAG_START_PX = 4;
 
 /**
  * The Bookmarks page, a browser's bookmark manager in History's clothes:
- * every bookmark and folder as one outline in the bar's order, then Other
- * bookmarks, each folder opening in place, with a search over all of them.
+ * every bookmark and folder as one outline in the bar's order, then All
+ * Bookmarks, each folder opening in place, with a search over all of them.
  * A click picks a row,
  * ⌘-click and Shift-click pick more, and ⌘A all of them; a double click or
  * Return opens what is picked, Delete deletes it, and a drag moves it,
@@ -223,7 +223,7 @@ export function BookmarksPage({
     );
   };
 
-  /** Opens a row the way a double click or Return does: a bookmark in a tab of its own, a folder or Other bookmarks in place. */
+  /** Opens a row the way a double click or Return does: a bookmark in a tab of its own, a folder or All Bookmarks in place. */
   const openRow = (row: OutlineRow) => {
     if (row.kind !== "bookmark") {
       if (!isSearch) {
@@ -234,7 +234,7 @@ export function BookmarksPage({
     openAddress(row.bookmark.url, { newTab: true });
   };
 
-  /** Shows a search's match where it is filed: the search let go, its folder and Other bookmarks open, the row picked. */
+  /** Shows a search's match where it is filed: the search let go, its folder and All Bookmarks open, the row picked. */
   const showInFolder = (row: OutlineRow) => {
     if (row.kind === "bookmark" && row.root) {
       toggleFolder(row.root, true);
@@ -673,7 +673,7 @@ function PageMenu({
 /**
  * One row of the outline, History's row less its time and its box: a
  * folder's caret, the mark, the name, what it is, and its ⋮. What is in
- * a folder or Other bookmarks sits indented under it.
+ * a folder or All Bookmarks sits indented under it.
  */
 function OutlineRowView({
   drop,

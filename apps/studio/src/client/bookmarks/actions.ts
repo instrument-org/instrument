@@ -3,17 +3,18 @@ import {
   type BookmarkRoot,
   type Bookmarks,
   folderOf,
+  orderAfter,
   OTHER_ROOT,
   OTHER_ROOT_TITLE,
   rootItems,
   rootOf,
-  sortedAddOps,
+  siblingsIn,
 } from "@/shared/bookmarks";
 import { toast } from "@/client/lib/toast";
 import { type WindowTabAnswer } from "@instrument-org/workspace/client";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 
-import { sameAddress, sortedKindOf } from "./address";
+import { sameAddress } from "./address";
 import { newBookmarkPlace } from "./edit";
 import {
   applyBookmarkOpsAtom,
@@ -74,11 +75,11 @@ export function useBookmarkActions() {
 
 /**
  * Keeps an address the way every add that picks no place does, a row's
- * menu or the agent: last in its kind's folder of Other bookmarks
- * (`sortedKindOf`, `sortedAddOps`), made where it is gone. An address kept
- * already stays where it is, and that bookmark is answered.
+ * menu or the agent: loose and last in All Bookmarks, as Chrome files
+ * them. An address kept already stays where it is, and that bookmark is
+ * answered.
  */
-export function addSortedBookmark(
+export function addToAllBookmarks(
   store: ReturnType<typeof useStore>,
   { title, url }: { title: string; url: string },
 ): { bookmark: Bookmark; isNew: boolean } {
@@ -89,27 +90,28 @@ export function addSortedBookmark(
   if (kept) {
     return { bookmark: kept, isNew: false };
   }
-  const id = crypto.randomUUID();
-  const ops = sortedAddOps(state, { id, title, url }, sortedKindOf(url));
-  void store.set(applyBookmarkOpsAtom, ops);
-  const [added] = ops.flatMap((op) => (op.type === "add" ? [op.bookmark] : []));
-  if (!added) {
-    throw new Error("The bookmark was not added");
-  }
-  return { bookmark: added, isNew: true };
+  const bookmark: Bookmark = {
+    id: crypto.randomUUID(),
+    order: orderAfter(siblingsIn(state, undefined, OTHER_ROOT)),
+    root: OTHER_ROOT,
+    title,
+    url,
+  };
+  void store.set(applyBookmarkOpsAtom, [{ bookmark, type: "add" }]);
+  return { bookmark, isNew: true };
 }
 
 /**
  * Keeping an address from a menu over a link, a file or a tab, for a
  * surface that draws many: the bookmarks are read at the press rather than
  * followed, so a change to them redraws none of the links. An address not
- * kept yet goes into Other bookmarks (`addSortedBookmark`), and one kept
+ * kept yet goes into All Bookmarks (`addToAllBookmarks`), and one kept
  * already stays where it is; the toast says which.
  */
 export function useAddBookmark() {
   const store = useStore();
   return ({ title, url }: { title: string; url: string }) => {
-    const { bookmark, isNew } = addSortedBookmark(store, { title, url });
+    const { bookmark, isNew } = addToAllBookmarks(store, { title, url });
     if (!isNew) {
       toast("Already in Bookmarks", { description: bookmark.title || url });
       return;
@@ -120,9 +122,9 @@ export function useAddBookmark() {
 
 type ListedBookmark = NonNullable<WindowTabAnswer["bookmarks"]>[number];
 
-/** The root as the agent is told it: the bar, or Other bookmarks. */
+/** The root as the agent is told it: the bar, or All Bookmarks. */
 function listedRoot(root: BookmarkRoot | undefined): ListedBookmark["root"] {
-  return root === OTHER_ROOT ? "other" : "bar";
+  return root === OTHER_ROOT ? "all" : "bar";
 }
 
 /** A bookmark as `instrument bookmarks` tells the agent of it: where it is, its name and its address. */
@@ -142,7 +144,7 @@ export function listedBookmark(
 
 /**
  * Every folder and bookmark as `instrument bookmarks list` reads them, in the
- * Bookmarks page's order: the bar's, then Other bookmarks', each folder
+ * Bookmarks page's order: the bar's, then All Bookmarks', each folder
  * before what is filed in it.
  */
 export function bookmarkListing(state: Bookmarks): ListedBookmark[] {

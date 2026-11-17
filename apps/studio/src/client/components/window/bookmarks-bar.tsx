@@ -67,7 +67,7 @@ import { BookmarkNameField, bookmarkName } from "./web-start";
  * The bookmarks kept on the bar, in a row under a tab's toolbar, each the
  * mark its tab wears and a short name, the way a browser's bookmarks bar
  * keeps them, after Files where the row is given it (`files`). Those past
- * the row's end are under a chevron at its right, and Other bookmarks, where
+ * the row's end are under a chevron at its right, and All Bookmarks, where
  * it has any, is one chip at the bar's right end. A click opens one in this
  * tab whatever it names (a site by `onOpen`, a place of the app's own, a
  * chat's included, by `onVisit`), a Cmd-click or a middle click in a new tab

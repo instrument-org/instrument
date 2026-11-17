@@ -29,7 +29,7 @@ export function addressOfTyped(typed: string): string | undefined {
 
 /** What the editor's Save changes: the name, the address, the place, and the folders made in it. */
 export interface BookmarkEdit {
-  /** The place picked, by its key (`placeOfKey`): a folder, a new one's included, Other bookmarks, or the bar without one. */
+  /** The place picked, by its key (`placeOfKey`): a folder, a new one's included, All Bookmarks, or the bar without one. */
   folder: string | undefined;
   /** Folders New folder made in the editor, kept only as it saves. */
   newFolders: readonly BookmarkFolder[];

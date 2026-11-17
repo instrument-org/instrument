@@ -6,6 +6,7 @@ import {
   WindowContext,
 } from "@/client/components/window/context";
 import { GroupTabContext } from "@/client/components/window/group-tab";
+import { OTHER_ROOT } from "@/shared/bookmarks";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { renderHook, waitFor } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
@@ -363,31 +364,36 @@ describe("a link's menu in a window with tabs", () => {
       },
       { interval: 1 },
     );
-    // Each in its kind's folder of Other bookmarks, the page and the
-    // built-in page together.
+    // Loose in All Bookmarks in the order they were added, the file's last
+    // since it is kept once its place on this computer is found.
     expect(
       store
         .get(bookmarksAtom)
-        .map(({ folder, title, url }) => ({ folder, title, url }))
-        .toSorted((a, b) => a.url.localeCompare(b.url)),
+        .map(({ folder, root, title, url }) => ({ folder, root, title, url })),
     ).toEqual([
       {
-        folder: "other-files",
-        title: "plan.md",
-        url: "file:///Users/sam/Instrument/Notes/plan.md",
+        folder: undefined,
+        root: OTHER_ROOT,
+        title: "",
+        url: "https://example.com/",
       },
-      { folder: "other-pages", title: "", url: "https://example.com/" },
       {
-        folder: "other-pages",
+        folder: undefined,
+        root: OTHER_ROOT,
         title: "Chats",
         url: "instrument://screen/chats",
       },
+      {
+        folder: undefined,
+        root: OTHER_ROOT,
+        title: "plan.md",
+        url: "file:///Users/sam/Instrument/Notes/plan.md",
+      },
     ]);
-    // The file's is said once its place on this computer is found.
     expect(toastSaid.mock.calls.map(([said]) => said).toSorted()).toEqual([
-      "Added to Other bookmarks",
-      "Added to Other bookmarks",
-      "Added to Other bookmarks",
+      "Added to All Bookmarks",
+      "Added to All Bookmarks",
+      "Added to All Bookmarks",
       "Already in Bookmarks",
     ]);
   });

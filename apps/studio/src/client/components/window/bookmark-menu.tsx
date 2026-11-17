@@ -210,7 +210,7 @@ export function ManageBookmarksItem() {
 }
 
 /**
- * Filing a bookmark in a folder, or loose in the bar or Other bookmarks,
+ * Filing a bookmark in a folder, or loose in the bar or All Bookmarks,
  * from its menu: the way to do it without dragging. Every place but the
  * one it is in (`bookmarkPlaces`).
  */

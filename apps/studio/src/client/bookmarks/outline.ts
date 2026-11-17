@@ -17,16 +17,16 @@ import {
 
 /**
  * The Bookmarks page as one outline: the bar's items in its order, then
- * Other bookmarks as a row of its own over its items, each folder a row
+ * All Bookmarks as a row of its own over its items, each folder a row
  * that opens in place over the bookmarks filed in it, and what the page does
  * to the rows picked in it (open, delete, cut, copy, paste, sort, drag),
  * worked out here so the page only draws it.
  */
 
 /**
- * One row of the outline: Other bookmarks, a folder, or a bookmark loose in
+ * One row of the outline: All Bookmarks, a folder, or a bookmark loose in
  * a root or in a folder. Each is `depth` steps in: the bar's items at none,
- * Other bookmarks' items at one, and a folder's bookmarks one past it.
+ * All Bookmarks' items at one, and a folder's bookmarks one past it.
  */
 export type OutlineRow =
   | {
@@ -36,7 +36,7 @@ export type OutlineRow =
       folder?: BookmarkFolder;
       id: string;
       kind: "bookmark";
-      /** Other bookmarks, where it is in that root, which a search names beside it. */
+      /** All Bookmarks, where it is in that root, which a search names beside it. */
       root?: BookmarkRoot;
     }
   | {
@@ -58,7 +58,7 @@ export type OutlineRow =
 
 /**
  * The rows the page lists: the bar's items in order, each open folder's
- * bookmarks under it, then Other bookmarks, where it has anything, and its
+ * bookmarks under it, then All Bookmarks, where it has anything, and its
  * items under it while it is open. With search words, every folder and
  * bookmark that has all of them in its name or its address, in that same
  * order, flat, the way a browser's manager searches.
@@ -277,7 +277,7 @@ function filedAt(place: BookmarkPlace): BookmarkPlace {
 
 /**
  * Where a paste goes, as a browser's manager pastes: right after the row it
- * is asked over, among the items beside it, at the end of Other bookmarks
+ * is asked over, among the items beside it, at the end of All Bookmarks
  * asked over that, and at the bar's end with no row. A folder pasted where a
  * folder cannot go, inside another, goes after that folder in its root
  * instead.
@@ -409,7 +409,7 @@ function ordersFor(
  * is (0 at its top, 1 at its foot), the way a browser's manager reads it:
  * on a folder's middle half, into it at its end; on its top or bottom
  * quarter, before or after it in its root, or into it first where it is
- * open; on Other bookmarks, into it at its end, its top quarter being the
+ * open; on All Bookmarks, into it at its end, its top quarter being the
  * bar's end and its foot its first place where it is open; and before or
  * after a bookmark by its halves. Nothing over a row that is held, or in a
  * search's flat list.
@@ -501,7 +501,7 @@ export function dropTargetAt(
 /**
  * Sort by name, as a browser's manager sorts a folder: folders first, then
  * bookmarks, each by name the way the person's language orders words; the
- * bar's items and each of its folders', then Other bookmarks' and each of
+ * bar's items and each of its folders', then All Bookmarks' and each of
  * its folders'.
  */
 export function sortByNameOps(state: Bookmarks, locale?: string): BookmarkOp[] {

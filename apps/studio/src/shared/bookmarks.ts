@@ -14,15 +14,16 @@ import { omit } from "radashi";
 
 /**
  * The other root bookmarks are kept under beside the bar, as Chrome has it:
- * Other bookmarks, which the bar shows as one chip at its right end. A
- * bookmark or folder without a root is the bar's.
+ * All Bookmarks, which the bar shows as one chip at its right end, and
+ * where every add that picks no place goes. A bookmark or folder without a
+ * root is the bar's.
  */
 export const OTHER_ROOT = "other";
 
 export type BookmarkRoot = typeof OTHER_ROOT;
 
-/** What Other bookmarks is called wherever it is listed. */
-export const OTHER_ROOT_TITLE = "Other bookmarks";
+/** What the other root is called wherever it is listed. */
+export const OTHER_ROOT_TITLE = "All Bookmarks";
 
 /**
  * An address the person kept: a website's, a file's or a folder's
@@ -40,7 +41,7 @@ export interface Bookmark {
   /** Where it sorts among the others beside it, in its root or in its folder; any number, smaller first. */
   order: number;
   /**
-   * The root it is loose in, where it is in no folder: Other bookmarks, or
+   * The root it is loose in, where it is in no folder: All Bookmarks, or
    * the bar without one. Filed in a folder, it is in the folder's root.
    */
   root?: BookmarkRoot;
@@ -57,7 +58,7 @@ export interface BookmarkFolder {
   id: string;
   /** Where it sorts among the bookmarks and folders of its root. */
   order: number;
-  /** Other bookmarks, or the bar without one. */
+  /** All Bookmarks, or the bar without one. */
   root?: BookmarkRoot;
   title: string;
 }
@@ -232,7 +233,7 @@ function applyBookmarkOp(state: Bookmarks, op: BookmarkOp): Bookmarks {
   }
 }
 
-/** A root as a member keeps it: only Other bookmarks is written, the bar being none. */
+/** A root as a member keeps it: only All Bookmarks is written, the bar being none. */
 function rootField(root: BookmarkRoot | undefined): { root?: BookmarkRoot } {
   return root === OTHER_ROOT ? { root } : {};
 }
@@ -388,7 +389,7 @@ export function siblingsIn(
 
 /**
  * The places a bookmark can be kept, in the order a list of them shows:
- * the bar, its folders, Other bookmarks, and its folders. Each by its key
+ * the bar, its folders, All Bookmarks, and its folders. Each by its key
  * (`placeOfKey`), with its depth under its root.
  */
 export function bookmarkPlaces(
@@ -408,7 +409,7 @@ export function bookmarkPlaces(
 
 /**
  * A place as one string, for a list to pick it by and for the last folder
- * picked to be kept as: a folder by its id, Other bookmarks by
+ * picked to be kept as: a folder by its id, All Bookmarks by
  * `OTHER_ROOT`, and the bar as none. No folder's id is `OTHER_ROOT`.
  */
 export function placeOfKey(key: string | undefined): BookmarkPlace {
@@ -425,49 +426,4 @@ export function keyOfPlace({
   root,
 }: BookmarkPlace): string | undefined {
   return folder ?? root;
-}
-
-/**
- * The folders of Other bookmarks that an add which picks no place files a
- * bookmark into, by what it keeps: files and folders, chats, and pages (a
- * site's or the app's own). Each has an id every device agrees on, so it is
- * found again whatever the person renames it, and made once.
- */
-export const SORTED_FOLDERS = {
-  chats: { id: "other-chats", title: "Chats" },
-  files: { id: "other-files", title: "Files" },
-  pages: { id: "other-pages", title: "Pages" },
-} as const;
-
-export type SortedKind = keyof typeof SORTED_FOLDERS;
-
-/**
- * The ops that keep a bookmark last in its kind's folder of Other bookmarks
- * (`SORTED_FOLDERS`), making the folder first, last in Other bookmarks,
- * where it is gone. A folder of that id already there keeps its name and
- * place, since an add of one whose id is taken changes nothing.
- */
-export function sortedAddOps(
-  state: Bookmarks,
-  bookmark: Pick<Bookmark, "id" | "title" | "url">,
-  kind: SortedKind,
-): BookmarkOp[] {
-  const { id, title } = SORTED_FOLDERS[kind];
-  const folder: BookmarkFolder = {
-    id,
-    order: orderAfter(siblingsIn(state, undefined, OTHER_ROOT)),
-    root: OTHER_ROOT,
-    title,
-  };
-  return [
-    { folder, type: "addFolder" },
-    {
-      bookmark: {
-        ...bookmark,
-        folder: id,
-        order: orderAfter(siblingsIn(state, id)),
-      },
-      type: "add",
-    },
-  ];
 }

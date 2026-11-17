@@ -335,9 +335,9 @@ export function OverflowFolder({
 }
 
 /**
- * Other bookmarks at the bar's right end, as Chrome has it: a press opens a
- * menu of its folders, each a submenu of the bookmarks filed in it, then the
- * bookmarks loose in it, each opening as one on the bar does
+ * All Bookmarks at the bar's right end, as Chrome has it: a press opens a
+ * menu of its bookmarks and folders in order, a folder a submenu of the
+ * bookmarks filed in it and a bookmark opening as one on the bar does
  * (`bookmarkClicks`) with the bar's menu for a bookmark on a right click.
  * While a folder's menu is open, moving onto it opens this one instead
  * (`onHover`). A right click on it offers the Bookmarks page and the bar's

@@ -24,13 +24,13 @@ import { z } from "zod";
  *
  * A build from before folders reads only `bookmark/` keys and passes over a
  * value's `folder`, so it shows every bookmark on the bar and no folder; a
- * build from before Other bookmarks passes over `root`, so it shows Other
- * bookmarks' folders and loose bookmarks on the bar.
+ * build from before roots passes over `root`, so it shows All Bookmarks'
+ * folders and loose bookmarks on the bar.
  */
 
 const PREFIX = { bookmark: "bookmark/", folder: "folder/" } as const;
 
-/** The root a member is kept in: Other bookmarks, or the bar for none or anything else. */
+/** The root a member is kept in: All Bookmarks, or the bar for none or anything else. */
 const RootSchema = z.literal(OTHER_ROOT).optional().catch(undefined);
 
 /**

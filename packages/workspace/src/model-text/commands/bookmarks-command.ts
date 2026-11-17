@@ -7,7 +7,7 @@ import { INSTRUMENT_COMMAND } from "./instrument-command";
  */
 export const BOOKMARKS_COMMAND = {
   description:
-    "The user's bookmarks: `instrument bookmarks list [words]` lists them by folder, on the bookmarks bar and in Other bookmarks; `add <url or path> [title]` keeps one in Other bookmarks, as the app's Add to Bookmarks does, which is the chat's alone.",
+    "The user's bookmarks: `instrument bookmarks list [words]` lists them by folder, on the bookmarks bar and in All Bookmarks; `add <url or path> [title]` keeps one in All Bookmarks, as the app's Add to Bookmarks does, which is the chat's alone.",
   name: `${INSTRUMENT_COMMAND.name} bookmarks`,
   summary: "The user's bookmarks: list them, and add one.",
   word: "bookmarks",

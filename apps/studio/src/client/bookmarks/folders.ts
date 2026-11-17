@@ -50,7 +50,7 @@ export function useBookmarkFolders() {
       void apply([{ folder, type: "addFolder" }]);
       return folder;
     },
-    /** Files a bookmark last in the place a key names (`placeOfKey`): a folder, Other bookmarks, or the bar without one. */
+    /** Files a bookmark last in the place a key names (`placeOfKey`): a folder, All Bookmarks, or the bar without one. */
     moveTo: (bookmark: Bookmark, key: string | undefined) => {
       const state = store.get(bookmarksStateAtom);
       if (keyOfPlace(placeOf(state, bookmark)) === key) {

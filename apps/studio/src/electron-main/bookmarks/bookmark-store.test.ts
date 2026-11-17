@@ -494,7 +494,7 @@ describe("folders", () => {
     expect(drawn(bookmarks.snapshot())).toEqual(["a", "b", "Work []"]);
   });
 
-  it("writes Other bookmarks' root on its folders and loose bookmarks, and reads any other root as the bar", async () => {
+  it("writes All Bookmarks' root on its folders and loose bookmarks, and reads any other root as the bar", async () => {
     const { bookmarks, store } = await bookmarksOf(HERE);
     await bookmarks.apply({
       client: "w1",

@@ -139,8 +139,8 @@ describe("newBookmarkPlace", () => {
   });
 });
 
-describe("bookmarkEditOps with Other bookmarks", () => {
-  it("moves a bookmark loose into Other bookmarks and back onto the bar", () => {
+describe("bookmarkEditOps with All Bookmarks", () => {
+  it("moves a bookmark loose into All Bookmarks and back onto the bar", () => {
     const edit = (to: string | undefined, from: Bookmarks = state) => {
       const a = from.bookmarks.find((each) => each.id === "a");
       return a

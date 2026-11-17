@@ -90,8 +90,7 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("bookmarks") }),
   /**
    * Keeps an address as a bookmark the way a menu's Add to Bookmarks does:
-   * into its kind's folder of Other bookmarks, or left where it is when it
-   * is kept already.
+   * last in All Bookmarks, or left where it is when it is kept already.
    */
   z.object({
     kind: z.literal("addBookmark"),
@@ -114,13 +113,13 @@ export type WindowTabRequest = z.output<typeof WindowTabRequestSchema>;
 
 /**
  * A bookmark or a bookmark folder as the window names it to the agent: the
- * root it is in (the bar, or Other bookmarks), the folder it is filed in by
+ * root it is in (the bar, or All Bookmarks), the folder it is filed in by
  * name, its name, and a bookmark's address.
  */
 export const ListedBookmarkSchema = z.object({
   folder: z.string().optional(),
   kind: z.enum(["bookmark", "folder"]),
-  root: z.enum(["bar", "other"]),
+  root: z.enum(["bar", "all"]),
   title: z.string(),
   url: z.string().optional(),
 });
@@ -176,7 +175,7 @@ export const WindowTabAnswerSchema = z.object({
     .optional(),
   /** The page's text, for a read. */
   text: z.string().optional(),
-  /** For a bookmarks list: every folder and bookmark, the bar's then Other bookmarks', each folder before what is filed in it. */
+  /** For a bookmarks list: every folder and bookmark, the bar's then All Bookmarks', each folder before what is filed in it. */
   bookmarks: z.array(ListedBookmarkSchema).optional(),
   /** For a bookmark's add: the bookmark, and whether it was kept already. */
   bookmark: ListedBookmarkSchema.extend({ isNew: z.boolean() }).optional(),

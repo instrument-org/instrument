@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { bookmarkListing } from "./actions";
 
 describe("bookmarkListing", () => {
-  it("lists the bar, then Other bookmarks, each folder before what is filed in it", () => {
+  it("lists the bar, then All Bookmarks, each folder before what is filed in it", () => {
     expect(
       bookmarkListing({
         bookmarks: [
@@ -24,7 +24,7 @@ describe("bookmarkListing", () => {
             url: "https://c.example/",
           },
           {
-            folder: "other-files",
+            folder: "trips",
             id: "d",
             order: 0,
             title: "plan.md",
@@ -33,7 +33,7 @@ describe("bookmarkListing", () => {
         ],
         folders: [
           { id: "f", order: 1, title: "Work" },
-          { id: "other-files", order: 1, root: OTHER_ROOT, title: "Files" },
+          { id: "trips", order: 1, root: OTHER_ROOT, title: "Trips" },
         ],
       }),
     ).toEqual([
@@ -48,15 +48,15 @@ describe("bookmarkListing", () => {
       },
       {
         kind: "bookmark",
-        root: "other",
+        root: "all",
         title: "C",
         url: "https://c.example/",
       },
-      { kind: "folder", root: "other", title: "Files" },
+      { kind: "folder", root: "all", title: "Trips" },
       {
-        folder: "Files",
+        folder: "Trips",
         kind: "bookmark",
-        root: "other",
+        root: "all",
         title: "plan.md",
         url: "file:///Users/mac-user/plan.md",
       },

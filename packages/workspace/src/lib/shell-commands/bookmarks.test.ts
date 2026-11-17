@@ -32,7 +32,7 @@ vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
   },
 }));
 
-/** The bookmarks as the window lists them: the bar's, then Other bookmarks'. */
+/** The bookmarks as the window lists them: the bar's, then All Bookmarks'. */
 const LISTED: NonNullable<WindowTabAnswer["bookmarks"]> = [
   {
     kind: "bookmark",
@@ -48,24 +48,21 @@ const LISTED: NonNullable<WindowTabAnswer["bookmarks"]> = [
     title: "Intercom pricing",
     url: "https://www.intercom.com/pricing",
   },
-  { kind: "folder", root: "other", title: "Files" },
   {
-    folder: "Files",
     kind: "bookmark",
-    root: "other",
+    root: "all",
     title: "plan.md",
     url: planUrl,
   },
   {
-    folder: "Files",
     kind: "bookmark",
-    root: "other",
+    root: "all",
     title: "secrets.txt",
     url: pathToFileURL(path.resolve("/elsewhere/secrets.txt")).href,
   },
   {
     kind: "bookmark",
-    root: "other",
+    root: "all",
     title: "",
     url: "https://example.com/",
   },
@@ -86,10 +83,9 @@ function answeringWindow() {
         : action.kind === "addBookmark"
           ? {
               bookmark: {
-                folder: action.url.startsWith("file:") ? "Files" : "Pages",
                 isNew: !kept.has(action.url),
                 kind: "bookmark",
-                root: "other",
+                root: "all",
                 title: action.title,
                 url: action.url,
               },
@@ -133,7 +129,7 @@ afterEach(() => {
 });
 
 describe("bookmarks list", () => {
-  it("lists the bar, then Other bookmarks, by folder, a file by the path the agent reads it at", async () => {
+  it("lists the bar, then All Bookmarks, by folder, a file by the path the agent reads it at", async () => {
     const result = await run({});
 
     expect(result.exitCode).toBe(0);
@@ -144,10 +140,9 @@ describe("bookmarks list", () => {
         Zendesk pricing  https://www.zendesk.com/pricing/
         Competitors/
           Intercom pricing  https://www.intercom.com/pricing
-      Other bookmarks:
-        Files/
-          plan.md  <chat>/plan.md
-          secrets.txt  a file outside your folders
+      All Bookmarks:
+        plan.md  <chat>/plan.md
+        secrets.txt  a file outside your folders
         https://example.com/
       "
     `);
@@ -164,15 +159,13 @@ describe("bookmarks list", () => {
       "
     `);
     expect(
-      (await run({}, "list", "files")).stdout.replaceAll(
+      (await run({}, "list", "plan")).stdout.replaceAll(
         layout.chat.shellRoot,
         "<chat>",
       ),
     ).toMatchInlineSnapshot(`
-      "Other bookmarks:
-        Files/
-          plan.md  <chat>/plan.md
-          secrets.txt  a file outside your folders
+      "All Bookmarks:
+        plan.md  <chat>/plan.md
       "
     `);
     expect((await run({}, "list", "nothing")).stdout).toMatchInlineSnapshot(`
@@ -220,7 +213,7 @@ describe("bookmarks add", () => {
       },
     ]);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Bookmarked "Example docs" in Other bookmarks/Pages.
+      "Bookmarked "Example docs" in All Bookmarks.
       "
     `);
   });
@@ -245,7 +238,7 @@ describe("bookmarks add", () => {
     ]);
     expect(file.stdout.replaceAll(layout.chat.shellRoot, "<chat>"))
       .toMatchInlineSnapshot(`
-      "Bookmarked "plan #2.md" in Other bookmarks/Files.
+      "Bookmarked "plan #2.md" in All Bookmarks.
       "
     `);
   });
@@ -255,7 +248,7 @@ describe("bookmarks add", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Already bookmarked as "https://example.com/" in Other bookmarks/Pages.
+      "Already bookmarked as "https://example.com/" in All Bookmarks.
       "
     `);
   });

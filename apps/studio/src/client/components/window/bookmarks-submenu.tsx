@@ -41,8 +41,8 @@ import { bookmarkName } from "./web-start";
 /**
  * The browser's ⋮ Bookmarks, under History as in Chrome: bookmarking the
  * tab (its star's card) or every tab of the group, the bar's switch, the
- * Bookmarks page, and then the bar itself, each folder a submenu, and Other
- * bookmarks as one more, so every bookmark is a menu or two away with the
+ * Bookmarks page, and then the bar itself, each folder a submenu, and All
+ * Bookmarks as one more, so every bookmark is a menu or two away with the
  * bar hidden. A bookmark opens in this
  * tab, a site by `onOpenPage`.
  */

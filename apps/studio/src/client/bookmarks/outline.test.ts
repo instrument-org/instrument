@@ -61,7 +61,7 @@ const listed = (rows: readonly OutlineRow[]) =>
   rows.map((row) =>
     row.kind === "bookmark"
       ? `${"  ".repeat(row.depth)}${row.bookmark.title}`
-      : `${"  ".repeat(row.depth)}${row.isOpen ? "▾" : "▸"} ${row.kind === "root" ? "Other bookmarks" : row.folder.title} (${row.count.toString()})`,
+      : `${"  ".repeat(row.depth)}${row.isOpen ? "▾" : "▸"} ${row.kind === "root" ? "All Bookmarks" : row.folder.title} (${row.count.toString()})`,
   );
 
 /** The bar as one line per item, a folder's contents in brackets. */
@@ -244,25 +244,25 @@ describe("sortByNameOps", () => {
   });
 });
 
-describe("Other bookmarks", () => {
-  // The bar above, and Other bookmarks: Files [Notes], Wiki.
+describe("All Bookmarks", () => {
+  // The bar above, and All Bookmarks: Trips [Notes], Wiki.
   const withOther: Bookmarks = {
     bookmarks: [
       ...state.bookmarks,
-      page("notes", 0, "Notes", "other-files"),
+      page("notes", 0, "Notes", "trips"),
       { ...page("wiki", 1, "Wiki"), root: OTHER_ROOT },
     ],
     folders: [
       ...state.folders,
-      { ...folder("other-files", 0, "Files"), root: OTHER_ROOT },
+      { ...folder("trips", 0, "Trips"), root: OTHER_ROOT },
     ],
   };
   const rows = outlineRows(withOther, {
-    open: new Set([OTHER_ROOT, "other-files"]),
+    open: new Set([OTHER_ROOT, "trips"]),
     q: "",
   });
   const at = (id: string) => rows.findIndex((row) => row.id === id);
-  /** Other bookmarks as one line per item, a folder's contents in brackets. */
+  /** All Bookmarks as one line per item, a folder's contents in brackets. */
   const other = (bookmarks: Bookmarks) =>
     rootItems(bookmarks, OTHER_ROOT).map((item) =>
       item.kind === "folder"
@@ -287,19 +287,19 @@ describe("Other bookmarks", () => {
     return { bar: drawn(after), other: other(after) };
   };
 
-  it("lists Other bookmarks after the bar, its items a step in", () => {
+  it("lists All Bookmarks after the bar, its items a step in", () => {
     expect(listed(rows).slice(-4)).toEqual([
-      "▾ Other bookmarks (2)",
-      "  ▾ Files (1)",
+      "▾ All Bookmarks (2)",
+      "  ▾ Trips (1)",
       "    Notes",
       "  Wiki",
     ]);
     expect(
       listed(outlineRows(state, { open: new Set([OTHER_ROOT]), q: "" })),
-    ).not.toContain("▾ Other bookmarks (0)");
+    ).not.toContain("▾ All Bookmarks (0)");
   });
 
-  it("searches Other bookmarks with the bar", () => {
+  it("searches All Bookmarks with the bar", () => {
     expect(
       outlineRows(withOther, { open: new Set(), q: "wiki" }).map((row) =>
         row.kind === "bookmark" ? row.root : undefined,
@@ -307,9 +307,9 @@ describe("Other bookmarks", () => {
     ).toEqual([OTHER_ROOT]);
   });
 
-  it("files a bookmark let go on Other bookmarks loose at its end", () => {
+  it("files a bookmark let go on All Bookmarks loose at its end", () => {
     expect(drop(["zendesk"], OTHER_ROOT, 0.5)?.other).toEqual([
-      "Files [Notes]",
+      "Trips [Notes]",
       "Wiki",
       "Zendesk pricing",
     ]);
@@ -318,16 +318,14 @@ describe("Other bookmarks", () => {
 
   it("keeps a folder in its own root", () => {
     expect(drop(["reading"], OTHER_ROOT, 0.5)?.bar).toEqual(drawn(withOther));
-    expect(drop(["other-files"], "zendesk", 0.25)?.bar).toEqual(
-      drawn(withOther),
-    );
-    expect(drop(["other-files"], "wiki", 0.9)?.other).toEqual([
+    expect(drop(["trips"], "zendesk", 0.25)?.bar).toEqual(drawn(withOther));
+    expect(drop(["trips"], "wiki", 0.9)?.other).toEqual([
       "Wiki",
-      "Files [Notes]",
+      "Trips [Notes]",
     ]);
   });
 
-  it("pastes into Other bookmarks asked over its row", () => {
+  it("pastes into All Bookmarks asked over its row", () => {
     const root = rows.find((row) => row.kind === "root");
     const place = pastePlace(withOther, root, true);
     const pasted = applyBookmarkOps(
@@ -339,10 +337,10 @@ describe("Other bookmarks", () => {
         () => "kept",
       ),
     );
-    expect(other(pasted)).toEqual(["Files [Notes]", "Wiki", "Kept []"]);
+    expect(other(pasted)).toEqual(["Trips [Notes]", "Wiki", "Kept []"]);
   });
 
-  it("sorts Other bookmarks by name too", () => {
+  it("sorts All Bookmarks by name too", () => {
     const unsorted: Bookmarks = {
       ...withOther,
       bookmarks: [
@@ -351,6 +349,6 @@ describe("Other bookmarks", () => {
       ],
     };
     const sorted = applyBookmarkOps(unsorted, sortByNameOps(unsorted, "en"));
-    expect(other(sorted)).toEqual(["Files [Notes]", "Wiki", "Zeta"]);
+    expect(other(sorted)).toEqual(["Trips [Notes]", "Wiki", "Zeta"]);
   });
 });

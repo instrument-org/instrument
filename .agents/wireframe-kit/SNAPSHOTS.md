@@ -2,7 +2,7 @@
 
 A frame can start from Studio as it runs instead of from the kit's redrawing of it. `snap/capture.mjs` keeps the app's own page in each state a round may start from, and `snap(state, edit)` draws a frame from one through the wireframe skill's snapshot frames: the page in an iframe at true size, edited by name. Edits mark nothing: `.note("words")` adds a callout and `.fresh()` NEW, only where the reader should look. Whatever the edit leaves alone is the app itself, in its real layout, type and theme, so it cannot be out of date or invented.
 
-How snapshot frames work, every target and every edit is the skill's: read "Frames from a snapshot" in its `SKILL.md` and in its `patterns.md` (the installed skill, `~/.claude/skills/wireframe`) before a round. This file is only what Studio adds: the library, and how `snap()` differs in a kit part.
+How snapshot frames work, every target and every edit is the skill's: read its `snapshots.md` (the installed skill, `~/.claude/skills/wireframe`) before a round. This file is only what Studio adds: the library, and how `snap()` differs in a kit part.
 
 ## When to snapshot and when to draw
 
@@ -35,23 +35,21 @@ The room starts from `snap/seed/wf-pricing.seed.json`: the files its folder hold
 
 ## snap(state, edit) in a part
 
-```js
-const states = [
-  { title: "Notifications (Current design)", note: "…", body: snap("bell-update.dark") },
-  {
-    title: "Notifications",
-    note: "We make What's new the main button and quiet Dismiss, so the update reads as good news.",
-    body: snap("bell-update.dark", ($) => {
-      $({ role: "button", text: "Dismiss", nth: 1 }).css("opacity: 0.7");
-      const title = $("Projects are here");
-      title.after(title.clone().text("Chats can live in folders now"));
-    }),
-  },
-];
+```html
+<script>frame({ title: "Notifications (Current design)", note: "…", body: snap("bell-update.dark") })</script>
+<script>frame({
+  title: "Notifications",
+  note: "We make What's new the main button and quiet Dismiss, so the update reads as good news.",
+  body: snap("bell-update.dark", ($) => {
+    $({ role: "button", text: "Dismiss", nth: 1 }).css("opacity: 0.7");
+    const title = $("Projects are here");
+    title.after(title.clone().text("Chats can live in folders now"));
+  }),
+})</script>
 ```
 
-- The state is a library name, not a file: `build.mjs` puts every state the part names into the page with the skill's `add-snapshot.mjs`, so a part never runs it.
-- The build checks that each state is in the library. The edits run on the page, so a target that matches nothing stops the page with an error naming the close matches, which `check.mjs` prints.
+- The state is a library name, not a file: `build.mjs` puts every state the part names into the page, so a part never runs the skill's `add-snapshot.mjs`.
+- The build checks that each state is in the library. The edits run on the page, so a target that matches nothing draws its frame as an error naming the close matches, which `check.mjs` prints.
 - The window's lights are drawn over every snapshot frame.
 - The library keeps the app's whole stylesheets, and `build.mjs` keeps in the page only the rules whose classes appear in the states the part names or anywhere in the part's or the kit's source. So new markup you write inside a snapshot can use any of the app's classes and tokens, written out whole (`bg-popover`, not `bg-${tone}`, which the page would draw unstyled) (`bg-popover`, `text-muted-foreground`, `border`, `shadow-sm`, `rounded-xl`): peek a neighbor and copy its classes, or clone it, rather than inventing a look. Kit functions inside a snapshot get only the app's stylesheet, not the page's, so a clone of the real thing is closer.
 - `$.root` is the snapshot's own body, for something positioned over everything (`$.root.append(...)` with `absolute` and a `left`/`top`), in the app's colors.

@@ -14,7 +14,6 @@ import { atom, type SetStateAction } from "jotai";
 import { atomFamily } from "jotai/utils";
 
 import { keptAtom } from "@/client/lib/kept-state";
-import { folderHref } from "@/shared/computer-href";
 
 /**
  * What each tab's chat list is narrowed to, by the tab's id: its project,
@@ -61,21 +60,6 @@ export interface FinderShown {
 
 /** The places the rail at the window's edge switches between: the chat, the files, the browser, and the apps. */
 export type AppPlace = "apps" | "browser" | "chat" | "files";
-
-/**
- * The folder a tab last stood in on Files, by its address, so Files in the
- * rail takes a tab back to it. Null until a tab has been there.
- */
-export const filesFolderAtom = keptAtom<null | string>(
-  "window",
-  "files-folder.v1",
-  null,
-);
-
-/** Where Files opens: the folder a tab last stood in, or the home folder before one has. */
-export const filesHrefAtom = atom(
-  (get) => get(filesFolderAtom) ?? folderHref("~"),
-);
 
 /**
  * Search Chats was asked for and the inbox's search has not taken the

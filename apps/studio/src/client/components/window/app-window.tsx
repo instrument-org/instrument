@@ -20,7 +20,6 @@ import { type Draft, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
   chatFiltersByTabAtom,
-  filesFolderAtom,
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -75,7 +74,7 @@ import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { fileHref, folderHref } from "@/shared/computer-href";
+import { fileHref } from "@/shared/computer-href";
 import { type Tab } from "@/shared/tabs";
 
 import { useRestoredTabsWaiting } from "./use-restored-tabs-waiting";
@@ -500,14 +499,6 @@ function useChatChrome() {
   };
 }
 
-/** The folder a Files address stands in, which Files in the rail goes back to; none for any other screen or a file's. */
-function filesFolderOf(href: string) {
-  const screen = matchScreen(href);
-  return screen.kind === "computer" && screen.file === undefined
-    ? folderHref(screen.root, { path: screen.path })
-    : undefined;
-}
-
 function WindowShell({
   routers,
   tabs,
@@ -610,9 +601,6 @@ function WindowShell({
   const chatUp = useRouterState({
     select: (routerState) => chatOfHref(routerState.location.href),
   });
-  const filesFolder = useRouterState({
-    select: (routerState) => filesFolderOf(routerState.location.href),
-  });
   // The address the screen record names a screen by. A folder or a file is
   // recorded from what its tab shows, and a selection there writes the address.
   const screenHref = useRouterState({
@@ -640,7 +628,6 @@ function WindowShell({
   const draftsLoaded = useAtomValue(draftsLoadedAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const removeDraft = useSetAtom(removeDraftAtom);
-  const setFilesFolder = useSetAtom(filesFolderAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersUpAtom);
   const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
@@ -681,15 +668,6 @@ function WindowShell({
       newChatBoxes[tab.id]?.draftId ?? undefined,
     ]),
   );
-
-  // The folder a tab last stood in is where Files in the rail takes a tab.
-  // A file's address names where it was opened from rather than the folder
-  // on screen, so one with a file open leaves the folder as it was.
-  useEffect(() => {
-    if (filesFolder !== undefined) {
-      setFilesFolder(filesFolder);
-    }
-  }, [filesFolder, setFilesFolder]);
 
   // A draft with no words is not kept, so one left over from a launch goes.
   // Once, over what was restored, once main has read the drafts: before

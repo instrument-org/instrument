@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   adoptSystemSidebar,
+  firstPinnedFolder,
   moveSidebarPlaces,
   NO_SIDEBAR_CHANGES,
   pinnedPlaces,
@@ -96,5 +97,53 @@ describe("sidebar places", () => {
     );
     expect(rows(places)).toEqual(["code", "casey", "Work"]);
     expect(rows(pinPlace(places, "/Volumes/Archive")).at(-1)).toBe("Archive");
+  });
+
+  it.each([
+    {
+      name: "the first default, past the Instrument folder above Pinned",
+      places: NO_SIDEBAR_CHANGES,
+      first: "/Users/casey",
+    },
+    {
+      name: "a row moved to the top",
+      places: pinPlace(NO_SIDEBAR_CHANGES, "/Users/casey/Desktop", [
+        "/Users/casey/Desktop",
+        "/Users/casey",
+      ]),
+      first: "/Users/casey/Desktop",
+    },
+    {
+      name: "the next row once the top one is unpinned",
+      places: unpinPlace(NO_SIDEBAR_CHANGES, "/Users/casey"),
+      first: "/Users/casey/Desktop",
+    },
+    {
+      name: "the top of an adopted order",
+      places: adoptSystemSidebar(
+        NO_SIDEBAR_CHANGES,
+        ["/Applications", "/Users/casey/Desktop"],
+        defaults.map((place) => place.path),
+      ),
+      first: "/Applications",
+    },
+    {
+      name: "nothing with nothing pinned",
+      places: {
+        ...NO_SIDEBAR_CHANGES,
+        unpinned: defaults.map((place) => place.path),
+      },
+      first: undefined,
+    },
+  ])("starts Files at $name", ({ places, first }) => {
+    expect(
+      firstPinnedFolder(
+        [
+          { kind: "output", path: "/Users/casey/Instrument/Files" },
+          ...defaults.map((place) => ({ kind: "folder", path: place.path })),
+        ],
+        places,
+      ),
+    ).toBe(first);
   });
 });

@@ -113,6 +113,12 @@ vi.mock("@/client/bookmarks/actions", () => ({
   useAddBookmark: () => () => {},
 }));
 
+// Where Files starts is read from the computer's places, which no test here
+// asks about.
+vi.mock("@/client/hooks/use-files-start-href", () => ({
+  useFilesStartHref: () => "/files?path=&root=~",
+}));
+
 const GROUP = "group_a";
 const CHAT_TAB = "tab_chat";
 const LEFT_PAGE = "tab_left";

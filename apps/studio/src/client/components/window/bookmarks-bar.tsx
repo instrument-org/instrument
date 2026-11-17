@@ -21,7 +21,7 @@ import {
   useWindow,
 } from "@/client/components/window/context";
 import { noteTypedPage } from "@/client/hooks/use-browser-history";
-import { filesHrefAtom } from "@/client/atoms/window";
+import { useFilesStartHref } from "@/client/hooks/use-files-start-href";
 import { BAR_MOTION } from "@/client/lib/motion";
 import { cn } from "@/client/lib/utils";
 import { barItems, OTHER_ROOT, rootItems } from "@/shared/bookmarks";
@@ -491,14 +491,14 @@ function NameInPlace({
 }
 
 /**
- * Files at the bar's start: a press opens it where it last stood, and the
- * chevron beside it lists the places the Files sidebar keeps, the group's
- * project first, to open it at one of them. Each opens as a bookmark does
- * (`bookmarkClicks`), and drags as the same place in Files' sidebar does
- * (`pressPlace`), the menu getting out of the way as it does.
+ * Files at the bar's start: a press opens it at the first folder under
+ * Pinned, and the chevron beside it lists the places the Files sidebar
+ * keeps, the group's project first, to open it at one of them. Each opens as
+ * a bookmark does (`bookmarkClicks`), and drags as the same place in Files'
+ * sidebar does (`pressPlace`), the menu getting out of the way as it does.
  */
 function FilesMark({ group, open }: { group: string; open: OpenAddress }) {
-  const filesHref = useAtomValue(filesHrefAtom);
+  const filesHref = useFilesStartHref();
   const { places, project } = useFilesPlaces(group);
   const [isOpen, setOpen] = useState(false);
   const placeItem = (place: Place) => (

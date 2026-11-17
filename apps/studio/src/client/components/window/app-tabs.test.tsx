@@ -21,6 +21,12 @@ vi.mock("@/client/lib/kept-state", async (importOriginal) => ({
   keptInOtherWindows: () => otherWindows.models,
 }));
 
+// Where Files starts is read from the computer's places, which no test here
+// asks about.
+vi.mock("@/client/hooks/use-files-start-href", () => ({
+  useFilesStartHref: () => "/files?path=&root=~",
+}));
+
 vi.mock("@/client/rpc/client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/client/rpc/client")>()),
   rpcClient: { window: { showInOtherWindow: { call: showInOtherWindow } } },

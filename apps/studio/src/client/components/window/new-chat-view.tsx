@@ -1,7 +1,8 @@
 import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
 import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
-import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
+import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
 import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
+import { useFilesStartHref } from "@/client/hooks/use-files-start-href";
 import {
   itemsOf,
   useDraftStaging,
@@ -103,7 +104,7 @@ export function NewChatView({
   const shell = useShell();
   const router = useRouter();
   const windowTabs = useWindowTabs();
-  const filesHref = useAtomValue(filesHrefAtom);
+  const filesHref = useFilesStartHref();
   const drafts = useAtomValue(draftsAtom);
   const draftsLoaded = useAtomValue(draftsLoadedAtom);
   const store = useStore();

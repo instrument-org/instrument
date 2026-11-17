@@ -1,10 +1,10 @@
 import { suggestionsFrom } from "../chat/next-message";
 
 /** The longest idea kept: past this it no longer fits the corner whole. */
-export const IDEA_MAX_CHARS = 72;
+const IDEA_MAX_CHARS = 72;
 
 /** The most ideas a call returns: the corner shows the first, the rest when opened. */
-export const IDEAS_MAX = 3;
+const IDEAS_MAX = 3;
 
 /**
  * Lines that would fit any page, which say nothing about this one: "Summarize

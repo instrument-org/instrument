@@ -81,9 +81,9 @@ interface PooledWebview {
   // draws nothing. A slot showing it wakes it.
   asleep: boolean;
   container: HTMLDivElement;
-  // A size the agent asked this guest to lay out at, which outranks
-  // `lastVisibleBounds` while parked. Null means "whatever the panel last
-  // showed it at", which is the only sizing a guest nobody has asked about has.
+  // A size the agent asked this guest to lay out at, which outranks the size
+  // it parks at otherwise (see `lastVisibleBounds`). Null for a guest nobody
+  // has asked about.
   desiredSurface: null | { height: number; width: number };
   // Generation of the entry this guest was mounted for. A destroy+recreate of
   // the same targetId bumps it, so reconcile knows to dispose this guest and
@@ -99,9 +99,12 @@ interface PooledWebview {
   // The guest as everything outside the pool drives it, from the element's
   // dom-ready on: before it, every one of the element's methods throws.
   handle: GuestHandle | null;
-  // Last size the guest was shown at, so paint-host keeps it that size while
-  // hidden (avoids a jarring resize when re-shown).
+  // Last size the guest was shown at, which it keeps while parked when that
+  // was in a host above the pane (a draft window), since it is shown there
+  // again; a guest last shown in the pane, or never shown, parks at
+  // `paneSize`.
   lastVisibleBounds: Bounds | null;
+  shownAbovePane: boolean;
   targetId: BrowserTargetId;
   webview: WebviewElement;
 }
@@ -234,6 +237,18 @@ const { height: VIEW_H, width: VIEW_W } = BROWSER_GUEST_VIEWPORT;
 const VISIBLE_BOTTOM_RADIUS = "0.6875rem";
 
 const pool = new Map<BrowserTargetId, PooledWebview>();
+
+// The size the window's pane last showed a page at, which a parked guest is
+// laid out at, so a page opened behind the one on screen, or put away while
+// the pane resized, is already that size when its tab comes up rather than
+// relaying out from another one in front of the person.
+let paneSize: null | { height: number; width: number } = null;
+
+// How long the pane's size holds before parked guests follow it, so dragging
+// a window edge does not relayout every page behind the one on screen at
+// each frame.
+const PANE_SETTLE_MS = 150;
+let paneSettle: ReturnType<typeof setTimeout> | undefined;
 
 // The last focused Studio element, retained when agent CDP input crosses into
 // a guest so focus can return to the exact host element it displaced.
@@ -1027,14 +1042,16 @@ function applyDesiredSurface(
 
 // On-screen-sized but visually hidden. NOT display:none / far-offscreen, which
 // would drop the compositor surface and break CDP capture/input. Held at the
-// last visible size (or a default before first shown) so re-showing doesn't jump,
-// and clamped to what this window can actually rasterize: a guest shown in a
+// size it will be shown at (the pane's, or a default before the pane has shown
+// a page) so showing it doesn't jump, and clamped to what this window can actually rasterize: a guest shown in a
 // panel is bounded by the window anyway, but the default is not, so in a window
 // narrower than 985px or shorter than 616px it would otherwise park over the cap.
 function applyPaintHost(pooled: PooledWebview) {
-  const { container, desiredSurface, lastVisibleBounds, webview } = pooled;
+  const { container, desiredSurface, webview } = pooled;
   const budget = maxRasterSize();
-  const requested = desiredSurface ?? lastVisibleBounds;
+  const requested =
+    desiredSurface ??
+    (pooled.shownAbovePane ? pooled.lastVisibleBounds : paneSize);
   const width = Math.min(requested?.width ?? VIEW_W, budget.width);
   const height = Math.min(requested?.height ?? VIEW_H, budget.height);
   reportEffectiveSurface(pooled, { height, width });
@@ -1191,6 +1208,7 @@ function ensureWebview(
     lastReportedShown: undefined,
     lastReportedSurface: null,
     lastVisibleBounds: null,
+    shownAbovePane: false,
     targetId,
     webview,
   };
@@ -1352,11 +1370,26 @@ function maxRasterSize() {
 // the window bounds anyway.
 function onWindowResize() {
   reportRasterBudget();
+  parkAgain();
+}
+
+function parkAgain() {
   for (const [targetId, pooled] of pool) {
     if (!paintOwners.has(targetId)) {
       applyPaintHost(pooled);
     }
   }
+}
+
+// The pane is a slot on the window's own layer; a host above it (a draft
+// window, a look) shows its page at a size of its own.
+function notePaneSize(size: { height: number; width: number }) {
+  if (paneSize?.width === size.width && paneSize.height === size.height) {
+    return;
+  }
+  paneSize = size;
+  clearTimeout(paneSettle);
+  paneSettle = setTimeout(parkAgain, PANE_SETTLE_MS);
 }
 
 /**
@@ -1438,6 +1471,10 @@ function placeGuest(targetId: BrowserTargetId) {
   const corners = `0 0 ${bottomRight} ${bottomLeft}`;
   paintOwners.set(targetId, owner);
   pooled.lastVisibleBounds = bounds;
+  pooled.shownAbovePane = layer > 0;
+  if (layer === 0) {
+    notePaneSize({ height: bounds.height, width: bounds.width });
+  }
   // After the commit that put it here, once the view it replaced is gone.
   queueMicrotask(() => {
     passKeyboardTo(targetId);

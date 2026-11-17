@@ -20,6 +20,8 @@ import {
 } from "./browser-pool";
 
 const target = browserTargetOf(StoreId.newTabId());
+// A tab opened behind the one on screen, which no slot has shown.
+const behind = browserTargetOf(StoreId.newTabId());
 
 // A stream that stays open without ever yielding, as the pool's event
 // subscriptions are while nothing happens.
@@ -80,6 +82,12 @@ vi.mock("@/client/rpc/client", () => {
                 (async function* () {
                   const snapshot = (asleep: boolean) => [
                     { asleep, attached: true, generation: 1, id: target },
+                    {
+                      asleep: false,
+                      attached: true,
+                      generation: 1,
+                      id: behind,
+                    },
                   ];
                   yield snapshot(false);
                   while (!options?.signal?.aborted) {
@@ -328,4 +336,26 @@ it("holds a page off the keyboard until let go, then hands it over, however long
     focus.mockRestore();
     setPaintHost(target, slot);
   }
+});
+
+it("lays out a page no slot has shown at the size the pane shows pages at", async () => {
+  const container = () =>
+    document.querySelectorAll("webview")[1]?.parentElement?.style;
+  const pane = Symbol("pane");
+  showOverSlot(target, { height: 600, width: 900, x: 0, y: 40 }, pane);
+  await vi.waitFor(
+    () => {
+      expect(container()?.width).toBe("900px");
+    },
+    { interval: 5 },
+  );
+  expect(container()?.height).toBe("600px");
+
+  // A host above the pane leaves it be.
+  const draft = Symbol("draft window");
+  showOverSlot(target, popOutBounds, draft, null, 41);
+  setPaintHost(target, draft);
+  setPaintHost(target, pane);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(container()?.width).toBe("900px");
 });

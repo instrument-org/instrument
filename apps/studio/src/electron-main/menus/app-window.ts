@@ -58,7 +58,7 @@ interface WindowChord {
  * window's menus goes without while the rows around it have one.
  */
 const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
-  askAboutPage: "sparkles",
+  askAboutPage: "text.bubble",
   back: "chevron.backward",
   bookmarkAllTabs: "star.square.on.square",
   bookmarkTab: "star",

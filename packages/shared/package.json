@@ -23,6 +23,7 @@
     "./home-folder": "./src/home-folder.ts",
     "./icons": "./src/icons.ts",
     "./merge-generators": "./src/merge-generators.ts",
+    "./page-distill": "./src/page-distill.ts",
     "./page-text": "./src/page-text.ts",
     "./project-marks": "./src/project-marks.ts",
     "./secrets": "./src/secrets.ts",

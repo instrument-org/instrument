@@ -19,7 +19,7 @@ node $W render ~/walkthroughs/my-feature --chapter 2 --gif
 node $W share ~/walkthroughs/my-feature --page snippets
 ```
 
-Commands that drive Studio need the shell's sandbox off, as `studio-drive` does.
+Commands that drive Studio need the shell's sandbox off, as `studio-drive` does. Studio boots from the checkout the skill's scripts sit in, with the shell's environment: run a worktree's own copy to film its feature, and set `INSTRUMENT_PLATFORM_API` to point the take at a stand-in API.
 
 ## Seed
 
@@ -34,7 +34,7 @@ A seed file names the chats to start, with real agent turns, files to put in the
 }
 ```
 
-A file's value is its text, or `"@<path>"` to copy a file from beside the seed file, for pictures. `seed` boots the `walkthrough` clean room fresh with the developer's sign-ins, makes all that, and keeps a copy; every `take` puts the copy back first. Keep sample data generic: no real names, paths or chats. A seed lives in studio-drive's cache for this checkout and is reaped with it; seeding again takes a minute.
+A file's value is its text, or `"@<path>"` to copy a file from beside the seed file, for pictures. A seed with no `chats` needs no signed-in model. `seed` boots the `walkthrough` clean room fresh with the developer's sign-ins, makes all that, and keeps a copy; every `take` puts the copy back first. Keep sample data generic: no real names, paths or chats. A seed lives in studio-drive's cache for this checkout and is reaped with it; seeding again takes a minute.
 
 ## Write the walk
 
@@ -76,6 +76,12 @@ Presentation mode hides the development pills and swaps the signed-in account's 
 | `video/` | `render` writes MP4s here at 1080p, `--gif` a GIF beside each, `--plain` one without captions or camera |
 | `share/` | `share` writes a page as one file (data and posters inside) for the instrument-page skill's `share.mjs`; the host takes up to 8 MB, about four minutes of Studio |
 | `recording/` | the raw take: `events.jsonl`, `script.jsonl`, the stills as taken |
+
+## Video in the page
+
+A page's `<video>` replays from its file's URL: `render` sets each video to its frame's time and waits for the seek before capturing, and the live pages let it play, so it moves as smoothly as the app's. A file only Studio can reach (an `instrument-local://` one in Files) does not load in a replay.
+
+For any clip of a page with a moving video in it, take one here. Studio's own screenshots (`studio-drive shot`, CDP `Page.captureScreenshot`) never draw a new video frame, and a video laid over screenshots afterwards, or a capture taken before a seek lands, stutters against the page.
 
 ## Limits
 

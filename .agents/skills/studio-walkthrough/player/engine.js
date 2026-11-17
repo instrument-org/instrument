@@ -136,6 +136,60 @@ function cameraPlan(script, w, h) {
 }
 
 /**
+ * Lets the replay's videos play in a live player. rrweb sets a video's
+ * currentTime on every seek and pauses it whenever the replay pauses, which
+ * the engine does on every frame. Here a seek within a quarter second of where
+ * the video already is is dropped, rrweb's pause is ignored, and `settle`,
+ * called after each seek, plays a video whose wanted time moved in the last
+ * 300 ms and pauses one whose time held, or every video once seeks stop
+ * coming. Muted, since React sets `muted` as a property the recording does
+ * not keep, and a video with sound is refused autoplay.
+ */
+function liveMedia(replayer) {
+  const wanted = new WeakMap();
+  let idle;
+  let win = null;
+  let realPause;
+  const patch = () => {
+    const w = replayer.iframe?.contentWindow;
+    if (!w || w === win) return w;
+    win = w;
+    const proto = w.HTMLMediaElement.prototype;
+    const time = Object.getOwnPropertyDescriptor(proto, "currentTime");
+    realPause = proto.pause;
+    Object.defineProperty(proto, "currentTime", {
+      configurable: true,
+      get() {
+        return time.get.call(this);
+      },
+      set(t) {
+        const was = wanted.get(this);
+        wanted.set(this, { t, changed: was && was.t === t ? was.changed : performance.now() });
+        const off = Math.abs(time.get.call(this) - t);
+        if (off > 0.25 || (this.paused && off > 0.05)) time.set.call(this, t);
+      },
+    });
+    proto.pause = function () {};
+    return w;
+  };
+  const videos = () => [...(win?.document.querySelectorAll("video") ?? [])];
+  return {
+    settle() {
+      if (!patch()) return;
+      clearTimeout(idle);
+      for (const v of videos()) {
+        const moving = performance.now() - (wanted.get(v)?.changed ?? -Infinity) < 300;
+        if (moving && v.paused) {
+          v.muted = true;
+          v.play().catch(() => {});
+        } else if (!moving && !v.paused) realPause.call(v);
+      }
+      idle = setTimeout(() => videos().forEach((v) => realPause.call(v)), 250);
+    },
+  };
+}
+
+/**
  * @param {HTMLElement} root
  * @param {import("./types").Take & Record<string, any>} data
  * @param {import("./types").EngineOptions} [options]
@@ -204,6 +258,9 @@ export function createEngine(root, data, options = {}) {
     );
   }
   const replayer = new Replayer(events, {
+    // The replay's frame runs no scripts, and Chrome draws its own controls
+    // on every video in such a frame; the app shows them only where asked.
+    insertStyleRules: ["video:not([controls])::-webkit-media-controls { display: none !important; }"],
     mouseTail: false,
     pauseAnimation: false,
     root: replayRoot,
@@ -219,11 +276,17 @@ export function createEngine(root, data, options = {}) {
       replayer.iframe.contentDocument?.close();
     } catch {}
   });
+  // Every seek of the replay sets each <video>'s currentTime. A render waits
+  // for that seek on each frame, but a live player seeks on every animation
+  // frame, so its videos would never settle and show one stale picture. Live,
+  // a video plays on its own and is sought only once it drifts.
+  const media = mode === "render" ? null : liveMedia(replayer);
   let shown = -1;
   const seek = (r) => {
     const at = Math.round(r);
     if (at === shown) return;
     replayer.pause(Math.max(1, at));
+    media?.settle();
     shown = at;
   };
 

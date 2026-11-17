@@ -20,5 +20,23 @@ if (bare) document.head.insertAdjacentHTML("beforeend", "<style>.wt-fit{border-r
 document.body.append(stage);
 const engine = createEngine(stage, data, { mode: "render", range, captions: q.get("captions") !== "0", camera: q.get("camera") !== "0" });
 window.renderInfo = { length: engine.length }; window.engine = engine;
-window.renderAt = (p) => { engine.seekPres(p); return new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); };
+window.renderAt = async (p) => {
+  engine.seekPres(p);
+  // Seeking the replay sets each <video>'s currentTime; a capture before the
+  // seek lands shows the previous picture, and the video stutters.
+  await videosSeeked(stage);
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+};
+}
+
+/** Resolves once no <video> in the replay is still seeking (at most 2 s per frame). */
+function videosSeeked(stage) {
+  const videos = [...stage.querySelectorAll("iframe")].flatMap((f) => [...(f.contentDocument?.querySelectorAll("video") ?? [])]);
+  return Promise.all(
+    videos.filter((v) => v.seeking).map((v) => new Promise((r) => {
+      const done = () => { clearTimeout(timer); r(); };
+      const timer = setTimeout(done, 2000);
+      v.addEventListener("seeked", done, { once: true });
+    })),
+  );
 }

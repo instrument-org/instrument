@@ -7,8 +7,9 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CAPTURE = readFileSync(path.join(HERE, "../vendor/capture.js"), "utf8");
 const IN_PAGE = readFileSync(path.join(HERE, "in-page.js"), "utf8");
 
@@ -117,6 +118,7 @@ export async function createAct(app, { out, viewport }) {
 
     async end() {
       note({ kind: "end" });
+      const assets = await act.assets();
       await evaluate("window.__walkthrough.stop()");
       const deadline = Date.now() + 5000;
       while (!status.some((s) => s.kind === "stopped") && Date.now() < deadline) {
@@ -131,7 +133,7 @@ export async function createAct(app, { out, viewport }) {
         path.join(out, "script.jsonl"),
         script.map((e) => JSON.stringify(e)).join("\n") + "\n",
       );
-      return { events: events.length, script: script.length, ms: Date.now() - startedAt, status };
+      return { assets, events: events.length, script: script.length, ms: Date.now() - startedAt, status };
     },
 
     async chapter(title, caption) {

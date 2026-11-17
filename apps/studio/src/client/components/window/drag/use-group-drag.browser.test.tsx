@@ -297,7 +297,8 @@ it("arms nothing at the left edge a sidebar row comes free inside until the poin
   };
   pointer("pointermove", 10, ROW_Y - 40);
   expect([
-    at(260),
+    at(271),
+    at(272),
     at(290),
     at(220),
     at(320),
@@ -310,7 +311,9 @@ it("arms nothing at the left edge a sidebar row comes free inside until the poin
   ]).toEqual([
     // In the sidebar's reach past its edge, the row keeps to the list.
     "sidebar",
-    // Free, inside the left edge: it waits.
+    // Free from the first pixel past that reach, inside the left edge: it
+    // waits.
+    "none",
     "none",
     "none",
     // Out of the edge once, over the page's middle.

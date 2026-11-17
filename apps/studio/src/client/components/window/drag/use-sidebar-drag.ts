@@ -57,7 +57,7 @@ function sidebarReach(bounds: Rect): Rect {
   const isFree = isPulledFree(drag.held);
   if (isFree && dragPoint.x < edge) {
     pulledFree = undefined;
-  } else if (!isFree && dragPoint.x > edge + SIDEBAR_PULL_PX) {
+  } else if (!isFree && dragPoint.x >= edge + SIDEBAR_PULL_PX) {
     pulledFree = { held: drag.held };
   }
   return isPulledFree(drag.held)

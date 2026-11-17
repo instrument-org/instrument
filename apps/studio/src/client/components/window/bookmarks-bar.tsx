@@ -76,12 +76,16 @@ import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
  * A bookmark dragged along the bar moves there, a tab dragged onto it is
  * kept there, and either stands where it would be while it is held. A right
  * click on the bar itself offers to hide it; hidden, it is not drawn in any
- * tab of any window, and nothing can be dropped onto it. Shown or hidden
+ * tab of any window but a new tab (`isAlwaysShown`), where it is the way to
+ * Files and the sites kept, and nothing can be dropped onto it. Shown or hidden
  * while a tab is open, it grows in or folds away and fades (`BAR_MOTION`),
  * the page under it moving with it; a tab opening draws it as it stands.
  */
-export function BookmarksBar(props: BarProps) {
-  const isShown = useShowsBookmarksBar();
+export function BookmarksBar({
+  isAlwaysShown = false,
+  ...props
+}: BarProps & { isAlwaysShown?: boolean }) {
+  const isShown = useShowsBookmarksBar() || isAlwaysShown;
   const isReduced = useReducedMotion() === true;
   return (
     <AnimatePresence initial={false}>

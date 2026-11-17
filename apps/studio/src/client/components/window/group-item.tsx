@@ -363,6 +363,7 @@ export function GroupItem({
           {head}
           <BookmarksBar
             files={{ group }}
+            isAlwaysShown={isNewChat}
             onOpen={openHere}
             onVisit={takeOver}
           />

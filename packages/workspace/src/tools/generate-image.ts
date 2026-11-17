@@ -16,7 +16,6 @@ import { formatBytes } from "../lib/format-bytes";
 import { generateImageStream } from "../lib/generate-images";
 import { normalizePath } from "../lib/normalize-path";
 import { prepareSourceImage } from "../lib/prepare-source-image";
-import { keepOriginal } from "../lib/chat/turn-file-versions";
 import { isMissing, sessionToolFs } from "../lib/tool-fs";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import { getWorkspaceServerURL } from "../logic/server/url";
@@ -347,8 +346,6 @@ async function* imageFrames({
 
         const imageBuffer = Buffer.from(image.base64, "base64");
 
-        // Once a call, before its first frame replaces an image there.
-        await keepOriginal({ chatId, files, sessionId, target: filename });
         await files.fs.writeFile(filename, imageBuffer);
         const stats = await files.fs.stat(filename);
 

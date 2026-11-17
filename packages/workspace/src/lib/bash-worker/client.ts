@@ -9,6 +9,7 @@ import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
 import { chatRules } from "../permissions/chat-rules";
 import { roleLayout } from "../session-layout";
 import { ensureVenv } from "../venv";
+import { keepOriginal } from "../chat/turn-originals";
 import { ensurePythonEnvironmentHere } from "../skill-environments";
 import { refreshPythonBaseIfDue } from "../python-base";
 import {
@@ -375,6 +376,19 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
     }
     case "python-base-refresh": {
       refreshPythonBaseIfDue();
+      return;
+    }
+    case "keep-original": {
+      let more = false;
+      try {
+        more = await keepOriginal(message.original);
+      } finally {
+        instance.post({
+          more,
+          requestId: message.requestId,
+          type: "keep-original-done",
+        });
+      }
       return;
     }
     case "venv": {

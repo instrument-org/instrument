@@ -6,22 +6,20 @@ import { AbsolutePathSchema } from "../../schemas/paths";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
-import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
-import { keepVersion, type KeptVersion, trimVersions } from "../file-versions";
+import { keepVersion, trimVersions } from "../file-versions";
 import { filesNamedIn } from "../parse-files-block";
 import { resolveWorkspaceFilePaths } from "../resolve-workspace-file-path";
 import { workDir } from "../work-dir";
-import { sessionToolFs, type ToolFs } from "../tool-fs";
+import { sessionToolFs } from "../tool-fs";
 import { shellPath } from "../workspace-fs-layout";
-import { getWorkspaceConfig } from "../workspace-config";
 import { thisDevice } from "./asks";
+import { keptBefore, takeOriginals, VERSIONS_FOLDER } from "./turn-originals";
 
 /** The most files one reply's versions are kept for. */
 const MOST_FILES = 10;
 
-/** The folder in a chat's work folder its versions are kept in. */
-export const VERSIONS_FOLDER = ".versions";
+export { VERSIONS_FOLDER } from "./turn-originals";
 
 type Entry = SessionMessageDataPart.FileVersionsDataPart["files"][number];
 
@@ -159,29 +157,6 @@ async function keepNamedFiles({
   return files;
 }
 
-/** The versions this computer kept of each file in the session, oldest first, by where it is. */
-async function keptBefore(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-): Promise<Map<string, KeptVersion[]>> {
-  const kept = new Map<string, KeptVersion[]>();
-  const read = await ChatReads.transcript({ chatId, sessionId });
-  if (read.isErr()) {
-    return kept;
-  }
-  const here = thisDevice();
-  for (const message of read.value) {
-    for (const part of message.parts) {
-      if (part.type === "data-fileVersions" && part.data.device === here) {
-        for (const file of part.data.files) {
-          kept.set(file.hostPath, [...(kept.get(file.hostPath) ?? []), file]);
-        }
-      }
-    }
-  }
-  return kept;
-}
-
 /** The first words the person asked the turn with, fit for a file's name. */
 function labelOf(opener: SessionMessage.WithParts | undefined): string {
   const words = (opener?.parts ?? [])
@@ -241,79 +216,4 @@ export function withCopiesHere(
         }
       : message,
   );
-}
-
-/** What each session's turn kept before first changing a file, until the turn records it. */
-const pending = new Map<
-  StoreId.Session,
-  { files: Entry[]; seen: Set<string> }
->();
-
-/**
- * Keeps what the file at `target` holds before a tool first changes it in
- * this turn, and records it as the turn's starting point, which Undo puts
- * back: the file as it was before this chat touched it, or as the person
- * left it since. Contents the chat already kept reuse that copy. A new
- * file, one in the chat's own work folder, and one too big to copy are
- * passed over. Never fails the write it guards.
- */
-export async function keepOriginal({
-  chatId,
-  files,
-  sessionId,
-  target,
-}: {
-  chatId: ChatId;
-  files: Pick<ToolFs, "fs" | "hostPath">;
-  sessionId: StoreId.Session;
-  /** The path as the tool resolved it, in the shell's spelling. */
-  target: string;
-}): Promise<void> {
-  const turn = pending.get(sessionId) ?? { files: [], seen: new Set() };
-  pending.set(sessionId, turn);
-  if (turn.seen.has(target)) {
-    return;
-  }
-  turn.seen.add(target);
-  try {
-    const hostPath = await files.hostPath(target).catch(() => undefined);
-    if (hostPath === undefined || isInside(workDir(chatId), hostPath)) {
-      return;
-    }
-    const name = path.basename(hostPath);
-    const version = await keepVersion({
-      file: hostPath,
-      folder: path.join(workDir(chatId), VERSIONS_FOLDER),
-      kept: (await keptBefore(chatId, sessionId)).get(hostPath),
-      label: "before changes",
-      read: () => files.fs.readFileBuffer(target),
-    });
-    if (version?.copy === undefined) {
-      return;
-    }
-    turn.files.push({
-      copy: AbsolutePathSchema.parse(version.copy),
-      hash: version.hash,
-      hostPath: AbsolutePathSchema.parse(hostPath),
-      path: name,
-      size: version.size,
-    });
-  } catch (error) {
-    getWorkspaceConfig().captureException(error, { area: "file-versions" });
-  }
-}
-
-/**
- * Starts a session's turn with no originals kept, so one a stopped or failed
- * turn kept, which no turn end recorded, never passes for this turn's.
- */
-export function beginTurnFileVersions(sessionId: StoreId.Session): void {
-  pending.delete(sessionId);
-}
-
-/** The originals a session's turn kept, which the turn's end records; empties them. */
-function takeOriginals(sessionId: StoreId.Session): Entry[] {
-  const turn = pending.get(sessionId);
-  pending.delete(sessionId);
-  return turn?.files ?? [];
 }

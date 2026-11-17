@@ -17,6 +17,7 @@ import { type Asker } from "../chat/asks";
 import { type SetupTouch } from "../setup-changes";
 import { type CommandRun } from "../shell-commands/command-runs";
 import { type VenvError } from "../venv";
+import { type Original } from "../chat/turn-originals";
 import { SubprocessTreeTerminationError } from "../subprocess-tree";
 
 /**
@@ -118,7 +119,12 @@ export type FromWorker =
       type: "python-environment";
     }
   /** A due check of the base Python packages, which main runs. */
-  | { type: "python-base-refresh" };
+  | { type: "python-base-refresh" }
+  /**
+   * What a file held before a write first replaces it, kept on main, which
+   * records the turn; the write waits for `keep-original-done`.
+   */
+  | { original: Original; requestId: number; type: "keep-original" };
 
 export type ToWorker =
   | {
@@ -154,6 +160,8 @@ export type ToWorker =
       result: { error: VenvError } | { venv: AbsolutePath };
       type: "python-environment-result";
     }
+  /** Whether the turn takes more originals. */
+  | { more: boolean; requestId: number; type: "keep-original-done" }
   | { seq: number; type: "chunk-ack" };
 
 /**

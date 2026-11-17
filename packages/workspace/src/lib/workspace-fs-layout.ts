@@ -44,6 +44,7 @@ import { pathIsWithin } from "./path-is-within";
 import { ReadOnlyBaseFs } from "./read-only-base-fs";
 import { runtimeLayout } from "./runtime-dir";
 import { SETUP_KINDS, setupTrackingFs } from "./setup-changes";
+import { type KeepOriginal, originalKeepingFs } from "./original-keeping-fs";
 import { type WalkBudget } from "./walk-budget";
 import { skillSourceRoots } from "./skills";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -142,6 +143,7 @@ export async function buildBashFs(
   layout: WorkspaceFsLayout,
   {
     homeWalkBudget,
+    keep,
     listings = { count: 0 },
     maxFileReadSize,
     onRefusal,
@@ -151,6 +153,12 @@ export async function buildBashFs(
      * folder) against a budget of their own; see `WalkBudget`.
      */
     homeWalkBudget?: WalkBudget;
+    /**
+     * Hears what a file outside the work folder holds before a write first
+     * replaces it, for the turn the write belongs to; see
+     * `originalKeepingFs`. Absent where no turn is writing.
+     */
+    keep?: KeepOriginal;
     /**
      * The listings the command running now has made, which the shell starts
      * over as each command starts.
@@ -261,6 +269,19 @@ export async function buildBashFs(
     );
     if (setupFolders.length > 0) {
       mounted = setupTrackingFs(mounted, setupFolders);
+    }
+    // Under the rules, so a refused write keeps nothing. The chat's own
+    // work folder and the temp folders are scratch, which no turn's Undo
+    // puts back.
+    const isScratch = [layout.chat, ...layout.temp].some(
+      (each) => each.hostRoot === mount.hostRoot,
+    );
+    if (keep && !readOnly && !isScratch) {
+      mounted = originalKeepingFs({
+        delegate: mounted,
+        hostRoot: mount.hostRoot,
+        keep,
+      });
     }
     mounted = rulesFs({
       delegate: mounted,

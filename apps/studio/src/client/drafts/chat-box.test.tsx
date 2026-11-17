@@ -15,6 +15,7 @@ import {
   replyInBox,
   settleReplySendAtom,
   swapInReplyAtom,
+  takeUpArrivedReplyAtom,
   takeUpBoxAtom,
 } from "./chat-box";
 import { WORDS_SETTLE_MS } from "./settle-words";
@@ -273,6 +274,49 @@ describe("a box opened on a chat", () => {
         .map((draft) => draft.words)
         .toSorted(),
     ).toEqual(["mine", "two"]);
+  });
+
+  it("takes up a reply another window started while it wrote into none", () => {
+    const { inBox, replies, settle, store, type } = window();
+    store.set(takeUpBoxAtom, CHAT);
+    resetDrafts([reply("theirs", 2, "two")]);
+
+    const taken = store.set(takeUpArrivedReplyAtom, {
+      chatId: CHAT,
+      known: new Set<string>(),
+    });
+    type("two, and mine");
+    settle();
+
+    expect(taken?.id).toBe("theirs");
+    expect(inBox()?.id).toBe("theirs");
+    expect(replies().map((draft) => draft.words)).toEqual(["two, and mine"]);
+  });
+
+  it("leaves a reply it has already seen waiting beside it", () => {
+    const { inBox, store } = window([reply("aside", 1, "later")]);
+    store.set(chatBoxesAtom, { [CHAT]: null });
+
+    expect(
+      store.set(takeUpArrivedReplyAtom, {
+        chatId: CHAT,
+        known: new Set(["aside"]),
+      }),
+    ).toBeUndefined();
+    expect(inBox()).toBeUndefined();
+  });
+
+  it("takes up nothing while it writes into a reply of its own", () => {
+    const { inBox, store } = window([reply("mine", 1, "one")]);
+    store.set(takeUpBoxAtom, CHAT);
+    resetDrafts([reply("mine", 1, "one"), reply("theirs", 2, "two")]);
+
+    store.set(takeUpArrivedReplyAtom, {
+      chatId: CHAT,
+      known: new Set<string>(),
+    });
+
+    expect(inBox()?.id).toBe("mine");
   });
 
   it("adds to what was typed into it last, written or not, when nothing shows it", () => {

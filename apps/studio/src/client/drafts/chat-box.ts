@@ -98,8 +98,9 @@ const bindBoxAtom = atom(
 /**
  * A chat's box as it first draws: it writes into the reply it shows, or into
  * nothing where it shows none, from here on. Held from the start, so a reply
- * that arrives later (another window's, another device's) is one waiting
- * rather than the one the box writes its next words into.
+ * that arrives later (another window's, another device's) waits beside the
+ * one the box writes into; a box writing into none takes it up instead
+ * (`takeUpArrivedReplyAtom`).
  */
 export const takeUpBoxAtom = atom(null, (get, set, chatId: ChatId) => {
   if (get(chatBoxesAtom)[chatId] !== undefined) {
@@ -111,6 +112,36 @@ export const takeUpBoxAtom = atom(null, (get, set, chatId: ChatId) => {
       replyInBox(get(draftsAtom), get(chatBoxesAtom), chatId)?.id ?? null,
   });
 });
+
+/**
+ * A box writing into nothing takes up a reply started for its chat
+ * elsewhere (another window, another device) while it was empty, so the
+ * chat never ends up with two replies where the person meant one. `known`
+ * is every reply the box has already seen, which it leaves alone: one the
+ * person put aside stays aside. Answers with the reply taken up, for the
+ * composer to show.
+ */
+export const takeUpArrivedReplyAtom = atom(
+  null,
+  (
+    get,
+    set,
+    { chatId, known }: { chatId: ChatId; known: ReadonlySet<string> },
+  ): Draft | undefined => {
+    if (get(chatBoxesAtom)[chatId] !== null) {
+      return undefined;
+    }
+    const arrived = newestOf(
+      repliesOf(get(draftsAtom), chatId).filter(
+        (draft) => !known.has(draft.id),
+      ),
+    );
+    if (arrived !== undefined) {
+      set(bindBoxAtom, { chatId, draftId: arrived.id });
+    }
+    return arrived;
+  },
+);
 
 /**
  * A reply made for a chat's box, and written into from here: for words typed

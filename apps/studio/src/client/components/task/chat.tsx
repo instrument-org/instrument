@@ -6,12 +6,16 @@ import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import {
   beginReplySendAtom,
   chatBoxesAtom,
+  chatBoxWordsKey,
   makeReplyAtom,
   replyInBox,
   settleReplySendAtom,
   swapInReplyAtom,
+  takeUpArrivedReplyAtom,
   takeUpBoxAtom,
 } from "@/client/drafts/chat-box";
+import { hasWaitingWords } from "@/client/drafts/settle-words";
+import { repliesOf } from "@/shared/drafts";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -48,6 +52,7 @@ import {
   type ReactNode,
   useContext,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -524,6 +529,42 @@ export function ChatConversation({
     promptEditor?.focus();
     promptEditor?.moveCaretToEnd();
   };
+  // A reply started for this chat elsewhere (another window, another device)
+  // while this box writes into nothing and has nothing in it is taken up
+  // here, words and attachments, so one chat never ends up with two replies.
+  // Only one this box has not seen before: a reply already waiting beside
+  // the box stays there.
+  const takeUpArrivedReply = useSetAtom(takeUpArrivedReplyAtom);
+  const seenReplies = useRef<{ chatId: ChatId; ids: Set<string> }>(undefined);
+  const takeUpArrived = useEffectEvent(() => {
+    if (boxChat === undefined) {
+      return;
+    }
+    const replyIds = repliesOf(drafts, boxChat).map((draft) => draft.id);
+    const seen = seenReplies.current;
+    if (seen?.chatId !== boxChat) {
+      seenReplies.current = { chatId: boxChat, ids: new Set(replyIds) };
+      return;
+    }
+    // Empty as the box says (no words, nothing attached, nobody dictating),
+    // with no words of its own still on their way to a reply.
+    const arrived =
+      isBoxEmpty && !hasWaitingWords(chatBoxWordsKey(boxChat))
+        ? takeUpArrivedReply({ chatId: boxChat, known: seen.ids })
+        : undefined;
+    for (const replyId of replyIds) {
+      seen.ids.add(replyId);
+    }
+    if (arrived) {
+      promptInputRef.current?.swapIn({
+        items: itemsOf(arrived),
+        prompt: arrived.words,
+      });
+    }
+  });
+  useEffect(() => {
+    takeUpArrived();
+  }, [drafts, boxChat]);
   // What the chat's reply draft holds besides its words is drawn back into
   // the box as the chat opens: its words come from the draft on their own,
   // and what was pasted into it would otherwise be in the draft's folder

@@ -12,7 +12,8 @@ import { isBookmark, type Held, type Landing, placeOf } from "./types";
  * - `keep`: kept on the bookmarks bar.
  * - `pin`: a folder or a place stands among Pinned's rows there.
  * - `into`: files go into the folder of a row of Pinned.
- * - `unpin`: a place of Pinned let go past the window leaves Pinned.
+ * - `unpin`: a place of Pinned let go where nothing takes it, in the window
+ *   or past it, leaves Pinned, as Finder's sidebar lets go of one.
  *
  * Let go where nothing takes it, a bookmark stays where it is kept, as in a
  * browser's bar.
@@ -134,9 +135,7 @@ export function outcomeOf(
       };
     }
     case "unpin": {
-      return placeOf(held)?.pinned
-        ? { does: "unpin", line: "Unpin from sidebar" }
-        : nothing;
+      return placeOf(held)?.pinned ? { does: "unpin", line: "Unpin" } : nothing;
     }
     case "window": {
       return goes("Open in a new window");

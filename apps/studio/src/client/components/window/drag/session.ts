@@ -229,11 +229,12 @@ function publish(drag: Drag | undefined) {
 const WINDOW_LANDING: Landing = { kind: "window" };
 
 /**
- * Where what is held lands let go past the window's edge: a link in a
- * window of its own, and a place of Pinned out of Pinned, as Finder's
- * sidebar lets go of one; any other place stays where it is.
+ * Where what is held lands let go where nothing takes it, in the window or
+ * past its edge: a place of Pinned out of Pinned, as Finder's sidebar lets
+ * go of one; past the edge, any other link in a window of its own. Any
+ * other place, and anything over nothing in the window, lands nowhere.
  */
-function pastWindowLanding(held: Held): Landing | undefined {
+function landingOverNothing(held: Held, isPast: boolean): Landing | undefined {
   if (held.kind !== "link") {
     return undefined;
   }
@@ -242,7 +243,7 @@ function pastWindowLanding(held: Held): Landing | undefined {
       ? { kind: "unpin", path: held.place.path }
       : undefined;
   }
-  return WINDOW_LANDING;
+  return isPast ? WINDOW_LANDING : undefined;
 }
 
 /** Every target under a point for what is held, the innermost first. */
@@ -342,11 +343,17 @@ function evaluate(current: Session) {
   const isOff =
     current.carry?.followsPointer === true ||
     (isPast && current.carry !== undefined);
-  const { by, landing, refused } = isOff
-    ? {}
-    : isPast
-      ? { landing: pastWindowLanding(drag.held) }
-      : measure(dragPoint, drag);
+  const measured: ReturnType<typeof measure> =
+    isOff || isPast ? {} : measure(dragPoint, drag);
+  const { by, refused } = measured;
+  const isOverNothing =
+    !isOff &&
+    measured.landing === undefined &&
+    measured.native !== true &&
+    refused !== true;
+  const landing =
+    measured.landing ??
+    (isOverNothing ? landingOverNothing(drag.held, isPast) : undefined);
   for (const key of current.steady.keys()) {
     if (!current.steadyAsked.has(key)) {
       current.steady.delete(key);

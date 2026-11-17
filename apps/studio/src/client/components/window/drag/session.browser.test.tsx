@@ -281,6 +281,86 @@ it("marks a refused spot with the not-allowed cursor and lands nothing there", a
   setLander(undefined);
 });
 
+/** A place of Files' sidebar, a row of Pinned when it has `pinned`. */
+const placeOf = (pinned?: readonly string[]) =>
+  ({
+    id: "tab_p1",
+    kind: "link",
+    place: {
+      path: "/Users/mac-user/Documents",
+      ...(pinned ? { pinned } : {}),
+    },
+    title: "Documents",
+    url: "file:///Users/mac-user/Documents/",
+  }) as const;
+
+/** Presses a place and moves the pointer past the start. */
+const pressPlace = (held: ReturnType<typeof placeOf>) =>
+  pressToDrag(
+    { button: 0, clientX: AT.x, clientY: AT.y, isPrimary: true },
+    () => ({ grab: { x: 0, y: 0 }, held }),
+  );
+
+it.each([
+  { at: 200, where: "over nothing in the window" },
+  { at: -100, where: "past the window" },
+])(
+  "unpins a row of Pinned let go $where, and lands a place of the Files menu nowhere there",
+  async ({ at }) => {
+    const landed = vi.fn();
+    setLander(landed);
+    await renderInBrowser(
+      <Target
+        target={{
+          landingAt: () => undefined,
+          rect: () => ({ height: 400, left: 0, top: 0, width: 400 }),
+        }}
+      />,
+    );
+    const pinned = placeOf(["/Users/mac-user/Documents"]);
+    pressPlace(pinned);
+    drag();
+    pointer("pointermove", at);
+    const unpin = { kind: "unpin", path: "/Users/mac-user/Documents" };
+    expect(currentDrag()?.landing).toEqual(unpin);
+    pointer("pointerup", at);
+
+    const menu = placeOf();
+    pressPlace(menu);
+    drag();
+    pointer("pointermove", at);
+    expect(currentDrag()?.landing).toBeUndefined();
+    pointer("pointerup", at);
+
+    expect(landed.mock.calls).toEqual([
+      [pinned, unpin],
+      [menu, undefined],
+    ]);
+    setLander(undefined);
+  },
+);
+
+it("keeps a row of Pinned where a target refuses it", async () => {
+  const landed = vi.fn();
+  setLander(landed);
+  await renderInBrowser(
+    <Target
+      target={{
+        landingAt: () => "refused",
+        rect: () => ({ height: 400, left: 0, top: 0, width: 400 }),
+      }}
+    />,
+  );
+  pressPlace(placeOf(["/Users/mac-user/Documents"]));
+  drag();
+  pointer("pointermove", 200);
+  expect(currentDrag()).toMatchObject({ isRefused: true, landing: undefined });
+  pointer("pointerup", 200);
+
+  expect(landed).not.toHaveBeenCalled();
+  setLander(undefined);
+});
+
 it("lets a target that lands its own drops take them in place of the lander", async () => {
   const landed = vi.fn();
   const own = vi.fn();

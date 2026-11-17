@@ -154,9 +154,9 @@ export function useDragSystem({
 }
 
 /**
- * Takes a place off Files' sidebar, as a place of Pinned let go past the
- * window does in Finder, with an Undo that puts it back where it stood
- * among `pinned`, the rows as they were.
+ * Takes a place off Files' sidebar, as a place of Pinned let go where
+ * nothing takes it does in Finder, with an Undo that puts it back where it
+ * stood among `pinned`, the rows as they were.
  */
 function unpinPlace(path: string, pinned: readonly string[]) {
   rpcClient.preferences.unpinSidebarPlace.call({ path }).then(
@@ -185,8 +185,8 @@ function unpinPlace(path: string, pinned: readonly string[]) {
  * `outcomeOf` says: a tab or a whole group moves there; a link or files
  * open there as the tabs their addresses name, through the same openers as
  * every other tab (`opensOf`); anything let go on the bookmarks is kept
- * there; a place of Pinned let go past the window leaves Pinned, with
- * Undo; and a bookmark let go where nothing takes it is removed, with
+ * there; a place of Pinned let go where nothing takes it leaves Pinned,
+ * with Undo; and a bookmark let go where nothing takes it is removed, with
  * Undo.
  */
 function useLander(

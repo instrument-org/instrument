@@ -60,8 +60,8 @@ export type Held =
        * A place of Files' sidebar or of the bar's Files menu, a link to
        * Files at a folder, held by the pointer so the folder itself never
        * leaves the app: its path, and for a row of Pinned, the Pinned rows'
-       * paths in order at the press, since let go past the window it
-       * leaves Pinned, and Undo puts it back there.
+       * paths in order at the press, since let go where nothing takes it
+       * it leaves Pinned, and Undo puts it back there.
        */
       place?: { path: string; pinned?: readonly string[] };
       /** Its name, empty where the system's drag says it only at the release. */
@@ -77,9 +77,9 @@ export type Held =
  * rows; turn a new tab into it, or open in a strip's tab in place of what it
  * shows; stand among the bookmarks on the bar; stand among the rows of
  * Files' Pinned, or go into the folder of one; leave Pinned, for one of
- * its places let go past the window; or go to a window of its own: a whole
- * group pulled free of the sidebar, or a link let go past the window's
- * edge.
+ * its places let go where nothing takes it; or go to a window of its own:
+ * a whole group pulled free of the sidebar, or a link let go past the
+ * window's edge.
  */
 export type Landing =
   | {

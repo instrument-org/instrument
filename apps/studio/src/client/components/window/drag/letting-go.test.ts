@@ -148,7 +148,7 @@ const LANDINGS: Record<string, Landing | undefined> = {
     name: "Downloads",
   },
   "past the window": { kind: "window" },
-  "past the window, a place": {
+  "over nothing, a Pinned row": {
     kind: "unpin",
     path: "/Users/mac-user/Documents",
   },
@@ -189,7 +189,7 @@ describe("outcomeOf", () => {
         Pinned row, own files → into · "Move into Downloads"
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → move · "Open in a new window"
-        past the window, a place → nothing
+        over nothing, a Pinned row → nothing
         nowhere → nothing
       whole group (sidebar row):
         own strip → move
@@ -211,7 +211,7 @@ describe("outcomeOf", () => {
         Pinned row, own files → into · "Move into Downloads"
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → move · "Open in a new window"
-        past the window, a place → nothing
+        over nothing, a Pinned row → nothing
         nowhere → nothing
       files (Files row, place, Finder):
         own strip → open
@@ -233,7 +233,7 @@ describe("outcomeOf", () => {
         Pinned row, own files → into · "Move into Downloads"
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        past the window, a place → nothing
+        over nothing, a Pinned row → nothing
         nowhere → nothing
       link (page or reply):
         own strip → open
@@ -255,7 +255,7 @@ describe("outcomeOf", () => {
         Pinned row, own files → into · "Move into Downloads"
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        past the window, a place → nothing
+        over nothing, a Pinned row → nothing
         nowhere → nothing
       chat chip or Chats row:
         own strip → open
@@ -277,7 +277,7 @@ describe("outcomeOf", () => {
         Pinned row, own files → into · "Move into Downloads"
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        past the window, a place → nothing
+        over nothing, a Pinned row → nothing
         nowhere → nothing
       bookmark (bar):
         own strip → open
@@ -299,7 +299,7 @@ describe("outcomeOf", () => {
         Pinned row, own files → into · "Move into Downloads"
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        past the window, a place → nothing
+        over nothing, a Pinned row → nothing
         nowhere → nothing
       place (Pinned):
         own strip → open
@@ -321,7 +321,7 @@ describe("outcomeOf", () => {
         Pinned row, own files → into · "Move into Downloads"
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        past the window, a place → unpin · "Unpin from sidebar"
+        over nothing, a Pinned row → unpin · "Unpin"
         nowhere → nothing
       place (Files menu):
         own strip → open
@@ -343,7 +343,7 @@ describe("outcomeOf", () => {
         Pinned row, own files → into · "Move into Downloads"
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        past the window, a place → nothing
+        over nothing, a Pinned row → nothing
         nowhere → nothing"
     `);
   });

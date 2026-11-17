@@ -1033,6 +1033,21 @@ function forgetGoneDriveWorkspaces() {
       return;
     }
     const goneIds = new Set(gone.map((entry) => entry.id));
+    // A machine folder the app or `unclaimedMachineDir` set aside is named
+    // `<local id>.<owner's workspace id>`, sometimes with a time after it,
+    // and holds the same copied sign-ins.
+    const goneOwners = new Set(
+      gone.map((entry) => entry.workspaceId).filter(Boolean),
+    );
+    const setAside = readdirSync(path.join(userDataDir, "machine")).filter(
+      (name) => goneOwners.has(name.split(".")[1]),
+    );
+    for (const name of setAside) {
+      rmSync(path.join(userDataDir, "machine", name), {
+        force: true,
+        recursive: true,
+      });
+    }
     for (const { id } of gone) {
       rmSync(path.join(userDataDir, "machine", id), {
         force: true,

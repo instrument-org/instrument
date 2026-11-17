@@ -107,8 +107,10 @@ export interface WindowContextValue {
   rowField?: HTMLElement | null;
   /** Beside the arrows in the tab's row, where a page drawn inside a screen puts its reload; null until the row is up. */
   rowReload?: HTMLElement | null;
-  /** The tail of the tab's row, where a screen draws what it can do with what it shows; null until the row is up. */
+  /** The tail of the tab's row, where a screen draws what it can do with what it shows where it has no `rowView`; null until the row is up. */
   rowTail?: HTMLElement | null;
+  /** The end of the view's own row under the bookmarks bar, where a screen draws what acts on the file it shows; absent where the tab has no such row, and null until it is up. */
+  rowView?: HTMLElement | null;
   /** The chat a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a draft. */
   chatId?: ChatId;
 }

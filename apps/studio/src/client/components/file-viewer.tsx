@@ -67,6 +67,7 @@ import { useFileOpenControl } from "../hooks/use-file-open-control";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { AskSelection } from "./document-viewers/ask-selection";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
+import { ViewerToolbarEndContext } from "./document-viewers/viewer-toolbar-end";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
@@ -927,6 +928,7 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 
 export function FileViewer({
   actionsInto,
+  actionsInToolbar = false,
   actionsLead,
   actionsTrail,
   autoPlay = false,
@@ -947,6 +949,13 @@ export function FileViewer({
    * there once the element is up.
    */
   actionsInto?: HTMLElement | null;
+  /**
+   * Whether a format with a toolbar of its own (a PDF, a document, a
+   * notebook, an archive) takes the actions at that toolbar's end in place
+   * of `actionsInto`, for a file in a tab of its own, so its controls are one
+   * row. The actions show once the toolbar is up.
+   */
+  actionsInToolbar?: boolean;
   /** Buttons of the caller's own, ahead of the viewer's in its head. */
   actionsLead?: ReactNode;
   /** Buttons of the caller's own, after the viewer's in the row it draws them into. */
@@ -1001,6 +1010,7 @@ export function FileViewer({
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [imageControlsInto, setImageControlsInto] =
     useState<HTMLElement | null>(null);
+  const [toolbarEnd, setToolbarEnd] = useState<HTMLDivElement | null>(null);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
   const imageLoadError = imageErrorUrl === url;
@@ -1124,6 +1134,9 @@ export function FileViewer({
     : readType === undefined
       ? READING_VIEWER
       : VIEWERS[fileType];
+  const takesToolbarEnd =
+    actionsInToolbar && viewer.hasToolbar && !mediaLoadError;
+  const actionsTarget = takesToolbarEnd ? toolbarEnd : actionsInto;
   const viewerContext: ViewerContext = {
     editable,
     fallback: (
@@ -1153,6 +1166,12 @@ export function FileViewer({
     silent,
     wrapLines,
   };
+
+  const rendered = (
+    <ViewerToolbarEndContext value={takesToolbarEnd ? setToolbarEnd : null}>
+      {viewer.render(viewerContext)}
+    </ViewerToolbarEndContext>
+  );
 
   const note = (
     <UpdatedNote ago={updated.ago} shown={updated.shown} turn={updated.turn} />
@@ -1316,13 +1335,13 @@ export function FileViewer({
           path={hostPath}
         />
       ) : (
-        actionsInto &&
+        actionsTarget &&
         createPortal(
           <div className="flex shrink-0 items-center gap-1">
             {actions}
             {actionsTrail}
           </div>,
-          actionsInto,
+          actionsTarget,
         )
       )}
 
@@ -1344,7 +1363,7 @@ export function FileViewer({
           {...homeProps}
         >
           <UpdatedNoteContext value={markUpdated}>
-            {viewer.render(viewerContext)}
+            {rendered}
           </UpdatedNoteContext>
           {note}
         </div>
@@ -1358,7 +1377,7 @@ export function FileViewer({
             {...homeProps}
           >
             <UpdatedNoteContext value={markUpdated}>
-              {viewer.render(viewerContext)}
+              {rendered}
             </UpdatedNoteContext>
           </div>
           {note}

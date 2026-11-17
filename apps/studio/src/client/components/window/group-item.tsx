@@ -36,7 +36,11 @@ import { KeptScrolls } from "./kept-scrolls";
 import { segmentsOf } from "./host-path";
 import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
-import { TabLocationRow, TabRowControl } from "./tab-location-row";
+import {
+  ExpandFileControl,
+  TabLocationRow,
+  TabRowControl,
+} from "./tab-location-row";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { chatOfTab } from "./tab-model";
@@ -83,25 +87,34 @@ export function GroupItem({
   const appsBySlug = useAppsBySlug();
   const appWindow = useWindow();
   const { browser } = appWindow;
-  // What is up draws its own controls into the row: a page its reload, zoom
-  // and controls, a file screen its folder toggle and actions.
-  const { rowProps, slots } = useRowSlots();
+  // What is up draws its own controls into the rows: a page its reload, zoom
+  // and controls, a file screen its folder toggle and, under the bookmarks
+  // bar, the file's actions.
+  const { rowProps, slots, viewEnd } = useRowSlots();
   const taskTitles = useTaskTitles();
   const { chatTitles } = useShell();
   // What the screen up says it shows, which the row reads a folder's place off.
   const surface = useAtomValue(tabSurfaceAtom)[up.id];
 
   // The page's reload and controls go into the address row, the way they do
-  // in the pane beside a chat, rather than into a bar of the page's own.
+  // in the pane beside a chat, rather than into a bar of the page's own. A
+  // page that is a file's keeps its controls (Edit, the menu) under the
+  // bookmarks bar with every file's.
   const onPageChromeEvent = useEffectEvent(onPageChrome);
   const isPage = up.kind === "page";
+  const pageFilePath = isPage ? hostPathOfFileUrl(up.url) : undefined;
+  const pageControlsInto = pageFilePath === undefined ? slots.tail : slots.view;
   useEffect(() => {
     onPageChromeEvent(
       isPage
-        ? { fieldInto: slots.field, into: slots.tail, reloadInto: slots.reload }
+        ? {
+            fieldInto: slots.field,
+            into: pageControlsInto,
+            reloadInto: slots.reload,
+          }
         : undefined,
     );
-  }, [isPage, slots.field, slots.reload, slots.tail]);
+  }, [isPage, pageControlsInto, slots.field, slots.reload]);
   useEffect(
     () => () => {
       onPageChromeEvent(undefined);
@@ -259,7 +272,6 @@ export function GroupItem({
    * screen's tab to a site.
    */
   const row = (location: TabLocation) => {
-    const versions = versionsOf(location);
     return (
       <TabLocationRow
         address={addressOfTab(up)}
@@ -269,6 +281,8 @@ export function GroupItem({
           ? { liveAddress: () => liveAddressOf(location.path) }
           : {})}
         className="border-b-0"
+        // A file's Expand is the view's, in its row under the bookmarks bar.
+        expandsFile={false}
         location={location}
         {...(before ? {} : { onBack: goBack, onForward: goForward })}
         onSite={openHere}
@@ -297,7 +311,6 @@ export function GroupItem({
             {/* The extensions' buttons go before the page's own controls. */}
             {location.kind === "page" && <BrowserExtensionButtons />}
             {rowProps.trailing}
-            {versions && <FileVersionsButton {...versions} />}
           </>
         }
       />
@@ -305,7 +318,7 @@ export function GroupItem({
   };
 
   if (up.kind === "page") {
-    const filePath = hostPathOfFileUrl(up.url);
+    const filePath = pageFilePath;
     const pageLocation: TabLocation =
       filePath === undefined
         ? { kind: "page", url: up.url ?? "" }
@@ -327,6 +340,24 @@ export function GroupItem({
               onOpen={openHere}
               onVisit={takeOver}
             />
+            {/* A page that is a file's is a view of the file, with the
+                file's controls under the bar. */}
+            {pageLocation.kind === "file" && (
+              <ScreenToolsRow
+                end={
+                  <>
+                    {pageVersions && <FileVersionsButton {...pageVersions} />}
+                    <ExpandFileControl
+                      file={{
+                        hostPath: pageLocation.path,
+                        name: pageLocation.name,
+                      }}
+                    />
+                    {viewEnd}
+                  </>
+                }
+              />
+            )}
             {pageVersions && <FileVersionStrip {...pageVersions} />}
           </>
         }
@@ -390,7 +421,20 @@ export function GroupItem({
             onOpen={openHere}
             onVisit={takeOver}
           />
-          {isFiles && <ScreenToolsRow>{rowProps.leading}</ScreenToolsRow>}
+          {/* Files' own row: the folder's controls over the folder, the
+              file's (its versions, then what it draws into `viewEnd`) over
+              the file. */}
+          {(isFiles || versions) && (
+            <ScreenToolsRow
+              end={
+                <>
+                  {versions && <FileVersionsButton {...versions} />}
+                  {viewEnd}
+                </>
+              }
+              {...(isFiles ? { lead: rowProps.leading } : {})}
+            />
+          )}
           {versions && <FileVersionStrip {...versions} />}
         </>
       }
@@ -431,6 +475,7 @@ export function GroupItem({
             rowLead: slots.lead,
             rowReload: slots.reload,
             rowTail: slots.tail,
+            ...(isFiles ? { rowView: slots.view } : {}),
           }}
         >
           {/* A chat opens at its end, as it always does, rather than where

@@ -101,6 +101,7 @@ export function TabLocationRow({
   className,
   fieldEnd,
   fieldHint,
+  expandsFile = true,
   fieldTakesCaret,
   fillsTab = false,
   hasField = true,
@@ -127,6 +128,8 @@ export function TabLocationRow({
   fieldEnd?: ReactNode;
   /** What an empty field shows until it has the caret: the keys that put it there. */
   fieldHint?: ReactNode;
+  /** Whether the row draws Expand for a file; false where the view's own row under the bookmarks bar draws it (`ExpandFileControl`). */
+  expandsFile?: boolean;
   /** Whether an empty field takes the caret as it arrives (see `Omnibar`). */
   fieldTakesCaret?: boolean;
   /** Whether the row is over a screen that has the whole tab, where Quick Look's view of a file would be smaller than the one already up. */
@@ -153,7 +156,6 @@ export function TabLocationRow({
   trailing?: ReactNode;
 }) {
   const openIn = openInAppTargetOf(location);
-  const setLookAt = useSetAtom(lookAtAtom);
   const place = locationText(location);
   // Whether the field's words have the caret, where a press selects in them
   // rather than carrying the address out.
@@ -167,7 +169,7 @@ export function TabLocationRow({
   // A file is drawn larger over the window; a page is already as large as
   // the tab, and a live site does not survive being lifted out of it.
   const lookTarget: LookTarget | undefined =
-    hasField && location.kind === "file" && !fillsTab
+    hasField && expandsFile && location.kind === "file" && !fillsTab
       ? {
           kind: "file",
           tab: { hostPath: location.path, name: location.name },
@@ -300,19 +302,29 @@ export function TabLocationRow({
       )}
       {/* The file up at the size Quick Look gives it, over the window. Ahead
           of the file's own controls, so the × that closes it stays last. */}
-      {lookTarget && (
-        <div className={TOOLBAR_GROUP_CLASSNAME}>
-          <TabRowControl
-            disabled={false}
-            icon={<ArrowsOutSimpleIcon className="size-4" />}
-            label="Expand"
-            onClick={() => {
-              setLookAt(lookTarget);
-            }}
-          />
-        </div>
-      )}
+      {lookTarget && <ExpandFileControl file={lookTarget.tab} />}
       {trailing}
+    </div>
+  );
+}
+
+/** The file at the size Quick Look gives it, over the window. */
+export function ExpandFileControl({
+  file,
+}: {
+  file: { hostPath: string; name: string };
+}) {
+  const setLookAt = useSetAtom(lookAtAtom);
+  return (
+    <div className={TOOLBAR_GROUP_CLASSNAME}>
+      <TabRowControl
+        disabled={false}
+        icon={<ArrowsOutSimpleIcon className="size-4" />}
+        label="Expand"
+        onClick={() => {
+          setLookAt({ kind: "file", tab: file });
+        }}
+      />
     </div>
   );
 }

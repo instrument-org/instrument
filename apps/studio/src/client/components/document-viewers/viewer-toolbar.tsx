@@ -6,9 +6,10 @@ import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useContext, useEffect, useRef, useState } from "react";
 
 import { FindRow } from "../find-row";
+import { ViewerToolbarEndContext } from "./viewer-toolbar-end";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
@@ -265,11 +266,22 @@ export function ViewerRailToggle({
  * Declares a container so the controls inside can collapse against the panel's
  * own width. The artifact panel is resizable and the window is zoomable, so a
  * viewport breakpoint would be measuring the wrong thing.
+ *
+ * Under a file viewer that asks for it (`ViewerToolbarEndContext`), its end
+ * takes the file's own actions, so a file in a tab of its own has one row of
+ * controls rather than a row for its actions over this one.
  */
 export function ViewerToolbar({ children }: { children: ReactNode }) {
+  const setEnd = useContext(ViewerToolbarEndContext);
   return (
     <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 px-2 pb-3 viewer-chrome-stroke select-none in-data-headless:pb-0">
       {children}
+      {setEnd && (
+        <div
+          className="ml-auto flex shrink-0 items-center gap-1 empty:hidden"
+          ref={setEnd}
+        />
+      )}
     </div>
   );
 }

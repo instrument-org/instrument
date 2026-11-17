@@ -75,6 +75,7 @@ import {
 } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
 import { PageEditToggle } from "./page-edit";
+import { ExpandFileControl } from "./tab-location-row";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useFileInfo } from "./file-info";
 import { useQuickLook } from "./quick-look";
@@ -153,7 +154,7 @@ export function FilesScreen({
   const { arrivals, go, step: here } = useFilesStep(routed);
   const { file, path, query, root, select, tree, view } = here;
   const source = here.source ?? false;
-  const { openScreen, rowField, rowReload, rowTail } = useWindow();
+  const { openScreen, rowField, rowReload, rowTail, rowView } = useWindow();
   const { moveToGroup, pageTakesOver, stepVisitOf } = useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
@@ -704,10 +705,25 @@ export function FilesScreen({
         }
       : undefined;
 
-  const actionsLead =
-    hostedTabId === undefined ? undefined : (
-      <PageEditToggle tabId={hostedTabId} />
-    );
+  // Every control for the file goes where its actions do: in the view's row
+  // under the bookmarks bar, or its format's own toolbar, where the tab has
+  // that row, and the address row's tail where it does not. Expand is one of
+  // them there; the address row draws its own otherwise.
+  const fileActionsInto = rowView === undefined ? rowTail : rowView;
+  // A file in a tab of its own with no toolbar of its own wears the view's
+  // row for its actions alone; `rowTail` here puts them back in the address
+  // row and drops that row.
+  const ownTabActionsInto = fileActionsInto;
+  const actionsLead = (
+    <>
+      {hostedTabId !== undefined && <PageEditToggle tabId={hostedTabId} />}
+      {rowView !== undefined && activeFile && (
+        <ExpandFileControl
+          file={{ hostPath: activeFile.hostPath, name: activeFile.name }}
+        />
+      )}
+    </>
+  );
   // The page's file drawn into the slot the viewer gives it: square at the
   // bottom left while something stands against it, and at the right
   // whatever the pane's own corner is; the pane's corners when nothing does.
@@ -992,7 +1008,7 @@ export function FilesScreen({
                                   <SeveralPicked items={besidePicked} />
                                 </div>
                                 {isPresent &&
-                                  rowTail &&
+                                  fileActionsInto &&
                                   createPortal(
                                     <>
                                       <div
@@ -1001,7 +1017,7 @@ export function FilesScreen({
                                       />
                                       {isFolderShown ? closeButton : null}
                                     </>,
-                                    rowTail,
+                                    fileActionsInto,
                                   )}
                               </>
                             ) : (
@@ -1010,7 +1026,9 @@ export function FilesScreen({
                                   <FileViewer
                                     // Its actions leave the row with it, for the
                                     // folder's own to come back.
-                                    actionsInto={isPresent ? rowTail : null}
+                                    actionsInto={
+                                      isPresent ? fileActionsInto : null
+                                    }
                                     actionsLead={actionsLead}
                                     actionsTrail={
                                       isFolderShown ? closeButton : null
@@ -1057,7 +1075,8 @@ export function FilesScreen({
           <LinkSurface base={folderOf(activeFile.hostPath)}>
             {refusedView ?? (
               <FileViewer
-                actionsInto={rowTail}
+                actionsInToolbar
+                actionsInto={ownTabActionsInto}
                 actionsLead={actionsLead}
                 className={FULL_BLEED}
                 editable

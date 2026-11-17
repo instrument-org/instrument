@@ -514,6 +514,9 @@ function Field({
           where it read before there was anything to press. */}
       <FoldingTrail
         className="-mx-1 flex-1"
+        // A file's or folder's name loses its middle, as the Finder cuts
+        // one; a title keeps its start.
+        cutsAtEnd={() => location.kind !== "file" && location.kind !== "folder"}
         labelClassName="px-1"
         labels={crumbs.map((crumb) => crumb.label)}
         mark={(at) => {

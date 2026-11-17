@@ -15,7 +15,6 @@ import {
 import { atom } from "jotai";
 
 import { keptAtom } from "@/client/lib/kept-state";
-import { folderHref } from "@/shared/computer-href";
 
 /**
  * What the chat column is narrowed to.
@@ -95,21 +94,6 @@ export const chatGroupAtom = keptAtom<null | string>(
   "window",
   "chat-group.v2",
   null,
-);
-
-/**
- * The folder a tab last stood in on Files, by its address, so Files in the
- * rail takes a tab back to it. Null until a tab has been there.
- */
-export const filesFolderAtom = keptAtom<null | string>(
-  "window",
-  "files-folder.v1",
-  null,
-);
-
-/** Where Files opens: the folder a tab last stood in, or the home folder before one has. */
-export const filesHrefAtom = atom(
-  (get) => get(filesFolderAtom) ?? folderHref("~"),
 );
 
 /**

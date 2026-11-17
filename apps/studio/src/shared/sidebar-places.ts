@@ -96,6 +96,24 @@ export function pinnedPlaces<Place extends { path: string }>(
 }
 
 /**
+ * The folder Files opens at when it is not opened at one of its own: the
+ * first row under Pinned, the way a Finder window opens at the top of its
+ * sidebar. Nothing when nothing is pinned.
+ * `defaults` are the computer's places, the Instrument folder among them,
+ * which stands above Pinned rather than in it.
+ */
+export function firstPinnedFolder(
+  defaults: readonly { kind: string; path: string }[],
+  places: SidebarPlaces,
+): string | undefined {
+  return pinnedPlaces(
+    defaults.filter((place) => place.kind !== "output"),
+    places,
+    (path) => ({ kind: "folder", path }),
+  )[0]?.path;
+}
+
+/**
  * The sidebar made to show what the system's own file manager pins (`system`,
  * in its order): each of those folders pinned, and each default it leaves out
  * unpinned, and the rows put in its order. What the person already pinned

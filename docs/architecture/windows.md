@@ -10,7 +10,7 @@ A person can have any number of app windows open on one workspace. They are full
 
 | What | Where | Who sees it |
 | --- | --- | --- |
-| The strip of tabs, the drafts and chats floating over it, whether the inbox is out, the chat and folder Chat and Files in the rail go back to | `window` kept file, `window/windows/<id>.json` | That window alone |
+| The strip of tabs, the drafts and chats floating over it, whether the inbox is out, the chat Chat in the rail goes back to | `window` kept file, `window/windows/<id>.json` | That window alone |
 | Each chat's, draft's and site's tabs and which is up | `layout` kept file, one key per group (`window-tabs.v10/<group>`) | Every window, live |
 | How things are laid out (widths, views, zoom) | `view` kept file | Every window, live |
 | Size and place, which windows are open and in what order, which can come back | `window/window-state.json` | Main |

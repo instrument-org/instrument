@@ -12,8 +12,9 @@ import {
   takeUpBoxAtom,
 } from "@/client/drafts/chat-box";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
-import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
+import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useFilesStartHref } from "@/client/hooks/use-files-start-href";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useContinueSession } from "@/client/hooks/use-continue-session";
@@ -421,7 +422,7 @@ export function ChatConversation({
   });
 
   const isActiveTab = useIsActiveTab();
-  const filesHref = useAtomValue(filesHrefAtom);
+  const filesHref = useFilesStartHref();
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
   const composerRef = useRef<HTMLDivElement>(null);
   // The chat's height, for the question's choices to stop at a share of it

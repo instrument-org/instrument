@@ -4,10 +4,10 @@ import {
   APPS_HREF,
   BROWSER_HREF,
   chatGroupAtom,
-  filesHrefAtom,
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
+import { useFilesStartHref } from "@/client/hooks/use-files-start-href";
 import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
@@ -276,7 +276,7 @@ export function useAppTabs() {
   const [model, setModel] = useAtom(appTabsAtom);
   const putAwaySites = useAtomValue(putAwaySitesAtom);
   const lastChat = useAtomValue(chatGroupAtom);
-  const lastFolder = useAtomValue(filesHrefAtom);
+  const filesStart = useFilesStartHref();
   const activeRouter = getTabRouter(model.selectedId);
 
   /**
@@ -397,14 +397,14 @@ export function useAppTabs() {
       );
     },
     go,
-    /** The tab up to a place, at the chat or folder it last had open unless asked for the place's root. */
+    /** The tab up to a place, at the chat it last had open or Files' first pinned folder, unless asked for the place's root. */
     goToPlace: (
       place: AppPlace,
       { behind = false, newTab = false, newWindow = false, root = false } = {},
     ) => {
       const href = placeHrefOf(place, {
+        filesStart: root ? folderHref("~") : filesStart,
         lastChat: root ? null : lastChat,
-        lastFolder: root ? folderHref("~") : lastFolder,
       });
       if (newWindow) {
         openInNewWindow(href);
@@ -505,12 +505,12 @@ export function useAppTabs() {
 
 /**
  * Where the rail takes a tab for a place: the chat at the one it last had
- * open, Files at the folder it last stood in, the browser's start, and the
- * apps. With no chat named, the chat is the inbox.
+ * open, Files at `filesStart`, the browser's start, and the apps. With no
+ * chat named, the chat is the inbox.
  */
 function placeHrefOf(
   place: AppPlace,
-  { lastChat, lastFolder }: { lastChat: null | string; lastFolder: string },
+  { filesStart, lastChat }: { filesStart: string; lastChat: null | string },
 ): string {
   switch (place) {
     case "apps": {
@@ -524,7 +524,7 @@ function placeHrefOf(
       return chat ? chatHref(chat) : INBOX_HREF;
     }
     case "files": {
-      return lastFolder;
+      return filesStart;
     }
   }
 }

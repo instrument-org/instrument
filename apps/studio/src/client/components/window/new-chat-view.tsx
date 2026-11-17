@@ -3,8 +3,8 @@ import {
   APPS_HREF,
   BROWSER_HREF,
   chatFiltersAtom,
-  filesHrefAtom,
 } from "@/client/atoms/window";
+import { useFilesStartHref } from "@/client/hooks/use-files-start-href";
 import {
   itemsOf,
   useDraftStaging,
@@ -106,7 +106,7 @@ export function NewChatView({
   const shell = useShell();
   const router = useRouter();
   const windowTabs = useWindowTabs();
-  const filesHref = useAtomValue(filesHrefAtom);
+  const filesHref = useFilesStartHref();
   const drafts = useAtomValue(draftsAtom);
   const store = useStore();
   const boxes = useAtomValue(newChatBoxesAtom);

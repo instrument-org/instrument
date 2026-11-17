@@ -35,7 +35,6 @@ export const WINDOW_KEPT_KEYS = [
   APP_TABS_KEY,
   "chat-group.v2",
   COMPOSE_KEY,
-  "files-folder.v1",
   "inbox-open.v1",
 ] as const;
 

@@ -3,8 +3,9 @@ import {
   storedWordsAtom,
 } from "@/client/atoms/prompt-value";
 import { type Draft, draftGroupOf, isLeftEmpty } from "@/shared/drafts";
-import { APPS_HREF, BROWSER_HREF, filesHrefAtom } from "@/client/atoms/window";
+import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
 import { FileDropRegion } from "@/client/components/file-drop-region";
+import { useFilesStartHref } from "@/client/hooks/use-files-start-href";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
@@ -234,7 +235,7 @@ export function ComposeWindow({
   const isPresent = useIsPresent();
   const appWindow = useWindow();
   const windowTabs = useWindowTabs();
-  const filesHref = useAtomValue(filesHrefAtom);
+  const filesHref = useFilesStartHref();
   const group = draftGroupOf(draft.id);
   // A new-tab page a build before this one opened a draft on is no tab of
   // the draft's: it is left out of the chips and never drawn in the well.

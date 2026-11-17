@@ -15,7 +15,6 @@ import {
   type AppPlace,
   chatFiltersAtom,
   chatGroupAtom,
-  filesFolderAtom,
   chatSearchAskedAtom,
   inboxOpenAtom,
   paneOpenByGroupAtom,
@@ -440,14 +439,6 @@ function useChatChrome() {
   };
 }
 
-/** The folder a Files address stands in, which Files in the rail goes back to; none for any other screen or a file's. */
-function filesFolderOf(href: string) {
-  const screen = matchScreen(href);
-  return screen.kind === "computer" && screen.file === undefined
-    ? folderHref(screen.root, { path: screen.path })
-    : undefined;
-}
-
 function WindowShell({
   routers,
   tabs,
@@ -476,9 +467,6 @@ function WindowShell({
   });
   const chatUp = useRouterState({
     select: (routerState) => chatOfHref(routerState.location.href),
-  });
-  const filesFolder = useRouterState({
-    select: (routerState) => filesFolderOf(routerState.location.href),
   });
   // The address the screen record names a screen by. A folder or a file is
   // recorded from what its tab shows, and a selection there writes the address.
@@ -534,7 +522,6 @@ function WindowShell({
   const updateDraft = useSetAtom(updateDraftAtom);
   const removeDraft = useSetAtom(removeDraftAtom);
   const setChatGroup = useSetAtom(chatGroupAtom);
-  const setFilesFolder = useSetAtom(filesFolderAtom);
   const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
   const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
   const setChatSearchAsked = useSetAtom(chatSearchAskedAtom);
@@ -587,15 +574,6 @@ function WindowShell({
     }
     setChatGroup(chatUp ?? null);
   }, [chatUp, isChat, setChatGroup]);
-
-  // The folder a tab last stood in is where Files in the rail takes a tab.
-  // A file's address names where it was opened from rather than the folder
-  // on screen, so one with a file open leaves the folder as it was.
-  useEffect(() => {
-    if (filesFolder !== undefined) {
-      setFilesFolder(filesFolder);
-    }
-  }, [filesFolder, setFilesFolder]);
 
   const compose = useCompose(rowWidth);
   // The chats floating on screen, which show where they stand themselves, so

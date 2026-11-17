@@ -71,6 +71,7 @@ import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
 import { useHostedPage, useHostedPageNavigation } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
 import { PageEditToggle } from "./page-edit";
+import { PageMenuItems } from "./page-menu-items";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useFileInfo } from "./file-info";
 import { useQuickLook } from "./quick-look";
@@ -670,6 +671,13 @@ export function FilesScreen({
     hostedFile === undefined
       ? {}
       : {
+          ...(hostedTabId === undefined
+            ? {}
+            : {
+                pageMenu: (
+                  <PageMenuItems targetId={browserTargetOf(hostedTabId)} />
+                ),
+              }),
           page: (
             <div
               className={

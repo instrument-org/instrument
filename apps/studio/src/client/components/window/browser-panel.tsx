@@ -22,8 +22,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuSub,
@@ -61,10 +59,11 @@ import {
   type GuestEventMap,
   stepPage,
 } from "@/client/lib/browser-pool";
+import { emulatedDevicesAtom } from "@/client/lib/emulated-devices";
 import {
-  EMULATED_DEVICES,
-  type EmulatedDevice,
-} from "@/client/lib/emulated-devices";
+  PageViewAsMenu,
+  PageZoomRow,
+} from "@/client/components/window/page-menu-items";
 import {
   type LocatedPath,
   locateTypedPath,
@@ -114,7 +113,6 @@ import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
 import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ExportIcon } from "@phosphor-icons/react/Export";
@@ -230,9 +228,8 @@ export function BrowserPanel({
   // emulation with a scale computed from the panel's live bounds (see
   // device-emulation.ts) rather than resizing the webview element, which
   // doesn't reliably re-layout an already-loaded guest.
-  const [emulatedDevice, setEmulatedDevice] = useState<EmulatedDevice | null>(
-    null,
-  );
+  // Kept by the page, so its file's menu can set it too.
+  const emulatedDevice = useAtomValue(emulatedDevicesAtom)[targetId];
   // Set when a main-frame navigation fails (bad host, no network, ...). The
   // guest is parked and we show a light error state over the slot instead of its
   // blank error page. Cleared when a new load starts or succeeds.
@@ -750,28 +747,7 @@ export function BrowserPanel({
               {pageUrl && (
                 <>
                   <DropdownMenuSeparator />
-                  <div className="flex items-center justify-between px-2 py-1.5">
-                    <span className="text-sm">Zoom</span>
-                    <ZoomStepperControl
-                      canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
-                      canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
-                      onZoomIn={() => {
-                        stepZoom("in");
-                      }}
-                      onZoomOut={() => {
-                        stepZoom("out");
-                      }}
-                      readout={
-                        <ZoomLevelMenu
-                          max={BROWSER_ZOOM_MAX}
-                          min={BROWSER_ZOOM_MIN}
-                          nested
-                          onSelect={applyZoom}
-                          zoom={zoomFactor}
-                        />
-                      }
-                    />
-                  </div>
+                  <PageZoomRow onZoom={applyZoom} zoom={zoomFactor} />
                 </>
               )}
               <DropdownMenuSeparator />
@@ -861,42 +837,7 @@ export function BrowserPanel({
                 </DropdownMenuSubContent>
               </DropdownMenuSub>
               <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger disabled={!pageUrl}>
-                  <DeviceMobileIcon className="size-4" />
-                  View as
-                  {emulatedDevice && (
-                    <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">
-                      {emulatedDevice.label}
-                    </span>
-                  )}
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <DropdownMenuRadioGroup
-                    onValueChange={(value) => {
-                      setEmulatedDevice(
-                        EMULATED_DEVICES.find(
-                          (device) => device.id === value,
-                        ) ?? null,
-                      );
-                    }}
-                    value={emulatedDevice?.id ?? "actual-size"}
-                  >
-                    <DropdownMenuRadioItem value="actual-size">
-                      Actual size
-                    </DropdownMenuRadioItem>
-                    <DropdownMenuSeparator />
-                    {EMULATED_DEVICES.map((device) => (
-                      <DropdownMenuRadioItem key={device.id} value={device.id}>
-                        {device.label}
-                        <span className="ml-auto text-xs text-muted-foreground">
-                          {device.width}×{device.height}
-                        </span>
-                      </DropdownMenuRadioItem>
-                    ))}
-                  </DropdownMenuRadioGroup>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
+              <PageViewAsMenu disabled={!pageUrl} targetId={targetId} />
               <DropdownMenuItem
                 disabled={!pageUrl}
                 onSelect={() => {

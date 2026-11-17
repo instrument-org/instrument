@@ -138,6 +138,8 @@ export const generateImageCapability = defineCapability({
 
     IMPORTANT: When the user asks to create new images "based on", "using", or "from" existing images, always pass those images as ${INPUT_PARAMS.sourceImages} for img2img conditioning. Do not re-describe them from scratch in the ${INPUT_PARAMS.prompt} alone.
 
+    To change a picture the user has (another color, a different light, something added), pass it in ${INPUT_PARAMS.sourceImages} and write the result back to its own path: the reply keeps the earlier one, so the user can undo the change or go back to it. Save a new name only when they ask for another picture beside it.
+
     The ${INPUT_PARAMS.parameters} the selected image model takes (its size, quality and the like) are in your system information, or in the latest note that changed them.
   `,
       execute: ({ chatId, input, model, partId, sessionId, signal }) =>

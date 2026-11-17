@@ -78,4 +78,15 @@ export const FILE_VERSIONS_EVALS = [
     name: "file-versions-image-go-back",
     prompt: "Make me a picture of a red fox in a snowy forest.",
   }),
+  // A picture drawn with code and marked up twice, where each mark-up has
+  // to land in the same file for Undo changes to put the previous one back.
+  defineEval({
+    assertions: [assertInPlace],
+    followUps: [
+      "add a red box around the tallest bar",
+      "now add a blue box around the shortest one too",
+    ],
+    name: "file-versions-mark-up-picture",
+    prompt: "Make me a PNG bar chart of three bars: 4, 7 and 2.",
+  }),
 ];

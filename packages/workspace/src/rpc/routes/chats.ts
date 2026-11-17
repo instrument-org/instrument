@@ -40,6 +40,8 @@ import {
   FileVersionHistorySchema,
   fileVersionHistory,
   restoreFileVersion,
+  UndoableReplySchema,
+  undoableReplies,
   undoReplyFiles,
 } from "../../lib/chat/file-version-history";
 import { StoreId } from "../../schemas/store-id";
@@ -448,14 +450,21 @@ const restoreFileVersionRoute = base
   );
 
 /**
- * Puts back every file a reply handed over as it was before its turn,
- * naming the ones it put back and the ones it left.
+ * The chat's replies Undo would change a file for, each with the files it
+ * puts back and the names of those it leaves.
+ */
+const undoableRepliesRoute = base
+  .input(z.object({ id: ChatIdSchema }))
+  .output(z.array(UndoableReplySchema))
+  .handler(({ input }) => undoableReplies({ chatId: input.id }));
+
+/**
+ * Puts back the files a reply changed as they were before its turn, naming
+ * the ones it put back.
  */
 const undoReplyFilesRoute = base
   .input(z.object({ id: ChatIdSchema, messageId: StoreId.MessageSchema }))
-  .output(
-    z.object({ left: z.array(z.string()), restored: z.array(z.string()) }),
-  )
+  .output(z.object({ restored: z.array(z.string()) }))
   .handler(({ input }) =>
     undoReplyFiles({ chatId: input.id, messageId: input.messageId }),
   );
@@ -729,6 +738,7 @@ export const chats = {
   tasks: childTasksRoute,
   trash: trashChatRoute,
   unarchive: unarchiveChatRoute,
+  undoableReplies: undoableRepliesRoute,
   undoChanges: undoChatChangesRoute,
   undoReplyFiles: undoReplyFilesRoute,
   unread: unreadChatRoute,

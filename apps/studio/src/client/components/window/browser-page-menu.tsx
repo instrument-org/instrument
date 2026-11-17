@@ -7,8 +7,6 @@ import {
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
   DropdownMenuSub,
@@ -20,21 +18,21 @@ import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { ManageItems } from "@/client/components/window/browser-extension-buttons";
 import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
 import { BookmarksSubmenu } from "@/client/components/window/bookmarks-submenu";
-import { type OpenInAppTarget } from "@/client/hooks/use-open-in-app";
 import {
-  EMULATED_DEVICES,
-  type EmulatedDevice,
-} from "@/client/lib/emulated-devices";
+  PageViewAsMenu,
+  ZoomMenuRow,
+} from "@/client/components/window/page-menu-items";
+import { type OpenInAppTarget } from "@/client/hooks/use-open-in-app";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
+import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { DeviceMobileIcon } from "@phosphor-icons/react/DeviceMobile";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { ExportIcon } from "@phosphor-icons/react/Export";
 import { FloppyDiskIcon } from "@phosphor-icons/react/FloppyDisk";
@@ -57,10 +55,8 @@ export type MenuPage = {
   print: () => void;
   save: () => void;
   share: () => void;
-  viewAs: {
-    device: EmulatedDevice | null;
-    onChange: (device: EmulatedDevice | null) => void;
-  };
+  /** The page's guest, whose View as the menu sets. */
+  targetId: BrowserTargetId;
 };
 
 /**
@@ -148,10 +144,7 @@ export function BrowserPageMenu({
         {zoom && (
           <>
             <DropdownMenuSeparator />
-            <div className="flex items-center justify-between px-2 py-1.5">
-              <span className="text-sm">Zoom</span>
-              {zoom}
-            </div>
+            <ZoomMenuRow>{zoom}</ZoomMenuRow>
           </>
         )}
         <DropdownMenuSeparator />
@@ -199,43 +192,7 @@ export function BrowserPageMenu({
           </DropdownMenuSubContent>
         </DropdownMenuSub>
         <DropdownMenuSeparator />
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger disabled={!page}>
-            <DeviceMobileIcon className="size-4" />
-            View as
-            {page?.viewAs.device && (
-              <span className="ml-auto text-xs whitespace-nowrap text-muted-foreground">
-                {page.viewAs.device.label}
-              </span>
-            )}
-          </DropdownMenuSubTrigger>
-          {page && (
-            <DropdownMenuSubContent>
-              <DropdownMenuRadioGroup
-                onValueChange={(value) => {
-                  page.viewAs.onChange(
-                    EMULATED_DEVICES.find((device) => device.id === value) ??
-                      null,
-                  );
-                }}
-                value={page.viewAs.device?.id ?? "actual-size"}
-              >
-                <DropdownMenuRadioItem value="actual-size">
-                  Actual size
-                </DropdownMenuRadioItem>
-                <DropdownMenuSeparator />
-                {EMULATED_DEVICES.map((device) => (
-                  <DropdownMenuRadioItem key={device.id} value={device.id}>
-                    {device.label}
-                    <span className="ml-auto text-xs text-muted-foreground">
-                      {device.width}×{device.height}
-                    </span>
-                  </DropdownMenuRadioItem>
-                ))}
-              </DropdownMenuRadioGroup>
-            </DropdownMenuSubContent>
-          )}
-        </DropdownMenuSub>
+        <PageViewAsMenu disabled={!page} targetId={page?.targetId} />
         <DropdownMenuItem disabled={!page} onSelect={page?.hardReload}>
           <ArrowCounterClockwiseIcon className="size-4" />
           Hard reload

@@ -175,10 +175,14 @@ async function seed(file) {
       cpSync(path.resolve(path.dirname(file), content.slice(1)), target);
     } else writeFileSync(target, content);
   }
-  const { models } = JSON.parse(drive("rpc", "gateway.models.list", "{}", "--clean-room", room));
-  const chatModel = models.find((m) => m.name === (spec.chatModel ?? "Claude"));
-  if (!chatModel) {
-    throw new Error(`No model named ${spec.chatModel ?? "Claude"}: is the clean room signed in? (${models.map((m) => m.name).join(", ")})`);
+  // A seed with no chats needs no model.
+  let chatModel;
+  if (spec.chats?.length) {
+    const { models } = JSON.parse(drive("rpc", "gateway.models.list", "{}", "--clean-room", room));
+    chatModel = models.find((m) => m.name === (spec.chatModel ?? "Claude"));
+    if (!chatModel) {
+      throw new Error(`No model named ${spec.chatModel ?? "Claude"}: is the clean room signed in? (${models.map((m) => m.name).join(", ")})`);
+    }
   }
   const turns = await Promise.all(
     (spec.chats ?? []).map((prompt) =>

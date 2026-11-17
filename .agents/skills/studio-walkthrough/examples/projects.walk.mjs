@@ -99,7 +99,6 @@ async function take(act, app) {
   await act.hold(1500);
   await act.still("answer-in-project", "The answer, checked against the project's budget");
   await act.hold(1200);
-  const assets = await act.assets();
   const summary = await act.end();
-  return { ...summary, status: summary.status.map((s) => s.kind), answeredMs, assets, chatId };
+  return { ...summary, status: summary.status.map((s) => s.kind), answeredMs, chatId };
 }

@@ -9,10 +9,8 @@ import { chatModelURI } from "../lib/chat-settings";
 import { ChatWrites } from "../lib/chat-writes";
 import { folderReach } from "../lib/chat/folder-reach";
 import { endOfTurnNote } from "../lib/end-of-turn-checks";
-import {
-  beginTurnFileVersions,
-  keepTurnFileVersions,
-} from "../lib/chat/turn-file-versions";
+import { keepTurnFileVersions } from "../lib/chat/turn-file-versions";
+import { beginTurnFileVersions } from "../lib/chat/turn-originals";
 import { currentEnvironment } from "../lib/environment";
 import { runningModelText } from "../model-text/notes/model-change-model-text";
 import { TypedError } from "../lib/errors";

@@ -1,6 +1,6 @@
 # The kit's files and functions
 
-Every file in `kit/` and every function it defines, with what each draws and takes. [`KIT.md`](KIT.md) is the method: how a page is drawn with these, the scenario, the baseline and what rounds keep correcting. Read it first, and read this file in a call of its own.
+Every file in `kit/` and every function it defines, with what each draws and takes. [`KIT.md`](KIT.md) is the method: how a page is drawn with these, the scenario, the baseline and what rounds keep correcting. Read it first, then search this file for the surface you draw, or read one section, rather than all of it.
 
 ## The files
 
@@ -24,6 +24,7 @@ Every file in `kit/` and every function it defines, with what each draws and tak
 | `settings.js` | The Settings sheet and its pages |
 | `setup.js` | Setup at its own 1080x720, and the plan cards |
 | `mac.js` | Outside the window: the Mac and the web |
+| `pieces.js` | `win`, `card` and `composer` in Studio's look, for a part of frames only (below) |
 
 Tabs, rows and holds are small objects. A tab is `{ chats: true, title }`, `{ site }` (a `SITES` key), `{ file }` (a `FILES` key), `{ folder: name }`, `{ browser: true }`, `{ apps: true }`, `{ newtab: true }`, `{ notes: true }` or `{ title, icon }`, with `agent: true` on one a task is driving. A row is `{ title, preview, step, ask, working, failed, unread, starred, draft, project, time, day, holds }`, a hold `{ file }`, `{ site }` or `{ app }`.
 
@@ -154,3 +155,17 @@ These frames are the desktop's size, so a state that uses them spreads `DESKTOP`
 | `dock({ apps, running, mark })`, `macNotification({ title, sub, body, time })` | The Dock and a notification banner |
 | `finderWindow({ title, items, pick })`, `contextMenu(items, { left, top })` | The person's own Finder window and the Mac's right-click menu, as opposed to Studio's Files and `menu` |
 | `browserWindow({ url, tabs, body })` | Someone else's browser, for the website and anything seen before installing |
+
+## Pieces (`pieces.js` and the skill's)
+
+A part of frames has these besides the kit, each taking what goes inside first and options second. `win`, `card` and `composer` are Studio's (`kit/pieces.js`); `bar`, `chip`, `pill`, `crop` and `box` are the skill's neutral ones. A part may define its own under any of these names, and its own wins.
+
+| Function | Draws |
+| --- | --- |
+| `win(body, { bar, on, side, top, over, dark, railMark, railExtra, user })` | The window as `appWindow` draws it, every slot open: `bar` over the card (`winBar()` unless given, `""` for none), `side` in place of the rail (the rail lit at `on` unless given, `""` for none), `top` across the card over `body`, `over` on a layer over everything. `win()` alone is the chat list and an empty chat; `win({ body, ... })` works too |
+| `card(children, { title, line, icon, end, foot, w, tint })` | A card as the chat draws its own (the permission and question cards): `icon` and `title` head it with `end` at the right, `line` under the title, `foot` for buttons; `tint` for a card at work |
+| `composer({ text, ph, chips, above, start, end, working, focus, w })` | The reply box with what proposals add: `text` typed (caret on `focus`) or `ph` waiting, `chips` over the words, `above` inside the box over them, `start` and `end` in place of the plus and the mic and arrow, `working` for stop |
+| `bar(children, { end, h, rule })` | A row of controls, `end` against the right edge |
+| `chip(label, { cls, icon, on })`, `pill(label, { icon, on, end })` | A small status label; a rounded label a person presses. These two take full icon classes (`icon: "ph-clock"`) |
+| `crop(html, { x, y, w, h })` | A `w` by `h` window onto a true-size drawing, for a frame about one control; give the frame the same `w` and `h` |
+| `box(cls, children)` | A grey block standing in for a picture or anything incidental, sized by its classes |

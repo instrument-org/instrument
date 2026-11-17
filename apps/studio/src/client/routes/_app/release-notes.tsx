@@ -10,9 +10,11 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   detailOf,
+  type Feature,
   planPage,
   type Release,
   versionLabel,
+  whatsNewOf,
 } from "@/client/lib/release-notes";
 import { RELEASE_NOTES_URL } from "@instrument-org/shared";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
@@ -28,7 +30,7 @@ import { z } from "zod";
 export const Route = createFileRoute("/_app/release-notes")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Release notes" }],
+    meta: [{ title: "What's new" }],
   }),
   staticData: { tabIcon: "file-text" },
   validateSearch: z.object({
@@ -39,7 +41,17 @@ export const Route = createFileRoute("/_app/release-notes")({
 
 function RouteComponent() {
   const { since } = Route.useSearch();
-  const releasesQuery = useQuery(rpcClient.releases.list.queryOptions());
+  const releasesQuery = useQuery({
+    ...rpcClient.releases.list.queryOptions(),
+    // A release whose pictures are on their way is asked about again until
+    // they arrive, so the page fills in while it is open.
+    refetchInterval: ({ state }) =>
+      state.data?.releases.some(
+        (release) => whatsNewOf(release, state.dataUpdatedAt)?.waiting,
+      )
+        ? PICTURES_RECHECK_MS
+        : false,
+  });
   const { data: appVersion } = useQuery(
     rpcClient.preferences.getAppVersion.queryOptions(),
   );
@@ -121,6 +133,37 @@ function RouteComponent() {
   );
 }
 
+/** How often a release waiting on its pictures is asked about again. */
+const PICTURES_RECHECK_MS = 10 * 60 * 1000;
+
+/** A feature a release leads with: its video or picture once there is one, its name, and its line. */
+function FeatureCard({ feature }: { feature: Feature }) {
+  const media = feature.media;
+  const frame =
+    "mb-3 aspect-[3/2] w-full max-w-md rounded-lg bg-foreground/4 object-cover object-top ring-1 ring-foreground/8";
+  return (
+    <section className="min-w-0">
+      {media?.video ? (
+        <video
+          autoPlay
+          className={frame}
+          loop
+          muted
+          playsInline
+          poster={media.poster}
+          src={media.video}
+        />
+      ) : (
+        media && <img alt="" className={frame} src={media.poster} />
+      )}
+      <h3 className="text-[15px] font-semibold">{feature.title}</h3>
+      <p className="mt-0.5 text-sm leading-5 text-foreground/75">
+        {feature.line}
+      </p>
+    </section>
+  );
+}
+
 function releaseDate(publishedAt: string) {
   const date = new Date(publishedAt);
   return date.toLocaleDateString(displayLocale, {
@@ -132,12 +175,33 @@ function releaseDate(publishedAt: string) {
   });
 }
 
-function Notes({ release }: { release: Release }) {
+/**
+ * A version's notes: its opening paragraph, the features its What's new
+ * section leads with, then the rest of its notes.
+ */
+function Notes({
+  release,
+  withFeatures = true,
+}: {
+  release: Release;
+  withFeatures?: boolean;
+}) {
   const detail = detailOf(release);
+  const { dataUpdatedAt } = useQuery(rpcClient.releases.list.queryOptions());
+  const features = withFeatures
+    ? (whatsNewOf(release, dataUpdatedAt)?.features ?? [])
+    : [];
   return (
     <div className="min-w-0">
       {release.summary && (
         <p className="text-[15px] leading-6">{release.summary}</p>
+      )}
+      {features.length > 0 && (
+        <div className="flex flex-col gap-8 pt-6 pb-4">
+          {features.map((feature) => (
+            <FeatureCard feature={feature} key={feature.title} />
+          ))}
+        </div>
       )}
       {detail && (
         <Prose
@@ -242,7 +306,7 @@ function ReadyToInstall({
         </div>
         {release && (
           <div className="mt-1 text-[13px] leading-5 text-foreground/80">
-            <Notes release={release} />
+            <Notes release={release} withFeatures={false} />
           </div>
         )}
       </div>

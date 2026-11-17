@@ -7,8 +7,9 @@
 
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const HERE = path.dirname(new URL(import.meta.url).pathname);
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CAPTURE = readFileSync(path.join(HERE, "../vendor/capture.js"), "utf8");
 const IN_PAGE = readFileSync(path.join(HERE, "in-page.js"), "utf8");
 
@@ -117,6 +118,7 @@ export async function createAct(app, { out, viewport }) {
 
     async end() {
       note({ kind: "end" });
+      const assets = await act.assets();
       await evaluate("window.__walkthrough.stop()");
       const deadline = Date.now() + 5000;
       while (!status.some((s) => s.kind === "stopped") && Date.now() < deadline) {
@@ -131,7 +133,7 @@ export async function createAct(app, { out, viewport }) {
         path.join(out, "script.jsonl"),
         script.map((e) => JSON.stringify(e)).join("\n") + "\n",
       );
-      return { events: events.length, script: script.length, ms: Date.now() - startedAt, status };
+      return { assets, events: events.length, script: script.length, ms: Date.now() - startedAt, status };
     },
 
     async chapter(title, caption) {
@@ -241,11 +243,14 @@ export async function createAct(app, { out, viewport }) {
       const mods = { Alt: 1, Control: 2, Meta: 4, Shift: 8 };
       const modifiers = parts.reduce((m, p) => m | (mods[p] ?? 0), 0);
       const codes = { Enter: [13, "Enter"], Escape: [27, "Escape"], Tab: [9, "Tab"], ArrowDown: [40, "ArrowDown"], ArrowUp: [38, "ArrowUp"], Backspace: [8, "Backspace"] };
-      const [vk, code] = codes[key] ?? [key.toUpperCase().charCodeAt(0), `Key${key.toUpperCase()}`];
+      const [vk, code] = codes[key] ?? [key.toUpperCase().charCodeAt(0), /^\d$/.test(key) ? `Digit${key}` : `Key${key.toUpperCase()}`];
+      // A character with no Alt, Control or Meta types itself, as studio-drive's press does.
+      const typed = key.length === 1 && (modifiers & 7) === 0;
       if (show) note({ kind: "key", combo });
       await cdp.send("Input.dispatchKeyEvent", {
-        type: "rawKeyDown", key, code, modifiers, windowsVirtualKeyCode: vk,
+        type: typed ? "keyDown" : "rawKeyDown", key, code, modifiers, windowsVirtualKeyCode: vk,
         ...(key === "Enter" && { text: "\r" }),
+        ...(typed && { text: key }),
       });
       await sleep(60);
       await cdp.send("Input.dispatchKeyEvent", { type: "keyUp", key, code, modifiers, windowsVirtualKeyCode: vk });

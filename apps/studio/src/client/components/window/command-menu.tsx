@@ -448,7 +448,7 @@ export function useCommandMenuRows({
     {
       icon: <NewspaperIcon />,
       id: "release-notes",
-      label: "Release notes",
+      label: "What's new",
       run: () => {
         openBuiltInPage(SCREENS["release-notes"].href);
       },

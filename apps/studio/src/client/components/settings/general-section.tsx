@@ -390,7 +390,7 @@ function About() {
                 onContextMenu={releaseNotes.onContextMenu}
                 variant="link"
               >
-                Release notes
+                What's new
               </Button>
             </div>
             <div className="shrink-0">{getActionButton()}</div>

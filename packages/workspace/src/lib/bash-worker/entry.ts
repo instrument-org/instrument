@@ -16,6 +16,7 @@ import {
 } from "../capabilities/channel";
 import { createLocalBashEnv } from "../create-bash-env";
 import { setVenvCreator, type VenvError } from "../venv";
+import { setOriginalForwarder } from "../chat/turn-originals";
 import { setPythonEnvironmentBuilder } from "../skill-environments";
 import { setPythonBaseRefresher } from "../python-base";
 import { handChat } from "../record-folders";
@@ -75,6 +76,9 @@ const environmentRequests = new Map<
 let nextCallId = 0;
 let nextChunkSeq = 0;
 let nextVenvRequestId = 0;
+/** Writes waiting on main to keep what they replace, by request. */
+const keepRequests = new Map<number, (more: boolean) => void>();
+let nextKeepRequestId = 0;
 
 /** The exec the calling code belongs to, for reports that name one. */
 const currentExec = new AsyncLocalStorage<number>();
@@ -101,6 +105,14 @@ setSetupTouchForwarder((touch) => {
     post({ id, touch, type: "setup-touch" });
   }
 });
+setOriginalForwarder(
+  (original) =>
+    new Promise((resolve) => {
+      const requestId = nextKeepRequestId++;
+      keepRequests.set(requestId, resolve);
+      post({ original, requestId, type: "keep-original" });
+    }),
+);
 setMacosForwarder({
   folderAnswer: (hostPath, answer) => {
     post({ answer, hostPath, type: "macos-folder-answer" });
@@ -172,6 +184,11 @@ port.on("message", (message: ToWorker) => {
     case "capability-reply": {
       capabilityCalls.get(message.callId)?.(message.reply);
       capabilityCalls.delete(message.callId);
+      return;
+    }
+    case "keep-original-done": {
+      keepRequests.get(message.requestId)?.(message.more);
+      keepRequests.delete(message.requestId);
       return;
     }
     case "venv-result": {

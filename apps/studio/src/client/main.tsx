@@ -10,6 +10,7 @@ import { initBrowserNavigationNotices } from "./lib/browser-navigation-notices";
 import { initBrowserPool } from "./lib/browser-pool";
 import { initExceptionCapture } from "./lib/capture-exception";
 import { initNetworkStatusForwarding } from "./lib/network-status-forwarding";
+import { reportClosedRPCPort } from "./lib/report-closed-rpc-port";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
 import { initStudioDrive } from "./lib/studio-drive";
 
@@ -55,6 +56,9 @@ function start() {
     initBrowserNavigationNotices();
     // The window's tabs, for driving scripts.
     initStudioDrive();
+    reportClosedRPCPort().catch(() => {
+      // The main process logs a report that failed to send.
+    });
   }
 }
 

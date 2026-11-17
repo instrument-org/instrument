@@ -507,6 +507,7 @@ function LiveDocument({
               ? "rounded-xl border border-border bg-card text-card-foreground shadow-xs"
               : "mx-auto max-w-2xl"
           }
+          ref={isMessage ? undefined : trackPageRoom}
         >
           {message ? (
             <MessageHead
@@ -597,6 +598,35 @@ function LiveDocument({
  * A message document's head: what it is and who it is for, and its subject,
  * each editable in place and written back into the front matter.
  */
+/**
+ * Measures the room between a document's text column and the right edge of
+ * its page, as `--page-room-end`, which a wide table grows into
+ * (markdown-editor.css). Measured rather than read from a container query: a
+ * `container-type` here would sit above the editor's fixed-position menus and
+ * shift them. Layout px (`clientWidth`), so UI zoom does not skew it.
+ */
+function trackPageRoom(column: HTMLDivElement | null) {
+  const page = column?.parentElement;
+  if (!column || !page) {
+    return;
+  }
+  const measure = () => {
+    const style = getComputedStyle(page);
+    const inner =
+      page.clientWidth -
+      parseFloat(style.paddingLeft) -
+      parseFloat(style.paddingRight);
+    const room = Math.max(0, (inner - column.clientWidth) / 2);
+    column.style.setProperty("--page-room-end", `${room}px`);
+  };
+  const observer = new ResizeObserver(measure);
+  observer.observe(page);
+  observer.observe(column);
+  return () => {
+    observer.disconnect();
+  };
+}
+
 function MessageHead({
   fm,
   kind,

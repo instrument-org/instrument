@@ -822,22 +822,34 @@ textarea.md-input {
 }
 
 /* Tables, bordered the way Studio's are: a rule under the head and between rows. */
-/* A table too wide for the column scrolls inside its block rather than
-   breaking words, as the static renderer's markdown tables do. */
+/* A table keeps its left edge on the text and grows to the right, into the
+   page's room past the column (`--page-room-end`, set by markdown-editor.tsx;
+   0 in a message card or a list item). Up to that edge it is laid out at its
+   own width; past it the cells wrap, down to each column's floor below, and
+   what still does not fit scrolls inside the block. The same rule as a table
+   in a chat (`.markdown-table-frame`, globals.css). */
 .md-editor .milkdown .milkdown-table-block .table-wrapper {
   overflow-x: auto;
   overscroll-behavior-x: contain;
 }
-/* Laid out by its content, so no column is narrower than its longest word:
-   the table fills the column and wraps between words, and past that it
-   overflows into the wrapper's scroll. */
+.md-editor .milkdown .ProseMirror > .milkdown-table-block .table-wrapper {
+  width: calc(100% + var(--page-room-end, 0px));
+}
 .md-editor .milkdown .milkdown-table-block table {
   font-size: 0.875em;
   line-height: 1.55;
   border-collapse: collapse;
   table-layout: auto;
-  width: 100%;
   margin: 0;
+}
+.md-editor .milkdown .milkdown-table-block table.children {
+  width: max-content;
+  /* Never short of the text column, so two narrow columns still span it. */
+  min-width: 100%;
+  max-width: 100%;
+}
+.md-editor .milkdown .ProseMirror > .milkdown-table-block table.children {
+  min-width: calc(100% - var(--page-room-end, 0px));
 }
 .md-editor .milkdown .milkdown-table-block :is(th, td) {
   border: 0;
@@ -856,6 +868,63 @@ textarea.md-input {
 }
 .md-editor .milkdown .milkdown-table-block :is(th, td) p {
   margin: 0;
+}
+/* Each column's floor: its own width up to about 24 characters, so wrapping
+   never squeezes a column of sentences into a word or two a line, and a short
+   column (a number, a yes) stays as narrow as its text. A token longer than
+   that, such as a file path in code, breaks rather than widening its column
+   past the page. */
+.md-editor .milkdown .milkdown-table-block :is(th, td) {
+  overflow-wrap: anywhere;
+}
+.md-editor .milkdown .milkdown-table-block :is(th, td) > p {
+  min-width: calc-size(max-content, min(size, 12em));
+}
+/* A table that scrolls fades out on the side it continues on; the same
+   scroll-driven mask as `scroll-fade-y` (globals.css), across. */
+.md-editor .milkdown .milkdown-table-block .table-wrapper {
+  --table-fade-size: 1.5rem;
+  mask-image: linear-gradient(
+    to right,
+    transparent,
+    black var(--table-fade-start),
+    black calc(100% - var(--table-fade-end)),
+    transparent
+  );
+  animation-name: md-table-fade-start, md-table-fade-end;
+  animation-duration: auto;
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+  animation-timeline: scroll(self inline);
+  animation-range:
+    0 var(--table-fade-size),
+    calc(100% - var(--table-fade-size)) 100%;
+}
+@property --table-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --table-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes md-table-fade-start {
+  from {
+    --table-fade-start: 0px;
+  }
+  to {
+    --table-fade-start: var(--table-fade-size);
+  }
+}
+@keyframes md-table-fade-end {
+  from {
+    --table-fade-end: var(--table-fade-size);
+  }
+  to {
+    --table-fade-end: 0px;
+  }
 }
 /* Crepe's table controls on the app's popover and ghost buttons. */
 .md-editor .milkdown .milkdown-table-block .cell-handle {
@@ -1387,13 +1456,21 @@ textarea.md-input {
   height: auto;
   vertical-align: middle;
 }
+/* As wide as its text and no wider than the column, past which it scrolls;
+   cells keep the editor table's floor (above). */
 .md-html-rendered table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
   border-collapse: collapse;
   margin: 0.5em 0;
 }
 .md-html-rendered :is(td, th) {
   border: 1px solid var(--border);
   padding: 4px 10px;
+  overflow-wrap: anywhere;
+  min-width: calc-size(max-content, min(size, 12em));
 }
 .md-html-rendered :is(p, ul, ol, pre, blockquote, table, details) {
   margin: 0.6em 0;
@@ -1746,8 +1823,10 @@ textarea.md-input {
 /* A long document lays out only the blocks near the view: a transcript of
    several hundred KB otherwise costs a whole-document layout on every forced
    measure (the caret, a merged agent edit, the outline), which is hundreds of
-   milliseconds. `auto` remembers each block's size once it has been drawn. */
-.md-editor .ProseMirror > :not(.milkdown-code-block) {
+   milliseconds. `auto` remembers each block's size once it has been drawn.
+   Not a table, which paints past its block into the page's room and would be
+   clipped to the text column. */
+.md-editor .ProseMirror > :not(.milkdown-code-block, .milkdown-table-block) {
   content-visibility: auto;
   contain-intrinsic-size: auto calc(var(--md-leading) * 1em);
 }

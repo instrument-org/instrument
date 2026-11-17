@@ -62,6 +62,7 @@ export function instrumentFolderOf(
 }
 
 const KEY_FOLDER_WORDS = {
+  Files: "files",
   Memory: "memories",
   Skills: "skills",
   Projects: "projects",

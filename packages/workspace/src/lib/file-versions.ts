@@ -4,7 +4,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 /** The largest file a version is copied for; a bigger one is recorded without a copy. */
-const MOST_COPIED_BYTES = 10 * 1024 * 1024;
+export const MOST_COPIED_BYTES = 10 * 1024 * 1024;
 
 /** The most a folder of versions keeps, its oldest copies going first past it. */
 const MOST_KEPT_BYTES = 200 * 1024 * 1024;

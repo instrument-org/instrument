@@ -191,12 +191,97 @@ export async function restoreFileVersion({
   return before?.copy === undefined ? {} : { replaced: before.copy };
 }
 
+/** A file undoing a reply puts back: the file, and the copy of it from before the reply. */
+const UndoFileSchema = z.object({ copy: z.string(), file: z.string() });
+
+export const UndoableReplySchema = z.object({
+  /** The files Undo puts back, each as it was before the reply's turn. */
+  back: z.array(UndoFileSchema),
+  messageId: StoreId.MessageSchema,
+  /** The names of the files the reply handed over that Undo leaves as they are. */
+  stay: z.array(z.string()),
+});
+
+type UndoableReply = z.output<typeof UndoableReplySchema>;
+
 /**
- * Puts back every file a reply handed over as it was before that reply's
- * turn: the copy a tool kept before first changing it, or else the newest
- * version recorded before the turn. Each goes back the way a restore does,
- * so each can be undone from its versions list. A file the turn made, or
- * whose earlier version is on another computer, is left as it is.
+ * The chat's replies that Undo would change a file for, each with what it
+ * puts back and what it leaves. A file goes back to the copy a tool kept
+ * before first changing it in the reply's turn, or else to the newest
+ * version recorded before the turn; it stays when there is neither on this
+ * computer (a file the turn made, one changed by a program no copy was kept
+ * for), when the copy was edited since it was kept, or when the file already
+ * holds those contents. A reply with nothing to put back is left out, so
+ * nothing offers to undo it.
+ */
+export async function undoableReplies({
+  chatId,
+}: {
+  chatId: ChatId;
+}): Promise<UndoableReply[]> {
+  const here = thisDevice();
+  const records = (await recordsOf(chatId)).filter(
+    (record) => record.device === here,
+  );
+  const hashes = new Map<string, Promise<string | undefined>>();
+  const hashOf = (file: string) => {
+    const known = hashes.get(file);
+    if (known !== undefined) {
+      return known;
+    }
+    const read = contentsOf(file).then((contents) => contents?.hash);
+    hashes.set(file, read);
+    return read;
+  };
+  const replies = [
+    ...new Set(
+      records
+        .filter((record) => record.kind === "reply")
+        .map((record) => record.messageId),
+    ),
+  ];
+  const undoable: UndoableReply[] = [];
+  for (const messageId of replies) {
+    const ofReply = records.filter((record) => record.messageId === messageId);
+    const startedAt = Math.min(...ofReply.map((record) => record.at.getTime()));
+    const handed = [
+      ...new Set(
+        ofReply
+          .filter((record) => record.kind === "reply")
+          .map((record) => record.file),
+      ),
+    ];
+    const back: UndoableReply["back"] = [];
+    const stay: string[] = [];
+    for (const file of handed) {
+      const before =
+        ofReply.find(
+          (record) => record.kind === "original" && record.file === file,
+        ) ??
+        records.findLast(
+          (record) => record.file === file && record.at.getTime() < startedAt,
+        );
+      if (
+        before?.copy !== undefined &&
+        (await hashOf(before.copy)) === before.hash &&
+        (await hashOf(file)) !== before.hash
+      ) {
+        back.push({ copy: before.copy, file });
+      } else {
+        stay.push(path.basename(file));
+      }
+    }
+    if (back.length > 0) {
+      undoable.push({ back, messageId, stay });
+    }
+  }
+  return undoable;
+}
+
+/**
+ * Puts back the files {@link undoableReplies} names for a reply, each the
+ * way a restore does, so each can be undone from its versions list. Returns
+ * the names of the files it put back.
  */
 export async function undoReplyFiles({
   chatId,
@@ -204,35 +289,16 @@ export async function undoReplyFiles({
 }: {
   chatId: ChatId;
   messageId: StoreId.Message;
-}): Promise<{ left: string[]; restored: string[] }> {
-  const here = thisDevice();
-  const records = (await recordsOf(chatId)).filter(
-    (record) => record.device === here,
+}): Promise<{ restored: string[] }> {
+  const reply = (await undoableReplies({ chatId })).find(
+    (each) => each.messageId === messageId,
   );
-  const ofReply = records.filter((record) => record.messageId === messageId);
-  const startedAt = Math.min(...ofReply.map((record) => record.at.getTime()));
-  const left: string[] = [];
   const restored: string[] = [];
-  for (const handed of ofReply.filter((record) => record.kind === "reply")) {
-    const { file } = handed;
-    const name = path.basename(file);
-    const before =
-      ofReply.find(
-        (record) => record.kind === "original" && record.file === file,
-      ) ??
-      records.findLast(
-        (record) => record.file === file && record.at.getTime() < startedAt,
-      );
-    if (before?.copy === undefined || !existsSync(before.copy)) {
-      left.push(name);
-      continue;
-    }
-    if ((await contentsOf(file))?.hash !== before.hash) {
-      await restoreFileVersion({ chatId, copy: before.copy, file });
-    }
-    restored.push(name);
+  for (const { copy, file } of reply?.back ?? []) {
+    await restoreFileVersion({ chatId, copy, file });
+    restored.push(path.basename(file));
   }
-  return { left, restored };
+  return { restored };
 }
 
 async function saveOnLastReply(

@@ -3,6 +3,8 @@ import { type Err, ok, type Result } from "neverthrow";
 import path from "node:path";
 
 import { type ChatId } from "../schemas/chat-id";
+import { keepOriginal } from "./chat/turn-originals";
+import { type KeepOriginal } from "./original-keeping-fs";
 import { type StoreId } from "../schemas/store-id";
 import { type ExecuteError, executeError } from "./execute-error";
 import { formatBytes } from "./format-bytes";
@@ -80,11 +82,22 @@ export async function sessionToolFs(options: {
   partId?: StoreId.Part;
   sessionId?: StoreId.Session;
 }): Promise<ToolFs> {
-  return toolFs(await sessionLayout(options));
+  const { chatId, sessionId } = options;
+  return toolFs(await sessionLayout(options), {
+    // A session's writes keep what they replace for its turn's Undo.
+    ...(sessionId && {
+      keep: (before) => keepOriginal({ ...before, chatId, sessionId }),
+    }),
+  });
 }
 
-export async function toolFs(layout: WorkspaceFsLayout): Promise<ToolFs> {
-  const { fs, listings, refusals } = await shellFs(layout);
+export async function toolFs(
+  layout: WorkspaceFsLayout,
+  { keep }: { keep?: KeepOriginal } = {},
+): Promise<ToolFs> {
+  const { fs, listings, refusals } = await shellFs(layout, {
+    ...(keep && { keep }),
+  });
   const cwd = layout.chat.shellRoot;
   const home = shellPath(layout.rules.home);
 

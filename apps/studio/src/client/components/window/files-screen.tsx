@@ -88,6 +88,7 @@ import {
 } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
 import { PageEditToggle } from "./page-edit";
+import { PageMenuItems } from "./page-menu-items";
 import { ExpandFileControl } from "./tab-location-row";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useFileInfo } from "./file-info";
@@ -758,6 +759,13 @@ export function FilesScreen({
     hostedFile === undefined
       ? {}
       : {
+          ...(hostedTabId === undefined
+            ? {}
+            : {
+                pageMenu: (
+                  <PageMenuItems targetId={browserTargetOf(hostedTabId)} />
+                ),
+              }),
           page: (
             <div
               className={

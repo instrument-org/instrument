@@ -97,6 +97,39 @@ A beta or alpha tag publishes immediately as a prerelease. **A stable tag lands 
 
 The release body is the tag's notes followed by the **Full Changelog** and **Skills Changelog** compare links. Open it and check it rendered. A correction goes in with `gh release edit v<version> --notes-file <path>`, which reaches the release page and the app's changelog, but not the Slack post already made.
 
+## What's new pictures
+
+When asked to follow the release with What's new pictures or videos, the notes go out with words alone and the media follows once it is approved, so nobody waits on it before publishing.
+
+1. Before tagging, put this note on its own line under the notes' `## What's new` heading. The app reads it, and Slack, GitHub and older builds show nothing of it:
+
+   ```markdown
+   <!-- whats-new
+   status: pending
+   -->
+   ```
+
+   While a release is pending, an open What's new page asks again every 10 minutes and fills in when the media lands. A day after publishing the app stops waiting and shows the words alone.
+
+2. Once the release is published, post an Instrument page with the candidate features to show, and take only the ones approved. Take them from a clean room (the `studio-walkthrough` skill), then post a review page of the takes with each feature's line.
+3. For each approved feature, make a still (JPEG or PNG) and, for one that moves, an H.264 MP4 with no sound (`render --plain`, cropped to what matters, about 1200 pixels wide). Upload them to the release bucket's `whats-new/<version>/` folder under names of lowercase letters, digits and dashes:
+
+   ```bash
+   wrangler r2 object put instrument-releases/whats-new/<version>/zoom.mp4 --file zoom.mp4 --content-type video/mp4 --remote
+   ```
+
+   They are served from `https://releases.tryinstrument.com/whats-new/<version>/`, the only place the app loads What's new media from. A retake goes up under a new name, since the edge may keep the old file a while.
+4. Edit the notes: set the note to `status: ready`, and under each feature's bullet add its media in an HTML comment on an indented line of its own, a still alone or a still linked to its video:
+
+   ```markdown
+   - **Zoom into pictures.** Click a large picture to zoom in right where you clicked.
+
+     <!-- [![Zoom into pictures](https://releases.tryinstrument.com/whats-new/2.0.11/zoom.jpg)](https://releases.tryinstrument.com/whats-new/2.0.11/zoom.mp4) -->
+   ```
+
+   The comment keeps the line out of builds older than What's new, which show a newer release's notes in their update card and would draw a blocked picture there. `gh release edit v<version> --notes-file <path>` reaches every app within about 5 minutes, and the app and the website read the comment and play the video.
+5. If the follow-up is dropped, edit the note to `status: ready` with no media, and the features show as words.
+
 ## Verify the feed
 
 ```bash

@@ -8,6 +8,10 @@ import {
   consumeSetupChanges,
 } from "../lib/setup-changes";
 import { grantFolder } from "../lib/chat/grants";
+import {
+  beginTurnFileVersions,
+  takeOriginals,
+} from "../lib/chat/turn-originals";
 import { workDir } from "../lib/work-dir";
 import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
 import { StoreId } from "../schemas/store-id";
@@ -105,6 +109,27 @@ describe("WriteFile", () => {
     expect(result._unsafeUnwrap().filePath).toBe("/ext/Docs/report.md");
     await expect(fs.readFile("/ext/Docs/report.md", "utf8")).resolves.toBe(
       "written by the agent",
+    );
+  });
+
+  it("keeps what it overwrites for the turn's Undo", async () => {
+    mockFs({
+      "/ext/Docs": { "notes.md": "first" },
+      [MOCK_WORKSPACE_DIRS.chats]: { [chatId]: {} },
+      [MOCK_WORKSPACE_DIRS.work]: { [chatId]: {} },
+    });
+    await grantFolder({ chatId, path: "/ext/Docs", source: "attached" });
+    const sessionId = StoreId.newSessionId();
+    beginTurnFileVersions(sessionId);
+
+    await runTool(WriteFile, {
+      ...makeExecuteArgs({ content: "second", filePath: "/ext/Docs/notes.md" }),
+      sessionId,
+    });
+
+    const [original] = takeOriginals(sessionId);
+    await expect(fs.readFile(original?.copy ?? "", "utf8")).resolves.toBe(
+      "first",
     );
   });
 

@@ -13,7 +13,6 @@ import {
   LINE_NUMBER_SEPARATOR,
 } from "../lib/add-line-numbers";
 import { executeError } from "../lib/execute-error";
-import { keepOriginal } from "../lib/chat/turn-file-versions";
 import { isMissing, sessionToolFs } from "../lib/tool-fs";
 import { defineCapability } from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";
@@ -813,7 +812,6 @@ const editFileCapability = defineCapability({
           }
         }
 
-        await keepOriginal({ chatId, files, sessionId, target });
         let modifiedAt: number;
         try {
           // Makes the folders a new file needs, as `tee` does.

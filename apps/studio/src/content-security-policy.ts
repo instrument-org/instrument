@@ -7,6 +7,8 @@ import {
 } from "@instrument-org/shared/constants";
 
 const LOCALHOST = ["http://localhost:*", "https://localhost:*"];
+/** The release bucket's folder of What's new pictures and videos. */
+const WHATS_NEW_MEDIA = "https://releases.tryinstrument.com/whats-new/";
 
 /**
  * The renderer window's Content-Security-Policy, as directive to sources.
@@ -47,8 +49,9 @@ export function rendererContentSecurityPolicy(flavor: AppFlavor) {
       "https://*.github.com",
       "https://*.githubusercontent.com",
       "https://*.s3.amazonaws.com",
+      WHATS_NEW_MEDIA,
     ],
-    "media-src": ["'self'", "data:", appScheme, ...LOCALHOST],
+    "media-src": ["'self'", "data:", appScheme, ...LOCALHOST, WHATS_NEW_MEDIA],
     "script-src": ["'self'", "'wasm-unsafe-eval'"],
     "style-src": ["'self'", "'unsafe-inline'"],
     "worker-src": ["'self'", "blob:"],

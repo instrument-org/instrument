@@ -27,6 +27,7 @@ import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
+import { Kbd } from "../ui/kbd";
 import {
   DictatedTextarea,
   DictationControls,
@@ -269,6 +270,9 @@ export function QuestionCard({
       if (choice) {
         event.preventDefault();
         pick(choice.label);
+        // The keyboard goes with the pick, so the next Enter sends it rather
+        // than pressing the button it was on (Skip, Add a note).
+        shownChoices(event.currentTarget)[Number(event.key) - 1]?.focus();
       }
       return;
     }
@@ -301,7 +305,11 @@ export function QuestionCard({
   return (
     <ToolCard>
       {/* The keys reach the choices inside, each a button of its own. */}
-      <div className="px-4 py-3" onKeyDown={onCardKeyDown} ref={cardRef}>
+      <div
+        className="group/card px-4 py-3"
+        onKeyDown={onCardKeyDown}
+        ref={cardRef}
+      >
         {isSeveral ? (
           <Steps
             drafts={questions.map((_, index) => draftAt(index))}
@@ -418,7 +426,7 @@ export function QuestionCard({
                 >
                   Skip all
                 </Button>
-                <SendButton disabled={isHolding} onClick={sendDrafts}>
+                <SendButton disabled={isHolding} isHome onClick={sendDrafts}>
                   Send answers
                 </SendButton>
               </>
@@ -528,6 +536,16 @@ function QuestionStep({
                   ) : null}
                 </span>
               </ChoiceRow>
+              {/* Shown while the keyboard is on the card's buttons, the one
+                  place its digit picks this choice. */}
+              {index < 9 ? (
+                <Kbd
+                  aria-hidden
+                  className="hidden self-start group-has-[button:focus-visible]/card:inline-flex"
+                >
+                  {index + 1}
+                </Kbd>
+              ) : null}
             </button>
           );
         })}
@@ -676,22 +694,29 @@ function revealTypedRow(list: HTMLElement) {
 
 /**
  * Puts the keyboard on the first choice of the question on show in an open
- * card under `root`, or on its first button where no choice is on show (the
- * review of a card of several). Returns whether anything took it.
+ * card under `root`, on Send answers in the review of a card of several, or
+ * else on its first button. Returns whether anything took it.
  */
 function focusQuestionCard(root: HTMLElement) {
   const reachable = (element: HTMLElement) =>
     element.closest("[inert]") === null &&
     element.checkVisibility({ visibilityProperty: true });
   const target =
-    [...root.querySelectorAll<HTMLElement>("[data-card-home]")].find(
-      reachable,
-    ) ??
+    [
+      ...root.querySelectorAll<HTMLElement>("[data-card-home]:not([disabled])"),
+    ].find(reachable) ??
     [...root.querySelectorAll<HTMLElement>("button:not([disabled])")].find(
       reachable,
     );
   target?.focus({ preventScroll: true });
   return target !== undefined;
+}
+
+/** The choice rows of the question on show in a card, in order. */
+function shownChoices(card: HTMLElement) {
+  return [...card.querySelectorAll<HTMLElement>("[data-choice]")].filter(
+    (choice) => choice.closest("[inert]") === null,
+  );
 }
 
 /** The headers of a card of several questions, each a way back to its question, then Review. */
@@ -776,16 +801,25 @@ function SendButton({
   children,
   disabled,
   icon = "send",
+  isHome = false,
   onClick,
 }: {
   children: ReactNode;
   disabled: boolean;
   icon?: "next" | "send";
+  /** Takes the keyboard when its step comes on show, for a step with no choices (the review). */
+  isHome?: boolean;
   onClick: () => void;
 }) {
   const Icon = icon === "next" ? ArrowRightIcon : ArrowUpIcon;
   return (
-    <Button disabled={disabled} onClick={onClick} size="xs" variant="brand">
+    <Button
+      data-card-home={isHome ? "" : undefined}
+      disabled={disabled}
+      onClick={onClick}
+      size="xs"
+      variant="brand"
+    >
       {children}
       <Icon className="size-3" weight="bold" />
     </Button>

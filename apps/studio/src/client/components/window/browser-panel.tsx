@@ -49,7 +49,8 @@ import {
   type GuestEventMap,
   stepPage,
 } from "@/client/lib/browser-pool";
-import { type EmulatedDevice } from "@/client/lib/emulated-devices";
+import { emulatedDevicesAtom } from "@/client/lib/emulated-devices";
+import { PageZoomStepper } from "@/client/components/window/page-menu-items";
 import {
   type LocatedPath,
   locateTypedPath,
@@ -205,9 +206,8 @@ export function BrowserPanel({
   // emulation with a scale computed from the panel's live bounds (see
   // device-emulation.ts) rather than resizing the webview element, which
   // doesn't reliably re-layout an already-loaded guest.
-  const [emulatedDevice, setEmulatedDevice] = useState<EmulatedDevice | null>(
-    null,
-  );
+  // Kept by the page, so its file's menu can set it too.
+  const emulatedDevice = useAtomValue(emulatedDevicesAtom)[targetId];
   // Set when a main-frame navigation fails (bad host, no network, ...). The
   // guest is parked and we show a light error state over the slot instead of its
   // blank error page. Cleared when a new load starts or succeeds.
@@ -701,34 +701,13 @@ export function BrowserPanel({
                         sharePage.mutate({ url });
                       }
                     },
-                    viewAs: {
-                      device: emulatedDevice,
-                      onChange: setEmulatedDevice,
-                    },
+                    targetId,
                   }
                 : undefined
             }
             zoom={
               pageUrl && (
-                <ZoomStepperControl
-                  canZoomIn={zoomFactor < BROWSER_ZOOM_MAX}
-                  canZoomOut={zoomFactor > BROWSER_ZOOM_MIN}
-                  onZoomIn={() => {
-                    stepZoom("in");
-                  }}
-                  onZoomOut={() => {
-                    stepZoom("out");
-                  }}
-                  readout={
-                    <ZoomLevelMenu
-                      max={BROWSER_ZOOM_MAX}
-                      min={BROWSER_ZOOM_MIN}
-                      nested
-                      onSelect={applyZoom}
-                      zoom={zoomFactor}
-                    />
-                  }
-                />
+                <PageZoomStepper onZoom={applyZoom} zoom={zoomFactor} />
               )
             }
           />

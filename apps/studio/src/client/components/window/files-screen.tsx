@@ -49,6 +49,14 @@ import {
 } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { omit } from "radashi";
+import {
+  foldToWidth,
+  hidePanel,
+  KEPT_PANEL,
+  type PanelFold,
+  showsPanel,
+  togglePanel,
+} from "@/client/lib/panel-fold";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { toast } from "@/client/lib/toast";
 
@@ -67,14 +75,6 @@ import { useGroupTab } from "./group-tab";
 import { type SettledStep } from "./files-step";
 import { scrollOpenFileOnSpace } from "./scroll-open-file";
 import { useFilesStep } from "./use-files-step";
-import {
-  type FolderFold,
-  foldToWidth,
-  hideFolder,
-  KEPT_FOLDER,
-  showsFolder,
-  toggleFolder,
-} from "./folder-fold";
 import { folderOf, relativeHostPath, segmentsOf } from "./host-path";
 import {
   useHostedPage,
@@ -122,7 +122,7 @@ const BESIDE_EXIT_TRANSITION = {
  * whether the tab last had room for it, with the file it was beside, for
  * the screen drawn again as its tab comes back up.
  */
-const folderFoldByTab = keptByTab<{ file: string; fold: FolderFold }>();
+const folderFoldByTab = keptByTab<{ file: string; fold: PanelFold }>();
 /** The pile several picked make beside the folder, the way the columns draw one. */
 const PILE_POSES = [
   { rotate: 9, x: 24, y: -12 },
@@ -228,7 +228,7 @@ export function FilesScreen({
   // it beside the same file, fitted again to the width the tab comes up at.
   const [fold, setFold] = useState(() => {
     const kept = folderFoldByTab.get(tabId);
-    return kept !== undefined && kept.file === file ? kept.fold : KEPT_FOLDER;
+    return kept !== undefined && kept.file === file ? kept.fold : KEPT_PANEL;
   });
   const [besidePicked, setBesidePicked] = useState<ChosenItem[]>([]);
   // Where the folder puts Ask and its menu for several picked.
@@ -334,7 +334,7 @@ export function FilesScreen({
   if (wasFileShown !== isFileShown) {
     setWasFileShown(isFileShown);
     if (isFileShown) {
-      fitted = KEPT_FOLDER;
+      fitted = KEPT_PANEL;
     }
   }
   const isFitted = isLaidOut && layoutWidth !== null && layoutWidth > 0;
@@ -348,7 +348,7 @@ export function FilesScreen({
   if (fitted !== fold) {
     setFold(fitted);
   }
-  const isFolderShown = showsFolder(fold);
+  const isFolderShown = showsPanel(fold);
   useEffect(() => {
     if (file === undefined) {
       folderFoldByTab.delete(tabId);
@@ -928,7 +928,7 @@ export function FilesScreen({
                           <FolderToggle
                             isOpen={isFolderShown}
                             onToggle={() => {
-                              setFold(toggleFolder);
+                              setFold(togglePanel);
                             }}
                           />
                         ),
@@ -964,7 +964,7 @@ export function FilesScreen({
                   onCollapse: () => {
                     draggedWidthNow.current = null;
                     setDraggedWidth(null);
-                    setFold(hideFolder);
+                    setFold(hidePanel);
                   },
                 }}
                 getWidth={() => besideWidth}

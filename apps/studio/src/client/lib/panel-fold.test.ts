@@ -1,40 +1,40 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  type FolderFold,
   foldToWidth,
-  hideFolder,
-  KEPT_FOLDER,
-  showsFolder,
-  toggleFolder,
-} from "./folder-fold";
+  hidePanel,
+  KEPT_PANEL,
+  type PanelFold,
+  showsPanel,
+  togglePanel,
+} from "./panel-fold";
 
-/** A tab with room for the folder beside the file from 720 px on. */
+/** A layout with room for the panel from 720 px on. */
 const hasRoomAt = (width: number) => width >= 720;
 
 type Step = number | "toggle" | "hide";
 
-/** Whether the folder shows after each step, from a file just opened in a tab `start` wide. */
+/** Whether the panel shows after each step, from one just opened in a layout `start` wide. */
 function walk(start: number, steps: Step[]) {
-  let fold: FolderFold = foldToWidth(KEPT_FOLDER, start, hasRoomAt);
-  const shown = [showsFolder(fold)];
+  let fold: PanelFold = foldToWidth(KEPT_PANEL, start, hasRoomAt);
+  const shown = [showsPanel(fold)];
   for (const step of steps) {
     fold =
       step === "toggle"
-        ? toggleFolder(fold)
+        ? togglePanel(fold)
         : step === "hide"
-          ? hideFolder(fold)
+          ? hidePanel(fold)
           : foldToWidth(fold, step, hasRoomAt);
-    shown.push(showsFolder(fold));
+    shown.push(showsPanel(fold));
   }
   return shown;
 }
 
-describe("folder fold", () => {
+describe("panel fold", () => {
   it.each([
     { shown: true, width: 720 },
     { shown: false, width: 719 },
-  ])("opens a file beside the folder at $width px: $shown", (each) => {
+  ])("opens at $width px shown: $shown", (each) => {
     expect(walk(each.width, [])).toEqual([each.shown]);
   });
 
@@ -50,7 +50,7 @@ describe("folder fold", () => {
     ]);
   });
 
-  it("keeps a folder hidden by hand hidden at every width", () => {
+  it("keeps a panel put away by hand hidden at every width", () => {
     expect(walk(900, ["toggle", 600, 1200, 2000])).toEqual([
       true,
       false,
@@ -60,7 +60,7 @@ describe("folder fold", () => {
     ]);
   });
 
-  it("shows a folder shown by hand without room until the width crosses the line", () => {
+  it("shows a panel shown by hand without room until the width crosses the line", () => {
     // Shown at 600, narrower still keeps it; past the margin it is the width's
     // again, so the next fold takes it.
     expect(walk(600, ["toggle", 500, 700, 760, 719])).toEqual([
@@ -73,7 +73,7 @@ describe("folder fold", () => {
     ]);
   });
 
-  it("keeps a folder hidden again after a show by hand hidden as the tab widens", () => {
+  it("keeps a panel put away after a show by hand hidden as the layout widens", () => {
     expect(walk(600, ["toggle", "toggle", 900])).toEqual([
       false,
       true,
@@ -83,13 +83,13 @@ describe("folder fold", () => {
   });
 
   it("returns the same fold for the same verdict", () => {
-    const fold = foldToWidth(KEPT_FOLDER, 900, hasRoomAt);
+    const fold = foldToWidth(KEPT_PANEL, 900, hasRoomAt);
     expect(foldToWidth(fold, 800, hasRoomAt)).toBe(fold);
     const folded = foldToWidth(fold, 700, hasRoomAt);
     expect(foldToWidth(folded, 750, hasRoomAt)).toBe(folded);
   });
 
-  it("keeps a folder dragged shut hidden as the tab widens", () => {
+  it("keeps a panel dragged shut hidden as the layout widens", () => {
     expect(walk(900, ["hide", 1200])).toEqual([true, false, false]);
   });
 });

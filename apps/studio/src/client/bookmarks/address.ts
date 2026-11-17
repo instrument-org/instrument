@@ -2,6 +2,7 @@ import { type WindowTab } from "@/client/atoms/window";
 import { joinHostPath } from "@/client/components/window/host-path";
 import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { matchScreen } from "@/client/components/window/window-href";
+import { missingHref } from "@/client/components/window/missing-page";
 import {
   COMPUTER_ROOT,
   fileHref,
@@ -79,12 +80,13 @@ export type AddressTarget =
   | { kind: "page"; url: string };
 
 /**
- * What an address opens, or nothing for an `instrument://` address this
- * build does not know. A `file://` address names a file or a folder, as the
+ * What an address opens. A `file://` address names a file or a folder, as the
  * address field reads one typed there, and so does the
  * `instrument://file/<path>` an earlier build kept; a `file://` address to a
  * place in a page (`?frame=2`, `#part`) is a page, since only the page
- * reaches it. Anything else that is not the app's own is a page.
+ * reaches it. An `instrument://` address this build does not know opens a
+ * tab that says the page isn't there (`missingHref`). Anything else that is
+ * not the app's own is a page.
  */
 export function targetOfAddress(address: string): AddressTarget | undefined {
   if (/^file:/i.test(address)) {
@@ -99,7 +101,12 @@ export function targetOfAddress(address: string): AddressTarget | undefined {
   if (link) {
     return { href: link.href, kind: "screen" };
   }
-  return pathTarget(filePathOfInstrumentLink(address));
+  return (
+    pathTarget(filePathOfInstrumentLink(address)) ?? {
+      href: missingHref(address),
+      kind: "screen",
+    }
+  );
 }
 
 /** A path as an address names it, a folder's by the separator after it. */

@@ -17,6 +17,7 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CodeIcon } from "@phosphor-icons/react/Code";
+import { LinkBreakIcon } from "@phosphor-icons/react/LinkBreak";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { type ReactNode } from "react";
 
@@ -29,6 +30,7 @@ import { FileMark } from "./file-mark";
 import { FolderMark } from "./folder-mark";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
+import { askedAddressOf } from "./missing-page";
 import { locationCrumbs, type TabLocation, type Volume } from "./tab-location";
 import { type ComputerTab, matchScreen, type Screen } from "./window-href";
 
@@ -155,11 +157,14 @@ export function screenLocation(
     case "site":
     case "skill":
     case "tabGroup":
-    case "windowTab":
-    case "unknown": {
+    case "windowTab": {
       // A screen the window has no words for reads as the new tab: the
       // place with nothing in particular in it.
       return { kind: "newTab" };
+    }
+    // A page that doesn't exist is at the address it was asked for.
+    case "unknown": {
+      return { address: askedAddressOf(href), kind: "missing" };
     }
   }
 }
@@ -274,11 +279,16 @@ export function screenPresentation(
     case "site":
     case "skill":
     case "tabGroup":
-    case "windowTab":
-    case "unknown": {
+    case "windowTab": {
       return {
         icon: <MagnifyingGlassIcon className="size-3.5" />,
         title: "Tab",
+      };
+    }
+    case "unknown": {
+      return {
+        icon: <LinkBreakIcon className="size-3.5" />,
+        title: "Page not found",
       };
     }
   }

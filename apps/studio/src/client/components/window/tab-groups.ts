@@ -38,9 +38,11 @@ import {
   tabsIn,
   type WindowTabs,
 } from "./tab-model";
+import { openLinkAddress } from "./open-link-address";
 import {
   chatHref,
   groupHref,
+  LINK_ADDRESSES,
   matchScreen,
   newChatHref,
   newGroupKey,
@@ -787,9 +789,11 @@ export function asksForDraft(href: string): boolean {
  * list (a step back) joins it at the top. A chat's or a draft's address
  * opens it as a group of its own, once per ask. A listed group with no tabs
  * leaves the list, unless it is pinned, which gets a new tab. Everything
- * else sits inside a group too: a screen or a page the app tab came to on
- * its own becomes a tab of the group last up, or of a new group, and the
- * inbox shows the group last up, or the first, or a new one. Groups another
+ * else sits inside a group too: a screen, a page or an address no screen
+ * answers that the app tab came to on its own (a launch, a script) becomes a
+ * tab of the group last up, or of a new group, a link address opens where it
+ * lives, and the inbox shows the group last up, or the first, or a new one.
+ * Groups another
  * window has open too leave this one's list once, as it opens, unless this
  * window is showing them: a window closed with them and brought back since
  * they were opened elsewhere. A draft's address waits until main has read
@@ -881,8 +885,24 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
       return;
     }
     if (!isGroupScreenHref(href)) {
+      if (!Object.hasOwn(LINK_ADDRESSES, screen.kind)) {
+        return;
+      }
+      // A link address the window itself was sent to (a restored tab, a
+      // script's goto) opens where it lives, as from any opener, and the
+      // window stands on a group again, or at the screen the link names.
+      const at = openLinkAddress(href);
+      const back = into ?? open[0]?.group;
+      if (at !== undefined) {
+        appTabs.navigate(at, { replace: true });
+      } else if (back === undefined) {
+        groups.make();
+      } else {
+        appTabs.navigate(groupHref(back), { replace: true });
+      }
       return;
     }
+    // A screen, or an address no screen answers, which its tab says.
     if (into === undefined) {
       groups.make({ href });
     } else {

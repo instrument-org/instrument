@@ -1,7 +1,7 @@
 import { TaskScreen } from "@/client/components/window/chat-tasks-view";
 import { chatOfTaskAddress } from "@/client/components/window/tab-location";
 import { StoreId } from "@instrument-org/workspace/client";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, notFound } from "@tanstack/react-router";
 import { z } from "zod";
 
 /**
@@ -10,6 +10,14 @@ import { z } from "zod";
  * the address names both.
  */
 export const Route = createFileRoute("/_app/tasks/$sessionId")({
+  // An id that is no session's is an address no screen answers, as the
+  // window reads it (`matchScreen`).
+  beforeLoad: ({ params }) => {
+    if (!StoreId.SessionSchema.safeParse(params.sessionId).success) {
+      // oxlint-disable-next-line typescript/only-throw-error
+      throw notFound();
+    }
+  },
   component: TaskRoute,
   validateSearch: z.object({
     /** The chat the task was started in. */

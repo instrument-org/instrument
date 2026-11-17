@@ -143,19 +143,28 @@ describe("where a screen opens", () => {
       inChat(SCREEN),
       { behind: false, kind: "group-new-tab" },
     ],
+    // A page that doesn't exist stands in a tab like any screen, which says
+    // so there.
     [
-      "an address no group's tab stands on in the window's tab, even when asked for a tab",
+      "an address no screen answers in a tab beside the one up, behind it, when asked",
       "/nowhere",
       { behind: true, newTab: true },
       inChat(SCREEN),
-      { kind: "window-navigate" },
+      { behind: true, kind: "group-new-tab" },
     ],
     [
-      "an address no group's tab stands on in the window's tab",
+      "an address no screen answers into the group asked for",
       "/nowhere",
       { group: OTHER },
       inChat(SCREEN),
-      { kind: "window-navigate" },
+      { group: OTHER, kind: "group-behind", select: false, show: false },
+    ],
+    [
+      "an address no screen answers in place of what is up",
+      "/nowhere",
+      {},
+      inChat(OWN_PAGE),
+      { kind: "group-navigate" },
     ],
     [
       "into another chat, brought up there when activated",

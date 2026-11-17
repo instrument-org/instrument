@@ -85,6 +85,12 @@ describe("screenPresentation", () => {
   it.each([
     ["a debug tool", "/debug/components", "Components"],
     ["a component page", "/debug/components/colors", "Colors"],
+    ["a page that doesn't exist", "/removed-page", "Page not found"],
+    [
+      "an instrument address the app doesn't know",
+      "/missing?address=instrument%3A%2F%2Fnowhere",
+      "Page not found",
+    ],
   ])("names %s", (_, href, title) => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });
@@ -166,6 +172,25 @@ describe("screenLocation", () => {
         address: "instrument://debug/components/transcript?scenario=long-reply",
         kind: "debug",
       },
+    ],
+    // A page that doesn't exist, at the address it was asked for.
+    [
+      "a page a later build removed",
+      "/removed-page?from=older-build",
+      { address: "/removed-page?from=older-build", kind: "missing" },
+    ],
+    [
+      "an address no task has",
+      "/tasks/not-a-session?chat=2026-10-01-roofer",
+      {
+        address: "/tasks/not-a-session?chat=2026-10-01-roofer",
+        kind: "missing",
+      },
+    ],
+    [
+      "an instrument address the app doesn't know",
+      "/missing?address=instrument%3A%2F%2Fnowhere%2Fx",
+      { address: "instrument://nowhere/x", kind: "missing" },
     ],
   ])("places a tab at %s", (_, href, location) => {
     expect(screenLocation(href, CONTEXT)).toEqual(location);

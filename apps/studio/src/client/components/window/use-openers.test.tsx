@@ -416,6 +416,33 @@ describe("an agent and the window's other tab groups", () => {
   });
 });
 
+describe("an address no screen answers", () => {
+  it.each([
+    ["a page a later build removed", "/removed-page?from=older-build", {}],
+    ["one asked for in a tab of its own", "/removed-page", { newTab: true }],
+    [
+      "a task's address that names no session",
+      "/tasks/not-a-session?chat=2026-10-01-roofer",
+      {},
+    ],
+  ])(
+    "opens %s as a tab of the group up, the window staying on the group",
+    (_case, href, options) => {
+      const { result, store } = windowOnTwoSides();
+      act(() => {
+        result.current.openers.openScreen(href, options);
+      });
+      const opened = store
+        .get(windowTabsAtom)
+        .tabs.filter((tab) => tab.kind === "screen" && tab.href === href);
+      expect(opened).toEqual([expect.objectContaining({ group: GROUP })]);
+      expect(store.get(appTabsAtom).tabs.map((tab) => tab.pathname)).toEqual([
+        groupHref(GROUP),
+      ]);
+    },
+  );
+});
+
 describe("a link to a tab group or a tab", () => {
   it("brings up the group it names", () => {
     windowOnTwoSides();

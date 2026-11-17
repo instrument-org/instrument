@@ -388,6 +388,9 @@ function useRowLines(
     case "debug": {
       return quiet(title, "");
     }
+    case "missing": {
+      return quiet(title, location.address);
+    }
     case "app": {
       return quiet(title, siteOf(location.site) || "App");
     }

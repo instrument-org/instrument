@@ -95,6 +95,8 @@ export type TabLocation =
   | { kind: "chat"; title: string }
   /** A debug page, at the address the field shows and takes (`debugAddressOf`). */
   | { address: string; kind: "debug" }
+  /** A page that doesn't exist, at the address it was asked for (`askedAddressOf`). */
+  | { address: string; kind: "missing" }
   /** Every chat, open or not: the index Chat's chip goes to. */
   | { kind: "chats" }
   /**
@@ -184,6 +186,7 @@ export function locationCrumbs(
     }
     case "chats":
     case "debug":
+    case "missing":
     case "newChat":
     case "newTab":
     case "page": {
@@ -213,8 +216,8 @@ export function locationCrumbs(
 /**
  * Which of the app's own apps a location is in, whose chip leads the field:
  * Chat for a chat, a task and the index of chats, Files for a file or a folder, Apps for an
- * app's page, and each built-in page its own. A website, a debug page and a
- * new tab, a new chat among them, have none.
+ * app's page, and each built-in page its own. A website, a debug page, a
+ * page that doesn't exist and a new tab, a new chat among them, have none.
  */
 export function locationChip(location: TabLocation): BuiltInApp | undefined {
   switch (location.kind) {
@@ -235,6 +238,7 @@ export function locationChip(location: TabLocation): BuiltInApp | undefined {
       return "files";
     }
     case "debug":
+    case "missing":
     case "newChat":
     case "newTab":
     case "page": {

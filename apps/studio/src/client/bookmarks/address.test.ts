@@ -83,7 +83,21 @@ describe("targetOfAddress", () => {
         path: "/Users/mac-user/Notes/plan #2.md",
       },
     ],
-    ["instrument://nowhere/x", undefined],
+    // An address of the app's own it doesn't know opens a tab that says so.
+    [
+      "instrument://nowhere/x?y=1",
+      {
+        href: "/missing?address=instrument%3A%2F%2Fnowhere%2Fx%3Fy%3D1",
+        kind: "screen",
+      },
+    ],
+    [
+      "instrument://debug/components",
+      {
+        href: "/missing?address=instrument%3A%2F%2Fdebug%2Fcomponents",
+        kind: "screen",
+      },
+    ],
   ])("%s", (address, target) => {
     expect(targetOfAddress(address)).toEqual(target);
   });

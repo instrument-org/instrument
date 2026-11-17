@@ -610,9 +610,11 @@ export function Omnibar({
               // row is what was asked for. The place itself, entered as it
               // stands, goes there again the way a browser's address does: a
               // path is opened afresh, and anything else hands the field
-              // back to the place.
+              // back to the place. A page that doesn't exist may stand at a
+              // tab's own address, which reads as a path and is none.
               const here = query.trim();
-              const again = typedPathHere(query);
+              const again =
+                location.kind === "missing" ? undefined : typedPathHere(query);
               if (
                 isInstrumentAddress(here) &&
                 fieldTargetOf(here, isDeveloperMode)

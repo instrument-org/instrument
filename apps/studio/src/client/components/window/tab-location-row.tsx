@@ -54,6 +54,7 @@ import { FilesIcon } from "@phosphor-icons/react/Files";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { InfoIcon } from "@phosphor-icons/react/Info";
+import { LinkBreakIcon } from "@phosphor-icons/react/LinkBreak";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
@@ -422,6 +423,17 @@ function Field({
       </>
     );
   }
+  // A page that doesn't exist says the address it was asked for, as typed.
+  if (location.kind === "missing") {
+    return (
+      <>
+        {locationMark(location)}
+        <span className="min-w-0 flex-1 truncate select-text">
+          {location.address}
+        </span>
+      </>
+    );
+  }
   if (location.kind === "page") {
     // An address is one thing you type rather than a trail you walk, so it is
     // said whole: the host quiet, the part of it you are reading loud. An
@@ -768,6 +780,11 @@ function locationMark(location: TabLocation): ReactNode {
     case "debug": {
       return <CodeIcon className="size-3.5 shrink-0 text-muted-foreground" />;
     }
+    case "missing": {
+      return (
+        <LinkBreakIcon className="size-3.5 shrink-0 text-muted-foreground" />
+      );
+    }
     case "file": {
       // A file wears its own type's mark, the way a site wears a favicon: it
       // is the one thing about a file you can tell before opening it.
@@ -837,8 +854,10 @@ function locationText(location: TabLocation) {
     case "page": {
       return location.url;
     }
-    // A debug page's own address, which the field opens again.
-    case "debug": {
+    // A debug page's own address, which the field opens again, and the
+    // address a page that doesn't exist was asked for.
+    case "debug":
+    case "missing": {
       return location.address;
     }
   }

@@ -580,11 +580,24 @@ const SHEET_START: Record<string, number[]> = {
 };
 let sheetSaves: { col: number; row: string; value: number }[] = [];
 
+/** The sheet as saved so far, so a reload shows what an edit wrote. */
+function savedSheet(): Record<string, number[]> {
+  const current = structuredClone(SHEET_START);
+  for (const save of sheetSaves) {
+    const row = current[save.row];
+    if (row) {
+      row[save.col] = save.value;
+    }
+  }
+  return current;
+}
+
 function sheet(base: string): string {
+  const current = savedSheet();
   return page(
     "Budget 2026 · Gridly",
     `<header class="top"><div class="container bar"><a class="logo" href="#">Gridly</a><span>Budget 2026</span><span id="saved" style="margin-left:auto;color:#5a6274" role="status">All changes saved</span></div></header>
-<main><div class="scroll"><table class="grid"><thead><tr><th></th>${["Q1", "Q2", "Q3", "Q4", "Total"].map((head) => `<th>${head}</th>`).join("")}</tr></thead><tbody>${SHEET_ROWS.map((row) => `<tr><th>${row}</th>${[0, 1, 2, 3].map((col) => `<td><input aria-label="${row} Q${col + 1}" data-row="${row}" data-col="${col}" value="${SHEET_START[row]?.[col] ?? ""}"></td>`).join("")}<td class="tot" data-total="${row}"></td></tr>`).join("")}</tbody></table></div></main>
+<main><div class="scroll"><table class="grid"><thead><tr><th></th>${["Q1", "Q2", "Q3", "Q4", "Total"].map((head) => `<th>${head}</th>`).join("")}</tr></thead><tbody>${SHEET_ROWS.map((row) => `<tr><th>${row}</th>${[0, 1, 2, 3].map((col) => `<td><input aria-label="${row} Q${col + 1}" data-row="${row}" data-col="${col}" value="${current[row]?.[col] ?? ""}"></td>`).join("")}<td class="tot" data-total="${row}"></td></tr>`).join("")}</tbody></table></div></main>
 <div id="gate"><div class="box"><h2>Gridly works best on a bigger screen</h2><p>Editing needs a window at least 1024 pixels wide. You can open a read-only view, or continue with the full editor.</p><a class="btn" href="${base}/sheet/budget/view">Open read-only view</a> <button class="btn ghost" onclick="document.getElementById('gate').remove()">Continue anyway</button></div></div>`,
     `.scroll{overflow-x:auto;padding:16px}.grid{border-collapse:collapse;min-width:980px}.grid th,.grid td{border:1px solid #dfe3ea;padding:0;height:34px}.grid th{background:#f4f6f9;padding:0 10px;text-align:left}.grid input{border:0;width:150px;height:34px;padding:0 10px;font:inherit;text-align:right}.tot{padding:0 10px!important;text-align:right;font-weight:600;width:150px}
 #gate{display:none;position:fixed;inset:0;background:#0007;z-index:30;align-items:center;justify-content:center}#gate .box{background:#fff;border-radius:12px;padding:24px;max-width:90%}
@@ -595,13 +608,7 @@ document.querySelectorAll('.grid input').forEach(function(i){i.addEventListener(
 }
 
 function sheetView(): string {
-  const current = structuredClone(SHEET_START);
-  for (const save of sheetSaves) {
-    const row = current[save.row];
-    if (row) {
-      row[save.col] = save.value;
-    }
-  }
+  const current = savedSheet();
   return page(
     "Budget 2026 (read-only) · Gridly",
     `<main class="container"><h1>Budget 2026</h1><p>Read-only view. Open the editor on a larger screen to make changes.</p><table>${SHEET_ROWS.map((row) => `<tr><th>${row}</th>${(current[row] ?? []).map((value) => `<td>${value.toLocaleString("en-US")}</td>`).join("")}<td><b>${(current[row] ?? []).reduce((a, b) => a + b, 0).toLocaleString("en-US")}</b></td></tr>`).join("")}</table></main>`,

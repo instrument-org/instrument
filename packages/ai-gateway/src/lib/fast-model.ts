@@ -35,6 +35,12 @@ export interface AISDKFastModel {
   modelId: string;
   /** The least thinking the provider allows, when it takes a level at all. */
   providerOptions?: Record<string, Record<string, unknown>>;
+  /**
+   * The provider options that end a cached prefix, for the message a call
+   * repeats word for word, where the provider caches only what it is told
+   * to. None where it caches on its own (Claude Code, OpenAI).
+   */
+  cachePoint?: Record<string, Record<string, unknown>>;
 }
 
 /**
@@ -111,6 +117,9 @@ export async function getAISDKFastModel({
     case OUR_MODELS.providerType: {
       const sdk = await createOpenRouterSDK(config, workspaceServerURL);
       return Result.ok({
+        // The OpenRouter provider reads Anthropic's marker; a model that
+        // caches on its own takes it and ignores it.
+        cachePoint: { anthropic: { cacheControl: { type: "ephemeral" } } },
         model: sdk(INSTRUMENT_FAST_MODEL),
         modelId: INSTRUMENT_FAST_MODEL,
         providerOptions: reasoningProviderOptions({

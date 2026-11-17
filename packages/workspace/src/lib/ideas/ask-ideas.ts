@@ -54,8 +54,12 @@ const READ_IN_FULL = 4;
 const ACTIONS_SINCE_MS = 30 * 60_000;
 const ACTIONS_MAX = 25;
 
-/** Room for a fast model's few lines, and for a little thinking where it can't be turned off. */
-const IDEAS_MAX_OUTPUT_TOKENS = 400;
+/**
+ * Three lines of under 60 characters, twice over: Instrument's and
+ * ChatGPT's fast models run with thinking off, so the lines are all they
+ * spend. Claude Code takes no cap from a call.
+ */
+const IDEAS_MAX_OUTPUT_TOKENS = 120;
 
 /** How long ideas stay good for the same tabs. */
 const CACHE_MS = 15 * 60_000;
@@ -70,6 +74,17 @@ Write up to three ideas, one per line, the most useful first. Each is a message 
 - Never delete, send, buy, post, book or share anything.
 - Never mention tabs, context, activity, or what they were doing.
 - Fewer is fine. Reply NONE when nothing specific and useful comes to mind, or what's open is a sign-in screen, an error or empty.
+
+What is worth a press, and what isn't:
+
+- A pricing page with Starter, Growth and Scale plans: "Compare Growth vs Scale plan features", "Which plan fits a 12-person team?" Not "Summarize the pricing".
+- A spreadsheet of Q3 expenses by vendor and category: "Total Q3 spend by category", "Find duplicate vendor charges in Q3". Not "Analyze this spreadsheet".
+- A contract draft in a Word document: "List the termination clauses in the Acme contract". Not "Review this document".
+- A pull request adding retries to an upload client: "List edge cases the upload retry misses". Not "Explain this code".
+- A folder of screenshots from a test run: "Turn the test-run screenshots into a bug report". Not "Describe these images".
+- An article about heat pumps, just after searching for installers: "Find heat pump installers near me". Not "Tell me more about heat pumps".
+- Several tabs of flights to Lisbon: "Compare the Lisbon flights by price and length". Not "Help me plan a trip".
+- A sign-in page, an error page, a blank document or an empty folder: NONE.
 
 Reply with only the lines or NONE: no numbering, bullets, quotes or explanation.`;
 
@@ -181,9 +196,16 @@ async function ask({
         firstOutputMs = performance.now() - startedAt;
       }
     },
+    // The instruction is the same on every call, so it ends a cached
+    // prefix where the provider caches only what it is told to; the tabs
+    // after it change with every call.
+    instructions: {
+      content: IDEAS_INSTRUCTION,
+      providerOptions: fast.value.cachePoint as never, // each provider's own options, typed per provider upstream
+      role: "system",
+    },
     prompt: context,
     providerOptions: fast.value.providerOptions as never, // each provider's own options, typed per provider upstream
-    system: IDEAS_INSTRUCTION,
     telemetry: activityTelemetry({
       connection: {
         displayName: config.displayName,
@@ -197,12 +219,18 @@ async function ask({
   });
   const answer = await result.text;
   const doneMs = performance.now() - startedAt;
-  const [usage, metadata] = await Promise.all([
+  const [usage, metadata, finishReason] = await Promise.all([
     result.totalUsage,
     result.providerMetadata,
+    result.finishReason,
   ]);
   costUsd = costOf(metadata);
-  const lines = ideasFrom(answer, {
+  // A line the cap cut off is half an idea.
+  const whole =
+    finishReason === "length"
+      ? answer.split("\n").slice(0, -1).join("\n")
+      : answer;
+  const lines = ideasFrom(whole, {
     instruction: IDEAS_INSTRUCTION,
     titles: tabs.map((tab) => tab.title),
   });

@@ -1,3 +1,5 @@
+import { newChatHref } from "@/client/components/window/window-href";
+import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { type Draft, isLeftEmpty } from "@/shared/drafts";
 import { atom } from "jotai";
 import { ulid } from "ulid";
@@ -126,7 +128,9 @@ export const pickNewChatProjectAtom = atom(
  * The draft made for a tab's new chat, and written into from here: for its
  * first words, and for a paste or a page opened beside it, which need a
  * draft before any words have settled into one. Filed under the project
- * picked for it, or the one the caller names. Answers with its id.
+ * picked for it, or the one the caller names. The tab's address names it in
+ * the same step, so the tab is kept naming it however soon the app quits.
+ * Answers with its id.
  */
 export const makeNewChatDraftAtom = atom(
   null,
@@ -155,6 +159,7 @@ export const makeNewChatDraftAtom = atom(
       ...boxes,
       [tabId]: { draftId: draft.id, isMadeHere: true },
     }));
+    getGroupTabRouter(tabId)?.history.replace(newChatHref(draft.id));
     return draft.id;
   },
 );

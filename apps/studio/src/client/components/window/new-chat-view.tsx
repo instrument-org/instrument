@@ -58,7 +58,6 @@ import { useGroupTab } from "./group-tab";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
-import { newChatHref } from "./window-href";
 import { arrivingNewChatTabsAtom, useWindowTabs } from "./window-tabs";
 
 /**
@@ -72,8 +71,8 @@ import { arrivingNewChatTabsAtom, useWindowTabs } from "./window-tabs";
  * is what a chat's composer carries: its group's tabs, marked in `besidePlus`,
  * and what the person attached. Its title and menu are the chat's tab's.
  *
- * Its draft is its tab group's, kept however empty it gets while the group
- * is open; closing the group throws away one that holds nothing.
+ * Its draft is its tab's, kept however empty it gets while the tab is open;
+ * closing the tab, or its group, throws away one emptied of everything.
  */
 export function NewChatView({
   draftId,
@@ -133,9 +132,8 @@ export function NewChatView({
   // The address says which draft is written here: one arriving there (from
   // a window expanded, from Drafts, from back) is taken up, its words and
   // what was attached to it put in the box, and an address naming none
-  // starts a new chat with an empty box. A draft made here is already the
-  // one the box writes into by the time the address names it, and keeps
-  // whatever was typed since. The box is read as it stands now rather than
+  // starts a new chat with an empty box. A draft made here is named in the
+  // address as it is made, and is already the one the box writes into. The box is read as it stands now rather than
   // as this render saw it, since these effects change it.
   const followAddress = useEffectEvent(() => {
     if (!draftsLoaded) {
@@ -190,29 +188,13 @@ export function NewChatView({
     },
     [bindBox, store, tabId],
   );
-  // A draft made here, by the first words or the first thing opened beside
-  // them, is put in the address, so a back or a relaunch finds it. Only one
-  // made here: a draft taken up from the address is the address's to name,
-  // and naming it again from here would fight the address as it moves on.
-  useEffect(() => {
-    const box = store.get(newChatBoxesAtom)[tabId];
-    if (
-      box?.isMadeHere === true &&
-      box.draftId !== null &&
-      box.draftId !== draftId
-    ) {
-      router.history.replace(newChatHref(box.draftId));
-    }
-  }, [boundId, draftId, router, store, tabId]);
   // As the screen goes (its group switched away from, its tab closed), words
   // typed a moment before are written now, ahead of the composer's own
-  // write as it goes, which is too late for the effect above: a draft they
-  // make is named in the address here, so the screen comes back with them.
+  // write as it goes: a draft they make is named in the tab's address as it
+  // is made (`makeNewChatDraftAtom`), so the screen comes back with them.
   // The router has stopped following its address by now, so it is told.
   const nameAsItGoes = useEffectEvent(() => {
-    const made = settleMadeDraft(store, tabId);
-    if (made !== undefined && made !== draftId) {
-      router.history.replace(newChatHref(made));
+    if (settleMadeDraft(store, tabId) !== undefined) {
       void router.load();
     }
   });

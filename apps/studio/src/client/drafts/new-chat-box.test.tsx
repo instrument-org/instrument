@@ -1,4 +1,9 @@
 import { storedWordsAtom, typedWordsAtom } from "@/client/atoms/prompt-value";
+import {
+  deleteGroupTabRouter,
+  setGroupTabRouter,
+} from "@/client/lib/group-tab-router-registry";
+import { type TabRouter } from "@/client/lib/tab-router";
 import { createStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -104,6 +109,21 @@ describe("a new chat in the Chat screen", () => {
 
     expect(made).toBe(inBox()?.id);
     expect(inBox()?.words).toBe("Before the switch");
+  });
+
+  it("names the draft in the tab's address in the step that makes it", () => {
+    const { inBox, store, type } = window();
+    const replace = vi.fn();
+    // Only the history is read: a whole router would load the route tree.
+    setGroupTabRouter(TAB, { history: { replace } } as unknown as TabRouter);
+    try {
+      type("Quit right after this");
+      expect(replace).not.toHaveBeenCalled();
+      settleMadeDraft(store, TAB);
+      expect(replace.mock.calls).toEqual([[`/chats?draft=${inBox()?.id}`]]);
+    } finally {
+      deleteGroupTabRouter(TAB);
+    }
   });
 
   it("names no draft the box took up from the address", () => {

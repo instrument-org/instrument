@@ -101,7 +101,7 @@ export interface SharedChrome {
  *
  * `INSTRUMENT_EVAL_VIEWPORT_LAYOUT` (`<width>`) starts each tab zoomed to
  * lay out that wide in the side, as the app does for a tab an agent opens
- * in a side narrower than a desktop. `INSTRUMENT_EVAL_VIEWPORT_AGENT=1`
+ * in a side narrower than a desktop, down to half size. `INSTRUMENT_EVAL_VIEWPORT_AGENT=1`
  * honors the agent's `set viewport` the way the app does for a tab on
  * screen: the page lays out at the width asked for, zoomed to fit the side,
  * its height following the side's, and a clear goes back to the default.
@@ -128,25 +128,46 @@ function pinnedViewport():
     afterMs: Number.isFinite(after) ? after * 1000 : 0,
     agent: process.env.INSTRUMENT_EVAL_VIEWPORT_AGENT === "1",
     height: Number(match[2]),
-    layout: Number.isInteger(layout) && layout > 0 ? layout : width,
+    // As the app zooms an agent's page: only in a side narrower than the
+    // layout width, and no further out than half size.
+    layout:
+      Number.isInteger(layout) && layout > width
+        ? Math.min(layout, width / 0.5)
+        : width,
     width,
   };
 }
 
 /**
+ * Device pixels per CSS px of the screen the side is on, from
+ * `INSTRUMENT_EVAL_SCREEN_SCALE`; 2 by default, a Mac's Retina screen. A
+ * page zoomed to fit is drawn at this times its zoom, as the app draws it,
+ * so a screenshot the agent takes has the app's pixels.
+ */
+function screenScale(): number {
+  const scale = Number(process.env.INSTRUMENT_EVAL_SCREEN_SCALE ?? "2");
+  return Number.isFinite(scale) && scale > 0 ? scale : 2;
+}
+
+/** The page zoom the app's browser allows (`BROWSER_ZOOM_MIN` and `BROWSER_ZOOM_MAX`). */
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 5;
+
+/**
  * The metrics that lay a page out `layout` CSS px wide in a side, zoomed to
- * fit it: the page is drawn at the side's width, and its height is the
- * side's at that zoom.
+ * fit it within the zoom the app allows: the page is drawn at the side's
+ * width, and its height is the side's at that zoom.
  */
 function zoomedMetrics(
   side: { height: number; width: number },
   layout: number,
 ) {
+  const zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, side.width / layout));
   return {
-    deviceScaleFactor: side.width / layout,
-    height: Math.round((side.height * layout) / side.width),
+    deviceScaleFactor: screenScale() * zoom,
+    height: Math.round(side.height / zoom),
     mobile: false,
-    width: layout,
+    width: Math.round(side.width / zoom),
   };
 }
 

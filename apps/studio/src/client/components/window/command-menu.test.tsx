@@ -284,7 +284,7 @@ describe("built-in pages in the command menu", () => {
     ["History", "/activity"],
     ["Memory", "/memory"],
     ["Skills", "/skills"],
-    ["Release notes", "/release-notes"],
+    ["What's new", "/release-notes"],
     ["Extensions", "/extensions"],
   ])("asks for %s as a built-in page", (label, href) => {
     const openScreen = vi.fn();

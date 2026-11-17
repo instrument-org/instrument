@@ -63,7 +63,7 @@ it("offers every built-in page by name, each part of Settings with it", () => {
         "Extensions: instrument://screen/extensions",
         "Files: instrument://screen/files",
         "Memory: instrument://screen/memory",
-        "Release notes: instrument://screen/release-notes",
+        "What's new: instrument://screen/release-notes",
         "Settings: instrument://settings/general",
         "Settings › Account: instrument://settings/account",
         "Settings › Providers: instrument://settings/providers",

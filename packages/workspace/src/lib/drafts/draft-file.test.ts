@@ -150,6 +150,64 @@ describe("a draft's file", () => {
     expect(roundTrip(written)?.context).toEqual(written.context);
   });
 
+  it("lists the places marked in files that go with the message", () => {
+    const written = draft({
+      asks: [
+        {
+          excerpt: 'const answer = "42";\n# not a comment',
+          file: "workspace:/Code/answer.ts",
+          instruction: "Why: this one?",
+          target: "lines 3-4",
+        },
+        {
+          context: "made by a script",
+          file: "/Users/someone/report.pdf",
+          instruction: "",
+          target: "page 3",
+        },
+      ],
+    });
+    expect(renderDraftFile(written)).toMatchInlineSnapshot(`
+      "---
+      id: "01KFDRAFT0000000000000001"
+      created: 2026-10-14T18:22:04Z
+      updated: 2026-10-14T18:22:04Z
+      asks:
+        - file: "workspace:/Code/answer.ts"
+          target: "lines 3-4"
+          excerpt: "const answer = \\"42\\";\\n# not a comment"
+          instruction: "Why: this one?"
+        - file: "/Users/someone/report.pdf"
+          target: "page 3"
+          instruction: ""
+          context: "made by a script"
+      ---
+
+      Find a quiet dishwasher.
+      "
+    `);
+    expect(roundTrip(written)?.asks).toEqual(written.asks);
+    expect(isEmptyDraft({ ...written, words: "" })).toBe(false);
+  });
+
+  it("leaves out an ask that names no file or no place in it", () => {
+    const text = [
+      "---",
+      'id: "d1"',
+      "asks:",
+      '  - target: "line 1"',
+      '  - file: "/a.md"',
+      '  - file: "/b.md"',
+      '    target: "line 2"',
+      "---",
+      "",
+      "",
+    ].join("\n");
+    expect(parseDraftFile(text, { at: AT })?.asks).toEqual([
+      { file: "/b.md", instruction: "", target: "line 2" },
+    ]);
+  });
+
   it.each([
     ["words as typed", "Two spaces  and a tab\there."],
     ["blank lines inside", "One.\n\nTwo.\n\n\nThree."],

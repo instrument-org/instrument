@@ -6,7 +6,15 @@ import {
   type ChatId,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
-import { atom, useAtomValue, useSetAtom, useStore } from "jotai";
+import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
+import { type Draft, type DraftAsk } from "@/shared/drafts";
+import {
+  atom,
+  type SetStateAction,
+  useAtomValue,
+  useSetAtom,
+  useStore,
+} from "jotai";
 import { useContext, useEffect, useRef } from "react";
 
 import { groupOnScreenAtom, windowTabsAtom } from "./window-tabs";
@@ -25,31 +33,66 @@ export type AskDestination =
  * One place in a file the person marked for Instrument, waiting to be sent:
  * the file, where in it as a reader would say it, what is there, and what
  * they typed for it. It waits on its file's Ask until moved into a composer,
- * where it is a pill until that composer sends. Held in memory for the
- * window alone; nothing keeps them past a restart.
+ * where it is a pill until that composer sends. One moved into a new chat's
+ * draft is kept with the draft, so it comes back with it after a quit and
+ * shows in every window; the rest are held in memory for the window alone.
  */
-export interface StagedAsk {
-  /** What the surface knows about the place that its text alone does not say: that a script makes it, say. */
-  context?: string;
-  createdAt: number;
+export interface StagedAsk extends DraftAsk {
   /** The composer it was moved into; absent while it waits on its file's Ask. */
   destination?: AskDestination;
-  /** The words or source at that place, trimmed; nothing for a whole file. */
-  excerpt?: string;
-  id: string;
-  /** What the person typed for it, which may be nothing. */
-  instruction: string;
-  /** The file, by its path on this computer. */
-  path: string;
-  /** Where in the file: "lines 12-14", "Heading · line 40", "page 3", "whole file". */
-  target: string;
 }
 
 /** The longest excerpt carried with an ask; past it the excerpt is cut, since the agent reads the file itself. */
 const EXCERPT_MAX = 1500;
 
-/** Every staged ask in the window, oldest first. */
-export const stagedAsksAtom = atom<StagedAsk[]>([]);
+/** The asks this window holds in memory: waiting on their files, or moved into a chat's composer. */
+const heldAsksAtom = atom<StagedAsk[]>([]);
+
+/**
+ * Every staged ask, oldest first: the window's own (`heldAsksAtom`), and
+ * those moved into a draft, read from the draft and written into it.
+ */
+export const stagedAsksAtom = atom(
+  (get) =>
+    [...get(heldAsksAtom), ...get(draftsAtom).flatMap(asksMovedInto)].toSorted(
+      (one, other) => one.createdAt - other.createdAt,
+    ),
+  (get, set, update: SetStateAction<StagedAsk[]>) => {
+    const before = get(stagedAsksAtom);
+    const next = typeof update === "function" ? update(before) : update;
+    set(
+      heldAsksAtom,
+      next.filter((ask) => ask.destination?.kind !== "draft"),
+    );
+    const draftOf = (ask: StagedAsk) =>
+      ask.destination?.kind === "draft" ? ask.destination.draftId : undefined;
+    const touched = new Set(
+      [...before, ...next].flatMap((ask) => draftOf(ask) ?? []),
+    );
+    for (const id of touched) {
+      const asks = next.flatMap((ask): DraftAsk[] => {
+        if (draftOf(ask) !== id) {
+          return [];
+        }
+        const { destination: _moved, ...kept } = ask;
+        return [kept];
+      });
+      set(updateDraftAtom, {
+        id,
+        update: ({ asks: _was, ...draft }) =>
+          asks.length > 0 ? { ...draft, asks } : draft,
+      });
+    }
+  },
+);
+
+/** The asks kept with a draft, as staged asks moved into it. */
+function asksMovedInto(draft: Draft): StagedAsk[] {
+  return (draft.asks ?? []).map((ask) => ({
+    ...ask,
+    destination: { draftId: draft.id, kind: "draft" },
+  }));
+}
 
 /** The file whose Ask has its list of waiting asks open, if any: a pin on a page opens it too. */
 export const askTrayAtom = atom<null | string>(null);

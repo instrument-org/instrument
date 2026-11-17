@@ -18,10 +18,10 @@ import { reasoningProviderOptions } from "./reasoning-effort";
 
 /**
  * The model a side call on an Instrument account asks for: Instrument's fast
- * model. Auto stands in until the API declares a dedicated one, which only
- * this line changes.
+ * model, which the API serves by id and lists nowhere, pinned apart from
+ * Auto so it stays the fast one whatever Auto moves to.
  */
-export const INSTRUMENT_FAST_MODEL = OUR_MODELS.text.id;
+export const INSTRUMENT_FAST_MODEL = `${OUR_MODELS.prefix}/auto-fast`;
 
 /**
  * Claude Code's alias for its newest Haiku, which the CLI resolves itself,

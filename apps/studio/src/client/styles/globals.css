@@ -120,6 +120,13 @@ body {
   [data-tab-held] body {
     pointer-events: none;
   }
+
+  /* Something held by the pointer over a place where letting go would change
+     nothing, as the system's drag says with its own pointer. */
+  [data-drop-refused],
+  [data-drop-refused] * {
+    cursor: not-allowed !important;
+  }
 }
 
 /* =========================

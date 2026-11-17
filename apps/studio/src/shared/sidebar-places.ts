@@ -21,9 +21,19 @@ export const NO_SIDEBAR_CHANGES: SidebarPlaces = {
   order: [],
 };
 
-export function pinPlace(places: SidebarPlaces, path: string): SidebarPlaces {
+/**
+ * A folder pinned, at the end of Pinned, or at its place in `order`: the
+ * rows' paths as they stand once it is pinned, which moves a row pinned
+ * already.
+ */
+export function pinPlace(
+  places: SidebarPlaces,
+  path: string,
+  order?: readonly string[],
+): SidebarPlaces {
   return {
     ...places,
+    ...(order ? { order: [...order] } : {}),
     pinned: places.pinned.includes(path)
       ? places.pinned
       : [...places.pinned, path],
@@ -106,7 +116,10 @@ export function adoptSystemSidebar(
   system: readonly string[],
   defaults: readonly string[],
 ): SidebarPlaces {
-  const adopted = system.reduce(pinPlace, places);
+  const adopted = system.reduce(
+    (pinned, path) => pinPlace(pinned, path),
+    places,
+  );
   return {
     ...defaults
       .filter((path) => !system.includes(path) && !places.pinned.includes(path))

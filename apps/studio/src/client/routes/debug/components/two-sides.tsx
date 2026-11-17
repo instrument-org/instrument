@@ -736,9 +736,9 @@ const DRAGS: {
     }),
   },
   {
-    caption: "A tab held over its own lone side, both ends shown",
+    caption: "A tab held over its own lone side's middle",
     main: ONE_SIDE,
-    note: "From the drag's start, so the ends are found before the pointer reaches them.",
+    note: "Nothing shows: a page takes no tab, and only its outer edge splits.",
     scene: overSide({
       across: 0.5,
       group: MAIN,
@@ -750,9 +750,9 @@ const DRAGS: {
   {
     caption: "A lone side's right half lit for a split",
     main: ONE_SIDE,
-    note: "As soon as the pointer is in the page's end, with no wait.",
+    note: "Once the pointer is at the page's outer edge, with a line down it.",
     scene: overSide({
-      across: 0.94,
+      across: 0.995,
       group: MAIN,
       held: HELD,
       heldIn: { isAlone: false, side: 0 },
@@ -763,7 +763,7 @@ const DRAGS: {
     caption: "A lone chat's right half lit for a split",
     main: ONE_SIDE_AT_CHAT,
     scene: overSide({
-      across: 0.94,
+      across: 0.995,
       group: MAIN,
       held: HELD,
       heldIn: { isAlone: false, side: 0 },
@@ -774,7 +774,7 @@ const DRAGS: {
     caption: "A lone side's left half lit for a split",
     main: ONE_SIDE,
     scene: overSide({
-      across: 0.06,
+      across: 0.005,
       group: MAIN,
       held: HELD,
       heldIn: { isAlone: false, side: 0 },
@@ -782,20 +782,22 @@ const DRAGS: {
     }),
   },
   {
-    caption: "A tab from another group joining a lone side",
+    caption: "Files from another app over a lone side's middle",
     main: ONE_SIDE,
+    note: "They open in a new tab of the side.",
     scene: overSide({
       across: 0.5,
       group: MAIN,
-      held: heldTab("g-lisbon", "gl-maps"),
+      held: HELD_FILES,
+      input: "native",
       side: 0,
     }),
   },
   {
-    caption: "The other side's chat lit to take a tab",
+    caption: "The other side's chat lit to take a tab at its edge",
     main: TWO_SIDES,
     scene: overSide({
-      across: 0.5,
+      across: 0.995,
       group: MAIN,
       held: HELD,
       heldIn: { isAlone: false, side: 0 },
@@ -803,10 +805,10 @@ const DRAGS: {
     }),
   },
   {
-    caption: "Files over a lone chat's end",
+    caption: "Files over a lone chat's edge",
     main: ONE_SIDE_AT_CHAT,
     scene: overSide({
-      across: 0.94,
+      across: 0.995,
       group: MAIN,
       held: HELD_FILES,
       input: "native",

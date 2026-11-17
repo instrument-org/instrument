@@ -3,12 +3,12 @@ import { AddressMark } from "@/client/components/window/app-chip";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
-import { SquareHalfIcon } from "@phosphor-icons/react/SquareHalf";
 import { clamp } from "radashi";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "../apps-by-slug";
+import { springFlashAtom } from "../pinned-drops";
 import { GroupRow } from "../group-sidebar";
 import { TabMark } from "../row-half";
 import { useTabTitle } from "../tab-title";
@@ -16,13 +16,7 @@ import { type TabGroup } from "../tab-groups";
 import { useWindowTabs } from "../window-tabs";
 import { ownLinkInAir } from "./content-drag";
 import { heldTabsOf } from "./held-tabs";
-import {
-  type Point,
-  pullOf,
-  type Rect,
-  type SplitTarget,
-  splitTargetRect,
-} from "./landing";
+import { type Rect } from "./landing";
 import { type Drag, dragAtom, dragPoint, useDragFrame } from "./session";
 import { DROP_LOOK, HELD_LOOK } from "./tone";
 import { outcomeOf } from "./letting-go";
@@ -43,46 +37,19 @@ const OWN_PICTURE_LINE_GRAB_PX = { x: -10, y: -54 };
 /** How wide a whole group's row is held, where no list says. */
 const ROW_WIDTH_PX = 240;
 
-/** How far a split target leans toward the pointer at its strongest pull, at most. */
-const LEAN_PX = 18;
-
-/** How much a split target grows at its strongest pull. */
-const GROW = 0.08;
-
-/** How far what is held is drawn toward a split target at its strongest pull, at most. */
-const DRAW_PX = 40;
-
 /** How long what is held takes to move between keeping to the sidebar and riding free, in ms. */
 const PULL_FREE_MS = 180;
 
-/** The split target pulling hardest on a point, and how hard. */
-function strongestPull(targets: readonly SplitTarget[], point: Point) {
-  let best: { pull: number; target: SplitTarget } | undefined;
-  for (const target of targets) {
-    const pull = pullOf(target, point);
-    if (pull > 0 && (!best || pull > best.pull)) {
-      best = { pull, target };
-    }
-  }
-  return best;
-}
-
-/** The middle of a rect. */
-function middleOf(rect: Rect): Point {
-  return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-}
-
 /**
- * What a drag draws over the window that nothing else draws: a lone side's
- * split targets, from its start, each leaning toward the pointer as it
- * nears and taking what is held short of touching it, the one taken held
- * at its strongest; a side, the half a split takes, or a new tab lit; and
- * at the pointer, the whole drag, what is held raised with a
- * line under it saying what letting go does. Only a tab's own strip, which
- * stands the tab at the pointer among its tabs, goes without it; under the
- * system's own picture of its drag goes the line alone, and nothing while
- * main shows the window's. Over a strip that stands still, the line in its
- * gap, or the tab what is held opens in, ringed.
+ * What a drag draws over the window that nothing else draws, and only once
+ * the pointer is where letting go would land: a side, the half a split
+ * takes, or a new tab lit, with a line down the group's outer edge where
+ * the pointer reached it; the line in a strip's gap, or in Pinned's, and
+ * the tab or the row of Pinned what is held goes into, ringed; and at the
+ * pointer, what is held raised with a line under it saying what letting go
+ * does. Only a tab's own strip, which stands the tab at the pointer among
+ * its tabs, goes without it; under the system's own picture of its drag
+ * goes the line alone, and nothing while main shows the window's.
  */
 export function DragLayer({
   chatTitles,
@@ -94,13 +61,12 @@ export function DragLayer({
 }) {
   const drag = useAtomValue(dragAtom);
   const zoom = useAtomValue(zoomAtom);
+  const isFlashing = useAtomValue(springFlashAtom);
   const landing = drag?.landing;
   const lit =
     landing?.kind === "side" || landing?.kind === "newTab"
       ? landing.lit
       : undefined;
-  const splitSide =
-    landing?.kind === "side" && landing.split ? landing.side : undefined;
   // The place last lit, which the light fades out over.
   const [shown, setShown] = useState<Rect>();
   if (lit && JSON.stringify(lit) !== JSON.stringify(shown)) {
@@ -114,19 +80,23 @@ export function DragLayer({
     return null;
   }
   const isLit = lit !== undefined;
+  // A row's ring goes out for a moment just before its folder opens.
+  const ringed =
+    landing?.kind === "replace" || (landing?.kind === "into" && !isFlashing)
+      ? landing.lit
+      : undefined;
+  const line =
+    landing?.kind === "strip" || landing?.kind === "pin"
+      ? landing.line
+      : landing?.kind === "side"
+        ? landing.edge
+        : undefined;
   return (
     <div
       aria-hidden
       className="pointer-events-none fixed inset-0 z-[60] overflow-hidden"
       data-drag-layer=""
     >
-      {drag.hints?.map((target) => (
-        <SplitTargetCard
-          isTaken={splitSide === target.side}
-          key={target.side}
-          target={target}
-        />
-      ))}
       {shown && (
         <div
           className={cn(
@@ -143,24 +113,25 @@ export function DragLayer({
           }}
         />
       )}
-      {landing?.kind === "strip" && landing.line && (
-        <StripLine
-          key={`${landing.group}:${String(landing.side)}`}
-          line={landing.line}
+      {line && (
+        <DropLine
+          key={landing?.kind === "side" ? "edge" : landing?.kind}
+          line={line}
         />
       )}
-      {landing?.kind === "replace" && (
+      {ringed && (
         <div
           className={cn(
-            "absolute animate-in rounded-xl duration-120 ease-out fade-in-0 motion-reduce:animate-none",
+            "absolute animate-in duration-120 ease-out fade-in-0 motion-reduce:animate-none",
+            landing?.kind === "into" ? "rounded-md" : "rounded-xl",
             DROP_LOOK.open,
           )}
-          data-drop-replace=""
+          data-drop-ring={landing?.kind}
           style={{
-            height: landing.lit.height / zoom,
-            left: landing.lit.left / zoom,
-            top: landing.lit.top / zoom,
-            width: landing.lit.width / zoom,
+            height: ringed.height / zoom,
+            left: ringed.left / zoom,
+            top: ringed.top / zoom,
+            width: ringed.width / zoom,
           }}
         />
       )}
@@ -170,16 +141,16 @@ export function DragLayer({
 }
 
 /**
- * The line in a strip's gap where what came from elsewhere lands, as the
- * bookmarks bar draws its own (`BarDropLine`), gliding from gap to gap in
- * 90ms rather than jumping while it stays in one strip.
+ * The one line a drop draws: in a strip's gap, between Pinned's rows, or
+ * down a group's outer edge, as the bookmarks bar draws its own
+ * (`BarDropLine`), gliding from gap to gap in 90ms rather than jumping.
  */
-function StripLine({ line }: { line: Rect }) {
+function DropLine({ line }: { line: Rect }) {
   const zoom = useAtomValue(zoomAtom);
   return (
     <span
-      className="absolute rounded-full bg-primary transition-[left] duration-90 ease-out motion-reduce:transition-none"
-      data-strip-line=""
+      className="absolute animate-in rounded-full bg-primary transition-[left,top] duration-90 ease-out fade-in-0 motion-reduce:transition-none"
+      data-drop-line=""
       style={{
         height: line.height / zoom,
         left: line.left / zoom,
@@ -191,82 +162,11 @@ function StripLine({ line }: { line: Rect }) {
 }
 
 /**
- * A split target at one end of a lone side's page: a raised card short of
- * the page's height, naming the split it makes. It fades in where it stands
- * as the drag starts, leans toward the pointer and grows as the pointer
- * nears (`pullOf`), and holds at its strongest while it has taken what is
- * held.
- */
-function SplitTargetCard({
-  isTaken,
-  target,
-}: {
-  isTaken: boolean;
-  target: SplitTarget;
-}) {
-  const zoom = useAtomValue(zoomAtom);
-  const lean = useRef<HTMLDivElement>(null);
-  const rect = splitTargetRect(target);
-  const isLeft = target.side === 0;
-  const follow = () => {
-    const element = lean.current;
-    if (!element) {
-      return;
-    }
-    const pull = isTaken ? 1 : pullOf(target, dragPoint);
-    const middle = middleOf(rect);
-    const x = clamp((dragPoint.x - middle.x) * 0.15, -LEAN_PX, LEAN_PX) * pull;
-    const y = clamp((dragPoint.y - middle.y) * 0.08, -LEAN_PX, LEAN_PX) * pull;
-    element.style.transform = `translate(${x / zoom}px, ${y / zoom}px) scale(${1 + GROW * pull})`;
-    element.toggleAttribute("data-near", pull > 0);
-  };
-  useLayoutEffect(follow);
-  useDragFrame(follow);
-  return (
-    <div
-      className="absolute animate-in duration-150 ease-out fade-in-0 motion-reduce:animate-none"
-      data-split-target={isLeft ? "left" : "right"}
-      style={{
-        height: rect.height / zoom,
-        left: rect.left / zoom,
-        top: rect.top / zoom,
-        width: rect.width / zoom,
-      }}
-    >
-      <div
-        className={cn(
-          "group/target grid size-full place-items-center rounded-2xl p-2 transition-[transform,opacity] duration-150 ease-out motion-reduce:transition-none",
-          HELD_LOOK,
-        )}
-        ref={lean}
-      >
-        <div className="relative flex size-full flex-col items-center justify-center gap-2 rounded-xl border-[1.5px] border-dashed border-foreground/15 text-[13px] font-medium text-muted-foreground group-data-near/target:border-transparent group-data-near/target:text-foreground">
-          <div
-            className={cn(
-              "absolute -inset-[1.5px] rounded-xl opacity-0 group-data-near/target:opacity-100",
-              DROP_LOOK.open,
-            )}
-          />
-          <SquareHalfIcon
-            className={cn("size-5", isLeft && "-scale-x-100")}
-            weight="duotone"
-          />
-          <span className="px-2 text-center">
-            {isLeft ? "Add left split" : "Add right split"}
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
  * What goes with the pointer: a tab, files or a link as a raised chip;
  * a whole group as its row, keeping to the sidebar's list until it is
  * pulled free; and a whole group pulled free, where letting go makes a
  * window of its own, as a picture of that window. Under it, what letting
  * go does (`outcomeOf`), alone under the system's own picture of a drag.
- * Near a split target, it is drawn a little toward it.
  */
 function AtPointer({
   chatTitles,
@@ -302,7 +202,9 @@ function AtPointer({
     !isGroup &&
     (landing?.kind === "strip" ||
       landing?.kind === "replace" ||
-      landing?.kind === "sidebar");
+      landing?.kind === "sidebar" ||
+      landing?.kind === "pin" ||
+      landing?.kind === "into");
   // Stood again every frame from the pointer, never by drawing again.
   const stand = () => {
     const element = ref.current;
@@ -335,7 +237,6 @@ function AtPointer({
       element.style.width = `${list.width / zoom - 16}px`;
       return;
     }
-    const draw = isWindow || isPulledToSplit() ? undefined : drawnToward();
     const grab = isNative
       ? ownLinkInAir()
         ? OWN_PICTURE_LINE_GRAB_PX
@@ -353,41 +254,27 @@ function AtPointer({
         ? `${list ? list.width / zoom - 16 : ROW_WIDTH_PX}px`
         : "";
     keepInWindow(element, {
-      left: (dragPoint.x - grab.x + (draw?.x ?? 0)) / zoom,
-      pointer: (dragPoint.x + (draw?.x ?? 0)) / zoom,
-      top: (dragPoint.y - grab.y + (draw?.y ?? 0)) / zoom,
+      left: (dragPoint.x - grab.x) / zoom,
+      pointer: dragPoint.x / zoom,
+      top: (dragPoint.y - grab.y) / zoom,
     });
-  };
-  /** Whether a split has taken what is held, which then rides at the pointer itself. */
-  const isPulledToSplit = () =>
-    landing?.kind === "side" && landing.split === true;
-  /** How far toward the split target pulling on it what is held is drawn. */
-  const drawnToward = () => {
-    const pulling = strongestPull(drag.hints ?? [], dragPoint);
-    if (!pulling) {
-      return undefined;
-    }
-    const middle = middleOf(splitTargetRect(pulling.target));
-    const toward = { x: middle.x - dragPoint.x, y: middle.y - dragPoint.y };
-    const length = Math.hypot(toward.x, toward.y) || 1;
-    const by = Math.min(length * 0.25, DRAW_PX) * pulling.pull;
-    return { x: (toward.x / length) * by, y: (toward.y / length) * by };
   };
   useLayoutEffect(stand);
   useDragFrame(stand);
   if (!isShown) {
     return null;
   }
-  const { line } = outcomeOf(
-    held,
-    landing,
-    held.kind === "group"
-      ? layoutOf(held.group).sides.reduce(
-          (count, side) => count + side.tabs.length,
-          0,
-        )
-      : 1,
-  );
+  const { line } = outcomeOf(held, landing, {
+    groupTitle: (group) =>
+      entries.find((each) => each.group === group)?.title || undefined,
+    tabCount:
+      held.kind === "group"
+        ? layoutOf(held.group).sides.reduce(
+            (count, side) => count + side.tabs.length,
+            0,
+          )
+        : 1,
+  });
   if (isNative) {
     return line === undefined ? null : (
       <Riding line={line} riderRef={ref}>

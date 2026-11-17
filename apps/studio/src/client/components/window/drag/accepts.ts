@@ -9,13 +9,11 @@ import { type Held, type Landing } from "./types";
  *   attaches files and takes a link's words;
  * - `text`: any other field that takes words, which takes a link;
  * - `folder`: a folder in Files, which takes files over the whole page;
- * - `place`: a folder in Files while a place of its sidebar is held, which
- *   it never takes;
  * - `over`: something standing over the page there, as a dialog does, or a
  *   page in a frame of its own, which hears the drag itself;
  * - nothing for the page's own ground.
  */
-export type UnderPoint = "box" | "folder" | "over" | "place" | "text";
+export type UnderPoint = "box" | "folder" | "over" | "text";
 
 /** What a side shows up: a web page, which takes content itself; a new tab nobody has written in; anything else. */
 export type SideShows = "newTab" | "other" | "site";
@@ -25,15 +23,18 @@ export type SideShows = "newTab" | "other" | "site";
  * page takes it itself through the system's drag, or nothing. The one rule
  * for every target over a page, in precedence order:
  *
- * 1. A split target at a lone side's end, drawn over the page, makes a side.
+ * 1. The group's outer edge (`sideZoneAt`'s `edge`) makes a side of a lone
+ *    side's end, or joins the side there of two.
  * 2. Content (files or a link held by the system's drag) goes to whatever
  *    in the page takes it: a box, a field, a web page, a folder, or
  *    anything standing over the page.
  * 3. A new tab nobody has written in turns into files or a link.
- * 4. Anything else joins the side it is held over, as a tab does.
+ * 4. Anything else does what the side under the pointer does with it
+ *    (`sideZoneAt`): content joins it, a whole group splits a lone side by
+ *    the half under the pointer, and a tab lands nowhere.
  *
- * A piece of the window (a tab, a group, a bookmark) skips step 2: it is
- * never handed to a page.
+ * A piece of the window (a tab, a group, a bookmark, a place) skips step 2:
+ * it is never handed to a page.
  */
 export function pageLandingOf({
   group,
@@ -56,8 +57,17 @@ export function pageLandingOf({
   under: UnderPoint | undefined;
   zone: SideZone | undefined;
 }): Landing | "native" | undefined {
-  if (zone?.kind === "split") {
-    return { group, kind: "side", lit: zone.lit, side: zone.side, split: true };
+  const landingOf = (of: SideZone): Landing => ({
+    ...(of.edge ? { edge: of.edge } : {}),
+    group,
+    ...(of.kind === "join" && of.isLone ? { isLone: true } : {}),
+    kind: "side",
+    lit: of.lit,
+    side: of.side,
+    split: of.kind === "split",
+  });
+  if (zone?.edge) {
+    return landingOf(zone);
   }
   const isContent =
     input === "native" && (held.kind === "files" || held.kind === "link");
@@ -72,9 +82,7 @@ export function pageLandingOf({
   ) {
     return { group, kind: "newTab", lit: page, tab };
   }
-  return zone
-    ? { group, kind: "side", lit: zone.lit, side: zone.side, split: false }
-    : undefined;
+  return zone ? landingOf(zone) : undefined;
 }
 
 /** Whether the page under the point takes content of a kind itself. */

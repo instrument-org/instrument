@@ -209,11 +209,12 @@ it("lands a sidebar row nowhere on its own group's strip", async () => {
 });
 
 it.each([
-  { at: 200, side: 0, sides: 1 },
-  { at: 600, side: 1, sides: 2 },
+  { at: 120, expected: { side: 0, split: true }, sides: 1 },
+  { at: 300, expected: { side: 1, split: true }, sides: 1 },
+  { at: 600, expected: undefined, sides: 2 },
 ] as const)(
-  "joins a sidebar row held over the middle of a side to that side ($sides sides)",
-  async ({ at, side, sides }) => {
+  "opens a sidebar row held over a group's page beside it, on the half under the pointer, only beside a lone side (x $at, $sides sides)",
+  async ({ at, expected, sides }) => {
     await renderInBrowser(<Pages sides={sides} />);
     pressToDrag(
       { button: 0, clientX: 10, clientY: ROW_Y, isPrimary: true },
@@ -224,11 +225,11 @@ it.each([
     );
     pointer("pointermove", 10, ROW_Y - 40);
     pointer("pointermove", at, 400);
-    expect(currentDrag()?.landing).toMatchObject({
-      group: "up",
-      kind: "side",
-      side,
-      split: false,
-    });
+    const { landing } = currentDrag() ?? {};
+    expect(
+      landing?.kind === "side"
+        ? { group: landing.group, side: landing.side, split: landing.split }
+        : landing,
+    ).toEqual(expected && { group: "up", ...expected });
   },
 );

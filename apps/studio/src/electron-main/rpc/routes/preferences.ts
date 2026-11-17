@@ -98,11 +98,15 @@ function changeSidebarPlaces(change: (places: SidebarPlaces) => SidebarPlaces) {
   store.set("sidebarPlaces", change(store.get("sidebarPlaces")));
 }
 
-/** Pins a folder to the Files sidebar, or puts back a default unpinned before. */
+/**
+ * Pins a folder to the Files sidebar, or puts back a default unpinned
+ * before; with `order`, the Pinned rows' paths as they stand after it, which
+ * also moves a row already pinned.
+ */
 const pinSidebarPlace = base
-  .input(z.object({ path: z.string() }))
+  .input(z.object({ order: z.array(z.string()).optional(), path: z.string() }))
   .handler(({ input }) => {
-    changeSidebarPlaces((places) => pinPlace(places, input.path));
+    changeSidebarPlaces((places) => pinPlace(places, input.path, input.order));
   });
 
 /** Takes a place off the Files sidebar's Pinned section; a default is hidden until restored. */

@@ -56,13 +56,9 @@ interface Gesture {
  * element is simply not draggable rather than starting a drag that carries
  * nothing.
  */
-export function useFileDrag(
-  file: DraggedFiles | undefined,
-  /** Whether it is a place of Files' sidebar, which no folder of Files takes. */
-  { isPlace = false }: { isPlace?: boolean } = {},
-) {
+export function useFileDrag(file: DraggedFiles | undefined) {
   const canDrag = Boolean(file && window.api.startFileDrag);
-  const gesture = useDragGesture({ isPlace });
+  const gesture = useDragGesture();
 
   return {
     draggable: canDrag,
@@ -161,7 +157,7 @@ function prepare(file: FileRef | undefined) {
  * One press at a time, from the pointer going down on a file to either the
  * drag being handed to the OS or the pointer coming back up.
  */
-function useDragGesture({ isPlace = false, isRows = false } = {}) {
+function useDragGesture({ isRows = false } = {}) {
   // Cancelling the dragstart keeps Blink out of a drag state, so it never
   // applies its own rule that a drag suppresses the click after it. A press and
   // release on one element is a click by every measure Blink has left, which
@@ -224,10 +220,7 @@ function useDragGesture({ isPlace = false, isRows = false } = {}) {
         // Both set before the drag exists rather than after, so a release quick
         // enough to beat the OS still finds them.
         const paths = [file.hostPath, ...(file.others ?? [])];
-        trackSelfFileDrag(isRows || isPlace ? paths : [], {
-          from: gesture.source,
-          isPlace,
-        });
+        trackSelfFileDrag(isRows ? paths : [], { from: gesture.source });
         draggedRef.current = true;
         window.api.startFileDrag?.(paths);
       };

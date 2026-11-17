@@ -95,108 +95,35 @@ export function onPages(point: Point, pages: readonly Rect[]): Point {
   };
 }
 
-/** How far a split target stands in from its end of a lone side's page. */
-const TARGET_INSET_PX = 16;
+/**
+ * How far in from a group's outer edge the pointer arms a split, or joins
+ * the side at that edge of a group of two: the outer edge alone, so
+ * whatever the page takes itself (a folder in Files, a message box) keeps
+ * the rest of it.
+ */
+export const EDGE_PX = 24;
+
+/** How far in from that edge a split once armed holds, so a hand resting on the edge does not flicker it. */
+const EDGE_KEEP_PX = 40;
+
+/** How far in from an outer edge the line down it stands, how far short of the page's ends, and how wide. */
+const EDGE_LINE_INSET_PX = 3;
+const EDGE_LINE_END_PX = 12;
+const EDGE_LINE_WIDTH_PX = 3;
 
 /**
- * How near the pointer comes to a split target before the target leans
- * toward it and what is held is drawn toward the target (`pullOf`).
+ * What is held, in terms of the group the sides are: what kind of thing it
+ * is, the side it stands on there, if any, and whether it is that side's
+ * only tab. Content is files, a link, a place or a bookmark, which open as
+ * tabs; a tab and a whole group are pieces of the window, which land only in
+ * a strip or a split.
  */
-const MAGNET_PX = 140;
-
-/**
- * How near the pointer comes to a split target before the target takes what
- * is held: short of touching it, so the target pulls the last of the way.
- */
-const CAPTURE_PX = 36;
-
-/**
- * How near a lone side's end the pointer comes before that end takes what
- * is held at any height, so a tab flung to the window's edge still splits.
- */
-const END_PX = TARGET_INSET_PX + 8;
-
-/**
- * Where something held can make a lone side's end a side of its own: the
- * page, which the target is drawn in, and the end (0 the left).
- */
-export interface SplitTarget {
-  page: Rect;
-  side: 0 | 1;
-}
-
-/**
- * A split target as drawn at rest: a card short of the page's height, in
- * from its end, centered down it. Narrower than the half it makes and
- * shorter than the page, so it reads as a place to aim for.
- */
-export function splitTargetRect({ page, side }: SplitTarget): Rect {
-  const width = Math.min(clamp(page.width * 0.18, 112, 220), page.width / 3);
-  const height = Math.min(
-    clamp(page.height * 0.5, 160, 360),
-    page.height - TARGET_INSET_PX * 2,
-  );
-  return {
-    height,
-    left:
-      side === 0
-        ? page.left + TARGET_INSET_PX
-        : page.left + page.width - TARGET_INSET_PX - width,
-    top: page.top + (page.height - height) / 2,
-    width,
-  };
-}
-
-/** How far a point is from a rect, nothing inside it. */
-function distanceTo(rect: Rect, { x, y }: Point) {
-  const dx = Math.max(rect.left - x, 0, x - (rect.left + rect.width));
-  const dy = Math.max(rect.top - y, 0, y - (rect.top + rect.height));
-  return Math.hypot(dx, dy);
-}
-
-/**
- * How strongly a split target draws what is held toward it, from 0 at the
- * edge of its pull (`MAGNET_PX` away) to 1 where it takes it (`CAPTURE_PX`).
- */
-export function pullOf(target: SplitTarget, point: Point) {
-  const distance = distanceTo(splitTargetRect(target), point);
-  return clamp((MAGNET_PX - distance) / (MAGNET_PX - CAPTURE_PX), 0, 1);
-}
-
-/** What is held, in terms of the group the sides are: the side it stands on there, if any, and whether it is that side's only tab. */
 export interface HeldInGroup {
+  kind: "content" | "group" | "tab";
   /** The side of this group it stands on now. */
   side?: 0 | 1;
   /** Whether it is the only tab of the side it stands on. */
   isAlone?: boolean;
-}
-
-/** Whether what is held may make a lone side's end a side of its own: anything but that side's only tab. */
-function maySplit(held: HeldInGroup) {
-  return !(held.side === 0 && held.isAlone === true);
-}
-
-/**
- * The targets at a lone side's ends where what is held would make a side
- * of its own, left first: none over two sides, or for a side's only tab.
- * What a drag shows from its start, so the ends are found before the
- * pointer reaches them.
- */
-export function splitTargetsOf({
-  held,
-  sides,
-}: {
-  held: HeldInGroup;
-  sides: readonly Rect[];
-}): SplitTarget[] {
-  const [page] = sides;
-  if (!page || sides.length !== 1 || !maySplit(held)) {
-    return [];
-  }
-  return [
-    { page, side: 0 },
-    { page, side: 1 },
-  ];
 }
 
 /** The half of a lone side's page a side made at an end would take. */
@@ -207,65 +134,103 @@ function halfOf(page: Rect, side: 0 | 1): Rect {
     : { ...page, left: page.left + half, width: half };
 }
 
+/** The line down a page's edge at one end. */
+function edgeLineOf(page: Rect, side: 0 | 1): Rect {
+  return {
+    height: page.height - EDGE_LINE_END_PX * 2,
+    left:
+      side === 0
+        ? page.left + EDGE_LINE_INSET_PX
+        : page.left + page.width - EDGE_LINE_INSET_PX - EDGE_LINE_WIDTH_PX,
+    top: page.top + EDGE_LINE_END_PX,
+    width: EDGE_LINE_WIDTH_PX,
+  };
+}
+
 /**
- * What a side's page does with something held over it at a point: it joins
- * a side as its last tab, the side lit whole; or it makes a side of its own
- * of one end of a group of one side, that half lit. A lone side's end takes
- * what is held once the pointer is within `CAPTURE_PX` of its target, or
- * at the page's very end, and keeps it while the pointer stays in the half
- * the new side takes (`lit`), so a hand wandering over the side sliding in
- * never loses it. None where it would change nothing, as a tab over its own
- * side's page, or where a side may not be made, as from a side's only tab.
+ * What a side's page does with something held over it at a point: make a
+ * side of its own of one half of a group of one side (`split`), that half
+ * lit; or join a side, the side lit (`join`). `edge` is the line down the
+ * group's outer edge, where the pointer is at it.
+ *
+ * - At a group's outer edge (`EDGE_PX` in, and the margin past it, which
+ *   `onPages` brings onto the page), a lone side splits at that end, and of
+ *   two sides the side at that end takes it. Nothing for a side's only tab
+ *   splitting its own side, or for a tab already on the side at that edge.
+ * - Anywhere else on the pages, content joins the side under the pointer;
+ *   a whole group makes a side of its own of the half of a lone side under
+ *   the pointer; and a tab lands nowhere, since a tab is a piece of the
+ *   window and never something a page takes.
  */
 export type SideZone =
-  | { kind: "join"; lit: Rect; side: 0 | 1 }
-  | { kind: "split"; lit: Rect; side: 0 | 1 };
+  | {
+      edge?: Rect;
+      /** Joining the group's only side, as a new tab of it. */
+      isLone?: true;
+      kind: "join";
+      lit: Rect;
+      side: 0 | 1;
+    }
+  | { edge?: Rect; kind: "split"; lit: Rect; side: 0 | 1 };
 
 export function sideZoneAt({
+  armed,
   held,
-  lit,
   point,
   sides,
 }: {
+  /** The edge the last measure was at, which holds a little farther in. */
+  armed?: 0 | 1 | undefined;
   held: HeldInGroup;
-  /** The end a split already lit, which keeps it over its whole half. */
-  lit?: 0 | 1;
   point: Point;
   /** Each side's page, left first, in the window's px. */
   sides: readonly Rect[];
 }): SideZone | undefined {
   const at = sides.findIndex((rect) => holds(rect, point));
   const rect = sides[at];
-  if (!rect) {
+  const first = sides[0];
+  const last = sides.at(-1);
+  if (!rect || !first || !last) {
     return undefined;
   }
-  const side: 0 | 1 = at === 1 ? 1 : 0;
-  if (sides.length === 2) {
-    return held.side !== side ? { kind: "join", lit: rect, side } : undefined;
-  }
-  const targets = splitTargetsOf({ held, sides });
-  if (
-    lit !== undefined &&
-    targets.length > 0 &&
-    holds(halfOf(rect, lit), point)
-  ) {
-    return { kind: "split", lit: halfOf(rect, lit), side: lit };
-  }
-  for (const target of targets) {
-    const atEnd =
-      target.side === 0
-        ? point.x < rect.left + END_PX
-        : point.x >= rect.left + rect.width - END_PX;
-    if (atEnd || distanceTo(splitTargetRect(target), point) <= CAPTURE_PX) {
-      return {
-        kind: "split",
-        lit: halfOf(rect, target.side),
-        side: target.side,
-      };
+  const reach = (end: 0 | 1) => (armed === end ? EDGE_KEEP_PX : EDGE_PX);
+  const edge: 0 | 1 | undefined =
+    point.x < first.left + reach(0)
+      ? 0
+      : point.x >= last.left + last.width - reach(1)
+        ? 1
+        : undefined;
+  if (sides.length === 1) {
+    if (edge !== undefined) {
+      // A side's only tab makes no side of its own side.
+      return held.kind === "tab" && held.side === 0 && held.isAlone === true
+        ? undefined
+        : {
+            edge: edgeLineOf(rect, edge),
+            kind: "split",
+            lit: halfOf(rect, edge),
+            side: edge,
+          };
     }
+    if (held.kind === "group") {
+      const half: 0 | 1 = point.x < rect.left + rect.width / 2 ? 0 : 1;
+      return { kind: "split", lit: halfOf(rect, half), side: half };
+    }
+    return held.kind === "content"
+      ? { isLone: true, kind: "join", lit: rect, side: 0 }
+      : undefined;
   }
-  return held.side === undefined
-    ? { kind: "join", lit: rect, side: 0 }
+  if (held.kind === "group") {
+    return undefined;
+  }
+  if (edge !== undefined) {
+    const page = sides[edge];
+    return page && !(held.kind === "tab" && held.side === edge)
+      ? { edge: edgeLineOf(page, edge), kind: "join", lit: page, side: edge }
+      : undefined;
+  }
+  return held.kind === "content"
+    ? { kind: "join", lit: rect, side: at === 1 ? 1 : 0 }
     : undefined;
 }
 

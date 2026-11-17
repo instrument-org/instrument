@@ -1,3 +1,4 @@
+import { fileAddressOf } from "@/client/bookmarks/address";
 import { StoreId } from "@instrument-org/workspace/client";
 
 import { pressToHold } from "./session";
@@ -19,6 +20,36 @@ export function pressBookmark(
     title: bookmark.title,
     url: bookmark.url,
   }));
+}
+
+/**
+ * A press on a place of Files' sidebar or of the bar's Files menu, which
+ * past the start becomes the place held by the pointer, as a bookmark is:
+ * a link to Files at that folder, never the folder itself, so nothing is
+ * handed out of the app to copy. It opens as a tab wherever a tab lands,
+ * goes on the bookmarks bar, and moves along Pinned or pins there; a row of
+ * Pinned (`pinned`, the rows' paths in order) let go past the window leaves
+ * Pinned. A press that goes nowhere stays a click. `onHeld` is told as it
+ * becomes a drag, for a menu it was in to get out of the way.
+ */
+export function pressPlace(
+  event: React.PointerEvent<HTMLElement>,
+  place: { name: string; path: string; pinned?: readonly string[] },
+  onHeld?: () => void,
+) {
+  pressToHold(event, () => {
+    onHeld?.();
+    return {
+      id: StoreId.newTabId(),
+      kind: "link",
+      place: {
+        path: place.path,
+        ...(place.pinned ? { pinned: place.pinned } : {}),
+      },
+      title: place.name,
+      url: fileAddressOf(place.path, { isFolder: true }),
+    };
+  });
 }
 
 /**

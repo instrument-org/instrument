@@ -29,6 +29,15 @@ describe("sidebar places", () => {
     expect(rows(places)).toEqual(["casey", "Desktop", "Work", "Archive"]);
   });
 
+  it("pins a folder at the place among the rows it was let go", () => {
+    const places = pinPlace(NO_SIDEBAR_CHANGES, "/Users/casey/Work", [
+      "/Users/casey",
+      "/Users/casey/Work",
+      "/Users/casey/Desktop",
+    ]);
+    expect(rows(places)).toEqual(["casey", "Work", "Desktop"]);
+  });
+
   it("hides an unpinned default until it is restored, keeping what was pinned", () => {
     let places = pinPlace(NO_SIDEBAR_CHANGES, "/Users/casey/Work");
     places = unpinPlace(places, "/Users/casey");

@@ -6,7 +6,12 @@ import { type Held } from "./types";
 
 const LIT = { height: 600, left: 0, top: 0, width: 800 };
 const JOIN: SideZone = { kind: "join", lit: LIT, side: 0 };
-const SPLIT: SideZone = { kind: "split", lit: LIT, side: 1 };
+const EDGE: SideZone = {
+  edge: { height: 576, left: 794, top: 12, width: 3 },
+  kind: "split",
+  lit: LIT,
+  side: 1,
+};
 
 const FILES: Held = {
   count: 1,
@@ -21,12 +26,20 @@ const LINK: Held = {
   url: "https://example.com/",
 };
 const BOOKMARK: Held = { ...LINK, bookmark: "b" };
+const PLACE: Held = {
+  id: "p",
+  kind: "link",
+  place: { path: "/Users/mac-user/Documents" },
+  title: "Documents",
+  url: "file:///Users/mac-user/Documents/",
+};
 const TAB: Held = { group: "g", id: "t", key: "t", kind: "tab", side: 0 };
 
 /** What letting go over a side's page does, said in a word. */
 const landing = ({
   held,
-  input = held.kind === "files" || (held.kind === "link" && !held.bookmark)
+  input = held.kind === "files" ||
+  (held.kind === "link" && !held.bookmark && !held.place)
     ? "native"
     : "pointer",
   shows = "other",
@@ -37,7 +50,8 @@ const landing = ({
   input?: "native" | "pointer";
   shows?: SideShows;
   under?: UnderPoint;
-  zone?: SideZone;
+  /** Where the side's page says it goes (`sideZoneAt`), or nowhere (`null`). */
+  zone?: SideZone | null;
 }) => {
   const found = pageLandingOf({
     group: "g",
@@ -47,7 +61,7 @@ const landing = ({
     shows,
     tab: "up",
     under,
-    zone,
+    zone: zone ?? undefined,
   });
   if (found === "native" || found === undefined) {
     return found ?? "nothing";
@@ -67,9 +81,8 @@ describe("pageLandingOf", () => {
     // A field takes a link, not files.
     { expected: "native", held: LINK, under: "text" },
     { expected: "side", held: FILES, under: "text" },
-    // A folder in Files takes files, never a place of its sidebar.
+    // A folder in Files takes files.
     { expected: "native", held: FILES, under: "folder" },
-    { expected: "side", held: FILES, under: "place" },
     // Anything standing over the page hears the drag itself.
     { expected: "native", held: FILES, under: "over" },
     // A new tab turns into content let go on its ground.
@@ -90,26 +103,37 @@ describe("pageLandingOf", () => {
     },
   );
 
-  it.each([FILES, LINK, TAB, BOOKMARK])(
-    "a split target over the page's end wins over what the page takes ($kind)",
+  it.each([FILES, LINK, TAB, BOOKMARK, PLACE])(
+    "the group's outer edge wins over what the page takes ($kind)",
     (held) => {
-      expect(landing({ held, shows: "site", under: "box", zone: SPLIT })).toBe(
+      expect(landing({ held, shows: "site", under: "box", zone: EDGE })).toBe(
         "split",
       );
     },
   );
 
+  it("leaves a folder in Files its drops everywhere but the edge", () => {
+    expect([
+      landing({ held: FILES, under: "folder", zone: JOIN }),
+      landing({ held: FILES, under: "folder", zone: EDGE }),
+    ]).toEqual(["native", "split"]);
+  });
+
   it.each([
-    { expected: "side", held: TAB, under: "box" },
+    // A tab lands on no page, only at its edge (`sideZoneAt` says none).
+    { expected: "nothing", held: TAB, under: "box", zone: null },
+    { expected: "nothing", held: TAB, shows: "newTab", zone: null },
     { expected: "side", held: BOOKMARK, shows: "site" },
     { expected: "side", held: BOOKMARK, under: "text" },
     { expected: "newTab", held: BOOKMARK, shows: "newTab" },
-    { expected: "side", held: TAB, shows: "newTab" },
+    // A place of Files' sidebar is a link to Files there, never the folder.
+    { expected: "side", held: PLACE, under: "folder" },
   ] satisfies {
     expected: string;
     held: Held;
     shows?: SideShows;
     under?: UnderPoint;
+    zone?: SideZone | null;
   }[])(
     "a piece of the window is never handed to a page: $held.kind over $shows / $under is $expected",
     ({ expected, ...over }) => {

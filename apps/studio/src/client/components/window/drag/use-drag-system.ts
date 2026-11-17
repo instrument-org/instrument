@@ -12,6 +12,7 @@ import {
   sawOwnFileDrag,
 } from "@/client/lib/self-file-drag";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
+import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type Bookmark,
@@ -30,6 +31,7 @@ import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useLayoutEffect, useRef } from "react";
 
 import { type BrowserTabsHandle } from "../browser-tabs";
+import { segmentsOf } from "../host-path";
 import { settleTabMove } from "../move-tab";
 import { stripKeyOf } from "../pane-tabs";
 import { useTabTitle } from "../tab-title";
@@ -86,6 +88,7 @@ import {
   type DroppedFile,
   type Held,
   type Landing,
+  placeOf,
 } from "./types";
 
 /**
@@ -128,9 +131,7 @@ export function useDragSystem({
   useRemoteDrags();
   const groups = useTabGroupActions();
   const windowTabs = useWindowTabs();
-  useSystemDrags((held, landing) => {
-    latest.current.land(held, landing);
-  });
+  useSystemDrags();
   return {
     /** Files let go where nothing else takes them, opened as a tab group of their own, the first up. */
     openFilesAsGroup: (files: readonly DroppedFile[]) => {
@@ -153,11 +154,39 @@ export function useDragSystem({
 }
 
 /**
+ * Takes a place off Files' sidebar, as a place of Pinned let go past the
+ * window does in Finder, with an Undo that puts it back where it stood
+ * among `pinned`, the rows as they were.
+ */
+function unpinPlace(path: string, pinned: readonly string[]) {
+  rpcClient.preferences.unpinSidebarPlace.call({ path }).then(
+    () => {
+      toast(`Unpinned ${segmentsOf(path).at(-1) ?? path}`, {
+        action: {
+          label: "Undo",
+          onClick: () => {
+            void rpcClient.preferences.pinSidebarPlace
+              .call({ order: [...pinned], path })
+              .catch(() => {
+                toast.error("Couldn't change the sidebar");
+              });
+          },
+        },
+      });
+    },
+    () => {
+      toast.error("Couldn't change the sidebar");
+    },
+  );
+}
+
+/**
  * What letting go does where the window's own moves land it, as
  * `outcomeOf` says: a tab or a whole group moves there; a link or files
  * open there as the tabs their addresses name, through the same openers as
  * every other tab (`opensOf`); anything let go on the bookmarks is kept
- * there; and a bookmark let go where nothing takes it is removed, with
+ * there; a place of Pinned let go past the window leaves Pinned, with
+ * Undo; and a bookmark let go where nothing takes it is removed, with
  * Undo.
  */
 function useLander(
@@ -445,6 +474,16 @@ function useLander(
         }
         return;
       }
+      case "unpin": {
+        const place = placeOf(held);
+        if (place?.pinned) {
+          unpinPlace(place.path, place.pinned);
+        }
+        return;
+      }
+      // Pinned's own target lands a place or files it took.
+      case "into":
+      case "pin":
       case "nothing": {
         return;
       }
@@ -834,15 +873,11 @@ function useRemoteDrags() {
  * window ahead of everything in it, and takes a drag only where it lands:
  * anywhere else it goes on to whatever is under it, Files' folders, the
  * composer that attaches it and the window's last resort among them
- * (`useWindowDropFallback`).
+ * (`useWindowDropFallback`). What lands is landed by the target it is in,
+ * where that target lands what it takes itself, and else by the window's
+ * lander (`releaseNative`).
  */
-export function useSystemDrags(
-  onLand: (held: ContentHeld, landing: Landing) => void,
-) {
-  const onLandRef = useRef(onLand);
-  useLayoutEffect(() => {
-    onLandRef.current = onLand;
-  });
+export function useSystemDrags() {
   useEffect(() => {
     let held: ContentHeld | undefined;
     // Entering one element leaves another, so what the drag is over in the
@@ -927,7 +962,16 @@ export function useSystemDrags(
       }
       window.clearTimeout(goneTimer);
       goneTimer = window.setTimeout(end, GONE_AFTER_MS);
-      if (followNative(held, point)) {
+      const landing = followNative(held, point);
+      if (landing === "refused") {
+        // Where letting go changes nothing, nothing under it hears of it
+        // either, and the drag goes unclaimed, so the system's pointer says
+        // so and the release drops nothing.
+        event.stopPropagation();
+        if (event.dataTransfer) {
+          event.dataTransfer.dropEffect = "none";
+        }
+      } else if (landing) {
         // Where it lands, nothing under it hears of it, so an editor there
         // draws no caret of its own.
         event.preventDefault();
@@ -967,22 +1011,28 @@ export function useSystemDrags(
         return;
       }
       const was = held;
-      const landing = held
+      const released = held
         ? releaseNative({ x: event.clientX, y: event.clientY })
         : undefined;
       window.clearTimeout(goneTimer);
       held = undefined;
       entered.clear();
-      if (!was || !landing || !event.dataTransfer) {
+      if (!was || !released || !event.dataTransfer) {
         return;
       }
       // Taken here and nowhere else, so the window's last resort leaves it.
       event.preventDefault();
       event.stopPropagation();
+      if (released === "refused") {
+        releaseSelfFileDrag();
+        endOwnFileDrag();
+        return;
+      }
+      const { land, landing } = released;
       if (was.kind === "link") {
         const link = linkOfDrop(event.dataTransfer);
         if (link) {
-          onLandRef.current({ ...was, ...link }, landing);
+          land({ ...was, ...link }, landing);
         }
         return;
       }
@@ -990,7 +1040,7 @@ export function useSystemDrags(
       endOwnFileDrag();
       const files = filesOfDrop(event.dataTransfer);
       if (files.length > 0) {
-        onLandRef.current(
+        land(
           { count: files.length, files, ids: was.ids, kind: "files" },
           landing,
         );

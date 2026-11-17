@@ -37,27 +37,47 @@ export function maySpring({
   );
 }
 
+/** How long the folder's ring goes out just before it opens, as Finder blinks one, so the opening is expected. */
+export const SPRING_FLASH_MS = 120;
+
 /**
  * The wait before a folder springs open. `rest` is told the folder the drag
  * is over each time the drag is heard from, or null when it is over none that
  * may open; the wait starts over only when that changes, so moving about
- * inside one folder's row does not put it off. A folder that opened is not
- * opened again while the drag stays on it.
+ * inside one folder's row does not put it off. `flash` is told the folder
+ * `SPRING_FLASH_MS` before it opens. A folder that opened is not opened
+ * again while the drag stays on it.
  */
 export function springTimer(
   spring: (folder: string) => void,
-  delay = SPRING_DELAY_MS,
+  {
+    delay = SPRING_DELAY_MS,
+    flash,
+  }: { delay?: number; flash?: (folder: string) => void } = {},
 ) {
   let resting: null | string = null;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let flashTimer: ReturnType<typeof setTimeout> | undefined;
+  const clear = () => {
+    clearTimeout(timer);
+    clearTimeout(flashTimer);
+  };
   return {
     rest(folder: null | string) {
       if (folder === resting) {
         return;
       }
       resting = folder;
-      clearTimeout(timer);
+      clear();
       if (folder !== null) {
+        if (flash) {
+          flashTimer = setTimeout(
+            () => {
+              flash(folder);
+            },
+            Math.max(delay - SPRING_FLASH_MS, 0),
+          );
+        }
         timer = setTimeout(() => {
           spring(folder);
         }, delay);
@@ -65,7 +85,7 @@ export function springTimer(
     },
     stop() {
       resting = null;
-      clearTimeout(timer);
+      clear();
     },
   };
 }

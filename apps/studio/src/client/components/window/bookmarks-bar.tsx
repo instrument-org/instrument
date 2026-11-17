@@ -52,7 +52,7 @@ import {
   useOpenFolder,
 } from "./bookmark-folders";
 import { dragAtom } from "./drag/session";
-import { pressBookmark } from "./drag/press-bookmark";
+import { pressBookmark, pressPlace } from "./drag/press-bookmark";
 import {
   useBookmarksTarget,
   marksBesides,
@@ -478,15 +478,22 @@ function NameInPlace({
  * Files at the bar's start: a press opens it where it last stood, and the
  * chevron beside it lists the places the Files sidebar keeps, the group's
  * project first, to open it at one of them. Each opens as a bookmark does
- * (`bookmarkClicks`).
+ * (`bookmarkClicks`), and drags as the same place in Files' sidebar does
+ * (`pressPlace`), the menu getting out of the way as it does.
  */
 function FilesMark({ group, open }: { group: string; open: OpenAddress }) {
   const filesHref = useAtomValue(filesHrefAtom);
   const { places, project } = useFilesPlaces(group);
+  const [isOpen, setOpen] = useState(false);
   const placeItem = (place: Place) => (
     <DropdownMenuItem
       key={place.path}
       {...bookmarkClicks(folderHref(place.path), open)}
+      onPointerDown={(event) => {
+        pressPlace(event, place, () => {
+          setOpen(false);
+        });
+      }}
       title={place.path}
     >
       <span className="flex size-4 shrink-0 items-center justify-center">
@@ -505,7 +512,7 @@ function FilesMark({ group, open }: { group: string; open: OpenAddress }) {
         <FileSystemFolderGlyph className="h-3 w-auto" />
         Files
       </button>
-      <DropdownMenu modal={false}>
+      <DropdownMenu modal={false} onOpenChange={setOpen} open={isOpen}>
         <DropdownMenuTrigger
           aria-label="Open Files at a place"
           className="grid h-6 w-4.5 cursor-default place-items-center rounded-r-md text-foreground/60 hover:bg-foreground/8 hover:text-foreground data-[state=open]:text-foreground"

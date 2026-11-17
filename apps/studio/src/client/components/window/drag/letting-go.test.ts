@@ -45,28 +45,70 @@ const HELD: Record<string, Held> = {
     title: "Example",
     url: "https://example.com/",
   },
+  "place (Pinned)": {
+    id: "tab_p1",
+    kind: "link",
+    place: {
+      path: "/Users/mac-user/Documents",
+      pinned: ["/Users/mac-user", "/Users/mac-user/Documents"],
+    },
+    title: "Documents",
+    url: "file:///Users/mac-user/Documents/",
+  },
+  "place (Files menu)": {
+    id: "tab_p2",
+    kind: "link",
+    place: { path: "/Users/mac-user/Documents" },
+    title: "Documents",
+    url: "file:///Users/mac-user/Documents/",
+  },
 };
+
+const EDGE = { height: 576, left: 3, top: 12, width: 3 };
 
 /** One of every place to land, by what it is on screen. */
 const LANDINGS: Record<string, Landing | undefined> = {
   "own strip": { group: "g1", index: 1, kind: "strip", side: 0 },
   "strip line": { group: "g1", index: 1, kind: "strip", line: LIT, side: 0 },
   "strip tab": { group: "g1", kind: "replace", lit: LIT, side: 0, tab: "t1" },
-  "Add left split": {
+  "left edge, one side": {
+    edge: EDGE,
     group: "g1",
     kind: "side",
     lit: LIT,
     side: 0,
     split: true,
   },
-  "Add right split": {
+  "right edge, one side": {
+    edge: EDGE,
     group: "g1",
     kind: "side",
     lit: LIT,
     side: 1,
     split: true,
   },
-  "other side": { group: "g1", kind: "side", lit: LIT, side: 1, split: false },
+  "right half, one side": {
+    group: "g1",
+    kind: "side",
+    lit: LIT,
+    side: 1,
+    split: true,
+  },
+  "middle, one side": {
+    group: "g1",
+    isLone: true,
+    kind: "side",
+    lit: LIT,
+    side: 0,
+    split: false,
+  },
+  "right side of two": {
+    group: "g1",
+    kind: "side",
+    lit: LIT,
+    side: 1,
+    split: false,
+  },
   "new tab's page": { group: "g1", kind: "newTab", lit: LIT, tab: "n1" },
   "sidebar row": {
     drop: { group: "g3", kind: "into" },
@@ -81,113 +123,223 @@ const LANDINGS: Record<string, Landing | undefined> = {
     kind: "sidebar",
   },
   "bookmarks bar": { index: 0, kind: "bookmarks" },
+  "Pinned line": { index: 2, kind: "pin", line: LIT, moves: false },
+  "Pinned line, a row of it": { index: 2, kind: "pin", line: LIT, moves: true },
+  "Pinned row, own files": {
+    copies: false,
+    folder: "/Users/mac-user/Downloads",
+    kind: "into",
+    lit: LIT,
+    name: "Downloads",
+  },
+  "Pinned row, from Finder": {
+    copies: true,
+    folder: "/Users/mac-user/Downloads",
+    kind: "into",
+    lit: LIT,
+    name: "Downloads",
+  },
   "past the window": { kind: "window" },
+  "past the window, a place": {
+    kind: "unpin",
+    path: "/Users/mac-user/Documents",
+  },
   nowhere: undefined,
 };
+
+/** The groups the lines name. */
+const groupTitle = (group: string) =>
+  ({ g1: "Q4 roadmap", g3: "Reading" })[group];
 
 describe("outcomeOf", () => {
   it("says what letting go does for every pair of held and landing", () => {
     const table = Object.entries(HELD).flatMap(([heldName, held]) => [
       `${heldName}:`,
       ...Object.entries(LANDINGS).map(([landingName, landing]) => {
-        const { does, line } = outcomeOf(held, landing);
+        const { does, line } = outcomeOf(held, landing, { groupTitle });
         return `  ${landingName} → ${does}${line ? ` · "${line}"` : ""}`;
       }),
     ]);
     expect(table.join("\n")).toMatchInlineSnapshot(`
       "tab (strip or sidebar row half):
         own strip → move
-        strip line → move · "Move to this side"
+        strip line → move · "Move here"
         strip tab → nothing
-        Add left split → move · "Add left split"
-        Add right split → move · "Add right split"
-        other side → move · "Move to this side"
-        new tab's page → move · "Open here"
-        sidebar row → move · "Add to this group"
+        left edge, one side → move · "Move to the left"
+        right edge, one side → move · "Move to the right"
+        right half, one side → move · "Move to the right"
+        middle, one side → move · "Open in a new tab"
+        right side of two → move · "Move to the right"
+        new tab's page → nothing
+        sidebar row → move · "Move to Reading"
         sidebar room → move · "New tab group"
         sidebar line → move · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
-        past the window → move · "New window"
+        Pinned line → pin · "Pin to sidebar"
+        Pinned line, a row of it → pin · "Move here"
+        Pinned row, own files → into · "Move into Downloads"
+        Pinned row, from Finder → into · "Copy into Downloads"
+        past the window → move · "Open in a new window"
+        past the window, a place → nothing
         nowhere → nothing
       whole group (sidebar row):
         own strip → move
-        strip line → move · "Move to this side"
+        strip line → move · "Move 1 tab here"
         strip tab → nothing
-        Add left split → move · "Add left split"
-        Add right split → move · "Add right split"
-        other side → move · "Move to this side"
-        new tab's page → move · "Open here"
+        left edge, one side → move · "Open on the left"
+        right edge, one side → move · "Open on the right"
+        right half, one side → move · "Open on the right"
+        middle, one side → move · "Open in a new tab"
+        right side of two → move · "Open on the right"
+        new tab's page → nothing
         sidebar row → nothing
         sidebar room → move
         sidebar line → move
         bookmarks bar → keep · "Add to bookmarks"
-        past the window → move · "New window"
+        Pinned line → pin · "Pin to sidebar"
+        Pinned line, a row of it → pin · "Move here"
+        Pinned row, own files → into · "Move into Downloads"
+        Pinned row, from Finder → into · "Copy into Downloads"
+        past the window → move · "Open in a new window"
+        past the window, a place → nothing
         nowhere → nothing
       files (Files row, place, Finder):
         own strip → open
         strip line → open · "Open in a new tab"
         strip tab → open · "Open in this tab"
-        Add left split → open · "Add left split"
-        Add right split → open · "Add right split"
-        other side → open · "Open on this side"
-        new tab's page → open · "Open here"
-        sidebar row → open · "Add to this group"
+        left edge, one side → open · "Open on the left"
+        right edge, one side → open · "Open on the right"
+        right half, one side → open · "Open on the right"
+        middle, one side → open · "Open in a new tab"
+        right side of two → open · "Open on the right"
+        new tab's page → open · "Open in this tab"
+        sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
-        past the window → open · "New window"
+        Pinned line → pin · "Pin to sidebar"
+        Pinned line, a row of it → pin · "Move here"
+        Pinned row, own files → into · "Move into Downloads"
+        Pinned row, from Finder → into · "Copy into Downloads"
+        past the window → open · "Open in a new window"
+        past the window, a place → nothing
         nowhere → nothing
       link (page or reply):
         own strip → open
         strip line → open · "Open in a new tab"
         strip tab → open · "Open in this tab"
-        Add left split → open · "Add left split"
-        Add right split → open · "Add right split"
-        other side → open · "Open on this side"
-        new tab's page → open · "Open here"
-        sidebar row → open · "Add to this group"
+        left edge, one side → open · "Open on the left"
+        right edge, one side → open · "Open on the right"
+        right half, one side → open · "Open on the right"
+        middle, one side → open · "Open in a new tab"
+        right side of two → open · "Open on the right"
+        new tab's page → open · "Open in this tab"
+        sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
-        past the window → open · "New window"
+        Pinned line → pin · "Pin to sidebar"
+        Pinned line, a row of it → pin · "Move here"
+        Pinned row, own files → into · "Move into Downloads"
+        Pinned row, from Finder → into · "Copy into Downloads"
+        past the window → open · "Open in a new window"
+        past the window, a place → nothing
         nowhere → nothing
       chat chip or Chats row:
         own strip → open
         strip line → open · "Open in a new tab"
         strip tab → open · "Open in this tab"
-        Add left split → open · "Add left split"
-        Add right split → open · "Add right split"
-        other side → open · "Open on this side"
-        new tab's page → open · "Open here"
-        sidebar row → open · "Add to this group"
+        left edge, one side → open · "Open on the left"
+        right edge, one side → open · "Open on the right"
+        right half, one side → open · "Open on the right"
+        middle, one side → open · "Open in a new tab"
+        right side of two → open · "Open on the right"
+        new tab's page → open · "Open in this tab"
+        sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
-        past the window → open · "New window"
+        Pinned line → pin · "Pin to sidebar"
+        Pinned line, a row of it → pin · "Move here"
+        Pinned row, own files → into · "Move into Downloads"
+        Pinned row, from Finder → into · "Copy into Downloads"
+        past the window → open · "Open in a new window"
+        past the window, a place → nothing
         nowhere → nothing
       bookmark (bar):
         own strip → open
         strip line → open · "Open in a new tab"
         strip tab → open · "Open in this tab"
-        Add left split → open · "Add left split"
-        Add right split → open · "Add right split"
-        other side → open · "Open on this side"
-        new tab's page → open · "Open here"
-        sidebar row → open · "Add to this group"
+        left edge, one side → open · "Open on the left"
+        right edge, one side → open · "Open on the right"
+        right half, one side → open · "Open on the right"
+        middle, one side → open · "Open in a new tab"
+        right side of two → open · "Open on the right"
+        new tab's page → open · "Open in this tab"
+        sidebar row → open · "Add to Reading"
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
-        bookmarks bar → keep
-        past the window → open · "New window"
+        bookmarks bar → keep · "Move here"
+        Pinned line → pin · "Pin to sidebar"
+        Pinned line, a row of it → pin · "Move here"
+        Pinned row, own files → into · "Move into Downloads"
+        Pinned row, from Finder → into · "Copy into Downloads"
+        past the window → open · "Open in a new window"
+        past the window, a place → nothing
+        nowhere → nothing
+      place (Pinned):
+        own strip → open
+        strip line → open · "Open in a new tab"
+        strip tab → open · "Open in this tab"
+        left edge, one side → open · "Open on the left"
+        right edge, one side → open · "Open on the right"
+        right half, one side → open · "Open on the right"
+        middle, one side → open · "Open in a new tab"
+        right side of two → open · "Open on the right"
+        new tab's page → open · "Open in this tab"
+        sidebar row → open · "Add to Reading"
+        sidebar room → open · "New tab group"
+        sidebar line → open · "New tab group"
+        bookmarks bar → keep · "Add to bookmarks"
+        Pinned line → pin · "Pin to sidebar"
+        Pinned line, a row of it → pin · "Move here"
+        Pinned row, own files → into · "Move into Downloads"
+        Pinned row, from Finder → into · "Copy into Downloads"
+        past the window → open · "Open in a new window"
+        past the window, a place → unpin · "Unpin from sidebar"
+        nowhere → nothing
+      place (Files menu):
+        own strip → open
+        strip line → open · "Open in a new tab"
+        strip tab → open · "Open in this tab"
+        left edge, one side → open · "Open on the left"
+        right edge, one side → open · "Open on the right"
+        right half, one side → open · "Open on the right"
+        middle, one side → open · "Open in a new tab"
+        right side of two → open · "Open on the right"
+        new tab's page → open · "Open in this tab"
+        sidebar row → open · "Add to Reading"
+        sidebar room → open · "New tab group"
+        sidebar line → open · "New tab group"
+        bookmarks bar → keep · "Add to bookmarks"
+        Pinned line → pin · "Pin to sidebar"
+        Pinned line, a row of it → pin · "Move here"
+        Pinned row, own files → into · "Move into Downloads"
+        Pinned row, from Finder → into · "Copy into Downloads"
+        past the window → open · "Open in a new window"
+        past the window, a place → nothing
         nowhere → nothing"
     `);
   });
 
   it.each([
-    ["Add left split", "Add left split · 3 tabs"],
-    ["other side", "Move to this side · 3 tabs"],
+    ["strip line", "Move 3 tabs here"],
+    ["right edge, one side", "Open on the right"],
   ] as const)("says how many tabs a whole group brings to %s", (at, line) => {
     expect(
-      outcomeOf(HELD["whole group (sidebar row)"]!, LANDINGS[at], 3).line,
+      outcomeOf(HELD["whole group (sidebar row)"]!, LANDINGS[at], {
+        tabCount: 3,
+      }).line,
     ).toBe(line);
   });
 });

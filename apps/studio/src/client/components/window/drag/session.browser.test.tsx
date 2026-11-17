@@ -222,15 +222,12 @@ function Target({ target }: { target: DropTarget }) {
   return null;
 }
 
-it("shows a page's end from the drag's start, lights it the moment the pointer reaches it, and lets go into it", async () => {
+it("shows nothing at the drag's start, lights a page's edge the moment the pointer reaches it, and lets go into it", async () => {
   const landed = vi.fn();
   setLander(landed);
-  const band = { height: 400, left: 300, top: 0, width: 100 };
-  const target = {
-    page: { height: 400, left: 0, top: 0, width: 400 },
-    side: 1,
-  } as const;
+  const band = { height: 400, left: 376, top: 0, width: 24 };
   const split = {
+    edge: { height: 376, left: 394, top: 12, width: 3 },
     group: "group",
     kind: "side",
     lit: { height: 400, left: 200, top: 0, width: 200 },
@@ -240,7 +237,6 @@ it("shows a page's end from the drag's start, lights it the moment the pointer r
   await renderInBrowser(
     <Target
       target={{
-        hints: () => [target],
         landingAt: (point) => (point.x >= band.left ? split : undefined),
         rect: () => ({ height: 400, left: 0, top: 0, width: 400 }),
       }}
@@ -248,15 +244,67 @@ it("shows a page's end from the drag's start, lights it the moment the pointer r
   );
   pressTab();
   drag();
-  expect([currentDrag()?.hints, currentDrag()?.landing]).toEqual([
-    [target],
-    undefined,
-  ]);
+  expect(currentDrag()?.landing).toBeUndefined();
 
-  pointer("pointermove", 320);
+  pointer("pointermove", 380);
   expect(currentDrag()?.landing).toEqual(split);
-  pointer("pointerup", 324);
+  pointer("pointerup", 384);
 
   expect(landed).toHaveBeenCalledWith(HELD, split);
+  setLander(undefined);
+});
+
+it("marks a refused spot with the not-allowed cursor and lands nothing there", async () => {
+  const landed = vi.fn();
+  setLander(landed);
+  await renderInBrowser(
+    <Target
+      target={{
+        landingAt: () => "refused",
+        rect: () => ({ height: 400, left: 0, top: 0, width: 400 }),
+      }}
+    />,
+  );
+  pressTab();
+  drag();
+  pointer("pointermove", 200);
+  expect([
+    currentDrag()?.isRefused,
+    document.documentElement.hasAttribute("data-drop-refused"),
+  ]).toEqual([true, true]);
+  pointer("pointerup", 200);
+
+  expect(landed).not.toHaveBeenCalled();
+  expect(document.documentElement.hasAttribute("data-drop-refused")).toBe(
+    false,
+  );
+  setLander(undefined);
+});
+
+it("lets a target that lands its own drops take them in place of the lander", async () => {
+  const landed = vi.fn();
+  const own = vi.fn();
+  setLander(landed);
+  const pin = {
+    index: 1,
+    kind: "pin",
+    line: { height: 2, left: 0, top: 40, width: 200 },
+    moves: false,
+  } as const;
+  await renderInBrowser(
+    <Target
+      target={{
+        land: own,
+        landingAt: () => pin,
+        rect: () => ({ height: 400, left: 0, top: 0, width: 400 }),
+      }}
+    />,
+  );
+  pressTab();
+  drag();
+  pointer("pointermove", 200);
+  pointer("pointerup", 200);
+
+  expect([own.mock.calls, landed.mock.calls]).toEqual([[[HELD, pin]], []]);
   setLander(undefined);
 });

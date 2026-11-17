@@ -1,4 +1,3 @@
-import { isPlaceDragInAir } from "@/client/lib/self-file-drag";
 import { type WindowTab } from "@/client/atoms/window";
 import { useAtomValue } from "jotai";
 import { clamp } from "radashi";
@@ -10,13 +9,13 @@ import { useWindowTabs } from "../window-tabs";
 import { pageLandingOf, type SideShows, type UnderPoint } from "./accepts";
 import { heldKeysOf, heldTabsOf } from "./held-tabs";
 import {
+  type HeldInGroup,
   holds,
   onPages,
   pagesReach,
   type Point,
   type Rect,
   sideZoneAt,
-  splitTargetsOf,
 } from "./landing";
 import {
   currentDrag,
@@ -263,25 +262,34 @@ export function useStripTarget({
   );
 }
 
-/** What the held thing is to a group's sides: where it stands among them, if it is a tab of the group. */
-function heldInGroup(held: Held, group: string, layout: GroupLayout) {
-  if (held.kind !== "tab" || held.group !== group) {
-    return {};
+/** What the held thing is to a group's sides: what kind of thing, and where it stands among them, if it is a tab of the group. */
+function heldInGroup(
+  held: Held,
+  group: string,
+  layout: GroupLayout,
+): HeldInGroup {
+  if (held.kind === "group") {
+    return { kind: "group" };
   }
-  const side = sideIndexOf(layout, held.id);
-  const alone =
-    side !== undefined && (layout.sides[side]?.tabs.length ?? 0) <= 1;
-  return side === undefined ? {} : { isAlone: alone, side };
+  if (held.kind !== "tab") {
+    return { kind: "content" };
+  }
+  const side = held.group === group ? sideIndexOf(layout, held.id) : undefined;
+  if (side === undefined) {
+    return { kind: "tab" };
+  }
+  const alone = (layout.sides[side]?.tabs.length ?? 0) <= 1;
+  return { isAlone: alone, kind: "tab", side };
 }
 
 /**
  * What a side's page has under a point that takes a drop itself
  * (`UnderPoint`): a composer's box and a folder in Files
- * (`data-file-drop-region`), a folder never a place of Files' sidebar
- * (`isPlaceDragInAir`), a field that takes words, and anything standing over
- * the page there, as a dialog or a page in a frame of its own does. Nothing
- * else in a page takes a drop, an open file's editor included, so files let
- * go there open beside it as tabs instead of going into it.
+ * (`data-file-drop-region`), a field that takes words, and anything
+ * standing over the page there, as a dialog or a page in a frame of its own
+ * does. Nothing else in a page takes a drop, an open file's editor
+ * included, so files let go there open beside it as tabs instead of going
+ * into it.
  */
 function underPointOf(
   page: Element | null | undefined,
@@ -299,10 +307,7 @@ function underPointOf(
   }
   const region = under.closest("[data-file-drop-region]");
   if (region && page.contains(region)) {
-    if (!region.hasAttribute("data-folder-drop")) {
-      return "box";
-    }
-    return isPlaceDragInAir() ? "place" : "folder";
+    return region.hasAttribute("data-folder-drop") ? "folder" : "box";
   }
   const isField =
     (under instanceof HTMLElement && under.isContentEditable) ||
@@ -322,19 +327,18 @@ function sideShows(tab: WindowTab | undefined): SideShows {
 
 /**
  * A group's sides' pages as a place to land, by one rule (`pageLandingOf`):
- * with one side, a split target at each end makes that half a side of its
- * own once the pointer nears it (`sideZoneAt`); content goes to whatever in
- * the page takes it (a composer, a field, a web page, a folder in Files);
- * a new tab nobody has written in turns into files or a link; and anything
- * else joins the side under the pointer, as a tab does. The margin between
- * an outer page and the window's edge counts as that page's end
- * (`pagesReach`). The split targets show from the start of a drag that
- * could make one a side. A whole group pulled out of the sidebar makes a
- * side of all its tabs at a split target, joins the side under the pointer
- * of a group of two sides with all of them, as a tab joins it, and anywhere
- * else on the pages goes to a window of its own, where the window has
- * another group to show. Nothing in the group is drawn again while
- * something is held over it, so the pages stay put under the pointer.
+ * the group's outer edge, and only that, makes a side of a lone side's end,
+ * or of two sides takes it into the side there (`sideZoneAt`), its line
+ * drawn down the edge once the pointer is there and nothing shown before;
+ * content goes to whatever in the page takes it (a composer, a field, a web
+ * page, a folder in Files); a new tab nobody has written in turns into
+ * files or a link; and content anywhere else joins the side under the
+ * pointer. A tab lands nowhere on a page but its edge, and a whole group
+ * from this window makes a side of its own of the half of a lone side under
+ * the pointer. The margin between an outer page and the window's edge
+ * counts as that page's edge (`pagesReach`). Nothing in the group is drawn
+ * again while something is held over it, so the pages stay put under the
+ * pointer.
  */
 export function useSidePagesTarget({
   group,
@@ -362,45 +366,32 @@ export function useSidePagesTarget({
   };
   const upOf = (side: number) =>
     layout.sides[side]?.tabs.find((tab) => tab.id === layout.sides[side]?.up);
-  /** Whether a held group's tabs may make a side here: another group's, held in this window. */
-  const maySplitGroup = (held: Held, input: string) =>
-    held.kind !== "group" || (held.group !== group && input !== "remote");
   useDropTarget(
     isOn
       ? {
-          hints: ({ held, input }) => {
-            // A site hears the system's drag of content over it itself, and
-            // the window never does, so over one there is no end to reach.
-            if (
-              !maySplitGroup(held, input) ||
-              (input === "native" && sideShows(upOf(0)) === "site")
-            ) {
-              return [];
-            }
-            return splitTargetsOf({
-              held: heldInGroup(held, group, layout),
-              sides: pages(),
-            });
-          },
           landingAt: (reached, { held, input }) => {
+            // A group lands on another group's pages, and only from this
+            // window.
+            if (
+              held.kind === "group" &&
+              (held.group === group || input === "remote")
+            ) {
+              return undefined;
+            }
             const sides = pages();
             const point = onPages(reached, sides);
             const at = sides.findIndex((rect) => holds(rect, point));
             const up = upOf(at);
-            if (held.kind === "group" && input === "remote") {
-              return undefined;
-            }
             const was = currentDrag()?.landing;
-            const zone = maySplitGroup(held, input)
-              ? sideZoneAt({
-                  held: heldInGroup(held, group, layout),
-                  ...(was?.kind === "side" && was.split && was.group === group
-                    ? { lit: was.side }
-                    : {}),
-                  point,
-                  sides,
-                })
-              : undefined;
+            const zone = sideZoneAt({
+              armed:
+                was?.kind === "side" && was.group === group && was.edge
+                  ? was.side
+                  : undefined,
+              held: heldInGroup(held, group, layout),
+              point,
+              sides,
+            });
             return pageLandingOf({
               group,
               held,

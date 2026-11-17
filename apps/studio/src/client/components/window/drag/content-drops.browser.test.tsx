@@ -31,10 +31,11 @@ function Window({
   answer: Landing | "native";
   onLand: (url: string, landing: Landing) => void;
 }) {
-  useSystemDrags((held, landing) => {
-    onLand(held.kind === "link" ? held.url : "", landing);
-  });
+  useSystemDrags();
   useDropTarget({
+    land: (held, landing) => {
+      onLand(held.kind === "link" ? held.url : "", landing);
+    },
     landingAt: () => answer,
     rect: () => PAGE,
   } satisfies DropTarget);

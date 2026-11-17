@@ -13,7 +13,6 @@ import {
   type Rect,
   scrollSpeed,
   type Span,
-  type SplitTarget,
   START_PX,
   type Steady,
   type SteadyPick,
@@ -44,14 +43,10 @@ export interface Drag {
   held: Held;
   /** The pointer here, the system's drag (files from elsewhere), or main, for another window's tab held over this one. */
   input: "native" | "pointer" | "remote";
-  /**
-   * Places the drag could land that show from its start, before the pointer
-   * reaches them: a lone side's split targets, which make a side of their
-   * own. None past the window's edges.
-   */
-  hints?: readonly SplitTarget[];
   /** Past every edge of this window, where main has what is held. */
   isOff: boolean;
+  /** Over a place that would take it but where letting go changes nothing, which says so with the pointer. */
+  isRefused?: boolean;
   landing: Landing | undefined;
 }
 
@@ -65,18 +60,22 @@ export const dragPoint: Point = { x: 0, y: 0 };
 
 /** A place in the window that takes something held, which the window's own moves land (`setLander`). */
 export interface DropTarget {
-  /** Where in it what is held could land that shows from the drag's start (`Drag.hints`). */
-  hints?: (
-    drag: Pick<Drag, "grab" | "held" | "input">,
-  ) => readonly SplitTarget[];
   /**
-   * What letting go at a point would do, or nothing, or "native" where only
-   * the system's drag can hand the files over (a web page, a composer).
+   * Lands what it took itself, in place of the window's lander: a target
+   * that belongs to a screen, which acts on what the screen shows.
+   */
+  land?: (held: Held, landing: Landing) => void;
+  /**
+   * What letting go at a point would do, or nothing, which leaves it to the
+   * targets around it; "native" where only the system's drag can hand the
+   * files over (a web page, a composer); or "refused" where it is what is
+   * under the pointer and letting go there changes nothing, as files over
+   * the folder they are in.
    */
   landingAt: (
     point: Point,
     drag: Pick<Drag, "grab" | "held" | "input">,
-  ) => Landing | "native" | undefined;
+  ) => Landing | "native" | "refused" | undefined;
   /** Where it takes drops of what is held, in the window's px, as laid out now. */
   rect: (drag: Pick<Drag, "held">) => Rect | undefined;
   /** A list in it that scrolls while something held nears its ends. */
@@ -98,12 +97,19 @@ export function useDropTarget(target: DropTarget | undefined) {
   const isPicture = useAtomValue(standInTabsAtom) !== undefined;
   const isOn = target !== undefined && !isPicture;
   const scrolls = target?.scrolls !== undefined;
+  const lands = target?.land !== undefined;
   useEffect(() => {
     if (!isOn) {
       return;
     }
     const registered: DropTarget = {
-      hints: (drag) => latest.current?.hints?.(drag) ?? [],
+      ...(lands
+        ? {
+            land: (held: Held, landing: Landing) => {
+              latest.current?.land?.(held, landing);
+            },
+          }
+        : {}),
       landingAt: (point, drag) => latest.current?.landingAt(point, drag),
       rect: (drag) => latest.current?.rect(drag),
       ...(scrolls
@@ -119,7 +125,7 @@ export function useDropTarget(target: DropTarget | undefined) {
     return () => {
       targets.delete(registered);
     };
-  }, [isOn, scrolls]);
+  }, [isOn, lands, scrolls]);
 }
 
 const frameListeners = new Set<() => void>();
@@ -173,6 +179,8 @@ export function setCarrier(next: Carrier | undefined) {
 
 interface Session {
   carry: Carry | undefined;
+  /** The target the landing is in, which may land it itself (`DropTarget.land`). */
+  landedBy?: DropTarget | undefined;
   /** Told each time the landing changes, for a drag whose landing goes back to main. */
   onLanding?: (landing: Landing | undefined) => void;
   drag: Drag;
@@ -197,6 +205,10 @@ export function currentDrag() {
 function publish(drag: Drag | undefined) {
   const store = getDefaultStore();
   const was = store.get(dragAtom);
+  document.documentElement.toggleAttribute(
+    "data-drop-refused",
+    drag?.isRefused === true && drag.input === "pointer",
+  );
   if (
     was === drag ||
     (was !== undefined &&
@@ -204,9 +216,9 @@ function publish(drag: Drag | undefined) {
       was.held === drag.held &&
       was.input === drag.input &&
       was.isOff === drag.isOff &&
+      was.isRefused === drag.isRefused &&
       was.grab === drag.grab &&
-      JSON.stringify(was.landing) === JSON.stringify(drag.landing) &&
-      JSON.stringify(was.hints) === JSON.stringify(drag.hints))
+      JSON.stringify(was.landing) === JSON.stringify(drag.landing))
   ) {
     return;
   }
@@ -215,6 +227,23 @@ function publish(drag: Drag | undefined) {
 
 /** Letting go in a window of its own. */
 const WINDOW_LANDING: Landing = { kind: "window" };
+
+/**
+ * Where what is held lands let go past the window's edge: a link in a
+ * window of its own, and a place of Pinned out of Pinned, as Finder's
+ * sidebar lets go of one; any other place stays where it is.
+ */
+function pastWindowLanding(held: Held): Landing | undefined {
+  if (held.kind !== "link") {
+    return undefined;
+  }
+  if (held.place) {
+    return held.place.pinned
+      ? { kind: "unpin", path: held.place.path }
+      : undefined;
+  }
+  return WINDOW_LANDING;
+}
 
 /** Every target under a point for what is held, the innermost first. */
 function targetsAt(point: Point, drag: Pick<Drag, "held">) {
@@ -229,26 +258,28 @@ function targetsAt(point: Point, drag: Pick<Drag, "held">) {
     .map(({ target }) => target);
 }
 
-/** Where what is held lands at a point; "native" where only the system's drag reaches. */
+/**
+ * Where what is held lands at a point, and the target that takes it;
+ * "native" where only the system's drag reaches; refused where the target
+ * under it would change nothing.
+ */
 function measure(
   point: Point,
   drag: Pick<Drag, "grab" | "held" | "input">,
-): { landing?: Landing; native?: true } {
+): { by?: DropTarget; landing?: Landing; native?: true; refused?: true } {
   for (const target of targetsAt(point, drag)) {
     const found = target.landingAt(point, drag);
     if (found === "native") {
       return { native: true };
     }
+    if (found === "refused") {
+      return { refused: true };
+    }
     if (found) {
-      return { landing: found };
+      return { by: target, landing: found };
     }
   }
   return {};
-}
-
-/** Every place the window's targets show faintly for what is held. */
-function hintsOf(drag: Pick<Drag, "grab" | "held" | "input">) {
-  return [...targets].flatMap((target) => target.hints?.(drag) ?? []);
 }
 
 /**
@@ -311,22 +342,24 @@ function evaluate(current: Session) {
   const isOff =
     current.carry?.followsPointer === true ||
     (isPast && current.carry !== undefined);
-  const { landing } = isOff
+  const { by, landing, refused } = isOff
     ? {}
     : isPast
-      ? { landing: drag.held.kind === "link" ? WINDOW_LANDING : undefined }
+      ? { landing: pastWindowLanding(drag.held) }
       : measure(dragPoint, drag);
-  // Over the bookmarks bar, what is held goes along it, so the splits
-  // elsewhere stay out of sight until it leaves.
-  const hints =
-    isOff || isPast || landing?.kind === "bookmarks" ? [] : hintsOf(drag);
   for (const key of current.steady.keys()) {
     if (!current.steadyAsked.has(key)) {
       current.steady.delete(key);
     }
   }
   const changed = JSON.stringify(drag.landing) !== JSON.stringify(landing);
-  current.drag = { ...drag, hints, isOff, landing };
+  current.landedBy = by;
+  current.drag = {
+    ...drag,
+    isOff,
+    isRefused: refused === true,
+    landing,
+  };
   if (changed) {
     current.onLanding?.(landing);
   }
@@ -660,7 +693,12 @@ async function release(current: Session, event: PointerEvent) {
     return;
   }
   carry?.cancel();
-  lander?.(drag.held, drag.landing);
+  const land = drag.landing ? current.landedBy?.land : undefined;
+  if (land && drag.landing) {
+    land(drag.held, drag.landing);
+  } else if (drag.isRefused !== true) {
+    lander?.(drag.held, drag.landing);
+  }
   end(current);
   // What landed may have moved the keyboard to another side or group, and
   // the press left the caret where it was, or on nothing.
@@ -694,11 +732,16 @@ export function followRemote(
   return current.drag.landing;
 }
 
-/** Files or a link from elsewhere held over the window by the system's drag, as it says where the pointer is. */
+/**
+ * Files or a link from elsewhere held over the window by the system's drag,
+ * as it says where the pointer is: where it lands, or "refused" where what
+ * is under it would change nothing, which the system's drag says with its
+ * pointer.
+ */
 export function followNative(
   held: ContentHeld,
   point: Point,
-): Landing | undefined {
+): Landing | "refused" | undefined {
   dragPoint.x = point.x;
   dragPoint.y = point.y;
   const current =
@@ -709,11 +752,20 @@ export function followNative(
     current.drag = { ...current.drag, held };
   }
   evaluate(current);
-  return current.drag.landing;
+  return current.drag.isRefused === true ? "refused" : current.drag.landing;
 }
 
-/** The system's drag let go over the window: where it lands, which the caller lands, and the drag over. */
-export function releaseNative(point: Point): Landing | undefined {
+/**
+ * The system's drag let go over the window, and the drag over: where it
+ * lands, which the caller lands with `land`, the target's own or else the
+ * window's; or "refused" where nothing changes.
+ */
+export function releaseNative(
+  point: Point,
+):
+  | "refused"
+  | undefined
+  | { land: (held: Held, landing: Landing) => void; landing: Landing } {
   const current = session;
   if (current?.drag.input !== "native") {
     return undefined;
@@ -721,9 +773,22 @@ export function releaseNative(point: Point): Landing | undefined {
   dragPoint.x = point.x;
   dragPoint.y = point.y;
   evaluate(current);
-  const { landing } = current.drag;
+  const { isRefused, landing } = current.drag;
+  const target = current.landedBy;
   end(current);
-  return landing;
+  if (isRefused === true) {
+    return "refused";
+  }
+  return landing
+    ? {
+        land:
+          target?.land ??
+          ((held, at) => {
+            lander?.(held, at);
+          }),
+        landing,
+      }
+    : undefined;
 }
 
 /** Ends a drag that came from elsewhere, the system's or another window's, with nothing landing. */

@@ -92,7 +92,6 @@ import { isTypingTarget } from "@/client/lib/is-typing-target";
 import {
   endOwnFileDrag,
   isOwnFileDragOf,
-  isPlaceDragInAir,
   isSelfFileDrag,
   ownFileDragInAir,
   sawOwnFileDrag,
@@ -185,12 +184,13 @@ import {
 import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 
 import { openInNewWindow } from "./app-tabs";
-import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { useWindow } from "./context";
 import { DROP_LOOK } from "./drag/tone";
 import { arrivalView } from "./files-step";
 import { useGroupTab } from "./group-tab";
-import { maySpring, springTimer } from "./spring-loading";
+import { pressPlace } from "./drag/press-bookmark";
+import { usePinnedTarget } from "./pinned-drops";
+import { maySpring, SPRING_FLASH_MS, springTimer } from "./spring-loading";
 import { type GoFiles } from "./use-files-step";
 import { PlaceMenu } from "./place-menu";
 import { FileThumbnail } from "./file-thumbnail";
@@ -897,7 +897,8 @@ export function ComputerPage({
   const placeInto = async (
     mode: "copy" | "move",
     sources: { hostPath: string; isFolder: boolean }[],
-    into: { hostPath: string; prefix: string },
+    /** The folder, and its prefix under the root where it is under it, as a place of the sidebar may not be. */
+    into: { hostPath: string; prefix?: string },
     how: { numbersInPlace?: boolean } = {},
   ) => {
     if (sources.length === 0) {
@@ -967,11 +968,12 @@ export function ComputerPage({
     const folders = new Set(
       sources.flatMap((source) => (source.isFolder ? [source.hostPath] : [])),
     );
-    if (into.prefix === onScreen && placed.length > 0) {
+    const { prefix } = into;
+    if (prefix !== undefined && prefix === onScreen && placed.length > 0) {
       selectWhenListed(
         placed.map(
           (each) =>
-            `${into.prefix}${nameOf(each.path)}${folders.has(each.from) ? "/" : ""}`,
+            `${prefix}${nameOf(each.path)}${folders.has(each.from) ? "/" : ""}`,
         ),
       );
     }
@@ -1043,12 +1045,12 @@ export function ComputerPage({
   };
   const copyInto = (
     sources: { hostPath: string; isFolder: boolean }[],
-    into: { hostPath: string; prefix: string },
+    into: { hostPath: string; prefix?: string },
     how?: { numbersInPlace?: boolean },
   ) => placeInto("copy", sources, into, how);
   const moveInto = (
     sources: { hostPath: string; isFolder: boolean }[],
-    into: { hostPath: string; prefix: string },
+    into: { hostPath: string; prefix?: string },
   ) => placeInto("move", sources, into);
   // What a drop just put in the folder on screen, selected once the re-read
   // lists it: until then there is no row to select.
@@ -1312,10 +1314,20 @@ export function ComputerPage({
     // of the step on screen until the drag ends: dropped here, the tab stays
     // where it dropped, and otherwise it goes back to where the drag began.
     let hasSprung = false;
-    const spring = springTimer((folder) => {
-      hasSprung = true;
-      dropHandlers.current.go({ path: folder, type: "spring" });
-    });
+    // The ring goes out for a moment just before the folder opens.
+    let flashUntil = 0;
+    const spring = springTimer(
+      (folder) => {
+        hasSprung = true;
+        dropHandlers.current.go({ path: folder, type: "spring" });
+      },
+      {
+        flash: () => {
+          flashUntil = performance.now() + SPRING_FLASH_MS;
+          setDropInto(null);
+        },
+      },
+    );
     const endSpring = (dropped: boolean) => {
       spring.stop();
       if (hasSprung) {
@@ -1335,15 +1347,6 @@ export function ComputerPage({
       }
       event.preventDefault();
       event.stopPropagation();
-      // A place of the sidebar goes into no folder, and nothing here offers
-      // to take it.
-      if (isPlaceDragInAir()) {
-        event.dataTransfer.dropEffect = "none";
-        sawOwnFileDrag();
-        clear();
-        spring.rest(null);
-        return;
-      }
       const prefix = dropHandlers.current.dropIntoOf(event.target);
       const into = dropHostPathRef.current(prefix);
       const carried = ownFileDragInAir();
@@ -1360,7 +1363,9 @@ export function ComputerPage({
       event.dataTransfer.dropEffect = goesNowhere
         ? "none"
         : dropEffectOf({ altKey: event.altKey, carried, into });
-      setDropInto(goesNowhere ? null : prefix);
+      setDropInto(
+        goesNowhere || performance.now() < flashUntil ? null : prefix,
+      );
       sawOwnFileDrag();
       const resting = dropHandlers.current.springFolderOf(event.target);
       if (resting !== null && event.type === "dragenter") {
@@ -1402,13 +1407,11 @@ export function ComputerPage({
       event.preventDefault();
       event.stopPropagation();
       clear();
-      if (isPlaceDragInAir()) {
-        endSpring(false);
-        releaseSelfFileDrag();
-        endOwnFileDrag();
-        return;
-      }
-      endSpring(true);
+      spring.stop();
+      hasSprung = false;
+      // Dropped in a folder a rest opened, here or on a place of the
+      // sidebar, the tab stays there.
+      dropHandlers.current.go({ dropped: true, type: "endSpring" });
       const wasSelfDrag = isSelfFileDrag();
       releaseSelfFileDrag();
       const prefix = dropHandlers.current.dropIntoOf(event.target);
@@ -2037,6 +2040,61 @@ export function ComputerPage({
       void rpcClient.preferences.unpinSidebarPlace
         .call({ path: place })
         .catch(sidebarChangeFailed);
+    },
+    dropInto: (
+      files: readonly { hostPath: string; isFolder: boolean }[],
+      folder: string,
+      { copies }: { copies: boolean },
+    ) => {
+      const into =
+        folder === dropHostPathOf(onScreen)
+          ? { hostPath: folder, prefix: onScreen }
+          : { hostPath: folder };
+      void (copies ? copyInto([...files], into) : moveInto([...files], into));
+    },
+    pinAt: (paths: readonly string[], order: readonly string[]) => {
+      void Promise.all(
+        paths.map((each) =>
+          rpcClient.preferences.pinSidebarPlace.call({
+            order: [...order],
+            path: each,
+          }),
+        ),
+      ).catch(sidebarChangeFailed);
+    },
+    spring: (folder: string | undefined) => {
+      go(
+        folder === undefined
+          ? { dropped: false, type: "endSpring" }
+          : {
+              path: "",
+              root: folder === homePath ? "~" : folder,
+              type: "spring",
+            },
+      );
+    },
+    springs: (folder: string) => {
+      // macOS asks about a guarded folder once, at its top, so one read
+      // before opens without a question.
+      const asksFirst =
+        macosAsksFirst(folder) &&
+        queryClient.getQueryData(
+          rpcClient.workspace.computer.list.queryKey({
+            input: { id: WINDOW_ID, path: folder },
+          }),
+        ) === undefined;
+      return (
+        !isRecents &&
+        folder !== dropHostPathOf(onScreen) &&
+        maySpring({
+          asksFirst,
+          carried: ownFileDragInAir(),
+          folder,
+          hostPath: folder,
+          onScreen: "",
+          refused: false,
+        })
+      );
     },
   });
 
@@ -3581,10 +3639,22 @@ function useListedItems({
 
 /** What a place's menu and the place lists do, steady for the life of the screen. */
 type PlaceActions = {
+  /** Files let go on a place of Pinned, moved or copied into its folder. */
+  dropInto: (
+    files: readonly { hostPath: string; isFolder: boolean }[],
+    folder: string,
+    how: { copies: boolean },
+  ) => void;
   openInNewTab: (place: string) => void;
   openInNewWindow: (place: string) => void;
+  /** Folders pinned, or rows moved, so Pinned's rows stand in `order`. */
+  pinAt: (paths: readonly string[], order: readonly string[]) => void;
   restoreDefaults: () => void;
   rootTo: (folder: string) => void;
+  /** A place's folder opened under a drag resting on it, or (`undefined`) the view put back. */
+  spring: (folder: string | undefined) => void;
+  /** Whether a place's folder may open under a drag resting on it. */
+  springs: (folder: string) => boolean;
   unpin: (place: string) => void;
 };
 
@@ -3657,6 +3727,14 @@ function FinderPlaces({
   );
   const placeMenu = (place: string, { isPinned = false } = {}) =>
     placeMenuOf(place, { actions, isPinned });
+  const pinnedList = useRef<HTMLUListElement>(null);
+  usePinnedTarget({
+    list: () => pinnedList.current,
+    onInto: actions.dropInto,
+    onPin: actions.pinAt,
+    onSpring: actions.spring,
+    springs: actions.springs,
+  });
   return (
     <>
       {/* The app's own places, which nobody unpins: what the person opened,
@@ -3701,12 +3779,14 @@ function FinderPlaces({
             </ContextMenuContent>
           )
         }
+        listRef={pinnedList}
         menu={(place) => placeMenu(place, { isPinned: true })}
         onOpenInNewTab={actions.openInNewTab}
         onOpenInNewWindow={actions.openInNewWindow}
         onOpen={(folder) => {
           actions.rootTo(folder === homePath ? "~" : folder);
         }}
+        pinned={pinned.map((place) => place.path)}
         places={pinned.map((place) => ({
           // The home folder wears the house it wears in the Finder, which
           // is what says the account-named folder is home.
@@ -4555,16 +4635,20 @@ function isTextLike(file: FileSystemFileItem) {
 function PlaceList({
   label,
   labelMenu,
+  listRef,
   menu,
   onOpen,
   onOpenInNewTab,
   onOpenInNewWindow,
   places,
+  pinned,
 }: {
   /** Left out for the app's own places, which need no heading. */
   label?: string;
   /** What a right-click on the heading offers. */
   labelMenu?: ReactNode;
+  /** The list of rows, for Pinned, which takes drops (`usePinnedTarget`). */
+  listRef?: React.Ref<HTMLUListElement>;
   /** What a right-click on a place offers; nothing where a place is not a folder. */
   menu?: (path: string) => ReactNode;
   onOpen: (path: string) => void;
@@ -4578,6 +4662,8 @@ function PlaceList({
     name: string;
     path: string;
   }[];
+  /** For Pinned, its rows' paths in order, which a row dragged out of the window leaves. */
+  pinned?: readonly string[];
 }) {
   return (
     <div>
@@ -4591,7 +4677,7 @@ function PlaceList({
           {labelMenu}
         </ContextMenu>
       )}
-      <ul className="flex flex-col gap-px">
+      <ul className="flex flex-col gap-px" ref={listRef}>
         {places.map((place) => (
           <PlaceRow
             key={place.path}
@@ -4600,6 +4686,7 @@ function PlaceList({
             onOpenInNewTab={onOpenInNewTab}
             onOpenInNewWindow={onOpenInNewWindow}
             place={place}
+            pinned={pinned}
           />
         ))}
       </ul>
@@ -4608,11 +4695,12 @@ function PlaceList({
 }
 
 /**
- * A place in the sidebar, which drags as the folder it is: out to the
- * Finder (which copies what another app hands it), onto a side, or onto the
- * bookmarks bar. No folder here takes it, so a stray drop never moves a
- * home folder or a disk. The recents and the computer are no folder, and
- * stay put.
+ * A place in the sidebar, which drags as a place, held by the pointer: a
+ * link to Files at its folder, never the folder itself, so nothing is
+ * handed out of the app to copy (`pressPlace`). It opens as a tab, joins a
+ * strip, goes on the bookmarks bar, or moves along Pinned; a row of Pinned
+ * let go past the window leaves Pinned, as in Finder's sidebar. The recents
+ * and the computer are no folder, and stay put.
  */
 function PlaceRow({
   menu,
@@ -4620,6 +4708,7 @@ function PlaceRow({
   onOpenInNewTab,
   onOpenInNewWindow,
   place,
+  pinned,
 }: {
   menu: ReactNode;
   onOpen: (path: string) => void;
@@ -4631,22 +4720,31 @@ function PlaceRow({
     name: string;
     path: string;
   };
+  pinned: readonly string[] | undefined;
 }) {
   const isFolder = place.path !== RECENTS_ROOT && place.path !== COMPUTER_ROOT;
-  const dragProps = useFileDrag(
-    isFolder ? { hostPath: place.path } : undefined,
-    { isPlace: true },
-  );
   return (
-    <li>
+    <li
+      {...(pinned
+        ? { "data-pinned-name": place.name, "data-pinned-place": place.path }
+        : {})}
+    >
       <ContextMenu>
         <ContextMenuTrigger asChild disabled={menu === undefined}>
           <button
-            {...dragProps}
             className={cn(
               "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
               place.isActive && "bg-foreground/8",
             )}
+            onPointerDown={(event) => {
+              if (isFolder) {
+                pressPlace(event, {
+                  name: place.name,
+                  path: place.path,
+                  ...(pinned ? { pinned } : {}),
+                });
+              }
+            }}
             onAuxClick={(event) => {
               if (event.button === 1) {
                 event.preventDefault();

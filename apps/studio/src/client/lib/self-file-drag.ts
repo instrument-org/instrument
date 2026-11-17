@@ -60,21 +60,16 @@ export function releaseSelfFileDrag() {
 }
 
 /**
- * Called as this app hands files to the OS, with where they are; `isPlace`
- * for a place of Files' sidebar, which no folder here takes; `from`, what
- * the drag was pressed on.
+ * Called as this app hands files to the OS, with where they are; `from`,
+ * what the drag was pressed on.
  */
 export function trackSelfFileDrag(
   paths: readonly string[] = [],
-  {
-    from = null,
-    isPlace = false,
-  }: { from?: Element | null; isPlace?: boolean } = {},
+  { from = null }: { from?: Element | null } = {},
 ) {
   startedAt = Date.now();
   source = from;
   carried = paths.length > 0 ? new Set(paths) : null;
-  carriesPlace = carried !== null && isPlace;
   carriedSince = startedAt;
   carriedSeen = startedAt;
   if (carried) {
@@ -90,9 +85,6 @@ export function trackSelfFileDrag(
 // so the first one after it is the end of a drag that went somewhere else; a
 // drop here ends it first.
 let carried: null | ReadonlySet<string> = null;
-// Whether what is carried is a place of Files' sidebar (a home folder, a
-// disk), which a folder here never takes, so a stray drop moves nothing.
-let carriesPlace = false;
 let carriedSince = 0;
 // The pointer events a page can still be sent as a drag begins, which are
 // not its end.
@@ -152,11 +144,6 @@ export function ownFileDragInAir(): readonly string[] {
     : [];
 }
 
-/** Whether this app's own drag in the air is a place of Files' sidebar. */
-export function isPlaceDragInAir() {
-  return carriesPlace && ownFileDragInAir().length > 0;
-}
-
 /**
  * Called by a drop target each time it hears a drag of files over it. The
  * page hears nothing else of this app's own drag while it is in the air, and
@@ -172,7 +159,6 @@ export function sawOwnFileDrag() {
 /** Called once a drop has taken this app's own drag, or it is known to have ended. */
 export function endOwnFileDrag() {
   carried = null;
-  carriesPlace = false;
   stopListening?.();
   stopListening = null;
 }

@@ -5,7 +5,6 @@ import {
   REST_MS,
   sideZoneAt,
   type Span,
-  splitTargetsOf,
   steadyPick,
 } from "@/client/components/window/drag/landing";
 import { type Drag, dragAtom } from "@/client/components/window/drag/session";
@@ -221,9 +220,8 @@ export function inStrip({
 
 /**
  * What is held over a side's page, at a share of its width: the half a
- * lone side's end would make a side lit, or the side it would join, or
- * nothing, as over its own side's middle; and a lone side's ends shown
- * faintly, as from the drag's start, the end lit giving way to its half.
+ * lone side's edge would make a side lit, with the line down that edge,
+ * or the side it would join, or nothing, as a tab over a page's middle.
  */
 export function overSide({
   across,
@@ -242,6 +240,8 @@ export function overSide({
   input?: Drag["input"];
   side: 0 | 1;
 }): Scene {
+  const kind =
+    held.kind === "tab" || held.kind === "group" ? held.kind : "content";
   return async (stage) => {
     const sides = [0, 1].flatMap((each) => {
       const rect = stage.rectOf(`[data-side-page="${String(each)}"]`);
@@ -255,20 +255,18 @@ export function overSide({
       x: page.left + page.width * across,
       y: page.top + page.height / 2,
     };
-    const zone = sideZoneAt({ held: heldIn, point, sides });
+    const zone = sideZoneAt({ held: { ...heldIn, kind }, point, sides });
     await stage.show({
       // Where nothing on the page takes it, what is held goes with the pointer.
       grab: stage.grabAt(point),
       held,
-      hints: splitTargetsOf({ held: heldIn, sides }).map((target) => ({
-        ...target,
-        page: stage.rel(target.page),
-      })),
       input,
       isOff: false,
       landing: zone
         ? {
+            ...(zone.edge ? { edge: stage.rel(zone.edge) } : {}),
             group,
+            ...(zone.kind === "join" && zone.isLone ? { isLone: true } : {}),
             kind: "side",
             lit: stage.rel(zone.lit),
             side: zone.side,

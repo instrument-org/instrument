@@ -1,15 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  EDGE_PX,
+  type HeldInGroup,
   isOffWindow,
   onPages,
   pagesReach,
-  pullOf,
   REST_MS,
   scrollSpeed,
   sideZoneAt,
-  splitTargetRect,
-  splitTargetsOf,
   type Steady,
   steadyPick,
 } from "./landing";
@@ -18,192 +17,161 @@ const page = { height: 600, left: 100, top: 80, width: 900 };
 const left = { height: 600, left: 100, top: 80, width: 440 };
 const right = { height: 600, left: 548, top: 80, width: 452 };
 
+const CONTENT: HeldInGroup = { kind: "content" };
+const OTHER_TAB: HeldInGroup = { kind: "tab" };
+const OWN_TAB: HeldInGroup = { isAlone: false, kind: "tab", side: 0 };
+const GROUP: HeldInGroup = { kind: "group" };
+
+/** What a zone comes to, in a word, for a table. */
+function said(zone: ReturnType<typeof sideZoneAt>) {
+  if (!zone) {
+    return "none";
+  }
+  return `${zone.kind} ${String(zone.side)}${zone.edge ? " at the edge" : ""}${zone.kind === "join" && zone.isLone ? " as a new tab" : ""}`;
+}
+
 describe("a side's page under something held", () => {
-  it("over a lone side, from elsewhere, makes a side at each end and joins in the middle", () => {
-    expect(
-      [120, 550, 980].map((x) =>
-        sideZoneAt({
-          held: {},
-          point: { x, y: 300 },
-          sides: [page],
-        }),
+  it("over a lone side, splits only at its outer edges", () => {
+    const xs = [101, 100 + EDGE_PX + 1, 400, 700, 1000 - EDGE_PX - 1, 999];
+    const table = Object.entries({
+      content: CONTENT,
+      "a tab from elsewhere": OTHER_TAB,
+      "its own tab": OWN_TAB,
+      "a whole group": GROUP,
+    }).flatMap(([name, held]) => [
+      `${name}:`,
+      ...xs.map(
+        (x) =>
+          `  ${String(x)} → ${said(sideZoneAt({ held, point: { x, y: 300 }, sides: [page] }))}`,
       ),
-    ).toMatchInlineSnapshot(`
-      [
-        {
-          "kind": "split",
-          "lit": {
-            "height": 600,
-            "left": 100,
-            "top": 80,
-            "width": 450,
-          },
-          "side": 0,
-        },
-        {
-          "kind": "join",
-          "lit": {
-            "height": 600,
-            "left": 100,
-            "top": 80,
-            "width": 900,
-          },
-          "side": 0,
-        },
-        {
-          "kind": "split",
-          "lit": {
-            "height": 600,
-            "left": 550,
-            "top": 80,
-            "width": 450,
-          },
-          "side": 1,
-        },
-      ]
+    ]);
+    expect(table.join("\n")).toMatchInlineSnapshot(`
+      "content:
+        101 → split 0 at the edge
+        125 → join 0 as a new tab
+        400 → join 0 as a new tab
+        700 → join 0 as a new tab
+        975 → join 0 as a new tab
+        999 → split 1 at the edge
+      a tab from elsewhere:
+        101 → split 0 at the edge
+        125 → none
+        400 → none
+        700 → none
+        975 → none
+        999 → split 1 at the edge
+      its own tab:
+        101 → split 0 at the edge
+        125 → none
+        400 → none
+        700 → none
+        975 → none
+        999 → split 1 at the edge
+      a whole group:
+        101 → split 0 at the edge
+        125 → split 0
+        400 → split 0
+        700 → split 1
+        975 → split 1
+        999 → split 1 at the edge"
     `);
   });
 
-  it("takes nothing in a lone side's middle from a tab already there", () => {
+  it("lights the half and draws the line down the edge it splits at", () => {
     expect(
-      sideZoneAt({
-        held: { side: 0 },
-        point: { x: 550, y: 300 },
-        sides: [page],
-      }),
-    ).toBeUndefined();
+      sideZoneAt({ held: CONTENT, point: { x: 990, y: 300 }, sides: [page] }),
+    ).toMatchInlineSnapshot(`
+      {
+        "edge": {
+          "height": 576,
+          "left": 994,
+          "top": 92,
+          "width": 3,
+        },
+        "kind": "split",
+        "lit": {
+          "height": 600,
+          "left": 550,
+          "top": 80,
+          "width": 450,
+        },
+        "side": 1,
+      }
+    `);
   });
 
   it("makes no side of a side's only tab", () => {
     expect(
       sideZoneAt({
-        held: { isAlone: true, side: 0 },
-        point: { x: 980, y: 300 },
+        held: { isAlone: true, kind: "tab", side: 0 },
+        point: { x: 990, y: 300 },
         sides: [page],
       }),
     ).toBeUndefined();
   });
 
-  it("splits as soon as a pointer moving across the page reaches its end", () => {
-    // 600 px a second, a frame at a time, never stopping.
+  it("never splits a pointer moving across the page until it reaches the edge", () => {
+    // 240 px a second, a frame at a time, never stopping.
     const zones = [];
-    for (let x = 500; x < 1000; x += 10) {
-      const zone = sideZoneAt({
-        held: { isAlone: false, side: 0 },
-        point: { x, y: 300 },
-        sides: [page],
-      });
-      zones.push(zone ? `${zone.kind} ${zone.side}` : "none");
+    for (let x = 500; x < 1000; x += 4) {
+      zones.push(
+        said(
+          sideZoneAt({ held: OWN_TAB, point: { x, y: 300 }, sides: [page] }),
+        ),
+      );
     }
-    // The right target starts at 822, and takes it 36px short of that.
-    expect(500 + zones.indexOf("split 1") * 10).toBe(790);
-    expect(new Set(zones)).toEqual(new Set(["none", "split 1"]));
+    expect(500 + zones.indexOf("split 1 at the edge") * 4).toBe(1000 - EDGE_PX);
+    expect(new Set(zones)).toEqual(new Set(["none", "split 1 at the edge"]));
   });
 
-  it("splits only near a target, short of the page's full height", () => {
-    expect(
-      [100, 300, 660].map(
-        (y) =>
-          sideZoneAt({
-            held: { isAlone: false, side: 0 },
-            point: { x: 900, y },
-            sides: [page],
-          })?.kind ?? "none",
-      ),
-    ).toEqual(["none", "split", "none"]);
-  });
-
-  it("splits at the very end at any height, as a tab flung to the edge does", () => {
-    expect(
-      sideZoneAt({
-        held: { isAlone: false, side: 0 },
-        point: { x: 990, y: 100 },
-        sides: [page],
-      })?.side,
-    ).toBe(1);
-  });
-
-  it("keeps a split it took over the whole half it makes", () => {
-    const at = (lit?: 0 | 1) =>
-      sideZoneAt({
-        held: { isAlone: false, side: 0 },
-        ...(lit === undefined ? {} : { lit }),
-        point: { x: 600, y: 120 },
-        sides: [page],
-      })?.kind ?? "none";
-    expect([at(), at(1), at(0)]).toEqual(["none", "split", "none"]);
+  it("keeps an edge it armed a little farther in, so a hand resting there holds it", () => {
+    const at = (armed?: 0 | 1) =>
+      said(
+        sideZoneAt({
+          armed,
+          held: OWN_TAB,
+          point: { x: 1000 - 32, y: 120 },
+          sides: [page],
+        }),
+      );
+    expect([at(), at(1), at(0)]).toEqual([
+      "none",
+      "split 1 at the edge",
+      "none",
+    ]);
   });
 
   it.each([
-    ["the left side from the right", 1, 200, "join 0"],
-    ["the right side from the left", 0, 700, "join 1"],
-    ["its own side", 0, 200, "none"],
-    ["the gutter", 0, 544, "none"],
-  ] as const)("of two sides, over %s", (_, side, x, expected) => {
-    const zone = sideZoneAt({
-      held: { side },
-      point: { x, y: 300 },
-      sides: [left, right],
-    });
-    expect(zone ? `${zone.kind} ${zone.side}` : "none").toBe(expected);
-  });
+    ["content over the left side", CONTENT, 200, "join 0"],
+    ["content over the right side", CONTENT, 700, "join 1"],
+    [
+      "a tab over the other side's middle",
+      { kind: "tab", side: 0 },
+      700,
+      "none",
+    ],
+    [
+      "a tab at the other side's edge",
+      { kind: "tab", side: 0 },
+      990,
+      "join 1 at the edge",
+    ],
+    ["a tab at its own side's edge", { kind: "tab", side: 0 }, 110, "none"],
+    ["a whole group anywhere", GROUP, 990, "none"],
+    ["content in the gutter", CONTENT, 544, "none"],
+  ] satisfies [string, HeldInGroup, number, string][])(
+    "of two sides, %s",
+    (_, held, x, expected) => {
+      expect(
+        said(sideZoneAt({ held, point: { x, y: 300 }, sides: [left, right] })),
+      ).toBe(expected);
+    },
+  );
 
   it("is nowhere off the pages", () => {
     expect(
-      sideZoneAt({
-        held: {},
-        point: { x: 550, y: 40 },
-        sides: [page],
-      }),
+      sideZoneAt({ held: CONTENT, point: { x: 550, y: 40 }, sides: [page] }),
     ).toBeUndefined();
-  });
-});
-
-describe("a lone side's split targets", () => {
-  it("stand in from each end, narrower than the half and shorter than the page", () => {
-    expect(
-      [0, 1].map((side) => splitTargetRect({ page, side: side === 1 ? 1 : 0 })),
-    ).toMatchInlineSnapshot(`
-        [
-          {
-            "height": 300,
-            "left": 116,
-            "top": 230,
-            "width": 162,
-          },
-          {
-            "height": 300,
-            "left": 822,
-            "top": 230,
-            "width": 162,
-          },
-        ]
-      `);
-  });
-
-  it("are shown from a drag's start, left first", () => {
-    expect(
-      splitTargetsOf({ held: { isAlone: false, side: 0 }, sides: [page] }).map(
-        (target) => target.side,
-      ),
-    ).toEqual([0, 1]);
-  });
-
-  it.each([
-    ["a side's only tab", { isAlone: true, side: 0 as const }, [page]],
-    ["two sides", {}, [left, right]],
-  ])("are none for %s", (_, held, sides) => {
-    expect(splitTargetsOf({ held, sides })).toEqual([]);
-  });
-
-  it.each([
-    ["far off", 600, 0],
-    ["at the edge of its pull", 822 - 140, 0],
-    ["halfway in", 822 - 88, 0.5],
-    ["where it takes what is held", 822 - 36, 1],
-    ["over it", 900, 1],
-  ])("pull %s", (_, x, pull) => {
-    expect(pullOf({ page, side: 1 }, { x, y: 380 })).toBeCloseTo(pull);
   });
 });
 
@@ -228,11 +196,11 @@ describe("the margin past a group's outer page", () => {
     ]).toEqual([-16, setIn]);
   });
 
-  it("is the page's end, which splits", () => {
+  it("is the page's edge, which splits", () => {
     const point = onPages({ x: 1250, y: 300 }, [near]);
     expect([
       point,
-      sideZoneAt({ held: {}, point, sides: [near] })?.kind,
+      sideZoneAt({ held: CONTENT, point, sides: [near] })?.kind,
     ]).toEqual([{ x: 1231, y: 300 }, "split"]);
   });
 });

@@ -135,6 +135,21 @@ it("sends a digit's pick on Enter when the keyboard came into the card on Skip",
   });
 });
 
+it("shows each choice's digit only while the keyboard is on the card's buttons", async () => {
+  const screen = await renderInBrowser(
+    <QuestionCard onAnswer={noop} questions={[COMPETITORS]} status="open" />,
+  );
+  const digit = screen.getByText("3", { exact: true });
+  await expect.element(digit).not.toBeVisible();
+
+  screen.getByRole("button", { name: "Skip" }).element().focus();
+  await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+  await expect.element(digit).toBeVisible();
+
+  await screen.getByRole("textbox", { name: "Your own answer" }).click();
+  await expect.element(digit).not.toBeVisible();
+});
+
 it("leaves digits to the own-answer row, where Shift+Enter starts a line and Enter sends", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(

@@ -27,6 +27,7 @@ import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
+import { Kbd } from "../ui/kbd";
 import {
   DictatedTextarea,
   DictationControls,
@@ -304,7 +305,11 @@ export function QuestionCard({
   return (
     <ToolCard>
       {/* The keys reach the choices inside, each a button of its own. */}
-      <div className="px-4 py-3" onKeyDown={onCardKeyDown} ref={cardRef}>
+      <div
+        className="group/card px-4 py-3"
+        onKeyDown={onCardKeyDown}
+        ref={cardRef}
+      >
         {isSeveral ? (
           <Steps
             drafts={questions.map((_, index) => draftAt(index))}
@@ -531,6 +536,16 @@ function QuestionStep({
                   ) : null}
                 </span>
               </ChoiceRow>
+              {/* Shown while the keyboard is on the card's buttons, the one
+                  place its digit picks this choice. */}
+              {index < 9 ? (
+                <Kbd
+                  aria-hidden
+                  className="hidden self-start group-has-[button:focus-visible]/card:inline-flex"
+                >
+                  {index + 1}
+                </Kbd>
+              ) : null}
             </button>
           );
         })}

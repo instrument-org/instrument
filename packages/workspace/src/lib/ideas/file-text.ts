@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 
 import {
@@ -60,9 +61,11 @@ const TEXT_EXTENSIONS = new Set([
 export type FileText = { text: string } | { unreadable: string };
 
 export async function fileText(
-  filePath: string,
+  shownPath: string,
   budget: number,
 ): Promise<FileText> {
+  // A folder the window names from the home folder.
+  const filePath = shownPath.replace(/^~(?=\/|$)/, os.homedir());
   let stat: Awaited<ReturnType<typeof fs.stat>>;
   try {
     stat = await fs.stat(filePath);

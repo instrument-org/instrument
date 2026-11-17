@@ -149,7 +149,7 @@ async function ask({
   trigger: z.output<typeof IdeaTriggerSchema>;
 }): Promise<readonly string[]> {
   const config = fastConnection(modelURI);
-  if (!config || tabs.length === 0) {
+  if (!config) {
     return [];
   }
   const workspaceConfig = getWorkspaceConfig();
@@ -163,6 +163,11 @@ async function ask({
   }
   const built = performance.now();
   const context = await contextOf(tabs);
+  // A new tab in a group of its own, with nothing done lately: nothing to
+  // have an idea about.
+  if (context === undefined) {
+    return [];
+  }
   const contextMs = performance.now() - built;
   const startedAt = performance.now();
   let firstOutputMs: number | undefined;
@@ -247,7 +252,9 @@ function readablePath(hostPath: string): string {
 }
 
 /** What goes to the model: what the person did lately, then each tab under its budget. */
-async function contextOf(tabs: readonly IdeaTab[]): Promise<string> {
+async function contextOf(
+  tabs: readonly IdeaTab[],
+): Promise<string | undefined> {
   const parts: string[] = [];
   if (mayShareActions()) {
     const now = Date.now();
@@ -265,6 +272,11 @@ async function contextOf(tabs: readonly IdeaTab[]): Promise<string> {
         "",
       );
     }
+  }
+  if (tabs.length === 0) {
+    return parts.length === 0
+      ? undefined
+      : [...parts, "Nothing else is open beside the new tab."].join("\n");
   }
   parts.push("What they have open, the tab in front first:");
   for (const [index, tab] of tabs.entries()) {

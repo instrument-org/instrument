@@ -110,9 +110,8 @@ describe("ideasFrom", () => {
   });
 
   it("drops lines too long for the corner", () => {
-    expect(
-      read(`Work out ${"the totals and ".repeat(6)}the average`),
-    ).toMatchInlineSnapshot(`
+    expect(read(`Work out ${"the totals and ".repeat(6)}the average`))
+      .toMatchInlineSnapshot(`
       {
         "Work out the totals and the totals and the totals and the totals and the totals and the totals and the average": [],
       }

@@ -39,10 +39,7 @@ export interface ActivityCall {
    * What only the caller learns about the request (its cost, when its first
    * words came, what set it off), read once the request has settled.
    */
-  details?: () => Pick<
-    ActivityEntry,
-    "costUsd" | "firstOutputMs" | "trigger"
-  >;
+  details?: () => Pick<ActivityEntry, "costUsd" | "firstOutputMs" | "trigger">;
   /** The connection the request goes through; never its key. */
   connection?: { displayName?: string; id: string; type: string };
   /** Language unless said otherwise: an image made by a language model is still an image. */

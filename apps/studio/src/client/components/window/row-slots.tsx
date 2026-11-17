@@ -68,6 +68,9 @@ export function useRowSlots() {
  * view slot and what the tab puts ahead of it), so the folder's sit over the
  * folder and the file's over the file. Away while nothing is in either: a
  * file whose own toolbar takes its controls starts right under the bar.
+ *
+ * A `tabrow` container like the address row, so what is drawn into it (the
+ * folder's views, a page's Edit) folds against the width this row has.
  */
 export function ScreenToolsRow({
   end,
@@ -77,7 +80,7 @@ export function ScreenToolsRow({
   lead?: ReactNode;
 }) {
   return (
-    <div className="hidden h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5 has-[>:not(:empty)]:flex">
+    <div className="@container/tabrow hidden h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5 has-[>:not(:empty)]:flex">
       {lead}
       <div className="flex-1" />
       {end}

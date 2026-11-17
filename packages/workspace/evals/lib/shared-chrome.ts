@@ -88,6 +88,46 @@ export interface SharedChrome {
   remove: (id: string) => Promise<void>;
 }
 
+/**
+ * The page size every tab lays out at, from `INSTRUMENT_EVAL_VIEWPORT`
+ * (`<width>x<height>`, CSS px), standing in for a tab shown in a slot of
+ * that size in the app, where the page lays out at the slot's size and an
+ * agent's `set viewport` waits until the tab is out of sight. Unset, a tab
+ * is Chrome's 1280 by 900 window and the agent's own sizes apply, as for a
+ * tab nobody is looking at. `INSTRUMENT_EVAL_VIEWPORT_AFTER` (`<seconds>`)
+ * holds each tab at 1280 by 900 until that long after the agent's first
+ * command in it, then moves it to the pinned size, as a person opening a
+ * split or dragging its divider does mid-task.
+ */
+function pinnedViewport():
+  | undefined
+  | { afterMs: number; height: number; width: number } {
+  const match = /^(\d+)x(\d+)$/.exec(
+    process.env.INSTRUMENT_EVAL_VIEWPORT ?? "",
+  );
+  if (!match) {
+    return undefined;
+  }
+  const after = Number(process.env.INSTRUMENT_EVAL_VIEWPORT_AFTER ?? "0");
+  return {
+    afterMs: Number.isFinite(after) ? after * 1000 : 0,
+    height: Number(match[2]),
+    width: Number(match[1]),
+  };
+}
+
+/** What the pinned viewport refused or did, appended to `$HOME/.eval-viewport.jsonl` for a case to read. */
+function noteViewport(entry: Record<string, unknown>) {
+  try {
+    fs.appendFileSync(
+      path.join(os.homedir(), ".eval-viewport.jsonl"),
+      `${JSON.stringify({ at: Date.now(), ...entry })}\n`,
+    );
+  } catch {
+    // A note that cannot be written changes nothing about the run.
+  }
+}
+
 let current: SharedChrome | undefined;
 
 /** The run's shared Chrome, for a case's teardown to read its pages. */
@@ -274,6 +314,25 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
   });
   await send("Target.setDiscoverTargets", { discover: true });
 
+  const pinned = pinnedViewport();
+  const pinSize = async (sessionId: string) => {
+    if (!pinned) {
+      return;
+    }
+    await send(
+      "Emulation.setDeviceMetricsOverride",
+      {
+        deviceScaleFactor: 1,
+        height: pinned.height,
+        mobile: false,
+        width: pinned.width,
+      },
+      sessionId,
+    );
+  };
+  /** Pages whose move to the pinned size is set or done, for `INSTRUMENT_EVAL_VIEWPORT_AFTER`. */
+  const shiftScheduled = new Set<string>();
+
   const ensure = async (id: string, url?: string) => {
     if (pages.has(id)) {
       return;
@@ -292,6 +351,9 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
         targetId,
       })) as { sessionId: string };
       bySession.set(sessionId, id);
+      if (pinned && pinned.afterMs === 0) {
+        await pinSize(sessionId);
+      }
       pages.set(id, {
         chromeId: targetId,
         destroyed: new Set(),
@@ -399,6 +461,26 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
         const page = pages.get(targetId);
         if (!page) {
           return Promise.reject(new Error(`No target ${targetId}`));
+        }
+        if (
+          pinned &&
+          (method === "Emulation.setDeviceMetricsOverride" ||
+            method === "Emulation.clearDeviceMetricsOverride")
+        ) {
+          // A shown tab keeps its slot's size in the app.
+          noteViewport({ asked: params, method, refused: true });
+          return Promise.resolve({});
+        }
+        if (pinned && pinned.afterMs > 0 && !shiftScheduled.has(targetId)) {
+          shiftScheduled.add(targetId);
+          const session = page.session;
+          setTimeout(() => {
+            void pinSize(session)
+              .then(() => {
+                noteViewport({ shifted: targetId });
+              })
+              .catch(() => undefined);
+          }, pinned.afterMs).unref();
         }
         return send(method, params, frameSession ?? page.session);
         // The overloads of sendCommand are one function at runtime.

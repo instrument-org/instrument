@@ -1,7 +1,6 @@
 import { type ClosedTabs } from "@/client/components/activity/activity-timeline";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { appTabsAtom } from "@/client/components/window/app-tabs";
-import { FadeTitle } from "@/client/components/window/fade-title";
 import { RowHalf, TabMark } from "@/client/components/window/row-half";
 import { ShellContext } from "@/client/components/window/shell-context";
 import {
@@ -141,46 +140,45 @@ export function ClosedTabsPicture({ closed }: { closed: ClosedTabs }) {
           up && !first.includes(up) ? [...first.slice(0, -1), up] : first;
         const rest = side.tabs.length - shown.length;
         return (
-          <div className="flex min-w-0 flex-1 basis-0" key={up?.id ?? index}>
-            {index > 0 && (
-              <span className="mx-2 my-0.5 w-px shrink-0 self-stretch bg-foreground/12" />
+          // Even padding on both sides of the hairline, so the halves are
+          // the same width.
+          <div
+            className={cn(
+              "relative flex min-w-0 flex-1 basis-0 flex-col",
+              index > 0 && "pl-2",
+              index < closed.sides.length - 1 && "pr-2",
             )}
-            <div className="flex min-w-0 flex-1 flex-col">
-              {up && (
-                <RowHalf chatTitles={chatTitles} isOnScreen={false} tab={up} />
-              )}
-              {side.tabs.length > 1 && (
-                <div className="flex min-w-0 items-center gap-0.5 pb-0.5">
-                  {shown.map((tab) => {
-                    const isUp = tab === up;
-                    return (
-                      <span
-                        className={cn(
-                          "flex h-6 items-center gap-1.5 rounded-lg text-[12px] font-medium",
-                          isUp
-                            ? "max-w-40 min-w-14 flex-1 bg-background px-1.5 text-foreground shadow-xs-soft"
-                            : "w-6 shrink-0 justify-center text-foreground/55 dark:text-foreground/65",
-                        )}
-                        key={tab.id}
-                        title={titles.get(tab.id)}
-                      >
-                        <span className="grid size-3.5 shrink-0 place-items-center">
-                          <ClosedTabMark tab={tab} />
-                        </span>
-                        {isUp && (
-                          <FadeTitle className="min-w-0 flex-1 whitespace-nowrap">
-                            {titles.get(tab.id)}
-                          </FadeTitle>
-                        )}
-                      </span>
-                    );
-                  })}
-                  {rest > 0 && (
-                    <span className="shrink-0 px-1 text-[12px] text-muted-foreground tabular-nums">
-                      +{rest} more
-                    </span>
+            key={up?.id ?? index}
+          >
+            {index > 0 && (
+              <span className="absolute inset-y-0.5 left-0 w-px bg-foreground/12" />
+            )}
+            {up && (
+              <RowHalf chatTitles={chatTitles} isOnScreen={false} tab={up} />
+            )}
+            {/* Marks only, under the row that names the tab up; a side of one
+                tab gets its strip too, so the two sides line up. */}
+            <div className="flex min-w-0 items-center gap-0.5 pb-0.5">
+              {shown.map((tab) => (
+                <span
+                  className={cn(
+                    "grid size-6 shrink-0 place-items-center rounded-lg",
+                    tab === up
+                      ? "bg-background shadow-xs-soft"
+                      : "text-foreground/55 dark:text-foreground/65",
                   )}
-                </div>
+                  key={tab.id}
+                  title={titles.get(tab.id)}
+                >
+                  <span className="grid size-3.5 place-items-center">
+                    <ClosedTabMark tab={tab} />
+                  </span>
+                </span>
+              ))}
+              {rest > 0 && (
+                <span className="shrink-0 px-1 text-[12px] text-muted-foreground tabular-nums">
+                  +{rest} more
+                </span>
               )}
             </div>
           </div>

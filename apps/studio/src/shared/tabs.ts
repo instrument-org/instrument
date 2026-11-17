@@ -61,7 +61,14 @@ const ClosedTabSchema = TabSchema.extend({
   groupTab: z.unknown().optional(),
   groupTabs: z.unknown().optional(),
   index: z.number().optional(),
-  side: z.union([z.literal(0), z.literal(1)]).optional(),
+  // Any side past the first reopens on the right, so a later layout's
+  // closed side still reads here.
+  side: z
+    .number()
+    .int()
+    .min(0)
+    .transform((side): 0 | 1 => (side >= 1 ? 1 : 0))
+    .optional(),
   ups: z
     .object({ active: z.number(), beside: z.number().optional() })
     .optional(),

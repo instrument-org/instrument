@@ -77,7 +77,7 @@ import { sameHref } from "./window-href";
 
 /** A kept group's shape; its tabs' own fields are this module's to write and read. */
 const TabGroupMemberSchema = z.object({
-  focused: z.union([z.literal(0), z.literal(1)]),
+  focused: z.number().int().min(0),
   pinned: z.boolean().optional(),
   share: z.number().optional(),
   sides: z
@@ -87,8 +87,7 @@ const TabGroupMemberSchema = z.object({
         up: z.string().optional(),
       }),
     )
-    .min(1)
-    .max(2),
+    .min(1),
 });
 
 /**
@@ -172,7 +171,9 @@ function joinTabGroups(members: Map<string, unknown>): WindowTabs {
         tabs.push({
           ...(tab as KeptTab),
           ...(group === undefined ? {} : { group }),
-          ...(at === 1 ? { side: 1 } : {}),
+          // A side past the second, which a later layout may keep, stands
+          // on the right, so none of its tabs is dropped.
+          ...(at >= 1 ? { side: 1 } : {}),
         } as WindowTab);
       }
     });

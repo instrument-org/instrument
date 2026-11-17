@@ -208,4 +208,38 @@ describe("the tab groups kept on this computer", () => {
     Reflect.deleteProperty(window, "api");
     vi.resetModules();
   });
+
+  it("keeps every tab of a group a later layout kept with three sides, past the second on the right", async () => {
+    vi.resetModules();
+    Object.defineProperty(window, "api", {
+      configurable: true,
+      value: {
+        keptState: {
+          initial: {
+            groups: {
+              "tab-groups.v3/group_a": {
+                focused: 2,
+                sides: [
+                  { tabs: [{ id: "tab_1", kind: "page" }], up: "tab_1" },
+                  { tabs: [{ id: "tab_2", kind: "page" }], up: "tab_2" },
+                  { tabs: [{ id: "tab_3", kind: "page" }], up: "tab_3" },
+                ],
+              },
+            },
+          },
+          onChange: () => () => {},
+          set: vi.fn(),
+        },
+      },
+    });
+    const { windowTabsAtom: read } = await import("./window-tabs");
+
+    expect(createStore().get(read).tabs).toEqual([
+      { group: "group_a", id: "tab_1", kind: "page" },
+      { group: "group_a", id: "tab_2", kind: "page", side: 1 },
+      { group: "group_a", id: "tab_3", kind: "page", side: 1 },
+    ]);
+    Reflect.deleteProperty(window, "api");
+    vi.resetModules();
+  });
 });

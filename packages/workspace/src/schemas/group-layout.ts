@@ -34,28 +34,32 @@ const LayoutTabSchema = z.object({
 export type LayoutTab = z.output<typeof LayoutTabSchema>;
 
 /**
- * The tab group a chat works in, as it stood when read: one side or two,
- * left first, each its tabs in order with the one up marked, which side has
- * the keyboard, and which tab is the chat itself, the one the person last
- * sent it a message from.
+ * The tab group a chat works in, as it stood when read: its sides, the
+ * first leftmost, each its tabs in order with the one up marked, which side
+ * has the keyboard, and which tab is the chat itself, the one the person
+ * last sent it a message from. Writers write one side or two; a reader takes
+ * any number, so a record a later layout writes still reads here.
  */
 export const LayoutSnapshotSchema = z.object({
   /** The side that has the keyboard, by its place in `sides`. */
-  focused: z.number().int().min(0).max(1),
+  focused: z.number().int().min(0),
   /** The group, by the id the `window` command takes. */
   group: z.object({ id: z.string() }),
   /** False while the window shows another group, so none of this one is on screen. */
   isShown: z.boolean().optional(),
   sides: z
     .array(z.object({ tabs: z.array(LayoutTabSchema) }))
-    .min(1)
-    .max(2),
+    .min(1),
 });
 
 export type LayoutSnapshot = z.output<typeof LayoutSnapshotSchema>;
 
-/** A side named by where it stands in its layout; absent when the group is one side. */
-const SideSchema = z.enum(["left", "right"]).optional();
+/**
+ * A side named by where it stands in its layout; absent when the group is
+ * one side. Writers name `left` or `right`; a reader takes any name, so a
+ * side a later layout names (`top`) still reads here.
+ */
+const SideSchema = z.string().optional();
 
 export type LayoutSideName = z.output<typeof SideSchema>;
 

@@ -17,7 +17,7 @@ import { WorkspacePreferencesSchema } from "../stores/workspace/preferences";
 import { workspaceInAppData } from "./get-workspace-folder";
 import { resolveLaunchWorkspace, settleMachineFolders } from "./open-workspace";
 import { isRefusedFile, userDataViewRule } from "./refused-files";
-import { sweepWorkspaceFolder } from "./workspace-launch-sweeps";
+import { upgradeWorkspace } from "./upgrade-workspace";
 import { beginWorkspaceRun } from "./workspace-run";
 
 /**
@@ -120,7 +120,7 @@ async function seedAndLaunch(
   });
   beginWorkspaceRun({ kind: "placed", workspace: opened });
   beforeLaunch?.(opened.path);
-  await sweepWorkspaceFolder({
+  await upgradeWorkspace({
     deviceId: newDeviceId(),
     inAppData: workspaceInAppData(),
     rootDir: opened.path,
@@ -266,7 +266,7 @@ describe.each(names)("the %s fixture, after a launch", (name) => {
 /**
  * A 1.x workspace as a real one may be found, put through the same launch:
  * beside the task that is whole, one whose database a crashed build left
- * mid-write, one a step of the sweep cannot put in shape, and memories an
+ * mid-write, one a step of the upgrade cannot put in shape, and memories an
  * earlier build hid while one was saved at the top level since. Each is
  * something that once kept a task or a file out of what the person sees,
  * for good, with only a line in the log.

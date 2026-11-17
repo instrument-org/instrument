@@ -19,7 +19,7 @@ Ordered by what to fix first.
 ### B. A chat the converter leaves on its `chat.db` opens empty and takes a message, which leaves it unconvertible
 
 - Status: fixed `0377c6e1f`
-- Where: [convert-chat.ts:205](/packages/workspace/src/lib/records/convert/convert-chat.ts#L205), [:232](/packages/workspace/src/lib/records/convert/convert-chat.ts#L232), [workspace-launch-sweeps.ts:252](/apps/studio/src/electron-main/lib/workspace-launch-sweeps.ts#L252)
+- Where: [convert-chat.ts:205](/packages/workspace/src/lib/records/convert/convert-chat.ts#L205), [:232](/packages/workspace/src/lib/records/convert/convert-chat.ts#L232), [upgrade-workspace.ts:252](/apps/studio/src/electron-main/lib/upgrade-workspace.ts#L252)
 - What: a conversion that fails or does not verify leaves the chat listed and empty. A message sent there is a record that holds history, so every later launch compares the records with the database, finds the database's messages missing and answers `half-written`: the old conversation stays in a file nothing reads while the bell says the next launch tries again. Checked by reading; the send itself was not driven.
 - Note: not the same as `2026-10-20-last-week` M, which was the move aside failing after a good conversion. Fixed by keeping such a chat out of the chat index for the launch (`withholdChats`), so nothing can open or write it until a launch converts it.
 
@@ -33,13 +33,13 @@ Ordered by what to fix first.
 ### D. A body file that fails to read is taken as empty, and the original is then deleted
 
 - Status: fixed `aa63bb1b1`
-- Where: [projects-move.ts:111](/packages/workspace/src/lib/projects-move.ts#L111), [apps-move.ts:141](/packages/workspace/src/lib/apps-move.ts#L141), [drafts/migrate.ts:97](/packages/workspace/src/lib/drafts/migrate.ts#L97)
+- Where: [projects-move.ts:111](/packages/workspace/src/lib/projects-move.ts#L111), [app-folders-to-store.ts:141](/packages/workspace/src/lib/app-folders-to-store.ts#L141), [drafts/migrate.ts:97](/packages/workspace/src/lib/drafts/migrate.ts#L97)
 - What: the project, app and draft conversions read the old body with `.catch(() => "")`, write the new file, check only that its id reads back, and remove the source. Any error other than "not there" (a file a cloud service keeps by name only while offline, EACCES, EIO) loses a project's instructions, an app's guide or a draft's words, and in a synced folder the delete reaches the other devices. These steps run for every workspace, picked folders included. Checked.
 
 ### E. A launch step creates `permissions.json` before the step that reads its absence as "no build ran here"
 
 - Status: fixed `aa63bb1b1`
-- Where: [move-project-folders.ts:62](/packages/workspace/src/lib/permissions/move-project-folders.ts#L62), [convert-chat-settings.ts:168](/packages/workspace/src/lib/records/convert/convert-chat-settings.ts#L168), [workspace-launch-sweeps.ts:103](/apps/studio/src/electron-main/lib/workspace-launch-sweeps.ts#L103)
+- Where: [move-project-folders.ts:62](/packages/workspace/src/lib/permissions/move-project-folders.ts#L62), [convert-chat-settings.ts:168](/packages/workspace/src/lib/records/convert/convert-chat-settings.ts#L168), [upgrade-workspace.ts:103](/apps/studio/src/electron-main/lib/upgrade-workspace.ts#L103)
 - What: `moveProjectFolders` takes in nothing when the file is missing, since the folders a project lists were then granted on another computer. `convertChatSettings` runs earlier in the same launch and creates the file when a chat's `settings.json` has grants, so on a computer new to the workspace every `folders:` list in every project's `AGENTS.md` is granted with no card. This widens what the agent reaches. Checked.
 - Note: `carryPermissions` also carries a chat's path grants from a `settings.json` another computer may have written. Decide and stamp the mark before any step can create the file.
 
@@ -65,7 +65,7 @@ Ordered by what to fix first.
 ### I. One task that throws aborts the layout sweep, and the case fix then hides what it did not move
 
 - Status: fixed `aa63bb1b1`
-- Where: [migrate-workspace-layout.ts:781](/packages/workspace/src/lib/migrate-workspace-layout.ts#L781), [key-folder-case.ts:31](/packages/workspace/src/lib/key-folder-case.ts#L31), [workspace-launch-sweeps.ts:109](/apps/studio/src/electron-main/lib/workspace-launch-sweeps.ts#L109)
+- Where: [migrate-workspace-layout.ts:781](/packages/workspace/src/lib/migrate-workspace-layout.ts#L781), [key-folder-case.ts:31](/packages/workspace/src/lib/key-folder-case.ts#L31), [upgrade-workspace.ts:109](/apps/studio/src/electron-main/lib/upgrade-workspace.ts#L109)
 - What: `normalizeTasks` has no per-task catch over bare renames, so one held file in one task skips the 1.x migration and the split for that launch, and a persistent error does so every launch. `settleKeyFolderCase` then runs regardless and renames a lowercase `projects/` or `chats/` the sweep did not get to, which the sweep looks for by its lowercase name. The loop and the unconditional case fix were checked; the sequence into the rename was not.
 
 ### J. A staged 1.x chat that fails to finish twice stays hidden

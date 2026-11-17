@@ -90,7 +90,7 @@ import {
   workspaceWorkFoldersDir,
 } from "./get-workspace-folder";
 import { appDataOutputFolder, workspaceDbFileOf } from "./workspaces";
-import { sweepWorkspaceFolder } from "./workspace-launch-sweeps";
+import { upgradeWorkspace } from "./upgrade-workspace";
 import { ensureOutputFolderIcon } from "./output-folder-icon";
 import { isRefusedFile } from "./refused-files";
 import { BROWSER_SESSIONS_CLOSE_MS, quitMachine } from "./quit-machine";
@@ -132,12 +132,12 @@ const UNPACKAGED_SYSTEM_SKILLS_DIR = path.resolve(
 export async function createWorkspaceActor(deviceId: DeviceId) {
   const rootDir = getWorkspaceFolder();
 
-  // The layout sweeps run only on a workspace in the app's own data
-  // (`sweepWorkspaceFolder`), which is also the only one that ever held 1.x
+  // The layout upgrade runs only on a workspace in the app's own data
+  // (`upgradeWorkspace`), which is also the only one that ever held 1.x
   // tasks.
   const inAppData = workspaceInAppData();
-  await timeBootStep("sweepWorkspaceFolder", () =>
-    sweepWorkspaceFolder({ deviceId, inAppData, rootDir }),
+  await timeBootStep("upgradeWorkspace", () =>
+    upgradeWorkspace({ deviceId, inAppData, rootDir }),
   );
 
   // The build emits the worker as its own chunk. Every agent shell runs there,

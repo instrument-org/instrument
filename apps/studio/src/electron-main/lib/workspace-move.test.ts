@@ -39,7 +39,7 @@ let userDataDir: string;
 let workspace: ResolvedWorkspace;
 let picked: string;
 
-/** A settled workspace's identity, as a build that ran every sweep leaves it. */
+/** A settled workspace's identity, as a build that ran every upgrade leaves it. */
 function settled(id = WORKSPACE_ID) {
   return {
     color: "gray" as const,
@@ -306,7 +306,7 @@ describe("checkMoveTarget", () => {
     });
   });
 
-  it("refuses to move a workspace whose sweeps have not finished, or one pinned", () => {
+  it("refuses to move a workspace whose upgrades have not finished, or one pinned", () => {
     writeWorkspaceIdentity(workspace.path, {
       ...settled(),
       layoutVersion: WORKSPACE_LAYOUT_VERSION - 1,
@@ -434,11 +434,11 @@ describe("finishPendingMove", () => {
     });
   }
 
-  // A folder picked before the 1.x and beta sweeps finished, which the
+  // A folder picked before the 1.x and beta upgrades finished, which the
   // onboarding step can record while they are still running. They run only
   // while the workspace is in the app's own data, so the move waits for them
   // rather than taking the workspace out of their reach.
-  it("waits for a launch to finish the sweeps before it moves", () => {
+  it("waits for a launch to finish the upgrades before it moves", () => {
     const from = workspace.path;
     requestWorkspaceMove({ target: picked, userDataDir, workspace });
     writeWorkspaceIdentity(from, {
@@ -454,7 +454,7 @@ describe("finishPendingMove", () => {
     expect(done).toEqual([
       expect.stringContaining("until a launch has finished bringing"),
     ]);
-    // The pick is still recorded, so the launch after the sweeps makes it.
+    // The pick is still recorded, so the launch after the upgrades makes it.
     expect(readRegistry(userDataDir).workspaces[0]?.pendingMove).toMatchObject({
       to: picked,
     });

@@ -82,7 +82,7 @@ const MoveRefusalSchema = z.enum([
   "pinned",
   /** Holds a `.instrument` folder that is not a workspace's. */
   "taken",
-  /** The workspace's layout sweeps have not finished in the app's data. */
+  /** The workspace's layout upgrades have not finished in the app's data. */
   "unfinished",
   /** The app cannot write there. */
   "unwritable",
@@ -337,7 +337,7 @@ export function checkMoveTarget({
   return { kind: "movable", ...warned };
 }
 
-/** Whether a workspace in the app's own data has layout sweeps still to finish there. */
+/** Whether a workspace in the app's own data has layout upgrades still to finish there. */
 function isUnsettled(
   workspace: TargetFacts["workspace"],
   userDataDir: string,
@@ -592,7 +592,7 @@ function makeMove({
             `found the whole copy at ${toData} a launch cut short made`,
           );
         } else {
-          // The sweeps that bring what 1.x and the betas left into this
+          // The upgrades that bring what 1.x and the betas left into this
           // build's shape run only while the workspace is in the app's own
           // data (`create-workspace-actor.ts`). Moving it out first would
           // leave them skipped for good, so a move picked before they
@@ -905,7 +905,7 @@ function isDenied(error: unknown) {
 }
 
 /**
- * Whether the workspace's migrations and layout sweeps have all finished,
+ * Whether the workspace's migrations and layout upgrades have all finished,
  * which only a workspace in the app's own data runs: one that moved with
  * something left would leave it for good, since none of them runs on a
  * folder the person picked.

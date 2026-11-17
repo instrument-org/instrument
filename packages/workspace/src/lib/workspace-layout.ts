@@ -63,7 +63,7 @@ export const WORKSPACE_DATA_ENTRIES = {
    * Where earlier builds kept the apps, a folder each named for the app's
    * slug: its setup in `app.json` and what it is for in `guide.md`. An app is
    * a record in the apps store now, and this is only what the launch takes
-   * in (`lib/apps-move.ts`).
+   * in (`lib/app-folders-to-store.ts`).
    */
   apps: "apps",
   /**

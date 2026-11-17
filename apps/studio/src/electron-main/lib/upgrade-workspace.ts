@@ -17,12 +17,12 @@ import {
   moveProjectsToFolder,
   moveTopicsToProjects,
   renameChatDatabases,
-  retireChatsFolder,
+  moveChatFoldersToFiles,
   settleDrafts,
   settleKeyFolderCase,
-  settleMemoryFiles,
-  settleProjectFiles,
-  takeInAppFolders,
+  moveMemoryFrontMatterToStore,
+  moveProjectFrontMatterToStore,
+  moveAppFoldersToStore,
   withholdChats,
   settleWorkspaceDb,
   writeDataDirReadme,
@@ -45,14 +45,14 @@ import { getOpenedWithoutRecords } from "./workspace-run";
 import { appDataOutputFolder, workspaceLayoutMarks } from "./workspaces";
 
 /**
- * The launch's sweeps over the workspace folder, in order, before the
+ * The launch's upgrades of the workspace folder, in order, before the
  * workspace starts: what earlier builds left is brought into the shape this
  * build reads, every chat is put on its records, and the person's own
  * folders come out of `.instrument/`. Reads the workspace the launch
  * resolved (`placeRun`) for its machine and work folders. Each
  * step is idempotent and none blocks the launch.
  */
-export async function sweepWorkspaceFolder({
+export async function upgradeWorkspace({
   deviceId,
   inAppData,
   rootDir,
@@ -60,7 +60,7 @@ export async function sweepWorkspaceFolder({
   deviceId: DeviceId;
   /**
    * Whether the workspace is in the app's own data, where 1.x and the 2.0
-   * betas kept every workspace; the layout sweeps run only there.
+   * betas kept every workspace; the layout upgrade runs only there.
    */
   inAppData: boolean;
   rootDir: string;
@@ -68,7 +68,7 @@ export async function sweepWorkspaceFolder({
   // Which database a chat opens is settled for every workspace, before
   // anything reads one: a chat whose own store holds none of its conversation
   // opens empty while the whole of it sits in the file beside it, and nothing
-  // else names them. The sweep names them again once it has moved the app's
+  // else names them. The launch names them again once it has moved the app's
   // folders in, where a chat an earlier build left at the workspace's top
   // level is not in its place yet when this runs.
   nameChatDatabases(rootDir);
@@ -78,17 +78,17 @@ export async function sweepWorkspaceFolder({
     noteStartedOver(startedOver);
   }
 
-  // The layout sweeps bring what 1.x and the 2.0 betas left into the shape
-  // this build reads. They run only on a workspace in the app's own data,
+  // The layout upgrade brings what 1.x and the 2.0 betas left into the shape
+  // this build reads. It runs only on a workspace in the app's own data,
   // where those builds kept every workspace: a folder the person picked was
   // never one, its top level is theirs, and a workspace moved there had its
-  // sweeps finished first.
+  // upgrades finished first.
   //
   // First, a build that called projects topics kept them in `Topics/`, each
   // in a `TOPIC.md`, and they come into `Projects/` before anything reads one,
   // the 1.x migration included, which finds a 1.x project's earlier project
   // there.
-  await timeBootStep("sweep.moveTopicsToProjects", () =>
+  await timeBootStep("upgrade.moveTopicsToProjects", () =>
     moveTopicsToProjectsFolder(rootDir),
   );
   // Whether a build before this one kept permission settings here is read
@@ -96,28 +96,30 @@ export async function sweepWorkspaceFolder({
   markProjectFoldersSeen();
   let layoutSettled = true;
   if (inAppData) {
-    layoutSettled = sweepWorkspaceLayout(deviceId, rootDir);
+    layoutSettled = upgradeAppDataLayout(deviceId, rootDir);
   } else {
     logger.info(
       "Workspace layout migration: none for a folder the person picked",
     );
   }
-  await timeBootStep("sweep.settleDatabase", () => settleDatabase(rootDir));
+  await timeBootStep("upgrade.workspaceDatabase", () =>
+    upgradeWorkspaceDatabase(rootDir),
+  );
   // Before the workspace starts, which puts in place the writer every write
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
-  await timeBootStep("sweep.convertChatDatabases", () =>
+  await timeBootStep("upgrade.convertChatDatabases", () =>
     convertChatDatabases(deviceId, rootDir),
   );
   // Then what each chat's `settings.json` held goes where this build keeps
   // it, from the records just converted, before anything reads a chat.
-  await timeBootStep("sweep.convertChatSettings", () =>
+  await timeBootStep("upgrade.convertChatSettings", () =>
     convertChatSettings(deviceId, rootDir),
   );
   // A folder of the six under another case (`skills/`, which a build before
   // kept there) is the one each step below finds under the app's name on a
   // file system that reads both as one, so it takes that name first. Not
-  // while the layout sweep still has a folder to move in: it finds `chats/`
+  // while the layout upgrade still has a folder to move in: it finds `chats/`
   // and `projects/` by the lowercase names earlier builds wrote, and one
   // renamed here is one it never finds again.
   if (layoutSettled) {
@@ -126,7 +128,7 @@ export async function sweepWorkspaceFolder({
     }
   } else {
     logger.warn(
-      "Folder case: left as it is until the layout sweep has moved every folder",
+      "Folder case: left as it is until the layout upgrade has moved every folder",
     );
   }
   // The person's own folders come out of `.instrument/` before anything
@@ -134,44 +136,42 @@ export async function sweepWorkspaceFolder({
   await moveFolderOut("Memory", () => moveMemoriesToFolder(rootDir));
   // Then each memory file becomes its text alone, what an earlier build
   // wrote over it going into the memory store.
-  await timeBootStep("sweep.settleMemoryFiles", () =>
-    settleMemoryFolder(deviceId, rootDir),
+  await timeBootStep("upgrade.moveMemoryFrontMatterToStore", () =>
+    moveMemoryFrontMatter(deviceId, rootDir),
   );
   await moveFolderOut("Skills", () => moveSkillsToFolder(rootDir));
   await moveFolderOut("Projects", () => moveProjectsToFolder(rootDir));
   // And once the projects are out, each one's files become what this build
   // reads, which is its own step: the folder moves whatever is inside it, and
   // one already converted is left alone.
-  await timeBootStep("sweep.convertProjectFiles", () =>
+  await timeBootStep("upgrade.convertProjectFiles", () =>
     convertProjectFiles(deviceId, rootDir),
   );
   // Then every project has its record, and its `AGENTS.md` is its
   // instructions alone: what an earlier build, here or on another computer,
   // wrote over them goes into the projects store.
-  await timeBootStep("sweep.settleProjectFiles", () => {
-    settleProjects(deviceId, rootDir);
+  await timeBootStep("upgrade.moveProjectFrontMatterToStore", () => {
+    moveProjectFrontMatter(deviceId, rootDir);
   });
   // The folders an earlier build granted in a project's file come onto this
   // computer's permission settings, before the moves below rewrite the paths
   // those settings hold.
-  carryProjectFolders(deviceId, rootDir);
-  await timeBootStep("sweep.takeInAppFolders", () =>
-    takeInApps(deviceId, rootDir),
+  moveProjectFolderGrants(deviceId, rootDir);
+  await timeBootStep("upgrade.moveAppFoldersToStore", () =>
+    moveAppsToStore(deviceId, rootDir),
   );
   // The `Chats/` an earlier build kept, a folder per chat, empties into the
   // places this build keeps those things, once every chat is on its records,
   // which take back what the person sent.
-  await timeBootStep("sweep.retireChatsFolder", () =>
-    emptyChatsFolder({ deviceId, inAppData, rootDir }),
+  await timeBootStep("upgrade.moveChatFoldersToFiles", () =>
+    moveChatFolders({ deviceId, inAppData, rootDir }),
   );
   // And the drafts come into `.instrument/drafts/`, where a send the app was
   // interrupted partway through is finished from the records just converted.
-  await timeBootStep("sweep.settleWorkspaceDrafts", () =>
-    settleWorkspaceDrafts(rootDir),
-  );
+  await timeBootStep("upgrade.moveDraftsIn", () => moveDraftsIn(rootDir));
   // Last, the guide for another coding agent opened in the workspace, once
   // `.instrument/` is in this build's shape.
-  await timeBootStep("sweep.writeDataDirReadme", () => writeGuide(rootDir));
+  await timeBootStep("upgrade.writeDataDirReadme", () => writeGuide(rootDir));
 }
 
 /**
@@ -188,7 +188,7 @@ async function writeGuide(rootDir: string) {
   }
 }
 
-function settleDatabase(rootDir: string) {
+function upgradeWorkspaceDatabase(rootDir: string) {
   try {
     const settled = settleWorkspaceDb({
       machineDir: workspaceMachineDir(),
@@ -210,7 +210,7 @@ function settleDatabase(rootDir: string) {
 /**
  * Give each chat the database that holds its conversation, before the
  * workspace opens one. Runs for every workspace, a folder the person picked
- * included, where the rest of the sweep runs only on one in the app's own
+ * included, where the rest of the upgrade runs only on one in the app's own
  * data. Idempotent; a failure must not block boot.
  */
 function nameChatDatabases(rootDir: string) {
@@ -232,20 +232,20 @@ function reportChatRecords(records: ChatRecordsSplit) {
 }
 
 /**
- * Says how many steps a sweep took, naming only the ones that went wrong. A
+ * Says how many steps an upgrade took, naming only the ones that went wrong. A
  * chat's id spells out its title and the log goes out with every report, so
  * a launch that converts hundreds of chats would otherwise send each one's
  * name; a step that left something behind is still said whole, since that
  * is the line a fix needs.
  */
-function logDone(sweep: string, done: readonly string[]) {
+function logDone(area: string, done: readonly string[]) {
   const problems = done.filter((step) => /^left |\bcould not\b/.test(step));
   const moved = done.length - problems.length;
   if (moved > 0) {
-    logger.info(`${sweep}: ${moved} step${moved === 1 ? "" : "s"} done`);
+    logger.info(`${area}: ${moved} step${moved === 1 ? "" : "s"} done`);
   }
   for (const step of problems) {
-    logger.info(`${sweep}: ${step}`);
+    logger.info(`${area}: ${step}`);
   }
 }
 
@@ -263,7 +263,7 @@ function markProjectFoldersSeen() {
   }
 }
 
-function carryProjectFolders(deviceId: DeviceId, rootDir: string) {
+function moveProjectFolderGrants(deviceId: DeviceId, rootDir: string) {
   try {
     const { moved } = moveProjectFolders({
       device: deviceId,
@@ -345,7 +345,7 @@ async function convertChatSettings(deviceId: DeviceId, rootDir: string) {
  * Idempotent, and a failure must not block boot; what is left the next
  * launch tries again.
  */
-async function emptyChatsFolder({
+async function moveChatFolders({
   deviceId,
   inAppData,
   rootDir,
@@ -355,7 +355,7 @@ async function emptyChatsFolder({
   rootDir: string;
 }) {
   try {
-    const retired = await retireChatsFolder({
+    const moved = await moveChatFoldersToFiles({
       device: deviceId,
       filesDir: path.join(
         workspaceOutputDir({ inAppData, rootDir }),
@@ -364,12 +364,12 @@ async function emptyChatsFolder({
       machineDir: workspaceMachineDir(),
       rootDir,
     });
-    if (retired.moved + retired.deleted + retired.returned > 0) {
+    if (moved.moved + moved.deleted + moved.returned > 0) {
       logger.info(
-        `Chats folder: moved ${retired.moved} to Files, deleted ${retired.deleted} with only a transcript, put ${retired.returned} sent files and notes back in their chats`,
+        `Chats folder: moved ${moved.moved} to Files, deleted ${moved.deleted} with only a transcript, put ${moved.returned} sent files and notes back in their chats`,
       );
     }
-    for (const { reason, where } of retired.left) {
+    for (const { reason, where } of moved.left) {
       logger.warn(
         `Chats folder: left ${where} where it is, and the next launch tries again: ${reason}`,
       );
@@ -402,7 +402,7 @@ function workspaceOutputDir({
  * its folder was left behind. Runs after the converter, so that message can
  * be read. Idempotent; a failure must not block boot.
  */
-async function settleWorkspaceDrafts(rootDir: string) {
+async function moveDraftsIn(rootDir: string) {
   try {
     const { converted, finished, movedIn } = await settleDrafts(
       { machineDir: workspaceMachineDir(), rootDir },
@@ -438,7 +438,7 @@ async function settleWorkspaceDrafts(rootDir: string) {
  */
 async function moveFolderOut(what: string, move: () => Promise<FolderMoved>) {
   try {
-    const moved = await timeBootStep(`sweep.move${what}`, move);
+    const moved = await timeBootStep(`upgrade.move${what}`, move);
     switch (moved.kind) {
       case "already-there":
         logger.warn(
@@ -484,9 +484,9 @@ async function convertProjectFiles(deviceId: DeviceId, rootDir: string) {
  * every workspace, since an earlier build on another computer writes it
  * back; a failure must not block boot, and the next launch tries again.
  */
-function settleProjects(deviceId: DeviceId, rootDir: string) {
+function moveProjectFrontMatter(deviceId: DeviceId, rootDir: string) {
   try {
-    logProjectSteps(settleProjectFiles(rootDir, deviceId));
+    logProjectSteps(moveProjectFrontMatterToStore(rootDir, deviceId));
   } catch (error) {
     captureServerException(error);
   }
@@ -497,9 +497,9 @@ function settleProjects(deviceId: DeviceId, rootDir: string) {
  * leaving each file its text. Every launch, every workspace; a failure must
  * not block boot, and the next launch tries again.
  */
-async function settleMemoryFolder(deviceId: DeviceId, rootDir: string) {
+async function moveMemoryFrontMatter(deviceId: DeviceId, rootDir: string) {
   try {
-    const settled = await settleMemoryFiles(rootDir, deviceId);
+    const settled = await moveMemoryFrontMatterToStore(rootDir, deviceId);
     logDone("Memory", settled.done);
     for (const each of settled.left) {
       logger.warn(
@@ -550,9 +550,9 @@ function logProjectSteps({
  * build hashes it, so nothing is asked for again. Idempotent; a failure must
  * not block boot.
  */
-async function takeInApps(deviceId: DeviceId, rootDir: string) {
+async function moveAppsToStore(deviceId: DeviceId, rootDir: string) {
   try {
-    const converted = await takeInAppFolders(rootDir, {
+    const converted = await moveAppFoldersToStore(rootDir, {
       connections: appConnectionStore,
       device: deviceId,
       trash: (dir) => shell.trashItem(dir),
@@ -575,9 +575,9 @@ async function takeInApps(deviceId: DeviceId, rootDir: string) {
  * on-disk layout of any legacy tasks, and take each chat's work out of its
  * records, before the workspace reads them. Idempotent; a failure must not
  * block boot. Says whether every app folder is where this build reads it,
- * which is false when a move was left for the next boot or the sweep threw.
+ * which is false when a move was left for the next boot or the upgrade threw.
  */
-function sweepWorkspaceLayout(deviceId: DeviceId, rootDir: string): boolean {
+function upgradeAppDataLayout(deviceId: DeviceId, rootDir: string): boolean {
   try {
     const migrationStartedAt = performance.now();
     const migration = migrateWorkspaceLayout({

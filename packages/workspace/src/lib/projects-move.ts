@@ -289,7 +289,7 @@ export async function moveTopicsToProjects(
  * `.instrument-project` before the front matter comes out, as any read in a
  * running workspace does.
  */
-export function settleProjectFiles(
+export function moveProjectFrontMatterToStore(
   rootDir: string,
   device: DeviceId,
 ): ProjectFilesConverted {

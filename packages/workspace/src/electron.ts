@@ -155,12 +155,19 @@ export {
 } from "./lib/records/convert/convert-chat";
 export { convertChatSettingsFiles } from "./lib/records/convert/convert-chat-settings";
 export { chatModelURI } from "./lib/chat-settings";
-export { retireChatsFolder } from "./lib/retire-chats-folder/retire-chats-folder";
+export { moveChatFoldersToFiles } from "./lib/chats-folder/move-chat-folders-to-files";
 export { type DraftsSettled, settleDrafts } from "./lib/drafts/boot";
 export { writeDataDirReadme } from "./lib/data-dir-readme";
 export { type MemoriesMoved, moveMemoriesToFolder } from "./lib/memory/move";
-export { listMemories, memoryDir, settleMemoryFiles } from "./lib/memory/store";
-export { type AppFoldersTaken, takeInAppFolders } from "./lib/apps-move";
+export {
+  listMemories,
+  memoryDir,
+  moveMemoryFrontMatterToStore,
+} from "./lib/memory/store";
+export {
+  type AppFoldersMovedToStore,
+  moveAppFoldersToStore,
+} from "./lib/app-folders-to-store";
 export { type FolderMoved } from "./lib/move-out-of-data-dir";
 export { moveSkillsToFolder, type SkillsMoved } from "./lib/skills-move";
 export { settleKeyFolderCase } from "./lib/key-folder-case";
@@ -170,7 +177,7 @@ export {
   moveProjectsToFolder,
   moveTopicsToProjects,
   type ProjectsMoved,
-  settleProjectFiles,
+  moveProjectFrontMatterToStore,
 } from "./lib/projects-move";
 export { chatRecords } from "./lib/records/chat-records";
 export {

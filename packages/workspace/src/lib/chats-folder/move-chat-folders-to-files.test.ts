@@ -8,7 +8,7 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { DeviceIdSchema } from "../records/device-id";
 import { workspaceLayout } from "../workspace-layout";
 import { readChatFolderMoves } from "./folder-moves";
-import { retireChatsFolder } from "./retire-chats-folder";
+import { moveChatFoldersToFiles } from "./move-chat-folders-to-files";
 
 const CHAT = ChatIdSchema.parse("2026-10-16-dishwashers");
 const OTHER = ChatIdSchema.parse("2026-10-16-taxes");
@@ -20,7 +20,7 @@ let filesDir: string;
 let machineDir: string;
 
 beforeEach(() => {
-  root = fs.mkdtempSync(path.join(os.tmpdir(), "retire-chats-"));
+  root = fs.mkdtempSync(path.join(os.tmpdir(), "move-chat-folders-"));
   rootDir = path.join(root, "workspace");
   filesDir = path.join(rootDir, "Files");
   machineDir = path.join(root, "machine");
@@ -89,11 +89,16 @@ function records(id: string) {
   });
 }
 
-function retire() {
-  return retireChatsFolder({ device: DEVICE, filesDir, machineDir, rootDir });
+function moveChatFolders() {
+  return moveChatFoldersToFiles({
+    device: DEVICE,
+    filesDir,
+    machineDir,
+    rootDir,
+  });
 }
 
-describe("retireChatsFolder", () => {
+describe("moveChatFoldersToFiles", () => {
   it("deletes a folder that holds only its transcript, and Chats/ with it", async () => {
     records(CHAT);
     write({
@@ -101,7 +106,7 @@ describe("retireChatsFolder", () => {
       "Chats/Quiet dishwashers/CHAT.md": transcript(CHAT),
     });
 
-    expect(await retire()).toEqual({
+    expect(await moveChatFolders()).toEqual({
       deleted: 1,
       left: [],
       moved: 0,
@@ -119,7 +124,7 @@ describe("retireChatsFolder", () => {
       "Chats/Quiet dishwashers/CHAT.md": transcript(CHAT),
     });
 
-    expect((await retire()).moved).toBe(1);
+    expect((await moveChatFolders()).moved).toBe(1);
     expect(tree()).toEqual([
       ".instrument/devices/dev_7Q2M4K9X/chatfoldermoves.jsonl",
       "Files/Quiet dishwashers/CHAT-notes.md",
@@ -134,7 +139,7 @@ describe("retireChatsFolder", () => {
       "Chats/Quiet dishwashers/shortlist.csv": "brand,dB",
     });
 
-    expect(await retire()).toEqual({
+    expect(await moveChatFolders()).toEqual({
       deleted: 0,
       left: [],
       moved: 1,
@@ -169,7 +174,7 @@ describe("retireChatsFolder", () => {
       "Chats/Quiet dishwashers/handoff-notes.md": "notes",
     });
 
-    expect(await retire()).toMatchObject({ moved: 1, returned: 2 });
+    expect(await moveChatFolders()).toMatchObject({ moved: 1, returned: 2 });
     expect(tree()).toMatchInlineSnapshot(`
       [
         ".instrument/chats/2026-10-16-dishwashers/attachments/manual.pdf",
@@ -189,7 +194,7 @@ describe("retireChatsFolder", () => {
     );
     write({ "Chats/Taxes/attachments/w2.pdf": "pdf" });
 
-    expect(await retire()).toMatchObject({ deleted: 1, returned: 1 });
+    expect(await moveChatFolders()).toMatchObject({ deleted: 1, returned: 1 });
     expect(tree()).toEqual([`.instrument/chats/${OTHER}/attachments/w2.pdf`]);
     expect(
       fs.existsSync(
@@ -212,7 +217,7 @@ describe("retireChatsFolder", () => {
         [taken]: "already there",
       });
 
-      expect((await retire()).moved).toBe(1);
+      expect((await moveChatFolders()).moved).toBe(1);
       expect(
         fs.readFileSync(
           path.join(filesDir, "Quiet dishwashers 3", "notes.md"),
@@ -239,7 +244,7 @@ describe("retireChatsFolder", () => {
     write({ ...files, "Chats/loose.txt": "mine" });
     const before = tree();
 
-    expect(await retire()).toEqual({
+    expect(await moveChatFolders()).toEqual({
       deleted: 0,
       left: [],
       moved: 0,
@@ -257,7 +262,7 @@ describe("retireChatsFolder", () => {
       "Chats/Recipes/soup.md": "soup",
     });
 
-    expect(await retire()).toMatchObject({ left: [], moved: 1 });
+    expect(await moveChatFolders()).toMatchObject({ left: [], moved: 1 });
     expect(tree()).toMatchInlineSnapshot(`
       [
         ".instrument/devices/dev_7Q2M4K9X/chatfoldermoves.jsonl",
@@ -275,7 +280,7 @@ describe("retireChatsFolder", () => {
       "Chats/Quiet dishwashers/attachments/manual.pdf": "pdf",
     });
 
-    expect(await retire()).toMatchObject({ moved: 1, returned: 0 });
+    expect(await moveChatFolders()).toMatchObject({ moved: 1, returned: 0 });
     expect(tree()).toMatchInlineSnapshot(`
       [
         ".instrument/devices/dev_7Q2M4K9X/chatfoldermoves.jsonl",
@@ -286,45 +291,51 @@ describe("retireChatsFolder", () => {
   });
 
   // Windows has no mode that makes a file or folder unreadable.
-  it.skipIf(process.platform === "win32")("waits on a folder whose CHAT.md cannot be read", async () => {
-    records(CHAT);
-    names({ [CHAT]: "Quiet dishwashers" });
-    write({
-      "Chats/Quiet dishwashers/CHAT.md": transcript(CHAT),
-      "Chats/Quiet dishwashers/attachments/manual.pdf": "pdf",
-    });
-    lock("Chats/Quiet dishwashers/CHAT.md", 0o000);
-    const before = tree();
+  it.skipIf(process.platform === "win32")(
+    "waits on a folder whose CHAT.md cannot be read",
+    async () => {
+      records(CHAT);
+      names({ [CHAT]: "Quiet dishwashers" });
+      write({
+        "Chats/Quiet dishwashers/CHAT.md": transcript(CHAT),
+        "Chats/Quiet dishwashers/attachments/manual.pdf": "pdf",
+      });
+      lock("Chats/Quiet dishwashers/CHAT.md", 0o000);
+      const before = tree();
 
-    const retired = await retire();
+      const moved = await moveChatFolders();
 
-    expect(retired.left.map(({ where }) => path.relative(rootDir, where)))
-      .toMatchInlineSnapshot(`
+      expect(moved.left.map(({ where }) => path.relative(rootDir, where)))
+        .toMatchInlineSnapshot(`
       [
         "Chats/Quiet dishwashers",
       ]
     `);
-    expect(retired).toMatchObject({ moved: 0, returned: 0 });
-    expect(tree()).toEqual(before);
-    expect(hasNames()).toBe(true);
-  });
+      expect(moved).toMatchObject({ moved: 0, returned: 0 });
+      expect(tree()).toEqual(before);
+      expect(hasNames()).toBe(true);
+    },
+  );
 
   // Windows has no mode that makes a file or folder unreadable.
-  it.skipIf(process.platform === "win32")("keeps the names file when Chats/ cannot be listed", async () => {
-    names({ [CHAT]: "Quiet dishwashers" });
-    write({ "Chats/Quiet dishwashers/notes.md": "notes" });
-    lock("Chats", 0o000);
+  it.skipIf(process.platform === "win32")(
+    "keeps the names file when Chats/ cannot be listed",
+    async () => {
+      names({ [CHAT]: "Quiet dishwashers" });
+      write({ "Chats/Quiet dishwashers/notes.md": "notes" });
+      lock("Chats", 0o000);
 
-    const retired = await retire();
+      const moved = await moveChatFolders();
 
-    expect(retired.left.map(({ where }) => path.relative(rootDir, where)))
-      .toMatchInlineSnapshot(`
+      expect(moved.left.map(({ where }) => path.relative(rootDir, where)))
+        .toMatchInlineSnapshot(`
       [
         "Chats",
       ]
     `);
-    expect(hasNames()).toBe(true);
-  });
+      expect(hasNames()).toBe(true);
+    },
+  );
 
   // Windows has no mode that makes a folder unwritable.
   it.skipIf(process.platform === "win32").each([
@@ -353,12 +364,12 @@ describe("retireChatsFolder", () => {
       });
       hold();
 
-      const retired = await retire();
+      const moved = await moveChatFolders();
 
       expect(
-        retired.left.map(({ where }) => path.relative(rootDir, where)),
+        moved.left.map(({ where }) => path.relative(rootDir, where)),
       ).toEqual(["Chats/A held folder"]);
-      expect(retired.moved).toBe(1);
+      expect(moved.moved).toBe(1);
       expect(tree()).toEqual(
         [
           ".instrument/devices/dev_7Q2M4K9X/chatfoldermoves.jsonl",
@@ -380,10 +391,10 @@ describe("retireChatsFolder", () => {
       "Chats/Quiet dishwashers/attachments/manual.pdf": "pdf",
       "Chats/Quiet dishwashers/shortlist.csv": "brand,dB",
     });
-    await retire();
+    await moveChatFolders();
     const after = tree();
 
-    expect(await retire()).toEqual({
+    expect(await moveChatFolders()).toEqual({
       deleted: 0,
       left: [],
       moved: 0,

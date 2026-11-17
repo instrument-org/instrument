@@ -81,7 +81,7 @@ The audit behind this plan traced every sync call in `packages/workspace/src` an
 
 About a dozen groups of `stat`, `exists`, `readdir` and `realpath` calls (path resolution, permission asks, watcher setup, `file://` navigation) touch the synced folder without reading contents. Leave them.
 
-About twenty one-time sweeps and migrations read synchronously at launch (`migrate-workspace-layout.ts`, `migrate-legacy-tasks.ts`, `split-chat-records.ts`, `settle-workspace-db.ts`, `drafts/migrate.ts`, `rewrite-stored-paths.ts`, Studio's `workspace-move.ts`, `settings-migration.ts`, `machine-data-migration.ts` and others). Most never run for a folder the person picked. They go on the lint allowlist with a comment, and the per-step launch timings (`timeBootStep` in `workspace-launch-sweeps.ts` and `create-workspace-actor.ts`) say whether any of them is worth converting.
+About twenty one-time sweeps and migrations read synchronously at launch (`migrate-workspace-layout.ts`, `migrate-legacy-tasks.ts`, `split-chat-records.ts`, `settle-workspace-db.ts`, `drafts/migrate.ts`, `rewrite-stored-paths.ts`, Studio's `workspace-move.ts`, `settings-migration.ts`, `machine-data-migration.ts` and others). Most never run for a folder the person picked. They go on the lint allowlist with a comment, and the per-step launch timings (`timeBootStep` in `upgrade-workspace.ts` and `create-workspace-actor.ts`) say whether any of them is worth converting.
 
 ## Order
 

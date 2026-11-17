@@ -55,7 +55,7 @@ import {
 const TRANSCRIPT_TEMP_NAME = `.~${CHAT_FILE_NAME}.tmp`;
 
 /** What emptying `Chats/` did. */
-export interface ChatsFolderRetired {
+export interface ChatFoldersMoved {
   /** Folders that held nothing but the transcript, deleted. */
   deleted: number;
   /** What could not be moved, for the log; the next launch tries again. */
@@ -66,7 +66,7 @@ export interface ChatsFolderRetired {
   returned: number;
 }
 
-export async function retireChatsFolder({
+export async function moveChatFoldersToFiles({
   device,
   filesDir,
   machineDir,
@@ -78,9 +78,9 @@ export async function retireChatsFolder({
   filesDir: string;
   machineDir: string;
   rootDir: string;
-}): Promise<ChatsFolderRetired> {
+}): Promise<ChatFoldersMoved> {
   const chats = path.join(rootDir, CHATS_FOLDER_NAME);
-  const done: ChatsFolderRetired = {
+  const done: ChatFoldersMoved = {
     deleted: 0,
     left: [],
     moved: 0,
@@ -144,7 +144,7 @@ export async function retireChatsFolder({
     }
     for (const folder of folders) {
       try {
-        await retireFolder({
+        await moveChatFolder({
           chats,
           done,
           filesDir,
@@ -174,7 +174,7 @@ export async function retireChatsFolder({
  * into the records has and the folder has moved, so a launch cut short, or a
  * move another program holds up, still finds the chat named next time.
  */
-async function retireFolder({
+async function moveChatFolder({
   chats,
   done,
   filesDir,
@@ -183,7 +183,7 @@ async function retireFolder({
   recordsDir,
 }: {
   chats: string;
-  done: ChatsFolderRetired;
+  done: ChatFoldersMoved;
   filesDir: string;
   folder: { chat: ChatId; link: ChatLink; name: string };
   openStore: () => Promise<ChatFolderMovesWriter>;
@@ -292,7 +292,7 @@ async function returnToRecords(from: string, records: string): Promise<number> {
 async function moveInto(
   file: string,
   dir: string,
-  done: ChatsFolderRetired,
+  done: ChatFoldersMoved,
 ): Promise<void> {
   try {
     await fs.mkdir(dir, { recursive: true });

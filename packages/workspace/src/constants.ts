@@ -115,7 +115,7 @@ export const SKILLS_FOLDER_NAME = "Skills";
  * Where earlier builds kept the person's apps, at the workspace's top level:
  * a folder per app named for it, each with the `APP.md` that said what it
  * was. Apps are in the apps store now (`lib/apps/store.ts`), and only the
- * launch that takes these folders in reads it (`lib/apps-move.ts`).
+ * launch that takes these folders in reads it (`lib/app-folders-to-store.ts`).
  */
 export const APPS_FOLDER_NAME = "Apps";
 

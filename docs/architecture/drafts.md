@@ -10,7 +10,7 @@ The front matter is `id`, `created` and `updated` (ISO 8601 UTC to the second), 
 
 | Layer | Where | Owns |
 | --- | --- | --- |
-| Format and folder | [`packages/workspace/src/lib/drafts/`](../../packages/workspace/src/lib/drafts/) | `DRAFT.md` parsing and rendering, folder naming, atomic writes, keeping front matter another program wrote, the launch sweeps that move drafts in, convert the beta's, and finish interrupted sends |
+| Format and folder | [`packages/workspace/src/lib/drafts/`](../../packages/workspace/src/lib/drafts/) | `DRAFT.md` parsing and rendering, folder naming, atomic writes, keeping front matter another program wrote, the launch upgrades that move drafts in, convert the beta's, and finish interrupted sends |
 | Store | [`electron-main/drafts/draft-store.ts`](../../apps/studio/src/electron-main/drafts/draft-store.ts) | the drafts while the app runs: the one writer of `.instrument/drafts/`, applying ops, watching the folder, staging pastes, moving what is taken out of a draft's folder to the Trash |
 | Context lines | [`packages/workspace/src/lib/drafts/context-line.ts`](../../packages/workspace/src/lib/drafts/context-line.ts) | how one thing that goes with the message is written as a line of `context`, and read back |
 | Record | [`electron-main/drafts/draft-record.ts`](../../apps/studio/src/electron-main/drafts/draft-record.ts) | the translation between a window's `Draft` and a `DraftFile`: the draft's folder into the composer's files, and what came from elsewhere and the chips into `context` and back |

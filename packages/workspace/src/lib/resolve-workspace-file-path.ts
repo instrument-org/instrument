@@ -22,8 +22,8 @@ import { toldEnvironments } from "./environment";
 import { movedOutputOf } from "./moved-outputs";
 import { normalizePath } from "./normalize-path";
 import { relativeWithin } from "./path-containment";
-import { CHATS_FOLDER_NAME } from "./retire-chats-folder/chat-transcript";
-import { readChatFolderMoves } from "./retire-chats-folder/folder-moves";
+import { CHATS_FOLDER_NAME } from "./chats-folder/chat-transcript";
+import { readChatFolderMoves } from "./chats-folder/folder-moves";
 import { resolvePathWithinChatDir } from "./resolve-path-within-chat-dir";
 import { sessionLayout } from "./session-layout";
 import { nameVariants } from "./tool-fs";
@@ -165,7 +165,7 @@ interface Writer {
  * Where folders under `Chats/` went, in the shell's spelling: each folder an
  * earlier build kept there, under any name it had, the chat it was for when
  * that was known, and the folder in `Files/` it was moved to when `Chats/`
- * was emptied (`retire-chats-folder.ts`).
+ * was emptied (`move-chat-folders-to-files.ts`).
  */
 type FolderMoves = { chat: ChatId | undefined; from: string[]; to: string }[];
 

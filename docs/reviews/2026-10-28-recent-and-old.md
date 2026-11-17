@@ -79,7 +79,7 @@ From the churn reader; each sha cited was checked to exist and to say what it is
 - Status: done, through `e6eaef3b6`, which publishes `chat.settled` only when the chat's own session has something new and never on the app's quit.
 - Note: the reader also points to a settle with no `session.done`, a wake whose model lookup fails after its retries ([wake.ts:866](/packages/workspace/src/lib/chat/wake.ts#L866)), after which `onItsWay` only calls `recordChanged`, so unread, retitle and the notification never run. Not traced to the end; R3 would cover it either way.
 
-Looked at and dismissed as feature growth or already restructured: `create-workspace-actor.ts` (layout moves; launch order is one list in `workspace-launch-sweeps.ts`), `machines/session.ts`, `app-window.tsx`, `_app/route.tsx`, `atoms/window.ts`, drafts and `prompt-input.tsx`, `command-menu.tsx`, Finder internals, `chat-stream.tsx`, `browser-view/manager.ts`, `create-bash-env.ts`, `shell-commands/app.ts`, `workspace-move.ts`.
+Looked at and dismissed as feature growth or already restructured: `create-workspace-actor.ts` (layout moves; launch order is one list in `upgrade-workspace.ts`), `machines/session.ts`, `app-window.tsx`, `_app/route.tsx`, `atoms/window.ts`, drafts and `prompt-input.tsx`, `command-menu.tsx`, Finder internals, `chat-stream.tsx`, `browser-view/manager.ts`, `create-bash-env.ts`, `shell-commands/app.ts`, `workspace-move.ts`.
 
 ## Not covered
 

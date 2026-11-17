@@ -239,7 +239,7 @@ function isMemoryFileName(name: string): boolean {
  * One memory: the file's text, with the chat and the moment its record
  * names. A file with no record (one the person wrote, or renamed) is dated
  * by the file, unless front matter an earlier build wrote says otherwise,
- * which the launch takes into the store (`settleMemoryFiles`).
+ * which the launch takes into the store (`moveMemoryFrontMatterToStore`).
  */
 async function readMemoryFile(
   dir: AbsolutePath,
@@ -412,7 +412,7 @@ function othersIn(held: string | undefined): Record<string, unknown> {
 }
 
 /** What the launch did to the memory files, for the boot log. */
-export interface MemoryFilesSettled {
+export interface MemoryFrontMatterMoved {
   /** A line per memory whose front matter went into the store. */
   done: string[];
   /** Each file left as it was, with why. */
@@ -430,11 +430,11 @@ export interface MemoryFilesSettled {
  * alone. What a file says is taken as of when the file was last written, so
  * a memory saved since, on any device, outranks it.
  */
-export async function settleMemoryFiles(
+export async function moveMemoryFrontMatterToStore(
   rootDir: string,
   device: DeviceId,
-): Promise<MemoryFilesSettled> {
-  const settled: MemoryFilesSettled = { done: [], left: [] };
+): Promise<MemoryFrontMatterMoved> {
+  const settled: MemoryFrontMatterMoved = { done: [], left: [] };
   const dir = path.join(rootDir, MEMORY_FOLDER_NAME);
   let names: string[];
   try {
@@ -460,8 +460,8 @@ export async function settleMemoryFiles(
           front,
           (chatOfSession ??= await sessionChats(rootDir)),
         ) ?? {
-        updated: utcStamp(stat.mtime),
-      };
+          updated: utcStamp(stat.mtime),
+        };
       writeMemoryRecords(
         dir,
         [{ at: stat.mtime.getTime(), fileName, record }],

@@ -642,6 +642,14 @@ function AnswerButton({
   );
 }
 
+/**
+ * The answer sits among the turn's step rows on their metrics (`RowLine`): a
+ * 28px line, its icon centered in the 20px mark column, the label's size.
+ */
+const NOTE_ROW =
+  "flex min-h-7 min-w-0 items-center gap-2 text-sm text-muted-foreground";
+const NOTE_MARK = "flex size-5 shrink-0 items-center justify-center";
+
 /** The line that marks why the chat woke: what the user answered to an ask. */
 export function PermissionAnswerNote({
   data,
@@ -651,12 +659,14 @@ export function PermissionAnswerNote({
   if (data.kind === "page") {
     const site = hostOf(data.page?.url) || "the page";
     return (
-      <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <PageFavicon
-          className="size-3.5"
-          hasTooltip={false}
-          url={data.page?.url}
-        />
+      <p className={NOTE_ROW}>
+        <span className={NOTE_MARK}>
+          <PageFavicon
+            className="size-3.5"
+            hasTooltip={false}
+            url={data.page?.url}
+          />
+        </span>
         <span>
           {data.answer === "declined"
             ? `You skipped this on ${site}.`
@@ -667,12 +677,14 @@ export function PermissionAnswerNote({
   }
   const shown = askTargetName(data.kind, data.target);
   return (
-    <p className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-      {data.answer === "declined" ? (
-        <ShieldSlashIcon className="size-3.5 shrink-0" />
-      ) : (
-        <ShieldCheckIcon className="size-3.5 shrink-0" />
-      )}
+    <p className={NOTE_ROW}>
+      <span className={NOTE_MARK}>
+        {data.answer === "declined" ? (
+          <ShieldSlashIcon className="size-3.5" />
+        ) : (
+          <ShieldCheckIcon className="size-3.5" />
+        )}
+      </span>
       <span>
         {data.answer !== "declined" && data.through === "windows-protection"
           ? `Windows now lets Instrument change ${shown}.`

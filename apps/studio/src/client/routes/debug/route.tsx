@@ -50,7 +50,6 @@ function ChatsToReplay() {
         <SidebarMenuSubItem key={id}>
           <SidebarMenuSubButton asChild isActive={id === active}>
             <InternalLink
-              allowOpenNewTab={false}
               search={{ chat: id }}
               to="/debug/components/transcript"
             >
@@ -95,7 +94,7 @@ function RouteComponent() {
                         className="h-auto"
                         isActive={pathname === page.to}
                       >
-                        <InternalLink allowOpenNewTab={false} to={page.to}>
+                        <InternalLink to={page.to}>
                           <span>{page.label}</span>
                         </InternalLink>
                       </SidebarMenuButton>
@@ -114,7 +113,6 @@ function RouteComponent() {
                                     }
                                   >
                                     <InternalLink
-                                      allowOpenNewTab={false}
                                       search={{
                                         mode: search.mode,
                                         surface: surface.id,
@@ -153,11 +151,7 @@ function RouteComponent() {
                           className="h-auto"
                           isActive={pathname === page.to}
                         >
-                          <InternalLink
-                            allowOpenNewTab={false}
-                            search={pageSearch}
-                            to={page.to}
-                          >
+                          <InternalLink search={pageSearch} to={page.to}>
                             <span>{page.label}</span>
                           </InternalLink>
                         </SidebarMenuButton>
@@ -182,7 +176,6 @@ function RouteComponent() {
                                       }
                                     >
                                       <InternalLink
-                                        allowOpenNewTab={false}
                                         search={{ scenario: scenario.id }}
                                         to={transcriptPage.to}
                                       >

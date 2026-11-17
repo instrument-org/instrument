@@ -390,8 +390,12 @@ export function GroupSidebar({
         <div className="shrink-0" style={{ height: room.gap - LIST_GAP_PX }} />
       )}
       {/* The list's empty space under the rows, where a tab held over it
-          becomes a group of its own at the list's end. */}
-      <div className="min-h-0 flex-1" data-drop-empty="" />
+          becomes a group of its own at the list's end, and which moves the
+          window like the top row, being the window's own ground. */}
+      <div
+        className="min-h-0 flex-1 [-webkit-app-region:drag]"
+        data-drop-empty=""
+      />
     </>
   );
 
@@ -942,12 +946,13 @@ function AppMenuButton() {
 
 /**
  * The sidebar's foot: the person signed in, or Sign in when nobody is, either
- * opening Settings at Account; Settings itself; and Help.
+ * opening Settings at Account; Settings itself; and Help. The space around
+ * them moves the window, as the top row's does.
  */
 function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
   const { data: user, isPending } = useLiveUser();
   return (
-    <div className="flex h-11 shrink-0 items-center gap-1 pr-1 pl-2">
+    <div className="flex h-11 shrink-0 items-center gap-1 pr-1 pl-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]">
       <button
         className="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 text-left hover:bg-foreground/5"
         onClick={() => {

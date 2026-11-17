@@ -39,7 +39,7 @@ import {
   bookmarkClicks,
 } from "./bookmark-menu";
 import { DROP_TONE } from "./drag/tone";
-import { pressBookmark } from "./drag/press-bookmark";
+import { pressBookmark, pressFolder } from "./drag/press-bookmark";
 import {
   useFolderDropLine,
   useFolderMenuTarget,
@@ -98,6 +98,9 @@ export function FolderChip({
             )}
             data-bookmark-folder={folder.id}
             data-bookmark-id={folder.id}
+            onPointerDown={(event) => {
+              pressFolder(event, folder);
+            }}
             onPointerEnter={onHover}
             title={folder.title}
           >

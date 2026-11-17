@@ -398,7 +398,9 @@ function useLander(
           return;
         }
         keep(
-          keptAs(held, {
+          held.kind === "folder"
+            ? [{ id: held.folder, order: 0, title: held.title, url: "" }]
+            : keptAs(held, {
             allTabs: windowTabs.allTabs,
             bookmarks: store.get(bookmarksAtom),
             titleOf,
@@ -456,7 +458,10 @@ function useKeepBookmark() {
   ) => {
     const state = store.get(bookmarksStateAtom);
     const { folder } = landing;
-    const keptIds = new Set(state.bookmarks.map((bookmark) => bookmark.id));
+    // A folder moves along the bar as a bookmark kept there does.
+    const keptIds = new Set(
+      [...state.bookmarks, ...state.folders].map((each) => each.id),
+    );
     const moving = new Set(what.map((each) => each.id));
     const all = siblingsIn(state, folder);
     const there = all.filter((each) => !moving.has(each.id));

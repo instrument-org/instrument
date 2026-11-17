@@ -10,7 +10,7 @@ export interface DroppedFile {
 /**
  * What a drag holds, on one of two paths decided by what was grabbed. A
  * piece of the window (a group's tab, a whole group by its sidebar row, a
- * bookmark of the bar) is held by the pointer (`WindowHeld`); content (files
+ * bookmark or a folder of the bar) is held by the pointer (`WindowHeld`); content (files
  * from the Finder, Files, a file card or the address field, and a link from a
  * page, a reply, a chip, a row of the Chats list or the address field) is
  * held by the system's drag (`ContentHeld`). A link opens as the tab its
@@ -33,6 +33,12 @@ export type Held =
       /** The room its row takes in a list, its height and the space under it. */
       height: number;
       kind: "group";
+    }
+  | {
+      /** A folder of the bookmarks bar, by id, which moves along the bar and lands nowhere else. */
+      folder: string;
+      kind: "folder";
+      title: string;
     }
   | {
       /** How many, which the system's drag says from the start. */
@@ -82,7 +88,7 @@ export type Landing =
  * itself, and leaves the window only as main carries a tab or a group.
  */
 export type WindowHeld =
-  | Extract<Held, { kind: "group" | "tab" }>
+  | Extract<Held, { kind: "folder" | "group" | "tab" }>
   | (Extract<Held, { kind: "link" }> & { bookmark: string });
 
 /**

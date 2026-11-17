@@ -56,6 +56,7 @@ export function opensOf(held: Held): { id: string; opens: Opens }[] {
       const opens = openedAs(held.url);
       return opens ? [{ id: held.id, opens }] : [];
     }
+    case "folder":
     case "group":
     case "tab": {
       return [];
@@ -102,6 +103,7 @@ export function heldKeysOf(held: Held): string[] {
     case "link": {
       return [held.id];
     }
+    case "folder":
     case "group": {
       return [];
     }

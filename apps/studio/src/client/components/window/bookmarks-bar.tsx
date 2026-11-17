@@ -51,15 +51,13 @@ import {
   useOpenFolder,
 } from "./bookmark-folders";
 import { dragAtom } from "./drag/session";
-import { DROP_TONE } from "./drag/tone";
 import { pressBookmark } from "./drag/press-bookmark";
 import {
   useBookmarksTarget,
-  useShownBookmarks,
+  marksBesides,
+  useBarDropLine,
 } from "./drag/use-bookmarks-drag";
 import { type Place, useFilesPlaces } from "./files-places";
-import { useShell } from "./shell-context";
-import { useTabTitle } from "./tab-title";
 import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
 
 /**
@@ -73,8 +71,10 @@ import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
  * behind this one, a Shift-click in a new tab in front, and a right click
  * offers the rest (`BookmarkContextMenu`). Files and its places open the
  * same way.
- * A bookmark dragged along the bar moves there, a tab dragged onto it is
- * kept there, and either stands where it would be while it is held. A right
+ * A bookmark or a folder dragged along the bar moves there, and a tab
+ * dragged onto it is kept there. What is held stays in its place until it
+ * lands, a copy on the pointer and a line where it would go
+ * (`BarDropLine`), so the bar never shifts under the pointer. A right
  * click on the bar itself offers to hide it; hidden, it is not drawn in any
  * tab of any window but a new tab (`isAlwaysShown`), where it is the way to
  * Files and the sites kept, and nothing can be dropped onto it. Shown or hidden
@@ -113,9 +113,8 @@ type BarProps = {
 };
 
 function Bar({ files, onOpen, onVisit }: BarProps) {
-  const { chatTitles } = useShell();
   const state = useAtomValue(bookmarksStateAtom);
-  const items = useShownBookmarks(barItems(state), useTabTitle(chatTitles));
+  const items = barItems(state);
   const edits = useBookmarkEdits();
   const folders = useBookmarkFolders();
   const bar = useRef<HTMLDivElement>(null);
@@ -178,7 +177,7 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
       appWindow.openScreen(href, asked);
     }
   };
-  const overflow = items.slice(fitting).filter((item) => !item.isStanding);
+  const overflow = items.slice(fitting);
   const drag = useAtomValue(dragAtom);
   const litFolder =
     drag?.landing?.kind === "bookmarks" ? drag.landing.folder : undefined;
@@ -262,21 +261,6 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
                   }
                   const { bookmark } = item;
                   const name = bookmarkName(bookmark);
-                  if (item.isStanding) {
-                    return (
-                      <div
-                        className={cn(
-                          "flex h-6 max-w-40 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/85",
-                          DROP_TONE,
-                        )}
-                        data-bookmark-id={bookmark.id}
-                        key={bookmark.id}
-                      >
-                        <AddressMark address={bookmark.url} />
-                        <span className="min-w-0 truncate">{name}</span>
-                      </div>
-                    );
-                  }
                   if (bookmark.id === renamingId) {
                     return (
                       <NameInPlace
@@ -327,6 +311,7 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
                     </BookmarkContextMenu>
                   );
                 })}
+                <BarDropLine row={row} />
               </div>
             )}
             {overflow.length > 0 && (
@@ -404,6 +389,48 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
   );
 }
 
+/**
+ * The line between two marks of the bar where what is held would go, drawn
+ * in the gap before the mark it would stand ahead of, or after the last.
+ */
+function BarDropLine({ row }: { row: React.RefObject<HTMLDivElement | null> }) {
+  const line = useBarDropLine();
+  const [left, setLeft] = useState<number>();
+  const index = line?.index;
+  const moving = line?.moving.join(" ");
+  useLayoutEffect(() => {
+    const element = row.current;
+    if (index === undefined || moving === undefined || !element) {
+      setLeft(undefined);
+      return;
+    }
+    const marks = marksBesides(element, moving.split(" "));
+    const before = marks[index];
+    const last = marks.at(-1);
+    setLeft(
+      before
+        ? before.start - DROP_LINE_GAP
+        : last
+          ? last.start + last.size + DROP_LINE_GAP
+          : DROP_LINE_GAP,
+    );
+  }, [index, moving, row]);
+  if (left === undefined) {
+    return null;
+  }
+  return (
+    <span
+      aria-hidden
+      className="pointer-events-none absolute top-1.5 bottom-1.5 w-0.5 -translate-x-1/2 rounded-full bg-primary"
+      data-slot="bookmark-drop-line"
+      style={{ left }}
+    />
+  );
+}
+
+/** Half the gap between two marks of the bar, in px, where the line between them is drawn. */
+const DROP_LINE_GAP = 1;
+
 /** How long something held rests on a folder before its menu opens, to be filed at a place in it. */
 const SPRING_OPEN_MS = 500;
 
@@ -429,6 +456,13 @@ function useFolderMenusInDrag(
       clearTimeout(timer);
     };
   }, [resting, setOpenFolder]);
+  // A folder taken up closes the menu its press opened.
+  const heldFolder = drag?.held.kind === "folder" ? drag.held.folder : undefined;
+  useEffect(() => {
+    if (heldFolder !== undefined) {
+      setOpenFolder(undefined);
+    }
+  }, [heldFolder, setOpenFolder]);
   const isHolding = drag !== undefined;
   const wasHolding = useRef(isHolding);
   useEffect(() => {

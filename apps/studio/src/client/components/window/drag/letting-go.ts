@@ -39,7 +39,10 @@ export function outcomeOf(
     case "bookmarks": {
       return {
         does: "keep",
-        line: isBookmark(held) ? undefined : "Add to bookmarks",
+        line:
+          isBookmark(held) || held.kind === "folder"
+            ? undefined
+            : "Add to bookmarks",
       };
     }
     case "strip": {

@@ -2,6 +2,7 @@ import { zoomAtom } from "@/client/atoms/zoom";
 import { AddressMark } from "@/client/components/window/app-chip";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { SquareHalfIcon } from "@phosphor-icons/react/SquareHalf";
 import { clamp } from "radashi";
 import { useAtomValue } from "jotai";
@@ -514,6 +515,14 @@ function HeldChip({
     const up = side?.tabs.find((tab) => tab.id === side.up);
     return up ? [up] : [];
   };
+  if (held.kind === "folder") {
+    return (
+      <>
+        <FolderSimpleIcon className="size-3.5 shrink-0 text-foreground/60" />
+        <span className="min-w-0 truncate">{held.title}</span>
+      </>
+    );
+  }
   if (held.kind === "link") {
     return (
       <>

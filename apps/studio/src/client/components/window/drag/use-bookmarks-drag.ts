@@ -6,9 +6,7 @@ import {
 } from "@/client/bookmarks/address";
 import { bookmarksAtom, bookmarksStateAtom } from "@/client/bookmarks/store";
 import {
-  type BarItem,
   type Bookmark,
-  memberOf,
   siblingsIn,
 } from "@/shared/bookmarks";
 import { useAtomValue } from "jotai";
@@ -18,19 +16,10 @@ import { bareAddress } from "../omnibar-match";
 import { useWindowTabs } from "../window-tabs";
 import { type Point } from "./landing";
 import { dragAtom, useDropTarget } from "./session";
-import { outcomeOf } from "./letting-go";
-import { type DroppedFile, type Held } from "./types";
+import { type DroppedFile, type Held, isBookmark } from "./types";
 
-/** The id what is held stands under among the bookmarks while it is held over them, where nothing kept stands for it. */
+/** The id what is held is kept under, where nothing kept stands for it yet. */
 const STANDING_ID = ":standing";
-
-/** A bookmark as the bar draws it in a drag: kept, or what is held standing where it would be kept. */
-export type ShownBookmark = Bookmark & { isStanding?: true };
-
-/** An item of the bar as it draws it in a drag: a folder, a bookmark kept, or what is held standing where it would be kept. */
-export type ShownItem =
-  | (Extract<BarItem, { kind: "folder" }> & { isStanding?: undefined })
-  | { bookmark: ShownBookmark; isStanding?: true; kind: "bookmark" };
 
 /** What a drag knows of the window to say what is held would be kept as. */
 interface KeptContext {
@@ -45,11 +34,9 @@ interface KeptContext {
 function keptAt(
   { id, title, url }: { id: string; title: string; url: string },
   bookmarks: readonly Bookmark[],
-): ShownBookmark {
+): Bookmark {
   const kept = bookmarks.find((bookmark) => sameAddress(bookmark.url, url));
-  return kept
-    ? { ...kept, isStanding: true }
-    : { id, isStanding: true, order: 0, title, url };
+  return kept ?? { id, order: 0, title, url };
 }
 
 /** A file or a folder as the address it is kept under, by its name. */
@@ -71,7 +58,7 @@ function fileKept({ hostPath, isFolder }: DroppedFile) {
 export function keptAs(
   held: Held,
   { allTabs, bookmarks, titleOf, upOf }: KeptContext,
-): ShownBookmark[] {
+): Bookmark[] {
   const ofTab = (tab: WindowTab | undefined) => {
     const url = tab ? addressOfTab(tab) : undefined;
     return tab && url !== undefined
@@ -79,6 +66,9 @@ export function keptAs(
       : [];
   };
   switch (held.kind) {
+    case "folder": {
+      return [];
+    }
     case "tab": {
       return ofTab(allTabs.find((each) => each.id === held.id));
     }
@@ -101,7 +91,6 @@ export function keptAs(
         return [
           {
             id: held.bookmark,
-            isStanding: true,
             order: 0,
             title: held.title,
             url: held.url,
@@ -140,57 +129,38 @@ function useKeptContext(
 
 /**
  * Where along a row of bookmarks a point stands, among the bookmarks other
- * than what is held, taken where they would stand without it: layout, not
- * what is drawn, so the room made for it never moves the answer.
+ * than what is held, which stays in its place while it is held.
  */
 function bookmarkIndexAt(
   point: Point,
   row: HTMLElement,
   held: readonly string[],
 ) {
-  const { along, marks } = layoutWithout(point, row, held);
+  const { along, marks } = marksOf(point, row, held);
   return marks.filter(({ size, start }) => along > start + size / 2).length;
 }
 
 /**
- * The marks of a row other than what is held, each where it would start
- * without it, and how far along the row a point is, all in layout px.
+ * The marks of a row other than what is held, each where it starts, and how
+ * far along the row a point is, all in layout px.
  */
-function layoutWithout(
-  point: Point,
-  row: HTMLElement,
-  held: readonly string[],
-) {
+function marksOf(point: Point, row: HTMLElement, held: readonly string[]) {
   const bounds = row.getBoundingClientRect();
   // On screen px from layout px, which differ by the window's zoom.
   const zoom = row.offsetWidth > 0 ? bounds.width / row.offsetWidth : 1;
   const along = (point.x - bounds.left) / zoom;
-  const all = [...row.querySelectorAll<HTMLElement>("[data-bookmark-id]")];
-  const isHeld = (mark: HTMLElement) =>
-    held.includes(mark.dataset.bookmarkId ?? "");
-  const heldAt = all.findIndex(isHeld);
-  const standing = all[heldAt];
-  const next = all[heldAt + 1];
-  const slot = standing
-    ? next
-      ? next.offsetLeft - standing.offsetLeft
-      : standing.offsetWidth
-    : 0;
-  const marks = all.flatMap((element, index) =>
-    isHeld(element)
-      ? []
-      : [
-          {
-            element,
-            size: element.offsetWidth,
-            start:
-              standing && index > heldAt
-                ? element.offsetLeft - slot
-                : element.offsetLeft,
-          },
-        ],
-  );
-  return { along, marks };
+  return { along, marks: marksBesides(row, held) };
+}
+
+/** The marks of a row other than what is held, each where it starts and how wide it is, in layout px. */
+export function marksBesides(row: HTMLElement, held: readonly string[]) {
+  return [...row.querySelectorAll<HTMLElement>("[data-bookmark-id]")]
+    .filter((mark) => !held.includes(mark.dataset.bookmarkId ?? ""))
+    .map((element) => ({
+      element,
+      size: element.offsetWidth,
+      start: element.offsetLeft,
+    }));
 }
 
 function shownRect(
@@ -207,7 +177,7 @@ function shownRect(
 }
 
 /**
- * How far under the bar a bookmark taken from it still moves along it, in
+ * How far under the bar a bookmark or folder taken from it still moves along it, in
  * the window's px, so a hand drifting off the bar's short height reorders
  * rather than opening it as a tab.
  */
@@ -232,11 +202,18 @@ export function useBookmarksTarget({
   const state = useAtomValue(bookmarksStateAtom);
   useDropTarget({
     landingAt: (point, { held }) => {
+      const element = row();
+      if (held.kind === "folder") {
+        // A folder stays on the bar, so it only moves along it.
+        const index = element
+          ? bookmarkIndexAt(point, element, [held.folder])
+          : 0;
+        return { index, kind: "bookmarks" };
+      }
       const kept = keptAs(held, { ...context, bookmarks: state.bookmarks });
       if (kept.length === 0) {
         return undefined;
       }
-      const element = row();
       const moving = [STANDING_ID, ...kept.map((each) => each.id)];
       const folder = element ? folderAt(point, element, moving) : undefined;
       if (folder !== undefined) {
@@ -252,7 +229,7 @@ export function useBookmarksTarget({
     rect: ({ held }) =>
       shownRect(
         area(),
-        held.kind === "link" && held.bookmark !== undefined ? BAR_SLACK : 0,
+        isBookmark(held) || held.kind === "folder" ? BAR_SLACK : 0,
       ),
   });
 }
@@ -260,16 +237,13 @@ export function useBookmarksTarget({
 /**
  * The folder whose chip on the bar a point is well inside of, by id: the
  * middle of a chip files what is held in it, and its ends place it beside.
- * Read where the chips would stand without what is held, as the bar draws
- * them while a folder is lit, so a chip never slides out from under the
- * pointer as the bar makes or takes back room.
  */
 function folderAt(
   point: Point,
   row: HTMLElement,
   held: readonly string[],
 ): string | undefined {
-  const { along, marks } = layoutWithout(point, row, held);
+  const { along, marks } = marksOf(point, row, held);
   return marks.find(({ element, size, start }) => {
     const edge = size * FOLDER_EDGE;
     return (
@@ -351,47 +325,25 @@ export function useFolderDropLine(
 }
 
 /**
- * The bar's items as a drag draws them: what is held over the bar standing
- * where it would be kept, the others making room; and a bookmark held where
- * nothing takes it gone from its place, as letting go there removes it.
- * Held over a folder, the bar stands as it would without it, the folder lit.
+ * Where a drag over the bar would put what is held, for the line the bar
+ * draws there: its place among the bar's items other than what is held,
+ * and the ids of those, which keep their places while it is held. Nothing
+ * while it would go into a folder or anywhere off the bar.
  */
-export function useShownBookmarks(
-  items: readonly BarItem[],
-  titleOf: (tab: WindowTab) => string,
-): readonly ShownItem[] {
+export function useBarDropLine():
+  | { index: number; moving: readonly string[] }
+  | undefined {
   const drag = useAtomValue(dragAtom);
   const all = useAtomValue(bookmarksAtom);
-  const context = useKeptContext(titleOf);
-  if (!drag) {
-    return items;
+  const context = useKeptContext(() => "");
+  const landing = drag?.landing;
+  if (!drag || landing?.kind !== "bookmarks" || landing.folder !== undefined) {
+    return undefined;
   }
-  const { held, landing } = drag;
-  if (landing?.kind === "bookmarks") {
-    const kept = keptAs(held, { ...context, bookmarks: all });
-    const moving = new Set(kept.map((each) => each.id));
-    if (landing.folder !== undefined) {
-      return items.filter((item) => !moving.has(memberOf(item).id));
-    }
-    return kept.length > 0
-      ? items
-          .filter((item) => !moving.has(memberOf(item).id))
-          .toSpliced(
-            landing.index,
-            0,
-            ...kept.map(
-              (bookmark): ShownItem => ({
-                bookmark,
-                isStanding: true,
-                kind: "bookmark",
-              }),
-            ),
-          )
-      : items;
-  }
-  // Opened somewhere it stays kept here; a bookmark let go where nothing
-  // takes it goes from here.
-  return held.kind === "link" && outcomeOf(held, landing).does === "remove"
-    ? items.filter((item) => memberOf(item).id !== held.bookmark)
-    : items;
+  const { held } = drag;
+  const moving =
+    held.kind === "folder"
+      ? [held.folder]
+      : keptAs(held, { ...context, bookmarks: all }).map((each) => each.id);
+  return { index: landing.index, moving };
 }

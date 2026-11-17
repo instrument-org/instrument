@@ -20,3 +20,19 @@ export function pressBookmark(
     url: bookmark.url,
   }));
 }
+
+/**
+ * A press on a folder of the bar, which past the start becomes the folder
+ * held by the pointer: it moves along the bar and nowhere else. A press
+ * that goes nowhere stays the press that opens its menu.
+ */
+export function pressFolder(
+  event: React.PointerEvent<HTMLElement>,
+  folder: { id: string; title: string },
+) {
+  pressToHold(event, () => ({
+    folder: folder.id,
+    kind: "folder",
+    title: folder.title,
+  }));
+}

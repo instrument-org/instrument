@@ -303,6 +303,14 @@ export async function keepOriginal({
   }
 }
 
+/**
+ * Starts a session's turn with no originals kept, so one a stopped or failed
+ * turn kept, which no turn end recorded, never passes for this turn's.
+ */
+export function beginTurnFileVersions(sessionId: StoreId.Session): void {
+  pending.delete(sessionId);
+}
+
 /** The originals a session's turn kept, which the turn's end records; empties them. */
 function takeOriginals(sessionId: StoreId.Session): Entry[] {
   const turn = pending.get(sessionId);

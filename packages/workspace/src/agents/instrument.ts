@@ -9,7 +9,10 @@ import { chatModelURI } from "../lib/chat-settings";
 import { ChatWrites } from "../lib/chat-writes";
 import { folderReach } from "../lib/chat/folder-reach";
 import { endOfTurnNote } from "../lib/end-of-turn-checks";
-import { keepTurnFileVersions } from "../lib/chat/turn-file-versions";
+import {
+  beginTurnFileVersions,
+  keepTurnFileVersions,
+} from "../lib/chat/turn-file-versions";
 import { currentEnvironment } from "../lib/environment";
 import { runningModelText } from "../model-text/notes/model-change-model-text";
 import { TypedError } from "../lib/errors";
@@ -212,6 +215,7 @@ export const instrumentAgent = setupAgent({
   onStart: async ({ sessionId, chatId }) => {
     beginSetupChangeTracking({ id: chatId, sessionId });
     beginChatChangeTracking({ id: chatId, sessionId });
+    beginTurnFileVersions(sessionId);
   },
   // A reply whose links open nothing gets one step more to correct them. A
   // turn that ends keeps a version of each file its reply handed over, before

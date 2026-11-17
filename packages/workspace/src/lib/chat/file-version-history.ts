@@ -140,6 +140,10 @@ export async function restoreFileVersion({
   if (version === undefined) {
     throw new Error("That is not a version this chat kept of the file.");
   }
+  if ((await contentsOf(copy))?.hash !== version.hash) {
+    // A copy edited since it was kept is no longer the version it names.
+    throw new Error("That version’s copy has changed since it was kept.");
+  }
   if ((await fs.lstat(file).catch(() => undefined))?.isSymbolicLink()) {
     // A link swapped in since would aim the restore, and the copy of what it
     // replaces, at a file the version was never of.
@@ -173,7 +177,7 @@ export async function restoreFileVersion({
   });
   const isNew =
     before !== undefined &&
-    !ofFile.some((record) => record.hash === before.hash);
+    !ofFile.some((record) => record.copy === before.copy);
   await saveOnLastReply(chatId, [
     ...(isNew
       ? [{ entry: entry(before), kind: "before-restore" as const }]

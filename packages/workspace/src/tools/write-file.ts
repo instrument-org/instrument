@@ -47,10 +47,9 @@ const writeFileCapability = defineCapability({
         const target = typed.value;
 
         const isNewFile = !(await files.fs.exists(target));
-
-        if (!isNewFile) {
-          await keepOriginal({ chatId, files, sessionId, target });
-        }
+        // A new file is marked seen too, so a second write in the turn never
+        // keeps the first as its original.
+        await keepOriginal({ chatId, files, sessionId, target });
         try {
           // Makes the folders it needs, as `tee` does.
           await files.fs.writeFile(target, input.content);

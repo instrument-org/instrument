@@ -200,6 +200,22 @@ describe("restoreFileVersion", () => {
     expect(await fs.readFile(b, "utf8")).toBe("B1");
   });
 
+  it("refuses a copy edited since it was kept", async () => {
+    const file = path.join(dir, "notes.md");
+    const first = await kept(file, "A");
+    turn("s-chat", "m1", [[[first]]]);
+    turn("s-chat", "m2", [[[await kept(file, "B")]]]);
+    await fs.writeFile(first.copy ?? "", "edited");
+    await expect(
+      restoreFileVersion({
+        chatId: "c" as never,
+        copy: first.copy ?? "",
+        file,
+      }),
+    ).rejects.toThrow("changed since it was kept");
+    expect(await fs.readFile(file, "utf8")).toBe("B");
+  });
+
   it("refuses to replace a file it can't keep a copy of first", async () => {
     const file = path.join(dir, "big.bin");
     const small = await kept(file, "small");

@@ -151,9 +151,7 @@ describe("formatAcceleratorFor", () => {
         "captureWindow: ⇧ ⌘ 2  /  Ctrl Shift 2  /  Ctrl Shift 2",
         "reloadApp: ⇧ ⌘ R  /  Ctrl Shift R  /  Ctrl Shift R",
         "settings: ⌘ ,  /  Ctrl ,  /  Ctrl ,",
-        "themeDark: ⌥ ⇧ ⌘ D  /  Ctrl Alt Shift D  /  Ctrl Alt Shift D",
-        "themeLight: ⇧ ⌘ L  /  Ctrl Shift L  /  Ctrl Shift L",
-        "themeSystem: ⇧ ⌘ M  /  Ctrl Shift M  /  Ctrl Shift M",
+        "toggleTheme: ⇧ ⌘ L  /  Ctrl Shift L  /  Ctrl Shift L",
       ]
     `);
   });

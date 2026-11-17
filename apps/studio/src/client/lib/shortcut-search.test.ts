@@ -92,9 +92,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "View: Zoom Out  ⌘-",
         "Developer: Capture Window  ⇧⌘2",
         "Developer: Reload App  ⇧⌘R",
-        "Developer: Set Theme: Dark  ⌥⇧⌘D",
-        "Developer: Set Theme: Light  ⇧⌘L",
-        "Developer: Set Theme: System  ⇧⌘M",
+        "Developer: Toggle Theme  ⇧⌘L",
       ]
     `);
   });
@@ -141,10 +139,8 @@ describe("matchShortcuts", () => {
     expect(highlighted("developer")).toMatchInlineSnapshot(`
       [
         "Reload App",
+        "Toggle Theme",
         "Capture Window",
-        "Set Theme: Dark",
-        "Set Theme: Light",
-        "Set Theme: System",
       ]
     `);
   });

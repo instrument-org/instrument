@@ -41,21 +41,11 @@ export const SHORTCUTS = {
     group: "General",
     label: "Settings…",
   },
-  // Option with Shift+Cmd+D, which is Bookmark All Tabs as in Chrome.
-  themeDark: {
-    accelerator: "CmdOrCtrl+Alt+Shift+D",
-    group: "Developer",
-    label: "Set Theme: Dark",
-  },
-  themeLight: {
+  // Notion's chord for switching between light and dark.
+  toggleTheme: {
     accelerator: "CmdOrCtrl+Shift+L",
     group: "Developer",
-    label: "Set Theme: Light",
-  },
-  themeSystem: {
-    accelerator: "CmdOrCtrl+Shift+M",
-    group: "Developer",
-    label: "Set Theme: System",
+    label: "Toggle Theme",
   },
 } satisfies Record<string, ShortcutDescriptor>;
 

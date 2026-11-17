@@ -228,11 +228,16 @@ export function createDevToolsMenu({
             ]
           : []),
         { type: "separator" as const },
-        { ...shortcutMenuItem("themeLight"), ...menuSymbol("sun.max") },
-        { ...shortcutMenuItem("themeDark"), ...menuSymbol("moon") },
         {
-          ...shortcutMenuItem("themeSystem"),
+          ...shortcutMenuItem("toggleTheme"),
           ...menuSymbol("circle.lefthalf.filled"),
+        },
+        {
+          click: () => {
+            getWorkspacePreferences().set("theme", "system");
+          },
+          label: "Use System Theme",
+          ...menuSymbol("desktopcomputer"),
         },
         { type: "separator" as const },
         {

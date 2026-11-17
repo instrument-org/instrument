@@ -424,13 +424,23 @@ function AppTabView({
       <PortalContainerProvider>
         {/* The width a screen gets, for `@container/app-content` variants;
           inside the portal provider, never above its target. */}
-        <div className="@container/app-content flex min-h-0 min-w-0 flex-1">
+        <div className="peer @container/app-content flex min-h-0 min-w-0 flex-1">
           <TabIdProvider id={tab.id}>
             <ActiveTabProvider isActive={isActive}>
               <RouterProvider router={router} />
             </ActiveTabProvider>
           </TabIdProvider>
         </div>
+        {/* While the tab draws nothing (its route's code still loading, for
+          seconds on a dev launch), its top drags the window, where the
+          screen's own tab strip will. It retires in the commit that draws
+          the screen, so it never covers the screen's controls. */}
+        {isActive && (
+          <div
+            aria-hidden
+            className="absolute inset-x-0 top-0 hidden h-10 [-webkit-app-region:drag] peer-empty:block"
+          />
+        )}
       </PortalContainerProvider>
     </div>
   );

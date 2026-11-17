@@ -9,15 +9,16 @@ import { isBookmark, type Held, type Landing } from "./types";
  * - `move`: a tab or a whole group goes there, as itself.
  * - `open`: a link or files open there as the tabs their addresses name.
  * - `keep`: kept on the bookmarks bar.
- * - `remove`: a bookmark let go where nothing takes it goes from the bar.
+ *
+ * Let go where nothing takes it, a bookmark stays where it is kept, as in a
+ * browser's bar.
  *
  * No line where what is held already stands where it would go: a strip, a
  * whole group's room in the list, a bookmark moving along the bar.
  */
 export type Outcome =
   | { does: "keep" | "move" | "open"; line: string | undefined }
-  | { does: "nothing"; line: undefined }
-  | { does: "remove"; line: string };
+  | { does: "nothing"; line: undefined };
 
 export function outcomeOf(
   held: Held,
@@ -31,9 +32,7 @@ export function outcomeOf(
     line,
   });
   if (!landing) {
-    return isBookmark(held)
-      ? { does: "remove", line: "Remove from bookmarks" }
-      : { does: "nothing", line: undefined };
+    return { does: "nothing", line: undefined };
   }
   switch (landing.kind) {
     case "bookmarks": {

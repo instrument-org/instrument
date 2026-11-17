@@ -27,7 +27,6 @@ import {
 } from "@/shared/tabs";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { toast } from "sonner";
 
 import { type BrowserTabsHandle } from "../browser-tabs";
 import { settleTabMove } from "../move-tab";
@@ -169,7 +168,6 @@ function useLander(
   const { open: openGroups } = useOpenGroups();
   const keep = useKeepBookmark();
   const store = useStore();
-  const removeWithUndo = useRemoveBookmarkWithUndo();
 
   /** Opens a tab at a place, under an id when it has one; a new tab named turns into it. */
   const openOne = (
@@ -414,17 +412,6 @@ function useLander(
         );
         return;
       }
-      case "remove": {
-        const dragged = store
-          .get(bookmarksAtom)
-          .find(
-            (bookmark) => held.kind === "link" && bookmark.id === held.bookmark,
-          );
-        if (dragged) {
-          removeWithUndo(dragged);
-        }
-        return;
-      }
       case "move": {
         if (landing && (held.kind === "tab" || held.kind === "group")) {
           moveTo(held, landing);
@@ -503,30 +490,6 @@ function ordersAt(
   const to = after ? after.order : from + count + 1;
   const step = (to - from) / (count + 1);
   return Array.from({ length: count }, (_, at) => from + step * (at + 1));
-}
-
-/**
- * Removes a bookmark dragged off where it is kept, with Undo in a toast
- * that puts it back as it was.
- */
-function useRemoveBookmarkWithUndo() {
-  const apply = useSetAtom(applyBookmarkOpsAtom);
-  return (bookmark: Bookmark) => {
-    void apply([{ id: bookmark.id, type: "remove" }]);
-    toast(
-      bookmark.title
-        ? `${bookmark.title} was deleted from your bookmarks.`
-        : "The bookmark was deleted.",
-      {
-        action: {
-          label: "Undo",
-          onClick: () => {
-            void apply([{ bookmark, type: "add" }]);
-          },
-        },
-      },
-    );
-  };
 }
 
 /**

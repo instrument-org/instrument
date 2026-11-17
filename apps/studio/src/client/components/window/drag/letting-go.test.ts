@@ -154,7 +154,7 @@ describe("outcomeOf", () => {
         sidebar room → open
         bookmarks bar → keep
         past the window → open · "New window"
-        nowhere → remove · "Remove from bookmarks""
+        nowhere → nothing"
     `);
   });
 

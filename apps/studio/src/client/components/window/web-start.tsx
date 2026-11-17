@@ -231,7 +231,7 @@ export function bookmarkName(bookmark: Bookmark): string {
 
 /**
  * Renaming a bookmark and removing one, wherever bookmarks are shown: a
- * name left empty or unchanged keeps the old one, and a removal says so
+ * name left empty is kept empty, as Chrome keeps it, and a removal says so
  * with a way to undo it.
  */
 export function useBookmarkEdits() {
@@ -252,7 +252,7 @@ export function useBookmarkEdits() {
     },
     rename: (bookmark: Bookmark, title: string) => {
       const named = title.trim();
-      if (named === bookmark.title || !named) {
+      if (named === bookmark.title) {
         return;
       }
       void applyBookmarkOps([

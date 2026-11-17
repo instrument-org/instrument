@@ -49,10 +49,10 @@ export function useBookmarkActions() {
     remove: (bookmark: Bookmark) => {
       void applyBookmarkOps([{ id: bookmark.id, type: "remove" }]);
     },
-    /** Renames a bookmark; a name left empty or unchanged keeps the old one. */
+    /** Renames a bookmark; a name left empty is kept empty, as Chrome keeps it. */
     rename: (bookmark: Bookmark, title: string) => {
       const named = title.trim();
-      if (!named || named === bookmark.title) {
+      if (named === bookmark.title) {
         return;
       }
       void applyBookmarkOps([

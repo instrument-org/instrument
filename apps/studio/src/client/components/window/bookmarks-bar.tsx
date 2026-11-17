@@ -281,7 +281,10 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
                         type="button"
                       >
                         <AddressMark address={bookmark.url} />
-                        <span className="min-w-0 truncate">{name}</span>
+                        {/* An unnamed bookmark is its mark alone, as in Chrome. */}
+                        {bookmark.title && (
+                          <span className="min-w-0 truncate">{name}</span>
+                        )}
                       </button>
                     </BookmarkContextMenu>
                   );

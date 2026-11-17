@@ -193,13 +193,25 @@ function layoutWithout(
   return { along, marks };
 }
 
-function shownRect(element: HTMLElement | null | undefined) {
+function shownRect(
+  element: HTMLElement | null | undefined,
+  below = 0,
+) {
   if (!element?.checkVisibility({ visibilityProperty: true })) {
     return undefined;
   }
   const { height, left, top, width } = element.getBoundingClientRect();
-  return width > 0 && height > 0 ? { height, left, top, width } : undefined;
+  return width > 0 && height > 0
+    ? { height: height + below, left, top, width }
+    : undefined;
 }
+
+/**
+ * How far under the bar a bookmark taken from it still moves along it, in
+ * the window's px, so a hand drifting off the bar's short height reorders
+ * rather than opening it as a tab.
+ */
+const BAR_SLACK = 28;
 
 /**
  * The bookmarks of the bar as a place to land: a tab held over them is kept
@@ -237,7 +249,11 @@ export function useBookmarksTarget({
       const index = element ? bookmarkIndexAt(point, element, moving) : 0;
       return { index, kind: "bookmarks" };
     },
-    rect: () => shownRect(area()),
+    rect: ({ held }) =>
+      shownRect(
+        area(),
+        held.kind === "link" && held.bookmark !== undefined ? BAR_SLACK : 0,
+      ),
   });
 }
 

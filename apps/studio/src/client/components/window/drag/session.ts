@@ -73,8 +73,8 @@ export interface DropTarget {
     point: Point,
     drag: Pick<Drag, "grab" | "held" | "input">,
   ) => Landing | "native" | undefined;
-  /** Where it takes drops, in the window's px, as laid out now. */
-  rect: () => Rect | undefined;
+  /** Where it takes drops of what is held, in the window's px, as laid out now. */
+  rect: (drag: Pick<Drag, "held">) => Rect | undefined;
   /** A list in it that scrolls while something held nears its ends. */
   scrolls?: { axis: "x" | "y"; element: () => HTMLElement | null | undefined };
 }
@@ -101,7 +101,7 @@ export function useDropTarget(target: DropTarget | undefined) {
     const registered: DropTarget = {
       hints: (drag) => latest.current?.hints?.(drag) ?? [],
       landingAt: (point, drag) => latest.current?.landingAt(point, drag),
-      rect: () => latest.current?.rect(),
+      rect: (drag) => latest.current?.rect(drag),
       ...(scrolls
         ? {
             scrolls: {
@@ -206,11 +206,11 @@ function publish(drag: Drag | undefined) {
 /** Letting go in a window of its own. */
 const WINDOW_LANDING: Landing = { kind: "window" };
 
-/** Every target under a point, the innermost first. */
-function targetsAt(point: Point) {
+/** Every target under a point for what is held, the innermost first. */
+function targetsAt(point: Point, drag: Pick<Drag, "held">) {
   return [...targets]
     .flatMap((target) => {
-      const rect = target.rect();
+      const rect = target.rect(drag);
       return rect && holds(rect, point)
         ? [{ area: rect.width * rect.height, target }]
         : [];
@@ -224,7 +224,7 @@ function measure(
   point: Point,
   drag: Pick<Drag, "grab" | "held" | "input">,
 ): { landing?: Landing; native?: true } {
-  for (const target of targetsAt(point)) {
+  for (const target of targetsAt(point, drag)) {
     const found = target.landingAt(point, drag);
     if (found === "native") {
       return { native: true };
@@ -261,7 +261,10 @@ function evaluate(current: Session) {
     : isPast
       ? { landing: drag.held.kind === "link" ? WINDOW_LANDING : undefined }
       : measure(dragPoint, drag);
-  const hints = isOff || isPast ? [] : hintsOf(drag);
+  // Over the bookmarks bar, what is held goes along it, so the splits
+  // elsewhere stay out of sight until it leaves.
+  const hints =
+    isOff || isPast || landing?.kind === "bookmarks" ? [] : hintsOf(drag);
   const changed = JSON.stringify(drag.landing) !== JSON.stringify(landing);
   current.drag = { ...drag, hints, isOff, landing };
   if (changed) {
@@ -277,7 +280,7 @@ function evaluate(current: Session) {
 /** Scrolls whatever list of a target the pointer is near the end of, by how long since the last frame. */
 function scrollLists(current: Session, now: number) {
   const near = new Set<HTMLElement>();
-  for (const target of targetsAt(dragPoint)) {
+  for (const target of targetsAt(dragPoint, current.drag)) {
     const scroller = target.scrolls;
     const element = scroller?.element();
     if (!scroller || !element) {

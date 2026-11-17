@@ -68,6 +68,27 @@ describe("createAppWindowAsks", () => {
     expect(queue.take()).toEqual([file]);
   });
 
+  // A restored window that never came up held back every link for the one
+  // that did, until the app quit.
+  it("hands what waited to a page taking over, and what comes after", () => {
+    const { deliver, queue } = asks();
+    queue.ask(file);
+    queue.takeOver();
+    queue.ask(link);
+    expect(deliver.mock.calls).toEqual([[file], [link]]);
+    expect(queue.waiting).toEqual([]);
+  });
+
+  it("keeps what waited while held when a page takes over", () => {
+    const { deliver, queue, state } = asks({ held: true });
+    queue.ask(file);
+    queue.takeOver();
+    expect(deliver).not.toHaveBeenCalled();
+    state.held = false;
+    queue.release();
+    expect(deliver.mock.calls).toEqual([[file]]);
+  });
+
   it("releases nothing while still held", () => {
     const { deliver, queue } = asks({ held: true });
     queue.take();

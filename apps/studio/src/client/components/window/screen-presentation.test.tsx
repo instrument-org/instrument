@@ -159,6 +159,14 @@ describe("screenLocation", () => {
         screen: "activity",
       },
     ],
+    [
+      "a debug page",
+      "/debug/components/transcript?scenario=long-reply",
+      {
+        address: "instrument://debug/components/transcript?scenario=long-reply",
+        kind: "debug",
+      },
+    ],
   ])("places a tab at %s", (_, href, location) => {
     expect(screenLocation(href, CONTEXT)).toEqual(location);
   });

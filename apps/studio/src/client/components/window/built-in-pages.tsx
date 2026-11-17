@@ -5,7 +5,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useContext, useEffect, useEffectEvent } from "react";
 
 import { WindowContext } from "./context";
-import { showsSame } from "./window-href";
+import { matchScreen, showsSame } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
 type WindowTabsHandle = ReturnType<typeof useWindowTabs>;
@@ -13,7 +13,8 @@ type WindowTabsHandle = ReturnType<typeof useWindowTabs>;
 /**
  * Brings up the tab of the group on screen already showing what an address
  * shows, the tab up first, and walks it there when the address asks for a
- * part of a built-in page it is not at (a part of Settings, a row to light);
+ * part of a built-in page it is not at (a part of Settings, a row to light,
+ * one debug page of another);
  * false when no tab there shows it. Every other screen comes forward as it
  * stands, as `selectShowing` brings it.
  */
@@ -30,7 +31,7 @@ export function bringForwardShowing(
   const found = up && shows(up) ? up : windowTabs.tabs.find(shows);
   if (
     found?.kind === "screen" &&
-    screenOfHref(href) !== undefined &&
+    (screenOfHref(href) !== undefined || matchScreen(href).kind === "debug") &&
     asksPartOf(href, found.href)
   ) {
     windowTabs.visitHref(found.id, href);

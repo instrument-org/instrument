@@ -569,8 +569,8 @@ export function useOpeners({
       case "window-navigate":
       case "window-tab": {
         // What the window shows sits in a tab group: a tab of the group up,
-        // or of a new one with none up. Only a screen no group's tab can
-        // stand at (the debug pages) is the window's own.
+        // or of a new one with none up. Only an address no group's tab can
+        // stand at (`isGroupScreenHref`) is the window's own.
         const { groupOnScreen } = windowTabs;
         if (!isGroupScreenHref(href)) {
           appTabs.navigate(href);

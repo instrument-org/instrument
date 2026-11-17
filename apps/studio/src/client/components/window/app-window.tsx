@@ -90,7 +90,6 @@ import {
   CatchBoundary,
   RouterContextProvider,
   RouterProvider,
-  useNavigate,
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
@@ -194,6 +193,7 @@ import {
   matchScreen,
   newChatHref,
   sameHref,
+  SCREEN_ROUTES,
 } from "./window-href";
 import {
   chatFiltersUpAtom,
@@ -228,13 +228,15 @@ export function AppWindow() {
   );
 }
 
-/** The window's shell above the developer band, which opens a debug page in the tab up. */
+/**
+ * The window's shell above the developer band, whose debug pages open as a
+ * built-in page does: the group's debug tab brought up, or a new one.
+ */
 function WindowContent(props: ComponentProps<typeof WindowShell>) {
-  const navigate = useNavigate();
   return (
     <WithDeveloperStrip
       onOpenDebugPages={() => {
-        void navigate({ to: "/debug" });
+        openBuiltInPage(SCREEN_ROUTES.debug);
       }}
     >
       <WindowShell {...props} />

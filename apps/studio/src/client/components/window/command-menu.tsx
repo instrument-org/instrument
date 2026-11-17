@@ -800,8 +800,10 @@ export function useCommandMenuRows({
             id: `debug:${item.href}`,
             label: item.label,
             ranges,
+            // The group's debug tab walks there, as a part of Settings
+            // does, or the page opens in a tab of its own.
             run: () => {
-              openScreen(item.href);
+              openBuiltInPage(item.href);
             },
             type: "item",
           })),

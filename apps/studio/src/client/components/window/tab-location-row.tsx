@@ -52,6 +52,7 @@ import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { FilesIcon } from "@phosphor-icons/react/Files";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
+import { CodeIcon } from "@phosphor-icons/react/Code";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
@@ -407,6 +408,20 @@ function Field({
       </>
     );
   }
+  // A debug page's address is said whole, as a page's is: what every debug
+  // page shares quiet, the page's own part loud.
+  if (location.kind === "debug") {
+    const { lead, rest } = splitDebugAddress(location.address);
+    return (
+      <>
+        {locationMark(location)}
+        <span className="min-w-0 flex-1 truncate select-text">
+          <span className="text-muted-foreground">{lead}</span>
+          {rest}
+        </span>
+      </>
+    );
+  }
   if (location.kind === "page") {
     // An address is one thing you type rather than a trail you walk, so it is
     // said whole: the host quiet, the part of it you are reading loud. An
@@ -750,6 +765,9 @@ function locationMark(location: TabLocation): ReactNode {
     case "newChat": {
       return <AppMark app="chat" />;
     }
+    case "debug": {
+      return <CodeIcon className="size-3.5 shrink-0 text-muted-foreground" />;
+    }
     case "file": {
       // A file wears its own type's mark, the way a site wears a favicon: it
       // is the one thing about a file you can tell before opening it.
@@ -819,6 +837,10 @@ function locationText(location: TabLocation) {
     case "page": {
       return location.url;
     }
+    // A debug page's own address, which the field opens again.
+    case "debug": {
+      return location.address;
+    }
   }
 }
 
@@ -876,6 +898,14 @@ function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
       return;
     }
   }
+}
+
+/** A debug page's address as the part every one shares and the page's own. */
+function splitDebugAddress(address: string) {
+  const at = address.indexOf("/", address.indexOf("://") + 3);
+  return at === -1
+    ? { lead: address, rest: "" }
+    : { lead: address.slice(0, at), rest: address.slice(at) };
 }
 
 /** The host quiet, the path loud: the part of an address you are reading. */

@@ -64,6 +64,26 @@ describe("a built-in page asked for by a command", () => {
     },
   );
 
+  it("brings the debug pages forward where they stand for the landing page", () => {
+    const { handle, select, visitHref } = groupUp(
+      "/chats/2026-10-01-roofer",
+      "/debug/billing",
+    );
+    expect(bringForwardShowing(handle, "/debug")).toBe(true);
+    expect(select).toHaveBeenCalledWith("tab-1");
+    expect(visitHref).not.toHaveBeenCalled();
+  });
+
+  it("brings the debug pages forward at the page asked for", () => {
+    const { handle, select, visitHref } = groupUp(
+      "/chats/2026-10-01-roofer",
+      "/debug/billing",
+    );
+    expect(bringForwardShowing(handle, "/debug/components/colors")).toBe(true);
+    expect(select).toHaveBeenCalledWith("tab-1");
+    expect(visitHref).toHaveBeenCalledWith("tab-1", "/debug/components/colors");
+  });
+
   it("brings another built-in page forward as it stands", () => {
     const { handle, select, visitHref } = groupUp(
       "/settings/general",

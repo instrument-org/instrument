@@ -24,6 +24,7 @@ import { ScreenMark } from "./app-chip";
 import { AppIcon } from "./app-icon";
 import { osConventions } from "@/client/lib/utils";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
+import { debugAddressOf } from "./debug-address";
 import { FileMark } from "./file-mark";
 import { FolderMark } from "./folder-mark";
 import { RECENTS_ROOT } from "./computer-page";
@@ -142,7 +143,10 @@ export function screenLocation(
         screen: SCREEN_OF_KIND[screen.kind],
       };
     }
-    case "debug":
+    // A debug page says its own address, which the field takes back.
+    case "debug": {
+      return { address: debugAddressOf(href) ?? href, kind: "debug" };
+    }
     case "group":
     case "memory":
     case "namedScreen":

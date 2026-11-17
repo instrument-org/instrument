@@ -38,6 +38,11 @@ describe("isSameTabIdentity", () => {
     ["the release notes", "/release-notes", "/release-notes"],
     ["the extensions", "/extensions", "/extensions"],
     ["every chat, whatever it searches", "/chat-list", "/chat-list?q=trip"],
+    [
+      "the debug pages, whichever is up",
+      "/debug",
+      "/debug/components/transcript?scenario=long-reply",
+    ],
   ])("%s", (_, a, b) => {
     expect(isSameTabIdentity(a, b, HOME)).toBe(true);
   });

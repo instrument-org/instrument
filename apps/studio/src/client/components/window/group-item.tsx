@@ -500,13 +500,14 @@ export function GroupItem({
   );
 }
 
-/** The screens Reload draws again: a chat and the built-in pages. */
+/** The screens Reload draws again: a chat, the built-in pages and the debug pages. */
 const RELOADED_SCREENS = new Set<Screen["kind"]>([
   "activity",
   "apps",
   "bookmarks",
   "browser",
   "chat",
+  "debug",
   "extensions",
   "chats",
   "memories",

@@ -3,6 +3,7 @@ import {
   toggleCommandMenu,
 } from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { toggleDeveloperStrip } from "@/client/atoms/developer-strip";
@@ -20,6 +21,7 @@ import { requestFileInfo } from "@/client/components/window/file-info";
 import { interruptHeldHints } from "@/client/components/window/held-chord-hints";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
 import { requestAskCorner } from "@/client/components/window/ask-corner-state";
+import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import {
   findAgainForKeyboard,
   openFindForKeyboard,
@@ -466,8 +468,9 @@ export function useWindowCommands(
               latest.current.searchChats();
               break;
             }
+            // A tab of the group up, as the developer band's button opens them.
             case "openDebugPages": {
-              latest.current.openScreen("/debug");
+              openBuiltInPage(SCREEN_ROUTES.debug);
               break;
             }
             case "takeCapture": {

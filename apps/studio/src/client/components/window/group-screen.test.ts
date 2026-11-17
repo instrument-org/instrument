@@ -12,12 +12,12 @@ describe("isGroupScreenHref", () => {
     "/activity",
     "/release-notes",
     "/extensions",
+    "/debug/components/colors",
   ])("lets a group's tab stand at %s", (href) => {
     expect(isGroupScreenHref(href)).toBe(true);
   });
 
   it.each([
-    "/debug/errors",
     "/skills/create-page",
     "/memory/no-stevia",
     "/apps/linear/settings",

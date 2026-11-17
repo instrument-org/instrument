@@ -384,7 +384,8 @@ function useRowLines(
         ? quiet(title, PAGE_START_LINES[location.screen])
         : quiet(title, open);
     }
-    case "chats": {
+    case "chats":
+    case "debug": {
       return quiet(title, "");
     }
     case "app": {

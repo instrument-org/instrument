@@ -93,6 +93,8 @@ export type TabLocation =
       screen: ScreenName;
     }
   | { kind: "chat"; title: string }
+  /** A debug page, at the address the field shows and takes (`debugAddressOf`). */
+  | { address: string; kind: "debug" }
   /** Every chat, open or not: the index Chat's chip goes to. */
   | { kind: "chats" }
   /**
@@ -181,6 +183,7 @@ export function locationCrumbs(
           ];
     }
     case "chats":
+    case "debug":
     case "newChat":
     case "newTab":
     case "page": {
@@ -210,8 +213,8 @@ export function locationCrumbs(
 /**
  * Which of the app's own apps a location is in, whose chip leads the field:
  * Chat for a chat, a task and the index of chats, Files for a file or a folder, Apps for an
- * app's page, and each built-in page its own. A website and a new tab, a
- * new chat among them, have none.
+ * app's page, and each built-in page its own. A website, a debug page and a
+ * new tab, a new chat among them, have none.
  */
 export function locationChip(location: TabLocation): BuiltInApp | undefined {
   switch (location.kind) {
@@ -231,6 +234,7 @@ export function locationChip(location: TabLocation): BuiltInApp | undefined {
     case "folder": {
       return "files";
     }
+    case "debug":
     case "newChat":
     case "newTab":
     case "page": {

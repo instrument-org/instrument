@@ -4,7 +4,11 @@ import {
   noteTypedPage,
   useCompletionPages,
 } from "@/client/hooks/use-browser-history";
-import { sameAddress, targetOfAddress } from "@/client/bookmarks/address";
+import {
+  type AddressTarget,
+  sameAddress,
+  targetOfAddress,
+} from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import {
@@ -31,6 +35,7 @@ import {
   relativeHostPath,
   segmentsOf,
 } from "@/client/components/window/host-path";
+import { debugHrefOf } from "@/client/components/window/debug-address";
 import { isGroupScreenHref } from "@/client/components/window/group-screen";
 import { ShellContext } from "@/client/components/window/shell-context";
 import { matchScreen } from "@/client/components/window/window-href";
@@ -38,6 +43,7 @@ import {
   fieldScopeOf,
   type TabLocation,
 } from "@/client/components/window/tab-location";
+import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { iconHostOf } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
@@ -76,6 +82,7 @@ import {
   isInstrumentAddress,
 } from "@instrument-org/shared";
 import { WINDOW_ID } from "@instrument-org/workspace/client";
+import { CodeIcon } from "@phosphor-icons/react/Code";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
@@ -133,6 +140,21 @@ function omnibarModeOf(location: TabLocation): OmnibarMode {
       return "web";
     }
   }
+}
+
+/**
+ * What an address in the field opens: in developer mode a debug page's
+ * (`debugHrefOf`), which nowhere but the field takes, and otherwise what
+ * any address opens (`targetOfAddress`).
+ */
+function fieldTargetOf(
+  address: string,
+  isDeveloperMode: boolean,
+): AddressTarget | undefined {
+  const debugHref = isDeveloperMode ? debugHrefOf(address) : undefined;
+  return debugHref === undefined
+    ? targetOfAddress(address)
+    : { href: debugHref, kind: "screen" };
 }
 
 /** What the field says it is for, empty and to a screen reader. */
@@ -207,6 +229,7 @@ export function Omnibar({
   const [scope, setScope] = useState(() => fieldScopeOf(location));
   const scopeList = useRef<ScopeListHandle>(null);
   const { openPage, openScreen } = useWindow();
+  const isDeveloperMode = useDeveloperMode();
   const router = useRouter();
   const routerLocation = useRouterState({
     select: (routerState) => routerState.location,
@@ -279,7 +302,7 @@ export function Omnibar({
    * a tab group of its own).
    */
   const openAddress = (address: string) => {
-    const target = targetOfAddress(address);
+    const target = fieldTargetOf(address, isDeveloperMode);
     if (!target) {
       return;
     }
@@ -590,7 +613,10 @@ export function Omnibar({
               // back to the place.
               const here = query.trim();
               const again = typedPathHere(query);
-              if (isInstrumentAddress(here) && targetOfAddress(here)) {
+              if (
+                isInstrumentAddress(here) &&
+                fieldTargetOf(here, isDeveloperMode)
+              ) {
                 openAddress(here);
               } else if (again) {
                 void openPath(again);
@@ -691,6 +717,7 @@ function useOmnibarRows({
   const home = window.api.homeDir;
   const words = typed.trim();
   const shell = use(ShellContext);
+  const isDeveloperMode = useDeveloperMode();
 
   // On the web: the pages the window knows, bookmarks ahead of history,
   // whose part is the pages the person goes back to (Chromium's significant
@@ -792,12 +819,21 @@ function useOmnibarRows({
     bookmarks.some((bookmark) => sameAddress(bookmark.url, url));
 
   // An address of the app's own, typed or pasted, is one place.
-  if (isInstrumentAddress(words) && targetOfAddress(words)) {
+  const target = isInstrumentAddress(words)
+    ? fieldTargetOf(words, isDeveloperMode)
+    : undefined;
+  if (target) {
     return {
       completion: "",
       rows: [
         {
-          icon: <AddressMark address={words} className="size-4" />,
+          icon:
+            target.kind === "screen" &&
+            matchScreen(target.href).kind === "debug" ? (
+              <CodeIcon className="size-4" />
+            ) : (
+              <AddressMark address={words} className="size-4" />
+            ),
           id: "address",
           leavesItself: true,
           name: words,

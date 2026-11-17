@@ -8,6 +8,8 @@ import {
 } from "@/shared/bookmarks";
 import { atom } from "jotai";
 
+import { keptPaths } from "./address";
+
 /**
  * The bookmarks as this window shows them: main's (`shared/bookmarks.ts`),
  * with the ops this window has sent and main has not yet applied laid over
@@ -33,6 +35,9 @@ export const bookmarksStateAtom = mirror.shownAtom;
 
 /** Every bookmark, on the bar or in a folder, in order, as this window shows them. */
 export const bookmarksAtom = atom((get) => get(bookmarksStateAtom).bookmarks);
+
+/** The paths of the files and folders kept as bookmarks (`keptPaths`), for Files to star them. */
+export const keptPathsAtom = atom((get) => keptPaths(get(bookmarksAtom)));
 
 /** Sends ops to main and shows them at once; a batch main refused is taken back off. */
 export const applyBookmarkOpsAtom = mirror.applyOpsAtom;

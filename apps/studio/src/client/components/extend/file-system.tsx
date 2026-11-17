@@ -83,6 +83,7 @@ import {
   createFileTreeIconResolver,
   getBuiltInSpriteSheet,
 } from "@pierre/trees";
+import { StarIcon } from "@phosphor-icons/react/Star";
 import * as ScrollAreaPrimitive from "@radix-ui/react-scroll-area";
 import {
   ArrowRight,
@@ -262,6 +263,11 @@ export type FileSystemProps = {
    * drags; an item it names nothing for does not either.
    */
   getHostPath?: (item: FileSystemItem) => string | undefined;
+  /**
+   * Whether an item is kept as a bookmark, which puts a star at the front of
+   * its name in every view, in the name's own line, so nothing after it moves.
+   */
+  isBookmarked?: (item: FileSystemItem) => boolean;
   /**
    * What the rows are grouped by, when the caller holds it; null for none.
    * Left out, the browser keeps its own, ungrouped at first.
@@ -675,6 +681,20 @@ function entryKindLabel(entry: FileSystemEntry) {
 /** The name an entry is shown by: the system's, where it leaves the extension off. */
 function shownName(entry: FileSystemEntry) {
   return entry.kind === "file" ? (entry.displayName ?? entry.name) : entry.name;
+}
+/**
+ * The star a bookmarked file or folder wears at the front of its name, as the
+ * Finder puts a tag there: the filled yellow of a starred chat.
+ */
+function BookmarkedMark({ className }: { className?: string }) {
+  return (
+    <StarIcon
+      aria-label="Bookmarked"
+      className={cn("shrink-0 text-warning-500", className)}
+      role="img"
+      weight="fill"
+    />
+  );
 }
 const FOLDER_KIND = "Folder";
 /** A kind as a token says it, where the field is short: "HTML" for "HTML Document". */
@@ -1952,6 +1972,7 @@ export function FileSystem({
   defaultView = "icons",
   emptyState,
   getHostPath,
+  isBookmarked,
   partialFolder,
   group: groupProp,
   items,
@@ -3406,6 +3427,7 @@ export function FileSystem({
     groupedBy: group,
     grouping,
     index: sortedIndex,
+    ...(isBookmarked === undefined ? {} : { isBookmarked }),
     listColumnWidths,
     loadingFolders,
     menuTargetPath: contextMenuPath,
@@ -4419,6 +4441,8 @@ type FileSystemViewProps = {
   /** Each row's group, where the rows are grouped: headings go between groups. */
   grouping: Grouping | null;
   index: FileSystemIndex;
+  /** Whether an entry wears the bookmark star before its name (`BookmarkedMark`). */
+  isBookmarked?: (entry: FileSystemEntry) => boolean;
   listColumnWidths: Partial<Record<FileSystemListColumn, number>>;
   loadingFolders: Set<string>;
   /** The row a context menu is open on, outlined rather than selected. */
@@ -4768,6 +4792,7 @@ function FileSystemIconsView({
   draggable,
   entries,
   grouping,
+  isBookmarked,
   listingNavRef,
   marquee,
   menuTargetPath,
@@ -5054,6 +5079,9 @@ function FileSystemIconsView({
         >
           <TwoLineTruncate
             extension={entry.kind === "file"}
+            {...(isBookmarked?.(entry)
+              ? { lead: <BookmarkedMark className="size-3" /> }
+              : {})}
             text={shownName(entry)}
           />
         </span>
@@ -5530,6 +5558,7 @@ function FileSystemTableView({
   groupedBy,
   grouping,
   index,
+  isBookmarked,
   listColumnWidths,
   loadingFolders,
   marquee,
@@ -6117,6 +6146,9 @@ function FileSystemTableView({
                             className="ml-1.5 flex min-w-0 flex-1"
                             data-file-system-name=""
                           >
+                            {isBookmarked?.(entry) && (
+                              <BookmarkedMark className="mr-1 size-3 self-center" />
+                            )}
                             <span
                               className="flex min-w-0"
                               data-file-system-name-text=""
@@ -6185,6 +6217,7 @@ function FileSystemListView({
   entries,
   groupedBy,
   grouping,
+  isBookmarked,
   listingNavRef,
   menuTargetPath,
   moveFocusWithSelection,
@@ -6410,6 +6443,9 @@ function FileSystemListView({
                 className="flex min-w-0 flex-1 text-sm leading-5 font-medium"
                 data-file-system-name=""
               >
+                {isBookmarked?.(entry) && (
+                  <BookmarkedMark className="mr-1 size-3.5 self-center" />
+                )}
                 <MiddleTruncate text={shownName(entry)} />
               </span>
             )}
@@ -6433,6 +6469,9 @@ function FileSystemListView({
                 className="flex min-w-0 text-sm leading-5 font-medium"
                 data-file-system-name=""
               >
+                {isBookmarked?.(entry) && (
+                  <BookmarkedMark className="mr-1 size-3.5 self-center" />
+                )}
                 <MiddleTruncate
                   extension={!entry.title}
                   text={titledName(entry)}
@@ -6672,6 +6711,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
     draggable,
     grouping,
     index,
+    isBookmarked,
     loadingFolders,
     menuTargetPath,
     moveFocusWithSelection,
@@ -6933,6 +6973,7 @@ function FileSystemColumnsView(props: FileSystemViewProps) {
                   grouping={grouping}
                   entries={index.children.get(columnPath) ?? []}
                   index={index}
+                  {...(isBookmarked === undefined ? {} : { isBookmarked })}
                   isLoading={loadingFolders.has(columnPath)}
                   key={columnPath || "(root)"}
                   menuTargetChildPath={
@@ -7093,6 +7134,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   fills,
   grouping,
   index,
+  isBookmarked,
   isLoading,
   marquee,
   menuTargetChildPath,
@@ -7119,6 +7161,7 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
   fills: boolean;
   grouping: Grouping | null;
   index: FileSystemIndex;
+  isBookmarked?: FileSystemViewProps["isBookmarked"];
   isLoading: boolean;
   marquee: MarqueeControl;
   menuTargetChildPath: null | string;
@@ -7350,6 +7393,9 @@ const FileSystemColumn = React.memo(function FileSystemColumn({
                       className="flex min-w-0 flex-1"
                       data-file-system-name=""
                     >
+                      {isBookmarked?.(entry) && (
+                        <BookmarkedMark className="mr-1 size-3 self-center" />
+                      )}
                       <MiddleTruncate
                         extension={entry.kind === "file"}
                         text={shownName(entry)}
@@ -7643,6 +7689,7 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
     draggable,
     entries,
     index,
+    isBookmarked,
     listingNavRef,
     moveFocusWithSelection,
     onItemContextMenu,
@@ -7895,6 +7942,9 @@ function FileSystemGalleryView(props: FileSystemViewProps) {
               )}
               <div className="min-w-0 flex-1">
                 <div className="text-sm font-semibold break-words">
+                  {isBookmarked?.(activeEntry) && (
+                    <BookmarkedMark className="mr-1 inline size-3.5 align-[-2px]" />
+                  )}
                   {shownName(activeEntry)}
                 </div>
                 <div className="text-xs text-muted-foreground">

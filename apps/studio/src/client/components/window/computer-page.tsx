@@ -83,6 +83,7 @@ import {
   wantsNewWindow,
 } from "@/client/hooks/use-open-target";
 import { fileAddressOf } from "@/client/bookmarks/address";
+import { keptPathsAtom } from "@/client/bookmarks/store";
 import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
@@ -413,6 +414,7 @@ export function ComputerPage({
   const { openScreen, rowLead, rowTail } = useWindow();
   const placesOf = useWindowPlaces();
   const bookmarkRow = useBookmarkRow();
+  const keptPaths = useAtomValue(keptPathsAtom);
   const isBesideOpen = beside !== undefined && !beside.isClosing;
   const [rowTools, setRowTools] = useState<HTMLElement | null>(null);
   const placesWidth = useAtomValue(finderPlacesWidthAtom);
@@ -2711,6 +2713,12 @@ export function ComputerPage({
                       : undefined
                   }
                   getHostPath={(item) => hostPathOfItem(item) || undefined}
+                  {...(keptPaths.size === 0
+                    ? {}
+                    : {
+                        isBookmarked: (item: FileSystemItem) =>
+                          keptPaths.has(hostPathOfItem(item)),
+                      })}
                   items={titledItems}
                   // A new root is a new browser; a step under the same root
                   // is handed to the one on screen.

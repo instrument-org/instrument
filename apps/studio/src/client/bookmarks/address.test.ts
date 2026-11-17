@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   addressOfTab,
   fileAddressOf,
+  keptPaths,
   sameAddress,
   targetOfAddress,
 } from "./address";
@@ -20,10 +21,7 @@ describe("addressOfTab", () => {
       folderHref("/Users/mac-user/Downloads"),
       "file:///Users/mac-user/Downloads/",
     ],
-    [
-      "/files?path=Documents%2F&root=~",
-      "file:///Users/mac-user/Documents/",
-    ],
+    ["/files?path=Documents%2F&root=~", "file:///Users/mac-user/Documents/"],
     [
       fileHref("/Users/mac-user/Notes/plan #2.md"),
       "file:///Users/mac-user/Notes/plan%20%232.md",
@@ -118,4 +116,22 @@ it("takes a file kept by an earlier build's address as the same file", () => {
   expect(
     sameAddress("file:///Users/mac-user/a.md", "file:///Users/mac-user/b.md"),
   ).toBe(false);
+});
+
+it("keeps the paths of the files and folders bookmarked, as Files names them", () => {
+  expect(
+    keptPaths([
+      { url: fileAddressOf("/Users/mac-user/My Notes/plan #2.md") },
+      { url: fileAddressOf("/Users/mac-user/Downloads", { isFolder: true }) },
+      { url: "instrument://file/Users/mac-user/Old%20Notes/" },
+      { url: "https://example.com/" },
+      { url: "instrument://chat/01JZ8Q0V3W6Y8A2B4C6D8E0F2G" },
+    ]),
+  ).toEqual(
+    new Set([
+      "/Users/mac-user/My Notes/plan #2.md",
+      "/Users/mac-user/Downloads",
+      "/Users/mac-user/Old Notes",
+    ]),
+  );
 });

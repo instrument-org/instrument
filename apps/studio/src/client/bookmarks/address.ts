@@ -128,6 +128,23 @@ export function hrefOfPath({
   return isFolder ? folderHref(path) : fileHref(path);
 }
 
+>>>NEW
+
+/**
+ * The paths of the files and folders kept as bookmarks, as `sameAddress`
+ * reads each address: a folder's without its separator. A view of many
+ * files marks the kept ones by these rather than reading every bookmark for
+ * each row.
+ */
+export function keptPaths(bookmarks: readonly { url: string }[]): Set<string> {
+  return new Set(
+    bookmarks.flatMap((bookmark) => {
+      const target = targetOfAddress(bookmark.url);
+      return target?.kind === "path" ? [target.path] : [];
+    }),
+  );
+}
+
 /**
  * Whether two addresses name the same thing: a file or a folder by its path
  * however it is spelled (`file://` or the `instrument://file` an earlier

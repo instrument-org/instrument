@@ -45,6 +45,16 @@ describe("fitTwoLines", () => {
     expect(NAME.startsWith(first)).toBe(true);
     expect(second).toMatch(/….*\.pdf$/);
   });
+
+  it("gives the first line's start to a mark before the name", () => {
+    const [plain] = fitTwoLines(NAME, 110, fontAt(), { extension: true });
+    const [marked] = fitTwoLines(NAME, 110, fontAt(), {
+      extension: true,
+      indent: 30,
+    });
+    expect(plain.startsWith(marked)).toBe(true);
+    expect(marked.length).toBeLessThan(plain.length);
+  });
 });
 
 describe("MiddleTruncate", () => {
@@ -102,5 +112,16 @@ describe("TwoLineTruncate", () => {
     const lines = screen.container.querySelectorAll("[aria-hidden]");
     expect(lines).toHaveLength(2);
     expect(lines[1]?.textContent).toMatch(/….*\.pdf$/);
+  });
+
+  it("starts the first line with its lead and keeps the name whole where it fits", async () => {
+    const screen = await renderInBrowser(
+      <div className="text-xs" style={{ width: 200 }}>
+        <TwoLineTruncate lead={<i data-testid="lead" />} text="Contracts" />
+      </div>,
+    );
+    const lead = screen.container.querySelector("[data-testid=lead]");
+    expect(lead?.closest("span.block")?.textContent).toBe("Contracts");
+    expect(screen.container.querySelectorAll("[aria-hidden]")).toHaveLength(0);
   });
 });

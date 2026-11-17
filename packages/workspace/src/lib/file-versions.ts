@@ -22,7 +22,8 @@ export interface KeptVersion {
  * make it bigger.svg`. Contents already kept reuse that copy, so a file no
  * turn changed, or one put back as it was, costs nothing. The copy is a
  * clone where the disk makes one (APFS), so it takes no room until one side
- * changes. Undefined for anything that is not a file.
+ * changes. A kept copy is reused only while it still holds those contents.
+ * Undefined for anything that is not a file.
  *
  * With `read`, the copy is made from the bytes it returns, so a file the
  * rules holding the agent refuse it, or a symlink leading out of what they
@@ -67,7 +68,8 @@ export async function keepVersion({
     if (
       version.hash === hash &&
       version.copy !== undefined &&
-      (await fs.stat(version.copy).catch(() => undefined))
+      // A copy edited since it was kept no longer holds these contents.
+      (await hashOf(version.copy).catch(() => undefined)) === hash
     ) {
       return { copy: version.copy, hash, size };
     }

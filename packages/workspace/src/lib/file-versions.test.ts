@@ -115,6 +115,22 @@ describe("keepVersion", () => {
     });
     expect(await fs.readFile(kept?.copy ?? "", "utf8")).toBe("as read");
   });
+  it("makes a fresh copy when the one kept of these contents was edited since", async () => {
+    const file = path.join(dir, "notes.md");
+    await fs.writeFile(file, "A");
+    const folder = path.join(dir, ".versions");
+    const first = await keepVersion({ file, folder, label: "one", now: at });
+    await fs.writeFile(first?.copy ?? "", "edited");
+    const again = await keepVersion({
+      file,
+      folder,
+      kept: first ? [first] : [],
+      label: "two",
+      now: at,
+    });
+    expect(again?.copy).not.toBe(first?.copy);
+    expect(await fs.readFile(again?.copy ?? "", "utf8")).toBe("A");
+  });
 });
 
 describe("trimVersions", () => {

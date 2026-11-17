@@ -12,7 +12,7 @@ import { StoreId } from "../../schemas/store-id";
 import { chatSessions } from "../chat-info";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
-import { contentsOf, keepVersion } from "../file-versions";
+import { contentsOf, keepVersion, trimVersions } from "../file-versions";
 import { sessionOfChat } from "../record-folders";
 import { resolveWorkspaceFilePaths } from "../resolve-workspace-file-path";
 import { sessionToolFs } from "../tool-fs";
@@ -184,6 +184,10 @@ export async function restoreFileVersion({
       : []),
     { entry: entry(version), kind: "restored" as const },
   ]);
+  if (isNew) {
+    // The copy just made is the newest, so the trim leaves it for Undo.
+    await trimVersions(folder);
+  }
   return before?.copy === undefined ? {} : { replaced: before.copy };
 }
 

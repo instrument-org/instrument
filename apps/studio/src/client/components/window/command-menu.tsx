@@ -7,6 +7,7 @@ import { SCREENS } from "@/shared/instrument-screens";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
+import { targetOfAddress } from "@/client/bookmarks/address";
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import { PageFavicon } from "@/client/components/favicon";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
@@ -772,12 +773,21 @@ export function useCommandMenuRows({
           ].slice(0, PER_KIND_SHOWN),
           label: "Files",
         },
-        // Bookmarks first, then the pages visited.
+        // Bookmarks first, then the pages visited. A file kept as a bookmark
+        // that Files already lists is left to that row.
         {
-          items: [...pageItems(bookmarkPages), ...pageItems(recentPages)].slice(
-            0,
-            PER_KIND_SHOWN,
-          ),
+          items: [
+            ...pageItems(
+              bookmarkPages.filter((page) => {
+                const target = targetOfAddress(page.url);
+                return !(
+                  target?.kind === "path" &&
+                  recentFiles.some((file) => file.path === target.path)
+                );
+              }),
+            ),
+            ...pageItems(recentPages),
+          ].slice(0, PER_KIND_SHOWN),
           label: "Pages",
         },
         {

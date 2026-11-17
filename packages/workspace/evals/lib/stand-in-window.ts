@@ -40,6 +40,30 @@ export interface StandInTab {
   kind: "page" | "screen";
 }
 
+/**
+ * The group a new chat starts in, in the app: the chat alone, up on the one
+ * side, with the keyboard. A page the chat opens then lands beside it, as
+ * `placed` does.
+ */
+const CHAT_ALONE: LayoutSnapshot = {
+  focused: 0,
+  group: { id: "group_stand_in" },
+  sides: [
+    {
+      tabs: [
+        {
+          address: "instrument://chat/this-chat",
+          id: "this-chat",
+          isThisChat: true,
+          isUp: true,
+          kind: "chat",
+          title: "New chat",
+        },
+      ],
+    },
+  ],
+};
+
 export function createStandInWindow(chrome?: SharedChrome) {
   const tabs = new Map<string, StandInTab>();
   /** The tab in front: the last one opened, shown or moved in. */
@@ -136,12 +160,18 @@ export function createStandInWindow(chrome?: SharedChrome) {
       }
       return { tabId: tab.id };
     }
+    // A page the chat's own browser opened, given a tab beside the chat as
+    // the app's `openBeside` gives it one.
     if (action.kind === "adopt") {
-      tabs.set(action.tabId, {
+      const tab: StandInTab = {
         at: action.url,
         id: action.tabId,
         kind: "page",
-      });
+      };
+      tabs.set(tab.id, tab);
+      if (layout) {
+        placed(tab, false);
+      }
       return { tabId: action.tabId };
     }
     if (action.kind === "list" && layout) {
@@ -342,9 +372,14 @@ export function createStandInWindow(chrome?: SharedChrome) {
     openPage({ at, id }: { at: string; id: string }) {
       tabs.set(id, { at, id, kind: "page" });
     },
-    /** Lays the window out as the case's group, which the chat's opens then land in as the app places them. */
+    /**
+     * Lays the window out as the case's group, which the chat's opens then
+     * land in as the app places them. A case with no group and no tabs of
+     * its own starts as a new chat does, alone in its group.
+     */
     lay(read: LayoutRead | undefined) {
-      layout = read === undefined ? undefined : structuredClone(read.layout);
+      const start = read?.layout ?? (tabs.size === 0 ? CHAT_ALONE : undefined);
+      layout = start === undefined ? undefined : structuredClone(start);
       previous = undefined;
       for (const tab of layout?.sides.flatMap((side) => side.tabs) ?? []) {
         if (!tab.isThisChat) {

@@ -42,6 +42,7 @@ vi.mock("@/electron-main/lib/workspace-management", () => ({
 vi.mock("@/electron-main/lib/workspace-run", () => ({
   getResolvedWorkspace: () => ({ id: "here" }),
 }));
+vi.mock("electron", () => ({ app: { isPackaged: false } }));
 vi.mock("better-auth/client", () => ({
   createAuthClient: () => ({
     signOut: ({
@@ -112,5 +113,16 @@ describe("signOut", () => {
     };
     await signOut();
     expect(machine.revoked).toEqual(revoked);
+  });
+
+  it("keeps a session studio-drive copied in from another application data", async () => {
+    machine.revoked = [];
+    machine.token = "mine";
+    machine.workspaces = [{ id: "here", path: "/here" }];
+    machine.tokens = {};
+    vi.stubEnv("INSTRUMENT_SHARED_SESSION", "true");
+    await signOut();
+    vi.unstubAllEnvs();
+    expect(machine.revoked).toEqual([]);
   });
 });

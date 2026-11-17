@@ -1,4 +1,5 @@
 import { storeJson } from "@/electron-main/stores/store-json";
+import { diagnosticsDirOf } from "@/electron-main/lib/diagnostics-dir";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -59,7 +60,7 @@ function getStore(): Store<StoredExceptions> {
   if (STORE === null) {
     const defaults = StoredExceptionsSchema.parse({});
     STORE = new Store<StoredExceptions>({
-      cwd: app.getPath("userData"),
+      cwd: diagnosticsDirOf(app),
       defaults,
       deserialize: (value) => {
         const parsed = StoredExceptionsSchema.safeParse(storeJson(value));

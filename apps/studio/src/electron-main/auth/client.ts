@@ -24,6 +24,7 @@ import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { APP_DOMAIN } from "@instrument-org/shared";
 import { accountSignedIn } from "@instrument-org/workspace/electron";
 import { createAuthClient } from "better-auth/client";
+import { app } from "electron";
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 
@@ -319,6 +320,12 @@ export async function revokeSession(
  * would sign that workspace out too.
  */
 function sessionHeldElsewhere(token: string): boolean {
+  // `INSTRUMENT_SHARED_SESSION`, read in development builds only: an instance
+  // studio-drive started on application data of its own with the
+  // developer's sign-in copied in, which no registry here names.
+  if (process.env.INSTRUMENT_SHARED_SESSION === "true" && !app.isPackaged) {
+    return true;
+  }
   const userDataDir = getUserDataDir();
   const origin = platformApiOrigin();
   return listWorkspaces({ resolved: getResolvedWorkspace(), userDataDir }).some(

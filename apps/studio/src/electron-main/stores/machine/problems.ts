@@ -1,4 +1,5 @@
 import { storeJson } from "@/electron-main/stores/store-json";
+import { diagnosticsDirOf } from "@/electron-main/lib/diagnostics-dir";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { PendingProblemSchema } from "@/shared/problem-reports";
@@ -42,8 +43,9 @@ export const getProblemsStore = (): Store<ProblemsStore> => {
         return defaults;
       },
       // The userData root, which electron-store picks itself inside
-      // Electron; named so the store also opens where Electron isn't running.
-      cwd: app.getPath("userData"),
+      // Electron, or the instance's own diagnostics folder; named so the
+      // store also opens where Electron isn't running.
+      cwd: diagnosticsDirOf(app),
       name: "pending-problems",
     });
 

@@ -3,6 +3,7 @@ import { app } from "electron";
 import path from "node:path";
 
 import createFreezeWorker from "./freeze-watchdog-worker?nodeWorker";
+import { diagnosticsDirOf } from "./diagnostics-dir";
 import { createScopedLogger, getLogFileForWorkers } from "./electron-logger";
 import {
   describeFreeze,
@@ -30,7 +31,7 @@ export function startFreezeWatchdog(): { beat: () => void } {
       workerData: {
         beats: buffer,
         logFile: getLogFileForWorkers(),
-        markerPath: path.join(app.getPath("userData"), FREEZE_MARKER_FILE),
+        markerPath: path.join(diagnosticsDirOf(app), FREEZE_MARKER_FILE),
         pid: process.pid,
         version: app.getVersion(),
       } satisfies FreezeWatchdogData,

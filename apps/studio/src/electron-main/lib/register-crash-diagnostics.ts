@@ -14,6 +14,7 @@ import {
   buildMainExceptionEvent,
   recordExceptionEvent,
 } from "./capture-server-exception";
+import { diagnosticsDirOf } from "./diagnostics-dir";
 import { createScopedLogger, stopConsoleLogging } from "./electron-logger";
 import { storeExceptionEvent } from "./exception-store";
 import {
@@ -86,6 +87,10 @@ let isWritingCrashRecord = false;
  * held back.
  */
 export function registerCrashDiagnostics(app: Electron.App) {
+  const diagnosticsDir = diagnosticsDirOf(app);
+  if (diagnosticsDir !== app.getPath("userData")) {
+    app.setPath("crashDumps", path.join(diagnosticsDir, "Crashpad"));
+  }
   // Before ready, so every process the app starts is watched.
   crashReporter.start({ uploadToServer: false });
 
@@ -429,11 +434,11 @@ function logProcessGone(
 }
 
 function getSessionMarkerPath(app: Electron.App) {
-  return path.join(app.getPath("userData"), "app.lock");
+  return path.join(diagnosticsDirOf(app), "app.lock");
 }
 
 function getDumpsReportedPath(app: Electron.App) {
-  return path.join(app.getPath("userData"), "crash-dumps-reported");
+  return path.join(diagnosticsDirOf(app), "crash-dumps-reported");
 }
 
 /** Whether `pid` is a process still running, other than this one. */
@@ -587,7 +592,7 @@ function reportPreviousFreeze(
   app: Electron.App,
   previousPid: number | undefined,
 ): Freeze | undefined {
-  const markerPath = path.join(app.getPath("userData"), FREEZE_MARKER_FILE);
+  const markerPath = path.join(diagnosticsDirOf(app), FREEZE_MARKER_FILE);
   try {
     if (!fs.existsSync(markerPath)) {
       return undefined;
@@ -705,7 +710,7 @@ function reportNewCrashDumps(app: Electron.App): number {
 }
 
 function getCrashRecordPath(app: Electron.App) {
-  return path.join(app.getPath("userData"), "last-crash.json");
+  return path.join(diagnosticsDirOf(app), "last-crash.json");
 }
 
 function identifyWebContents(webContents: Electron.WebContents): string {

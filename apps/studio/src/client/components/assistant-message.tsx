@@ -20,7 +20,11 @@ export const AssistantMessage = memo(function AssistantMessage({
   // and the reply reads as streaming until the last of them is out.
   const revealed = useRevealedText(part.metadata.id, part.text, isStreaming);
   return (
-    <div className="flex flex-col items-start">
+    <div
+      className="flex flex-col items-start"
+      // Words still to come out, which the rows after it wait for.
+      data-revealing={revealed.text.length < part.text.length || undefined}
+    >
       <SessionMarkdown
         assetVersion={part.metadata.id}
         className="w-full"

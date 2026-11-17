@@ -23,6 +23,7 @@ import { AppChipIcon } from "../inline-link";
 import { SessionMarkdown } from "../session-markdown";
 import { ShimmerSweep } from "../shimmer-sweep";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
+import { FOLD_TRANSITION } from "./card-motion";
 import { RollingText } from "./rolling-text";
 import { useStepPart } from "./transcript-data";
 import { TranscriptActionsContext } from "./transcript-actions";
@@ -211,7 +212,14 @@ function toolOf(step: TurnStep): ToolName | undefined {
     : (step.tool.slice("tool-".length) as ToolName);
 }
 
-function StepMark({ step }: { step: TurnStep | undefined }) {
+function StepMark({
+  arrives = false,
+  step,
+}: {
+  /** It takes the working mark's place, so it fades in rather than appearing. */
+  arrives?: boolean;
+  step: TurnStep | undefined;
+}) {
   const tool = step && toolOf(step);
   const Icon = tool ? TOOL_ICONS[tool] : BrainIcon;
   return (
@@ -219,6 +227,8 @@ function StepMark({ step }: { step: TurnStep | undefined }) {
       className={cn(
         "flex size-5 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5",
         step?.status === "failed" && "bg-warning-500/15",
+        arrives &&
+          "animate-in duration-300 ease-out fade-in-0 zoom-in-75 motion-reduce:animate-none",
       )}
     >
       {Icon && <Icon className="size-3 text-foreground/70" />}
@@ -244,6 +254,11 @@ export function ActivityRowView({
   thought?: TurnStep;
 }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [hasWorked, setHasWorked] = useState(isLive);
+  if (isLive && !hasWorked) {
+    setHasWorked(true);
+  }
+  const isReduced = useReducedMotion();
   const releaseAutoScroll = useReleaseAutoScroll();
   const now = useTicking(isLive);
   const steps = row.steps.filter((step) => step.tool !== "reasoning");
@@ -270,7 +285,13 @@ export function ActivityRowView({
       isLive={isLive}
       isOpen={isOpen}
       label={label}
-      mark={isLive ? <WorkingMark /> : <StepMark step={lastStep} />}
+      mark={
+        isLive ? (
+          <WorkingMark />
+        ) : (
+          <StepMark arrives={hasWorked} step={lastStep} />
+        )
+      }
       onClick={() => {
         releaseAutoScroll();
         setIsOpen((open) => !open);
@@ -291,11 +312,19 @@ export function ActivityRowView({
       }
       rollKey={isLive ? rollKey : undefined}
     >
-      {isLive && (
-        <span className="ml-7 block truncate text-xs text-muted-foreground">
-          {liveDetail(label, current, lastStep)}
-        </span>
-      )}
+      {/* Folds away as the work finishes, so what is under the row moves up
+          on the turn's curve rather than jumping a line. */}
+      <AnimatePresence initial={false}>
+        {isLive && (
+          <motion.span
+            className="ml-7 block truncate text-xs text-muted-foreground"
+            exit={{ height: 0, opacity: 0 }}
+            transition={isReduced ? { duration: 0 } : FOLD_TRANSITION}
+          >
+            {liveDetail(label, current, lastStep)}
+          </motion.span>
+        )}
+      </AnimatePresence>
       {isOpen && (
         <div className="mt-1 ml-7 flex flex-col gap-1.5">
           {opened.length === 1 && opened[0] ? (

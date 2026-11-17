@@ -94,8 +94,15 @@ export class Stage {
     }
     reveal.text = text;
     reveal.isStreaming = isStreaming;
-    // Read in the same render that set it, so nothing needs telling.
+    // The reply reads it in the render that set it; anyone else watching (the
+    // rows held behind it) hears once that render is done.
+    const before = reveal.cut;
     this.recut(reveal, false);
+    if (reveal.cut !== before) {
+      queueMicrotask(() => {
+        this.notify(id);
+      });
+    }
     this.wake();
   }
 
@@ -220,10 +227,13 @@ export class Stage {
       return;
     }
     reveal.cut = cut;
-    if (!notifies) {
-      return;
+    if (notifies) {
+      this.notify(reveal.id);
     }
-    for (const listener of this.listeners.get(reveal.id) ?? []) {
+  }
+
+  private notify(id: string) {
+    for (const listener of this.listeners.get(id) ?? []) {
       listener();
     }
   }

@@ -54,6 +54,25 @@ describe("Stage", () => {
     expect(stage.isRevealing("reply")).toBe(false);
   });
 
+  it("tells its listeners when the stream's end draws the last word", async () => {
+    const stage = new Stage();
+    stage.setTarget("reply", "The", true);
+    stage.setTarget("reply", REPLY, true);
+    stage.step(2000);
+    // Everything but the word still arriving is out.
+    expect(shown(stage)).toBe(REPLY.slice(0, REPLY.lastIndexOf(" ")));
+    await Promise.resolve();
+    const heard = vi.fn();
+    stage.subscribeReveal("reply", heard);
+    // The stream ends during a render: the reply draws the last word in that
+    // render, and the rows held behind it hear once the render is done.
+    stage.setTarget("reply", REPLY, false);
+    expect(shown(stage)).toBe(REPLY);
+    expect(heard).not.toHaveBeenCalled();
+    await Promise.resolve();
+    expect(heard).toHaveBeenCalledOnce();
+  });
+
   it("stands still while stopped, and moves only when stepped", () => {
     const stage = new Stage();
     stage.setRate(0);

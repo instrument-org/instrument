@@ -290,6 +290,14 @@ function PictureRow({
   newest: WorkCardPicture;
   strip: readonly WorkCardPicture[];
 }) {
+  // Keyed by the file and how many times it came before, so a picture keeps
+  // its place in the strip as newer ones push it along.
+  const seen = new Map<string, number>();
+  const stripKeys = strip.map(({ place }) => {
+    const count = seen.get(place) ?? 0;
+    seen.set(place, count + 1);
+    return `${place}#${count.toString()}`;
+  });
   return (
     <div className="flex h-full flex-col items-center gap-2 p-2.5">
       <div className="flex min-h-0 w-full flex-1 items-center justify-center">
@@ -308,7 +316,7 @@ function PictureRow({
                   ? "ring-2 ring-brand-500"
                   : "opacity-80 ring-1 ring-foreground/10",
               )}
-              key={`${index.toString()}:${picture.place}`}
+              key={stripKeys[index]}
               picture={picture}
             />
           ))}
@@ -320,9 +328,9 @@ function PictureRow({
 
 /**
  * A file drawn small by the system: a picture, a page, a document's first page.
- * Nothing shows until the picture has loaded, and a new version takes the old
- * one's place only once it has, so the card never shows a picture loading or
- * one that failed.
+ * Nothing shows until the picture has loaded, then it fades in, and a new
+ * version takes the old one's place only once it has, so the card never shows
+ * a picture loading or one that failed.
  */
 function FilePicture({
   className,
@@ -357,6 +365,14 @@ function FilePicture({
   }, [place, src]);
   // Another file's picture never stands in for this one's.
   return shown?.place === place ? (
-    <img alt="" className={className} draggable={false} src={shown.src} />
+    <img
+      alt=""
+      className={cn(
+        "animate-in duration-300 ease-out fade-in-0 motion-reduce:animate-none",
+        className,
+      )}
+      draggable={false}
+      src={shown.src}
+    />
   ) : null;
 }

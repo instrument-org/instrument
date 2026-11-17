@@ -21,7 +21,9 @@ import {
   memo,
   type ReactNode,
   use,
+  useCallback,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import { AssistantMessage } from "../assistant-message";
@@ -58,6 +60,7 @@ import {
 import { BranchedFromLine } from "./branched-from-line";
 import { FoldsOpenedByFind } from "./folds-opened-by-find";
 import { NextStepRows, useHasNextSteps } from "./next-steps";
+import { stage } from "./stage/stage";
 import { renderDataPart } from "./note-part";
 import { PageTakeoverNote } from "./page-takeover-note";
 import { WorkCardView } from "./work-card";
@@ -72,18 +75,45 @@ import { useWorkingFloor } from "./use-working-floor";
 const THINKING_AFTER_MS = 1000;
 
 /**
- * A row that closes as the fold takes it, told by `AnimatePresence`'s `custom`.
- * A row leaving for any other reason just goes, or what is under it would slide
- * up for no reason the reader can see.
+ * A row that opens into place when it comes after the turn is on screen, so
+ * what is under it (the live card above all) slides down rather than jumping
+ * a row, and closes as the fold takes it, told by `AnimatePresence`'s
+ * `custom`. A row leaving for any other reason just goes, or what is under it
+ * would slide up for no reason the reader can see.
  */
-function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
+function FoldingRow({
+  children,
+  id,
+  opens,
+}: {
+  children: ReactNode;
+  id: string;
+  /** Whether it opens from nothing when it comes, read when it mounts. */
+  opens: boolean;
+}) {
   const isReduced = useReducedMotion();
+  const transition = isReduced ? { duration: 0 } : FOLD_TRANSITION;
   return (
     <motion.div
+      animate="open"
       className="flex min-w-0 flex-col gap-2 empty:hidden"
       data-transcript-row={id}
       exit="leaving"
+      initial={opens ? "closed" : false}
       variants={{
+        closed: {
+          height: 0,
+          marginTop: -ROW_GAP,
+          opacity: 0,
+          overflow: "hidden",
+        },
+        open: {
+          height: "auto",
+          marginTop: 0,
+          opacity: 1,
+          transition,
+          transitionEnd: { overflow: "visible" },
+        },
         leaving: (isFolding: boolean) =>
           isFolding
             ? {
@@ -91,7 +121,7 @@ function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
                 marginTop: -ROW_GAP,
                 opacity: 0,
                 overflow: "hidden",
-                transition: isReduced ? { duration: 0 } : FOLD_TRANSITION,
+                transition,
               }
             : { opacity: 0, transition: { duration: 0 } },
       }}
@@ -278,7 +308,9 @@ function TurnBody({
   // and only while that work is the last thing in the turn: words after it
   // end it (`workCardOf`).
   const cardAt = turn.rows.findLastIndex((row) => row.kind === "activity");
-  const rows = turn.rows.flatMap((row, index) => {
+  const heldFrom = useHeldFrom(turn.rows, isLast);
+  const isHolding = heldFrom !== Number.POSITIVE_INFINITY;
+  const rows = turn.rows.slice(0, heldFrom).flatMap((row, index) => {
     const out = [];
     if (isFolded && row.id === turn.foldLineAt) {
       out.push(
@@ -300,7 +332,8 @@ function TurnBody({
           ? turn.live
           : undefined;
       out.push(
-        <FoldingRow id={row.id} key={row.id}>
+        // Words open in place as they come out, so only the other rows open.
+        <FoldingRow id={row.id} key={row.id} opens={row.kind !== "text"}>
           <RowView
             chatId={chatId}
             isLive={live !== undefined}
@@ -339,7 +372,7 @@ function TurnBody({
           Read after this step
         </p>
       )}
-      {turn.live?.kind === "thinking" && !waitsForStep && (
+      {turn.live?.kind === "thinking" && !waitsForStep && !isHolding && (
         <ThinkingRow
           since={turn.live.since}
           thought={
@@ -352,7 +385,7 @@ function TurnBody({
       {turn.phase !== "working" && (
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
-      {replyEnd?.hasFooter && (
+      {replyEnd?.hasFooter && !isHolding && (
         <ReplyFoot
           chatId={chatId}
           isLast={isLast}
@@ -411,6 +444,48 @@ function CommandCards({
         }}
       />
     ));
+}
+
+/**
+ * Where the turn's rows stop for now: after the first reply whose words are
+ * still coming out, so a step, a card or Thinking never shows under words
+ * still being written. The rest show once its last word is out, which the
+ * stage keeps a fraction of a second behind the stream. Only the last turn
+ * can still be writing.
+ */
+function useHeldFrom(rows: readonly TurnRow[], isLast: boolean): number {
+  const texts = isLast
+    ? rows.flatMap((row, index) =>
+        row.kind === "text"
+          ? [{ id: row.part.metadata.id, index, length: row.part.text.length }]
+          : [],
+      )
+    : [];
+  const ids = texts.map((text) => text.id).join(" ");
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      const leaves = ids
+        .split(" ")
+        .filter(Boolean)
+        .map((id) => stage.subscribeReveal(id, listener));
+      return () => {
+        for (const leave of leaves) {
+          leave();
+        }
+      };
+    },
+    [ids],
+  );
+  return useSyncExternalStore(subscribe, () => {
+    for (const text of texts) {
+      // A reply the stage has not seen came whole, and shows whole.
+      const cut = stage.cutOf(text.id);
+      if (cut !== undefined && cut < text.length) {
+        return text.index + 1;
+      }
+    }
+    return Number.POSITIVE_INFINITY;
+  });
 }
 
 /** Whether the turn is folded now, turning so when its wait for a summary runs out. */

@@ -435,6 +435,7 @@ export function GroupItem({
 const RELOADED_SCREENS = new Set<Screen["kind"]>([
   "activity",
   "apps",
+  "bookmarks",
   "browser",
   "chat",
   "extensions",

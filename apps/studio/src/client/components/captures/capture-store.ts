@@ -148,6 +148,7 @@ const SCREEN_NAMES: Record<string, string> = {
   chatOfSession: "Chat",
   computer: "Files",
   debug: "Debug",
+  bookmarks: "Bookmarks",
   extensions: "Extensions",
   inbox: "Chats",
   memory: "Memory",

@@ -29,7 +29,6 @@ function TwoFolders({ open }: { open: OpenAddress }) {
       items={items}
       onNewFolder={() => undefined}
       onRename={() => undefined}
-      onRenameItem={() => undefined}
       open={open}
     />
   );

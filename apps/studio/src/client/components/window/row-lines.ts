@@ -99,6 +99,7 @@ export const PAGE_START_LINES = {
   apps: "",
   browser: "",
   chats: "",
+  bookmarks: "",
   extensions: "",
   files: "Home",
   memory: "",

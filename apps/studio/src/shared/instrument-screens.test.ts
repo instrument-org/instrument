@@ -39,6 +39,7 @@ it("offers every built-in page by name, each part of Settings with it", () => {
       [
         "History: instrument://screen/activity",
         "Apps: instrument://screen/apps",
+        "Bookmarks: instrument://screen/bookmarks",
         "Browser: instrument://screen/browser",
         "Chats: instrument://screen/chats",
         "Extensions: instrument://screen/extensions",

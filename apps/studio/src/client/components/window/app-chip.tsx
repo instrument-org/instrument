@@ -11,6 +11,7 @@ import {
 } from "@/shared/instrument-screens";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { CubeIcon } from "@phosphor-icons/react/Cube";
+import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
@@ -44,6 +45,7 @@ const SCREEN_MARKS: Record<ScreenName, Glyph> = {
   activity: ClockCounterClockwiseIcon,
   apps: ShapesIcon,
   chats: ChatsCircleIcon,
+  bookmarks: BookmarksIcon,
   browser: GlobeIcon,
   extensions: PuzzlePieceIcon,
   files: FolderSimpleIcon,

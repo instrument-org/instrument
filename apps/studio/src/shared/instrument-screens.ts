@@ -22,6 +22,12 @@ export const SCREENS = {
     href: "/apps",
     title: "Apps",
   },
+  bookmarks: {
+    detail:
+      "Every bookmark, in the bookmarks bar's order with its folders, to search, edit, sort and tidy.",
+    href: "/bookmarks",
+    title: "Bookmarks",
+  },
   browser: {
     detail: "The web's start page, with the sites you kept and lately saw.",
     href: "/browser",

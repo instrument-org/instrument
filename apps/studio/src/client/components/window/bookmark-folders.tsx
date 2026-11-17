@@ -33,6 +33,7 @@ import { useRef, useState } from "react";
 import { AddressMark } from "./app-chip";
 import {
   BookmarkContextMenu,
+  ManageBookmarksItem,
   NewFolderItem,
   type OpenAddress,
   ShowBookmarksBarItem,
@@ -64,7 +65,6 @@ export function FolderChip({
   onNewFolder,
   onOpenChange,
   onRename,
-  onRenameItem,
   open,
 }: {
   folder: BookmarkFolder;
@@ -80,7 +80,6 @@ export function FolderChip({
   onOpenChange: (open: boolean) => void;
   /** Starts naming the folder in its place, once the menu has let go of the keyboard. */
   onRename: () => void;
-  onRenameItem: (bookmark: Bookmark) => void;
   open: OpenAddress;
 }) {
   const edits = useBookmarkFolders();
@@ -136,16 +135,12 @@ export function FolderChip({
           </ContextMenuItem>
           <ContextMenuSeparator />
           <NewFolderItem onSelect={onNewFolder} />
+          <ManageBookmarksItem />
           <ContextMenuSeparator />
           <ShowBookmarksBarItem />
         </ContextMenuContent>
       </ContextMenu>
-      <FolderMenuContent
-        folder={folder.id}
-        items={items}
-        onRenameItem={onRenameItem}
-        open={open}
-      />
+      <FolderMenuContent folder={folder.id} items={items} open={open} />
     </DropdownMenu>
   );
 }
@@ -159,12 +154,10 @@ export function FolderChip({
 function FolderMenuContent({
   folder,
   items,
-  onRenameItem,
   open,
 }: {
   folder: string;
   items: readonly Bookmark[];
-  onRenameItem: (bookmark: Bookmark) => void;
   open: OpenAddress;
 }) {
   const content = useRef<HTMLDivElement>(null);
@@ -186,12 +179,7 @@ function FolderMenuContent({
           <span className="text-muted-foreground">Empty</span>
         </DropdownMenuItem>
       ) : (
-        <FolderItems
-          items={items}
-          line={line}
-          onRenameItem={onRenameItem}
-          open={open}
-        />
+        <FolderItems items={items} line={line} open={open} />
       )}
       {line?.before === "end" && <DropLine />}
     </DropdownMenuContent>
@@ -201,23 +189,14 @@ function FolderMenuContent({
 function FolderItems({
   items,
   line,
-  onRenameItem,
   open,
 }: {
   items: readonly Bookmark[];
   line: ReturnType<typeof useFolderDropLine>;
-  onRenameItem: (bookmark: Bookmark) => void;
   open: OpenAddress;
 }) {
   return items.map((bookmark) => (
-    <BookmarkContextMenu
-      bookmark={bookmark}
-      key={bookmark.id}
-      onRename={() => {
-        onRenameItem(bookmark);
-      }}
-      open={open}
-    >
+    <BookmarkContextMenu bookmark={bookmark} key={bookmark.id} open={open}>
       <DropdownMenuItem
         {...bookmarkClicks(bookmark.url, open)}
         className={cn("relative", line?.held.has(bookmark.id) && "opacity-50")}
@@ -249,9 +228,9 @@ function DropLine({ isAbove = false }: { isAbove?: boolean }) {
 }
 
 /**
- * Naming something on the bookmarks bar in a dialog: a new folder, or a
- * bookmark in a folder's menu, which has no room to name it in place. An
- * empty or unchanged name changes nothing.
+ * Naming something of the bookmarks in a dialog: a new folder, a folder on
+ * the Bookmarks page, or the folder Bookmark All Tabs makes. An empty or
+ * unchanged name changes nothing.
  */
 export function BookmarkNameDialog({
   action,

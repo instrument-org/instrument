@@ -128,6 +128,7 @@ export function screenLocation(
     }
     // A built-in page, by its name in `SCREENS`, and the part of Settings
     // shown by its title.
+    case "bookmarks":
     case "browser":
     case "extensions":
     case "memories":
@@ -243,6 +244,7 @@ export function screenPresentation(
     // A built-in page by its own name and mark; one Settings tab whichever
     // part it is at, which the address field says.
     case "activity":
+    case "bookmarks":
     case "extensions":
     case "memories":
     case "releaseNotes":
@@ -292,6 +294,7 @@ function activityShowOf(href: string): Show | undefined {
 /** The built-in page each of the window's own screen kinds is, by its name in `SCREENS`. */
 const SCREEN_OF_KIND = {
   activity: "activity",
+  bookmarks: "bookmarks",
   browser: "browser",
   extensions: "extensions",
   memories: "memory",

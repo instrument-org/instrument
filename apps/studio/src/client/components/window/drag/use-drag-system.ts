@@ -18,6 +18,7 @@ import {
   type BookmarkOp,
   orderAfter,
   siblingsIn,
+  ordersAt,
 } from "@/shared/bookmarks";
 import {
   type GroupTabLanding,
@@ -399,15 +400,15 @@ function useLander(
           held.kind === "folder"
             ? [{ id: held.folder, order: 0, title: held.title, url: "" }]
             : keptAs(held, {
-            allTabs: windowTabs.allTabs,
-            bookmarks: store.get(bookmarksAtom),
-            titleOf,
-            upOf: (group, half) => {
-              const layout = windowTabs.layoutOf(group);
-              const side = layout.sides[half ?? layout.focused];
-              return side?.tabs.find((tab) => tab.id === side.up);
-            },
-          }),
+                allTabs: windowTabs.allTabs,
+                bookmarks: store.get(bookmarksAtom),
+                titleOf,
+                upOf: (group, half) => {
+                  const layout = windowTabs.layoutOf(group);
+                  const side = layout.sides[half ?? layout.focused];
+                  return side?.tabs.find((tab) => tab.id === side.up);
+                },
+              }),
           landing,
         );
         return;
@@ -471,25 +472,6 @@ function useKeepBookmark() {
       }),
     );
   };
-}
-
-/** The orders that sort some bookmarks, in turn, at a place among others, evenly between its neighbors. */
-function ordersAt(
-  there: readonly { order: number }[],
-  index: number,
-  count: number,
-  all: readonly { order: number }[],
-): number[] {
-  const before = there[index - 1];
-  const after = there[index];
-  const from = before
-    ? before.order
-    : after
-      ? after.order - count
-      : orderAfter(all) - 1;
-  const to = after ? after.order : from + count + 1;
-  const step = (to - from) / (count + 1);
-  return Array.from({ length: count }, (_, at) => from + step * (at + 1));
 }
 
 /**

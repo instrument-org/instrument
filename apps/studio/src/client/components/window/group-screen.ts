@@ -14,6 +14,7 @@ export function isGroupScreenHref(href: string): boolean {
     case "activity":
     case "app":
     case "apps":
+    case "bookmarks":
     case "browser":
     case "computer":
     case "extensions":

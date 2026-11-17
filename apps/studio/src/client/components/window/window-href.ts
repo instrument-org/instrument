@@ -29,6 +29,8 @@ export type Screen =
   | (ComputerTab & { kind: "computer" })
   | { kind: "debug"; pathname: string }
   | { kind: "extensions" }
+  /** Every bookmark, as a page of its own: a browser's bookmark manager. */
+  | { kind: "bookmarks" }
   /** A tab group, by its key: the window's tab showing it. */
   | { group: string; kind: "group" }
   /** Every chat there is, open or not: the index Chat's chip goes to. */
@@ -83,6 +85,7 @@ export const SCREEN_ROUTES = {
   computer: "/files",
   debug: "/debug",
   extensions: "/extensions",
+  bookmarks: "/bookmarks",
   inbox: "/chats/",
   memories: "/memory",
   releaseNotes: "/release-notes",
@@ -241,6 +244,9 @@ export function matchScreen(href: string): Screen {
   }
   if (at(SCREEN_ROUTES.extensions)) {
     return { kind: "extensions" };
+  }
+  if (at(SCREEN_ROUTES.bookmarks)) {
+    return { kind: "bookmarks" };
   }
   if (matchPath(SCREEN_ROUTES.debug, pathname, { under: true })) {
     return { kind: "debug", pathname };

@@ -217,6 +217,25 @@ export function orderAfter(items: readonly { order: number }[]): number {
   return items.reduce((last, item) => Math.max(last, item.order + 1), 0);
 }
 
+/** The orders that sort some bookmarks, in turn, at a place among others, evenly between its neighbors. */
+export function ordersAt(
+  there: readonly { order: number }[],
+  index: number,
+  count: number,
+  all: readonly { order: number }[],
+): number[] {
+  const before = there[index - 1];
+  const after = there[index];
+  const from = before
+    ? before.order
+    : after
+      ? after.order - count
+      : orderAfter(all) - 1;
+  const to = after ? after.order : from + count + 1;
+  const step = (to - from) / (count + 1);
+  return Array.from({ length: count }, (_, at) => from + step * (at + 1));
+}
+
 /**
  * The folder a bookmark is filed in, where it is there. A bookmark naming a
  * folder another device removed, or one not read yet, is on the bar.

@@ -46,6 +46,7 @@ export function tabIdentityOf(
       return draft ? `draft:${draft}` : undefined;
     }
     case "activity":
+    case "bookmarks":
     case "chat-list":
     case "extensions":
     case "memory":

@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as DebugRouteRouteImport } from './routes/debug/route'
 import { Route as AppActivityRouteImport } from './routes/_app/activity'
+import { Route as AppBookmarksRouteImport } from './routes/_app/bookmarks'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
 import { Route as AppChatListRouteImport } from './routes/_app/chat-list'
 import { Route as AppExtensionsRouteImport } from './routes/_app/extensions'
@@ -67,6 +68,11 @@ const DebugRouteRoute = DebugRouteRouteImport.update({
 const AppActivityRoute = AppActivityRouteImport.update({
   id: '/activity',
   path: '/activity',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppBookmarksRoute = AppBookmarksRouteImport.update({
+  id: '/bookmarks',
+  path: '/bookmarks',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppBrowserRoute = AppBrowserRouteImport.update({
@@ -262,6 +268,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/debug': typeof DebugRouteRouteWithChildren
   '/activity': typeof AppActivityRoute
+  '/bookmarks': typeof AppBookmarksRoute
   '/browser': typeof AppBrowserRoute
   '/chat-list': typeof AppChatListRoute
   '/extensions': typeof AppExtensionsRoute
@@ -302,6 +309,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof AppActivityRoute
+  '/bookmarks': typeof AppBookmarksRoute
   '/browser': typeof AppBrowserRoute
   '/chat-list': typeof AppChatListRoute
   '/extensions': typeof AppExtensionsRoute
@@ -344,6 +352,7 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteRouteWithChildren
   '/debug': typeof DebugRouteRouteWithChildren
   '/_app/activity': typeof AppActivityRoute
+  '/_app/bookmarks': typeof AppBookmarksRoute
   '/_app/browser': typeof AppBrowserRoute
   '/_app/chat-list': typeof AppChatListRoute
   '/_app/extensions': typeof AppExtensionsRoute
@@ -387,6 +396,7 @@ export interface FileRouteTypes {
     | '/'
     | '/debug'
     | '/activity'
+    | '/bookmarks'
     | '/browser'
     | '/chat-list'
     | '/extensions'
@@ -427,6 +437,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/activity'
+    | '/bookmarks'
     | '/browser'
     | '/chat-list'
     | '/extensions'
@@ -468,6 +479,7 @@ export interface FileRouteTypes {
     | '/_app'
     | '/debug'
     | '/_app/activity'
+    | '/_app/bookmarks'
     | '/_app/browser'
     | '/_app/chat-list'
     | '/_app/extensions'
@@ -540,6 +552,13 @@ declare module '@tanstack/react-router' {
       path: '/activity'
       fullPath: '/activity'
       preLoaderRoute: typeof AppActivityRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/bookmarks': {
+      id: '/_app/bookmarks'
+      path: '/bookmarks'
+      fullPath: '/bookmarks'
+      preLoaderRoute: typeof AppBookmarksRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/browser': {
@@ -799,6 +818,7 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteRouteChildren {
   AppActivityRoute: typeof AppActivityRoute
+  AppBookmarksRoute: typeof AppBookmarksRoute
   AppBrowserRoute: typeof AppBrowserRoute
   AppChatListRoute: typeof AppChatListRoute
   AppExtensionsRoute: typeof AppExtensionsRoute
@@ -818,6 +838,7 @@ interface AppRouteRouteChildren {
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppActivityRoute: AppActivityRoute,
+  AppBookmarksRoute: AppBookmarksRoute,
   AppBrowserRoute: AppBrowserRoute,
   AppChatListRoute: AppChatListRoute,
   AppExtensionsRoute: AppExtensionsRoute,

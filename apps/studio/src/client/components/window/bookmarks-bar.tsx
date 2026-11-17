@@ -24,7 +24,7 @@ import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import { filesHrefAtom } from "@/client/atoms/window";
 import { BAR_MOTION } from "@/client/lib/motion";
 import { cn } from "@/client/lib/utils";
-import { barItems, type Bookmark } from "@/shared/bookmarks";
+import { barItems } from "@/shared/bookmarks";
 import { folderHref } from "@/shared/computer-href";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { CaretDoubleRightIcon } from "@phosphor-icons/react/CaretDoubleRight";
@@ -38,6 +38,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { AddressMark } from "./app-chip";
 import {
   BookmarkContextMenu,
+  ManageBookmarksItem,
   NewFolderItem,
   type OpenAddress,
   ShowBookmarksBarItem,
@@ -58,7 +59,7 @@ import {
   useBarDropLine,
 } from "./drag/use-bookmarks-drag";
 import { type Place, useFilesPlaces } from "./files-places";
-import { BookmarkNameField, bookmarkName, useBookmarkEdits } from "./web-start";
+import { BookmarkNameField, bookmarkName } from "./web-start";
 
 /**
 /**
@@ -115,18 +116,14 @@ type BarProps = {
 function Bar({ files, onOpen, onVisit }: BarProps) {
   const state = useAtomValue(bookmarksStateAtom);
   const items = barItems(state);
-  const edits = useBookmarkEdits();
   const folders = useBookmarkFolders();
   const bar = useRef<HTMLDivElement>(null);
-  // The bookmark or folder whose name is being typed over, by id.
+  // The folder whose name is being typed over, by id.
   const [renamingId, setRenamingId] = useState<string>();
   const { chip, setOpenFolder } = useOpenFolder();
-  // What is being named in a dialog: a new folder, placed after the item
-  // whose menu asked for it, or a bookmark in a folder's menu.
-  const [naming, setNaming] = useState<
-    | { after?: string; kind: "folder" }
-    | { bookmark: Bookmark; kind: "bookmark" }
-  >();
+  // A new folder being named in a dialog, placed after the item whose menu
+  // asked for it.
+  const [naming, setNaming] = useState<{ after?: string; kind: "folder" }>();
   const row = useRef<HTMLDivElement>(null);
   // How many fit before the row's end, the rest under the chevron.
   const [fitting, setFitting] = useState(items.length);
@@ -252,40 +249,18 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
                         onRename={() => {
                           setRenamingId(folder.id);
                         }}
-                        onRenameItem={(bookmark) => {
-                          setNaming({ bookmark, kind: "bookmark" });
-                        }}
                         open={open}
                       />
                     );
                   }
                   const { bookmark } = item;
                   const name = bookmarkName(bookmark);
-                  if (bookmark.id === renamingId) {
-                    return (
-                      <NameInPlace
-                        id={bookmark.id}
-                        key={bookmark.id}
-                        mark={<AddressMark address={bookmark.url} />}
-                        name={name}
-                        onDone={(title) => {
-                          setRenamingId(undefined);
-                          if (title !== undefined) {
-                            edits.rename(bookmark, title);
-                          }
-                        }}
-                      />
-                    );
-                  }
                   return (
                     <BookmarkContextMenu
                       bookmark={bookmark}
                       key={bookmark.id}
                       onNewFolder={() => {
                         setNaming({ after: bookmark.id, kind: "folder" });
-                      }}
-                      onRename={() => {
-                        setRenamingId(bookmark.id);
                       }}
                       open={open}
                     >
@@ -355,6 +330,7 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
               setNaming({ kind: "folder" });
             }}
           />
+          <ManageBookmarksItem />
           <ContextMenuSeparator />
           <ShowBookmarksBarItem />
         </ContextMenuContent>
@@ -370,19 +346,6 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
             folders.create(title, naming.after);
           }}
           title="New folder"
-        />
-      )}
-      {naming?.kind === "bookmark" && (
-        <BookmarkNameDialog
-          action="Save"
-          name={bookmarkName(naming.bookmark)}
-          onClose={() => {
-            setNaming(undefined);
-          }}
-          onCommit={(title) => {
-            edits.rename(naming.bookmark, title);
-          }}
-          title="Rename bookmark"
         />
       )}
     </>
@@ -457,7 +420,8 @@ function useFolderMenusInDrag(
     };
   }, [resting, setOpenFolder]);
   // A folder taken up closes the menu its press opened.
-  const heldFolder = drag?.held.kind === "folder" ? drag.held.folder : undefined;
+  const heldFolder =
+    drag?.held.kind === "folder" ? drag.held.folder : undefined;
   useEffect(() => {
     if (heldFolder !== undefined) {
       setOpenFolder(undefined);

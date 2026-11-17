@@ -10,7 +10,10 @@ import {
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
+import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { type OpenOptions } from "@/client/components/window/context";
+import { SCREENS } from "@/shared/instrument-screens";
+import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
 import {
   openClickGestures,
   useWindowPlaces,
@@ -28,8 +31,9 @@ import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XCircleIcon } from "@phosphor-icons/react/XCircle";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactElement, useRef } from "react";
+import { type ReactElement, useRef, useState } from "react";
 
+import { BookmarkEditor } from "./bookmark-editor";
 import { PlaceItems } from "./place-items";
 import { useBookmarkEdits } from "./web-start";
 
@@ -88,15 +92,15 @@ export function bookmarkClicks(address: string, open: OpenAddress) {
 }
 
 /**
- * The menu over a bookmark: opening it here or in a place of the window's
- * own, renaming it, copying its address, deleting it, and the bar's own
- * switch at the end.
+ * The menu over a bookmark, in a browser's order: opening it here or in a
+ * place of the window's own, Edit… (the editor, `BookmarkEditor`), copying
+ * its address, filing it, deleting it, and then the bar's own: a new folder,
+ * the Bookmarks page and the bar's switch.
  */
 export function BookmarkContextMenu({
   bookmark,
   children,
   onNewFolder,
-  onRename,
   open,
 }: {
   bookmark: Bookmark;
@@ -104,79 +108,99 @@ export function BookmarkContextMenu({
   children: ReactElement;
   /** Makes a folder on the bar, offered where one can go beside the bookmark. */
   onNewFolder?: () => void;
-  /** Starts naming the bookmark, once the menu has let go of the keyboard. */
-  onRename: () => void;
   open: OpenAddress;
 }) {
   const edits = useBookmarkEdits();
   const placesOf = useWindowPlaces();
-  // A rename asked for is started as the menu closes: a field focused while
-  // the menu still holds the keyboard loses it at once.
-  const renaming = useRef(false);
+  const [isEditing, setEditing] = useState(false);
+  // The editor asked for is opened as the menu closes: a dialog opened
+  // while the menu still holds the keyboard loses it at once.
+  const editing = useRef(false);
   return (
-    <ContextMenu>
-      <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent
-        className="min-w-52"
-        onCloseAutoFocus={(event) => {
-          if (renaming.current) {
-            renaming.current = false;
-            event.preventDefault();
-            onRename();
-          }
-        }}
-      >
-        <ContextMenuItem
-          onClick={() => {
-            open(bookmark.url);
+    <>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
+        <ContextMenuContent
+          className="min-w-52"
+          onCloseAutoFocus={(event) => {
+            if (editing.current) {
+              editing.current = false;
+              event.preventDefault();
+              setEditing(true);
+            }
           }}
         >
-          <ArrowSquareInIcon className="size-4" />
-          <span>Open</span>
-        </ContextMenuItem>
-        <PlaceItems
-          components={contextMenuComponents}
-          destinations={placesOf((options) => {
-            open(bookmark.url, options);
-          })}
+          <ContextMenuItem
+            onClick={() => {
+              open(bookmark.url);
+            }}
+          >
+            <ArrowSquareInIcon className="size-4" />
+            <span>Open</span>
+          </ContextMenuItem>
+          <PlaceItems
+            components={contextMenuComponents}
+            destinations={placesOf((options) => {
+              open(bookmark.url, options);
+            })}
+          />
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            onClick={() => {
+              editing.current = true;
+            }}
+          >
+            <PencilSimpleIcon className="size-4" />
+            <span>Edit…</span>
+          </ContextMenuItem>
+          <ContextMenuItem
+            onClick={() => {
+              void navigator.clipboard.writeText(bookmark.url);
+            }}
+          >
+            <CopyIcon className="size-4" />
+            <span>Copy Address</span>
+          </ContextMenuItem>
+          <MoveToItems bookmark={bookmark} />
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            onClick={() => {
+              edits.remove(bookmark);
+            }}
+          >
+            <XCircleIcon className="size-4" />
+            <span>Delete</span>
+          </ContextMenuItem>
+          <ContextMenuSeparator />
+          {onNewFolder && <NewFolderItem onSelect={onNewFolder} />}
+          <ManageBookmarksItem />
+          <ContextMenuSeparator />
+          <ShowBookmarksBarItem />
+        </ContextMenuContent>
+      </ContextMenu>
+      {isEditing && (
+        <BookmarkEditor
+          bookmark={bookmark}
+          onClose={() => {
+            setEditing(false);
+          }}
         />
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onClick={() => {
-            renaming.current = true;
-          }}
-        >
-          <PencilSimpleIcon className="size-4" />
-          <span>Rename</span>
-        </ContextMenuItem>
-        <ContextMenuItem
-          onClick={() => {
-            void navigator.clipboard.writeText(bookmark.url);
-          }}
-        >
-          <CopyIcon className="size-4" />
-          <span>Copy Address</span>
-        </ContextMenuItem>
-        <MoveToItems bookmark={bookmark} />
-        <ContextMenuSeparator />
-        <ContextMenuItem
-          onClick={() => {
-            edits.remove(bookmark);
-          }}
-        >
-          <XCircleIcon className="size-4" />
-          <span>Delete</span>
-        </ContextMenuItem>
-        <ContextMenuSeparator />
-        {onNewFolder && (
-          <>
-            <NewFolderItem onSelect={onNewFolder} />
-            <ContextMenuSeparator />
-          </>
-        )}
-        <ShowBookmarksBarItem />
-      </ContextMenuContent>
-    </ContextMenu>
+      )}
+    </>
+  );
+}
+
+/** The Bookmarks page, from any of the bar's menus, as a browser's Bookmark Manager. */
+export function ManageBookmarksItem() {
+  return (
+    <ContextMenuItem
+      onClick={() => {
+        openBuiltInPage(SCREENS.bookmarks.href);
+      }}
+    >
+      <BookmarksIcon className="size-4" />
+      <span>Manage Bookmarks…</span>
+    </ContextMenuItem>
   );
 }
 

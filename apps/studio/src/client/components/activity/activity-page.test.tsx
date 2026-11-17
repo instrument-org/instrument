@@ -52,9 +52,15 @@ vi.mock("@/client/rpc/client", () => {
   return { rpcClient: route([]) };
 });
 
-const NOW = Date.now();
+// Noon today, held for every test, so a row a few minutes old reads as
+// today even when the suite runs just after midnight.
+const NOW = new Date().setHours(12, 0, 0, 0);
 const minutesAgo = (minutes: number) =>
   new Date(NOW - minutes * 60_000).toISOString();
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 // jsdom lays nothing out, so the list's scrollport is given a height to
 // draw its rows into.
@@ -66,6 +72,7 @@ for (const side of ["offsetHeight", "offsetWidth"] as const) {
 }
 
 beforeEach(() => {
+  vi.useFakeTimers({ now: NOW, toFake: ["Date"] });
   calls.clear();
   data.clear();
   reads.clear();

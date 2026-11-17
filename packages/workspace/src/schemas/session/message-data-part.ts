@@ -31,6 +31,7 @@ export namespace SessionMessageDataPart {
     "dateChange",
     "environmentChange",
     "fileChanges",
+    "fileVersions",
     "fromChat",
     "intent",
     "jobEvent",
@@ -101,6 +102,7 @@ export namespace SessionMessageDataPart {
     dateChange: "event",
     environmentChange: "diff",
     fileChanges: "unwritten",
+    fileVersions: "event",
     folderChanges: "diff",
     fromChat: "event",
     intent: "event",
@@ -706,6 +708,43 @@ export namespace SessionMessageDataPart {
   });
 
   export type WorkSummaryDataPart = z.output<typeof WorkSummaryDataPartSchema>;
+
+  /**
+   * The files a reply handed over, as they were when its turn ended: each
+   * one's contents by hash, and where a copy of them is kept on the computer
+   * that ran the turn (`turn-file-versions.ts`). A card reads it to show the
+   * file as its turn left it once a later turn changed it. Never sent to the
+   * model.
+   */
+  export const FileVersionsDataPartSchema = z.object({
+    device: DeviceIdSchema,
+    files: z.array(
+      z.object({
+        /** Where the copy is, on `device`; absent for a file too big to keep. */
+        copy: AbsolutePathSchema.optional(),
+        /** The file's contents, as sha256 hex. */
+        hash: z.string(),
+        /** Where the file is, read on `device` when the turn ended. */
+        hostPath: AbsolutePathSchema,
+        /** The line of the reply's files fence that named it. */
+        path: z.string(),
+        size: z.number(),
+      }),
+    ),
+    /**
+     * Set when no reply handed the files over: `original` for a file as it
+     * was before a tool first changed it in the turn, `restored` for a
+     * version the person put back, and `before-restore` for what that
+     * replaced. Each is written only for contents no earlier record has,
+     * but `restored`. A card never draws one; it only learns the file's
+     * newest contents from it.
+     */
+    kind: z.enum(["before-restore", "original", "restored"]).optional(),
+  });
+
+  export type FileVersionsDataPart = z.output<
+    typeof FileVersionsDataPartSchema
+  >;
 
   /**
    * Tasks a chat created that finished a turn since it last heard.
@@ -1703,6 +1742,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.dateChange]: DateChangeDataPartSchema,
     [NameSchema.enum.environmentChange]: EnvironmentChangeDataPartSchema,
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
+    [NameSchema.enum.fileVersions]: FileVersionsDataPartSchema,
     [NameSchema.enum.fromChat]: FromChatDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.jobEvent]: JobEventDataPartSchema,

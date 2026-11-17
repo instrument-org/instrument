@@ -90,6 +90,7 @@ type NoteOptions = {
 
 /** Parts the app reads to draw a row, which say nothing of their own. */
 const NEVER_NOTES = new Set<SessionMessagePart.DataPart["type"]>([
+  "data-fileVersions",
   "data-ratingCard",
   "data-stepFacts",
   "data-workSummary",
@@ -145,6 +146,7 @@ const MARK_OF_PART: Record<
   "data-unknown": "note",
   "data-viewContext": "screen",
   "data-workSummary": "note",
+  "data-fileVersions": "note",
   "data-workspaceInstructions": "instructions",
 };
 
@@ -332,6 +334,7 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
     case "data-questionAnswer": {
       return named("Answer", part.data.questions[0] ?? "");
     }
+    case "data-fileVersions":
     case "data-ratingCard":
     case "data-stepFacts":
     case "data-workSummary": {

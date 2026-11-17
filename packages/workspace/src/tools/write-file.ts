@@ -6,6 +6,7 @@ import { dedent } from "radashi";
 import { z } from "zod";
 
 import { TOOL_EXPLANATION_PARAM_NAME } from "../constants";
+import { keepOriginal } from "../lib/chat/turn-file-versions";
 import { sessionToolFs } from "../lib/tool-fs";
 import { defineCapability } from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";
@@ -46,7 +47,9 @@ const writeFileCapability = defineCapability({
         const target = typed.value;
 
         const isNewFile = !(await files.fs.exists(target));
-
+        // A new file is marked seen too, so a second write in the turn never
+        // keeps the first as its original.
+        await keepOriginal({ chatId, files, sessionId, target });
         try {
           // Makes the folders it needs, as `tee` does.
           await files.fs.writeFile(target, input.content);

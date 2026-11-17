@@ -83,7 +83,6 @@ function drawn(): Part {
       ],
       modelId: "openai/gpt-image-1",
       provider: { displayName: "OpenAI", id: "openai", type: "openai" },
-      renamedToAvoidOverwrite: false,
       sourceImages: [],
       state: "success",
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },

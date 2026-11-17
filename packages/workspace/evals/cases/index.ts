@@ -34,6 +34,7 @@ import { FILES_FENCE_EVALS } from "./files-fence";
 import { HANDOFF_EVALS } from "./handoff";
 import { IMAGE_BUDGET_EVALS } from "./image-budget";
 import { IMAGE_OPTIONS_EVALS } from "./image-options";
+import { FILE_VERSIONS_EVALS } from "./file-versions";
 import { IMAGE_REGION_EVALS } from "./image-region";
 import { INTERRUPTION_EVALS } from "./interruptions";
 import { INSTRUMENT_GUIDE_EVALS } from "./instrument-guide";
@@ -112,6 +113,7 @@ export const EVALS = [
   ...HANDOFF_EVALS,
   ...IMAGE_BUDGET_EVALS,
   ...IMAGE_OPTIONS_EVALS,
+  ...FILE_VERSIONS_EVALS,
   ...IMAGE_REGION_EVALS,
   ...INTERRUPTION_EVALS,
   ...INSTRUMENT_GUIDE_EVALS,

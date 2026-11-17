@@ -223,12 +223,13 @@ function AssignmentBubble({
  * since their arrows line up under its copy button.
  */
 function ReplyFoot({
+  chatId,
   isLast,
   messages,
   onBranch,
 }: Pick<
   ComponentProps<typeof AssistantMessagesFooter>,
-  "messages" | "onBranch"
+  "chatId" | "messages" | "onBranch"
 > & {
   isLast: boolean;
 }) {
@@ -237,6 +238,7 @@ function ReplyFoot({
     <>
       <AssistantMessagesFooter
         alwaysVisible={hasNextSteps}
+        {...(chatId === undefined ? {} : { chatId })}
         messages={messages}
         onBranch={onBranch}
       />
@@ -354,6 +356,7 @@ function TurnBody({
       )}
       {replyEnd?.hasFooter && (
         <ReplyFoot
+          chatId={chatId}
           isLast={isLast}
           messages={replyEnd.replies}
           onBranch={

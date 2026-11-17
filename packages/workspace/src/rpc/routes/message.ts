@@ -6,6 +6,7 @@ import { z } from "zod";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { ChatReads } from "../../lib/chat-reads";
 import { ChatWrites } from "../../lib/chat-writes";
+import { withCopiesHere } from "../../lib/chat/turn-file-versions";
 import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { nameChat } from "../../lib/chat/chat-name";
@@ -304,7 +305,7 @@ const liveFeed = base
           chatId: input.id,
           sessionId: input.sessionId,
           ...(only ? { only } : {}),
-        });
+        }).map(withCopiesHere);
       const projection = new TranscriptProjection();
       const initial = await read();
       if (initial.isErr()) {
@@ -364,7 +365,7 @@ const older = base
     const messages = await ChatReads.transcript({
       chatId: input.id,
       sessionId: input.sessionId,
-    });
+    }).map(withCopiesHere);
     if (messages.isErr()) {
       throw toORPCError(messages.error, errors);
     }

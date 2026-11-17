@@ -7,11 +7,17 @@ import { fileHref, folderHref } from "@/shared/computer-href";
  */
 export type AppWindowAsk =
   | { hostPath: string; type: "openFile" }
+  /**
+   * One thing by its address: a tab already showing it (`tabIdentityOf`) in
+   * any group the window lists comes up and lights, and otherwise it opens
+   * as a tab group of its own. A chat comes up where it is open.
+   */
   | { href: string; type: "openScreen" }
   /**
    * A new tab group with a tab at each address, in the order given, all on
-   * one side with the first up: what files, folders and pages handed over
-   * together from outside open as (`outsideOpensOf`).
+   * one side with the first up: what several files, folders and pages handed
+   * over together from outside open as (`outsideOpensOf`), even where a tab
+   * already shows one of them.
    */
   | { hrefs: string[]; type: "openGroup" }
   /**
@@ -65,11 +71,12 @@ const isFilesHref = (href: string) => /^\/files(?:[?#]|$)/.test(href);
 
 /**
  * What one hand-over from outside (a link, files from the Finder or a launch)
- * asks of the window: every file, folder and page in it as one new tab group,
- * a tab each in the order given, standing where the first of them stood among
- * the asks, and everything else as it was. A missing file's folder is a tab
- * of the group too, and its ask stays to say the file is gone. A chat is
- * never in the group: it comes forward where it is open.
+ * asks of the window. Several files, folders and pages are one new tab
+ * group, a tab each in the order given, standing where the first of them
+ * stood among the asks. One alone is a screen (`openScreen`), which a tab
+ * already showing it brings forward. A missing file's folder counts among
+ * them, and its ask stays to say the file is gone. Everything else stays as
+ * it was: a chat is never in the group, and comes forward where it is open.
  */
 export function outsideOpensOf(asked: readonly AppWindowAsk[]): AppWindowAsk[] {
   const hrefs: string[] = [];
@@ -100,7 +107,12 @@ export function outsideOpensOf(asked: readonly AppWindowAsk[]): AppWindowAsk[] {
       opens.push(ask);
     }
   }
-  return opens;
+  const [only] = hrefs;
+  return hrefs.length === 1 && only !== undefined
+    ? opens.map((ask) =>
+        ask === group ? { href: only, type: "openScreen" } : ask,
+      )
+    : opens;
 }
 
 /**

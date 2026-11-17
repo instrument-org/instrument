@@ -6,6 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { outsideOpensOf, tabHrefOfAsk } from "../windows/app-window-asks";
 import {
   asksOfOutsideLink,
+  createArrivalOrder,
   createLinkGate,
   openOutsideLink,
 } from "./outside-links";
@@ -876,9 +877,10 @@ describe("createLinkGate", () => {
   });
 });
 
-// What a link from outside opens: its files, folders and pages as one new
-// tab group, a tab each in the order written, the first up; a chat where it
-// is open, never in a group.
+// What a link from outside opens: several files, folders and pages as one
+// new tab group, a tab each in the order written, the first up; one alone as
+// a screen, which comes up where a tab shows it; a chat where it is open,
+// never in a group.
 describe("what a link opens", () => {
   const opens = async (url: string) =>
     outsideOpensOf(
@@ -898,15 +900,13 @@ describe("what a link opens", () => {
       }),
     );
 
-  it("opens one file as a group of one tab", async () => {
+  it("opens one file as a screen of its own", async () => {
     expect(await opens("instrument://file/Users/mac-user/Work/plan.md"))
       .toMatchInlineSnapshot(`
         [
           {
-            "hrefs": [
-              "/files?file=%2FUsers%2Fmac-user%2FWork%2Fplan.md&path=&root=~",
-            ],
-            "type": "openGroup",
+            "href": "/files?file=%2FUsers%2Fmac-user%2FWork%2Fplan.md&path=&root=~",
+            "type": "openScreen",
           },
         ]
       `);
@@ -931,18 +931,16 @@ describe("what a link opens", () => {
     `);
   });
 
-  it("opens a folder as a group of one tab, in Files", async () => {
+  it("opens a folder as a screen of its own, in Files", async () => {
     expect(await opens("instrument://file/Users/mac-user/Work"))
       .toMatchInlineSnapshot(`
-      [
-        {
-          "hrefs": [
-            "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
-          ],
-          "type": "openGroup",
-        },
-      ]
-    `);
+        [
+          {
+            "href": "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+            "type": "openScreen",
+          },
+        ]
+      `);
   });
 
   it("opens files and folders together in one group", async () => {
@@ -996,5 +994,78 @@ describe("what a link opens", () => {
         },
       ]
     `);
+  });
+
+  // One thing alone is looked for in the windows' tabs (`tabHrefOfAsk`);
+  // several are a new group, which no tab already open is looked for.
+  it.each([
+    [
+      "one file is looked for",
+      "instrument://file/Users/mac-user/Work/plan.md",
+      ["/files?file=%2FUsers%2Fmac-user%2FWork%2Fplan.md&path=&root=~"],
+    ],
+    [
+      "one folder is looked for",
+      "instrument://file/Users/mac-user/Work",
+      ["/files?path=&root=%2FUsers%2Fmac-user%2FWork"],
+    ],
+    [
+      "several files never are",
+      "instrument://files?path=~%2Fa.md&path=~%2Fb.md",
+      [undefined],
+    ],
+  ])("%s", async (_label, url, expected) => {
+    expect((await opens(url)).map(tabHrefOfAsk)).toEqual(expected);
+  });
+});
+
+// Links are read at once, and each opens only after every link that came
+// before it, however long either took to read.
+describe("arrival order", () => {
+  const later = <T>(ms: number, value: T) =>
+    new Promise<T>((resolve) => {
+      setTimeout(() => {
+        resolve(value);
+      }, ms);
+    });
+
+  it("opens two links in the order they came, the quick one after the slow", async () => {
+    const opened: unknown[] = [];
+    const inOrder = createArrivalOrder();
+    const open = (url: string, ms: number) =>
+      openOutsideLink(url, {
+        ask: (asks) => opened.push(asks.map(tabHrefOfAsk)),
+        checks: {
+          hostPaths: path.posix,
+          isRefused: allowed,
+          placeOf: () => later(ms, "other" as const),
+        },
+        gate: () => true,
+        inOrder,
+        log: () => undefined,
+        waiting: () => 0,
+      });
+    await Promise.all([
+      open("instrument://file/Users/mac-user/slow.md", 40),
+      open("instrument://file/Users/mac-user/quick.md", 0),
+    ]);
+    expect(opened).toEqual([
+      ["/files?file=%2FUsers%2Fmac-user%2Fslow.md&path=&root=~"],
+      ["/files?file=%2FUsers%2Fmac-user%2Fquick.md&path=&root=~"],
+    ]);
+  });
+
+  it("goes on past a hand-over that failed", async () => {
+    const shown: string[] = [];
+    const inOrder = createArrivalOrder();
+    const failed = inOrder(Promise.reject(new Error("gone")), () => {
+      shown.push("failed");
+    });
+    const next = inOrder(Promise.resolve("next"), (value) => {
+      shown.push(value);
+    });
+    await expect(failed).rejects.toThrow("gone");
+    await next;
+    expect(shown).toEqual(["next"]);
   });
 });

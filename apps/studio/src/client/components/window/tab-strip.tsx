@@ -654,6 +654,26 @@ export function flashStripTab(key: string) {
   tab.addEventListener("animationend", done);
 }
 
+/** How many frames a tab brought up has to be drawn in before it is not lit. */
+const FLASH_WAIT_FRAMES = 30;
+
+/**
+ * Lights a tab once it is drawn (`flashStripTab`): a tab brought up in a
+ * group that was not on screen is drawn only after the window has switched
+ * to that group, a frame or more later.
+ */
+export function flashStripTabOnceDrawn(key: string) {
+  let frames = 0;
+  const attempt = () => {
+    if (document.querySelector(`[data-tab-key="${CSS.escape(key)}"]`)) {
+      flashStripTab(key);
+    } else if (++frames < FLASH_WAIT_FRAMES) {
+      requestAnimationFrame(attempt);
+    }
+  };
+  requestAnimationFrame(attempt);
+}
+
 /**
  * Scrolls a tab clear of its row's ends and of their fades, which are there only
  * where the row goes on: at its very end the scroll stops short, with the

@@ -1,5 +1,7 @@
+import { fileHref } from "@/shared/computer-href";
 import { isSameTabIdentity } from "@/shared/tab-identity";
 import { type TabsModel } from "@/shared/tabs";
+import { fileURLToPath } from "node:url";
 
 /** A window as its strip is matched: what it keeps of its tabs. */
 export interface StripOf<W> {
@@ -74,4 +76,55 @@ export function windowListingGroup<W>(
 ): W | null {
   const listing = windows.filter(({ listed }) => listed.includes(group));
   return (listing.find(({ up }) => up === group) ?? listing[0])?.window ?? null;
+}
+
+/** A tab kept in a tab group, as main reads it: a screen at `href`, or a page at `url`. */
+export interface GroupTabOf {
+  group: string;
+  href?: string;
+  url?: string;
+}
+
+/**
+ * Of the windows in the order given, the one with a tab in a group it lists
+ * showing exactly what an address shows (`tabIdentityOf`: the same file, the
+ * same Files folder, the same chat, task, app or Settings, never a folder
+ * for a file in it), a file's page counting as the file: the first with
+ * that group up, else the first listing it behind.
+ */
+export function windowWithGroupTabShowing<W>(
+  href: string,
+  windows: readonly { listed: readonly string[]; up?: string; window: W }[],
+  tabs: readonly GroupTabOf[],
+  homeDir?: string,
+): W | null {
+  const groups = new Set(
+    tabs.flatMap((tab) => {
+      const shown =
+        tab.href ??
+        (tab.url === undefined ? undefined : fileHrefOfUrl(tab.url));
+      return shown !== undefined && isSameTabIdentity(shown, href, homeDir)
+        ? [tab.group]
+        : [];
+    }),
+  );
+  const listing = windows.filter(({ listed }) =>
+    listed.some((group) => groups.has(group)),
+  );
+  return (
+    (listing.find(({ up }) => up !== undefined && groups.has(up)) ?? listing[0])
+      ?.window ?? null
+  );
+}
+
+/** The Files address of the file a page at a `file:` URL shows, if it is one. */
+function fileHrefOfUrl(url: string) {
+  if (!url.startsWith("file:")) {
+    return undefined;
+  }
+  try {
+    return fileHref(fileURLToPath(url));
+  } catch {
+    return undefined;
+  }
 }

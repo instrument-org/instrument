@@ -8,7 +8,12 @@ import { type ChatId } from "@instrument-org/workspace/client";
 
 import { computerTabOf } from "./file-tabs";
 import { historyOf, stepTabVisit, visitInTab } from "./tab-history";
-import { matchScreen, sameHref, showsSame } from "./window-href";
+import {
+  matchScreen,
+  sameHref,
+  showsSame,
+  showsSameThing,
+} from "./window-href";
 
 /**
  * What this computer has open: every group's tabs in strip order, each on
@@ -854,6 +859,42 @@ export function tabShowingIn(
       : filePath !== undefined && hostPathOfFileUrl(tab.url) === filePath);
   const up = selectedTabIn(state, group);
   return up && shows(up) ? up : state.tabs.find(shows);
+}
+
+/**
+ * The tab showing exactly what an address shows (`showsSameThing`: the same
+ * file, Files folder, chat, task, app or Settings, never a folder for a file
+ * in it) in any of some groups, a file's page counting as the file: what
+ * something handed over from outside brings up rather than opening again.
+ * The group on screen is looked in first, then the rest in the order given,
+ * and in each the tab it has up first.
+ */
+export function tabShowingAmong(
+  state: WindowTabs,
+  groups: readonly string[],
+  href: string,
+  onScreen?: string,
+): undefined | WindowTab {
+  const filePath = computerTabOf(href)?.file;
+  const shows = (tab: WindowTab) =>
+    tab.kind === "screen"
+      ? showsSameThing(tab.href, href)
+      : filePath !== undefined && hostPathOfFileUrl(tab.url) === filePath;
+  const ordered =
+    onScreen !== undefined && groups.includes(onScreen)
+      ? [onScreen, ...groups.filter((group) => group !== onScreen)]
+      : groups;
+  for (const group of ordered) {
+    const up = selectedTabIn(state, group);
+    if (up && shows(up)) {
+      return up;
+    }
+    const tab = state.tabs.find((each) => each.group === group && shows(each));
+    if (tab) {
+      return tab;
+    }
+  }
+  return undefined;
 }
 
 /**

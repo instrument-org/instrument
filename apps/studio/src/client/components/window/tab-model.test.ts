@@ -49,6 +49,7 @@ import {
   stepVisit,
   selectedTabIn,
   titleAtNavigation,
+  tabShowingAmong,
   tabToScreen,
   visitScreen,
   upTabsIn,
@@ -1035,5 +1036,58 @@ describe("pageBecameDownload", () => {
     ]);
 
     expect(pageBecameDownload(state, "s")).toBe(state);
+  });
+});
+
+// Something handed over from outside the app comes up in the tab already
+// showing exactly it, in whichever of the window's groups has one.
+describe("tabShowingAmong", () => {
+  const NOTES = "/Users/mac-user/Work/notes.md";
+  const state = windowOf([
+    screenTab("folder", "/files?path=&root=%2FUsers%2Fmac-user%2FWork", CHAT),
+    screenTab(
+      "file",
+      `/files?file=${encodeURIComponent(NOTES)}&path=&root=~&view=columns`,
+      OTHER,
+    ),
+    pageTab("page", "file:///Users/mac-user/Work/page.html", OTHER),
+    screenTab("settings", "/settings/general", DRAFT),
+    screenTab("site", BROWSER_HREF, CHAT),
+  ]);
+  const groups = [CHAT, OTHER, DRAFT];
+
+  it.each([
+    ["a file in another group", fileHref(NOTES), "file"],
+    ["a folder", "/files?path=&root=%2FUsers%2Fmac-user%2FWork", "folder"],
+    [
+      "a file whose tab became its page",
+      fileHref("/Users/mac-user/Work/page.html"),
+      "page",
+    ],
+    ["another part of Settings", "/settings/models", "settings"],
+  ])("finds %s", (_case, href, expected) => {
+    expect(tabShowingAmong(state, groups, href)?.id).toBe(expected);
+  });
+
+  it.each([
+    ["a file in a folder a tab shows", fileHref("/Users/mac-user/Work/a.md")],
+    ["the browser's start, which is not one thing", BROWSER_HREF],
+  ])("finds nothing for %s", (_case, href) => {
+    expect(tabShowingAmong(state, groups, href)).toBeUndefined();
+  });
+
+  it("looks only in the groups given", () => {
+    expect(tabShowingAmong(state, [CHAT], fileHref(NOTES))).toBeUndefined();
+  });
+
+  it("looks in the group on screen first", () => {
+    const twice = windowOf([
+      ...state.tabs,
+      screenTab("again", fileHref(NOTES), DRAFT),
+    ]);
+    expect(tabShowingAmong(twice, groups, fileHref(NOTES), DRAFT)?.id).toBe(
+      "again",
+    );
+    expect(tabShowingAmong(twice, groups, fileHref(NOTES))?.id).toBe("file");
   });
 });

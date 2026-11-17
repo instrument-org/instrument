@@ -90,6 +90,7 @@ import {
   type StripOf,
   stripShowing,
   windowListingGroup,
+  windowWithGroupTabShowing,
 } from "@/electron-main/windows/tab-showing";
 import { commandWindow } from "@/electron-main/windows/window-command";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
@@ -263,24 +264,26 @@ function windowListingGroupOf(
   if (group === undefined) {
     return null;
   }
-  return windowListingGroup(
-    group,
-    among.flatMap((window) => {
-      const id = appWindowIdOfWindow(window);
-      if (id === undefined) {
-        return [];
-      }
-      const { selectedId, tabs } = keptTabsOf(id);
-      const up = tabs.find((tab) => tab.id === selectedId)?.pathname;
-      return [
-        {
-          listed: keptTabGroupsOfWindow(id),
-          ...(up === undefined ? {} : { up: tabGroupOfAddress(up) }),
-          window,
-        },
-      ];
-    }),
-  );
+  return windowListingGroup(group, groupListsOf(among));
+}
+
+/** Each window's tab groups as it keeps them, and the group it has up. */
+function groupListsOf(among: readonly BrowserWindow[]) {
+  return among.flatMap((window) => {
+    const id = appWindowIdOfWindow(window);
+    if (id === undefined) {
+      return [];
+    }
+    const { selectedId, tabs } = keptTabsOf(id);
+    const up = tabs.find((tab) => tab.id === selectedId)?.pathname;
+    return [
+      {
+        listed: keptTabGroupsOfWindow(id),
+        ...(up === undefined ? {} : { up: tabGroupOfAddress(up) }),
+        window,
+      },
+    ];
+  });
 }
 
 /** The tab groups the open windows other than this one have open. */
@@ -307,7 +310,8 @@ export function tabGroupsByWindow(webContentsId: number) {
       }
       const model = keptTabsOf(id);
       const up = model.tabs.find((tab) => tab.id === model.selectedId);
-      const shown = up === undefined ? undefined : tabGroupOfAddress(up.pathname);
+      const shown =
+        up === undefined ? undefined : tabGroupOfAddress(up.pathname);
       return [
         {
           groups: keptTabGroupsOfWindow(id),
@@ -404,7 +408,8 @@ export function appWindowForChat(chatId: string | undefined) {
  * What files handed to the app from outside it ask for (a double click, Open
  * With, a drop on the Dock icon, a launch naming them), in the order given:
  * a folder in the folder view, standing in it, and a file in its viewer. Put
- * up through `showFromOutside`, as one tab group.
+ * up through `showFromOutside`: several as one new tab group, one alone
+ * where a tab shows it already.
  */
 export function asksOfAppFiles(hostPaths: readonly string[]): AppWindowAsk[] {
   return hostPaths.map((hostPath) =>
@@ -452,9 +457,11 @@ function showInWindowHolding(ask: AppWindowAsk) {
 /**
  * Puts up everything one hand-over from outside asks for (a link, files from
  * the Finder or the Dock, a launch's arguments), the one road every one of
- * them takes. Its files, folders and pages open as one new tab group in the
- * window in front (`outsideOpensOf`), and a chat comes up in the window with
- * a tab on it. Everything after the first goes where the first went, unless
+ * them takes. Several files, folders and pages open as one new tab group in
+ * the window in front (`outsideOpensOf`). One thing alone, a chat included,
+ * comes up in the window with a tab in one of its groups already showing it,
+ * and otherwise opens as a group of its own in the window in front.
+ * Everything after the first goes where the first went, unless
  * it is a chat open in another window. That window alone comes forward,
  * once, by `comeForward` where no window has the first's tab.
  */
@@ -484,10 +491,25 @@ export function showFromOutside(
   }
 }
 
-/** The window with a tab already showing what an ask puts up (`tabHrefOfAsk`). */
+/**
+ * The window with a tab already showing what an ask puts up (`tabHrefOfAsk`):
+ * in its strip, or in a tab group it lists (`windowWithGroupTabShowing`).
+ */
 function windowHolding(ask: AppWindowAsk) {
   const href = tabHrefOfAsk(ask);
-  return href === undefined ? null : appWindowShowing(href);
+  if (href === undefined) {
+    return null;
+  }
+  const among = getAppWindows();
+  return (
+    appWindowShowing(href, among) ??
+    windowWithGroupTabShowing(
+      href,
+      groupListsOf(among),
+      keptGroupedTabs(),
+      homedir(),
+    )
+  );
 }
 
 /** A window to the front, the person having asked for something it shows. */

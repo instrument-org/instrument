@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   type AppWindowAsk,
   createAppWindowAsks,
+  outsideOpensOf,
   tabHrefOfAsk,
 } from "./app-window-asks";
 
@@ -112,6 +113,77 @@ describe("tabHrefOfAsk", () => {
         undefined,
         undefined,
         undefined,
+      ]
+    `);
+  });
+});
+
+// One thing from outside comes up where a tab already shows it; several are
+// always one new group, in the order handed over, even where a tab already
+// shows one of them.
+describe("outsideOpensOf", () => {
+  it("makes one file alone a screen of its own", () => {
+    expect(outsideOpensOf([{ hostPath: "/a.md", type: "openFile" }]))
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "href": "/files?file=%2Fa.md&path=&root=~",
+          "type": "openScreen",
+        },
+      ]
+    `);
+  });
+
+  it("makes several files one group in the order handed over", () => {
+    expect(
+      outsideOpensOf([
+        { hostPath: "/b.md", type: "openFile" },
+        { href: "/files?path=&root=%2FWork", type: "openScreen" },
+        { hostPath: "/a.md", type: "openFile" },
+        { hostPath: "/b.md", type: "openFile" },
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "hrefs": [
+            "/files?file=%2Fb.md&path=&root=~",
+            "/files?path=&root=%2FWork",
+            "/files?file=%2Fa.md&path=&root=~",
+          ],
+          "type": "openGroup",
+        },
+      ]
+    `);
+  });
+
+  it("makes a missing file's folder alone a screen, and says the file is gone", () => {
+    expect(
+      outsideOpensOf([
+        { folder: "/Work", name: "gone.md", type: "missingFile" },
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "href": "/files?path=&root=%2FWork",
+          "type": "openScreen",
+        },
+        {
+          "folder": "/Work",
+          "name": "gone.md",
+          "type": "missingFile",
+        },
+      ]
+    `);
+  });
+
+  it("leaves a chat out of the group", () => {
+    expect(outsideOpensOf([{ href: "/chats/c1", type: "openScreen" }]))
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "href": "/chats/c1",
+          "type": "openScreen",
+        },
       ]
     `);
   });

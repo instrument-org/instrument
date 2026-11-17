@@ -419,6 +419,15 @@ export function showsSame(a: string, b: string) {
   return sameHref(a, b) || isSameTabIdentity(a, b, homeDirOfWindow());
 }
 
+/**
+ * Two addresses show exactly the same one-of-a-kind thing
+ * (`tabIdentityOf`), as main reads the windows' tabs: a site or a new tab
+ * at the same address is not.
+ */
+export function showsSameThing(a: string, b: string) {
+  return isSameTabIdentity(a, b, homeDirOfWindow());
+}
+
 /** The home folder, which a folder rooted at `~` is read against; none outside the app. */
 function homeDirOfWindow() {
   return globalThis.window === undefined ? undefined : window.api?.homeDir;

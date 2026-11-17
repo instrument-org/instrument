@@ -6,6 +6,7 @@ import { freshTabId } from "@/client/lib/tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { type Draft, holdsSomething } from "@/shared/drafts";
 import { keptTabGroupsOf, TAB_GROUPS_KEY } from "@/shared/kept-state";
+import { asksMoreThan } from "@/shared/tab-identity";
 import { type SidebarPlace } from "@/shared/tabs";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -32,6 +33,7 @@ import {
   groupLayoutOf,
   isNewChatTab,
   selectedTabIn,
+  tabShowingAmong,
   tabsIn,
   type WindowTabs,
 } from "./tab-model";
@@ -639,6 +641,34 @@ export function useTabGroupActions() {
     show(tab.group);
   };
 
+  /**
+   * Puts up one thing handed over from outside the app (a link, a file from
+   * the Finder): a tab in one of this window's groups already showing
+   * exactly it (`tabShowingAmong`) comes up in its group, walked to the part
+   * asked for where it stands elsewhere in it (another part of Settings),
+   * and is given back for the window to light. Otherwise it opens as a new
+   * group of its own, since something from outside never joins a group the
+   * person has.
+   */
+  const showOrMake = (href: string): undefined | WindowTab => {
+    const tab = tabShowingAmong(
+      store.get(windowTabsAtom),
+      store.get(windowTabGroupsAtom) ?? [],
+      href,
+      groupUp(),
+    );
+    if (tab?.group === undefined) {
+      make({ href });
+      return undefined;
+    }
+    windowTabs.select(tab.id);
+    if (tab.kind === "screen" && asksElsewhereThan(href, tab.href)) {
+      windowTabs.visitHref(tab.id, href);
+    }
+    show(tab.group);
+    return tab;
+  };
+
   /** Opens a kept draft's new chat as a new tab group of its own (`openChat`). */
   const openDraft = (draft: string, options: { replace?: boolean } = {}) => {
     make({ href: newChatHref(draft), ...options });
@@ -680,7 +710,20 @@ export function useTabGroupActions() {
     revealChat,
     show,
     showHere,
+    showOrMake,
   };
+}
+
+/**
+ * Whether an address asks the tab already showing its thing to go somewhere
+ * it is not: another part of Settings, or a selection or layout the tab does
+ * not have (`asksMoreThan`). A file's tab with its folder and layout as the
+ * person left them asks nothing more of a bare link to the file.
+ */
+function asksElsewhereThan(asked: string, shown: string): boolean {
+  const pathOf = (href: string) =>
+    new URL(href, "http://tabs").pathname.replace(/\/$/, "");
+  return pathOf(asked) !== pathOf(shown) || asksMoreThan(asked, shown);
 }
 
 /** Whether an address asks for a draft by its id, which upkeep can act on only once main has read the drafts. Every other address, a new tab's included, is kept without them. */

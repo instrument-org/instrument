@@ -198,7 +198,8 @@ import {
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
-import { flashStripTab } from "./tab-strip";
+import { stripKeyOf } from "./pane-tabs";
+import { flashStripTab, flashStripTabOnceDrawn } from "./tab-strip";
 import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
 import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 
@@ -1310,6 +1311,13 @@ function WindowShell({
     }
     return true;
   };
+  // A group's tab brought up for something from outside, lit once its group
+  // is drawn.
+  const lightTab = (tab: undefined | WindowTab) => {
+    if (tab) {
+      flashStripTabOnceDrawn(stripKeyOf(tab));
+    }
+  };
   // The group on screen's tabs as they stand across it: the left side's
   // strip, then the right's.
   const tabsLeftToRight = () => {
@@ -1406,14 +1414,15 @@ function WindowShell({
             "This version of Instrument doesn't know that kind of link, but a newer one might.",
         });
       },
-      // What arrives from outside the app is a tab group of its own at the
-      // top of the list, except a chat already open in a tab, which comes
-      // forward there.
+      // One thing from outside the app comes up in the tab of this window's
+      // groups already showing it, lit so the eye lands on it, and otherwise
+      // is a tab group of its own at the top of the list.
       openFile: (hostPath) => {
-        groups.make({ href: fileHref(hostPath) });
+        lightTab(groups.showOrMake(fileHref(hostPath)));
       },
-      // Several at once are one group, a tab each in the order handed over,
-      // on one side, with the first up.
+      // Several at once are always one new group, a tab each in the order
+      // handed over, on one side, with the first up, even where a tab already
+      // shows one of them.
       openGroup: (hrefs) => {
         groups.make({
           fill: (group) => {
@@ -1429,9 +1438,11 @@ function WindowShell({
       openScreen: (href) => {
         const chat = chatOfHref(href);
         if (chat !== undefined) {
+          const open = windowTabs.chatTab(chat);
           groups.revealChat(chat);
+          lightTab(open);
         } else if (isGroupScreenHref(href)) {
-          groups.make({ href });
+          lightTab(groups.showOrMake(href));
         } else {
           openScreen(href);
         }

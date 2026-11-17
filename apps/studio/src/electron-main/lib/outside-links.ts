@@ -69,6 +69,25 @@ export function createLinkGate({
 }
 
 /**
+ * Puts hand-overs from outside up in the order they arrived, however long
+ * each takes to read: a link checks its paths on disk and may fetch a page,
+ * so a quick one handed over after a slow one would otherwise open first.
+ * Each hand-over is read as soon as it comes, and `show` runs for it only
+ * once every earlier one has been shown or has failed.
+ */
+export function createArrivalOrder() {
+  let last: Promise<unknown> = Promise.resolve();
+  return <T>(reading: Promise<T>, show: (read: T) => void): Promise<void> => {
+    const turn = last.then(() => reading).then(show);
+    last = turn.catch(() => undefined);
+    return turn;
+  };
+}
+
+/** The order this process puts up what comes from outside in. */
+export const inArrivalOrder = createArrivalOrder();
+
+/**
  * How a path from a link is judged, and how a hosted page is fetched and
  * kept; each is the real one outside a test.
  */
@@ -245,7 +264,8 @@ const processGate = createLinkGate();
  * Opens what a link from outside names, through `ask`, which puts it in
  * front of the person once the window can show it: everything one link asks
  * for in one call, so the window comes forward once. A link counts once
- * against the gate, however many paths it carries. Every link says in the
+ * against the gate, however many paths it carries, and opens after every
+ * hand-over that arrived before it (`inArrivalOrder`). Every link says in the
  * log what came of it, by its noun alone, since a `new` link's words and a
  * file's path are the person's. A link leading with a noun the app does not
  * know (`leadsWithUnknownNoun`) is the one exception: the log keeps its
@@ -260,12 +280,15 @@ export async function openOutsideLink(
     ask,
     checks,
     gate = processGate,
+    inOrder = inArrivalOrder,
     log,
     waiting,
   }: {
     ask: (asks: readonly AppWindowAsk[]) => void;
     checks?: PathChecks;
     gate?: (url: string) => boolean;
+    /** Holds what the link asks for until every earlier hand-over is up (`createArrivalOrder`). */
+    inOrder?: ReturnType<typeof createArrivalOrder>;
     log: (line: string) => void;
     /** How many asks wait for the window now. */
     waiting: () => number;
@@ -282,25 +305,26 @@ export async function openOutsideLink(
     log(`Let a ${noun} link go: the same link again, or too many this minute`);
     return;
   }
-  const asked = await asksOfOutsideLink(url, checks);
-  if (asked.length === 0) {
-    log(
-      `A ${noun} link opens nothing: it names a path that is not plainly this computer's or that the app refuses`,
-    );
-    return;
-  }
-  if (asked.some((each) => each.type === "linkNotOpened")) {
-    log(
-      leadsWithUnknownNoun(url)
-        ? `A link the app does not know asks the window to say so: ${url.slice(0, LOGGED_MAX)}`
-        : `A ${noun} link in a shape the app does not read asks the window to say so`,
-    );
-  } else {
-    log(
-      `A ${noun} link asks the window to ${asked.map((each) => each.type).join(", ")}`,
-    );
-  }
-  ask(asked);
+  await inOrder(asksOfOutsideLink(url, checks), (asked) => {
+    if (asked.length === 0) {
+      log(
+        `A ${noun} link opens nothing: it names a path that is not plainly this computer's or that the app refuses`,
+      );
+      return;
+    }
+    if (asked.some((each) => each.type === "linkNotOpened")) {
+      log(
+        leadsWithUnknownNoun(url)
+          ? `A link the app does not know asks the window to say so: ${url.slice(0, LOGGED_MAX)}`
+          : `A ${noun} link in a shape the app does not read asks the window to say so`,
+      );
+    } else {
+      log(
+        `A ${noun} link asks the window to ${asked.map((each) => each.type).join(", ")}`,
+      );
+    }
+    ask(asked);
+  });
 }
 
 /**

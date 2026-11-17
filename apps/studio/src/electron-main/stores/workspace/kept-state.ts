@@ -423,6 +423,8 @@ export const KeptTabGroupSchema = z.object({
           id: z.string(),
           openedBy: z.string().optional(),
           promptedAt: z.number().optional(),
+          /** Where a page tab stands, a file's page at its `file:` URL. */
+          url: z.string().optional(),
         }),
       ),
     }),

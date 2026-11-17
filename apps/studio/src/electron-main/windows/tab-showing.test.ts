@@ -6,6 +6,7 @@ import {
   otherStripShowing,
   stripShowing,
   windowListingGroup,
+  windowWithGroupTabShowing,
 } from "./tab-showing";
 
 const HOME = "/Users/mac-user";
@@ -108,5 +109,58 @@ describe("windowListingGroup", () => {
     ],
   ])("%s", (_label, windows, expected) => {
     expect(windowListingGroup("g", windows)).toBe(expected);
+  });
+});
+
+// The window one thing handed over from outside comes up in: the one with a
+// tab in a group it lists already showing exactly that thing.
+describe("windowWithGroupTabShowing", () => {
+  const tabs = [
+    { group: "work", href: "/files?path=&root=%2FUsers%2Fmac-user" },
+    { group: "notes", href: SETTLED },
+    { group: "notes", url: "file:///Users/mac-user/page.html" },
+    { group: "chat", href: "/tasks/t1?chat=c1" },
+    { group: "closed", href: "/apps/linear" },
+  ];
+  const windows = [
+    { listed: ["work", "closed"], up: "work", window: "front" },
+    { listed: ["notes", "chat"], up: "chat", window: "back" },
+  ];
+
+  it.each([
+    ["a file in another window's group behind", fileHref(NOTES), "back"],
+    ["a file whose tab became its page", fileHref(`${HOME}/page.html`), "back"],
+    ["a task", "/tasks/t1", "back"],
+    ["a folder", "/files?path=&root=%2FUsers%2Fmac-user", "front"],
+    ["an app", "/apps/linear", "front"],
+    ["a file in a folder a tab shows", fileHref(`${HOME}/other.md`), null],
+    ["an app no tab shows", "/apps/notion", null],
+  ])("finds %s", (_label, href, expected) => {
+    expect(windowWithGroupTabShowing(href, windows, tabs, HOME)).toBe(expected);
+  });
+
+  it("takes the window with the group up over one listing it behind", () => {
+    expect(
+      windowWithGroupTabShowing(
+        "/apps/linear",
+        [
+          { listed: ["closed"], window: "behind" },
+          { listed: ["closed"], up: "closed", window: "up" },
+        ],
+        tabs,
+        HOME,
+      ),
+    ).toBe("up");
+  });
+
+  it("finds none in a group no open window lists", () => {
+    expect(
+      windowWithGroupTabShowing(
+        "/apps/linear",
+        [{ listed: ["work"], window: "front" }],
+        tabs,
+        HOME,
+      ),
+    ).toBeNull();
   });
 });

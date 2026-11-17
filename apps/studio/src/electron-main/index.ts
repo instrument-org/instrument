@@ -19,7 +19,11 @@ import { captureServerException } from "@/electron-main/lib/capture-server-excep
 import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
-import { openOutsideLink } from "@/electron-main/lib/outside-links";
+import { createFilesTogether } from "@/electron-main/lib/files-together";
+import {
+  inArrivalOrder,
+  openOutsideLink,
+} from "@/electron-main/lib/outside-links";
 import { setupStateKnown } from "@/electron-main/lib/setup-state";
 import { startIdleRestart } from "@/electron-main/lib/idle-restart";
 import {
@@ -126,12 +130,11 @@ import { watchMainThreadStalls } from "./lib/main-thread-stalls";
 import { watchProcessCpu } from "./lib/process-cpu";
 
 /**
- * How long after one file the system hands over the next still joins it.
- * The Finder hands over a selection opened or dropped together one file at a
- * time, all at once.
+ * Gathers the Finder's files into hand-overs (`createFilesTogether`), made at
+ * the first: a file that launches the app arrives before this module has
+ * finished evaluating.
  */
-const FILES_TOGETHER_MS = 100;
-let filesArriving: string[] = [];
+let filesTogether: ((hostPath: string) => void) | undefined;
 
 // Dev skips the single-instance lock so multiple worktrees can boot side by
 // side. Packaged builds keep it so second launches (deep links) forward to
@@ -195,10 +198,8 @@ if (gotTheLock) {
     if (url) {
       handleDeepLink(url);
     }
-    openFromOutside(
-      asksOfAppFiles(
-        filesInArgv(commandLine, { defaultApp: process.defaultApp }),
-      ),
+    openFilesFromOutside(
+      filesInArgv(commandLine, { defaultApp: process.defaultApp }),
     );
   });
 
@@ -210,7 +211,7 @@ if (gotTheLock) {
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
     if (!getWorkspaceRefusal()) {
-      openAppFileSoon(filePath);
+      openFileTogether(filePath);
     }
   });
 
@@ -225,10 +226,8 @@ if (gotTheLock) {
 
   // The same hand-overs on Windows and Linux, for a launch that starts the app.
   if (!getWorkspaceRefusal()) {
-    openFromOutside(
-      asksOfAppFiles(
-        filesInArgv(process.argv, { defaultApp: process.defaultApp }),
-      ),
+    openFilesFromOutside(
+      filesInArgv(process.argv, { defaultApp: process.defaultApp }),
     );
     const url = linkInArgv(process.argv);
     if (url) {
@@ -567,24 +566,31 @@ function handleDeepLink(url: string) {
 /**
  * Puts up what one hand-over from outside the app asks for, the road every
  * one takes: a link, files from the Finder or the Dock, and a launch's
- * arguments. Its files, folders and pages open as one new tab group, and a
- * chat comes up where it is open (`showFromOutside`).
+ * arguments. Several files, folders and pages open as one new tab group, and
+ * one thing alone comes up where a tab already shows it, or as a group of
+ * its own (`showFromOutside`).
  */
 function openFromOutside(asks: readonly AppWindowAsk[]) {
   showFromOutside(asks, focusForegroundWindow);
 }
 
-/** A file from the Finder or the Dock, opened with the others arriving with it. */
-function openAppFileSoon(hostPath: string) {
-  filesArriving.push(hostPath);
-  if (filesArriving.length > 1) {
+/** Files handed over together, put up after every hand-over that came before them. */
+function openFilesFromOutside(hostPaths: readonly string[]) {
+  if (hostPaths.length === 0) {
     return;
   }
-  setTimeout(() => {
-    const paths = filesArriving;
-    filesArriving = [];
-    openFromOutside(asksOfAppFiles(paths));
-  }, FILES_TOGETHER_MS);
+  inArrivalOrder(
+    Promise.resolve(asksOfAppFiles(hostPaths)),
+    openFromOutside,
+  ).catch((error: unknown) => {
+    logger.scope("outside-files").error("Could not open files", error);
+  });
+}
+
+/** A file from the Finder or the Dock, opened with the others arriving with it. */
+function openFileTogether(hostPath: string) {
+  filesTogether ??= createFilesTogether(openFilesFromOutside);
+  filesTogether(hostPath);
 }
 
 /** The link a launch was handed, by the scheme this build answers to. */

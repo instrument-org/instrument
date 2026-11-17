@@ -135,6 +135,13 @@ const setBlockAds = base
     getWorkspacePreferences().set("blockAds", input.enabled);
   });
 
+/** Keeps the app running behind its menu bar or tray icon once its windows are gone, or stops doing so. */
+const setKeepRunningInMenuBar = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    getMachinePreferences().set("keepRunningInMenuBar", input.enabled);
+  });
+
 const setSuggestNextMessage = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
@@ -289,6 +296,7 @@ export const preferences = {
   setRunProgramsWithoutSandbox,
   setDefaultModelURI,
   setDeveloperMode,
+  setKeepRunningInMenuBar,
   setPlatformApiServer,
   setReleaseChannel,
   setKeepHistory,

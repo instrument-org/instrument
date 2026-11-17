@@ -92,6 +92,11 @@ export function GeneralSection() {
     <div className="space-y-4">
       <InterfaceAndTheme />
       <Notifications />
+      <SettingsSection title="Background">
+        <Card className="p-4">
+          <KeepRunning />
+        </Card>
+      </SettingsSection>
       <SettingsSection title="Dictation">
         <DictationSettings />
       </SettingsSection>
@@ -767,6 +772,50 @@ function FeedbackOffers() {
         disabled={setOfferFeedback.isPending}
         onCheckedChange={(enabled) => {
           setOfferFeedback.mutate({ enabled });
+        }}
+      />
+    </label>
+  );
+}
+
+/**
+ * Whether the app keeps running behind its menu bar or tray icon once its
+ * windows are gone. On by default; this is the one place it is turned off.
+ */
+function KeepRunning() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setKeepRunning = useMutation(
+    rpcClient.preferences.setKeepRunningInMenuBar.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't change that setting", { cause: error });
+      },
+    }),
+  );
+  const isMac = window.electron.process.platform === "darwin";
+  return (
+    <label
+      className="flex items-start justify-between gap-4"
+      {...settingAnchor("keep-running")}
+    >
+      <span className="space-y-1">
+        <span className="block text-sm font-medium">
+          {isMac
+            ? "Keep running in the menu bar"
+            : "Keep running in the system tray"}
+        </span>
+        <span className="block text-xs text-muted-foreground">
+          {isMac
+            ? `When you quit, your chats keep working and the ${APP_NAME} icon stays in the menu bar. Choose Quit from that icon to stop everything.`
+            : `When you close the last window, your chats keep working and the ${APP_NAME} icon stays in the system tray. Choose Quit from that icon to stop everything.`}
+        </span>
+      </span>
+      <Switch
+        checked={preferences?.keepRunningInMenuBar !== false}
+        disabled={setKeepRunning.isPending}
+        onCheckedChange={(enabled) => {
+          setKeepRunning.mutate({ enabled });
         }}
       />
     </label>

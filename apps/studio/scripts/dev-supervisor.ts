@@ -8,6 +8,13 @@
 // starts electron-vite over again with the same arguments and environment.
 // Every other exit is passed through as it is.
 //
+// On macOS it also starts the run over when WindowServer starts over
+// (`window-server.ts`). macOS relaunches the apps it opened, but Electron,
+// started from here, lives on with no windows and no working system services.
+// It gets SIGTERM, and if it is still there ten seconds later (a main thread
+// stuck in a loop never reaches its quit), everything under electron-vite is
+// killed.
+//
 //   node scripts/dev-supervisor.ts dev --sourcemap
 //
 // The `dev` script and studio-drive's `boot` both run electron-vite through
@@ -42,9 +49,13 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 import { ensureMacBridge } from "./mac-bridge.ts";
+import { watchWindowServer } from "./window-server.ts";
 
 // Kept in step with DEV_RELAUNCH_EXIT_CODE in src/electron-main/lib/relaunch.ts.
 const RELAUNCH_EXIT_CODE = 75;
+
+// How long Electron has to quit on SIGTERM before a restart kills it.
+const RESTART_GRACE_MS = 10_000;
 
 // The bin shim rather than electron-vite's .js entry, because the shim is what
 // exports the NODE_PATH into .pnpm that the config's `require.resolve` of
@@ -57,6 +68,7 @@ const ELECTRON_VITE = path.resolve(
 
 let child: ChildProcess | undefined;
 let stopping = false;
+let restarting = false;
 
 /**
  * The executable of an Electron.app clone carrying `name`, made on first use and
@@ -255,12 +267,72 @@ function start() {
     stdio: "inherit",
   });
   child.on("exit", (code, signal) => {
-    if (!stopping && code === RELAUNCH_EXIT_CODE) {
+    if (!stopping && (restarting || code === RELAUNCH_EXIT_CODE)) {
+      restarting = false;
       process.stdout.write("\n[dev-supervisor] restarting electron-vite\n\n");
       start();
       return;
     }
     process.exitCode = code ?? (signal ? 1 : 0);
+  });
+}
+
+/** Every process under `pid`, each before its own children. */
+function processesUnder(pid: number): number[] {
+  let listed: string;
+  try {
+    listed = execFileSync("pgrep", ["-P", String(pid)], { encoding: "utf8" });
+  } catch {
+    // pgrep exits non-zero when it finds none.
+    return [];
+  }
+  return listed
+    .split("\n")
+    .filter(Boolean)
+    .map(Number)
+    .flatMap((each) => [each, ...processesUnder(each)]);
+}
+
+/**
+ * Stops the run so the exit handler starts it again. electron-vite passes
+ * SIGTERM on to Electron and exits once Electron has; past the grace period,
+ * electron-vite and everything under it is killed.
+ */
+function restart(running: ChildProcess) {
+  restarting = true;
+  running.kill("SIGTERM");
+  const force = setTimeout(() => {
+    if (running.pid === undefined) {
+      return;
+    }
+    for (const pid of [...processesUnder(running.pid), running.pid]) {
+      try {
+        process.kill(pid, "SIGKILL");
+      } catch {
+        // Already gone.
+      }
+    }
+  }, RESTART_GRACE_MS);
+  running.once("exit", () => {
+    clearTimeout(force);
+  });
+}
+
+if (process.platform === "darwin") {
+  watchWindowServer(() => {
+    if (
+      stopping ||
+      restarting ||
+      !child ||
+      child.exitCode !== null ||
+      child.signalCode !== null
+    ) {
+      return;
+    }
+    process.stdout.write(
+      "\n[dev-supervisor] WindowServer started over, leaving this run with no windows\n",
+    );
+    restart(child);
   });
 }
 

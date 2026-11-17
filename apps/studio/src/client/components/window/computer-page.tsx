@@ -1090,6 +1090,44 @@ export function ComputerPage({
       : root.startsWith("~/")
         ? homePath && joinHostPath(homePath, root.slice(2))
         : root;
+  // The folder the tab is rooted at going ends its listing with a failed
+  // read, as a folder under it does, and the listing the cache still holds
+  // would go on showing what was in it. The tab goes up to the nearest
+  // folder above it still there instead, the way a file gone from beside
+  // the folder is put away. A read that failed for a folder still there
+  // leaves the tab where it is.
+  const isRootUnread = settled && listings[0]?.isError === true;
+  const leaveGone = useEffectEvent((gone: string, there: string) => {
+    toast(`${nameOf(gone)} is no longer there`);
+    go({ root: there, type: "leaveGone" });
+  });
+  useEffect(() => {
+    if (!isRootUnread || !rootHostPath) {
+      return;
+    }
+    const chain: string[] = [];
+    for (
+      let at: null | string = rootHostPath;
+      at !== null;
+      at = parentFolderOf(at)
+    ) {
+      chain.push(at);
+    }
+    let isCurrent = true;
+    void rpcClient.files.missing
+      .call({ paths: chain })
+      .then(({ missing }) => {
+        const there = chain.find((at) => !missing.includes(at));
+        if (!isCurrent || there === rootHostPath) {
+          return;
+        }
+        leaveGone(rootHostPath, there ?? COMPUTER_ROOT);
+      })
+      .catch(() => undefined);
+    return () => {
+      isCurrent = false;
+    };
+  }, [isRootUnread, rootHostPath]);
 
   // The layout and order go the way a Finder window's do. The layout belongs
   // to the tab: walking from folder to folder (a double-click, the columns,

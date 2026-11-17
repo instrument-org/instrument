@@ -38,7 +38,12 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useAtom } from "jotai";
-import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import {
+  AnimatePresence,
+  motion,
+  type MotionStyle,
+  useIsPresent,
+} from "motion/react";
 import {
   type ReactNode,
   useEffect,
@@ -1006,10 +1011,12 @@ export function FilesScreen({
               {activeFile &&
                 viewerFile && (
                   // As wide as it will be from the start, so the file slides in
-                  // whole rather than unfolding from a sliver.
+                  // whole rather than unfolding from a sliver. Only the
+                  // folder's offset slides; the width is the rest of the tab
+                  // after it, so it follows the tab as the tab resizes.
                   <motion.div
                     className={cn(
-                      "absolute inset-y-0 left-0 bg-background transition-[width] in-data-tab-held:transition-none",
+                      "absolute inset-y-0 left-0 w-[calc(100cqw-var(--beside-offset))] bg-background transition-[--beside-offset] in-data-tab-held:transition-none",
                       BESIDE_MOTION_CLASSNAME,
                       (draggedWidth !== null || isFitInstant) &&
                         "transition-none",
@@ -1017,7 +1024,11 @@ export function FilesScreen({
                     )}
                     exit={{ opacity: 0 }}
                     key="file"
-                    style={{ width: `calc(100cqw - ${fileOffset}px)` }}
+                    // A CSS variable, which motion sets on the element but its
+                    // style type has no name for.
+                    style={
+                      { "--beside-offset": `${fileOffset}px` } as MotionStyle
+                    }
                     transition={BESIDE_EXIT_TRANSITION}
                   >
                     <WhilePresent>

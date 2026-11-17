@@ -958,6 +958,16 @@ body {
   initial-value: 0px;
 }
 
+/* Where a file beside its folder in Files starts: the folder's width, or 0
+   with the folder folded away. Registered so the offset is what slides as
+   the folder folds and unfolds, while the file's width, the rest of the
+   tab after it, follows the tab's own width at once. */
+@property --beside-offset {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 /* Scroll-driven edge fade for a vertical scroll area. The mask's top/bottom
    stops are registered as animatable lengths and driven by the element's own
    scroll timeline, so the top fade appears only once scrolled down and the

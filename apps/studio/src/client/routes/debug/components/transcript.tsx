@@ -628,6 +628,12 @@ function Viewer({ scenario }: { scenario: Playable }) {
   /** Stage time into a timed run, which is what decides the frame on screen. */
   const elapsed = useRef(0);
   const [jumps, setJumps] = useState(0);
+  /**
+   * Seeks backward, each one drawing the transcript afresh: a turn kept
+   * mounted would keep what it learned later in the run, such as the height
+   * a working turn never shrinks below.
+   */
+  const [rewinds, setRewinds] = useState(0);
   const transcript = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -651,6 +657,9 @@ function Viewer({ scenario }: { scenario: Playable }) {
    */
   const jumpTo = (next: number) => {
     const landed = Math.min(Math.max(next, 0), lastIndex);
+    if (landed < shown) {
+      setRewinds((count) => count + 1);
+    }
     elapsed.current = times?.[landed] ?? 0;
     setIndex(landed);
     setJumps((count) => count + 1);
@@ -764,6 +773,7 @@ function Viewer({ scenario }: { scenario: Playable }) {
                   >
                     <FrameTranscript
                       chat={scenario.chat}
+                      key={rewinds}
                       commands={scenario.commands}
                       frame={frame}
                       frameIndex={shown}

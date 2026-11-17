@@ -1053,11 +1053,13 @@ describe("tabShowingAmong", () => {
     pageTab("page", "file:///Users/mac-user/Work/page.html", OTHER),
     screenTab("settings", "/settings/general", DRAFT),
     screenTab("site", BROWSER_HREF, CHAT),
+    screenTab("new-chat", "/chats?draft=d1", OTHER),
   ]);
   const groups = [CHAT, OTHER, DRAFT];
 
   it.each([
     ["a file in another group", fileHref(NOTES), "file"],
+    ["a draft a new tab is writing", "/chats?draft=d1", "new-chat"],
     ["a folder", "/files?path=&root=%2FUsers%2Fmac-user%2FWork", "folder"],
     [
       "a file whose tab became its page",

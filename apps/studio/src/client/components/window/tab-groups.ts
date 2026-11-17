@@ -10,6 +10,7 @@ import { asksMoreThan } from "@/shared/tab-identity";
 import { type SidebarPlace } from "@/shared/tabs";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
+import { unique } from "radashi";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useEffectEvent, useRef } from "react";
 
@@ -669,9 +670,56 @@ export function useTabGroupActions() {
     return tab;
   };
 
-  /** Opens a kept draft's new chat as a new tab group of its own (`openChat`). */
+  /**
+   * Brings up the tab already writing a draft, so one draft is never in two
+   * composers: up in its group, here or in the window that lists the group,
+   * which comes forward (`show`). Every window's group tabs are one record,
+   * so a tab in another window's group is found here too. Answers with the
+   * tab, or undefined where no tab is writing the draft. With `replace`, the
+   * window's address the draft was asked at is replaced rather than walked
+   * past, and a window that hands the draft to another goes back to a group
+   * of its own.
+   */
+  const revealDraft = (
+    draft: string,
+    { replace = false }: { replace?: boolean } = {},
+  ): undefined | WindowTab => {
+    const state = store.get(windowTabsAtom);
+    const here = store.get(windowTabGroupsAtom) ?? [];
+    const tab = tabShowingAmong(
+      state,
+      unique([...here, ...state.tabs.flatMap((each) => each.group ?? [])]),
+      newChatHref(draft),
+      groupUp(),
+    );
+    if (tab?.group === undefined) {
+      return undefined;
+    }
+    windowTabs.select(tab.id);
+    if (replace && isListedHere(tab.group)) {
+      appTabs.navigate(groupHref(tab.group), { replace: true });
+      return tab;
+    }
+    if (replace) {
+      const [first] = here;
+      if (first === undefined) {
+        make({ replace: true });
+      } else {
+        appTabs.navigate(groupHref(first), { replace: true });
+      }
+    }
+    show(tab.group);
+    return tab;
+  };
+
+  /**
+   * Brings up a kept draft's new chat: the tab already writing it
+   * (`revealDraft`), or else a new tab group of its own (`openChat`).
+   */
   const openDraft = (draft: string, options: { replace?: boolean } = {}) => {
-    make({ href: newChatHref(draft), ...options });
+    if (revealDraft(draft, options) === undefined) {
+      make({ href: newChatHref(draft), ...options });
+    }
   };
 
   /**
@@ -710,6 +758,7 @@ export function useTabGroupActions() {
     revealChat,
     show,
     showHere,
+    revealDraft,
     showOrMake,
   };
 }

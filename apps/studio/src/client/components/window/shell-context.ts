@@ -78,7 +78,11 @@ export interface WindowShell {
     tabId?: string;
   }) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
   setChatProject: (id: ChatId, project: null | string) => void;
-  showDraft: (id: string) => void;
+  /**
+   * Brings up the tab already writing a draft, in this window or another;
+   * with none, `here` puts it up, by default in the tab up.
+   */
+  showDraft: (id: string, here?: () => void) => void;
   projects: Project[];
 }
 

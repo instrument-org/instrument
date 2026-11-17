@@ -400,7 +400,6 @@ export function useDrafts({
     draftWith,
     sentProjects,
     sentWords,
-    showDraft,
     startChat,
     startingIds,
   };

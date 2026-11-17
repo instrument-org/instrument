@@ -133,6 +133,7 @@ import {
   closedSideOf,
   closedTabGroupOf,
   agentCloseKeeps,
+  draftOfTab,
   isBlankNewTab,
   isNewChatTab,
   selectedTabIn,
@@ -670,6 +671,16 @@ function WindowShell({
   const windowSteps = useWindowSteps();
   // Every screen a group's tab stands on is walked by a router of its own.
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
+  // The drafts tabs are writing, every window's group tabs being one record:
+  // the one each tab's address names, and the one this window's box for it
+  // writes into.
+  const newChatBoxes = useAtomValue(newChatBoxesAtom);
+  const draftsInTabs = new Set(
+    windowTabs.allTabs.flatMap((tab) => [
+      draftOfTab(tab),
+      newChatBoxes[tab.id]?.draftId ?? undefined,
+    ]),
+  );
 
   // The folder a tab last stood in is where Files in the rail takes a tab.
   // A file's address names where it was opened from rather than the folder
@@ -1164,7 +1175,6 @@ function WindowShell({
     draftWith,
     sentProjects,
     sentWords,
-    showDraft,
     startChat,
     startingIds,
   } = useDrafts({
@@ -1328,6 +1338,24 @@ function WindowShell({
   const lightTab = (tab: undefined | WindowTab) => {
     if (tab) {
       flashStripTabOnceDrawn(stripKeyOf(tab));
+    }
+  };
+  /**
+   * Brings up the tab already writing a draft, lit, in this window or in
+   * another that comes forward, so one draft is never in two composers; with
+   * none, `here` puts it up, by default in the tab up.
+   */
+  const revealDraft = (
+    id: string,
+    here = () => {
+      appTabs.navigate(newChatHref(id));
+    },
+  ) => {
+    const tab = groups.revealDraft(id);
+    if (tab === undefined) {
+      here();
+    } else if (store.get(windowTabGroupsAtom)?.includes(tab.group ?? "")) {
+      lightTab(tab);
     }
   };
   // The group on screen's tabs as they stand across it: the left side's
@@ -1625,7 +1653,8 @@ function WindowShell({
     // already its chat, and one just discarded is gone unless its Undo brings
     // it back. A reply waiting in a chat's box belongs to that chat and is
     // read there rather than listed here, until the chat is deleted: then it
-    // is listed, so its words can be sent as a chat of their own.
+    // is listed, so its words can be sent as a chat of their own. One a tab
+    // in any window is writing is that tab's, so it is not listed either.
     chatTitles,
     drafts: drafts.filter(
       (draft) =>
@@ -1633,6 +1662,7 @@ function WindowShell({
         (draft.chatId === undefined ||
           (chatChrome.isRead && !chatTitles.has(draft.chatId))) &&
         holdsSomething(draft) &&
+        !draftsInTabs.has(draft.id) &&
         !startingIds.has(draft.id) &&
         !discardingIds.has(draft.id),
     ),
@@ -1670,7 +1700,9 @@ function WindowShell({
     sentWords,
     setChatProject,
     setDefaultModelURI,
-    showDraft,
+    showDraft: (id, here) => {
+      revealDraft(id, here);
+    },
     startChat,
     projects,
   };

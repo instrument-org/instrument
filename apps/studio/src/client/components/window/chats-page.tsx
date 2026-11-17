@@ -129,8 +129,12 @@ function TabChatList({ openChatId }: { openChatId: ChatId | undefined }) {
             go(chatHref(chat.id));
           }
         }}
+        // The tab already writing the draft comes up, wherever it is; with
+        // none, this tab goes to it.
         onOpenDraft={(id) => {
-          go(newChatHref(id));
+          shell.showDraft(id, () => {
+            go(newChatHref(id));
+          });
         }}
         openChatId={openChatId}
       />

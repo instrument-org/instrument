@@ -481,7 +481,9 @@ function useLander(
         }
         return;
       }
-      // Pinned's own target lands a place or files it took.
+      // Pinned's own target lands a place or files it took, and a
+      // composer's box a place.
+      case "attach":
       case "into":
       case "pin":
       case "nothing": {

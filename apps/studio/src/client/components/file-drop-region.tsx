@@ -1,5 +1,9 @@
-import { dragAtom } from "@/client/components/window/drag/session";
+import {
+  dragAtom,
+  useDropTarget,
+} from "@/client/components/window/drag/session";
 import { DROP_LOOK } from "@/client/components/window/drag/tone";
+import { placeOf } from "@/client/components/window/drag/types";
 import { type DropHandlers } from "@/client/hooks/use-file-drop-region";
 import {
   isSelfFileDrag,
@@ -10,7 +14,7 @@ import { splitTransferItems } from "@/client/lib/transfer-items";
 import { cn } from "@/client/lib/utils";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 // How long the overlay survives without a `dragover`. Generous, because the
 // only cost of waiting is an overlay that lingers a moment after a drag it
@@ -22,6 +26,9 @@ const STALE_DRAG_MS = 1000;
  * A box that takes a dropped file, the composer's, and the only thing that
  * says so: its own outline, a little outside it, so the rest of the page
  * around it still takes what is held as the page does (a side, a split).
+ * A place of Files' sidebar or Files menu held by the window's own drag goes
+ * in as the folder it names, the way that folder dragged from Files' listing
+ * does, under the same outline.
  */
 export function FileDropRegion({
   children,
@@ -40,9 +47,13 @@ export function FileDropRegion({
   note: string;
 }) {
   const [isDragging, setIsDragging] = useState(false);
+  const box = useId();
+  const landing = useAtomValue(dragAtom)?.landing;
+  // A place the window's drag holds, over this box.
+  const isPlaceHere = landing?.kind === "attach" && landing.box === box;
   // Where the window's drag has a landing of its own (a split target drawn
   // over the box), letting go goes there, so the box says nothing.
-  const isTakenElsewhere = useAtomValue(dragAtom)?.landing !== undefined;
+  const isTakenElsewhere = landing !== undefined && !isPlaceHere;
   const regionRef = useRef<HTMLDivElement>(null);
   const dragDepthRef = useRef(0);
 
@@ -54,6 +65,33 @@ export function FileDropRegion({
   useEffect(() => {
     handlers.current = { onFilesDropped, onFoldersDropped };
   });
+
+  useDropTarget(
+    enabled && onFoldersDropped
+      ? {
+          land: (held) => {
+            const place = placeOf(held);
+            if (place) {
+              handlers.current.onFoldersDropped?.([
+                { path: place.path, type: "folder" },
+              ]);
+            }
+          },
+          landingAt: (_, { held }) =>
+            placeOf(held) ? { box, kind: "attach" } : undefined,
+          rect: ({ held }) => {
+            const region = regionRef.current;
+            if (!placeOf(held) || !region?.checkVisibility()) {
+              return undefined;
+            }
+            const { height, left, top, width } = region.getBoundingClientRect();
+            return width > 0 && height > 0
+              ? { height, left, top, width }
+              : undefined;
+          },
+        }
+      : undefined,
+  );
 
   useEffect(() => {
     const region = regionRef.current;
@@ -184,7 +222,7 @@ export function FileDropRegion({
       ref={regionRef}
     >
       {children}
-      {isDragging && !isTakenElsewhere && (
+      {((isDragging && !isTakenElsewhere) || isPlaceHere) && (
         <div
           className={cn(
             "pointer-events-none absolute -inset-1.5 z-10 flex items-center justify-center rounded-[26px]",

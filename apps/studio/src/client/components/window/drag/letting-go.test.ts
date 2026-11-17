@@ -152,6 +152,7 @@ const LANDINGS: Record<string, Landing | undefined> = {
     kind: "unpin",
     path: "/Users/mac-user/Documents",
   },
+  "message box": { box: "c1", kind: "attach" },
   nowhere: undefined,
 };
 
@@ -190,6 +191,7 @@ describe("outcomeOf", () => {
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → move · "Open in a new window"
         over nothing, a Pinned row → nothing
+        message box → nothing
         nowhere → nothing
       whole group (sidebar row):
         own strip → move
@@ -212,6 +214,7 @@ describe("outcomeOf", () => {
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → move · "Open in a new window"
         over nothing, a Pinned row → nothing
+        message box → nothing
         nowhere → nothing
       files (Files row, place, Finder):
         own strip → open
@@ -234,6 +237,7 @@ describe("outcomeOf", () => {
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
         over nothing, a Pinned row → nothing
+        message box → nothing
         nowhere → nothing
       link (page or reply):
         own strip → open
@@ -256,6 +260,7 @@ describe("outcomeOf", () => {
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
         over nothing, a Pinned row → nothing
+        message box → nothing
         nowhere → nothing
       chat chip or Chats row:
         own strip → open
@@ -278,6 +283,7 @@ describe("outcomeOf", () => {
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
         over nothing, a Pinned row → nothing
+        message box → nothing
         nowhere → nothing
       bookmark (bar):
         own strip → open
@@ -300,6 +306,7 @@ describe("outcomeOf", () => {
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
         over nothing, a Pinned row → nothing
+        message box → nothing
         nowhere → nothing
       place (Pinned):
         own strip → open
@@ -322,6 +329,7 @@ describe("outcomeOf", () => {
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
         over nothing, a Pinned row → unpin · "Unpin"
+        message box → attach
         nowhere → nothing
       place (Files menu):
         own strip → open
@@ -344,6 +352,7 @@ describe("outcomeOf", () => {
         Pinned row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
         over nothing, a Pinned row → nothing
+        message box → attach
         nowhere → nothing"
     `);
   });

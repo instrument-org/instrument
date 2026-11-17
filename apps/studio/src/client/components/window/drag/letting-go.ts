@@ -14,6 +14,8 @@ import { isBookmark, type Held, type Landing, placeOf } from "./types";
  * - `into`: files go into the folder of a row of Pinned.
  * - `unpin`: a place of Pinned let go where nothing takes it, in the window
  *   or past it, leaves Pinned, as Finder's sidebar lets go of one.
+ * - `attach`: a place goes with the message in a composer's box, as its
+ *   folder dragged from Files' listing does.
  *
  * Let go where nothing takes it, a bookmark stays where it is kept, as in a
  * browser's bar.
@@ -27,7 +29,7 @@ import { isBookmark, type Held, type Landing, placeOf } from "./types";
  */
 export type Outcome =
   | {
-      does: "into" | "keep" | "move" | "open" | "pin" | "unpin";
+      does: "attach" | "into" | "keep" | "move" | "open" | "pin" | "unpin";
       line: string | undefined;
     }
   | { does: "nothing"; line: undefined };
@@ -136,6 +138,10 @@ export function outcomeOf(
     }
     case "unpin": {
       return placeOf(held)?.pinned ? { does: "unpin", line: "Unpin" } : nothing;
+    }
+    case "attach": {
+      // The box says it in its own outline.
+      return placeOf(held) ? { does: "attach", line: undefined } : nothing;
     }
     case "window": {
       return goes("Open in a new window");

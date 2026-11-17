@@ -26,10 +26,10 @@ export function pressBookmark(
  * A press on a place of Files' sidebar or of the bar's Files menu, which
  * past the start becomes the place held by the pointer, as a bookmark is:
  * a link to Files at that folder, never the folder itself, so nothing is
- * handed out of the app to copy. It opens as a tab wherever a tab lands,
- * goes on the bookmarks bar, and moves along Pinned or pins there; a row of
- * Pinned (`pinned`, the rows' paths in order) let go past the window leaves
- * Pinned. A press that goes nowhere stays a click. `onHeld` is told as it
+ * handed out of the app to copy. It opens as a tab from a strip, goes on
+ * the bookmarks bar, goes with a message from a composer's box, and moves
+ * along Pinned or pins there; a row of Pinned (`pinned`, the rows' paths in
+ * order) let go where nothing takes it leaves Pinned. A press that goes nowhere stays a click. `onHeld` is told as it
  * becomes a drag, for a menu it was in to get out of the way.
  */
 export function pressPlace(

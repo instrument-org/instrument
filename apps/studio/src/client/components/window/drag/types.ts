@@ -77,8 +77,9 @@ export type Held =
  * rows; turn a new tab into it, or open in a strip's tab in place of what it
  * shows; stand among the bookmarks on the bar; stand among the rows of
  * Files' Pinned, or go into the folder of one; leave Pinned, for one of
- * its places let go where nothing takes it; or go to a window of its own:
- * a whole group pulled free of the sidebar, or a link let go past the
+ * its places let go where nothing takes it; go with a message, for a place
+ * let go on the box of the composer `box` names; or go to a window of its
+ * own: a whole group pulled free of the sidebar, or a link let go past the
  * window's edge.
  */
 export type Landing =
@@ -121,6 +122,7 @@ export type Landing =
       name: string;
     }
   | { kind: "unpin"; path: string }
+  | { box: string; kind: "attach" }
   | { drop: SidebarDrop; kind: "sidebar" }
   | { group: string; kind: "newTab"; lit: Rect; tab: string }
   | {

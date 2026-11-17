@@ -3,8 +3,11 @@ import {
   type Bookmark,
   type BookmarkFolder,
   type BookmarkOp,
+  keyOfPlace,
   orderAfter,
   orderOnBar,
+  placeOf,
+  placeOfKey,
   siblingsIn,
 } from "@/shared/bookmarks";
 import { useSetAtom, useStore } from "jotai";
@@ -47,24 +50,15 @@ export function useBookmarkFolders() {
       void apply([{ folder, type: "addFolder" }]);
       return folder;
     },
-    /** Files a bookmark last in `folder`, or puts it last on the bar without one. */
-    moveTo: (bookmark: Bookmark, folder: string | undefined) => {
-      if (bookmark.folder === folder) {
+    /** Files a bookmark last in the place a key names (`placeOfKey`): a folder, Other bookmarks, or the bar without one. */
+    moveTo: (bookmark: Bookmark, key: string | undefined) => {
+      const state = store.get(bookmarksStateAtom);
+      if (keyOfPlace(placeOf(state, bookmark)) === key) {
         return;
       }
-      const state = store.get(bookmarksStateAtom);
-      const order =
-        folder === undefined
-          ? orderOnBar(state)
-          : orderAfter(siblingsIn(state, folder));
-      void apply([
-        {
-          id: bookmark.id,
-          order,
-          type: "move",
-          ...(folder === undefined ? {} : { folder }),
-        },
-      ]);
+      const place = placeOfKey(key);
+      const order = orderAfter(siblingsIn(state, place.folder, place.root));
+      void apply([{ id: bookmark.id, order, type: "move", ...place }]);
     },
     /**
      * Removes a folder with every bookmark in it, as a browser does, with

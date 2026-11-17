@@ -12,7 +12,14 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { rpcClient } from "@/client/rpc/client";
-import { barItems, type Bookmark } from "@/shared/bookmarks";
+import {
+  type BarItem,
+  barItems,
+  type Bookmark,
+  OTHER_ROOT,
+  OTHER_ROOT_TITLE,
+  rootItems,
+} from "@/shared/bookmarks";
 import { SCREENS } from "@/shared/instrument-screens";
 import {
   WINDOW_SHORTCUTS,
@@ -34,8 +41,9 @@ import { bookmarkName } from "./web-start";
 /**
  * The browser's ⋮ Bookmarks, under History as in Chrome: bookmarking the
  * tab (its star's card) or every tab of the group, the bar's switch, the
- * Bookmarks page, and then the bar itself, each folder a submenu, so every
- * bookmark is one menu away with the bar hidden. A bookmark opens in this
+ * Bookmarks page, and then the bar itself, each folder a submenu, and Other
+ * bookmarks as one more, so every bookmark is a menu or two away with the
+ * bar hidden. A bookmark opens in this
  * tab, a site by `onOpenPage`.
  */
 export function BookmarksSubmenu({
@@ -48,6 +56,7 @@ export function BookmarksSubmenu({
 }) {
   const state = useAtomValue(bookmarksStateAtom);
   const items = barItems(state);
+  const others = rootItems(state, OTHER_ROOT);
   const isBarShown = useShowsBookmarksBar();
   const setBarShown = useMutation(
     rpcClient.preferences.setShowBookmarksBar.mutationOptions(),
@@ -75,6 +84,43 @@ export function BookmarksSubmenu({
       <span className="min-w-0 truncate">{bookmarkName(bookmark)}</span>
     </DropdownMenuItem>
   );
+  /** A bookmark of a root, or a folder as a submenu of the bookmarks in it. */
+  const rootItem = (item: BarItem) =>
+    item.kind === "bookmark" ? (
+      bookmarkItem(item.bookmark)
+    ) : (
+      <DropdownMenuSub key={item.folder.id}>
+        <DropdownMenuSubTrigger>
+          <FolderSimpleIcon className="size-4" />
+          <span className="min-w-0 truncate">{item.folder.title}</span>
+        </DropdownMenuSubTrigger>
+        <DropdownMenuSubContent className="max-w-80 min-w-52">
+          {item.items.length === 0 ? (
+            <DropdownMenuItem disabled>
+              <span className="text-muted-foreground">Empty</span>
+            </DropdownMenuItem>
+          ) : (
+            <>
+              {item.items.map(bookmarkItem)}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onSelect={() => {
+                  item.items.forEach((bookmark, index) => {
+                    open(bookmark.url, {
+                      behind: index > 0,
+                      newTab: true,
+                    });
+                  });
+                }}
+              >
+                <span className="size-4" />
+                Open all in new tabs
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+    );
   return (
     <DropdownMenuSub>
       <DropdownMenuSubTrigger>
@@ -113,43 +159,18 @@ export function BookmarksSubmenu({
           Bookmark manager
           {shortcut("showBookmarks")}
         </DropdownMenuItem>
-        {items.length > 0 && <DropdownMenuSeparator />}
-        {items.map((item) =>
-          item.kind === "bookmark" ? (
-            bookmarkItem(item.bookmark)
-          ) : (
-            <DropdownMenuSub key={item.folder.id}>
-              <DropdownMenuSubTrigger>
-                <FolderSimpleIcon className="size-4" />
-                <span className="min-w-0 truncate">{item.folder.title}</span>
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent className="max-w-80 min-w-52">
-                {item.items.length === 0 ? (
-                  <DropdownMenuItem disabled>
-                    <span className="text-muted-foreground">Empty</span>
-                  </DropdownMenuItem>
-                ) : (
-                  <>
-                    {item.items.map(bookmarkItem)}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onSelect={() => {
-                        item.items.forEach((bookmark, index) => {
-                          open(bookmark.url, {
-                            behind: index > 0,
-                            newTab: true,
-                          });
-                        });
-                      }}
-                    >
-                      <span className="size-4" />
-                      Open all in new tabs
-                    </DropdownMenuItem>
-                  </>
-                )}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          ),
+        {(items.length > 0 || others.length > 0) && <DropdownMenuSeparator />}
+        {items.map(rootItem)}
+        {others.length > 0 && (
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <FolderSimpleIcon className="size-4" />
+              <span className="min-w-0 truncate">{OTHER_ROOT_TITLE}</span>
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent className="max-w-80 min-w-52">
+              {others.map(rootItem)}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
         )}
       </DropdownMenuSubContent>
     </DropdownMenuSub>

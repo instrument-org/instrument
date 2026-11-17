@@ -1,8 +1,12 @@
-import { type Bookmark } from "@/shared/bookmarks";
+import {
+  type Bookmark,
+  OTHER_ROOT_TITLE,
+  sortedAddOps,
+} from "@/shared/bookmarks";
 import { toast } from "@/client/lib/toast";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 
-import { sameAddress } from "./address";
+import { sameAddress, sortedKindOf } from "./address";
 import { newBookmarkPlace } from "./edit";
 import {
   applyBookmarkOpsAtom,
@@ -13,10 +17,9 @@ import {
 export { addressOfTab } from "./address";
 
 /**
- * Keeping any address as a bookmark, for whatever
- * offers to: the star at the end of the address field, ⌘D, a row's menu. An
- * address is kept once, however it is spelled (`sameAddress`), so keeping it
- * again returns the one already kept.
+ * The bookmarks as the address field's star and ⌘D keep and show them: an
+ * address is kept once, however it is spelled (`sameAddress`), so keeping
+ * it again returns the one already kept.
  */
 export function useBookmarkActions() {
   const state = useAtomValue(bookmarksStateAtom);
@@ -63,30 +66,47 @@ export function useBookmarkActions() {
 }
 
 /**
- * Keeping an address from a menu over a link or a file, for a surface that
- * draws many: the bookmarks are read at the press rather than followed, so
- * a change to them redraws none of the links. An address not kept yet goes
- * where a new bookmark goes (`newBookmarkPlace`), and one kept already stays where it is; the
- * toast says which.
+ * Keeps an address the way every add that picks no place does, a row's
+ * menu or the agent: last in its kind's folder of Other bookmarks
+ * (`sortedKindOf`, `sortedAddOps`), made where it is gone. An address kept
+ * already stays where it is, and that bookmark is answered.
+ */
+export function addSortedBookmark(
+  store: ReturnType<typeof useStore>,
+  { title, url }: { title: string; url: string },
+): { bookmark: Bookmark; isNew: boolean } {
+  const state = store.get(bookmarksStateAtom);
+  const kept = state.bookmarks.find((bookmark) =>
+    sameAddress(bookmark.url, url),
+  );
+  if (kept) {
+    return { bookmark: kept, isNew: false };
+  }
+  const id = crypto.randomUUID();
+  const ops = sortedAddOps(state, { id, title, url }, sortedKindOf(url));
+  void store.set(applyBookmarkOpsAtom, ops);
+  const [added] = ops.flatMap((op) => (op.type === "add" ? [op.bookmark] : []));
+  if (!added) {
+    throw new Error("The bookmark was not added");
+  }
+  return { bookmark: added, isNew: true };
+}
+
+/**
+ * Keeping an address from a menu over a link, a file or a tab, for a
+ * surface that draws many: the bookmarks are read at the press rather than
+ * followed, so a change to them redraws none of the links. An address not
+ * kept yet goes into Other bookmarks (`addSortedBookmark`), and one kept
+ * already stays where it is; the toast says which.
  */
 export function useAddBookmark() {
   const store = useStore();
   return ({ title, url }: { title: string; url: string }) => {
-    const state = store.get(bookmarksStateAtom);
-    const kept = state.bookmarks.find((bookmark) =>
-      sameAddress(bookmark.url, url),
-    );
-    if (kept) {
-      toast("Already in Bookmarks", { description: kept.title || url });
+    const { bookmark, isNew } = addSortedBookmark(store, { title, url });
+    if (!isNew) {
+      toast("Already in Bookmarks", { description: bookmark.title || url });
       return;
     }
-    const bookmark: Bookmark = {
-      id: crypto.randomUUID(),
-      ...newBookmarkPlace(state, store.get(lastBookmarkFolderAtom)),
-      title,
-      url,
-    };
-    void store.set(applyBookmarkOpsAtom, [{ bookmark, type: "add" }]);
-    toast("Added to Bookmarks", { description: title || url });
+    toast(`Added to ${OTHER_ROOT_TITLE}`, { description: title || url });
   };
 }

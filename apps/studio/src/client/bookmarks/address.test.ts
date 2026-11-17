@@ -6,6 +6,7 @@ import {
   fileAddressOf,
   keptPaths,
   sameAddress,
+  sortedKindOf,
   targetOfAddress,
 } from "./address";
 
@@ -134,4 +135,15 @@ it("keeps the paths of the files and folders bookmarked, as Files names them", (
       "/Users/mac-user/Old Notes",
     ]),
   );
+});
+
+it.each([
+  [fileAddressOf("/Users/mac-user/Notes/plan.md"), "files"],
+  [fileAddressOf("/Users/mac-user/Downloads", { isFolder: true }), "files"],
+  ["instrument://chat/01JZ8Q0V3W6Y8A2B4C6D8E0F2G", "chats"],
+  ["instrument://screen/chats", "pages"],
+  ["instrument://screen/activity", "pages"],
+  ["https://example.com/", "pages"],
+])("files %s under %s in Other bookmarks", (address, kind) => {
+  expect(sortedKindOf(address)).toBe(kind);
 });

@@ -363,21 +363,31 @@ describe("a link's menu in a window with tabs", () => {
       },
       { interval: 1 },
     );
+    // Each in its kind's folder of Other bookmarks, the page and the
+    // built-in page together.
     expect(
-      store.get(bookmarksAtom).map(({ title, url }) => ({ title, url })),
+      store
+        .get(bookmarksAtom)
+        .map(({ folder, title, url }) => ({ folder, title, url }))
+        .toSorted((a, b) => a.url.localeCompare(b.url)),
     ).toEqual([
-      { title: "", url: "https://example.com/" },
-      { title: "Chats", url: "instrument://screen/chats" },
       {
+        folder: "other-files",
         title: "plan.md",
         url: "file:///Users/sam/Instrument/Notes/plan.md",
+      },
+      { folder: "other-pages", title: "", url: "https://example.com/" },
+      {
+        folder: "other-pages",
+        title: "Chats",
+        url: "instrument://screen/chats",
       },
     ]);
     // The file's is said once its place on this computer is found.
     expect(toastSaid.mock.calls.map(([said]) => said).toSorted()).toEqual([
-      "Added to Bookmarks",
-      "Added to Bookmarks",
-      "Added to Bookmarks",
+      "Added to Other bookmarks",
+      "Added to Other bookmarks",
+      "Added to Other bookmarks",
       "Already in Bookmarks",
     ]);
   });

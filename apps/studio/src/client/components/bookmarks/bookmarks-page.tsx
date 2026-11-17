@@ -55,8 +55,12 @@ import {
   type Bookmark,
   type BookmarkFolder,
   type BookmarkOp,
+  OTHER_ROOT,
+  OTHER_ROOT_TITLE,
+  rootOf,
 } from "@/shared/bookmarks";
 import { APP_NAME } from "@instrument-org/shared";
+import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
@@ -72,8 +76,9 @@ const DRAG_START_PX = 4;
 
 /**
  * The Bookmarks page, a browser's bookmark manager in History's clothes:
- * every bookmark and folder as one outline in the bar's order, each folder
- * opening in place, with a search over all of them. A click picks a row,
+ * every bookmark and folder as one outline in the bar's order, then Other
+ * bookmarks, each folder opening in place, with a search over all of them.
+ * A click picks a row,
  * ⌘-click and Shift-click pick more, and ⌘A all of them; a double click or
  * Return opens what is picked, Delete deletes it, and a drag moves it,
  * drawing a line where it would land or ringing the folder it would go
@@ -92,7 +97,9 @@ export function BookmarksPage({
   const apply = useSetAtom(applyBookmarkOpsAtom);
   const folders = useBookmarkFolders();
   const [clip, setClip] = useAtom(clipAtom);
-  const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
+  const [open, setOpen] = useState<ReadonlySet<string>>(
+    () => new Set([OTHER_ROOT]),
+  );
   const [selection, setSelection] = useState<Selection>(NOTHING_SELECTED);
   // The row the arrows step from: the last one clicked or stepped to.
   const [focusId, setFocusId] = useState<string>();
@@ -129,12 +136,16 @@ export function BookmarksPage({
     row && !selection.ids.has(row.id) ? [row] : picked;
 
   const openInNewTabs = (targets: readonly OutlineRow[]) => {
+    const now = store.get(bookmarksStateAtom);
     const urls = targets.flatMap((row) =>
       row.kind === "bookmark"
         ? [row.bookmark.url]
-        : store
-            .get(bookmarksStateAtom)
-            .bookmarks.filter((bookmark) => bookmark.folder === row.folder.id)
+        : now.bookmarks
+            .filter((bookmark) =>
+              row.kind === "root"
+                ? rootOf(now, bookmark) === OTHER_ROOT
+                : bookmark.folder === row.folder.id,
+            )
             .map((bookmark) => bookmark.url),
     );
     urls.forEach((url, index) => {
@@ -202,6 +213,9 @@ export function BookmarksPage({
   };
 
   const edit = (row: OutlineRow) => {
+    if (row.kind === "root") {
+      return;
+    }
     setEditing(
       row.kind === "bookmark"
         ? { bookmark: row.bookmark, isNew: false, kind: "bookmark" }
@@ -209,9 +223,9 @@ export function BookmarksPage({
     );
   };
 
-  /** Opens a row the way a double click or Return does: a bookmark in a tab of its own, a folder in place. */
+  /** Opens a row the way a double click or Return does: a bookmark in a tab of its own, a folder or Other bookmarks in place. */
   const openRow = (row: OutlineRow) => {
-    if (row.kind === "folder") {
+    if (row.kind !== "bookmark") {
       if (!isSearch) {
         toggleFolder(row.id);
       }
@@ -220,8 +234,11 @@ export function BookmarksPage({
     openAddress(row.bookmark.url, { newTab: true });
   };
 
-  /** Shows a search's match where it is filed: the search let go, its folder open, the row picked. */
+  /** Shows a search's match where it is filed: the search let go, its folder and Other bookmarks open, the row picked. */
   const showInFolder = (row: OutlineRow) => {
+    if (row.kind === "bookmark" && row.root) {
+      toggleFolder(row.root, true);
+    }
     if (row.kind === "bookmark" && row.folder) {
       toggleFolder(row.folder.id, true);
     }
@@ -230,6 +247,27 @@ export function BookmarksPage({
   };
 
   const menuOf = (row: OutlineRow): RowMenuItem[] => {
+    if (row.kind === "root") {
+      return [
+        ...(clip.length > 0 && !isSearch
+          ? [
+              {
+                label: "Paste",
+                run: () => {
+                  paste(row);
+                },
+              },
+              "separator" as const,
+            ]
+          : []),
+        {
+          label: "Open All in New Tabs",
+          run: () => {
+            openInNewTabs([row]);
+          },
+        },
+      ];
+    }
     const targets = actingOn(row);
     const isOne = targets.length === 1;
     const pages = targets.filter((each) => each.kind === "bookmark");
@@ -250,7 +288,10 @@ export function BookmarksPage({
             },
           ]
         : []),
-      ...(isOne && isSearch && row.kind === "bookmark" && row.folder
+      ...(isOne &&
+      isSearch &&
+      row.kind === "bookmark" &&
+      (row.folder ?? row.root)
         ? [
             {
               label: "Show in Folder",
@@ -340,7 +381,8 @@ export function BookmarksPage({
       step(focusedAt === -1 ? 0 : key === "arrowdown" ? 1 : -1);
     } else if (
       (key === "arrowright" || key === "arrowleft") &&
-      focused?.kind === "folder" &&
+      focused !== undefined &&
+      focused.kind !== "bookmark" &&
       !isSearch
     ) {
       event.preventDefault();
@@ -382,10 +424,7 @@ export function BookmarksPage({
         : [id],
     isOff: isSearch,
     onLand: (ids, target) => {
-      const now = store.get(bookmarksStateAtom);
-      const place =
-        target.kind === "into" ? { folder: target.folder } : target.place;
-      void apply(moveOps(now, ids, place));
+      void apply(moveOps(store.get(bookmarksStateAtom), ids, target.place));
     },
     onStart: (ids) => {
       setSelection({ anchor: ids.at(-1), ids: new Set(ids) });
@@ -508,7 +547,9 @@ export function BookmarksPage({
                   openRow(row);
                 }}
                 onPointerDown={(event) => {
-                  drag.press(event, row.id, titleOfRow(row));
+                  if (row.kind !== "root") {
+                    drag.press(event, row.id, titleOfRow(row));
+                  }
                 }}
                 onToggle={() => {
                   toggleFolder(row.id);
@@ -563,7 +604,11 @@ export function BookmarksPage({
 }
 
 function titleOfRow(row: OutlineRow): string {
-  return row.kind === "folder" ? row.folder.title : bookmarkName(row.bookmark);
+  return row.kind === "root"
+    ? OTHER_ROOT_TITLE
+    : row.kind === "folder"
+      ? row.folder.title
+      : bookmarkName(row.bookmark);
 }
 
 /**
@@ -627,8 +672,8 @@ function PageMenu({
 
 /**
  * One row of the outline, History's row less its time and its box: a
- * folder's caret, the mark, the name, what it is, and its ⋮. A folder's
- * bookmarks sit indented under it.
+ * folder's caret, the mark, the name, what it is, and its ⋮. What is in
+ * a folder or Other bookmarks sits indented under it.
  */
 function OutlineRowView({
   drop,
@@ -657,21 +702,21 @@ function OutlineRowView({
   onToggle: () => void;
   row: OutlineRow;
 }) {
-  const isInto = drop?.kind === "into" && drop.folder === row.id;
+  const isInto = drop?.kind === "into" && drop.id === row.id;
   const line =
     drop?.kind === "between"
       ? "before" in drop.line
         ? drop.line.before === row.id && "top"
         : drop.line.after === row.id && "bottom"
       : false;
-  const isIndented = row.kind === "bookmark" && row.folder && !isSearch;
+  const depth = isSearch ? 0 : row.depth;
   const sub =
-    row.kind === "folder"
+    row.kind !== "bookmark"
       ? row.count === 1
         ? "1 bookmark"
         : `${row.count.toString()} bookmarks`
-      : isSearch && row.folder
-        ? `${kindOf(row.bookmark.url)} · in ${row.folder.title}`
+      : isSearch && (row.folder ?? row.root)
+        ? `${kindOf(row.bookmark.url)} · in ${row.folder?.title ?? OTHER_ROOT_TITLE}`
         : kindOf(row.bookmark.url);
   return (
     <ContextMenu
@@ -686,7 +731,8 @@ function OutlineRowView({
           aria-selected={isPicked}
           className={cn(
             "group/row relative flex min-h-10 cursor-default items-center gap-3 rounded-lg px-2.5 select-none",
-            isIndented && "ml-7.5",
+            depth === 1 && "ml-7.5",
+            depth === 2 && "ml-15",
             isPicked ? "bg-foreground/8" : "hover:bg-foreground/5",
             isInto && DROP_TONE,
             isHeld && "opacity-40",
@@ -708,7 +754,7 @@ function OutlineRowView({
               data-slot="bookmark-drop-line"
             />
           )}
-          {row.kind === "folder" && !isSearch ? (
+          {row.kind !== "bookmark" && !isSearch ? (
             <button
               aria-expanded={row.isOpen}
               aria-label={row.isOpen ? "Close folder" : "Open folder"}
@@ -731,7 +777,9 @@ function OutlineRowView({
             </button>
           ) : null}
           <span className="grid size-5 shrink-0 place-items-center">
-            {row.kind === "folder" ? (
+            {row.kind === "root" ? (
+              <BookmarksSimpleIcon className="size-4 text-foreground/60" />
+            ) : row.kind === "folder" ? (
               <FolderSimpleIcon className="size-4 text-foreground/60" />
             ) : (
               <AddressMark address={row.bookmark.url} />

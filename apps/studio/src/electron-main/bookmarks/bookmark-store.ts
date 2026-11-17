@@ -4,6 +4,7 @@ import {
   type Bookmarks,
   type BookmarksSnapshot,
   inOrder,
+  OTHER_ROOT,
 } from "@/shared/bookmarks";
 import {
   type SyncedOp,
@@ -22,10 +23,15 @@ import { z } from "zod";
  * are, and what changed is written as sets and deletes.
  *
  * A build from before folders reads only `bookmark/` keys and passes over a
- * value's `folder`, so it shows every bookmark on the bar and no folder.
+ * value's `folder`, so it shows every bookmark on the bar and no folder; a
+ * build from before Other bookmarks passes over `root`, so it shows Other
+ * bookmarks' folders and loose bookmarks on the bar.
  */
 
 const PREFIX = { bookmark: "bookmark/", folder: "folder/" } as const;
+
+/** The root a member is kept in: Other bookmarks, or the bar for none or anything else. */
+const RootSchema = z.literal(OTHER_ROOT).optional().catch(undefined);
 
 /**
  * A bookmark's value. `url` is any address, the app's own included, and
@@ -36,6 +42,7 @@ const PREFIX = { bookmark: "bookmark/", folder: "folder/" } as const;
 const BookmarkValueSchema = z.object({
   folder: z.string().min(1).optional().catch(undefined),
   order: z.number(),
+  root: RootSchema,
   title: z.string(),
   url: z.string().min(1),
 });
@@ -43,6 +50,7 @@ const BookmarkValueSchema = z.object({
 /** A folder's value, read and written back as a bookmark's is. */
 const FolderValueSchema = z.object({
   order: z.number(),
+  root: RootSchema,
   title: z.string(),
 });
 
@@ -65,7 +73,7 @@ export function createBookmarkStore({
         if (!parsed.success) {
           return [];
         }
-        const { folder, order, title, url } = parsed.data;
+        const { folder, order, root, title, url } = parsed.data;
         return [
           {
             id: key.slice(PREFIX.bookmark.length),
@@ -73,6 +81,7 @@ export function createBookmarkStore({
             title,
             url,
             ...(folder === undefined ? {} : { folder }),
+            ...(root === undefined ? {} : { root }),
           },
         ];
       }),
@@ -80,9 +89,18 @@ export function createBookmarkStore({
     folders: inOrder(
       [...store.entries(PREFIX.folder)].flatMap(([key, value]) => {
         const parsed = FolderValueSchema.safeParse(value);
-        return parsed.success
-          ? [{ id: key.slice(PREFIX.folder.length), ...parsed.data }]
-          : [];
+        if (!parsed.success) {
+          return [];
+        }
+        const { order, root, title } = parsed.data;
+        return [
+          {
+            id: key.slice(PREFIX.folder.length),
+            order,
+            title,
+            ...(root === undefined ? {} : { root }),
+          },
+        ];
       }),
     ),
   });
@@ -156,8 +174,8 @@ function changesBetween<T extends { id: string }>(
 
 /** The fields this build reads off each kind of member, which it writes whole; it keeps the rest as found. */
 const READ_FIELDS = {
-  bookmark: new Set(["folder", "order", "title", "url"]),
-  folder: new Set(["order", "title"]),
+  bookmark: new Set(["folder", "order", "root", "title", "url"]),
+  folder: new Set(["order", "root", "title"]),
 };
 
 /** What a stored value has that this build does not read: a later build's own fields. */

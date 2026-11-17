@@ -24,7 +24,12 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { Input } from "@/client/components/ui/input";
 import { cn } from "@/client/lib/utils";
-import { type Bookmark, type BookmarkFolder } from "@/shared/bookmarks";
+import {
+  type BarItem,
+  type Bookmark,
+  type BookmarkFolder,
+  OTHER_ROOT_TITLE,
+} from "@/shared/bookmarks";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XCircleIcon } from "@phosphor-icons/react/XCircle";
@@ -326,6 +331,81 @@ export function OverflowFolder({
         )}
       </DropdownMenuSubContent>
     </DropdownMenuSub>
+  );
+}
+
+/**
+ * Other bookmarks at the bar's right end, as Chrome has it: a press opens a
+ * menu of its folders, each a submenu of the bookmarks filed in it, then the
+ * bookmarks loose in it, each opening as one on the bar does
+ * (`bookmarkClicks`) with the bar's menu for a bookmark on a right click.
+ * While a folder's menu is open, moving onto it opens this one instead
+ * (`onHover`). A right click on it offers the Bookmarks page and the bar's
+ * switch.
+ */
+export function OtherBookmarksChip({
+  isOpen,
+  items,
+  onHover,
+  onOpenChange,
+  open,
+}: {
+  isOpen: boolean;
+  /** Its folders and loose bookmarks, in order (`rootItems`). */
+  items: readonly BarItem[];
+  onHover: () => void;
+  onOpenChange: (open: boolean) => void;
+  open: OpenAddress;
+}) {
+  return (
+    <DropdownMenu modal={false} onOpenChange={onOpenChange} open={isOpen}>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <DropdownMenuTrigger
+            className="flex h-6 max-w-40 shrink-0 cursor-default items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/80 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
+            data-other-bookmarks=""
+            onPointerEnter={onHover}
+            title={OTHER_ROOT_TITLE}
+          >
+            <FolderSimpleIcon className="size-3.5 shrink-0 text-foreground/60" />
+            <span className="min-w-0 truncate">{OTHER_ROOT_TITLE}</span>
+          </DropdownMenuTrigger>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="min-w-52">
+          <ManageBookmarksItem />
+          <ContextMenuSeparator />
+          <ShowBookmarksBarItem />
+        </ContextMenuContent>
+      </ContextMenu>
+      <DropdownMenuContent align="end" className="max-w-72 min-w-48">
+        {items.map((item) =>
+          item.kind === "folder" ? (
+            <OverflowFolder
+              folder={item.folder}
+              items={item.items}
+              key={item.folder.id}
+              open={open}
+            />
+          ) : (
+            <BookmarkContextMenu
+              bookmark={item.bookmark}
+              key={item.bookmark.id}
+              open={open}
+            >
+              <DropdownMenuItem
+                {...bookmarkClicks(item.bookmark.url, open)}
+                title={item.bookmark.url}
+              >
+                <AddressMark address={item.bookmark.url} />
+                <span className="min-w-0 truncate">
+                  {bookmarkName(item.bookmark)}
+                </span>
+              </DropdownMenuItem>
+            </BookmarkContextMenu>
+          ),
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

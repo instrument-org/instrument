@@ -2,6 +2,8 @@ import {
   barItems,
   type BookmarkOp,
   type BookmarksSnapshot,
+  OTHER_ROOT,
+  rootItems,
 } from "@/shared/bookmarks";
 import {
   type DeviceId,
@@ -490,6 +492,44 @@ describe("folders", () => {
       },
     ]);
     expect(drawn(bookmarks.snapshot())).toEqual(["a", "b", "Work []"]);
+  });
+
+  it("writes Other bookmarks' root on its folders and loose bookmarks, and reads any other root as the bar", async () => {
+    const { bookmarks, store } = await bookmarksOf(HERE);
+    await bookmarks.apply({
+      client: "w1",
+      ops: [
+        { folder: { ...work, root: OTHER_ROOT }, type: "addFolder" },
+        { bookmark: { ...page("a", 0), folder: "f" }, type: "add" },
+        { bookmark: { ...page("b", 1), root: OTHER_ROOT }, type: "add" },
+      ],
+      seq: 1,
+    });
+    expect(store.get("folder/f")).toEqual({
+      order: 5,
+      root: OTHER_ROOT,
+      title: "Work",
+    });
+    expect(store.get("bookmark/b")).toEqual({
+      order: 1,
+      root: OTHER_ROOT,
+      title: "Page b",
+      url: "https://example.com/b",
+    });
+    expect(drawn(bookmarks.snapshot())).toEqual([]);
+    expect(
+      rootItems(bookmarks.snapshot(), OTHER_ROOT).map((item) =>
+        item.kind === "folder" ? item.folder.id : item.bookmark.id,
+      ),
+    ).toEqual(["b", "f"]);
+    await store.apply([
+      {
+        key: "bookmark/c",
+        t: "set",
+        value: { order: 2, root: "elsewhere", title: "C", url: "u" },
+      },
+    ]);
+    expect(drawn(bookmarks.snapshot())).toEqual(["c"]);
   });
 });
 

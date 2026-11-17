@@ -8,6 +8,7 @@ import {
   folderHref,
   RECENTS_ROOT,
 } from "@/shared/computer-href";
+import { type SortedKind } from "@/shared/bookmarks";
 import { instrumentAddressOf } from "@/shared/instrument-screens";
 import {
   expandHomePath,
@@ -128,7 +129,28 @@ export function hrefOfPath({
   return isFolder ? folderHref(path) : fileHref(path);
 }
 
->>>NEW
+/**
+ * Which of Other bookmarks' folders an address is filed in when an add picks
+ * no place (`SORTED_FOLDERS`): a file's or a folder's in Files, a chat's in
+ * Chats, and any other, a site's or the app's own page, in Pages.
+ */
+export function sortedKindOf(address: string): SortedKind {
+  const target = targetOfAddress(address);
+  if (target?.kind === "path") {
+    return "files";
+  }
+  if (target?.kind === "screen") {
+    const screen = matchScreen(target.href).kind;
+    if (
+      screen === "chat" ||
+      screen === "chatOfSession" ||
+      screen === "chatLink"
+    ) {
+      return "chats";
+    }
+  }
+  return "pages";
+}
 
 /**
  * The paths of the files and folders kept as bookmarks, as `sameAddress`

@@ -4,6 +4,8 @@ import {
   type Bookmark,
   type BookmarkFolder,
   type Bookmarks,
+  OTHER_ROOT,
+  rootItems,
 } from "@/shared/bookmarks";
 import { describe, expect, it } from "vitest";
 
@@ -130,5 +132,37 @@ describe("newBookmarkPlace", () => {
     expect(newBookmarkPlace(state, "f")).toEqual({ folder: "f", order: 2 });
     expect(newBookmarkPlace(state, "gone")).toEqual({ order: 2 });
     expect(newBookmarkPlace(state, null)).toEqual({ order: 2 });
+    expect(newBookmarkPlace(state, OTHER_ROOT)).toEqual({
+      order: 0,
+      root: OTHER_ROOT,
+    });
+  });
+});
+
+describe("bookmarkEditOps with Other bookmarks", () => {
+  it("moves a bookmark loose into Other bookmarks and back onto the bar", () => {
+    const edit = (to: string | undefined, from: Bookmarks = state) => {
+      const a = from.bookmarks.find((each) => each.id === "a");
+      return a
+        ? applyBookmarkOps(
+            from,
+            bookmarkEditOps(from, a, {
+              folder: to,
+              newFolders: [],
+              title: a.title,
+              url: a.url,
+            }),
+          )
+        : from;
+    };
+    const moved = edit(OTHER_ROOT);
+    expect(drawn(moved)).toEqual(["Folder f [Page b, Page c]"]);
+    expect(rootItems(moved, OTHER_ROOT).map((item) => item.kind)).toEqual([
+      "bookmark",
+    ]);
+    expect(drawn(edit(undefined, moved))).toEqual([
+      "Folder f [Page b, Page c]",
+      "Page a",
+    ]);
   });
 });

@@ -43,9 +43,10 @@ export const keptPathsAtom = atom((get) => keptPaths(get(bookmarksAtom)));
 export const applyBookmarkOpsAtom = mirror.applyOpsAtom;
 
 /**
- * The folder a new bookmark is filed in, by id: the one last picked for a
- * bookmark, as a browser's star remembers it, or the bar (`null`) until one
- * is. A folder removed since leaves the bar.
+ * Where the address bar's star files a new bookmark, by the place's key
+ * (`placeOfKey`): the folder or Other bookmarks last picked for a bookmark,
+ * as a browser's star remembers it, or the bar (`null`) until one is. A
+ * folder removed since leaves the bar.
  */
 export const lastBookmarkFolderAtom = keptAtom<string | null>(
   "layout",

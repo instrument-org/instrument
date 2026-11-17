@@ -24,7 +24,7 @@ import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import { filesHrefAtom } from "@/client/atoms/window";
 import { BAR_MOTION } from "@/client/lib/motion";
 import { cn } from "@/client/lib/utils";
-import { barItems } from "@/shared/bookmarks";
+import { barItems, OTHER_ROOT, rootItems } from "@/shared/bookmarks";
 import { folderHref } from "@/shared/computer-href";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { CaretDoubleRightIcon } from "@phosphor-icons/react/CaretDoubleRight";
@@ -48,6 +48,7 @@ import {
 import {
   BookmarkNameDialog,
   FolderChip,
+  OtherBookmarksChip,
   OverflowFolder,
   useOpenFolder,
 } from "./bookmark-folders";
@@ -66,7 +67,8 @@ import { BookmarkNameField, bookmarkName } from "./web-start";
  * The bookmarks kept on the bar, in a row under a tab's toolbar, each the
  * mark its tab wears and a short name, the way a browser's bookmarks bar
  * keeps them, after Files where the row is given it (`files`). Those past
- * the row's end are under a chevron at its right. A click opens one in this
+ * the row's end are under a chevron at its right, and Other bookmarks, where
+ * it has any, is one chip at the bar's right end. A click opens one in this
  * tab whatever it names (a site by `onOpen`, a place of the app's own, a
  * chat's included, by `onVisit`), a Cmd-click or a middle click in a new tab
  * behind this one, a Shift-click in a new tab in front, and a right click
@@ -116,6 +118,7 @@ type BarProps = {
 function Bar({ files, onOpen, onVisit }: BarProps) {
   const state = useAtomValue(bookmarksStateAtom);
   const items = barItems(state);
+  const others = rootItems(state, OTHER_ROOT);
   const folders = useBookmarkFolders();
   const bar = useRef<HTMLDivElement>(null);
   // The folder whose name is being typed over, by id.
@@ -324,6 +327,19 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
+            )}
+            {others.length > 0 && (
+              <div className="ml-auto flex shrink-0 items-center">
+                <span
+                  aria-hidden
+                  className="mx-1 h-4 w-px shrink-0 bg-border"
+                />
+                <OtherBookmarksChip
+                  {...chip(OTHER_ROOT)}
+                  items={others}
+                  open={open}
+                />
+              </div>
             )}
           </div>
         </ContextMenuTrigger>

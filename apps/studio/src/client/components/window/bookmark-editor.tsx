@@ -20,7 +20,10 @@ import { cn } from "@/client/lib/utils";
 import {
   type Bookmark,
   type BookmarkFolder,
-  folderOf,
+  bookmarkPlaces,
+  keyOfPlace,
+  OTHER_ROOT,
+  placeOf,
 } from "@/shared/bookmarks";
 import { isInstrumentAddress } from "@instrument-org/shared";
 import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
@@ -29,8 +32,9 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useId, useState } from "react";
 
 /**
- * Chrome's Edit bookmark dialog: the name, the address, and the bar with its
- * folders as a tree to file it in, with New folder under it. Nothing changes
+ * Chrome's Edit bookmark dialog: the name, the address, and the bar and
+ * Other bookmarks with their folders as a tree to file it in, with New
+ * folder under it, which makes one on the bar. Nothing changes
  * until Save, folders made here included, so Cancel leaves everything as it
  * was. An address the app itself names (a chat, a built-in page) is not
  * typed, so it has no field. Save waits for an address that reads as one.
@@ -45,7 +49,7 @@ export function BookmarkEditor({
   onClose,
 }: {
   bookmark: Bookmark;
-  /** The folder picked as it opens, by id, the bar without one; the bookmark's own by default. */
+  /** The place picked as it opens, by its key (`placeOfKey`), the bar without one; the bookmark's own by default. */
   initialFolder?: string | undefined;
   isNew?: boolean;
   onClose: () => void;
@@ -57,14 +61,25 @@ export function BookmarkEditor({
   const [title, setTitle] = useState(bookmark.title);
   const [typedUrl, setTypedUrl] = useState(bookmark.url);
   const [folder, setFolder] = useState<string | undefined>(
-    initialFolder ?? folderOf(state, bookmark)?.id,
+    initialFolder ?? keyOfPlace(placeOf(state, bookmark)),
   );
   const [newFolders, setNewFolders] = useState<BookmarkFolder[]>([]);
   // The new folder whose name is being typed, by id.
   const [naming, setNaming] = useState<string>();
   const hasUrlField = !isInstrumentAddress(bookmark.url);
   const url = hasUrlField ? addressOfTyped(typedUrl) : bookmark.url;
-  const folders = [...state.folders, ...newFolders];
+  // The folders made here go on the bar, after its own.
+  const places = bookmarkPlaces(state);
+  const otherAt = places.findIndex((place) => place.key === OTHER_ROOT);
+  const rows = [
+    ...places.slice(0, otherAt),
+    ...newFolders.map((made) => ({
+      depth: 1 as const,
+      key: made.id,
+      title: made.title,
+    })),
+    ...places.slice(otherAt),
+  ];
 
   const save = () => {
     if (url === undefined) {
@@ -138,19 +153,11 @@ export function BookmarkEditor({
             className="flex h-48 flex-col gap-0.5 overflow-y-auto rounded-lg border border-border p-1"
             role="tree"
           >
-            <FolderRow
-              icon={<BookmarksSimpleIcon className="size-4 shrink-0" />}
-              isPicked={folder === undefined}
-              onPick={() => {
-                setFolder(undefined);
-              }}
-              title="Bookmarks bar"
-            />
-            {folders.map((each) =>
-              each.id === naming ? (
+            {rows.map((each) =>
+              each.key !== undefined && each.key === naming ? (
                 <div
                   className="flex h-8 items-center gap-2 pr-1 pl-8"
-                  key={each.id}
+                  key={each.key}
                 >
                   <FolderSimpleIcon className="size-4 shrink-0 text-foreground/60" />
                   <Input
@@ -164,7 +171,7 @@ export function BookmarkEditor({
                       const typed = event.currentTarget.value;
                       setNewFolders((current) =>
                         current.map((made) =>
-                          made.id === each.id
+                          made.id === each.key
                             ? { ...made, title: typed }
                             : made,
                         ),
@@ -187,13 +194,17 @@ export function BookmarkEditor({
               ) : (
                 <FolderRow
                   icon={
-                    <FolderSimpleIcon className="size-4 shrink-0 text-foreground/60" />
+                    each.depth === 0 ? (
+                      <BookmarksSimpleIcon className="size-4 shrink-0" />
+                    ) : (
+                      <FolderSimpleIcon className="size-4 shrink-0 text-foreground/60" />
+                    )
                   }
-                  isIndented
-                  isPicked={folder === each.id}
-                  key={each.id}
+                  isIndented={each.depth === 1}
+                  isPicked={folder === each.key}
+                  key={each.key ?? "bar"}
                   onPick={() => {
-                    setFolder(each.id);
+                    setFolder(each.key);
                   }}
                   title={each.title || NEW_FOLDER_NAME}
                 />
@@ -232,7 +243,7 @@ export function BookmarkEditor({
   );
 }
 
-/** One place in the editor's tree: the bar, or a folder on it. */
+/** One place in the editor's tree: a root, or a folder in one. */
 function FolderRow({
   icon,
   isIndented = false,

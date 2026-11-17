@@ -4,9 +4,12 @@ import {
   type Bookmark,
   type BookmarkFolder,
   type BookmarkOp,
+  type BookmarkPlace,
   type Bookmarks,
-  folderOf,
+  keyOfPlace,
   orderAfter,
+  placeOf,
+  placeOfKey,
   siblingsIn,
 } from "@/shared/bookmarks";
 
@@ -24,9 +27,9 @@ export function addressOfTyped(typed: string): string | undefined {
   return siteFromWords(words)?.url;
 }
 
-/** What the editor's Save changes: the name, the address, the folder, and the folders made in it. */
+/** What the editor's Save changes: the name, the address, the place, and the folders made in it. */
 export interface BookmarkEdit {
-  /** The folder picked, by id, a new one's included; none for the bar. */
+  /** The place picked, by its key (`placeOfKey`): a folder, a new one's included, Other bookmarks, or the bar without one. */
   folder: string | undefined;
   /** Folders New folder made in the editor, kept only as it saves. */
   newFolders: readonly BookmarkFolder[];
@@ -37,7 +40,7 @@ export interface BookmarkEdit {
 /**
  * The ops that make an edit so, as one batch: the new folders on the bar's
  * end, then the bookmark added (where `bookmark` is a new one, not kept
- * yet) or renamed, readdressed and moved to the end of the folder picked.
+ * yet) or renamed, readdressed and moved to the end of the place picked.
  * Only what changed has an op.
  */
 export function bookmarkEditOps(
@@ -49,20 +52,22 @@ export function bookmarkEditOps(
   const withFolders = applyBookmarkOps(state, folderOps);
   const title = edit.title.trim();
   const kept = state.bookmarks.find((each) => each.id === bookmark.id);
-  const endOf = (folder: string | undefined) =>
-    orderAfter(
-      siblingsIn(withFolders, folder).filter((each) => each.id !== bookmark.id),
-    );
+  const place = placeOfKey(edit.folder);
+  const end = orderAfter(
+    siblingsIn(withFolders, place.folder, place.root).filter(
+      (each) => each.id !== bookmark.id,
+    ),
+  );
   if (!kept) {
     return [
       ...folderOps,
       {
         bookmark: {
           id: bookmark.id,
-          order: endOf(edit.folder),
+          order: end,
           title,
           url: edit.url,
-          ...(edit.folder === undefined ? {} : { folder: edit.folder }),
+          ...place,
         },
         type: "add",
       },
@@ -75,13 +80,8 @@ export function bookmarkEditOps(
   if (edit.url !== kept.url && edit.url !== "") {
     ops.push({ id: kept.id, type: "setUrl", url: edit.url });
   }
-  if (edit.folder !== folderOf(state, kept)?.id) {
-    ops.push({
-      id: kept.id,
-      order: endOf(edit.folder),
-      type: "move",
-      ...(edit.folder === undefined ? {} : { folder: edit.folder }),
-    });
+  if (edit.folder !== keyOfPlace(placeOf(state, kept))) {
+    ops.push({ id: kept.id, order: end, type: "move", ...place });
   }
   return ops;
 }
@@ -106,19 +106,22 @@ function newFolderOps(
 export const NEW_FOLDER_NAME = "New folder";
 
 /**
- * Where a bookmark made now goes: last in the folder picked last
- * (`lastBookmarkFolderAtom`) while that is there, and last on the bar
- * otherwise.
+ * Where the address bar's star keeps a bookmark made now: last in the place
+ * picked last (`lastBookmarkFolderAtom`, by its key) while that is there,
+ * and last on the bar otherwise.
  */
 export function newBookmarkPlace(
   state: Bookmarks,
   lastFolder: string | null,
-): { folder?: string; order: number } {
-  const folder = state.folders.some((each) => each.id === lastFolder)
-    ? (lastFolder ?? undefined)
-    : undefined;
+): BookmarkPlace & { order: number } {
+  const picked = placeOfKey(lastFolder ?? undefined);
+  const place =
+    picked.root !== undefined ||
+    state.folders.some((each) => each.id === picked.folder)
+      ? picked
+      : {};
   return {
-    order: orderAfter(siblingsIn(state, folder)),
-    ...(folder === undefined ? {} : { folder }),
+    order: orderAfter(siblingsIn(state, place.folder, place.root)),
+    ...place,
   };
 }

@@ -21,7 +21,12 @@ import {
 import { rpcClient } from "@/client/rpc/client";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
 import { bookmarksStateAtom } from "@/client/bookmarks/store";
-import { type Bookmark, folderOf } from "@/shared/bookmarks";
+import {
+  type Bookmark,
+  bookmarkPlaces,
+  keyOfPlace,
+  placeOf,
+} from "@/shared/bookmarks";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { FolderSimplePlusIcon } from "@phosphor-icons/react/FolderSimplePlus";
 import { useAtomValue } from "jotai";
@@ -205,18 +210,15 @@ export function ManageBookmarksItem() {
 }
 
 /**
- * Filing a bookmark in one of the bar's folders, or taking it out onto the
- * bar, from its menu: the way to do it without dragging. None while the bar
- * has no folders.
+ * Filing a bookmark in a folder, or loose in the bar or Other bookmarks,
+ * from its menu: the way to do it without dragging. Every place but the
+ * one it is in (`bookmarkPlaces`).
  */
 function MoveToItems({ bookmark }: { bookmark: Bookmark }) {
   const state = useAtomValue(bookmarksStateAtom);
   const folders = useBookmarkFolders();
-  const filedIn = folderOf(state, bookmark)?.id;
-  const others = state.folders.filter((folder) => folder.id !== filedIn);
-  if (others.length === 0 && filedIn === undefined) {
-    return null;
-  }
+  const filedIn = keyOfPlace(placeOf(state, bookmark));
+  const others = bookmarkPlaces(state).filter((place) => place.key !== filedIn);
   return (
     <ContextMenuSub>
       <ContextMenuSubTrigger>
@@ -224,25 +226,19 @@ function MoveToItems({ bookmark }: { bookmark: Bookmark }) {
         <span>Move To</span>
       </ContextMenuSubTrigger>
       <ContextMenuSubContent className="max-w-72 min-w-44">
-        {filedIn !== undefined && (
+        {others.map((place) => (
           <ContextMenuItem
+            key={place.key ?? "bar"}
             onClick={() => {
-              folders.moveTo(bookmark, undefined);
+              folders.moveTo(bookmark, place.key);
             }}
           >
-            <BookmarksSimpleIcon className="size-4" />
-            <span>Bookmarks Bar</span>
-          </ContextMenuItem>
-        )}
-        {others.map((folder) => (
-          <ContextMenuItem
-            key={folder.id}
-            onClick={() => {
-              folders.moveTo(bookmark, folder.id);
-            }}
-          >
-            <FolderSimpleIcon className="size-4" />
-            <span className="min-w-0 truncate">{folder.title}</span>
+            {place.depth === 0 ? (
+              <BookmarksSimpleIcon className="size-4" />
+            ) : (
+              <FolderSimpleIcon className="size-4" />
+            )}
+            <span className="min-w-0 truncate">{place.title}</span>
           </ContextMenuItem>
         ))}
       </ContextMenuSubContent>

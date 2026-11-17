@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/client/components/ui/select";
 import { cn } from "@/client/lib/utils";
-import { type BookmarkFolder, folderOf } from "@/shared/bookmarks";
+import { bookmarkPlaces, keyOfPlace, placeOf } from "@/shared/bookmarks";
 import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -126,14 +126,14 @@ export function BookmarkStar({
     };
   }, []);
 
-  const keep = (name: string, folder: string | undefined) => {
+  const keep = (name: string, place: string | undefined) => {
     if (!kept) {
       return;
     }
     actions.rename(kept, name);
-    if (folder !== folderOf(state, kept)?.id) {
-      folders.moveTo(kept, folder);
-      setLastFolder(folder ?? null);
+    if (place !== keyOfPlace(placeOf(state, kept))) {
+      folders.moveTo(kept, place);
+      setLastFolder(place ?? null);
     }
   };
 
@@ -171,8 +171,8 @@ export function BookmarkStar({
         {kept && card && (
           <BookmarkCard
             address={kept.url}
-            folder={folderOf(state, kept)?.id}
-            folders={state.folders}
+            folder={keyOfPlace(placeOf(state, kept))}
+            places={bookmarkPlaces(state)}
             // A fresh card for each bookmark, so the name typed is its own.
             key={kept.id}
             name={kept.title}
@@ -217,27 +217,26 @@ const CHOOSE = "choose";
 /**
  * The star's card, the way a browser's is: the page's mark beside its name,
  * the folder it is filed in, and Remove or Done. The folder list has the bar
- * and its folders, and Choose another folder… for the editor, where the
- * address can change and a folder be made. What is typed and picked is kept
- * as the card goes away, by Done, Escape or a press elsewhere; only Remove
- * lets the bookmark go.
+ * and its folders, Other bookmarks and its folders, and Choose another
+ * folder… for the editor, where the address can change and a folder be
+ * made. What is typed and picked is kept as the card goes away, by Done,
+ * Escape or a press elsewhere; only Remove lets the bookmark go.
  */
 function BookmarkCard({
   address,
   folder,
-  folders,
   name,
   onAnchor,
   onChooseFolder,
   onClose,
   onKeep,
   onRemove,
+  places,
   title,
 }: {
   address: string;
-  /** The folder it is filed in, the bar without one. */
+  /** Where it is kept, by the place's key (`placeOfKey`): the bar without one. */
   folder: string | undefined;
-  folders: readonly BookmarkFolder[];
   name: string;
   /** Whether a press is on the star, which puts the card away itself rather than as a press elsewhere. */
   onAnchor: (target: EventTarget | null) => boolean;
@@ -246,6 +245,8 @@ function BookmarkCard({
   onClose: () => void;
   onKeep: (name: string, folder: string | undefined) => void;
   onRemove: () => void;
+  /** Every place it can be kept (`bookmarkPlaces`). */
+  places: ReturnType<typeof bookmarkPlaces>;
   title: string;
 }) {
   const [typed, setTyped] = useState(name);
@@ -329,14 +330,14 @@ function BookmarkCard({
               <SelectValue />
             </SelectTrigger>
             <SelectContent position="popper">
-              <SelectItem value={BAR}>
-                <BookmarksSimpleIcon className="size-4" />
-                Bookmarks bar
-              </SelectItem>
-              {folders.map((each) => (
-                <SelectItem key={each.id} value={each.id}>
-                  <FolderSimpleIcon className="size-4" />
-                  <span className="min-w-0 truncate">{each.title}</span>
+              {places.map((place) => (
+                <SelectItem key={place.key ?? BAR} value={place.key ?? BAR}>
+                  {place.depth === 0 ? (
+                    <BookmarksSimpleIcon className="size-4" />
+                  ) : (
+                    <FolderSimpleIcon className="size-4" />
+                  )}
+                  <span className="min-w-0 truncate">{place.title}</span>
                 </SelectItem>
               ))}
               <SelectSeparator />

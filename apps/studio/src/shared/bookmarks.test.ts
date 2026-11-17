@@ -7,11 +7,19 @@ import {
   type BookmarkFolder,
   type Bookmarks,
   barItems,
+  bookmarkPlaces,
   folderOf,
   inOrder,
+  keyOfPlace,
   orderAfter,
   orderOnBar,
+  OTHER_ROOT,
+  placeOfKey,
+  rootItems,
+  rootOf,
+  SORTED_FOLDERS,
   siblingsIn,
+  sortedAddOps,
 } from "./bookmarks";
 
 const page = (id: string, order: number, folder?: string): Bookmark => ({
@@ -228,5 +236,96 @@ describe("orders", () => {
     expect(
       inOrder([page("b", 1), page("a", 1), page("c", 0)]).map((b) => b.id),
     ).toEqual(["c", "a", "b"]);
+  });
+});
+
+describe("Other bookmarks", () => {
+  const other = (id: string, order: number): Bookmark => ({
+    ...page(id, order),
+    root: OTHER_ROOT,
+  });
+  const otherFolder = (id: string, order: number): BookmarkFolder => ({
+    ...folder(id, order),
+    root: OTHER_ROOT,
+  });
+  const state = of(
+    [page("a", 0), other("o", 1), page("in", 0, "of"), page("bf", 0, "f")],
+    [folder("f", 1), otherFolder("of", 0)],
+  );
+
+  it("keeps the bar and Other bookmarks apart, each folder in its own root", () => {
+    expect(drawn(barItems(state))).toEqual(["a", "f [bf]"]);
+    expect(drawn(rootItems(state, OTHER_ROOT))).toEqual(["of [in]", "o"]);
+    expect(
+      state.bookmarks.map((each) => `${each.id} ${rootOf(state, each) ?? ""}`),
+    ).toEqual(["a ", "o other", "in other", "bf "]);
+  });
+
+  it("moves a bookmark between the roots, and a folder only within its own", () => {
+    const moved = applyBookmarkOps(state, [
+      { id: "a", order: 5, root: OTHER_ROOT, type: "move" },
+      { id: "o", order: 5, type: "move" },
+      { id: "of", order: 9, type: "move" },
+    ]);
+    expect(drawn(barItems(moved))).toEqual(["f [bf]", "o"]);
+    expect(drawn(rootItems(moved, OTHER_ROOT))).toEqual(["a", "of [in]"]);
+  });
+
+  it("lists every place a bookmark can go, the bar's first", () => {
+    expect(
+      bookmarkPlaces(state).map(
+        ({ depth, key, title }) => `${"  ".repeat(depth)}${key ?? ""} ${title}`,
+      ),
+    ).toEqual([
+      " Bookmarks bar",
+      "  f Folder f",
+      "other Other bookmarks",
+      "  of Folder of",
+    ]);
+    expect(placeOfKey(keyOfPlace({ root: OTHER_ROOT }))).toEqual({
+      root: OTHER_ROOT,
+    });
+  });
+
+  it("files an add by kind in its folder of Other bookmarks, made once and found again after a rename", () => {
+    const first = applyBookmarkOps(
+      state,
+      sortedAddOps(state, { id: "x", title: "X", url: "file:///x" }, "files"),
+    );
+    const renamed = applyBookmarkOps(first, [
+      { id: SORTED_FOLDERS.files.id, title: "My files", type: "rename" },
+    ]);
+    const second = applyBookmarkOps(
+      renamed,
+      sortedAddOps(renamed, { id: "y", title: "Y", url: "file:///y" }, "files"),
+    );
+    expect(drawn(rootItems(second, OTHER_ROOT))).toEqual([
+      "of [in]",
+      "o",
+      "other-files [x y]",
+    ]);
+    expect(folderOf(second, page("x", 0, "other-files"))?.title).toBe(
+      "My files",
+    );
+    expect(drawn(barItems(second))).toEqual(drawn(barItems(state)));
+  });
+
+  it("makes the folder again once the person deletes it", () => {
+    const made = applyBookmarkOps(
+      state,
+      sortedAddOps(state, { id: "x", title: "X", url: "https://x" }, "pages"),
+    );
+    const gone = applyBookmarkOps(made, [
+      { id: SORTED_FOLDERS.pages.id, type: "remove" },
+    ]);
+    const again = applyBookmarkOps(
+      gone,
+      sortedAddOps(gone, { id: "y", title: "Y", url: "https://y" }, "pages"),
+    );
+    expect(drawn(rootItems(again, OTHER_ROOT))).toEqual([
+      "of [in]",
+      "o",
+      "other-pages [y]",
+    ]);
   });
 });

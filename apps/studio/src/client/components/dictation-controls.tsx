@@ -157,15 +157,21 @@ export function DictationControls({
   dictation,
   disabled,
   size = "md",
+  waveClassName,
 }: {
   className?: string;
   dictation: Dictation;
   disabled?: boolean;
   size?: "md" | "sm";
+  /** The wave's size, where the row has less room than a composer's. */
+  waveClassName?: string;
 }) {
   return (
     <div className={cn("flex items-center gap-1", className)}>
-      <DictationWave className="mr-1" dictation={dictation} />
+      <DictationWave
+        className={cn("mr-1", waveClassName)}
+        dictation={dictation}
+      />
       <DictationCancel dictation={dictation} size={size} />
       <DictationButton dictation={dictation} disabled={disabled} size={size} />
     </div>

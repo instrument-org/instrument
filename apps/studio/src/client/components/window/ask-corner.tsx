@@ -6,6 +6,7 @@ import {
 } from "@/client/components/dictation-controls";
 import { ShortcutKeys } from "@/client/components/shortcut-keys";
 import { makeNewChatDraftAtom } from "@/client/drafts/new-chat-box";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { isDictating, useDictation } from "@/client/hooks/use-dictation";
 import { onPagePress } from "@/client/lib/browser-pool";
 import { cn, commandKeyHeld } from "@/client/lib/utils";
@@ -21,8 +22,10 @@ import { useShell } from "./shell-context";
 import { type GroupLayout, isChatTab, isNewChatTab } from "./tab-model";
 import {
   ideaTabsOf,
+  noteIdeaTaken,
   useIdeasAvailable,
   useIdeasConnection,
+  useIdeasPaceOnMoves,
   useTabIdeas,
 } from "./use-tab-ideas";
 import { useWindowTabs } from "./window-tabs";
@@ -35,16 +38,17 @@ const LABEL = "Ask about this page";
 
 /**
  * The Ask corner, at the top right of a tab group with no chat in it: a
- * label until an idea for the group's tabs is ready, then that idea, rising
- * in, and never changing under the pointer; ⌘J beside it either way. A
- * click or ⌘J opens it into a field with the ideas as next-message rows
- * under it: ↓ and ↑ move through them and ↩ takes the one marked, ⌘↩ takes
- * the first, typing writes your own. The microphone talks into it in place,
- * without ideas. Sending makes a chat with the message sent, as the group's
- * right side, or as a new tab on that side when it already has one. It never
+ * label with ⌘J until an idea for the group's tabs as they are now is
+ * ready, then that idea, rising in, across the corner, ⌘J only under the
+ * pointer; never changing under the pointer. A click or ⌘J asks for ideas
+ * and opens it into a field with them as next-message rows under it: ↓ and
+ * ↑ move through them and ↩ takes the one marked, ⌘↩ takes the first,
+ * typing writes your own. The microphone talks into it in place, without
+ * ideas. Sending makes a chat with the message sent, as the group's right
+ * side, or as a new tab on that side when it already has one. It never
  * answers in place. Esc steps back from a marked idea, then closes; a click
- * anywhere else folds it back, keeping what was typed. A group with a
- * chat (or a new tab, which has ideas of its own) has no corner, and neither
+ * anywhere else folds it back, keeping what was typed. A group with a chat
+ * (or a new tab, which has ideas of its own) has no corner, and neither
  * does a connection with no fast model.
  */
 export function AskCorner({
@@ -60,6 +64,7 @@ export function AskCorner({
       (tab) => isChatTab(tab) || (tab.id === side.up && isNewChatTab(tab)),
     ),
   );
+  useIdeasPaceOnMoves(layout);
   if (!hasConnection || hasChat) {
     return null;
   }
@@ -78,6 +83,7 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
   const [highlighted, setHighlighted] = useState<number>();
   const inputRef = useRef<HTMLInputElement>(null);
   const cornerRef = useRef<HTMLDivElement>(null);
+  const isShown = useIsActiveTab();
   const ideasOn = useIdeasAvailable();
   const ideas = useTabIdeas({
     held: isOpen,
@@ -85,12 +91,11 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
     tabs: ideaTabsOf(layout),
     trigger: "tabs",
   });
-  // What the corner shows stays put under the pointer and while open.
+  // What the corner shows stays put under the pointer and while open, where
+  // ideas may still rise in under an empty field.
   const [shown, setShown] = useState<readonly string[]>([]);
   if (
-    !isHovered &&
-    !isOpen &&
-    !ideas.isWaiting &&
+    ((!isHovered && !isOpen) || (isOpen && shown.length === 0)) &&
     shown.join("\n") !== ideas.lines.join("\n")
   ) {
     setShown(ideas.lines);
@@ -119,6 +124,7 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
       setIsOpen(true);
     });
     inputRef.current?.focus();
+    ideas.ask();
   };
   /** Back to rest, what was typed kept. */
   const collapse = () => {
@@ -130,7 +136,7 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
     setWords("");
     setIsDictated(false);
   };
-  useAskCornerRequest(open);
+  useAskCornerRequest(isShown ? open : null);
 
   // A click anywhere else folds it back. A click into a page reaches its
   // guest, never this document, so main reports that one.
@@ -148,9 +154,13 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
     };
     window.addEventListener("pointerdown", onDown, { capture: true });
     const stopPagePresses = onPagePress(collapse);
+    // A press on the tab strip or the title bar would move the window
+    // instead of reaching this document.
+    document.documentElement.toggleAttribute("data-no-window-drag", true);
     return () => {
       window.removeEventListener("pointerdown", onDown, { capture: true });
       stopPagePresses();
+      document.documentElement.removeAttribute("data-no-window-drag");
     };
   }, [isOpen]);
 
@@ -185,6 +195,14 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
     });
   };
 
+  const take = (line: string) => {
+    if (line.trim() === "") {
+      return;
+    }
+    noteIdeaTaken();
+    send(line);
+  };
+
   const idea = shown[0];
   const hasWords = words.trim() !== "";
   const rows = !isDictated && !talking ? shown : [];
@@ -209,7 +227,11 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
             className="flex h-8 items-center gap-0.5 pr-1 pl-2.5 text-[13px]"
             onSubmit={(event) => {
               event.preventDefault();
-              send(marked ?? words);
+              if (marked === undefined) {
+                send(words);
+              } else {
+                take(marked);
+              }
             }}
           >
             <input
@@ -241,7 +263,11 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
                   );
                 } else if (event.key === "Enter" && commandKeyHeld(event)) {
                   event.preventDefault();
-                  send(marked ?? (hasWords ? words : (idea ?? "")));
+                  if (marked === undefined && hasWords) {
+                    send(words);
+                  } else {
+                    take(marked ?? idea ?? "");
+                  }
                 }
               }}
               placeholder={LABEL}
@@ -271,7 +297,7 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
               highlighted={highlighted}
               isBoxEmpty={!hasWords}
               lines={rows}
-              onSend={send}
+              onSend={take}
             />
           )}
         </div>
@@ -317,12 +343,20 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
               )}
             </button>
           )}
-          <span className="shrink-0 pr-1 pl-2 opacity-70">
-            <ShortcutKeys
-              accelerator={WINDOW_SHORTCUTS.askAboutPage.accelerator}
+          {!talking && (isHovered || (!hasWords && !idea)) && (
+            <span className="shrink-0 pr-1 pl-2 opacity-70">
+              <ShortcutKeys
+                accelerator={WINDOW_SHORTCUTS.askAboutPage.accelerator}
+              />
+            </span>
+          )}
+          {canDictate && (
+            <DictationControls
+              dictation={dictation}
+              size="sm"
+              waveClassName="h-4 w-10"
             />
-          </span>
-          {canDictate && <DictationControls dictation={dictation} size="sm" />}
+          )}
           {hasWords && !talking && (
             <button
               aria-label="Send"

@@ -1273,6 +1273,14 @@ body {
   -webkit-app-region: no-drag;
 }
 
+/* While something open folds at a press anywhere else (the Ask corner), no
+ * part of the window is a handle for moving it, so a press on the tab strip
+ * or the title bar reaches the document instead of the system. */
+[data-no-window-drag],
+[data-no-window-drag] * {
+  -webkit-app-region: no-drag !important;
+}
+
 /* A tooltip's positioning box takes no pointer, so the content alone decides
  * whether the pointer reaches what the tooltip covers (`ui/tooltip.tsx`). */
 [data-radix-popper-content-wrapper]:has(> [data-slot="tooltip-content"]) {

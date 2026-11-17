@@ -61,7 +61,12 @@ import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { IdeaRows } from "./idea-rows";
 import { openSettings } from "@/client/atoms/settings-modal";
-import { ideaTabsOf, useIdeasAvailable, useTabIdeas } from "./use-tab-ideas";
+import {
+  ideaTabsOf,
+  noteIdeaTaken,
+  useIdeasAvailable,
+  useTabIdeas,
+} from "./use-tab-ideas";
 import { arrivingNewChatTabsAtom, useWindowTabs } from "./window-tabs";
 
 /**
@@ -316,6 +321,7 @@ export function NewChatView({
     if (shell.defaultModelURI === undefined) {
       return;
     }
+    noteIdeaTaken();
     cancelWords(newChatWordsKey(tabId));
     const id = draft?.id ?? makeDraft({ tabId, words: line });
     shell.startChat(

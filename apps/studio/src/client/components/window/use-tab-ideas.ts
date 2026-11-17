@@ -1,4 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { getGuest } from "@/client/lib/browser-pool";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { rpcClient } from "@/client/rpc/client";
@@ -9,7 +10,7 @@ import {
 } from "@instrument-org/shared/page-distill";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { computerTabOf } from "./file-tabs";
 import { useShell } from "./shell-context";
@@ -18,15 +19,21 @@ import { useTabTitle } from "./tab-title";
 
 /**
  * Ideas for what to ask about a set of tabs, the one in front first, from
- * the workspace's `ideas.ask` (ask-ideas.ts). Asked once the set has stood
- * still a moment, never while `held` (the corner is open: what it shows
- * stays put), and kept per set, so coming back to one shows its ideas at
- * once. Nothing at all where new chats run on a connection with no fast
+ * the workspace's `ideas.ask` (ask-ideas.ts). Only while the set is on
+ * screen: asked once it has stood still a while, never while `held` (the
+ * corner is open: what it shows stays put), and at once by `ask`. Kept per
+ * set, so coming back to one shows its ideas at once, and a set without
+ * any shows none. A new tab showing counts as asking; the tabs changing
+ * under a group are paced by the workspace, which may answer when to try
+ * again. Nothing at all where new chats run on a connection with no fast
  * model, or with Show ideas off.
  */
 
-/** How long a set of tabs stands still before ideas are asked for it. */
-const DWELL_MS = 1000;
+/** How long a set of tabs stands still before ideas are asked for it: a new page or file in a group, or a new tab. */
+const REST_MS = { "new-tab": 1000, tabs: 3000 } satisfies Record<
+  Trigger,
+  number
+>;
 
 /** What a page's walker may send, in characters, about 4 to a token: the tab in front, then the next three. */
 const FRONT_CHARS = 12_000;
@@ -76,53 +83,65 @@ export function useTabIdeas({
   /** The tabs the ideas are about, the one in front first. */
   tabs: readonly WindowTab[];
   trigger: Trigger;
-}): { isWaiting: boolean; lines: readonly string[] } {
+}): { ask: () => void; lines: readonly string[] } {
   const shell = useShell();
+  const isShown = useIsActiveTab();
   const titleOf = useTabTitle(shell.chatTitles);
   const key = `${trigger}\n${shell.defaultModelURI ?? ""}\n${tabs.map(identityOf).join("\n")}`;
   const [answered, setAnswered] = useState<{
     key: string;
     lines: readonly string[];
   }>();
-  const cached = known.get(key);
+
+  // The latest tabs, for an ask that reads them after the render it began in.
+  const latest = useRef({ tabs, titleOf });
+  useEffect(() => {
+    latest.current = { tabs, titleOf };
+  });
+
+  /** Asks for this set's ideas, unless the set changed meanwhile: the lines, or when to try again. */
+  const request = async (asked: boolean, isCurrent = () => true) => {
+    const modelURI = shell.defaultModelURI;
+    if (modelURI === undefined) {
+      return;
+    }
+    const { tabs: now, titleOf: titled } = latest.current;
+    const read = await Promise.all(
+      now.map((tab, index) =>
+        ideaTabOf(tab, titled(tab), {
+          budget:
+            index === 0 ? FRONT_CHARS : index < READ_IN_FULL ? NEXT_CHARS : 0,
+        }),
+      ),
+    );
+    if (!isCurrent()) {
+      return;
+    }
+    const answer = await rpcClient.workspace.ideas.ask
+      .call({ asked, key, modelURI, tabs: read, trigger })
+      .catch(() => ({ lines: [] }));
+    if ("lines" in answer) {
+      known.set(key, answer.lines);
+      setAnswered({ key, lines: answer.lines });
+      return;
+    }
+    return answer.retryInMs;
+  };
 
   useEffect(() => {
-    const modelURI = shell.defaultModelURI;
-    if (!isOn || held || known.has(key) || modelURI === undefined) {
+    if (!isOn || held || !isShown || shell.defaultModelURI === undefined) {
       return;
     }
     let isCurrent = true;
-    const timer = setTimeout(() => {
-      void (async () => {
-        const read = await Promise.all(
-          tabs.map((tab, index) =>
-            ideaTabOf(tab, titleOf(tab), {
-              budget:
-                index === 0
-                  ? FRONT_CHARS
-                  : index < READ_IN_FULL
-                    ? NEXT_CHARS
-                    : 0,
-            }),
-          ),
-        );
-        if (!isCurrent) {
-          return;
+    let timer: ReturnType<typeof setTimeout>;
+    const attempt = () => {
+      void request(trigger === "new-tab", () => isCurrent).then((retryInMs) => {
+        if (isCurrent && retryInMs !== undefined) {
+          timer = setTimeout(attempt, retryInMs);
         }
-        const lines = await rpcClient.workspace.ideas.ask
-          .call({
-            key,
-            modelURI,
-            tabs: read,
-            trigger,
-          })
-          .catch(() => []);
-        known.set(key, lines);
-        if (isCurrent) {
-          setAnswered({ key, lines });
-        }
-      })();
-    }, DWELL_MS);
+      });
+    };
+    timer = setTimeout(attempt, REST_MS[trigger]);
     return () => {
       isCurrent = false;
       clearTimeout(timer);
@@ -130,18 +149,73 @@ export function useTabIdeas({
     // The key names the tabs and the model; the tabs' objects change on
     // every render of the window.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, isOn, held]);
+  }, [key, isOn, held, isShown]);
 
+  const ask = () => {
+    if (isOn) {
+      void request(true);
+    }
+  };
   if (!isOn) {
-    return { isWaiting: false, lines: [] };
+    return { ask, lines: [] };
   }
-  const lines = cached ?? (answered?.key === key ? answered.lines : undefined);
-  return { isWaiting: lines === undefined, lines: lines ?? [] };
+  return {
+    ask,
+    lines:
+      known.get(key) ??
+      (answered?.key === key ? answered.lines : undefined) ??
+      [],
+  };
 }
 
-/** What makes a tab the same tab for the ideas: where it is. */
+/**
+ * Steps the pace of the ideas the tabs set off back as the person moves to
+ * this group, or opens a file in it while it is on screen.
+ */
+export function useIdeasPaceOnMoves(layout: {
+  focused: 0 | 1;
+  sides: { tabs: WindowTab[]; up?: string }[];
+}) {
+  const isShown = useIsActiveTab();
+  const front = ideaTabsOf(layout)[0];
+  const file = front && isFileTab(front) ? identityOf(front) : undefined;
+  const last = useRef({ file, isShown });
+  useEffect(() => {
+    const before = last.current;
+    last.current = { file, isShown };
+    if (
+      isShown &&
+      (!before.isShown || (file !== undefined && file !== before.file))
+    ) {
+      void rpcClient.workspace.ideas.pace
+        .call({ event: "moved" })
+        .catch(() => undefined);
+    }
+  }, [file, isShown]);
+}
+
+/** Tells the workspace an idea was taken, which starts the pace over. */
+export function noteIdeaTaken() {
+  void rpcClient.workspace.ideas.pace
+    .call({ event: "taken" })
+    .catch(() => undefined);
+}
+
+/** What makes a tab the same tab for the ideas: where it is, a page's place in itself aside. */
 function identityOf(tab: WindowTab): string {
-  return tab.kind === "page" ? (tab.url ?? tab.openedUrl ?? tab.id) : tab.href;
+  if (tab.kind !== "page") {
+    return tab.href;
+  }
+  const url = tab.url ?? tab.openedUrl;
+  return url === undefined ? tab.id : url.replace(/#.*$/, "");
+}
+
+/** Whether a tab shows one file: a page at a file's address, or Files open at one. */
+function isFileTab(tab: WindowTab): boolean {
+  if (tab.kind === "page") {
+    return hostPathOfFileUrl(tab.url ?? tab.openedUrl) !== undefined;
+  }
+  return computerTabOf(tab.href)?.file !== undefined;
 }
 
 /**

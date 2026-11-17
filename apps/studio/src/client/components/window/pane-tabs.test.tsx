@@ -1,8 +1,30 @@
 import { renderWithProviders } from "@/tests/render";
+import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { PaneTabs } from "./pane-tabs";
+import { taskHref } from "./tab-location";
+
+const CHAT = ChatIdSchema.parse("2026-11-17-compare-plans");
+// Read by the tasks mock as it is made, ahead of the file's own lines.
+const TASKS = vi.hoisted(() => ({
+  done: "ses_01JAAAAAAAAAAAAAAAAAAAAAAA",
+  working: "ses_01JBBBBBBBBBBBBBBBBBBBBBBB",
+}));
+
+// Where each task stands, as its chat's list says: one at work, one done.
+vi.mock("./child-tasks-query", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./child-tasks-query")>()),
+  useTasksOf: () =>
+    new Map([
+      [TASKS.done, { status: { kind: "done", line: "" }, working: false }],
+      [
+        TASKS.working,
+        { status: { kind: "running", line: "Reading plans" }, working: true },
+      ],
+    ]),
+}));
 
 const tab = (id: string) => ({
   href: `/settings/${id}`,
@@ -197,6 +219,39 @@ describe("PaneTabs", () => {
 
       expect(onCloseSplit).toHaveBeenCalledTimes(1);
     });
+  });
+
+  it("shimmers a task's tab, name and mark, only while the task works", () => {
+    const working = StoreId.SessionSchema.parse(TASKS.working);
+    const done = StoreId.SessionSchema.parse(TASKS.done);
+    renderWithProviders(
+      <PaneTabs
+        chatTitles={new Map()}
+        chosenId="w"
+        onClose={() => {}}
+        onDuplicate={() => {}}
+        onNew={() => {}}
+        onSelect={() => {}}
+        tabs={[
+          { href: taskHref(working, CHAT), id: "w", kind: "screen" },
+          { href: taskHref(done, CHAT), id: "d", kind: "screen" },
+        ]}
+        taskTitles={
+          new Map([
+            [working, "Compare plans"],
+            [done, "Book the hotel"],
+          ])
+        }
+      />,
+    );
+    const [atWork, finished] = screen.getAllByRole("tab");
+
+    expect(atWork?.querySelector(".brand-shiny-text")?.textContent).toContain(
+      "Compare plans",
+    );
+    expect(atWork?.querySelector(".brand-shiny-icon")).not.toBeNull();
+    expect(finished?.querySelector(".brand-shiny-text")).toBeNull();
+    expect(finished?.querySelector(".brand-shiny-icon")).toBeNull();
   });
 
   it("opens and closes a tab with the window's motions", () => {

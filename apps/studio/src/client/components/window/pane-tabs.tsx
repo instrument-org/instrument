@@ -33,12 +33,14 @@ import {
 import { chatListOptions } from "./chat-list-query";
 import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { type Chat } from "./chats";
+import { useTasksOf } from "./child-tasks-query";
 import { useComputerVolumes } from "./computer-volumes";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { useFileTabTitles } from "./file-tab-titles";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
+import { tasksOfHref } from "./tab-location";
 import { chatOfTab, draftOfTab } from "./tab-model";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { type StripTab, TabStrip } from "./tab-strip";
@@ -135,6 +137,16 @@ export function PaneTabs({
       return target ? [target] : [];
     }),
   );
+  const taskOf = (tab: WindowTab) =>
+    tab.kind === "page" ? undefined : tasksOfHref(tab.href);
+  const tasks = useTasksOf(
+    tabs.flatMap((tab) => {
+      const named = taskOf(tab);
+      return named?.chat === undefined
+        ? []
+        : [{ chat: named.chat, id: named.task }];
+    }),
+  );
   const [menu, setMenu] = useState<{ key: string; x: number; y: number }>();
   const [spaceMenu, setSpaceMenu] = useState<{ x: number; y: number }>();
   // What a row of the menu does once the menu has let go of the keyboard,
@@ -215,6 +227,11 @@ export function PaneTabs({
         />
       );
     }
+    // A task at work shimmers its tab's name, as a page its agent is using
+    // does, and its mark with it.
+    const task = taskOf(tab);
+    const isTaskWorking =
+      task !== undefined && tasks.get(task.task)?.working === true;
     const chord = chords?.get(tab.id);
     return {
       ...(chord === undefined ? {} : { chord }),
@@ -230,8 +247,20 @@ export function PaneTabs({
             ),
           }
         : {}),
+      ...(isTaskWorking && tab.kind !== "page"
+        ? {
+            glintIcon: (
+              <ScreenMark
+                appsBySlug={appsBySlug}
+                chatTitles={chatTitles}
+                href={tab.href}
+              />
+            ),
+          }
+        : {}),
       icon,
-      isWorking: tab.kind === "page" && drivenIds.has(tab.id),
+      isWorking:
+        isTaskWorking || (tab.kind === "page" && drivenIds.has(tab.id)),
       key: named.key,
       title: short.get(named.key) ?? named.title,
       ...(tooltip ? { tooltip } : {}),

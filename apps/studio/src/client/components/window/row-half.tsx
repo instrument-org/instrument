@@ -31,6 +31,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { chatListOptions } from "./chat-list-query";
 import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { type Chat } from "./chats";
+import { useTasksOf } from "./child-tasks-query";
 import { FadeTitle } from "./fade-title";
 import { pageTabTitle } from "./file-tabs";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
@@ -47,11 +48,12 @@ import {
   quiet,
   type RowLines,
   siteOf,
+  taskLines,
 } from "./row-lines";
 import { screenLocation, screenPresentation } from "./screen-presentation";
 import { chatOfTab, draftOfTab } from "./tab-model";
 import { useTaskTitles } from "./task-titles";
-import { locationCrumbs } from "./tab-location";
+import { locationCrumbs, tasksOfHref } from "./tab-location";
 
 /**
  * What the sidebar's rows read beyond the window's tabs: every chat, every
@@ -331,7 +333,7 @@ export function RowLinesView({
 }
 
 /**
- * What a tab says on its row's two lines: a chat its state, a page its site,
+ * What a tab says on its row's two lines: a chat or a task its state, a page its site,
  * a file its folder, a built-in page its name over the part open, a new tab the words
  * typed in it (`row-lines.ts`).
  */
@@ -343,6 +345,10 @@ function useRowLines(
   const appsBySlug = useAppsBySlug();
   const taskTitles = useTaskTitles();
   const load = usePageLoad(tab);
+  const named = tab.kind === "page" ? undefined : tasksOfHref(tab.href);
+  const tasks = useTasksOf(
+    named?.chat === undefined ? [] : [{ chat: named.chat, id: named.task }],
+  );
   if (tab.kind === "page") {
     const title = pageTabTitle(tab) ?? "";
     const path = hostPathOfFileUrl(tab.url);
@@ -388,7 +394,11 @@ function useRowLines(
       return quiet(title, PAGE_START_LINES.apps);
     }
     case "task": {
-      return quiet(location.title, location.chat?.title ?? "Task");
+      return taskLines(
+        named && tasks.get(named.task),
+        location.title,
+        location.chat?.title ?? "Task",
+      );
     }
     case "newTab":
     case "page": {

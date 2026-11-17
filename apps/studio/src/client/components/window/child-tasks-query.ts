@@ -1,6 +1,10 @@
 import { shareEqualDeep } from "@/client/lib/share-equal-deep";
 import { rpcClient } from "@/client/rpc/client";
-import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  type ChildTask,
+  type StoreId,
+} from "@instrument-org/workspace/client";
 import { skipToken, useQueries, useQuery } from "@tanstack/react-query";
 
 /**
@@ -30,6 +34,27 @@ export function useChatTasks(chat: ChatId | undefined) {
 export function useChildTask(chat: ChatId | undefined, id: StoreId.Session) {
   const tasks = useQuery(childTasksOptions(chat ?? skipToken));
   return tasks.data?.find((task) => task.id === id);
+}
+
+/**
+ * The tasks named, each in its chat, as their chats' lists have them, by
+ * session: where each stands, for a tab or a row that stands on one. Read
+ * through the same subscription the task's page and its chat's transcript
+ * hold, so a task beside its chat costs no read of its own.
+ */
+export function useTasksOf(
+  tasks: readonly { chat: ChatId; id: StoreId.Session }[],
+): Map<StoreId.Session, ChildTask> {
+  const chats = [...new Set(tasks.map((task) => task.chat))].toSorted();
+  return useQueries({
+    queries: chats.map((chat) => childTasksOptions(chat)),
+    combine: (results) =>
+      new Map(
+        results.flatMap((result) =>
+          (result.data ?? []).map((task) => [task.id, task] as const),
+        ),
+      ),
+  });
 }
 
 /**

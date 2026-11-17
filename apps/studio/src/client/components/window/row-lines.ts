@@ -1,4 +1,5 @@
 import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
+import { type ChildTask } from "@instrument-org/workspace/client";
 
 import { type ScreenName } from "@/shared/instrument-screens";
 
@@ -6,7 +7,7 @@ import { type Chat } from "./chats";
 
 /**
  * The ink of a row's second line: `quiet` for where a tab is, `work` for a
- * chat at work, `ask` for a chat's question, `news` for a reply not yet
+ * chat or a task at work, `ask` for a chat's question, `news` for a reply not yet
  * read, `fail` for what went wrong, and `draft` for words typed in a new tab.
  */
 export type LineTone = "ask" | "draft" | "fail" | "news" | "quiet" | "work";
@@ -64,6 +65,26 @@ export function chatLines(
         : quiet(named, plain(latest));
     }
   }
+}
+
+/**
+ * A task's two lines: its title over the step it is on while it works, as a
+ * chat at work says it, and that it stopped when its last turn failed; else
+ * over `line`, where it was started. Never a question: what a task waits on
+ * the person for, its chat asks.
+ */
+export function taskLines(
+  task: Pick<ChildTask, "status" | "working"> | undefined,
+  title: string,
+  line: string,
+): RowLines {
+  if (task?.working === true) {
+    const step = task.status.kind === "running" ? task.status.line : "";
+    return quiet(title, step || "Working", "work");
+  }
+  return task?.status.kind === "failed"
+    ? quiet(title, "Stopped", "fail")
+    : quiet(title, line);
 }
 
 /**

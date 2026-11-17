@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { type Chat } from "./chats";
-import { chatLines, newTabLines, pageLines, type RowLines } from "./row-lines";
+import {
+  chatLines,
+  newTabLines,
+  pageLines,
+  type RowLines,
+  taskLines,
+} from "./row-lines";
 
 /** The fields a row reads off a chat, as the chat list's tests stand in for one. */
 function chatWith(fields: Partial<Chat> & Pick<Chat, "title">): Chat {
@@ -63,6 +69,52 @@ describe("chatLines", () => {
 
   it("goes by the title given for a chat not read yet", () => {
     expect(chatLines(undefined, "Pricing").title).toBe("Pricing");
+  });
+});
+
+describe("taskLines", () => {
+  type Task = Parameters<typeof taskLines>[0];
+  const status = (kind: NonNullable<Task>["status"]["kind"], text = "") => ({
+    kind,
+    line: text,
+  });
+  it.each<[string, Task, Pick<RowLines, "line" | "strong" | "tone">]>([
+    [
+      "a task at work",
+      { status: status("running", "Reading plans"), working: true },
+      { line: "Reading plans", strong: false, tone: "work" },
+    ],
+    [
+      "a task at work with no step yet",
+      { status: status("running"), working: true },
+      { line: "Working", strong: false, tone: "work" },
+    ],
+    // Never a question: the chat asks what its task waits on.
+    [
+      "a task waiting on a card",
+      { status: status("waiting", "Allow Linear?"), working: false },
+      { line: "Pricing", strong: false, tone: "quiet" },
+    ],
+    [
+      "a task done",
+      { status: status("done", "Ridgeline came in lowest."), working: false },
+      { line: "Pricing", strong: false, tone: "quiet" },
+    ],
+    [
+      "a task that failed",
+      { status: status("failed", "Timed out"), working: false },
+      { line: "Stopped", strong: false, tone: "fail" },
+    ],
+    [
+      "a task not read yet",
+      undefined,
+      { line: "Pricing", strong: false, tone: "quiet" },
+    ],
+  ])("says %s", (_kind, task, expected) => {
+    expect(taskLines(task, "Compare plans", "Pricing")).toEqual({
+      ...expected,
+      title: "Compare plans",
+    });
   });
 });
 

@@ -285,7 +285,8 @@ describe("retireChatsFolder", () => {
     `);
   });
 
-  it("waits on a folder whose CHAT.md cannot be read", async () => {
+  // Windows has no mode that makes a file or folder unreadable.
+  it.skipIf(process.platform === "win32")("waits on a folder whose CHAT.md cannot be read", async () => {
     records(CHAT);
     names({ [CHAT]: "Quiet dishwashers" });
     write({
@@ -308,7 +309,8 @@ describe("retireChatsFolder", () => {
     expect(hasNames()).toBe(true);
   });
 
-  it("keeps the names file when Chats/ cannot be listed", async () => {
+  // Windows has no mode that makes a file or folder unreadable.
+  it.skipIf(process.platform === "win32")("keeps the names file when Chats/ cannot be listed", async () => {
     names({ [CHAT]: "Quiet dishwashers" });
     write({ "Chats/Quiet dishwashers/notes.md": "notes" });
     lock("Chats", 0o000);
@@ -324,7 +326,8 @@ describe("retireChatsFolder", () => {
     expect(hasNames()).toBe(true);
   });
 
-  it.each([
+  // Windows has no mode that makes a folder unwritable.
+  it.skipIf(process.platform === "win32").each([
     [
       "its move is refused",
       // Nothing in it can move, as when another program holds it.

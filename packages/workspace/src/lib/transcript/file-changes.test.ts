@@ -57,7 +57,10 @@ async function touchedBy(
 
 const brief = (touches: readonly { change: string; path: string }[]) =>
   touches
-    .map((touch) => `${touch.change} ${path.relative(root, touch.path)}`)
+    .map(
+      (touch) =>
+        `${touch.change} ${path.relative(root, touch.path).replaceAll(path.sep, "/")}`,
+    )
     .toSorted();
 
 describe("fileTouches", () => {
@@ -234,7 +237,7 @@ describe("fileTouches", () => {
       await write(path.join(filesFolder, "Other", "x.md"));
     });
     expect(brief(files)).toEqual([
-      `created ${path.relative(root, path.join(into, "plan.docx"))}`,
+      `created ${path.relative(root, path.join(into, "plan.docx")).replaceAll(path.sep, "/")}`,
     ]);
   });
 

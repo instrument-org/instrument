@@ -391,9 +391,11 @@ export function GroupSidebar({
       )}
       {/* The list's empty space under the rows, where a tab held over it
           becomes a group of its own at the list's end, and which moves the
-          window like the top row, being the window's own ground. */}
+          window like the top row, being the window's own ground. From a
+          press until a drag lets go it is the page's alone, so nothing
+          carried onto it can be taken for moving the window. */}
       <div
-        className="min-h-0 flex-1 [-webkit-app-region:drag]"
+        className="min-h-0 flex-1 [-webkit-app-region:drag] in-data-pressing:[-webkit-app-region:no-drag] in-data-tab-held:[-webkit-app-region:no-drag]"
         data-drop-empty=""
       />
     </>

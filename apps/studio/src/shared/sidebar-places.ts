@@ -107,20 +107,27 @@ export function pinnedPlaces<Place extends { path: string }>(
 
 /**
  * The folder Files opens at when it is not opened at one of its own: the
- * first row under Pinned, the way a Finder window opens at the top of its
- * sidebar, so moving a folder to the top of Pinned picks it. Nothing when
- * nothing is pinned. `defaults` are the computer's places, the Instrument
- * folder among them, which stands above Pinned rather than in it.
+ * first row under Pinned, so moving a folder to the top of Pinned picks it.
+ * A folder of apps is passed over, since a stock Mac's sidebar, which the
+ * first launch adopts, puts Applications first. Nothing when nothing else is
+ * pinned. `defaults` are the computer's places, the Instrument folder among
+ * them, which stands above Pinned rather than in it.
  */
 export function firstPinnedFolder(
   defaults: readonly { kind: string; path: string }[],
   places: SidebarPlaces,
 ): string | undefined {
+  const home = defaults.find((place) => place.kind === "home")?.path;
+  const appFolders = new Set([
+    "/Applications",
+    "/System/Applications",
+    ...(home === undefined ? [] : [`${home}/Applications`]),
+  ]);
   return pinnedPlaces(
     defaults.filter((place) => place.kind !== "output"),
     places,
     (path) => ({ kind: "folder", path }),
-  )[0]?.path;
+  ).find((place) => !appFolders.has(place.path))?.path;
 }
 
 /**

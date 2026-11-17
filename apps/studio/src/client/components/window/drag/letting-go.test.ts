@@ -168,7 +168,7 @@ describe("outcomeOf", () => {
         left edge, one side → move · "Move to the left"
         right edge, one side → move · "Move to the right"
         right half, one side → move · "Move to the right"
-        middle, one side → move · "Open in a new tab"
+        middle, one side → nothing
         right side of two → move · "Move to the right"
         new tab's page → nothing
         sidebar row → move · "Move to Reading"
@@ -189,7 +189,7 @@ describe("outcomeOf", () => {
         left edge, one side → move · "Open on the left"
         right edge, one side → move · "Open on the right"
         right half, one side → move · "Open on the right"
-        middle, one side → move · "Open in a new tab"
+        middle, one side → nothing
         right side of two → move · "Open on the right"
         new tab's page → nothing
         sidebar row → nothing

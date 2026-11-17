@@ -573,7 +573,6 @@ function Side({
         chosenId={drawn.chosenId ?? up?.id}
         className={SIDE_TABS}
         heldAt={drawn.heldAt}
-        isIncoming={drawn.isIncoming}
         lead={isFirst ? <ToggleInStrip /> : undefined}
         onClose={noop}
         onDuplicate={noop}

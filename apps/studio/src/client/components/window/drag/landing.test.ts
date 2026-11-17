@@ -5,10 +5,13 @@ import {
   onPages,
   pagesReach,
   pullOf,
+  REST_MS,
   scrollSpeed,
   sideZoneAt,
   splitTargetRect,
   splitTargetsOf,
+  type Steady,
+  steadyPick,
 } from "./landing";
 
 const page = { height: 600, left: 100, top: 80, width: 900 };
@@ -264,5 +267,94 @@ describe("the pointer off the window", () => {
     [{ x: 600, y: -40 }, true],
   ])("at %o: %s", (point, off) => {
     expect(isOffWindow(point, size)).toBe(off);
+  });
+});
+
+describe("a steady landing among three 100px tabs", () => {
+  const spansOf = (isTakeable: boolean) =>
+    [0, 100, 200].map((start) => ({ isTakeable, size: 100, start }));
+
+  /** The picks of a pointer walked through `[at, now]` steps, one measure each. */
+  const walk = (steps: [number, number][], isTakeable = true) => {
+    let was: Steady = {};
+    return steps.map(([at, now]) => {
+      const { next, pick } = steadyPick({
+        at,
+        now,
+        spans: spansOf(isTakeable),
+        was,
+      });
+      was = next;
+      return `${String(at)}@${String(now)} ${pick.kind} ${String(pick.index)}`;
+    });
+  };
+
+  it("moves the line to the next gap only 6px past a tab's middle, either way", () => {
+    expect(
+      walk(
+        [40, 55, 57, 48, 45, 43].map((at) => [at, 0]),
+        false,
+      ),
+    ).toMatchInlineSnapshot(`
+        [
+          "40@0 gap 0",
+          "55@0 gap 0",
+          "57@0 gap 1",
+          "48@0 gap 1",
+          "45@0 gap 1",
+          "43@0 gap 0",
+        ]
+      `);
+  });
+
+  it("goes into a tab after a rest on its middle 44%, and keeps it while the pointer stays in its middle 72%", () => {
+    expect(
+      walk([
+        [150, 0],
+        [160, REST_MS - 1],
+        [160, REST_MS],
+        [185, REST_MS + 10],
+        [187, REST_MS + 20],
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        "150@0 gap 1",
+        "160@219 gap 2",
+        "160@220 into 1",
+        "185@230 into 1",
+        "187@240 gap 2",
+      ]
+    `);
+  });
+
+  it("starts the rest again on each tab's middle, and never past its middle 44%", () => {
+    expect(
+      walk([
+        [150, 0],
+        [250, 200],
+        [250, 300],
+        [250, 200 + REST_MS],
+        [173, 1000],
+        [173, 2000],
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        "150@0 gap 1",
+        "250@200 gap 2",
+        "250@300 gap 2",
+        "250@420 into 2",
+        "173@1000 gap 2",
+        "173@2000 gap 2",
+      ]
+    `);
+  });
+
+  it("says when a rest under way is done", () => {
+    expect(
+      steadyPick({ at: 150, now: 1000, spans: spansOf(true) }).wakeAt,
+    ).toBe(1000 + REST_MS);
+    expect(
+      steadyPick({ at: 175, now: 1000, spans: spansOf(true) }).wakeAt,
+    ).toBeUndefined();
   });
 });

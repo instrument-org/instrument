@@ -49,7 +49,9 @@ const HELD: Record<string, Held> = {
 
 /** One of every place to land, by what it is on screen. */
 const LANDINGS: Record<string, Landing | undefined> = {
-  "strip gap": { group: "g1", index: 1, kind: "strip", side: 0 },
+  "own strip": { group: "g1", index: 1, kind: "strip", side: 0 },
+  "strip line": { group: "g1", index: 1, kind: "strip", line: LIT, side: 0 },
+  "strip tab": { group: "g1", kind: "replace", lit: LIT, side: 0, tab: "t1" },
   "Add left split": {
     group: "g1",
     kind: "side",
@@ -74,6 +76,10 @@ const LANDINGS: Record<string, Landing | undefined> = {
     drop: { before: undefined, gap: 52, kind: "between", place: {}, top: 0 },
     kind: "sidebar",
   },
+  "sidebar line": {
+    drop: { before: undefined, gap: 0, kind: "between", place: {}, top: 0 },
+    kind: "sidebar",
+  },
   "bookmarks bar": { index: 0, kind: "bookmarks" },
   "past the window": { kind: "window" },
   nowhere: undefined,
@@ -90,68 +96,86 @@ describe("outcomeOf", () => {
     ]);
     expect(table.join("\n")).toMatchInlineSnapshot(`
       "tab (strip or sidebar row half):
-        strip gap → move
+        own strip → move
+        strip line → move · "Move to this side"
+        strip tab → nothing
         Add left split → move · "Add left split"
         Add right split → move · "Add right split"
         other side → move · "Move to this side"
         new tab's page → move · "Open here"
         sidebar row → move · "Add to this group"
-        sidebar room → move
+        sidebar room → move · "New tab group"
+        sidebar line → move · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
         past the window → move · "New window"
         nowhere → nothing
       whole group (sidebar row):
-        strip gap → move
+        own strip → move
+        strip line → move · "Move to this side"
+        strip tab → nothing
         Add left split → move · "Add left split"
         Add right split → move · "Add right split"
         other side → move · "Move to this side"
         new tab's page → move · "Open here"
         sidebar row → nothing
         sidebar room → move
+        sidebar line → move
         bookmarks bar → keep · "Add to bookmarks"
         past the window → move · "New window"
         nowhere → nothing
       files (Files row, place, Finder):
-        strip gap → open
+        own strip → open
+        strip line → open · "Open in a new tab"
+        strip tab → open · "Open in this tab"
         Add left split → open · "Add left split"
         Add right split → open · "Add right split"
         other side → open · "Open on this side"
         new tab's page → open · "Open here"
         sidebar row → open · "Add to this group"
-        sidebar room → open
+        sidebar room → open · "New tab group"
+        sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
         past the window → open · "New window"
         nowhere → nothing
       link (page or reply):
-        strip gap → open
+        own strip → open
+        strip line → open · "Open in a new tab"
+        strip tab → open · "Open in this tab"
         Add left split → open · "Add left split"
         Add right split → open · "Add right split"
         other side → open · "Open on this side"
         new tab's page → open · "Open here"
         sidebar row → open · "Add to this group"
-        sidebar room → open
+        sidebar room → open · "New tab group"
+        sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
         past the window → open · "New window"
         nowhere → nothing
       chat chip or Chats row:
-        strip gap → open
+        own strip → open
+        strip line → open · "Open in a new tab"
+        strip tab → open · "Open in this tab"
         Add left split → open · "Add left split"
         Add right split → open · "Add right split"
         other side → open · "Open on this side"
         new tab's page → open · "Open here"
         sidebar row → open · "Add to this group"
-        sidebar room → open
+        sidebar room → open · "New tab group"
+        sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
         past the window → open · "New window"
         nowhere → nothing
       bookmark (bar):
-        strip gap → open
+        own strip → open
+        strip line → open · "Open in a new tab"
+        strip tab → open · "Open in this tab"
         Add left split → open · "Add left split"
         Add right split → open · "Add right split"
         other side → open · "Open on this side"
         new tab's page → open · "Open here"
         sidebar row → open · "Add to this group"
-        sidebar room → open
+        sidebar room → open · "New tab group"
+        sidebar line → open · "New tab group"
         bookmarks bar → keep
         past the window → open · "New window"
         nowhere → nothing"
@@ -185,9 +209,8 @@ describe("what a held link or files open as", () => {
   });
 
   it("opens a file by the same tab Files opens it as", () => {
-    expect(
-      heldTabsOf(HELD["files (Files row, place, Finder)"]!, []),
-    ).toMatchInlineSnapshot(`
+    expect(heldTabsOf(HELD["files (Files row, place, Finder)"]!, []))
+      .toMatchInlineSnapshot(`
       [
         {
           "href": "/files?file=%2FUsers%2Fmac-user%2FRoof%20quote.pdf&path=&root=~",
@@ -196,9 +219,8 @@ describe("what a held link or files open as", () => {
         },
       ]
     `);
-    expect(
-      heldTabsOf(HELD["chat chip or Chats row"]!, []),
-    ).toMatchInlineSnapshot(`
+    expect(heldTabsOf(HELD["chat chip or Chats row"]!, []))
+      .toMatchInlineSnapshot(`
       [
         {
           "href": "/chats/c1",

@@ -790,7 +790,6 @@ function SideCard({
         chosenId={drawn.chosenId ?? up?.id}
         className={SIDE_TABS}
         heldAt={drawn.heldAt}
-        isIncoming={drawn.isIncoming}
         lead={isFirst ? <SidebarToggle /> : undefined}
         onClose={shell.requestClose}
         onDuplicate={(tab) => {

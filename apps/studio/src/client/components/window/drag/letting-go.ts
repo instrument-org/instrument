@@ -13,8 +13,8 @@ import { isBookmark, type Held, type Landing } from "./types";
  * Let go where nothing takes it, a bookmark stays where it is kept, as in a
  * browser's bar.
  *
- * No line where what is held already stands where it would go: a strip, a
- * whole group's room in the list, a bookmark moving along the bar.
+ * No line where what is held already stands where it would go: its own
+ * strip, a whole group's room in the list, a bookmark moving along the bar.
  */
 export type Outcome =
   | { does: "keep" | "move" | "open"; line: string | undefined }
@@ -45,7 +45,18 @@ export function outcomeOf(
       };
     }
     case "strip": {
-      return goes(undefined);
+      // Its own tab stands in the strip itself; anything from elsewhere
+      // goes to the line.
+      if (landing.line === undefined) {
+        return goes(undefined);
+      }
+      return goes(isOwnTab ? "Move to this side" : "Open in a new tab");
+    }
+    case "replace": {
+      // Only content opens in a tab's place; a tab never replaces another.
+      return isOwnTab
+        ? { does: "nothing", line: undefined }
+        : goes("Open in this tab");
     }
     case "side": {
       const line = landing.split
@@ -67,9 +78,8 @@ export function outcomeOf(
           ? goes(undefined)
           : { does: "nothing", line: undefined };
       }
-      // In a room what is held stands as the row it makes.
       return goes(
-        landing.drop.kind === "into" ? "Add to this group" : undefined,
+        landing.drop.kind === "into" ? "Add to this group" : "New tab group",
       );
     }
     case "window": {

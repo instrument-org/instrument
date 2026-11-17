@@ -75,7 +75,6 @@ export function PaneTabs({
   className,
   chosenId,
   heldAt,
-  isIncoming = false,
   lead,
   onClose,
   onDuplicate,
@@ -98,8 +97,6 @@ export function PaneTabs({
   className?: string;
   /** A tab in the pointer's hand, by its strip key, drawn with its left edge `grabX` left of the pointer. */
   heldAt?: { grabX: number; key: string } | undefined;
-  /** The tab in hand is another window's, held over this strip. */
-  isIncoming?: boolean;
   /** What stands ahead of the tabs: room for the traffic lights while the sidebar is closed, and the chat's tab while the chat is the whole group. */
   lead?: ReactNode;
   onClose: (id: string) => void;
@@ -250,7 +247,6 @@ export function PaneTabs({
         className,
       )}
       data-group-tabs={side}
-      {...(isIncoming ? { "data-incoming": "" } : {})}
       onContextMenu={
         reopen &&
         ((event) => {

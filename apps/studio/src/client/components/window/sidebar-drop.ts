@@ -1,23 +1,25 @@
 import { type SidebarPlace } from "@/shared/tabs";
 import { atom, getDefaultStore } from "jotai";
 
+import { type Span, type SteadyPick, steadyPick } from "./drag/landing";
+
 /**
  * What letting go over the sidebar's list would do now, which the list
- * shows: a tab into the group of the row under it, which takes a quiet
- * fill; or a room opened between two rows, the rows past it moved aside,
- * where a whole group lands as it is and a tab as a group of its own, drawn
- * standing in it as that group's row.
+ * shows: a tab into the group of the row under it, which is ringed; or a
+ * place between two rows, where a tab becomes a group of its own, shown by
+ * a line between them with every row staying put, and where a whole group
+ * lands as it is, in a room opened there, the rows past it moved aside.
  */
 export type SidebarDrop =
   | { group: string; kind: "into" }
   | {
       /** The list's item the room opens in front of (`data-drop-item`); none at the list's end. */
       before: string | undefined;
-      /** How tall the room is, in the list's px: the row that would land there. */
+      /** How tall the room is, in the list's px: the row that would land there; none (0) for the line. */
       gap: number;
       kind: "between";
       place: SidebarPlace;
-      /** Where the room starts, from the list's top in its own px. */
+      /** Where the room starts, or the middle of the line, from the list's top in its own px. */
       top: number;
     };
 
@@ -81,10 +83,15 @@ export const ROW_GAP_PX = 52 + LIST_GAP_PX;
 /** What is carried over the list, which decides where it can land. */
 export type DropCarry =
   | {
-      /** A tab, or files, land in a row's group, or as a group of their own in a room. */
+      /** A tab, files or a link land in a row's group, or as a group of their own between rows. */
       carries: "tab";
       /** Its own group, which it does not land in. */
       from: string | undefined;
+      /**
+       * Which gap or row the pointer at a point among the rows picks, timing
+       * a rest across measures (`steadyAt`); without one, the gap alone.
+       */
+      pick?: (at: number, spans: readonly Span[]) => SteadyPick;
     }
   | {
       /** A whole group lands between rows, among the pinned ones or the rest. */
@@ -93,11 +100,10 @@ export type DropCarry =
       gap: number;
     };
 
-/**
- * How far into an unpinned row from its edge a tab held there opens a room
- * beside it, where it becomes a group of its own, rather than joining it.
- */
-const ROOM_BAND_PX = 8;
+/** The gap a point among rows picks with nothing to remember, which never rests on a row. */
+function gapAt(at: number, spans: readonly Span[]): SteadyPick {
+  return steadyPick({ at, now: 0, spans }).pick;
+}
 
 function contains(element: Element, x: number, y: number) {
   const { bottom, left, right, top } = element.getBoundingClientRect();
@@ -120,12 +126,12 @@ interface Slot {
 }
 
 /**
- * Where something carried over the sidebar at a point lands. A tab lands in
- * the group of the row under it, rows meeting halfway across the space
- * between them, or as a group of its own in a room: near the line between
- * two rows, or at the first or last row's outer edge, among the pinned rows,
- * pinned, or the rest; over New, at the top of the rest; and over All
- * chats or the empty list under the rows, at their end. A whole group lands in the room between
+ * Where something carried over the sidebar at a point lands. A tab lands as
+ * a group of its own in the gap between rows nearest the pointer, the line
+ * there moving on once the pointer is a little past a row's middle, among
+ * the pinned rows, pinned, or the rest, New's middle parting the two; and
+ * in the group of a row whose middle the pointer has rested on (`pick`),
+ * never its own. A whole group lands in the room between
  * rows whose edge is nearest, among the pinned rows or the rest. Measured from the list as laid
  * out, so the rows moved aside for a room do not move the room, and in the
  * list's own px, which the window's zoom scales. Over the sidebar but not its
@@ -178,60 +184,57 @@ export function sidebarDropAt(
   });
 
   if (carry.carries === "tab") {
-    const half = LIST_GAP_PX / 2;
-    const isIn = (each: HTMLElement) =>
-      at >= top(each) - half && at < bottom(each) + half;
-    const into = (row: HTMLElement) => {
-      const group = groupOf(row);
+    // Over the sidebar above the list (a project's banner), nothing.
+    if (!contains(list, x, y)) {
+      return { drop: undefined, isOver: true };
+    }
+    // The rows in the list's order, with New between the pinned and the
+    // rest where there are pinned rows, so passing its middle moves the
+    // line from the end of one to the start of the other.
+    const hasPinned = pinned.length > 0;
+    const rows = [...pinned, ...(hasPinned ? [newRow] : []), ...rest];
+    const pick = (carry.pick ?? gapAt)(
+      at,
+      rows.map((each) => ({
+        isTakeable: each !== newRow && groupOf(each) !== carry.from,
+        size: each.offsetHeight,
+        start: top(each),
+      })),
+    );
+    const takes = pick.kind === "into" ? rows[pick.index] : undefined;
+    if (takes) {
       return {
-        drop:
-          group === carry.from ? undefined : { group, kind: "into" as const },
+        drop: { group: groupOf(takes), kind: "into" },
         isOver: true,
       };
-    };
-    // The room in front of a section's row at an index, or at its end.
-    const roomAt = (section: HTMLElement[], index: number) => {
-      const isPinned = section === pinned;
-      const after = section[index - 1];
-      const next = section[index];
-      return room(
-        {
-          before: next ?? (isPinned ? (divider ?? newRow) : history),
-          place: {
-            ...(after ? { after: groupOf(after) } : {}),
-            ...(next ? { before: groupOf(next) } : {}),
-            pinned: isPinned,
-          },
+    }
+    // The gap as a place in a section: before its row at an index, or at its end.
+    const isPinned = hasPinned && pick.index <= pinned.length;
+    const section = isPinned ? pinned : rest;
+    const index = isPinned
+      ? pick.index
+      : pick.index - (hasPinned ? pinned.length + 1 : 0);
+    const after = section[index - 1];
+    const next = section[index];
+    const half = LIST_GAP_PX / 2;
+    return {
+      drop: {
+        before: keyOf(next ?? (isPinned ? (divider ?? newRow) : history)),
+        gap: 0,
+        kind: "between",
+        place: {
+          ...(after ? { after: groupOf(after) } : {}),
+          ...(next ? { before: groupOf(next) } : {}),
+          pinned: isPinned,
         },
-        ROW_GAP_PX,
-      );
+        top: next
+          ? top(next) - half
+          : after
+            ? bottom(after) + half
+            : bottom(newRow) + half,
+      },
+      isOver: true,
     };
-    for (const section of [pinned, rest]) {
-      const index = section.findIndex(isIn);
-      const under = section[index];
-      if (!under) {
-        continue;
-      }
-      if (at < top(under) + ROOM_BAND_PX) {
-        return roomAt(section, index);
-      }
-      if (at >= bottom(under) - ROOM_BAND_PX) {
-        return roomAt(section, index + 1);
-      }
-      return into(under);
-    }
-    if (isIn(newRow)) {
-      return roomAt(rest, 0);
-    }
-    if (history && isIn(history)) {
-      return roomAt(rest, rest.length);
-    }
-    const empty = list.querySelector<HTMLElement>("[data-drop-empty]");
-    const isOverEmpty =
-      empty !== null && empty.offsetHeight > 0 && at >= top(empty);
-    return isOverEmpty
-      ? roomAt(rest, rest.length)
-      : { drop: undefined, isOver: true };
   }
 
   const slots: Slot[] = [];

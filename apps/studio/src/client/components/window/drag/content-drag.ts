@@ -78,6 +78,13 @@ export function useContentDrag(
   };
 }
 
+/**
+ * Where the pointer holds the picture of a link, from its top left corner:
+ * outside it, so the picture rides below and right of the pointer and the
+ * tabs, rows and line under the pointer stay in sight.
+ */
+const LINK_PICTURE_AT = { x: -10, y: -18 };
+
 /** Puts a link in the system's drag, under a picture of its name. */
 function startLinkDrag(event: DragEvent, link: { title: string; url: string }) {
   const transfer = event.dataTransfer;
@@ -91,7 +98,7 @@ function startLinkDrag(event: DragEvent, link: { title: string; url: string }) {
   transfer.effectAllowed = "copyLink";
   linkInAir = { title: link.title, url: link.url };
   const picture = linkPicture(link);
-  transfer.setDragImage(picture, 12, 12);
+  transfer.setDragImage(picture, LINK_PICTURE_AT.x, LINK_PICTURE_AT.y);
   // The picture is taken as the drag starts, so it can go straight after.
   setTimeout(() => {
     picture.remove();

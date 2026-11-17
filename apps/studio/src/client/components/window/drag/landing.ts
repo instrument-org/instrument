@@ -321,3 +321,105 @@ export function scrollSpeed({
   const ease = Math.min(Math.max(heldFor, 0) / SCROLL_EASE_IN_MS, 1) ** 2;
   return direction * SCROLL_TOP_SPEED * strength * ease;
 }
+
+/**
+ * How long the pointer rests on the middle of a tab or a row before what is
+ * held goes into it, rather than into the gap beside it.
+ */
+export const REST_MS = 220;
+
+/** Half of the middle a rest starts in, as a share of the tab or row: its middle 44%. */
+const REST_IN_SHARE = 0.22;
+
+/** Half of the middle a tab or row keeps what is held in once it has it, as a share of it: its middle 72%. */
+const STAY_IN_SHARE = 0.36;
+
+/** How far past a tab's or row's middle the pointer goes before the line moves to its other side. */
+const GIVE_PX = 6;
+
+/** A tab of a strip or a row of a list, along the strip or list, and whether what is held may go into it. */
+export interface Span {
+  isTakeable: boolean;
+  size: number;
+  start: number;
+}
+
+/** Where what is held lands among spans: the gap before one (`spans.length` past the last), or into one. */
+export interface SteadyPick {
+  index: number;
+  kind: "gap" | "into";
+}
+
+/** What a steady landing keeps from one measure to the next. */
+export interface Steady {
+  /** The gap the line was last at. */
+  gap?: number | undefined;
+  /** The span the pointer rests on the middle of, and since when. */
+  resting?: { index: number; since: number } | undefined;
+  /** The span that has taken what is held, until the pointer leaves its middle. */
+  taken?: number | undefined;
+}
+
+/**
+ * The steady landing among the tabs of a strip or the rows of a list, which
+ * stand still under it: the line goes to the gap nearest the pointer, and
+ * moves to the next one only once the pointer is `GIVE_PX` past the middle
+ * of the span between them. Resting `REST_MS` on a takeable span's middle
+ * 44% goes into that span, which keeps what is held while the pointer stays
+ * in its middle 72%. `wakeAt` is when a rest under way would be done, so a
+ * drag that only hears of the pointer as it moves can measure again then.
+ */
+export function steadyPick({
+  at,
+  now,
+  spans,
+  was = {},
+}: {
+  /** The pointer along the strip or list. */
+  at: number;
+  now: number;
+  spans: readonly Span[];
+  was?: Steady;
+}): { next: Steady; pick: SteadyPick; wakeAt?: number } {
+  const middle = (span: Span) => span.start + span.size / 2;
+  const taken = was.taken === undefined ? undefined : spans[was.taken];
+  if (
+    was.taken !== undefined &&
+    taken?.isTakeable === true &&
+    Math.abs(at - middle(taken)) <= taken.size * STAY_IN_SHARE
+  ) {
+    return {
+      next: { gap: was.gap, taken: was.taken },
+      pick: { index: was.taken, kind: "into" },
+    };
+  }
+  const over = spans.findIndex(
+    (span) =>
+      span.isTakeable &&
+      Math.abs(at - middle(span)) <= span.size * REST_IN_SHARE,
+  );
+  const resting =
+    over === -1
+      ? undefined
+      : was.resting?.index === over
+        ? was.resting
+        : { index: over, since: now };
+  if (resting && now - resting.since >= REST_MS) {
+    return {
+      next: { gap: was.gap, taken: resting.index },
+      pick: { index: resting.index, kind: "into" },
+    };
+  }
+  let gap = 0;
+  spans.forEach((span, index) => {
+    const give = was.gap !== undefined && index < was.gap ? -GIVE_PX : GIVE_PX;
+    if (at > middle(span) + give) {
+      gap = index + 1;
+    }
+  });
+  return {
+    next: { gap, resting },
+    pick: { index: gap, kind: "gap" },
+    ...(resting ? { wakeAt: resting.since + REST_MS } : {}),
+  };
+}

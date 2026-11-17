@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { REST_MS, type Span, type Steady, steadyPick } from "./drag/landing";
 import { type DropCarry, sidebarDropAt } from "./sidebar-drop";
 
 /** Where the list starts down the window: the sidebar's top row stands above it. */
@@ -38,106 +39,134 @@ afterEach(() => {
   document.body.innerHTML = "";
 });
 
-/** A tab's room in front of an item, which starts at that item's top. */
-const room = (
-  before: string,
+/** The line a tab lands at between items, `top` its middle in the list's px. */
+const line = (
+  before: string | undefined,
   top: number,
   place: { after?: string; before?: string; pinned?: boolean },
 ) => ({
   before,
-  gap: 54,
+  gap: 0,
   kind: "between",
   place: { pinned: false, ...place },
   top,
 });
 
+/** The pick of a pointer that has rested where it is. */
+function rested(y: number, spans: readonly Span[]) {
+  const { next } = steadyPick({ at: y, now: 0, spans });
+  return steadyPick({ at: y, now: REST_MS, spans, was: next }).pick;
+}
+
 describe("a tab over the sidebar", () => {
+  // Rows' middles: chat-a 26, New 87, draft:b 133, draft:c 187; the line
+  // moves on 6px past each.
   it.each([
-    ["a pinned row's middle", 20, { group: "chat-a", kind: "into" }],
     [
-      "a pinned row's top edge",
-      2,
-      room("row:chat-a", 0, { before: "chat-a", pinned: true }),
+      "a pinned row's top half",
+      20,
+      line("row:chat-a", -1, { before: "chat-a", pinned: true }),
+    ],
+    [
+      "a pinned row, just past its middle",
+      30,
+      line("row:chat-a", -1, { before: "chat-a", pinned: true }),
     ],
     [
       "a pinned row's bottom edge",
       48,
-      room(":divider", 54, { after: "chat-a", pinned: true }),
+      line(":divider", 53, { after: "chat-a", pinned: true }),
     ],
-    ["a row's middle", 130, { group: "draft:b", kind: "into" }],
     [
-      "a row, short of its bottom edge",
+      "the divider",
+      60,
+      line(":divider", 53, { after: "chat-a", pinned: true }),
+    ],
+    [
+      "New's top half",
+      80,
+      line(":divider", 53, { after: "chat-a", pinned: true }),
+    ],
+    ["New's bottom half", 100, line("row:draft:b", 106, { before: "draft:b" })],
+    ["a row's middle", 130, line("row:draft:b", 106, { before: "draft:b" })],
+    [
+      "a row's bottom half",
       150,
-      { group: "draft:b", kind: "into" },
+      line("row:draft:c", 160, { after: "draft:b", before: "draft:c" }),
     ],
     [
-      "the line between two rows",
+      "the gap between two rows",
       160,
-      room("row:draft:c", 161, { after: "draft:b", before: "draft:c" }),
+      line("row:draft:c", 160, { after: "draft:b", before: "draft:c" }),
     ],
     [
-      "a row's bottom edge",
-      152,
-      room("row:draft:c", 161, { after: "draft:b", before: "draft:c" }),
-    ],
-    [
-      "the next row's top edge",
-      167,
-      room("row:draft:c", 161, { after: "draft:b", before: "draft:c" }),
-    ],
-    [
-      "the first row's top edge",
-      108,
-      room("row:draft:b", 107, { before: "draft:b" }),
-    ],
-    ["New", 80, room("row:draft:b", 107, { before: "draft:b" })],
-    [
-      "the last row's bottom edge",
+      "the last row's bottom half",
       210,
-      room(":history", 215, { after: "draft:c" }),
+      line(":history", 214, { after: "draft:c" }),
     ],
+    ["History", 230, line(":history", 214, { after: "draft:c" })],
     [
       "the empty list under the rows",
       400,
-      room(":history", 215, { after: "draft:c" }),
+      line(":history", 214, { after: "draft:c" }),
     ],
-    ["History", 230, room(":history", 215, { after: "draft:c" })],
-    ["the divider", 60, undefined],
-  ])("over %s lands %j", (_, y, drop) => {
+  ])("over %s lands at %j", (_, y, drop) => {
     expect(sidebarDropAt(...at(y), TAB)).toEqual({ drop, isOver: true });
   });
 
-  it("opens a room at the end, past the last item, in a list without History", () => {
+  it.each([
+    ["a pinned row's middle", 26, { group: "chat-a", kind: "into" }],
+    ["a row's middle", 133, { group: "draft:b", kind: "into" }],
+    [
+      "New's middle, which takes nothing",
+      87,
+      line(":divider", 53, { after: "chat-a", pinned: true }),
+    ],
+    [
+      "a row, outside its middle 44%",
+      145,
+      line("row:draft:c", 160, { after: "draft:b", before: "draft:c" }),
+    ],
+  ])("rested on %s lands at %j", (_, y, drop) => {
+    expect(sidebarDropAt(...at(y), { ...TAB, pick: rested })).toEqual({
+      drop,
+      isOver: true,
+    });
+  });
+
+  it("keeps the line where it was until the pointer is 6px past a row's middle", () => {
+    let was: Steady = {};
+    const carry: DropCarry = {
+      ...TAB,
+      pick: (y, spans) => {
+        const { next, pick } = steadyPick({ at: y, now: 0, spans, was });
+        was = next;
+        return pick;
+      },
+    };
+    const below = line("row:draft:c", 160, {
+      after: "draft:b",
+      before: "draft:c",
+    });
+    expect(sidebarDropAt(...at(150), carry).drop).toEqual(below);
+    expect(sidebarDropAt(...at(130), carry).drop).toEqual(below);
+    expect(sidebarDropAt(...at(126), carry).drop).toEqual(
+      line("row:draft:b", 106, { before: "draft:b" }),
+    );
+  });
+
+  it("lands at the end, past the last item, in a list without History", () => {
     document.querySelector("[data-drop-item=':history']")?.remove();
     expect(sidebarDropAt(...at(400), TAB)).toEqual({
-      drop: {
-        before: undefined,
-        gap: 54,
-        kind: "between",
-        place: { after: "draft:c", pinned: false },
-        top: 215,
-      },
+      drop: line(undefined, 214, { after: "draft:c" }),
       isOver: true,
     });
   });
 
-  it("lands nowhere over its own group's row, but beside it in a room", () => {
-    const own: DropCarry = { carries: "tab", from: "draft:b" };
-    expect(sidebarDropAt(...at(130), own)).toEqual({
-      drop: undefined,
-      isOver: true,
-    });
-    expect(sidebarDropAt(...at(160), own)).toEqual({
-      drop: room("row:draft:c", 161, { after: "draft:b", before: "draft:c" }),
-      isOver: true,
-    });
-  });
-
-  it("lands nowhere under History when the list has no space to spare", () => {
-    const empty = document.querySelector<HTMLElement>("[data-drop-empty]");
-    empty?.style.setProperty("display", "none");
-    expect(sidebarDropAt(...at(400), TAB)).toEqual({
-      drop: undefined,
+  it("never goes into its own group's row, however long it rests there", () => {
+    const own: DropCarry = { carries: "tab", from: "draft:b", pick: rested };
+    expect(sidebarDropAt(...at(133), own)).toEqual({
+      drop: line("row:draft:b", 106, { before: "draft:b" }),
       isOver: true,
     });
   });

@@ -1,6 +1,7 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { afterEach, expect, it, vi } from "vitest";
 
+import { REST_MS } from "./landing";
 import { currentDrag, pressToDrag, setLander } from "./session";
 import { useSidePagesTarget, useStripTarget } from "./use-group-drag";
 
@@ -63,10 +64,20 @@ function Pages({ sides }: { sides: 1 | 2 }) {
   return (
     <div
       data-pages=""
-      style={{ display: "flex", height: 600, left: 0, position: "fixed", top: 100 }}
+      style={{
+        display: "flex",
+        height: 600,
+        left: 0,
+        position: "fixed",
+        top: 100,
+      }}
     >
       {layout.sides.map((_, side) => (
-        <div data-side-page={side} key={side} style={{ height: 600, width: 400 }} />
+        <div
+          data-side-page={side}
+          key={side}
+          style={{ height: 600, width: 400 }}
+        />
       ))}
     </div>
   );
@@ -91,18 +102,104 @@ afterEach(() => {
   document.body.replaceChildren();
 });
 
-it("lands a sidebar row dropped on another group's strip at the gap", async () => {
+it("lands a sidebar row dropped on another group's strip at the gap nearest the pointer, a line there", async () => {
   const landed = vi.fn();
   setLander(landed);
   await renderInBrowser(<Strip group="up" />);
   carryRowTo("other", 150);
-  const strip = { group: "up", index: 1, kind: "strip", side: 0 };
+  const strip = {
+    group: "up",
+    index: 1,
+    kind: "strip",
+    line: { height: 28, left: 99, top: 6, width: 2 },
+    side: 0,
+  };
   expect(currentDrag()?.landing).toEqual(strip);
   pointer("pointerup", 150, STRIP_Y);
   expect(landed).toHaveBeenCalledWith(
     { group: "other", height: 40, kind: "group" },
     strip,
   );
+});
+
+/** Presses a bookmark of the bar and carries it to `x` over the strip. */
+const carryBookmarkTo = (x: number) => {
+  pressToDrag(
+    { button: 0, clientX: 10, clientY: ROW_Y, isPrimary: true },
+    () => ({
+      grab: { x: 0, y: 0 },
+      held: {
+        bookmark: "b1",
+        id: "tab_b1",
+        kind: "link",
+        title: "Example",
+        url: "https://example.com/",
+      },
+    }),
+  );
+  pointer("pointermove", 10, ROW_Y - 40);
+  pointer("pointermove", x, STRIP_Y);
+};
+
+const rest = (ms: number) =>
+  new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+
+it("opens a bookmark in the tab whose middle it rests on, and keeps that tab while the pointer stays near its middle", async () => {
+  await renderInBrowser(<Strip group="up" />);
+  carryBookmarkTo(150);
+  expect(currentDrag()?.landing).toMatchObject({ index: 1, kind: "strip" });
+  await rest(REST_MS + 80);
+  const replace = {
+    group: "up",
+    kind: "replace",
+    lit: { height: 40, left: 100, top: 0, width: 100 },
+    side: 0,
+    tab: "b",
+  };
+  expect(currentDrag()?.landing).toEqual(replace);
+  // Its middle 72% keeps it; past that the line comes back.
+  pointer("pointermove", 185, STRIP_Y);
+  await rest(40);
+  expect(currentDrag()?.landing).toEqual(replace);
+  pointer("pointermove", 190, STRIP_Y);
+  await rest(40);
+  expect(currentDrag()?.landing).toMatchObject({ index: 2, kind: "strip" });
+});
+
+it("stands a tab along its own strip where its left edge is, with no line", async () => {
+  await renderInBrowser(<Strip group="up" />);
+  pressToDrag(
+    { button: 0, clientX: 10, clientY: STRIP_Y, isPrimary: true },
+    () => ({
+      grab: { x: 10, y: 0 },
+      held: { group: "up", id: "a", key: "a", kind: "tab", side: 0 },
+    }),
+  );
+  pointer("pointermove", 40, STRIP_Y);
+  pointer("pointermove", 170, STRIP_Y);
+  expect(currentDrag()?.landing).toEqual({
+    group: "up",
+    index: 1,
+    kind: "strip",
+    side: 0,
+  });
+});
+
+it("never opens a tab from another side in a tab's place", async () => {
+  await renderInBrowser(<Strip group="up" />);
+  pressToDrag(
+    { button: 0, clientX: 10, clientY: ROW_Y, isPrimary: true },
+    () => ({
+      grab: { x: 0, y: 0 },
+      held: { group: "up", id: "c", key: "c", kind: "tab", side: 1 },
+    }),
+  );
+  pointer("pointermove", 10, ROW_Y - 40);
+  pointer("pointermove", 150, STRIP_Y);
+  await rest(REST_MS + 80);
+  expect(currentDrag()?.landing).toMatchObject({ index: 1, kind: "strip" });
 });
 
 it("lands a sidebar row nowhere on its own group's strip", async () => {

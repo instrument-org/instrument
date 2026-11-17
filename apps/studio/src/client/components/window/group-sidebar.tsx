@@ -57,7 +57,6 @@ import {
   useState,
 } from "react";
 
-import { FadeTitle } from "./fade-title";
 import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { sidebarTopInset } from "./inbox-toggle";
@@ -225,7 +224,7 @@ export function GroupSidebar({
   const drop = useAtomValue(sidebarDropAtom);
   const navRef = useRef<HTMLElement>(null);
   useSidebarTarget(() => navRef.current);
-  const { lifted, standing: heldTabs } = useSidebarDrag();
+  const { adding, lifted } = useSidebarDrag();
   const roomSnaps = useAtomValue(roomSnapsAtom);
   const filled = useAtomValue(filledRoomAtom);
   const room = drop?.kind === "between" ? drop : undefined;
@@ -282,6 +281,11 @@ export function GroupSidebar({
 
   const row = (entry: TabGroup) => (
     <GroupRow
+      adding={
+        drop?.kind === "into" && drop.group === entry.group
+          ? adding[0]
+          : undefined
+      }
       chatTitles={chatTitles}
       chord={groupNumbers?.get(entry.group)}
       entry={entry}
@@ -387,10 +391,8 @@ export function GroupSidebar({
           </ListItem>
         )}
       </AnimatePresence>
-      {/* A room at the list's end takes up space for a whole group;
-          what a tab stands as there draws over the list's empty space,
-          which then stays where it was measured. */}
-      {room && room.before === undefined && heldTabs.length === 0 && (
+      {/* A room at the list's end takes up space for a whole group. */}
+      {room && room.before === undefined && room.gap > 0 && (
         <div className="shrink-0" style={{ height: room.gap - LIST_GAP_PX }} />
       )}
       {/* The list's empty space under the rows, where a tab held over it
@@ -436,13 +438,7 @@ export function GroupSidebar({
         <div className="flex min-h-0 flex-1 flex-col" ref={shiftRef}>
           <GroupList>
             {body}
-            {room && heldTabs.length > 0 && (
-              <StandingRow
-                chatTitles={chatTitles}
-                tabs={heldTabs}
-                top={room.top}
-              />
-            )}
+            {room?.gap === 0 && <ListDropLine top={room.top} />}
           </GroupList>
         </div>
         {/* The foot, the Chats list over the account, set off from the
@@ -603,59 +599,23 @@ function GroupList({ children }: { children: ReactNode }) {
 }
 
 /**
- * A tab or files held over the sidebar standing in the room the list opens
- * for them, as the row of the group they would make: the first one's title
- * over every one's mark. Drawn over the list on the window's ground, so the
- * rows making room pass under it.
+ * The line between two rows where a tab, files or a link held over the
+ * list would become a group of their own, the rows staying put, gliding
+ * from gap to gap in 90ms as the bookmarks bar's line does across the bar.
  */
-function StandingRow({
-  chatTitles,
-  tabs,
+function ListDropLine({
   top,
 }: {
-  chatTitles: Map<ChatId, string>;
-  tabs: readonly WindowTab[];
-  /** Where the room starts, from the list's top in its own px. */
+  /** Its middle, from the list's top in its own px. */
   top: number;
 }) {
-  const appsBySlug = useAppsBySlug();
-  const titleOf = useTabTitle(chatTitles);
-  const [first] = tabs;
-  if (!first) {
-    return null;
-  }
   return (
-    <div
+    <span
       aria-hidden
-      className="pointer-events-none absolute right-0 left-2 z-10 rounded-lg bg-ground"
-      data-standing-row=""
+      className="pointer-events-none absolute right-1 left-3 z-10 h-0.5 -translate-y-1/2 rounded-full bg-primary transition-[top] duration-90 ease-out motion-reduce:transition-none"
+      data-list-drop-line=""
       style={{ top }}
-    >
-      <div
-        className={cn(
-          "flex items-center gap-2 rounded-lg px-2.5 py-1.5",
-          DROP_TONE,
-        )}
-      >
-        <div className="min-w-0 flex-1">
-          <div className="flex h-5 min-w-0 items-center">
-            <FadeTitle className="min-w-0 flex-1 text-[13px] leading-5 font-medium text-foreground/85">
-              {titleOf(first)}
-            </FadeTitle>
-          </div>
-          <div className="flex h-5 min-w-0 items-center gap-1 overflow-hidden text-[12px] leading-5 text-muted-foreground">
-            {tabs.slice(0, 8).map((tab) => (
-              <TabMark
-                appsBySlug={appsBySlug}
-                chatTitles={chatTitles}
-                key={tab.id}
-                tab={tab}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
+    />
   );
 }
 
@@ -728,10 +688,11 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
  * side, or the group for a row of one side; when that is more than one tab,
  * the first click asks in the half's place and a second there closes
  * (`RowLinesView`). A middle click closes the group. While a tab held over
- * it would land in its group, it takes a quiet fill in place of any other
- * tone. A right click raises its menu (`GroupRowMenu`).
+ * it would land in its group, it is raised and ringed in place of any other
+ * tone, the mark of what would join it faded at its end. A right click raises its menu (`GroupRowMenu`).
  */
 export function GroupRow({
+  adding,
   chatTitles,
   chord,
   entry,
@@ -745,6 +706,8 @@ export function GroupRow({
   onPress,
   onShow,
 }: {
+  /** What a drag would add to the group, its mark shown faded at the row's end. */
+  adding?: WindowTab | undefined;
   chatTitles: Map<ChatId, string>;
   /** The group chord's number that picks it, shown at its end while that modifier is held. */
   chord?: number | undefined;
@@ -766,6 +729,7 @@ export function GroupRow({
 }) {
   const { layoutOf } = useWindowTabs();
   const titleOf = useTabTitle(chatTitles);
+  const appsBySlug = useAppsBySlug();
   const layout = layoutOf(entry.group);
   const ups = layout.sides.flatMap((side) => {
     const up = side.tabs.find((tab) => tab.id === side.up) ?? side.tabs[0];
@@ -894,6 +858,20 @@ export function GroupRow({
       {...(isLifted ? {} : { "aria-label": label, role: "button" })}
     >
       {inner}
+      {adding && (
+        <span
+          aria-hidden
+          className="absolute top-1/2 right-2 flex -translate-y-1/2 animate-in items-center gap-0.5 rounded-md bg-card py-0.5 pl-1 text-[11px] text-muted-foreground opacity-70 duration-120 fade-in-0"
+          data-adding=""
+        >
+          +
+          <TabMark
+            appsBySlug={appsBySlug}
+            chatTitles={chatTitles}
+            tab={adding}
+          />
+        </span>
+      )}
       {chord !== undefined && (
         <ChordHint className="absolute top-1/2 right-2 -translate-y-1/2">
           {groupChordLabel(chord)}

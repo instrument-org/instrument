@@ -1,6 +1,7 @@
 import { isPlaceDragInAir } from "@/client/lib/self-file-drag";
 import { type WindowTab } from "@/client/atoms/window";
 import { useAtomValue } from "jotai";
+import { clamp } from "radashi";
 
 import { stripKeyOf } from "../pane-tabs";
 import { stripIndexAt } from "../tab-carry-view";
@@ -17,8 +18,14 @@ import {
   sideZoneAt,
   splitTargetsOf,
 } from "./landing";
-import { currentDrag, dragAtom, pressToHold, useDropTarget } from "./session";
-import { type Held } from "./types";
+import {
+  currentDrag,
+  dragAtom,
+  pressToHold,
+  steadyAt,
+  useDropTarget,
+} from "./session";
+import { type Held, type Landing } from "./types";
 
 /**
  * How far past a strip's row, up and down, something held still stands
@@ -47,10 +54,11 @@ function rectOf(element: Element | null | undefined): Rect | undefined {
 }
 
 /**
- * A side's strip as a drag draws it: what is held standing among its tabs
+ * A side's strip as a drag draws it: its own tab held along it standing
  * where it would land, the first of it at the pointer and up, the rest
- * making room; or a tab of its own held anywhere else given up, its
- * neighbors closing over its place.
+ * making room; or its own tab held anywhere else given up, its neighbors
+ * closing over its place. Nothing from elsewhere moves it
+ * (`steadyLandingAt`).
  */
 export function useSideStrip({
   group,
@@ -64,49 +72,132 @@ export function useSideStrip({
   carriedKey?: string;
   chosenId?: string;
   heldAt?: { grabX: number; key: string };
-  isIncoming: boolean;
   tabs: WindowTab[];
 } {
   const drag = useAtomValue(dragAtom);
-  const { allTabs, layoutOf } = useWindowTabs();
-  if (!drag) {
-    return { isIncoming: false, tabs };
+  const { allTabs } = useWindowTabs();
+  const held = drag?.held;
+  if (held?.kind !== "tab" || held.group !== group || held.side !== side) {
+    return { tabs };
   }
-  const { held, landing } = drag;
-  const isFromHere =
-    held.kind === "tab" && held.group === group && held.side === side;
+  const landing = drag?.landing;
   if (
     landing?.kind !== "strip" ||
     landing.group !== group ||
     landing.side !== side
   ) {
-    return isFromHere
-      ? { carriedKey: held.key, isIncoming: false, tabs }
-      : { isIncoming: false, tabs };
+    return { carriedKey: held.key, tabs };
   }
-  // A whole group stands as all its tabs, in their order.
-  const heldTabs =
-    held.kind === "group"
-      ? layoutOf(held.group).sides.flatMap((each) => each.tabs)
-      : heldTabsOf(held, allTabs);
+  const heldTabs = heldTabsOf(held, allTabs);
   const [first] = heldTabs;
-  if (!first) {
-    return { isIncoming: false, tabs };
+  if (!drag || !first) {
+    return { tabs };
   }
   const keys = heldKeysOf(held);
   const others = tabs.filter((tab) => !keys.includes(stripKeyOf(tab)));
   return {
     chosenId: first.id,
     heldAt: { grabX: drag.grab.x, key: stripKeyOf(first) },
-    isIncoming: drag.input === "remote",
     tabs: others.toSpliced(landing.index, 0, ...heldTabs),
   };
 }
 
+/** How far outside a strip's first or last tab the line before or after it stands. */
+const END_LINE_PX = 2;
+
+/** How far in from the top and bottom of a strip's tabs the line between them stops, as the bookmarks bar's does. */
+const LINE_INSET_PX = 6;
+
 /**
- * A side's strip as a place to land: a tab, files or a bookmark held over
- * it, or just above or below it, stands among its tabs where its left edge
- * is (`stripIndexAt`), its neighbors making room.
+ * Where something from elsewhere lands in a strip that stands still under
+ * it (`steadyAt`), measured from the pointer: the gap nearest it, with a
+ * line there, or for a link or files, the tab whose middle the pointer
+ * rests on, which opens it in place of what it shows.
+ */
+function steadyLandingAt({
+  group,
+  held,
+  point,
+  root,
+  side,
+  tabs,
+}: {
+  group: string;
+  held: Held;
+  point: Point;
+  root: HTMLElement;
+  side: 0 | 1;
+  tabs: readonly WindowTab[];
+}): Landing | undefined {
+  const list = root.querySelector<HTMLElement>("[role=tablist]");
+  if (!list) {
+    return undefined;
+  }
+  const keyed = new Map(tabs.map((tab) => [stripKeyOf(tab), tab]));
+  const drawn = [
+    ...list.querySelectorAll<HTMLElement>("[data-tab-key]"),
+  ].flatMap((element) => {
+    const tab = keyed.get(element.dataset.tabKey ?? "");
+    return tab ? [{ rect: element.getBoundingClientRect(), tab }] : [];
+  });
+  const mayOpenIn = held.kind === "link" || held.kind === "files";
+  const pick = steadyAt(
+    `strip:${group}:${String(side)}`,
+    point.x,
+    drawn.map(({ rect }) => ({
+      isTakeable: mayOpenIn,
+      size: rect.width,
+      start: rect.left,
+    })),
+  );
+  const into = pick.kind === "into" ? drawn[pick.index] : undefined;
+  if (into) {
+    const { height, left, top, width } = into.rect;
+    return {
+      group,
+      kind: "replace",
+      lit: { height, left, top, width },
+      side,
+      tab: into.tab.id,
+    };
+  }
+  const before = drawn[pick.index - 1];
+  const after = drawn[pick.index];
+  const bounds = list.getBoundingClientRect();
+  const shown =
+    root.querySelector("[data-strip-scroller]")?.getBoundingClientRect() ??
+    bounds;
+  const x = clamp(
+    before && after
+      ? (before.rect.right + after.rect.left) / 2
+      : after
+        ? after.rect.left - END_LINE_PX
+        : before
+          ? before.rect.right + END_LINE_PX
+          : bounds.left + END_LINE_PX,
+    shown.left + 1,
+    shown.right - 1,
+  );
+  const row = (after ?? before)?.rect ?? bounds;
+  return {
+    group,
+    index: before ? tabs.indexOf(before.tab) + 1 : 0,
+    kind: "strip",
+    line: {
+      height: row.height - LINE_INSET_PX * 2,
+      left: x - 1,
+      top: row.top + LINE_INSET_PX,
+      width: 2,
+    },
+    side,
+  };
+}
+
+/**
+ * A side's strip as a place to land, and just above or below it. Its own
+ * tab held along it stands where its left edge is (`stripIndexAt`), its
+ * neighbors making room; a tab, a whole group, files or a link from
+ * elsewhere leave it standing still (`steadyLandingAt`).
  */
 export function useStripTarget({
   group,
@@ -123,7 +214,6 @@ export function useStripTarget({
   strip: () => HTMLElement | null | undefined;
   tabs: readonly WindowTab[];
 }) {
-  const { layoutOf } = useWindowTabs();
   useDropTarget(
     isOn
       ? {
@@ -138,18 +228,17 @@ export function useStripTarget({
             ) {
               return undefined;
             }
-            // A group held over the strip is drawn there as its tabs
-            // (`useSideStrip`), which are left out as one, as a tab is.
-            const heldKeys =
-              held.kind === "group"
-                ? layoutOf(held.group).sides.flatMap((each) =>
-                    each.tabs.map(stripKeyOf),
-                  )
-                : heldKeysOf(held);
+            if (
+              held.kind !== "tab" ||
+              held.group !== group ||
+              held.side !== side
+            ) {
+              return steadyLandingAt({ group, held, point, root, side, tabs });
+            }
             const index = stripIndexAt(
               point.x - grab.x,
               tabs.map((tab) => ({ id: stripKeyOf(tab) })),
-              heldKeys,
+              heldKeysOf(held),
               root,
             );
             return { group, index, kind: "strip", side };

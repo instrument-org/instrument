@@ -12,8 +12,12 @@ import {
   type Point,
   type Rect,
   scrollSpeed,
+  type Span,
   type SplitTarget,
   START_PX,
+  type Steady,
+  type SteadyPick,
+  steadyPick,
 } from "./landing";
 import {
   type ContentHeld,
@@ -174,7 +178,13 @@ interface Session {
   drag: Drag;
   /** Each list scrolling under the pointer, since when the pointer has been at its end, and when it last scrolled. */
   scrolling: Map<HTMLElement, { last: number; since: number }>;
+  /** What each steady landing (`steadyAt`) kept from the last measure, by the strip or list it is in. */
+  steady: Map<string, Steady>;
+  /** The steady landings the measure under way has asked about; the rest are forgotten after it. */
+  steadyAsked: Set<string>;
   stop: () => void;
+  /** A measure waiting for a rest to be done, for a drag with no frame loop of its own. */
+  wake?: ReturnType<typeof setTimeout> | undefined;
 }
 
 let session: Session | undefined;
@@ -241,8 +251,53 @@ function hintsOf(drag: Pick<Drag, "grab" | "held" | "input">) {
   return [...targets].flatMap((target) => target.hints?.(drag) ?? []);
 }
 
+/**
+ * Where what is held lands among the tabs of a strip or the rows of a list
+ * that stand still under it (`steadyPick`), the strip or list named by
+ * `key`: a rest on a middle is timed across the drag's measures, and
+ * forgotten once a measure leaves that strip or list.
+ */
+export function steadyAt(
+  key: string,
+  at: number,
+  spans: readonly Span[],
+): SteadyPick {
+  const current = session;
+  const now = performance.now();
+  const { next, pick, wakeAt } = steadyPick({
+    at,
+    now,
+    spans,
+    was: current?.steady.get(key) ?? {},
+  });
+  if (current) {
+    current.steady.set(key, next);
+    current.steadyAsked.add(key);
+    // A pointer drag measures every frame; the system's drag and another
+    // window's hear of the pointer only as it moves, so they measure again
+    // once the rest is done.
+    if (
+      wakeAt !== undefined &&
+      current.drag.input !== "pointer" &&
+      current.wake === undefined
+    ) {
+      current.wake = setTimeout(
+        () => {
+          current.wake = undefined;
+          if (session === current) {
+            evaluate(current);
+          }
+        },
+        Math.max(wakeAt - now, 0) + 1,
+      );
+    }
+  }
+  return pick;
+}
+
 /** Measures the session where the pointer is now, and shows what it found. */
 function evaluate(current: Session) {
+  current.steadyAsked.clear();
   const { drag } = current;
   const isPast =
     drag.input === "pointer" &&
@@ -265,6 +320,11 @@ function evaluate(current: Session) {
   // elsewhere stay out of sight until it leaves.
   const hints =
     isOff || isPast || landing?.kind === "bookmarks" ? [] : hintsOf(drag);
+  for (const key of current.steady.keys()) {
+    if (!current.steadyAsked.has(key)) {
+      current.steady.delete(key);
+    }
+  }
   const changed = JSON.stringify(drag.landing) !== JSON.stringify(landing);
   current.drag = { ...drag, hints, isOff, landing };
   if (changed) {
@@ -330,6 +390,7 @@ function end(current: Session) {
   }
   session = undefined;
   current.stop();
+  clearTimeout(current.wake);
   showDrop(undefined);
   publish(undefined);
   for (const listener of frameListeners) {
@@ -540,6 +601,8 @@ function startPointerDrag(held: WindowHeld, grab: Point, event: PointerEvent) {
     carry: undefined,
     drag: { grab, held, input: "pointer", isOff: false, landing: undefined },
     scrolling: new Map(),
+    steady: new Map(),
+    steadyAsked: new Set(),
     stop: () => {
       cancelAnimationFrame(frame);
       window.removeEventListener("pointermove", onMove, { capture: true });
@@ -678,6 +741,8 @@ function startSession(held: Held, grab: Point, input: "native" | "remote") {
     carry: undefined,
     drag: { grab, held, input, isOff: false, landing: undefined },
     scrolling: new Map(),
+    steady: new Map(),
+    steadyAsked: new Set(),
     stop: () => undefined,
   };
   session = current;

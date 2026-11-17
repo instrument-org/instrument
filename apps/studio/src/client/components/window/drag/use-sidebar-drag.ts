@@ -16,6 +16,7 @@ import {
   dragAtom,
   dragPoint,
   pressToHold,
+  steadyAt,
   useDragFrame,
   useDropTarget,
 } from "./session";
@@ -63,8 +64,9 @@ function sidebarReach(bounds: Rect): Rect {
 
 /**
  * The sidebar's list of groups as a place to land: a tab, files or a
- * bookmark go into the group of the row under them, which lights, or make a
- * group of their own in a room opened between two rows; a whole group, by
+ * link make a group of their own at the line between two rows, or go into
+ * the group of a row they rest on, which is ringed, the rows standing
+ * still under them; a whole group, by
  * its row's top edge wherever the pointer crosses the list, takes the room
  * nearest it, and keeps to the list a little way past the sidebar's edge
  * (`SIDEBAR_PULL_PX`) until it pulls free. The list scrolls under a pointer
@@ -90,6 +92,7 @@ export function useSidebarTarget(nav: () => HTMLElement | null) {
       const { drop } = sidebarDropAt(point.x, point.y, {
         carries: "tab",
         from: held.kind === "tab" ? held.group : undefined,
+        pick: (at, spans) => steadyAt("sidebar", at, spans),
       });
       return drop ? { drop, kind: "sidebar" } : undefined;
     },
@@ -114,12 +117,12 @@ export function useSidebarTarget(nav: () => HTMLElement | null) {
 /**
  * What the sidebar draws of a drag: the row of a group of its list in the
  * pointer's hand, whose place in the list shuts; and what is held, as the
- * tabs it would be, standing in a room the list opened for it. The room a
- * lifted row first opens is its own place, so it opens at once.
+ * tabs it would be, joining the row it goes into. The room a lifted row
+ * first opens is its own place, so it opens at once.
  */
 export function useSidebarDrag(): {
+  adding: readonly WindowTab[];
   lifted: string | undefined;
-  standing: readonly WindowTab[];
 } {
   const drag = useAtomValue(dragAtom);
   const { allTabs } = useWindowTabs();
@@ -137,18 +140,18 @@ export function useSidebarDrag(): {
     }
   });
   if (!drag) {
-    return { lifted: undefined, standing: [] };
+    return { adding: [], lifted: undefined };
   }
   const { held, landing } = drag;
   return {
+    adding:
+      landing?.kind === "sidebar" && landing.drop.kind === "into"
+        ? heldTabsOf(held, allTabs)
+        : [],
     lifted:
       held.kind === "group" && drag.input === "pointer"
         ? held.group
         : undefined,
-    standing:
-      landing?.kind === "sidebar" && landing.drop.kind === "between"
-        ? heldTabsOf(held, allTabs)
-        : [],
   };
 }
 

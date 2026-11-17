@@ -14,6 +14,7 @@ import { TabMark } from "../row-half";
 import { useTabTitle } from "../tab-title";
 import { type TabGroup } from "../tab-groups";
 import { useWindowTabs } from "../window-tabs";
+import { ownLinkInAir } from "./content-drag";
 import { heldTabsOf } from "./held-tabs";
 import {
   type Point,
@@ -32,6 +33,12 @@ const CHIP_GRAB_PX = { x: 22, y: 16 };
 
 /** Where the line under the system's own picture of a drag stands from the pointer: below and right of it, as a grab. */
 const NATIVE_LINE_GRAB_PX = { x: -14, y: -34 };
+
+/** Where what is held rides over a strip or list that stands still: below and right of the pointer, as a grab. */
+const BELOW_GRAB_PX = { x: -10, y: -18 };
+
+/** Where the line stands under this app's own picture of a link (`LINK_PICTURE_AT`), as a grab: under the picture's 32px chip. */
+const OWN_PICTURE_LINE_GRAB_PX = { x: -10, y: -54 };
 
 /** How wide a whole group's row is held, where no list says. */
 const ROW_WIDTH_PX = 240;
@@ -71,10 +78,11 @@ function middleOf(rect: Rect): Point {
  * nears and taking what is held short of touching it, the one taken held
  * at its strongest; a side, the half a split takes, or a new tab lit; and
  * at the pointer, the whole drag, what is held raised with a
- * line under it saying what letting go does. Only a strip, which stands the
- * tab at the pointer among its tabs, goes without it; under the system's
- * own picture of its drag goes the line alone, and nothing while main shows
- * the window's.
+ * line under it saying what letting go does. Only a tab's own strip, which
+ * stands the tab at the pointer among its tabs, goes without it; under the
+ * system's own picture of its drag goes the line alone, and nothing while
+ * main shows the window's. Over a strip that stands still, the line in its
+ * gap, or the tab what is held opens in, ringed.
  */
 export function DragLayer({
   chatTitles,
@@ -135,8 +143,50 @@ export function DragLayer({
           }}
         />
       )}
+      {landing?.kind === "strip" && landing.line && (
+        <StripLine
+          key={`${landing.group}:${String(landing.side)}`}
+          line={landing.line}
+        />
+      )}
+      {landing?.kind === "replace" && (
+        <div
+          className={cn(
+            "absolute animate-in rounded-xl duration-120 ease-out fade-in-0 motion-reduce:animate-none",
+            DROP_LOOK.open,
+          )}
+          data-drop-replace=""
+          style={{
+            height: landing.lit.height / zoom,
+            left: landing.lit.left / zoom,
+            top: landing.lit.top / zoom,
+            width: landing.lit.width / zoom,
+          }}
+        />
+      )}
       <AtPointer chatTitles={chatTitles} drag={drag} entries={entries} />
     </div>
+  );
+}
+
+/**
+ * The line in a strip's gap where what came from elsewhere lands, as the
+ * bookmarks bar draws its own (`BarDropLine`), gliding from gap to gap in
+ * 90ms rather than jumping while it stays in one strip.
+ */
+function StripLine({ line }: { line: Rect }) {
+  const zoom = useAtomValue(zoomAtom);
+  return (
+    <span
+      className="absolute rounded-full bg-primary transition-[left] duration-90 ease-out motion-reduce:transition-none"
+      data-strip-line=""
+      style={{
+        height: line.height / zoom,
+        left: line.left / zoom,
+        top: line.top / zoom,
+        width: line.width / zoom,
+      }}
+    />
   );
 }
 
@@ -240,10 +290,19 @@ function AtPointer({
   // tabs at the pointer itself, a whole group as all its tabs. Off the
   // window main shows its picture. The system's drag shows its own, so
   // under it goes only the line.
-  const isShown = !drag.isOff && landing?.kind !== "strip";
+  const isShown =
+    !drag.isOff && !(landing?.kind === "strip" && landing.line === undefined);
   const isNative = drag.input === "native";
   const isDocked = isGroup && landing?.kind === "sidebar";
   const isWindow = landing?.kind === "window";
+  // Over a strip or the list that stands still, it rides below the pointer,
+  // so the tabs or rows under the pointer and the line between them stay in
+  // sight.
+  const isBelow =
+    !isGroup &&
+    (landing?.kind === "strip" ||
+      landing?.kind === "replace" ||
+      landing?.kind === "sidebar");
   // Stood again every frame from the pointer, never by drawing again.
   const stand = () => {
     const element = ref.current;
@@ -251,7 +310,13 @@ function AtPointer({
       return;
     }
     // Between keeping to the list and riding free it glides rather than jumps.
-    const now = isDocked ? "docked" : isWindow ? "window" : "free";
+    const now = isDocked
+      ? "docked"
+      : isWindow
+        ? "window"
+        : isBelow && !isNative
+          ? "below"
+          : "free";
     if (mode.current !== undefined && mode.current !== now) {
       element.style.transition = `left ${PULL_FREE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1), top ${PULL_FREE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`;
       window.setTimeout(() => {
@@ -272,13 +337,17 @@ function AtPointer({
     }
     const draw = isWindow || isPulledToSplit() ? undefined : drawnToward();
     const grab = isNative
-      ? NATIVE_LINE_GRAB_PX
-      : isGroup
-        ? { x: Math.min(drag.grab.x, 48), y: Math.min(drag.grab.y, 20) }
-        : {
-            x: Math.min(drag.grab.x, CHIP_GRAB_PX.x),
-            y: Math.min(drag.grab.y, CHIP_GRAB_PX.y),
-          };
+      ? ownLinkInAir()
+        ? OWN_PICTURE_LINE_GRAB_PX
+        : NATIVE_LINE_GRAB_PX
+      : isBelow
+        ? BELOW_GRAB_PX
+        : isGroup
+          ? { x: Math.min(drag.grab.x, 48), y: Math.min(drag.grab.y, 20) }
+          : {
+              x: Math.min(drag.grab.x, CHIP_GRAB_PX.x),
+              y: Math.min(drag.grab.y, CHIP_GRAB_PX.y),
+            };
     element.style.width =
       isGroup && !isWindow
         ? `${list ? list.width / zoom - 16 : ROW_WIDTH_PX}px`

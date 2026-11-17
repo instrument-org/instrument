@@ -281,6 +281,26 @@ function useLander(
         }
         return;
       }
+      case "replace": {
+        // A step in that tab's history, so Back returns to what it showed:
+        // a page goes on in its own guest, and anything else becomes the
+        // page or screen in the tab's place.
+        const tab = store
+          .get(windowTabsAtom)
+          .tabs.find((each) => each.id === landing.tab);
+        if (tab?.kind === "page" && first.opens.kind === "page" && browser) {
+          browser.navigateTab(tab.id, first.opens.url);
+          windowTabs.select(tab.id);
+          openRest(landing.group, tab.id);
+          return;
+        }
+        const id = openOne(first.opens, { group: landing.group }, landing.tab);
+        if (id !== undefined) {
+          windowTabs.select(id);
+          openRest(landing.group, id);
+        }
+        return;
+      }
       case "sidebar": {
         const { drop } = landing;
         if (drop.kind === "into") {

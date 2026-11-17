@@ -819,12 +819,12 @@ const DRAGS: {
     scene: overNewTab({ group: MAIN, tab: "d-new" }),
   },
   {
-    caption: "A sidebar row lit to take a tab",
+    caption: "A sidebar row ringed to take a tab",
     main: ONE_SIDE,
     scene: overRow({ held: HELD, how: "into", row: "g-reading" }),
   },
   {
-    caption: "A room open between rows, the tab standing in it",
+    caption: "The line between rows where a tab becomes a group",
     main: ONE_SIDE,
     scene: overRow({ held: HELD, how: "between", row: "g-garden" }),
   },

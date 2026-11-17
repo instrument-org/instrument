@@ -2,8 +2,11 @@ import { bookmarksAtom } from "@/client/bookmarks/store";
 import {
   type Point,
   type Rect,
+  REST_MS,
   sideZoneAt,
+  type Span,
   splitTargetsOf,
+  steadyPick,
 } from "@/client/components/window/drag/landing";
 import { type Drag, dragAtom } from "@/client/components/window/drag/session";
 import { type Held } from "@/client/components/window/drag/types";
@@ -299,10 +302,16 @@ export function overNewTab({
   };
 }
 
+/** The pick of a pointer that has rested where it is (`steadyPick`). */
+function rested(at: number, spans: readonly Span[]) {
+  const { next } = steadyPick({ at, now: 0, spans });
+  return steadyPick({ at, now: REST_MS, spans, was: next }).pick;
+}
+
 /**
- * A tab held over a sidebar row: over its middle it joins the row's group,
- * which lights; near its top edge a room opens in front of it, where the
- * tab stands as the group it would make.
+ * A tab held over a sidebar row: rested on its middle it joins the row's
+ * group, which is ringed; near its top edge the line between it and the
+ * row above shows where the tab would be a group of its own.
  */
 export function overRow({
   held,
@@ -323,6 +332,7 @@ export function overRow({
     const { drop } = sidebarDropAt(x, y, {
       carries: "tab",
       from: held.kind === "tab" ? held.group : undefined,
+      ...(how === "into" ? { pick: rested } : {}),
     });
     await stage.show(
       {

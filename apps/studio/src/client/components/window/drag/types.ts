@@ -65,15 +65,31 @@ export type Held =
  * What letting go would do: stand among a side's tabs at a place; join a
  * side as its last tab, or make one end of a lone side a side of its own; go
  * into a sidebar row's group, or be a group of its own in a room between
- * rows; turn a new tab into it; stand among the bookmarks on the bar; or go
- * to a window of its own: a whole group pulled free of the sidebar, or a
- * link let go past the window's edge.
+ * rows; turn a new tab into it, or open in a strip's tab in place of what it
+ * shows; stand among the bookmarks on the bar; or go to a window of its
+ * own: a whole group pulled free of the sidebar, or a link let go past the
+ * window's edge.
  */
 export type Landing =
-  | { group: string; index: number; kind: "strip"; side: 0 | 1 }
+  | {
+      group: string;
+      index: number;
+      kind: "strip";
+      /** The line in the gap it lands at, in the window's px, where the strip stands still for what came from elsewhere; none where its own tab moves along it. */
+      line?: Rect;
+      side: 0 | 1;
+    }
   | { group: string; kind: "side"; lit: Rect; side: 0 | 1; split: boolean }
   | { drop: SidebarDrop; kind: "sidebar" }
   | { group: string; kind: "newTab"; lit: Rect; tab: string }
+  | {
+      group: string;
+      kind: "replace";
+      /** The tab, in the window's px. */
+      lit: Rect;
+      side: 0 | 1;
+      tab: string;
+    }
   | {
       /** The bar's folder it goes into, at `index` among what is in it; on the bar itself without one. */
       folder?: string;

@@ -6,7 +6,8 @@
 //   node walkthrough.mjs take <name.walk.mjs> --seed <name> --out <take dir>
 //   node walkthrough.mjs build <take dir>                  pages from a recording
 //   node walkthrough.mjs film <take dir>                   the contact sheet
-//   node walkthrough.mjs render <take dir> [--chapter <n>] [--plain] [--gif]
+//   node walkthrough.mjs render <take dir> [--chapter <n>] [--plain | --clip] [--gif]
+//   node walkthrough.mjs check <clip.mp4>                  a feature clip judged at What's new's size
 //   node walkthrough.mjs share <take dir> [--page snippets|chapters] [--title <t> --lede <line>]
 //
 // `seed` boots a fresh clean room with the developer's sign-ins, writes the
@@ -33,6 +34,7 @@ import { fileURLToPath } from "node:url";
 import { CHECKOUT_KEY } from "../../studio-chrome-devtools/scripts/studio-app.mjs";
 import { REPO_ROOT } from "./browser.mjs";
 import { buildTake, playerPage } from "./build.mjs";
+import { checkClip } from "./check.mjs";
 import { filmTake } from "./film.mjs";
 import { renderClip } from "./render.mjs";
 
@@ -284,11 +286,20 @@ function share(takeDir, page, { lede, title } = {}) {
 
 const commands = {
   build: () => buildTake(path.resolve(subject)),
+  check: () => {
+    const file = path.resolve(subject);
+    const info = file.replace(/\.mp4$/, ".json");
+    return checkClip(file, {
+      ...(existsSync(info) && JSON.parse(readFileSync(info, "utf8"))),
+      strip: file.replace(/\.mp4$/, "-strip.png"),
+    });
+  },
   film: () => filmTake(path.resolve(subject)),
   open: () => open(subject),
   render: () =>
     renderClip(path.resolve(subject), {
       chapter: flag("--chapter") ? Number(flag("--chapter")) : undefined,
+      clip: args.includes("--clip"),
       gif: args.includes("--gif"),
       plain: args.includes("--plain"),
     }),
@@ -303,7 +314,7 @@ const commands = {
 };
 
 if (!commands[command] || !subject) {
-  console.error(readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1, 9).join("\n"));
+  console.error(readFileSync(fileURLToPath(import.meta.url), "utf8").split("\n").slice(1, 10).join("\n"));
   process.exit(1);
 }
 try {

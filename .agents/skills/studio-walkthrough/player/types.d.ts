@@ -19,12 +19,15 @@ export interface Take {
 export interface EngineOptions {
   camera?: boolean;
   captions?: boolean;
+  /** Where keys pressed show: small in a corner, or large across the middle. */
+  keys?: "center" | "corner";
   loop?: boolean;
   mode?: "full" | "render" | "snippet";
   range?: { from: number; to: number };
 }
 
 export interface Engine {
+  camera(): { s: number; tx: number; ty: number };
   destroy(): void;
   length: number;
   pause(): void;

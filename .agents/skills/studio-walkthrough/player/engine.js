@@ -41,7 +41,7 @@ const HAND = `<svg viewBox="0 0 28 28" width="28" height="28"><path d="M11 13V5.
 /** Where each glyph's hotspot sits, in its 28px box. */
 const HOTSPOT = { arrow: [6, 3.5], ibeam: [14, 14], hand: [12.5, 4] };
 
-const KEY_GLYPHS = { Alt: "⌥", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", Backspace: "⌫", Control: "⌃", Enter: "⏎ Return", Escape: "Esc", Meta: "⌘", Shift: "⇧", Tab: "⇥" };
+const KEY_GLYPHS = { Alt: "⌥", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", Backspace: "⌫", Control: "⌃", Enter: "⏎ Return", Escape: "Esc", Meta: "⌘", Shift: "⇧ Shift", Tab: "⇥ Tab" };
 
 /**
  * Where the camera goes, as keyframes ({ t, box or null, zoom, ms }): the
@@ -136,6 +136,47 @@ function cameraPlan(script, w, h) {
 }
 
 /**
+ * A replay has no focus of its own, so the page's :focus, :focus-visible and
+ * :focus-within rules never match in it. The capture marks the element with
+ * focus in attributes (in-page.js, mirrorFocus), and each such rule gets a
+ * twin beside it that matches those instead. Sheets are visited once each.
+ */
+// A colon escaped with a backslash is part of a class name (Tailwind's
+// `group-has-[button:focus-visible]/card:…`), not a pseudo-class.
+const FOCUS = /(?<!\\):focus(-visible|-within)?(?![\w-])/g;
+const focusTwin = (selector) =>
+  selector.replace(FOCUS, (_, kind) =>
+    kind === "-visible" ? "[data-wt-focus-visible]" : kind === "-within" ? ":has([data-wt-focus])" : "[data-wt-focus]",
+  );
+function mirrorFocusRules(doc, seen) {
+  const walk = (owner) => {
+    let rules;
+    try {
+      rules = owner.cssRules;
+    } catch {
+      return;
+    }
+    for (let i = 0; i < rules.length; i++) {
+      const rule = rules[i];
+      if (rule.cssRules?.length) walk(rule);
+      const selector = rule.selectorText;
+      if (!selector?.includes(":focus")) continue;
+      try {
+        owner.insertRule(focusTwin(selector) + rule.cssText.slice(selector.length), i + 1);
+        i += 1;
+      } catch {
+        // A twin the browser refuses (a :has inside a :has) is left out.
+      }
+    }
+  };
+  for (const sheet of [...doc.styleSheets, ...(doc.adoptedStyleSheets ?? [])]) {
+    if (seen.has(sheet)) continue;
+    seen.add(sheet);
+    walk(sheet);
+  }
+}
+
+/**
  * Lets the replay's videos play in a live player. rrweb sets a video's
  * currentTime on every seek and pauses it whenever the replay pauses, which
  * the engine does on every frame. Here a seek within a quarter second of where
@@ -200,6 +241,9 @@ export function createEngine(root, data, options = {}) {
   const mode = options.mode ?? "full";
   const showCaptions = options.captions !== false;
   const useCamera = options.camera !== false;
+  // "center": keys pressed shown large across the middle of the frame, for a
+  // clip seen small, where a corner's keycaps would not read.
+  const keysAt = options.keys ?? "corner";
 
   // --- the frame ------------------------------------------------------------
   root.classList.add("wt-frame");
@@ -221,7 +265,7 @@ export function createEngine(root, data, options = {}) {
   cursor.className = "wt-cursor";
   camera.append(replayRoot, overlay, cursor);
   const hud = document.createElement("div");
-  hud.className = "wt-hud";
+  hud.className = keysAt === "center" ? "wt-hud wt-big-keys" : "wt-hud";
   hud.innerHTML = `
     <div class="wt-caption" hidden></div>
     <div class="wt-keys" hidden></div>
@@ -269,6 +313,20 @@ export function createEngine(root, data, options = {}) {
     triggerFocus: false,
     UNSAFE_replayCanvas: false,
   });
+  // rrweb opens the frame's document and builds it node by node, so no parser
+  // reads a doctype and the frame renders in quirks mode, where Chrome stops
+  // matching mixed-case class names such as `.ProseMirror`. Each opening reads
+  // a doctype first, which sets standards mode, then empties the document for
+  // rrweb to build.
+  const doc = replayer.iframe.contentDocument;
+  const open = doc.open.bind(doc);
+  doc.open = (...args) => {
+    const opened = open(...args);
+    doc.write("<!doctype html>");
+    doc.close();
+    doc.replaceChildren();
+    return opened;
+  };
   // rrweb leaves the frame's document open once it has written it, and a
   // document still loading never says its fonts are ready.
   replayer.on("fullsnapshot-rebuilded", () => {
@@ -282,10 +340,13 @@ export function createEngine(root, data, options = {}) {
   // a video plays on its own and is sought only once it drifts.
   const media = mode === "render" ? null : liveMedia(replayer);
   let shown = -1;
+  const focusSheets = new WeakSet();
   const seek = (r) => {
     const at = Math.round(r);
     if (at === shown) return;
     replayer.pause(Math.max(1, at));
+    const doc = replayer.iframe?.contentDocument;
+    if (doc) mirrorFocusRules(doc, focusSheets);
     media?.settle();
     shown = at;
   };
@@ -354,10 +415,11 @@ export function createEngine(root, data, options = {}) {
 
   // --- drawing ----------------------------------------------------------------
   let glyph = "";
+  let cam = { s: 1, tx: 0, ty: 0 };
   const draw = (r) => {
     seek(r);
 
-    const cam = useCamera ? cameraAt(r) : { s: 1, tx: 0, ty: 0 };
+    cam = useCamera ? cameraAt(r) : { s: 1, tx: 0, ty: 0 };
     camera.style.transform = `translate(${cam.tx}px, ${cam.ty}px) scale(${cam.s})`;
 
     const p = pointerAt(r);
@@ -473,6 +535,8 @@ export function createEngine(root, data, options = {}) {
     length,
     range,
     state: () => ({ p, r: toRec(p, range.from), playing, length, speed }),
+    /** The camera as last drawn: its scale and where the frame's corner is. */
+    camera: () => cam,
     on(f) {
       listeners.add(f);
       return () => listeners.delete(f);

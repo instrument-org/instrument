@@ -109,15 +109,23 @@
     const dress = () => {
       // The address bar's folders above the workspace: this machine's own.
       if (rootCrumb) {
-        // The bar is a row of crumbs and the chevrons between them; the
-        // workspace's own crumb is a button, or plain text when it is open.
-        for (const crumb of document.querySelectorAll("button[data-slot=context-menu-trigger]")) {
-          const row = crumb.parentElement;
+        // The bar is a row of crumbs and the chevrons between them, each
+        // crumb a button (folded to its icon where the bar is short, its name
+        // still its text) or plain text when it is open, either alone or
+        // wrapped with its chevron. Everything before the workspace's own
+        // crumb goes, climbing from it until the row that holds the others.
+        const crumbs = "button[data-slot=context-menu-trigger]";
+        for (const trigger of document.querySelectorAll(crumbs)) {
+          const row = trigger.parentElement;
           const own = [...(row?.children ?? [])].find((child) => squash(child.textContent) === rootCrumb);
-          let before = own?.previousElementSibling;
-          while (before) {
-            before.setAttribute("data-walkthrough-gone", "");
-            before = before.previousElementSibling;
+          let node = own;
+          while (node) {
+            for (let before = node.previousElementSibling; before; before = before.previousElementSibling) {
+              before.setAttribute("data-walkthrough-gone", "");
+            }
+            const parent = node.parentElement;
+            if (!parent || [...parent.querySelectorAll(crumbs)].some((other) => !node.contains(other))) break;
+            node = parent;
           }
         }
       }
@@ -349,5 +357,34 @@
     return out;
   };
 
-  window.__walkthroughPage = { assets, locate, present, still, surfaceOf, watchPictures };
+  /**
+   * Marks the element with focus in attributes a recording keeps, since a
+   * replay has no focus of its own: `data-wt-focus`, and
+   * `data-wt-focus-visible` where the browser draws its focus ring. The
+   * player gives the page's `:focus` rules twins that match them, so focus
+   * rings, and anything shown only while the keyboard is somewhere, replay.
+   */
+  const mirrorFocus = () => {
+    let marked = null;
+    const mark = () => {
+      const el = document.activeElement;
+      if (marked && marked !== el) {
+        marked.removeAttribute("data-wt-focus");
+        marked.removeAttribute("data-wt-focus-visible");
+      }
+      marked = el && el !== document.body && el !== document.documentElement ? el : null;
+      if (!marked) return;
+      marked.setAttribute("data-wt-focus", "");
+      marked.toggleAttribute("data-wt-focus-visible", marked.matches(":focus-visible"));
+    };
+    const later = () => setTimeout(mark);
+    document.addEventListener("focusin", mark, true);
+    document.addEventListener("focusout", later, true);
+    // A key can turn the ring on for an element that already had focus.
+    document.addEventListener("keydown", later, true);
+    document.addEventListener("pointerdown", later, true);
+    mark();
+  };
+
+  window.__walkthroughPage = { assets, locate, mirrorFocus, present, still, surfaceOf, watchPictures };
 })();

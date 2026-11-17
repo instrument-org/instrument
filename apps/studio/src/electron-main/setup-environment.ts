@@ -5,7 +5,7 @@ import {
   installAISDKWarningLogger,
   startLoginShellPath,
 } from "@instrument-org/workspace/electron";
-import { app } from "electron";
+import { app, systemPreferences } from "electron";
 import path from "node:path";
 
 import { initializeElectronLogging, logger } from "./lib/electron-logger";
@@ -114,6 +114,16 @@ app.commandLine.appendSwitch(
 // encryption with nothing to ask for.
 if (is.dev && platform.isMacOS) {
   app.commandLine.appendSwitch("use-mock-keychain");
+}
+
+// macOS's AutoFill attaches a helper process to every focused text field. It
+// is also what offers a code from Messages, so a packaged build keeps it. A dev
+// build turns it off: a dev run that outlived WindowServer once had AutoFill's
+// client retry its dead helper about ten thousand times a second. AppKit reads
+// NSAutoFillHeuristicsEnabled on macOS 27; Chromium sets the older key itself
+// on macOS 26.0 and 26.1.
+if (is.dev && platform.isMacOS) {
+  systemPreferences.registerDefaults({ NSAutoFillHeuristicsEnabled: false });
 }
 
 // A development run started with FAKE_MICROPHONE=true records Chromium's test

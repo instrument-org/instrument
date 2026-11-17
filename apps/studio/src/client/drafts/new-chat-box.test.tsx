@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   bindNewChatBoxAtom,
+  closingNewChat,
   draftInNewChatBox,
   isNewChatEmptied,
   newChatBoxesAtom,
@@ -183,4 +184,66 @@ describe("whether a new chat was emptied", () => {
       ).toBe(expected);
     },
   );
+});
+
+describe("a new chat's tab as it closes", () => {
+  const draft = (id: string, words: string) => ({
+    createdAt: 1,
+    id,
+    updatedAt: 1,
+    words,
+  });
+  const drafts = [draft("kept", "Hotels in Lisbon"), draft("emptied", "")];
+
+  it.each([
+    {
+      boxes: {},
+      expected: { href: "/chats?draft=kept" },
+      href: "/chats?draft=kept",
+      why: "a draft with words keeps its address",
+    },
+    {
+      boxes: { [TAB]: { draftId: "kept" } },
+      expected: { href: "/chats?draft=kept" },
+      href: "/chats",
+      why: "the draft its box writes into is named where the address has none",
+    },
+    {
+      boxes: { [TAB]: { draftId: "emptied" } },
+      expected: { emptied: "emptied", href: "/chats" },
+      href: "/chats?draft=emptied",
+      why: "an emptied draft is thrown away and the tab closes blank",
+    },
+    {
+      boxes: {},
+      expected: { href: "/chats" },
+      href: "/chats?draft=gone",
+      why: "a draft already gone leaves a blank tab",
+    },
+    {
+      boxes: {},
+      expected: { href: "/chats" },
+      href: "/chats",
+      why: "a new tab with no draft closes as it is",
+    },
+    {
+      boxes: { [TAB]: { draftId: "emptied" } },
+      expected: { href: "/settings" },
+      href: "/settings",
+      why: "a tab that is no new chat closes as it is",
+    },
+  ])("$why", ({ boxes, expected, href }) => {
+    expect(closingNewChat({ boxes, drafts }, { href, tabId: TAB })).toEqual(
+      expected,
+    );
+  });
+
+  it("keeps the draft words settling as it closes just made", () => {
+    expect(
+      closingNewChat(
+        { boxes: {}, drafts },
+        { href: "/chats", made: "kept", tabId: TAB },
+      ),
+    ).toEqual({ href: "/chats?draft=kept" });
+  });
 });

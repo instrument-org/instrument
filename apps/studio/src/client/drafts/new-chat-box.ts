@@ -1,4 +1,7 @@
-import { newChatHref } from "@/client/components/window/window-href";
+import {
+  matchScreen,
+  newChatHref,
+} from "@/client/components/window/window-href";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { type Draft, isLeftEmpty } from "@/shared/drafts";
 import { atom } from "jotai";
@@ -86,6 +89,38 @@ export function isNewChatEmptied(
     isBoxEmpty &&
     isLeftEmpty(draft, { hasTabs })
   );
+}
+
+/**
+ * How a new chat's tab closes: at the address of the draft it writes into
+ * (`made` is the one words settling as it closes just made), so it reopens
+ * with it; or as a new tab with nothing in it where that draft was emptied
+ * of everything, which is to be thrown away now (`emptied`), or is gone.
+ * Any other tab closes at the address it has.
+ */
+export function closingNewChat(
+  {
+    boxes,
+    drafts,
+  }: { boxes: Partial<Record<string, NewChatBox>>; drafts: Draft[] },
+  { href, made, tabId }: { href: string; made?: string; tabId: string },
+): { emptied?: string; href: string } {
+  const screen = matchScreen(href);
+  if (screen.kind !== "inbox") {
+    return { href };
+  }
+  const written = made ?? boxes[tabId]?.draftId ?? screen.draft;
+  if (written === undefined || written === null) {
+    return { href };
+  }
+  const draft = drafts.find((each) => each.id === written);
+  if (draft === undefined) {
+    return { href: newChatHref() };
+  }
+  if (isNewChatEmptied(draft, { hasTabs: false, isBoxEmpty: true })) {
+    return { emptied: draft.id, href: newChatHref() };
+  }
+  return { href: screen.draft === written ? href : newChatHref(written) };
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   updateDraftAtom,
 } from "@/client/drafts/store";
 import {
+  closingNewChat,
   newChatBoxesAtom,
   pickNewChatProjectAtom,
   settleMadeDraft,
@@ -545,10 +546,11 @@ function WindowShell({
     // of only agents' own tabs (`agentCloseKeeps`).
     for (const group of closed) {
       const kept = windowTabs.allTabs.flatMap((tab) => {
+        if (tab.group !== group) {
+          return [];
+        }
         const closedAs = closingAsWritten(tab);
-        return tab.group === group && closedAs && !isBlankNewTab(closedAs)
-          ? [closedAs]
-          : [];
+        return closedAs && !isBlankNewTab(closedAs) ? [closedAs] : [];
       });
       if (
         kept.length > 0 &&
@@ -879,17 +881,23 @@ function WindowShell({
   /**
    * A new chat's tab as it closes, at the address of the draft words typed
    * a moment before make, so it can be reopened with them as one closed a
-   * moment later can.
+   * moment later can. A draft emptied of everything is thrown away here
+   * rather than left for the next launch's sweep (`closingNewChat`).
    */
   const closingAsWritten = (tab: undefined | WindowTab) => {
     const made = tab && settleMadeDraft(store, tab.id);
-    if (tab?.kind !== "screen" || made === undefined) {
+    // Before main has read the drafts, every draft looks gone.
+    if (tab?.kind !== "screen" || !store.get(draftsLoadedAtom)) {
       return tab;
     }
-    const screen = matchScreen(tab.href);
-    return screen.kind === "inbox" && screen.draft === made
-      ? tab
-      : { ...tab, href: newChatHref(made) };
+    const closing = closingNewChat(
+      { boxes: store.get(newChatBoxesAtom), drafts: store.get(draftsAtom) },
+      { href: tab.href, made, tabId: tab.id },
+    );
+    if (closing.emptied !== undefined) {
+      void removeDraft(closing.emptied);
+    }
+    return closing.href === tab.href ? tab : { ...tab, href: closing.href };
   };
   // A group's tab closed goes on the window's closed list, with the window's
   // own tabs, so Shift+Cmd+T brings it back; an agent's close of its own

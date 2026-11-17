@@ -403,7 +403,7 @@ async function searchWithPlatform(args: {
     if (!args.waitWhenBusy) {
       return first;
     }
-    let latest = first;
+    let latest: Result<WebSearchResults, WebSearchFailure> = first;
     for (const ms of BUSY_RETRY_DELAYS_MS) {
       await delay(ms * (1 + Math.random() / 2), args.signal);
       if (args.signal.aborted) {

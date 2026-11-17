@@ -139,6 +139,16 @@ export function chatGPTAccountSearchModel<
 }
 
 /**
+ * The plan's fast model: the newest Luna the account lists. Undefined when it
+ * lists none, so a call that only makes sense on a fast model is not made.
+ */
+export function chatGPTAccountFastModel<Model extends { canonicalId: string }>(
+  models: Model[],
+): Model | undefined {
+  return newestOfTiers(models, ["luna"]);
+}
+
+/**
  * The newest release of the most preferred tier the list has, so a plan that
  * gains `gpt-6-luna` gets it over `gpt-5.6-luna` without a change here.
  */

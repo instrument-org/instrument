@@ -11,7 +11,7 @@ import {
   createOpenRouterSDK,
 } from "./ai-sdk-for-provider-config";
 import { TypedError } from "./errors";
-import { chatGPTAccountSearchModel } from "./fetch-models/chatgpt";
+import { chatGPTAccountFastModel } from "./fetch-models/chatgpt";
 import { type ModelCache } from "./model-cache";
 export { hasFastModel } from "./fast-model-kinds";
 import { reasoningProviderOptions } from "./reasoning-effort";
@@ -92,7 +92,7 @@ export async function getAISDKFastModel({
       });
     }
     case "chatgpt-account": {
-      const luna = chatGPTAccountSearchModel(listed);
+      const luna = chatGPTAccountFastModel(listed);
       if (!luna) {
         return Result.error(
           new TypedError.NotFound("The ChatGPT account lists no fast model."),

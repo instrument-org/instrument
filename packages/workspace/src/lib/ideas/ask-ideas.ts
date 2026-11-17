@@ -21,10 +21,11 @@ import { ideasFrom } from "./ideas-from";
 /**
  * Ideas for what to ask about the tabs in front of the person, for a tab
  * group with no chat in it and for a new tab: one call to the connection's
- * fast model with what they did in the app lately and the tabs' text, which
- * answers up to three lines or none. Only a Claude account, a ChatGPT
- * account and Instrument have a fast model to spend on it; on any other
- * connection the ideas never show.
+ * fast model with the tabs' text (and, for a new tab, what they did in the
+ * app lately), which answers up to three lines or none. Only a Claude
+ * account, a ChatGPT account and Instrument have a fast model to spend on
+ * it; on any other connection the ideas never show. Calls the tabs changing
+ * set off are paced (`pace`); one the person asks for always goes.
  */
 
 export const IdeaTabSchema = z.object({
@@ -64,16 +65,40 @@ const IDEAS_MAX_OUTPUT_TOKENS = 120;
 /** How long ideas stay good for the same tabs. */
 const CACHE_MS = 15 * 60_000;
 
-const IDEAS_INSTRUCTION = `You suggest what the person might ask ${APP_NAME}'s agent to do next with what they have open. The agent reads and edits their files, browses the web, uses their connected apps, and makes documents, spreadsheets and pages.
+/**
+ * How often the tabs changing may set off a call: once an interval, which
+ * starts at `PACE_START_MS`, doubles each time a set they set off goes
+ * untaken, up to `PACE_MAX_MS`, halves when the person moves to another
+ * group or opens a file, and starts over when they take an idea or ask.
+ */
+const PACE_START_MS = 30_000;
+const PACE_MAX_MS = 5 * 60_000;
+
+/** When a call the tabs set off finds one running, how long until it is tried again. */
+const BUSY_RETRY_MS = 5000;
+
+const pace = {
+  intervalMs: PACE_START_MS,
+  lastCallAt: 0,
+  /** The last set the tabs set off had lines, and none has been taken since. */
+  isUntaken: false,
+};
+
+/** Calls waiting or running, which go one at a time. */
+let calls = 0;
+let lastCall: Promise<unknown> = Promise.resolve();
+
+const instructionFor = (aboutWhat: string) =>
+  `You suggest what the person might ask ${APP_NAME}'s agent to do next with what they have open. The agent reads and edits their files, browses the web, uses their connected apps, and makes documents, spreadsheets and pages.
 
 Write up to three ideas, one per line, the most useful first. Each is a message they would send the agent, in their own words: 3 to 9 words, under 60 characters.
 
 - Only ideas worth a press: specific to what's open, naming the actual thing ("Compare Growth vs Scale plan features", not "Compare plans").
-- Lean on what they did most recently.
+- ${aboutWhat}
 - Never a line that fits any page: no "Summarize this page", "Explain this", "Tell me more".
 - Never delete, send, buy, post, book or share anything.
 - Never mention tabs, context, activity, or what they were doing.
-- Fewer is fine. Reply NONE when nothing specific and useful comes to mind, or what's open is a sign-in screen, an error or empty.
+- Fewer is fine. Reply NONE when nothing specific and useful comes to mind, or what's open is a placeholder or example page, a sign-in screen, an error or empty.
 
 What is worth a press, and what isn't:
 
@@ -84,12 +109,23 @@ What is worth a press, and what isn't:
 - A folder of screenshots from a test run: "Turn the test-run screenshots into a bug report". Not "Describe these images".
 - An article about heat pumps, just after searching for installers: "Find heat pump installers near me". Not "Tell me more about heat pumps".
 - Several tabs of flights to Lisbon: "Compare the Lisbon flights by price and length". Not "Help me plan a trip".
-- A sign-in page, an error page, a blank document or an empty folder: NONE.
+- A placeholder page such as example.com, a sign-in page, an error page, a blank document or an empty folder: NONE.
 
 Reply with only the lines or NONE: no numbering, bullets, quotes or explanation.`;
 
+/** One per trigger, each word for word the same on every call, for the cache. */
+const INSTRUCTIONS = {
+  "new-tab": instructionFor("Lean on what they did most recently."),
+  tabs: instructionFor(
+    "Only about what's open here, the tab in front first, never anything else.",
+  ),
+} satisfies Record<z.output<typeof IdeaTriggerSchema>, string>;
+
 const cache = new Map<string, { at: number; lines: readonly string[] }>();
 const asking = new Map<string, Promise<readonly string[]>>();
+
+/** Ideas for a set, or, for a call the tabs set off that had to wait, when to try again. */
+export type IdeasAnswer = { lines: readonly string[] } | { retryInMs: number };
 
 /** The connection a model URI runs through, when it has a fast model to spend. */
 function fastConnection(
@@ -110,39 +146,100 @@ function fastConnection(
  * the connection `modelURI` runs through; none where it has no fast model,
  * where the model has nothing specific, or when the call fails. The same
  * `key` within a while answers from memory, and a call already running for
- * it is shared.
+ * it is shared. A call the person `asked` for waits its turn behind one
+ * running; one the tabs set off goes only when the pace allows and nothing
+ * is running, and otherwise answers when to try again.
  */
-export function askIdeas({
+export async function askIdeas({
+  asked,
   key,
   modelURI,
   tabs,
   trigger,
 }: {
+  asked: boolean;
   key: string;
   modelURI: string;
   tabs: readonly IdeaTab[];
   trigger: z.output<typeof IdeaTriggerSchema>;
-}): Promise<readonly string[]> {
+}): Promise<IdeasAnswer> {
+  if (asked) {
+    setPace(PACE_START_MS, "they asked");
+    pace.isUntaken = false;
+  }
   const kept = cache.get(key);
   if (kept && Date.now() - kept.at < CACHE_MS) {
-    return Promise.resolve(kept.lines);
+    return { lines: kept.lines };
   }
   const running = asking.get(key);
   if (running) {
-    return running;
+    return { lines: await running };
   }
-  const asked = ask({ modelURI, tabs, trigger })
+  if (!asked) {
+    const waitMs = pace.lastCallAt + pace.intervalMs - Date.now();
+    if (calls > 0 || waitMs > 0) {
+      console.info(
+        `[ambient-ideas] ${trigger} skipped: ${calls > 0 ? "a call is running" : `${seconds(waitMs)} left of the ${seconds(pace.intervalMs)} interval`}`,
+      );
+      return { retryInMs: Math.max(waitMs, BUSY_RETRY_MS) };
+    }
+    if (pace.isUntaken) {
+      setPace(
+        Math.min(pace.intervalMs * 2, PACE_MAX_MS),
+        "the last set went untaken",
+      );
+    }
+  }
+  calls += 1;
+  const call = lastCall
+    .then(() => ask({ asked, modelURI, tabs, trigger }))
     .catch((error: unknown) => {
       getWorkspaceConfig().captureException(error, { area: "ambient-ideas" });
       return [];
     })
     .then((lines) => {
       cache.set(key, { at: Date.now(), lines });
+      if (!asked) {
+        pace.isUntaken = lines.length > 0;
+      }
       return lines;
     })
-    .finally(() => asking.delete(key));
-  asking.set(key, asked);
-  return asked;
+    .finally(() => {
+      calls -= 1;
+      asking.delete(key);
+    });
+  lastCall = call;
+  asking.set(key, call);
+  return { lines: await call };
+}
+
+/**
+ * What the person did that changes the pace: took an idea, which starts it
+ * over, or moved to another group or opened a file, which steps it back.
+ */
+export function noteIdeasPace(event: "moved" | "taken") {
+  if (event === "taken") {
+    setPace(PACE_START_MS, "an idea was taken");
+    pace.isUntaken = false;
+    return;
+  }
+  setPace(
+    Math.max(PACE_START_MS, pace.intervalMs / 2),
+    "moved to another group or opened a file",
+  );
+}
+
+function setPace(intervalMs: number, why: string) {
+  if (intervalMs !== pace.intervalMs) {
+    console.info(
+      `[ambient-ideas] pace ${seconds(pace.intervalMs)} → ${seconds(intervalMs)}: ${why}`,
+    );
+  }
+  pace.intervalMs = intervalMs;
+}
+
+function seconds(ms: number) {
+  return `${Math.ceil(ms / 1000)}s`;
 }
 
 /** Whether ideas can show at all for chats started on `modelURI`. */
@@ -155,10 +252,12 @@ export function ideasAvailable(modelURI: string): boolean {
 }
 
 async function ask({
+  asked,
   modelURI,
   tabs,
   trigger,
 }: {
+  asked: boolean;
   modelURI: string;
   tabs: readonly IdeaTab[];
   trigger: z.output<typeof IdeaTriggerSchema>;
@@ -177,13 +276,17 @@ async function ask({
     return [];
   }
   const built = performance.now();
-  const context = await contextOf(tabs);
+  const context = await contextOf(tabs, {
+    withActions: trigger === "new-tab",
+  });
   // A new tab in a group of its own, with nothing done lately: nothing to
   // have an idea about.
   if (context === undefined) {
     return [];
   }
   const contextMs = performance.now() - built;
+  const instruction = INSTRUCTIONS[trigger];
+  pace.lastCallAt = Date.now();
   const startedAt = performance.now();
   let firstOutputMs: number | undefined;
   let costUsd: number | undefined;
@@ -200,7 +303,7 @@ async function ask({
     // prefix where the provider caches only what it is told to; the tabs
     // after it change with every call.
     instructions: {
-      content: IDEAS_INSTRUCTION,
+      content: instruction,
       providerOptions: fast.value.cachePoint as never, // each provider's own options, typed per provider upstream
       role: "system",
     },
@@ -231,7 +334,7 @@ async function ask({
       ? answer.split("\n").slice(0, -1).join("\n")
       : answer;
   const lines = ideasFrom(whole, {
-    instruction: IDEAS_INSTRUCTION,
+    instruction,
     titles: tabs.map((tab) => tab.title),
   });
   // One line a call, for reading how a connection performs, the Claude Code
@@ -239,7 +342,7 @@ async function ask({
   // what the call took here.
   const turn = claudeCodeTurn(metadata);
   console.info(
-    `[ambient-ideas] ${trigger} on ${config.type} ${fast.value.modelId}: ${lines.length} of ${answer.split("\n").filter(Boolean).length} lines kept, context ${Math.round(contextMs)}ms (${context.length} chars), first words ${firstOutputMs === undefined ? "none" : `${Math.round(firstOutputMs)}ms`}, done ${Math.round(doneMs)}ms, tokens in ${usage.inputTokens ?? "?"} (cache read ${usage.inputTokenDetails.cacheReadTokens ?? "?"}, write ${usage.inputTokenDetails.cacheWriteTokens ?? "?"}) out ${usage.outputTokens ?? "?"}${costUsd === undefined ? "" : `, $${costUsd.toFixed(5)}`}${turn ? `, Claude Code: api ${turn.durationApiMs}ms of ${turn.durationMs}ms, request sent at ${turn.timeToRequestMs ?? "?"}ms, first token at ${turn.ttftMs ?? "?"}ms, process overhead ~${Math.round(doneMs - turn.durationApiMs)}ms` : ""}`,
+    `[ambient-ideas] ${trigger}${asked ? " asked" : ""} on ${config.type} ${fast.value.modelId}: ${lines.length} of ${answer.split("\n").filter(Boolean).length} lines kept, context ${Math.round(contextMs)}ms (${context.length} chars), first words ${firstOutputMs === undefined ? "none" : `${Math.round(firstOutputMs)}ms`}, done ${Math.round(doneMs)}ms, tokens in ${usage.inputTokens ?? "?"} (cache read ${usage.inputTokenDetails.cacheReadTokens ?? "?"}, write ${usage.inputTokenDetails.cacheWriteTokens ?? "?"}) out ${usage.outputTokens ?? "?"}${costUsd === undefined ? "" : `, $${costUsd.toFixed(5)}`}${turn ? `, Claude Code: api ${turn.durationApiMs}ms of ${turn.durationMs}ms, request sent at ${turn.timeToRequestMs ?? "?"}ms, first token at ${turn.ttftMs ?? "?"}ms, process overhead ~${Math.round(doneMs - turn.durationApiMs)}ms` : ""}`,
   );
   return lines;
 }
@@ -279,12 +382,13 @@ function readablePath(hostPath: string): string {
     : hostPath;
 }
 
-/** What goes to the model: what the person did lately, then each tab under its budget. */
+/** What goes to the model: what the person did lately `withActions`, then each tab under its budget. */
 async function contextOf(
   tabs: readonly IdeaTab[],
+  { withActions }: { withActions: boolean },
 ): Promise<string | undefined> {
   const parts: string[] = [];
-  if (mayShareActions()) {
+  if (withActions && mayShareActions()) {
     const now = Date.now();
     const actions = (await readActions({ since: now - ACTIONS_SINCE_MS }))
       .filter((action) => action.kind !== "capped")

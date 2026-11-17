@@ -20,6 +20,7 @@ import {
   matchEntries,
   matchPages,
   pathQuery,
+  siteOf,
 } from "@/client/components/window/omnibar-match";
 import {
   initialOmnibarField,
@@ -102,14 +103,14 @@ import {
   ScopeList,
   type ScopeListHandle,
 } from "./omnibar-scope";
+import { whereOfAddress } from "./row-text";
+import { chatListOptions } from "./chat-list-query";
 import { bookmarkName } from "./web-start";
 
-/** Rows past the one Enter takes: enough to choose from, few enough to read at a glance. */
-const PAGES_SHOWN = 4;
-const SUGGESTIONS_SHOWN = 5;
+/** Rows of each kind past the one Enter takes: three, as the command menu lists. */
+const PER_KIND_SHOWN = 3;
+/** A folder's names a path reaches, which read as the folder's listing rather than a kind of result. */
 const ENTRIES_SHOWN = 8;
-const APP_ROWS_SHOWN = 4;
-const BOOKMARKS_SHOWN = 4;
 
 /**
  * What a tab's field reaches once it searches no one app (`FieldScope`):
@@ -390,11 +391,12 @@ export function Omnibar({
     }
   };
 
-  // The field emptied, once asked for, lists every bookmark, as a browser's
-  // lists what it would go to before anything is typed. A field searching
-  // one app lists only that app's.
-  const listsBookmarks =
-    isEditing && isFocused && isAsked && scope === undefined && query === "";
+  // A chat's field, pressed with nothing typed, lists the newest chats. Any
+  // other lists nothing until something is typed: a new tab's page already
+  // shows the bookmarks and recent pages, and a page's field holds its
+  // address.
+  const listsRecents =
+    isEditing && isFocused && isAsked && scope === "chat" && query === "";
   const found = useOmnibarRows({
     canComplete,
     // A field searching one app reads none of the general rows.
@@ -423,7 +425,7 @@ export function Omnibar({
   const rowsNow = () =>
     scope === undefined ? rows : (scopeList.current?.rows() ?? []);
   const current = Math.min(highlight, Math.max(0, rows.length - 1));
-  const isListShown = isEditing && (typed.trim() !== "" || listsBookmarks);
+  const isListShown = isEditing && (typed.trim() !== "" || listsRecents);
   const picked = scope === undefined && current > 0 ? rows[current] : undefined;
   // The field says what Enter will do: the words with the rest of an address
   // written in ahead of the caret, or the row the arrows are on.
@@ -562,7 +564,7 @@ export function Omnibar({
             }
             case "Enter": {
               event.preventDefault();
-              if (listsBookmarks) {
+              if (listsRecents) {
                 run(now[at]);
                 break;
               }
@@ -764,21 +766,28 @@ function useOmnibarRows({
     ),
   );
 
+  // A chat's row says the project it is filed under.
+  const chats = useQuery({
+    ...chatListOptions(),
+    enabled: isEditing && mode === "web",
+  }).data;
+  const projectNames = new Map(
+    (shell?.projects ?? []).map((project) => [project.id, project.name]),
+  );
+  const projectOfChat = (id: string) => {
+    const project = chats?.find((chat) => chat.id === id)?.project;
+    return project === undefined ? undefined : projectNames.get(project);
+  };
+
   const { openAddress } = open;
-  // Nothing typed: every bookmark, in the bar's order.
   if (words === "") {
-    return {
-      completion: "",
-      rows: inOrder(bookmarks).map((bookmark) =>
-        bookmarkRow(bookmark, { home, openAddress }),
-      ),
-    };
+    return { completion: "", rows: [] };
   }
   // The bookmarks the words name, which come before anything but what
   // Enter does with them.
   const markRows = matchBookmarks(words, bookmarks)
-    .slice(0, BOOKMARKS_SHOWN)
-    .map((bookmark) => bookmarkRow(bookmark, { home, openAddress }));
+    .slice(0, PER_KIND_SHOWN)
+    .map((bookmark) => bookmarkRow(bookmark, { openAddress }));
   const isBookmarked = (url: string) =>
     bookmarks.some((bookmark) => sameAddress(bookmark.url, url));
 
@@ -844,10 +853,10 @@ function useOmnibarRows({
         : searchRow;
     const pageRows = matchPages(words, pages)
       .filter((page) => page.url !== known?.url && !isBookmarked(page.url))
-      .slice(0, PAGES_SHOWN)
+      .slice(0, PER_KIND_SHOWN)
       .map(
         (page): OmniRow => ({
-          detail: bareAddress(page.url),
+          detail: siteOf(page.url),
           fill: page.url,
           icon: <PageFavicon favicon={page.favicon} url={page.url} />,
           id: `page:${page.url}`,
@@ -862,7 +871,7 @@ function useOmnibarRows({
           .filter(
             (suggestion) => suggestion.toLowerCase() !== whole.toLowerCase(),
           )
-          .slice(0, SUGGESTIONS_SHOWN)
+          .slice(0, PER_KIND_SHOWN)
           .map((suggestion): OmniRow => {
             const suggestedSite = siteFromWords(suggestion);
             return {
@@ -886,6 +895,7 @@ function useOmnibarRows({
       chatTitles: shell?.chatTitles,
       isBookmarked,
       openAddress,
+      projectOfChat,
     });
     // A bookmark or a place of the app's own named whole is what Enter
     // takes.
@@ -968,7 +978,7 @@ function useOmnibarRows({
     isWhole &&
     withoutTrailingSeparators(path.folder) !== withoutTrailingSeparators(here);
   const entryRow = (entry: (typeof entries)[number]): OmniRow => ({
-    ...(elsewhere ? { detail: displayHostPath(path.folder, home) } : {}),
+    ...(elsewhere ? { detail: segmentsOf(path.folder).at(-1) } : {}),
     fill:
       entry === finished
         ? `${whole}${entry.kind === "folder" ? "/" : ""}`
@@ -1041,10 +1051,13 @@ function appPlaceRows(
     chatTitles,
     isBookmarked,
     openAddress,
+    projectOfChat,
   }: {
     chatTitles: ReadonlyMap<string, string> | undefined;
     isBookmarked: (address: string) => boolean;
     openAddress: (address: string) => void;
+    /** The name of the project a chat is filed under, which its row says. */
+    projectOfChat: (id: string) => string | undefined;
   },
 ): OmniRow[] {
   const lower = words.toLowerCase();
@@ -1085,30 +1098,31 @@ function appPlaceRows(
         `settings ${part.toLowerCase()}`.startsWith(lower))
     );
   };
-  const rows = [
-    ...builtInPages()
-      .filter((page) => pageNamed(page) && !isBookmarked(page.address))
-      .map((page) =>
-        place(
-          page.part === undefined ? page.name : `${page.name}/${page.part}`,
-          page.title,
-          page.address,
-          <AppMark app={page.name} className="size-4" />,
-        ),
+  const pageRows = builtInPages()
+    .filter((page) => pageNamed(page) && !isBookmarked(page.address))
+    .map((page) =>
+      place(
+        page.part === undefined ? page.name : `${page.name}/${page.part}`,
+        page.title,
+        page.address,
+        <AppMark app={page.name} className="size-4" />,
       ),
-    ...[...(chatTitles ?? [])]
-      .filter(([id, title]) => named(title) && !isBookmarked(chatAddressOf(id)))
-      .map(([id, title]) =>
-        place(
-          id,
-          title,
-          chatAddressOf(id),
-          <AppMark app="chat" className="size-4" />,
-          "Chat",
-        ),
+    );
+  const chatRows = [...(chatTitles ?? [])]
+    .filter(([id, title]) => named(title) && !isBookmarked(chatAddressOf(id)))
+    .map(([id, title]) =>
+      place(
+        id,
+        title,
+        chatAddressOf(id),
+        <AppMark app="chat" className="size-4" />,
+        projectOfChat(id),
       ),
+    );
+  return [
+    ...unique(pageRows, (row) => row.id).slice(0, PER_KIND_SHOWN),
+    ...chatRows.slice(0, PER_KIND_SHOWN),
   ];
-  return unique(rows, (row) => row.id).slice(0, APP_ROWS_SHOWN);
 }
 
 /**
@@ -1130,24 +1144,15 @@ function matchBookmarks(
 
 /**
  * A bookmark as a row, worn as the bar wears it: its mark and its name,
- * after it a site's address or where a file or a folder is.
+ * after it the site, or the folder a file or a folder is in.
  */
 function bookmarkRow(
   bookmark: Bookmark,
-  {
-    home,
-    openAddress,
-  }: { home: string | undefined; openAddress: (address: string) => void },
+  { openAddress }: { openAddress: (address: string) => void },
 ): OmniRow {
   const target = targetOfAddress(bookmark.url);
-  const detail =
-    target?.kind === "page"
-      ? bareAddress(target.url)
-      : target?.kind === "path"
-        ? displayHostPath(target.path, home)
-        : undefined;
   return {
-    detail,
+    detail: whereOfAddress(bookmark.url),
     ...(target?.kind === "page" ? { fill: target.url } : {}),
     icon: <AddressMark address={bookmark.url} className="size-4" />,
     id: `bookmark:${bookmark.id}`,

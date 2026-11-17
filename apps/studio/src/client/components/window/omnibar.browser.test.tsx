@@ -63,6 +63,21 @@ vi.mock("@/client/lib/locate-typed-path", async (importOriginal) => ({
     Promise.resolve({ kind: "missing", path: path.shown }),
 }));
 
+vi.mock("@/client/bookmarks/store", async (importOriginal) => {
+  const { atom } = await import("jotai");
+  return {
+    ...(await importOriginal<typeof import("@/client/bookmarks/store")>()),
+    bookmarksAtom: atom([
+      {
+        id: "radar",
+        order: 1,
+        title: "Weather Radar",
+        url: "https://radar.example.com/",
+      },
+    ]),
+  };
+});
+
 vi.mock("./context", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./context")>()),
   useWindow: () => ({ openPage: () => undefined }),
@@ -92,6 +107,25 @@ describe("a path the field found nothing at", () => {
       .element(page.getByRole("option", { selected: true }))
       .toMatchTextContent("/nowhere/x");
     await expect.element(notice).not.toBeInTheDocument();
+  });
+});
+
+// A new tab's page already shows the bookmarks, so its field pressed with
+// nothing typed lists none of them again.
+describe("a new tab's field pressed with nothing typed", () => {
+  it("lists nothing", async () => {
+    await renderInBrowser(<Omnibar location={{ kind: "newTab" }} />);
+    const field = page.getByRole("combobox");
+    const box = field.element();
+    if (box instanceof HTMLInputElement) {
+      editField(box);
+    }
+
+    await expect.element(field).toHaveAttribute("aria-expanded", "false");
+    await userEvent.keyboard("weather");
+    await expect
+      .element(page.getByRole("option", { name: /Weather Radar/ }))
+      .toMatchTextContent("Weather Radarradar.example.com");
   });
 });
 
@@ -125,8 +159,8 @@ describe("words the field searches the web for", () => {
 // where a name home has too (Documents) would read as home's own.
 describe("a folder's names a whole path reaches", () => {
   it.each([
-    ["C:\\Users\\Public\\Documents", "DocumentsC:\\Users\\Public"],
-    ['"C:\\Users\\Public\\Documents"', "DocumentsC:\\Users\\Public"],
+    ["C:\\Users\\Public\\Documents", "DocumentsPublic"],
+    ['"C:\\Users\\Public\\Documents"', "DocumentsPublic"],
     // In the folder on screen, a name says enough on its own.
     ["C:\\Users\\casey\\Doc", /^Documents$/],
   ])("say where they are for %s", async (typed, row) => {

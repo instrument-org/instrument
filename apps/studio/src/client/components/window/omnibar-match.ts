@@ -1,3 +1,4 @@
+import { segmentsOf } from "@/client/components/window/host-path";
 import { isPathLike } from "@/client/lib/typed-path";
 import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
 
@@ -36,6 +37,16 @@ export function bareAddress(url: string): string {
     .replace(/^[a-z][a-z0-9+.-]*:\/\//i, "")
     .replace(/^www\./i, "")
     .replace(/\/$/, "");
+}
+
+/** The site a page is on, as a row names where it lives: `zendesk.com`. */
+export function siteOf(url: string): string {
+  return bareAddress(url).split(/[/?#]/)[0] ?? "";
+}
+
+/** The name of the folder a path is in, as a row names where it lives. */
+export function folderNameOf(hostPath: string): string | undefined {
+  return segmentsOf(hostPath).at(-2);
 }
 
 /**

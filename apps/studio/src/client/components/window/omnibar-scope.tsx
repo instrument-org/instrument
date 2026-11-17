@@ -32,6 +32,7 @@ import { AppMark } from "./app-chip";
 import { chatListOptions } from "./chat-list-query";
 import { matchesSearch } from "./chats";
 import { matchNames } from "./omnibar-match";
+import { RowText } from "./row-text";
 import { ShellContext } from "./shell-context";
 import { type FieldScope, type TabLocation } from "./tab-location";
 import { chatsWithNoTab } from "./tab-groups";
@@ -40,7 +41,7 @@ import { CHATS_INDEX_HREF, chatHref } from "./window-href";
 
 /** One row under the address field: what the words in it could mean. */
 export interface OmniRow {
-  /** Muted after the name: a page's address, what Enter does with the words. */
+  /** Muted after the name: where the row lives (a folder's name, a site, a project), in a word or two. */
   detail?: string | undefined;
   /**
    * What the field says while the row is picked with the arrows, and what Tab
@@ -73,6 +74,9 @@ export const SCOPE_PROMPTS: Record<FieldScope, string> = {
 
 /** Rows past which a scope's list stops, before its search row: enough to choose from, few enough to read. */
 const SCOPE_ROWS_SHOWN = 6;
+
+/** The newest chats a chat's field lists when it is pressed with nothing typed. */
+const RECENT_CHATS_SHOWN = 4;
 
 /** How many of each Activity log the field searches: the newest, which the page opens with too. */
 const ACTIVITY_READ = 200;
@@ -205,10 +209,15 @@ function useScopeRows({
       const closed = new Set(
         chatsWithNoTab(chats ?? [], windowState).map((chat) => chat.id),
       );
+      // Nothing typed: the newest few, and no search of the list.
       const found = (chats ?? [])
-        .filter((chat) => matchesSearch(chat, typed, projectNames))
+        .filter((chat) =>
+          typed === ""
+            ? !chat.archived
+            : matchesSearch(chat, typed, projectNames),
+        )
         .toSorted((a, b) => b.lastUserMessageAt - a.lastUserMessageAt)
-        .slice(0, SCOPE_ROWS_SHOWN);
+        .slice(0, typed === "" ? RECENT_CHATS_SHOWN : SCOPE_ROWS_SHOWN);
       return {
         rows: [
           ...found.map(
@@ -229,10 +238,14 @@ function useScopeRows({
               },
             }),
           ),
-          searchRow(
-            `Search chats for “${typed}”`,
-            `${CHATS_INDEX_HREF}?${searched}`,
-          ),
+          ...(typed === ""
+            ? []
+            : [
+                searchRow(
+                  `Search chats for “${typed}”`,
+                  `${CHATS_INDEX_HREF}?${searched}`,
+                ),
+              ]),
         ],
       };
     }
@@ -465,14 +478,7 @@ export function OmniList({
             <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
               {row.icon}
             </span>
-            <span className="min-w-0 flex-1 truncate">
-              {row.name}
-              {row.detail ? (
-                <span className="ml-2 text-xs text-muted-foreground">
-                  {row.detail}
-                </span>
-              ) : null}
-            </span>
+            <RowText name={row.name} where={row.detail} />
           </button>
         ))
       )}

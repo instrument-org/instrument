@@ -76,22 +76,40 @@ function setPlatform(platform: NodeJS.Platform) {
   });
 }
 
-/** The Settings tabs the menu finds for "settings", by their labels. */
-function SettingsTabRows() {
+/** Every tab Settings could have, by its title, each looked for by name. */
+const SETTINGS_TITLES = [
+  "General",
+  "Account",
+  "Providers",
+  "Apps",
+  "Permissions",
+  "Storage",
+  "History",
+  "Developer",
+];
+
+/** The Settings tab the menu finds for its title, by its label. */
+function SettingsTabRow({ words }: { words: string }) {
   const { rows } = useCommandMenuRows({
     active: true,
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
-    words: "settings",
+    words,
   });
+  return rows.map((row) =>
+    row.type === "item" && row.detail === "Settings" && row.label === words ? (
+      <li key={row.id}>{row.label}</li>
+    ) : null,
+  );
+}
+
+function SettingsTabRows() {
   return (
     <ul>
-      {rows.map((row) =>
-        row.type === "item" && row.label.startsWith("Settings: ") ? (
-          <li key={row.id}>{row.label}</li>
-        ) : null,
-      )}
+      {SETTINGS_TITLES.map((title) => (
+        <SettingsTabRow key={title} words={title} />
+      ))}
     </ul>
   );
 }
@@ -116,13 +134,13 @@ describe("Settings tabs in the command menu in developer mode", () => {
 
     expect(listed()).toEqual(
       [
-        "Settings: Account",
-        "Settings: Apps",
-        "Settings: History",
-        "Settings: Developer",
-        "Settings: Permissions",
-        "Settings: Providers",
-        "Settings: Storage",
+        "Account",
+        "Apps",
+        "History",
+        "Developer",
+        "Permissions",
+        "Providers",
+        "Storage",
       ].sort(),
     );
   });
@@ -198,11 +216,11 @@ describe("folders and bookmarks in the command menu", () => {
     expect(
       await screen.findByRole("button", { name: "Documents" }),
     ).toBeTruthy();
-    expect(screen.getByText("Folders")).toBeTruthy();
+    expect(screen.getByText("Files")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Backup Disk" })).toBeNull();
   });
 
-  it("lists a bookmarked page under Bookmarks alone", async () => {
+  it("lists a bookmarked page once, ahead of the pages visited", async () => {
     answers.set("history.live.recent", [
       {
         favicon: undefined,
@@ -220,13 +238,39 @@ describe("folders and bookmarks in the command menu", () => {
     await screen.findByRole("button", { name: "Weather Today" });
     expect(screen.getAllByRole("listitem").map((item) => item.textContent))
       .toMatchInlineSnapshot(`
+        [
+          "Pages",
+          "Weather Radar",
+          "Weather Today",
+          "",
+          "Search the web for “weather”",
+        ]
+      `);
+  });
+});
+
+describe("the command menu with nothing typed", () => {
+  it("lists what was used last, then a few commands", async () => {
+    answers.set("history.live.recent", [
+      {
+        at: 1,
+        favicon: undefined,
+        title: "Weather Today",
+        url: "https://today.example.com/",
+      },
+    ]);
+    renderWithProviders(<MenuRows words="" />);
+
+    await screen.findByRole("button", { name: "Weather Today" });
+    expect(screen.getAllByRole("listitem").map((item) => item.textContent))
+      .toMatchInlineSnapshot(`
       [
-        "Bookmarks",
-        "Weather Radar",
-        "Recent pages",
+        "Recent",
         "Weather Today",
-        "Web",
-        "Search the web for “weather”",
+        "Commands",
+        "New tab group",
+        "New tab",
+        "Settings",
       ]
     `);
   });

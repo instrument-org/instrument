@@ -22,7 +22,7 @@ Bringing a guest over is a fresh guest in the new window, its entry a new genera
 
 ## Visibility modes, and why a guest is truly hidden only asleep
 
-- **paint-host** — laid out at the guest's logical size but visually hidden (`opacity: 0.001`). Chromium still paints it on screen, so `capturePage()` and CDP input keep working while nothing is showing it. The size is whatever the agent last asked for, else the bounds the panel last showed it at, else 1280×800 — capped in every case at what the window can rasterize (see the policy split below).
+- **paint-host** — laid out at the guest's logical size but visually hidden (`opacity: 0.001`). Chromium still paints it on screen, so `capturePage()` and CDP input keep working while nothing is showing it. The size is whatever the agent last asked for, else the bounds a host above the pane (a draft window) last showed it at, else the size the window's pane last showed a page at (`paneSize`, followed once it has held for 150 ms), so a tab opened in the background or put away while the pane resized is laid out at the size its tab comes up at, else 1280×800 — capped in every case at what the window can rasterize (see the policy split below).
 - **visible** — positioned over a host slot (the task page's browser panel) and scaled to fit, with input enabled.
 - **asleep** — paint-host with `visibility: hidden` and the guest's background throttling turned back on, for a guest out of sight long enough (below). It draws no frames, runs no animation frames and has its timers throttled; its page stays as it was.
 

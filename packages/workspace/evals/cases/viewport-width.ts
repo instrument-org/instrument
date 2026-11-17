@@ -19,6 +19,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
+import { z } from "zod";
 
 import { type Session } from "../../src/schemas/session";
 import { type Assertion, defineEval } from "../harness";
@@ -89,7 +90,15 @@ function answerAssertion(label: string, needles: RegExp[]): Assertion {
   };
 }
 
-/** Records how the run browsed, never failing: commands, and anything the pinned viewport refused. */
+/** A line of what the pinned viewport did (`noteViewport` in `lib/shared-chrome.ts`). */
+const ViewportNoteSchema = z.object({
+  applied: z.object({ height: z.number(), width: z.number() }).optional(),
+  asked: z.object({ width: z.number().optional() }).optional(),
+  method: z.string().optional(),
+  refused: z.boolean().optional(),
+});
+
+/** Records how the run browsed, never failing: commands, and anything the pinned viewport refused or applied. */
 const browsedOnly: Assertion = {
   check: async (context) => {
     const commands = bashCommands(await allSessions(context));
@@ -102,21 +111,45 @@ const browsedOnly: Assertion = {
     const viewportAsks = commands.filter((command) =>
       /agent-browser\s+set\s+(?:viewport|device)/.test(command),
     );
-    let refused = "";
+    let notes = "";
     try {
-      refused = fs
+      notes = fs
         .readFileSync(path.join(os.homedir(), ".eval-viewport.jsonl"), "utf8")
         .trim();
     } catch {
-      // Nothing was refused or shifted.
+      // Nothing was refused, applied or shifted.
     }
+    const lines = notes.split("\n").filter(Boolean);
+    const applied = lines.flatMap((line) => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(line);
+      } catch {
+        return [];
+      }
+      const note = ViewportNoteSchema.safeParse(parsed);
+      return note.success && note.data.applied
+        ? [
+            `${note.data.method === "Emulation.clearDeviceMetricsOverride" ? "clear" : (note.data.asked?.width ?? "?")} -> ${note.data.applied.width}x${note.data.applied.height}`,
+          ]
+        : [];
+    });
     return {
       evidence: JSON.stringify({
         browserCommands: browser.length,
         fetches: fetches.length,
-        viewport: process.env.INSTRUMENT_EVAL_VIEWPORT ?? "1280x900",
+        viewport: [
+          process.env.INSTRUMENT_EVAL_VIEWPORT ?? "1280x900",
+          ...(process.env.INSTRUMENT_EVAL_VIEWPORT_LAYOUT
+            ? [`layout ${process.env.INSTRUMENT_EVAL_VIEWPORT_LAYOUT}`]
+            : []),
+          ...(process.env.INSTRUMENT_EVAL_VIEWPORT_AGENT === "1"
+            ? ["agent"]
+            : []),
+        ].join(" "),
+        viewportApplied: applied,
         viewportAsks: viewportAsks.map((command) => command.slice(0, 120)),
-        viewportNotes: refused.split("\n").filter(Boolean).length,
+        viewportNotes: lines.length,
       }),
       passed: true,
       text: "How it browsed (recorded, not scored)",

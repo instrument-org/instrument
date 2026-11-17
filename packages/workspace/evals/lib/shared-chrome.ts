@@ -89,7 +89,7 @@ export interface SharedChrome {
 }
 
 /**
- * The page size every tab lays out at, from `INSTRUMENT_EVAL_VIEWPORT`
+ * The side every tab is shown in, from `INSTRUMENT_EVAL_VIEWPORT`
  * (`<width>x<height>`, CSS px), standing in for a tab shown in a slot of
  * that size in the app, where the page lays out at the slot's size and an
  * agent's `set viewport` waits until the tab is out of sight. Unset, a tab
@@ -98,10 +98,23 @@ export interface SharedChrome {
  * holds each tab at 1280 by 900 until that long after the agent's first
  * command in it, then moves it to the pinned size, as a person opening a
  * split or dragging its divider does mid-task.
+ *
+ * `INSTRUMENT_EVAL_VIEWPORT_LAYOUT` (`<width>`) starts each tab zoomed to
+ * lay out that wide in the side, as the app does for a tab an agent opens
+ * in a side narrower than a desktop. `INSTRUMENT_EVAL_VIEWPORT_AGENT=1`
+ * honors the agent's `set viewport` the way the app does for a tab on
+ * screen: the page lays out at the width asked for, zoomed to fit the side,
+ * its height following the side's, and a clear goes back to the default.
  */
 function pinnedViewport():
   | undefined
-  | { afterMs: number; height: number; width: number } {
+  | {
+      afterMs: number;
+      agent: boolean;
+      height: number;
+      layout: number;
+      width: number;
+    } {
   const match = /^(\d+)x(\d+)$/.exec(
     process.env.INSTRUMENT_EVAL_VIEWPORT ?? "",
   );
@@ -109,11 +122,43 @@ function pinnedViewport():
     return undefined;
   }
   const after = Number(process.env.INSTRUMENT_EVAL_VIEWPORT_AFTER ?? "0");
+  const width = Number(match[1]);
+  const layout = Number(process.env.INSTRUMENT_EVAL_VIEWPORT_LAYOUT ?? "");
   return {
     afterMs: Number.isFinite(after) ? after * 1000 : 0,
+    agent: process.env.INSTRUMENT_EVAL_VIEWPORT_AGENT === "1",
     height: Number(match[2]),
-    width: Number(match[1]),
+    layout: Number.isInteger(layout) && layout > 0 ? layout : width,
+    width,
   };
+}
+
+/**
+ * The metrics that lay a page out `layout` CSS px wide in a side, zoomed to
+ * fit it: the page is drawn at the side's width, and its height is the
+ * side's at that zoom.
+ */
+function zoomedMetrics(
+  side: { height: number; width: number },
+  layout: number,
+) {
+  return {
+    deviceScaleFactor: side.width / layout,
+    height: Math.round((side.height * layout) / side.width),
+    mobile: false,
+    width: layout,
+  };
+}
+
+/** The width an agent's `setDeviceMetricsOverride` asks for, or nothing for 0, which turns the override off. */
+function askedWidth(params: unknown): number | undefined {
+  return typeof params === "object" &&
+    params !== null &&
+    "width" in params &&
+    typeof params.width === "number" &&
+    params.width > 0
+    ? params.width
+    : undefined;
 }
 
 /** What the pinned viewport refused or did, appended to `$HOME/.eval-viewport.jsonl` for a case to read. */
@@ -321,12 +366,7 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
     }
     await send(
       "Emulation.setDeviceMetricsOverride",
-      {
-        deviceScaleFactor: 1,
-        height: pinned.height,
-        mobile: false,
-        width: pinned.width,
-      },
+      zoomedMetrics(pinned, pinned.layout),
       sessionId,
     );
   };
@@ -462,14 +502,46 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
         if (!page) {
           return Promise.reject(new Error(`No target ${targetId}`));
         }
+        // agent-browser's `set viewport` resizes the window to match, which
+        // the app answers itself without touching the guest.
+        if (method === "Browser.setContentsSize") {
+          return Promise.resolve({});
+        }
+        // A browser-level command naming a tab names it by the window's id,
+        // which Chrome never answers for: the session stops responding.
+        if (
+          method.startsWith("Browser.") &&
+          typeof params === "object" &&
+          params !== null &&
+          "targetId" in params
+        ) {
+          return send(
+            method,
+            { ...params, targetId: page.chromeId },
+            page.session,
+          );
+        }
         if (
           pinned &&
           (method === "Emulation.setDeviceMetricsOverride" ||
             method === "Emulation.clearDeviceMetricsOverride")
         ) {
-          // A shown tab keeps its slot's size in the app.
-          noteViewport({ asked: params, method, refused: true });
-          return Promise.resolve({});
+          if (!pinned.agent) {
+            // A shown tab keeps its slot's size in the app.
+            noteViewport({ asked: params, method, refused: true });
+            return Promise.resolve({});
+          }
+          const asked =
+            method === "Emulation.setDeviceMetricsOverride"
+              ? askedWidth(params)
+              : undefined;
+          const applied = zoomedMetrics(pinned, asked ?? pinned.layout);
+          noteViewport({ applied, asked: params, method, tab: targetId });
+          return send(
+            "Emulation.setDeviceMetricsOverride",
+            applied,
+            page.session,
+          );
         }
         if (pinned && pinned.afterMs > 0 && !shiftScheduled.has(targetId)) {
           shiftScheduled.add(targetId);

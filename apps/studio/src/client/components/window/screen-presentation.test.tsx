@@ -74,7 +74,7 @@ describe("screenPresentation", () => {
   });
 
   it.each([
-    ["a debug tool", "/debug/components", "Components"],
+    ["a debug tool", "/debug/components", "Debug pages"],
     ["a component page", "/debug/components/colors", "Colors"],
   ])("names %s", (_, href, title) => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);

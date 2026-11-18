@@ -14,19 +14,6 @@ const CHOOSE_PLAN = {
   page: "/welcome",
 };
 
-/** The surfaces the Trial modes page draws, nested under it in the sidebar. */
-export const trialSurfaces = [
-  { id: "setup-outcome", label: "Setup outcome" },
-  { id: "settings-plan", label: "Plan in Settings" },
-  { id: "model-picker", label: "Model picker" },
-  { id: "chat-note", label: "Chat note" },
-  { id: "chat-note-refused", label: "Note after a refused turn" },
-  { id: "chat-note-image", label: "Note after a refused image" },
-  { id: "chat-note-image-signed-out", label: "Image note, signed out" },
-  { id: "add-provider", label: "Add a provider" },
-  { id: "log-in-free-account", label: "Free account sign-in" },
-] as const;
-
 /**
  * The ways the platform can offer the free trial, and the beta offer, as `billing.offer`
  * and `billing.status` answer for an account that has never had one. The
@@ -152,3 +139,13 @@ export function getTrialMode(id: TrialModeId) {
   }
   return mode;
 }
+
+/** Who the signed-in surfaces are signed in as. */
+export const trialModeUser = {
+  createdAt: new Date("2026-01-05T12:00:00Z"),
+  email: "sam@example.com",
+  id: "debug-trial-user",
+  image: null,
+  name: "Sam Rivera",
+  updatedAt: new Date("2026-01-05T12:00:00Z"),
+};

@@ -9,7 +9,12 @@ import {
 import { LOCAL_RPC_DEFAULTS } from "@/client/lib/local-rpc-defaults";
 import { MutationCache, QueryClient } from "@tanstack/react-query";
 
-import { type Frame, type FrameMark, growingChunks } from "./frames";
+import {
+  callDetail,
+  type Frame,
+  type FrameMark,
+  growingChunks,
+} from "./frames";
 
 type Message = SessionMessage.WithParts;
 type Part = SessionMessagePart.Type;
@@ -45,9 +50,15 @@ export function lastTurns(stored: Message[], count: number): Message[] {
 
 /** A finished call writing, running, then as stored; one still going only as stored. */
 function callBeats(part: SessionMessagePart.ToolPart, from: number): Beat[] {
+  const detail = callDetail(part.input);
   const beat = (at: number, phase: FrameMark["phase"], state: Part): Beat => ({
     at: Math.max(from, at),
-    mark: { kind: "call", phase, toolType: part.type },
+    mark: {
+      ...(detail !== undefined && { detail }),
+      kind: "call",
+      phase,
+      toolType: part.type,
+    },
     parts: [state],
   });
   if (part.state !== "output-available" && part.state !== "output-error") {
@@ -176,4 +187,44 @@ export function chatFrames(stored: readonly Message[]): Frame[] {
   }
   Object.assign(frames.at(-1) ?? {}, { isAgentRunning: false });
   return frames.slice(-MAX_FRAMES);
+}
+
+/** A message as of a frame, by the message it was, with every date moved by `by` ms. */
+const shifted = new WeakMap<Message, { by: number; message: Message }>();
+
+/**
+ * A replayed frame's messages with their dates moved so the frame's own time
+ * is now: a row that measures itself against the wall clock, such as Thinking,
+ * then reads the time it read when the frame was recorded. A message that did
+ * not change between frames stays the one object, so long as `by` does.
+ */
+export function messagesAsOfNow(
+  messages: readonly Message[],
+  by: number,
+): Message[] {
+  return messages.map((message) => {
+    const known = shifted.get(message);
+    if (known?.by === by) {
+      return known.message;
+    }
+    // The cast is the walk's: it keeps every shape it is handed but a date's.
+    const moved = movedDates(message, by) as Message;
+    shifted.set(message, { by, message: moved });
+    return moved;
+  });
+}
+
+function movedDates(value: unknown, by: number): unknown {
+  if (value instanceof Date) {
+    return new Date(value.getTime() + by);
+  }
+  if (Array.isArray(value)) {
+    return value.map((each: unknown) => movedDates(each, by));
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, each]) => [key, movedDates(each, by)]),
+    );
+  }
+  return value;
 }

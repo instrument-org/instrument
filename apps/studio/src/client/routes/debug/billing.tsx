@@ -8,13 +8,13 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { billingScenarioPrompt, billingScenarios } from "./-billing-scenarios";
-import { getDebugRoute } from "./-debug-routes";
+import { getDebugPage } from "./-debug-routes";
 import { DebugPageScroller } from "./-page-scroller";
 
 export const Route = createFileRoute("/debug/billing")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: getDebugRoute("billing").title }],
+    meta: [{ title: getDebugPage("billing").label }],
   }),
 });
 
@@ -128,6 +128,11 @@ function RouteComponent() {
 
         <Section title="billing.status">
           <ErrorLine error={status.error} />
+          {hasToken.data === false && (
+            <p className="text-muted-foreground">
+              You're signed out, so there's no status to show.
+            </p>
+          )}
           {status.data && (
             <>
               <Facts

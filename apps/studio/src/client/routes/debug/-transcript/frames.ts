@@ -607,21 +607,33 @@ const DETAIL_FIELDS = [
   "prompt",
 ];
 
-function mark(call: ToolCall, phase: FrameMark["phase"]): FrameMark {
-  const fields: [string, unknown][] = Object.entries(call.input);
+/**
+ * What a call was about, from the first of its input's telling fields, as
+ * `field: value`. Kept even when empty: a blank title is exactly the case
+ * worth seeing.
+ */
+export function callDetail(input: unknown): string | undefined {
+  if (typeof input !== "object" || input === null) {
+    return undefined;
+  }
+  const fields: [string, unknown][] = Object.entries(input);
   for (const field of DETAIL_FIELDS) {
     const value = fields.find(([key]) => key === field)?.[1];
     if (typeof value === "string") {
-      // Kept even when empty: a blank title is exactly the case worth seeing.
-      return {
-        detail: `${field}: ${value}`,
-        kind: "call",
-        phase,
-        toolType: call.type,
-      };
+      return `${field}: ${value}`;
     }
   }
-  return { kind: "call", phase, toolType: call.type };
+  return undefined;
+}
+
+function mark(call: ToolCall, phase: FrameMark["phase"]): FrameMark {
+  const detail = callDetail(call.input);
+  return {
+    ...(detail !== undefined && { detail }),
+    kind: "call",
+    phase,
+    toolType: call.type,
+  };
 }
 
 /**

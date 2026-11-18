@@ -4,16 +4,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/client/components/ui/card";
-import { cn } from "@/client/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 
-import { getComponentPage } from "../-debug-routes";
+import { getDebugPage } from "../-debug-routes";
 import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/colors")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: getComponentPage("colors").label }],
+    meta: [{ title: getDebugPage("colors").label }],
   }),
 });
 
@@ -140,11 +139,9 @@ const scaleGroups = [
 
 function ColorGroup({
   colors,
-  isScale = false,
   title,
 }: {
   colors: ColorToken[];
-  isScale?: boolean;
   title: string;
 }) {
   return (
@@ -152,16 +149,10 @@ function ColorGroup({
       <CardHeader className="px-5">
         <CardTitle className="text-sm">{title}</CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto px-5">
-        <div
-          className={cn(
-            "flex gap-3",
-            isScale && "min-w-[980px]",
-            !isScale && "min-w-max",
-          )}
-        >
+      <CardContent className="px-5">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-3">
           {colors.map((color) => (
-            <ColorSwatch color={color} isScale={isScale} key={color.name} />
+            <ColorSwatch color={color} key={color.name} />
           ))}
         </div>
       </CardContent>
@@ -169,25 +160,14 @@ function ColorGroup({
   );
 }
 
-function ColorSwatch({
-  color,
-  isScale,
-}: {
-  color: ColorToken;
-  isScale: boolean;
-}) {
+function ColorSwatch({ color }: { color: ColorToken }) {
   return (
-    <div
-      className={cn(
-        "flex w-20 shrink-0 flex-col gap-2",
-        isScale && "w-auto min-w-0 flex-1 shrink",
-      )}
-    >
+    <div className="flex min-w-0 flex-col gap-2">
       <div
         className="h-14 rounded-lg border border-border"
         style={{ background: `var(--${color.name})` }}
       />
-      <span className="truncate font-mono text-[10px] text-muted-foreground">
+      <span className="font-mono text-[10px] wrap-anywhere text-muted-foreground">
         {color.name}
       </span>
     </div>
@@ -198,11 +178,14 @@ function RouteComponent() {
   return (
     <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
+        <p className="text-sm text-muted-foreground">
+          Every color the app draws with, by its token name. Look at this page
+          in light and dark mode.
+        </p>
         <div className="flex flex-col gap-4">
           {scaleGroups.map((group) => (
             <ColorGroup
               colors={group.colors}
-              isScale
               key={group.title}
               title={group.title}
             />

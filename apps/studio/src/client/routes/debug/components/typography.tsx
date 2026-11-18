@@ -124,17 +124,11 @@ function RouteComponent() {
   return (
     <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-14 px-8 py-10">
-        <header className="flex flex-col gap-1">
-          <p className="text-sm font-medium text-muted-foreground">
-            Components
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">Typography</h1>
-          <p className="max-w-2xl text-sm text-muted-foreground">
-            Session prose as the product draws it, at the 736px column a
-            transcript is read at. Every specimen is the real SessionMarkdown,
-            so what is here is what a turn renders.
-          </p>
-        </header>
+        <p className="max-w-2xl text-sm text-muted-foreground">
+          Session prose as the product draws it, at the 736px column a
+          transcript is read at. Every specimen is the real SessionMarkdown, so
+          what is here is what a turn renders.
+        </p>
 
         <Specimen
           note="An assistant turn's own size over SessionMarkdown's base, at roughly 95 characters a line."

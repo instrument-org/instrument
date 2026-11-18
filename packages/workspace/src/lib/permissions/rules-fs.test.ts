@@ -1,11 +1,27 @@
 import { InMemoryFs, MountableFs, OverlayFs, ReadWriteFs } from "just-bash";
-import nodeFs from "node:fs";
+import nodeFs, {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  realpathSync,
+  rmSync,
+} from "node:fs";
+import os from "node:os";
 import nodePath from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { listFolder } from "../chat/folder-look";
+import { accountCanWrite } from "./account-can-write";
 import { closedNote, ruleRefusal, rulesFs } from "./rules-fs";
 import { type Rule, type Rules } from "./rules";
 
@@ -15,7 +31,7 @@ vi.mock(import("../chat/folder-look"), () => ({ listFolder: vi.fn() }));
 // account change.
 vi.mock("./account-can-write", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./account-can-write")>()),
-  accountCanWrite: () => true,
+  accountCanWrite: vi.fn(() => true),
 }));
 
 /**
@@ -444,6 +460,60 @@ describe.runIf(process.platform !== "win32")(
       });
       expect(refusal).toContain(
         `ask for ${JSON.stringify(String.raw`/Users/sam/Library/Notes \(old\)`)} with ask_permission`,
+      );
+    });
+  },
+);
+
+// A folder the card would name that this account can't change, as macOS
+// keeps the folder of every app's iCloud folder: ask_permission refuses it,
+// so the refusal names the first folder below it that a yes opens.
+describe.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+  "a read-only folder on the way to the path",
+  () => {
+    const home = realpathSync(mkdtempSync(nodePath.join(os.tmpdir(), "rofs-")));
+    const shared = nodePath.join(home, "Library", "Shared Things");
+    mkdirSync(nodePath.join(shared, "com.foo", "Notes"), { recursive: true });
+    chmodSync(shared, 0o555);
+    afterAll(() => {
+      chmodSync(shared, 0o755);
+      rmSync(home, { force: true, recursive: true });
+    });
+    beforeEach(async () => {
+      const actual = await vi.importActual<
+        typeof import("./account-can-write")
+      >("./account-can-write");
+      vi.mocked(accountCanWrite).mockImplementation(actual.accountCanWrite);
+    });
+    afterEach(() => {
+      vi.mocked(accountCanWrite).mockImplementation(() => true);
+    });
+    const rules: Rules = {
+      asker: {
+        chatId: ChatIdSchema.parse("read-only-parent"),
+        sessionId: StoreId.newSessionId(),
+      },
+      dangerouslyAllowEveryFolder: false,
+      home,
+      rules: [
+        { level: "ask", path: nodePath.join(home, "Library"), source: "place" },
+      ],
+    };
+
+    it.each([
+      [nodePath.join(shared, "com.foo", "Notes", "a.m4a"), false],
+      [nodePath.join(shared, "com.foo"), true],
+    ])("%s asks for its app's folder", (hostPath, isDirectory) => {
+      expect(
+        ruleRefusal({
+          hostPath,
+          isDirectory,
+          op: "read",
+          rules,
+          spell: (each) => each,
+        }),
+      ).toContain(
+        `ask for ${JSON.stringify(nodePath.join(shared, "com.foo"))} with ask_permission`,
       );
     });
   },

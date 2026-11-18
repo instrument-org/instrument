@@ -2,6 +2,7 @@ import { noteHostedRefusal } from "@/electron-main/lib/hosted-features";
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { systemCountry } from "@/electron-main/lib/system-country";
 import { getToken } from "@/electron-main/platform-api/utils";
+import { CLIENT_SESSION_ID_HEADER } from "@instrument-org/ai-gateway";
 import { PlanRefusalBodySchema } from "@instrument-org/shared";
 import {
   type PlatformSearchRefusal,
@@ -16,7 +17,11 @@ const ErrorResponseSchema = z.object({
   error: z.string(),
 });
 
-export const searchWeb: WebSearchClient = async ({ input, signal }) => {
+export const searchWeb: WebSearchClient = async ({
+  input,
+  sessionId,
+  signal,
+}) => {
   if (!getToken()) {
     return {
       errorMessage: "Sign in to Instrument to search the web.",
@@ -34,6 +39,7 @@ export const searchWeb: WebSearchClient = async ({ input, signal }) => {
       headers: {
         ...getPlatformApiHeaders(),
         "content-type": "application/json",
+        [CLIENT_SESSION_ID_HEADER]: sessionId,
       },
       method: "POST",
       signal,

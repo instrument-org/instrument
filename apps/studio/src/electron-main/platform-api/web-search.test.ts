@@ -34,6 +34,7 @@ describe("searchWeb", () => {
 
     const result = await searchWeb({
       input: { query: "latest TypeScript release" },
+      sessionId: "ses_1",
       signal: new AbortController().signal,
     });
 
@@ -64,6 +65,7 @@ describe("searchWeb", () => {
 
     const result = await searchWeb({
       input: { query: "latest TypeScript release" },
+      sessionId: "ses_1",
       signal,
     });
 
@@ -80,6 +82,7 @@ describe("searchWeb", () => {
         "x-client-name": "studio",
         "x-client-os-version": "15.6",
         "x-client-platform": process.platform,
+        "x-client-session-id": "ses_1",
         "x-client-version": "1.4.2",
       },
       method: "POST",
@@ -111,6 +114,7 @@ describe("searchWeb", () => {
 
     const result = await searchWeb({
       input: { query: "current news" },
+      sessionId: "ses_1",
       signal: new AbortController().signal,
     });
 
@@ -138,6 +142,7 @@ describe("searchWeb", () => {
 
     const result = await searchWeb({
       input: { query: "current news" },
+      sessionId: "ses_1",
       signal: new AbortController().signal,
     });
 
@@ -152,6 +157,7 @@ describe("searchWeb", () => {
 
     const result = await searchWeb({
       input: { query: "current news" },
+      sessionId: "ses_1",
       signal: new AbortController().signal,
     });
 
@@ -170,6 +176,7 @@ describe("searchWeb", () => {
 
     const result = await searchWeb({
       input: { query: "current news" },
+      sessionId: "ses_1",
       signal: new AbortController().signal,
     });
 

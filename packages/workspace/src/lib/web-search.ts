@@ -26,6 +26,7 @@ import { type WorkspaceConfig } from "../types";
 import { activityTelemetry, recordActivity } from "./activity/record";
 import { TypedError } from "./errors";
 import { getCurrentDate } from "./get-current-date";
+import { cacheSessionFor } from "./fork-cache-session";
 import { searchKeyless } from "./keyless-web-search";
 
 export interface WebSearchFailure {
@@ -313,6 +314,7 @@ async function requestPlatformSearch({
   const startedAt = Date.now();
   const response = await workspaceConfig.webSearch({
     input: { query: prompt },
+    sessionId: cacheSessionFor({ chatId, sessionId }),
     signal,
   });
   // Our endpoint is reached from the app's main process rather than through

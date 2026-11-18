@@ -319,7 +319,7 @@ function TurnBody({
   // end it (`workCardOf`). While the next activity is held back, the card
   // stays under the last one showing, and moves down as the next opens; held
   // behind words still coming out, it waits to open with its own row.
-  const heldFrom = useHeldFrom(turn);
+  const heldFrom = useHeldFrom(turn, isFolded);
   const isHolding = heldFrom !== Number.POSITIVE_INFINITY;
   const shown = turn.rows.slice(0, heldFrom);
   const cardAt = shown.findLastIndex((row) => row.kind === "activity");
@@ -477,9 +477,11 @@ function CommandCards({
  * the last while the one before finishes its words.
  *
  * Replies held back are pointed at their text as it grows, waiting, so their
- * words start coming out when they show rather than appearing at once.
+ * words start coming out when they show rather than appearing at once. Once
+ * the turn folds, what the Worked row stands for is never drawn, so it holds
+ * nothing back: a reply waiting there would wait for good.
  */
-function useHeldFrom(turn: Turn): number {
+function useHeldFrom(turn: Turn, isFolded: boolean): number {
   // Reads the stage's clock and points reveals while rendering, which a
   // memoized render would skip or answer from an earlier time.
   "use no memo";
@@ -529,7 +531,7 @@ function useHeldFrom(turn: Turn): number {
     setSettle(current);
   }
   const texts = rows.flatMap((row, index) =>
-    row.kind === "text"
+    row.kind === "text" && !(isFolded && turn.foldedRowIds.has(row.id))
       ? [
           {
             id: row.part.metadata.id,
@@ -556,7 +558,7 @@ function useHeldFrom(turn: Turn): number {
   );
   const heldFrom = useSyncExternalStore(subscribe, () => {
     const settling =
-      current.after !== -1 && stage.isHeld(settleKey)
+      !isFolded && current.after !== -1 && stage.isHeld(settleKey)
         ? current.after + 1
         : Number.POSITIVE_INFINITY;
     for (const text of texts) {

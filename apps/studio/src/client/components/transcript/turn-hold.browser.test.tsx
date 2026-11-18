@@ -165,6 +165,32 @@ it("writes out a reply whose next step ends while it is still coming out", async
   });
 });
 
+it("shows a turn's answer when it folds while a reply above is still held", async () => {
+  const frames = framesOf("narrated-browsing");
+  // A window out of sight paints no frames, so its clock stands still while
+  // the turn runs to its end and folds on its timer.
+  const stage = new Stage();
+  stage.setRate(0);
+  const screen = await renderInBrowser(
+    <Harness frames={frames} stage={stage} />,
+  );
+  const next = screen.getByRole("button", { name: "next" });
+  for (let index = 1; index < frames.length; index += 1) {
+    await next.click();
+  }
+  await expect
+    .poll(() => document.querySelector("[data-transcript-row^=worked]"))
+    .not.toBeNull();
+  // Back in sight, the clock runs again.
+  for (let left = 3000; left > 0; left -= 50) {
+    stage.step(50);
+    await new Promise(requestAnimationFrame);
+  }
+  await vi.waitFor(() => {
+    expect(replies().at(-1)).toMatch(/^The cheapest is \$412 on TAP/);
+  });
+});
+
 /**
  * The scenario with the agent read as stopped for one frame while a step
  * works, as a recorded chat reads between a message that ended and the next:

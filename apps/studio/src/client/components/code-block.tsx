@@ -3,7 +3,7 @@ import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft
 import { ArrowsHorizontalIcon } from "@phosphor-icons/react/ArrowsHorizontal";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
-import { useDeferredValue, useState } from "react";
+import { createContext, use, useDeferredValue, useState } from "react";
 
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { getLanguageDisplayName } from "../lib/file-extension-to-language";
@@ -184,6 +184,13 @@ export const CodeBlock = ({
 };
 
 /**
+ * Whether a code block under it starts with its lines wrapped. A narrow pane
+ * that shows code to compare (a question card's detail) starts them unwrapped,
+ * since wrapped indentation reads as different code.
+ */
+export const CodeBlockWrapContext = createContext(true);
+
+/**
  * A fenced code block in rendered markdown, with the controls that act on it.
  *
  * Lines wrap by default and the toggle is per block and forgotten on unmount:
@@ -203,7 +210,7 @@ export const MarkdownCodeBlock = ({
   isArriving?: boolean;
   language?: string;
 }) => {
-  const [wrapLines, setWrapLines] = useState(true);
+  const [wrapLines, setWrapLines] = useState(use(CodeBlockWrapContext));
   const [isExpanded, setIsExpanded] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
 

@@ -35,6 +35,7 @@ import {
 } from "../dictation-controls";
 import { type Dictation, isDictating } from "@/client/hooks/use-dictation";
 import { focusDockedCard } from "../composer-dock";
+import { CodeBlockWrapContext } from "../code-block";
 import { Markdown } from "../markdown";
 import { MarkdownTableModal } from "../markdown-table-modal";
 import { SessionMarkdown } from "../session-markdown";
@@ -582,8 +583,8 @@ function QuestionStep({
   return (
     // Wide enough, the detail sits beside the choices at their height;
     // narrower, it sits under them, short until the pointer is on it.
-    <div className="flex flex-col gap-3 @xl/question:flex-row @xl/question:items-stretch">
-      <div className="min-w-0 @xl/question:w-[46%] @xl/question:shrink-0">
+    <div className="flex flex-col gap-3 @2xl/question:flex-row @2xl/question:items-stretch">
+      <div className="min-w-0 @2xl/question:w-[46%] @2xl/question:shrink-0">
         {choices}
       </div>
       <DetailArea choice={shownChoice} />
@@ -601,7 +602,7 @@ function DetailArea({ choice }: { choice: Choice }) {
   const [isExpanded, setIsExpanded] = useState(false);
   return (
     <div
-      className="group/detail relative min-w-0 rounded-xl bg-background ring-1 ring-border/70 @xl/question:min-h-40 @xl/question:flex-1"
+      className="group/detail relative min-w-0 rounded-xl bg-background ring-1 ring-border/70 @2xl/question:min-h-40 @2xl/question:flex-1"
       data-detail=""
     >
       <div
@@ -610,11 +611,13 @@ function DetailArea({ choice }: { choice: Choice }) {
           // Narrow, it stays a few lines tall until the pointer is on it;
           // wide, it fills the height the choices give it.
           "max-h-24 transition-[max-height] duration-200 group-hover/detail:max-h-72 motion-reduce:transition-none",
-          "@xl/question:absolute @xl/question:inset-0 @xl/question:max-h-none",
+          "@2xl/question:absolute @2xl/question:inset-0 @2xl/question:max-h-none",
         )}
       >
         {choice.detail ? (
-          <SessionMarkdown markdown={choice.detail} />
+          <CodeBlockWrapContext value={false}>
+            <SessionMarkdown markdown={choice.detail} />
+          </CodeBlockWrapContext>
         ) : (
           <div className="flex h-full flex-col justify-center" data-restated="">
             <p className="text-sm font-medium">{choice.label}</p>
@@ -645,7 +648,9 @@ function DetailArea({ choice }: { choice: Choice }) {
           open
           title={choice.label}
         >
-          <Markdown markdown={choice.detail} />
+          <CodeBlockWrapContext value={false}>
+            <Markdown markdown={choice.detail} />
+          </CodeBlockWrapContext>
         </MarkdownTableModal>
       ) : null}
     </div>

@@ -347,6 +347,20 @@ it("follows the pointer only once it rests on a choice, and the keyboard at once
     .toBe("One-page summaryA short write-up with the numbers in it");
 });
 
+it("starts a detail's code unwrapped, so its indentation reads as written", async () => {
+  const { area, screen } = await renderDetail(800);
+  screen
+    .getByRole("radio", { name: /Bar chart/ })
+    .element()
+    .focus();
+  await expect
+    .poll(() => {
+      const pre = area().querySelector("pre");
+      return pre ? getComputedStyle(pre).whiteSpace : undefined;
+    })
+    .toBe("pre");
+});
+
 it("drops a choice the pointer only crosses before it rests", async () => {
   const { area, screen } = await renderDetail(800);
   await userEvent.hover(screen.getByRole("radio", { name: /Bar chart/ }));
@@ -360,6 +374,8 @@ it("drops a choice the pointer only crosses before it rests", async () => {
 
 it.each([
   { placed: { beside: true, under: false }, width: 800 },
+  // Beside the choices at this width, code would have a third of the card.
+  { placed: { beside: false, under: true }, width: 620 },
   { placed: { beside: false, under: true }, width: 420 },
 ])(
   "places the detail by the card's own width, $width px: $placed",

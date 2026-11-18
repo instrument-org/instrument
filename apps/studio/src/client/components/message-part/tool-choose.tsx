@@ -22,6 +22,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -82,7 +83,9 @@ function hasReply(draft: Draft) {
  *
  * While focus is in an open card and not in a field, a digit picks that
  * choice of the question on show and Enter sends (or moves on) once it has
- * an answer.
+ * an answer. With `takesKeys`, a digit pressed anywhere else in the window
+ * picks too, unless it is typed into a field (the empty reply box aside) or
+ * a menu or dialog is up, and the keyboard goes into the card with it.
  */
 export function QuestionCard({
   onAnswer,
@@ -91,6 +94,7 @@ export function QuestionCard({
   questions,
   sending,
   status,
+  takesKeys = false,
 }: {
   onAnswer: (output: ChooseOutput) => void;
   output?: ChooseOutput;
@@ -98,6 +102,8 @@ export function QuestionCard({
   questions: ChooseQuestion[];
   sending?: ChooseOutput;
   status: "closed" | "ended" | "open";
+  /** Whether a digit pressed outside the card picks in it. */
+  takesKeys?: boolean;
 }) {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [step, setStep] = useState(0);
@@ -174,6 +180,43 @@ export function QuestionCard({
       focusQuestionCard(card);
     }
   }, [step]);
+
+  const keysFromWindow = isOpen && takesKeys;
+  const showsKeys = useKeysReachCard(keysFromWindow);
+  useEffect(() => {
+    if (!keysFromWindow) {
+      return;
+    }
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      const card = cardRef.current;
+      if (
+        !card ||
+        event.defaultPrevented ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.isComposing ||
+        !/^[1-9]$/.test(event.key) ||
+        (event.target instanceof Node && card.contains(event.target)) ||
+        !keysReachCard(event.target)
+      ) {
+        return;
+      }
+      const choice = shownChoices(card)[Number(event.key) - 1];
+      if (!choice) {
+        return;
+      }
+      event.preventDefault();
+      // Into the card first, so the next Enter sends, and a pick that moves
+      // a card of several on to its next step takes the keyboard along.
+      choice.focus({ preventScroll: true });
+      choice.click();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [keysFromWindow]);
 
   if (!isOpen) {
     return (
@@ -307,6 +350,7 @@ export function QuestionCard({
       {/* The keys reach the choices inside, each a button of its own. */}
       <div
         className="group/card px-4 py-3"
+        data-keys={showsKeys ? "" : undefined}
         onKeyDown={onCardKeyDown}
         ref={cardRef}
       >
@@ -536,12 +580,13 @@ function QuestionStep({
                   ) : null}
                 </span>
               </ChoiceRow>
-              {/* Shown while the keyboard is on the card's buttons, the one
-                  place its digit picks this choice. */}
+              {/* Shown while its digit picks this choice: the keyboard on the
+                  card's buttons, or, for a card taking the window's keys,
+                  anywhere but a field. */}
               {index < 9 ? (
                 <Kbd
                   aria-hidden
-                  className="hidden self-start group-has-[button:focus-visible]/card:inline-flex"
+                  className="hidden self-start group-has-[button:focus-visible]/card:inline-flex group-data-keys/card:inline-flex"
                 >
                   {index + 1}
                 </Kbd>
@@ -710,6 +755,53 @@ function focusQuestionCard(root: HTMLElement) {
     );
   target?.focus({ preventScroll: true });
   return target !== undefined;
+}
+
+/**
+ * Whether a key pressed with focus on `target` is a question card's to take:
+ * not one typed into a field, though the reply box counts as nothing to type
+ * into while it is empty, and not one meant for a menu or dialog.
+ */
+function keysReachCard(target: EventTarget | null) {
+  if (!(target instanceof Element)) {
+    return true;
+  }
+  if (
+    target.closest(
+      "[role=dialog], [role=alertdialog], [role=menu], [role=listbox], [data-radix-popper-content-wrapper]",
+    )
+  ) {
+    return false;
+  }
+  const field = target.closest(
+    "input, textarea, select, [contenteditable='true']",
+  );
+  return (
+    field === null ||
+    (field.matches(".prompt-editor") && field.textContent.trim() === "")
+  );
+}
+
+const KEYBOARD_PLACE_EVENTS = ["focusin", "focusout", "input", "keyup"];
+
+function subscribeToKeyboardPlace(onChange: () => void) {
+  for (const type of KEYBOARD_PLACE_EVENTS) {
+    document.addEventListener(type, onChange, true);
+  }
+  return () => {
+    for (const type of KEYBOARD_PLACE_EVENTS) {
+      document.removeEventListener(type, onChange, true);
+    }
+  };
+}
+
+/** Whether a digit pressed where the keyboard is now reaches a card taking the window's keys. */
+function useKeysReachCard(enabled: boolean) {
+  return useSyncExternalStore(
+    subscribeToKeyboardPlace,
+    () => enabled && keysReachCard(document.activeElement),
+    () => false,
+  );
 }
 
 /** The choice rows of the question on show in a card, in order. */

@@ -67,6 +67,7 @@ import {
   promptLinksPlugin,
   removeLink,
   setLinkHref,
+  withCopiedLinks,
 } from "./prompt-editor-links";
 import {
   continueList,
@@ -553,7 +554,13 @@ export function PromptEditor({
           editorView.dispatch(linked.setMeta("paste", true));
           return true;
         }
-        pasteInto(editorView, text, currentSkills());
+        // Words copied from a page or a document keep the links they had.
+        const html = clipboardData?.getData("text/html");
+        pasteInto(
+          editorView,
+          html ? withCopiedLinks(text, html) : text,
+          currentSkills(),
+        );
         return true;
       },
       // A token in the draft is the same token the sent message will show, so

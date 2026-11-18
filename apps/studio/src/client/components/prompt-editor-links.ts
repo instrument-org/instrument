@@ -3,7 +3,7 @@ import {
   markIconlessThisSession,
 } from "@/client/lib/favicon-url";
 import { isWebPage } from "@/client/lib/open-target";
-import { splitLinks } from "@/shared/link-text";
+import { markdownLinkText, splitLinks } from "@/shared/link-text";
 import { type Node as ProseMirrorNode } from "prosemirror-model";
 import {
   type EditorState,
@@ -137,6 +137,39 @@ export function linkSelectionToPasted(
     return null;
   }
   return state.tr.addMark(from, to, promptSchema.marks.link.create({ href }));
+}
+
+/**
+ * Plain text copied from a page or a document, with the words that were
+ * links there written as Markdown links, so they paste as linked words.
+ *
+ * The plain text stays what the clipboard's own plain copy says, character
+ * for character: each link's words are found in it in the order the
+ * formatted copy has them, and only words found are linked. Only links to
+ * web pages count, and words that are their own address stay as they are.
+ * Parsing the copy runs nothing in it: a parsed document has no scripts
+ * running and loads nothing.
+ */
+export function withCopiedLinks(text: string, html: string): string {
+  const anchors = new DOMParser()
+    .parseFromString(html, "text/html")
+    .querySelectorAll("a[href]");
+  let out = "";
+  let at = 0;
+  for (const anchor of anchors) {
+    const href = anchor.getAttribute("href")?.trim() ?? "";
+    const label = (anchor.textContent ?? "").replace(/\s+/gu, " ").trim();
+    if (!URL_ONLY.test(href) || !label || label === href) {
+      continue;
+    }
+    const found = text.indexOf(label, at);
+    if (found === -1) {
+      continue;
+    }
+    out += text.slice(at, found) + markdownLinkText(label, href);
+    at = found + label.length;
+  }
+  return out + text.slice(at);
 }
 
 /** Points linked words somewhere else, or an address written out at another. */

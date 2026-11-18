@@ -71,6 +71,28 @@ describe("links in the reply box", () => {
     await userEvent.click(page.getByRole("button", { name: "Unlink" }));
     expect(onChange).toHaveBeenLastCalledWith("See the plans now");
   });
+
+  it("keeps the links in words copied from a page", async () => {
+    const { onChange } = await renderEditor();
+    await userEvent.click(editor());
+    const clipboardData = new DataTransfer();
+    clipboardData.setData("text/plain", "Compare the plans page today");
+    clipboardData.setData(
+      "text/html",
+      `Compare the <a href="https://zendesk.com/pricing">plans page</a> today`,
+    );
+    document
+      .querySelector<HTMLElement>('[aria-label="Prompt"]')
+      ?.dispatchEvent(
+        new ClipboardEvent("paste", { bubbles: true, clipboardData }),
+      );
+    expect(onChange).toHaveBeenLastCalledWith(
+      "Compare the [plans page](https://zendesk.com/pricing) today",
+    );
+    expect(
+      document.querySelector(".prompt-editor .prompt-link")?.textContent,
+    ).toBe("plans page");
+  });
 });
 
 describe("lists in the reply box", () => {

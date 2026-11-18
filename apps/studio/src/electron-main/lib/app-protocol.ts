@@ -2,6 +2,7 @@ import { capturePath, captureThumbnail } from "@/electron-main/lib/captures";
 import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
 import { CAPTURE_NAME_PATTERN, CAPTURES_HOST } from "@/shared/captures";
 import { DIRECTORY_ICON_HOST } from "@/shared/directory-icon";
+import { LIVE_PAGE_HOST } from "@/shared/live-page";
 import { APP_PROTOCOL } from "@instrument-org/shared";
 import {
   app,
@@ -19,6 +20,7 @@ import {
   isComputerFileHost,
 } from "./computer-files";
 import { handleDirectoryIconRequest } from "./directory-icons";
+import { handleLivePageRequest } from "./live-page-frame";
 import { getResourcePath } from "./resource-path";
 import { type Deps as SiteIconDeps, siteIconFor } from "./site-icons";
 import {
@@ -81,6 +83,9 @@ export function registerAppProtocol(ses: Session) {
       }
       case FILE_OPEN_ICON_HOST: {
         return handleFileOpenIconRequest({ request, url });
+      }
+      case LIVE_PAGE_HOST: {
+        return handleLivePageRequest({ request, url });
       }
       case SITE_ICON_HOST: {
         return handleSiteIconRequest({ request, url });

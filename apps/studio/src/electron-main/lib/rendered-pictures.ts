@@ -104,7 +104,7 @@ const JSON_PRETTY_MAX = 2 * 1024 * 1024;
  * network for goes unanswered, so looking at a folder is not a page's cue to
  * call home.
  */
-const PAGE_HOSTS = new Set([
+export const PAGE_HOSTS = new Set([
   "cdn.jsdelivr.net",
   "fonts.googleapis.com",
   "fonts.gstatic.com",

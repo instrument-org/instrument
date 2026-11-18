@@ -395,6 +395,15 @@ function liveDetail(
     current?.explanation,
     tool && isRunning ? getToolStreamingLabel(tool) : undefined,
   ].find((words) => words !== undefined && words !== label);
+  // A file written with no card to watch it on says how far it has got.
+  const lines =
+    isRunning && lastStep.shows?.kind === "file"
+      ? lastStep.shows.lines
+      : undefined;
+  if (lines !== undefined) {
+    const counted = `${lines.toString()} ${lines === 1 ? "line" : "lines"}`;
+    return said === undefined ? counted : `${said} · ${counted}`;
+  }
   return said ?? (isRunning ? "Working" : "Thinking");
 }
 

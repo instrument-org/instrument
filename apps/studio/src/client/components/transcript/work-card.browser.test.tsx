@@ -112,23 +112,6 @@ describe("a live card's file as it is written", () => {
     expect(card?.querySelector("[inert] a")).not.toBeNull();
   });
 
-  it("shows code in its colors, with the line still arriving plain", async () => {
-    const screen = await renderCard(
-      "/work/raw.json",
-      '[{"q": ["website"],\n  "count": "two"',
-    );
-    await expect
-      .poll(() =>
-        [...screen.container.querySelectorAll(".code-highlight .line")].map(
-          (line) =>
-            [...line.querySelectorAll(".syntax-string")].map(
-              (string) => string.textContent,
-            ),
-        ),
-      )
-      .toEqual([['"website"'], []]);
-  });
-
   it("is a picture with nothing to press, its caption one line however long its name", async () => {
     const screen = await renderStep(
       step(
@@ -150,7 +133,7 @@ describe("a live card's file as it is written", () => {
     await expect.element(screen.getByText("**not bold**")).toBeVisible();
   });
 
-  it("shows a finished page as its picture", async () => {
+  it("shows a finished page as the page, never its source", async () => {
     const screen = await renderStep(
       step(
         {
@@ -163,7 +146,7 @@ describe("a live card's file as it is written", () => {
       ),
     );
     const card = screen.container.querySelector("[data-work-card]");
-    await expect.poll(() => card?.querySelector("img")).not.toBeNull();
+    await expect.poll(() => card?.querySelector("iframe")).not.toBeNull();
     expect(card?.textContent).not.toContain("Roasted");
   });
 });

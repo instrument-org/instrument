@@ -1,12 +1,10 @@
-import { type StepShows } from "./transcript-message";
+import {
+  isPagePath,
+  type StepShows,
+  writtenFileShows,
+} from "./transcript-message";
 import { type TurnStep } from "./turns-of";
 import { type WorkCard } from "./work-card";
-
-/**
- * The files a card shows by their picture once written, since the app draws
- * them as they look: a page, a drawing, a table.
- */
-const PICTURED_EXTENSIONS = new Set(["csv", "htm", "html", "svg", "tsv"]);
 
 /** The most pictures the strip under a card's newest shows, the newest among them. */
 const STRIP_SHOWN = 6;
@@ -31,6 +29,22 @@ interface FaceCaption {
 interface WorkCardViews {
   /** A file the card has nothing yet to show of but its name. */
   "files/none": { path: string | undefined };
+  /**
+   * A page's file drawn as a page: from its source while a call writes it
+   * whole, then from the file on disk, each later write of it drawn again in
+   * place.
+   */
+  "files/page": {
+    /** The call writing it has not finished. */
+    isWriting: boolean;
+    path: string;
+    /** Where it is on this computer, once known. */
+    place?: string;
+    /** Its whole source so far, while a call writing it whole is going. */
+    source?: string;
+    /** When the call last wrote it, once it has said. */
+    version?: number;
+  };
   "files/picture": { picture: WorkCardPicture };
   /** A file's words as they stand. */
   "files/words": { path: string; words: string };
@@ -208,9 +222,24 @@ function filesFace(
     ...(meta && { meta }),
     title: path ? baseName(path) : "A file",
   };
+  if (path && isPagePath(path)) {
+    return {
+      ...caption,
+      isWriting,
+      path,
+      ...(place && { place }),
+      ...(written?.source !== undefined && { source: written.source }),
+      ...(written?.modifiedAt !== undefined && {
+        version: written.modifiedAt,
+      }),
+      view: "files/page",
+    };
+  }
+  // A drawing or a table written is shown by its picture, and by nothing
+  // until it is found.
   if (
     written?.words !== undefined &&
-    !(written.status === "done" && place && isPictured(written.path))
+    !(written.status === "done" && writtenFileShows(written.path) === "picture")
   ) {
     return {
       ...caption,
@@ -247,12 +276,6 @@ function shownBy<K extends StepShows["kind"]>(
 }
 
 const baseName = (path: string) => path.split(/[/\\]/).pop() ?? path;
-
-const extensionOf = (path: string) =>
-  /\.([^./\\]+)$/.exec(path)?.[1]?.toLowerCase();
-
-const isPictured = (path: string) =>
-  PICTURED_EXTENSIONS.has(extensionOf(path) ?? "");
 
 function hostOf(url: string | undefined): string | undefined {
   if (url === undefined) {

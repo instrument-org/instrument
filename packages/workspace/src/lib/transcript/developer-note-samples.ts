@@ -127,9 +127,10 @@ export const DATA_PART_SAMPLES = {
     device: "dev_0123ABCD",
     files: [
       {
-        copy: "/work/.versions/moon.svg/2026-11-15 12.01 make it bigger.svg",
+        copy: "/work/Versions/moon.svg/v2.svg",
         hash: "ab12",
         hostPath: "/Users/sam/Moon/moon.svg",
+        number: 2,
         path: "/Users/sam/Moon/moon.svg",
         size: 1820,
       },

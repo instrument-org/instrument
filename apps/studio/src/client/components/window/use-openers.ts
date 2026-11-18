@@ -8,7 +8,6 @@ import {
   browserTargetOf,
   isFolderPath,
   type StoreId,
-  VERSIONS_FOLDER,
   WINDOW_ID,
   type WindowTabAnswer,
   type WindowTabRequest,
@@ -28,8 +27,7 @@ import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions } from "./context";
 import { isGroupShown } from "./draft-context";
-import { versionHref } from "./file-versions";
-import { segmentsOf } from "./host-path";
+import { isInVersionsFolder, versionHref } from "./file-versions";
 import { openMenuLink } from "./menu-link";
 import { openLinkAddress } from "./open-link-address";
 import {
@@ -409,7 +407,7 @@ export function useOpeners({
     }
     // A copy the chat kept of a file, as a reply's card draws one, opens as
     // a version of that file.
-    if (chat !== undefined && segmentsOf(hostPath).includes(VERSIONS_FOLDER)) {
+    if (chat !== undefined && isInVersionsFolder(hostPath)) {
       const [, history] = await safe(
         rpcClient.workspace.chats.fileVersions.call({
           id: chat,

@@ -15,7 +15,10 @@ import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
-import { type ChatId } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  VERSIONS_FOLDERS,
+} from "@instrument-org/workspace/client";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import {
   notifyManager,
@@ -35,6 +38,13 @@ type History = NonNullable<
 type Version = History["versions"][number];
 
 const IMAGE = /\.(?:avif|bmp|gif|heic|jpe?g|png|svg|webp)$/iu;
+
+/** Whether a path is in a chat's versions folder, so it may be a copy the chat kept. */
+export function isInVersionsFolder(hostPath: string): boolean {
+  return segmentsOf(hostPath).some((segment) =>
+    VERSIONS_FOLDERS.includes(segment),
+  );
+}
 
 /**
  * Where a copy a chat kept of a file opens: the file, with the copy shown

@@ -722,10 +722,18 @@ export namespace SessionMessageDataPart {
       z.object({
         /** Where the copy is, on `device`; absent for a file too big to keep. */
         copy: AbsolutePathSchema.optional(),
+        /** For a `restored` version, the number of the version it put back. */
+        from: z.number().int().positive().optional(),
         /** The file's contents, as sha256 hex. */
         hash: z.string(),
         /** Where the file is, read on `device` when the turn ended. */
         hostPath: AbsolutePathSchema,
+        /**
+         * Which version of the file it is in the chat, from 1, the oldest
+         * (`version-records.ts`); absent from what an earlier build wrote,
+         * whose numbers are worked out from the order of the records.
+         */
+        number: z.number().int().positive().optional(),
         /** The line of the reply's files fence that named it. */
         path: z.string(),
         size: z.number(),
@@ -737,7 +745,7 @@ export namespace SessionMessageDataPart {
      * version the person put back, and `before-restore` for what that
      * replaced. Each is written only for contents no earlier record has,
      * but `restored`. A card never draws one; it only learns the file's
-     * newest contents from it.
+     * newest contents and number from it.
      */
     kind: z.enum(["before-restore", "original", "restored"]).optional(),
   });

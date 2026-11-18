@@ -14,12 +14,13 @@ import { workDir } from "../work-dir";
 import { sessionToolFs } from "../tool-fs";
 import { shellPath } from "../workspace-fs-layout";
 import { thisDevice } from "./asks";
-import { keptBefore, takeOriginals, VERSIONS_FOLDER } from "./turn-originals";
+import { keptBefore, takeOriginals } from "./turn-originals";
+import { VERSIONS_FOLDER } from "./versions-folder";
 
 /** The most files one reply's versions are kept for. */
 const MOST_FILES = 10;
 
-export { VERSIONS_FOLDER } from "./turn-originals";
+export { VERSIONS_FOLDER } from "./versions-folder";
 
 type Entry = SessionMessageDataPart.FileVersionsDataPart["files"][number];
 

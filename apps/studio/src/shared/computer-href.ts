@@ -5,12 +5,17 @@ import { defaultStringifySearch } from "@tanstack/react-router";
  * where the file is on the computer. A page's file is shown as the page, and
  * `source` asks for its text instead. `tree` is the folder a file opened
  * from the Finder shows beside it: the folder the Finder was standing in.
+ * `version` is a copy a chat kept of the file, shown over it.
  */
 export function fileHref(
   hostPath: string,
-  { source = false, tree }: { source?: boolean; tree?: string } = {},
+  {
+    source = false,
+    tree,
+    version,
+  }: { source?: boolean; tree?: string; version?: string } = {},
 ) {
-  return `/files?file=${encodeURIComponent(hostPath)}&path=&root=~${source ? "&source=true" : ""}${tree === undefined ? "" : `&tree=${encodeURIComponent(tree)}`}`;
+  return `/files?file=${encodeURIComponent(hostPath)}&path=&root=~${source ? "&source=true" : ""}${tree === undefined ? "" : `&tree=${encodeURIComponent(tree)}`}${version === undefined ? "" : `&version=${encodeURIComponent(version)}`}`;
 }
 
 /**

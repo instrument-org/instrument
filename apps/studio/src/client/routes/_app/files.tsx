@@ -50,6 +50,11 @@ export const Route = createFileRoute("/_app/files")({
     /** The folder a file opened from the Finder shows beside it: where the Finder stood when it was opened. */
     tree: z.string().optional(),
     /**
+     * A copy a chat kept of the file, shown over the file, which stays open
+     * underneath: Restore takes the copy in there before the copy goes.
+     */
+    version: z.string().optional(),
+    /**
      * The layout this step of the tab's history shows the folder in, so back
      * and forward show each folder the way it looked. Absent on an address
      * that arrives at a folder directly (a place, a new tab, a typed path),

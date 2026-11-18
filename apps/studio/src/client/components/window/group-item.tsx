@@ -24,7 +24,12 @@ import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { BrowserStartControls } from "./browser-start-controls";
 import { PageAgentOverlay } from "./page-agent-overlay";
 import { PageAskButton } from "./file-ask-button";
-import { FileVersionsButton, FileVersionStrip } from "./file-versions";
+import { computerTabOf } from "./file-tabs";
+import {
+  FileVersionsButton,
+  FileVersionStrip,
+  versionHref,
+} from "./file-versions";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { segmentsOf } from "./host-path";
@@ -158,13 +163,19 @@ export function GroupItem({
    */
   const row = (location: TabLocation) => {
     // A file a chat's replies handed over keeps a version per reply, listed
-    // from its row, and a kept copy open here says which one it is.
-    const openFile = (hostPath: string) => {
-      windowTabs.visitHref(up.id, fileHref(hostPath));
+    // from its row, and a kept copy open here says which one it is, whether
+    // it is shown over the file or in its place.
+    const version =
+      up.kind === "screen" ? computerTabOf(up.href)?.version : undefined;
+    const openFile = (file: string, copy?: string) => {
+      windowTabs.visitHref(
+        up.id,
+        copy === undefined ? fileHref(file) : versionHref(file, copy),
+      );
     };
     const versions =
       chatId !== undefined && location.kind === "file"
-        ? { chatId, onOpen: openFile, path: location.path }
+        ? { chatId, onOpen: openFile, path: version ?? location.path }
         : undefined;
     return (
       <>
@@ -284,6 +295,7 @@ export function GroupItem({
           showPage: (url) => {
             browser?.open(url, { group, replacing: up });
           },
+          showsVersions: chatId !== undefined,
         }}
       >
         <WindowContext

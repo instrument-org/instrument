@@ -4,6 +4,7 @@
  * leaving, and the watch that pulls the agent's writes in.
  */
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { flushFileWrites } from "@/client/lib/file-flush";
 import { logger } from "@/client/lib/logger";
 import { rpcClient } from "@/client/rpc/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
@@ -212,5 +213,43 @@ export function usePullOnDiskChange(
       session?.pull();
     }
   }, [modifiedAt, session]);
+  useEffect(() => {
+    if (!session) {
+      return;
+    }
+    const pull = () => {
+      session.pull();
+    };
+    let set = pulls.get(hostPath);
+    if (!set) {
+      set = new Set();
+      pulls.set(hostPath, set);
+    }
+    set.add(pull);
+    return () => {
+      set.delete(pull);
+      if (set.size === 0) {
+        pulls.delete(hostPath);
+      }
+    };
+  }, [hostPath, session]);
   return modifiedAt;
+}
+
+/** Each open editor's pull, by the path of its file. */
+const pulls = new Map<string, Set<() => void>>();
+
+/**
+ * Has every editor open on the file take in what is on disk now, without
+ * waiting for its next look, and settles once each has: a write the app makes
+ * itself, such as a restore, is in the file's editors before anything shows
+ * them.
+ */
+export async function takeInFileWrites(hostPath: string) {
+  for (const pull of pulls.get(hostPath) ?? []) {
+    pull();
+  }
+  // An editor's flush settles once everything on its disk queue has, the
+  // pull just queued among them.
+  await flushFileWrites(hostPath);
 }

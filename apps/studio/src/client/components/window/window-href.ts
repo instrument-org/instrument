@@ -46,6 +46,8 @@ export interface ComputerTab {
   path: string;
   root: string;
   tree?: string;
+  /** A copy a chat kept of the file, shown over it. */
+  version?: string;
 }
 
 /** A path of the route tree, as the router writes it. */
@@ -164,12 +166,14 @@ export function matchScreen(href: string): Screen {
   if (at(SCREEN_ROUTES.computer)) {
     const file = search.get("file");
     const tree = search.get("tree");
+    const version = search.get("version");
     return {
       kind: "computer",
       ...(file === null ? {} : { file }),
       path: search.get("path") ?? "",
       root: search.get("root") ?? "~",
       ...(tree === null ? {} : { tree }),
+      ...(version === null ? {} : { version }),
     };
   }
   if (at(SCREEN_ROUTES.apps)) {

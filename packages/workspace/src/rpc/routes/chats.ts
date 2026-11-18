@@ -436,11 +436,11 @@ const fileVersionsRoute = base
 
 /**
  * Puts a version the chat kept back over its file, keeping what it replaces;
- * returns that copy, for Undo.
+ * returns that copy, for Undo, and when the file was written.
  */
 const restoreFileVersionRoute = base
   .input(z.object({ copy: z.string(), file: z.string(), id: ChatIdSchema }))
-  .output(z.object({ replaced: z.string().optional() }))
+  .output(z.object({ modifiedAt: z.number(), replaced: z.string().optional() }))
   .handler(({ input }) =>
     restoreFileVersion({
       chatId: input.id,

@@ -51,7 +51,9 @@ export function tabIdentityOf(
       }
       const file = search.get("file");
       if (file) {
-        return `file:${spelled(file)}`;
+        // A copy a chat kept of the file, shown over it, is the copy: the
+        // file's own tab is not the one to bring forward for it.
+        return `file:${spelled(search.get("version") || file)}`;
       }
       const root = expandHomePath(search.get("root") ?? "~", homeDir);
       const path = search.get("path") ?? "";
@@ -75,7 +77,7 @@ export function isSameTabIdentity(a: string, b: string, homeDir?: string) {
 /** What an address's search says about which thing it is, rather than how it is shown. */
 const IDENTIFYING_SEARCH: Record<string, readonly string[]> = {
   chats: ["draft"],
-  files: ["file", "path", "root"],
+  files: ["file", "path", "root", "version"],
   tasks: ["chat"],
 };
 

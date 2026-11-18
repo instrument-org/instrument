@@ -35,7 +35,8 @@ export function includedItemsOf(
     return;
   }
   if (computer.file !== undefined) {
-    return unheld([{ kind: "file", path: computer.file }]);
+    // A copy a chat kept of the file, shown over it, is what the tab shows.
+    return unheld([{ kind: "file", path: computer.version ?? computer.file }]);
   }
   if (finder) {
     const selected = unheld(finder.selected);

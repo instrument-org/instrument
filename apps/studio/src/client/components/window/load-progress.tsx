@@ -1,4 +1,4 @@
-import { type LoadStage } from "@/client/lib/browser-pool";
+import { type LoadStage } from "@/client/lib/load-stage";
 import { useEffect, useRef } from "react";
 
 /**

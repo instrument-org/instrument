@@ -1,5 +1,5 @@
 import { useGuest } from "@/client/hooks/use-browser-targets";
-import { type LoadStage } from "@/client/lib/browser-pool";
+import { type LoadStage } from "@/client/lib/load-stage";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useEffect, useEffectEvent, useState } from "react";
 
@@ -24,6 +24,7 @@ export function useGuestNavigation(
 ): {
   canGoBack: boolean;
   canGoForward: boolean;
+  /** Whether the page is loading a new document, as Chrome shows Stop for. */
   isLoading: boolean;
   loadStage: LoadStage;
   url: null | string;
@@ -31,7 +32,6 @@ export function useGuestNavigation(
   const [state, setState] = useState<null | {
     back: boolean;
     forward: boolean;
-    loading: boolean;
     stage: LoadStage;
     targetId: BrowserTargetId;
     url: string;
@@ -54,7 +54,6 @@ export function useGuestNavigation(
       setState({
         back: guest.canGoBack(),
         forward: guest.canGoForward(),
-        loading: guest.isLoading(),
         stage: guest.loadStage(),
         targetId: guest.targetId,
         url,
@@ -67,11 +66,10 @@ export function useGuestNavigation(
     const syncSteps = () => {
       const back = guest.canGoBack();
       const forward = guest.canGoForward();
-      const loading = guest.isLoading();
       const stage = guest.loadStage();
       setState((current) =>
         current?.targetId === guest.targetId
-          ? { ...current, back, forward, loading, stage }
+          ? { ...current, back, forward, stage }
           : current,
       );
     };
@@ -103,7 +101,7 @@ export function useGuestNavigation(
   return {
     canGoBack: current?.back ?? false,
     canGoForward: current?.forward ?? false,
-    isLoading: current?.loading ?? false,
+    isLoading: (current?.stage ?? "idle") !== "idle",
     loadStage: current?.stage ?? "idle",
     url: current?.url ?? null,
   };

@@ -1,4 +1,11 @@
 import { captureException } from "@/client/lib/capture-exception";
+import {
+  IDLE_LOAD,
+  type LoadEvent,
+  type LoadStage,
+  type LoadState,
+  nextLoad,
+} from "@/client/lib/load-stage";
 import { rpcClient } from "@/client/rpc/client";
 import {
   BROWSER_GUEST_VIEWPORT,
@@ -100,14 +107,6 @@ interface PooledWebview {
   webview: WebviewElement;
 }
 
-/**
- * How far a page's load has come, from the events Chromium reports for it:
- * `waiting` until the server answers, `committed` once its document has
- * started to arrive, `ready` once that document is parsed and only what it
- * pulls in is left.
- */
-export type LoadStage = "committed" | "idle" | "ready" | "waiting";
-
 /** Each guest's `LoadStage`, kept from its first event on. */
 const loadStages = new WeakMap<WebviewElement, LoadStage>();
 
@@ -165,7 +164,7 @@ export interface GuestHandle {
   find(text: string, options?: { findNext?: boolean; forward?: boolean }): void;
   /** Whether the page, or a frame in it, is still loading. */
   isLoading(): boolean;
-  /** How far the load under way has come; `idle` when nothing is loading. */
+  /** How far the page's load to a new document has come; `idle` when there is none. */
   loadStage(): LoadStage;
   /**
    * Loads `url`, settling once it has, and rejecting for a load that failed.
@@ -998,31 +997,30 @@ function ensureWebview(
     layeredPages.delete(targetId);
   });
 
-  // Chromium fires these in this order for a page's load, and a link
-  // followed mid-load starts the sequence over from `waiting`. A load that
-  // starts with no navigation of the page's own (a frame in it) also reads
-  // as waiting, which is as much as anything says about it.
+  // A page's load to a new document (`LoadStage`), moved on by each event
+  // that says something about it.
+  let load: LoadState = IDLE_LOAD;
+  const follow = (event: LoadEvent) => {
+    load = nextLoad(load, event);
+    loadStages.set(webview, load.stage);
+  };
   webview.addEventListener("did-start-loading", () => {
-    loadStages.set(webview, "waiting");
+    follow({ type: "did-start-loading" });
   });
   webview.addEventListener("did-start-navigation", (event) => {
     // The navigation's own fields, as Electron's `<webview>` fires them.
     const { isInPlace, isMainFrame } = event as Event &
       GuestEventMap["did-start-navigation"];
-    // Only over a load under way: one that never starts loading (refused
-    // before it went out) leaves nothing to stop the line again.
-    if (isMainFrame && !isInPlace && loadStages.get(webview) !== "idle") {
-      loadStages.set(webview, "waiting");
-    }
+    follow({ isInPlace, isMainFrame, type: "did-start-navigation" });
   });
   webview.addEventListener("did-navigate", () => {
-    loadStages.set(webview, "committed");
+    follow({ type: "did-navigate" });
   });
   webview.addEventListener("dom-ready", () => {
-    loadStages.set(webview, "ready");
+    follow({ type: "dom-ready" });
   });
   webview.addEventListener("did-stop-loading", () => {
-    loadStages.set(webview, "idle");
+    follow({ type: "did-stop-loading" });
   });
 
   // A file's page keeps the color it paints behind itself on its element, so

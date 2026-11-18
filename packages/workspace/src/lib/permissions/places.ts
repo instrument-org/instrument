@@ -303,6 +303,7 @@ const APP_FOLDER_PARENTS: Partial<Record<NodeJS.Platform, string[]>> = {
     "Library/Containers",
     "Library/Group Containers",
     "Library/Logs",
+    "Library/Mobile Documents",
   ],
   win32: [
     "AppData/Roaming",

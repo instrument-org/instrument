@@ -347,6 +347,10 @@ describe("folderToAskFor in App files", () => {
       ],
       ["Library/Containers/com.foo/Data/a.db", "Library/Containers/com.foo"],
       ["Library/Logs/Foo/a.log", "Library/Logs/Foo"],
+      [
+        "Library/Mobile Documents/iCloud~com~foo/Documents/a.m4a",
+        "Library/Mobile Documents/iCloud~com~foo",
+      ],
       ["Library/Preferences/com.foo.plist", "Library/Preferences"],
     ],
     linux: [

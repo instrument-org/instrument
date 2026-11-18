@@ -90,11 +90,15 @@ function signInLine(target: string): string | undefined {
 /**
  * Every open ask, just above the composer and only there: a task's ask has no
  * call in the chat's transcript to draw under, and one place keeps several
- * from piling up. The oldest is drawn whole with the rest tucked under it,
- * and answering it brings up the next.
+ * from piling up. The oldest this device can answer is drawn whole, ahead of
+ * any waiting on another computer, with the rest tucked under it, and
+ * answering it brings up the next.
  */
 export function PermissionAsksFoot({ chatId }: { chatId: ChatId }) {
-  const asks = useAsks(chatId);
+  // Sorting is stable, so each group stays oldest first.
+  const asks = useAsks(chatId)?.toSorted(
+    (a, b) => Number(b.answerable) - Number(a.answerable),
+  );
   const [first] = asks ?? [];
   if (!asks || !first) {
     return null;
@@ -134,7 +138,10 @@ function PermissionAskCard({
   const declineAll = useMutation(
     rpcClient.workspace.permissions.declineAll.mutationOptions(onAnswerError),
   );
-  const busy = answer.isPending || declineAll.isPending;
+  const dismiss = useMutation(
+    rpcClient.workspace.permissions.dismiss.mutationOptions(onAnswerError),
+  );
+  const busy = answer.isPending || declineAll.isPending || dismiss.isPending;
   const isFolder = ask.kind === "folder";
   const refused = ask.status === "macos-refused";
   const asking = ask.status === "macos-asking";
@@ -172,12 +179,23 @@ function PermissionAskCard({
     },
     pending: pending === decision,
   });
+  // What a card waiting on another computer offers in place of the answers,
+  // since that computer may never come back to take one.
+  const letGo = {
+    disabled: false,
+    held: busy,
+    onClick: () => {
+      dismiss.mutate({ askId: ask.id, id: chatId });
+    },
+    pending: dismiss.isPending,
+  };
 
   if (ask.kind === "page") {
     return (
       <PageWaitCard
         ask={ask}
         chatId={chatId}
+        dismiss={letGo}
         done={choice("allowed")}
         elsewhere={elsewhere}
         skip={choice("declined")}
@@ -276,7 +294,17 @@ function PermissionAskCard({
       ) : null}
       {/* A chat too narrow for the three in a row stacks them, each the
       card's width, rather than wrapping into a ragged pair. */}
-      {elsewhere ? null : (
+      {elsewhere ? (
+        <div className="mt-3 flex justify-end">
+          <AnswerButton
+            {...letGo}
+            className="text-muted-foreground"
+            variant="ghost"
+          >
+            Dismiss
+          </AnswerButton>
+        </div>
+      ) : (
         <div className="mt-3 flex items-center gap-2 @max-xs/asks:flex-col @max-xs/asks:items-stretch @max-xs/asks:gap-1.5">
           {refused ? (
             <MacFixes ask={ask} busy={busy} chatId={chatId} />
@@ -314,12 +342,14 @@ function PermissionAskCard({
 function PageWaitCard({
   ask,
   chatId,
+  dismiss,
   done,
   elsewhere,
   skip,
 }: {
   ask: Ask;
   chatId: ChatId;
+  dismiss: Omit<Parameters<typeof AnswerButton>[0], "children">;
   done: Omit<Parameters<typeof AnswerButton>[0], "children">;
   elsewhere: string | undefined;
   skip: Omit<Parameters<typeof AnswerButton>[0], "children">;
@@ -360,7 +390,18 @@ function PageWaitCard({
         ) : null}
       </button>
       {elsewhere ? (
-        <p className="mt-2.5 text-[13px] text-muted-foreground">{elsewhere}</p>
+        <div className="mt-2.5 flex items-center gap-2">
+          <p className="mr-auto text-[13px] text-muted-foreground">
+            {elsewhere}
+          </p>
+          <AnswerButton
+            {...dismiss}
+            className="text-muted-foreground"
+            variant="ghost"
+          >
+            Dismiss
+          </AnswerButton>
+        </div>
       ) : (
         <div className="mt-3 flex flex-wrap items-center gap-2 pl-12 @max-sm/asks:pl-0">
           <span className="mr-auto flex items-center gap-1.5 text-[13px] whitespace-nowrap text-muted-foreground">

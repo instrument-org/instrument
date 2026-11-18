@@ -336,13 +336,32 @@ describe("PermissionAsksFoot", () => {
         "You answered from Alex's iPhone, and Studio Mac needs you to finish it there.",
       ],
     ] as const)(
-      "points at that computer for %s, with nothing to answer here",
+      "points at that computer for %s, with only a way to let it go here",
       async (_name, elsewhere, kind, status, line) => {
         showAsks([{ elsewhere, kind, status, target: "/Users/sam/Pantry" }]);
 
         expect(await screen.findByText(line)).toBeDefined();
-        expect(screen.queryByRole("button", { name: /allow/i })).toBeNull();
+        expect(buttons()).toEqual(["Show in Finder: Pantry", "Dismiss"]);
       },
     );
+
+    it("draws a card this computer can answer ahead of an older one waiting there", async () => {
+      showAsks([
+        {
+          elsewhere: {
+            answerable: false,
+            answered: { by: "Studio Mac", decision: "allowed", taken: false },
+          },
+          target: "/Users/sam/Pantry",
+        },
+        { status: "macos-asking", target: "/Users/sam/Downloads" },
+      ]);
+
+      expect(
+        await screen.findByText("Your Mac is asking about “Downloads”"),
+      ).toBeDefined();
+      expect(screen.getByText("1 of 2")).toBeDefined();
+      expect(screen.queryByLabelText("sam › Pantry")).toBeNull();
+    });
   });
 });

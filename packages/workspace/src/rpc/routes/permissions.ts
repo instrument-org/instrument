@@ -23,6 +23,7 @@ import { appBundleId } from "../../lib/permissions/apps";
 import {
   answerableElsewhere,
   chatAskStates,
+  dismissAsk,
   thisDevice,
 } from "../../lib/chat/asks";
 import {
@@ -362,10 +363,23 @@ const declineAll = base
     );
   });
 
+/**
+ * Lets go of a permission card this device cannot answer, another
+ * computer's waiting there (`dismissAsk`), so no card is left up with
+ * nothing to press.
+ */
+const dismiss = base
+  .input(z.object({ askId: z.string(), id: ChatIdSchema }))
+  .output(z.void())
+  .handler(async ({ input }) => {
+    await dismissAsk(input.id, input.askId);
+  });
+
 export const permissions = {
   allowThroughProtection: allowThroughProtectionRoute,
   answer,
   declineAll,
+  dismiss,
   macos,
   retry,
   get,

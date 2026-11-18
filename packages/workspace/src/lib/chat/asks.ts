@@ -5,6 +5,7 @@ import {
   type AnswerGiven,
   type AnswerRef,
   type AskRecord,
+  type AskRecordAsker,
   type PermissionAskRecord,
   type SystemWait,
 } from "../../schemas/ask";
@@ -690,15 +691,34 @@ export async function appendAnswer(
  * every reader folds the same way and the ask's computer writes into the
  * ask.
  */
-export async function closeAsksOf(
+export function closeAsksOf(
   chatId: ChatId,
   sessionId: StoreId.Session | undefined,
 ): Promise<void> {
+  return stopAskers(
+    chatId,
+    (_ask, asker) => sessionId === undefined || asker.sessionId === sessionId,
+  );
+}
+
+/**
+ * Takes every session off one ask, answering none, as a Stop of each
+ * would: the person letting go of a card from any device, above all one
+ * whose computer is not there to act on the answer they gave. Its
+ * computer closes it once it reads the records, waking nobody.
+ */
+export function dismissAsk(chatId: ChatId, askId: string): Promise<void> {
+  return stopAskers(chatId, (ask) => ask.id === askId);
+}
+
+/** Writes a `stopped` answer naming the live asks' asker entries `picks` takes off. */
+async function stopAskers(
+  chatId: ChatId,
+  picks: (ask: AskRecord, asker: AskRecordAsker) => boolean,
+): Promise<void> {
   const leaving = (await chatAskStates(chatId)).flatMap(
     ({ ask, askers, live }) => {
-      const off = askers.filter(
-        (asker) => sessionId === undefined || asker.sessionId === sessionId,
-      );
+      const off = askers.filter((asker) => picks(ask, asker));
       return live && off.length > 0 ? [{ ask, off }] : [];
     },
   );

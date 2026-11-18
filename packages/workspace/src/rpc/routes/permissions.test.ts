@@ -1273,5 +1273,32 @@ describe("permissions.answer", () => {
       ]);
       expect(wokenSince(sentBefore)).toEqual([]);
     });
+
+    it("lets go of a card whose answer the owner is not there to take, waking nobody", async () => {
+      const { card, chatId } = await raised();
+      // The owner is another install that is not running: a second build
+      // on the same Mac writes as a device of its own.
+      const laptop = await computer("Studio Mac");
+      await on(laptop, () => answer(chatId, card.id, "allowed"));
+      expect(await on(laptop, () => openAsks(chatId))).toEqual([
+        expect.objectContaining({ answerable: false, id: card.id }),
+      ]);
+
+      await on(laptop, () =>
+        call(
+          permissions.dismiss,
+          { askId: card.id, id: chatId },
+          { context: context() },
+        ),
+      );
+
+      expect(await on(laptop, () => openAsks(chatId))).toEqual([]);
+      const sentBefore = sent.length;
+      await owner().catchUp(chatId);
+      await driveAsks(chatId, context().workspaceRef);
+      expect(await openAsks(chatId)).toEqual([]);
+      expect(await chatGrants(chatId)).toEqual([]);
+      expect(wokenSince(sentBefore)).toEqual([]);
+    });
   });
 });

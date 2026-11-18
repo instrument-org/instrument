@@ -494,8 +494,12 @@ function Timeline({
         onPointerDown={onInterrupt}
         onScroll={(event) => {
           // Reporting only: playing scrolls the list too, so interrupting from
-          // here would stop playback after a single step.
-          onScrub(Math.round(event.currentTarget.scrollTop / ROW_HEIGHT));
+          // here would stop playback after a single step, and a scroll that
+          // lands on the frame already shown is play following, not a seek.
+          const at = Math.round(event.currentTarget.scrollTop / ROW_HEIGHT);
+          if (at !== latest.current.index) {
+            onScrub(at);
+          }
         }}
         ref={viewport}
       >

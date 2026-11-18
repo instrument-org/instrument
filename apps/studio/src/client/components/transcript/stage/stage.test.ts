@@ -145,4 +145,17 @@ describe("Stage", () => {
     stage.catchUp();
     expect(stage.isHeld("settle")).toBe(false);
   });
+
+  it("asks for no frames while stopped, and asks again once it runs", () => {
+    const frames = vi.fn(() => 1);
+    vi.stubGlobal("requestAnimationFrame", frames);
+    const stage = new Stage();
+    stage.setRate(0);
+    stage.hold("settle", 240);
+    stage.setTarget("reply", "The", true);
+    stage.setTarget("reply", REPLY, true);
+    expect(frames).not.toHaveBeenCalled();
+    stage.setRate(1);
+    expect(frames).toHaveBeenCalledOnce();
+  });
 });

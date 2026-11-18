@@ -55,6 +55,7 @@ export class Stage {
   setRate(rate: number) {
     this.settleIdle();
     this.rate = Math.max(0, rate);
+    this.wake();
   }
 
   /** Moves the stage on by `ms` at once, as one tick. */
@@ -210,6 +211,10 @@ export class Stage {
   }
 
   private hasWork(): boolean {
+    // Stopped, nothing moves on: it wakes again when the rate does.
+    if (this.rate === 0) {
+      return false;
+    }
     if (this.tickListeners.size > 0 || this.holds.size > 0) {
       return true;
     }

@@ -914,6 +914,86 @@ function askedOnlyFor(relative: string): Assertion {
   };
 }
 
+/**
+ * Just Press Record's iCloud folder in the run's home, inside a Mobile
+ * Documents kept read-only as macOS keeps it, with one clip from this
+ * morning in today's folder as the app files them.
+ */
+const JPR = {
+  clip: "08-41-07.m4a",
+  container: () =>
+    path.join(
+      os.homedir(),
+      "Library",
+      "Mobile Documents",
+      "iCloud~com~openplanetsoftware~just-press-record",
+    ),
+  icloud: () => path.join(os.homedir(), "Library", "Mobile Documents"),
+};
+
+function plantJustPressRecord(): void {
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  if (fs.existsSync(JPR.icloud())) {
+    fs.chmodSync(JPR.icloud(), 0o755);
+  }
+  const day = path.join(JPR.container(), "Documents", today);
+  fs.mkdirSync(day, { recursive: true });
+  execFileSync(
+    FFMPEG_PATH,
+    [
+      "-loglevel",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=330:duration=3",
+      path.join(day, JPR.clip),
+    ],
+    { stdio: "ignore" },
+  );
+  fs.chmodSync(JPR.icloud(), 0o555);
+}
+
+/**
+ * The card named the app's own folder, never the read-only Mobile Documents
+ * that holds every app's, and was allowed.
+ */
+const askedForTheAppsICloudFolder: Assertion = {
+  check: async (ctx) => {
+    const text =
+      "asked for Just Press Record's own iCloud folder, never Mobile Documents";
+    const asks = await asksOf(ctx, await treeSessions(ctx));
+    const folderAsks = asks.filter((ask) => ask.kind === "folder");
+    return result(
+      text,
+      folderAsks.some(
+        (ask) => ask.target === JPR.container() && ask.answer === "allowed",
+      ) && !folderAsks.some((ask) => ask.target === JPR.icloud()),
+      describeAsks(asks),
+    );
+  },
+  text: "asked for Just Press Record's own iCloud folder, never Mobile Documents",
+};
+
+/** Once allowed, a command or the reply reached this morning's clip. */
+const reachedTheClip: Assertion = {
+  check: async (ctx) => {
+    const text = "reached this morning's clip once allowed";
+    const sessions = await treeSessions(ctx);
+    const reached =
+      toolSteps(sessions).some((step) => step.output.includes(JPR.clip)) ||
+      allText(sessions).includes(JPR.clip.replace(".m4a", ""));
+    // The run's home is swept later, which a read-only folder would stop.
+    if (fs.existsSync(JPR.icloud())) {
+      fs.chmodSync(JPR.icloud(), 0o755);
+    }
+    return result(text, reached, reached ? "reached" : "never reached it");
+  },
+  text: "reached this morning's clip once allowed",
+};
+
 const DESKTOP_NOTES = "Pack the charger.\n";
 
 /** Once Desktop was allowed, the copy is there, whole. */
@@ -1738,6 +1818,18 @@ export const PERMISSIONS_EVALS = [
         folder: { display: "~/Projects", mount: folder, selected: [] },
         screen: "file" as const,
       };
+    },
+  }),
+  permCase({
+    // Another app's iCloud folder sits in Mobile Documents, which macOS keeps
+    // read-only, so a card for that folder could never be allowed.
+    assertions: [askedForTheAppsICloudFolder, reachedTheClip],
+    allowsFolders: 1,
+    name: "perm-icloud-app-folder",
+    prompt:
+      "Transcribe my just press record stuff that I notes I took this morning. I think it might be just a couple and summarize it here for me",
+    setup: () => {
+      plantJustPressRecord();
     },
   }),
   permCase({

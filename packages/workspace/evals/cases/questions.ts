@@ -238,8 +238,80 @@ function mentions(word: string): Assertion {
   };
 }
 
+/** Tones are plain preferences: their labels say it all, with nothing to show beside them. */
+const NO_DETAIL: Assertion = {
+  check: ({ sessions }) => {
+    const shown = cards(sessions)
+      .flat()
+      .flatMap(({ choices }) => choices)
+      .filter((choice) => choice.detail);
+    return {
+      evidence: shown.map((choice) => choice.label).join(", ") || "(none)",
+      passed: shown.length === 0,
+      text: "gave plain choices no detail",
+    };
+  },
+  text: "gave plain choices no detail",
+};
+
+/** Layouts differ in a way easier seen than read: every choice shows its own. */
+const DETAIL_ON_EVERY_CHOICE: Assertion = {
+  check: ({ sessions }) => {
+    const choices = cards(sessions)
+      .flat()
+      .flatMap((question) => question.choices);
+    const bare = choices.filter((choice) => !choice.detail);
+    return {
+      evidence: `${choices.length - bare.length}/${choices.length} with detail${bare.length > 0 ? `; none on ${bare.map((choice) => choice.label).join(", ")}` : ""}`,
+      passed: choices.length > 0 && bare.length === 0,
+      text: "gave every choice a detail",
+    };
+  },
+  text: "gave every choice a detail",
+};
+
+/** What the conversation said after the person's last typed message. */
+function replyAfterLastMessage(
+  sessions: Session.WithMessagesAndParts[],
+): string {
+  const said: string[] = [];
+  for (const session of sessions) {
+    for (const message of session.messages) {
+      if (message.role === "user") {
+        said.length = 0;
+      }
+      for (const part of message.parts) {
+        if (message.role === "assistant" && part.type === "text") {
+          said.push(part.text);
+        }
+      }
+    }
+  }
+  return said.join("\n").trim();
+}
+
+/**
+ * A bare "2" typed under the open card, with the card's question in the
+ * message's view context as the app sends it, is read as its second choice:
+ * the tagline arrives, quoted or in bold, with no question back about
+ * what "2" meant.
+ */
+const READ_THE_NUMBER: Assertion = {
+  check: ({ sessions }) => {
+    const second = cards(sessions)[0]?.[0]?.choices[1]?.label ?? "(no card)";
+    const reply = replyAfterLastMessage(sessions);
+    return {
+      evidence: `choice 2: ${second}\n${reply.slice(0, 400)}`,
+      passed: /["“”*]/.test(reply) && !reply.includes("?"),
+      text: "wrote the tagline on a typed 2 without asking what it meant",
+    };
+  },
+  text: "wrote the tagline on a typed 2 without asking what it meant",
+};
+
 const ONE_QUESTION_ASSERTIONS = [
   ASKED_ONCE,
+  NO_DETAIL,
   NO_ESCAPE_CHOICES,
   WAITED_FOR_ANSWER,
   LEFT_THE_ASKING_TO_THE_CARD,
@@ -368,5 +440,42 @@ export const QUESTIONS_EVALS = [
     name: "questions-pick-several-unprompted",
     prompt:
       "Make me a short packing list for a weekend at the lake. Ask me first, as a choice, which of these I'm doing: hiking, swimming, kayaking, fishing.",
+  }),
+  defineEval({
+    answers: [answerEach((question) => pickChoice(question))],
+    assertions: [ASKED_ONCE, DETAIL_ON_EVERY_CHOICE, REPLIED],
+    kind: "chat",
+    name: "questions-detail-shows-layouts",
+    prompt:
+      "I'm adding a section to my website that compares our three pricing plans. Before you write anything, ask me which layout I want for it.",
+  }),
+  defineEval({
+    // The card is left open and the person types "2" in the reply box, as
+    // its numbered choices invite.
+    assertions: [ASKED_ONCE, READ_THE_NUMBER],
+    followUps: [
+      {
+        prompt: "2",
+        viewing: (asked) => {
+          const question = asked[0]?.[0];
+          return {
+            screen: "conversation",
+            ...(question
+              ? {
+                  question: {
+                    at: 1,
+                    choices: question.choices.map((choice) => choice.label),
+                    of: asked[0]?.length ?? 1,
+                    text: question.question,
+                  },
+                }
+              : {}),
+          };
+        },
+      },
+    ],
+    kind: "chat",
+    name: "questions-numbered-reply",
+    prompt: PROMPT,
   }),
 ];

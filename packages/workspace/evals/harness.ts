@@ -805,6 +805,17 @@ type FollowUp = FollowUpTiming &
          */
         actions?: CaseActions;
         prompt: string;
+        /**
+         * What the window showed as this message was sent, for one whose
+         * view context matters on its own (a reply typed under an open
+         * question card), in place of the case's `viewing`. A function is
+         * handed every card the run has put up so far, oldest first.
+         */
+        viewing?:
+          | SessionMessageDataPart.ViewContextDataPart
+          | ((
+              cards: ChooseQuestion[][],
+            ) => SessionMessageDataPart.ViewContextDataPart);
       }
     | {
         /**
@@ -1875,9 +1886,16 @@ export async function runEvals(
               modelURI: uri,
               prompt: followUp.prompt,
               sessionId,
-              ...(evalCase.sharedBrowser && evalCase.viewing
-                ? { viewing: viewingNow(evalCase.viewing, sharedChrome) }
-                : {}),
+              ...(followUp.viewing
+                ? {
+                    viewing:
+                      typeof followUp.viewing === "function"
+                        ? followUp.viewing([...chooseInputs.values()])
+                        : followUp.viewing,
+                  }
+                : evalCase.sharedBrowser && evalCase.viewing
+                  ? { viewing: viewingNow(evalCase.viewing, sharedChrome) }
+                  : {}),
             },
             { context },
           );

@@ -5,6 +5,8 @@ import {
 } from "@/client/lib/app-mention";
 import { type SkillTextSegment, splitSkillText } from "@/client/lib/skill-text";
 import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
+import { isWebPage } from "@/client/lib/open-target";
+import { markdownLinkText, splitMarkdownLinks } from "@/shared/link-text";
 import {
   skillMentionLabel,
   type SkillMentionSegment,
@@ -85,8 +87,25 @@ export const promptSchema = new Schema({
       parseDOM: [{ tag: "span[data-dictated]" }],
       toDOM: () => ["span", { "data-dictated": "" }, 0],
     },
+    /**
+     * Words that link to an address, written in the text as a Markdown link
+     * (`[words](address)`), which is how the sent message reads them back. An
+     * address typed on its own carries no mark: it is drawn as a link where it
+     * stands, and stays the characters it is.
+     */
+    link: {
+      attrs: { href: {} },
+      inclusive: false,
+      toDOM: (mark) => ["span", { "data-href": String(mark.attrs.href) }, 0],
+    },
   },
 });
+
+/** The address a node links to, when its words carry a link. */
+export function linkOfNode(node: ProseMirrorNode): string | undefined {
+  const mark = promptSchema.marks.link.isInSet(node.marks);
+  return mark ? String(mark.attrs.href) : undefined;
+}
 
 /** The app a node names, when it is an app node. */
 export function appOfNode(node: ProseMirrorNode): AppMention | undefined {
@@ -233,6 +252,22 @@ export function promptTextFromDoc(doc: ProseMirrorNode) {
     let value = "";
     for (let childIndex = 0; childIndex < paragraph.childCount; childIndex++) {
       const node = paragraph.child(childIndex);
+      const href = linkOfNode(node);
+      if (href !== undefined) {
+        // A link's words can span several nodes (part of them dictated), and
+        // are written once, whole, as one Markdown link.
+        let label = node.text ?? "";
+        while (childIndex + 1 < paragraph.childCount) {
+          const next = paragraph.child(childIndex + 1);
+          if (linkOfNode(next) !== href) {
+            break;
+          }
+          label += next.text ?? "";
+          childIndex++;
+        }
+        value += markdownLinkText(label, href);
+        continue;
+      }
       const app = appOfNode(node);
       const text = node.text ?? "";
       const dictated =
@@ -263,13 +298,32 @@ function textNodes(
   );
 }
 
-/** The text of a line as nodes, its dictated runs carrying the dictated mark. */
+/**
+ * The text of a line as nodes: its dictated runs carrying the dictated mark,
+ * and its Markdown links as their words carrying the link mark.
+ */
 function markedTextNodes(text: string): ProseMirrorNode[] {
-  return splitDictatedText(text).flatMap((segment) =>
-    segment.text
-      ? textNodes(segment.text, segment.dictated ? [dictatedMark()] : [])
-      : [],
-  );
+  return splitDictatedText(text).flatMap((segment) => {
+    if (!segment.text) {
+      return [];
+    }
+    if (segment.dictated) {
+      return textNodes(segment.text, [dictatedMark()]);
+    }
+    // Only a link to a web page is linked words. One into the app is an app's
+    // chip or stays the text it is, as it always has.
+    return splitMarkdownLinks(segment.text).flatMap((part) =>
+      part.type === "text"
+        ? textNodes(part.text)
+        : isWebPage(part.href)
+          ? [
+              promptSchema.text(part.label, [
+                promptSchema.marks.link.create({ href: part.href }),
+              ]),
+            ]
+          : textNodes(`[${part.label}](${part.href})`),
+    );
+  });
 }
 
 const dictatedMark = () => promptSchema.marks.dictated.create();

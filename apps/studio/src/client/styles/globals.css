@@ -22,6 +22,30 @@
   margin: 0;
 }
 
+/* A link in the box, underlined as the sent message underlines one, with the
+   site's icon in front once it has loaded (prompt-editor-links.ts). */
+.prompt-editor .prompt-link {
+  text-decoration: underline;
+  text-decoration-color: color-mix(in oklab, var(--foreground) 40%, transparent);
+  text-underline-offset: 3px;
+}
+
+.prompt-editor .prompt-site-icon:not([hidden]) {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin: 0 4px 0 0;
+  border-radius: 2px;
+  vertical-align: -2px;
+}
+
+/* A list item wraps under its first word rather than under its marker; the
+   marker's width is measured in the box's font (prompt-editor-lists.ts). */
+.prompt-editor p.prompt-list-line {
+  padding-left: var(--prompt-hang);
+  text-indent: calc(-1 * var(--prompt-hang));
+}
+
 /* The words being heard, where they will land: at the end of the last line,
    the stretch still being heard fainter, then a short bar marking the spot.
    Not part of the text, so the caret never enters it. */

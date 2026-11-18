@@ -179,6 +179,70 @@ export function fitTrail(
   });
 }
 
+/** The width a part's name is shown at. */
+function shownWidth(fit: PartFit, size: PartSize) {
+  if (fit.kind === "whole") {
+    return size.name;
+  }
+  return fit.kind === "cut" ? fit.width : 0;
+}
+
+/**
+ * How each part is shown while the one at `pointed` shows its whole name:
+ * the last name gives up the room it grows by, down to the floor, so the
+ * trail's end stays in its box. The parts before it keep their widths, so
+ * nothing moves under the pointer.
+ */
+function fitPointed(
+  fits: PartFit[],
+  sizes: PartSize[],
+  pointed: number,
+  {
+    floor,
+    reserve,
+    separator,
+    width,
+  }: { floor: number; reserve: number; separator: number; width: number },
+): PartFit[] {
+  const last = sizes.length - 1;
+  const lastSize = sizes[last];
+  const lastFit = fits[last];
+  const pointedSize = sizes[pointed];
+  const pointedFit = fits[pointed];
+  if (
+    pointed === last ||
+    !lastSize ||
+    !lastFit ||
+    !pointedSize ||
+    !pointedFit
+  ) {
+    return fits;
+  }
+  const shown = (fit: PartFit, size: PartSize) =>
+    size.markOnly +
+    (fit.kind === "folded" ? 0 : size.gap + shownWidth(fit, size));
+  const used = sizes.reduce(
+    (total, size, index) =>
+      total + shown(fits[index] ?? { kind: "whole" }, size),
+    reserve + separator * last,
+  );
+  const grows =
+    pointedSize.markOnly +
+    pointedSize.gap +
+    pointedSize.name -
+    shown(pointedFit, pointedSize);
+  const lastWidth = shownWidth(lastFit, lastSize);
+  const given = Math.max(
+    Math.min(lastSize.name, floor),
+    lastWidth - (used + grows - width),
+  );
+  return given < lastWidth
+    ? fits.map((fit, index) =>
+        index === last ? { kind: "cut", width: given } : fit,
+      )
+    : fits;
+}
+
 /**
  * A trail of names on one line, a path or the parts of a place, that gives
  * way the way a folder window's path bar does as its box narrows: the names
@@ -186,7 +250,8 @@ export function fitTrail(
  * between the first and the one before the last folds to its mark at once,
  * then the first, then the one before the last, so the marks still count the
  * folders; and last of all the last name is cut. Pointing at a part shows its
- * whole name in place, growing out of its mark or its cut.
+ * whole name in place, growing out of its mark or its cut, and the last name
+ * gives up the room it takes.
  *
  * Each part is its mark (`mark`, which may be none, and then it never folds)
  * and its name, wrapped by `part` in whatever it is pressed as, with the
@@ -226,6 +291,13 @@ export function FoldingTrail({
   const trail = labels.join("/");
   const [fits, setFits] = useState<{
     font?: TextFont;
+    /** What `fitPointed` needs to make room for a pointed part. */
+    measured?: {
+      floor: number;
+      separator: number;
+      sizes: PartSize[];
+      width: number;
+    };
     parts: PartFit[];
     total?: number;
     trail: string;
@@ -271,17 +343,18 @@ export function FoldingTrail({
       );
       const separatorOf = copy.querySelector<HTMLElement>("[data-separator]");
       const separatorWidth = separatorOf ? layoutWidth(separatorOf) : 0;
+      const measured = {
+        // About four letters and the ellipsis: shorter than that, a cut
+        // name says less than the folder's mark does.
+        floor: fontSize * 4,
+        separator: separatorWidth,
+        sizes,
+        width: layoutWidth(element),
+      };
       setFits({
         font,
-        parts: fitTrail(sizes, {
-          // About four letters and the ellipsis: shorter than that, a cut
-          // name says less than the folder's mark does.
-          floor: fontSize * 4,
-          hasMark,
-          reserve,
-          separator: separatorWidth,
-          width: layoutWidth(element),
-        }),
+        measured,
+        parts: fitTrail(sizes, { ...measured, hasMark, reserve }),
         // The copy draws one separator, and the trail one between each two
         // parts.
         total:
@@ -320,9 +393,20 @@ export function FoldingTrail({
     tellShort(isShort);
   }, [isShort]);
   const point = (index: number | null) => {
-    setMoving([pointedAt, index].filter((one): one is number => one !== null));
+    setMoving(
+      [pointedAt, index, labels.length - 1].filter(
+        (one): one is number => one !== null,
+      ),
+    );
     setPointedAt(index);
   };
+  const parts =
+    current?.measured && pointedAt !== null
+      ? fitPointed(current.parts, current.measured.sizes, pointedAt, {
+          ...current.measured,
+          reserve,
+        })
+      : current?.parts;
   return (
     <span
       className={cn(
@@ -340,7 +424,7 @@ export function FoldingTrail({
       }
     >
       {labels.map((label, index) => {
-        const fit = current?.parts[index] ?? { kind: "whole" };
+        const fit = parts?.[index] ?? { kind: "whole" };
         const isPointed = pointedAt === index;
         const isEndCut = fit.kind === "cut" && cutsAtEnd?.(index) === true;
         const shown =

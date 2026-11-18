@@ -1,5 +1,6 @@
 import { renderInBrowser } from "@/tests/render-browser";
 import { describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { FoldingTrail } from "./folding-trail";
 
@@ -40,5 +41,45 @@ describe("FoldingTrail", () => {
   it("cuts any other name in its middle", async () => {
     const name = await shownName(false);
     expect(name?.textContent).toMatch(/^Plan.*….*system$/);
+  });
+
+  it("cuts the last name further while a folded folder shows its whole name, so the trail's end stays in its box", async () => {
+    const labels = [
+      "Workspace",
+      "Projects",
+      "Regional office renovation",
+      "Phase two drawings and quotes for the client",
+    ];
+    const screen = await renderInBrowser(
+      <div className="flex text-sm" style={{ width: 300 }}>
+        <FoldingTrail
+          labels={labels}
+          mark={(index) => (
+            <span className="block size-3 shrink-0" data-mark={index} />
+          )}
+          part={(_, content) => <span className="flex">{content}</span>}
+          separator={<span className="px-1">›</span>}
+        />
+      </div>,
+    );
+    const trail = screen.container.firstElementChild?.firstElementChild;
+    const lastName = () =>
+      trail?.querySelectorAll(".whitespace-pre:not([data-crumb-name])")[3]
+        ?.textContent;
+    await expect.poll(lastName).toMatch(/^Phase.*….*client$/);
+    const folded = trail?.querySelector('[data-mark="1"]');
+    if (!trail || !folded) {
+      throw new Error("no trail rendered");
+    }
+
+    await userEvent.hover(folded);
+
+    await expect
+      .poll(() => trail.querySelectorAll(".whitespace-pre")[1]?.textContent)
+      .toBe("Projects");
+    await expect
+      .poll(() => trail.scrollWidth - trail.clientWidth)
+      .toBeLessThanOrEqual(1);
+    expect(lastName()).toMatch(/^Phase.*….*client$/);
   });
 });

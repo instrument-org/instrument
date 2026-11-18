@@ -121,6 +121,17 @@ export function askableFolder({
   while (onDisk && !existsSync(folder) && folder !== nodePath.dirname(folder)) {
     folder = nodePath.dirname(folder);
   }
+  // A yes can't open a folder this account can't change (one macOS keeps
+  // read-only, as it does the folder of every app's iCloud folder), so the
+  // card names the first folder on the way down to the path that it can.
+  const deepest = isDirectory ? hostPath : nodePath.dirname(hostPath);
+  while (folder !== deepest && existsSync(folder) && !accountCanWrite(folder)) {
+    const next = nodePath.relative(folder, deepest).split(nodePath.sep)[0];
+    if (next === undefined || next === "" || next === "..") {
+      break;
+    }
+    folder = nodePath.join(folder, next);
+  }
   // The home folder or the disk whole is never the thing to ask for.
   if (folder === rules.home || isClosedDiskRoot(folder)) {
     return {

@@ -3,6 +3,7 @@ import { accessSync, constants, existsSync } from "node:fs";
 import path from "node:path";
 
 import { pathIsWithin } from "../path-is-within";
+import { macosGuardedRoot } from "./macos";
 import { placePaths } from "./places";
 
 /**
@@ -19,7 +20,10 @@ const PSEUDO_FOLDERS = ["/dev", "/proc", "/sys"];
  *
  * Windows answers yes: there `access` sees only the read-only flag, not the
  * folder's access list. So does a drive, where a network share's server
- * decides rather than the answer this computer gives.
+ * decides rather than the answer this computer gives. So does a folder macOS
+ * guards for privacy (Desktop, Documents, Downloads, iCloud's), whose `EPERM`
+ * is macOS keeping the app out until the person lets it in, which the card
+ * shows them how to do.
  */
 export function accountCanWrite(hostPath: string): boolean {
   if (process.platform === "win32") {
@@ -39,8 +43,13 @@ export function accountCanWrite(hostPath: string): boolean {
   try {
     accessSync(nearest, constants.W_OK);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    return (
+      error instanceof Error &&
+      "code" in error &&
+      error.code === "EPERM" &&
+      macosGuardedRoot(nearest) !== undefined
+    );
   }
 }
 

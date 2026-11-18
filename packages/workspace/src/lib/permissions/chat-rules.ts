@@ -105,14 +105,31 @@ function toolBinFolders(toolBinDir: string): string[] {
   return folders;
 }
 
+/**
+ * The Mac app bundle the running binary is in, which a chat's `node` is: its
+ * outermost `.app`. Undefined for a binary in no bundle.
+ */
+export function runningAppBundle(
+  execPath = process.execPath,
+): string | undefined {
+  const parts = execPath.split("/");
+  const app = parts.findIndex((part) => part.endsWith(".app"));
+  return app > 0 ? parts.slice(0, app + 1).join("/") : undefined;
+}
+
 /** What a native command the chat's shell spawns is held to. */
 export function nativeReachFor(
   rules: Rules,
   layout: WorkspaceFsLayout,
 ): NativeReach {
   const runtime = runtimeLayout(getWorkspaceConfig().runtimeDir);
+  const appBundle = runningAppBundle();
   return {
     readOnly: [
+      // The app itself, which every chat's `node` loads its frameworks from:
+      // an app run from a disk image or another drive is under `/Volumes`,
+      // a place that is closed until the person allows it.
+      ...(appBundle ? [appBundle] : []),
       // The skills the app ships and the person's other skill folders; the
       // workspace's own is the person's to change, programs included, and
       // what changes in it is seen (`setup-snapshot.ts`).

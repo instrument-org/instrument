@@ -5,6 +5,7 @@ import {
   SAME_POSITION,
   endOf,
   isAtEnd,
+  pinned,
   scrollableOf,
   settle,
 } from "./policy";
@@ -72,6 +73,18 @@ export class ScrollOwner {
   private anchorElement: HTMLElement | null = null;
   private resizes: ResizeObserver | null = null;
   private mutations: MutationObserver | null = null;
+  /**
+   * The row held still on screen while what is above it changes (`holdPin`),
+   * and how far below the viewport's top it is held.
+   */
+  private pin: {
+    element: HTMLElement;
+    /** Held: false once a move the reader or the app asked for came, which leaves it where that put it. */
+    isHeld: boolean;
+    /** The reader took over: where their next scroll puts it is where it is held. */
+    isRetaken: boolean;
+    screenTop: number;
+  } | null = null;
   private lastInputAt = Number.NEGATIVE_INFINITY;
   private pendingJump: { messageId: string; options?: ScrollOptions } | null =
     null;
@@ -232,6 +245,7 @@ export class ScrollOwner {
       return false;
     }
     this.stopSlide();
+    this.unpin();
     this.mode = { kind: "follow" };
     if (!this.isTakingEnd) {
       this.isTakingEnd = true;
@@ -256,6 +270,7 @@ export class ScrollOwner {
       return false;
     }
     this.stopSlide();
+    this.unpin();
     this.mode = { kind: "keep" };
     this.writeSpacer(0);
     this.writeScroll(0);
@@ -279,6 +294,8 @@ export class ScrollOwner {
    * screen: following would carry what they opened away from under them.
    */
   releaseAutoScroll = () => {
+    // What they opened grows down from where they clicked.
+    this.unpin();
     if (this.mode.kind !== "keep") {
       this.mode = { kind: "keep" };
       this.publish();
@@ -308,7 +325,17 @@ export class ScrollOwner {
       this.settleQuietUntil = now + SETTLE_MS;
     }
     this.lastContentBottom = geometry.contentBottom;
-    const write = settle(this.mode, geometry, this.effectiveSettings(now));
+    const settings = this.effectiveSettings(now);
+    let write = settle(this.mode, geometry, settings);
+    const pin = this.pin;
+    if (this.viewport && pin?.isHeld && pin.element.isConnected) {
+      write = pinned(
+        write,
+        geometry,
+        settings,
+        scrollTopOf(pin.element, this.viewport) - pin.screenTop,
+      );
+    }
     this.mode = write.mode;
     if (write.mode.kind !== "anchor") {
       this.anchorElement = null;
@@ -385,6 +412,12 @@ export class ScrollOwner {
   };
 
   private onScroll = () => {
+    const pin = this.pin;
+    if (pin?.isRetaken && this.viewport) {
+      pin.isRetaken = false;
+      pin.screenTop =
+        scrollTopOf(pin.element, this.viewport) - this.viewport.scrollTop;
+    }
     const geometry = this.measure();
     if (!geometry) {
       return;
@@ -449,6 +482,9 @@ export class ScrollOwner {
 
   private takeOver() {
     this.lastInputAt = performance.now();
+    if (this.pin) {
+      this.pin.isRetaken = true;
+    }
     if (this.slide) {
       this.stopSlide();
     }
@@ -461,6 +497,7 @@ export class ScrollOwner {
   // -- moves ------------------------------------------------------------------
 
   private anchorTo(element: HTMLElement) {
+    this.unpin();
     const viewport = this.viewport;
     const before = viewport?.scrollTop ?? 0;
     const geometry = this.measure(element);
@@ -487,6 +524,7 @@ export class ScrollOwner {
       return;
     }
     this.stopSlide();
+    this.unpin();
     this.mode = { kind: "keep" };
     const top = scrollTopOf(element, viewport);
     const margin = options?.scrollMargin ?? 0;
@@ -537,6 +575,50 @@ export class ScrollOwner {
       viewport.scrollTop -= left;
     }
     this.root?.toggleAttribute("data-sliding", false);
+  }
+
+  // -- the pinned row ------------------------------------------------------------
+
+  /** How far below the viewport's top a row is, in layout px. */
+  screenTopOf = (element: HTMLElement): number | undefined => {
+    const viewport = this.viewport;
+    return viewport
+      ? scrollTopOf(element, viewport) - viewport.scrollTop
+      : undefined;
+  };
+
+  /**
+   * Holds a row still on screen while what is above it changes, at
+   * `screenTop` (where it was before the render that moved anything, when the
+   * caller read it then) or where it is now.
+   */
+  holdPin = (element: HTMLElement, screenTop = this.screenTopOf(element)) => {
+    const viewport = this.viewport;
+    if (!viewport || screenTop === undefined) {
+      return;
+    }
+    this.pin = {
+      element,
+      // Out of sight below, what is in view is above what moves, and holding
+      // the row would carry it away.
+      isHeld: screenTop < viewport.clientHeight,
+      isRetaken: false,
+      screenTop,
+    };
+  };
+
+  /** Lets a held row go. */
+  releasePin = (element: HTMLElement) => {
+    if (this.pin?.element === element) {
+      this.pin = null;
+    }
+  };
+
+  /** Stops holding the marked row still, for a move the reader or the app asked for. */
+  private unpin() {
+    if (this.pin) {
+      this.pin.isHeld = false;
+    }
   }
 
   // -- measuring and writing -----------------------------------------------------

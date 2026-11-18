@@ -24,6 +24,11 @@ export type ScrollMode =
       key: string;
       /** How tall the content was when the message was anchored, spacer aside. */
       contentAtAnchor: number;
+      /**
+       * How far above its resting place the message has been carried, by a
+       * row below it that was kept still while what was between them folded.
+       */
+      lift?: number;
     }
   | { kind: "keep" };
 
@@ -87,7 +92,7 @@ export function settle(
       }
       const target = Math.max(
         0,
-        geometry.anchorTop - settings.anchorRoom - (geometry.topInset ?? 0),
+        anchorRest(geometry, settings) - (mode.lift ?? 0),
       );
       const needed = Math.max(
         0,
@@ -110,6 +115,57 @@ export function settle(
     }
     case "keep": {
       return { mode, spacer: keptSpacer(geometry) };
+    }
+  }
+}
+
+/** Where an anchored message rests: under the column's padding and the room left above it. */
+function anchorRest(geometry: ScrollGeometry, settings: ScrollSettings) {
+  return (
+    (geometry.anchorTop ?? 0) - settings.anchorRoom - (geometry.topInset ?? 0)
+  );
+}
+
+/**
+ * The write that keeps a row still on screen, its top at `top` in scroll
+ * coordinates, while what is above it changes: an anchored message is carried
+ * up or down with it, and a reader who took over is moved with it. Following
+ * the end already keeps the end still, so it is left as it was.
+ */
+export function pinned(
+  write: ScrollWrite,
+  geometry: ScrollGeometry,
+  settings: ScrollSettings,
+  top: number,
+): ScrollWrite {
+  const { mode } = write;
+  switch (mode.kind) {
+    case "follow": {
+      return write;
+    }
+    case "anchor": {
+      if (geometry.anchorTop === undefined) {
+        return write;
+      }
+      return settle(
+        { ...mode, lift: anchorRest(geometry, settings) - Math.max(0, top) },
+        geometry,
+        settings,
+      );
+    }
+    case "keep": {
+      const scrollTop = Math.max(
+        0,
+        Math.min(
+          top,
+          geometry.contentBottom + geometry.spacer - geometry.viewportHeight,
+        ),
+      );
+      return {
+        mode,
+        scrollTop,
+        spacer: keptSpacer({ ...geometry, scrollTop }),
+      };
     }
   }
 }

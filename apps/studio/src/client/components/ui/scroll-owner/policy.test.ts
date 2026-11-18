@@ -5,6 +5,7 @@ import {
   type ScrollMode,
   type ScrollSettings,
   isAtEnd,
+  pinned,
   scrollableOf,
   settle,
 } from "./policy";
@@ -135,6 +136,56 @@ describe("keep", () => {
       mode: { kind: "keep" },
       spacer,
     });
+  });
+});
+
+describe("pinned", () => {
+  it("carries an anchored message up as what is under it folds, keeping its room", () => {
+    // 400px of work folded between the message at 1000 and the answer at
+    // 1600: content shrank from 2000 to 1600, the answer is now at 1200 and
+    // was 600px below the viewport's top.
+    const g = geometry({
+      anchorTop: 1000,
+      contentBottom: 1600,
+      scrollTop: 920,
+      spacer: 0,
+    });
+    const write = pinned(
+      settle(anchor(2000), g, SETTINGS),
+      g,
+      SETTINGS,
+      1200 - 600,
+    );
+    expect(write).toEqual({
+      mode: { ...anchor(2000), lift: 320 },
+      scrollTop: 600,
+      spacer: 0,
+    });
+    // The next frame, with nothing new pinned, the anchor stays carried.
+    expect(settle(write.mode, g, SETTINGS).scrollTop).toBe(600);
+  });
+
+  it("stops at the top when there is nothing above to scroll away", () => {
+    const g = geometry({ anchorTop: 100, contentBottom: 500 });
+    expect(
+      pinned(settle(anchor(900), g, SETTINGS), g, SETTINGS, -300).scrollTop,
+    ).toBe(0);
+  });
+
+  it("moves a reader who took over with the row", () => {
+    expect(
+      pinned(
+        { mode: { kind: "keep" }, spacer: 0 },
+        geometry({ contentBottom: 1600, scrollTop: 1000 }),
+        SETTINGS,
+        700,
+      ),
+    ).toEqual({ mode: { kind: "keep" }, scrollTop: 700, spacer: 0 });
+  });
+
+  it("leaves following the end as it is, which already keeps the end still", () => {
+    const write = settle({ kind: "follow" }, geometry(), SETTINGS);
+    expect(pinned(write, geometry(), SETTINGS, 200)).toBe(write);
   });
 });
 

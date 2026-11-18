@@ -34,6 +34,84 @@ function useMessageScroller(): {
   };
 }
 
+/**
+ * Holds the row `target` points at still on screen while `hold` is set, so
+ * what changes above it scrolls away (`ScrollOwner.holdPin`). Where the row is
+ * is read before the render that sets `hold` changes anything, which only a
+ * class's `getSnapshotBeforeUpdate` can do. Draws nothing, and does nothing
+ * outside a scroller.
+ */
+class ScrollPin extends React.Component<{
+  hold: boolean;
+  target: React.RefObject<HTMLElement | null>;
+}> {
+  static override contextType = ScrollOwnerContext;
+  declare context: ScrollOwner | null;
+  private held: HTMLElement | null = null;
+  private isMounted = false;
+
+  override componentDidMount() {
+    this.isMounted = true;
+    if (this.props.hold) {
+      // A row that comes held (an answer that arrives as its turn ends) gets
+      // its ref only after its children mount, so this waits for the commit
+      // to finish, which is still before the owner next measures.
+      queueMicrotask(() => {
+        if (this.isMounted && this.props.hold && !this.held) {
+          this.start(undefined);
+        }
+      });
+    }
+  }
+
+  override getSnapshotBeforeUpdate(previous: { hold: boolean }) {
+    const element = this.props.target.current;
+    return !previous.hold && this.props.hold && element
+      ? (this.context?.screenTopOf(element) ?? null)
+      : null;
+  }
+
+  override componentDidUpdate(
+    previous: { hold: boolean },
+    _state: unknown,
+    screenTop: number | null,
+  ) {
+    if (previous.hold === this.props.hold) {
+      return;
+    }
+    if (this.props.hold) {
+      this.start(screenTop ?? undefined);
+    } else {
+      this.stop();
+    }
+  }
+
+  override componentWillUnmount() {
+    this.isMounted = false;
+    this.stop();
+  }
+
+  private start(screenTop: number | undefined) {
+    const element = this.props.target.current;
+    if (!element || !this.context) {
+      return;
+    }
+    this.held = element;
+    this.context.holdPin(element, screenTop);
+  }
+
+  private stop() {
+    if (this.held) {
+      this.context?.releasePin(this.held);
+      this.held = null;
+    }
+  }
+
+  override render() {
+    return null;
+  }
+}
+
 /** Whether there is more to scroll to at the start and at the end. */
 function useMessageScrollerScrollable() {
   const owner = useScrollOwner();
@@ -337,6 +415,7 @@ function assignRef<T>(ref: React.Ref<T> | undefined, value: T | null) {
 export {
   MessageScroller,
   useMessageScroller,
+  ScrollPin,
   useMessageScrollerScrollable,
   MessageScrollerButton,
   MessageScrollerContent,

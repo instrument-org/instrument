@@ -22,6 +22,8 @@ import {
   type ReactNode,
   use,
   useCallback,
+  useEffect,
+  useRef,
   useState,
   useSyncExternalStore,
 } from "react";
@@ -39,7 +41,7 @@ import { RatingCard } from "../message-part/rating-card";
 import { ToolCallBody } from "../message-part/tool-call";
 import { SentFolderChips } from "../sent-folder-chips";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
-import { MessageScrollerItem } from "../ui/message-scroller";
+import { MessageScrollerItem, ScrollPin } from "../ui/message-scroller";
 import { MessageBubble, UserMessage } from "../user-message";
 import { SentChips } from "../window/context-chip";
 import {
@@ -88,18 +90,23 @@ const THINKING_AFTER_MS = 1000;
 function FoldingRow({
   children,
   id,
+  isPinned = false,
   opens,
 }: {
   children: ReactNode;
   id: string;
+  /** Kept still on screen while rows above it fold (`usePinnedRow`). */
+  isPinned?: boolean;
   /** Whether it opens from nothing when it comes, read when it mounts. */
   opens: boolean;
 }) {
   const isReduced = useReducedMotion();
   const transition = isReduced ? { duration: 0 } : FOLD_TRANSITION;
+  const ref = useRef<HTMLDivElement>(null);
   return (
     <motion.div
       animate="open"
+      ref={ref}
       className="flex min-w-0 flex-col has-[>:empty]:hidden"
       data-transcript-row={id}
       exit="leaving"
@@ -139,6 +146,7 @@ function FoldingRow({
       >
         {children}
       </motion.div>
+      <ScrollPin hold={isPinned} target={ref} />
     </motion.div>
   );
 }
@@ -329,6 +337,7 @@ function TurnBody({
   const card =
     isFolded || !hasCard || isUnderWords ? undefined : workCardOf(turn);
   const cardOpens = useCardOpens(card !== undefined);
+  const pinnedRow = usePinnedRow(turn, isFolded);
   const rows = shown.flatMap((row, index) => {
     const out = [];
     if (isFolded && row.id === turn.foldLineAt) {
@@ -352,7 +361,12 @@ function TurnBody({
           : undefined;
       out.push(
         // Words open in place as they come out, so only the other rows open.
-        <FoldingRow id={row.id} key={row.id} opens={row.kind !== "text"}>
+        <FoldingRow
+          id={row.id}
+          isPinned={row.id === pinnedRow}
+          key={row.id}
+          opens={row.kind !== "text"}
+        >
           <RowView
             chatId={chatId}
             isLive={live !== undefined}
@@ -579,6 +593,44 @@ function useHeldFrom(turn: Turn, isFolded: boolean): number {
     }
   }
   return heldFrom;
+}
+
+/** How long after a fold starts its rows have closed, with a few frames to spare. */
+const FOLD_SETTLED_MS = FOLD_TRANSITION.duration * 1000 + 160;
+
+/**
+ * The row the scroller keeps still on screen while the turn folds: the answer,
+ * the first row after the work the fold takes. It is held from the turn's end
+ * until the fold has closed, so what folds above it scrolls away rather than
+ * pulling it up from where it is being read. None for a turn first drawn
+ * already folded, which never folds in front of the reader.
+ */
+function usePinnedRow(turn: Turn, isFolded: boolean): string | undefined {
+  const [hasSeenWork] = useState(!isFolded);
+  const [hasFolded, setHasFolded] = useState(false);
+  useEffect(() => {
+    if (!isFolded) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setHasFolded(true);
+    }, FOLD_SETTLED_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isFolded]);
+  const { endedAt, foldedRowIds, rows } = turn;
+  if (
+    !hasSeenWork ||
+    hasFolded ||
+    endedAt === undefined ||
+    foldedRowIds.size === 0
+  ) {
+    return undefined;
+  }
+  const lastFolded = rows.findLastIndex((row) => foldedRowIds.has(row.id));
+  return rows.slice(lastFolded + 1).find((row) => !foldedRowIds.has(row.id))
+    ?.id;
 }
 
 /** Whether the turn is folded now, turning so when its wait for a summary runs out. */

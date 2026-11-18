@@ -331,7 +331,8 @@ export function PaneTabs({
       />
       {trailing}
       <TabMenuAtPoint
-        at={menu}
+        // Down once its tab is gone, so no empty menu is left open.
+        at={menuTab ? menu : undefined}
         onCloseAutoFocus={(event) => {
           const next = afterMenu.current;
           if (next) {

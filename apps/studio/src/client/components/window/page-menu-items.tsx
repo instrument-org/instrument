@@ -150,7 +150,7 @@ export function PageMenuItems({ targetId }: { targetId: BrowserTargetId }) {
       <DropdownMenuItem
         disabled={disabled}
         onSelect={() => {
-          void getGuest(targetId)?.print();
+          getGuest(targetId)?.print();
         }}
       >
         <PrinterIcon className="size-4" />

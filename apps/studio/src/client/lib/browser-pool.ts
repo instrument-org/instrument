@@ -867,8 +867,38 @@ export function wasPagePressed(tabId: string): boolean {
   return targetId !== null && pagePressedAt.has(targetId);
 }
 
+/**
+ * Something open that folds at a press anywhere else, the same list
+ * `globals.css` turns the window's drag areas off for.
+ */
+const OPEN_OVERLAY =
+  ':is([role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"])[data-state="open"], [data-no-window-drag], .md-popover';
+
 function pagePressed(targetId: BrowserTargetId) {
   pagePressedAt.set(targetId, Date.now());
+  // A popover stays open when focus moves into a page, so a press in one of
+  // this window's pages reaches the window's own listeners as a press on
+  // nothing: on the root element, outside the React tree, where only what
+  // listens on the document or the window (an open overlay's outside press
+  // above all) hears it. The click completes it, since a popover waits for
+  // one before it folds.
+  if (pool.has(targetId) && document.querySelector(OPEN_OVERLAY)) {
+    const press = {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      composed: true,
+    };
+    const root = document.documentElement;
+    root.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        ...press,
+        isPrimary: true,
+        pointerType: "mouse",
+      }),
+    );
+    root.dispatchEvent(new MouseEvent("click", press));
+  }
   for (const listener of pagePressListeners) {
     listener(targetId);
   }

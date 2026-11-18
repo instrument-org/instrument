@@ -747,11 +747,13 @@ function WindowShell({
   // section at a time as each answer lands. The new tab's own code is split
   // from the window's, so it is fetched now too, or the first Cmd+T waits on
   // it. The free trial's offer is the Add a provider sheet's one remote
-  // answer, so it is in the cache before the sheet opens.
+  // answer, so it is in the cache before the sheet opens. A first launch's
+  // window has no workspace to ask until setup places it, and loads again
+  // once it does.
   const queryClient = useQueryClient();
   const { activeRouter } = appTabs;
   useEffect(() => {
-    if (!opened) {
+    if (!opened || window.api.initialSetupState?.facts.hasWorkspace === false) {
       return;
     }
     void queryClient.prefetchQuery(

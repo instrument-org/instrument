@@ -252,7 +252,7 @@ async function folderFor({
   await fs.mkdir(folder, { recursive: true });
   const name = versionsFolderName(path.basename(file));
   for (let n = 1; ; n++) {
-    const each = n === 1 ? name : `${name} ${String(n)}`;
+    const each = n === 1 ? name : withNumber(name, n);
     if (taken.has(each)) {
       continue;
     }
@@ -266,6 +266,26 @@ async function folderFor({
       }
     }
   }
+}
+
+/** The most bytes a file name may take on the disks the app runs on. */
+const MOST_NAME_BYTES = 255;
+
+/**
+ * `name` with ` <n>` after it, its end cut so the whole fits in a file name:
+ * a name already at the limit would otherwise make a folder no disk takes.
+ */
+function withNumber(name: string, n: number): string {
+  const suffix = ` ${String(n)}`;
+  const room = MOST_NAME_BYTES - Buffer.byteLength(suffix);
+  let kept = "";
+  for (const char of name) {
+    if (Buffer.byteLength(kept + char) > room) {
+      break;
+    }
+    kept += char;
+  }
+  return `${kept}${suffix}`;
 }
 
 /** What a file too big to copy is recorded by: enough to tell that it changed. */

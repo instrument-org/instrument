@@ -141,12 +141,14 @@ async function keepNamedFiles({
     ) {
       continue;
     }
+    // A file whose version the disk refuses is left out, so the reply's
+    // other files still keep theirs.
     const kept = await keepVersion({
       file: hostPath,
       folder,
       ...keptOf(records, hostPath, folder),
       read: () => agentFs.fs.readFileBuffer(shellPath(hostPath)),
-    });
+    }).catch(() => undefined);
     if (kept) {
       files.push({
         ...(kept.copy !== undefined && {

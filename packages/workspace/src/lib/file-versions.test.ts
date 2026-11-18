@@ -154,6 +154,22 @@ describe("keepVersion", () => {
     expect(at(later)).toBe(path.join("Versions", "report.md 3", "v1.md"));
   });
 
+  it("cuts a second same-name folder's name to fit when the file's name is at the limit", async () => {
+    const name = `${"a".repeat(252)}.md`;
+    const first = path.join(dir, "a", name);
+    const second = path.join(dir, "b", name);
+    for (const file of [first, second]) {
+      await fs.mkdir(path.dirname(file), { recursive: true });
+      await fs.writeFile(file, file);
+    }
+    const folder = path.join(dir, "Versions");
+    await keepVersion({ file: first, folder });
+    const later = await keepVersion({ file: second, folder });
+    const named = path.basename(path.dirname(later?.copy ?? ""));
+    expect(named.endsWith(" 2")).toBe(true);
+    expect(Buffer.byteLength(named)).toBeLessThanOrEqual(255);
+  });
+
   it("keeps a file's later versions in the folder its first went in", async () => {
     const file = path.join(dir, "report.md");
     const folder = path.join(dir, "Versions");

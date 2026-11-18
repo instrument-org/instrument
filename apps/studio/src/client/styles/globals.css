@@ -1273,25 +1273,9 @@ body {
 
 /* While something open folds at a press anywhere else, no part of the window
  * is a handle for moving it, so a press on the window bar or a title row
- * reaches the document and puts it away instead of moving the window. Read
- * from the document rather than set by each overlay, so it lasts exactly as
- * long as an open one is in it and no cleanup can leave the window stuck in
- * place. Radix's menus, popovers, selects and dialogs carry their role and
- * `data-state="open"` on their content; a floating panel of our own marks
- * itself `data-no-window-drag` while it is shown, and the Markdown editor's
- * menus (`.md-popover`) are in the document only while open. Tooltips and
- * hover cards have no such role, so showing one leaves dragging alone. */
-:root:has(
-    :is(
-      [role="menu"],
-      [role="dialog"],
-      [role="alertdialog"],
-      [role="listbox"]
-    )[data-state="open"],
-    [data-no-window-drag],
-    .md-popover
-  )
-  * {
+ * reaches the document and puts it away instead of moving the window. What
+ * counts as open, and why the root carries it, is `lib/window-drag-overlays.ts`. */
+:root[data-overlay-open] * {
   -webkit-app-region: no-drag !important;
 }
 

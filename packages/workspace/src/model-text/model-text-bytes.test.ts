@@ -62,6 +62,7 @@ import {
 } from "../lib/workspace-config";
 import * as workspaceInstructions from "./notes/workspace-instructions-model-text";
 import { ChatIdSchema } from "../schemas/chat-id";
+import { DeviceIdSchema } from "../schemas/device-id";
 import { type Environment } from "../schemas/environment";
 import { type MountedFolder as Folder } from "../schemas/mounted-folder";
 import { SessionMessage } from "../schemas/session/message";
@@ -557,6 +558,25 @@ describe.skipIf(WINDOWS)("the builders called directly", () => {
         page: { title: "", url: "https://example.com" },
         stage: "taken",
         tab: "tab_1",
+      }),
+      restoredFile: undoneChanges.restoredFileModelNote({
+        device: DeviceIdSchema.parse("dev_0123ABCD"),
+        files: [
+          {
+            copy: AbsolutePathSchema.parse(
+              "/Users/mac-user/.instrument/work/Instrument/chat/Versions/faq.md/v6.md",
+            ),
+            from: 2,
+            hash: "ab12",
+            hostPath: AbsolutePathSchema.parse(
+              "/Users/mac-user/Instrument/faq.md",
+            ),
+            number: 6,
+            path: "faq.md",
+            size: 4096,
+          },
+        ],
+        kind: "restored",
       }),
       runningRouterModel: modelChange.runningModelText(
         createMockAIGatewayModel({ providerId: "openrouter" }),

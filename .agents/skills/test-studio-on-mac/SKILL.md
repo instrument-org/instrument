@@ -25,7 +25,10 @@ node "$MAC_HOST" tunnel --host "$HOST"                                     # pri
 node "$DRIVE" snapshot --page onboarding --port <local-port>
 node "$MAC_HOST" stop --host "$HOST"
 node "$MAC_HOST" status --host "$HOST"
+node "$MAC_HOST" release --host "$HOST"                                    # when done with the host
 ```
+
+- **One session holds a host at a time.** Every command but `status` takes the host for the agent session running it, in `~/.instrument-test-hosts/<host>.json` on this Mac, and refuses while another live session holds it, naming that session's folder and `--purpose` (pass one on `reset-vm`). The lock lapses two hours after its last command or when its session ends; `release` it when done. A refusal is the other agent's work in progress: wait, or ask the person, never delete the file to get through.
 
 - `reset-vm` powers off the run VM, deletes it, clones the clean base (which must stay stopped) and boots the clone. A clone shares disk with its base until it changes, so it takes seconds, but only on the base's own volume: `utmctl clone` always writes into UTM's storage on the startup disk, so a base kept on an external drive comes back as a full copy of its disk image (about 30 GB) there. For a base outside UTM's storage, pass `--dir` the folder holding its `.utm` bundle, or set it once per computer in `INSTRUMENT_VM_DIR` (say `/Volumes/<external drive>/VMs`, in your shell profile), which `reset-vm` uses when `--dir` is absent: the clone is made beside it with `cp -c` and opened in UTM as a shortcut, and deleting it at the next reset removes it from that folder. Every run after a reset is a first launch on a machine no earlier run touched: no privacy answers, no Instrument data, no leftovers.
 - `install-preview` takes the run's `arm64-mac.zip` (cached locally by artifact id), unpacks it with `ditto` into `/Applications`, and reports its bundle id, signature and Gatekeeper verdict. Each preview has its own bundle id (`com.finalpoint.instrument.preview.<name>`), so macOS keeps its privacy answers apart from any other build's.
@@ -40,5 +43,6 @@ macOS asks once per app for Desktop, Documents, Downloads, removable volumes, Au
 
 - **Sign-in goes through Safari.** On the VM, Safari keeps a Google session from enrollment; "Continue with Google" completes through the app's local callback, then Safari stays in front of the app. Bring the app back with `desk.mjs <host> bring_to_front`.
 - **`/usr/bin/python3` and `/usr/bin/git` are stubs** on a Mac without Apple's command-line tools: running them raises "install command line developer tools". The agent's own Python and git do not use them, but a test or a person's command can trigger the dialog.
+- **A wedged UTM looks like a running base.** UTM can stop answering scripting while its window still draws (after a system-level error, say), and every `utmctl` call then hangs; the script gives up after 20 seconds and says so. If `pgrep -fl Virtualization.VirtualMachine` finds no VM running, `pkill -x UTM` and run the command again: the script reopens UTM behind the person's windows.
 - **One VM at a time.** The base and its clones share a host name; only one may run.
 - **Start a VM only through `reset-vm`.** It hides UTM around the start; a bare `utmctl start`, `--hide` included, opens the VM's window on the screen of the person at the Mac and takes their focus. Clicking UTM in the Dock shows the window again.

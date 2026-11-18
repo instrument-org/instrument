@@ -8,6 +8,7 @@ import { cn } from "@/client/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 
 import { getComponentPage } from "../-debug-routes";
+import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/colors")({
   component: RouteComponent,
@@ -195,7 +196,7 @@ function ColorSwatch({
 
 function RouteComponent() {
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 p-8">
         <div className="flex flex-col gap-4">
           {scaleGroups.map((group) => (
@@ -218,6 +219,6 @@ function RouteComponent() {
           </div>
         </div>
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }

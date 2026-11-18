@@ -1,5 +1,6 @@
 import { Spinner } from "@/client/components/ui/spinner";
 import { createFileRoute } from "@tanstack/react-router";
+import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/spinner")({
   component: RouteComponent,
@@ -25,7 +26,7 @@ const sizes: { className: string; label: string; thickness?: number }[] = [
 
 function RouteComponent() {
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-8">
         <header className="flex flex-col gap-1">
           <p className="text-sm font-medium text-muted-foreground">
@@ -52,6 +53,6 @@ function RouteComponent() {
           ))}
         </div>
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }

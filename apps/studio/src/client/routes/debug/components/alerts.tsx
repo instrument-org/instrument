@@ -1,6 +1,7 @@
 import { ContactErrorAlert } from "@/client/components/contact-error-alert";
 import { createFileRoute } from "@tanstack/react-router";
 import { toast } from "@/client/lib/toast";
+import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/alerts")({
   component: RouteComponent,
@@ -11,7 +12,7 @@ export const Route = createFileRoute("/debug/components/alerts")({
 
 function RouteComponent() {
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-2xl flex-col gap-10 p-8">
         <header className="flex flex-col gap-1">
           <p className="text-sm font-medium text-muted-foreground">
@@ -49,6 +50,6 @@ function RouteComponent() {
           </div>
         </section>
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }

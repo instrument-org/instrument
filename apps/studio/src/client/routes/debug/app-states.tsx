@@ -12,6 +12,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useAtom, useSetAtom } from "jotai";
 import { type ReactNode } from "react";
+import { DebugPageScroller } from "./-page-scroller";
 
 export const Route = createFileRoute("/debug/app-states")({
   component: RouteComponent,
@@ -64,7 +65,7 @@ function RouteComponent() {
   );
 
   return (
-    <div className="min-w-0 flex-1 overflow-y-auto p-8">
+    <DebugPageScroller className="min-w-0 flex-1 overflow-y-auto p-8">
       <h1 className="mb-6 text-base font-semibold">App states</h1>
       <StateSection title="Dialogs">
         <StateButton
@@ -183,7 +184,7 @@ function RouteComponent() {
           }}
         />
       </StateSection>
-    </div>
+    </DebugPageScroller>
   );
 }
 

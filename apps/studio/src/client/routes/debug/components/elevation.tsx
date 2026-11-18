@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/elevation")({
   component: RouteComponent,
@@ -105,7 +106,7 @@ const ramps: { description: string; levels: Level[]; title: string }[] = [
 
 function RouteComponent() {
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 p-8">
         <header className="flex flex-col gap-1">
           <p className="text-sm font-medium text-muted-foreground">
@@ -142,6 +143,6 @@ function RouteComponent() {
           </section>
         ))}
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }

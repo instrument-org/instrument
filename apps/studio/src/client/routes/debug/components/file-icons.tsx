@@ -21,6 +21,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { getComponentPage } from "../-debug-routes";
+import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/file-icons")({
   component: RouteComponent,
@@ -310,7 +311,7 @@ function RouteComponent() {
   const tried = trimmed ? resolveFileTypeIcon(trimmed) : undefined;
 
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-8">
         <div className="flex flex-col gap-3">
           <Input
@@ -414,6 +415,6 @@ function RouteComponent() {
           </div>
         </section>
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }

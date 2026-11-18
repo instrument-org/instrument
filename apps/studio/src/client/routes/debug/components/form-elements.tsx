@@ -33,6 +33,7 @@ import { Textarea } from "@/client/components/ui/textarea";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { createFileRoute } from "@tanstack/react-router";
+import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/form-elements")({
   component: RouteComponent,
@@ -82,7 +83,7 @@ function Gallery({
 
 function RouteComponent() {
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-10 p-8">
         <header className="flex flex-col gap-1">
           <p className="text-sm font-medium text-muted-foreground">
@@ -294,7 +295,7 @@ function RouteComponent() {
           </Accordion>
         </Section>
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }
 

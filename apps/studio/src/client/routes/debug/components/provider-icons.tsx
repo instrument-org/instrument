@@ -7,6 +7,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 
 import { getComponentPage } from "../-debug-routes";
+import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/provider-icons")({
   component: RouteComponent,
@@ -24,7 +25,7 @@ const SIZES = ["size-4", "size-5", "size-6", "size-8"] as const;
 
 function RouteComponent() {
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-8 p-8">
         <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
           {providers.map((type) => (
@@ -44,6 +45,6 @@ function RouteComponent() {
           ))}
         </div>
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }

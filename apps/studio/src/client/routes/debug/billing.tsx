@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { billingScenarioPrompt, billingScenarios } from "./-billing-scenarios";
 import { getDebugRoute } from "./-debug-routes";
+import { DebugPageScroller } from "./-page-scroller";
 
 export const Route = createFileRoute("/debug/billing")({
   component: RouteComponent,
@@ -59,7 +60,7 @@ function RouteComponent() {
   const refusal = lastRefusal.data;
 
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6 text-sm">
         <Section title="Test accounts">
           <p className="text-xs text-muted-foreground">
@@ -284,7 +285,7 @@ function RouteComponent() {
           )}
         </Section>
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }
 

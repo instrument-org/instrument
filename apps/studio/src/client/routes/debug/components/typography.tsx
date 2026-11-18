@@ -5,6 +5,7 @@ import { SessionMarkdown } from "@/client/components/session-markdown";
 import { cn } from "@/client/lib/utils";
 import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/typography")({
   component: RouteComponent,
@@ -121,7 +122,7 @@ const WHOLE_ANSWER = [
 
 function RouteComponent() {
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-14 px-8 py-10">
         <header className="flex flex-col gap-1">
           <p className="text-sm font-medium text-muted-foreground">
@@ -200,7 +201,7 @@ function RouteComponent() {
           <TranscriptProse markdown={WHOLE_ANSWER} />
         </Specimen>
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }
 

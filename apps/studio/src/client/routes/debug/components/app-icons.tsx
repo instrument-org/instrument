@@ -18,6 +18,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 
 import { getComponentPage } from "../-debug-routes";
+import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/app-icons")({
   component: RouteComponent,
@@ -90,7 +91,7 @@ function RouteComponent() {
     : all;
 
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 p-8">
         <header className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight">App icons</h1>
@@ -384,7 +385,7 @@ function RouteComponent() {
           </div>
         </section>
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }
 

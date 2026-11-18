@@ -261,3 +261,58 @@ it("keeps following when the content gets shorter for a moment", async () => {
   await frames(50);
   expect(below()).toBeCloseTo(0, 0);
 });
+
+let load: () => void = noop;
+
+/** A chat opened cold: a spinner first, then one message and a long reply, taken to the end as they land. */
+function ColdOpen() {
+  const [isLoaded, setIsLoaded] = useState(false);
+  load = () => {
+    setIsLoaded(true);
+  };
+  return (
+    <MessageScrollerProvider autoScroll scrollPreviousItemPeek={PEEK}>
+      <MessageScroller>
+        <MessageScrollerViewport style={{ height: 400 }}>
+          <MessageScrollerContent
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              padding: PADDING,
+            }}
+          >
+            {isLoaded ? (
+              <>
+                <MessageScrollerItem
+                  data-sent
+                  scrollAnchor
+                  style={{ height: 40 }}
+                />
+                <MessageScrollerItem style={{ height: 900 }} />
+              </>
+            ) : (
+              <div style={{ height: 20 }} />
+            )}
+          </MessageScrollerContent>
+          <TakeEnd signal={isLoaded ? "loaded" : "loading"} />
+        </MessageScrollerViewport>
+      </MessageScroller>
+    </MessageScrollerProvider>
+  );
+}
+
+function TakeEnd({ signal }: { signal: string }) {
+  const { scrollToEnd } = useMessageScroller();
+  useLayoutEffect(() => {
+    scrollToEnd();
+  }, [scrollToEnd, signal]);
+  return null;
+}
+
+it("opens a chat with one message at its end once its messages land after a spinner", async () => {
+  await renderInBrowser(<ColdOpen />);
+  await frames(100);
+  load();
+  await frames(100);
+  expect(below()).toBeCloseTo(0, 0);
+});

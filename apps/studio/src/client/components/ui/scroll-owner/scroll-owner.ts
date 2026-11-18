@@ -82,6 +82,12 @@ export class ScrollOwner {
    * until the content stops growing, even where nothing else can arrive.
    */
   private settleQuietUntil = 0;
+  /**
+   * Set from a call to take the end until the next frame: rows landing with it
+   * (a chat's messages arriving after its spinner) are what was being opened,
+   * never a send.
+   */
+  private isTakingEnd = false;
   private settleCapUntil = 0;
   private lastContentBottom = 0;
   private slideArmed = false;
@@ -227,6 +233,12 @@ export class ScrollOwner {
     }
     this.stopSlide();
     this.mode = { kind: "follow" };
+    if (!this.isTakingEnd) {
+      this.isTakingEnd = true;
+      requestAnimationFrame(() => {
+        this.isTakingEnd = false;
+      });
+    }
     const now = performance.now();
     this.settleCapUntil = now + SETTLE_MAX_MS;
     this.settleQuietUntil = now + SETTLE_MS;
@@ -352,6 +364,10 @@ export class ScrollOwner {
           this.scrollToEnd();
         }
       }
+      return;
+    }
+    if (this.isTakingEnd) {
+      this.reconcile();
       return;
     }
     const sent = fresh.at(-1);

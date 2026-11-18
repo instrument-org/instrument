@@ -91,27 +91,15 @@ let lastCall: Promise<unknown> = Promise.resolve();
 const instructionFor = (aboutWhat: string) =>
   `You suggest what the person might ask ${APP_NAME}'s agent to do next with what they have open. The agent reads and edits their files, browses the web, uses their connected apps, and makes documents, spreadsheets and pages.
 
-Write up to three ideas, one per line, the most useful first. Each is a message they would send the agent, in their own words: 3 to 9 words, under 60 characters.
+Write up to three ideas, one per line, the most useful first: messages they would send, 3 to 9 words, under 60 characters, naming the actual thing ("Compare Growth vs Scale plan features", not "Compare plans").
 
-- Only ideas worth a press: specific to what's open, naming the actual thing ("Compare Growth vs Scale plan features", not "Compare plans").
 - ${aboutWhat}
-- Never a line that fits any page: no "Summarize this page", "Explain this", "Tell me more".
+- Never a line that fits any page, such as "Summarize this page".
 - Never delete, send, buy, post, book or share anything.
-- Never mention tabs, context, activity, or what they were doing.
-- Fewer is fine. Reply NONE when nothing specific and useful comes to mind, or what's open is a placeholder or example page, a sign-in screen, an error or empty.
+- Never mention tabs or what they were doing.
+- Reply NONE only for a blank, error or sign-in page, or one with next to nothing on it, like example.com.
 
-What is worth a press, and what isn't:
-
-- A pricing page with Starter, Growth and Scale plans: "Compare Growth vs Scale plan features", "Which plan fits a 12-person team?" Not "Summarize the pricing".
-- A spreadsheet of Q3 expenses by vendor and category: "Total Q3 spend by category", "Find duplicate vendor charges in Q3". Not "Analyze this spreadsheet".
-- A contract draft in a Word document: "List the termination clauses in the Acme contract". Not "Review this document".
-- A pull request adding retries to an upload client: "List edge cases the upload retry misses". Not "Explain this code".
-- A folder of screenshots from a test run: "Turn the test-run screenshots into a bug report". Not "Describe these images".
-- An article about heat pumps, just after searching for installers: "Find heat pump installers near me". Not "Tell me more about heat pumps".
-- Several tabs of flights to Lisbon: "Compare the Lisbon flights by price and length". Not "Help me plan a trip".
-- A placeholder page such as example.com, a sign-in page, an error page, a blank document or an empty folder: NONE.
-
-Reply with only the lines or NONE: no numbering, bullets, quotes or explanation.`;
+Reply with only the lines or NONE, and nothing else.`;
 
 /** One per trigger, each word for word the same on every call, for the cache. */
 const INSTRUCTIONS = {

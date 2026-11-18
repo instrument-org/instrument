@@ -11,7 +11,14 @@ import { InternalLink } from "./internal-link";
 import { ReportErrorButton } from "./report-error-button";
 import { Button } from "./ui/button";
 
-export function ErrorCard({ error }: { error: unknown }) {
+/** `sample` marks an error drawn for a gallery, which is never sent by itself. */
+export function ErrorCard({
+  error,
+  sample = false,
+}: {
+  error: unknown;
+  sample?: boolean;
+}) {
   const router = useRouter();
   const isRoot = useMatch({
     select: (state) => state.id === rootRouteId,
@@ -51,7 +58,11 @@ export function ErrorCard({ error }: { error: unknown }) {
           >
             Try again
           </Button>
-          <ReportErrorButton error={error} surface="route-error" />
+          <ReportErrorButton
+            error={error}
+            sample={sample}
+            surface="route-error"
+          />
         </div>
       }
       description="Something didn't work as expected. Try again, or go back if it keeps happening."

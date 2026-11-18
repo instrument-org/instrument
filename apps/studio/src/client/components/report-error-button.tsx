@@ -12,17 +12,21 @@ import { Button } from "./ui/button";
 
 /**
  * Send a report beside an error screen's own way out. With error reports set
- * to go automatically, the error is sent as it appears.
+ * to go automatically, the error is sent as it appears, unless it is a
+ * `sample` drawn for a gallery.
  */
 export function ReportErrorButton({
   error,
+  sample = false,
   surface,
 }: {
   error: unknown;
+  sample?: boolean;
   surface: "not-found" | "route-error" | "window-error";
 }) {
   const [sent, setSent] = useState(false);
   useSendAutomatically({
+    enabled: !sample,
     error,
     onSent: () => {
       setSent(true);
@@ -99,10 +103,12 @@ export function SendReportButton({
 }
 
 function useSendAutomatically({
+  enabled,
   error,
   onSent,
   surface,
 }: {
+  enabled: boolean;
   error: unknown;
   onSent: () => void;
   surface: "not-found" | "route-error" | "window-error";
@@ -110,7 +116,8 @@ function useSendAutomatically({
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
-  const automatic = preferences?.sendErrorReportsAutomatically === true;
+  const automatic =
+    enabled && preferences?.sendErrorReportsAutomatically === true;
   const sentFor = useRef<unknown>(null);
 
   useEffect(() => {

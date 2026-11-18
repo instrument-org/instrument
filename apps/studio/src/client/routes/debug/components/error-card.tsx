@@ -63,7 +63,7 @@ function RouteComponent() {
                   </p>
                 )}
               </div>
-              <ErrorCard error={v.error} />
+              <ErrorCard error={v.error} sample />
             </section>
           ))}
           <section className="flex flex-col gap-3">
@@ -74,7 +74,7 @@ function RouteComponent() {
                 is the only way back.
               </p>
             </div>
-            <AppErrorCard error={simpleError} />
+            <AppErrorCard error={simpleError} sample />
           </section>
         </div>
       </div>

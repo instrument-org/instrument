@@ -440,6 +440,9 @@ export function OmniList({
   return (
     <div
       className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover py-1 shadow-float-lg"
+      // A press on the tab strip puts the rows away rather than moving the
+      // window (`globals.css`).
+      data-no-window-drag
       id={id}
       onMouseDown={(event) => {
         event.preventDefault();

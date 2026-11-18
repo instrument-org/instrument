@@ -46,6 +46,7 @@ export function AskPopover({
     <form
       className="invisible fixed top-0 left-0 z-50 w-80 rounded-xl bg-popover p-2 text-popover-foreground shadow-float-md"
       data-ask-popover
+      data-no-window-drag
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit(value.trim());

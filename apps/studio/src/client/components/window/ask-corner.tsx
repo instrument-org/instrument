@@ -167,13 +167,9 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
     };
     window.addEventListener("pointerdown", onDown, { capture: true });
     const stopPagePresses = onPagePress(collapse);
-    // A press on the tab strip or the title bar would move the window
-    // instead of reaching this document.
-    document.documentElement.toggleAttribute("data-no-window-drag", true);
     return () => {
       window.removeEventListener("pointerdown", onDown, { capture: true });
       stopPagePresses();
-      document.documentElement.removeAttribute("data-no-window-drag");
     };
   }, [isOpen]);
 
@@ -260,11 +256,15 @@ function Corner({ group, layout }: { group: string; layout: GroupLayout }) {
       ref={cornerRef}
     >
       {isOpen ? (
+        // While it is in the document no part of the window drags, so a
+        // press on the tab strip or the title bar reaches the listener above
+        // instead of moving the window (`globals.css`).
         <div
           className={cn(
             "absolute top-0 right-0 z-30 flex flex-col rounded-2xl bg-popover text-popover-foreground shadow-float-lg ring-1 ring-foreground/8",
             OPEN_WIDTH,
           )}
+          data-no-window-drag
         >
           <form
             className="flex h-8 items-center gap-0.5 pr-1 pl-2.5 text-[13px]"

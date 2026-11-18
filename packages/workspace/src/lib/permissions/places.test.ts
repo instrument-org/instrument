@@ -65,6 +65,7 @@ describe("the app-files place", () => {
             "Library/Containers",
             "Library/Group Containers",
             "Library/Logs",
+            "Library/Mobile Documents",
           ],
           "paths": [
             "Library",

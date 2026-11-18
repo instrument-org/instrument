@@ -141,7 +141,21 @@ export function pinned(
   const { mode } = write;
   switch (mode.kind) {
     case "follow": {
-      return write;
+      // Following the end while anything arrives keeps the end still, which
+      // the held row moves with. Past that, nothing writes the position, and
+      // a fold above the row would pull it up, or the browser clamp the
+      // position in a layout it draws while the fold begins.
+      if (settings.autoScroll) {
+        return write;
+      }
+      return {
+        mode,
+        scrollTop: Math.max(
+          0,
+          Math.min(top, geometry.contentBottom - geometry.viewportHeight),
+        ),
+        spacer: write.spacer,
+      };
     }
     case "anchor": {
       if (geometry.anchorTop === undefined) {

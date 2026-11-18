@@ -187,6 +187,27 @@ describe("pinned", () => {
     const write = settle({ kind: "follow" }, geometry(), SETTINGS);
     expect(pinned(write, geometry(), SETTINGS, 200)).toBe(write);
   });
+
+  it.each([
+    // The browser clamped the position to the top in a layout it drew as the
+    // fold began: the row is put back where it was held.
+    { name: "put back after a clamp", scrollTop: 0, top: 114, wanted: 114 },
+    // The fold leaves less below than the row's place needs: as far as it goes.
+    {
+      name: "as far as what is left allows",
+      scrollTop: 114,
+      top: 300,
+      wanted: 114,
+    },
+  ])(
+    "holds a row once following has stopped, $name",
+    ({ scrollTop, top, wanted }) => {
+      const settings = { ...SETTINGS, autoScroll: false };
+      const g = geometry({ contentBottom: 714, scrollTop });
+      const write = settle({ kind: "follow" }, g, settings);
+      expect(pinned(write, g, settings, top).scrollTop).toBe(wanted);
+    },
+  );
 });
 
 describe("scrollableOf", () => {

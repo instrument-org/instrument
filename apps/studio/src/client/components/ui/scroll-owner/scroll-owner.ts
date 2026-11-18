@@ -344,6 +344,16 @@ export class ScrollOwner {
     if (write.scrollTop !== undefined) {
       this.writeScroll(write.scrollTop);
     }
+    // While the end is followed, the held row goes where following puts it,
+    // and is held from there once following stops.
+    if (
+      pin?.isHeld &&
+      write.mode.kind === "follow" &&
+      settings.autoScroll &&
+      pin.element.isConnected
+    ) {
+      pin.screenTop = this.screenTopOf(pin.element) ?? pin.screenTop;
+    }
     this.publish(geometry);
   };
 

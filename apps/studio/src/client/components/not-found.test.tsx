@@ -11,9 +11,12 @@ import { appTabsAtom } from "./window/app-tabs";
 import { GroupTabContext } from "./window/group-tab";
 import { missingHref } from "./window/missing-page";
 
-// Sending a report is the report button's own business, tested with it.
+// Sending a report is the report button's own business, tested with it;
+// here it shows the message it would send.
 vi.mock("./report-error-button", () => ({
-  ReportErrorButton: () => null,
+  ReportErrorButton: ({ error }: { error: Error }) => (
+    <span>{error.message}</span>
+  ),
 }));
 
 // The root route's theme reads the system's through `matchMedia`, which is
@@ -69,16 +72,16 @@ async function tabAt(entries: string[], closeTab?: () => void) {
 }
 
 describe("a group's tab at a page that doesn't exist", () => {
-  it("says so, at the address it was asked for, with ways out for that tab", async () => {
+  it("says so, with ways out for that tab and the address it was asked for in its report", async () => {
     const closeTab = vi.fn();
     const { store } = await tabAt(
       ["/files?path=&root=~", "/removed-page?from=older-build"],
       closeTab,
     );
+    expect(await screen.findByText("Page not found")).toBeDefined();
     expect(
-      await screen.findByText("This page isn't in Instrument"),
+      screen.getByText("No screen at /removed-page?from=older-build"),
     ).toBeDefined();
-    expect(screen.getByText("/removed-page?from=older-build")).toBeDefined();
     expect(screen.getByRole("button", { name: "Go back" })).toBeDefined();
     act(() => {
       screen.getByRole("button", { name: "Close tab" }).click();
@@ -90,9 +93,11 @@ describe("a group's tab at a page that doesn't exist", () => {
     ]);
   });
 
-  it("shows an instrument address the app doesn't know as it was typed, with no Go back for a tab with no history", async () => {
+  it("reports an instrument address the app doesn't know as it was typed, with no Go back for a tab with no history", async () => {
     await tabAt([missingHref("instrument://nowhere/x")], vi.fn());
-    expect(await screen.findByText("instrument://nowhere/x")).toBeDefined();
+    expect(
+      await screen.findByText("No screen at instrument://nowhere/x"),
+    ).toBeDefined();
     expect(screen.queryByRole("button", { name: "Go back" })).toBeNull();
   });
 });

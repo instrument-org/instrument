@@ -54,12 +54,14 @@ type DrawnApp = {
 /**
  * Every ground a small app icon is drawn on, as the class that paints it. The
  * user bubble's tint is the one `user-message.tsx` gives the chat's bubble.
+ * The chip is drawn as the chat draws one, since its class is an inline box
+ * that no pill around it can be.
  */
-const GROUNDS: { className: string; label: string }[] = [
+const GROUNDS: { className: string; isChip?: true; label: string }[] = [
   { className: "bg-background", label: "Page" },
   { className: "bg-card", label: "Card" },
   { className: "bg-popover", label: "Menu" },
-  { className: INLINE_CHIP_CLASS_NAME, label: "Chip" },
+  { className: INLINE_CHIP_CLASS_NAME, isChip: true, label: "Chip" },
   {
     className:
       "bg-[oklch(from_var(--color-brand-500)_0.85_0.05_h)] dark:bg-[oklch(from_var(--color-brand-500)_0.36_0.06_h)]",
@@ -361,15 +363,27 @@ function RouteComponent() {
                     </td>
                     {GROUNDS.map((ground) => (
                       <td className="px-3 py-1.5" key={ground.label}>
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-md border border-border/50 px-2 py-1 text-xs",
-                            ground.className,
-                          )}
-                        >
-                          <AppIcon {...app} size="sm" />
-                          <span className="max-w-20 truncate">{app.name}</span>
-                        </span>
+                        {ground.isChip ? (
+                          <span className="text-sm whitespace-nowrap">
+                            <span className={ground.className}>
+                              <ChipBody icon={<AppChipIcon slug={app.slug} />}>
+                                {app.name}
+                              </ChipBody>
+                            </span>
+                          </span>
+                        ) : (
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-md border border-border/50 px-2 py-1 text-xs",
+                              ground.className,
+                            )}
+                          >
+                            <AppIcon {...app} size="sm" />
+                            <span className="max-w-20 truncate">
+                              {app.name}
+                            </span>
+                          </span>
+                        )}
                       </td>
                     ))}
                     <td className="px-3 py-1.5">

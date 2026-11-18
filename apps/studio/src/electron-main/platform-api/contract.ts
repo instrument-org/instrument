@@ -77,6 +77,14 @@ const BillingStatusSchema = z.object({
       forEveryModel: z.boolean().optional(),
     }),
   }),
+  /**
+   * How many hosted requests the platform admits at once across every
+   * device, and how many completions and searches a minute, which the app
+   * paces itself under. Absent from a platform that predates it.
+   */
+  limits: z
+    .object({ maxInFlight: z.number(), perMinute: z.number() })
+    .optional(),
   plan: z.string(),
   subscription: z
     .object({

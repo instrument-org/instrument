@@ -4,6 +4,7 @@ import {
   recordHostedFeatures,
   setHostedFeaturesReader,
 } from "@/electron-main/lib/hosted-features";
+import { recordHostedLimits } from "@/electron-main/lib/hosted-limiter";
 import { fetchNotices } from "@/electron-main/lib/notices";
 import { openExternal } from "@/electron-main/lib/open-external";
 import {
@@ -61,6 +62,7 @@ let lastTrouble: string | undefined;
 async function readStatus() {
   const read = await platformApiRpcClient.billing.status.call();
   recordHostedFeatures(read.features);
+  recordHostedLimits(read.limits);
   const { state } = read.account;
   const trouble =
     state === "payment-failed" || state === "trial-ended" ? state : undefined;

@@ -1,5 +1,10 @@
+import { hostedLimiter } from "@/electron-main/lib/hosted-limiter";
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { getToken } from "@/electron-main/platform-api/utils";
+import {
+  type HostedRelease,
+  platformRefusalCode,
+} from "@instrument-org/ai-gateway";
 import { PlanRefusalBodySchema } from "@instrument-org/shared";
 import {
   type DictationFailure,
@@ -85,7 +90,38 @@ export async function transcribeDictation({
   if (!getToken()) {
     return failed({ kind: "signed-out" });
   }
+  // Someone is waiting on the text, so it goes ahead of agent work.
+  let release: HostedRelease;
+  try {
+    release = await hostedLimiter.acquire({
+      key: "",
+      lane: "priority",
+      signal,
+    });
+  } catch {
+    return failed({ kind: "canceled" });
+  }
+  let refusal: string | undefined;
+  try {
+    const sent = await sendRecording({ audio, language, signal, surface });
+    refusal = sent.refusal;
+    return sent.result;
+  } finally {
+    release({ refusal });
+  }
+}
 
+async function sendRecording({
+  audio,
+  language,
+  signal,
+  surface,
+}: {
+  audio: Blob;
+  language?: DictationLanguage;
+  signal?: AbortSignal;
+  surface: DictationSurface;
+}): Promise<{ refusal?: string; result: DictationResult }> {
   const query = language ? `?${new URLSearchParams({ language })}` : "";
   const url = `${platformApiBaseUrl()}/dictation${query}`;
   const timeout = AbortSignal.timeout(TRANSCRIBE_TIMEOUT_MS);
@@ -103,25 +139,30 @@ export async function transcribeDictation({
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });
   } catch {
-    return failed(
-      signal?.aborted ? { kind: "canceled" } : { kind: "connection" },
-    );
+    return {
+      result: failed(
+        signal?.aborted ? { kind: "canceled" } : { kind: "connection" },
+      ),
+    };
   }
 
   const body = await response.text().catch(() => "");
   if (!response.ok) {
-    return failed(dictationFailureOf(response.status, body));
+    return {
+      refusal: platformRefusalCode(body),
+      result: failed(dictationFailureOf(response.status, body)),
+    };
   }
 
   let json: unknown;
   try {
     json = JSON.parse(body);
   } catch {
-    return failed({ kind: "server" });
+    return { result: failed({ kind: "server" }) };
   }
   const parsed = TranscriptSchema.safeParse(json);
   if (!parsed.success) {
-    return failed({ kind: "server" });
+    return { result: failed({ kind: "server" }) };
   }
-  return { ok: true, text: parsed.data.text };
+  return { result: { ok: true, text: parsed.data.text } };
 }

@@ -47,6 +47,26 @@ export async function readPlatformRefusal(
 }
 
 /**
+ * The `error.code` of a failed response's body text from our platform, such
+ * as `concurrency-limit`; undefined for any other body, a provider's own 429
+ * passed through included.
+ */
+export function platformRefusalCode(
+  body: string | undefined,
+): string | undefined {
+  if (!body) {
+    return undefined;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+  return PlatformRefusalBodySchema.safeParse(parsed).data?.error.code;
+}
+
+/**
  * The plan refusal a response body says, from its text. Undefined for any
  * other body: a concurrency limit, a server error, or a provider's own 402
  * or 429 passed through.

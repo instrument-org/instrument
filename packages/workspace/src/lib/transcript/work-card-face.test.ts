@@ -409,21 +409,25 @@ describe("a page card's face", () => {
     expect(faces).toMatchInlineSnapshot(`
       {
         "an address": {
+          "isGoing": false,
           "title": "example.com",
           "url": "https://www.example.com/a",
           "view": "page/picture",
         },
         "nothing known": {
+          "isGoing": false,
           "title": "Browser",
           "url": undefined,
           "view": "page/picture",
         },
         "nothing known yet": {
+          "isGoing": true,
           "title": "Opening a page",
           "url": undefined,
           "view": "page/picture",
         },
         "the tab driven": {
+          "isGoing": false,
           "title": "Example",
           "url": "https://other.com/",
           "view": "page/picture",

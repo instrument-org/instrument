@@ -57,6 +57,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSetAtom } from "jotai";
 import { type ReactNode, useContext, useState } from "react";
 
+import { ADDRESS_FIELD_CLASS_NAME, PageAddress } from "./page-address";
 import { ShellContext } from "./shell-context";
 import {
   type LocationCrumb,
@@ -168,7 +169,8 @@ export function TabLocationRow({
         button, as it grows) paints the same color. */}
       <div
         className={cn(
-          "group/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
+          ADDRESS_FIELD_CLASS_NAME,
+          "group/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl px-3 text-[13px] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
           // The app's icon sits at the field's end, with room to breathe
           // inside the curve.
           openIn && "pr-2",
@@ -293,9 +295,6 @@ function Field({ location }: { location: TabLocation }) {
     // said whole: the host quiet, the part of it you are reading loud. An
     // extension's own page keeps its scheme, which is what says whose it is.
     const isExtensionPage = isExtensionPageUrl(location.url);
-    const { host, rest } = splitUrl(location.url, {
-      withScheme: isExtensionPage,
-    });
     return (
       <>
         {isExtensionPage ? (
@@ -303,10 +302,11 @@ function Field({ location }: { location: TabLocation }) {
         ) : (
           <ConnectionBadge url={location.url} />
         )}
-        <span className="min-w-0 flex-1 truncate select-text">
-          <span className="text-muted-foreground">{host}</span>
-          {rest}
-        </span>
+        <PageAddress
+          className="select-text"
+          url={location.url}
+          withScheme={isExtensionPage}
+        />
       </>
     );
   }
@@ -685,23 +685,5 @@ function openInAppTargetOf(location: TabLocation): OpenInAppTarget | undefined {
     default: {
       return;
     }
-  }
-}
-
-/** The host quiet, the path loud: the part of an address you are reading. */
-function splitUrl(url: string, { withScheme = false } = {}) {
-  try {
-    const parsed = new URL(url);
-    return {
-      host: withScheme ? `${parsed.protocol}//${parsed.host}` : parsed.host,
-      // The bare root is left off, the way a browser leaves it off, unless a
-      // query follows it and would otherwise hang off the host.
-      rest:
-        parsed.pathname === "/" && !parsed.search
-          ? ""
-          : `${parsed.pathname}${parsed.search}`,
-    };
-  } catch {
-    return { host: url, rest: "" };
   }
 }

@@ -57,7 +57,11 @@ interface WorkCardViews {
   /** The newest large, and with more than one, a strip of the latest under it, oldest first. */
   "images/pictures": { newest: WorkCardPicture; strip: WorkCardPicture[] };
   /** A browser's page: the picture of the tab the session drove last. */
-  "page/picture": { url: string | undefined };
+  "page/picture": {
+    /** A call of the card's is still going: with no address yet, the one bringing the page up. */
+    isGoing: boolean;
+    url: string | undefined;
+  };
 }
 
 export type WorkCardView = keyof WorkCardViews;
@@ -139,6 +143,7 @@ function pageFace(
     (step) => step.status !== "done" && step.status !== "failed",
   );
   return {
+    isGoing,
     title:
       drivenPage?.title ??
       hostOf(url) ??

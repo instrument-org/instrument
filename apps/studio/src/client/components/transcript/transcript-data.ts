@@ -1,5 +1,7 @@
 import { type WindowTab } from "@/client/atoms/window";
+import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { useHostPaths } from "@/client/hooks/use-host-paths";
+import { type LoadStage } from "@/client/lib/load-stage";
 import { useChatCommands } from "@/client/hooks/use-task-background-processes";
 import { rpcClient } from "@/client/rpc/client";
 import {
@@ -205,15 +207,25 @@ export function useDrivenTab(
   return newest;
 }
 
-/** What the page a session's work is on says it is, as its tab last heard. */
-export function useDrivenPage(
-  sessionId: StoreId.Session | undefined,
-): { favicon?: string; title?: string; url?: string } | undefined {
+/**
+ * What the page a session's work is on says it is, as its tab last heard, and
+ * how far its load has come once its page can be read.
+ */
+export function useDrivenPage(sessionId: StoreId.Session | undefined):
+  | {
+      favicon?: string;
+      loadStage?: LoadStage;
+      title?: string;
+      url?: string;
+    }
+  | undefined {
   const tab = useDrivenTab(sessionId);
+  const nav = useGuestNavigation(tab ? browserTargetOf(tab.id) : null);
   const url = tab?.url ?? tab?.openedUrl;
   return (
     tab && {
       ...(tab.favicon && { favicon: tab.favicon }),
+      ...(nav.url !== null && { loadStage: nav.loadStage }),
       ...(tab.title && { title: tab.title }),
       ...(url && { url }),
     }

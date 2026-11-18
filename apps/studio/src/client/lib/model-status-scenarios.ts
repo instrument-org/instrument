@@ -2,13 +2,29 @@ import {
   AIGatewayModel,
   AIGatewayModelURI,
 } from "@instrument-org/ai-gateway/schemas";
-import { AIProviderConfigIdSchema, OUR_MODELS } from "@instrument-org/shared";
+import {
+  AIProviderConfigIdSchema,
+  APP_NAME,
+  OUR_MODELS,
+} from "@instrument-org/shared";
 
 import {
   type ModelListError,
   offerKeyOf,
   type readModelStatus,
 } from "./model-status";
+
+/**
+ * What each kind of connection is called when the person gave it no name of
+ * its own, as the provider metadata says, which is what a listed model's
+ * `providerName` reads in the app.
+ */
+const providerDisplayNames = {
+  anthropic: "Anthropic",
+  "claude-account": "Claude",
+  instrument: APP_NAME,
+  openrouter: "OpenRouter",
+} as const;
 
 /**
  * Every state the chosen model can be in, as the inputs that put it there:
@@ -45,7 +61,7 @@ const model = ({
     name,
     params,
     providerId: providerId ?? `${author}/${canonicalId}`,
-    providerName: config,
+    providerName: providerDisplayNames[provider],
     tags: [],
     ...(replacedBy && { replacedBy }),
     ...(restricted && {

@@ -2,9 +2,10 @@ import { rpcClient } from "@/client/rpc/client";
 import { toast } from "@/client/lib/toast";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useIsActiveTab } from "../hooks/use-active-tab";
+import { focusScreenHome } from "../lib/keyboard-home";
 import { cn } from "../lib/utils";
 import { QuestionCard } from "./message-part/tool-choose";
 
@@ -62,10 +63,25 @@ export function QuestionDock({ chatId }: { chatId: ChatId }) {
     };
   }, [leaving]);
   const card = first ?? leaving;
+  const isLeaving = first === undefined;
+  // The keyboard in the card as it folds away, put there by a digit or Tab,
+  // goes home to the reply box, rather than onto nothing as the card goes
+  // inert.
+  const dockRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const focused = document.activeElement;
+    if (
+      isLeaving &&
+      focused instanceof HTMLElement &&
+      dockRef.current?.contains(focused)
+    ) {
+      focused.blur();
+      focusScreenHome({ leaving: false });
+    }
+  }, [isLeaving]);
   if (card === undefined) {
     return null;
   }
-  const isLeaving = first === undefined;
   const waiting = Math.max(0, docked.length - 1);
   return (
     // Folds from its own height to none, so the reply box comes down to
@@ -76,6 +92,7 @@ export function QuestionDock({ chatId }: { chatId: ChatId }) {
         isLeaving && "grid-rows-[0fr] opacity-0",
       )}
       inert={isLeaving}
+      ref={dockRef}
       style={{ transitionDuration: `${String(LEAVE_MS)}ms` }}
     >
       <div className={cn("min-h-0", isLeaving && "overflow-hidden")}>

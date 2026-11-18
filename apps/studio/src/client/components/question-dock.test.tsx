@@ -93,11 +93,15 @@ it("folds the last card away once it is answered, holding the pick as it goes", 
     expect(container.textContent).toContain("Which planet?");
   });
 
-  fireEvent.click(screen.getByRole("radio", { name: "Yes" }));
+  const yes = screen.getByRole("radio", { name: "Yes" });
+  yes.focus();
+  fireEvent.click(yes);
   fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
 
   const folding = container.firstElementChild;
   expect(folding?.hasAttribute("inert")).toBe(true);
+  // The keyboard leaves with it, for the reply box to take.
+  expect(folding?.contains(document.activeElement)).toBe(false);
   expect(folding?.className).toContain("grid-rows-[0fr]");
   expect(
     screen

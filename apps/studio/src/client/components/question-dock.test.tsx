@@ -5,7 +5,7 @@ import {
   StoreId,
 } from "@instrument-org/workspace/client";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 
 import { renderWithProviders } from "../../tests/render";
 import { QuestionDock, useQuestionDock } from "./question-dock";
@@ -81,7 +81,6 @@ it("moves on to the next question once one is answered", async () => {
   });
 
   fireEvent.click(screen.getByRole("radio", { name: "Yes" }));
-  fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
 
   await waitFor(() => {
     expect(container.textContent).toContain("Which moon?");
@@ -100,7 +99,6 @@ it("folds the last card away once it is answered, holding the pick as it goes", 
   const yes = screen.getByRole("radio", { name: "Yes" });
   yes.focus();
   fireEvent.click(yes);
-  fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
 
   const folding = container.firstElementChild;
   expect(folding?.hasAttribute("inert")).toBe(true);
@@ -115,4 +113,50 @@ it("folds the last card away once it is answered, holding the pick as it goes", 
   await waitFor(() => {
     expect(container.textContent).toBe("");
   });
+});
+
+it("names the question up on the card for a reply sent under it", async () => {
+  const read = vi.fn<(question: unknown) => void>();
+  const onScreen = () => read.mock.lastCall?.[0];
+  function Read() {
+    const dock = useQuestionDock(chatId);
+    read(dock.questionOnScreen());
+    return <QuestionDock dock={dock} />;
+  }
+  const rendered = renderWithProviders(<Read />);
+  rendered.queryClient.setQueryData(
+    rpcClient.workspace.chats.live.asks.experimental_liveOptions({
+      input: { id: chatId },
+    }).queryKey,
+    [
+      {
+        answerable: true,
+        askedAt: new Date(0),
+        askers: [
+          { partId: StoreId.newPartId(), sessionId: StoreId.newSessionId() },
+        ],
+        card: [...card("Which planet?"), ...card("Which moon?")],
+        computer: "Studio Mac",
+        here: true,
+        id: "ask-0",
+        kind: "question",
+        messageId: StoreId.newMessageId(),
+        question: "Which planet?",
+      },
+    ] as never,
+  );
+  await waitFor(() => {
+    expect(onScreen()).toEqual({
+      at: 1,
+      choices: ["Yes", "No"],
+      of: 2,
+      text: "Which planet?",
+    });
+  });
+
+  // Both questions' rows are drawn, the second's inert until it is on show.
+  fireEvent.click(screen.getAllByRole("radio", { name: "Yes" })[0]!);
+  rendered.rerender(<Read />);
+
+  expect(onScreen()).toMatchObject({ at: 2, text: "Which moon?" });
 });

@@ -560,6 +560,21 @@ export function ChatConversation({
       }
     : undefined;
 
+  /**
+   * What goes with a message as on screen, with the question up on the card
+   * over the box, which the message may answer by a choice's number. With
+   * nothing else said, the conversation is what was in view.
+   */
+  const withQuestionOnScreen = (
+    viewing: SessionMessageDataPart.ViewContextDataPart | undefined,
+  ) => {
+    const question = questionDock.questionOnScreen();
+    if (question === undefined) {
+      return viewing;
+    }
+    return { ...(viewing ?? { screen: "conversation" as const }), question };
+  };
+
   // Shown for the reply the chat rests on: a message on its way, or the
   // setting turned off, takes them away at once.
   const nextSteps =
@@ -592,7 +607,7 @@ export function ChatConversation({
             modelURI: selectedModelURI,
             prompt,
             sessionId: selectedSessionId,
-            viewing,
+            viewing: withQuestionOnScreen(viewing),
           },
           { onError: dropPending },
         );
@@ -683,7 +698,7 @@ export function ChatConversation({
                 modelURI,
                 prompt,
                 sessionId: selectedSessionId,
-                viewing,
+                viewing: withQuestionOnScreen(viewing),
               },
               {
                 onError: () => {

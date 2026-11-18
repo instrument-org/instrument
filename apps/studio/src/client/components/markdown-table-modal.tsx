@@ -4,7 +4,8 @@ import { Prose } from "./prose";
 import { Dialog, DialogContent, DialogTitle } from "./ui/dialog";
 
 /**
- * A table from a message, with room to be read whole.
+ * A table from a message, with room to be read whole. A question card's
+ * choice detail opens in it too, under the choice's label as `title`.
  *
  * Deliberately the same table: the same Markdown, the same styles, the same
  * copy controls, only wider. A grid with sortable headers and cell selection
@@ -24,10 +25,12 @@ export function MarkdownTableModal({
   children,
   onOpenChange,
   open,
+  title = "Table",
 }: {
   children?: ReactNode;
   onOpenChange: (open: boolean) => void;
   open: boolean;
+  title?: string;
 }) {
   return (
     <Dialog onOpenChange={onOpenChange} open={open}>
@@ -39,7 +42,9 @@ export function MarkdownTableModal({
         {/* A header row rather than a bare table: the dialog's close control is
             pinned to its top corner, and without one it lands on the table. */}
         <div className="flex h-13 shrink-0 items-center px-5 pt-3">
-          <DialogTitle className="text-base/6 font-semibold">Table</DialogTitle>
+          <DialogTitle className="text-base/6 font-semibold">
+            {title}
+          </DialogTitle>
         </div>
         <div
           className="markdown-table-modal-body @container/transcript min-h-0 flex-1 overflow-y-auto px-5 pb-5"

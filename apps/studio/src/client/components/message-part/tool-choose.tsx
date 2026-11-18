@@ -2,20 +2,20 @@ import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
   chooseAnswer,
+  chooseInReply,
   type ChooseQuestion,
   chooseQuestions,
   type SessionMessageDataPart,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
-import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { CheckIcon } from "@phosphor-icons/react/Check";
-import { MinusIcon } from "@phosphor-icons/react/Minus";
-import { QuestionIcon } from "@phosphor-icons/react/Question";
+import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
+import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
+import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import {
-  type KeyboardEvent,
   type ReactNode,
   useEffect,
   useEffectEvent,
@@ -28,7 +28,6 @@ import { toast } from "@/client/lib/toast";
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
 import {
-  DictatedTextarea,
   DictationControls,
   DictationReadout,
   useCanDictate,
@@ -36,12 +35,20 @@ import {
 } from "../dictation-controls";
 import { type Dictation, isDictating } from "@/client/hooks/use-dictation";
 import { focusDockedCard } from "../composer-dock";
+import { Markdown } from "../markdown";
+import { MarkdownTableModal } from "../markdown-table-modal";
+import { SessionMarkdown } from "../session-markdown";
 import { ToolCard, ToolCardEmpty } from "./tool-card";
 
 /** The answer to a card: a reply to each of its questions, and a note. */
 export type ChooseOutput = SessionMessageDataPart.QuestionCardAnswer;
 
 type ChoosePart = Extract<SessionMessagePart.ToolPart, { type: "tool-choose" }>;
+
+type Choice = ChooseQuestion["choices"][number];
+
+/** How long the pointer rests on a choice before the detail area follows it. */
+export const DETAIL_HOVER_REST_MS = 150;
 
 /** Where the person is with one question before they send the card. */
 interface Draft {
@@ -64,35 +71,50 @@ function hasReply(draft: Draft) {
   return !draft.skipped && (draft.picked.length > 0 || draft.own.trim() !== "");
 }
 
+function isSettled(draft: Draft) {
+  return draft.skipped || hasReply(draft);
+}
+
 /**
  * A card of one to four questions, drawn from nothing but what it asks and
  * how it was answered, so it can be drawn without a session behind it.
  *
- * While `open`, a click only picks: the answer goes when the person presses
- * Send, so a misclick can be put right and a note written after picking. A
- * card of several questions shows them one at a time under a row of their
- * headers, a pick moving on to the next, and ends on a review of every
- * answer with one Send for them all. `ended` is a card nothing is listening
- * to any more; `closed` is one that was answered or failed. Anything but
- * open draws as one line per question with its answer, which opens to show
- * what else was offered.
+ * While `open`, it shows one question at a time under a header with the
+ * question, where it is among several ("2 of 4") with a way back and
+ * forward, and a close that skips every question not answered yet. A click
+ * on a choice of a question of one answer is that answer: the card moves on
+ * to the next question still waiting, or sends once none is. A question of
+ * several answers counts its picks and moves on with its arrow. Every
+ * question has a row for the person's own words and Skip. A question whose
+ * choices carry `detail` shows it beside the choices, or under them in a
+ * narrow chat, for the choice the keyboard is on or the pointer rests on.
+ *
+ * `ended` is a card nothing is listening to any more; `closed` is one that
+ * was answered or failed, and `inReply` one the person answered by writing
+ * in the chat instead. Anything but open draws whole, each question over its
+ * answer.
  *
  * `sending` is an answer on its way, drawn as given before the agent has it.
  * `place` says where an open card is among several waiting ("1 of 2").
+ * `onShown` hears which question is on show, so a reply typed in the chat
+ * ("2") can be read against it.
  *
  * Each choice carries its number as a label, so a reply typed in the chat
- * ("2") can name it. While focus is on the card's buttons, Enter sends (or
- * moves on) once the question on show has an answer.
+ * can name it.
  */
 export function QuestionCard({
+  inReply = false,
   onAnswer,
+  onShown,
   output,
   place,
   questions,
   sending,
   status,
 }: {
+  inReply?: boolean;
   onAnswer: (output: ChooseOutput) => void;
+  onShown?: (at: number) => void;
   output?: ChooseOutput;
   place?: string;
   questions: ChooseQuestion[];
@@ -101,35 +123,26 @@ export function QuestionCard({
 }) {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [step, setStep] = useState(0);
-  const [isNoteOpen, setIsNoteOpen] = useState(false);
-  const [note, setNote] = useState("");
   const cardRef = useRef<HTMLDivElement>(null);
 
   const isOpen = status === "open" && sending === undefined;
-  const noteDictation = useDictatedText({
-    onChange: setNote,
-    surface: "question-note",
-    value: note,
-  });
   const draftAt = (index: number) => drafts[index] ?? EMPTY_DRAFT;
-  const setDraft = (index: number, change: (draft: Draft) => Draft) => {
-    setDrafts((all) =>
-      questions.map((_, each) =>
-        each === index
-          ? change(all[each] ?? EMPTY_DRAFT)
-          : (all[each] ?? EMPTY_DRAFT),
-      ),
-    );
-  };
   const typeOwnAt = (index: number, own: string) => {
-    setDraft(index, (draft) => ({
-      own,
-      // Their own words are the answer to a question of one choice, so a
-      // choice picked before goes.
-      picked:
-        questions[index]?.multiSelect || own.trim() === "" ? draft.picked : [],
-      skipped: false,
-    }));
+    setDrafts((all) =>
+      questions.map((question, each) => {
+        const draft = all[each] ?? EMPTY_DRAFT;
+        return each === index
+          ? {
+              own,
+              // Their own words are the answer to a question of one choice,
+              // so a choice picked before goes.
+              picked:
+                question.multiSelect || own.trim() === "" ? draft.picked : [],
+              skipped: false,
+            }
+          : draft;
+      }),
+    );
   };
   // The question a take into the own-answer row writes into: the one on show
   // as it starts, kept until its words land, whichever step is on show then.
@@ -144,10 +157,9 @@ export function QuestionCard({
   if (!isDictating(ownDictation.phase) && ownAt !== step) {
     setOwnAt(step);
   }
-  // The boxes go once the card stops being open, so a take still recording into one is thrown away rather than left on with no
-  // controls.
+  // The box goes once the card stops being open, so a take still recording
+  // into it is thrown away rather than left on with no controls.
   const cancelDictation = useEffectEvent(() => {
-    noteDictation.cancel();
     ownDictation.cancel();
   });
   useEffect(() => {
@@ -155,6 +167,14 @@ export function QuestionCard({
       cancelDictation();
     }
   }, [isOpen]);
+  const tellShown = useEffectEvent((at: number) => {
+    onShown?.(at);
+  });
+  useEffect(() => {
+    if (isOpen) {
+      tellShown(step);
+    }
+  }, [isOpen, step]);
   // Moving between steps hides the one the keyboard was in, so it goes on to
   // the step on show rather than falling out of the card.
   const shownStep = useRef(step);
@@ -180,127 +200,159 @@ export function QuestionCard({
       <AnsweredCard
         answer={output ?? sending}
         ended={status === "ended"}
+        inReply={inReply && (output ?? sending) === undefined}
         questions={questions}
       />
     );
   }
 
   // Answering waits for dictated words, so they go with it.
-  const isHolding =
-    isDictating(noteDictation.phase) || isDictating(ownDictation.phase);
+  const isHolding = isDictating(ownDictation.phase);
   const isSeveral = questions.length > 1;
-  const isReview = isSeveral && step >= questions.length;
   const current = draftAt(step);
   const question = questions[step];
 
-  const send = (replies: SessionMessageDataPart.QuestionReply[]) => {
+  /**
+   * Settles the question on show with `draft`, then moves on to the next
+   * question still waiting, or sends every answer once none is.
+   */
+  const settle = (draft: Draft) => {
+    const next = questions.map((_, index) =>
+      index === step ? draft : draftAt(index),
+    );
+    setDrafts(next);
+    const waiting = questions.findIndex(
+      (_, index) => index > step && !isSettled(next[index] ?? EMPTY_DRAFT),
+    );
+    const earlier = questions.findIndex(
+      (_, index) => !isSettled(next[index] ?? EMPTY_DRAFT),
+    );
+    const to = waiting === -1 ? earlier : waiting;
+    if (to !== -1) {
+      setStep(to);
+      return;
+    }
+    if (!isHolding) {
+      onAnswer({ replies: next.map(replyOf) });
+    }
+  };
+  /** Skips every question not answered yet, sending the answers given. */
+  const close = () => {
     if (isHolding) {
       return;
     }
-    const trimmed = note.trim();
-    onAnswer(trimmed ? { note: trimmed, replies } : { replies });
-  };
-  const sendDrafts = () => {
-    send(questions.map((_, index) => replyOf(draftAt(index))));
-  };
-  const skipAll = () => {
-    send(questions.map(() => ({ skipped: true })));
-  };
-  const next = () => {
-    setStep((at) => Math.min(at + 1, questions.length));
+    onAnswer({
+      replies: questions.map((_, index) => {
+        const draft = draftAt(index);
+        return replyOf(hasReply(draft) ? draft : { ...draft, skipped: true });
+      }),
+    });
   };
 
   const pick = (label: string) => {
     if (question?.multiSelect) {
-      setDraft(step, (draft) => ({
-        ...draft,
-        picked: draft.picked.includes(label)
-          ? draft.picked.filter((each) => each !== label)
-          : [...draft.picked, label],
-        skipped: false,
-      }));
+      setDrafts(
+        questions.map((_, index) => {
+          const draft = draftAt(index);
+          return index === step
+            ? {
+                ...draft,
+                picked: draft.picked.includes(label)
+                  ? draft.picked.filter((each) => each !== label)
+                  : [...draft.picked, label],
+                skipped: false,
+              }
+            : draft;
+        }),
+      );
       return;
     }
-    setDraft(step, () => ({ own: "", picked: [label], skipped: false }));
-    // One pick answers a question of one choice, so the card moves on.
-    if (isSeveral) {
-      next();
-    }
+    settle({ own: "", picked: [label], skipped: false });
   };
   const submitOwn = () => {
-    if (!hasReply(current)) {
-      return;
-    }
-    if (isSeveral) {
-      next();
-    } else {
-      sendDrafts();
+    if (hasReply(current)) {
+      settle(current);
     }
   };
-
-  /** What Enter does from the card once there is something to send: Send, or Next on a step. */
-  const primary = isReview
-    ? isHolding
-      ? undefined
-      : sendDrafts
-    : !hasReply(current)
-      ? undefined
-      : isSeveral
-        ? next
-        : isHolding
-          ? undefined
-          : sendDrafts;
-  const onCardKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const target = event.target;
-    if (
-      event.defaultPrevented ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.nativeEvent.isComposing ||
-      !(target instanceof HTMLElement) ||
-      target.closest("input, textarea, [contenteditable='true']")
-    ) {
-      return;
-    }
-    // A button other than a choice keeps Enter as its own press.
-    if (
-      event.key === "Enter" &&
-      !event.shiftKey &&
-      primary &&
-      (target.closest("[data-choice]") || !target.closest("button"))
-    ) {
-      event.preventDefault();
-      primary();
-    }
+  const skip = () => {
+    settle({ ...EMPTY_DRAFT, skipped: true });
   };
-
-  const noteBox = (
-    <DictatedTextarea
-      aria-label="Note"
-      autoFocus={!isSeveral}
-      className="mt-3 min-h-12"
-      dictation={noteDictation}
-      onChange={(event) => {
-        setNote(event.target.value);
-      }}
-      placeholder="A note to go with your answers"
-      value={note}
-    />
-  );
+  const pickedCount =
+    current.picked.length + (current.own.trim() === "" ? 0 : 1);
 
   return (
     <ToolCard>
-      {/* Enter reaches the choices inside, each a button of its own. */}
-      <div className="px-4 py-3" onKeyDown={onCardKeyDown} ref={cardRef}>
-        {isSeveral ? (
-          <Steps
-            drafts={questions.map((_, index) => draftAt(index))}
-            onStep={setStep}
-            questions={questions}
-            step={step}
-          />
-        ) : null}
+      <div
+        className="@container/question flex flex-col gap-2 px-3 pt-3 pb-2"
+        ref={cardRef}
+      >
+        <div className="flex items-start gap-3 px-1">
+          {isSeveral ? (
+            // Every question's words laid out in the one cell, so the header
+            // keeps the height of the longest as the person moves between them.
+            <div className="grid min-w-0 flex-1 pt-0.5">
+              {questions.map((each, index) => (
+                <p
+                  aria-hidden={index !== step}
+                  className={cn(
+                    "col-start-1 row-start-1 text-sm font-medium text-pretty",
+                    index !== step && "invisible",
+                  )}
+                  key={index}
+                >
+                  {each.question}
+                </p>
+              ))}
+            </div>
+          ) : (
+            <p className="min-w-0 flex-1 pt-0.5 text-sm font-medium text-pretty">
+              {question?.question}
+            </p>
+          )}
+          <span className="flex shrink-0 items-center gap-1">
+            {isSeveral ? (
+              <span className="flex items-center gap-0.5 text-xs text-muted-foreground">
+                <Button
+                  aria-label="Previous question"
+                  className="size-6 text-muted-foreground"
+                  disabled={step === 0}
+                  onClick={() => {
+                    setStep((at) => Math.max(0, at - 1));
+                  }}
+                  size="icon"
+                  variant="ghost"
+                >
+                  <CaretLeftIcon className="size-3.5" />
+                </Button>
+                <span className="tabular-nums">
+                  {`${String(step + 1)} of ${String(questions.length)}`}
+                </span>
+                <Button
+                  aria-label="Next question"
+                  className="size-6 text-muted-foreground"
+                  disabled={step === questions.length - 1}
+                  onClick={() => {
+                    setStep((at) => Math.min(questions.length - 1, at + 1));
+                  }}
+                  size="icon"
+                  variant="ghost"
+                >
+                  <CaretRightIcon className="size-3.5" />
+                </Button>
+              </span>
+            ) : null}
+            <Button
+              aria-label="Close"
+              className="size-6 text-muted-foreground"
+              disabled={isHolding}
+              onClick={close}
+              size="icon"
+              variant="ghost"
+            >
+              <XIcon className="size-3.5" />
+            </Button>
+          </span>
+        </div>
 
         {isSeveral ? (
           // Every step is laid out in the one cell and all but the current
@@ -328,37 +380,6 @@ export function QuestionCard({
                 />
               </div>
             ))}
-            <div
-              className={cn(
-                "col-start-1 row-start-1",
-                !isReview && "invisible",
-              )}
-              inert={!isReview}
-            >
-              <dl className="flex flex-col gap-1.5 text-sm">
-                {questions.map((each, index) => {
-                  const reply = replyOf(draftAt(index));
-                  return (
-                    <div className="flex items-baseline gap-3" key={index}>
-                      <dt className="w-28 shrink-0 truncate text-xs text-muted-foreground">
-                        {each.header || each.question}
-                      </dt>
-                      <dd
-                        className={cn(
-                          "min-w-0",
-                          "skipped" in reply && "text-muted-foreground",
-                        )}
-                      >
-                        {"skipped" in reply
-                          ? "Skipped"
-                          : reply.picked.join(", ")}
-                      </dd>
-                    </div>
-                  );
-                })}
-              </dl>
-              {noteBox}
-            </div>
           </div>
         ) : question ? (
           <QuestionStep
@@ -373,96 +394,46 @@ export function QuestionCard({
           />
         ) : null}
 
-        {!isSeveral && isNoteOpen ? noteBox : null}
-
-        {/* Pulled out by the buttons' padding, so their words line up with
-            the question's edges rather than sitting indented under it. */}
-        <div className="-mx-2.5 mt-2 flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1">
-            {place ? (
-              <span className="px-2.5 text-xs text-muted-foreground tabular-nums">
-                {place}
-              </span>
-            ) : null}
-            {isSeveral || isNoteOpen ? null : (
-              <Button
-                className="text-muted-foreground"
-                onClick={() => {
-                  setIsNoteOpen(true);
-                }}
-                size="xs"
-                variant="ghost"
-              >
-                Add a note
-              </Button>
-            )}
+        <div className="flex items-center gap-2 border-t border-border px-1 pt-2">
+          <span className="min-w-0 flex-1 text-xs text-muted-foreground tabular-nums">
+            {question?.multiSelect
+              ? `${String(pickedCount)} picked`
+              : (place ?? "")}
           </span>
-          <span className="flex items-center gap-1">
-            {isReview ? (
-              <>
-                <Button
-                  className="text-muted-foreground"
-                  disabled={isHolding}
-                  onClick={skipAll}
-                  size="xs"
-                  variant="ghost"
-                >
-                  Skip all
-                </Button>
-                <SendButton disabled={isHolding} isHome onClick={sendDrafts}>
-                  Send answers
-                </SendButton>
-              </>
-            ) : isSeveral ? (
-              <>
-                <Button
-                  className="text-muted-foreground"
-                  onClick={() => {
-                    setDraft(step, () => ({ ...EMPTY_DRAFT, skipped: true }));
-                    next();
-                  }}
-                  size="xs"
-                  variant="ghost"
-                >
-                  Skip
-                </Button>
-                <SendButton
-                  disabled={!hasReply(current)}
-                  icon="next"
-                  onClick={next}
-                >
-                  Next
-                </SendButton>
-              </>
-            ) : (
-              <>
-                <Button
-                  className="text-muted-foreground"
-                  disabled={isHolding}
-                  onClick={skipAll}
-                  size="xs"
-                  variant="ghost"
-                >
-                  {/* Says the note goes too, since skipping is the one answer
-                      where a note would otherwise look like it was thrown away. */}
-                  {note.trim() ? "Skip with note" : "Skip"}
-                </Button>
-                <SendButton
-                  disabled={isHolding || !hasReply(current)}
-                  onClick={sendDrafts}
-                >
-                  Send
-                </SendButton>
-              </>
-            )}
-          </span>
+          <Button
+            className="text-muted-foreground"
+            disabled={isHolding}
+            onClick={skip}
+            size="xs"
+            variant="ghost"
+          >
+            Skip
+          </Button>
+          {question?.multiSelect ? (
+            <Button
+              aria-label={step === questions.length - 1 ? "Send" : "Next"}
+              className="size-7 rounded-full"
+              disabled={isHolding || !hasReply(current)}
+              onClick={() => {
+                settle(current);
+              }}
+              size="icon"
+              variant="brand"
+            >
+              <ArrowRightIcon className="size-3.5" weight="bold" />
+            </Button>
+          ) : null}
         </div>
       </div>
     </ToolCard>
   );
 }
 
-/** One question while the card is open: its choices and a row for the person's own words. */
+/**
+ * One question while the card is open: its choices and a row for the
+ * person's own words, and, when any choice carries detail, the area that
+ * shows it: beside the choices in a wide chat, under them in a narrow one.
+ */
 function QuestionStep({
   dictation,
   draft,
@@ -484,100 +455,200 @@ function QuestionStep({
   const hasOwn = draft.own.trim() !== "";
   const isOwnDictating =
     dictation !== undefined && isDictating(dictation.phase);
-  return (
-    <>
-      <p className="mb-2 text-sm font-medium text-pretty">
-        {question.question}
-      </p>
-      <ChoiceList role={isMulti ? "group" : "radiogroup"}>
-        {question.choices.map((choice, index) => {
-          const isSelected = draft.picked.includes(choice.label);
-          return (
-            <button
-              aria-checked={isSelected}
-              className={rowClassName(isSelected)}
-              data-card-home={index === 0 ? "" : undefined}
-              data-choice=""
-              key={index}
-              onClick={() => {
-                onPick(choice.label);
-              }}
-              role={isMulti ? "checkbox" : "radio"}
-              // Named, so the window's keyboard home lands on the first
-              // choice rather than on whatever button comes first.
-              tabIndex={index === 0 ? 0 : undefined}
-              type="button"
-            >
-              <ChoiceRow isMulti={isMulti} isSelected={isSelected}>
-                <span className="flex flex-col">
-                  <span>{choice.label}</span>
-                  {choice.description ? (
-                    <span className="text-xs text-muted-foreground">
-                      {choice.description}
-                    </span>
-                  ) : null}
+  const hasDetail = question.choices.some((choice) => choice.detail);
+  // The choice the detail area shows: the first until the keyboard or the
+  // pointer says otherwise.
+  const [shown, setShown] = useState(0);
+  const rest = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const stopResting = () => {
+    clearTimeout(rest.current);
+    rest.current = undefined;
+  };
+  useEffect(() => stopResting, []);
+
+  const choices = (
+    <ChoiceList role={isMulti ? "group" : "radiogroup"}>
+      {question.choices.map((choice, index) => {
+        const isSelected = draft.picked.includes(choice.label);
+        return (
+          <button
+            aria-checked={isSelected}
+            className={rowClassName(isSelected)}
+            data-card-home={index === 0 ? "" : undefined}
+            data-choice=""
+            key={index}
+            onClick={() => {
+              onPick(choice.label);
+            }}
+            onFocus={() => {
+              stopResting();
+              setShown(index);
+            }}
+            // The detail follows only a pointer that rests, so crossing other
+            // choices on the way to it leaves it as it was.
+            onPointerEnter={() => {
+              stopResting();
+              rest.current = setTimeout(() => {
+                setShown(index);
+              }, DETAIL_HOVER_REST_MS);
+            }}
+            onPointerLeave={stopResting}
+            role={isMulti ? "checkbox" : "radio"}
+            // Named, so the window's keyboard home lands on the first
+            // choice rather than on whatever button comes first.
+            tabIndex={index === 0 ? 0 : undefined}
+            type="button"
+          >
+            {/* A label a reply typed in the chat can name it by. */}
+            <ChoiceNumber isMulti={isMulti} isSelected={isSelected}>
+              {index + 1}
+            </ChoiceNumber>
+            <span className="flex min-w-0 flex-1 flex-col pt-0.5">
+              <span>{choice.label}</span>
+              {choice.description ? (
+                <span className="text-xs text-muted-foreground">
+                  {choice.description}
                 </span>
-              </ChoiceRow>
-              {/* A label a reply typed in the chat can name it by. */}
-              <span
-                aria-hidden
-                className="self-start text-xs/5 text-muted-foreground tabular-nums"
-              >
-                {index + 1}
-              </span>
-            </button>
-          );
-        })}
-        {/* The answer none of the choices are, as one more row: typed into
-            rather than clicked, growing a line at a time like the reply box
-            up to a few lines, then scrolling. */}
-        <div
-          className={cn(
-            rowClassName(hasOwn),
-            !hasOwn && "focus-within:bg-foreground/5",
-          )}
-        >
-          <ChoiceRow isMulti={isMulti} isSelected={hasOwn}>
-            <span className="flex flex-col gap-1">
-              <span className="flex items-start gap-2">
-                <textarea
-                  aria-label="Your own answer"
-                  className="field-sizing-content max-h-32 min-w-0 flex-1 resize-none bg-transparent py-0.5 outline-none placeholder:text-muted-foreground"
-                  onChange={(event) => {
-                    onOwn(event.target.value);
-                  }}
-                  onKeyDown={(event) => {
-                    if (
-                      event.key === "Enter" &&
-                      !event.shiftKey &&
-                      !event.nativeEvent.isComposing
-                    ) {
-                      event.preventDefault();
-                      onSubmitOwn();
-                    }
-                  }}
-                  placeholder="Something else…"
-                  rows={1}
-                  value={draft.own}
-                />
-                {dictation && (canDictate || isOwnDictating) ? (
-                  // Pulled into the row's padding, so the microphone leaves
-                  // the row a line tall.
-                  <DictationControls
-                    className="-my-1 -mr-1"
-                    dictation={dictation}
-                    size="sm"
-                  />
-                ) : null}
-              </span>
-              {dictation && isOwnDictating ? (
-                <DictationReadout dictation={dictation} />
               ) : null}
             </span>
-          </ChoiceRow>
-        </div>
-      </ChoiceList>
-    </>
+          </button>
+        );
+      })}
+      {/* The answer none of the choices are, as one more row: typed into
+          rather than clicked, growing a line at a time like the reply box
+          up to a few lines, then scrolling. */}
+      <div
+        className={cn(
+          rowClassName(hasOwn),
+          !hasOwn && "focus-within:bg-foreground/5",
+        )}
+      >
+        <span
+          aria-hidden
+          className={cn(
+            "grid size-6 shrink-0 place-items-center self-start border text-muted-foreground",
+            isMulti ? "rounded-md" : "rounded-full",
+            hasOwn
+              ? "border-brand-600 bg-brand-600 text-brand-foreground"
+              : "border-dashed border-foreground/25",
+          )}
+        >
+          <PencilSimpleIcon className="size-3" />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-1">
+          <span className="flex items-start gap-2">
+            <textarea
+              aria-label="Your own answer"
+              className="field-sizing-content max-h-32 min-w-0 flex-1 resize-none bg-transparent py-0.5 outline-none placeholder:text-muted-foreground"
+              onChange={(event) => {
+                onOwn(event.target.value);
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "Enter" &&
+                  !event.shiftKey &&
+                  !event.nativeEvent.isComposing
+                ) {
+                  event.preventDefault();
+                  onSubmitOwn();
+                }
+              }}
+              placeholder="Something else…"
+              rows={1}
+              value={draft.own}
+            />
+            {dictation && (canDictate || isOwnDictating) ? (
+              // Pulled into the row's padding, so the microphone leaves
+              // the row a line tall.
+              <DictationControls
+                className="-my-1 -mr-1"
+                dictation={dictation}
+                size="sm"
+              />
+            ) : null}
+          </span>
+          {dictation && isOwnDictating ? (
+            <DictationReadout dictation={dictation} />
+          ) : null}
+        </span>
+      </div>
+    </ChoiceList>
+  );
+
+  const shownChoice = question.choices[shown] ?? question.choices[0];
+  if (!hasDetail || shownChoice === undefined) {
+    return choices;
+  }
+  return (
+    // Wide enough, the detail sits beside the choices at their height;
+    // narrower, it sits under them, short until the pointer is on it.
+    <div className="flex flex-col gap-3 @xl/question:flex-row @xl/question:items-stretch">
+      <div className="min-w-0 @xl/question:w-[46%] @xl/question:shrink-0">
+        {choices}
+      </div>
+      <DetailArea choice={shownChoice} />
+    </div>
+  );
+}
+
+/**
+ * What the choice being looked at means: its detail as Markdown, drawn as a
+ * reply is, scrolling inside the area; or, for a choice without any, its own
+ * label and description, so the area never stands empty. An expand opens the
+ * detail with room to read it.
+ */
+function DetailArea({ choice }: { choice: Choice }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+  return (
+    <div
+      className="group/detail relative min-w-0 rounded-xl bg-background ring-1 ring-border/70 @xl/question:min-h-40 @xl/question:flex-1"
+      data-detail=""
+    >
+      <div
+        className={cn(
+          "overflow-y-auto p-4 pr-11",
+          // Narrow, it stays a few lines tall until the pointer is on it;
+          // wide, it fills the height the choices give it.
+          "max-h-24 transition-[max-height] duration-200 group-hover/detail:max-h-72 motion-reduce:transition-none",
+          "@xl/question:absolute @xl/question:inset-0 @xl/question:max-h-none",
+        )}
+      >
+        {choice.detail ? (
+          <SessionMarkdown markdown={choice.detail} />
+        ) : (
+          <div className="flex h-full flex-col justify-center" data-restated="">
+            <p className="text-sm font-medium">{choice.label}</p>
+            {choice.description ? (
+              <p className="mt-1 text-sm text-muted-foreground">
+                {choice.description}
+              </p>
+            ) : null}
+          </div>
+        )}
+      </div>
+      {choice.detail ? (
+        <Button
+          aria-label="Expand detail"
+          className="absolute top-2 right-2 size-7 bg-card text-muted-foreground ring-1 ring-border/70"
+          onClick={() => {
+            setIsExpanded(true);
+          }}
+          size="icon"
+          variant="ghost"
+        >
+          <ArrowsOutSimpleIcon className="size-3.5" />
+        </Button>
+      ) : null}
+      {isExpanded && choice.detail ? (
+        <MarkdownTableModal
+          onOpenChange={setIsExpanded}
+          open
+          title={choice.label}
+        >
+          <Markdown markdown={choice.detail} />
+        </MarkdownTableModal>
+      ) : null}
+    </div>
   );
 }
 
@@ -586,7 +657,7 @@ function QuestionStep({
  * up with the question while a highlighted row still has room around its
  * text. In a chat's composer they stop at a share of the chat's height
  * (`--conversation-height`, set by the chat) and scroll, with a fade along
- * each edge while there is more past it, so the question and Send stay in
+ * each edge while there is more past it, so the question and Skip stay in
  * view. A field typed into keeps its whole row in view as it grows, so the
  * line being written is never under the fade.
  */
@@ -671,243 +742,65 @@ function revealTypedRow(list: HTMLElement) {
   }
 }
 
-/** The headers of a card of several questions, each a way back to its question, then Review. */
-function Steps({
-  drafts,
-  onStep,
-  questions,
-  step,
-}: {
-  drafts: Draft[];
-  onStep: (step: number) => void;
-  questions: ChooseQuestion[];
-  step: number;
-}) {
-  const labels = [
-    ...questions.map((question, index) => ({
-      draft: drafts[index] ?? EMPTY_DRAFT,
-      label: question.header || `Question ${index + 1}`,
-    })),
-    { draft: undefined, label: "Review" },
-  ];
-  return (
-    <div className="-mx-1.5 mb-3 flex flex-wrap items-center gap-1 border-b border-border pb-2">
-      {labels.map(({ draft, label }, index) => {
-        const isCurrent = index === step;
-        const isAnswered = draft !== undefined && hasReply(draft);
-        const isSkipped = draft?.skipped === true;
-        return (
-          <button
-            aria-current={isCurrent ? "step" : undefined}
-            className={cn(
-              "inline-flex h-6 items-center gap-1.5 rounded-md px-2 text-xs outline-none focus-visible:outline-2 focus-visible:outline-ring/60",
-              isCurrent
-                ? "bg-foreground/8 font-medium text-foreground"
-                : isAnswered
-                  ? "text-foreground/80 hover:bg-foreground/5"
-                  : "text-muted-foreground hover:bg-foreground/5",
-            )}
-            key={index}
-            onClick={() => {
-              onStep(index);
-            }}
-            type="button"
-          >
-            {/* One width for the number and the marks that replace it, so
-                answering a question never moves the headers after it. */}
-            {draft ? (
-              <span className="grid w-3 shrink-0 place-items-center">
-                {isAnswered ? (
-                  <CheckIcon
-                    className="size-3 text-brand-600 dark:text-brand-400"
-                    weight="bold"
-                  />
-                ) : isSkipped ? (
-                  <MinusIcon className="size-3" weight="bold" />
-                ) : (
-                  <span className="text-muted-foreground/70 tabular-nums">
-                    {index + 1}
-                  </span>
-                )}
-              </span>
-            ) : null}
-            {/* As wide as the label in the current header's weight, so
-                moving between steps never moves the headers either. */}
-            <span className="grid">
-              <span className="col-start-1 row-start-1">{label}</span>
-              <span
-                aria-hidden
-                className="invisible col-start-1 row-start-1 font-medium"
-              >
-                {label}
-              </span>
-            </span>
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-
-function SendButton({
-  children,
-  disabled,
-  icon = "send",
-  isHome = false,
-  onClick,
-}: {
-  children: ReactNode;
-  disabled: boolean;
-  icon?: "next" | "send";
-  /** Takes the keyboard when its step comes on show, for a step with no choices (the review). */
-  isHome?: boolean;
-  onClick: () => void;
-}) {
-  const Icon = icon === "next" ? ArrowRightIcon : ArrowUpIcon;
-  return (
-    <Button
-      data-card-home={isHome ? "" : undefined}
-      disabled={disabled}
-      onClick={onClick}
-      size="xs"
-      variant="brand"
-    >
-      {children}
-      <Icon className="size-3" weight="bold" />
-    </Button>
-  );
-}
-
 /**
- * A question that is no longer open, drawn as a finished step: the question
- * mark on the step's tile, then a line per question with the question's own
- * words and its answer in full, the answers in a column of their own, and the
- * note under them. The words are the question rather than its header, since a
- * reply that goes on to discuss the answers (grading a quiz) reads against
- * what was asked. A card whose questions all went unanswered the same way,
- * skipped or never answered, says so once, naming them by their headers. It
- * opens to show each question with every choice the agent offered, the picked
- * ones checked, so what else there was stays findable without the line
- * looking answerable.
+ * A question that is no longer open, kept whole where it was asked: each
+ * question's own words as a muted heading, its answer under it. The words
+ * are the question rather than its header, since a reply that goes on to
+ * discuss the answers (grading a quiz) reads against what was asked. A
+ * choice picked reads as its label, the person's own words in quotes, a
+ * question skipped as skipped. A card answered by a reply in the chat says
+ * so once, under its questions, with no choices to read a number against.
  */
 function AnsweredCard({
   answer,
   ended,
+  inReply,
   questions,
 }: {
   answer: ChooseOutput | undefined;
   ended: boolean;
+  inReply: boolean;
   questions: ChooseQuestion[];
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
-  const replies = questions.map((_, index) => answer?.replies[index]);
-  const unanswered = replies.every((reply) => reply && "skipped" in reply)
-    ? "Skipped"
-    : ended && replies.every((reply) => reply === undefined)
-      ? "No answer"
-      : undefined;
-  const nameOf = (question: ChooseQuestion) =>
-    question.header || question.question;
-  const rows = unanswered
-    ? [{ label: questions.map(nameOf).join(", "), said: unanswered }]
-    : questions.map((question, index) => {
-        const reply = replies[index];
-        const picked = reply && "picked" in reply ? reply.picked : undefined;
-        const labels = question.choices.map((choice) => choice.label);
-        return {
-          label: question.question || question.header,
-          picked,
-          said:
-            picked
-              ?.map((each) => (labels.includes(each) ? each : `“${each}”`))
-              .join(", ") ?? (reply ? "Skipped" : ended ? "No answer" : ""),
-        };
-      });
   return (
-    <div className="flex max-w-xl min-w-0 flex-col gap-1.5 text-[13px]/5">
-      <button
-        aria-expanded={isExpanded}
-        className="grid grid-cols-[1.25rem_fit-content(24rem)_fit-content(14rem)_0.75rem] items-start gap-x-1.5 gap-y-1 self-start rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        onClick={() => {
-          setIsExpanded((open) => !open);
-        }}
-        type="button"
-      >
-        {rows.map((row, index) => (
-          <span className="contents" key={index}>
-            {index === 0 ? (
-              <span className="flex size-5 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
-                <QuestionIcon className="size-3 text-foreground/70" />
-              </span>
-            ) : (
-              <span />
-            )}
-            <span className="min-w-0 text-pretty text-muted-foreground">
-              {row.label}
-            </span>
-            <span
-              className={cn(
-                "ml-1.5 min-w-0 text-pretty",
-                "picked" in row && row.picked
-                  ? "font-medium"
-                  : "text-muted-foreground",
-              )}
-            >
-              {row.said}
-            </span>
-            {index === 0 ? (
-              <CaretDownIcon
+    <div className="my-2 flex max-w-xl min-w-0 flex-col gap-3.5 rounded-2xl border border-border bg-card px-4 py-3.5">
+      {questions.map((question, index) => {
+        const reply = answer?.replies[index];
+        const labels = question.choices.map((choice) => choice.label);
+        const picked = reply && "picked" in reply ? reply.picked : undefined;
+        const said = inReply
+          ? undefined
+          : (picked
+              ?.map((each) => (labels.includes(each) ? each : `“${each}”`))
+              .join(", ") ??
+            (reply ? "Skipped" : ended ? "No answer" : undefined));
+        return (
+          <div className="flex flex-col gap-0.5" key={index}>
+            <p className="text-[13px] text-pretty text-muted-foreground">
+              {question.question || question.header}
+            </p>
+            {said === undefined ? null : (
+              <p
                 className={cn(
-                  "mt-1 size-3 text-muted-foreground transition-transform",
-                  isExpanded && "rotate-180",
+                  "text-sm text-pretty",
+                  picked === undefined && "text-muted-foreground",
                 )}
-              />
-            ) : (
-              <span />
+              >
+                {said}
+              </p>
             )}
-          </span>
-        ))}
-      </button>
-      {answer?.note ? (
-        <p className="ml-6.5 border-l-2 pl-2.5 text-xs whitespace-pre-wrap text-muted-foreground">
-          {answer.note}
+          </div>
+        );
+      })}
+      {inReply ? (
+        <p className="-mt-3 text-sm text-muted-foreground">
+          Answered in your reply
         </p>
       ) : null}
-      {isExpanded ? (
-        <div className="mt-1 ml-2.5 flex flex-col gap-3 border-l border-border pl-4">
-          {questions.map((question, index) => {
-            const reply = replies[index];
-            const picked = reply && "picked" in reply ? reply.picked : [];
-            const labels = question.choices.map((choice) => choice.label);
-            const own = picked.filter((each) => !labels.includes(each));
-            return (
-              <div className="flex flex-col gap-1" key={index}>
-                <p className="text-pretty text-muted-foreground">
-                  {question.question}
-                </p>
-                <ul className="flex flex-col gap-0.5">
-                  {[...labels, ...own].map((label) =>
-                    picked.includes(label) ? (
-                      <li className="flex items-start gap-1.5" key={label}>
-                        <CheckIcon
-                          className="mt-1 size-3 shrink-0 text-brand-600 dark:text-brand-400"
-                          weight="bold"
-                        />
-                        <span className="text-pretty">
-                          {labels.includes(label) ? label : `“${label}”`}
-                        </span>
-                      </li>
-                    ) : (
-                      <li className="pl-4.5 text-muted-foreground" key={label}>
-                        {label}
-                      </li>
-                    ),
-                  )}
-                </ul>
-              </div>
-            );
-          })}
-        </div>
+      {answer?.note ? (
+        <p className="border-l-2 pl-2.5 text-xs whitespace-pre-wrap text-muted-foreground">
+          {answer.note}
+        </p>
       ) : null}
     </div>
   );
@@ -965,6 +858,8 @@ export function ToolChoose({
 
   const output =
     part.state === "output-available" ? chooseAnswer(part.output) : undefined;
+  const inReply =
+    part.state === "output-available" && chooseInReply(part.output);
   // Answered on any device and not taken yet by the computer that asked,
   // which writes it onto the call: drawn as given meanwhile.
   const given = output === undefined ? ask?.answered : undefined;
@@ -974,10 +869,12 @@ export function ToolChoose({
     ask !== undefined &&
     ask.answerable &&
     output === undefined &&
+    !inReply &&
     part.state === "output-available";
   if (
     ask?.card !== undefined &&
     output === undefined &&
+    !inReply &&
     given === undefined &&
     sending === undefined
   ) {
@@ -999,6 +896,7 @@ export function ToolChoose({
 
   const card = (
     <QuestionCard
+      inReply={inReply}
       onAnswer={(answered) => {
         if (!ask) {
           return;
@@ -1019,7 +917,7 @@ export function ToolChoose({
       status={
         // Closed with no answer drawn while the chat's asks load, so the card
         // neither offers buttons nor says it ended before it knows.
-        output !== undefined || asks === undefined
+        output !== undefined || inReply || asks === undefined
           ? "closed"
           : isOpen || sending !== undefined || given !== undefined
             ? "open"
@@ -1038,11 +936,12 @@ export function ToolChoose({
 }
 
 /**
- * A mark beside each choice, so it reads as one thing to pick among several
- * before it is picked: a ring for a question of one answer, a box for one of
- * several, filled with a check once chosen.
+ * A choice's number in the mark beside it, so it reads as one thing to pick
+ * among several and as the label a reply can name it by: a circle for a
+ * question of one answer, a rounded square for one of several, filled once
+ * picked.
  */
-function ChoiceRow({
+function ChoiceNumber({
   children,
   isMulti,
   isSelected,
@@ -1052,23 +951,20 @@ function ChoiceRow({
   isSelected: boolean;
 }) {
   return (
-    <>
-      {/* Hollow rather than filled with the page's background, which in dark
-          mode is darker than the card and drew every ring as a black dot. */}
-      <span
-        aria-hidden
-        className={cn(
-          "grid size-4.5 shrink-0 place-items-center self-start border",
-          isMulti ? "rounded-[5px]" : "rounded-full",
-          isSelected
-            ? "border-brand-600 bg-brand-600 text-brand-foreground"
-            : "border-foreground/25 group-hover/choice:border-foreground/45",
-        )}
-      >
-        {isSelected && <CheckIcon className="size-3" weight="bold" />}
-      </span>
-      <span className="min-w-0 flex-1">{children}</span>
-    </>
+    // Hollow rather than filled with the page's background, which in dark
+    // mode is darker than the card and drew every mark as a black dot.
+    <span
+      aria-hidden
+      className={cn(
+        "grid size-6 shrink-0 place-items-center self-start border text-xs font-medium tabular-nums",
+        isMulti ? "rounded-md" : "rounded-full",
+        isSelected
+          ? "border-brand-600 bg-brand-600 text-brand-foreground"
+          : "border-foreground/20 text-muted-foreground group-hover/choice:border-foreground/45",
+      )}
+    >
+      {children}
+    </span>
   );
 }
 
@@ -1078,7 +974,7 @@ function rowClassName(isSelected: boolean) {
   // The ring sits inside the row: the list scrolls, and clips anything
   // drawn past its sides.
   return cn(
-    "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/60",
+    "flex w-full items-start gap-3 rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/60",
     isSelected
       ? "bg-brand-500/10 text-foreground"
       : "group/choice text-foreground hover:bg-foreground/5 focus-visible:bg-foreground/5",

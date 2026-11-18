@@ -5,7 +5,7 @@ import { type CSSProperties } from "react";
 import { expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
-import { QuestionCard } from "./tool-choose";
+import { DETAIL_HOVER_REST_MS, QuestionCard } from "./tool-choose";
 
 // Steps of different heights: two choices, five with descriptions, and one.
 const SEVERAL: ChooseQuestion[] = [
@@ -38,42 +38,21 @@ it("shows one step at a time and keeps the card's height as the person moves bet
   if (!card) {
     throw new Error("no card rendered");
   }
-  const heights: number[] = [];
-  for (const header of ["Morning", "Weekend", "Pets", "Review"]) {
-    await screen.getByRole("button", { name: new RegExp(header) }).click();
+  const heights = [card.getBoundingClientRect().height];
+  for (let at = 1; at < SEVERAL.length; at += 1) {
+    await screen.getByRole("button", { name: "Next question" }).click();
     heights.push(card.getBoundingClientRect().height);
   }
 
   expect(new Set(heights).size).toBe(1);
-  await expect.element(screen.getByText("Any pets?")).not.toBeVisible();
-  await screen.getByRole("button", { name: /Pets/ }).click();
   await expect.element(screen.getByText("Any pets?")).toBeVisible();
   await expect
     .element(screen.getByText("What does a good weekend look like?"))
     .not.toBeVisible();
-});
-
-it("keeps every header where it was through answering, skipping and moving between steps", async () => {
-  const screen = await renderInBrowser(
-    <div style={{ width: 480 }}>
-      <QuestionCard onAnswer={noop} questions={SEVERAL} status="open" />
-    </div>,
-  );
-  const headers = () =>
-    ["Morning", "Weekend", "Pets", "Review"].map((name) => {
-      const { left, top } = screen
-        .getByRole("button", { name: new RegExp(name) })
-        .element()
-        .getBoundingClientRect();
-      return { left, top };
-    });
-  const before = headers();
-
-  await screen.getByRole("radio", { name: /Coffee/ }).click();
-  await screen.getByRole("button", { name: "Skip" }).click();
-  await screen.getByRole("button", { name: /Review/ }).click();
-
-  expect(headers()).toEqual(before);
+  await screen.getByRole("button", { name: "Previous question" }).click();
+  await expect
+    .element(screen.getByText("What does a good weekend look like?"))
+    .toBeVisible();
 });
 
 const COMPETITORS: ChooseQuestion = {
@@ -85,7 +64,7 @@ const COMPETITORS: ChooseQuestion = {
   question: "Which competitors should the comparison cover?",
 };
 
-it("picks with Space and sends with Enter while the keyboard is on a choice", async () => {
+it("sends the choice the keyboard is on with Enter", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(
     <QuestionCard
@@ -99,19 +78,8 @@ it("picks with Space and sends with Enter while the keyboard is on a choice", as
     .element()
     .focus();
 
-  // Nothing picked yet: Enter presses the choice it is on.
-  await userEvent.keyboard("{Enter}");
-  expect(onAnswer).not.toHaveBeenCalled();
-  await expect
-    .element(screen.getByRole("radio", { name: /Zendesk/ }))
-    .toBeChecked();
-
-  await userEvent.keyboard("{Tab}{Tab} ");
-  await expect
-    .element(screen.getByRole("radio", { name: /Freshdesk/ }))
-    .toBeChecked();
-  await userEvent.keyboard("{Enter}");
-  expect(onAnswer).toHaveBeenCalledWith({
+  await userEvent.keyboard("{Tab}{Tab}{Enter}");
+  expect(onAnswer).toHaveBeenCalledExactlyOnceWith({
     replies: [{ picked: ["Freshdesk"] }],
   });
 });
@@ -190,7 +158,7 @@ it("takes a digit typed into the own-answer row as words, where Shift+Enter star
   });
 });
 
-it("toggles the choices of a question of several answers with Space", async () => {
+it("toggles the choices of a question of several answers with Space, counting them", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(
     <QuestionCard
@@ -204,7 +172,12 @@ it("toggles the choices of a question of several answers with Space", async () =
     .element()
     .focus();
 
-  await userEvent.keyboard(" {Tab}{Tab} {Shift>}{Tab}{Tab}{/Shift} {Enter}");
+  await userEvent.keyboard(" {Tab}{Tab} ");
+  await expect.element(screen.getByText("2 picked")).toBeVisible();
+  await userEvent.keyboard("{Shift>}{Tab}{Tab}{/Shift} ");
+  await expect.element(screen.getByText("1 picked")).toBeVisible();
+  expect(onAnswer).not.toHaveBeenCalled();
+  await screen.getByRole("button", { name: "Send" }).click();
 
   expect(onAnswer).toHaveBeenCalledWith({
     replies: [{ picked: ["Freshdesk"] }],
@@ -228,7 +201,7 @@ it("moves the keyboard on to the next step's first choice as a pick answers a st
   expect(document.activeElement?.textContent).toContain("Hiking");
 });
 
-it("answers every step from the keyboard and sends from the review with Enter", async () => {
+it("answers every step from the keyboard, sending with the last", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(
     <QuestionCard onAnswer={onAnswer} questions={SEVERAL} status="open" />,
@@ -240,10 +213,7 @@ it("answers every step from the keyboard and sends from the review with Enter", 
 
   await userEvent.keyboard("{Enter}");
   await userEvent.keyboard("{Tab}{Enter}");
-  await userEvent.keyboard("{Enter}");
-  await expect
-    .element(screen.getByRole("button", { name: /Send answers/ }))
-    .toHaveFocus();
+  expect(onAnswer).not.toHaveBeenCalled();
   await userEvent.keyboard("{Enter}");
 
   expect(onAnswer).toHaveBeenCalledWith({
@@ -322,4 +292,146 @@ it("keeps a growing own answer's last line in view, with no fade over it", async
     })
     .toBe(true);
   await expect.poll(fades).toEqual({ above: true, below: false });
+});
+
+const LAYOUT: ChooseQuestion = {
+  choices: [
+    {
+      detail: "| Plan | Per agent |\n| --- | --- |\n| Team | $45 |",
+      label: "Table",
+    },
+    {
+      detail: "```\nbar chart\n```",
+      label: "Bar chart",
+    },
+    {
+      description: "A short write-up with the numbers in it",
+      label: "One-page summary",
+    },
+  ],
+  header: "Layout",
+  question: "How should I lay out the comparison?",
+};
+
+async function renderDetail(width: number) {
+  const screen = await renderInBrowser(
+    <div style={{ width }}>
+      <QuestionCard onAnswer={noop} questions={[LAYOUT]} status="open" />
+    </div>,
+  );
+  const area = () => {
+    const found = document.querySelector<HTMLElement>("[data-detail]");
+    if (!found) {
+      throw new Error("no detail area");
+    }
+    return found;
+  };
+  return { area, screen };
+}
+
+it("follows the pointer only once it rests on a choice, and the keyboard at once", async () => {
+  const { area, screen } = await renderDetail(800);
+  expect(area().querySelector("table")).not.toBeNull();
+
+  await userEvent.hover(screen.getByRole("radio", { name: /Bar chart/ }));
+  // Crossing a choice on the way somewhere leaves the detail as it was.
+  expect(area().querySelector("table")).not.toBeNull();
+  await expect.poll(() => area().querySelector("pre")).not.toBeNull();
+
+  screen
+    .getByRole("radio", { name: /One-page summary/ })
+    .element()
+    .focus();
+  await expect
+    .poll(() => area().querySelector("[data-restated]")?.textContent)
+    .toBe("One-page summaryA short write-up with the numbers in it");
+});
+
+it("drops a choice the pointer only crosses before it rests", async () => {
+  const { area, screen } = await renderDetail(800);
+  await userEvent.hover(screen.getByRole("radio", { name: /Bar chart/ }));
+  await userEvent.hover(
+    screen.getByRole("textbox", { name: "Your own answer" }),
+  );
+
+  await new Promise((resolve) => setTimeout(resolve, DETAIL_HOVER_REST_MS * 2));
+  expect(area().querySelector("table")).not.toBeNull();
+});
+
+it.each([
+  { placed: { beside: true, under: false }, width: 800 },
+  { placed: { beside: false, under: true }, width: 420 },
+])(
+  "places the detail by the card's own width, $width px: $placed",
+  async ({ placed, width }) => {
+    const { area, screen } = await renderDetail(width);
+    const list = screen
+      .getByRole("radiogroup")
+      .element()
+      .getBoundingClientRect();
+    const detail = area().getBoundingClientRect();
+    expect({
+      beside: detail.left >= list.right,
+      under: detail.top >= list.bottom,
+    }).toEqual(placed);
+  },
+);
+
+it("keeps a narrow chat's detail short until the pointer is on it", async () => {
+  const { area } = await renderDetail(420);
+  const short = area().getBoundingClientRect().height;
+  expect(short).toBeLessThanOrEqual(100);
+
+  await userEvent.hover(area());
+  await expect
+    .poll(() => area().getBoundingClientRect().height)
+    .toBeGreaterThan(short);
+});
+
+it("opens a choice's detail large in the markdown dialog, titled with the choice", async () => {
+  const { screen } = await renderDetail(800);
+  await screen.getByRole("button", { name: "Expand detail" }).click();
+
+  const dialog = screen.getByRole("dialog");
+  await expect
+    .element(dialog.getByRole("heading", { name: "Table" }))
+    .toBeVisible();
+  await expect.element(dialog.getByRole("table")).toBeVisible();
+});
+
+it("keeps the answered card inline and whole, each question over its answer", async () => {
+  const screen = await renderInBrowser(
+    <div style={{ width: 600 }}>
+      <QuestionCard
+        onAnswer={noop}
+        output={{
+          replies: [
+            { picked: ["Coffee"] },
+            { skipped: true },
+            { picked: ["A cat"] },
+          ],
+        }}
+        questions={SEVERAL}
+        status="closed"
+      />
+    </div>,
+  );
+  const lines = [...screen.container.querySelectorAll("p")].map((line) => ({
+    text: line.textContent,
+    top: Math.round(line.getBoundingClientRect().top),
+  }));
+
+  expect(lines.map((line) => line.text)).toEqual([
+    "Coffee or tea?",
+    "Coffee",
+    "What does a good weekend look like?",
+    "Skipped",
+    "Any pets?",
+    "“A cat”",
+  ]);
+  // Each answer sits under its question, never beside it.
+  for (let at = 1; at < lines.length; at += 1) {
+    expect(lines[at]!.top).toBeGreaterThan(lines[at - 1]!.top);
+  }
+  expect(screen.container.querySelectorAll("button")).toHaveLength(0);
 });

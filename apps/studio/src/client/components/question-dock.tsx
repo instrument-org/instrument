@@ -1,8 +1,11 @@
 import { rpcClient } from "@/client/rpc/client";
 import { toast } from "@/client/lib/toast";
-import { type ChatId } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  type SessionMessageDataPart,
+} from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { cn } from "../lib/utils";
 import { ComposerDock } from "./composer-dock";
@@ -54,7 +57,36 @@ export function useQuestionDock(chatId: ChatId) {
       },
     );
   };
-  return { docked, send };
+  // Which question the card on show has up, by its index, as the card last
+  // said: read when a reply is sent, never drawn.
+  const shown = useRef<{ askId: string; at: number }>(undefined);
+  const setShown = (askId: string, at: number) => {
+    shown.current = { askId, at };
+  };
+  /**
+   * The question up on the card on show, for a reply sent from the box
+   * under it to carry, so a bare "2" reads against it. None while no card
+   * is up.
+   */
+  const questionOnScreen = ():
+    | SessionMessageDataPart.ViewContextDataPart["question"]
+    | undefined => {
+    const [first] = docked;
+    if (first === undefined) {
+      return undefined;
+    }
+    const at = shown.current?.askId === first.id ? shown.current.at : 0;
+    const question = first.card[at];
+    return question === undefined
+      ? undefined
+      : {
+          at: at + 1,
+          choices: question.choices.map((choice) => choice.label),
+          of: first.card.length,
+          text: question.question,
+        };
+  };
+  return { docked, questionOnScreen, send, setShown };
 }
 
 /**
@@ -63,7 +95,7 @@ export function useQuestionDock(chatId: ChatId) {
  * answers together once it is done.
  */
 export function QuestionDock({
-  dock: { docked, send },
+  dock: { docked, send, setShown },
 }: {
   dock: ReturnType<typeof useQuestionDock>;
 }) {
@@ -85,6 +117,9 @@ export function QuestionDock({
                 key={card.id}
                 onAnswer={(answered) => {
                   send(card.id, answered);
+                }}
+                onShown={(at) => {
+                  setShown(card.id, at);
                 }}
                 place={docked.length > 1 ? `1 of ${docked.length}` : undefined}
                 questions={card.card}

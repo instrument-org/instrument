@@ -1126,10 +1126,12 @@ function ChoiceRow({
 function rowClassName(isSelected: boolean) {
   // Rows as a menu draws them, highlighted under the pointer rather than each
   // boxed in a border: the marks already say these are things to pick.
+  // The ring sits inside the row: the list scrolls, and clips anything
+  // drawn past its sides.
   return cn(
-    "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm",
+    "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/60",
     isSelected
       ? "bg-brand-500/10 text-foreground"
-      : "group/choice text-foreground outline-none hover:bg-foreground/5 focus-visible:bg-foreground/5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/60",
+      : "group/choice text-foreground hover:bg-foreground/5 focus-visible:bg-foreground/5",
   );
 }

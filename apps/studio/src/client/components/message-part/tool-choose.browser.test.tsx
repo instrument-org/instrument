@@ -150,6 +150,18 @@ it("shows each choice's digit only while the keyboard is on the card's buttons",
   await expect.element(digit).not.toBeVisible();
 });
 
+it("draws a picked choice's ring inside its row, where the scrolling list cannot clip it", async () => {
+  const screen = await renderInBrowser(
+    <QuestionCard onAnswer={noop} questions={[COMPETITORS]} status="open" />,
+  );
+  screen.getByRole("button", { name: "Skip" }).element().focus();
+  await userEvent.keyboard("2");
+
+  const row = document.activeElement;
+  expect(row?.textContent).toContain("Intercom");
+  expect(row && getComputedStyle(row).outlineOffset).toBe("-2px");
+});
+
 it("leaves digits to the own-answer row, where Shift+Enter starts a line and Enter sends", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(

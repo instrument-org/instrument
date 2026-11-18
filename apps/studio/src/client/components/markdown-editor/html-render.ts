@@ -560,6 +560,9 @@ export function openSourcePopover(
   const box = el("div", "md-html-popover");
   box.setAttribute("role", "dialog");
   box.setAttribute("aria-label", `Edit ${title}`);
+  // A press anywhere else puts it away, the window bar included
+  // (`globals.css`).
+  box.toggleAttribute("data-no-window-drag", true);
   const head = el("div", "md-html-popover-head");
   head.append(
     el("span", "md-html-popover-title", title),

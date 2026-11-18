@@ -417,6 +417,9 @@ function MarkdownOutline({
               armed &&
               "group-hover/outline:visible group-hover/outline:translate-x-0 group-hover/outline:scale-100 group-hover/outline:opacity-100 group-hover/outline:delay-100",
           )}
+          // Pinned, a press anywhere else puts it away, the window bar
+          // included (`globals.css`).
+          data-no-window-drag={pinned ? "" : undefined}
         >
           {list}
           {/* Offered at every width: where a column would not fit on its own,

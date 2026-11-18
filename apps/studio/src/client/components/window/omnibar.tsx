@@ -543,6 +543,9 @@ export function Omnibar({
         // the list would go, and the click would land on nothing.
         <div
           className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover py-1 shadow-float-lg"
+          // A press on the window bar puts the rows away rather than moving
+          // the window (`globals.css`).
+          data-no-window-drag
           id={listId}
           onMouseDown={(event) => {
             event.preventDefault();

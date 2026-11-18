@@ -40,6 +40,9 @@ export function InboxPeek({
           aria-label="Inbox"
           custom={leavesAtOnce}
           className="absolute inset-y-0 left-0 z-30 flex max-w-[calc(100%-3rem)] flex-col border-r border-border bg-background shadow-xl [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]"
+          // A press anywhere else puts it away, the window bar included
+          // (`globals.css`).
+          data-no-window-drag
           exit="away"
           initial={{ opacity: 0, x: -24 }}
           onPointerEnter={onPointerEnter}

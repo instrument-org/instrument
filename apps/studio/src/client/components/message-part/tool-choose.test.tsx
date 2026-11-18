@@ -369,10 +369,31 @@ describe("QuestionCard once answered", () => {
         status="closed"
       />,
     );
-    expect(container.textContent).toBe("FrameworkVue");
+    expect(container.textContent).toBe("Which one?Vue");
 
     fireEvent.click(screen.getByRole("button", { expanded: false }));
-    expect(container.textContent).toBe("FrameworkVueWhich one?ReactVue");
+    expect(container.textContent).toBe("Which one?VueWhich one?ReactVue");
+  });
+
+  // A reply that grades the answers (a quiz) reads against what was asked,
+  // which a header like "Q2" does not say.
+  it("puts each question's own words beside its answer", () => {
+    const { container } = renderWithProviders(
+      <QuestionCard
+        onAnswer={vi.fn()}
+        output={{ replies: [{ picked: ["Vue"] }, { picked: ["Fly"] }] }}
+        questions={[
+          ...ONE,
+          {
+            choices: [{ label: "Fly" }, { label: "Render" }],
+            header: "Hosting",
+            question: "Where should it run?",
+          },
+        ]}
+        status="closed"
+      />,
+    );
+    expect(container.textContent).toBe("Which one?VueWhere should it run?Fly");
   });
 
   // Records an earlier build wrote in the one-question shape carry no header.

@@ -920,12 +920,15 @@ function SendButton({
 
 /**
  * A question that is no longer open, drawn as a finished step: the question
- * mark on the step's tile, then a line per question with its header and its
- * answer in full, and the note under them. A card whose questions all went
- * unanswered the same way, skipped or never answered, says so once. It opens
- * to show each question whole with every choice the agent offered, the
- * picked ones checked, so what else there was stays findable without the
- * line looking answerable.
+ * mark on the step's tile, then a line per question with the question's own
+ * words and its answer in full, the answers in a column of their own, and the
+ * note under them. The words are the question rather than its header, since a
+ * reply that goes on to discuss the answers (grading a quiz) reads against
+ * what was asked. A card whose questions all went unanswered the same way,
+ * skipped or never answered, says so once, naming them by their headers. It
+ * opens to show each question with every choice the agent offered, the picked
+ * ones checked, so what else there was stays findable without the line
+ * looking answerable.
  */
 function AnsweredCard({
   answer,
@@ -937,23 +940,22 @@ function AnsweredCard({
   questions: ChooseQuestion[];
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const isSeveral = questions.length > 1;
   const replies = questions.map((_, index) => answer?.replies[index]);
   const unanswered = replies.every((reply) => reply && "skipped" in reply)
     ? "Skipped"
     : ended && replies.every((reply) => reply === undefined)
       ? "No answer"
       : undefined;
-  const labelOf = (question: ChooseQuestion) =>
+  const nameOf = (question: ChooseQuestion) =>
     question.header || question.question;
   const rows = unanswered
-    ? [{ label: questions.map(labelOf).join(", "), said: unanswered }]
+    ? [{ label: questions.map(nameOf).join(", "), said: unanswered }]
     : questions.map((question, index) => {
         const reply = replies[index];
         const picked = reply && "picked" in reply ? reply.picked : undefined;
         const labels = question.choices.map((choice) => choice.label);
         return {
-          label: labelOf(question),
+          label: question.question || question.header,
           picked,
           said:
             picked
@@ -965,34 +967,27 @@ function AnsweredCard({
     <div className="flex max-w-xl min-w-0 flex-col gap-1.5 text-[13px]/5">
       <button
         aria-expanded={isExpanded}
-        className="flex flex-col gap-1 self-start rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="grid grid-cols-[1.25rem_fit-content(24rem)_fit-content(14rem)_0.75rem] items-start gap-x-1.5 gap-y-1 self-start rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => {
           setIsExpanded((open) => !open);
         }}
         type="button"
       >
         {rows.map((row, index) => (
-          <span className="flex items-start gap-1.5" key={index}>
+          <span className="contents" key={index}>
             {index === 0 ? (
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
+              <span className="flex size-5 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
                 <QuestionIcon className="size-3 text-foreground/70" />
               </span>
             ) : (
-              <span className="w-5 shrink-0" />
+              <span />
             )}
-            <span
-              className={cn(
-                "text-muted-foreground",
-                isSeveral && !unanswered
-                  ? "w-21 shrink-0 truncate"
-                  : "min-w-0 text-pretty",
-              )}
-            >
+            <span className="min-w-0 text-pretty text-muted-foreground">
               {row.label}
             </span>
             <span
               className={cn(
-                "min-w-0 text-pretty",
+                "ml-1.5 min-w-0 text-pretty",
                 "picked" in row && row.picked
                   ? "font-medium"
                   : "text-muted-foreground",
@@ -1003,11 +998,13 @@ function AnsweredCard({
             {index === 0 ? (
               <CaretDownIcon
                 className={cn(
-                  "mt-1 size-3 shrink-0 text-muted-foreground transition-transform",
+                  "mt-1 size-3 text-muted-foreground transition-transform",
                   isExpanded && "rotate-180",
                 )}
               />
-            ) : null}
+            ) : (
+              <span />
+            )}
           </span>
         ))}
       </button>

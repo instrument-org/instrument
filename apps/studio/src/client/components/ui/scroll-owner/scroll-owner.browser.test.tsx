@@ -316,3 +316,62 @@ it("opens a chat with one message at its end once its messages land after a spin
   await frames(100);
   expect(below()).toBeCloseTo(0, 0);
 });
+
+let endTurn: () => void = noop;
+let addTail: (height: number) => void = noop;
+
+/** A turn's reply at the end, then, once nothing can arrive, a card under it. */
+function AfterTurn() {
+  const [isLive, setIsLive] = useState(true);
+  const [tail, setTail] = useState(0);
+  endTurn = () => {
+    setIsLive(false);
+  };
+  addTail = setTail;
+  return (
+    <MessageScrollerProvider autoScroll={isLive} scrollPreviousItemPeek={PEEK}>
+      <MessageScroller>
+        <MessageScrollerViewport style={{ height: 400 }}>
+          <MessageScrollerContent
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              padding: PADDING,
+            }}
+          >
+            <MessageScrollerItem style={{ height: 900 }} />
+            <MessageScrollerItem style={{ height: tail }} />
+          </MessageScrollerContent>
+          <TakeEnd signal="open" />
+        </MessageScrollerViewport>
+      </MessageScroller>
+    </MessageScrollerProvider>
+  );
+}
+
+it.each([
+  { landsInView: true, name: "keeps in view for a reader at the end" },
+  { landsInView: false, name: "leaves below a reader who scrolled up" },
+])("a card landing under a finished turn: $name", async ({ landsInView }) => {
+  await renderInBrowser(<AfterTurn />);
+  await frames(100);
+  endTurn();
+  // Long past the window that holds the end after the chat was taken
+  // there, as a card that lands once the chat comes to rest is.
+  const now = performance.now.bind(performance);
+  const later = vi
+    .spyOn(performance, "now")
+    .mockImplementation(() => now() + 10_000);
+  await frames(100);
+  if (!landsInView) {
+    viewport().dispatchEvent(
+      new WheelEvent("wheel", { bubbles: true, deltaY: -40 }),
+    );
+    viewport().scrollTop -= 40;
+    await frames(50);
+  }
+  addTail(40);
+  await frames(100);
+  expect(below()).toBeCloseTo(landsInView ? 0 : 80, 0);
+  later.mockRestore();
+});

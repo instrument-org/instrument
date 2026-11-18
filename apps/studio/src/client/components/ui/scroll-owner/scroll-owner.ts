@@ -321,11 +321,24 @@ export class ScrollOwner {
       return;
     }
     const now = performance.now();
-    if (geometry.contentBottom > this.lastContentBottom) {
+    const grew = geometry.contentBottom > this.lastContentBottom;
+    if (grew) {
       this.settleQuietUntil = now + SETTLE_MS;
     }
+    // Still at the end the content had before it grew: the reader was
+    // reading the end, so what lands there after the turn (a rating card, a
+    // late picture) stays in view.
+    const isGrowingAtEnd =
+      grew &&
+      this.lastContentBottom > 0 &&
+      this.mode.kind === "follow" &&
+      geometry.scrollTop + geometry.viewportHeight >=
+        this.lastContentBottom - SAME_POSITION;
     this.lastContentBottom = geometry.contentBottom;
-    const settings = this.effectiveSettings(now);
+    const effective = this.effectiveSettings(now);
+    const settings = isGrowingAtEnd
+      ? { ...effective, autoScroll: true }
+      : effective;
     let write = settle(this.mode, geometry, settings);
     const pin = this.pin;
     if (this.viewport && pin?.isHeld && pin.element.isConnected) {

@@ -115,6 +115,34 @@ describe("advance", () => {
     expect(first.velocity).toBeLessThan(settled.velocity / 4);
   });
 
+  it.each([30, 250, 1000, 2000])(
+    "shows every character within 700ms of its arrival when the stream comes in clumps every %ims",
+    (every) => {
+      // A 1,329-character reply over 10.2 seconds, as a slow model sends one.
+      const total = 1329;
+      const streamMs = 10_200;
+      const arrivedAt: number[] = [];
+      let state: RevealState = { shown: 0, velocity: 0 };
+      let length = 0;
+      let longest = 0;
+      for (let now = 0; state.shown < total; now += 16) {
+        const due =
+          now >= streamMs
+            ? total
+            : Math.round((total * (now - (now % every))) / streamMs);
+        for (; length < due; length += 1) {
+          arrivedAt[length] = now;
+        }
+        const before = Math.floor(state.shown);
+        state = advance(state, length, 16, now < streamMs);
+        for (let at = before; at < Math.floor(state.shown); at += 1) {
+          longest = Math.max(longest, now - (arrivedAt[at] ?? now));
+        }
+      }
+      expect(longest).toBeLessThan(700);
+    },
+  );
+
   it("finishes quickly once the stream has ended", () => {
     const state = run({ shown: 0, velocity: 400 }, 600, 700, false);
     expect(state.shown).toBe(600);

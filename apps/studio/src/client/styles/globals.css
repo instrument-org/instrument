@@ -1352,7 +1352,7 @@ a.cursor-pointer {
  * anything else worth animating here either moves the text or, as a filter
  * would, puts every one of them on its own compositing layer for the duration. */
 [data-stream-word] {
-  animation: stream-word-in 800ms ease-out both;
+  animation: stream-word-in 240ms ease-out both;
 }
 
 @keyframes stream-word-in {

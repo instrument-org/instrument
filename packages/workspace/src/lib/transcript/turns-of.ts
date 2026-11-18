@@ -864,6 +864,8 @@ function appsSettledBy(message: TranscriptMessage): string[] {
 
 function isAsk(part: TranscriptPart): part is SessionMessagePart.ToolPart {
   return (
+    // Whole only when refused, beside its step (`isRefusedAsk`).
+    part.type === "tool-ask_permission" ||
     part.type === "tool-choose" ||
     part.type === "tool-connect_app" ||
     part.type === "tool-offer_feedback"
@@ -1004,7 +1006,10 @@ function foldedRows(
   const isSettled = (row: TurnRow) =>
     readsAsWords(row) ||
     isAnswerNote(row) ||
-    (row.kind === "ask" && !row.isOpen) ||
+    // A refused permission ask is a dead end to read, never folded away.
+    (row.kind === "ask" &&
+      !row.isOpen &&
+      row.part.type !== "tool-ask_permission") ||
     (row.kind === "activity" && !isRunningRow(row));
   if (
     !rows.slice(0, firstWork).every(readsAsWords) ||

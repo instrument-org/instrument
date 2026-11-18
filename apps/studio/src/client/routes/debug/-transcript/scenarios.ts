@@ -553,6 +553,45 @@ export const scenarios: DebugScenario[] = [
     ],
   },
   {
+    id: "refused-permission-ask",
+    name: "A permission ask the app refused",
+    script: [
+      user(
+        "Transcribe my Just Press Record notes from this morning and summarize them here.",
+      ),
+      prose(
+        "I'll look for this morning's Just Press Record clips, then transcribe them.",
+      ),
+      activity("Finding the morning recordings"),
+      ranAndFailed({
+        command:
+          // oxlint-disable-next-line studio/no-os-words -- a Mac chat, replayed on its debug page
+          "rg --files ~/Library/Mobile\\ Documents/iCloud~com~openplanetsoftware~just-press-record",
+        explanation: "Listing recordings dated today",
+        output: "Permission denied",
+      }),
+      call({
+        input: {
+          explanation: "Opening the iCloud recordings folder",
+          kind: "folder",
+          reason: "So I can read this morning's clips.",
+          target: "/Users/mac-user/Library/Mobile Documents",
+        },
+        output: {
+          message:
+            // oxlint-disable-next-line studio/no-os-words -- a Mac chat, replayed on its debug page
+            '"/Users/mac-user/Library/Mobile Documents" belongs to the system, and only an administrator can change it.',
+          state: "refused",
+          why: "Your account on this computer can't change that folder, so allowing it wouldn't let the agent in.",
+        },
+        type: "tool-ask_permission",
+      }),
+      prose(
+        "I found the Just Press Record folder in iCloud, but macOS won't let me read it from here.",
+      ),
+    ],
+  },
+  {
     id: "narrated-browsing",
     name: "A line said before each command",
     script: [

@@ -155,7 +155,9 @@ function transcriptParts(
       return [part];
     }
     const step = toolStep(part, siblings);
-    return readByTheReplyBox(part) ? [step, part] : [step];
+    return readByTheReplyBox(part) || isRefusedAsk(part)
+      ? [step, part]
+      : [step];
   }
   switch (part.type) {
     case "reasoning": {
@@ -212,6 +214,19 @@ function answeredByAPerson(part: SessionMessagePart.ToolPart): boolean {
       return false;
     }
   }
+}
+
+/**
+ * A permission ask the app refused before any card went up, whose reason the
+ * person reads under its step: without it the step is all they see of a dead
+ * end.
+ */
+function isRefusedAsk(part: SessionMessagePart.ToolPart): boolean {
+  return (
+    part.type === "tool-ask_permission" &&
+    part.state === "output-available" &&
+    part.output.state === "refused"
+  );
 }
 
 /** A call that ran into the account's plan, which the reply box offers a way past. */

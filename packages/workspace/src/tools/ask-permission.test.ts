@@ -84,39 +84,41 @@ describe("ask_permission", () => {
       decided[target] = await ask(chatId, "folder", target);
     }
     expect(inHome(decided)).toMatchInlineSnapshot(`
-        {
-          "Desktop": {
-            "message": ""Desktop" is not a full path. Ask for the folder by its full path.",
-            "state": "refused",
-          },
-          "~": {
-            "message": ""~" is directly in "~", which can't be asked for whole. Work in your work folder, or a folder the person names.",
-            "state": "refused",
-          },
-          "~/Desktop/Trips/2026": {
-            "agentTarget": "~/Desktop",
-            "kind": "folder",
-            "state": "asked",
-            "target": "~/Desktop",
-          },
-          "~/Desktop/copy.md": {
-            "agentTarget": "~/Desktop",
-            "kind": "folder",
-            "state": "asked",
-            "target": "~/Desktop",
-          },
-          "~/Music/Loops": {
-            "agentTarget": "~/Music",
-            "kind": "folder",
-            "state": "asked",
-            "target": "~/Music",
-          },
-          "~/notes.md": {
-            "message": ""~/notes.md" is directly in "~", which can't be asked for whole. Work in your work folder, or a folder the person names.",
-            "state": "refused",
-          },
-        }
-      `);
+      {
+        "Desktop": {
+          "message": ""Desktop" is not a full path. Ask for the folder by its full path.",
+          "state": "refused",
+        },
+        "~": {
+          "message": ""~" is directly in "~", which can't be asked for whole. Work in your work folder, or a folder the person names.",
+          "state": "refused",
+          "why": "Instrument never asks for your whole home folder or a whole disk.",
+        },
+        "~/Desktop/Trips/2026": {
+          "agentTarget": "~/Desktop",
+          "kind": "folder",
+          "state": "asked",
+          "target": "~/Desktop",
+        },
+        "~/Desktop/copy.md": {
+          "agentTarget": "~/Desktop",
+          "kind": "folder",
+          "state": "asked",
+          "target": "~/Desktop",
+        },
+        "~/Music/Loops": {
+          "agentTarget": "~/Music",
+          "kind": "folder",
+          "state": "asked",
+          "target": "~/Music",
+        },
+        "~/notes.md": {
+          "message": ""~/notes.md" is directly in "~", which can't be asked for whole. Work in your work folder, or a folder the person names.",
+          "state": "refused",
+          "why": "Instrument never asks for your whole home folder or a whole disk.",
+        },
+      }
+    `);
   });
 
   it("puts the card up once, with the reason and the call that asked", async () => {

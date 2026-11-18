@@ -342,6 +342,50 @@ describe("turnsOf", () => {
     ]);
   });
 
+  it.each([
+    [
+      "refused",
+      { message: "belongs to the system", state: "refused", why: "Can't." },
+      ["text: On it.", "activity: Finding x2", "ask", "text: I couldn't."],
+      0,
+    ],
+    [
+      "asked",
+      { kind: "folder", state: "asked", target: "/Users/sam/Notes" },
+      ["text: On it.", "activity: Finding x2", "text: I couldn't."],
+      1,
+    ],
+  ] as const)(
+    "draws a permission ask the app %s under its step, and folds only one that raised a card",
+    (_state, output, rows, folded) => {
+      const turns = turnsOf(
+        [
+          typed("Transcribe this morning's notes"),
+          message("assistant", (id) => [
+            said(id, "On it."),
+            call(id, "bash", { activity: "Finding", command: "rg x" }),
+            call(
+              id,
+              "ask_permission",
+              {
+                activity: "Finding",
+                kind: "folder",
+                reason: "To read them.",
+                target: "/Users/sam/Library/Mobile Documents",
+              },
+              output,
+            ),
+            said(id, "I couldn't."),
+          ]),
+        ],
+        { isRunning: false },
+      );
+      const turn = turns.at(-1);
+      expect(turn && shape(turn)).toEqual(rows);
+      expect(turn?.foldedRowIds.size).toBe(folded);
+    },
+  );
+
   it("folds the work between what the agent said first and the words it ended on", () => {
     const [turn] = turnsOf(
       [

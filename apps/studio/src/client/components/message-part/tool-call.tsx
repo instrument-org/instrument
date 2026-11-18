@@ -4,6 +4,7 @@ import {
   type ChatId,
 } from "@instrument-org/workspace/client";
 
+import { ToolAskPermission } from "./tool-ask-permission";
 import { ToolBash } from "./tool-bash";
 import { ToolCallError } from "./tool-call-error";
 import { ToolCallSessionProvider } from "./tool-call-session";
@@ -67,9 +68,8 @@ function ToolCard({
   }
 
   switch (part.type) {
-    // The card above the reply box is the whole of an ask.
     case "tool-ask_permission": {
-      return null;
+      return <ToolAskPermission part={part} />;
     }
     case "tool-bash": {
       return <ToolBash part={part} />;

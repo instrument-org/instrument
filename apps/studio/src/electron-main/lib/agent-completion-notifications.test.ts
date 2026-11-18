@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  finalReplyText,
   notificationText,
   shouldShowAgentCompletionNotification,
 } from "./agent-completion-notifications";
@@ -111,5 +112,26 @@ describe("notificationText", () => {
     ],
   ])("reads %s", (_label, reply, expected) => {
     expect(notificationText(reply)).toBe(expected);
+  });
+});
+
+describe("finalReplyText", () => {
+  it.each([
+    [
+      "the answer, past the preamble before the work",
+      [
+        "I'll compare the newest raw and clean transcripts.",
+        "Yes, that was a transcription error.",
+      ],
+      "Yes, that was a transcription error.",
+    ],
+    [
+      "the last words when the last step only shows files",
+      ["Here's the report.", "```files\n/Users/mac-user/report.html\n```"],
+      "Here's the report.",
+    ],
+    ["nothing when the turn only acted", [], undefined],
+  ])("reads %s", (_label, texts, expected) => {
+    expect(finalReplyText(texts)).toBe(expected);
   });
 });

@@ -129,25 +129,20 @@ describe("a live card's file as it is written", () => {
       .toEqual([['"website"'], []]);
   });
 
-  it("shows both sides of an edit to code in its colors", async () => {
+  it("is a picture with nothing to press, its caption one line however long its name", async () => {
     const screen = await renderStep(
       step(
-        {
-          after: 'const name = "new";',
-          before: 'const name = "old";',
-          kind: "file",
-          path: "/work/a.ts",
-        },
-        "done",
+        { kind: "file", path: `/work/${"long name ".repeat(20)}.md` },
+        "running",
       ),
     );
-    await expect
-      .poll(
-        () =>
-          screen.container.querySelectorAll(".code-highlight .syntax-string")
-            .length,
-      )
-      .toBe(2);
+    const card =
+      screen.container.querySelector<HTMLElement>("[data-work-card]");
+    expect(card?.closest("button, a, [role=button]")).toBeNull();
+    expect(card?.querySelector("button, a, [role=button]")).toBeNull();
+    await expect.element(screen.getByText(/long name/).first()).toBeVisible();
+    // The 208px picture, the gap, and one 16px line of caption.
+    expect(card?.offsetHeight).toBe(230);
   });
 
   it("shows a file with no grammar as typed", async () => {

@@ -765,6 +765,9 @@ function addStep(
   if (endedAt && (!row.endedAt || endedAt > row.endedAt)) {
     row.endedAt = endedAt;
   }
+  if (step.sites) {
+    row.sites = unique([...row.sites, ...step.sites]);
+  }
   if (!facts) {
     return;
   }

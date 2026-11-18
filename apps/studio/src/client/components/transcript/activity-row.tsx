@@ -13,6 +13,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { BrainIcon } from "@phosphor-icons/react/Brain";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { use, useState, type ReactNode } from "react";
 
 import { WorkingMark } from "../icons/working-mark";
@@ -152,7 +153,13 @@ export function MidDot() {
   );
 }
 
-/** The sites and apps a row reached, joined on as they arrive. */
+/** The most sites a row shows by their icons; the rest are a count after them. */
+const SITES_SHOWN = 6;
+
+/**
+ * The sites and apps a row reached, each new one sliding in after the last as
+ * it arrives. Those already there when the row is drawn stay put.
+ */
 export function Badges({
   apps,
   sites,
@@ -160,17 +167,40 @@ export function Badges({
   apps: readonly string[];
   sites: readonly string[];
 }) {
+  const isReduced = useReducedMotion();
   if (apps.length === 0 && sites.length === 0) {
     return null;
   }
+  const more = sites.length - SITES_SHOWN;
+  const arrive = isReduced ? false : { opacity: 0, x: 4 };
   return (
     <span className="flex shrink-0 items-center gap-0.5">
-      {apps.map((app) => (
-        <AppChipIcon key={app} slug={app} />
-      ))}
-      {sites.map((site) => (
-        <Favicon className="size-3.5" key={site} url={`https://${site}`} />
-      ))}
+      <AnimatePresence initial={false}>
+        {apps.map((app) => (
+          <motion.span
+            animate={{ opacity: 1, x: 0 }}
+            initial={arrive}
+            key={app}
+          >
+            <AppChipIcon slug={app} />
+          </motion.span>
+        ))}
+        {sites.slice(0, SITES_SHOWN).map((site) => (
+          <motion.span
+            animate={{ opacity: 1, x: 0 }}
+            className="flex"
+            initial={arrive}
+            key={site}
+          >
+            <Favicon className="size-3.5" url={`https://${site}`} />
+          </motion.span>
+        ))}
+      </AnimatePresence>
+      {more > 0 && (
+        <span className="ml-0.5 text-xs text-muted-foreground tabular-nums">
+          +{more}
+        </span>
+      )}
     </span>
   );
 }
@@ -362,7 +392,9 @@ function StepRow({
       places={
         <Badges
           apps={[...new Set((step.facts?.apps ?? []).map((call) => call.app))]}
-          sites={step.facts?.hosts ?? []}
+          sites={[
+            ...new Set([...(step.sites ?? []), ...(step.facts?.hosts ?? [])]),
+          ]}
         />
       }
       rowId={step.metadata.id}

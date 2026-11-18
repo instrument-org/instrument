@@ -10,22 +10,12 @@ import { isToolPart } from "../is-tool-part";
 /** Where a tool call has got to. */
 export type StepStatus = "done" | "failed" | "queued" | "running" | "writing";
 
-/** One search result, as a web card lists it. */
-export interface WebResult {
-  title?: string;
-  url: string;
-}
-
 /**
- * What a call can draw on a card, read off the call itself: its words, its
- * picture, its results. Absent on a call with nothing to show, which keeps
- * only its row.
+ * What a call can draw on a card, read off the call itself: its words or its
+ * picture. Absent on a call with nothing to show, which keeps only its row.
  */
 export type StepShows =
   | {
-      /** The change an edit made, each side cut to a card's length. */
-      after?: string;
-      before?: string;
       /** Whether the call made the file, once it has said. */
       isNew?: boolean;
       kind: "file";
@@ -35,7 +25,6 @@ export type StepShows =
       /** The file's words so far, cut to a card's length. */
       words?: string;
     }
-  | { kind: "fetch"; title?: string; url?: string; words?: string }
   | { kind: "generated"; modifiedAt?: number; path?: string }
   | {
       blob?: string;
@@ -44,9 +33,7 @@ export type StepShows =
       modifiedAt?: number;
       path?: string;
     }
-  | { kind: "opened"; target: string }
-  | { changesPage: boolean; kind: "page"; url?: string }
-  | { kind: "search"; query?: string; results: WebResult[]; total: number };
+  | { changesPage: boolean; kind: "page"; url?: string };
 
 /**
  * One tool call or thought, without what it carried: enough to draw its row
@@ -69,6 +56,8 @@ export interface StepPart {
   /** It put up a card for the person to answer, which ends the turn on it. */
   putsUpCard?: true;
   shows?: StepShows;
+  /** The sites a search came back from or a page read reached, which its row shows. */
+  sites?: string[];
   status: StepStatus;
   /** The tasks this call sent work to, each from the message it put in its log. */
   sentTasks?: { messageId: StoreId.Message; sessionId: StoreId.Session }[];
@@ -130,12 +119,8 @@ const READ_THOUGH_HIDDEN = new Set<SessionMessagePart.DataPart["type"]>([
 
 /** The most of a file's words a step carries; the rest opens with the file. */
 const FILE_WORDS_CHARS = 1500;
-/** The most of either side of an edit a step carries. */
-const EDIT_SIDE_CHARS = 400;
 /** The longest thought sent with its row; the whole is read when it is opened. */
 const THOUGHT_CHARS = 200;
-const PAGE_WORDS_CHARS = 500;
-const RESULTS_SHOWN = 8;
 
 /**
  * A stored message as the transcript draws it, or nothing for one it does not
@@ -259,9 +244,6 @@ const StepInputSchema = z
     content: z.string(),
     explanation: z.string(),
     filePath: z.string(),
-    newString: z.string(),
-    oldString: z.string(),
-    query: z.string(),
     url: z.string(),
   })
   .partial();
@@ -291,13 +273,9 @@ const StepOutputSchema = z
     modifiedAt: z.number(),
     processId: z.string(),
     results: z.looseObject({
-      sources: z.array(
-        z.looseObject({ title: z.string().optional(), url: z.string() }),
-      ),
+      sources: z.array(z.looseObject({ url: z.string() })),
     }),
     state: z.string(),
-    text: z.string(),
-    title: z.string(),
     url: z.string(),
   })
   .partial();
@@ -336,6 +314,7 @@ function toolStep(
   );
   const status = stepStatus(part, siblings, output);
   const shows = stepShows(part.type, input, output, status);
+  const sites = stepSites(part.type, input, output, status);
   const putsUpCard =
     (part.type === "tool-ask_permission" && output.state === "asked") ||
     (part.type === "tool-bash" && (output.asks?.length ?? 0) > 0);
@@ -351,6 +330,7 @@ function toolStep(
     ...(putsUpCard && { putsUpCard }),
     ...(sentTasks.length > 0 && { sentTasks }),
     ...(shows && { shows }),
+    ...(sites.length > 0 && { sites }),
     ...(startedTasks.length > 0 && { startedTasks }),
     ...(startsTask && { startsTask }),
     status,
@@ -457,22 +437,6 @@ function stepShows(
         ...(words !== undefined && { words }),
       };
     }
-    case "tool-edit_file": {
-      const path = input.filePath ?? output.filePath;
-      if (path === undefined) {
-        return undefined;
-      }
-      return {
-        ...(input.newString !== undefined && {
-          after: input.newString.slice(0, EDIT_SIDE_CHARS),
-        }),
-        ...(input.oldString !== undefined && {
-          before: input.oldString.slice(0, EDIT_SIDE_CHARS),
-        }),
-        kind: "file",
-        path,
-      };
-    }
     case "tool-read_file": {
       return output.state === "image"
         ? {
@@ -496,26 +460,6 @@ function stepShows(
         ...(image?.modifiedAt !== undefined && {
           modifiedAt: image.modifiedAt,
         }),
-      };
-    }
-    case "tool-web_search": {
-      const sources = output.results?.sources ?? [];
-      return {
-        kind: "search",
-        ...(input.query !== undefined && { query: input.query }),
-        results: sources.slice(0, RESULTS_SHOWN).map(({ title, url }) => ({
-          ...(title !== undefined && { title }),
-          url,
-        })),
-        total: sources.length,
-      };
-    }
-    case "tool-web_fetch": {
-      const url = input.url ?? output.url;
-      return {
-        kind: "fetch",
-        ...(url !== undefined && { url }),
-        ...pageOf(output.text, output.title),
       };
     }
     case "tool-bash": {
@@ -552,47 +496,36 @@ function wordsOnACard(content: string | undefined, status: StepStatus) {
 }
 
 /**
- * The title and opening words of a fetched page. Its title is the one the
- * page gives itself, and its first heading where the fetch kept none. A page's
- * text opens with its navigation, so its words start at its first heading,
- * and a page with none gives no words at all rather than a screen of links.
+ * The sites a call reached, each once and in order: where a search's results
+ * came from, or the page a read fetched. A call that failed reached none.
  */
-function pageOf(
-  text: string | undefined,
-  title: string | undefined,
-): { title?: string; words?: string } {
-  const heading = text === undefined ? null : /^#{1,2}\s+(.+)$/m.exec(text);
-  if (text === undefined || heading?.[1] === undefined) {
-    return title === undefined ? {} : { title };
+function stepSites(
+  tool: SessionMessagePart.ToolPart["type"],
+  input: StepInput,
+  output: StepOutput,
+  status: StepStatus,
+): string[] {
+  if (status === "failed") {
+    return [];
   }
-  const words = runningText(
-    text.slice(heading.index + heading[0].length),
-  ).slice(0, PAGE_WORDS_CHARS);
-  return {
-    title: title ?? heading[1].trim(),
-    ...(words !== "" && { words }),
-  };
+  const urls =
+    tool === "tool-web_search"
+      ? (output.results?.sources ?? []).map((source) => source.url)
+      : tool === "tool-web_fetch"
+        ? [input.url ?? output.url].filter((url) => url !== undefined)
+        : [];
+  return [...new Set(urls.flatMap((url) => siteOf(url) ?? []))];
 }
 
-/**
- * A page's Markdown as one paragraph of its words, so a card shows as much of
- * the page as its few lines fit: no pictures, links as their words, and no
- * heading, list, quote, table or emphasis marks or line breaks.
- */
-function runningText(markdown: string): string {
-  return markdown
-    .replaceAll(/!\[[^\]]*\]\([^)]*\)/g, "")
-    .replaceAll(/\[([^\]]*)\]\([^)]*\)/g, "$1")
-    .replaceAll(/\[([^\]]*)\]\[[^\]]*\]/g, "$1")
-    .replaceAll(/^\s*\[[^\]]+\]:\s+\S.*$/gm, "")
-    .replaceAll(/<((?:https?:\/\/|mailto:)[^>]*)>/g, "$1")
-    .replaceAll(/^\s*(?:[-*_]\s*){3,}$/gm, "")
-    .replaceAll(/^\s*\|?(?:\s*:?-+:?\s*\|)+\s*:?-*:?\s*$/gm, "")
-    .replaceAll(/^\s*(?:>\s*)*(?:#{1,6}\s+|[-*+]\s+|\d+[.)]\s+)?/gm, "")
-    .replaceAll("|", " ")
-    .replaceAll(/[*_`~#]+/g, "")
-    .replaceAll(/\s+/g, " ")
-    .trim();
+function siteOf(url: string): string | undefined {
+  try {
+    const { hostname, protocol } = new URL(url);
+    return protocol === "http:" || protocol === "https:"
+      ? hostname.replace(/^www\./, "")
+      : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** Where a program starts in a shell line, and not a word its arguments say. */
@@ -600,13 +533,8 @@ const COMMAND_START = String.raw`(?:^|[\n;&|(])\s*`;
 const AGENT_BROWSER = new RegExp(String.raw`${COMMAND_START}agent-browser\b`);
 const BROWSER_SUBCOMMAND =
   /\bagent-browser\b(?:\s+--?[\w-]+(?:[= ]\S+)?)*\s+([a-z][\w-]*)/g;
-const OPENS_A_PLACE = new RegExp(
-  String.raw`${COMMAND_START}(?:(?:instrument\s+)?(?:window|tab)\s+(?:open|show)|open)\s+(?:-\S+\s+(?:"[^"]*"\s+|'[^']*'\s+|[A-Z]\w*\s+)?)*(?:"([^"]+)"|'([^']+)'|(\S+))`,
-);
 /** What a command hands a program to read, which is that program's words. */
 const HEREDOC = /<<-?\s*(['"]?)(\w+)\1[^\n]*\n[\s\S]*?\n\s*\2\b/g;
-/** A word that could be a place: a file's name, a path or an address. */
-const NAMES_A_PLACE = /[/.:]/;
 /** What the chat tells a task is the task's to do, whatever it names. */
 const STARTS_A_TASK = /^\s*(?:instrument\s+)?task\b/;
 /** A command that starts a task or sends one work, and the new task's name. */
@@ -649,27 +577,22 @@ const CHANGES_THE_PAGE = new Set([
 ]);
 
 /**
- * What a shell command shows, from its words: a page it drives, or a page or
- * file it opens for the person. A command's files are told by the disk
- * (`file-changes.ts`), never from here.
+ * What a shell command shows, from its words: the page it drives. A command's
+ * files are told by the disk (`file-changes.ts`), never from here.
  */
 function commandShows(command: string): StepShows | undefined {
   if (STARTS_A_TASK.test(command)) {
     return undefined;
   }
   const words = command.replaceAll(HEREDOC, "");
-  if (AGENT_BROWSER.test(words)) {
-    const url = URL_IN_COMMAND.exec(words)?.[0];
-    const changesPage = [...words.matchAll(BROWSER_SUBCOMMAND)].some(
-      (match) => match[1] !== undefined && CHANGES_THE_PAGE.has(match[1]),
-    );
-    return { changesPage, kind: "page", ...(url && { url }) };
+  if (!AGENT_BROWSER.test(words)) {
+    return undefined;
   }
-  const opened = OPENS_A_PLACE.exec(words);
-  const target = opened?.[1] ?? opened?.[2] ?? opened?.[3];
-  return target !== undefined && NAMES_A_PLACE.test(target)
-    ? { kind: "opened", target }
-    : undefined;
+  const url = URL_IN_COMMAND.exec(words)?.[0];
+  const changesPage = [...words.matchAll(BROWSER_SUBCOMMAND)].some(
+    (match) => match[1] !== undefined && CHANGES_THE_PAGE.has(match[1]),
+  );
+  return { changesPage, kind: "page", ...(url && { url }) };
 }
 
 /** Whether a part is one of a transcript message's steps. */

@@ -91,7 +91,6 @@ export {
   type WorkCardFaceOf,
   workCardPaths,
   type WorkCardPicture,
-  type WorkCardResult,
   type WorkCardView,
 } from "./lib/transcript/work-card-face";
 export {
@@ -102,7 +101,6 @@ export {
   thoughtText,
   transcriptMessage,
   type TranscriptPart,
-  type WebResult,
   type WrittenOn,
 } from "./lib/transcript/transcript-message";
 export {

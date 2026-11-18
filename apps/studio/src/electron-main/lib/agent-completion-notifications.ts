@@ -203,18 +203,15 @@ export function startAgentCompletionNotifications({
   void subscribe();
 }
 
-function bodyOf(messages: Messages): string | undefined {
-  const raw = messages
-    .filter((message) => message.role === "assistant")
-    .flatMap((message) =>
-      message.parts.flatMap((part) =>
-        part.type === "text" ? [part.text] : [],
-      ),
-    )
-    .join("\n");
-  const text = notificationText(raw);
+/**
+ * The last thing a turn said, from its text parts in order: the last that
+ * still reads as something once its fences and Markdown go, so a preamble
+ * before the work ("I'll compare the transcripts") gives way to the answer.
+ */
+export function finalReplyText(texts: string[]): string | undefined {
+  const text = texts.map(notificationText).findLast((said) => said.length > 0);
 
-  if (text.length === 0) {
+  if (text === undefined) {
     return undefined;
   }
 
@@ -268,15 +265,24 @@ async function canShowAgentCompletionNotification({
 }
 
 /**
- * What a chat's turn said: every assistant message since the last thing
- * that woke it, since a turn is one message per step and the words can sit
- * on a step before the last. Nothing when the turn only acted.
+ * What a chat's turn ended on: the last words among the assistant messages
+ * since the last thing that woke it, since a turn is one message per step and
+ * its last step may only act. Nothing when the turn only acted.
  */
 function latestTurnText(messages: Messages): string | undefined {
   const turnStart = messages.findLastIndex(
     (message) => message.role === "user",
   );
-  return bodyOf(messages.slice(turnStart + 1));
+  return finalReplyText(
+    messages
+      .slice(turnStart + 1)
+      .filter((message) => message.role === "assistant")
+      .flatMap((message) =>
+        message.parts.flatMap((part) =>
+          part.type === "text" ? [part.text] : [],
+        ),
+      ),
+  );
 }
 
 function presentNotification({

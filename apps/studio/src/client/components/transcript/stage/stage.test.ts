@@ -112,4 +112,37 @@ describe("Stage", () => {
     stage.catchUp();
     expect(shown(stage)).toBe(REPLY);
   });
+
+  it("holds a key for its time on the stage clock, and says when it lets go", () => {
+    const stage = new Stage();
+    const listener = vi.fn();
+    stage.subscribeReveal("settle", listener);
+    stage.hold("settle", 240);
+    expect(stage.isHeld("settle")).toBe(true);
+    stage.step(200);
+    expect(stage.isHeld("settle")).toBe(true);
+    expect(listener).not.toHaveBeenCalled();
+    stage.step(50);
+    expect(stage.isHeld("settle")).toBe(false);
+    expect(listener).toHaveBeenCalledOnce();
+  });
+
+  it("starts a reply first seen waiting from nothing, and moves it only once it shows", () => {
+    const stage = new Stage();
+    stage.setTarget("reply", "The billing", true, true);
+    expect(shown(stage)).toBe("");
+    stage.step(500);
+    expect(shown(stage)).toBe("");
+    stage.setTarget("reply", REPLY, true);
+    stage.step(100);
+    expect(shown(stage).length).toBeGreaterThan(0);
+    expect(shown(stage)).not.toBe(REPLY);
+  });
+
+  it("lets every hold go on catching up", () => {
+    const stage = new Stage();
+    stage.hold("settle", 240);
+    stage.catchUp();
+    expect(stage.isHeld("settle")).toBe(false);
+  });
 });

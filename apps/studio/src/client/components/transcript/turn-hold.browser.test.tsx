@@ -1,0 +1,217 @@
+// A turn played frame by frame through the real transcript, so the holds that
+// keep rows back behind a reply still coming out and a step still folding are
+// read from what the browser drew. jsdom has no layout and no animation frames.
+import {
+  buildFrames,
+  type Frame,
+} from "@/client/routes/debug/-transcript/frames";
+import { scenarios } from "@/client/routes/debug/-transcript/scenarios";
+import { renderInBrowser } from "@/tests/render-browser";
+import { transcriptRecords } from "@/tests/transcript-records";
+import {
+  ChatIdSchema,
+  type TranscriptMessage,
+  transcriptMessage,
+} from "@instrument-org/workspace/client";
+import { useState } from "react";
+
+import { expect, it, vi } from "vitest";
+
+import {
+  MessageScroller,
+  MessageScrollerContent,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "../ui/message-scroller";
+import { Stage } from "./stage/stage";
+import { StageContext } from "./stage/stage-context";
+import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
+import { Transcript } from "./transcript";
+import { TranscriptRecordsContext } from "./transcript-data";
+
+const CHAT = ChatIdSchema.parse("turn-hold");
+
+/** How long a row takes to open, with a frame to spare. */
+const OPENS_MS = 300;
+
+function lightMessages(frame: Frame): TranscriptMessage[] {
+  return frame.messages.flatMap((message) => {
+    const light = transcriptMessage(message);
+    return light ? [light] : [];
+  });
+}
+
+function framesOf(id: string): Frame[] {
+  const scenario = scenarios.find((each) => each.id === id);
+  if (!scenario) {
+    throw new Error(`no scenario ${id}`);
+  }
+  return buildFrames(scenario.script, Date.now() - 60_000);
+}
+
+const noop = () => undefined;
+
+/** A page's picture, as tall as a real one, so a work card takes its room. */
+const SURFACE: TranscriptSurface = {
+  onOpenFile: noop,
+  onOpenTask: noop,
+  onOpenUrl: noop,
+  onStopCommand: noop,
+  onStopTask: noop,
+  PagePicture: () => <div style={{ height: 240 }} />,
+};
+
+/** The scenario at the frame "next" has moved it to. */
+function Harness({ frames, stage }: { frames: Frame[]; stage: Stage }) {
+  const [index, setIndex] = useState(0);
+  const frame = frames[Math.min(index, frames.length - 1)];
+  const sessionId = frame?.messages[0]?.metadata.sessionId;
+  return (
+    <StageContext value={stage}>
+      <TranscriptSurfaceContext value={SURFACE}>
+        <button
+          onClick={() => {
+            setIndex((current) => current + 1);
+          }}
+          type="button"
+        >
+          next
+        </button>
+        <TranscriptRecordsContext
+          value={transcriptRecords({
+            parts: frame?.messages.flatMap((message) => message.parts) ?? [],
+          })}
+        >
+          <MessageScrollerProvider autoScroll>
+            <MessageScroller style={{ height: 600, width: 640 }}>
+              <MessageScrollerViewport>
+                <MessageScrollerContent>
+                  {frame && sessionId && (
+                    <Transcript
+                      chatId={CHAT}
+                      isRunning={frame.isAgentRunning}
+                      messages={lightMessages(frame)}
+                      onRetry={noop}
+                      sessionId={sessionId}
+                    />
+                  )}
+                </MessageScrollerContent>
+              </MessageScrollerViewport>
+            </MessageScroller>
+          </MessageScrollerProvider>
+        </TranscriptRecordsContext>
+      </TranscriptSurfaceContext>
+    </StageContext>
+  );
+}
+
+/** The words of every reply row on screen, in order. */
+const replies = () =>
+  [...document.querySelectorAll("[data-reply-row]")].map((row) =>
+    (row.textContent ?? "").trim(),
+  );
+
+it("writes out a reply whose next step ends while it is still coming out", async () => {
+  const frames = framesOf("narrated-browsing");
+  // The clock moves only when the test moves it.
+  const stage = new Stage();
+  stage.setRate(0);
+  const screen = await renderInBrowser(
+    <Harness frames={frames} stage={stage} />,
+  );
+  const next = screen.getByRole("button", { name: "next" });
+  const playTo = async (index: number) => {
+    while (shown < index) {
+      await next.click();
+      shown += 1;
+    }
+  };
+  let shown = 0;
+  /** Moves the clock on by `ms`, a frame at a time, letting React draw each. */
+  const run = async (ms: number) => {
+    for (let left = ms; left > 0; left -= 50) {
+      stage.step(Math.min(left, 50));
+      await new Promise(requestAnimationFrame);
+    }
+  };
+  const at = (text: string) =>
+    frames.findIndex((frame) =>
+      frame.messages.some((message) =>
+        message.parts.some(
+          (part) =>
+            part.type === "text" &&
+            part.text === text &&
+            part.state !== "streaming",
+        ),
+      ),
+    );
+
+  // The first step ends with a reply under it, which waits for its line to
+  // fold, then starts to come out.
+  await playTo(at("Now the destination."));
+  expect(replies()).toEqual([]);
+  await run(340);
+  await vi.waitFor(() => {
+    expect(replies()).toHaveLength(1);
+  });
+  expect(replies()[0]).not.toBe("Now the destination.");
+
+  // The next step starts and ends, with a reply of its own, while the first
+  // is still on its way out.
+  await playTo(at("And the date."));
+  await run(3000);
+  await vi.waitFor(() => {
+    expect(replies()).toEqual(["Now the destination.", "And the date."]);
+  });
+});
+
+it.each(["narrated-browsing", "card-between-activities", "failures", "task"])(
+  "never moves a row of %s once it has opened, while the turn is working",
+  async (id) => {
+    const frames = framesOf(id);
+    const stage = new Stage();
+    stage.setRate(0);
+    const screen = await renderInBrowser(
+      <Harness frames={frames} stage={stage} />,
+    );
+    const next = screen.getByRole("button", { name: "next" });
+    // Where each row came to rest, and when it first showed: a row other than
+    // a reply slides a few pixels into place as the gap above it opens, which
+    // is its own entrance, and from then on nothing may move it.
+    const rests = new Map<string, { at: number; top: number }>();
+    const moves: string[] = [];
+    const look = () => {
+      const content = document.querySelector(
+        "[data-transcript-row]",
+      )?.parentElement;
+      const origin = content?.getBoundingClientRect().top ?? 0;
+      for (const row of document.querySelectorAll("[data-transcript-row]")) {
+        const key = row.getAttribute("data-transcript-row") ?? "";
+        const top = Math.round(row.getBoundingClientRect().top - origin);
+        const rest = rests.get(key);
+        // Words open in place, so a reply has no entrance of its own.
+        const opens = row.querySelector("[data-reply-row]") === null;
+        if (!rest || (opens && stage.now() - rest.at < OPENS_MS)) {
+          rests.set(key, { at: rest?.at ?? stage.now(), top });
+        } else if (Math.abs(rest.top - top) > 1) {
+          moves.push(`${key} ${rest.top.toString()} -> ${top.toString()}`);
+          rest.top = top;
+        }
+      }
+    };
+    for (const [index, frame] of frames.entries()) {
+      if (index > 0) {
+        await next.click();
+      }
+      if (!frame.isAgentRunning) {
+        break;
+      }
+      for (let tick = 0; tick < 6; tick += 1) {
+        stage.step(50);
+        await new Promise(requestAnimationFrame);
+        look();
+      }
+    }
+    expect(moves).toEqual([]);
+  },
+);

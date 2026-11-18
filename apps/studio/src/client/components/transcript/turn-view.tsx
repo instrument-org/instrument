@@ -60,7 +60,7 @@ import {
 import { BranchedFromLine } from "./branched-from-line";
 import { FoldsOpenedByFind } from "./folds-opened-by-find";
 import { NextStepRows, useHasNextSteps } from "./next-steps";
-import { stage } from "./stage/stage";
+import { useStage } from "./stage/stage-context";
 import { renderDataPart } from "./note-part";
 import { PageTakeoverNote } from "./page-takeover-note";
 import { WorkCardView } from "./work-card";
@@ -80,6 +80,10 @@ const THINKING_AFTER_MS = 1000;
  * a row, and closes as the fold takes it, told by `AnimatePresence`'s
  * `custom`. A row leaving for any other reason just goes, or what is under it
  * would slide up for no reason the reader can see.
+ *
+ * While it opens, the gap above it comes in with it, and its words are moved
+ * back by as much on the same curve, so they open where they will stay rather
+ * than sliding down the gap's height.
  */
 function FoldingRow({
   children,
@@ -96,7 +100,7 @@ function FoldingRow({
   return (
     <motion.div
       animate="open"
-      className="flex min-w-0 flex-col gap-2 empty:hidden"
+      className="flex min-w-0 flex-col has-[>:empty]:hidden"
       data-transcript-row={id}
       exit="leaving"
       initial={opens ? "closed" : false}
@@ -126,7 +130,15 @@ function FoldingRow({
             : { opacity: 0, transition: { duration: 0 } },
       }}
     >
-      {children}
+      <motion.div
+        className="flex min-w-0 flex-col gap-2"
+        variants={{
+          closed: { y: ROW_GAP },
+          open: { transition, y: 0 },
+        }}
+      >
+        {children}
+      </motion.div>
     </motion.div>
   );
 }
@@ -302,15 +314,22 @@ function TurnBody({
   const { onBranch } = use(TranscriptActionsContext);
   // A branch carries the conversation through the reply's last message.
   const branchesAt = turn.inherited ? undefined : replyEnd?.replies.at(-1)?.id;
-  const card = isFolded || !hasCard ? undefined : workCardOf(turn);
-  const cardOpens = useCardOpens(card !== undefined);
   // The card sits under the work it shows, whose working line it goes with,
   // and only while that work is the last thing in the turn: words after it
-  // end it (`workCardOf`).
-  const cardAt = turn.rows.findLastIndex((row) => row.kind === "activity");
-  const heldFrom = useHeldFrom(turn.rows, isLast);
+  // end it (`workCardOf`). While the next activity is held back, the card
+  // stays under the last one showing, and moves down as the next opens; held
+  // behind words still coming out, it waits to open with its own row.
+  const heldFrom = useHeldFrom(turn);
   const isHolding = heldFrom !== Number.POSITIVE_INFINITY;
-  const rows = turn.rows.slice(0, heldFrom).flatMap((row, index) => {
+  const shown = turn.rows.slice(0, heldFrom);
+  const cardAt = shown.findLastIndex((row) => row.kind === "activity");
+  const isUnderWords = shown
+    .slice(cardAt + 1)
+    .some((row) => row.kind === "text");
+  const card =
+    isFolded || !hasCard || isUnderWords ? undefined : workCardOf(turn);
+  const cardOpens = useCardOpens(card !== undefined);
+  const rows = shown.flatMap((row, index) => {
     const out = [];
     if (isFolded && row.id === turn.foldLineAt) {
       out.push(
@@ -382,7 +401,7 @@ function TurnBody({
           }
         />
       )}
-      {turn.phase !== "working" && (
+      {turn.phase !== "working" && !isHolding && (
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
       {replyEnd?.hasFooter && !isHolding && (
@@ -397,7 +416,7 @@ function TurnBody({
           }
         />
       )}
-      {replyEnd?.ratingCard && (
+      {replyEnd?.ratingCard && !isHolding && (
         <RatingCard chatId={chatId} part={replyEnd.ratingCard} />
       )}
       {turn.branchedFrom && <BranchedFromLine part={turn.branchedFrom} />}
@@ -447,26 +466,82 @@ function CommandCards({
 }
 
 /**
- * Where the turn's rows stop for now: after the first reply whose words are
+ * Where the turn's rows stop for now, so nothing on screen moves because
+ * something above it is still changing: after the first reply whose words are
  * still coming out, so a step, a card or Thinking never shows under words
- * still being written. The rest show once its last word is out, which the
- * stage keeps a fraction of a second behind the stream. Only the last turn
- * can still be writing.
+ * still being written; and after a step that has just finished, while its
+ * working line folds away, so what comes next opens below it once it is still
+ * rather than sliding up behind it. The rest show once their row is done,
+ * which the stage keeps a fraction of a second behind the stream. Any turn may
+ * still be writing: a message sent mid-turn or a wake turn makes another turn
+ * the last while the one before finishes its words.
+ *
+ * Replies held back are pointed at their text as it grows, waiting, so their
+ * words start coming out when they show rather than appearing at once.
  */
-function useHeldFrom(rows: readonly TurnRow[], isLast: boolean): number {
-  const texts = isLast
-    ? rows.flatMap((row, index) =>
-        row.kind === "text"
-          ? [{ id: row.part.metadata.id, index, length: row.part.text.length }]
-          : [],
-      )
-    : [];
-  const ids = texts.map((text) => text.id).join(" ");
+function useHeldFrom(turn: Turn): number {
+  const stage = useStage();
+  const isReduced = useReducedMotion();
+  const { rows } = turn;
+  const liveId =
+    turn.live?.kind === "activity" ? turn.live.activityId : undefined;
+  const settleKey = `settle:${turn.id}`;
+  const foldMs = isReduced === true ? 0 : FOLD_TRANSITION.duration * 1000;
+  // The step that last stopped working while it was the last row, and when on
+  // the stage's clock: its working line is folding away until `foldMs` later.
+  const [settle, setSettle] = useState<{
+    after: number;
+    count: number;
+    ended?: { at: number; index: number };
+    liveId?: string;
+  }>({ after: -1, count: rows.length, liveId });
+  // What this render reads: a change made here is read at once, since the
+  // render carries on with the old state and a stale one holds the wrong rows.
+  let current = settle;
+  if (settle.liveId !== liveId || settle.count !== rows.length) {
+    let { ended } = settle;
+    if (settle.liveId !== undefined && settle.liveId !== liveId) {
+      const index = rows.findIndex((row) => row.id === settle.liveId);
+      ended =
+        index !== -1 && index === settle.count - 1
+          ? { at: stage.now(), index }
+          : undefined;
+    }
+    // A task's card closes its live work once something comes after it.
+    if (rows.length > settle.count && rows[settle.count - 1]?.kind === "task") {
+      ended = { at: stage.now(), index: settle.count - 1 };
+    }
+    let { after } = settle;
+    // Something new under a step still folding its line waits until it is
+    // still, so it opens below it rather than sliding up behind it.
+    if (ended && rows.length > ended.index + 1) {
+      const left = ended.at + foldMs - stage.now();
+      if (left > 0) {
+        stage.hold(settleKey, left);
+        after = ended.index;
+      }
+      ended = undefined;
+    }
+    current = { after, count: rows.length, ended, liveId };
+    setSettle(current);
+  }
+  const texts = rows.flatMap((row, index) =>
+    row.kind === "text"
+      ? [
+          {
+            id: row.part.metadata.id,
+            index,
+            isStreaming: row.part.state === "streaming",
+            text: row.part.text,
+          },
+        ]
+      : [],
+  );
+  const ids = [settleKey, ...texts.map((text) => text.id)].join(" ");
   const subscribe = useCallback(
     (listener: () => void) => {
       const leaves = ids
         .split(" ")
-        .filter(Boolean)
         .map((id) => stage.subscribeReveal(id, listener));
       return () => {
         for (const leave of leaves) {
@@ -474,18 +549,31 @@ function useHeldFrom(rows: readonly TurnRow[], isLast: boolean): number {
         }
       };
     },
-    [ids],
+    [ids, stage],
   );
-  return useSyncExternalStore(subscribe, () => {
+  const heldFrom = useSyncExternalStore(subscribe, () => {
+    const settling =
+      current.after !== -1 && stage.isHeld(settleKey)
+        ? current.after + 1
+        : Number.POSITIVE_INFINITY;
     for (const text of texts) {
+      if (text.index >= settling) {
+        break;
+      }
       // A reply the stage has not seen came whole, and shows whole.
       const cut = stage.cutOf(text.id);
-      if (cut !== undefined && cut < text.length) {
+      if (cut !== undefined && cut < text.text.length) {
         return text.index + 1;
       }
     }
-    return Number.POSITIVE_INFINITY;
+    return settling;
   });
+  for (const text of texts) {
+    if (text.index >= heldFrom) {
+      stage.setTarget(text.id, text.text, text.isStreaming, true);
+    }
+  }
+  return heldFrom;
 }
 
 /** Whether the turn is folded now, turning so when its wait for a summary runs out. */
@@ -721,6 +809,7 @@ function RowView({
           {...(row.from && { from: row.from })}
           {...(row.name !== undefined && { name: row.name })}
           {...(row.sessionId && { sessionId: row.sessionId })}
+          showsWork={isNewest}
           startedAt={row.startedAt}
         />
       );

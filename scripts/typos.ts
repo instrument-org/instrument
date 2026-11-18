@@ -19,7 +19,6 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
 import path from "node:path";
 
 const CACHE_DIR = path.resolve(
@@ -106,8 +105,11 @@ async function ensureBinary(): Promise<string> {
 
   // Extract to a scratch dir and move the binary into place as the last step, so
   // a killed download never leaves a half-written binary that the cache check
-  // above would treat as good.
-  const extractDir = mkdtempSync(path.join(tmpdir(), "typos-download-"));
+  // above would treat as good. The scratch dir sits inside the cache, because a
+  // rename cannot cross volumes and a checkout on an external drive puts
+  // node_modules on a different one from the system temp dir.
+  mkdirSync(CACHE_DIR, { recursive: true });
+  const extractDir = mkdtempSync(path.join(CACHE_DIR, "download-"));
   try {
     const archivePath = path.join(extractDir, asset);
     writeFileSync(archivePath, archive);

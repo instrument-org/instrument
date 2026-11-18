@@ -11,6 +11,7 @@ import nodePath from "node:path";
 import {
   afterAll,
   afterEach,
+  beforeAll,
   beforeEach,
   describe,
   expect,
@@ -18,12 +19,14 @@ import {
   vi,
 } from "vitest";
 
+import { z } from "zod";
+
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { listFolder } from "../chat/folder-look";
 import { accountCanWrite } from "./account-can-write";
-import { closedNote, ruleRefusal, rulesFs } from "./rules-fs";
-import { type Rule, type Rules } from "./rules";
+import { closedNote, folderAsk, ruleRefusal, rulesFs } from "./rules-fs";
+import { type Rule, type Rules, rulesFor } from "./rules";
 
 vi.mock(import("../chat/folder-look"), () => ({ listFolder: vi.fn() }));
 
@@ -499,6 +502,84 @@ describe.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
         { level: "ask", path: nodePath.join(home, "Library"), source: "place" },
       ],
     };
+
+    // Every folder a refusal names is one ask_permission's own decision
+    // asks for, as it is: the hint and the ask never send the agent around
+    // in a circle, whichever rule or list picked the folder.
+    describe.runIf(process.platform === "darwin")(
+      "the folder a refusal names",
+      () => {
+        const icloud = nodePath.join(home, "Library", "Mobile Documents");
+        const files = [
+          "Library/Mobile Documents/iCloud~com~foo/Documents/a.m4a",
+          "Library/Shared Things/com.foo/Notes/a.txt",
+          "Library/Application Support/Foo/state.json",
+          "Library/Containers/com.foo/Data/a.db",
+          "Library/Preferences/com.foo.plist",
+          "Projects/site/index.html",
+          "Documents/Clients/Acme/a.pdf",
+          "Downloads/a.zip",
+          ".config/gh/hosts.yml",
+        ];
+        beforeAll(() => {
+          for (const file of files) {
+            const folder = nodePath.dirname(nodePath.join(home, file));
+            if (folder.startsWith(icloud) && nodeFs.existsSync(icloud)) {
+              chmodSync(icloud, 0o755);
+            }
+            mkdirSync(folder, { recursive: true });
+            nodeFs.writeFileSync(nodePath.join(home, file), "");
+          }
+          chmodSync(icloud, 0o555);
+        });
+        afterAll(() => {
+          chmodSync(icloud, 0o755);
+        });
+
+        it.each(
+          files.flatMap(
+            (file) =>
+              [
+                [file, "read"],
+                [file, "write"],
+              ] as const,
+          ),
+        )("for %s (%s) is one the ask takes", (file, op) => {
+          const real = rulesFor({
+            home,
+            settings: {
+              apps: [],
+              chats: {},
+              dangerouslyAllowEveryFolder: false,
+              folders: [],
+              places: {},
+              projects: {},
+            },
+          });
+          const withAsker = { ...real, asker: rules.asker };
+          const refusal = ruleRefusal({
+            hostPath: nodePath.join(home, file),
+            op,
+            rules: withAsker,
+            spell: (each) => each,
+          });
+          const named = /ask for (".*?") with ask_permission/.exec(
+            refusal ?? "",
+          )?.[1];
+          if (named === undefined) {
+            return;
+          }
+          const folder = z.string().parse(JSON.parse(named));
+          expect(
+            folderAsk({
+              hostPath: folder,
+              rules: withAsker,
+              shown: (each) => JSON.stringify(each),
+            }),
+          ).toEqual({ allowed: false, folder });
+        });
+      },
+    );
 
     it.each([
       [nodePath.join(shared, "com.foo", "Notes", "a.m4a"), false],

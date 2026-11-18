@@ -15,10 +15,6 @@ import {
   macosRefusalStatus,
 } from "../lib/permissions/macos";
 import { withoutDataVolume } from "../lib/host-path";
-import {
-  accountCanWrite,
-  systemOwnedNote,
-} from "../lib/permissions/account-can-write";
 import { MAC_APPS } from "../lib/mac-apps/apps";
 import { appBundleId, appLevel, appRefusal } from "../lib/permissions/apps";
 import {
@@ -27,8 +23,7 @@ import {
 } from "../model-text/commands/app-command";
 import { sessionRole } from "../lib/chat/children";
 import { chatRules } from "../lib/permissions/chat-rules";
-import { reachOf } from "../lib/permissions/rules";
-import { askableFolder, closedNote } from "../lib/permissions/rules-fs";
+import { folderAsk } from "../lib/permissions/rules-fs";
 import { hostPathOf, shellPath } from "../lib/workspace-fs-layout";
 import { WINDOW_ID } from "../schemas/window-id";
 import { defineCapability, type Role } from "../lib/capabilities/define";
@@ -41,7 +36,7 @@ import { modelTool } from "../lib/capabilities/tool";
  * on the person, and their answer wakes every session that asked.
  *
  * The folder asked for is the app's to decide, never the agent's: it is the
- * one a refusal would name (`askableFolder`), so no call opens the home
+ * one a refusal would name (`folderAsk`), so no call opens the home
  * folder, a disk, or the app's own data whole.
  */
 const askPermissionCapability = defineCapability({
@@ -240,9 +235,15 @@ async function folderToAsk(
   }
   const hostPath = withoutDataVolume(nodePath.resolve(spelled));
   const rules = await chatRules({ chatId });
-  const shown = (path: string) => JSON.stringify(shellPath(path));
-  const reach = reachOf(rules, hostPath, "write");
-  if (reach.level === "allow") {
+  const decided = folderAsk({
+    hostPath,
+    rules,
+    shown: (path) => JSON.stringify(shellPath(path)),
+  });
+  if ("refusal" in decided) {
+    return { message: decided.refusal, state: "refused" };
+  }
+  if (decided.allowed) {
     return {
       ...(process.platform === "darwin" && {
         macos: (asker) => macosFolderCard(asker, hostPath),
@@ -251,25 +252,7 @@ async function folderToAsk(
       target: shellPath(hostPath),
     };
   }
-  if (reach.level === "never") {
-    return { message: closedNote(reach, shown(hostPath)), state: "refused" };
-  }
-  if (!accountCanWrite(hostPath)) {
-    return { message: systemOwnedNote(shown(hostPath)), state: "refused" };
-  }
-  const asked = askableFolder({
-    hostPath,
-    // A path that is not there yet is a folder to be made.
-    isDirectory: !existsSync(hostPath) || statSync(hostPath).isDirectory(),
-    onDisk: true,
-    rule: reach.rule,
-    rules,
-    shown,
-  });
-  if ("refusal" in asked) {
-    return { message: asked.refusal, state: "refused" };
-  }
-  return { state: "ask", target: asked.folder };
+  return { state: "ask", target: decided.folder };
 }
 
 /** The app a card asks for by `given`, or why none can. */

@@ -1,6 +1,6 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { DefenseInDepthBox, type IFileSystem } from "just-bash";
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import nodePath from "node:path";
 
 import { FOLDER_VARIABLES } from "../../constants";
@@ -102,7 +102,7 @@ export function ruleRefusal({
  * folder, a disk's root, and a folder holding the app's own data beyond a
  * workspace's `.instrument/` are never asked for whole. `onDisk` takes the nearest folder that exists.
  */
-export function askableFolder({
+function askableFolder({
   hostPath,
   isDirectory,
   onDisk,
@@ -148,6 +148,45 @@ export function askableFolder({
     };
   }
   return { folder };
+}
+
+/**
+ * What `ask_permission` makes of a folder the agent asks for by `hostPath`:
+ * open already, the folder its card asks for, or why no card can. A folder
+ * {@link ruleRefusal} tells the agent to ask for is one this asks for.
+ */
+export function folderAsk({
+  hostPath,
+  rules,
+  shown,
+}: {
+  hostPath: string;
+  rules: Rules;
+  shown: (hostPath: string) => string;
+}):
+  | { allowed: true }
+  | { allowed: false; folder: string }
+  | { refusal: string } {
+  const reach = reachOf(rules, hostPath, "write");
+  if (reach.level === "allow") {
+    return { allowed: true };
+  }
+  if (reach.level === "never") {
+    return { refusal: closedNote(reach, shown(hostPath)) };
+  }
+  if (!accountCanWrite(hostPath)) {
+    return { refusal: systemOwnedNote(shown(hostPath)) };
+  }
+  const asked = askableFolder({
+    hostPath,
+    // A path that is not there yet is a folder to be made.
+    isDirectory: !existsSync(hostPath) || statSync(hostPath).isDirectory(),
+    onDisk: true,
+    rule: reach.rule,
+    rules,
+    shown,
+  });
+  return "refusal" in asked ? asked : { allowed: false, folder: asked.folder };
 }
 
 /**

@@ -1,3 +1,4 @@
+import { type ChatId } from "@instrument-org/workspace/client";
 import { createContext, useContext } from "react";
 
 /**
@@ -16,10 +17,10 @@ export interface GroupTab {
   /** A page in the tab's place: the web's start sending the tab to a site. */
   showPage: (url: string) => void;
   /**
-   * Whether the tab's row lists the versions a chat kept of a file and says
-   * which one is shown, with the way back and Restore: true in a chat's pane.
+   * The chat whose versions of a file the tab's row lists, and which turns
+   * into the version row while one is shown: set in a chat's pane.
    */
-  showsVersions: boolean;
+  versionsOf: ChatId | undefined;
 }
 
 export const GroupTabContext = createContext<GroupTab | null>(null);

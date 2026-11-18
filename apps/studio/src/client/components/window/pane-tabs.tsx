@@ -14,7 +14,7 @@ import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { getGuest } from "@/client/lib/browser-pool";
 import { osConventions } from "@/client/lib/utils";
-import { browserTargetOf } from "@instrument-org/workspace/client";
+import { browserTargetOf, type ChatId } from "@instrument-org/workspace/client";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -25,11 +25,14 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { useComputerVolumes } from "./computer-volumes";
 import { WindowContext } from "./context";
 import { useFileTabTitles } from "./file-tab-titles";
+import { computerTabOf } from "./file-tabs";
+import { isInVersionsFolder, VersionTabMark } from "./file-versions";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
 import { tasksOfHref } from "./tab-location";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { NewTabButton, type StripTab, TabStrip } from "./tab-strip";
+import { chatOfGroup } from "./window-href";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
 
@@ -137,6 +140,7 @@ export function PaneTabs({
         ) : (
           <ScreenMark
             appsBySlug={appsBySlug}
+            chatId={chatOfGroup(tab.group)}
             chatTitles={chatTitles}
             href={tab.href}
           />
@@ -345,19 +349,33 @@ function PaneTabMenu({
   );
 }
 
-/** A screen's small mark: a file's type, a folder, or the screen's own icon. */
+/**
+ * A screen's small mark: a file's type, or the number of the version of it
+ * a chat's tab has up, a folder, or the screen's own icon.
+ */
 function ScreenMark({
   appsBySlug,
+  chatId,
   chatTitles,
   href,
 }: {
   appsBySlug: Presentation["appsBySlug"];
+  chatId: ChatId | undefined;
   chatTitles: Presentation["chatTitles"];
   href: string;
 }) {
   const location = screenLocation(href, { appsBySlug, chatTitles });
   if (location.kind === "file") {
-    return <FileTypeIcon className="size-3.5" fileName={location.name} />;
+    const icon = <FileTypeIcon className="size-3.5" fileName={location.name} />;
+    // A copy is over its file, or in its place for a page's file.
+    const copy =
+      computerTabOf(href)?.version ??
+      (isInVersionsFolder(location.path) ? location.path : undefined);
+    return chatId === undefined || copy === undefined ? (
+      icon
+    ) : (
+      <VersionTabMark chatId={chatId} copy={copy} fallback={icon} />
+    );
   }
   if (location.kind === "folder") {
     return <FileSystemFolderGlyph className="h-3 w-auto" />;

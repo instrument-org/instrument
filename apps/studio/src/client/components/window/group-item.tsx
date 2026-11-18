@@ -27,7 +27,7 @@ import { PageAskButton } from "./file-ask-button";
 import { computerTabOf } from "./file-tabs";
 import {
   FileVersionsButton,
-  FileVersionStrip,
+  FileVersionRows,
   versionHref,
 } from "./file-versions";
 import { GroupTabContext } from "./group-tab";
@@ -163,8 +163,8 @@ export function GroupItem({
    */
   const row = (location: TabLocation) => {
     // A file a chat's replies handed over keeps a version per reply, listed
-    // from its row, and a kept copy open here says which one it is, whether
-    // it is shown over the file or in its place.
+    // from its row, and a kept copy open here turns the row into the
+    // version row, whether it is shown over the file or in its place.
     const version =
       up.kind === "screen" ? computerTabOf(up.href)?.version : undefined;
     const openFile = (file: string, copy?: string) => {
@@ -178,7 +178,11 @@ export function GroupItem({
         ? { chatId, onOpen: openFile, path: version ?? location.path }
         : undefined;
     return (
-      <>
+      <FileVersionRows
+        {...(versions
+          ? { versions: { ...versions, isOverFile: version !== undefined } }
+          : {})}
+      >
         <TabLocationRow
           canGoBack={canGoBack}
           canGoForward={canGoForward}
@@ -220,10 +224,7 @@ export function GroupItem({
             </>
           }
         />
-        {versions && (
-          <FileVersionStrip {...versions} isOverFile={version !== undefined} />
-        )}
-      </>
+      </FileVersionRows>
     );
   };
 
@@ -297,7 +298,7 @@ export function GroupItem({
           showPage: (url) => {
             browser?.open(url, { group, replacing: up });
           },
-          showsVersions: chatId !== undefined,
+          versionsOf: chatId,
         }}
       >
         <WindowContext

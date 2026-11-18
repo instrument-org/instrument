@@ -259,20 +259,22 @@ function useSpringOnRest({
   const isDragging = drag !== undefined;
   useEffect(() => {
     const store = getDefaultStore();
-    timer.current ??= springTimer(
-      (folder) => {
-        hasSprung.current = true;
-        latest.current.onSpring(folder);
-      },
-      {
-        flash: () => {
-          store.set(springFlashAtom, true);
-          window.setTimeout(() => {
-            store.set(springFlashAtom, false);
-          }, SPRING_FLASH_MS);
+    if (timer.current === undefined) {
+      timer.current = springTimer(
+        (folder) => {
+          hasSprung.current = true;
+          latest.current.onSpring(folder);
         },
-      },
-    );
+        {
+          flash: () => {
+            store.set(springFlashAtom, true);
+            window.setTimeout(() => {
+              store.set(springFlashAtom, false);
+            }, SPRING_FLASH_MS);
+          },
+        },
+      );
+    }
     timer.current.rest(resting);
   }, [resting]);
   useEffect(() => {

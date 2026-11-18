@@ -1335,15 +1335,14 @@ function WindowShell({
    * another that comes forward, so one draft is never in two composers; with
    * none, `here` puts it up, by default in the tab up.
    */
-  const revealDraft = (
-    id: string,
-    here = () => {
-      appTabs.navigate(newChatHref(id));
-    },
-  ) => {
+  const revealDraft = (id: string, here?: () => void) => {
     const tab = groups.revealDraft(id);
     if (tab === undefined) {
-      here();
+      if (here === undefined) {
+        appTabs.navigate(newChatHref(id));
+      } else {
+        here();
+      }
     } else if (store.get(windowTabGroupsAtom)?.includes(tab.group ?? "")) {
       lightTab(tab);
     }

@@ -49,8 +49,8 @@ export function NotFoundRouteComponent() {
             <ReportErrorButton error={error} surface="not-found" />
           </div>
         }
-        description="The link may be from an older version, or it may have a typo. Go back, or send us a report if a link in the app brought you here."
-        title={`This page isn't in ${APP_NAME}`}
+        description={`If a link in ${APP_NAME} brought you here, let us know so we can fix it.`}
+        title="Page not found"
       >
         <div className="group/address relative rounded-lg bg-muted px-3 py-2.5 select-text">
           <code className="block pr-8 font-mono text-[13px] break-all">

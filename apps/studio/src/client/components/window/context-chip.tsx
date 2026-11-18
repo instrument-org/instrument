@@ -30,6 +30,7 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import { VersionTag } from "@/client/components/version-tag";
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence } from "motion/react";
 import { type ReactNode, useContext, useState } from "react";
@@ -45,9 +46,10 @@ import {
   drawnChipsOf,
 } from "./context-items";
 import { pageTabTitle } from "./file-tabs";
+import { useVersionNamed } from "./file-versions";
 import { segmentsOf } from "./host-path";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
-import { chatHref } from "./window-href";
+import { chatHref, chatOfGroup } from "./window-href";
 
 type SentChip = SessionMessageDataPart.SentChip;
 
@@ -189,6 +191,9 @@ function IncludedChip({
       name={nameOfChip(chip)}
       onLeaveOut={onLeaveOut}
       {...(onSelect ? { onSelect } : {})}
+      {...(items?.length === 1 && one !== undefined
+        ? { onePath: { chatId: chatOfGroup(tab.group), path: one.path } }
+        : {})}
       slot="included-chip"
     />
   );
@@ -337,7 +342,14 @@ function ChosenChip({
  * surface around the transcript opens things, so in a chat it comes up in
  * the chat's own tabs.
  */
-export function SentChips({ chips }: { chips: SentChip[] }) {
+export function SentChips({
+  chatId,
+  chips,
+}: {
+  /** The chat the message is in, whose versions of a file a chip may name. */
+  chatId?: ChatId;
+  chips: SentChip[];
+}) {
   const appsBySlug = useAppsBySlug();
   const appWindow = useContext(WindowContext);
   const openFile = useContext(FileOpenContext);
@@ -415,6 +427,9 @@ export function SentChips({ chips }: { chips: SentChip[] }) {
           cutsMiddle={isOnePath(chip)}
           name={nameOfChip(chip)}
           onOpen={openerOf(chip)}
+          {...(chip.kind === "paths" && chip.items.length === 1 && chip.items[0]
+            ? { onePath: { chatId, path: chip.items[0].path } }
+            : {})}
           slot="sent-chip"
         />
       ))}
@@ -468,6 +483,7 @@ function ContextChip({
   name,
   onLeaveOut,
   onOpen,
+  onePath,
   onSelect,
   slot,
 }: {
@@ -483,6 +499,11 @@ function ContextChip({
   onLeaveOut?: () => void;
   /** Opens the thing the chip names; a chip that can be left out has none, since the x sits inside it. */
   onOpen?: (options: OpenOptions) => void;
+  /**
+   * The one file or folder the chip names, with the chat it goes to: a
+   * version the chat kept of a file is named as the file, with its number.
+   */
+  onePath?: { chatId: ChatId | undefined; path: string };
   /** Puts the chip's tab up in its band. */
   onSelect?: () => void;
   slot: string;
@@ -495,15 +516,20 @@ function ContextChip({
   );
   const fileDragProps = useFileDrag(drags);
   const dragProps = drags ? fileDragProps : {};
+  const version = useVersionNamed(onePath?.chatId, onePath?.path);
+  const shownName = version?.name ?? name;
   const markAndName = (
     <>
       <span className="grid size-4 shrink-0 place-items-center [&_img]:size-4 [&_svg]:size-4">
         {mark}
       </span>
       {cutsMiddle ? (
-        <MiddleTruncate extension text={name} />
+        <MiddleTruncate extension text={shownName} />
       ) : (
-        <span className="truncate">{name}</span>
+        <span className="truncate">{shownName}</span>
+      )}
+      {version && (
+        <VersionTag className="h-4 text-[11px]" number={version.number} />
       )}
     </>
   );

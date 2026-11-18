@@ -11,10 +11,7 @@ import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { getFileKindLabel, isMediaFile } from "@/client/lib/get-file-type";
 import { cn } from "@/client/lib/utils";
-import { Button } from "@/client/components/ui/button";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import {
-  type ChatId,
   isAddressableChatFilePath,
   isFolderPath,
   isMessageDocument,
@@ -28,6 +25,7 @@ import { useQueries } from "@tanstack/react-query";
 import { fork } from "radashi";
 import { useContext } from "react";
 
+import { type CardVersion } from "./card-version";
 import { FileTypeIcon } from "./extend/file-system";
 import { FolderRowCard, UnreachableFileRowCard } from "./file-preview-card";
 import { FilesGrid, rowCardLayout } from "./files-grid";
@@ -37,6 +35,7 @@ import { useRestoreFileVersion } from "./window/file-versions";
 import { SystemFolderIcon } from "./icons/folder-glyph";
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { MessageCard } from "./message-card";
+import { VersionTag } from "./version-tag";
 
 /**
  * Renders a ```files fence: the files the agent chose to show, in the order it
@@ -136,6 +135,7 @@ export function FilePathsGrid({
   const versions = useContext(CardFileVersionsContext);
   const layout = useContext(FilesLayoutContext);
   const showChatFile = useShowChatFile();
+  const restore = useRestoreFileVersion(chatId);
   const [folderPaths, filePaths] = fork(paths, isFolderPath);
   // The reply names files as the task knows them; the screen shows them by
   // where they are. A file the task cannot reach, or one not yet translated,
@@ -195,7 +195,7 @@ export function FilePathsGrid({
   const fileOf = (filePath: string): undefined | ViewerFile => {
     // A file a later turn changed is drawn from the copy this one kept.
     const version = versions?.get(filePath);
-    if (version?.changedSince === false) {
+    if (version?.changedSince === false && version.copy !== undefined) {
       return {
         filename: nameOfPath(filePath),
         hostPath: version.copy,
@@ -244,6 +244,7 @@ export function FilePathsGrid({
                 isUnreachable={isUnreachable(path)}
                 key={path}
                 missingLabel={missingLabel(path)}
+                number={versions?.get(path)?.number}
                 onClick={() => {
                   showChatFile(path);
                 }}
@@ -258,15 +259,34 @@ export function FilePathsGrid({
   const changedSince = filePaths.filter(
     (path) => versions?.get(path)?.changedSince === true,
   );
-  // A file a later turn changed is drawn from this reply's copy, which can
-  // be put back over the file.
-  const restorable = filePaths.flatMap((path) => {
+  // Once the chat has a second version of a file, each card for it shows its
+  // number, and one drawn from this reply's copy, since a later turn changed
+  // the file, opens that version and puts it back from its menu.
+  const cardVersions = new Map<string, CardVersion>();
+  for (const path of filePaths) {
     const version = versions?.get(path);
+    const shown = fileOf(path);
+    if (version?.number === undefined || !shown) {
+      continue;
+    }
+    const { number } = version;
+    const copy = version.changedSince ? undefined : version.copy;
     const file = hostPaths[path];
-    return version?.changedSince === false && file
-      ? [{ copy: version.copy, file, path }]
-      : [];
-  });
+    cardVersions.set(
+      shown.hostPath,
+      copy === undefined || !file
+        ? { number }
+        : {
+            number,
+            open: () => {
+              showChatFile(copy);
+            },
+            restore: () => {
+              void restore({ copy, file, said: `Restored v${String(number)}` });
+            },
+          },
+    );
+  }
   const folderCards = rowCardLayout({
     chatColumn,
     count: folderPaths.length,
@@ -306,20 +326,16 @@ export function FilePathsGrid({
           </div>
         </div>
       )}
-      <div className="group/versions relative">
-        <FilesGrid
-          chatColumn={chatColumn}
-          files={filePaths
-            .filter((path) => !isMessage(path))
-            .map(fileOf)
-            .filter((file) => file !== undefined)}
-          pendingFilePath={pendingFilePath}
-          preserveOrder
-        />
-        {chatId !== undefined && restorable.length > 0 && (
-          <RestoreVersions chatId={chatId} files={restorable} />
-        )}
-      </div>
+      <FilesGrid
+        chatColumn={chatColumn}
+        files={filePaths
+          .filter((path) => !isMessage(path))
+          .map(fileOf)
+          .filter((file) => file !== undefined)}
+        pendingFilePath={pendingFilePath}
+        preserveOrder
+        versions={cardVersions}
+      />
       {changedSince.length > 0 && (
         <p className="text-xs text-muted-foreground">
           {changedSince.map(nameOfPath).join(", ")} changed since this reply.
@@ -358,6 +374,7 @@ function FileLine({
   file,
   isUnreachable,
   missingLabel,
+  number,
   onClick,
   path,
 }: {
@@ -366,6 +383,8 @@ function FileLine({
   isUnreachable: boolean;
   /** What a missing line says in place of its kind. */
   missingLabel: string;
+  /** The version the line stands for, once the chat has a second version of the file. */
+  number: number | undefined;
   onClick: () => void;
   path: string;
 }) {
@@ -393,6 +412,9 @@ function FileLine({
       <span className="flex min-w-0 flex-1">
         <MiddleTruncate extension text={filename} />
       </span>
+      {number !== undefined && !isMissing && (
+        <VersionTag className="h-4 text-[10px]" number={number} />
+      )}
       <span className="shrink-0 text-[10px] text-muted-foreground">
         {isMissing ? missingLabel : getFileKindLabel({ filename })}
       </span>
@@ -471,43 +493,4 @@ function useMessageFiles(
       ? [{ message: parseMessage(text), path }]
       : [];
   });
-}
-
-/**
- * Restore on a reply's cards drawn from the copies its turn kept, shown
- * while the pointer is over them: one per file, named when there are
- * several.
- */
-function RestoreVersions({
-  chatId,
-  files,
-}: {
-  chatId: ChatId;
-  files: { copy: string; file: string; path: string }[];
-}) {
-  const restore = useRestoreFileVersion(chatId);
-  return (
-    <div className="absolute top-2 right-2 flex flex-col items-end gap-1 opacity-0 transition-opacity group-hover/versions:opacity-100 focus-within:opacity-100">
-      {files.map(({ copy, file, path }) => (
-        <Button
-          className="shadow-sm"
-          key={path}
-          onClick={() => {
-            void restore({
-              copy,
-              file,
-              said: `Restored this reply’s version of ${nameOfPath(path)}`,
-            });
-          }}
-          size="sm"
-          variant="secondary"
-        >
-          <ClockCounterClockwiseIcon className="size-4" />
-          {files.length > 1
-            ? `Restore ${nameOfPath(path)}`
-            : "Restore this version"}
-        </Button>
-      ))}
-    </div>
-  );
 }

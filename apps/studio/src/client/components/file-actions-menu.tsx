@@ -3,15 +3,19 @@ import { useFileActionVisibility } from "@/client/hooks/use-file-action-visibili
 import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
 import { getFileType } from "@/client/lib/get-file-type";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
+import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { CheckIcon } from "@phosphor-icons/react/Check";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { DotsThreeOutlineVerticalIcon } from "@phosphor-icons/react/DotsThreeOutlineVertical";
+import { useContext } from "react";
 
 import { useFileOpenTarget } from "../hooks/use-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { showInFolder, showInFolderLabel } from "../lib/show-in-files";
 import { isMacOS } from "../lib/utils";
+import { CardVersionContext } from "./card-version";
 import { ShowInFolderIcon } from "./icons/reveal-in-folder";
 import { OpenInAppMenuItems } from "./open-in-app";
 import { Button } from "./ui/button";
@@ -115,25 +119,41 @@ export function FileActionsMenuItems({
     showCopy ||
     fileActions.showDownload ||
     fileActions.showReveal;
+  // An older version a reply's card stands for opens in the chat's pane and
+  // goes back over its file from here, beside the ways out.
+  const version = useContext(CardVersionContext);
+  const hasVersionActions =
+    version?.open !== undefined || version?.restore !== undefined;
 
-  if (!onAddToChat && !hasFileActions) {
+  if (!onAddToChat && !hasFileActions && !hasVersionActions) {
     return null;
   }
 
   return (
     <>
-      {showOpenIn && (
-        <>
-          <OpenInAppMenuItems
-            // A file Studio cannot show is opened elsewhere to be seen at
-            // all, so its app keeps a row of its own.
-            defaultRow={getFileType(file) === "unknown"}
-            menuComponents={menuComponents}
-            target={{ hostPath: file.hostPath }}
-          />
-          {(onAddToChat != null || hasFileActions) && <Separator />}
-        </>
+      {version?.open && (
+        <Item onClick={version.open}>
+          <ArrowSquareOutIcon className="size-4" />
+          <span>Open v{version.number}</span>
+        </Item>
       )}
+      {showOpenIn && (
+        <OpenInAppMenuItems
+          // A file Studio cannot show is opened elsewhere to be seen at
+          // all, so its app keeps a row of its own.
+          defaultRow={getFileType(file) === "unknown"}
+          menuComponents={menuComponents}
+          target={{ hostPath: file.hostPath }}
+        />
+      )}
+      {version?.restore && (
+        <Item onClick={version.restore}>
+          <ClockCounterClockwiseIcon className="size-4" />
+          <span>Restore v{version.number}</span>
+        </Item>
+      )}
+      {(showOpenIn || hasVersionActions) &&
+        (onAddToChat != null || hasFileActions) && <Separator />}
       {onAddToChat && (
         <>
           <Item onClick={onAddToChat}>

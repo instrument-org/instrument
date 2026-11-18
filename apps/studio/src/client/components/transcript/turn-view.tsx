@@ -236,7 +236,7 @@ function OpenerView({
           className="flex w-full flex-wrap justify-end gap-1.5"
           data-slot="sent-with-message"
         >
-          <SentChips chips={chips} />
+          <SentChips chatId={chatId} chips={chips} />
           <SentFolderChips folders={folders} />
           <SentFileChips chatId={chatId} files={files} />
         </div>

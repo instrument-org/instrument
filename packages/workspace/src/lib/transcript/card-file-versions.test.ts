@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { cardFileVersions } from "./card-file-versions";
 import { type TranscriptMessage } from "./transcript-message";
 
-/** A reply that kept `files`, each `[path, hash, copy?, folder?]`. */
+/** A reply that kept `files`, each `[path, hash, copy?, folder?, number?]`. */
 const reply = (
   id: string,
-  files: [string, string, string?, string?][],
-  kind?: "restored",
+  files: [string, string, string?, string?, number?][],
+  kind?: "original" | "restored",
 ) =>
   ({
     id,
@@ -15,12 +15,13 @@ const reply = (
       {
         data: {
           device: "mac",
-          files: files.map(([path, hash, copy, folder = "/w"]) => ({
+          files: files.map(([path, hash, copy, folder = "/w", number]) => ({
             hash,
             hostPath: `${folder}/${path}`,
             path,
             size: 1,
             ...(copy && { copy }),
+            ...(number !== undefined && { number }),
           })),
           ...(kind && { kind }),
         },
@@ -88,6 +89,52 @@ describe("cardFileVersions", () => {
     expect(found.get("m1" as never)?.get("chart.svg")).toEqual({
       changedSince: false,
       copy: "/v/1.svg",
+    });
+  });
+
+  it("numbers every card for a file once it has a second version, and none for a file with one", () => {
+    const found = cardFileVersions([
+      reply("m1", [
+        ["faq.md", "a", "/v/faq.md/v1.md", "/w", 1],
+        ["plan.md", "p", "/v/plan.md/v1.md", "/w", 1],
+      ]),
+      reply("m2", [["faq.md", "b", "/v/faq.md/v2.md", "/w", 2]]),
+    ]);
+    expect(
+      Object.fromEntries(
+        [...found].map(([id, files]) => [id, Object.fromEntries(files)]),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "m1": {
+          "faq.md": {
+            "changedSince": false,
+            "copy": "/v/faq.md/v1.md",
+            "number": 1,
+          },
+        },
+        "m2": {
+          "faq.md": {
+            "changedSince": false,
+            "number": 2,
+          },
+        },
+      }
+    `);
+  });
+
+  it("numbers a file of the person's the chat changed once as v2", () => {
+    const found = cardFileVersions([
+      reply(
+        "m1",
+        [["notes.md", "a", "/v/notes.md/v1.md", "/w", 1]],
+        "original",
+      ),
+      reply("m1", [["notes.md", "b", "/v/notes.md/v2.md", "/w", 2]]),
+    ]);
+    expect(found.get("m1" as never)?.get("notes.md")).toEqual({
+      changedSince: false,
+      number: 2,
     });
   });
 });

@@ -24,6 +24,7 @@ import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { XIcon } from "@phosphor-icons/react/X";
 
+import { ComposerDock } from "./composer-dock";
 import { Button } from "./ui/button";
 import { Delayed } from "./ui/delayed";
 import { Spinner } from "./ui/spinner";
@@ -92,33 +93,43 @@ function signInLine(target: string): string | undefined {
  * call in the chat's transcript to draw under, and one place keeps several
  * from piling up. The oldest this device can answer is drawn whole, ahead of
  * any waiting on another computer, with the rest tucked under it, and
- * answering it brings up the next.
+ * answering it brings up the next. It opens and folds away as a question
+ * card does (`ComposerDock`).
  */
 export function PermissionAsksFoot({ chatId }: { chatId: ChatId }) {
   // Sorting is stable, so each group stays oldest first.
   const asks = useAsks(chatId)?.toSorted(
     (a, b) => Number(b.answerable) - Number(a.answerable),
   );
-  const [first] = asks ?? [];
-  if (!asks || !first) {
-    return null;
-  }
-  const waiting = asks.length - 1;
   return (
-    <div className={cn("@container/asks relative mb-2", waiting > 0 && "pb-2")}>
-      {waiting > 1 ? (
-        <div className="absolute inset-x-6 bottom-0 h-6 rounded-b-2xl border border-border bg-card/70" />
-      ) : null}
-      {waiting > 0 ? (
-        <div className="absolute inset-x-3 bottom-1 h-6 rounded-b-2xl border border-border bg-card shadow-xs" />
-      ) : null}
-      <PermissionAskCard
-        ask={first}
-        chatId={chatId}
-        key={first.id}
-        stack={asks}
-      />
-    </div>
+    <ComposerDock first={asks?.[0]}>
+      {(first, isLeaving) => {
+        // The last card, held as it folds away, is the whole stack.
+        const stack = isLeaving || !asks ? [first] : asks;
+        const waiting = stack.length - 1;
+        return (
+          <div
+            className={cn(
+              "@container/asks relative mb-2",
+              waiting > 0 && "pb-2",
+            )}
+          >
+            {waiting > 1 ? (
+              <div className="absolute inset-x-6 bottom-0 h-6 rounded-b-2xl border border-border bg-card/70" />
+            ) : null}
+            {waiting > 0 ? (
+              <div className="absolute inset-x-3 bottom-1 h-6 rounded-b-2xl border border-border bg-card shadow-xs" />
+            ) : null}
+            <PermissionAskCard
+              ask={first}
+              chatId={chatId}
+              key={first.id}
+              stack={stack}
+            />
+          </div>
+        );
+      }}
+    </ComposerDock>
   );
 }
 

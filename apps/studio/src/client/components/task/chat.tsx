@@ -29,7 +29,10 @@ import { reachModel } from "@/client/lib/model-status";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
 import { PermissionAsksFoot } from "@/client/components/permission-asks";
-import { QuestionDock } from "@/client/components/question-dock";
+import {
+  QuestionDock,
+  useQuestionDock,
+} from "@/client/components/question-dock";
 import { rpcClient } from "@/client/rpc/client";
 import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -273,6 +276,7 @@ export function ChatConversation({
     }),
   );
   const [isBoxEmpty, setIsBoxEmpty] = useState(true);
+  const questionDock = useQuestionDock(id);
   // Read here too, so turning it off takes a standing suggestion away at once.
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -714,7 +718,10 @@ export function ChatConversation({
             }
       }
       onEmptyChange={setIsBoxEmpty}
-      placeholder={`Talk to ${APP_NAME}`}
+      // A question card above the box is answered there or by a reply here.
+      placeholder={
+        questionDock.docked.length > 0 ? "Or reply here" : `Talk to ${APP_NAME}`
+      }
       places={places}
       ref={attachPromptInput}
       selectedSessionId={selectedSessionId}
@@ -886,12 +893,13 @@ export function ChatConversation({
             {/* isolate: keep the prompt input's z-10 contained to the composer. */}
             <div
               className="isolate mx-auto w-full max-w-3xl px-3 pb-3"
+              data-composer-column=""
               ref={composerRef}
             >
               {/* Inside the column rather than above it, so it is exactly as wide
               as the composer it belongs to. */}
               <PermissionAsksFoot chatId={id} />
-              <QuestionDock chatId={id} />
+              <QuestionDock dock={questionDock} />
               {isArchived ? (
                 <ArchivedFoot chatId={id} />
               ) : (

@@ -8,7 +8,11 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { expect, it } from "vitest";
 
 import { renderWithProviders } from "../../tests/render";
-import { QuestionDock } from "./question-dock";
+import { QuestionDock, useQuestionDock } from "./question-dock";
+
+function Dock() {
+  return <QuestionDock dock={useQuestionDock(chatId)} />;
+}
 
 const chatId = ChatIdSchema.parse("test-chat");
 
@@ -18,7 +22,7 @@ const card = (question: string): ChooseQuestion[] => [
 
 /** Renders the dock with the chat's open asks as given. */
 function withAsks(asks: Record<string, unknown>[]) {
-  const rendered = renderWithProviders(<QuestionDock chatId={chatId} />);
+  const rendered = renderWithProviders(<Dock />);
   rendered.queryClient.setQueryData(
     rpcClient.workspace.chats.live.asks.experimental_liveOptions({
       input: { id: chatId },

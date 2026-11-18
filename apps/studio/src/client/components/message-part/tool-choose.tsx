@@ -22,13 +22,11 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
 } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
-import { Kbd } from "../ui/kbd";
 import {
   DictatedTextarea,
   DictationControls,
@@ -37,6 +35,7 @@ import {
   useDictatedText,
 } from "../dictation-controls";
 import { type Dictation, isDictating } from "@/client/hooks/use-dictation";
+import { focusDockedCard } from "../composer-dock";
 import { ToolCard, ToolCardEmpty } from "./tool-card";
 
 /** The answer to a card: a reply to each of its questions, and a note. */
@@ -81,11 +80,9 @@ function hasReply(draft: Draft) {
  * `sending` is an answer on its way, drawn as given before the agent has it.
  * `place` says where an open card is among several waiting ("1 of 2").
  *
- * While focus is in an open card and not in a field, a digit picks that
- * choice of the question on show and Enter sends (or moves on) once it has
- * an answer. With `takesKeys`, a digit pressed anywhere else in the window
- * picks too, unless it is typed into a field (the empty reply box aside) or
- * a menu or dialog is up, and the keyboard goes into the card with it.
+ * Each choice carries its number as a label, so a reply typed in the chat
+ * ("2") can name it. While focus is on the card's buttons, Enter sends (or
+ * moves on) once the question on show has an answer.
  */
 export function QuestionCard({
   onAnswer,
@@ -94,7 +91,6 @@ export function QuestionCard({
   questions,
   sending,
   status,
-  takesKeys = false,
 }: {
   onAnswer: (output: ChooseOutput) => void;
   output?: ChooseOutput;
@@ -102,8 +98,6 @@ export function QuestionCard({
   questions: ChooseQuestion[];
   sending?: ChooseOutput;
   status: "closed" | "ended" | "open";
-  /** Whether a digit pressed outside the card picks in it. */
-  takesKeys?: boolean;
 }) {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [step, setStep] = useState(0);
@@ -177,46 +171,9 @@ export function QuestionCard({
       card.contains(focused) &&
       focused.closest("[inert]") !== null
     ) {
-      focusQuestionCard(card);
+      focusDockedCard(card);
     }
   }, [step]);
-
-  const keysFromWindow = isOpen && takesKeys;
-  const showsKeys = useKeysReachCard(keysFromWindow);
-  useEffect(() => {
-    if (!keysFromWindow) {
-      return;
-    }
-    const onKey = (event: globalThis.KeyboardEvent) => {
-      const card = cardRef.current;
-      if (
-        !card ||
-        event.defaultPrevented ||
-        event.altKey ||
-        event.ctrlKey ||
-        event.metaKey ||
-        event.isComposing ||
-        !/^[1-9]$/.test(event.key) ||
-        (event.target instanceof Node && card.contains(event.target)) ||
-        !keysReachCard(event.target)
-      ) {
-        return;
-      }
-      const choice = shownChoices(card)[Number(event.key) - 1];
-      if (!choice) {
-        return;
-      }
-      event.preventDefault();
-      // Into the card first, so the next Enter sends, and a pick that moves
-      // a card of several on to its next step takes the keyboard along.
-      choice.focus({ preventScroll: true });
-      choice.click();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-    };
-  }, [keysFromWindow]);
 
   if (!isOpen) {
     return (
@@ -306,19 +263,6 @@ export function QuestionCard({
     ) {
       return;
     }
-    if (/^[1-9]$/.test(event.key)) {
-      const choice = isReview
-        ? undefined
-        : question?.choices[Number(event.key) - 1];
-      if (choice) {
-        event.preventDefault();
-        pick(choice.label);
-        // The keyboard goes with the pick, so the next Enter sends it rather
-        // than pressing the button it was on (Skip, Add a note).
-        shownChoices(event.currentTarget)[Number(event.key) - 1]?.focus();
-      }
-      return;
-    }
     // A button other than a choice keeps Enter as its own press.
     if (
       event.key === "Enter" &&
@@ -347,13 +291,8 @@ export function QuestionCard({
 
   return (
     <ToolCard>
-      {/* The keys reach the choices inside, each a button of its own. */}
-      <div
-        className="group/card px-4 py-3"
-        data-keys={showsKeys ? "" : undefined}
-        onKeyDown={onCardKeyDown}
-        ref={cardRef}
-      >
+      {/* Enter reaches the choices inside, each a button of its own. */}
+      <div className="px-4 py-3" onKeyDown={onCardKeyDown} ref={cardRef}>
         {isSeveral ? (
           <Steps
             drafts={questions.map((_, index) => draftAt(index))}
@@ -556,7 +495,6 @@ function QuestionStep({
           return (
             <button
               aria-checked={isSelected}
-              aria-keyshortcuts={index < 9 ? String(index + 1) : undefined}
               className={rowClassName(isSelected)}
               data-card-home={index === 0 ? "" : undefined}
               data-choice=""
@@ -580,17 +518,13 @@ function QuestionStep({
                   ) : null}
                 </span>
               </ChoiceRow>
-              {/* Shown while its digit picks this choice: the keyboard on the
-                  card's buttons, or, for a card taking the window's keys,
-                  anywhere but a field. */}
-              {index < 9 ? (
-                <Kbd
-                  aria-hidden
-                  className="hidden self-start group-has-[button:focus-visible]/card:inline-flex group-data-keys/card:inline-flex"
-                >
-                  {index + 1}
-                </Kbd>
-              ) : null}
+              {/* A label a reply typed in the chat can name it by. */}
+              <span
+                aria-hidden
+                className="self-start text-xs/5 text-muted-foreground tabular-nums"
+              >
+                {index + 1}
+              </span>
             </button>
           );
         })}
@@ -735,80 +669,6 @@ function revealTypedRow(list: HTMLElement) {
   if (bottom > list.scrollTop + list.clientHeight) {
     list.scrollTop = bottom - list.clientHeight;
   }
-}
-
-/**
- * Puts the keyboard on the first choice of the question on show in an open
- * card under `root`, on Send answers in the review of a card of several, or
- * else on its first button. Returns whether anything took it.
- */
-function focusQuestionCard(root: HTMLElement) {
-  const reachable = (element: HTMLElement) =>
-    element.closest("[inert]") === null &&
-    element.checkVisibility({ visibilityProperty: true });
-  const target =
-    [
-      ...root.querySelectorAll<HTMLElement>("[data-card-home]:not([disabled])"),
-    ].find(reachable) ??
-    [...root.querySelectorAll<HTMLElement>("button:not([disabled])")].find(
-      reachable,
-    );
-  target?.focus({ preventScroll: true });
-  return target !== undefined;
-}
-
-/**
- * Whether a key pressed with focus on `target` is a question card's to take:
- * not one typed into a field, though the reply box counts as nothing to type
- * into while it is empty, and not one meant for a menu or dialog.
- */
-function keysReachCard(target: EventTarget | null) {
-  if (!(target instanceof Element)) {
-    return true;
-  }
-  if (
-    target.closest(
-      "[role=dialog], [role=alertdialog], [role=menu], [role=listbox], [data-radix-popper-content-wrapper]",
-    )
-  ) {
-    return false;
-  }
-  const field = target.closest(
-    "input, textarea, select, [contenteditable='true']",
-  );
-  return (
-    field === null ||
-    (field.matches(".prompt-editor") && field.textContent.trim() === "")
-  );
-}
-
-const KEYBOARD_PLACE_EVENTS = ["focusin", "focusout", "input", "keyup"];
-
-function subscribeToKeyboardPlace(onChange: () => void) {
-  for (const type of KEYBOARD_PLACE_EVENTS) {
-    document.addEventListener(type, onChange, true);
-  }
-  return () => {
-    for (const type of KEYBOARD_PLACE_EVENTS) {
-      document.removeEventListener(type, onChange, true);
-    }
-  };
-}
-
-/** Whether a digit pressed where the keyboard is now reaches a card taking the window's keys. */
-function useKeysReachCard(enabled: boolean) {
-  return useSyncExternalStore(
-    subscribeToKeyboardPlace,
-    () => enabled && keysReachCard(document.activeElement),
-    () => false,
-  );
-}
-
-/** The choice rows of the question on show in a card, in order. */
-function shownChoices(card: HTMLElement) {
-  return [...card.querySelectorAll<HTMLElement>("[data-choice]")].filter(
-    (choice) => choice.closest("[inert]") === null,
-  );
 }
 
 /** The headers of a card of several questions, each a way back to its question, then Review. */

@@ -85,7 +85,7 @@ const COMPETITORS: ChooseQuestion = {
   question: "Which competitors should the comparison cover?",
 };
 
-it("picks with a digit and sends with Enter while the keyboard is on a choice", async () => {
+it("picks with Space and sends with Enter while the keyboard is on a choice", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(
     <QuestionCard
@@ -106,7 +106,7 @@ it("picks with a digit and sends with Enter while the keyboard is on a choice", 
     .element(screen.getByRole("radio", { name: /Zendesk/ }))
     .toBeChecked();
 
-  await userEvent.keyboard("3");
+  await userEvent.keyboard("{Tab}{Tab} ");
   await expect
     .element(screen.getByRole("radio", { name: /Freshdesk/ }))
     .toBeChecked();
@@ -116,119 +116,58 @@ it("picks with a digit and sends with Enter while the keyboard is on a choice", 
   });
 });
 
-it("sends a digit's pick on Enter when the keyboard came into the card on Skip", async () => {
-  const onAnswer = vi.fn();
-  const screen = await renderInBrowser(
-    <QuestionCard
-      onAnswer={onAnswer}
-      questions={[COMPETITORS]}
-      status="open"
-    />,
-  );
-  // Shift+Tab from the reply box under the card lands on its last button.
-  screen.getByRole("button", { name: "Skip" }).element().focus();
-
-  await userEvent.keyboard("2{Enter}");
-
-  expect(onAnswer).toHaveBeenCalledWith({
-    replies: [{ picked: ["Intercom"] }],
-  });
-});
-
-it("shows each choice's digit only while the keyboard is on the card's buttons", async () => {
+it("labels each choice with its number, whether or not the keyboard is on the card", async () => {
   const screen = await renderInBrowser(
     <QuestionCard onAnswer={noop} questions={[COMPETITORS]} status="open" />,
   );
-  const digit = screen.getByText("3", { exact: true });
-  await expect.element(digit).not.toBeVisible();
+  const number = screen.getByText("3", { exact: true });
+  await expect.element(number).toBeVisible();
 
   screen.getByRole("button", { name: "Skip" }).element().focus();
-  await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
-  await expect.element(digit).toBeVisible();
-
-  await screen.getByRole("textbox", { name: "Your own answer" }).click();
-  await expect.element(digit).not.toBeVisible();
+  await expect.element(number).toBeVisible();
 });
 
 it("draws a picked choice's ring inside its row, where the scrolling list cannot clip it", async () => {
   const screen = await renderInBrowser(
     <QuestionCard onAnswer={noop} questions={[COMPETITORS]} status="open" />,
   );
-  screen.getByRole("button", { name: "Skip" }).element().focus();
-  await userEvent.keyboard("2");
+  screen
+    .getByRole("radio", { name: /Zendesk/ })
+    .element()
+    .focus();
+  await userEvent.keyboard("{Tab} ");
 
   const row = document.activeElement;
   expect(row?.textContent).toContain("Intercom");
   expect(row && getComputedStyle(row).outlineOffset).toBe("-2px");
 });
 
-/** A card taking the window's keys, beside a field and a reply box like the chat's. */
-async function renderTakingKeys(onAnswer = noop, replyBox = "") {
+it("leaves a digit typed into an empty reply box beside the card in the box, picking nothing", async () => {
   const screen = await renderInBrowser(
     <div>
-      <input aria-label="Elsewhere" />
+      <QuestionCard onAnswer={noop} questions={[COMPETITORS]} status="open" />
       <div
         aria-label="Reply"
         className="prompt-editor"
         contentEditable
         role="textbox"
         suppressContentEditableWarning
-      >
-        {replyBox}
-      </div>
-      <QuestionCard
-        onAnswer={onAnswer}
-        questions={[COMPETITORS]}
-        status="open"
-        takesKeys
       />
     </div>,
   );
-  const digit = screen.getByText("2", { exact: true });
-  return { digit, screen };
-}
-
-it("picks with a digit pressed outside a card taking the window's keys, and sends on Enter", async () => {
-  const onAnswer = vi.fn();
-  const { digit, screen } = await renderTakingKeys(onAnswer);
-  (document.activeElement as HTMLElement | null)?.blur(); // focus is an Element's to drop
-  await expect.element(digit).toBeVisible();
-
-  await userEvent.keyboard("2");
-  await expect
-    .element(screen.getByRole("radio", { name: /Intercom/ }))
-    .toBeChecked();
-  await userEvent.keyboard("{Enter}");
-
-  expect(onAnswer).toHaveBeenCalledWith({
-    replies: [{ picked: ["Intercom"] }],
-  });
-});
-
-it("takes a digit from an empty reply box, and leaves one typed into a field or a reply box with words to it", async () => {
-  const { digit, screen } = await renderTakingKeys(noop, "Also");
-  const intercom = screen.getByRole("radio", { name: /Intercom/ });
-
-  await screen.getByRole("textbox", { name: "Elsewhere" }).click();
-  await expect.element(digit).not.toBeVisible();
-  await userEvent.keyboard("2");
-  await expect
-    .element(screen.getByRole("textbox", { name: "Elsewhere" }))
-    .toHaveValue("2");
-
   const reply = screen.getByRole("textbox", { name: "Reply" });
   await reply.click();
-  await userEvent.keyboard("2");
-  await expect.element(intercom).not.toBeChecked();
 
-  await userEvent.clear(reply);
-  await expect.element(digit).toBeVisible();
   await userEvent.keyboard("2");
-  await expect.element(intercom).toBeChecked();
-  await expect.element(intercom).toHaveFocus();
+
+  await expect.element(reply).toHaveTextContent("2");
+  await expect.element(reply).toHaveFocus();
+  for (const radio of screen.getByRole("radio").all()) {
+    await expect.element(radio).not.toBeChecked();
+  }
 });
 
-it("leaves digits to the own-answer row, where Shift+Enter starts a line and Enter sends", async () => {
+it("takes a digit typed into the own-answer row as words, where Shift+Enter starts a line and Enter sends", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(
     <QuestionCard
@@ -251,7 +190,7 @@ it("leaves digits to the own-answer row, where Shift+Enter starts a line and Ent
   });
 });
 
-it("toggles the choices of a question of several answers by their digits", async () => {
+it("toggles the choices of a question of several answers with Space", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(
     <QuestionCard
@@ -265,14 +204,14 @@ it("toggles the choices of a question of several answers by their digits", async
     .element()
     .focus();
 
-  await userEvent.keyboard("131{Enter}");
+  await userEvent.keyboard(" {Tab}{Tab} {Shift>}{Tab}{Tab}{/Shift} {Enter}");
 
   expect(onAnswer).toHaveBeenCalledWith({
     replies: [{ picked: ["Freshdesk"] }],
   });
 });
 
-it("moves the keyboard on to the next step's first choice as a digit answers a step", async () => {
+it("moves the keyboard on to the next step's first choice as a pick answers a step", async () => {
   const screen = await renderInBrowser(
     <QuestionCard onAnswer={noop} questions={SEVERAL} status="open" />,
   );
@@ -281,7 +220,7 @@ it("moves the keyboard on to the next step's first choice as a digit answers a s
     .element()
     .focus();
 
-  await userEvent.keyboard("2");
+  await userEvent.keyboard("{Tab} ");
 
   await expect
     .element(screen.getByText("What does a good weekend look like?"))
@@ -289,7 +228,7 @@ it("moves the keyboard on to the next step's first choice as a digit answers a s
   expect(document.activeElement?.textContent).toContain("Hiking");
 });
 
-it("answers every step with digits and sends from the review with Enter", async () => {
+it("answers every step from the keyboard and sends from the review with Enter", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(
     <QuestionCard onAnswer={onAnswer} questions={SEVERAL} status="open" />,
@@ -299,9 +238,9 @@ it("answers every step with digits and sends from the review with Enter", async 
     .element()
     .focus();
 
-  await userEvent.keyboard("1");
-  await userEvent.keyboard("2");
-  await userEvent.keyboard("1");
+  await userEvent.keyboard("{Enter}");
+  await userEvent.keyboard("{Tab}{Enter}");
+  await userEvent.keyboard("{Enter}");
   await expect
     .element(screen.getByRole("button", { name: /Send answers/ }))
     .toHaveFocus();

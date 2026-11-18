@@ -84,6 +84,29 @@ export function focusScreenHome({ leaving }: { leaving: boolean }) {
 }
 
 /**
+ * Puts the keyboard in the reply box of the composer `from` sits in
+ * (`data-composer-column`), a chat popped out of its tab's included, which
+ * no tab encloses. Outside a composer, the screen on show takes it.
+ */
+export function focusReplyBox(from: Element) {
+  const column = from.closest("[data-composer-column]");
+  const home =
+    column &&
+    [...column.querySelectorAll<HTMLElement>("[data-keyboard-home]")].find(
+      isShown,
+    );
+  const focus = home && homeFocus.get(home);
+  const target = home && targetIn(home);
+  if (focus) {
+    focus();
+  } else if (target) {
+    focusQuietly(target);
+  } else {
+    focusScreenHome({ leaving: false });
+  }
+}
+
+/**
  * Focuses a home with no ring until the next key press: nobody moved the
  * keyboard there, so the ring would mark a place the person is not looking
  * at. `data-quiet-focus` hides it (`globals.css`), since Chromium draws the

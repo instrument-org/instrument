@@ -225,6 +225,28 @@ it("leaves the reader where they scrolled to, and follows again once they scroll
   expect(below()).toBeCloseTo(0, 0);
 });
 
+it.each([
+  ["down at the end", { deltaY: 40 }],
+  ["sideways", { deltaX: 40, deltaY: 2 }],
+])(
+  "keeps following through a wheel %s, which cannot move the transcript",
+  async (_, wheel) => {
+    await renderInBrowser(<Harness />);
+    await frames(100);
+    send({ armed: false });
+    await frames(50);
+    grow(800);
+    await frames(50);
+    expect(below()).toBeCloseTo(0, 0);
+    viewport().dispatchEvent(
+      new WheelEvent("wheel", { bubbles: true, ...wheel }),
+    );
+    grow(300);
+    await frames(50);
+    expect(below()).toBeCloseTo(0, 0);
+  },
+);
+
 it("keeps following when the content gets shorter for a moment", async () => {
   await renderInBrowser(<Harness />);
   await frames(100);

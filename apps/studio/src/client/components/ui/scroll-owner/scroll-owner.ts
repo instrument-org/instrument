@@ -114,9 +114,8 @@ export class ScrollOwner {
       return;
     }
     element.addEventListener("scroll", this.onScroll, { passive: true });
-    for (const type of ["wheel", "touchmove"] as const) {
-      element.addEventListener(type, this.onInput, { passive: true });
-    }
+    element.addEventListener("wheel", this.onWheel, { passive: true });
+    element.addEventListener("touchmove", this.onInput, { passive: true });
     element.addEventListener("keydown", this.onKey);
     element.addEventListener("pointerdown", this.onPointer);
     this.observe(element);
@@ -395,6 +394,30 @@ export class ScrollOwner {
     this.takeOver();
   };
 
+  /**
+   * A wheel takes over only when it can move the transcript: never one that
+   * goes sideways, one a table or code block inside scrolls instead, or one
+   * pushing down past an end already reached, which fires no scroll to hand
+   * following back.
+   */
+  private onWheel = (event: WheelEvent) => {
+    const viewport = this.viewport;
+    if (!viewport || Math.abs(event.deltaX) > Math.abs(event.deltaY)) {
+      return;
+    }
+    if (
+      event.target instanceof Element &&
+      scrollsInside(event.target, viewport, event.deltaY)
+    ) {
+      return;
+    }
+    const geometry = this.measure();
+    if (event.deltaY > 0 && geometry && isAtEnd(geometry)) {
+      return;
+    }
+    this.takeOver();
+  };
+
   private onKey = (event: KeyboardEvent) => {
     if (SCROLL_KEYS.has(event.key) && event.target === this.viewport) {
       this.takeOver();
@@ -603,7 +626,7 @@ export class ScrollOwner {
       return;
     }
     viewport.removeEventListener("scroll", this.onScroll);
-    viewport.removeEventListener("wheel", this.onInput);
+    viewport.removeEventListener("wheel", this.onWheel);
     viewport.removeEventListener("touchmove", this.onInput);
     viewport.removeEventListener("keydown", this.onKey);
     viewport.removeEventListener("pointerdown", this.onPointer);
@@ -626,4 +649,33 @@ function layoutTop(element: HTMLElement) {
     top += at.offsetTop;
   }
   return top;
+}
+
+/** Whether an element between `target` and the viewport scrolls by `deltaY` itself. */
+function scrollsInside(
+  target: Element,
+  viewport: HTMLElement,
+  deltaY: number,
+): boolean {
+  for (
+    let at: Element | null = target;
+    at && at !== viewport;
+    at = at.parentElement
+  ) {
+    if (at.scrollHeight <= at.clientHeight + 1) {
+      continue;
+    }
+    const overflow = getComputedStyle(at).overflowY;
+    if (overflow !== "auto" && overflow !== "scroll") {
+      continue;
+    }
+    if (
+      deltaY < 0
+        ? at.scrollTop > 0
+        : at.scrollTop + at.clientHeight < at.scrollHeight - 1
+    ) {
+      return true;
+    }
+  }
+  return false;
 }

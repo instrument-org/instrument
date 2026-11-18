@@ -44,6 +44,11 @@ export interface AskState {
    * on its own computer, where the system's prompt is.
    */
   pending?: Taken;
+  /**
+   * An open question the person wrote past, which their message answers:
+   * not stopped first, nor asked again past.
+   */
+  replied?: true;
 }
 
 /**
@@ -68,6 +73,18 @@ export function movedPastOf(
     ...(stopped?.by === "person" && { stoppedAt: stopped.at }),
     ...(typed && { typed }),
   };
+}
+
+/** Whether the person wrote past an open question, which their message answers, before any Stop of theirs since it was asked. */
+function isRepliedPast(ask: AskRecord, moved: MovedPast | undefined): boolean {
+  return (
+    ask.kind === "question" &&
+    ask.stage.is === "open" &&
+    moved?.typed !== undefined &&
+    moved.typed > ask.messageId &&
+    (moved.stoppedAt === undefined ||
+      moved.stoppedAt.getTime() < ask.askedAt.getTime())
+  );
 }
 
 /** Whether the person moved past an open question or sign-in: wrote after its call, or stopped since. */
@@ -141,6 +158,11 @@ export function askStates({
         askers.length > 0 &&
         !isMovedPast(ask, movedPast) &&
         !isAskedAgain(ask, asks);
+      const replied =
+        !live &&
+        askers.length > 0 &&
+        !isAskedAgain(ask, asks) &&
+        isRepliedPast(ask, movedPast);
       const unused = live ? unusedAnswers(ask, toAsk) : [];
       const pending = unused.find((answer) => isFreshAsk(answer.at, now));
       const away =
@@ -152,6 +174,7 @@ export function askStates({
         askers,
         live,
         ...(pending && { pending }),
+        ...(replied && { replied: true as const }),
         ...(away && { away }),
       };
     })

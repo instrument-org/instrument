@@ -228,6 +228,52 @@ it("closes the chat's questions when the person writes instead, and leaves its p
   expect((await openAsks(chatId)).map((ask) => ask.kind)).toEqual(["folder"]);
 });
 
+/** The `choose` call's output as its records hold it now. */
+async function callOutput(
+  chatId: ChatId,
+  sessionId: StoreId.Session,
+  messageId: StoreId.Message,
+  partId: StoreId.Part,
+) {
+  const transcript = await ChatReads.transcript({
+    chatId,
+    only: new Set([messageId]),
+    sessionId,
+  });
+  const part = transcript
+    ._unsafeUnwrap()
+    .flatMap((message) => message.parts)
+    .find((each) => each.metadata.id === partId);
+  return part && "output" in part ? part.output : undefined;
+}
+
+it("records on the call that a reply written past the card answered it", async () => {
+  const { chatId, messageId, partId, sessionId } = await chatAsking();
+  await writeMessage(chatId, sessionId, "user", [
+    { state: "done", text: "2", type: "text" },
+  ]);
+
+  await driveAsks(chatId, context().workspaceRef);
+
+  expect(await callOutput(chatId, sessionId, messageId, partId)).toEqual({
+    asked: true,
+    inReply: true,
+  });
+});
+
+it("leaves a call stopped past as it was, since no reply answered it", async () => {
+  const { chatId, messageId, partId, sessionId } = await chatAsking();
+  (
+    await ChatWrites.stopped(chatId, sessionId, "person", new Date())
+  )._unsafeUnwrap();
+
+  await driveAsks(chatId, context().workspaceRef);
+
+  expect(await callOutput(chatId, sessionId, messageId, partId)).toEqual({
+    asked: true,
+  });
+});
+
 it("closes a question the person wrote past, waking nobody, so no launch drives it again", async () => {
   const { askId, chatId, sessionId } = await chatAsking();
   await writeMessage(chatId, sessionId, "user", [

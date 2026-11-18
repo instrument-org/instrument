@@ -216,6 +216,42 @@ describe("askStates", () => {
     `);
   });
 
+  it("marks a question written past as answered in the reply, and one stopped past as not", () => {
+    const question: AskRecord = {
+      askedAt: at(0),
+      askers: [{ at: at(0), partId: StoreId.newPartId(), sessionId: own }],
+      device: owner,
+      id: "q",
+      kind: "question",
+      messageId: StoreId.newMessageId(),
+      partId: StoreId.newPartId(),
+      questions: ["Which pantry?"],
+      stage: { is: "open" },
+    };
+    const typed = StoreId.newMessageId();
+    const replied = (movedPast: Parameters<typeof askStates>[0]["movedPast"]) =>
+      askStates({ answers: [], asks: [question], movedPast, now: NOW }).map(
+        (state) => state.replied ?? false,
+      );
+    expect({
+      stopped: replied({ stoppedAt: at(1) }),
+      stoppedThenTyped: replied({ stoppedAt: at(1), typed }),
+      typed: replied({ typed }),
+    }).toMatchInlineSnapshot(`
+      {
+        "stopped": [
+          false,
+        ],
+        "stoppedThenTyped": [
+          false,
+        ],
+        "typed": [
+          true,
+        ],
+      }
+    `);
+  });
+
   it.each([
     { name: "a later turn's set, from another computer", set: "second" },
     { name: "a question an earlier build asked later", set: undefined },

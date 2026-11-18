@@ -153,6 +153,7 @@ export {
 export { readWebSearchResults } from "./lib/web-search-results";
 export {
   chooseAnswer,
+  chooseInReply,
   type ChooseQuestion,
   chooseQuestions,
 } from "./lib/choose-call";

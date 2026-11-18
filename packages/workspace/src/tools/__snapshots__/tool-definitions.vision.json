@@ -82,7 +82,7 @@
     "name": "bash"
   },
   {
-    "description": "Put one to four questions with multiple choice options to the user on one card in the chat. The card shows them one question at a time, each with your choices, a row for an answer in their own words, a note, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. They send every answer together. Questions you need answered before going on go on one card, never a card each; ask a later card only for a question that depends on an earlier answer. Your turn ends on this call, and their answers reach you later as a message of their own, so do what does not depend on them first. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.",
+    "description": "Put one to four questions with multiple choice options to the user on one card in the chat. The card shows them one question at a time, each with your choices numbered from 1, a row for an answer in their own words, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. They send every answer together, or reply in the chat instead, which may name a choice by its number. Give a choice `detail` only when choices differ in a way that needs seeing (a layout, a table, code, a mockup), not for plain preferences or yes/no. Questions you need answered before going on go on one card, never a card each; ask a later card only for a question that depends on an earlier answer. Your turn ends on this call, and their answers reach you later as a message of their own, so do what does not depend on them first. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.",
     "inputSchema": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "type": "object",
@@ -110,6 +110,10 @@
                   "properties": {
                     "description": {
                       "description": "A short line under the label saying what picking it means, when the label alone does not",
+                      "type": "string"
+                    },
+                    "detail": {
+                      "description": "Markdown shown beside the choices while this one is pointed at: a table, code, a layout or a mockup",
                       "type": "string"
                     },
                     "label": {

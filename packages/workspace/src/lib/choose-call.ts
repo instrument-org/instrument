@@ -74,6 +74,20 @@ export function chooseAnswer(
   return "asked" in read.data ? read.data.answer : read.data;
 }
 
+const InReplyOutputSchema = z.object({
+  asked: z.literal(true),
+  inReply: z.literal(true),
+});
+
+/**
+ * Whether a `choose` call's card closed because the person wrote in the chat
+ * while it was up, which answers it in that reply. Calls closed that way by
+ * earlier builds hold nothing to say so, and read as closed unanswered.
+ */
+export function chooseInReply(output: unknown): boolean {
+  return InReplyOutputSchema.safeParse(output).success;
+}
+
 /** The line the inbox and the asks list name an open card by. */
 export function askLine(questions: { question: string }[]): string {
   const [first, ...rest] = questions;

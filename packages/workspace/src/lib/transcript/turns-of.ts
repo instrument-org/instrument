@@ -3,7 +3,7 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { askedOnCard } from "../../tools/connect-app-output";
-import { chooseAnswer } from "../choose-call";
+import { chooseAnswer, chooseInReply } from "../choose-call";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
 import { dataPartVisibility } from "../data-part-visibility";
 import { type ErrorOutcome, errorOutcomeOf } from "./error-outcome";
@@ -826,11 +826,13 @@ function stillAsks(
   switch (part.type) {
     case "tool-choose": {
       // The call ends as the card goes up and the answer is written onto it;
-      // a message the person typed after it closes it unanswered.
+      // a message the person typed after it closes it, answered in that
+      // reply, which the call records once its computer has read it.
       return (
         !writtenPast &&
         (part.state !== "output-available" ||
-          chooseAnswer(part.output) === undefined)
+          (chooseAnswer(part.output) === undefined &&
+            !chooseInReply(part.output)))
       );
     }
     case "tool-connect_app": {

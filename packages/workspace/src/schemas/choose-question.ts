@@ -11,6 +11,10 @@ const ChoiceSchema = z.object({
     description:
       "A short line under the label saying what picking it means, when the label alone does not",
   }),
+  detail: z.string().optional().meta({
+    description:
+      "Markdown shown beside the choices while this one is pointed at: a table, code, a layout or a mockup",
+  }),
   label: z
     .string()
     .meta({ description: "The choice as the card shows it, in a few words" }),

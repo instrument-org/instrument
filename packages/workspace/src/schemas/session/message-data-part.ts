@@ -1393,6 +1393,20 @@ export namespace SessionMessageDataPart {
       })
       .optional(),
     page: ViewedPageSchema.optional(),
+    /**
+     * The question on show on the chat's card over the reply box, which the
+     * message may answer by a choice's number or words: its words, its
+     * choices in their numbered order, and which of the card's questions it
+     * is (`at` of `of`, from 1).
+     */
+    question: z
+      .object({
+        at: z.number().int().min(1),
+        choices: z.array(z.string()),
+        of: z.number().int().min(1),
+        text: z.string(),
+      })
+      .optional(),
     /** Every tab the window has open, on screen or not, for `tab` to name; the strip's order. */
     tabs: z
       .array(

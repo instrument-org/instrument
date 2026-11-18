@@ -6,6 +6,7 @@ import {
   answerModelLines,
   askLine,
   chooseAnswer,
+  chooseInReply,
   chooseQuestions,
 } from "./choose-call";
 
@@ -42,6 +43,27 @@ describe("chooseQuestions", () => {
     ]);
   });
 
+  it("keeps a choice's markdown detail, and reads a choice without one as before", () => {
+    const withDetail = {
+      questions: [
+        {
+          choices: [
+            {
+              detail: "| Plan | Price |\n| --- | --- |\n| Team | $45 |",
+              label: "Table",
+            },
+            { label: "Summary" },
+          ],
+          header: "Layout",
+          question: "How should I lay it out?",
+        },
+      ],
+    };
+    expect(chooseQuestions(withDetail)[0]?.choices).toEqual(
+      withDetail.questions[0]?.choices,
+    );
+  });
+
   it("reads nothing from an input still arriving", () => {
     expect(chooseQuestions({ questions: [{ header: "Te" }] })).toEqual([]);
     expect(chooseQuestions(undefined)).toEqual([]);
@@ -64,6 +86,22 @@ describe("chooseAnswer", () => {
     { output: { declined: true }, read: { replies: [{ skipped: true }] } },
   ])("reads $output", ({ output, read }) => {
     expect(chooseAnswer(output)).toEqual(read);
+  });
+});
+
+describe("chooseInReply", () => {
+  it.each([
+    { inReply: false, output: { asked: true } },
+    { inReply: true, output: { asked: true, inReply: true } },
+    {
+      inReply: false,
+      output: { answer: { replies: [{ skipped: true }] }, asked: true },
+    },
+    // An earlier build's card closed by a typed reply recorded nothing.
+    { inReply: false, output: { declined: true } },
+  ])("reads $output", ({ inReply, output }) => {
+    expect(chooseInReply(output)).toBe(inReply);
+    expect(chooseAnswer(output) === undefined || !inReply).toBe(true);
   });
 });
 

@@ -127,6 +127,15 @@
             if (!parent || [...parent.querySelectorAll(crumbs)].some((other) => !node.contains(other))) break;
             node = parent;
           }
+          // The bar fits its crumbs to its width from a copy drawn out of
+          // sight, its last child, with a crumb for each one in the bar. Those
+          // of the hidden crumbs go too, or the bar keeps room for folders
+          // nobody sees and cuts the names it shows to their shortest.
+          const trail = node?.parentElement;
+          const copies = trail?.lastElementChild?.querySelectorAll("[data-crumb]") ?? [];
+          [...(trail?.children ?? [])].forEach((part, at) => {
+            if (part.hasAttribute("data-walkthrough-gone")) copies[at]?.setAttribute("data-walkthrough-gone", "");
+          });
         }
       }
       // The development pills (server, workspace, instance) beside the bell.

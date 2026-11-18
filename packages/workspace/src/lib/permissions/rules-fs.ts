@@ -202,7 +202,7 @@ export function folderAsk({
  * refused ask: {@link closedNote}'s reasons in their words. Undefined for a
  * path named by a second name, which says nothing to them.
  */
-export function closedWhy(reach: Reach): string | undefined {
+function closedWhy(reach: Reach): string | undefined {
   const rule = reach.rule;
   if (reach.stream) {
     return undefined;

@@ -27,7 +27,7 @@ const EMPTY = "scaleX(0)";
  * page does not.
  *
  * Positioned against the field, which has to be the nearest positioned box
- * around it.
+ * around it, and rounded as it is.
  */
 export function LoadProgress({ stage }: { stage: LoadStage }) {
   const lineRef = useRef<HTMLDivElement>(null);
@@ -88,10 +88,15 @@ export function LoadProgress({ stage }: { stage: LoadStage }) {
     };
   }, [stage]);
   return (
+    // Edge to edge along the field's foot, cut by its own rounded corners.
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-3 bottom-0 h-0.5 origin-left rounded-full bg-brand-500 opacity-0 dark:bg-brand-400"
-      ref={lineRef}
-    />
+      className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]"
+    >
+      <div
+        className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-brand-500 opacity-0 dark:bg-brand-400"
+        ref={lineRef}
+      />
+    </div>
   );
 }

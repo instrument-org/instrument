@@ -59,6 +59,8 @@ export interface AskState {
 export interface MovedPast {
   stoppedAt?: Date;
   typed?: StoreId.Message;
+  /** When the person wrote `typed`. */
+  typedAt?: Date;
 }
 
 /** How far the person moved past what the chat asked, from its own session (`MovedPast`). */
@@ -68,22 +70,33 @@ export function movedPastOf(
 ): MovedPast {
   const typed = messages.findLast(
     (message) => message.role === "user" && isTypedByUser(message),
-  )?.id;
+  );
   return {
     ...(stopped?.by === "person" && { stoppedAt: stopped.at }),
-    ...(typed && { typed }),
+    ...(typed && { typed: typed.id, typedAt: typed.metadata.createdAt }),
   };
 }
 
-/** Whether the person wrote past an open question, which their message answers, before any Stop of theirs since it was asked. */
+/**
+ * Whether the person wrote past an open question on show, which their
+ * message answers, with no Stop of theirs between its asking and the
+ * message. A held question was never on show, so nothing answered it.
+ */
 function isRepliedPast(ask: AskRecord, moved: MovedPast | undefined): boolean {
+  if (
+    ask.kind !== "question" ||
+    ask.held === true ||
+    ask.stage.is !== "open" ||
+    moved?.typed === undefined ||
+    moved.typed <= ask.messageId
+  ) {
+    return false;
+  }
+  const { stoppedAt, typedAt } = moved;
   return (
-    ask.kind === "question" &&
-    ask.stage.is === "open" &&
-    moved?.typed !== undefined &&
-    moved.typed > ask.messageId &&
-    (moved.stoppedAt === undefined ||
-      moved.stoppedAt.getTime() < ask.askedAt.getTime())
+    stoppedAt === undefined ||
+    stoppedAt.getTime() < ask.askedAt.getTime() ||
+    (typedAt !== undefined && stoppedAt.getTime() > typedAt.getTime())
   );
 }
 

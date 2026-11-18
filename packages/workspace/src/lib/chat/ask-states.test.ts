@@ -229,16 +229,25 @@ describe("askStates", () => {
       stage: { is: "open" },
     };
     const typed = StoreId.newMessageId();
-    const replied = (movedPast: Parameters<typeof askStates>[0]["movedPast"]) =>
-      askStates({ answers: [], asks: [question], movedPast, now: NOW }).map(
+    const replied = (
+      movedPast: Parameters<typeof askStates>[0]["movedPast"],
+      ask: AskRecord = question,
+    ) =>
+      askStates({ answers: [], asks: [ask], movedPast, now: NOW }).map(
         (state) => state.replied ?? false,
       );
     expect({
+      // Asked mid-turn and never on show, so the message answered nothing.
+      held: replied({ typed }, { ...question, held: true }),
       stopped: replied({ stoppedAt: at(1) }),
-      stoppedThenTyped: replied({ stoppedAt: at(1), typed }),
+      stoppedThenTyped: replied({ stoppedAt: at(1), typed, typedAt: at(2) }),
       typed: replied({ typed }),
+      typedThenStopped: replied({ stoppedAt: at(3), typed, typedAt: at(2) }),
     }).toMatchInlineSnapshot(`
       {
+        "held": [
+          false,
+        ],
         "stopped": [
           false,
         ],
@@ -246,6 +255,9 @@ describe("askStates", () => {
           false,
         ],
         "typed": [
+          true,
+        ],
+        "typedThenStopped": [
           true,
         ],
       }

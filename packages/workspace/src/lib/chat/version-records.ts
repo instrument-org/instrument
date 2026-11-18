@@ -38,7 +38,7 @@ export type VersionRecord = Omit<Entry, "number"> & {
  * always the next. The records are never rewritten and the trim leaves
  * them, so the numbers worked out are the same on every read.
  */
-export function numberInOrder<
+function numberInOrder<
   T extends { file: string; hash: string; kind: string; number?: number },
 >(records: readonly T[]): (T & { number: number })[] {
   const last = new Map<string, { hash: string; number: number }>();

@@ -159,7 +159,7 @@ export async function keepVersion({
 }
 
 /** The name of the folder a file's versions are kept in: its own, less a package's extension. */
-export function versionsFolderName(name: string): string {
+function versionsFolderName(name: string): string {
   const ext = path.extname(name);
   return PACKAGE_EXTENSIONS.has(ext.slice(1).toLowerCase())
     ? name.slice(0, -ext.length)

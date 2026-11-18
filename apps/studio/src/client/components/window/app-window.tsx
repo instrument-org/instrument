@@ -866,10 +866,12 @@ function WindowShell({
   // What a new tab shows, asked for as the window comes up rather than as the
   // tab mounts, so the page lays out from the cache instead of growing a
   // section at a time as each answer lands. The free trial's offer is the Add a provider sheet's one remote
-  // answer, so it is in the cache before the sheet opens.
+  // answer, so it is in the cache before the sheet opens. A first launch's
+  // window has no workspace to ask until setup places it, and loads again
+  // once it does.
   const queryClient = useQueryClient();
   useEffect(() => {
-    if (!opened) {
+    if (!opened || window.api.initialSetupState?.facts.hasWorkspace === false) {
       return;
     }
     void queryClient.prefetchQuery(

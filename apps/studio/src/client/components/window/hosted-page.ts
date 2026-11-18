@@ -162,6 +162,23 @@ const HOST_LOADS_KEPT = 8;
 /** How long a page put away for a file of another kind is kept for the next page. */
 const PARKED_PAGE_MS = 30_000;
 
+/**
+ * How many surfaces draw each group's page now. A surface drawn afresh (its
+ * tab moved to the other side, its screen's router made again) goes and
+ * comes back in one commit, and the one coming finds the page the one going
+ * left, so the one going lets the page be.
+ */
+const hostsOfGroup = new Map<string, number>();
+
+function countHost(group: string, by: 1 | -1) {
+  const count = (hostsOfGroup.get(group) ?? 0) + by;
+  if (count > 0) {
+    hostsOfGroup.set(group, count);
+  } else {
+    hostsOfGroup.delete(group);
+  }
+}
+
 function noteHostLoad(target: BrowserTargetId, url: string) {
   const loads = [...(hostLoads.get(target) ?? []), url];
   hostLoads.set(target, loads.slice(-HOST_LOADS_KEPT));
@@ -308,13 +325,21 @@ export function useHostedPage({
       close(id);
     }
   });
-  // On the way out alone.
-  useEffect(
-    () => () => {
-      closeAll();
-    },
-    [],
-  );
+  // On the way out alone, once the commit taking this surface away is
+  // done: a surface for the same group mounted in it takes the page up.
+  useEffect(() => {
+    countHost(group, 1);
+    return () => {
+      countHost(group, -1);
+      queueMicrotask(() => {
+        if (hostsOfGroup.has(group)) {
+          window.clearTimeout(parked.current);
+        } else {
+          closeAll();
+        }
+      });
+    };
+  }, [group]);
   // A page put away stops being drawn at once. Its slot can outlive it, inside
   // a viewer fading out, and the guest stands apart from that fade: at full
   // strength, blank, over whatever the viewer is giving way to.

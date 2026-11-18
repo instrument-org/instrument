@@ -1,7 +1,7 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { fileHref } from "@/shared/computer-href";
 import { StoreId } from "@instrument-org/workspace/client";
-import { renderHook } from "@testing-library/react";
+import { render, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -69,7 +69,7 @@ describe("useHostedPage", () => {
   it.each([
     ["keeps the page when its tab is only put behind", true, []],
     ["closes the page when its tab goes", false, [PAGE_OF.files]],
-  ])("%s", (_case, keeps, closed) => {
+  ])("%s", async (_case, keeps, closed) => {
     const { unmount } = renderHook(() =>
       useHostedPage({
         group: "page:files",
@@ -79,7 +79,27 @@ describe("useHostedPage", () => {
       }),
     );
     unmount();
+    await Promise.resolve();
     expect(window_.close.mock.calls.map(([id]) => id)).toEqual(closed);
+  });
+
+  // A file tab moved to the other side of its group, or its screen's router
+  // made again, draws its viewer afresh: the old one goes and the new one
+  // comes in one commit, and the page stays with the new one.
+  it("keeps the page for a viewer drawn afresh in one commit", async () => {
+    function Viewer() {
+      useHostedPage({
+        group: "page:files",
+        host: { chrome: false, isActive: true },
+        keepsPage: () => false,
+        url: FILE_URL,
+      });
+      return null;
+    }
+    const { rerender } = render(<Viewer key="before" />);
+    rerender(<Viewer key="after" />);
+    await Promise.resolve();
+    expect(window_.close).not.toHaveBeenCalled();
   });
 });
 

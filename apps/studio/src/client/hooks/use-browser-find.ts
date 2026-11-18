@@ -3,7 +3,13 @@ import { useFindTarget } from "@/client/hooks/use-find-target";
 import { getGuest, pageHoldingKeyboard } from "@/client/lib/browser-pool";
 import { registerForegroundBrowser } from "@/client/lib/foreground-browser-registry";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
-import { type RefObject, useEffect, useRef, useState } from "react";
+import {
+  type RefObject,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
 /** The last search run in any browser panel, which an empty find card opens with. */
 let lastFindQuery = "";
@@ -44,11 +50,6 @@ export function useBrowserFind({
   targetId: BrowserTargetId;
 }) {
   const findInputRef = useRef<HTMLInputElement>(null);
-  // The latest opener, for a menu outside the panel to call.
-  const openFindRef = useRef(() => {});
-  useEffect(() => {
-    openFindRef.current = openFind;
-  });
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState("");
   // Active match / total from the guest's `found-in-page` event; null before any
@@ -136,20 +137,6 @@ export function useBrowserFind({
     }
     return registerForegroundBrowser({ targetId });
   }, [isForeground, targetId]);
-  useEffect(() => {
-    if (!isForeground) {
-      return;
-    }
-    const open = () => {
-      openFindRef.current();
-    };
-    pageFindOpeners.set(targetId, open);
-    return () => {
-      if (pageFindOpeners.get(targetId) === open) {
-        pageFindOpeners.delete(targetId);
-      }
-    };
-  }, [isForeground, targetId]);
   useFindTarget({
     anchor: surfaceRef,
     enabled: isForeground,
@@ -229,6 +216,26 @@ export function useBrowserFind({
     findInputRef.current?.focus();
     findInputRef.current?.select();
   }
+
+  // The latest opener, for a menu outside the panel to call, registered
+  // while this panel is the one on screen.
+  const openFromMenu = useEffectEvent(() => {
+    openFind();
+  });
+  useEffect(() => {
+    if (!isForeground) {
+      return;
+    }
+    const open = () => {
+      openFromMenu();
+    };
+    pageFindOpeners.set(targetId, open);
+    return () => {
+      if (pageFindOpeners.get(targetId) === open) {
+        pageFindOpeners.delete(targetId);
+      }
+    };
+  }, [isForeground, targetId]);
 
   const closeFind = () => {
     getGuest(targetId)?.stopFind("clearSelection");

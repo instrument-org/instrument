@@ -823,7 +823,10 @@ export function PromptEditor({
             align="start"
             className="w-auto rounded-xl p-0"
             onCloseAutoFocus={preventDefault}
-            onEscapeKeyDown={() => {
+            // Escape closes the bar and goes no further, as for the slash menu:
+            // what holds the box takes the next one as its own.
+            onEscapeKeyDown={(event) => {
+              event.stopPropagation();
               showLink(null);
             }}
             onFocusOutside={preventDefault}

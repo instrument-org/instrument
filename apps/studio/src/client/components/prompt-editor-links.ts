@@ -195,8 +195,15 @@ function linksIn(doc: ProseMirrorNode): PromptLink[] {
     });
     let at = 0;
     for (const segment of splitLinks(line)) {
+      // How much of the line the segment covers: a Markdown link left as
+      // text (one into the app, or one typed out) is its brackets and
+      // address as well as its label, and only it can start with a bracket.
       const length =
-        segment.type === "text" ? segment.text.length : segment.label.length;
+        segment.type === "text"
+          ? segment.text.length
+          : line.startsWith("[", at)
+            ? `[${segment.label}](${segment.href})`.length
+            : segment.label.length;
       if (segment.type === "link" && isWebPage(segment.href)) {
         links.push({
           from: start + at,

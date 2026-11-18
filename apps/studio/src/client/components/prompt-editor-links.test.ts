@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   linkAtCaret,
   linkSelectionToPasted,
+  promptLinksKey,
   promptLinksPlugin,
   removeLink,
   setLinkHref,
@@ -79,6 +80,18 @@ describe("links in the prompt", () => {
       href: "https://zendesk.com/pricing",
       labeled: false,
     });
+  });
+
+  it("finds an address after a Markdown link left as text where it stands", () => {
+    const value =
+      "[My chat](instrument://chat/abc) see https://example.com now";
+    const state = box(value);
+    const link = promptLinksKey
+      .getState(state)
+      ?.links.find((found) => found.href === "https://example.com");
+    expect(link && state.doc.textBetween(link.from, link.to)).toBe(
+      "https://example.com",
+    );
   });
 
   it("does not draw an address while it is still being typed", () => {
@@ -193,17 +206,28 @@ describe("lists in the prompt", () => {
   });
 
   it.each([
-    ["- ", "- ", "- "],
-    ["  * ", "* ", "  * "],
-    ["2. ", "2. ", "2. "],
-    // Not a marker typed twice: a bullet before a number stays as written.
-    ["- ", "1. ", "- 1. "],
+    ["- milk", "- ", "- milk\n- "],
+    ["  * milk", "* ", "  * milk\n  * "],
+    ["1. milk", "2. ", "1. milk\n2. "],
+    // Words, not a second marker: they stay as typed.
+    ["- milk", "5 eggs", "- milk\n- 5 eggs"],
+    ["- milk", "1. ", "- milk\n- 1. "],
+    ["1. milk", "- ", "1. milk\n2. - "],
   ])(
-    "takes back a marker typed by habit after %j",
-    (carried, typed, expected) => {
-      let state = box(carried);
-      state = state.apply(state.tr.insertText(typed));
+    "after %j carried on, keeps %j typed as one item",
+    (first, typed, expected) => {
+      let { state } = run(box(first), continueList);
+      // One keystroke at a time, as typing reaches the plugin.
+      for (const key of typed) {
+        state = state.apply(state.tr.insertText(key));
+      }
       expect(promptTextFromDoc(state.doc)).toBe(expected);
     },
   );
+
+  it("leaves a doubled marker on a line the box did not carry on", () => {
+    let state = box("- ");
+    state = state.apply(state.tr.insertText("- "));
+    expect(promptTextFromDoc(state.doc)).toBe("- - ");
+  });
 });

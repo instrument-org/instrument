@@ -17,6 +17,19 @@ import { Decoration, DecorationSet } from "prosemirror-view";
 /** A list item's marker at the start of a line: its indent, the marker, and the space after it. */
 const MARKER = /^( *)(?:([-*•])|(\d{1,3})([.)]))( +)/u;
 
+/**
+ * The plugin's memory: where the line the box last carried a marker onto
+ * starts, while the caret is still on it, so a marker typed there by habit
+ * is the only one ever taken back.
+ */
+interface ListsState {
+  carried: number | null;
+}
+
+type ListsMeta = { carried: number | null } | "measured";
+
+const listsKey = new PluginKey<ListsState>("prompt-lists");
+
 /** How far a Tab moves a list item in. */
 const INDENT = "  ";
 
@@ -78,6 +91,7 @@ export const continueList: Command = (state, dispatch) => {
     tr.setSelection(
       TextSelection.create(tr.doc, nextStart + line.next.length),
     ).scrollIntoView();
+    tr.setMeta(listsKey, { carried: nextStart } satisfies ListsMeta);
     dispatch(tr);
   }
   return true;
@@ -125,8 +139,11 @@ export const indentListItem =
     return true;
   };
 
-/** A line that is a carried-on marker followed by one typed by habit: `- - `, `2. 2. `. */
-const DOUBLED_MARKER = /^( *(?:([-*•])|\d{1,3}([.)])) +)(?:\2|\d{1,3}\3) +$/u;
+/** A carried-on marker followed by the same kind typed by habit: `- - `, `2. 2. `. */
+const DOUBLED_MARKERS = [
+  /^( *([-*•]) +)\2 +$/u,
+  /^( *\d{1,3}([.)]) +)\d{1,3}\2 +$/u,
+];
 
 /**
  * Someone used to typing their own marker types one after the marker the box
@@ -137,6 +154,7 @@ function collapseTypedMarker(state: EditorState) {
   const { $from, empty } = state.selection;
   const first = $from.parent.firstChild;
   if (
+    listsKey.getState(state)?.carried !== $from.start() ||
     !empty ||
     $from.parent.childCount !== 1 ||
     !first?.isText ||
@@ -144,15 +162,17 @@ function collapseTypedMarker(state: EditorState) {
   ) {
     return null;
   }
-  const match = DOUBLED_MARKER.exec(first.text ?? "");
-  if (!match?.[1]) {
+  const text = first.text ?? "";
+  const kept = DOUBLED_MARKERS.map((pattern) => pattern.exec(text)?.[1]).find(
+    (marker) => marker !== undefined,
+  );
+  if (kept === undefined) {
     return null;
   }
-  const start = $from.start();
-  return state.tr.delete(start + match[1].length, $from.pos);
+  return state.tr
+    .delete($from.start() + kept.length, $from.pos)
+    .setMeta(listsKey, { carried: null } satisfies ListsMeta);
 }
-
-const listsKey = new PluginKey("prompt-lists");
 
 /**
  * Draws each list item with a hanging indent the width of its marker, so a
@@ -161,8 +181,26 @@ const listsKey = new PluginKey("prompt-lists");
  */
 export function promptListsPlugin() {
   let measure: ((text: string) => number) | undefined;
-  return new Plugin({
+  return new Plugin<ListsState>({
     key: listsKey,
+    state: {
+      init: () => ({ carried: null }),
+      apply: (tr, previous, _old, state) => {
+        // Only this file sets the meta, so its shape is known.
+        const meta = tr.getMeta(listsKey) as ListsMeta | undefined;
+        if (meta !== undefined && meta !== "measured") {
+          return { carried: meta.carried };
+        }
+        if (previous.carried === null) {
+          return previous;
+        }
+        // Forgotten once the caret leaves the line.
+        const carried = tr.mapping.map(previous.carried);
+        return {
+          carried: state.selection.$from.start() === carried ? carried : null,
+        };
+      },
+    },
     appendTransaction: (transactions, _old, state) =>
       transactions.some((tr) => tr.docChanged)
         ? collapseTypedMarker(state)
@@ -205,7 +243,9 @@ export function promptListsPlugin() {
         // view is built: its owner's dispatch reads the view it is building.
         queueMicrotask(() => {
           if (!view.isDestroyed) {
-            view.dispatch(view.state.tr.setMeta(listsKey, true));
+            view.dispatch(
+              view.state.tr.setMeta(listsKey, "measured" satisfies ListsMeta),
+            );
           }
         });
       }

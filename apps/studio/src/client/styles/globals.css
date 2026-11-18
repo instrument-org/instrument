@@ -26,7 +26,11 @@
    site's icon in front once it has loaded (prompt-editor-links.ts). */
 .prompt-editor .prompt-link {
   text-decoration: underline;
-  text-decoration-color: color-mix(in oklab, var(--foreground) 40%, transparent);
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--foreground) 40%,
+    transparent
+  );
   text-underline-offset: 3px;
 }
 

@@ -116,7 +116,7 @@ function askableFolder({
   rule: Reach["rule"];
   rules: Rules;
   shown: (hostPath: string) => string;
-}): { folder: string } | { refusal: string } {
+}): { folder: string } | { refusal: string; why: string } {
   let folder = folderToAskFor({ hostPath, isDirectory, rule, rules });
   while (onDisk && !existsSync(folder) && folder !== nodePath.dirname(folder)) {
     folder = nodePath.dirname(folder);
@@ -136,6 +136,7 @@ function askableFolder({
   if (folder === rules.home || isClosedDiskRoot(folder)) {
     return {
       refusal: `${shown(hostPath)} is directly in ${shown(folder)}, which can't be asked for whole. Work in your work folder, or a folder the person names.`,
+      why: `${APP_NAME} never asks for your whole home folder or a whole disk.`,
     };
   }
   // A folder holding a workspace's .instrument/ is the person's (their
@@ -145,6 +146,7 @@ function askableFolder({
   if (holdsAppData(rules, folder, { beyondWorkspaces: true })) {
     return {
       refusal: `${shown(hostPath)} is in ${shown(folder)}, which holds ${APP_NAME}'s own data, so it can't be asked for whole. Work in your work folder, or a folder the person names.`,
+      why: `That folder has ${APP_NAME}'s own data in it.`,
     };
   }
   return { folder };
@@ -166,16 +168,22 @@ export function folderAsk({
 }):
   | { allowed: true }
   | { allowed: false; folder: string }
-  | { refusal: string } {
+  | { refusal: string; why: string | undefined } {
   const reach = reachOf(rules, hostPath, "write");
   if (reach.level === "allow") {
     return { allowed: true };
   }
   if (reach.level === "never") {
-    return { refusal: closedNote(reach, shown(hostPath)) };
+    return {
+      refusal: closedNote(reach, shown(hostPath)),
+      why: closedWhy(reach),
+    };
   }
   if (!accountCanWrite(hostPath)) {
-    return { refusal: systemOwnedNote(shown(hostPath)) };
+    return {
+      refusal: systemOwnedNote(shown(hostPath)),
+      why: "Your account on this computer can't change that folder, so allowing it wouldn't let the agent in.",
+    };
   }
   const asked = askableFolder({
     hostPath,
@@ -187,6 +195,31 @@ export function folderAsk({
     shown,
   });
   return "refusal" in asked ? asked : { allowed: false, folder: asked.folder };
+}
+
+/**
+ * Why the rules keep a folder closed, said to the person under the agent's
+ * refused ask: {@link closedNote}'s reasons in their words. Undefined for a
+ * path named by a second name, which says nothing to them.
+ */
+export function closedWhy(reach: Reach): string | undefined {
+  const rule = reach.rule;
+  if (reach.stream) {
+    return undefined;
+  }
+  if (rule?.appData) {
+    return `That's where ${APP_NAME} keeps its own data.`;
+  }
+  if (rule?.denied) {
+    return "You said not now to that folder in this chat.";
+  }
+  if (rule?.level === "readOnly") {
+    return "That folder is read-only here.";
+  }
+  if (rule?.source === "system" && rule.level === "never") {
+    return `That file runs every time you log in, so ${APP_NAME} never changes it.`;
+  }
+  return "That folder is turned off in Settings › Permissions.";
 }
 
 /**

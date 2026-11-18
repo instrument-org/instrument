@@ -536,6 +536,29 @@ describe.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
           chmodSync(icloud, 0o755);
         });
 
+        it("tells the person why no card asks for a read-only folder", () => {
+          const real = rulesFor({
+            home,
+            settings: {
+              apps: [],
+              chats: {},
+              dangerouslyAllowEveryFolder: false,
+              folders: [],
+              places: {},
+              projects: {},
+            },
+          });
+          expect(
+            folderAsk({
+              hostPath: icloud,
+              rules: { ...real, asker: rules.asker },
+              shown: (each) => JSON.stringify(each),
+            }),
+          ).toMatchObject({
+            why: "Your account on this computer can't change that folder, so allowing it wouldn't let the agent in.",
+          });
+        });
+
         it.each(
           files.flatMap(
             (file) =>

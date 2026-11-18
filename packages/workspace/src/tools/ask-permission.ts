@@ -132,7 +132,12 @@ const askPermissionCapability = defineCapability({
           target: z.string(),
         }),
         z.object({ state: z.literal("allowed"), target: z.string() }),
-        z.object({ message: z.string(), state: z.literal("refused") }),
+        z.object({
+          message: z.string(),
+          state: z.literal("refused"),
+          /** Why no card could go up, said to the person under the step. */
+          why: z.string().optional(),
+        }),
       ]),
     },
   },
@@ -154,7 +159,7 @@ function askedFor(kind: "app" | "folder", target: string) {
 }
 
 type Decided =
-  | { message: string; state: "refused" }
+  | { message: string; state: "refused"; why?: string }
   | {
       /**
        * Raises the card for macOS's own answer when macOS keeps the app
@@ -241,7 +246,11 @@ async function folderToAsk(
     shown: (path) => JSON.stringify(shellPath(path)),
   });
   if ("refusal" in decided) {
-    return { message: decided.refusal, state: "refused" };
+    return {
+      message: decided.refusal,
+      state: "refused",
+      ...(decided.why !== undefined && { why: decided.why }),
+    };
   }
   if (decided.allowed) {
     return {

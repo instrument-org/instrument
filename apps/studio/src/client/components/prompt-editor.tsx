@@ -801,30 +801,11 @@ export function PromptEditor({
       view.focus();
     }
   };
-  // Where the bar hangs: over the start of the link, read whenever the bar is
-  // placed, so it follows the line as the box scrolls or grows.
-  const linkAnchor = {
-    current: {
-      getBoundingClientRect: () => {
-        const view = viewRef.current;
-        if (
-          !view ||
-          !activeLink ||
-          activeLink.from > view.state.doc.content.size
-        ) {
-          return new DOMRect();
-        }
-        const { bottom, left, top } = linkRect(view, activeLink);
-        return new DOMRect(left, top, 0, bottom - top);
-      },
-    },
-  };
-
   return (
     <>
       {hasLinks && <LinkOpener openerRef={openerRef} />}
       <Popover open={activeLink !== null && !menuOpen}>
-        <PopoverAnchor virtualRef={linkAnchor} />
+        <LinkBarAnchor link={activeLink} viewRef={viewRef} />
         {activeLink && (
           <PopoverContent
             align="start"
@@ -1022,6 +1003,35 @@ function LinkOpener({
     };
   });
   return null;
+}
+
+/**
+ * Where the link bar hangs: over the start of the link, read whenever the bar
+ * is placed, so it follows the line as the box scrolls or grows.
+ *
+ * Its own component so the anchor stays one object per link: Radix's popper
+ * sets state whenever it is handed a new one, so a new anchor on every
+ * keystroke leaves React a render owed after each one, and a long enough run
+ * of typing ends in "Maximum update depth exceeded".
+ */
+function LinkBarAnchor({
+  link,
+  viewRef,
+}: {
+  link: PromptLink | null;
+  viewRef: React.RefObject<EditorView | null>;
+}) {
+  const anchor = {
+    getBoundingClientRect: () => {
+      const view = viewRef.current;
+      if (!view || !link || link.from > view.state.doc.content.size) {
+        return new DOMRect();
+      }
+      const { bottom, left, top } = linkRect(view, link);
+      return new DOMRect(left, top, 0, bottom - top);
+    },
+  };
+  return <PopoverAnchor virtualRef={{ current: anchor }} />;
 }
 
 function hasLinksIn(state: EditorState) {

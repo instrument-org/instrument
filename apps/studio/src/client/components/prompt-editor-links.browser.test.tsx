@@ -4,6 +4,21 @@ import { page, userEvent } from "vitest/browser";
 
 import { PromptEditor } from "./prompt-editor";
 
+// Every anchor the link bar is handed, so a test can tell whether typing
+// hands it a new one.
+const anchors = vi.hoisted(() => new Set<unknown>());
+vi.mock("@/client/components/ui/popover", async (importOriginal) => {
+  const popover =
+    await importOriginal<typeof import("@/client/components/ui/popover")>();
+  return {
+    ...popover,
+    PopoverAnchor: (props: Parameters<typeof popover.PopoverAnchor>[0]) => {
+      if (props.virtualRef) anchors.add(props.virtualRef.current);
+      return popover.PopoverAnchor(props);
+    },
+  };
+});
+
 // What only a real caret and real layout show about links and lists in the
 // box: the bar coming up when the caret goes into a link, and a wrapped list
 // item lining up under its first word. The rules themselves are in
@@ -39,6 +54,18 @@ async function renderEditor(defaultValue = "", width = 480) {
 const editor = () => page.getByLabelText("Prompt");
 
 describe("links in the reply box", () => {
+  // A new anchor on every render has the bar's popper set state after each
+  // keystroke, which leaves React a render owed at every commit; enough
+  // keystrokes in a row and React stops with "Maximum update depth exceeded".
+  it("keeps the bar's anchor while words are typed", async () => {
+    await renderEditor();
+    await userEvent.click(editor());
+    expect(anchors.size).toBeGreaterThan(0);
+    anchors.clear();
+    await userEvent.keyboard("no links in these words");
+    expect(anchors.size).toBe(0);
+  });
+
   it("draws a typed address once a space ends it, and offers the bar in it", async () => {
     await renderEditor();
     await userEvent.click(editor());

@@ -1,6 +1,6 @@
 // ---- setup ------------------------------------------------------------------------
-// Setup fills the app window at its own 1080x720 (SETUP_WIDTH/HEIGHT in
-// electron-main/windows/setup-size.ts), measured off the `new` scenario (2026-10-23):
+// Setup fills the app window, drawn here at a first launch's 1240x840 (WINDOW_WIDTH/HEIGHT
+// in electron-main/windows/app-window.ts), measured off the `new` scenario (2026-10-23):
 // the sage-to-paper ground, the lights in the 40px band, each page's serif title
 // centered under it, and a footer with Back at the left and Continue at the right.
 
@@ -8,7 +8,7 @@
 const brandMark = (cls = "size-20") =>
   `<img src="${BRAND_URI.instrument}" class="block ${cls} shrink-0 rounded-[22%] shadow-md" alt="">`;
 
-const SETUP = { w: 1080, h: 720 };
+const SETUP = { w: 1240, h: 840 };
 
 /** The window while setup is up: the ground, the lights, `body` and the footer at its foot. */
 const setupWin = ({ body = "", foot = "", over = "" } = {}) => `

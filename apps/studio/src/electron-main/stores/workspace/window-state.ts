@@ -282,24 +282,23 @@ function ensureWindowVisible(
   return state;
 }
 
-function getDefaultState({
-  height,
-  width,
-}: {
-  height: number;
-  width: number;
-}): WindowState {
-  const primaryDisplay = screen.getPrimaryDisplay();
+/**
+ * Where a window opens when nothing was remembered for it: `size`, kept
+ * inside the work area of the display the pointer is on and centered there,
+ * so a first launch opens on the screen the person is looking at.
+ */
+function getDefaultState(size: { height: number; width: number }): WindowState {
+  const { workArea } = screen.getDisplayNearestPoint(
+    screen.getCursorScreenPoint(),
+  );
+  const width = Math.min(size.width, workArea.width);
+  const height = Math.min(size.height, workArea.height);
   return {
     bounds: {
       height,
       width,
-      x:
-        primaryDisplay.bounds.x +
-        Math.round((primaryDisplay.bounds.width - width) / 2),
-      y:
-        primaryDisplay.bounds.y +
-        Math.round((primaryDisplay.bounds.height - height) / 2),
+      x: workArea.x + Math.round((workArea.width - width) / 2),
+      y: workArea.y + Math.round((workArea.height - height) / 2),
     },
     isMaximized: false,
   };

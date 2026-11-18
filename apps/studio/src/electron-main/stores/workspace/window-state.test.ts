@@ -28,8 +28,9 @@ let stored: Record<string, unknown> = {};
 vi.mock("electron", () => ({
   screen: {
     getAllDisplays: () => [currentDisplay],
+    getCursorScreenPoint: () => ({ x: 0, y: 0 }),
     getDisplayMatching: () => currentDisplay,
-    getPrimaryDisplay: () => currentDisplay,
+    getDisplayNearestPoint: () => currentDisplay,
   },
 }));
 
@@ -167,7 +168,8 @@ describe("getWindowState", () => {
   });
 
   // A window nobody has sized yet opens at the shape it was written for,
-  // rather than at one size shared by every window in the app.
+  // rather than at one size shared by every window in the app, centered in
+  // the work area of the screen it opens on.
   it("opens an unsized window at the shape it asks for", () => {
     setPlatform("darwin");
 
@@ -177,8 +179,25 @@ describe("getWindowState", () => {
       {
         "height": 600,
         "width": 900,
-        "x": 190,
-        "y": 100,
+        "x": 223,
+        "y": 116,
+      }
+    `);
+  });
+
+  // The app window's first size is larger than a small laptop's screen, and a
+  // first launch opens it there before anything was remembered.
+  it("cuts an unsized window to the work area of the screen it opens on", () => {
+    setPlatform("darwin");
+
+    expect(
+      windowState.getWindowState("app", { height: 840, width: 1240 }).bounds,
+    ).toMatchInlineSnapshot(`
+      {
+        "height": 768,
+        "width": 1214,
+        "x": 66,
+        "y": 32,
       }
     `);
   });

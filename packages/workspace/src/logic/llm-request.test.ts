@@ -792,6 +792,31 @@ describe("llmRequestLogic", () => {
       ).toMatchInlineSnapshot(`4000`);
     });
 
+    it("aborts the model's request with an AbortError, keeping why it stopped", async () => {
+      let actor: ActorRefFrom<typeof testMachine.machine> | null = null;
+      const testMachine = await createTestMachine({
+        beforeStream: async () => {
+          actor?.send({ type: "stop" });
+          await Promise.resolve();
+        },
+        chunks: [],
+      });
+
+      actor = createActor(testMachine.machine);
+      actor.start();
+      await waitFor(actor, (state) => state.status === "done");
+      const reason: unknown =
+        testMachine.mockLanguageModel.doStreamCalls[0]?.abortSignal?.reason;
+      expect(reason instanceof Error ? reason.name : reason).toBe("AbortError");
+      const sessionResult = await ChatReads.sessionWithMessages({
+        chatId: testMachine.chatId,
+        sessionId,
+      });
+      expect(
+        replyEnd(sessionResult._unsafeUnwrap().messages)?.error,
+      ).toMatchObject({ kind: "aborted", reason: "manual" });
+    });
+
     it("records an error it does not know as unknown", async () => {
       const { messages } = await createAndRunTestMachine({
         beforeStream: () => {

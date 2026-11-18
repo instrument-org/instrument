@@ -20,6 +20,9 @@ const SPINNER_DELAY_MS = 500;
  *
  * The delay restarts with each mount, so it is per file rather than per panel:
  * flipping quickly through several files shows nothing throughout.
+ *
+ * It marks itself `data-file-loading`, `quiet` before the spinner, so what is
+ * drawn over something else can stay out of sight until it has a file to show.
  */
 export function FileLoading() {
   const [showSpinner, setShowSpinner] = useState(false);
@@ -34,11 +37,14 @@ export function FileLoading() {
   }, []);
 
   if (!showSpinner) {
-    return null;
+    return <span data-file-loading="quiet" hidden />;
   }
 
   return (
-    <div className="flex size-full items-center justify-center">
+    <div
+      className="flex size-full items-center justify-center"
+      data-file-loading=""
+    >
       <Spinner className="size-8 text-muted-foreground" />
     </div>
   );

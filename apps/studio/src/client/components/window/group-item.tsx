@@ -220,7 +220,9 @@ export function GroupItem({
             </>
           }
         />
-        {versions && <FileVersionStrip {...versions} />}
+        {versions && (
+          <FileVersionStrip {...versions} isOverFile={version !== undefined} />
+        )}
       </>
     );
   };

@@ -95,6 +95,7 @@ export function FileVersionsButton({
   useCloseOnWindowBlur(isOpen, () => {
     setOpen(false);
   });
+  const queryClient = useQueryClient();
   const history = useFileVersions(chatId, path);
   const versions = history.data?.versions ?? [];
   const isTooBig = versions.every((version) =>
@@ -153,10 +154,23 @@ export function FileVersionsButton({
                 name={segmentsOf(history.data?.file ?? path).at(-1) ?? path}
                 onPick={() => {
                   setOpen(false);
-                  onOpen(
-                    history.data?.file ?? path,
-                    version.now ? undefined : version.copy,
+                  const copy = version.now ? undefined : version.copy;
+                  // A copy's history is this list with `viewing` set to the
+                  // version it holds, so the strip over the copy starts from
+                  // it and shows with the copy, a read sooner.
+                  const viewing = history.data?.versions.find(
+                    (other) => other.hash === version.hash,
                   );
+                  if (copy !== undefined && history.data && viewing) {
+                    const seeded: History = { ...history.data, viewing };
+                    queryClient.setQueryData(
+                      rpcClient.workspace.chats.fileVersions.queryOptions({
+                        input: { id: chatId, path: copy },
+                      }).queryKey,
+                      seeded,
+                    );
+                  }
+                  onOpen(history.data?.file ?? path, copy);
                 }}
                 version={version}
               />
@@ -227,10 +241,13 @@ function VersionRow({
  */
 export function FileVersionStrip({
   chatId,
+  isOverFile = false,
   onOpen,
   path,
 }: {
   chatId: ChatId;
+  /** Whether the copy is drawn over the file in the pane below, which the strip waits for. */
+  isOverFile?: boolean;
   /** Shows the file in this tab. */
   onOpen: (file: string) => void;
   path: string;
@@ -239,35 +256,57 @@ export function FileVersionStrip({
   const history = useFileVersions(chatId, path);
   const viewing = history.data?.viewing;
   const file = history.data?.file;
-  if (!viewing || file === undefined) {
+  const current =
+    viewing && file !== undefined ? { copy: path, file, viewing } : undefined;
+  // On the way back to the file, the copy stays drawn over it until the
+  // pane's screen catches up with the tab, so the strip stays with it.
+  const [kept, setKept] = useState(current);
+  if (
+    current &&
+    (current.copy !== kept?.copy || current.viewing !== kept.viewing)
+  ) {
+    setKept(current);
+  }
+  const shown = current ?? (kept?.file === path ? kept : undefined);
+  if (!shown) {
     return null;
   }
+  const waitsForCopy = isOverFile || current === undefined;
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-secondary px-3 text-[13px]">
+    // Out of the way unless a copy is drawn over the file below it, the one
+    // it names once that has something to show, so the two come and go
+    // together.
+    <div
+      className={cn(
+        "flex h-11 shrink-0 items-center gap-2 border-b border-border bg-secondary px-3 text-[13px]",
+        waitsForCopy &&
+          "[&:has(~*_[data-version-over]_[data-file-loading=quiet]):not(:has(~*_[data-version-under]))]:hidden [&:not(:has(~*_[data-version-over]))]:hidden",
+      )}
+    >
       <ClockCounterClockwiseIcon className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate">
-        Version from {timeOf(viewing.at)}
-        {viewing.label ? `, after “${viewing.label}”` : ""}
+        Version from {timeOf(shown.viewing.at)}
+        {shown.viewing.label ? `, after “${shown.viewing.label}”` : ""}
       </span>
       <Button
         onClick={() => {
-          onOpen(file);
+          onOpen(shown.file);
         }}
         size="sm"
         variant="ghost"
       >
         Back to now
       </Button>
-      {viewing.copy !== undefined && !viewing.now && (
+      {shown.viewing.copy !== undefined && !shown.viewing.now && (
         <Button
           onClick={() => {
             void restore({
-              copy: path,
-              file,
-              said: `Restored the ${timeOf(viewing.at)} version`,
+              copy: shown.copy,
+              file: shown.file,
+              said: `Restored the ${timeOf(shown.viewing.at)} version`,
             }).then((isDone) => {
               if (isDone) {
-                onOpen(file);
+                onOpen(shown.file);
               }
             });
           }}

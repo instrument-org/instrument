@@ -269,6 +269,9 @@ function LiveDocument({
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [session, setSession] = useState<EditorSession | null>(null);
+  // Until the editor is up, its root is empty, so the document marks itself
+  // as still loading the way `FileLoading` does.
+  const [isStarting, setStarting] = useState(true);
   const [fm, setFm] = useState(() => splitFrontMatter(initial.content).fm);
   // Bumped when the front matter changes on disk rather than in the card, so
   // the card redraws from it.
@@ -388,6 +391,7 @@ function LiveDocument({
       (next) => {
         if (live) {
           setSession(next);
+          setStarting(false);
           unregister = registerFileFlush(hostPath, next.flush);
           if (import.meta.env.DEV) {
             exposeForTests(hostPath, next);
@@ -397,6 +401,7 @@ function LiveDocument({
         }
       },
       (error: unknown) => {
+        setStarting(false);
         toast.error("Couldn't open the editor", { cause: error });
       },
     );
@@ -536,6 +541,7 @@ function LiveDocument({
             data-status={status}
             ref={rootRef}
           />
+          {isStarting && <span data-file-loading="quiet" hidden />}
           {message && session && (
             <div className="sticky bottom-0 flex items-center justify-end gap-1.5 rounded-b-xl bg-card px-3.5 py-3">
               <MessageActions

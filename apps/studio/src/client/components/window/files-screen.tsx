@@ -99,6 +99,11 @@ const BESIDE_BOUNDS: RailBounds = {
 const FILE_ROOM = 420;
 /** How long a held arrow rests on a file before it shows, as the chat list does. */
 const HELD_SHOW_REST_MS = 150;
+/**
+ * How long a version stays under the next one opened over the file, past the
+ * half second after which the next one shows its spinner over it anyway.
+ */
+const UNDER_MS = 1000;
 /** How the file fades as it slides away, as long as the folder takes to widen. */
 const BESIDE_EXIT_TRANSITION = {
   duration: 0.38,
@@ -705,26 +710,73 @@ export function FilesScreen({
   // A copy a chat kept of the file, drawn over the file, which stays open
   // under it, out of reach: Restore shows what it put back there without
   // opening the file again. The row's actions act on the copy meanwhile.
+  // It stays out of sight until it has the copy to show, so what was there
+  // stays in view until then: the file, or the copy shown before it, which
+  // stays under it a while for that.
+  const over = isVersionOver ? version : undefined;
+  const [overShown, setOverShown] = useState(over);
+  const [under, setUnder] = useState<string>();
+  if (over !== overShown) {
+    setOverShown(over);
+    setUnder(over === undefined ? undefined : overShown);
+  }
+  useEffect(() => {
+    if (under === undefined) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setUnder(undefined);
+    }, UNDER_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [under]);
+  const versionLayer = (
+    copy: string,
+    {
+      actionsInto,
+      actionsTrail,
+      isUnder,
+    }: {
+      actionsInto: HTMLElement | null | undefined;
+      actionsTrail: ReactNode;
+      isUnder: boolean;
+    },
+  ) => (
+    <div
+      className={cn(
+        "absolute inset-0 bg-background",
+        !isUnder && "has-[[data-file-loading=quiet]]:invisible",
+      )}
+      data-version-over={isUnder ? undefined : ""}
+      data-version-under={isUnder ? "" : undefined}
+      inert={isUnder}
+      key={copy}
+    >
+      <FileViewer
+        actionsInto={isUnder ? null : actionsInto}
+        actionsLead={actionsLead}
+        actionsTrail={actionsTrail}
+        className={FULL_BLEED}
+        editable
+        file={{
+          filename: segmentsOf(copy).at(-1) ?? copy,
+          hostPath: copy,
+          url: getComputerFileUrl({ hostPath: copy }),
+        }}
+      />
+    </div>
+  );
   const versionOver = (
     actionsInto: HTMLElement | null | undefined,
     actionsTrail?: ReactNode,
   ) =>
-    isVersionOver && version !== undefined && viewerFile ? (
-      <div className="absolute inset-0 bg-background">
-        <FileViewer
-          actionsInto={actionsInto}
-          actionsLead={actionsLead}
-          actionsTrail={actionsTrail}
-          className={FULL_BLEED}
-          editable
-          file={{
-            filename: segmentsOf(version).at(-1) ?? version,
-            hostPath: version,
-            url: getComputerFileUrl({ hostPath: version }),
-          }}
-          key={version}
-        />
-      </div>
+    over !== undefined && viewerFile ? (
+      <>
+        {under !== undefined &&
+          versionLayer(under, { actionsInto, actionsTrail, isUnder: true })}
+        {versionLayer(over, { actionsInto, actionsTrail, isUnder: false })}
+      </>
     ) : null;
 
   const askButton = activeFile && (

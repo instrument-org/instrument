@@ -136,6 +136,16 @@
           [...(trail?.children ?? [])].forEach((part, at) => {
             if (part.hasAttribute("data-walkthrough-gone")) copies[at]?.setAttribute("data-walkthrough-gone", "");
           });
+          // It also keeps room for a chevron between every two crumbs, hidden
+          // ones included, measured off the copy's one chevron. Narrowed to
+          // its share, the room comes to the chevrons the bar shows.
+          const chevron = trail?.lastElementChild?.querySelector("[data-separator]");
+          const shown = copies.length - [...copies].filter((copy) => copy.hasAttribute("data-walkthrough-gone")).length;
+          if (chevron && copies.length > 1 && shown < copies.length) {
+            chevron.dataset.walkthroughWidth ??= getComputedStyle(chevron).width;
+            const width = `${(Number.parseFloat(chevron.dataset.walkthroughWidth) * Math.max(0, shown - 1)) / (copies.length - 1)}px`;
+            if (chevron.style.width !== width) Object.assign(chevron.style, { flex: "none", overflow: "hidden", width });
+          }
         }
       }
       // The development pills (server, workspace, instance) beside the bell.

@@ -86,6 +86,27 @@ interface LLMRequestInput {
   chatId: ChatId;
 }
 
+/**
+ * A signal that aborts when `source` does, with an `AbortError` whatever
+ * `source` was aborted with. The AI SDK takes an abort for one only by that
+ * name: a stop's own reason (`"chat"`, `"manual"`) reached it as the reason
+ * the response's body failed, so a task its chat stopped mid-reply surfaced
+ * as "Failed to process successful response". Why the request stopped is
+ * read from `stop` itself.
+ */
+function abortedAsAbortError(source: AbortSignal): AbortSignal {
+  const controller = new AbortController();
+  const abort = () => {
+    controller.abort(new DOMException("The request was stopped", "AbortError"));
+  };
+  if (source.aborted) {
+    abort();
+  } else {
+    source.addEventListener("abort", abort, { once: true });
+  }
+  return controller.signal;
+}
+
 export const llmRequestLogic = fromPromise<
   {
     message: SessionMessage.Assistant;
@@ -94,7 +115,9 @@ export const llmRequestLogic = fromPromise<
   LLMRequestInput
 >(async ({ input, signal: actorSignal }) => {
   const { stop } = input;
-  const signal = stop ? AbortSignal.any([actorSignal, stop]) : actorSignal;
+  const signal = abortedAsAbortError(
+    stop ? AbortSignal.any([actorSignal, stop]) : actorSignal,
+  );
   const abortReason = () =>
     SessionMessage.AbortReasonSchema.catch("unknown").parse(
       stop?.aborted ? stop.reason : undefined,

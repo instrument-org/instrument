@@ -1,5 +1,6 @@
 import { type CaptureExceptionFunction } from "@instrument-org/shared";
 
+import { type HostedLimiter } from "./lib/hosted-limiter";
 import { type AIGatewayProviderConfig } from "./schemas/provider-config";
 
 export interface AIGatewayEnv {
@@ -7,6 +8,8 @@ export interface AIGatewayEnv {
     captureException: CaptureExceptionFunction;
     clientInfo: ClientInfo;
     getAIProviderConfigs: GetProviderConfigs;
+    /** Paces requests to our own platform under what it admits; see `HostedLimiter`. */
+    hostedLimiter?: HostedLimiter;
     /** Told about each request our own platform refused; see `PlatformRefusal`. */
     reportPlatformRefusal?: ReportPlatformRefusal;
     /**

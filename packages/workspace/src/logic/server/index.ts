@@ -49,6 +49,9 @@ export const workspaceServerLogic = fromCallback<
       });
     });
     c.set("reportPlatformRefusal", input.workspaceConfig.reportPlatformRefusal);
+    if (input.workspaceConfig.hostedLimiter) {
+      c.set("hostedLimiter", input.workspaceConfig.hostedLimiter);
+    }
     c.set("clientInfo", {
       clientArch: process.arch,
       clientName: APP_CLIENT_NAME_STUDIO,

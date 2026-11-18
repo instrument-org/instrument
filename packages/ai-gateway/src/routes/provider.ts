@@ -8,6 +8,7 @@ import { proxy } from "hono/proxy";
 import { CLIENT_SESSION_ID_HEADER, PROVIDERS_PATH } from "../constants";
 import { isWorkersAiProviderConfig } from "../lib/fetch-models/parse-workers-ai-base-url";
 import { isOpenCodeProviderConfig } from "../lib/opencode";
+import { type HostedRelease, releaseWhenBodyEnds } from "../lib/hosted-limiter";
 import { apiURL } from "../lib/providers/api-url";
 import {
   guardResponsesStream,
@@ -125,37 +126,64 @@ providerApp.all("/:providerConfigId/*", async (context) => {
     return streamed ? answered : collapseResponsesStream(answered);
   }
 
-  // Read whole so it can be sent again; a Responses request is JSON.
-  const response = isResponsesRequest
-    ? await guardResponsesStream({
-        onEndedEarly: reportEndedEarly,
-        send: async () =>
-          proxy(targetUrl.toString(), {
-            body: await context.req.arrayBuffer(),
-            headers,
-            method: "POST",
-            signal: context.req.raw.signal,
-          }),
+  // Our platform admits so many requests at once and a minute per account,
+  // so ours wait here for a slot; a provider the person brought is never
+  // held back. Decisions are asked while someone waits on the answer.
+  const isOurs = config.type === OUR_PROVIDER_CONFIG.type;
+  const limiter = isOurs ? context.var.hostedLimiter : undefined;
+  let release: HostedRelease | undefined;
+  if (limiter) {
+    try {
+      release = await limiter.acquire({
+        key: sessionId ?? "",
+        lane: pathResult.data.endsWith("/decision") ? "priority" : "agent",
         signal: context.req.raw.signal,
-      })
-    : await proxy(targetUrl.toString(), {
-        body: context.req.raw.body,
-        headers,
-        method: context.req.raw.method,
       });
-  const report = context.var.reportPlatformRefusal;
-  if (
-    report &&
-    config.type === OUR_PROVIDER_CONFIG.type &&
-    REFUSAL_STATUSES.has(response.status)
-  ) {
+    } catch {
+      // The client gave up while it waited, so nobody reads this.
+      return new Response(null, { status: 499 });
+    }
+  }
+
+  let response: Response;
+  try {
+    // Read whole so it can be sent again; a Responses request is JSON.
+    response = isResponsesRequest
+      ? await guardResponsesStream({
+          onEndedEarly: reportEndedEarly,
+          send: async () =>
+            proxy(targetUrl.toString(), {
+              body: await context.req.arrayBuffer(),
+              headers,
+              method: "POST",
+              signal: context.req.raw.signal,
+            }),
+          signal: context.req.raw.signal,
+        })
+      : await proxy(targetUrl.toString(), {
+          body: context.req.raw.body,
+          headers,
+          method: context.req.raw.method,
+          signal: context.req.raw.signal,
+        });
+  } catch (error) {
+    release?.();
+    throw error;
+  }
+  if (isOurs && REFUSAL_STATUSES.has(response.status)) {
+    const report = context.var.reportPlatformRefusal;
     void readPlatformRefusal(response.clone(), pathResult.data).then(
       (refusal) => {
         if (refusal) {
-          report(refusal);
+          report?.(refusal);
         }
+        release?.({ refusal: refusal?.code });
       },
+      () => release?.(),
     );
+    return response;
   }
-  return response;
+  return release
+    ? releaseWhenBodyEnds(response, release, context.req.raw.signal)
+    : response;
 });

@@ -29,6 +29,19 @@ describe("revealCut", () => {
     expect(shown("Hello the", 99, true)).toBe("Hello");
   });
 
+  it.each([
+    ["这是一个很长的中文回答", 5, true, "这是一个很"],
+    ["日本語の文章です", 99, true, "日本語の文章です"],
+    ["See 中文 here", 6, false, "See 中文"],
+    ["ไม่มีช่องว่างเลย", 4, true, "ไม่"],
+    ["𠀀𠀁𠀂", 3, false, "𠀀"],
+  ])(
+    "streams %j a character at a time where words have no spaces",
+    (text, upTo, isStreaming, expected) => {
+      expect(shown(text, upTo, isStreaming)).toBe(expected);
+    },
+  );
+
   const TABLE = [
     "Points to note:",
     "",

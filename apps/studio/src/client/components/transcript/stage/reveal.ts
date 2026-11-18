@@ -53,6 +53,33 @@ export function advance(
   return { shown, velocity };
 }
 
+/**
+ * Scripts written without spaces between words, and their punctuation, where
+ * every character is a place a line may end.
+ */
+const UNSPACED =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Thai}\p{Script=Lao}\p{Script=Khmer}\p{Script=Myanmar}\u3000-\u303f\uff00-\uffef]/u;
+
+/** Whether a cut at `at` ends on a whole word: before a space, or beside a character of a script with no spaces. */
+function endsWord(text: string, at: number): boolean {
+  const code = text.charCodeAt(at);
+  // Never between the halves of one character.
+  if ((code >= 0xdc00 && code <= 0xdfff) || /\p{M}/u.test(text[at] ?? "")) {
+    return false;
+  }
+  if (/\s/.test(text[at] ?? "")) {
+    return true;
+  }
+  const before = String.fromCodePoint(
+    text.codePointAt(
+      at >= 2 && /[\udc00-\udfff]/.test(text[at - 1] ?? "") ? at - 2 : at - 1,
+    ) ?? 0,
+  );
+  const after =
+    at < text.length ? String.fromCodePoint(text.codePointAt(at) ?? 0) : "";
+  return UNSPACED.test(before) || UNSPACED.test(after);
+}
+
 /** A table's line: it starts with a pipe, indentation aside. */
 const TABLE_LINE = /^ {0,3}\|/;
 
@@ -80,12 +107,8 @@ export function revealCut(
   }
   let cut = Math.min(upTo, text.length);
   // Back to the end of the last whole word.
-  if (!/\s/.test(text[cut] ?? "")) {
-    let at = cut - 1;
-    while (at >= 0 && !/\s/.test(text[at] ?? "")) {
-      at -= 1;
-    }
-    cut = Math.max(0, at);
+  while (cut > 0 && !endsWord(text, cut)) {
+    cut -= 1;
   }
   const lineStart = text.lastIndexOf("\n", cut - 1) + 1;
   const lineEnd = text.indexOf("\n", lineStart);

@@ -1,4 +1,3 @@
-import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import {
@@ -8,6 +7,7 @@ import {
 } from "@instrument-org/workspace/client";
 
 import { AttachedFilePreview } from "./attached-file-preview";
+import { useTranscriptHostPaths } from "./transcript/transcript-data";
 
 // TODO(2026-07-23): legacy attachment-path normalization, added 2026-06-23.
 // Pre-`attachments/` tasks stored upload paths as `./user-provided/…` or
@@ -34,9 +34,9 @@ export function SentFileChips({
     ...file,
     filePath: normalizeAttachmentFilePath(file.filePath),
   }));
-  const hostPaths = useHostPaths(
-    chatId,
+  const hostPaths = useTranscriptHostPaths(
     attachments.map((file) => file.filePath),
+    chatId,
   );
   return attachments.flatMap((file) => {
     const hostPath = hostPaths[file.filePath];

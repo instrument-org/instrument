@@ -5,7 +5,6 @@ import {
   useFilePresence,
 } from "@/client/hooks/use-file-presence";
 import { useComputersHolding } from "@/client/hooks/use-computers-holding";
-import { useHostPaths } from "@/client/hooks/use-host-paths";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
@@ -31,6 +30,7 @@ import { FolderRowCard, UnreachableFileRowCard } from "./file-preview-card";
 import { FilesGrid, rowCardLayout } from "./files-grid";
 import { FilesLayoutContext } from "./files-layout-context";
 import { CardFileVersionsContext } from "./transcript/card-file-versions-context";
+import { useTranscriptHostPaths } from "./transcript/transcript-data";
 import { useRestoreFileVersion } from "./window/file-versions";
 import { SystemFolderIcon } from "./icons/folder-glyph";
 import { MarkdownChatContext } from "./markdown-chat-context";
@@ -140,7 +140,7 @@ export function FilePathsGrid({
   // The reply names files as the task knows them; the screen shows them by
   // where they are. A file the task cannot reach, or one not yet translated,
   // is drawn as its line and nothing more.
-  const hostPaths = useHostPaths(chatId, filePaths);
+  const hostPaths = useTranscriptHostPaths(filePaths, chatId);
   // Where a file with no place here is, when another computer has it.
   const holding = useComputersHolding(
     chatId,

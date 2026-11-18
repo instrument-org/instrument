@@ -12,6 +12,9 @@ export function useRevealedText(
   text: string,
   isStreaming: boolean,
 ): { isRevealing: boolean; text: string } {
+  // Points the reveal and reads it while rendering, which a memoized render
+  // would skip or answer from an earlier frame.
+  "use no memo";
   const stage = useStage();
   // Pointed at the text during render, so the first paint already draws the
   // cut rather than the whole text and then the cut.

@@ -165,10 +165,47 @@ it("writes out a reply whose next step ends while it is still coming out", async
   });
 });
 
-it.each(["narrated-browsing", "card-between-activities", "failures", "task"])(
-  "never moves a row of %s once it has opened, while the turn is working",
-  async (id) => {
-    const frames = framesOf(id);
+/**
+ * The scenario with the agent read as stopped for one frame while a step
+ * works, as a recorded chat reads between a message that ended and the next:
+ * the step stops being live and starts again at the same row.
+ */
+function withBlip(frames: Frame[], before: string): Frame[] {
+  const reply = frames.findIndex((frame) =>
+    frame.messages.some((message) =>
+      message.parts.some(
+        (part) => part.type === "text" && part.text.startsWith(before),
+      ),
+    ),
+  );
+  const at = reply - 3;
+  const blip = frames[at];
+  if (!blip) {
+    throw new Error(`no frame before ${before}`);
+  }
+  return [
+    ...frames.slice(0, at + 1),
+    { ...blip, isAgentRunning: false },
+    ...frames.slice(at + 1),
+  ];
+}
+
+it.each([
+  { frames: () => framesOf("narrated-browsing"), name: "narrated-browsing" },
+  {
+    frames: () => framesOf("card-between-activities"),
+    name: "card-between-activities",
+  },
+  { frames: () => framesOf("failures"), name: "failures" },
+  { frames: () => framesOf("task"), name: "task" },
+  {
+    frames: () => withBlip(framesOf("narrated-browsing"), "And the date."),
+    name: "narrated-browsing stopping for a frame mid-step",
+  },
+])(
+  "never moves a row of $name once it has opened, while the turn is working",
+  async ({ frames: framesOfCase }) => {
+    const frames = framesOfCase();
     const stage = new Stage();
     stage.setRate(0);
     const screen = await renderInBrowser(
@@ -199,11 +236,12 @@ it.each(["narrated-browsing", "card-between-activities", "failures", "task"])(
         }
       }
     };
-    for (const [index, frame] of frames.entries()) {
+    for (const index of frames.keys()) {
       if (index > 0) {
         await next.click();
       }
-      if (!frame.isAgentRunning) {
+      // The turn's end folds it, which is the one move left to it.
+      if (frames.slice(index).every((each) => !each.isAgentRunning)) {
         break;
       }
       for (let tick = 0; tick < 6; tick += 1) {

@@ -480,6 +480,9 @@ function CommandCards({
  * words start coming out when they show rather than appearing at once.
  */
 function useHeldFrom(turn: Turn): number {
+  // Reads the stage's clock and points reveals while rendering, which a
+  // memoized render would skip or answer from an earlier time.
+  "use no memo";
   const stage = useStage();
   const isReduced = useReducedMotion();
   const { rows } = turn;

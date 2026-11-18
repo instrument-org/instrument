@@ -111,6 +111,17 @@ interface PooledWebview {
   webview: WebviewElement;
 }
 
+/**
+ * How far a page's load has come, from the events Chromium reports for it:
+ * `waiting` until the server answers, `committed` once its document has
+ * started to arrive, `ready` once that document is parsed and only what it
+ * pulls in is left.
+ */
+export type LoadStage = "committed" | "idle" | "ready" | "waiting";
+
+/** Each guest's `LoadStage`, kept from its first event on. */
+const loadStages = new WeakMap<WebviewElement, LoadStage>();
+
 /** What each `<webview>` event a host listens to carries, as Electron fires it. */
 export interface GuestEventMap {
   "did-fail-load": {
@@ -122,7 +133,13 @@ export interface GuestEventMap {
   "did-navigate": { httpResponseCode: number; url: string };
   "did-navigate-in-page": { isMainFrame: boolean; url: string };
   "did-start-loading": object;
+  "did-start-navigation": {
+    isInPlace: boolean;
+    isMainFrame: boolean;
+    url: string;
+  };
   "did-stop-loading": object;
+  "dom-ready": object;
   "found-in-page": {
     result: {
       activeMatchOrdinal: number;
@@ -159,6 +176,8 @@ export interface GuestHandle {
   find(text: string, options?: { findNext?: boolean; forward?: boolean }): void;
   /** Whether the page, or a frame in it, is still loading. */
   isLoading(): boolean;
+  /** How far the load under way has come; `idle` when nothing is loading. */
+  loadStage(): LoadStage;
   /**
    * Loads `url`, settling once it has, and rejecting for a load that failed.
    * Only the window asks for one, for a person, so it calls `allowSound` first.
@@ -1282,6 +1301,33 @@ function ensureWebview(
     }
   });
 
+  // Chromium fires these in this order for a page's load, and a link
+  // followed mid-load starts the sequence over from `waiting`. A load that
+  // starts with no navigation of the page's own (a frame in it) also reads
+  // as waiting, which is as much as anything says about it.
+  webview.addEventListener("did-start-loading", () => {
+    loadStages.set(webview, "waiting");
+  });
+  webview.addEventListener("did-start-navigation", (event) => {
+    // The navigation's own fields, as Electron's `<webview>` fires them.
+    const { isInPlace, isMainFrame } = event as Event &
+      GuestEventMap["did-start-navigation"];
+    // Only over a load under way: one that never starts loading (refused
+    // before it went out) leaves nothing to stop the line again.
+    if (isMainFrame && !isInPlace && loadStages.get(webview) !== "idle") {
+      loadStages.set(webview, "waiting");
+    }
+  });
+  webview.addEventListener("did-navigate", () => {
+    loadStages.set(webview, "committed");
+  });
+  webview.addEventListener("dom-ready", () => {
+    loadStages.set(webview, "ready");
+  });
+  webview.addEventListener("did-stop-loading", () => {
+    loadStages.set(webview, "idle");
+  });
+
   // A file's page keeps the color it paints behind itself on its element, so
   // the moment between one file's document going and the next one's first
   // paint (a folder of pages walked with the arrows) shows that color, which
@@ -1391,6 +1437,7 @@ function guestHandle(
       guard(() => webview.findInPage(text, options), 0);
     },
     isLoading: () => guard(() => webview.isLoading(), false),
+    loadStage: () => loadStages.get(webview) ?? "idle",
     load: (url) => {
       allowSound();
       return webview.loadURL(url);

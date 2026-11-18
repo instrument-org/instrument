@@ -18,6 +18,11 @@ export interface GroupTab {
   isShown: boolean;
   /** A page in the tab's place: the web's start sending the tab to a site. */
   showPage: (url: string) => void;
+  /**
+   * Whether the tab's row lists the versions a chat kept of a file and says
+   * which one is shown, with the way back and Restore: true in a chat's pane.
+   */
+  showsVersions: boolean;
 }
 
 export const GroupTabContext = createContext<GroupTab | null>(null);

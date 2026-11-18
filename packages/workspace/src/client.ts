@@ -77,6 +77,7 @@ export {
   type CardFileVersion,
   cardFileVersions,
 } from "./lib/transcript/card-file-versions";
+export { VERSIONS_FOLDER } from "./lib/chat/versions-folder";
 export {
   applyFeedEvent,
   applyOlder,
@@ -99,7 +100,6 @@ export {
   type WorkCardFaceOf,
   workCardPaths,
   type WorkCardPicture,
-  type WorkCardResult,
   type WorkCardView,
 } from "./lib/transcript/work-card-face";
 export {
@@ -110,7 +110,6 @@ export {
   thoughtText,
   transcriptMessage,
   type TranscriptPart,
-  type WebResult,
   type WrittenOn,
 } from "./lib/transcript/transcript-message";
 export {

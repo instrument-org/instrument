@@ -58,252 +58,6 @@ function checkFaces(cases: Case[]) {
   );
 }
 
-const search = (
-  results: { title?: string; url: string }[],
-  status: TurnStep["status"] = "done",
-) =>
-  step(
-    {
-      kind: "search",
-      query: "nashville weather",
-      results,
-      total: results.length,
-    },
-    status,
-  );
-
-const RESULTS = [
-  { title: "7-Day Forecast", url: "https://forecast.weather.gov/a" },
-  { url: "https://www.wsmv.com/weather/" },
-];
-
-describe("a web card's face", () => {
-  const faces = checkFaces([
-    ["searching", "web/searching", card("web", [search([], "running")])],
-    ["nothing found", "web/nothing-found", card("web", [search([])])],
-    ["results", "web/results", card("web", [search(RESULTS)])],
-    [
-      "results, with a fetch whose address has not come",
-      "web/results",
-      card("web", [search(RESULTS), step({ kind: "fetch" }, "running")]),
-    ],
-    [
-      "a fetch whose address has not come, after nothing found",
-      "web/nothing-found",
-      card("web", [search([]), step({ kind: "fetch" }, "running")]),
-    ],
-    [
-      "a fetch with no search",
-      "web/opening",
-      card("web", [step({ kind: "fetch" }, "running")]),
-    ],
-    [
-      "opening a result",
-      "web/opening",
-      card("web", [
-        search(RESULTS),
-        step(
-          { kind: "fetch", url: "https://www.wsmv.com/weather#top" },
-          "running",
-        ),
-      ]),
-    ],
-    [
-      "opening a page not among them",
-      "web/opening",
-      card("web", [
-        search(RESULTS),
-        step({ kind: "fetch", url: "https://example.com/" }, "running"),
-      ]),
-    ],
-    [
-      "a page read, with words",
-      "web/page",
-      card("web", [
-        search(RESULTS),
-        step({
-          kind: "fetch",
-          title: "Forecast",
-          url: "https://forecast.weather.gov/a",
-          words: "Sunny, then cold.",
-        }),
-      ]),
-    ],
-    [
-      "a page read, with no words or title",
-      "web/page",
-      card("web", [step({ kind: "fetch", url: "https://www.example.com/" })]),
-    ],
-    [
-      "a second search, counted alone",
-      "web/results",
-      card("web", [search(RESULTS), search(RESULTS.slice(0, 1))]),
-    ],
-    [
-      "a search after a fetch",
-      "web/results",
-      card("web", [
-        step({ kind: "fetch", url: "https://example.com/" }),
-        search(RESULTS),
-      ]),
-    ],
-  ]);
-
-  it("names what each shows", () => {
-    expect(faces).toMatchInlineSnapshot(`
-      {
-        "a fetch whose address has not come, after nothing found": {
-          "heading": "nashville weather",
-          "title": "nashville weather",
-          "view": "web/nothing-found",
-        },
-        "a fetch with no search": {
-          "heading": "Opening a page",
-          "title": "Opening a page",
-          "view": "web/opening",
-        },
-        "a page read, with no words or title": {
-          "heading": "example.com",
-          "host": "example.com",
-          "meta": "example.com",
-          "open": {
-            "url": "https://www.example.com/",
-          },
-          "title": "example.com",
-          "view": "web/page",
-        },
-        "a page read, with words": {
-          "heading": "Forecast",
-          "host": "forecast.weather.gov",
-          "meta": "forecast.weather.gov",
-          "open": {
-            "url": "https://forecast.weather.gov/a",
-          },
-          "title": "Forecast",
-          "view": "web/page",
-          "words": "Sunny, then cold.",
-        },
-        "a search after a fetch": {
-          "heading": "nashville weather",
-          "meta": "2 results",
-          "results": [
-            {
-              "host": "forecast.weather.gov",
-              "isOpening": false,
-              "title": "7-Day Forecast",
-              "url": "https://forecast.weather.gov/a",
-            },
-            {
-              "host": "wsmv.com",
-              "isOpening": false,
-              "title": undefined,
-              "url": "https://www.wsmv.com/weather/",
-            },
-          ],
-          "title": "nashville weather",
-          "view": "web/results",
-        },
-        "a second search, counted alone": {
-          "heading": "nashville weather",
-          "meta": "1 result",
-          "results": [
-            {
-              "host": "forecast.weather.gov",
-              "isOpening": false,
-              "title": "7-Day Forecast",
-              "url": "https://forecast.weather.gov/a",
-            },
-          ],
-          "title": "nashville weather",
-          "view": "web/results",
-        },
-        "nothing found": {
-          "heading": "nashville weather",
-          "title": "nashville weather",
-          "view": "web/nothing-found",
-        },
-        "opening a page not among them": {
-          "heading": "Opening example.com",
-          "meta": "2 results",
-          "open": {
-            "url": "https://example.com/",
-          },
-          "title": "Opening example.com",
-          "view": "web/opening",
-        },
-        "opening a result": {
-          "heading": "nashville weather",
-          "meta": "2 results",
-          "open": {
-            "url": "https://www.wsmv.com/weather#top",
-          },
-          "results": [
-            {
-              "host": "forecast.weather.gov",
-              "isOpening": false,
-              "title": "7-Day Forecast",
-              "url": "https://forecast.weather.gov/a",
-            },
-            {
-              "host": "wsmv.com",
-              "isOpening": true,
-              "title": undefined,
-              "url": "https://www.wsmv.com/weather/",
-            },
-          ],
-          "title": "Opening wsmv.com",
-          "view": "web/opening",
-        },
-        "results": {
-          "heading": "nashville weather",
-          "meta": "2 results",
-          "results": [
-            {
-              "host": "forecast.weather.gov",
-              "isOpening": false,
-              "title": "7-Day Forecast",
-              "url": "https://forecast.weather.gov/a",
-            },
-            {
-              "host": "wsmv.com",
-              "isOpening": false,
-              "title": undefined,
-              "url": "https://www.wsmv.com/weather/",
-            },
-          ],
-          "title": "nashville weather",
-          "view": "web/results",
-        },
-        "results, with a fetch whose address has not come": {
-          "heading": "nashville weather",
-          "meta": "2 results",
-          "results": [
-            {
-              "host": "forecast.weather.gov",
-              "isOpening": false,
-              "title": "7-Day Forecast",
-              "url": "https://forecast.weather.gov/a",
-            },
-            {
-              "host": "wsmv.com",
-              "isOpening": false,
-              "title": undefined,
-              "url": "https://www.wsmv.com/weather/",
-            },
-          ],
-          "title": "nashville weather",
-          "view": "web/results",
-        },
-        "searching": {
-          "heading": "nashville weather",
-          "title": "nashville weather",
-          "view": "web/searching",
-        },
-      }
-    `);
-  });
-});
-
 describe("a files card's face", () => {
   const faces = checkFaces([
     [
@@ -348,26 +102,6 @@ describe("a files card's face", () => {
       nowhere,
     ],
     [
-      "an edit",
-      "files/diff",
-      card("files", [
-        step({
-          after: "b",
-          before: "a",
-          isNew: true,
-          kind: "file",
-          path: "/w/a.ts",
-        }),
-      ]),
-    ],
-    [
-      "an edit adding only",
-      "files/diff",
-      card("files", [
-        step({ after: "b", before: "", kind: "file", path: "/w/a.ts" }),
-      ]),
-    ],
-    [
       "a file with no words",
       "files/picture",
       card("files", [step({ isNew: false, kind: "file", path: "/w/a.pdf" })]),
@@ -390,9 +124,6 @@ describe("a files card's face", () => {
       {
         "a file with no words": {
           "meta": "Updated",
-          "open": {
-            "file": "/w/a.pdf",
-          },
           "picture": {
             "place": "/w/a.pdf",
           },
@@ -401,13 +132,11 @@ describe("a files card's face", () => {
         },
         "a file with no words, not yet found": {
           "meta": "Writing",
+          "path": "/w/a.pdf",
           "title": "a.pdf",
           "view": "files/none",
         },
         "a page once written": {
-          "open": {
-            "file": "/w/page.html",
-          },
           "picture": {
             "place": "/w/page.html",
             "version": 7,
@@ -421,32 +150,8 @@ describe("a files card's face", () => {
           "view": "files/words",
           "words": "<p>",
         },
-        "an edit": {
-          "after": "b",
-          "before": "a",
-          "meta": "Updated",
-          "open": {
-            "file": "/w/a.ts",
-          },
-          "path": "/w/a.ts",
-          "title": "a.ts",
-          "view": "files/diff",
-        },
-        "an edit adding only": {
-          "after": "b",
-          "meta": "New file",
-          "open": {
-            "file": "/w/a.ts",
-          },
-          "path": "/w/a.ts",
-          "title": "a.ts",
-          "view": "files/diff",
-        },
         "what a shell call changed": {
           "meta": "New file",
-          "open": {
-            "file": "/w/x.png",
-          },
           "picture": {
             "place": "/w/x.png",
           },
@@ -455,9 +160,6 @@ describe("a files card's face", () => {
         },
         "words arriving": {
           "meta": "Writing",
-          "open": {
-            "file": "/w/notes.md",
-          },
           "path": "/w/notes.md",
           "title": "notes.md",
           "view": "files/writing",
@@ -465,9 +167,6 @@ describe("a files card's face", () => {
         },
         "words of a call still running": {
           "meta": "Writing",
-          "open": {
-            "file": "/w/notes.md",
-          },
           "path": "/w/notes.md",
           "title": "notes.md",
           "view": "files/words",
@@ -475,9 +174,6 @@ describe("a files card's face", () => {
         },
         "words written": {
           "meta": "New file",
-          "open": {
-            "file": "/w/a.ts",
-          },
           "path": "/w/a.ts",
           "title": "a.ts",
           "view": "files/words",
@@ -528,9 +224,6 @@ describe("an images card's face", () => {
           "newest": {
             "place": "/w/b.png",
           },
-          "open": {
-            "file": "/w/b.png",
-          },
           "strip": [],
           "title": "b.png",
           "view": "images/pictures",
@@ -541,9 +234,6 @@ describe("an images card's face", () => {
             "place": "/w/a.png",
             "version": 3,
           },
-          "open": {
-            "file": "/w/a.png",
-          },
           "strip": [],
           "title": "a.png",
           "view": "images/pictures",
@@ -552,9 +242,6 @@ describe("an images card's face", () => {
           "meta": "8 images",
           "newest": {
             "place": "/w/7.png",
-          },
-          "open": {
-            "file": "/w/7.png",
           },
           "strip": [
             {
@@ -611,9 +298,6 @@ describe("a generated card's face", () => {
     expect(faces).toMatchInlineSnapshot(`
       {
         "a picture": {
-          "open": {
-            "file": "/host/cat.png",
-          },
           "picture": {
             "place": "/host/cat.png",
             "version": 4,
@@ -622,7 +306,7 @@ describe("a generated card's face", () => {
           "view": "generated/picture",
         },
         "generating": {
-          "title": "An image",
+          "title": "Generating the image",
           "view": "generated/generating",
         },
       }
@@ -667,57 +351,29 @@ describe("a page card's face", () => {
         places: {},
       },
     ],
-    [
-      "a file opened",
-      "page/picture",
-      card("page", [step({ kind: "opened", target: "/w/report.pdf" })]),
-      nowhere,
-    ],
-    [
-      "a file opened, found",
-      "page/picture",
-      card("page", [step({ kind: "opened", target: "/w/report.pdf" })]),
-      { places: { "/w/report.pdf": "/host/report.pdf" } },
-    ],
   ]);
 
   it("names what each shows", () => {
     expect(faces).toMatchInlineSnapshot(`
       {
-        "a file opened": {
-          "open": {
-            "file": "/w/report.pdf",
-          },
-          "title": "report.pdf",
-          "view": "page/picture",
-        },
-        "a file opened, found": {
-          "open": {
-            "file": "/host/report.pdf",
-          },
-          "title": "report.pdf",
-          "view": "page/picture",
-        },
         "an address": {
-          "open": {
-            "url": "https://www.example.com/a",
-          },
           "title": "example.com",
+          "url": "https://www.example.com/a",
           "view": "page/picture",
         },
         "nothing known": {
           "title": "Browser",
+          "url": undefined,
           "view": "page/picture",
         },
         "nothing known yet": {
           "title": "Opening a page",
+          "url": undefined,
           "view": "page/picture",
         },
         "the tab driven": {
-          "open": {
-            "url": "https://other.com/",
-          },
           "title": "Example",
+          "url": "https://other.com/",
           "view": "page/picture",
         },
       }
@@ -728,12 +384,15 @@ describe("a page card's face", () => {
 describe("the calls a card shows", () => {
   it("leaves out a call waiting its turn behind the one running", () => {
     const running = step(
-      { kind: "fetch", url: "https://a.example/" },
+      { changesPage: true, kind: "page", url: "https://a.example/" },
       "running",
     );
-    const queued = step({ kind: "fetch", url: "https://b.example/" }, "queued");
+    const queued = step(
+      { changesPage: true, kind: "page", url: "https://b.example/" },
+      "queued",
+    );
     expect(cardsOf({ steps: [running, queued] })).toEqual([
-      { changedFile: undefined, kind: "web", steps: [running] },
+      { changedFile: undefined, kind: "page", steps: [running] },
     ]);
   });
 

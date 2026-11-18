@@ -24,7 +24,8 @@ import {
  * anchor, so a field in a viewer's toolbar answers for the whole viewer under
  * it. Only surfaces on screen count: every tab stays mounted, hidden with
  * `visibility`, and a closed inbox fades to nothing rather than unmounting, so
- * those surfaces are passed over. Inside a dialog
+ * those surfaces are passed over, as is one under something drawn over it
+ * that made it `inert`. Inside a dialog
  * that registers nothing, the press is the dialog's and opens nothing behind
  * it.
  */
@@ -88,10 +89,12 @@ function findTargetForKeyboard(): FindTarget | undefined {
               stamp,
               surface,
               target,
-              visible: surface.checkVisibility({
-                opacityProperty: true,
-                visibilityProperty: true,
-              }),
+              // Drawn, and not under something that put it out of reach.
+              visible:
+                surface.checkVisibility({
+                  opacityProperty: true,
+                  visibilityProperty: true,
+                }) && surface.closest("[inert]") === null,
             },
           ]
         : [];

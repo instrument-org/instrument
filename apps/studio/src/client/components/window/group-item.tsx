@@ -29,7 +29,12 @@ import { ScreenToolsRow, useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { BrowserStartTail } from "./browser-start-controls";
 import { PageAgentOverlay } from "./page-agent-overlay";
-import { FileVersionsButton, FileVersionStrip } from "./file-versions";
+import { computerTabOf } from "./file-tabs";
+import {
+  FileVersionsButton,
+  FileVersionStrip,
+  versionHref,
+} from "./file-versions";
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { KeptScrolls } from "./kept-scrolls";
@@ -249,19 +254,25 @@ export function GroupItem({
       ? liveHostedFileAddress(windowTabs.allTabs, up.id, path)
       : liveFileAddress(targetId, path);
 
+  /** A copy a chat kept of the file up here, shown over the file. */
+  const version =
+    up.kind === "screen" ? computerTabOf(up.href)?.version : undefined;
   /**
    * A file a chat's replies handed over keeps a version per reply, listed
    * from its row, and a kept copy open here says which one it is in a strip
-   * over it.
+   * over it, whether it is shown over the file or in its place.
    */
   const versionsOf = (location: TabLocation) =>
     chatId !== undefined && location.kind === "file"
       ? {
           chatId,
-          onOpen: (hostPath: string) => {
-            windowTabs.visitHref(up.id, fileHref(hostPath));
+          onOpen: (file: string, copy?: string) => {
+            windowTabs.visitHref(
+              up.id,
+              copy === undefined ? fileHref(file) : versionHref(file, copy),
+            );
           },
-          path: location.path,
+          path: version ?? location.path,
         }
       : undefined;
 
@@ -435,7 +446,12 @@ export function GroupItem({
               {...(isFiles ? { lead: rowProps.leading } : {})}
             />
           )}
-          {versions && <FileVersionStrip {...versions} />}
+          {versions && (
+            <FileVersionStrip
+              {...versions}
+              isOverFile={version !== undefined}
+            />
+          )}
         </>
       }
     >
@@ -452,6 +468,7 @@ export function GroupItem({
           showPage: (url) => {
             browser?.open(url, { group, replacing: up });
           },
+          showsVersions: chatId !== undefined,
         }}
       >
         <WindowContext

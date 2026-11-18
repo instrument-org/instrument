@@ -1,4 +1,4 @@
-import { type StepShows, type WebResult } from "./transcript-message";
+import { type StepShows } from "./transcript-message";
 import { type TurnStep } from "./turns-of";
 import { type WorkCard } from "./work-card";
 
@@ -18,22 +18,9 @@ export interface WorkCardPicture {
   version?: number;
 }
 
-/** One search result as a web card lists it. */
-export interface WorkCardResult {
-  host: string | undefined;
-  /** It is the result being opened. */
-  isOpening: boolean;
-  title: string | undefined;
-  url: string;
-}
-
-/** What pressing the card opens. */
-type WorkCardOpen = { file: string } | { url: string };
-
-/** What the card's bar says and what pressing it opens, whatever its kind. */
-interface FaceBar {
+/** What the caption under the card says, whatever its kind. */
+interface FaceCaption {
   meta?: string;
-  open?: WorkCardOpen;
   title: string;
 }
 
@@ -42,9 +29,8 @@ interface FaceBar {
  * `<kind>/<state>`.
  */
 interface WorkCardViews {
-  /** The change an edit made: what went, if anything, and what came in. */
-  "files/diff": { after: string; before?: string; path: string };
-  "files/none": object;
+  /** A file the card has nothing yet to show of but its name. */
+  "files/none": { path: string | undefined };
   "files/picture": { picture: WorkCardPicture };
   /** A file's words as they stand. */
   "files/words": { path: string; words: string };
@@ -57,29 +43,13 @@ interface WorkCardViews {
   /** The newest large, and with more than one, a strip of the latest under it, oldest first. */
   "images/pictures": { newest: WorkCardPicture; strip: WorkCardPicture[] };
   /** A browser's page: the picture of the tab the session drove last. */
-  "page/picture": object;
-  "web/nothing-found": { heading: string | undefined };
-  /**
-   * A page on its way: one of the results, marked among them, or a page not
-   * among them, or one whose address has not come yet, named by the heading
-   * alone.
-   */
-  "web/opening": { heading: string | undefined; results?: WorkCardResult[] };
-  /** A page read, with its words once the call gave them. */
-  "web/page": {
-    heading: string | undefined;
-    host: string | undefined;
-    words?: string;
-  };
-  /** The newest search's results, none of them being opened. */
-  "web/results": { heading: string | undefined; results: WorkCardResult[] };
-  "web/searching": { heading: string | undefined };
+  "page/picture": { url: string | undefined };
 }
 
 export type WorkCardView = keyof WorkCardViews;
 
-/** A work card's face in one view: its bar and what the view shows. */
-export type WorkCardFaceOf<V extends WorkCardView> = FaceBar &
+/** A work card's face in one view: its caption and what the view shows. */
+export type WorkCardFaceOf<V extends WorkCardView> = FaceCaption &
   WorkCardViews[V] & { view: V };
 
 /** What a work card shows now, in one of its kind's views. */
@@ -97,8 +67,6 @@ export interface WorkCardLookups {
 
 type ShowsOf<K extends StepShows["kind"]> = Extract<StepShows, { kind: K }>;
 
-const isAddress = (target: string) => /^[a-z]+:\/\//.test(target);
-
 /** The paths a card names, as the calls spelled them. */
 export function workCardPaths({ changedFile, steps }: WorkCard): string[] {
   return [
@@ -111,9 +79,6 @@ export function workCardPaths({ changedFile, steps }: WorkCard): string[] {
         case "generated":
         case "image": {
           return shows.path === undefined ? [] : [shows.path];
-        }
-        case "opened": {
-          return isAddress(shows.target) ? [] : [shows.target];
         }
         default: {
           return [];
@@ -131,16 +96,13 @@ export function workCardFace(
   const placeOf = (path: string) => places[path] ?? undefined;
   switch (card.kind) {
     case "page": {
-      return pageFace(card.steps, placeOf, drivenPage);
+      return pageFace(card.steps, drivenPage);
     }
     case "images": {
       return imagesFace(card.steps, placeOf);
     }
     case "generated": {
       return generatedFace(card.steps, placeOf);
-    }
-    case "web": {
-      return webFace(card.steps);
     }
     case "files": {
       return filesFace(card, placeOf);
@@ -152,31 +114,22 @@ type PlaceOf = (path: string) => string | undefined;
 
 function pageFace(
   steps: readonly TurnStep[],
-  placeOf: PlaceOf,
   drivenPage: WorkCardLookups["drivenPage"],
 ): WorkCardFace {
-  const pages = shownBy(steps, "page", "opened");
-  const newest = pages.at(-1);
-  const address = pages
-    .flatMap((page) => (page.kind === "page" && page.url ? [page.url] : []))
+  const address = shownBy(steps, "page")
+    .flatMap((page) => (page.url ? [page.url] : []))
     .at(-1);
-  const target = newest?.kind === "opened" ? newest.target : undefined;
-  const place = drivenPage?.url ?? address ?? target;
-  // With no address yet, the call is still bringing the page up, said as a
-  // web card says a fetch whose address has not come.
+  const url = drivenPage?.url ?? address;
+  // With no address yet, the call is still bringing the page up.
   const isGoing = steps.some(
     (step) => step.status !== "done" && step.status !== "failed",
   );
   return {
-    ...(place && {
-      open: isAddress(place)
-        ? { url: place }
-        : { file: placeOf(place) ?? place },
-    }),
     title:
       drivenPage?.title ??
-      hostOf(drivenPage?.url ?? address) ??
-      (target ? baseName(target) : isGoing ? "Opening a page" : "Browser"),
+      hostOf(url) ??
+      (isGoing ? "Opening a page" : "Browser"),
+    url,
     view: "page/picture",
   };
 }
@@ -188,16 +141,15 @@ function imagesFace(
   const images = shownBy(steps, "image");
   const newest = images.at(-1);
   const place = newest?.path && placeOf(newest.path);
-  const bar = {
+  const caption = {
     meta: images.length > 1 ? `${images.length.toString()} images` : "Opened",
-    ...(place && { open: { file: place } }),
     title: newest?.path ? baseName(newest.path) : "An image",
   };
   if (!place) {
-    return { ...bar, view: "images/opening" };
+    return { ...caption, view: "images/opening" };
   }
   return {
-    ...bar,
+    ...caption,
     newest: pictureOf(place, newest?.modifiedAt),
     strip: stripOf(images, placeOf),
     view: "images/pictures",
@@ -225,84 +177,15 @@ function generatedFace(
 ): WorkCardFace {
   const newest = shownBy(steps, "generated").at(-1);
   const place = newest?.path && placeOf(newest.path);
-  const title = newest?.path ? baseName(newest.path) : "An image";
   // The tool writes each partial frame over the file, so the picture fills
   // in as it is made.
   return place
     ? {
-        open: { file: place },
         picture: pictureOf(place, newest?.modifiedAt),
-        title,
+        title: newest?.path ? baseName(newest.path) : "An image",
         view: "generated/picture",
       }
-    : { title, view: "generated/generating" };
-}
-
-function webFace(steps: readonly TurnStep[]): WorkCardFace {
-  const search = shownBy(steps, "search").at(-1);
-  // A fetch's address comes last in its call, and until it has, the search
-  // it follows stays up: there is nothing yet to say of the page.
-  const fetch =
-    steps.at(-1)?.shows?.kind === "fetch"
-      ? shownBy(steps, "fetch").at(-1)
-      : undefined;
-  const found = search?.total ?? 0;
-  const counted =
-    found > 0
-      ? `${found.toString()} ${found === 1 ? "result" : "results"}`
-      : undefined;
-  const query = search?.query;
-  const results = search?.results ?? [];
-  const url = fetch?.url;
-  if (fetch === undefined || url === undefined) {
-    const heading = query ?? (fetch ? "Opening a page" : "Searching");
-    const bar = {
-      heading,
-      ...(counted && { meta: counted }),
-      title:
-        fetch && !search ? "Opening a page" : (query ?? "Searching the web"),
-    };
-    if (results.length > 0) {
-      return {
-        ...bar,
-        results: results.map((result) => resultOf(result)),
-        view: "web/results",
-      };
-    }
-    if (search?.status === "done") {
-      return { ...bar, view: "web/nothing-found" };
-    }
-    if (fetch) {
-      return { ...bar, view: "web/opening" };
-    }
-    return { ...bar, view: "web/searching" };
-  }
-  const host = hostOf(url);
-  const open = url ? { open: { url } } : {};
-  if (fetch.status === "done") {
-    const meta = host ?? counted;
-    return {
-      heading: fetch.title ?? host,
-      host,
-      ...(meta && { meta }),
-      ...open,
-      title: fetch.title ?? host ?? "Page",
-      view: "web/page",
-      ...(fetch.words !== undefined && { words: fetch.words }),
-    };
-  }
-  const opening = `Opening ${host ?? "the page"}`;
-  const isAResult = results.some((result) => sameAddress(result.url, url));
-  return {
-    heading: isAResult ? (query ?? "Opening a page") : opening,
-    ...(counted && { meta: counted }),
-    ...open,
-    ...(isAResult && {
-      results: results.map((result) => resultOf(result, url)),
-    }),
-    title: opening,
-    view: "web/opening",
-  };
+    : { title: "Generating the image", view: "generated/generating" };
 }
 
 function filesFace(
@@ -313,12 +196,7 @@ function filesFace(
   const path = changedFile?.path ?? written?.path;
   const place = path && placeOf(path);
   const isWriting = written !== undefined && written.status !== "done";
-  // An edit replacing nothing makes the file, which an edit of one that is
-  // there refuses.
-  const isNew =
-    written?.after === undefined
-      ? (changedFile?.isNew ?? written?.isNew)
-      : written.before === "";
+  const isNew = changedFile?.isNew ?? written?.isNew;
   const meta = isWriting
     ? "Writing"
     : isNew === undefined
@@ -326,26 +204,16 @@ function filesFace(
       : isNew
         ? "New file"
         : "Updated";
-  const bar = {
+  const caption = {
     ...(meta && { meta }),
-    ...(place && { open: { file: place } }),
     title: path ? baseName(path) : "A file",
   };
-  if (written?.after !== undefined) {
-    return {
-      ...bar,
-      after: written.after,
-      ...(written.before && { before: written.before }),
-      path: written.path,
-      view: "files/diff",
-    };
-  }
   if (
     written?.words !== undefined &&
     !(written.status === "done" && place && isPictured(written.path))
   ) {
     return {
-      ...bar,
+      ...caption,
       path: written.path,
       view: written.status === "writing" ? "files/writing" : "files/words",
       words: written.words,
@@ -353,25 +221,16 @@ function filesFace(
   }
   if (place) {
     return {
-      ...bar,
+      ...caption,
       picture: pictureOf(place, written?.modifiedAt),
       view: "files/picture",
     };
   }
-  return { ...bar, view: "files/none" };
+  return { ...caption, path, view: "files/none" };
 }
 
 function pictureOf(place: string, version: number | undefined) {
   return { place, ...(version !== undefined && { version }) };
-}
-
-function resultOf({ title, url }: WebResult, opening?: string) {
-  return {
-    host: hostOf(url),
-    isOpening: opening !== undefined && sameAddress(url, opening),
-    title,
-    url,
-  };
 }
 
 /** Each step's `shows` of the given kinds, oldest first. */
@@ -408,10 +267,4 @@ function hostOf(url: string | undefined): string | undefined {
   } catch {
     return url;
   }
-}
-
-/** Two addresses for one page, whatever their fragment or a trailing slash. */
-function sameAddress(one: string, other: string): boolean {
-  const plain = (url: string) => url.replace(/#.*$/, "").replace(/\/+$/, "");
-  return plain(one) === plain(other);
 }

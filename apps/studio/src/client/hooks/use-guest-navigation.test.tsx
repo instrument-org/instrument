@@ -27,6 +27,7 @@ function fakeGuest(url: string, targetId: BrowserTargetId = FIRST) {
     },
     forward: false,
     isLoading: () => guest.loading,
+    loadStage: () => (guest.loading ? "waiting" : "idle"),
     loading: false,
     on: (event: string, listener: () => void) => {
       events.addEventListener(event, listener);
@@ -58,6 +59,7 @@ describe("useGuestNavigation", () => {
         "canGoBack": false,
         "canGoForward": false,
         "isLoading": false,
+        "loadStage": "idle",
         "url": "https://a.test/",
       }
     `);
@@ -72,6 +74,7 @@ describe("useGuestNavigation", () => {
         "canGoBack": true,
         "canGoForward": false,
         "isLoading": false,
+        "loadStage": "idle",
         "url": "https://b.test/",
       }
     `);
@@ -106,6 +109,7 @@ describe("useGuestNavigation", () => {
       guest.emit("did-start-loading");
     });
     expect(result.current.isLoading).toBe(true);
+    expect(result.current.loadStage).toBe("waiting");
 
     guest.loading = false;
     act(() => {
@@ -150,6 +154,7 @@ describe("useGuestNavigation", () => {
       canGoBack: false,
       canGoForward: false,
       isLoading: false,
+      loadStage: "idle",
       url: null,
     });
 

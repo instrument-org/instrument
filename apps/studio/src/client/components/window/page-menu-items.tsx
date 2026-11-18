@@ -29,6 +29,7 @@ import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PrinterIcon } from "@phosphor-icons/react/Printer";
 import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
 import { useAtom } from "jotai";
+import { omit } from "radashi";
 import { type ReactNode, useState } from "react";
 
 /** A menu's Zoom row: its name, then the stepper of what the menu zooms. */
@@ -112,7 +113,7 @@ export function PageViewAsMenu({
             onValueChange={(value) => {
               const chosen = EMULATED_DEVICES.find((each) => each.id === value);
               setDevices((current) => {
-                const { [targetId]: _left, ...rest } = current;
+                const rest = omit(current, [targetId]);
                 return chosen ? { ...rest, [targetId]: chosen } : rest;
               });
             }}

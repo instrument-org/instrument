@@ -118,6 +118,11 @@ const BESIDE_BOUNDS: RailBounds = {
 const FILE_ROOM = 420;
 /** How long a held arrow rests on a file before it shows, as the chat list does. */
 const HELD_SHOW_REST_MS = 150;
+/**
+ * How long a version stays under the next one opened over the file, past the
+ * half second after which the next one shows its spinner over it anyway.
+ */
+const UNDER_MS = 1000;
 /** How the file fades as it slides away, as long as the folder takes to widen. */
 const BESIDE_EXIT_TRANSITION = {
   duration: 0.38,
@@ -167,7 +172,7 @@ export function FilesScreen({
   // Where the tab stands is the address's alone; every change to it goes
   // through `go`.
   const { arrivals, go, step: here } = useFilesStep(routed);
-  const { file, path, query, root, select, tree, view } = here;
+  const { file, path, query, root, select, tree, version, view } = here;
   const source = here.source ?? false;
   const { openScreen, rowField, rowReload, rowTail, rowView } = useWindow();
   const { moveToGroup, pageTakesOver, stepVisitOf } = useWindowTabs();
@@ -465,6 +470,22 @@ export function FilesScreen({
     activeFile !== undefined &&
     !source &&
     getFileType({ filename: activeFile.name }) === "html";
+  // A copy a chat kept of the file is drawn over the file only where the
+  // tab's row says which version it is, a chat's pane, and never over a
+  // page's file, whose page draws in a guest of its own. Anywhere else the
+  // copy takes the file's place, at its own address.
+  const isVersionOver =
+    version !== undefined && groupTab?.showsVersions === true && !isPageFile;
+  const showVersionInPlace = useEffectEvent(() => {
+    if (version !== undefined) {
+      showFile(version, { replace: true });
+    }
+  });
+  useEffect(() => {
+    if (version !== undefined && !isVersionOver) {
+      showVersionInPlace();
+    }
+  }, [version, isVersionOver]);
   // A page's file is drawn as its page inside the viewer: a page tab of the
   // file tab's own, in a group named for the tab so no strip lists it, sent
   // to the file the tab shows and closed when the tab moves off a page's file
@@ -662,6 +683,42 @@ export function FilesScreen({
       leaveFile();
     }
   });
+  const fileGone = useEffectEvent((name: string) => {
+    // A version shown over a file that has gone since takes the file's
+    // place, where Restore puts the file back.
+    if (version !== undefined) {
+      showFile(version, { replace: true });
+      return;
+    }
+    toast(`${name} is no longer there`);
+    putAway();
+  });
+  // A version shown over the file whose copy has gone since, as a chat keeps
+  // only so many, leaves the file showing.
+  const isVersionGone = useWatchedFileGone(isVersionOver ? version : undefined);
+  const versionGone = useEffectEvent(() => {
+    if (file === undefined) {
+      return;
+    }
+    toast(
+      `That version of ${segmentsOf(file).at(-1) ?? file} is no longer there`,
+    );
+    showFile(file, { replace: true });
+  });
+  useEffect(() => {
+    if (!isVersionOver || version === undefined) {
+      return;
+    }
+    const controller = new AbortController();
+    void firstByteOf(version, controller.signal).then((response) => {
+      if (response?.status === 404 && !controller.signal.aborted) {
+        versionGone();
+      }
+    });
+    return () => {
+      controller.abort();
+    };
+  }, [version, isVersionOver, isVersionGone]);
   useEffect(() => {
     if (!file) {
       return;
@@ -689,8 +746,7 @@ export function FilesScreen({
         });
         putAway();
       } else if (response.status === 404) {
-        toast(`${name} is no longer there`);
-        putAway();
+        fileGone(name);
       }
     });
     return () => {
@@ -732,6 +788,94 @@ export function FilesScreen({
           url: activeFileUrl,
         }
       : undefined;
+  // A copy a chat kept of the file, drawn over the file, which stays open
+  // under it, out of reach: Restore shows what it put back there without
+  // opening the file again. The row's actions act on the copy meanwhile.
+  // It stays out of sight until it has the copy to show, so what was there
+  // stays in view until then: the file, or the copy shown before it, which
+  // stays under it a while for that.
+  const over = isVersionOver ? version : undefined;
+  const [overShown, setOverShown] = useState(over);
+  const [under, setUnder] = useState<string>();
+  if (over !== overShown) {
+    setOverShown(over);
+    setUnder(over === undefined ? undefined : overShown);
+  }
+  useEffect(() => {
+    if (under === undefined) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setUnder(undefined);
+    }, UNDER_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [under]);
+  const versionLayer = (
+    copy: string,
+    {
+      actionsInToolbar,
+      actionsInto,
+      actionsTrail,
+      isUnder,
+    }: {
+      actionsInToolbar: boolean;
+      actionsInto: HTMLElement | null | undefined;
+      actionsTrail: ReactNode;
+      isUnder: boolean;
+    },
+  ) => (
+    <div
+      className={cn(
+        "absolute inset-0 bg-background",
+        !isUnder && "has-[[data-file-loading=quiet]]:invisible",
+      )}
+      data-version-over={isUnder ? undefined : ""}
+      data-version-under={isUnder ? "" : undefined}
+      inert={isUnder}
+      key={copy}
+    >
+      <FileViewer
+        actionsInToolbar={actionsInToolbar}
+        actionsInto={isUnder ? null : actionsInto}
+        actionsLead={actionsLead}
+        actionsTrail={actionsTrail}
+        className={FULL_BLEED}
+        editable
+        file={{
+          filename: segmentsOf(copy).at(-1) ?? copy,
+          hostPath: copy,
+          url: getComputerFileUrl({ hostPath: copy }),
+        }}
+        keyboardHome={!isUnder}
+      />
+    </div>
+  );
+  const versionOver = (
+    actionsInto: HTMLElement | null | undefined,
+    {
+      actionsInToolbar = false,
+      actionsTrail,
+    }: { actionsInToolbar?: boolean; actionsTrail?: ReactNode } = {},
+  ) =>
+    over !== undefined && viewerFile ? (
+      <>
+        {under !== undefined &&
+          versionLayer(under, {
+            actionsInToolbar,
+            actionsInto,
+            actionsTrail,
+            isUnder: true,
+          })}
+        {versionLayer(over, {
+          actionsInToolbar,
+          actionsInto,
+          actionsTrail,
+          isUnder: false,
+        })}
+      </>
+    ) : null;
 
   // Every control for the file goes where its actions do: in the view's row
   // under the bookmarks bar, or its format's own toolbar, where the tab has
@@ -1066,27 +1210,39 @@ export function FilesScreen({
                               </>
                             ) : (
                               <div className="relative size-full">
-                                {refusedView ?? (
-                                  <FileViewer
-                                    // Its actions leave the row with it, for the
-                                    // folder's own to come back.
-                                    actionsInto={
-                                      isPresent ? fileActionsInto : null
-                                    }
-                                    actionsLead={actionsLead}
-                                    actionsTrail={
-                                      isFolderShown ? closeButton : null
-                                    }
-                                    // A tab opened behind waits to be looked at.
-                                    autoPlay={isActiveTab}
-                                    className={FULL_BLEED}
-                                    editable
-                                    file={viewerFile}
-                                    keyboardHome
-                                    key={activeFile.hostPath}
-                                    onInfo={fileInfo.openOnFile}
-                                    {...pageInSlot(isFolderShown)}
-                                  />
+                                <div className="contents" inert={isVersionOver}>
+                                  {refusedView ?? (
+                                    <FileViewer
+                                      // Its actions leave the row with it, for the
+                                      // folder's own to come back.
+                                      actionsInto={
+                                        isPresent && !isVersionOver
+                                          ? fileActionsInto
+                                          : null
+                                      }
+                                      actionsLead={actionsLead}
+                                      actionsTrail={
+                                        isFolderShown ? closeButton : null
+                                      }
+                                      // A tab opened behind waits to be looked at.
+                                      autoPlay={isActiveTab}
+                                      className={FULL_BLEED}
+                                      editable
+                                      file={viewerFile}
+                                      keyboardHome
+                                      key={activeFile.hostPath}
+                                      onInfo={fileInfo.openOnFile}
+                                      {...pageInSlot(isFolderShown)}
+                                    />
+                                  )}
+                                </div>
+                                {versionOver(
+                                  isPresent ? fileActionsInto : null,
+                                  {
+                                    actionsTrail: isFolderShown
+                                      ? closeButton
+                                      : null,
+                                  },
                                 )}
                                 {/* A page in Edit keeps its asks in its own dock instead. */}
                                 {!(
@@ -1117,29 +1273,32 @@ export function FilesScreen({
           // Where the file sits on the Mac is the row above, which every tab
           // wears, so the viewer is the whole of the tab.
           <LinkSurface base={folderOf(activeFile.hostPath)}>
-            {refusedView ?? (
-              <FileViewer
-                actionsInToolbar
-                actionsInto={ownTabActionsInto}
-                actionsLead={actionsLead}
-                className={FULL_BLEED}
-                editable
-                file={viewerFile}
-                keyboardHome
-                key={activeFile.hostPath}
-                onInfo={fileInfo.openOnFile}
-                {...pageInSlot(false)}
-                {...(source
-                  ? {
-                      // The tab turns back into the page, the way it arrives
-                      // at a page's file from anywhere.
-                      onLeaveSource: () => {
-                        router.history.push(fileHref(activeFile.hostPath));
-                      },
-                    }
-                  : {})}
-              />
-            )}
+            <div className="contents" inert={isVersionOver}>
+              {refusedView ?? (
+                <FileViewer
+                  actionsInToolbar
+                  actionsInto={isVersionOver ? null : ownTabActionsInto}
+                  actionsLead={actionsLead}
+                  className={FULL_BLEED}
+                  editable
+                  file={viewerFile}
+                  keyboardHome
+                  key={activeFile.hostPath}
+                  onInfo={fileInfo.openOnFile}
+                  {...pageInSlot(false)}
+                  {...(source
+                    ? {
+                        // The tab turns back into the page, the way it arrives
+                        // at a page's file from anywhere.
+                        onLeaveSource: () => {
+                          router.history.push(fileHref(activeFile.hostPath));
+                        },
+                      }
+                    : {})}
+                />
+              )}
+            </div>
+            {versionOver(ownTabActionsInto, { actionsInToolbar: true })}
           </LinkSurface>
         ) : (
           <ComputerPage

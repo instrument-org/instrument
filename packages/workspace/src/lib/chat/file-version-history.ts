@@ -121,7 +121,8 @@ export async function fileVersionHistory({
  * Puts the version kept at `copy` back over the file at `file`. What that
  * replaces is kept first, so the restore can be undone, and both are written
  * onto the chat's last reply, so its card stops passing the file off as
- * its own. Returns the copy of what was replaced, for Undo.
+ * its own. Returns the copy of what was replaced, for Undo, and when the
+ * file was written, for the views open on it to show it at once.
  */
 export async function restoreFileVersion({
   chatId,
@@ -131,7 +132,7 @@ export async function restoreFileVersion({
   chatId: ChatId;
   copy: string;
   file: string;
-}): Promise<{ replaced?: string }> {
+}): Promise<{ modifiedAt: number; replaced?: string }> {
   const here = thisDevice();
   const ofFile = (await recordsOf(chatId)).filter(
     (record) => record.device === here && record.file === file,
@@ -166,6 +167,7 @@ export async function restoreFileVersion({
     );
   }
   await fs.copyFile(copy, file, fs.constants.COPYFILE_FICLONE);
+  const { mtimeMs: modifiedAt } = await fs.stat(file);
   const entry = (kept: { copy?: string; hash: string; size: number }) => ({
     ...(kept.copy !== undefined && {
       copy: AbsolutePathSchema.parse(kept.copy),
@@ -188,7 +190,9 @@ export async function restoreFileVersion({
     // The copy just made is the newest, so the trim leaves it for Undo.
     await trimVersions(folder);
   }
-  return before?.copy === undefined ? {} : { replaced: before.copy };
+  return before?.copy === undefined
+    ? { modifiedAt }
+    : { modifiedAt, replaced: before.copy };
 }
 
 /** A file undoing a reply puts back: the file, and the copy of it from before the reply. */

@@ -22,7 +22,7 @@ Every file in `kit/` and every function it defines, with what each draws and tak
 | `picker.js` | The model picker |
 | `overlays.js` | Menus, popovers, dialogs, sheets, toasts, the command menu, the bell's list, a status card, Send feedback |
 | `settings.js` | The Settings sheet and its pages |
-| `setup.js` | Setup at its own 1080x720, and the plan cards |
+| `setup.js` | Setup at a first launch's 1240x840, and the plan cards |
 | `mac.js` | Outside the window: the Mac and the web |
 | `pieces.js` | `win`, `card` and `composer` in Studio's look, for a part of frames only (below) |
 
@@ -140,7 +140,7 @@ Pass these as `appWindow`'s `over`, placed in the window's pixels.
 | `modelPicker({ open, held, list, q, mark })`, `pickerPop`, `pickerCrop`, `pickerRow`, `pickerHead`, `pickerAutoRow`, `pickerAutoOnly`, `PICKER_W`, `PICKER_H` | The model picker at its built 680x520 |
 | `smallChat({ title, project, body, working, tabs, peek })` | The popped-out chat, 420x560 at the bottom right, with the chat's own head; `tabs` and `peek` draw the tiles and peek it no longer has |
 | `chatPeek(t)`, `agentTray({ tabs, active, body })` | The tile peek and the draft's browser tray the app had before; kept for proposals |
-| `setupWin`, `setupPage`, `setupFoot`, `setupButton`, `setupChooseAI`, `setupSubscriptions`, `setupRows`, `setupRowButton`, `SETUP` | Setup at its own 1080x720 (spread `...SETUP` into the frame) |
+| `setupWin`, `setupPage`, `setupFoot`, `setupButton`, `setupChooseAI`, `setupSubscriptions`, `setupRows`, `setupRowButton`, `SETUP` | Setup at a first launch's 1240x840 (spread `...SETUP` into the frame) |
 | `planCard`, `planButton`, `OFFER_PLANS`, `brandMark` | The plan cards setup and the plan sheet draw, and the app mark |
 
 ## Outside the window (`mac.js`)

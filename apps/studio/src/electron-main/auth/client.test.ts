@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({ base: "https://api.tryinstrument.com" }));
+const machine = vi.hoisted(() => ({
+  revoked: [] as string[],
+  token: undefined as string | undefined,
+  tokens: {} as Record<string, Record<string, string>>,
+  workspaces: [] as { id: string; path: string }[],
+}));
 
 vi.mock("@/electron-main/platform-api/base-url", () => ({
   platformApiBaseUrl: () => api.base,
@@ -15,7 +21,39 @@ vi.mock("@/electron-main/lib/set-default-model", () => ({
 }));
 vi.mock("@/electron-main/stores/workspace/session", () => ({
   forgetSessionToken: vi.fn(),
+  readBearerTokensIn: (keysDir: string) => machine.tokens[keysDir] ?? {},
   setSessionToken: vi.fn(),
+}));
+vi.mock("@/electron-main/platform-api/utils", () => ({
+  getToken: () => machine.token,
+}));
+vi.mock("@/electron-main/lib/get-workspace-folder", () => ({
+  getUserDataDir: () => "/data",
+}));
+vi.mock("@/electron-main/lib/workspace-management", () => ({
+  keysDirOf: (_userDataDir: string, workspace: { id: string }) =>
+    `/keys/${workspace.id}`,
+  listWorkspaces: () =>
+    machine.workspaces.map((workspace) => ({
+      ...workspace,
+      isResolved: workspace.id === "here",
+    })),
+}));
+vi.mock("@/electron-main/lib/workspace-run", () => ({
+  getResolvedWorkspace: () => ({ id: "here" }),
+}));
+vi.mock("electron", () => ({ app: { isPackaged: false } }));
+vi.mock("better-auth/client", () => ({
+  createAuthClient: () => ({
+    signOut: ({
+      fetchOptions,
+    }: {
+      fetchOptions: { headers: { authorization: string } };
+    }) => {
+      machine.revoked.push(fetchOptions.headers.authorization);
+      return Promise.resolve({ error: null });
+    },
+  }),
 }));
 vi.mock("@instrument-org/workspace/electron", () => ({
   accountSignedIn: vi.fn(),
@@ -24,7 +62,7 @@ vi.mock("../lib/capture-server-exception", () => ({
   captureServerException: vi.fn(),
 }));
 
-import { continueOnWebsite } from "./client";
+import { continueOnWebsite, signOut } from "./client";
 
 describe("continueOnWebsite", () => {
   it.each([
@@ -54,5 +92,37 @@ describe("continueOnWebsite", () => {
     expect(
       continueOnWebsite("https://tryinstrument.com/welcome", 51_234),
     ).toBeUndefined();
+  });
+});
+
+describe("signOut", () => {
+  it.each([
+    ["ends a session no other workspace holds", "other-token", ["Bearer mine"]],
+    ["keeps a session another workspace shares", "mine", []],
+  ])("%s", async (_name, othersToken, revoked) => {
+    api.base = "https://api.tryinstrument.com";
+    machine.revoked = [];
+    machine.token = "mine";
+    machine.workspaces = [
+      { id: "here", path: "/here" },
+      { id: "copy", path: "/copy" },
+    ];
+    machine.tokens = {
+      "/keys/copy": { "https://api.tryinstrument.com": othersToken },
+      "/keys/here": { "https://api.tryinstrument.com": "mine" },
+    };
+    await signOut();
+    expect(machine.revoked).toEqual(revoked);
+  });
+
+  it("keeps a session studio-drive copied in from another application data", async () => {
+    machine.revoked = [];
+    machine.token = "mine";
+    machine.workspaces = [{ id: "here", path: "/here" }];
+    machine.tokens = {};
+    vi.stubEnv("INSTRUMENT_SHARED_SESSION", "true");
+    await signOut();
+    vi.unstubAllEnvs();
+    expect(machine.revoked).toEqual([]);
   });
 });

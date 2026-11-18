@@ -220,6 +220,55 @@ const WORK_ARTIFACT_NAMES = new Set([".venv", "node_modules"]);
 // the machine, other sessions' shells included.
 const MIN_FREE_GB = Number(process.env.STUDIO_DRIVE_MIN_FREE_GB ?? 15);
 
+// Every flag any command reads. Anything else that looks like a flag is
+// refused, since a dropped flag would quietly drive another instance.
+const FLAGS = new Set([
+  "--account",
+  "--allow-reload",
+  "--args",
+  "--as",
+  "--chat",
+  "--clean-room",
+  "--close",
+  "--depth",
+  "--double",
+  "--file",
+  "--fresh",
+  "--hot",
+  "--idle",
+  "--inspect",
+  "--keep-tabs",
+  "--new-tab",
+  "--own-privacy",
+  "--pad",
+  "--page",
+  "--port",
+  "--purpose",
+  "--quiet",
+  "--right",
+  "--scenario",
+  "--selector",
+  "--settle",
+  "--task",
+  "--text",
+  "--timeout",
+  "--visible",
+  "--with-sign-ins",
+  "--workspace",
+]);
+
+// A shell variable holding flags (`F="--workspace documents"; … $F`) arrives
+// as one argument in zsh, which does not split words, so it is split here.
+process.argv.splice(
+  2,
+  Infinity,
+  ...process.argv
+    .slice(2)
+    .flatMap((arg) =>
+      /^--[a-z][a-z-]*\s/.test(arg) ? arg.trim().split(/\s+/) : [arg],
+    ),
+);
+
 // Read off the raw argv rather than the parsed tail: which instance a command
 // talks to has to be settled before anything reads a session record.
 const WORKSPACE = flag(process.argv, "--workspace");
@@ -229,19 +278,39 @@ const CLEAN_ROOM = flag(process.argv, "--clean-room");
 // `--scenario <name>` boots application data of its own in one app state
 // (fixtures/scenarios/, see prepareScenario). Same rule again.
 const SCENARIO = flag(process.argv, "--scenario");
+// `--as <name>` is a second instance of the checkout's own workspace or of a
+// fixture, for when another session in the same checkout already runs one:
+// a port, record and (for a fixture) seeded copy of its own. Same rule: it
+// belongs on every command.
+const AS = flag(process.argv, "--as");
 // What keys the port and the instance record: the fixture, clean room or
 // scenario a run is about, or none for the checkout's own instance.
-const INSTANCE =
+const BASE_INSTANCE =
   WORKSPACE ??
   (CLEAN_ROOM && `clean-room-${CLEAN_ROOM}`) ??
   (SCENARIO && `scenario-${SCENARIO}`);
-const INSTANCE_FLAG = WORKSPACE
-  ? ` --workspace ${WORKSPACE}`
-  : CLEAN_ROOM
-    ? ` --clean-room ${CLEAN_ROOM}`
-    : SCENARIO
-      ? ` --scenario ${SCENARIO}`
-      : "";
+const INSTANCE = AS ? `${BASE_INSTANCE ?? "dev"}@${AS}` : BASE_INSTANCE;
+// Where a fixture is seeded: its own name, or a copy for an `--as` instance,
+// since two instances on one application data would both write it.
+const FIXTURE_DIR = WORKSPACE && (AS ? `${WORKSPACE}@${AS}` : WORKSPACE);
+const INSTANCE_FLAG =
+  (WORKSPACE
+    ? ` --workspace ${WORKSPACE}`
+    : CLEAN_ROOM
+      ? ` --clean-room ${CLEAN_ROOM}`
+      : SCENARIO
+        ? ` --scenario ${SCENARIO}`
+        : "") + (AS ? ` --as ${AS}` : "");
+
+/** The `--as` name a purpose suggests, for a refusal to hand over. */
+function asNameOf(purpose) {
+  return (
+    purpose
+      .toLowerCase()
+      .replaceAll(/[^a-z0-9]+/g, "-")
+      .replaceAll(/^-|-$/g, "") || "mine"
+  );
+}
 
 // --- seeded workspaces -------------------------------------------------
 
@@ -399,6 +468,48 @@ function repinSettings(name, machineDir) {
     }
     writeFileSync(file, `${JSON.stringify({ ...current, ...pinned }, undefined, "\t")}\n`);
   }
+}
+
+/**
+ * Writes the developer's API server choice (Settings › Developer, kept in the
+ * machine preferences) into application data of the run's own, or clears it
+ * there when the developer has none.
+ */
+function useDevApiServer(userDataDir) {
+  const read = (dir) => {
+    try {
+      return JSON.parse(
+        readFileSync(path.join(dir, "machine-preferences.json"), "utf8"),
+      );
+    } catch {
+      return {};
+    }
+  };
+  const { platformApiServer } = read(devUserDataDir());
+  const current = read(userDataDir);
+  delete current.platformApiServer;
+  mkdirSync(userDataDir, { recursive: true });
+  writeFileSync(
+    path.join(userDataDir, "machine-preferences.json"),
+    `${JSON.stringify(
+      platformApiServer === undefined
+        ? current
+        : { ...current, platformApiServer },
+      undefined,
+      "\t",
+    )}\n`,
+  );
+}
+
+/**
+ * This instance's own folder for crash and hang diagnostics, beside the
+ * fixture caches and reaped like them once nobody has booted it for a while.
+ */
+function ownDiagnosticsDir() {
+  const dir = path.join(WORKSPACE_CACHE_ROOT, `diagnostics-${INSTANCE ?? "dev"}`);
+  mkdirSync(dir, { recursive: true });
+  utimesSync(dir, new Date(), new Date());
+  return dir;
 }
 
 // --- clean rooms -------------------------------------------------------
@@ -577,6 +688,26 @@ function devUserDataDir() {
 }
 
 /**
+ * Copies the developer's sign-ins into `keysDir` on every boot, so a session
+ * the developer's instance renewed since reaches the copy too.
+ */
+function copyDevSignIns(keysDir) {
+  const from = keysDirOf(devUserDataDir(), devWorkspaceDir(devUserDataDir()));
+  mkdirSync(keysDir, { recursive: true });
+  const found = SIGN_IN_FILES.filter((file) =>
+    existsSync(path.join(from, file)),
+  );
+  if (found.length === 0) {
+    console.error(
+      `studio-drive: --with-sign-ins found no sign-ins in ${from}, so this instance starts signed out.`,
+    );
+  }
+  for (const file of found) {
+    copyFileSync(path.join(from, file), path.join(keysDir, file));
+  }
+}
+
+/**
  * A blank workspace for this run, kept beside the fixture caches and opened by
  * a second process on the developer's own application data, pinned with
  * INSTRUMENT_WORKSPACE. Unlike a fixture it shares the machine's toolchain and
@@ -618,23 +749,7 @@ function prepareCleanRoom(name, { keepTabs, purpose, withSignIns }) {
   if (withSignIns) {
     // Into the clean room's machine folder, which the app adopts at its
     // first boot when it is not registered yet.
-    const from = keysDirOf(devUserDataDir(), devWorkspaceDir(devUserDataDir()));
-    const keysDir = keysDirOf(devUserDataDir(), dir);
-    mkdirSync(keysDir, { recursive: true });
-    const found = SIGN_IN_FILES.filter((file) =>
-      existsSync(path.join(from, file)),
-    );
-    if (found.length === 0) {
-      console.error(
-        `studio-drive: --with-sign-ins found no sign-ins in ${from}, so the clean room starts signed out.`,
-      );
-    }
-    for (const file of found) {
-      const target = path.join(keysDir, file);
-      if (!existsSync(target)) {
-        copyFileSync(path.join(from, file), target);
-      }
-    }
+    copyDevSignIns(keysDirOf(devUserDataDir(), dir));
   }
 
   // As for a fixture, each boot starts with no windows from the last.
@@ -1044,6 +1159,21 @@ function forgetGoneDriveWorkspaces() {
       return;
     }
     const goneIds = new Set(gone.map((entry) => entry.id));
+    // A machine folder the app or `unclaimedMachineDir` set aside is named
+    // `<local id>.<owner's workspace id>`, sometimes with a time after it,
+    // and holds the same copied sign-ins.
+    const goneOwners = new Set(
+      gone.map((entry) => entry.workspaceId).filter(Boolean),
+    );
+    const setAside = readdirSync(path.join(userDataDir, "machine")).filter(
+      (name) => goneOwners.has(name.split(".")[1]),
+    );
+    for (const name of setAside) {
+      rmSync(path.join(userDataDir, "machine", name), {
+        force: true,
+        recursive: true,
+      });
+    }
     for (const { id } of gone) {
       rmSync(path.join(userDataDir, "machine", id), {
         force: true,
@@ -1272,6 +1402,22 @@ async function cmdBoot(
       "Pass one of --workspace, --clean-room or --scenario: a fixture and a scenario bring their own application data, a clean room uses yours.",
     );
   }
+  if (withSignIns && !WORKSPACE && !CLEAN_ROOM) {
+    fail(
+      "--with-sign-ins copies your sign-ins into a fixture (--workspace) or a clean room (--clean-room). Your own workspace has them already, and a scenario names its own (signIns in its file).",
+    );
+  }
+  if (withSignIns && accountFile) {
+    fail("Pass --with-sign-ins or --account, not both: each brings the session the instance runs on.");
+  }
+  if (AS && (CLEAN_ROOM || SCENARIO)) {
+    fail(
+      "--as is for a second instance of a fixture or of your own workspace. A clean room is already yours alone: give it another name instead. A scenario is rebuilt on every boot, so stop the running one first.",
+    );
+  }
+  if (AS && !/^[a-z0-9][a-z0-9-]*$/.test(AS)) {
+    fail(`--as takes lowercase letters, digits and dashes; got ${JSON.stringify(AS)}.`);
+  }
   if (accountFile && !WORKSPACE && !CLEAN_ROOM && !SCENARIO) {
     fail(
       "--account signs a disposable workspace in, so it needs --workspace, --clean-room or --scenario: your own workspace keeps your own sign-in.",
@@ -1305,7 +1451,8 @@ async function cmdBoot(
     if (existing.purpose !== purpose) {
       fail(
         `The running instance is labeled ${JSON.stringify(existing.purpose ?? "unlabeled")}, not ${JSON.stringify(purpose)}.\n` +
-          `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it with the new purpose.`,
+          `If it is another session's, leave it running and boot one of your own: pass \`--as ${asNameOf(purpose)}\` on this boot and every command after it. ` +
+          `If it is yours, run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it with the new purpose.`,
       );
     }
     // Reload behavior is fixed when the dev server starts, so it is the running
@@ -1317,6 +1464,12 @@ async function cmdBoot(
     if (Boolean(existing.ownPrivacy) !== Boolean(ownPrivacy)) {
       fail(
         `The running instance on port ${existing.port} was booted ${existing.ownPrivacy ? "with" : "without"} --own-privacy.\n` +
+          `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it the other way.`,
+      );
+    }
+    if (Boolean(existing.withSignIns) !== Boolean(withSignIns)) {
+      fail(
+        `The running instance on port ${existing.port} was booted ${existing.withSignIns ? "with" : "without"} --with-sign-ins.\n` +
           `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot it the other way.`,
       );
     }
@@ -1335,13 +1488,13 @@ async function cmdBoot(
     if (WORKSPACE) {
       // The seed the instance has open must still be what the fixture and
       // the seeder build, or the run drives a workspace nobody committed.
-      if (!runSeeder(WORKSPACE, ["--check"]).current) {
+      if (!runSeeder(WORKSPACE, ["--check"], FIXTURE_DIR).current) {
         fail(
           `The fixture "${WORKSPACE}" or the seeder changed since the instance on port ${existing.port} was seeded.\n` +
             `Run \`studio-drive.mjs stop${INSTANCE_FLAG}\`, then boot again to reseed it.`,
         );
       }
-      touchFixture(WORKSPACE);
+      touchFixture(FIXTURE_DIR);
     }
     return { ...existing, reused: true };
   }
@@ -1356,8 +1509,9 @@ async function cmdBoot(
   // not pay for a seed first.
   if (await isPortLive(port)) {
     fail(
-      `Port ${port} belongs to this checkout but something is already on it.\n` +
-        `Stop it (\`studio-drive.mjs stop\`, or quit that window) or pass --port to target it deliberately.`,
+      `Port ${port} belongs to this instance but something is already on it, with no record of it here.\n` +
+        `If it is another session's, boot one of your own: pass \`--as ${asNameOf(purpose)}\` on this boot and every command after it. ` +
+        `If it is a window someone left open, quit it; --port targets a port deliberately.`,
     );
   }
 
@@ -1365,7 +1519,7 @@ async function cmdBoot(
     refuseWhenDiskIsLow();
   }
   const workspace = WORKSPACE
-    ? prepareWorkspace(WORKSPACE, { fresh, keepTabs })
+    ? prepareWorkspace(WORKSPACE, { dirName: FIXTURE_DIR, fresh, keepTabs })
     : undefined;
   if (CLEAN_ROOM && fresh) {
     for (const dir of [
@@ -1381,6 +1535,29 @@ async function cmdBoot(
   const scenario = SCENARIO
     ? prepareScenario(SCENARIO, { keepTabs })
     : undefined;
+  if (workspace && !account) {
+    const keysDir = keysDirOf(
+      workspace.userDataDir,
+      path.join(workspace.userDataDir, "workspace"),
+    );
+    if (withSignIns) {
+      copyDevSignIns(keysDir);
+    } else {
+      // An earlier boot's copy of the developer's session, which this boot
+      // does not mark as shared: signing out would end it for real.
+      for (const file of SIGN_IN_FILES) {
+        rmSync(path.join(keysDir, file), { force: true });
+      }
+    }
+  }
+  // A fixture or scenario has application data of its own, which names no
+  // API server, so the build default (a local server that is usually not
+  // running) would answer. It talks to the one the developer's instance
+  // does instead; `--account` names its own.
+  const ownUserDataDir = workspace?.userDataDir ?? scenario?.userDataDir;
+  if (ownUserDataDir && !account) {
+    useDevApiServer(ownUserDataDir);
+  }
   if (account) {
     if (scenario) {
       signInAs(account, scenario.userDataDir, scenario.workspaceDir);
@@ -1477,6 +1654,16 @@ async function cmdBoot(
           INSTRUMENT_PLATFORM_API: account.api,
           MAIN_VITE_APP_API_BASE_URL: account.api,
         }),
+        // An instance on the developer's application data keeps its crash
+        // and hang diagnostics apart, so it never reports the developer's
+        // crashes as its own, nor the developer's bell its.
+        ...(!workspace &&
+          !scenario && {
+            INSTRUMENT_DIAGNOSTICS_DIR: ownDiagnosticsDir(),
+          }),
+        // The developer's session copied in: signing out there forgets the
+        // copy and leaves the developer signed in.
+        ...(withSignIns && { INSTRUMENT_SHARED_SESSION: "true" }),
       },
       stdio: ["ignore", log, log],
     },
@@ -1490,6 +1677,9 @@ async function cmdBoot(
     logFile,
     ...(!visible && { offScreen: true }),
     ...(ownPrivacy && { ownPrivacy: true }),
+    ...(withSignIns && { withSignIns: true }),
+    // What every later command passes to reach this instance.
+    flags: INSTANCE_FLAG.trim(),
     pid: child.pid,
     port,
     purpose,
@@ -1555,19 +1745,56 @@ async function cmdBoot(
   }
 }
 
-function cmdStop() {
+/**
+ * Ends the instance and returns once its processes are gone and its port
+ * answers no more, so a boot straight after it finds the port free. A group
+ * still up after the grace period is killed outright.
+ */
+async function cmdStop() {
   const session = readSession(INSTANCE);
   if (!session) {
     return { stopped: false };
   }
-  try {
-    // The dev server is the process group leader; the Electron app is its child.
-    process.kill(-session.pid, "SIGTERM");
-  } catch {
-    // Already gone.
+  const groupAlive = () => {
+    try {
+      process.kill(-session.pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const signal = (name) => {
+    try {
+      // The dev server is the process group leader; the Electron app is its child.
+      process.kill(-session.pid, name);
+    } catch {
+      // Already gone.
+    }
+  };
+  const settled = async (ms) => {
+    for (const end = Date.now() + ms; Date.now() < end; ) {
+      if (!groupAlive() && !(await isPortLive(session.port))) {
+        return true;
+      }
+      await sleep(200);
+    }
+    return false;
+  };
+  signal("SIGTERM");
+  let forced = false;
+  if (!(await settled(10_000))) {
+    signal("SIGKILL");
+    forced = true;
+    await settled(5000);
   }
   rmSync(sessionFile(INSTANCE), { force: true });
-  return { port: session.port, stopped: true };
+  const portFree = !(await isPortLive(session.port));
+  return {
+    port: session.port,
+    stopped: true,
+    ...(forced && { forced }),
+    ...(!portFree && { portStillAnswers: true }),
+  };
 }
 
 // --- running a sequence ------------------------------------------------
@@ -1767,13 +1994,66 @@ const positional = argv.filter(
     !a.startsWith("--") && !(index > 0 && argv[index - 1].startsWith("--")),
 );
 
+/** This checkout's instances: their records, and whether each still runs. */
+async function cmdStatus() {
+  const dir = path.dirname(sessionFile());
+  const names = existsSync(dir)
+    ? readdirSync(dir).filter(
+        (name) => name.startsWith(CHECKOUT_KEY) && name.endsWith(".json"),
+      )
+    : [];
+  const instances = [];
+  for (const name of names) {
+    let session;
+    try {
+      session = JSON.parse(readFileSync(path.join(dir, name), "utf8"));
+    } catch {
+      continue;
+    }
+    instances.push({
+      color: session.color,
+      flags: session.flags ?? null,
+      port: session.port,
+      purpose: session.purpose,
+      running: isAlive(session.pid) && (await isPortLive(session.port)),
+      startedAt: session.startedAt,
+    });
+  }
+  return { checkout: REPO_ROOT, instances };
+}
+
+const USAGE =
+  `Commands: ${[...COMMANDS].join(", ")}, status, help.\n` +
+  "Start with `boot --purpose <words>`, then pass the same --workspace, --clean-room, --scenario or --as to every command. " +
+  "`status` lists this checkout's instances and the flags that reach each. The studio-chrome-devtools skill (SKILL.md) has the rest.";
+
 try {
+  if (
+    command === undefined ||
+    ["help", "--help", "-h"].includes(command) ||
+    argv.includes("--help")
+  ) {
+    console.log(USAGE);
+    process.exit(0);
+  }
+  if (command === "status") {
+    report(await cmdStatus());
+    process.exit(0);
+  }
   // Checked before anything talks to an instance, so a typo says so rather than
   // reporting that nothing is running.
+  const unknownFlags = argv.filter(
+    (arg) => /^--[a-z][a-z-]*$/.test(arg) && !FLAGS.has(arg),
+  );
+  if (unknownFlags.length > 0) {
+    fail(
+      `Unknown flag${unknownFlags.length === 1 ? "" : "s"} ${unknownFlags.join(", ")}.\n` +
+        `Flags: ${[...FLAGS].join(", ")}`,
+    );
+  }
   if (!COMMANDS.has(command)) {
     fail(
-      `Unknown command ${JSON.stringify(command)}.\n` +
-        `Commands: ${[...COMMANDS].join(", ")}`,
+      `Unknown command ${JSON.stringify(command)}.\n${USAGE}`,
     );
   }
   // Lifecycle commands manage the instance rather than talk to one.
@@ -1816,7 +2096,7 @@ try {
       break;
     }
     case "stop": {
-      report(cmdStop());
+      report(await cmdStop());
 
       break;
     }

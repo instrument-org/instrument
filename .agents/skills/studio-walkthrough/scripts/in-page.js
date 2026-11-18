@@ -103,21 +103,48 @@
       const style = document.createElement("style");
       style.id = "walkthrough-present";
       style.textContent =
-        "[data-walkthrough-hidden]{visibility:hidden!important}[data-walkthrough-gone],[data-developer-strip]{display:none!important}";
+        "[data-walkthrough-hidden]{visibility:hidden!important}[data-walkthrough-gone],[data-developer-strip],[data-developer-notes]{display:none!important}";
       document.head.append(style);
     }
     const dress = () => {
       // The address bar's folders above the workspace: this machine's own.
       if (rootCrumb) {
-        // The bar is a row of crumbs and the chevrons between them; the
-        // workspace's own crumb is a button, or plain text when it is open.
-        for (const crumb of document.querySelectorAll("button[data-slot=context-menu-trigger]")) {
-          const row = crumb.parentElement;
+        // The bar is a row of crumbs and the chevrons between them, each
+        // crumb a button (folded to its icon where the bar is short, its name
+        // still its text) or plain text when it is open, either alone or
+        // wrapped with its chevron. Everything before the workspace's own
+        // crumb goes, climbing from it until the row that holds the others.
+        const crumbs = "button[data-slot=context-menu-trigger]";
+        for (const trigger of document.querySelectorAll(crumbs)) {
+          const row = trigger.parentElement;
           const own = [...(row?.children ?? [])].find((child) => squash(child.textContent) === rootCrumb);
-          let before = own?.previousElementSibling;
-          while (before) {
-            before.setAttribute("data-walkthrough-gone", "");
-            before = before.previousElementSibling;
+          let node = own;
+          while (node) {
+            for (let before = node.previousElementSibling; before; before = before.previousElementSibling) {
+              before.setAttribute("data-walkthrough-gone", "");
+            }
+            const parent = node.parentElement;
+            if (!parent || [...parent.querySelectorAll(crumbs)].some((other) => !node.contains(other))) break;
+            node = parent;
+          }
+          // The bar fits its crumbs to its width from a copy drawn out of
+          // sight, its last child, with a crumb for each one in the bar. Those
+          // of the hidden crumbs go too, or the bar keeps room for folders
+          // nobody sees and cuts the names it shows to their shortest.
+          const trail = node?.parentElement;
+          const copies = trail?.lastElementChild?.querySelectorAll("[data-crumb]") ?? [];
+          [...(trail?.children ?? [])].forEach((part, at) => {
+            if (part.hasAttribute("data-walkthrough-gone")) copies[at]?.setAttribute("data-walkthrough-gone", "");
+          });
+          // It also keeps room for a chevron between every two crumbs, hidden
+          // ones included, measured off the copy's one chevron. Narrowed to
+          // its share, the room comes to the chevrons the bar shows.
+          const chevron = trail?.lastElementChild?.querySelector("[data-separator]");
+          const shown = copies.length - [...copies].filter((copy) => copy.hasAttribute("data-walkthrough-gone")).length;
+          if (chevron && copies.length > 1 && shown < copies.length) {
+            chevron.dataset.walkthroughWidth ??= getComputedStyle(chevron).width;
+            const width = `${(Number.parseFloat(chevron.dataset.walkthroughWidth) * Math.max(0, shown - 1)) / (copies.length - 1)}px`;
+            if (chevron.style.width !== width) Object.assign(chevron.style, { flex: "none", overflow: "hidden", width });
           }
         }
       }
@@ -349,5 +376,34 @@
     return out;
   };
 
-  window.__walkthroughPage = { assets, locate, present, still, surfaceOf, watchPictures };
+  /**
+   * Marks the element with focus in attributes a recording keeps, since a
+   * replay has no focus of its own: `data-wt-focus`, and
+   * `data-wt-focus-visible` where the browser draws its focus ring. The
+   * player gives the page's `:focus` rules twins that match them, so focus
+   * rings, and anything shown only while the keyboard is somewhere, replay.
+   */
+  const mirrorFocus = () => {
+    let marked = null;
+    const mark = () => {
+      const el = document.activeElement;
+      if (marked && marked !== el) {
+        marked.removeAttribute("data-wt-focus");
+        marked.removeAttribute("data-wt-focus-visible");
+      }
+      marked = el && el !== document.body && el !== document.documentElement ? el : null;
+      if (!marked) return;
+      marked.setAttribute("data-wt-focus", "");
+      marked.toggleAttribute("data-wt-focus-visible", marked.matches(":focus-visible"));
+    };
+    const later = () => setTimeout(mark);
+    document.addEventListener("focusin", mark, true);
+    document.addEventListener("focusout", later, true);
+    // A key can turn the ring on for an element that already had focus.
+    document.addEventListener("keydown", later, true);
+    document.addEventListener("pointerdown", later, true);
+    mark();
+  };
+
+  window.__walkthroughPage = { assets, locate, mirrorFocus, present, still, surfaceOf, watchPictures };
 })();

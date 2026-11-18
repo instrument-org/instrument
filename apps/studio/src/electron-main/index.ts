@@ -18,13 +18,19 @@ import {
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { drawCornerDot } from "@/electron-main/lib/dev-dock-icon";
 import { logger } from "@/electron-main/lib/electron-logger";
-import { setClaudeAccountDefaultModel } from "@/electron-main/lib/set-default-model";
+import {
+  setClaudeAccountDefaultModel,
+  setDefaultModel,
+} from "@/electron-main/lib/set-default-model";
 import { createFilesTogether } from "@/electron-main/lib/files-together";
 import {
   inArrivalOrder,
   openOutsideLink,
 } from "@/electron-main/lib/outside-links";
-import { setupStateKnown } from "@/electron-main/lib/setup-state";
+import {
+  setupStateKnown,
+  setupStillAsks,
+} from "@/electron-main/lib/setup-state";
 import { startIdleRestart } from "@/electron-main/lib/idle-restart";
 import {
   idleRestartTimings,
@@ -401,12 +407,19 @@ async function bootstrapPrimaryInstance() {
 
     // The Claude account is whatever the CLI says: someone installs it or signs
     // in from a terminal, then comes back to the app.
-    // A workspace with no model chosen yet runs on the subscription it found.
-    void refreshClaudeAccountStatus().then(async (found) => {
+    // A workspace with no model chosen yet runs on the subscription it found,
+    // else on what its sign-ins list, picked as signing in picks. Setup
+    // chooses as each account connects, so this waits until it can no
+    // longer ask.
+    void (async () => {
+      const found = await refreshClaudeAccountStatus();
       if (found.kind === "signed-in" && !getDefaultModelURI()) {
         await setClaudeAccountDefaultModel();
       }
-    });
+      if (!setupStillAsks()) {
+        await setDefaultModel({ replacing: "nothing" });
+      }
+    })().catch(captureServerException);
     void keepClaudeCodeCurrent();
     app.on("browser-window-focus", () => {
       void refreshClaudeAccountStatus();

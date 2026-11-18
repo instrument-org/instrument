@@ -23,6 +23,8 @@ export type FilesStep = {
   source?: boolean | undefined;
   /** The folder the file's own tree is rooted at. */
   tree?: string | undefined;
+  /** A copy a chat kept of the file, shown over it. */
+  version?: string | undefined;
   /** Absent on an address that arrives at a folder directly, until `settleArrival` gives it one. */
   view?: FileSystemView | undefined;
 };
@@ -150,6 +152,7 @@ const STEP_KEYS = [
   "select",
   "source",
   "tree",
+  "version",
   "view",
 ] as const satisfies readonly (keyof FilesStep)[];
 
@@ -322,6 +325,7 @@ function applied(
           file: intent.file,
           source: undefined,
           tree: intent.tree ?? step.tree,
+          version: undefined,
         },
         "push",
       ];
@@ -331,12 +335,19 @@ function applied(
           ...selecting(step, intent.select),
           file: intent.file,
           source: undefined,
+          version: undefined,
         },
         "replace",
       ];
     case "closeFile":
       return [
-        { ...step, file: undefined, source: undefined, tree: undefined },
+        {
+          ...step,
+          file: undefined,
+          source: undefined,
+          tree: undefined,
+          version: undefined,
+        },
         "push",
       ];
   }

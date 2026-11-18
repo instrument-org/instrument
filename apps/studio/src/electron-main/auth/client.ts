@@ -1,8 +1,14 @@
 import { createLoopbackSignIn } from "@/electron-main/auth/loopback-sign-in";
 import { getAuthServerPort } from "@/electron-main/auth/state";
 import { platformApiRpcClient } from "@/electron-main/platform-api/client";
+import { getUserDataDir } from "@/electron-main/lib/get-workspace-folder";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { setDefaultModel } from "@/electron-main/lib/set-default-model";
+import {
+  keysDirOf,
+  listWorkspaces,
+} from "@/electron-main/lib/workspace-management";
+import { getResolvedWorkspace } from "@/electron-main/lib/workspace-run";
 import { getAnonymousPlatformApiHeaders } from "@/electron-main/platform-api/headers";
 import {
   platformApiBaseUrl,
@@ -11,12 +17,14 @@ import {
 import { getToken } from "@/electron-main/platform-api/utils";
 import {
   forgetSessionToken,
+  readBearerTokensIn,
   setSessionToken,
 } from "@/electron-main/stores/workspace/session";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
 import { APP_DOMAIN } from "@instrument-org/shared";
 import { accountSignedIn } from "@instrument-org/workspace/electron";
 import { createAuthClient } from "better-auth/client";
+import { app } from "electron";
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 
@@ -306,11 +314,36 @@ export async function revokeSession(
   return response;
 }
 
+/**
+ * Whether a workspace other than this one holds the same session on this
+ * server, as one made with the sign-in copied does: ending it on the server
+ * would sign that workspace out too.
+ */
+function sessionHeldElsewhere(token: string): boolean {
+  // `INSTRUMENT_SHARED_SESSION`, read in development builds only: an instance
+  // studio-drive started on application data of its own with the
+  // developer's sign-in copied in, which no registry here names.
+  if (process.env.INSTRUMENT_SHARED_SESSION === "true" && !app.isPackaged) {
+    return true;
+  }
+  const userDataDir = getUserDataDir();
+  const origin = platformApiOrigin();
+  return listWorkspaces({ resolved: getResolvedWorkspace(), userDataDir }).some(
+    (listing) =>
+      !listing.isResolved &&
+      readBearerTokensIn(keysDirOf(userDataDir, listing))[origin] === token,
+  );
+}
+
 export async function signOut() {
-  const response = await revokeSession(getToken() ?? "");
+  const token = getToken();
+  // A session another workspace shares stays alive for it; this workspace
+  // only forgets it.
+  if (token && !sessionHeldElsewhere(token)) {
+    await revokeSession(token);
+  }
   // This server's sign-in alone: another server's is kept for when the app
   // is pointed back at it.
   forgetSessionToken(platformApiOrigin());
   void setDefaultModel({ replacing: "ours" });
-  return response;
 }

@@ -106,6 +106,7 @@ it("reads every kind of address", () => {
     "/browser",
     "/files?path=&root=~",
     "/files?file=%2FUsers%2Fme%2Fa.md&path=&root=~&tree=%2FUsers%2Fme",
+    "/files?file=%2FUsers%2Fme%2Fa.md&path=&root=~&version=%2FUsers%2Fme%2F.versions%2Fa.md",
     "/apps",
     "/apps/",
     "/apps/gmail",
@@ -205,6 +206,13 @@ it("reads every kind of address", () => {
           "path": "",
           "root": "~",
           "tree": "/Users/me",
+        },
+        "/files?file=%2FUsers%2Fme%2Fa.md&path=&root=~&version=%2FUsers%2Fme%2F.versions%2Fa.md": {
+          "file": "/Users/me/a.md",
+          "kind": "computer",
+          "path": "",
+          "root": "~",
+          "version": "/Users/me/.versions/a.md",
         },
         "/files?path=&root=~": {
           "kind": "computer",

@@ -905,7 +905,7 @@ export function BrowserPanel({
                   spellCheck={false}
                   value={draftUrl}
                 />
-                <LoadProgress isLoading={nav.isLoading} />
+                <LoadProgress stage={nav.loadStage} />
                 <InputGroupAddon align="inline-end" className="empty:hidden">
                   <PageCaptureMark targetId={targetId} />
                   {fieldShield}
@@ -949,7 +949,7 @@ export function BrowserPanel({
                     <PageCaptureMark targetId={targetId} />
                     {fieldShield}
                     {fieldZoom}
-                    <LoadProgress isLoading={nav.isLoading} />
+                    <LoadProgress stage={nav.loadStage} />
                   </>,
                   chrome.fieldInto,
                 )}

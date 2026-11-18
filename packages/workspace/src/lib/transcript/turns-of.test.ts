@@ -723,7 +723,7 @@ describe("the work card", () => {
         : [],
     );
 
-  it("gives a run of one kind one card, and a file a card of its own", () => {
+  it("gives a run of one kind one card, a file a card of its own, and an edit, a search or a page read none", () => {
     const [turn] = turnsOf(
       [
         typed("Do the thing"),
@@ -782,8 +782,6 @@ describe("the work card", () => {
       [
         "files x1",
         "files x1",
-        "files x1",
-        "web x2",
         "page x1",
       ]
     `);
@@ -1369,7 +1367,12 @@ describe("the work card", () => {
 
   it("ends the card at what the agent says after the work, working or ended, and puts one up again at the next call", () => {
     const searched = (id: Parameters<typeof call>[0]) =>
-      call(id, "web_search", { activity: "Looking", query: "x" }, {});
+      call(
+        id,
+        "write_file",
+        { activity: "Writing", content: "a", filePath: "/a.md" },
+        {},
+      );
     const spoke = [
       typed("Do the thing"),
       message("assistant", (id) => [searched(id), said(id, "Found it.")]),
@@ -1378,7 +1381,7 @@ describe("the work card", () => {
       [typed("Do the thing"), message("assistant", (id) => [searched(id)])],
       { isRunning: true },
     );
-    expect(searching && workCardOf(searching)?.kind).toBe("web");
+    expect(searching && workCardOf(searching)?.kind).toBe("files");
     const [speaking] = turnsOf(spoke, { isRunning: true });
     expect(speaking && workCardOf(speaking)).toBeUndefined();
     const [ended] = turnsOf(spoke, { isRunning: false });
@@ -1391,8 +1394,8 @@ describe("the work card", () => {
           said(id, "Found it."),
           call(
             id,
-            "write_file",
-            { activity: "Writing", content: "a", filePath: "/a.md" },
+            "generate_image",
+            { activity: "Drawing" },
             undefined,
             "input-available",
           ),
@@ -1400,7 +1403,7 @@ describe("the work card", () => {
       ],
       { isRunning: true },
     );
-    expect(movedOn && workCardOf(movedOn)?.kind).toBe("files");
+    expect(movedOn && workCardOf(movedOn)?.kind).toBe("generated");
   });
 
   it("draws a task's card from its call as it arrives, under the call's id once the task exists", () => {
@@ -1687,7 +1690,12 @@ describe("the work card", () => {
 
   describe("words still arriving with nothing in them", () => {
     const searched = (id: Parameters<typeof call>[0]) =>
-      call(id, "web_search", { activity: "Looking", query: "x" }, {});
+      call(
+        id,
+        "bash",
+        { activity: "Looking", command: "agent-browser open https://a.test" },
+        {},
+      );
 
     it.each(["", "  \n", "```", "~~~"])(
       "leave the card and the working line as they were for %j",
@@ -1703,7 +1711,7 @@ describe("the work card", () => {
           { isRunning: true },
         );
         expect(turn && shape(turn)).toEqual(["activity: Looking x1"]);
-        expect(turn && workCardOf(turn)?.kind).toBe("web");
+        expect(turn && workCardOf(turn)?.kind).toBe("page");
         expect(turn?.live?.kind).toBe("activity");
       },
     );
@@ -1869,73 +1877,31 @@ describe("what a step carries", () => {
     expect(JSON.stringify(step)).not.toContain("xxxx");
   });
 
-  it("starts a fetched page at its first heading, and gives no words without one", () => {
-    const shows = (text: string) =>
-      stepOf(
-        { url: "https://a.example" },
-        { state: "success", text },
-        "web_fetch",
-      )?.shows;
-    expect(
-      shows("Skip to main\n[Menu](/m)\n# The title\n\nThe [body](/b) words"),
-    ).toMatchInlineSnapshot(`
+  it("carries the sites a search came back from and a page read reached, and shows them on no card", () => {
+    const searched = stepOf(
+      { query: "x" },
       {
-        "kind": "fetch",
-        "title": "The title",
-        "url": "https://a.example",
-        "words": "The body words",
-      }
-    `);
-    expect(
-      shows(
-        [
-          "# Cats",
-          "",
-          "Cats **purr** when _content_.",
-          "",
-          "## Care",
-          "",
-          "- Feed them [twice](https://a.example/feed) a day",
-          "* Brush `weekly`",
-          "1. Play",
-          "",
-          "> Quoted ~~words~~",
-          "",
-          "---",
-          "",
-          "| Breed | Size |",
-          "| :--- | ---: |",
-          "| Siamese | Small |",
-          "",
-          "See [the guide][g] or <https://a.example>.",
-          "",
-          "[g]: https://a.example/guide",
-        ].join("\n"),
-      ),
-    ).toMatchInlineSnapshot(`
-      {
-        "kind": "fetch",
-        "title": "Cats",
-        "url": "https://a.example",
-        "words": "Cats purr when content. Care Feed them twice a day Brush weekly Play Quoted words Breed Size Siamese Small See the guide or https://a.example.",
-      }
-    `);
-    expect(shows("Skip to main\nSign in")).toEqual({
-      kind: "fetch",
-      url: "https://a.example",
-    });
-    // A page's own title wins over a heading its navigation hides from sight.
-    expect(
-      stepOf(
-        { url: "https://a.example" },
-        {
-          state: "success",
-          text: "## Navigation Menu\n\n# repo\n\nA tool",
-          title: "owner/repo: A tool",
+        results: {
+          sources: [
+            { url: "https://www.a.example/1" },
+            { url: "https://a.example/2" },
+            { url: "https://b.example/" },
+            { url: "file:///x.pdf" },
+          ],
         },
-        "web_fetch",
-      )?.shows,
-    ).toMatchObject({ kind: "fetch", title: "owner/repo: A tool" });
+        state: "success",
+      },
+      "web_search",
+    );
+    expect(searched?.sites).toEqual(["a.example", "b.example"]);
+    expect(searched?.shows).toBeUndefined();
+    const read = stepOf({ url: "https://c.example/p" }, undefined, "web_fetch");
+    expect(read?.sites).toEqual(["c.example"]);
+    expect(read?.shows).toBeUndefined();
+    expect(
+      stepOf({ url: "https://c.example/p" }, { state: "failure" }, "web_fetch")
+        ?.sites,
+    ).toBeUndefined();
   });
 
   it.each([
@@ -1945,18 +1911,15 @@ describe("what a step carries", () => {
       "agent-browser open https://a.example",
       { changesPage: true, kind: "page", url: "https://a.example" },
     ],
-    ["open https://a.example", { kind: "opened", target: "https://a.example" }],
-    ["cd work && open report.pdf", { kind: "opened", target: "report.pdf" }],
+    ["open https://a.example", undefined],
+    ["cd work && open report.pdf", undefined],
     ["git commit -m 'open the file'", undefined],
     ["instrument task new --name x 'agent-browser open a.example'", undefined],
     ["echo agent-browser", undefined],
     ["cat > note <<'EOF'\nopen the door\nagent-browser open x\nEOF", undefined],
-    ["open -a Preview chart.png", { kind: "opened", target: "chart.png" }],
+    ["open -a Preview chart.png", undefined],
     ["open the", undefined],
-    [
-      "instrument window show report.md",
-      { kind: "opened", target: "report.md" },
-    ],
+    ["instrument window show report.md", undefined],
     ["ls -la", undefined],
   ])("reads what `%s` shows", (command, shows) => {
     expect(stepOf({ command }, { exitCode: 0 })?.shows).toEqual(shows);

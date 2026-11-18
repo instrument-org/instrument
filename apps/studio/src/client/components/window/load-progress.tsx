@@ -1,16 +1,27 @@
+import { type LoadStage } from "@/client/lib/browser-pool";
 import { useEffect, useRef } from "react";
 
-/** How long the line takes to creep most of the way across while a page loads. */
-const CREEP_MS = 8000;
-/** How far it creeps before the page says it is done. */
-const CREEP_TO = 0.85;
+/**
+ * Where the line goes at each stage of a load: a quick move to `to`, then a
+ * slow creep toward `creepTo` for as long as the stage lasts, so a page
+ * waiting on its server parks near the start the way Safari's does rather
+ * than running most of the way across on a timer.
+ */
+const STAGES = {
+  committed: { creepMs: 12_000, creepTo: 0.7, to: 0.45 },
+  ready: { creepMs: 8000, creepTo: 0.93, to: 0.85 },
+  waiting: { creepMs: 20_000, creepTo: 0.22, to: 0.15 },
+} satisfies Record<Exclude<LoadStage, "idle">, unknown>;
+const MOVE_MS = 300;
 const FINISH_MS = 150;
 const FADE_MS = 200;
+const EMPTY = "scaleX(0)";
 
 /**
  * The line along the foot of a page's address field while the page loads,
- * where Safari draws it. A guest says only when loading starts and stops, so
- * the line creeps toward the end while it waits and runs the rest of the way
+ * where Safari draws it. It moves on what the load reports (`LoadStage`):
+ * it stops short while the server has not answered, moves on once the page
+ * starts to arrive and again once it is parsed, and runs the rest of the way
  * when the page is done. That last run is what shows a reload of a page that
  * comes back unchanged and almost at once: the toolbar moves even when the
  * page does not.
@@ -18,60 +29,68 @@ const FADE_MS = 200;
  * Positioned against the field, which has to be the nearest positioned box
  * around it.
  */
-export function LoadProgress({ isLoading }: { isLoading: boolean }) {
+export function LoadProgress({ stage }: { stage: LoadStage }) {
   const lineRef = useRef<HTMLDivElement>(null);
-  // Where the creep had the line when the load stopped, so the finish runs
+  // Where the line was when the previous stage ended, so the next one moves
   // on from there; null until a load has been seen.
-  const stoppedAt = useRef<null | string>(null);
+  const leftAt = useRef<null | string>(null);
   useEffect(() => {
     const line = lineRef.current;
     if (!line) {
       return;
     }
-    if (isLoading) {
-      const creep = line.animate(
+    const from = leftAt.current;
+    if (stage === "idle") {
+      if (from === null) {
+        return;
+      }
+      leftAt.current = null;
+      const finish = line.animate(
         [
-          { opacity: 1, transform: "scaleX(0.05)" },
-          { opacity: 1, transform: `scaleX(${CREEP_TO})` },
+          { offset: 0, opacity: 1, transform: from },
+          {
+            offset: FINISH_MS / (FINISH_MS + FADE_MS),
+            opacity: 1,
+            transform: "scaleX(1)",
+          },
+          { offset: 1, opacity: 0, transform: "scaleX(1)" },
         ],
-        {
-          duration: CREEP_MS,
-          easing: "cubic-bezier(0.1, 0.6, 0.2, 1)",
-          fill: "forwards",
-        },
+        { duration: FINISH_MS + FADE_MS, easing: "ease-out" },
       );
       return () => {
-        // Read before the creep is let go, which puts the line back to
-        // nothing.
-        const { transform } = getComputedStyle(line);
-        stoppedAt.current = transform === "none" ? "scaleX(0.05)" : transform;
-        creep.cancel();
+        finish.cancel();
       };
     }
-    const from = stoppedAt.current;
-    if (from === null) {
-      return;
-    }
-    const finish = line.animate(
+    const { creepMs, creepTo, to } = STAGES[stage];
+    const move = line.animate(
       [
-        { offset: 0, opacity: 1, transform: from },
         {
-          offset: FINISH_MS / (FINISH_MS + FADE_MS),
+          easing: "ease-out",
+          offset: 0,
           opacity: 1,
-          transform: "scaleX(1)",
+          transform: from ?? EMPTY,
         },
-        { offset: 1, opacity: 0, transform: "scaleX(1)" },
+        {
+          easing: "cubic-bezier(0.2, 0.6, 0.4, 1)",
+          offset: MOVE_MS / (MOVE_MS + creepMs),
+          opacity: 1,
+          transform: `scaleX(${to})`,
+        },
+        { offset: 1, opacity: 1, transform: `scaleX(${creepTo})` },
       ],
-      { duration: FINISH_MS + FADE_MS, easing: "ease-out" },
+      { duration: MOVE_MS + creepMs, fill: "forwards" },
     );
     return () => {
-      finish.cancel();
+      // Read before the move is let go, which puts the line back to nothing.
+      const { transform } = getComputedStyle(line);
+      leftAt.current = transform === "none" ? EMPTY : transform;
+      move.cancel();
     };
-  }, [isLoading]);
+  }, [stage]);
   return (
     <div
       aria-hidden
-      className="pointer-events-none absolute inset-x-3 bottom-0 h-px origin-left rounded-full bg-foreground/30 opacity-0"
+      className="pointer-events-none absolute inset-x-3 bottom-0 h-0.5 origin-left rounded-full bg-brand-500 opacity-0 dark:bg-brand-400"
       ref={lineRef}
     />
   );

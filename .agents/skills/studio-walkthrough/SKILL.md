@@ -66,6 +66,35 @@ Presentation mode hides the development pills and swaps the signed-in account's 
 
 `take` ends with `contact-sheet.png`, a frame every two seconds of the cut. Read it the way a designer would, and fix the walk and take again rather than explain a fault: a window left open, a press that missed, the camera on an empty corner, a caption over what it describes.
 
+## Feature clips
+
+A clip for What's new or a release note plays once, muted, at most 448 pixels wide, beside one line. Judge it there, never from a full-size frame: a whole 1240-pixel window shows Studio's 14 px text at 5 px.
+
+```bash
+node $W render ~/walkthroughs/my-feature --clip   # video/walkthrough-clip.mp4, 3:2, its poster, strip and check
+node $W check ~/walkthroughs/my-feature/video/walkthrough-clip.mp4
+```
+
+`--clip` renders without captions, shows keys pressed large in the middle, and checks the result. Each problem prints as `FAIL <what>: <measured> -> <fix>`:
+
+| Check | Limit | Measures |
+|---|---|---|
+| lead | 0.6 s | first frame to the first change |
+| dead | 1.2 s | longest stretch with nothing changing |
+| tail | 1.6 s | last change to the end |
+| length | 9 s | the whole clip |
+| text | 8.5 px | Studio's body text as shown, wherever the hand or a key acts |
+
+Text shows at 14 × UI zoom × camera zoom × 448 ÷ window width, so a clip needs both levers:
+
+- **Raise the app's UI zoom** before the take: `window.api.keptState.set("view", "zoom.v1", 1.5)`, then reload. Use 1.25 where 1.5 truncates the thing being shown.
+- **Frame only the feature from the first frame.** An `act.camera(target, { ms: 1, tight: true, zoom: 3 })` noted before `act.begin` frames the take before it starts. `tight` drops the padding, and a target may be `{ box: { x, y, w, h } }` measured from the page.
+- **Start on the action.** Park the hand next to its first target and give a click a short `ms`, so something changes within half a second. Show one idea: a second idea is a second clip.
+- **Measure boxes once the page holds still.** A sidebar closing or a pane opening animates, and a box read during it is not where the take finds it.
+- **Hover right to left** along a row whose items widen under the hand, so each one stays where the hand finds it.
+
+`--clip` also writes `walkthrough-clip-strip.png`: the clip at 448 pixels, a frame every half second, each stamped with its text size. Read it, then hand it with the line it goes beside to a fresh agent, asking what a first-time viewer would think it shows and where it wastes time, before anyone else watches it.
+
 ## What a take folder holds
 
 | File | For |
@@ -73,7 +102,7 @@ Presentation mode hides the development pills and swaps the signed-in account's 
 | `snippets.html` | a loop per chapter, the easiest to take in |
 | `chapters.html` | the whole take, chapters beside it; Open this moment opens any frame as its own page |
 | `stills.html` | each still as a picture, the live page and an outline; Copy for agent hands over all three |
-| `video/` | `render` writes MP4s here at 1080p, `--gif` a GIF beside each, `--plain` one without captions or camera |
+| `video/` | `render` writes MP4s here at 1080p, `--gif` a GIF beside each, `--plain` one without captions or camera, `--clip` a feature clip |
 | `share/` | `share` writes a page as one file (data and posters inside) for the instrument-page skill's `share.mjs`; the host takes up to 8 MB, about four minutes of Studio |
 | `recording/` | the raw take: `events.jsonl`, `script.jsonl`, the stills as taken |
 

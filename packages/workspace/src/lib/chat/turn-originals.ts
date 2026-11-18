@@ -9,9 +9,7 @@ import { keepVersion, type KeptVersion } from "../file-versions";
 import { workDir } from "../work-dir";
 import { getWorkspaceConfig } from "../workspace-config";
 import { thisDevice } from "./asks";
-
-/** The folder in a chat's work folder its versions are kept in. */
-export const VERSIONS_FOLDER = ".versions";
+import { VERSIONS_FOLDER } from "./versions-folder";
 
 type Entry = SessionMessageDataPart.FileVersionsDataPart["files"][number];
 

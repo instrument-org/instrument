@@ -423,7 +423,7 @@ const states = [
   // ---- setup, and outside the window ----------------------------------------------------
   {
     title: "Setup sign-in",
-    note: "Setup fills the app window at its own 1080x720, and this is the step a new person signs in on.",
+    note: "Setup fills the app window at a first launch's 1240x840, and this is the step a new person signs in on.",
     ...SETUP,
     body: setupChooseAI(),
   },

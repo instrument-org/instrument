@@ -69,6 +69,18 @@ declare namespace NodeJS {
        * electron-main/lib/network-status.ts.
        */
       INSTRUMENT_NETWORK_STATUS: string | undefined;
+      /**
+       * Development builds only: a folder of the instance's own for its crash
+       * and hang diagnostics, set by studio-drive for an instance on the
+       * developer's application data. See electron-main/lib/diagnostics-dir.ts.
+       */
+      INSTRUMENT_DIAGNOSTICS_DIR: string | undefined;
+      /**
+       * Development builds only: `true` when studio-drive copied the
+       * developer's sign-in in, so signing out forgets it without ending the
+       * session. See electron-main/auth/client.ts.
+       */
+      INSTRUMENT_SHARED_SESSION: string | undefined;
       /** `0` keeps every pipeline stage on the buffered path, for comparing it with streaming between native commands. */
       INSTRUMENT_NATIVE_PIPES: string | undefined;
       /**

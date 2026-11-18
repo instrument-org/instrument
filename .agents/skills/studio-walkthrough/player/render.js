@@ -18,8 +18,15 @@ stage.style.cssText = bare
   : `position:absolute;left:${(1920 - w * 1.2) / 2}px;top:${(1080 - h * 1.2) / 2}px;width:${w * 1.2}px;height:${h * 1.2}px;border-radius:12px;box-shadow:0 30px 80px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.08)`;
 if (bare) document.head.insertAdjacentHTML("beforeend", "<style>.wt-fit{border-radius:0!important}</style>");
 document.body.append(stage);
-const engine = createEngine(stage, data, { mode: "render", range, captions: q.get("captions") !== "0", camera: q.get("camera") !== "0" });
-window.renderInfo = { length: engine.length }; window.engine = engine;
+const engine = createEngine(stage, data, { mode: "render", range, captions: q.get("captions") !== "0", camera: q.get("camera") !== "0", keys: q.get("keys") ?? undefined });
+// When the hand or a key did something, on the clip's clock, for a check of
+// how legible the frame is at those moments.
+const actions = data.script
+  .filter((e) => ["hover", "key", "press", "type"].includes(e.kind) && e.t >= (range?.from ?? 0))
+  .map((e) => ({ kind: e.kind, p: engine.toPres(e.t) }))
+  .filter((a) => a.p <= engine.length);
+const appZoom = data.script.find((e) => e.kind === "begin")?.appZoom ?? 1;
+window.renderInfo = { actions, appZoom, length: engine.length, viewport: data.viewport }; window.engine = engine;
 window.renderAt = async (p) => {
   engine.seekPres(p);
   // Seeking the replay sets each <video>'s currentTime; a capture before the

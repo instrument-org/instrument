@@ -84,3 +84,31 @@ it("moves on to the next question once one is answered", async () => {
   });
   expect(container.textContent).not.toContain("1 of");
 });
+
+it("folds the last card away once it is answered, holding the pick as it goes", async () => {
+  const { container } = withAsks([
+    { card: card("Which planet?"), question: "Which planet?" },
+  ]);
+  await waitFor(() => {
+    expect(container.textContent).toContain("Which planet?");
+  });
+
+  const yes = screen.getByRole("radio", { name: "Yes" });
+  yes.focus();
+  fireEvent.click(yes);
+  fireEvent.click(screen.getByRole("button", { name: /^Send/ }));
+
+  const folding = container.firstElementChild;
+  expect(folding?.hasAttribute("inert")).toBe(true);
+  // The keyboard leaves with it, for the reply box to take.
+  expect(folding?.contains(document.activeElement)).toBe(false);
+  expect(folding?.className).toContain("grid-rows-[0fr]");
+  expect(
+    screen
+      .getByRole("radio", { hidden: true, name: "Yes" })
+      .getAttribute("aria-checked"),
+  ).toBe("true");
+  await waitFor(() => {
+    expect(container.textContent).toBe("");
+  });
+});

@@ -9,14 +9,11 @@ import {
   type WorkCardKind,
   workCardPaths,
   type WorkCardPicture,
-  type WorkCardResult,
   type WorkCardView,
 } from "@instrument-org/workspace/client";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { ImageIcon } from "@phosphor-icons/react/Image";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { motion, useReducedMotion } from "motion/react";
 import {
   use,
   useEffect,
@@ -33,7 +30,7 @@ import {
 } from "@/shared/syntax-highlight";
 
 import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
-import { Favicon, PageFavicon } from "../favicon";
+import { PageFavicon } from "../favicon";
 import { ImageWaitBloom } from "../message-part/image-wait-bloom";
 import { Markdown } from "../markdown";
 import { Prose } from "../prose";
@@ -51,7 +48,6 @@ const MARKS: Record<WorkCardKind, ReactNode> = {
   generated: <ImageIcon className="size-3.5" />,
   images: <ImageIcon className="size-3.5" />,
   page: <GlobeIcon className="size-3.5" />,
-  web: <MagnifyingGlassIcon className="size-3.5" />,
 };
 
 /**
@@ -78,55 +74,42 @@ export function WorkCardView({
     ...(drivenPage && { drivenPage }),
     places,
   });
-  const target = face.open;
-  const open =
-    target &&
-    (() => {
-      if ("url" in target) {
-        surface?.onOpenUrl(target.url);
-      } else {
-        surface?.onOpenFile(target.file);
-      }
-    });
+  // A picture of work moving under the pointer, so nothing in it answers a
+  // press. Its caption is one line from the first paint on, so the card never
+  // grows under the rows below it.
   return (
-    <div className="relative w-full max-w-115 rounded-2xl">
-      <button
-        className="block w-full overflow-hidden rounded-2xl border border-border bg-card text-left"
-        data-work-card={card.kind}
-        onClick={open}
-        type="button"
-      >
-        <div className="relative h-52 overflow-hidden bg-muted/50">
-          {viewOf(face, {
-            PagePicture: surface?.PagePicture,
-            sessionId,
-          })}
-        </div>
-        <div className="flex h-8 items-center gap-1.5 border-t border-border px-2.5 text-xs">
-          <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-            {card.kind === "page" ? (
-              // The page's own icon, as its tab shows it.
-              <PageFavicon
-                className="size-3.5"
-                favicon={drivenPage?.favicon}
-                hasTooltip={false}
-                url={target && "url" in target ? target.url : undefined}
-              />
-            ) : (
-              MARKS[card.kind]
-            )}
-          </span>
-          <span className="min-w-0 truncate text-foreground/80">
-            {face.title}
-          </span>
-          {face.meta && (
-            <span className="ml-auto shrink-0 pl-2 text-muted-foreground tabular-nums">
-              {face.meta}
-            </span>
+    <div
+      className="flex w-full max-w-115 flex-col gap-1.5"
+      data-work-card={card.kind}
+    >
+      <div className="relative h-52 overflow-hidden rounded-xl bg-muted/50 ring-1 ring-border">
+        {viewOf(face, {
+          PagePicture: surface?.PagePicture,
+          sessionId,
+        })}
+        {isCurrent && <BorderSweep />}
+      </div>
+      <div className="flex h-4 items-center gap-1.5 px-0.5 text-xs text-muted-foreground">
+        <span className="flex size-3.5 shrink-0 items-center justify-center">
+          {face.view === "page/picture" ? (
+            // The page's own icon, as its tab shows it.
+            <PageFavicon
+              className="size-3.5"
+              favicon={drivenPage?.favicon}
+              hasTooltip={false}
+              url={face.url}
+            />
+          ) : (
+            MARKS[card.kind]
           )}
-        </div>
-      </button>
-      {isCurrent && <BorderSweep />}
+        </span>
+        <span className="min-w-0 truncate">{face.title}</span>
+        {face.meta && (
+          <span className="shrink-0 text-muted-foreground/70 tabular-nums">
+            · {face.meta}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -140,8 +123,7 @@ interface ViewContext {
 /**
  * A view for each of a card's views, given its face. Each is called as a
  * function rather than mounted as a component, so a card moving from one view
- * to the next keeps what the two have in common, a web card's results as one
- * is opened among them above all.
+ * to the next keeps what the two have in common.
  */
 const VIEWS: {
   [V in WorkCardView]: (
@@ -149,23 +131,14 @@ const VIEWS: {
     context: ViewContext,
   ) => ReactNode;
 } = {
-  "files/diff": (face) => (
-    <div className="absolute inset-0 overflow-hidden bg-card p-3 text-xs">
-      {face.before && (
-        <FileWords
-          className="mb-1.5 rounded-sm bg-destructive/10 px-1 text-foreground/70"
-          path={face.path}
-          text={face.before}
-        />
-      )}
-      <FileWords
-        className="rounded-sm bg-brand-500/10 px-1 text-foreground/80"
-        path={face.path}
-        text={face.after}
-      />
+  "files/none": (face) => (
+    <div className="flex h-full flex-col items-center justify-center gap-1.5 bg-card text-muted-foreground">
+      <FileTextIcon className="size-8" />
+      <span className="max-w-[80%] truncate text-sm text-foreground/80">
+        {face.title}
+      </span>
     </div>
   ),
-  "files/none": () => null,
   "files/picture": (face) => <PictureRow newest={face.picture} strip={[]} />,
   "files/words": (face) => (
     <TypedWords isWriting={false} path={face.path} words={face.words} />
@@ -185,37 +158,6 @@ const VIEWS: {
   ),
   "page/picture": (_face, { PagePicture, sessionId }) =>
     PagePicture ? <PagePicture sessionId={sessionId} /> : null,
-  "web/nothing-found": (face) =>
-    webList(
-      face.heading,
-      <span className="text-muted-foreground">
-        Nothing came up for that search.
-      </span>,
-    ),
-  "web/opening": (face) =>
-    webList(
-      face.heading,
-      face.results && <ResultList dims results={face.results} />,
-    ),
-  "web/page": (face) =>
-    face.words === undefined ? (
-      webList(face.heading)
-    ) : (
-      <div className="absolute inset-0 animate-in overflow-hidden bg-card px-3 py-2.5 text-xs duration-200 fade-in">
-        <p className="truncate font-medium text-foreground">{face.heading}</p>
-        <p className="truncate text-muted-foreground">{face.host}</p>
-        <p className="mt-1.5 whitespace-pre-wrap text-foreground/80">
-          {face.words}
-        </p>
-      </div>
-    ),
-  "web/results": (face) =>
-    webList(face.heading, <ResultList dims={false} results={face.results} />),
-  "web/searching": (face) =>
-    webList(
-      face.heading,
-      <span className="text-muted-foreground">Searching…</span>,
-    ),
 };
 
 /** A face drawn by its view. */
@@ -224,62 +166,6 @@ function viewOf<V extends WorkCardView>(
   context: ViewContext,
 ): ReactNode {
   return VIEWS[face.view](face, context);
-}
-
-/** A web card's heading over what goes under it. */
-function webList(heading: string | undefined, under?: ReactNode) {
-  return (
-    <div className="absolute inset-0 flex flex-col gap-2 overflow-hidden bg-card px-3 py-2.5 text-xs">
-      <p className="truncate font-medium text-foreground">{heading}</p>
-      {under}
-    </div>
-  );
-}
-
-/** How long after the one before it each result comes in. */
-const RESULT_STAGGER_S = 0.04;
-
-/**
- * A search's results, each coming in a moment after the one before, since a
- * search's results arrive together. With `dims`, the one being opened stands
- * out and the rest step back.
- */
-function ResultList({
-  dims,
-  results,
-}: {
-  dims: boolean;
-  results: readonly WorkCardResult[];
-}) {
-  const isReduced = useReducedMotion();
-  return (
-    <ul className="flex flex-col gap-1.5">
-      {results.map((result, index) => (
-        <motion.li
-          animate={{ opacity: dims && !result.isOpening ? 0.5 : 1, y: 0 }}
-          className={cn(
-            "-mx-1 flex min-w-0 items-start gap-1.5 rounded-md px-1",
-            result.isOpening && "bg-brand-500/10",
-          )}
-          initial={isReduced ? false : { opacity: 0, y: 2 }}
-          key={result.url}
-          transition={{ delay: index * RESULT_STAGGER_S, duration: 0.15 }}
-        >
-          <Favicon className="mt-px size-3.5 shrink-0" url={result.url} />
-          <span className="min-w-0">
-            <span className="block truncate text-foreground/80">
-              {result.title ?? result.host}
-            </span>
-            {result.title && (
-              <span className="block truncate text-muted-foreground">
-                {result.host}
-              </span>
-            )}
-          </span>
-        </motion.li>
-      ))}
-    </ul>
-  );
 }
 
 /**

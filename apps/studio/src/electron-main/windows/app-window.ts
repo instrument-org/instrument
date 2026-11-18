@@ -13,7 +13,7 @@ import {
 } from "@/electron-main/lib/quit";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { systemRegionArguments } from "@/electron-main/lib/system-country";
-import { isSetupUp, readSetupState } from "@/electron-main/lib/setup-state";
+import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { studioURL } from "@/electron-main/lib/urls";
 import { bindAppWindowChords } from "@/electron-main/menus/app-window";
 import { bindShortcutAccelerators } from "@/electron-main/menus/shortcuts";
@@ -48,7 +48,6 @@ import { homedir } from "node:os";
 import {
   getAppZoom,
   getWindowState,
-  hasWindowState,
   keepBoundsOnScreen,
   forgetWindow,
   rememberedWindowIds,
@@ -76,13 +75,6 @@ import {
   forgetAppWindowName,
   nameAppWindow,
 } from "@/electron-main/windows/app-window-ids";
-import {
-  opensSetupSized,
-  forgetSetupWindowPlace,
-  grownFromSetup,
-  keepSetupWindowPlace,
-  setupBounds,
-} from "@/electron-main/windows/setup-size";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import {
@@ -116,12 +108,6 @@ const openWindows = new Map<string, BrowserWindow>();
 
 /** The open windows, the one last in front first. */
 let inFront: BrowserWindow[] = [];
-
-/**
- * The window at setup's own shape, fixed, which is never saved as where the
- * window was left. Set as it opens, and cleared once setup is done.
- */
-let setupSized: BrowserWindow | null = null;
 
 /**
  * Whether boot has opened a window yet. It opens the first once setup's
@@ -1018,14 +1004,9 @@ function createAppWindow(
   hasOpened = true;
   watchSetup();
   const remembered = rememberedStateOf(id);
-  // Someone new meets setup in a window its own size; someone shown one new
-  // step after an update keeps the window as they left it.
-  const isSetupSized =
-    openWindows.size === 0 && opensSetupSized(readSetupState());
-  const opening = bounds ?? remembered.bounds;
 
   const window = new BrowserWindow({
-    ...(isSetupSized ? setupBounds() : opening),
+    ...(bounds ?? remembered.bounds),
     // On macOS the first click on a window behind another only brings it
     // forward unless told otherwise, and over the bar that press drags the
     // window: a tab pulled out of a window in the back would move the window.
@@ -1042,11 +1023,8 @@ function createAppWindow(
     // window's own bar, so it goes and the renderer draws the window controls
     // (see WindowControls).
     frame: process.platform === "darwin",
-    fullscreenable: !isSetupSized,
-    maximizable: !isSetupSized,
     minHeight: 520,
     minWidth: 900,
-    resizable: !isSetupSized,
     show: false,
     // Not on the taskbar until it is adopted.
     skipTaskbar: isSpare,
@@ -1068,10 +1046,6 @@ function createAppWindow(
       webviewTag: true,
     },
   });
-  if (isSetupSized) {
-    setupSized = window;
-  }
-
   const webContentsId = window.webContents.id;
   // Named before it loads: its preload asks for what it kept as it does.
   nameAppWindow(webContentsId, id);
@@ -1084,18 +1058,7 @@ function createAppWindow(
   }
 
   const tracked = trackWindowBounds(window, id, {
-    isHeld: () => setupSized === window || spareOf(webContentsId) !== undefined,
-  });
-  // Setup's window comes back where it was after a restart setup makes,
-  // which is a quit like any other.
-  const keepSetupPlace = () => {
-    if (setupSized === window && !window.isDestroyed()) {
-      keepSetupWindowPlace(window.getBounds());
-    }
-  };
-  app.on("before-quit", keepSetupPlace);
-  window.on("closed", () => {
-    app.off("before-quit", keepSetupPlace);
+    isHeld: () => spareOf(webContentsId) !== undefined,
   });
   // Every way this window changes shape. `will-resize` and `move` are here
   // because macOS does not report a resize the user did not drive (a tiling
@@ -1130,7 +1093,7 @@ function createAppWindow(
     showWhenReady(window, () => {
       if (!window.isDestroyed()) {
         putOnScreen(window, {
-          maximized: !isSetupSized && !bounds && remembered.isMaximized,
+          maximized: !bounds && remembered.isMaximized,
         });
       }
     });
@@ -1188,9 +1151,6 @@ function createAppWindow(
       comingToFront = null;
     }
     forgetAppWindowName(webContentsId);
-    if (setupSized === window) {
-      setupSized = null;
-    }
     stopListening(webContentsId);
     // What waited for this window, which may never have come up to take it,
     // goes to the window now in front when that one is listening.
@@ -1372,9 +1332,8 @@ export function takeLaunchSweep(webContentsId: number) {
 let isWatchingSetup = false;
 
 /**
- * Follows setup going down: the window takes the remembered shape back, the
- * windows it held back come up, and the window gets what was asked of it
- * meanwhile.
+ * Follows setup going down: the windows it held back come up, and the
+ * window gets what was asked of it meanwhile.
  */
 function watchSetup() {
   if (isWatchingSetup) {
@@ -1385,7 +1344,6 @@ function watchSetup() {
     if (isSetupUp()) {
       return;
     }
-    leaveSetupSize();
     const waiting = waitingForSetup;
     waitingForSetup = [];
     for (const id of waiting) {
@@ -1394,37 +1352,6 @@ function watchSetup() {
     asks.release();
     keepSpareReady();
   });
-}
-
-/** Back to the window's remembered bounds, resizable again, at once. */
-function leaveSetupSize() {
-  const window = setupSized;
-  if (!window || window.isDestroyed()) {
-    return;
-  }
-  setupSized = null;
-  const id = appWindowIdOfWindow(window) ?? FIRST_APP_WINDOW_ID;
-  forgetSetupWindowPlace();
-  window.setResizable(true);
-  window.setMaximizable(true);
-  window.setFullScreenable(true);
-  // A window never sized before grows where setup was, rather than jumping
-  // to the middle of the main display.
-  const { bounds, isMaximized } = hasWindowState(id)
-    ? rememberedStateOf(id)
-    : {
-        bounds: grownFromSetup(window.getBounds(), {
-          height: WINDOW_HEIGHT,
-          width: WINDOW_WIDTH,
-        }),
-        isMaximized: false,
-      };
-  window.setBounds(bounds);
-  if (isMaximized) {
-    window.maximize();
-  }
-  // The window's own maximize control comes back with it.
-  publisher.publish("window.state-changed", null);
 }
 
 export function updateAppWindowBackgroundColor() {

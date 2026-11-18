@@ -150,6 +150,84 @@ it("shows each choice's digit only while the keyboard is on the card's buttons",
   await expect.element(digit).not.toBeVisible();
 });
 
+it("draws a picked choice's ring inside its row, where the scrolling list cannot clip it", async () => {
+  const screen = await renderInBrowser(
+    <QuestionCard onAnswer={noop} questions={[COMPETITORS]} status="open" />,
+  );
+  screen.getByRole("button", { name: "Skip" }).element().focus();
+  await userEvent.keyboard("2");
+
+  const row = document.activeElement;
+  expect(row?.textContent).toContain("Intercom");
+  expect(row && getComputedStyle(row).outlineOffset).toBe("-2px");
+});
+
+/** A card taking the window's keys, beside a field and a reply box like the chat's. */
+async function renderTakingKeys(onAnswer = noop, replyBox = "") {
+  const screen = await renderInBrowser(
+    <div>
+      <input aria-label="Elsewhere" />
+      <div
+        aria-label="Reply"
+        className="prompt-editor"
+        contentEditable
+        role="textbox"
+        suppressContentEditableWarning
+      >
+        {replyBox}
+      </div>
+      <QuestionCard
+        onAnswer={onAnswer}
+        questions={[COMPETITORS]}
+        status="open"
+        takesKeys
+      />
+    </div>,
+  );
+  const digit = screen.getByText("2", { exact: true });
+  return { digit, screen };
+}
+
+it("picks with a digit pressed outside a card taking the window's keys, and sends on Enter", async () => {
+  const onAnswer = vi.fn();
+  const { digit, screen } = await renderTakingKeys(onAnswer);
+  (document.activeElement as HTMLElement | null)?.blur(); // focus is an Element's to drop
+  await expect.element(digit).toBeVisible();
+
+  await userEvent.keyboard("2");
+  await expect
+    .element(screen.getByRole("radio", { name: /Intercom/ }))
+    .toBeChecked();
+  await userEvent.keyboard("{Enter}");
+
+  expect(onAnswer).toHaveBeenCalledWith({
+    replies: [{ picked: ["Intercom"] }],
+  });
+});
+
+it("takes a digit from an empty reply box, and leaves one typed into a field or a reply box with words to it", async () => {
+  const { digit, screen } = await renderTakingKeys(noop, "Also");
+  const intercom = screen.getByRole("radio", { name: /Intercom/ });
+
+  await screen.getByRole("textbox", { name: "Elsewhere" }).click();
+  await expect.element(digit).not.toBeVisible();
+  await userEvent.keyboard("2");
+  await expect
+    .element(screen.getByRole("textbox", { name: "Elsewhere" }))
+    .toHaveValue("2");
+
+  const reply = screen.getByRole("textbox", { name: "Reply" });
+  await reply.click();
+  await userEvent.keyboard("2");
+  await expect.element(intercom).not.toBeChecked();
+
+  await userEvent.clear(reply);
+  await expect.element(digit).toBeVisible();
+  await userEvent.keyboard("2");
+  await expect.element(intercom).toBeChecked();
+  await expect.element(intercom).toHaveFocus();
+});
+
 it("leaves digits to the own-answer row, where Shift+Enter starts a line and Enter sends", async () => {
   const onAnswer = vi.fn();
   const screen = await renderInBrowser(

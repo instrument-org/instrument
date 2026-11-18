@@ -102,6 +102,7 @@ export async function createAct(app, { out, viewport }) {
       await evaluate(IN_PAGE);
       await evaluate(CAPTURE);
       await evaluate("window.__walkthroughPage.watchPictures()");
+      await evaluate("window.__walkthroughPage.mirrorFocus()");
       if (presentation) {
         await evaluate(`window.__walkthroughPage.present(${JSON.stringify({ rootCrumb })})`);
       }
@@ -112,7 +113,11 @@ export async function createAct(app, { out, viewport }) {
       await evaluate("window.__walkthrough.start()");
       recording = true;
       startedAt = Date.now();
-      note({ kind: "begin", viewport, pointer: pos, ...meta });
+      // The app's own UI zoom, which scales its text before any camera does.
+      const appZoom = await evaluate(
+        `parseFloat([...document.querySelectorAll("[style]")].find((e) => e.style.getPropertyValue("--app-zoom"))?.style.getPropertyValue("--app-zoom")) || 1`,
+      );
+      note({ kind: "begin", viewport, pointer: pos, appZoom, ...meta });
       await mouse("mouseMoved", pos.x, pos.y);
     },
 
@@ -145,20 +150,25 @@ export async function createAct(app, { out, viewport }) {
 
     hold: (ms) => sleep(ms),
 
-    /** Pushes the camera in on a target's box (or a list of them), or back out with null. */
-    async camera(targets, { zoom, ms = 1100 } = {}) {
+    /**
+     * Pushes the camera in on a target's box (or a list of them), or back out
+     * with null. A target may be a box itself, `{ box: { x, y, w, h } }`, in
+     * the window's pixels. `tight` frames the box edge to edge, with no
+     * margin around it.
+     */
+    async camera(targets, { ms = 1100, tight = false, zoom } = {}) {
       if (targets === null) {
         note({ kind: "camera", box: null, ms });
         return;
       }
       const list = Array.isArray(targets) ? targets : [targets];
       const boxes = [];
-      for (const t of list) boxes.push(await locate(t));
+      for (const t of list) boxes.push(t.box ?? (await locate(t)));
       const x = Math.min(...boxes.map((one) => one.x));
       const y = Math.min(...boxes.map((one) => one.y));
       const right = Math.max(...boxes.map((one) => one.x + one.w));
       const bottom = Math.max(...boxes.map((one) => one.y + one.h));
-      note({ kind: "camera", box: { x, y, w: right - x, h: bottom - y }, zoom, ms });
+      note({ kind: "camera", box: { x, y, w: right - x, h: bottom - y }, zoom, ms, ...(tight && { padded: true }) });
     },
 
     /** Moves the pointer in a shallow arc, quicker over short hops. */
@@ -206,8 +216,9 @@ export async function createAct(app, { out, viewport }) {
       return Object.keys(assets).length;
     },
 
-    async click(target, { at, right = false, double = false, settle = 260 } = {}) {
-      const box = await act.move(target, { at });
+    /** `ms` is how long the hand takes to get there, for a hop that should not linger. */
+    async click(target, { at, right = false, double = false, ms, settle = 260 } = {}) {
+      const box = await act.move(target, { at, ms });
       await sleep(120);
       const button = right ? "right" : "left";
       for (let i = 1; i <= (double ? 2 : 1); i++) {

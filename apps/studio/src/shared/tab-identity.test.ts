@@ -43,12 +43,27 @@ describe("isSameTabIdentity", () => {
       "/debug",
       "/debug/components/transcript?scenario=long-reply",
     ],
+    [
+      "a version shown over its file and the copy at its own address",
+      fileHref(NOTES, { version: `${HOME}/.versions/notes.md` }),
+      fileHref(`${HOME}/.versions/notes.md`),
+    ],
   ])("%s", (_, a, b) => {
     expect(isSameTabIdentity(a, b, HOME)).toBe(true);
   });
 
   it.each([
     ["two files", fileHref(NOTES), fileHref(`${HOME}/other.md`)],
+    [
+      "a file and a version shown over it",
+      fileHref(NOTES),
+      fileHref(NOTES, { version: `${HOME}/.versions/notes.md` }),
+    ],
+    [
+      "two versions of a file",
+      fileHref(NOTES, { version: `${HOME}/.versions/1/notes.md` }),
+      fileHref(NOTES, { version: `${HOME}/.versions/2/notes.md` }),
+    ],
     ["a file and its folder", fileHref(NOTES), folderHref(HOME)],
     ["two folders", folderHref(HOME), folderHref(`${HOME}/Documents`)],
     ["two chats", "/chats/a", "/chats/b"],

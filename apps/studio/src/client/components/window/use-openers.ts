@@ -14,6 +14,7 @@ import {
   browserTargetOf,
   isFolderPath,
   StoreId,
+  VERSIONS_FOLDER,
   WINDOW_ID,
   type WindowTabAnswer,
   type WindowTabRequest,
@@ -30,7 +31,9 @@ import { chatListOptions } from "./chat-list-query";
 import { type OpenOptions } from "./context";
 import { opensBeside } from "./beside-chat";
 import { bringForwardShowing } from "./built-in-pages";
+import { versionHref } from "./file-versions";
 import { isGroupScreenHref } from "./group-screen";
+import { segmentsOf } from "./host-path";
 import { openMenuLink } from "./menu-link";
 import {
   reuseBlankOf,
@@ -607,15 +610,15 @@ export function useOpeners({
     }
     const isFolder = isFolderPath(path);
     const filePath = isFolder ? path.slice(0, -1) : path;
+    const chatId =
+      chat ??
+      (windowTabs.groupOnScreen === undefined
+        ? undefined
+        : windowTabs.chatUpIn(windowTabs.groupOnScreen));
     const [error, hostPaths] = await safe(
       rpcClient.workspace.chats.files.hostPaths.call({
         filePaths: [filePath],
-        chatId:
-          chat ??
-          (windowTabs.groupOnScreen === undefined
-            ? undefined
-            : windowTabs.chatUpIn(windowTabs.groupOnScreen)) ??
-          WINDOW_ID,
+        chatId: chatId ?? WINDOW_ID,
       }),
     );
     const hostPath = hostPaths?.[filePath];
@@ -627,7 +630,26 @@ export function useOpeners({
       });
       return;
     }
-    return isFolder ? folderHref(hostPath) : fileHref(hostPath);
+    if (isFolder) {
+      return folderHref(hostPath);
+    }
+    // A copy the chat kept of a file, as a reply's card draws one, opens as
+    // a version of that file.
+    if (
+      chatId !== undefined &&
+      segmentsOf(hostPath).includes(VERSIONS_FOLDER)
+    ) {
+      const [, history] = await safe(
+        rpcClient.workspace.chats.fileVersions.call({
+          id: chatId,
+          path: hostPath,
+        }),
+      );
+      if (history?.viewing && history.file !== hostPath) {
+        return versionHref(history.file, hostPath);
+      }
+    }
+    return fileHref(hostPath);
   };
   /**
    * Opens a path a reply named: a file in its viewer, a folder as the folder

@@ -28,7 +28,7 @@ import { runtimeLayout } from "../runtime-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
-import { chatRules, nativeReachFor } from "./chat-rules";
+import { chatRules, nativeReachFor, runningAppBundle } from "./chat-rules";
 import { setDenied } from "./denials";
 import { reachOf } from "./rules";
 import { closedNote } from "./rules-fs";
@@ -46,6 +46,22 @@ const inRuntime = (folders: readonly string[]) =>
   folders
     .filter((folder) => folder.startsWith(runtimeDir))
     .map((folder) => path.relative(runtimeDir, folder).replaceAll("\\", "/"));
+
+describe("runningAppBundle", () => {
+  it.each([
+    [
+      "/Volumes/Instrument/Instrument.app/Contents/MacOS/Instrument",
+      "/Volumes/Instrument/Instrument.app",
+    ],
+    [
+      "/Applications/Instrument.app/Contents/Frameworks/Instrument Helper.app/Contents/MacOS/Instrument Helper",
+      "/Applications/Instrument.app",
+    ],
+    ["/usr/local/bin/node", undefined],
+  ])("takes %s to %s", (execPath, bundle) => {
+    expect(runningAppBundle(execPath)).toBe(bundle);
+  });
+});
 
 describe("nativeReachFor", () => {
   it("opens the runtime caches and config, and the managed Pythons, skill environments, preload, LibreOffice and bin links only for reading", () => {

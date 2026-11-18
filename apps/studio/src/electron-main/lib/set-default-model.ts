@@ -132,6 +132,11 @@ export async function setDefaultModel({
     replacingOurs: replacing === "ours",
   });
 
+  // The person may have chosen one while the models were listing.
+  if (selectedModel && replacing === "nothing" && getDefaultModelURI()) {
+    return;
+  }
+
   if (selectedModel) {
     setDefaultModelURI(selectedModel.uri);
   }

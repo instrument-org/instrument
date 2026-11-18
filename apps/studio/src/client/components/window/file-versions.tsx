@@ -9,12 +9,21 @@ import {
 import { useAgentSessionStatus } from "@/client/hooks/use-agent-session-status";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
+import { getFileType } from "@/client/lib/get-file-type";
+import { takeInFileWrites } from "@/client/lib/live-file";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { fileHref } from "@/shared/computer-href";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  notifyManager,
+  type QueryClient,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import { noop } from "radashi";
 import { useEffect, useRef, useState } from "react";
 
 import { FileMark } from "./file-mark";
@@ -26,6 +35,18 @@ type History = NonNullable<
 type Version = History["versions"][number];
 
 const IMAGE = /\.(?:avif|bmp|gif|heic|jpe?g|png|svg|webp)$/iu;
+
+/**
+ * Where a copy a chat kept of a file opens: the file, with the copy shown
+ * over it, so the row names the file and Restore shows it without opening it
+ * again. A page's file is drawn by a guest of its own, so its copy opens in
+ * its place.
+ */
+export function versionHref(file: string, copy: string) {
+  return getFileType({ filename: file }) === "html"
+    ? fileHref(copy)
+    : fileHref(file, { version: copy });
+}
 
 /**
  * The versions a chat kept of the file up in its pane: one per reply that
@@ -66,14 +87,15 @@ export function FileVersionsButton({
   path,
 }: {
   chatId: ChatId;
-  /** Shows a file or a kept copy in this tab. */
-  onOpen: (hostPath: string) => void;
+  /** Shows the file in this tab, or a copy kept of it. */
+  onOpen: (file: string, copy?: string) => void;
   path: string;
 }) {
   const [isOpen, setOpen] = useState(false);
   useCloseOnWindowBlur(isOpen, () => {
     setOpen(false);
   });
+  const queryClient = useQueryClient();
   const history = useFileVersions(chatId, path);
   const versions = history.data?.versions ?? [];
   const isTooBig = versions.every((version) =>
@@ -132,11 +154,23 @@ export function FileVersionsButton({
                 name={segmentsOf(history.data?.file ?? path).at(-1) ?? path}
                 onPick={() => {
                   setOpen(false);
-                  onOpen(
-                    version.now || version.copy === undefined
-                      ? (history.data?.file ?? path)
-                      : version.copy,
+                  const copy = version.now ? undefined : version.copy;
+                  // A copy's history is this list with `viewing` set to the
+                  // version it holds, so the strip over the copy starts from
+                  // it and shows with the copy, a read sooner.
+                  const viewing = history.data?.versions.find(
+                    (other) => other.hash === version.hash,
                   );
+                  if (copy !== undefined && history.data && viewing) {
+                    const seeded: History = { ...history.data, viewing };
+                    queryClient.setQueryData(
+                      rpcClient.workspace.chats.fileVersions.queryOptions({
+                        input: { id: chatId, path: copy },
+                      }).queryKey,
+                      seeded,
+                    );
+                  }
+                  onOpen(history.data?.file ?? path, copy);
                 }}
                 version={version}
               />
@@ -207,46 +241,72 @@ function VersionRow({
  */
 export function FileVersionStrip({
   chatId,
+  isOverFile = false,
   onOpen,
   path,
 }: {
   chatId: ChatId;
-  onOpen: (hostPath: string) => void;
+  /** Whether the copy is drawn over the file in the pane below, which the strip waits for. */
+  isOverFile?: boolean;
+  /** Shows the file in this tab. */
+  onOpen: (file: string) => void;
   path: string;
 }) {
   const restore = useRestoreFileVersion(chatId);
   const history = useFileVersions(chatId, path);
   const viewing = history.data?.viewing;
   const file = history.data?.file;
-  if (!viewing || file === undefined) {
+  const current =
+    viewing && file !== undefined ? { copy: path, file, viewing } : undefined;
+  // On the way back to the file, the copy stays drawn over it until the
+  // pane's screen catches up with the tab, so the strip stays with it.
+  const [kept, setKept] = useState(current);
+  if (
+    current &&
+    (current.copy !== kept?.copy || current.viewing !== kept.viewing)
+  ) {
+    setKept(current);
+  }
+  const shown = current ?? (kept?.file === path ? kept : undefined);
+  if (!shown) {
     return null;
   }
+  const waitsForCopy = isOverFile || current === undefined;
   return (
-    <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border bg-secondary px-3 text-[13px]">
+    // Out of the way unless a copy is drawn over the file below it, the one
+    // it names once that has something to show, so the two come and go
+    // together.
+    <div
+      className={cn(
+        "flex h-11 shrink-0 items-center gap-2 border-b border-border bg-secondary px-3 text-[13px]",
+        waitsForCopy &&
+          "[&:has(~*_[data-version-over]_[data-file-loading=quiet]):not(:has(~*_[data-version-under]))]:hidden [&:not(:has(~*_[data-version-over]))]:hidden",
+      )}
+    >
       <ClockCounterClockwiseIcon className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate">
-        Version from {timeOf(viewing.at)}
-        {viewing.label ? `, after “${viewing.label}”` : ""}
+        Version from {timeOf(shown.viewing.at)}
+        {shown.viewing.label ? `, after “${shown.viewing.label}”` : ""}
       </span>
       <Button
         onClick={() => {
-          onOpen(file);
+          onOpen(shown.file);
         }}
         size="sm"
         variant="ghost"
       >
         Back to now
       </Button>
-      {viewing.copy !== undefined && !viewing.now && (
+      {shown.viewing.copy !== undefined && !shown.viewing.now && (
         <Button
           onClick={() => {
             void restore({
-              copy: path,
-              file,
-              said: `Restored the ${timeOf(viewing.at)} version`,
+              copy: shown.copy,
+              file: shown.file,
+              said: `Restored the ${timeOf(shown.viewing.at)} version`,
             }).then((isDone) => {
               if (isDone) {
-                onOpen(file);
+                onOpen(shown.file);
               }
             });
           }}
@@ -263,7 +323,9 @@ export function FileVersionStrip({
 /**
  * Puts a version the chat kept back over its file, saying so in a toast
  * with Undo, which puts back what the restore replaced. Resolves whether
- * it did.
+ * it did, once the views open on the file show what it put back, so a
+ * version drawn over the file can go without the file showing in between
+ * as it was.
  */
 export function useRestoreFileVersion(chatId: ChatId) {
   const queryClient = useQueryClient();
@@ -285,6 +347,7 @@ export function useRestoreFileVersion(chatId: ChatId) {
     if (!done) {
       return false;
     }
+    await showWrite(queryClient, file, done.modifiedAt);
     await queryClient.invalidateQueries({
       queryKey: rpcClient.workspace.chats.fileVersions.key(),
     });
@@ -304,6 +367,36 @@ export function useRestoreFileVersion(chatId: ChatId) {
     return true;
   };
   return restore;
+}
+
+/**
+ * Brings the views open on a file up to a write the app just made, rather
+ * than to their next look at it: its editors take the text in, a picture is
+ * decoded first so the viewer swaps to it in one frame, and the watch every
+ * viewer reads takes the write's time. Settles once the cache has told the
+ * viewers.
+ */
+async function showWrite(
+  queryClient: QueryClient,
+  hostPath: string,
+  modifiedAt: number,
+) {
+  await takeInFileWrites(hostPath);
+  if (IMAGE.test(hostPath)) {
+    const picture = new Image();
+    picture.src = getComputerFileUrl({ hostPath, version: modifiedAt });
+    await picture.decode().catch(noop);
+  }
+  queryClient.setQueryData(
+    rpcClient.files.live.info.experimental_liveOptions({
+      input: { path: hostPath },
+    }).queryKey,
+    () => ({ modifiedAt }),
+  );
+  // The cache tells its observers on a task of its own; this one comes after.
+  await new Promise<void>((resolve) => {
+    notifyManager.schedule(resolve);
+  });
 }
 
 /** What a version's row says under its time. */

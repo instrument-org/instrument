@@ -2,7 +2,7 @@ import { type StepShows } from "./transcript-message";
 import { type ActivityRow, type Turn, type TurnStep } from "./turns-of";
 
 /** The kinds of card. */
-export type WorkCardKind = "files" | "generated" | "images" | "page" | "web";
+export type WorkCardKind = "files" | "generated" | "images" | "page";
 
 /**
  * What the work card shows: a run of steps of one kind, which update one card in
@@ -16,13 +16,10 @@ export interface WorkCard {
 }
 
 const KIND_OF: Record<StepShows["kind"], WorkCardKind> = {
-  fetch: "web",
   file: "files",
   generated: "generated",
   image: "images",
-  opened: "page",
   page: "page",
-  search: "web",
 };
 
 /**

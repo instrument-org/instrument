@@ -22,6 +22,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -82,7 +83,9 @@ function hasReply(draft: Draft) {
  *
  * While focus is in an open card and not in a field, a digit picks that
  * choice of the question on show and Enter sends (or moves on) once it has
- * an answer.
+ * an answer. With `takesKeys`, a digit pressed anywhere else in the window
+ * picks too, unless it is typed into a field (the empty reply box aside) or
+ * a menu or dialog is up, and the keyboard goes into the card with it.
  */
 export function QuestionCard({
   onAnswer,
@@ -91,6 +94,7 @@ export function QuestionCard({
   questions,
   sending,
   status,
+  takesKeys = false,
 }: {
   onAnswer: (output: ChooseOutput) => void;
   output?: ChooseOutput;
@@ -98,6 +102,8 @@ export function QuestionCard({
   questions: ChooseQuestion[];
   sending?: ChooseOutput;
   status: "closed" | "ended" | "open";
+  /** Whether a digit pressed outside the card picks in it. */
+  takesKeys?: boolean;
 }) {
   const [drafts, setDrafts] = useState<Draft[]>([]);
   const [step, setStep] = useState(0);
@@ -174,6 +180,43 @@ export function QuestionCard({
       focusQuestionCard(card);
     }
   }, [step]);
+
+  const keysFromWindow = isOpen && takesKeys;
+  const showsKeys = useKeysReachCard(keysFromWindow);
+  useEffect(() => {
+    if (!keysFromWindow) {
+      return;
+    }
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      const card = cardRef.current;
+      if (
+        !card ||
+        event.defaultPrevented ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.isComposing ||
+        !/^[1-9]$/.test(event.key) ||
+        (event.target instanceof Node && card.contains(event.target)) ||
+        !keysReachCard(event.target)
+      ) {
+        return;
+      }
+      const choice = shownChoices(card)[Number(event.key) - 1];
+      if (!choice) {
+        return;
+      }
+      event.preventDefault();
+      // Into the card first, so the next Enter sends, and a pick that moves
+      // a card of several on to its next step takes the keyboard along.
+      choice.focus({ preventScroll: true });
+      choice.click();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [keysFromWindow]);
 
   if (!isOpen) {
     return (
@@ -307,6 +350,7 @@ export function QuestionCard({
       {/* The keys reach the choices inside, each a button of its own. */}
       <div
         className="group/card px-4 py-3"
+        data-keys={showsKeys ? "" : undefined}
         onKeyDown={onCardKeyDown}
         ref={cardRef}
       >
@@ -536,12 +580,13 @@ function QuestionStep({
                   ) : null}
                 </span>
               </ChoiceRow>
-              {/* Shown while the keyboard is on the card's buttons, the one
-                  place its digit picks this choice. */}
+              {/* Shown while its digit picks this choice: the keyboard on the
+                  card's buttons, or, for a card taking the window's keys,
+                  anywhere but a field. */}
               {index < 9 ? (
                 <Kbd
                   aria-hidden
-                  className="hidden self-start group-has-[button:focus-visible]/card:inline-flex"
+                  className="hidden self-start group-has-[button:focus-visible]/card:inline-flex group-data-keys/card:inline-flex"
                 >
                   {index + 1}
                 </Kbd>
@@ -712,6 +757,53 @@ function focusQuestionCard(root: HTMLElement) {
   return target !== undefined;
 }
 
+/**
+ * Whether a key pressed with focus on `target` is a question card's to take:
+ * not one typed into a field, though the reply box counts as nothing to type
+ * into while it is empty, and not one meant for a menu or dialog.
+ */
+function keysReachCard(target: EventTarget | null) {
+  if (!(target instanceof Element)) {
+    return true;
+  }
+  if (
+    target.closest(
+      "[role=dialog], [role=alertdialog], [role=menu], [role=listbox], [data-radix-popper-content-wrapper]",
+    )
+  ) {
+    return false;
+  }
+  const field = target.closest(
+    "input, textarea, select, [contenteditable='true']",
+  );
+  return (
+    field === null ||
+    (field.matches(".prompt-editor") && field.textContent.trim() === "")
+  );
+}
+
+const KEYBOARD_PLACE_EVENTS = ["focusin", "focusout", "input", "keyup"];
+
+function subscribeToKeyboardPlace(onChange: () => void) {
+  for (const type of KEYBOARD_PLACE_EVENTS) {
+    document.addEventListener(type, onChange, true);
+  }
+  return () => {
+    for (const type of KEYBOARD_PLACE_EVENTS) {
+      document.removeEventListener(type, onChange, true);
+    }
+  };
+}
+
+/** Whether a digit pressed where the keyboard is now reaches a card taking the window's keys. */
+function useKeysReachCard(enabled: boolean) {
+  return useSyncExternalStore(
+    subscribeToKeyboardPlace,
+    () => enabled && keysReachCard(document.activeElement),
+    () => false,
+  );
+}
+
 /** The choice rows of the question on show in a card, in order. */
 function shownChoices(card: HTMLElement) {
   return [...card.querySelectorAll<HTMLElement>("[data-choice]")].filter(
@@ -828,12 +920,15 @@ function SendButton({
 
 /**
  * A question that is no longer open, drawn as a finished step: the question
- * mark on the step's tile, then a line per question with its header and its
- * answer in full, and the note under them. A card whose questions all went
- * unanswered the same way, skipped or never answered, says so once. It opens
- * to show each question whole with every choice the agent offered, the
- * picked ones checked, so what else there was stays findable without the
- * line looking answerable.
+ * mark on the step's tile, then a line per question with the question's own
+ * words and its answer in full, the answers in a column of their own, and the
+ * note under them. The words are the question rather than its header, since a
+ * reply that goes on to discuss the answers (grading a quiz) reads against
+ * what was asked. A card whose questions all went unanswered the same way,
+ * skipped or never answered, says so once, naming them by their headers. It
+ * opens to show each question with every choice the agent offered, the picked
+ * ones checked, so what else there was stays findable without the line
+ * looking answerable.
  */
 function AnsweredCard({
   answer,
@@ -845,23 +940,22 @@ function AnsweredCard({
   questions: ChooseQuestion[];
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const isSeveral = questions.length > 1;
   const replies = questions.map((_, index) => answer?.replies[index]);
   const unanswered = replies.every((reply) => reply && "skipped" in reply)
     ? "Skipped"
     : ended && replies.every((reply) => reply === undefined)
       ? "No answer"
       : undefined;
-  const labelOf = (question: ChooseQuestion) =>
+  const nameOf = (question: ChooseQuestion) =>
     question.header || question.question;
   const rows = unanswered
-    ? [{ label: questions.map(labelOf).join(", "), said: unanswered }]
+    ? [{ label: questions.map(nameOf).join(", "), said: unanswered }]
     : questions.map((question, index) => {
         const reply = replies[index];
         const picked = reply && "picked" in reply ? reply.picked : undefined;
         const labels = question.choices.map((choice) => choice.label);
         return {
-          label: labelOf(question),
+          label: question.question || question.header,
           picked,
           said:
             picked
@@ -873,34 +967,27 @@ function AnsweredCard({
     <div className="flex max-w-xl min-w-0 flex-col gap-1.5 text-[13px]/5">
       <button
         aria-expanded={isExpanded}
-        className="flex flex-col gap-1 self-start rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="grid grid-cols-[1.25rem_fit-content(24rem)_fit-content(14rem)_0.75rem] items-start gap-x-1.5 gap-y-1 self-start rounded-md text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
         onClick={() => {
           setIsExpanded((open) => !open);
         }}
         type="button"
       >
         {rows.map((row, index) => (
-          <span className="flex items-start gap-1.5" key={index}>
+          <span className="contents" key={index}>
             {index === 0 ? (
-              <span className="flex size-5 shrink-0 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
+              <span className="flex size-5 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
                 <QuestionIcon className="size-3 text-foreground/70" />
               </span>
             ) : (
-              <span className="w-5 shrink-0" />
+              <span />
             )}
-            <span
-              className={cn(
-                "text-muted-foreground",
-                isSeveral && !unanswered
-                  ? "w-21 shrink-0 truncate"
-                  : "min-w-0 text-pretty",
-              )}
-            >
+            <span className="min-w-0 text-pretty text-muted-foreground">
               {row.label}
             </span>
             <span
               className={cn(
-                "min-w-0 text-pretty",
+                "ml-1.5 min-w-0 text-pretty",
                 "picked" in row && row.picked
                   ? "font-medium"
                   : "text-muted-foreground",
@@ -911,11 +998,13 @@ function AnsweredCard({
             {index === 0 ? (
               <CaretDownIcon
                 className={cn(
-                  "mt-1 size-3 shrink-0 text-muted-foreground transition-transform",
+                  "mt-1 size-3 text-muted-foreground transition-transform",
                   isExpanded && "rotate-180",
                 )}
               />
-            ) : null}
+            ) : (
+              <span />
+            )}
           </span>
         ))}
       </button>
@@ -1126,10 +1215,12 @@ function ChoiceRow({
 function rowClassName(isSelected: boolean) {
   // Rows as a menu draws them, highlighted under the pointer rather than each
   // boxed in a border: the marks already say these are things to pick.
+  // The ring sits inside the row: the list scrolls, and clips anything
+  // drawn past its sides.
   return cn(
-    "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm",
+    "flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/60",
     isSelected
       ? "bg-brand-500/10 text-foreground"
-      : "group/choice text-foreground outline-none hover:bg-foreground/5 focus-visible:bg-foreground/5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring/60",
+      : "group/choice text-foreground hover:bg-foreground/5 focus-visible:bg-foreground/5",
   );
 }

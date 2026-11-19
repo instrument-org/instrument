@@ -9,6 +9,7 @@ import {
   keepsHostedPage,
   pageFileOfTab,
   strandedHostedPages,
+  undrawnHostedStep,
   useHostedPage,
 } from "./hosted-page";
 
@@ -186,5 +187,52 @@ describe("agentPageOfTab", () => {
     ],
   ])("names %s", (_case, tabs, tab, page) => {
     expect(agentPageOfTab([...tabs, tab], tab)).toEqual(page);
+  });
+});
+
+describe("undrawnHostedStep", () => {
+  const files = screenTab("files", PAGE_FILE);
+  const tabs = [files, hostedPage];
+
+  // An agent drives the page of a file tab behind another; with no viewer
+  // drawn to follow the page, the window moves the tab.
+  it.each([
+    [
+      "a site makes the tab the page",
+      "https://example.com/",
+      false,
+      { owner: "files", step: { kind: "site", url: "https://example.com/" } },
+    ],
+    [
+      "another file walks the tab there",
+      "file:///Users/mac-user/site/about.html",
+      false,
+      {
+        owner: "files",
+        step: { kind: "file", path: "/Users/mac-user/site/about.html" },
+      },
+    ],
+    ["the file itself is no step", FILE_URL, false, undefined],
+    [
+      "a drawn viewer takes its own steps",
+      "https://example.com/",
+      true,
+      undefined,
+    ],
+  ])("%s", (_case, url, drawn, step) => {
+    expect(
+      undrawnHostedStep(tabs, { isDrawn: () => drawn, pageId: PAGE_ID, url }),
+    ).toEqual(step);
+  });
+
+  it("leaves a page of no file tab's alone", () => {
+    const page = { ...hostedPage, group: CHAT };
+    expect(
+      undrawnHostedStep([page], {
+        isDrawn: () => false,
+        pageId: PAGE_ID,
+        url: "https://example.com/",
+      }),
+    ).toBeUndefined();
   });
 });

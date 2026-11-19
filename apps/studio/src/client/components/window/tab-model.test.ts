@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   adoptGroup,
+  fileTabWalked,
   pageBecomesFile,
   closeTab,
   dropGroup,
@@ -698,6 +699,31 @@ describe("pageBecomesFile", () => {
     );
   });
 
+  // Back from the file goes to the site the page left, as a page of its
+  // own: the guest went with the file.
+  it("puts what the page showed before a step back in the tab's history", () => {
+    const next = pageBecomesFile(
+      windowOf([pageTab("page", `file://${FILE}`, CHAT)], { [CHAT]: "page" }),
+      {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        left: { id: "site", title: "Example", url: "https://example.com/" },
+        page: "page",
+      },
+    );
+    expect(next.tabs[0]).toMatchObject({
+      past: [
+        {
+          id: "site",
+          kind: "page",
+          openedAt: 0,
+          title: "Example",
+          url: "https://example.com/",
+        },
+      ],
+    });
+  });
+
   it("leaves a tab that is no page as it is", () => {
     const state = windowOf([before]);
     expect(
@@ -707,5 +733,20 @@ describe("pageBecomesFile", () => {
         page: "apps",
       }),
     ).toBe(state);
+  });
+});
+
+describe("fileTabWalked", () => {
+  const A = fileHref("/Users/casey/site/a.html");
+  const B = fileHref("/Users/casey/site/b.html");
+
+  it.each([
+    ["in the current entry's place", true, { entries: [B], index: 0 }],
+    ["as a step of its own", false, { entries: [A, B], index: 1 }],
+  ])("walks a file tab %s", (_case, replace, history) => {
+    const next = fileTabWalked(windowOf([screenTab("f", A, CHAT)]), "f", B, {
+      replace,
+    });
+    expect(next.tabs[0]).toMatchObject({ history, href: B });
   });
 });

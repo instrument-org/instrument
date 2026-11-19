@@ -6,6 +6,7 @@ import {
 } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { StoreId } from "@instrument-org/workspace/client";
+import { omit } from "radashi";
 
 import { computerTabOf } from "./file-tabs";
 import { groupScreenTabsOnly } from "./group-screen";
@@ -319,6 +320,30 @@ export function screenMoved(
 }
 
 /**
+ * A file tab going to another file at `href`, as its viewer shows a file its
+ * page went to: in the current entry's place when the page's own history
+ * holds the step (another page's file), as a step of the tab's own otherwise.
+ */
+export function fileTabWalked(
+  state: WindowTabs,
+  id: string,
+  href: string,
+  { replace }: { replace: boolean },
+): WindowTabs {
+  const tab = state.tabs.find((entry) => entry.id === id);
+  if (tab?.kind !== "screen") {
+    return state;
+  }
+  const { entries, index } = historyOf(tab);
+  return screenMoved(state, id, {
+    history: replace
+      ? { entries: entries.with(index, href), index }
+      : { entries: [...entries.slice(0, index + 1), href], index: index + 1 },
+    href,
+  });
+}
+
+/**
  * A group's tab up goes to a screen: a screen tab walks there, and a page
  * becomes the screen, with the page a step back.
  */
@@ -588,18 +613,25 @@ export function pageTakesOver(
 /**
  * A page tab that went to a page's file on the computer becoming that file's
  * tab, the inverse of {@link pageTakesOver}: a file tab stands where the page
- * stood, in its place in the strip and its group, with what the tab showed
- * before the page behind it, and the page, guest and all, goes on as the page
- * that tab draws, in `hostGroup`. Its guest's own history comes with it, so
- * back from the file walks the page's sites as a browser's would.
+ * stood, in its place in the strip and its group, and the page, guest and
+ * all, goes on as the page that tab draws, in `hostGroup`. What the page
+ * showed before the file (`left`) is a step back in the tab's own history,
+ * under an id of its own, as the file is behind a page that left it; the
+ * guest's own history goes with neither.
  */
 export function pageBecomesFile(
   state: WindowTabs,
   {
     file,
     hostGroup,
+    left,
     page: pageId,
-  }: { file: { href: string; id: string }; hostGroup: string; page: string },
+  }: {
+    file: { href: string; id: string };
+    hostGroup: string;
+    left?: { id: string; title?: string; url: string };
+    page: string;
+  },
 ): WindowTabs {
   const page = state.tabs.find((entry) => entry.id === pageId);
   if (page?.kind !== "page" || page.group === undefined) {
@@ -612,13 +644,27 @@ export function pageBecomesFile(
     stripKey,
     ...hosted
   } = page;
+  const { group: _group, ...visit } = hosted;
+  const behind = [
+    ...(past ?? []),
+    ...(left === undefined
+      ? []
+      : [
+          {
+            ...omit(visit, ["favicon", "title"]),
+            id: left.id,
+            url: left.url,
+            ...(left.title === undefined ? {} : { title: left.title }),
+          },
+        ]),
+  ];
   const replaced = replaceTab(state, pageId, {
     group: page.group,
     href: file.href,
     id: file.id,
     ...(page.isOpened === undefined ? {} : { isOpened: page.isOpened }),
     kind: "screen",
-    ...(past === undefined ? {} : { past }),
+    ...(behind.length === 0 ? {} : { past: behind }),
     stripKey: stripKey ?? page.id,
   });
   return {

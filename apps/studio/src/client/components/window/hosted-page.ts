@@ -456,3 +456,42 @@ export function agentPageOfTab(
   );
   return page ? { id: page.id } : { open: { group, url: fileUrlOf(file) } };
 }
+
+/**
+ * Where a file tab's page going to `url` takes the tab when no viewer of the
+ * tab is drawn to take the step itself (`useHostedPageNavigation`): a tab
+ * behind another, whose page an agent drives. Only a move to another file or
+ * off the computer is the tab's; nothing for a page of no file tab's, or one
+ * a viewer draws now.
+ */
+export function undrawnHostedStep(
+  tabs: readonly WindowTab[],
+  {
+    isDrawn = (group) => hostsOfGroup.has(group),
+    pageId,
+    url,
+  }: {
+    isDrawn?: (group: string) => boolean;
+    pageId: string;
+    url: string;
+  },
+):
+  | undefined
+  | {
+      owner: string;
+      step: { kind: "file"; path: string } | { kind: "site"; url: string };
+    } {
+  const group = tabs.find((tab) => tab.id === pageId)?.group;
+  const owner = ownerOfHostGroup(group);
+  if (owner === undefined || group === undefined || isDrawn(group)) {
+    return undefined;
+  }
+  const file = pageFileOfTab(tabs.find((tab) => tab.id === owner));
+  if (file === undefined) {
+    return undefined;
+  }
+  const step = hostedPageStep(url, { fileUrl: fileUrlOf(file) });
+  return step?.kind === "file" || step?.kind === "site"
+    ? { owner, step }
+    : undefined;
+}

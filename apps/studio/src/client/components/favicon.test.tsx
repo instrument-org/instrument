@@ -4,7 +4,7 @@ import { act, fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { renderWithProviders } from "../../tests/render";
-import { Favicon } from "./favicon";
+import { Favicon, FaviconFallback } from "./favicon";
 
 function renderFavicon(url: string) {
   renderWithProviders(
@@ -87,5 +87,26 @@ describe("Favicon", () => {
       `${first.src}?retry=1`,
       `${first.src}?retry=1`,
     ]);
+  });
+});
+
+describe("FaviconFallback", () => {
+  it.each([
+    ["https://example.com", "E"],
+    ["https://www.northwind.com", "N"],
+    ["http://localhost:3000", "globe"],
+    ["http://app.localhost", "globe"],
+    ["http://127.0.0.1:47123/pricing", "globe"],
+    ["http://192.168.1.20", "globe"],
+    ["http://[::1]:8080", "globe"],
+  ])("draws %s as %s", (label, expected) => {
+    const { container } = renderWithProviders(
+      <FaviconFallback label={label} />,
+    );
+    const drawn = container.querySelector("text")?.textContent ?? "globe";
+    expect(container.querySelector("circle") !== null).toBe(
+      expected === "globe",
+    );
+    expect(drawn).toBe(expected);
   });
 });

@@ -1,8 +1,15 @@
+import { type WindowTab } from "@/client/atoms/window";
+import { fileHref } from "@/shared/computer-href";
 import { StoreId } from "@instrument-org/workspace/client";
-import { render } from "@testing-library/react";
+import { render, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { useHostedPage } from "./hosted-page";
+import {
+  keepsHostedPage,
+  pageFileOfTab,
+  strandedHostedPages,
+  useHostedPage,
+} from "./hosted-page";
 
 const FILE_URL = "file:///Users/mac-user/site/index.html";
 const GROUP = "page:files";
@@ -59,5 +66,96 @@ describe("useHostedPage", () => {
     rerender(<Viewer key="after" />);
     await Promise.resolve();
     expect(window_.close).not.toHaveBeenCalled();
+  });
+});
+
+const CHAT = StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA");
+const PAGE_ID = StoreId.newTabId();
+const PAGE_FILE = fileHref("/Users/mac-user/site/index.html");
+
+function screenTab(id: string, href: string): WindowTab {
+  return { group: CHAT, href, id, kind: "screen" };
+}
+
+const hostedPage: WindowTab = {
+  group: "page:files",
+  id: PAGE_ID,
+  kind: "page",
+  openedAt: 0,
+  url: FILE_URL,
+};
+
+describe("a file tab's page outliving its viewer", () => {
+  beforeEach(() => {
+    window_.close.mockClear();
+    window_.tabs = [hostedPage];
+  });
+
+  // A group draws only the tab up, so another tab coming up takes the file
+  // tab's viewer away; its page staying open keeps it live for the viewer's
+  // return and for an agent driving it.
+  it.each([
+    ["keeps the page while its tab stands on the file", true, []],
+    ["closes the page when its tab goes", false, [PAGE_ID]],
+  ])("%s", async (_case, keeps, closed) => {
+    const { unmount } = renderHook(() =>
+      useHostedPage({
+        group: "page:files",
+        host: { chrome: false, isActive: true },
+        keepsPage: () => keeps,
+        url: FILE_URL,
+      }),
+    );
+    unmount();
+    // The surface lets its page go once the commit taking it away is done.
+    await Promise.resolve();
+    expect(window_.close.mock.calls.map(([id]) => id)).toEqual(closed);
+  });
+
+  it.each([
+    ["on a page's file", PAGE_FILE, "/Users/mac-user/site/index.html"],
+    [
+      "on a page's source",
+      fileHref("/Users/mac-user/site/index.html", { source: true }),
+      undefined,
+    ],
+    ["on an image", fileHref("/Users/mac-user/site/cat.png"), undefined],
+    ["on a folder", "/files?path=site&root=~", undefined],
+    ["on another screen", "/apps", undefined],
+  ])("reads the page's file of a tab %s", (_case, href, file) => {
+    expect(pageFileOfTab(screenTab("files", href))).toBe(file);
+  });
+
+  it.each([
+    ["on a page's file", [screenTab("files", PAGE_FILE)], true],
+    ["closed", [], false],
+    [
+      "gone on to an image",
+      [screenTab("files", fileHref("/Users/mac-user/site/cat.png"))],
+      false,
+    ],
+  ])("keeps the page of a tab %s", (_case, tabs, expected) => {
+    expect(keepsHostedPage([...tabs, hostedPage], "files")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "its tab still on the file",
+      [screenTab("files", PAGE_FILE)],
+      ["files"],
+      [],
+    ],
+    ["its tab closed", [], ["files"], [PAGE_ID]],
+    [
+      "its tab gone on to another screen",
+      [screenTab("files", "/apps")],
+      ["files"],
+      [PAGE_ID],
+    ],
+    ["its tab not read yet", [], [], []],
+  ])("closes a kept page with %s", (_case, tabs, seen, stranded) => {
+    expect(strandedHostedPages([...tabs, hostedPage], new Set(seen))).toEqual(
+      stranded,
+    );
   });
 });

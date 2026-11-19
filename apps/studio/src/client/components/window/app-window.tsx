@@ -162,6 +162,7 @@ import {
   windowTabsAtom,
 } from "./window-tabs";
 import { flashStripTab } from "./tab-strip";
+import { useCloseStrandedHostedPages } from "./hosted-page";
 import {
   forgetMovedAway,
   hasMovedAway,
@@ -453,6 +454,7 @@ function WindowShell({
   useRefreshSkillsOnChange();
   useRefreshProjectsOnChange();
   useRefetchOnWindowSwitch();
+  useCloseStrandedHostedPages();
   useEffect(() => installKeyboardHome(), []);
   useEffect(() => {
     // A turn later, so the Toaster has subscribed before its toast goes up.

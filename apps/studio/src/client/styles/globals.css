@@ -2019,6 +2019,16 @@ a.cursor-pointer {
     -webkit-mask-clip: text;
   }
 
+  /* No window drag area of its own. Inside a window tab the copy would
+   * inherit the tab's no-drag, and Chromium takes a box's drag area unclipped:
+   * the whole title and the sliding bar, reaching past the tab over the bar,
+   * where a press then misses the window drag. */
+  .shimmer-sweep,
+  .shimmer-sweep::before,
+  .shimmer-sweep::after {
+    -webkit-app-region: initial;
+  }
+
   .shimmer-sweep::before {
     content: attr(data-text);
   }

@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, statSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -135,6 +135,9 @@ export async function fileVersionHistory({
   return { file, versions, ...(viewing && { viewing }) };
 }
 
+/** Why a restore didn't happen, in words written for the person who asked for it. */
+export class RestoreRefusal extends Error {}
+
 /**
  * Puts the version kept at `copy` back over the file at `file`, as the copy
  * is now, edited since or not. What that replaces is kept first, so the
@@ -160,13 +163,18 @@ export async function restoreFileVersion({
       record.device === here && record.file === file && record.copy === copy,
   );
   if (version === undefined) {
-    throw new Error("That is not a version this chat kept of the file.");
+    throw new RestoreRefusal(
+      "That is not a version this chat kept of the file.",
+    );
   }
   if ((await fs.lstat(file).catch(() => undefined))?.isSymbolicLink()) {
     // A link swapped in since would aim the restore, and the copy of what it
     // replaces, at a file the version was never of.
-    throw new Error("That file is now a link, so it can't be restored.");
+    throw new RestoreRefusal(
+      "That file is now a link, so it can't be restored.",
+    );
   }
+  await refuseUnwritable(file);
   const folder = path.join(workDir(chatId), VERSIONS_FOLDER);
   const { kept, taken } = keptOf(records, file, folder);
   const agentFs = await sessionToolFs({ chatId });
@@ -180,7 +188,7 @@ export async function restoreFileVersion({
   if (before?.copy === undefined && existsSync(file)) {
     // Too big to copy, or unreadable to the agent: nothing would bring back
     // what the restore replaces.
-    throw new Error(
+    throw new RestoreRefusal(
       "There’s no way to keep a copy of that file as it is now, so it wasn’t restored.",
     );
   }
@@ -192,7 +200,15 @@ export async function restoreFileVersion({
         record.file === file &&
         record.copy === before.copy,
     );
-  await fs.copyFile(copy, file, fs.constants.COPYFILE_FICLONE);
+  try {
+    await fs.copyFile(copy, file, fs.constants.COPYFILE_FICLONE);
+  } catch (error) {
+    // No record names the copy just kept, so it would be left as a stray.
+    if (isNew && before.copy !== undefined) {
+      await fs.rm(before.copy, { force: true });
+    }
+    throw refusalFor(error, file) ?? error;
+  }
   const { mtimeMs: modifiedAt } = await fs.stat(file);
   const restored = await keepVersion({
     file,
@@ -231,6 +247,49 @@ export async function restoreFileVersion({
   return before?.copy === undefined
     ? { modifiedAt }
     : { modifiedAt, replaced: before.copy };
+}
+
+/**
+ * Refuses a file the restore couldn't write over, before anything is kept for
+ * it: one another app has open (Windows locks a file Excel or Word has
+ * open), or one that is read-only.
+ */
+async function refuseUnwritable(file: string): Promise<void> {
+  const handle = await fs.open(file, "r+").catch((error: unknown) => {
+    if (isCode(error, "ENOENT")) {
+      return undefined;
+    }
+    throw refusalFor(error, file) ?? error;
+  });
+  await handle?.close();
+}
+
+/** What to tell the person for a write over `file` the disk refused, when it is one they can act on. */
+function refusalFor(error: unknown, file: string): RestoreRefusal | undefined {
+  if (isCode(error, "EBUSY")) {
+    return new RestoreRefusal(
+      "That file is open in another app, so it wasn’t restored. Close it there and try again.",
+    );
+  }
+  if (isCode(error, "EPERM") || isCode(error, "EACCES")) {
+    const isReadOnly = (() => {
+      try {
+        return (statSync(file).mode & 0o200) === 0;
+      } catch {
+        return false;
+      }
+    })();
+    return new RestoreRefusal(
+      isReadOnly
+        ? "That file is read-only, so it wasn’t restored."
+        : "That file can’t be changed right now, so it wasn’t restored.",
+    );
+  }
+  return undefined;
+}
+
+function isCode(error: unknown, code: string): boolean {
+  return error instanceof Error && "code" in error && error.code === code;
 }
 
 /** A file undoing a reply puts back: the file, and the copy of it from before the reply. */

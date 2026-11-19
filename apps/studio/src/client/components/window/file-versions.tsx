@@ -28,7 +28,7 @@ import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { takeInFileWrites } from "@/client/lib/live-file";
-import { toast } from "@/client/lib/toast";
+import { spokenMessage, toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
@@ -697,7 +697,10 @@ export function useRestoreFileVersion(chatId: ChatId | undefined) {
     const done = await rpcClient.workspace.chats.restoreFileVersion
       .call({ copy, file, id: chatId })
       .catch((error: unknown) => {
-        toast.error("Couldn’t restore that version", { cause: error });
+        toast.error("Couldn’t restore that version", {
+          cause: error,
+          description: spokenMessage(error, ["CANNOT_RESTORE"]),
+        });
         return undefined;
       });
     if (!done) {

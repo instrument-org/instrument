@@ -158,12 +158,18 @@ export async function keepVersion({
   }
 }
 
-/** The name of the folder a file's versions are kept in: its own, less a package's extension. */
+/**
+ * The name of the folder a file's versions are kept in: its own, less a
+ * package's extension and the dots and spaces that leaves at its end, which
+ * Windows Explorer can't open a folder by.
+ */
 function versionsFolderName(name: string): string {
   const ext = path.extname(name);
-  return PACKAGE_EXTENSIONS.has(ext.slice(1).toLowerCase())
-    ? name.slice(0, -ext.length)
-    : name;
+  if (!PACKAGE_EXTENSIONS.has(ext.slice(1).toLowerCase())) {
+    return name;
+  }
+  const cut = name.slice(0, -ext.length).replace(/[. ]+$/, "");
+  return cut === "" ? name : cut;
 }
 
 /**

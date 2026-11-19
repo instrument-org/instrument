@@ -340,7 +340,7 @@ async function listed(file: string) {
   });
   return (history?.versions ?? []).map(
     (version) =>
-      `v${String(version.number)} ${version.kind}${version.from === undefined ? "" : ` from v${String(version.from)}`}${version.now ? ", now" : ""}${version.copy === undefined ? "" : ` (${path.relative(path.join(dir, "work"), version.copy)})`}`,
+      `v${String(version.number)} ${version.kind}${version.from === undefined ? "" : ` from v${String(version.from)}`}${version.now ? ", now" : ""}${version.copy === undefined ? "" : ` (${path.relative(path.join(dir, "work"), version.copy).split(path.sep).join("/")})`}`,
   );
 }
 
@@ -422,5 +422,30 @@ describe("restoreFileVersion", () => {
       }),
     ).rejects.toThrow("wasn’t restored");
     expect((await fs.stat(file)).size).toBe(big.length);
+  });
+
+  it("refuses a read-only file in words for the person, keeping nothing for it", async () => {
+    const file = path.join(dir, "locked.md");
+    const first = await kept(file, "one");
+    turn("s-chat", "m1", [[[first]]]);
+    turn("s-chat", "m2", [[[await kept(file, "two")]]]);
+    await fs.chmod(file, 0o444);
+    await expect(
+      restoreFileVersion({
+        chatId: "c" as never,
+        copy: first.copy ?? "",
+        file,
+      }),
+    ).rejects.toThrow("That file is read-only, so it wasn’t restored.");
+    expect(await fs.readFile(file, "utf8")).toBe("two");
+    expect(await listed(file)).toMatchInlineSnapshot(`
+      [
+        "v2 reply, now (Versions/locked.md/v2.md)",
+        "v1 reply (Versions/locked.md/v1.md)",
+      ]
+    `);
+    expect(
+      (await fs.readdir(path.dirname(first.copy ?? ""))).toSorted(),
+    ).toEqual(["v1.md", "v2.md"]);
   });
 });

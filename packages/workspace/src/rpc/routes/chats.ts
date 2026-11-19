@@ -1,4 +1,4 @@
-import { call, eventIterator } from "@orpc/server";
+import { call, eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { ChatWrites } from "../../lib/chat-writes";
@@ -40,6 +40,7 @@ import {
   FileVersionHistorySchema,
   fileVersionHistory,
   restoreFileVersion,
+  RestoreRefusal,
   UndoableReplySchema,
   undoableReplies,
   undoReplyFiles,
@@ -446,6 +447,10 @@ const restoreFileVersionRoute = base
       chatId: input.id,
       copy: input.copy,
       file: input.file,
+    }).catch((error: unknown) => {
+      throw error instanceof RestoreRefusal
+        ? new ORPCError("CANNOT_RESTORE", { message: error.message })
+        : error;
     }),
   );
 

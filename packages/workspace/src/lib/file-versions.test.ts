@@ -34,8 +34,12 @@ describe("keepVersion", () => {
     await keep("<svg>small</svg>");
     await keep("<svg>big</svg>");
     await keep("<svg>small</svg>");
-    expect(kept.map((version) => `v${String(version.number)} ${at(version)}`))
-      .toMatchInlineSnapshot(`
+    expect(
+      kept.map(
+        (version) =>
+          `v${String(version.number)} ${at(version).split(path.sep).join("/")}`,
+      ),
+    ).toMatchInlineSnapshot(`
       [
         "v1 Versions/moon.svg/v1.svg",
         "v1 Versions/moon.svg/v1.svg",
@@ -195,6 +199,7 @@ describe("keepVersion", () => {
     ["notes.rtfd", "notes/v1.rtfd"],
     ["moon.svg", "moon.svg/v1.svg"],
     ["Makefile", "Makefile/v1"],
+    ["deck .key", "deck/v1.key"],
   ])("keeps %s's versions in %s", async (name, kept) => {
     const file = path.join(dir, name);
     await fs.writeFile(file, "x");

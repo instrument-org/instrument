@@ -1,7 +1,7 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { useGuest } from "@/client/hooks/use-browser-targets";
 import { getGuest, goGuest, onPageThumb } from "@/client/lib/browser-pool";
-import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import {
   expandHomePath,
   isPageEditAddress,
@@ -383,7 +383,7 @@ export function keepsHostedPage(tabs: readonly WindowTab[], tabId: string) {
 }
 
 /** The tab a hosted page's group was made for, for a group named by `hostGroupOf`. */
-function ownerOfHostGroup(group: string | undefined) {
+export function ownerOfHostGroup(group: string | undefined) {
   const prefix = hostGroupOf("");
   return group?.startsWith(prefix) ? group.slice(prefix.length) : undefined;
 }
@@ -432,4 +432,27 @@ export function useCloseStrandedHostedPages() {
 export function useKeepsHostedPage(tabId: string) {
   const store = useStore();
   return () => keepsHostedPage(store.get(windowTabsAtom).tabs, tabId);
+}
+
+/**
+ * The page an agent drives in a tab: a page tab's own, the page a tab on a
+ * page's file already has, or, for one that has none yet, where to open it.
+ * Nothing for any other screen.
+ */
+export function agentPageOfTab(
+  tabs: readonly WindowTab[],
+  tab: WindowTab,
+): { id: string } | { open: { group: string; url: string } } | undefined {
+  if (tab.kind === "page") {
+    return { id: tab.id };
+  }
+  const file = pageFileOfTab(tab);
+  if (file === undefined) {
+    return undefined;
+  }
+  const group = hostGroupOf(tab.id);
+  const page = tabs.find(
+    (entry) => entry.group === group && entry.kind === "page",
+  );
+  return page ? { id: page.id } : { open: { group, url: fileUrlOf(file) } };
 }

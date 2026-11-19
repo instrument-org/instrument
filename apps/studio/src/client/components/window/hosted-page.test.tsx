@@ -5,6 +5,7 @@ import { render, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  agentPageOfTab,
   keepsHostedPage,
   pageFileOfTab,
   strandedHostedPages,
@@ -157,5 +158,33 @@ describe("a file tab's page outliving its viewer", () => {
     expect(strandedHostedPages([...tabs, hostedPage], new Set(seen))).toEqual(
       stranded,
     );
+  });
+});
+
+describe("agentPageOfTab", () => {
+  const files = screenTab("files", PAGE_FILE);
+
+  it.each([
+    [
+      "a page tab by its own id",
+      [],
+      { ...hostedPage, group: CHAT },
+      { id: PAGE_ID },
+    ],
+    ["a file tab by the page it draws", [hostedPage], files, { id: PAGE_ID }],
+    [
+      "a file tab with no page yet by where its page opens",
+      [],
+      files,
+      { open: { group: "page:files", url: FILE_URL } },
+    ],
+    [
+      "nothing for a file tab on an image",
+      [],
+      screenTab("files", fileHref("/Users/mac-user/site/cat.png")),
+      undefined,
+    ],
+  ])("names %s", (_case, tabs, tab, page) => {
+    expect(agentPageOfTab([...tabs, tab], tab)).toEqual(page);
   });
 });

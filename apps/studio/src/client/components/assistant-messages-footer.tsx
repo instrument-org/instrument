@@ -5,7 +5,7 @@ import {
   type TranscriptPart,
 } from "@instrument-org/workspace/client";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
-import { Fragment, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { formatDuration } from "../lib/format-time";
 import { modelsAnswering } from "../lib/models-answered";
@@ -161,7 +161,10 @@ export function AssistantMessagesFooter({
       >
         <div
           className={cn(
-            "flex min-w-0 items-center gap-2",
+            // A container, so the row drops its details in order as it narrows
+            // instead of wrapping: the time taken, then the model's name (its
+            // icon stays), then when it was sent. The buttons always stay.
+            "@container/footer flex min-w-0 items-center gap-2",
             // `invisible` rather than an opacity of nought: a turn still being
             // written should not answer a click or a tab stop, and the row is
             // only here to hold the height.
@@ -192,83 +195,113 @@ export function AssistantMessagesFooter({
                 text={messageText}
               />
             )}
-            {chatId !== undefined && handedOver && (
-              <UndoReplyFiles chatId={chatId} messageId={handedOver.id} />
-            )}
           </div>
-          <div className="flex min-w-0 items-center gap-2.5 text-xs text-muted-foreground">
+          <div className="flex min-w-0 items-center gap-2.5 text-xs whitespace-nowrap text-muted-foreground">
             {[
-              generationDuration > 0 && (
-                <Tooltip key="duration">
-                  <TooltipTrigger asChild>
-                    {/* The time the reply took on the clock. Generation time adds
+              generationDuration > 0 && {
+                // First to go as the row narrows.
+                drop: "hidden @[30rem]/footer:flex",
+                key: "duration",
+                node: (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      {/* The time the reply took on the clock. Generation time adds
                         up every model call, and calls that ran side by side make
                         it longer than the wait it stands for. */}
-                    <span className="cursor-default">
-                      {formatDuration(elapsedDuration ?? generationDuration)}
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="p-3 text-xs">
-                    <div className="space-y-2">
-                      {elapsedDuration != null && (
+                      <span className="cursor-default">
+                        {formatDuration(elapsedDuration ?? generationDuration)}
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="p-3 text-xs">
+                      <div className="space-y-2">
+                        {elapsedDuration != null && (
+                          <TooltipRow
+                            label="Total time:"
+                            tabular
+                            value={formatDuration(elapsedDuration)}
+                          />
+                        )}
                         <TooltipRow
-                          label="Total time:"
+                          label="Generation time:"
                           tabular
-                          value={formatDuration(elapsedDuration)}
+                          value={formatDuration(generationDuration)}
                         />
-                      )}
-                      <TooltipRow
-                        label="Generation time:"
-                        tabular
-                        value={formatDuration(generationDuration)}
-                      />
-                    </div>
-                  </TooltipContent>
-                </Tooltip>
-              ),
-              sources.length > 0 && (
-                <CollapsibleTrigger asChild key="sources">
-                  {/* The negative margin cancels the button's own padding, so
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                ),
+              },
+              sources.length > 0 && {
+                key: "sources",
+                node: (
+                  <CollapsibleTrigger asChild>
+                    {/* The negative margin cancels the button's own padding, so
                       the mid-dots on either side sit as far from its text as
                       they do from the plain text beside them. */}
-                  <Button
-                    className="-mx-2.5 font-normal text-muted-foreground hover:text-foreground"
-                    size="xs"
-                    variant="ghost"
-                  >
-                    Sources
-                    {uniqueUrls.length > 0 && (
-                      <span className="flex shrink-0 items-center gap-1">
-                        {uniqueUrls.map((url) => (
-                          <Favicon className="size-3.5" key={url} url={url} />
-                        ))}
-                      </span>
-                    )}
-                  </Button>
-                </CollapsibleTrigger>
-              ),
-              ...modelsUsed.map((usage) => (
-                <ModelUsageChip
-                  key={usage.requested?.uri ?? usage.modelId}
-                  usage={usage}
-                />
-              )),
-              latestCreatedAt && (
-                <RelativeTime
-                  className="cursor-default whitespace-nowrap"
-                  date={latestCreatedAt}
-                  key="time"
-                />
-              ),
+                    <Button
+                      className="-mx-2.5 font-normal text-muted-foreground hover:text-foreground"
+                      size="xs"
+                      variant="ghost"
+                    >
+                      Sources
+                      {uniqueUrls.length > 0 && (
+                        <span className="flex shrink-0 items-center gap-1">
+                          {uniqueUrls.map((url) => (
+                            <Favicon className="size-3.5" key={url} url={url} />
+                          ))}
+                        </span>
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                ),
+              },
+              ...modelsUsed.map((usage) => ({
+                key: usage.requested?.uri ?? usage.modelId,
+                node: (
+                  <ModelUsageChip
+                    // Down to the provider's icon on a narrow row; the card
+                    // on hover still names it.
+                    className="@max-[26rem]/footer:[&>span:not(:only-child):last-child]:hidden"
+                    usage={usage}
+                  />
+                ),
+              })),
+              latestCreatedAt && {
+                drop: "hidden @[22rem]/footer:flex",
+                key: "time",
+                node: (
+                  <RelativeTime
+                    className="cursor-default whitespace-nowrap"
+                    date={latestCreatedAt}
+                  />
+                ),
+              },
             ]
-              .filter(Boolean)
-              .map((item, index) => (
-                <Fragment key={index}>
-                  {index > 0 && <span aria-hidden>·</span>}
-                  {item}
-                </Fragment>
+              .filter((item) => item !== false && item !== undefined)
+              .map(({ drop, key, node }, index, items) => (
+                // The dots sit on the side of each item that faces the
+                // middle, the first's after it and the rest's before them, so
+                // the first or the last drops with its dot.
+                <span
+                  className={cn("flex min-w-0 items-center gap-2.5", drop)}
+                  key={key}
+                >
+                  {index > 1 && <span aria-hidden>·</span>}
+                  {node}
+                  {index === 0 && items.length > 1 && (
+                    <span aria-hidden>·</span>
+                  )}
+                </span>
               ))}
           </div>
+          {chatId !== undefined &&
+            handedOver && (
+              // At the far end, apart from Copy and Branch: the one button
+              // here that changes files.
+              <div className="-mr-1 ml-auto shrink-0">
+                <UndoReplyFiles chatId={chatId} messageId={handedOver.id} />
+              </div>
+            )}
         </div>
 
         {sources.length > 0 && (

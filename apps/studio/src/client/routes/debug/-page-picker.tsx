@@ -21,6 +21,20 @@ import { debugGroups, debugPages } from "./-debug-routes";
 
 type Page = (typeof debugPages)[number];
 
+/**
+ * Keeps the rows whose text has the typed words in it, where the menu's own
+ * fuzzy match would keep any row holding the letters in order.
+ */
+export function matchesWords(value: string, search: string): number {
+  const text = value.toLowerCase();
+  return search
+    .toLowerCase()
+    .split(/\s+/)
+    .every((word) => text.includes(word))
+    ? 1
+    : 0;
+}
+
 /** Opens a debug page, or one of its states at its address. */
 export function useOpenDebugPage() {
   const navigate = useNavigate();
@@ -64,7 +78,7 @@ export function DebugPagePicker({ current }: { current: Page }) {
           event.stopPropagation();
         }}
       >
-        <Command>
+        <Command filter={matchesWords}>
           <CommandInput
             onValueChange={setQuery}
             placeholder="Find a page or a state"

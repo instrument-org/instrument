@@ -11,7 +11,7 @@ import { useState } from "react";
 
 import { type DebugPicture, debugGroups, debugPages } from "./-debug-routes";
 import { DebugPageScroller } from "./-page-scroller";
-import { StateItems, useOpenDebugPage } from "./-page-picker";
+import { matchesWords, StateItems, useOpenDebugPage } from "./-page-picker";
 import { DebugHeaderEnd } from "./-shell";
 
 export const Route = createFileRoute("/debug/")({
@@ -30,7 +30,10 @@ function DebugIndex() {
   return (
     <DebugPageScroller>
       <DebugHeaderEnd>
-        <Command className="relative w-64 overflow-visible bg-transparent">
+        <Command
+          className="relative w-64 overflow-visible bg-transparent"
+          filter={matchesWords}
+        >
           <CommandInput
             onValueChange={setQuery}
             placeholder="Find a page or a state"

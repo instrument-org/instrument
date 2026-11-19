@@ -51,7 +51,7 @@ const scenarioOf = {
  */
 export function ModelNotices() {
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-8 p-8">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 p-8">
       <p className="text-sm text-muted-foreground">
         The row above the composer for each state the chosen model can be in, at
         its narrowest and at its usual width. States with nothing to say show no

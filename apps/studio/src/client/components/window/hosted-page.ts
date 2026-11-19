@@ -1,7 +1,7 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { useGuest } from "@/client/hooks/use-browser-targets";
 import { getGuest, goGuest, onPageThumb } from "@/client/lib/browser-pool";
-import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import {
   expandHomePath,
   isPageEditAddress,
@@ -11,20 +11,15 @@ import {
   browserTargetOf,
   type BrowserTargetId,
 } from "@instrument-org/workspace/client";
-import { useAtomValue, useStore } from "jotai";
+import { getFileType } from "@/client/lib/get-file-type";
+import { useStore } from "jotai";
 import { noop } from "radashi";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import { useWindow } from "./context";
 import { type PageHost, usePageHost } from "./page-hosts";
-import { closeTab, groupLayoutOf, type WindowTabs } from "./tab-model";
 import { matchScreen } from "./window-href";
-import {
-  hostGroupOf,
-  useWindowTabs,
-  useWindowTabsChange,
-  windowTabsAtom,
-} from "./window-tabs";
+import { hostGroupOf, useWindowTabs, windowTabsAtom } from "./window-tabs";
 
 /**
  * What a page drawn in a file tab's viewer moving means for the
@@ -314,8 +309,8 @@ export function useHostedPage({
   }, [url, group, hasBrowser]);
   const closeAll = useEffectEvent(() => {
     // A page still on its file stays live in its guest when the surface
-    // says so, for the surface coming back to take up; one put away blank
-    // closes as it would have.
+    // says so, for the surface coming back, or an agent, to take up; one put
+    // away blank closes as it would have.
     if (parked.current === undefined && keepsPage?.() === true) {
       return;
     }
@@ -354,79 +349,149 @@ export function useHostedPage({
   };
 }
 
-/** Whether a group tab shows Files, the one screen that draws a page in its viewer. */
-function isFilesTab(tab: WindowTab | undefined) {
-  return tab?.kind === "screen" && matchScreen(tab.href).kind === "computer";
+/**
+ * The HTML file a tab draws as its page: a Files tab standing on a page's
+ * file, not asked for its source. Nothing for any other tab.
+ */
+export function pageFileOfTab(tab: WindowTab | undefined) {
+  if (tab?.kind !== "screen") {
+    return undefined;
+  }
+  const screen = matchScreen(tab.href);
+  if (
+    screen.kind !== "computer" ||
+    screen.file === undefined ||
+    new URLSearchParams(tab.href.split("?")[1]).has("source")
+  ) {
+    return undefined;
+  }
+  return getFileType({ filename: screen.file }) === "html"
+    ? screen.file
+    : undefined;
 }
 
 /**
  * Whether the page a group's file tab draws in its viewer outlives the
- * viewer going: while the tab is still Files, only put behind another tab
- * on its side. Its guest stays live in the pool, so switching back takes the
- * page up as it was, the way switching groups does.
+ * viewer going: while the tab still stands on a page's file. A group draws
+ * only the tab up, so the viewer goes whenever another tab comes up; the
+ * guest stays live in the pool under its page tab, for the viewer coming back
+ * and for an agent driving the file's page, which is the tab's own.
  */
-export function keepsHostedPage(state: WindowTabs, tabId: string) {
-  const tab = state.tabs.find((each) => each.id === tabId);
-  if (!isFilesTab(tab) || tab?.group === undefined) {
-    return false;
-  }
-  return !groupLayoutOf(state, tab.group).sides.some(
-    (side) => side.up === tabId,
-  );
+export function keepsHostedPage(tabs: readonly WindowTab[], tabId: string) {
+  const tab = tabs.find((each) => each.id === tabId);
+  return tab?.group !== undefined && pageFileOfTab(tab) !== undefined;
 }
 
 /** The tab a hosted page's group was made for, for a group named by `hostGroupOf`. */
-function ownerOfHostGroup(group: string | undefined) {
+export function ownerOfHostGroup(group: string | undefined) {
   const prefix = hostGroupOf("");
   return group?.startsWith(prefix) ? group.slice(prefix.length) : undefined;
 }
 
 /**
- * The pages kept live for file tabs behind others ({@link keepsHostedPage})
- * whose tab has since closed or gone on from Files. A tab counts as closed
- * only once it was `seen`, so a page whose tab the window has not read yet
- * is left alone.
+ * The pages kept live for file tabs ({@link keepsHostedPage}) whose tab has
+ * since closed or gone on from a page's file. A tab counts as closed only
+ * once it was `seen`, so a page whose tab the window has not read yet is
+ * left alone.
  */
 export function strandedHostedPages(
-  state: WindowTabs,
+  tabs: readonly WindowTab[],
   seen: ReadonlySet<string>,
 ) {
-  const byId = new Map(state.tabs.map((tab) => [tab.id, tab]));
-  return state.tabs.flatMap((page) => {
+  const byId = new Map(tabs.map((tab) => [tab.id, tab]));
+  return tabs.flatMap((page) => {
     const owner = ownerOfHostGroup(page.group);
     if (owner === undefined || !seen.has(owner)) {
       return [];
     }
-    return isFilesTab(byId.get(owner)) ? [] : [page.id];
+    return pageFileOfTab(byId.get(owner)) === undefined ? [page.id] : [];
   });
 }
 
 /** Closes the window's {@link strandedHostedPages} as they come about. */
 export function useCloseStrandedHostedPages() {
-  const state = useAtomValue(windowTabsAtom);
-  const change = useWindowTabsChange();
+  const { allTabs, close } = useWindowTabs();
   const seen = useRef(new Set<string>());
-  useEffect(() => {
-    for (const tab of state.tabs) {
+  const closeStranded = useEffectEvent((tabs: readonly WindowTab[]) => {
+    for (const tab of tabs) {
       if (ownerOfHostGroup(tab.group) === undefined) {
         seen.current.add(tab.id);
       }
     }
-    const stranded = strandedHostedPages(state, seen.current);
-    if (stranded.length === 0) {
-      return;
-    }
-    for (const id of stranded) {
+    for (const id of strandedHostedPages(tabs, seen.current)) {
       hostLoads.delete(browserTargetOf(id));
+      close(id);
     }
-    change((current) =>
-      stranded.reduce((next, id) => closeTab(next, id), current),
-    );
-  }, [state, change]);
+  });
+  useEffect(() => {
+    closeStranded(allTabs);
+  }, [allTabs]);
 }
 
 /** {@link keepsHostedPage} for a file tab's viewer, read from the window's tabs as the viewer goes. */
 export function useKeepsHostedPage(tabId: string) {
   const store = useStore();
-  return () => keepsHostedPage(store.get(windowTabsAtom), tabId);
+  return () => keepsHostedPage(store.get(windowTabsAtom).tabs, tabId);
+}
+
+/**
+ * The page an agent drives in a tab: a page tab's own, the page a tab on a
+ * page's file already has, or, for one that has none yet, where to open it.
+ * Nothing for any other screen.
+ */
+export function agentPageOfTab(
+  tabs: readonly WindowTab[],
+  tab: WindowTab,
+): { id: string } | { open: { group: string; url: string } } | undefined {
+  if (tab.kind === "page") {
+    return { id: tab.id };
+  }
+  const file = pageFileOfTab(tab);
+  if (file === undefined) {
+    return undefined;
+  }
+  const group = hostGroupOf(tab.id);
+  const page = tabs.find(
+    (entry) => entry.group === group && entry.kind === "page",
+  );
+  return page ? { id: page.id } : { open: { group, url: fileUrlOf(file) } };
+}
+
+/**
+ * Where a file tab's page going to `url` takes the tab when no viewer of the
+ * tab is drawn to take the step itself (`useHostedPageNavigation`): a tab
+ * behind another, whose page an agent drives. Only a move to another file or
+ * off the computer is the tab's; nothing for a page of no file tab's, or one
+ * a viewer draws now.
+ */
+export function undrawnHostedStep(
+  tabs: readonly WindowTab[],
+  {
+    isDrawn = (group) => hostsOfGroup.has(group),
+    pageId,
+    url,
+  }: {
+    isDrawn?: (group: string) => boolean;
+    pageId: string;
+    url: string;
+  },
+):
+  | undefined
+  | {
+      owner: string;
+      step: { kind: "file"; path: string } | { kind: "site"; url: string };
+    } {
+  const group = tabs.find((tab) => tab.id === pageId)?.group;
+  const owner = ownerOfHostGroup(group);
+  if (owner === undefined || group === undefined || isDrawn(group)) {
+    return undefined;
+  }
+  const file = pageFileOfTab(tabs.find((tab) => tab.id === owner));
+  if (file === undefined) {
+    return undefined;
+  }
+  const step = hostedPageStep(url, { fileUrl: fileUrlOf(file) });
+  return step?.kind === "file" || step?.kind === "site"
+    ? { owner, step }
+    : undefined;
 }

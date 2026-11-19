@@ -5,11 +5,13 @@ import { render, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  agentPageOfTab,
   keepsHostedPage,
+  pageFileOfTab,
   strandedHostedPages,
+  undrawnHostedStep,
   useHostedPage,
 } from "./hosted-page";
-import { type WindowTabs } from "./tab-model";
 
 const GROUP = StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA");
 const FILE_URL = "file:///Users/mac-user/site/index.html";
@@ -50,12 +52,6 @@ function hostedPage(owner: string): WindowTab {
     url: FILE_URL,
   };
 }
-
-function windowOf(tabs: WindowTab[], up: string): WindowTabs {
-  return { activeByGroup: { [GROUP]: up }, tabs };
-}
-
-const FILES = fileHref("~/site/index.html");
 
 describe("useHostedPage", () => {
   beforeEach(() => {
@@ -103,53 +99,130 @@ describe("useHostedPage", () => {
   });
 });
 
-describe("keepsHostedPage", () => {
-  const tabs = [
-    screenTab("files", FILES),
-    screenTab("site", "/apps"),
-    screenTab("beside", "/apps", 1),
-    hostedPage("files"),
-  ];
+const PAGE_ID = PAGE_OF.files ?? "files";
+const PAGE_FILE = fileHref("/Users/mac-user/site/index.html");
+const pageOfFiles = hostedPage("files");
 
+describe("a file tab's page", () => {
   it.each([
-    ["behind another tab on its side", windowOf(tabs, "site"), true],
-    ["up on its side, gone to another screen", windowOf(tabs, "files"), false],
+    ["on a page's file", PAGE_FILE, "/Users/mac-user/site/index.html"],
     [
-      "closed",
-      windowOf(
-        tabs.filter((tab) => tab.id !== "files"),
-        "site",
-      ),
-      false,
+      "on a page's source",
+      fileHref("/Users/mac-user/site/index.html", { source: true }),
+      undefined,
     ],
-    [
-      "gone from Files",
-      windowOf(
-        tabs.map((tab) =>
-          tab.id === "files" ? screenTab("files", "/apps") : tab,
-        ),
-        "site",
-      ),
-      false,
-    ],
-  ])("%s", (_case, state, expected) => {
-    expect(keepsHostedPage(state, "files")).toBe(expected);
+    ["on an image", fileHref("/Users/mac-user/site/cat.png"), undefined],
+    ["on a folder", "/files?path=site&root=~", undefined],
+    ["on another screen", "/apps", undefined],
+  ])("reads the page's file of a tab %s", (_case, href, file) => {
+    expect(pageFileOfTab(screenTab("files", href))).toBe(file);
   });
-});
 
-describe("strandedHostedPages", () => {
   it.each([
-    ["its tab still Files", [screenTab("files", FILES)], ["files"], []],
-    ["its tab closed", [], ["files"], [PAGE_OF.files]],
+    ["on a page's file", [screenTab("files", PAGE_FILE)], true],
+    ["closed", [], false],
+    [
+      "gone on to an image",
+      [screenTab("files", fileHref("/Users/mac-user/site/cat.png"))],
+      false,
+    ],
+  ])("keeps the page of a tab %s", (_case, tabs, expected) => {
+    expect(keepsHostedPage([...tabs, pageOfFiles], "files")).toBe(expected);
+  });
+
+  it.each([
+    [
+      "its tab still on the file",
+      [screenTab("files", PAGE_FILE)],
+      ["files"],
+      [],
+    ],
+    ["its tab closed", [], ["files"], [PAGE_ID]],
     [
       "its tab gone on to another screen",
       [screenTab("files", "/apps")],
       ["files"],
-      [PAGE_OF.files],
+      [PAGE_ID],
     ],
     ["its tab not read yet", [], [], []],
-  ])("%s", (_case, owners, seen, expected) => {
-    const state = windowOf([...owners, hostedPage("files")], "files");
-    expect(strandedHostedPages(state, new Set(seen))).toEqual(expected);
+  ])("closes a kept page with %s", (_case, tabs, seen, stranded) => {
+    expect(strandedHostedPages([...tabs, pageOfFiles], new Set(seen))).toEqual(
+      stranded,
+    );
+  });
+});
+
+describe("agentPageOfTab", () => {
+  const files = screenTab("files", PAGE_FILE);
+
+  it.each([
+    [
+      "a page tab by its own id",
+      [],
+      { ...pageOfFiles, group: GROUP },
+      { id: PAGE_ID },
+    ],
+    ["a file tab by the page it draws", [pageOfFiles], files, { id: PAGE_ID }],
+    [
+      "a file tab with no page yet by where its page opens",
+      [],
+      files,
+      { open: { group: "page:files", url: FILE_URL } },
+    ],
+    [
+      "nothing for a file tab on an image",
+      [],
+      screenTab("files", fileHref("/Users/mac-user/site/cat.png")),
+      undefined,
+    ],
+  ])("names %s", (_case, tabs, tab, page) => {
+    expect(agentPageOfTab([...tabs, tab], tab)).toEqual(page);
+  });
+});
+
+describe("undrawnHostedStep", () => {
+  const files = screenTab("files", PAGE_FILE);
+  const tabs = [files, pageOfFiles];
+
+  // An agent drives the page of a file tab behind another; with no viewer
+  // drawn to follow the page, the window moves the tab.
+  it.each([
+    [
+      "a site makes the tab the page",
+      "https://example.com/",
+      false,
+      { owner: "files", step: { kind: "site", url: "https://example.com/" } },
+    ],
+    [
+      "another file walks the tab there",
+      "file:///Users/mac-user/site/about.html",
+      false,
+      {
+        owner: "files",
+        step: { kind: "file", path: "/Users/mac-user/site/about.html" },
+      },
+    ],
+    ["the file itself is no step", FILE_URL, false, undefined],
+    [
+      "a drawn viewer takes its own steps",
+      "https://example.com/",
+      true,
+      undefined,
+    ],
+  ])("%s", (_case, url, drawn, step) => {
+    expect(
+      undrawnHostedStep(tabs, { isDrawn: () => drawn, pageId: PAGE_ID, url }),
+    ).toEqual(step);
+  });
+
+  it("leaves a page of no file tab's alone", () => {
+    const page = { ...pageOfFiles, group: GROUP };
+    expect(
+      undrawnHostedStep([page], {
+        isDrawn: () => false,
+        pageId: PAGE_ID,
+        url: "https://example.com/",
+      }),
+    ).toBeUndefined();
   });
 });

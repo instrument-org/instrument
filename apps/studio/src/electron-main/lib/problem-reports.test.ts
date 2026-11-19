@@ -57,6 +57,8 @@ vi.mock("@/electron-main/lib/get-signed-in-user", () => ({
 }));
 
 vi.mock("electron", () => ({
+  // The global `fetch` a test stubs stands in for Chromium's.
+  net: { fetch: (...args: Parameters<typeof fetch>) => fetch(...args) },
   app: {
     getPath: () => userData.dir,
     getVersion: () => "2.0.5",
@@ -363,6 +365,24 @@ describe("problem reports", () => {
     expect(body).toContain("Sync for [email] failed");
     expect(body).not.toContain("robin@example.org");
     expect(reports.listPendingProblems()).toEqual([]);
+  });
+
+  it("says a report couldn't reach us when Chromium's request fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => Promise.reject(new Error("net::ERR_INTERNET_DISCONNECTED"))),
+    );
+    await expect(
+      reports.sendReport({
+        automatic: false,
+        kind: "feedback",
+        note: "The list jumps.",
+        surface: "rail",
+        title: "The list jumps.",
+      }),
+    ).rejects.toThrow(
+      "We couldn't be reached, so it didn't send. Check your connection and try again.",
+    );
   });
 
   it("holds a problem back from sending automatically while the account is unknown", async () => {

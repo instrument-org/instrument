@@ -5,6 +5,8 @@ import {
 } from "@/client/atoms/window";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { omit } from "radashi";
+import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
 
 import { computerTabOf } from "./file-tabs";
 import { historyOf, stepTabVisit, visitInTab } from "./tab-history";
@@ -1009,6 +1011,30 @@ export function screenMoved(
 }
 
 /**
+ * A file tab going to another file at `href`, as its viewer shows a file its
+ * page went to: in the current entry's place when the page's own history
+ * holds the step (another page's file), as a step of the tab's own otherwise.
+ */
+export function fileTabWalked(
+  state: WindowTabs,
+  id: string,
+  href: string,
+  { replace }: { replace: boolean },
+): WindowTabs {
+  const tab = state.tabs.find((entry) => entry.id === id);
+  if (tab?.kind !== "screen") {
+    return state;
+  }
+  const { entries, index } = historyOf(tab);
+  return screenMoved(state, id, {
+    history: replace
+      ? { entries: entries.with(index, href), index }
+      : { entries: [...entries.slice(0, index + 1), href], index: index + 1 },
+    href,
+  });
+}
+
+/**
  * A group's tab up goes to a screen: a screen tab walks there, and a page
  * becomes the screen, with the page a step back.
  */
@@ -1166,8 +1192,15 @@ export function markOpenedBy(
   id: string,
   chat: ChatId,
 ): WindowTabs {
-  return state.tabs.some((tab) => tab.id === id && tab.openedBy === undefined)
-    ? mapTab(state, id, (tab) => ({ ...tab, openedBy: chat }))
+  // A file tab's page, the id agents name the file tab by, marks the file tab.
+  const group = state.tabs.find((tab) => tab.id === id)?.group;
+  const target = group?.startsWith(HOSTED_PAGE_GROUP_PREFIX)
+    ? group.slice(HOSTED_PAGE_GROUP_PREFIX.length)
+    : id;
+  return state.tabs.some(
+    (tab) => tab.id === target && tab.openedBy === undefined,
+  )
+    ? mapTab(state, target, (tab) => ({ ...tab, openedBy: chat }))
     : state;
 }
 
@@ -1262,6 +1295,69 @@ export function pageTakesOver(
     tabs: state.tabs.filter((entry) => entry.id !== pageId),
   };
   return replaceTab(without, tabId, visitInTab(tab, { ...visit, url }));
+}
+
+/**
+ * A page tab that went to a page's file on the computer becoming that file's
+ * tab, the inverse of {@link pageTakesOver}: a file tab stands where the page
+ * stood, in its place in the strip and its group, and the page, guest and
+ * all, goes on as the page that tab draws, in `hostGroup`. What the page
+ * showed before the file (`left`) is a step back in the tab's own history,
+ * under an id of its own, as the file is behind a page that left it; the
+ * guest's own history goes with neither.
+ */
+export function pageBecomesFile(
+  state: WindowTabs,
+  {
+    file,
+    hostGroup,
+    left,
+    page: pageId,
+  }: {
+    file: { href: string; id: string };
+    hostGroup: string;
+    left?: { id: string; title?: string; url: string };
+    page: string;
+  },
+): WindowTabs {
+  const page = state.tabs.find((entry) => entry.id === pageId);
+  if (page?.kind !== "page" || page.group === undefined) {
+    return state;
+  }
+  const {
+    future: _future,
+    isOpened: _opened,
+    past,
+    stripKey,
+    ...hosted
+  } = page;
+  const { group: _group, ...visit } = hosted;
+  const behind = [
+    ...(past ?? []),
+    ...(left === undefined
+      ? []
+      : [
+          {
+            ...omit(visit, ["favicon", "title"]),
+            id: left.id,
+            url: left.url,
+            ...(left.title === undefined ? {} : { title: left.title }),
+          },
+        ]),
+  ];
+  const replaced = replaceTab(state, pageId, {
+    group: page.group,
+    href: file.href,
+    id: file.id,
+    ...(page.isOpened === undefined ? {} : { isOpened: page.isOpened }),
+    kind: "screen",
+    ...(behind.length === 0 ? {} : { past: behind }),
+    stripKey: stripKey ?? page.id,
+  });
+  return {
+    ...replaced,
+    tabs: [...replaced.tabs, { ...hosted, group: hostGroup }],
+  };
 }
 
 /**

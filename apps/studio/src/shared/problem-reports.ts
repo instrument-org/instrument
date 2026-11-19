@@ -50,7 +50,7 @@ const ReportFileSchema = z.object({
 });
 
 /** What a person says their feedback is about, one pick in the dialog. */
-const FeedbackTagSchema = z.enum([
+export const FeedbackTagSchema = z.enum([
   "good",
   "okay",
   "bad",

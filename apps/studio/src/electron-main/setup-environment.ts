@@ -25,6 +25,7 @@ import {
   settleMachineFolders,
 } from "./lib/open-workspace";
 import { setupDBusEnvironment } from "./lib/setup-dbus-env";
+import { trustSystemCertificates } from "./lib/system-certificates";
 import { settlePlatformApiServer } from "./platform-api/base-url";
 import { getMachinePreferences } from "./stores/machine/preferences";
 import { setWorkspaceRefusal } from "./lib/workspace-refusal";
@@ -146,6 +147,7 @@ if (is.dev && fakeMicrophone) {
 
 initializeElectronLogging();
 installAISDKWarningLogger();
+trustSystemCertificates();
 
 /**
  * Settles which workspace this process runs, makes a move to a folder the

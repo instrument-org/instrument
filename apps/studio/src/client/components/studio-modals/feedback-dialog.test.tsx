@@ -328,6 +328,34 @@ describe("the feedback draft", () => {
     ).toBe("true");
   });
 
+  it.each([
+    { fails: true, onBar: "The list jumps to the top." },
+    { fails: false, onBar: undefined },
+  ])(
+    "keeps the note on its bar only when the send fails ($fails)",
+    async ({ fails, onBar }) => {
+      const work = vi.spyOn(toast, "work").mockImplementation(() => {});
+      vi.mocked(rpcClient.problems.sendFeedback.call).mockImplementationOnce(
+        () =>
+          fails
+            ? Promise.reject(new Error("499"))
+            : Promise.resolve({ id: "sent" }),
+      );
+      await open();
+      typeNote("The list jumps to the top.");
+      fireEvent.click(screen.getByRole("button", { name: "Send" }));
+      const store = getDefaultStore();
+      expect(store.get(feedbackBarAtom)).toBeNull();
+
+      const run = work.mock.calls[0]?.[0].run;
+      await act(async () => {
+        await run?.().catch(() => undefined);
+      });
+      expect(store.get(feedbackBarAtom)?.note).toBe(onBar);
+      work.mockRestore();
+    },
+  );
+
   it("goes on Cancel, so feedback asked for next starts fresh", async () => {
     await open();
     typeNote("Too slow to open.");

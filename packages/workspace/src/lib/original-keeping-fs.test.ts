@@ -1,8 +1,13 @@
+import nodePath from "node:path";
+
 import { InMemoryFs } from "just-bash";
 import { describe, expect, it } from "vitest";
 
 import { MOST_COPIED_BYTES } from "./file-versions";
 import { originalKeepingFs } from "./original-keeping-fs";
+
+/** Where a path in the mount is on the disk, spelled as this platform spells it. */
+const onDisk = (path: string) => nodePath.join("/home/me", path);
 
 /** A mount at `/home/me` holding `notes.md` ("A") and a `docs` folder. */
 async function mount() {
@@ -29,14 +34,14 @@ describe("originalKeepingFs", () => {
     const { fs, kept } = await mount();
     await fs.writeFile("/notes.md", "B");
     await fs.appendFile("/notes.md", "C");
-    expect(kept).toEqual([{ before: "A", hostPath: "/home/me/notes.md" }]);
+    expect(kept).toEqual([{ before: "A", hostPath: onDisk("notes.md") }]);
     expect(await fs.readFile("/notes.md")).toBe("BC");
   });
 
   it("names a path that is no file yet, with nothing to keep", async () => {
     const { fs, kept } = await mount();
     await fs.writeFile("/new.md", "N");
-    expect(kept).toEqual([{ hostPath: "/home/me/new.md" }]);
+    expect(kept).toEqual([{ hostPath: onDisk("new.md") }]);
   });
 
   it("keeps what a copy or a move lands on, in a folder under the source's name", async () => {
@@ -45,8 +50,8 @@ describe("originalKeepingFs", () => {
     await fs.cp("/notes.md", "/docs");
     await fs.mv("/docs/notes.md", "/moved.md");
     expect(kept).toEqual([
-      { before: "old", hostPath: "/home/me/docs/notes.md" },
-      { hostPath: "/home/me/moved.md" },
+      { before: "old", hostPath: onDisk("docs/notes.md") },
+      { hostPath: onDisk("moved.md") },
     ]);
   });
 
@@ -54,7 +59,7 @@ describe("originalKeepingFs", () => {
     const { delegate, fs, kept } = await mount();
     await delegate.writeFile("/big.bin", new Uint8Array(MOST_COPIED_BYTES + 1));
     await fs.writeFile("/big.bin", "small");
-    expect(kept).toEqual([{ hostPath: "/home/me/big.bin" }]);
+    expect(kept).toEqual([{ hostPath: onDisk("big.bin") }]);
   });
 
   it("reads no more files once keep takes no more", async () => {
@@ -70,7 +75,7 @@ describe("originalKeepingFs", () => {
     });
     await fs.writeFile("/a.md", "1");
     await fs.writeFile("/b.md", "2");
-    expect(kept).toEqual(["/home/me/a.md"]);
+    expect(kept).toEqual([onDisk("a.md")]);
   });
 
   it("writes when keeping fails", async () => {

@@ -31,9 +31,10 @@ const KIND_OF: Record<StepShows["kind"], WorkCardKind> = {
  *    its message, or still being written while one before it runs), has
  *    nothing to show.
  * 2. Things of one kind share a card, so a browser's commands update one page.
- * 3. A file card is one file: each file a call names replaces the last, and a
- *    shell call that changed several shows none, since no one of them is what
- *    it made.
+ * 3. A file card is one file: each file a call names replaces the last. Of
+ *    the files a shell call changed, only those a written file would show
+ *    count (`writtenFileShows`), so code and data it saves put up nothing;
+ *    of several, a lone page is what it made, and otherwise none is.
  * 4. A file written whole shows once there is something to see
  *    (`writeShows`), so a card that comes for it opens on the file as it
  *    looks rather than on its source going by.
@@ -49,12 +50,22 @@ export function cardsOf({ steps }: Pick<ActivityRow, "steps">): WorkCard[] {
       continue;
     }
     const changed = (step.facts?.files ?? []).flatMap((file) =>
-      file.via === "disk" && file.change !== "deleted"
+      file.via === "disk" &&
+      file.change !== "deleted" &&
+      writtenFileShows(file.path) !== undefined
         ? [{ isNew: file.change === "created", path: file.path }]
         : [],
     );
-    const changedFile =
-      !step.shows && changed.length === 1 ? changed[0] : undefined;
+    const pages = changed.filter(
+      (file) => writtenFileShows(file.path) === "page",
+    );
+    const changedFile = step.shows
+      ? undefined
+      : changed.length === 1
+        ? changed[0]
+        : pages.length === 1
+          ? pages[0]
+          : undefined;
     const kind = step.shows
       ? KIND_OF[step.shows.kind]
       : changedFile !== undefined

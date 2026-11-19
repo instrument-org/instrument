@@ -5,6 +5,7 @@ import {
   useAddBookmark,
 } from "@/client/bookmarks/actions";
 import { bookmarksStateAtom } from "@/client/bookmarks/store";
+import { fileUrlOf } from "@/client/lib/file-url";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
@@ -84,6 +85,7 @@ import {
 import { groupLayoutFor, groupReadOf } from "./group-awareness";
 import { windowTabGroupsAtom } from "./open-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
+import { agentPageOfTab, ownerOfHostGroup, pageFileOfTab } from "./hosted-page";
 
 /**
  * What the conversation asks to open, as it asks: a page as a tab, a path
@@ -770,7 +772,10 @@ export function useOpeners({
       { group, href, id, kind: "screen" },
       { ...(after === undefined ? {} : { after }), group, select: !isOnScreen },
     );
-    return { behind: isOnScreen, tabId: id };
+    return {
+      behind: isOnScreen,
+      tabId: agentPageOf({ group, href, id, kind: "screen" }) ?? id,
+    };
   };
   /**
    * The window's History as its list shows it, newest first: the tabs,
@@ -892,6 +897,19 @@ export function useOpeners({
     });
   };
   /**
+   * The page an agent drives in a tab, by the id it names the tab by: a page
+   * tab's own, or, for a tab standing on a page's file, the page its viewer
+   * draws, opened now when the tab has none yet (one opened behind and never
+   * drawn). Nothing for any other screen.
+   */
+  const agentPageOf = (tab: WindowTab): string | undefined => {
+    const page = agentPageOfTab(windowTabs.allTabs, tab);
+    return page === undefined || "id" in page
+      ? page?.id
+      : browser?.openOrFocus(page.open.url, { group: page.open.group });
+  };
+
+  /**
    * Does what an agent asked of the tabs, and says what came of it: the tab
    * it made or acted on, or why it did nothing. A tab is any tab of the
    * window's, by its id. What it opens lands beside the chat's tab the
@@ -946,8 +964,14 @@ export function useOpeners({
         isShown: action.show,
         openedBy: chat,
       });
+      // A page's file is named by its page, which an agent drives as it
+      // drives any page tab.
       return opened
-        ? { behind: !opened.front, tabId: opened.id }
+        ? {
+            behind: !opened.front,
+            tabId:
+              agentPageOf({ href, id: opened.id, kind: "screen" }) ?? opened.id,
+          }
         : { error: "the window did not open a tab." };
     }
     if (action.kind === "handOver") {
@@ -1060,17 +1084,27 @@ export function useOpeners({
       }
       return {
         windows,
-        pages: windowTabs.allTabs.flatMap((entry) =>
-          entry.group === group && entry.kind === "page"
-            ? [
+        // A tab on a page's file is listed as its page, by the page's id,
+        // so the tab an agent drives is the one the person sees.
+        pages: windowTabs.allTabs.flatMap((entry) => {
+          if (entry.group !== group) {
+            return [];
+          }
+          const pageId = agentPageOf(entry);
+          const page = windowTabs.allTabs.find((each) => each.id === pageId);
+          const file = pageFileOfTab(entry);
+          return pageId === undefined
+            ? []
+            : [
                 {
-                  id: entry.id,
-                  title: entry.title ?? "",
-                  url: entry.url ?? "about:blank",
+                  id: pageId,
+                  title: (page?.kind === "page" && page.title) || "",
+                  url:
+                    (page?.kind === "page" && page.url) ||
+                    (file === undefined ? "about:blank" : fileUrlOf(file)),
                 },
-              ]
-            : [],
-        ),
+              ];
+        }),
         read: groupReadOf(
           { appsBySlug, chatTitles, windowTabs },
           group,
@@ -1078,14 +1112,19 @@ export function useOpeners({
         ),
       };
     }
-    const tab = windowTabs.allTabs.find((entry) => entry.id === action.tabId);
+    // A file tab's page names the file tab, which every action takes.
+    const named = windowTabs.allTabs.find((entry) => entry.id === action.tabId);
+    const owner = ownerOfHostGroup(named?.group);
+    const tab = windowTabs.allTabs.find(
+      (entry) => entry.id === (owner ?? action.tabId),
+    );
     if (!tab) {
       return { error: `no tab ${action.tabId} is open.` };
     }
     switch (action.kind) {
       case "close": {
         closeTab(tab.id);
-        return { tabId: tab.id };
+        return { tabId: action.tabId };
       }
       case "replace": {
         if (isChatTab(tab)) {
@@ -1122,31 +1161,33 @@ export function useOpeners({
           kind: "screen",
         });
         windowTabs.replace(tab.id, next);
-        return { tabId: next.id };
+        return { tabId: agentPageOf(next) ?? next.id };
       }
       case "read": {
-        if (tab.kind !== "page") {
+        const pageId = agentPageOf(tab);
+        if (pageId === undefined) {
           return {
             error: `tab ${tab.id} is not a page; read what it shows by its path.`,
           };
         }
-        const text = await browser?.readPageText(tab.id);
+        const text = await browser?.readPageText(pageId);
         return text === undefined
           ? {
-              error: `tab ${tab.id} has no page loaded to read; \`instrument window show ${tab.id}\` loads it.`,
+              error: `tab ${pageId} has no page loaded to read; \`instrument window show ${pageId}\` loads it.`,
             }
-          : { tabId: tab.id, text };
+          : { tabId: pageId, text };
       }
       case "restore": {
-        return browser?.restore(tab.id)
-          ? { tabId: tab.id }
-          : { error: `tab ${tab.id} is not a page.` };
+        const pageId = agentPageOf(tab);
+        return pageId !== undefined && browser?.restore(pageId)
+          ? { tabId: pageId }
+          : { error: `tab ${action.tabId} is not a page.` };
       }
       case "show": {
         // Up on its side of its group, and the group on screen when the
         // window shows another; which side has the keyboard stays.
         const shown = showTabWhereItIs(tab.id);
-        return shown.error === undefined ? { tabId: tab.id } : shown;
+        return shown.error === undefined ? { tabId: action.tabId } : shown;
       }
     }
   };

@@ -16,6 +16,8 @@ import {
   closedGroupTabOf,
   closedSidesOf,
   closeSide,
+  fileTabWalked,
+  pageBecomesFile,
   closeTab,
   dropGroup,
   focusSide,
@@ -1090,5 +1092,95 @@ describe("tabShowingAmong", () => {
       "again",
     );
     expect(tabShowingAmong(twice, groups, fileHref(NOTES))?.id).toBe("file");
+  });
+});
+
+describe("pageBecomesFile", () => {
+  const FILE = "/Users/casey/site/a.html";
+  const before = { href: "/apps", id: "apps", kind: "screen" } as const;
+
+  // The page tab's guest goes on as the file tab's page, under the id an
+  // agent already drives it by; the file tab stands in its place and keeps
+  // what the tab showed before the page.
+  it("puts a file tab in the page's place and keeps the page as the one it draws", () => {
+    const next = pageBecomesFile(
+      windowOf(
+        [
+          { ...pageTab("page", `file://${FILE}`, CHAT), past: [before] },
+          pageTab("other", "https://example.com/", CHAT),
+        ],
+        { [CHAT]: "page" },
+      ),
+      {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        page: "page",
+      },
+    );
+    expect(shape(next)).toEqual({
+      [CHAT]: "*file other",
+      "page:file": "*page",
+    });
+    expect(next.tabs[0]).toMatchObject({
+      group: CHAT,
+      href: fileHref(FILE),
+      kind: "screen",
+      past: [before],
+      stripKey: "page",
+    });
+    expect(next.tabs.at(-1)).toEqual(
+      pageTab("page", `file://${FILE}`, "page:file"),
+    );
+  });
+
+  // Back from the file goes to the site the page left, as a page of its
+  // own: the guest went with the file.
+  it("puts what the page showed before a step back in the tab's history", () => {
+    const next = pageBecomesFile(
+      windowOf([pageTab("page", `file://${FILE}`, CHAT)], { [CHAT]: "page" }),
+      {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        left: { id: "site", title: "Example", url: "https://example.com/" },
+        page: "page",
+      },
+    );
+    expect(next.tabs[0]).toMatchObject({
+      past: [
+        {
+          id: "site",
+          kind: "page",
+          openedAt: 0,
+          title: "Example",
+          url: "https://example.com/",
+        },
+      ],
+    });
+  });
+
+  it("leaves a tab that is no page as it is", () => {
+    const state = windowOf([before]);
+    expect(
+      pageBecomesFile(state, {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        page: "apps",
+      }),
+    ).toBe(state);
+  });
+});
+
+describe("fileTabWalked", () => {
+  const A = fileHref("/Users/casey/site/a.html");
+  const B = fileHref("/Users/casey/site/b.html");
+
+  it.each([
+    ["in the current entry's place", true, { entries: [B], index: 0 }],
+    ["as a step of its own", false, { entries: [A, B], index: 1 }],
+  ])("walks a file tab %s", (_case, replace, history) => {
+    const next = fileTabWalked(windowOf([screenTab("f", A, CHAT)]), "f", B, {
+      replace,
+    });
+    expect(next.tabs[0]).toMatchObject({ history, href: B });
   });
 });

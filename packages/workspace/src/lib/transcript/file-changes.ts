@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { CHAT_FOLDER_NAMES, FOLDER_VARIABLES } from "../../constants";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { VERSIONS_FOLDERS } from "../chat/versions-folder";
 import { pathIsWithin } from "../path-is-within";
 import { isSystemClutter } from "../system-clutter";
 
@@ -422,10 +423,18 @@ export async function fileTouches(
   watch: CallWatch,
   { command, output }: { command: string; output: string },
 ): Promise<{ files: FileTouch[]; moreFiles?: number }> {
+  // The copies the app keeps of a file before the call first changes it
+  // land in the work folder's versions folder: the app's writes, never the
+  // call's work.
+  const versions = VERSIONS_FOLDERS.map((name) =>
+    path.join(watch.workFolder, name),
+  );
   const disk = changesBetween(
     watch.before,
     await snapshotPlaces(watch.places),
     watch.startedAtMs - CLOCK_SLACK_MS,
+  ).filter(
+    (touch) => !versions.some((folder) => pathIsWithin(touch.path, folder)),
   );
   const bases = [
     watch.workFolder,

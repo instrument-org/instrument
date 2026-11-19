@@ -4,11 +4,16 @@ import {
   type FeedbackDraft,
   type FeedbackRequest,
   type FeedbackWriteup,
+  isFeedbackWaiting,
   newFeedbackDraft,
   openReportDialog,
 } from "@/client/atoms/report-dialog";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
-import { discardFeedback } from "@/client/lib/problem-reports";
+import {
+  discardFeedback,
+  forgetUnsentFeedback,
+  keepUnsentFeedback,
+} from "@/client/lib/problem-reports";
 import { Button } from "@/client/components/ui/button";
 import {
   DialogBody,
@@ -461,21 +466,40 @@ export function FeedbackDialogContent({
         draft.writeups[0]?.title ||
         (chatId ? "Feedback about a chat" : "Feedback"),
     };
-    update({ finished: true });
+    const sending = { ...draft, finished: true };
+    setDraft(sending);
+    keepUnsentFeedback(draft);
     onClose();
     toast.work({
       done: "Thanks! Feedback submitted.",
       failed: "Error sending your feedback",
       onDone: () => {
+        setDraft((current) =>
+          current?.request === request
+            ? { ...current, finished: true }
+            : current,
+        );
+        forgetUnsentFeedback();
         for (const heard of draft.onSent) {
           heard();
         }
       },
       run: async () => {
-        await rpcClient.problems.sendFeedback.call({
-          ...feedback,
-          items: await itemsToSend(),
-        });
+        try {
+          await rpcClient.problems.sendFeedback.call({
+            ...feedback,
+            items: await itemsToSend(),
+          });
+        } catch (error) {
+          // A send that fails puts the draft back on its bar, so what was
+          // written outlives the toast, unless newer feedback is waiting.
+          setDraft((current) =>
+            isFeedbackWaiting(current)
+              ? current
+              : { ...sending, finished: false },
+          );
+          throw error;
+        }
       },
       running: "Sending your feedback…",
     });

@@ -28,7 +28,7 @@ import {
   type FeedbackImageType,
 } from "@/shared/feedback-images";
 import { osConventionsFor } from "@/shared/os-conventions";
-import { app } from "electron";
+import { app, net } from "electron";
 import {
   type ExceptionEvent,
   ExceptionEventSchema,
@@ -524,10 +524,24 @@ export async function sendReport(
   input: ReportInput,
   images: readonly ReportImage[] = [],
 ): Promise<{ id: string }> {
-  const response = await fetch(new URL("/reports", platformApiBaseUrl()), {
-    ...reportRequestBody(reportBody(input), images),
-    method: "POST",
-  });
+  // Chromium's network stack rather than Node's: undici gives up on a body
+  // it writes in one piece once 300 s pass without response headers, which a
+  // 2 MB report on a slow link reaches before it has finished uploading.
+  // Without cookies, which the API never reads from the app.
+  let response: Response;
+  try {
+    response = await net.fetch(new URL("/reports", platformApiBaseUrl()).href, {
+      ...reportRequestBody(reportBody(input), images),
+      credentials: "omit",
+      method: "POST",
+    });
+  } catch (error) {
+    // Chromium's failures read as `net::ERR_INTERNET_DISCONNECTED` and the like.
+    throw new Error(
+      "We couldn't be reached, so it didn't send. Check your connection and try again.",
+      { cause: error },
+    );
+  }
   if (!response.ok) {
     throw new Error(
       response.status === 429

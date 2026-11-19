@@ -437,6 +437,58 @@ describe("a page card's face", () => {
   });
 });
 
+describe("the file a shell call changed", () => {
+  const changed = (...files: [string, "created" | "changed"][]): TurnStep => ({
+    ...step(undefined),
+    facts: {
+      apps: [],
+      counts: [],
+      files: files.map(([path, change]) => ({ change, path, via: "disk" })),
+      hosts: [],
+      settled: true,
+      step: StoreId.newPartId(),
+    },
+  });
+  const cardFile = (of: TurnStep) =>
+    cardsOf({ steps: [of] }).map((made) => made.changedFile?.path);
+
+  it.each([
+    ["data it saves", [["/w/sources.json", "created"]], []],
+    ["code it saves", [["/w/build.py", "changed"]], []],
+    ["a note it writes", [["/w/notes.md", "created"]], ["/w/notes.md"]],
+    ["a table it saves", [["/w/rows.csv", "created"]], ["/w/rows.csv"]],
+    [
+      "a page beside its notes",
+      [
+        ["/w/index.html", "created"],
+        ["/w/request.md", "created"],
+      ],
+      ["/w/index.html"],
+    ],
+    [
+      "two notes",
+      [
+        ["/w/a.md", "created"],
+        ["/w/b.md", "created"],
+      ],
+      [],
+    ],
+    [
+      "two pages",
+      [
+        ["/w/a.html", "created"],
+        ["/w/b.html", "created"],
+      ],
+      [],
+    ],
+  ] satisfies [string, [string, "created" | "changed"][], string[]][])(
+    "%s",
+    (_name, files, shown) => {
+      expect(cardFile(changed(...files))).toEqual(shown);
+    },
+  );
+});
+
 describe("the calls a card shows", () => {
   it("leaves out a call waiting its turn behind the one running", () => {
     const running = step(

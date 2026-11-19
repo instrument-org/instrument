@@ -136,6 +136,15 @@ export function clearKeptState() {
   values = new Map();
 }
 
+/** A value kept and taken back out, for what an earlier build kept under another key. */
+export function takeKept(file: KeptFile, key: string): unknown {
+  const value = kept().get(slotOf(file, key));
+  if (value !== undefined) {
+    writeKept(file, key, undefined);
+  }
+  return value;
+}
+
 /**
  * A value kept member by member, each under a key of its own, in the file
  * `fileOf` names for it. A window writes only the members it changed, so two

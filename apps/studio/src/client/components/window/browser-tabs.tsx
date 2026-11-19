@@ -20,6 +20,7 @@ import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
+import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
 import { isPageEditAddress } from "@instrument-org/shared";
 import { pageTextOf, READ_PAGE_TEXT } from "@instrument-org/shared/page-text";
 import {
@@ -49,14 +50,18 @@ import {
   putAwayGuests,
   reconcileGuests,
 } from "./reconcile-guests";
+import { undrawnHostedStep } from "./hosted-page";
 import { visitInTab } from "./tab-history";
 import {
   addPages,
+  fileTabWalked,
   isHomeTab,
   openPage as openPageIn,
   type PageTab,
   type Placing,
+  pageBecomesFile,
   pageNavigated,
+  pageTakesOver,
   patchPage,
   titleAtNavigation,
   replaceTab,
@@ -66,6 +71,8 @@ import {
 } from "./tab-model";
 import {
   everyTabIdAtom,
+  hostGroupOf,
+  newScreenId,
   useWindowTabs,
   useWindowTabsChange,
 } from "./window-tabs";
@@ -485,6 +492,65 @@ export function BrowserTabs({
               ? {}
               : { favicon: undefined }),
           });
+        }
+        // A page tab that lands on a page's file becomes the file's tab, the
+        // one kind of tab a file on the computer has, whoever sent it there:
+        // the agent, a link, a bookmark. The guest goes on as the page that
+        // tab draws, under the id agents already know it by; what it showed
+        // before is a step back in the tab's own history, as the file is
+        // behind a page that left it, so the guest's own history goes.
+        const filePath = hostPathOfFileUrl(url);
+        const before = latest.current.tabs.find((tab) => tab.id === id);
+        const group = before?.group;
+        if (
+          filePath !== undefined &&
+          group !== undefined &&
+          !group.startsWith(HOSTED_PAGE_GROUP_PREFIX) &&
+          getFileType({ filename: filePath }) === "html"
+        ) {
+          const fileTab = newScreenId();
+          const leftUrl = before?.url;
+          const left =
+            leftUrl && leftUrl !== "about:blank" && leftUrl !== url
+              ? {
+                  id: StoreId.newTabId(),
+                  ...(before?.title ? { title: before.title } : {}),
+                  url: leftUrl,
+                }
+              : undefined;
+          guest.clearHistory();
+          change((current) =>
+            pageBecomesFile(current, {
+              file: { href: fileHref(filePath), id: fileTab },
+              hostGroup: hostGroupOf(fileTab),
+              ...(left ? { left } : {}),
+              page: id,
+            }),
+          );
+          return;
+        }
+        // A file tab's page that moves while no viewer of the tab is drawn,
+        // an agent's in a tab behind, moves the tab as its viewer would have.
+        const undrawn = undrawnHostedStep(latest.current.allTabs, {
+          pageId: id,
+          url,
+        });
+        if (undrawn?.step.kind === "site") {
+          guest.clearHistory();
+          const { url: siteUrl } = undrawn.step;
+          change((current) =>
+            pageTakesOver(current, {
+              page: id,
+              tab: undrawn.owner,
+              url: siteUrl,
+            }),
+          );
+        } else if (undrawn?.step.kind === "file") {
+          const href = fileHref(undrawn.step.path);
+          const { owner } = undrawn;
+          const replace =
+            getFileType({ filename: undrawn.step.path }) === "html";
+          change((current) => fileTabWalked(current, owner, href, { replace }));
         }
       };
       // A local page's own `history.pushState` moves its address without

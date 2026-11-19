@@ -383,7 +383,7 @@ export function keepsHostedPage(tabs: readonly WindowTab[], tabId: string) {
 }
 
 /** The tab a hosted page's group was made for, for a group named by `hostGroupOf`. */
-export function ownerOfHostGroup(group: string | undefined) {
+function ownerOfHostGroup(group: string | undefined) {
   const prefix = hostGroupOf("");
   return group?.startsWith(prefix) ? group.slice(prefix.length) : undefined;
 }

@@ -170,6 +170,34 @@ describe("groupLayoutFor", () => {
     `);
   });
 
+  // The id agent-browser drives and `window show` prints, once the tab has
+  // a page; before that, the tab's own, which every window action also takes.
+  it.each([
+    ["by its page's id once it has one", true, "tab_page"],
+    ["by its own id before it has a page", false, "tab_site"],
+  ])("names a tab on a page's file %s", (_case, hasPage, id) => {
+    const site: WindowTab = {
+      group: GROUP,
+      href: fileHref("/Users/mac-user/site/index.html"),
+      id: "tab_site",
+      kind: "screen",
+    };
+    const page: WindowTab = {
+      group: "page:tab_site",
+      id: "tab_page",
+      kind: "page",
+      openedAt: 0,
+      url: "file:///Users/mac-user/site/index.html",
+    };
+    expect(
+      groupLayoutFor(
+        windowOf(hasPage ? [site, page] : [site]),
+        GROUP,
+        undefined,
+      ).sides,
+    ).toMatchObject([{ tabs: [{ id, kind: "file" }] }]);
+  });
+
   it("names the new chat a draft is sent from", () => {
     expect(
       groupLayoutFor(windowOf([NEW_CHAT]), GROUP, NEW_CHAT.id).sides,

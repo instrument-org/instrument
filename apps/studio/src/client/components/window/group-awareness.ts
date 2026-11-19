@@ -11,6 +11,7 @@ import {
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { computerTabOf } from "./file-tabs";
+import { agentPageOfTab } from "./hosted-page";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { screenPresentation } from "./screen-presentation";
 import { matchScreen } from "./window-href";
@@ -95,7 +96,7 @@ export function groupLayoutFor(
 
 /** One tab as the agent reads it: what it is, what it is called, and where. */
 function describedTab(
-  { appsBySlug, chatTitles }: GroupAwarenessWindow,
+  { appsBySlug, chatTitles, windowTabs }: GroupAwarenessWindow,
   tab: WindowTab,
 ): LayoutTab {
   if (tab.kind === "page") {
@@ -120,7 +121,15 @@ function describedTab(
   });
   const computer = computerTabOf(tab.href);
   if (computer?.file !== undefined) {
-    return { address: computer.file, id: tab.id, kind: "file", title };
+    // A tab on a page's file goes by its page's id, the one agent-browser
+    // drives, once it has a page.
+    const page = agentPageOfTab(windowTabs.allTabs, tab);
+    return {
+      address: computer.file,
+      id: page !== undefined && "id" in page ? page.id : tab.id,
+      kind: "file",
+      title,
+    };
   }
   if (computer) {
     return {

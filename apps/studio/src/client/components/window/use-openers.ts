@@ -684,7 +684,13 @@ export function useOpeners({
    * shows another: the keyboard stays on the side the group had it.
    */
   const showTabWhereItIs = (tabId: string): { error?: string } => {
-    const tab = windowTabs.allTabs.find((entry) => entry.id === tabId);
+    // A file tab's page names the file tab.
+    const named = windowTabs.allTabs.find((entry) => entry.id === tabId);
+    const owner = ownerOfHostGroup(named?.group);
+    const tab =
+      owner === undefined
+        ? named
+        : windowTabs.allTabs.find((entry) => entry.id === owner);
     if (tab?.group === undefined) {
       return { error: `no tab ${tabId} is open.` };
     }

@@ -64,6 +64,22 @@ const brief = (touches: readonly { change: string; path: string }[]) =>
     .toSorted();
 
 describe("fileTouches", () => {
+  it("leaves out the copy the app keeps of a file before the call changes it", async () => {
+    const file = path.join(filesFolder, "turtle.svg");
+    await write(file, "<svg>plain</svg>");
+    const { files } = await touchedBy("python cuter.py", async () => {
+      await fs.mkdir(path.join(work, "Versions", "turtle.svg"), {
+        recursive: true,
+      });
+      await write(
+        path.join(work, "Versions", "turtle.svg", "v2.svg"),
+        "<svg>plain</svg>",
+      );
+      await write(file, "<svg>cute</svg>");
+    });
+    expect(brief(files)).toEqual([]);
+  });
+
   it("tells what a program made, changed and removed in the chat's folders", async () => {
     await write(path.join(work, "kept.md"), "old");
     await write(path.join(work, "gone.md"));

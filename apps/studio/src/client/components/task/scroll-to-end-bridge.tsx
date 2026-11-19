@@ -1,94 +1,26 @@
-import { type RefObject, useLayoutEffect } from "react";
+import { useLayoutEffect } from "react";
 
 import { useMessageScroller } from "../ui/message-scroller";
 
-/** How long the transcript may go without growing before its end counts as reached. */
-const SETTLE_MS = 250;
-
-/** How long the end is followed after arriving, at most, however long the transcript keeps growing. */
-const SETTLE_MAX_MS = 4000;
-
-/** The reader taking over: any of these on the viewport ends the following. */
-const TAKEOVER_EVENTS = ["wheel", "touchstart", "keydown", "pointerdown"];
-
 /**
- * Takes the transcript to its end on arriving, and holds it there while what
- * arrived settles.
+ * Takes the transcript to its end whenever `signal` changes: another session
+ * shown in the same scroller. The scroller holds the end from there while what
+ * arrived lays out, and opens at the end on its own the first time.
  *
  * Renders nothing: the scroll commands come from the provider's context, so
  * they are only reachable below it. Sending a message is not an arrival: its
  * turn is a scroll anchor, and taking the end here would pull it away from the
  * top of the window.
- *
- * Arriving is not one moment. The messages are read after the conversation
- * mounts, and a long transcript lays out for a while after they land: images
- * size themselves, cards fetch what they show, Markdown finishes. On a chat
- * at rest nothing else follows the end, so the end taken once is short of the
- * end by everything that laid out after. The content is watched instead, and
- * the end taken again each time it grows, until it has held still for a
- * moment or the reader has moved, whichever is first.
  */
 export function ScrollToEndBridge({
-  contentRef,
   signal,
 }: {
-  /** The scroller's content, whose growth is what arriving looks like. */
-  contentRef: RefObject<HTMLElement | null>;
-  /** Changes whenever the end should be taken afresh: the session, its messages arriving. */
+  /** Changes whenever the end should be taken afresh. */
   signal: string;
 }) {
   const { scrollToEnd } = useMessageScroller();
-
   useLayoutEffect(() => {
     scrollToEnd();
-    const frame = requestAnimationFrame(() => {
-      scrollToEnd();
-    });
-
-    const content = contentRef.current;
-    const scrolled = content?.parentElement;
-    if (!content || !scrolled) {
-      return () => {
-        cancelAnimationFrame(frame);
-      };
-    }
-    // Narrowed once here, since the narrowing does not reach into `stop`.
-    const viewport: HTMLElement = scrolled;
-    let quiet: ReturnType<typeof setTimeout> | undefined;
-    // Taken on the next frame: taking the end sets the height of the scroller's
-    // spacer, and resizing what is observed from inside the callback is a
-    // ResizeObserver loop.
-    let growth = 0;
-    const observer = new ResizeObserver(() => {
-      cancelAnimationFrame(growth);
-      growth = requestAnimationFrame(() => {
-        scrollToEnd();
-      });
-      clearTimeout(quiet);
-      quiet = setTimeout(stop, SETTLE_MS);
-    });
-    observer.observe(content);
-    quiet = setTimeout(stop, SETTLE_MS);
-    const cap = setTimeout(stop, SETTLE_MAX_MS);
-    // The reader taking the wheel is the reader saying where to be.
-    for (const type of TAKEOVER_EVENTS) {
-      viewport.addEventListener(type, stop, { passive: true });
-    }
-    // Hoisted: the observer and the timers name it before it is reached.
-    function stop() {
-      observer.disconnect();
-      cancelAnimationFrame(growth);
-      clearTimeout(quiet);
-      clearTimeout(cap);
-      for (const type of TAKEOVER_EVENTS) {
-        viewport.removeEventListener(type, stop);
-      }
-    }
-    return () => {
-      cancelAnimationFrame(frame);
-      stop();
-    };
-  }, [contentRef, scrollToEnd, signal]);
-
+  }, [scrollToEnd, signal]);
   return null;
 }

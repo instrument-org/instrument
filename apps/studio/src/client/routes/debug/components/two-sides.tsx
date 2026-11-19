@@ -14,7 +14,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { noop } from "radashi";
 import { type ReactNode, useLayoutEffect } from "react";
 
-import { getComponentPage } from "../-debug-routes";
+import { getDebugPage } from "../-debug-routes";
 import {
   Freeze,
   HELD_FILES,
@@ -54,7 +54,7 @@ import { RowFrames } from "../-two-sides/rows";
 export const Route = createFileRoute("/debug/components/two-sides")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: getComponentPage("two-sides").label }],
+    meta: [{ title: getDebugPage("two-sides").label }],
   }),
 });
 
@@ -503,6 +503,7 @@ function WorkingStrips() {
     ) : (
       <ScreenMark
         appsBySlug={appsBySlug}
+        chatId={undefined}
         chatTitles={chatTitles}
         href={chatHref(CAST.numbers.id)}
       />

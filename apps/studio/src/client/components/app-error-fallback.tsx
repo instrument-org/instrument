@@ -55,7 +55,13 @@ export function AppErrorFallback({ error }: { error: unknown }) {
  * The card {@link AppErrorFallback} centers in the window, on its own so a
  * screen can show it without the window's band around it.
  */
-export function AppErrorCard({ error }: { error: unknown }) {
+export function AppErrorCard({
+  error,
+  sample = false,
+}: {
+  error: unknown;
+  sample?: boolean;
+}) {
   return (
     <ErrorCardShell
       actions={
@@ -67,7 +73,11 @@ export function AppErrorCard({ error }: { error: unknown }) {
           >
             Reload
           </Button>
-          <ReportErrorButton error={error} surface="window-error" />
+          <ReportErrorButton
+            error={error}
+            sample={sample}
+            surface="window-error"
+          />
         </div>
       }
       description="The app hit an unexpected error. Reload to recover, or send us a report if it keeps happening."

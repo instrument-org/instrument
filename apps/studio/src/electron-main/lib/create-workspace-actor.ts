@@ -10,6 +10,7 @@ import {
 import { personHistory } from "@/electron-main/browser-view/person-history";
 import { lookUpSentLinkTitles } from "@/electron-main/browser-view/sent-link-titles";
 import { startAppSignInChecks } from "@/electron-main/lib/app-sign-in-check";
+import { hostedLimiter } from "@/electron-main/lib/hosted-limiter";
 import { recordPlatformRefusal } from "@/electron-main/lib/platform-refusals";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
 import {
@@ -225,6 +226,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
         : { outputDir: rootDir }),
       // Passwords and sign-ins stay out of every native command's reach.
       nativeSandbox: true,
+      hostedLimiter,
       isHostedFeatureAvailable,
       isPlatformSearchForEveryModel,
       mayOfferFeedback: () => getMachinePreferences().get("offerFeedback"),

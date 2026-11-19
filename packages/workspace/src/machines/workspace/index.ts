@@ -422,6 +422,8 @@ export const workspaceMachine = setup({
             input: {
               agent: instrumentAgent,
               baseLLMRetryDelayMs: ms("1 second"),
+              // Includes the time a hosted request waits in the app's own
+              // queue for a slot (`HostedLimiter`) before it goes out.
               llmRequestChunkTimeoutMs: ms("5 minutes"),
               model,
               parentRef: self,

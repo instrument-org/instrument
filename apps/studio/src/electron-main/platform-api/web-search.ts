@@ -1,7 +1,13 @@
 import { noteHostedRefusal } from "@/electron-main/lib/hosted-features";
+import { hostedLimiter } from "@/electron-main/lib/hosted-limiter";
 import { platformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { systemCountry } from "@/electron-main/lib/system-country";
 import { getToken } from "@/electron-main/platform-api/utils";
+import {
+  CLIENT_SESSION_ID_HEADER,
+  type HostedRelease,
+  platformRefusalCode,
+} from "@instrument-org/ai-gateway";
 import { PlanRefusalBodySchema } from "@instrument-org/shared";
 import {
   type PlatformSearchRefusal,
@@ -16,7 +22,18 @@ const ErrorResponseSchema = z.object({
   error: z.string(),
 });
 
-export const searchWeb: WebSearchClient = async ({ input, signal }) => {
+const CANCELED = {
+  errorMessage: "Web search was cancelled.",
+  errorType: "request-failed",
+  ok: false,
+} as const;
+
+/**
+ * Searches once there is room under what the platform admits, waiting in the
+ * chat's own queue, so a script's burst of searches is paced instead of
+ * refused.
+ */
+export const searchWeb: WebSearchClient = async (request) => {
   if (!getToken()) {
     return {
       errorMessage: "Sign in to Instrument to search the web.",
@@ -24,7 +41,26 @@ export const searchWeb: WebSearchClient = async ({ input, signal }) => {
       ok: false,
     };
   }
+  let release: HostedRelease;
+  try {
+    release = await hostedLimiter.acquire({
+      key: request.sessionId,
+      signal: request.signal,
+    });
+  } catch {
+    return CANCELED;
+  }
+  let refusal: string | undefined;
+  try {
+    const result = await sendSearch(request);
+    refusal = result.ok ? undefined : platformRefusalCode(result.responseBody);
+    return result;
+  } finally {
+    release({ refusal });
+  }
+};
 
+const sendSearch: WebSearchClient = async ({ input, sessionId, signal }) => {
   let response: Response;
   try {
     response = await fetch(`${platformApiBaseUrl()}/search`, {
@@ -34,18 +70,19 @@ export const searchWeb: WebSearchClient = async ({ input, signal }) => {
       headers: {
         ...getPlatformApiHeaders(),
         "content-type": "application/json",
+        [CLIENT_SESSION_ID_HEADER]: sessionId,
       },
       method: "POST",
       signal,
     });
   } catch (error) {
-    return {
-      errorMessage: signal.aborted
-        ? "Web search was cancelled."
-        : `Web search request failed: ${error instanceof Error ? error.message : "unknown error"}.`,
-      errorType: "request-failed",
-      ok: false,
-    };
+    return signal.aborted
+      ? CANCELED
+      : {
+          errorMessage: `Web search request failed: ${error instanceof Error ? error.message : "unknown error"}.`,
+          errorType: "request-failed",
+          ok: false,
+        };
   }
 
   const responseBody = await response.text();

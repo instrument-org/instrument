@@ -1,3 +1,4 @@
+import { MARKDOWN_EXTENSIONS } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { type SessionMessage } from "../../schemas/session/message";
@@ -19,9 +20,19 @@ export type StepShows =
       /** Whether the call made the file, once it has said. */
       isNew?: boolean;
       kind: "file";
+      /**
+       * How many lines it has so far, while a call writes whole a file no
+       * card shows as it is written (`writtenFileShows`).
+       */
+      lines?: number;
       /** When the call last wrote the file, once it has said. */
       modifiedAt?: number;
       path: string;
+      /**
+       * A page's whole source so far, while the call writing it is going, so
+       * a card can draw the page as it arrives. The file is read once written.
+       */
+      source?: string;
       /** The file's words so far, cut to a card's length. */
       words?: string;
     }
@@ -442,13 +453,25 @@ function stepShows(
         return undefined;
       }
       const words = wordsOnACard(input.content, status);
+      const shown = writtenFileShows(path);
+      const source =
+        status === "done" || shown !== "page" ? undefined : input.content;
+      const lines =
+        status === "done" ||
+        input.content === undefined ||
+        shown === "page" ||
+        shown === "words"
+          ? undefined
+          : linesOf(input.content);
       return {
         ...(output.isNewFile !== undefined && { isNew: output.isNewFile }),
         kind: "file",
+        ...(lines !== undefined && { lines }),
         ...(output.modifiedAt !== undefined && {
           modifiedAt: output.modifiedAt,
         }),
         path,
+        ...(source !== undefined && { source }),
         ...(words !== undefined && { words }),
       };
     }
@@ -486,6 +509,54 @@ function stepShows(
       return undefined;
     }
   }
+}
+
+/** A file a browser draws as a page, which a card draws as one too. */
+export const isPagePath = (path: string) => /\.html?$/i.test(path);
+
+/** The files the app draws as they look, a drawing or a table, which a card shows by their picture. */
+const PICTURED_EXTENSIONS = new Set(["csv", "svg", "tsv"]);
+
+/** The files written for a person to read as they stand: prose, in Markdown or plain text. */
+const READ_EXTENSIONS = new Set([
+  ...MARKDOWN_EXTENSIONS,
+  "adoc",
+  "asciidoc",
+  "org",
+  "rst",
+  "text",
+  "txt",
+]);
+
+/**
+ * What a card shows of a file a call writes whole: a page as it draws, a
+ * drawing or a table by its picture, words as they are typed. Anything else,
+ * code and data above all, has nothing: its source going by is not worth
+ * watching.
+ */
+export function writtenFileShows(
+  path: string,
+): "page" | "picture" | "words" | undefined {
+  if (isPagePath(path)) {
+    return "page";
+  }
+  const extension = /\.([^./\\]+)$/.exec(path)?.[1]?.toLowerCase() ?? "";
+  return PICTURED_EXTENSIONS.has(extension)
+    ? "picture"
+    : READ_EXTENSIONS.has(extension)
+      ? "words"
+      : undefined;
+}
+
+/** How many lines `content` has so far, its last line counted however far it has got. */
+function linesOf(content: string): number {
+  let count = content === "" || content.endsWith("\n") ? 0 : 1;
+  for (const character of content) {
+    if (character === "\n") {
+      count += 1;
+    }
+  }
+  return count;
 }
 
 /**

@@ -49,6 +49,35 @@ export function splitLinks(text: string): LinkTextSegment[] {
   );
 }
 
+/**
+ * Split a line into its Markdown links (`[label](url)`) and the text around
+ * them, leaving bare addresses in the text: what a composer draws as linked
+ * words, where an address written on its own stays the characters it is.
+ */
+export function splitMarkdownLinks(text: string): LinkTextSegment[] {
+  return splitBy(text, MARKDOWN_LINK, (match) => ({
+    href: match[2] ?? "",
+    label: match[1] ?? "",
+    type: "link",
+  }));
+}
+
+/**
+ * A link written as Markdown, or as the label and the address side by side
+ * where the label could not be read back as one (a bracket or a leading space
+ * in it), so the address is never lost.
+ */
+export function markdownLinkText(label: string, href: string): string {
+  const written = `[${label}](${href})`;
+  const [only, ...others] = splitMarkdownLinks(written);
+  return only?.type === "link" &&
+    others.length === 0 &&
+    only.label === label &&
+    only.href === href
+    ? written
+    : `${label} ${href}`;
+}
+
 function splitBareLinks(text: string): LinkTextSegment[] {
   return splitBy(text, BARE_LINK, (match) => {
     const found = trimTrailing(match[0]);

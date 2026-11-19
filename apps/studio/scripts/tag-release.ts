@@ -45,9 +45,14 @@ function checkRegistrySubmodule() {
   }
 }
 
-function getNextBetaVersion(
+/**
+ * The next prerelease of the version after `baseVersion`: one past the highest
+ * tag of that `channel` there, or `.0` for the first.
+ */
+function getNextPrereleaseVersion(
   baseVersion: string,
   releaseType: "minor" | "patch",
+  channel: "alpha" | "beta",
 ): string {
   const nextVersion = semver.inc(baseVersion, releaseType);
   if (!nextVersion) {
@@ -61,7 +66,7 @@ function getNextBetaVersion(
       .filter((tag) => tag.startsWith("v"))
       .map((tag) => tag.slice(1));
 
-    const betaTags = existingTags
+    const channelTags = existingTags
       .map((tag) => semver.parse(tag))
       .filter((parsed): parsed is semver.SemVer => {
         if (!parsed) {
@@ -69,7 +74,7 @@ function getNextBetaVersion(
         }
         return (
           parsed.prerelease.length > 0 &&
-          parsed.prerelease[0] === "beta" &&
+          parsed.prerelease[0] === channel &&
           parsed.major === semver.major(nextVersion) &&
           parsed.minor === semver.minor(nextVersion) &&
           parsed.patch === semver.patch(nextVersion)
@@ -81,26 +86,22 @@ function getNextBetaVersion(
         return bBeta - aBeta;
       });
 
-    if (betaTags.length === 0) {
-      return `${nextVersion}-beta.0`;
+    const latest = channelTags[0];
+    if (!latest) {
+      return `${nextVersion}-${channel}.0`;
     }
 
-    const latestBeta = betaTags[0];
-    if (!latestBeta) {
-      return `${nextVersion}-beta.0`;
-    }
-
-    const latestBetaNumber = (latestBeta.prerelease[1] as number) || 0;
-    return `${nextVersion}-beta.${latestBetaNumber + 1}`;
+    const latestNumber = (latest.prerelease[1] as number) || 0;
+    return `${nextVersion}-${channel}.${latestNumber + 1}`;
   } catch {
-    return `${nextVersion}-beta.0`;
+    return `${nextVersion}-${channel}.0`;
   }
 }
 
 async function main() {
   try {
     const versionType = process.argv[2] as "minor" | "patch" | undefined;
-    const isBeta = process.argv[3] === "beta";
+    const channel = prereleaseChannel(process.argv[3]);
     const releaseType = versionType || "patch";
 
     if (versionType && !["minor", "patch"].includes(versionType)) {
@@ -123,8 +124,8 @@ async function main() {
     const currentVersion = packageJson.version;
     const newVersion =
       chosenVersion() ??
-      (isBeta
-        ? getNextBetaVersion(currentVersion, releaseType)
+      (channel
+        ? getNextPrereleaseVersion(currentVersion, releaseType, channel)
         : semver.inc(currentVersion, releaseType));
 
     if (!newVersion) {
@@ -138,7 +139,7 @@ async function main() {
       );
     }
 
-    const versionLabel = isBeta ? `${releaseType} beta` : releaseType;
+    const versionLabel = channel ? `${releaseType} ${channel}` : releaseType;
     console.log(
       `Updating ${versionLabel} version from ${currentVersion} to ${newVersion}`,
     );
@@ -166,6 +167,23 @@ async function main() {
     console.error("Error during release:", error);
     process.exit(1);
   }
+}
+
+/**
+ * The prerelease channel named after the version type, if any. An alpha
+ * sorts below a beta of the same version and the alpha channel takes betas
+ * too, so an alpha is cut as a minor, ahead of every beta of the current line.
+ */
+function prereleaseChannel(
+  arg: string | undefined,
+): "alpha" | "beta" | undefined {
+  if (arg === undefined || arg.startsWith("--")) {
+    return undefined;
+  }
+  if (arg === "alpha" || arg === "beta") {
+    return arg;
+  }
+  throw new Error(`Invalid channel: ${arg}. Must be "beta" or "alpha"`);
 }
 
 /**

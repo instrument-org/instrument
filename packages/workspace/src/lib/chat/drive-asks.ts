@@ -167,6 +167,11 @@ async function step(
   }
   if (!live) {
     // The person wrote past it or stopped the chat: it closes, waking nobody.
+    // A question written past was answered in that message, which the call
+    // records for the card to say.
+    if (state.replied && ask.kind === "question") {
+      await markAnsweredInReply(chatId, ask);
+    }
     return close(chatId, ask.id, { kind: "left" }, undefined, true);
   }
   // A held question is answered by nobody until its turn is over, whatever
@@ -397,6 +402,35 @@ async function writeOntoCall(
       part.state === "output-available" &&
       "asked" in part.output
         ? { ...part, output: { ...part.output, answer } }
+        : part,
+  );
+  if (written.isErr()) {
+    throw written.error;
+  }
+}
+
+/** Writes onto a question's call that the person's message in the chat answered it. */
+async function markAnsweredInReply(
+  chatId: ChatId,
+  ask: Extract<AskRecord, { kind: "question" }>,
+): Promise<void> {
+  const [asker] = ask.askers;
+  if (asker === undefined) {
+    return;
+  }
+  const written = await ChatWrites.updatePart(
+    {
+      chatId,
+      messageId: ask.messageId,
+      partId: ask.partId,
+      sessionId: asker.sessionId,
+    },
+    (part) =>
+      part.type === "tool-choose" &&
+      part.state === "output-available" &&
+      "asked" in part.output &&
+      part.output.answer === undefined
+        ? { ...part, output: { ...part.output, inReply: true as const } }
         : part,
   );
   if (written.isErr()) {

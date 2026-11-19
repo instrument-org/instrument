@@ -151,6 +151,8 @@ if (FRAMES) {
   });
   fs.writeFileSync(outPath, html);
   const raw = writeRaw(result.states);
+  // The frames by label, so a frame the reader names is a block to go to.
+  for (const line of frames.frameList?.(result.index) ?? []) console.log(line);
   for (const f of fails) console.log(`FAIL ${partPath}: ${f}`);
   for (const n of result.notes) console.log(`${partPath}: ${n}`);
   const drawn = result.states.filter((/** @type {any} */ s) => !s.error).length;

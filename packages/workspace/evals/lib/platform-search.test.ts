@@ -48,6 +48,7 @@ describe("platformSearchClient", () => {
     );
     const result = await platformSearchClient()({
       input: { query: "anything" },
+      sessionId: "ses_1",
       signal: AbortSignal.timeout(5000),
     });
     expect(result).toMatchObject({ errorType: "request-failed", ok: false });

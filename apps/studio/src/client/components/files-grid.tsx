@@ -13,6 +13,7 @@ import { cn } from "@/client/lib/utils";
 import { CHAT_FOLDER_NAMES } from "@instrument-org/workspace/client";
 import { fork } from "radashi";
 
+import { type CardVersion, CardVersionContext } from "./card-version";
 import { FilePreviewCard } from "./file-preview-card";
 import { FilePreviewListItem } from "./file-preview-list-item";
 import { MEDIA_CARD_ASPECT } from "./media-card-shape";
@@ -86,6 +87,8 @@ interface FilesGridProps {
   // everything a turn touched, which is a judgment already made here, and they
   // drop anything outside the chat's folder -- including a shared folder's files.
   preserveOrder?: boolean;
+  /** The version each card stands for, by its file's host path, where its chat numbers them. */
+  versions?: ReadonlyMap<string, CardVersion>;
 }
 
 export function FilesGrid({
@@ -95,6 +98,7 @@ export function FilesGrid({
   files,
   pendingFilePath,
   preserveOrder = false,
+  versions,
 }: FilesGridProps) {
   const showChatFile = useShowChatFile();
 
@@ -164,13 +168,15 @@ export function FilesGrid({
                 data-slot="files-grid-media"
                 key={file.hostPath}
               >
-                <FilePreviewCard
-                  file={file}
-                  onClick={() => {
-                    handleFileClick(file);
-                  }}
-                  shape={mediaTileShape}
-                />
+                <CardVersionContext value={versions?.get(file.hostPath)}>
+                  <FilePreviewCard
+                    file={file}
+                    onClick={() => {
+                      handleFileClick(file);
+                    }}
+                    shape={mediaTileShape}
+                  />
+                </CardVersionContext>
               </div>
             ))}
             {hasPendingMediaTile && (
@@ -203,13 +209,15 @@ export function FilesGrid({
                 data-slot="files-grid-card"
                 key={file.hostPath}
               >
-                <FilePreviewCard
-                  keepsActionsRoom={rowCards.keepsActionsRoom}
-                  file={file}
-                  onClick={() => {
-                    handleFileClick(file);
-                  }}
-                />
+                <CardVersionContext value={versions?.get(file.hostPath)}>
+                  <FilePreviewCard
+                    keepsActionsRoom={rowCards.keepsActionsRoom}
+                    file={file}
+                    onClick={() => {
+                      handleFileClick(file);
+                    }}
+                  />
+                </CardVersionContext>
               </div>
             ))}
           </div>

@@ -125,9 +125,8 @@ describe("ToolChoose", () => {
     expect(container.textContent).not.toContain("No answer");
   });
 
-  // The person wrote in the chat instead, or stopped it: nothing will take
-  // an answer, and a row to click would read as the conversation ignoring
-  // them.
+  // Stopped, or asked again past: nothing will take an answer, and a row to
+  // click would read as the conversation ignoring them.
   it("says the card ended once it closed unanswered", async () => {
     const { container } = withAsks([]);
 
@@ -136,7 +135,16 @@ describe("ToolChoose", () => {
     });
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
     expect(container.querySelectorAll("input")).toHaveLength(0);
-    expect(container.textContent).toContain("Framework");
+    expect(container.textContent).toContain("Which one?");
+  });
+
+  it("says a card closed by a reply typed in the chat was answered there, with no numbers", async () => {
+    const { container } = withAsks([], { asked: true, inReply: true });
+
+    await waitFor(() => {
+      expect(container.textContent).toBe("Which one?Answered in your reply");
+    });
+    expect(screen.queryAllByRole("radio")).toHaveLength(0);
   });
 
   // A question that carries its card waits by the composer, so the call
@@ -191,23 +199,15 @@ describe("QuestionCard with one question", () => {
     return onAnswer;
   };
 
-  // A misclick can be put right before anything reaches the agent.
-  it("picks on a click and sends on Send", () => {
+  it("sends a click on a choice at once, with no Send or note to go through", () => {
     const onAnswer = open();
-    const send = screen.getByRole("button", { name: "Send" });
-    expect(send).toHaveProperty("disabled", true);
+    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add a note" })).toBeNull();
 
-    fireEvent.click(screen.getByRole("radio", { name: "React" }));
     fireEvent.click(screen.getByRole("radio", { name: "Vue" }));
-    expect(onAnswer).not.toHaveBeenCalled();
-    expect(
-      screen
-        .getAllByRole("radio")
-        .map((radio) => radio.getAttribute("aria-checked")),
-    ).toEqual(["false", "true"]);
-
-    fireEvent.click(send);
-    expect(onAnswer).toHaveBeenCalledWith({ replies: [{ picked: ["Vue"] }] });
+    expect(onAnswer).toHaveBeenCalledExactlyOnceWith({
+      replies: [{ picked: ["Vue"] }],
+    });
   });
 
   it("answers in the user's own words on Return", () => {
@@ -228,18 +228,10 @@ describe("QuestionCard with one question", () => {
     expect(onAnswer).not.toHaveBeenCalled();
   });
 
-  it("takes a note after the pick, and sends it with a skip too", () => {
+  it.each(["Skip", "Close"])("skips the question with %s", (name) => {
     const onAnswer = open();
-    fireEvent.click(screen.getByRole("radio", { name: "Vue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Add a note" }));
-    fireEvent.change(screen.getByLabelText("Note"), {
-      target: { value: "Ask design. " },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Skip with note" }));
-    expect(onAnswer).toHaveBeenCalledWith({
-      note: "Ask design.",
-      replies: [{ skipped: true }],
-    });
+    fireEvent.click(screen.getByRole("button", { name }));
+    expect(onAnswer).toHaveBeenCalledWith({ replies: [{ skipped: true }] });
   });
 });
 
@@ -275,32 +267,34 @@ describe("QuestionCard with several questions", () => {
     const { container } = renderWithProviders(
       <QuestionCard onAnswer={onAnswer} questions={SEVERAL} status="open" />,
     );
-    return { container, onAnswer };
+    const onShow = () =>
+      [...container.querySelectorAll("p")].find(
+        (each) => each.getAttribute("aria-hidden") !== "true",
+      )?.textContent;
+    return { container, onAnswer, onShow };
   };
 
-  it("steps through the questions and sends every answer together from Review", () => {
-    const { container, onAnswer } = open();
-    expect(container.textContent).toContain("Which team size?");
+  it("moves on with each pick, counts several picks, and sends every answer from the last", () => {
+    const { container, onAnswer, onShow } = open();
+    expect(onShow()).toBe("Which team size?");
+    expect(container.textContent).toContain("1 of 3");
 
     fireEvent.click(screen.getByRole("radio", { name: /10 agents/ }));
-    expect(container.textContent).toContain("Annual or monthly?");
+    expect(onShow()).toBe("Annual or monthly?");
+    expect(onAnswer).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByRole("button", { name: "Skip" }));
-    expect(container.textContent).toContain("Which competitors?");
+    expect(onShow()).toBe("Which competitors?");
+    expect(container.textContent).toContain("0 picked");
 
-    // Several picks only tick boxes, so the person moves on with Next.
+    // Several picks only tick boxes, so the person moves on with the arrow.
     fireEvent.click(screen.getByRole("checkbox", { name: "Zendesk" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Freshdesk" }));
+    expect(container.textContent).toContain("2 picked");
     expect(onAnswer).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
 
-    expect(container.textContent).toContain("Zendesk, Freshdesk");
-    fireEvent.change(screen.getByLabelText("Note"), {
-      target: { value: "List prices only." },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Send answers" }));
-    expect(onAnswer).toHaveBeenCalledWith({
-      note: "List prices only.",
+    expect(onAnswer).toHaveBeenCalledExactlyOnceWith({
       replies: [
         { picked: ["10 agents"] },
         { skipped: true },
@@ -309,79 +303,117 @@ describe("QuestionCard with several questions", () => {
     });
   });
 
-  it("goes back to a question from its header, keeping its answer", () => {
-    const { container } = open();
+  it("goes back a question with the arrow, keeping its answer, and the next pick goes to the one still waiting", () => {
+    const { onAnswer, onShow } = open();
     fireEvent.click(screen.getByRole("radio", { name: /25 agents/ }));
-    fireEvent.click(screen.getByRole("button", { name: /Team size/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous question" }));
 
-    expect(container.textContent).toContain("Which team size?");
+    expect(onShow()).toBe("Which team size?");
     expect(
       screen
         .getByRole("radio", { name: /25 agents/ })
         .getAttribute("aria-checked"),
     ).toBe("true");
+
+    fireEvent.click(screen.getByRole("radio", { name: /10 agents/ }));
+    expect(onShow()).toBe("Annual or monthly?");
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  it("closes with every question not answered yet skipped", () => {
+    const { onAnswer } = open();
+    fireEvent.click(screen.getByRole("radio", { name: /25 agents/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    expect(onAnswer).toHaveBeenCalledWith({
+      replies: [
+        { picked: ["25 agents"] },
+        { skipped: true },
+        { skipped: true },
+      ],
+    });
+  });
+});
+
+describe("QuestionCard detail", () => {
+  const LAYOUT: ChooseQuestion[] = [
+    {
+      choices: [
+        {
+          detail: "| Plan | Price |\n| --- | --- |\n| Team | $45 |",
+          label: "Table",
+        },
+        {
+          description: "A short write-up with the numbers in it",
+          label: "One-page summary",
+        },
+      ],
+      header: "Layout",
+      question: "How should I lay out the comparison?",
+    },
+  ];
+
+  it("has no detail area when no choice carries detail", () => {
+    const { container } = renderWithProviders(
+      <QuestionCard onAnswer={vi.fn()} questions={ONE} status="open" />,
+    );
+    expect(container.querySelector("[data-detail]")).toBeNull();
+  });
+
+  it("shows the first choice's detail, then the one the keyboard moves to, restating a choice that has none", () => {
+    const { container } = renderWithProviders(
+      <QuestionCard onAnswer={vi.fn()} questions={LAYOUT} status="open" />,
+    );
+    const area = () => container.querySelector("[data-detail]");
+    expect(area()?.querySelector("table")).not.toBeNull();
+
+    fireEvent.focus(screen.getByRole("radio", { name: /One-page summary/ }));
+    expect(area()?.querySelector("table")).toBeNull();
+    expect(area()?.querySelector("[data-restated]")?.textContent).toBe(
+      "One-page summaryA short write-up with the numbers in it",
+    );
   });
 });
 
 describe("QuestionCard once answered", () => {
   it.each([
-    { output: { replies: [{ skipped: true as const }] }, text: "Skipped" },
-    { output: { replies: [{ picked: ["Svelte"] }] }, text: "Svelte" },
+    {
+      output: { replies: [{ skipped: true as const }] },
+      text: "Which one?Skipped",
+    },
+    { output: { replies: [{ picked: ["Vue"] }] }, text: "Which one?Vue" },
+    {
+      output: { replies: [{ picked: ["Vue", "Solid, if it's ready"] }] },
+      text: "Which one?Vue, “Solid, if it's ready”",
+    },
     {
       output: { note: "Why not.", replies: [{ picked: ["Vue"] }] },
-      text: "Why not.",
+      text: "Which one?VueWhy not.",
     },
-  ])("draws $output as a line", ({ output, text }) => {
-    const { container } = renderWithProviders(
-      <QuestionCard
-        onAnswer={vi.fn()}
-        output={output}
-        questions={ONE}
-        status="closed"
-      />,
-    );
-    expect(container.textContent).toContain(text);
-    expect(screen.queryAllByRole("radio")).toHaveLength(0);
-    expect(container.querySelectorAll("input")).toHaveLength(0);
-  });
-
-  it("opens to show what else was offered", () => {
-    const { container } = renderWithProviders(
-      <QuestionCard
-        onAnswer={vi.fn()}
-        output={{ replies: [{ picked: ["Vue"] }] }}
-        questions={ONE}
-        status="closed"
-      />,
-    );
-    expect(container.textContent).not.toContain("React");
-
-    fireEvent.click(screen.getByRole("button", { expanded: false }));
-    expect(container.textContent).toContain("React");
-  });
-
-  it("opens onto the whole question with every choice", () => {
-    const { container } = renderWithProviders(
-      <QuestionCard
-        onAnswer={vi.fn()}
-        output={{ replies: [{ picked: ["Vue"] }] }}
-        questions={ONE}
-        status="closed"
-      />,
-    );
-    expect(container.textContent).toBe("Which one?Vue");
-
-    fireEvent.click(screen.getByRole("button", { expanded: false }));
-    expect(container.textContent).toBe("Which one?VueWhich one?ReactVue");
-  });
+  ])(
+    "draws $output whole, with nothing to open or click",
+    ({ output, text }) => {
+      const { container } = renderWithProviders(
+        <QuestionCard
+          onAnswer={vi.fn()}
+          output={output}
+          questions={ONE}
+          status="closed"
+        />,
+      );
+      expect(container.textContent).toBe(text);
+      expect(screen.queryAllByRole("button")).toHaveLength(0);
+      expect(container.querySelectorAll("input, textarea")).toHaveLength(0);
+    },
+  );
 
   // A reply that grades the answers (a quiz) reads against what was asked,
   // which a header like "Q2" does not say.
-  it("puts each question's own words beside its answer", () => {
+  it("puts each question's own words over its answer, a skipped one as skipped", () => {
     const { container } = renderWithProviders(
       <QuestionCard
         onAnswer={vi.fn()}
-        output={{ replies: [{ picked: ["Vue"] }, { picked: ["Fly"] }] }}
+        output={{ replies: [{ skipped: true }, { picked: ["Fly"] }] }}
         questions={[
           ...ONE,
           {
@@ -393,7 +425,30 @@ describe("QuestionCard once answered", () => {
         status="closed"
       />,
     );
-    expect(container.textContent).toBe("Which one?VueWhere should it run?Fly");
+    expect(
+      [...container.querySelectorAll("p")].map((line) => line.textContent),
+    ).toEqual(["Which one?", "Skipped", "Where should it run?", "Fly"]);
+  });
+
+  it("says a card closed by a typed reply was answered in it, once, under its questions", () => {
+    const { container } = renderWithProviders(
+      <QuestionCard
+        inReply
+        onAnswer={vi.fn()}
+        questions={[...ONE, { ...ONE[0]!, question: "Which host?" }]}
+        status="closed"
+      />,
+    );
+    expect(container.textContent).toBe(
+      "Which one?Which host?Answered in your reply",
+    );
+  });
+
+  it("says a question never answered had no answer", () => {
+    const { container } = renderWithProviders(
+      <QuestionCard onAnswer={vi.fn()} questions={ONE} status="ended" />,
+    );
+    expect(container.textContent).toBe("Which one?No answer");
   });
 
   // Records an earlier build wrote in the one-question shape carry no header.
@@ -421,46 +476,4 @@ describe("QuestionCard once answered", () => {
     expect(container.textContent).toContain("Vue");
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
   });
-
-  it("quotes an answer in the person's own words, and not a picked choice", () => {
-    const { container } = renderWithProviders(
-      <QuestionCard
-        onAnswer={vi.fn()}
-        output={{ replies: [{ picked: ["Vue", "Solid, if it's ready"] }] }}
-        questions={ONE}
-        status="closed"
-      />,
-    );
-    expect(container.textContent).toContain("Vue, “Solid, if it's ready”");
-  });
-
-  it.each([
-    {
-      name: "skipped",
-      output: {
-        replies: [{ skipped: true as const }, { skipped: true as const }],
-      },
-      status: "closed" as const,
-      text: "Skipped",
-    },
-    {
-      name: "never answered",
-      output: undefined,
-      status: "ended" as const,
-      text: "No answer",
-    },
-  ])(
-    "says a card of several questions all $name once",
-    ({ output, status, text }) => {
-      const { container } = renderWithProviders(
-        <QuestionCard
-          onAnswer={vi.fn()}
-          output={output}
-          questions={[...ONE, { ...ONE[0]!, header: "Hosting" }]}
-          status={status}
-        />,
-      );
-      expect(container.textContent?.split(text)).toHaveLength(2);
-    },
-  );
 });

@@ -27,9 +27,16 @@ export const WebSearchResponseSchema = z.object({
 
 export type WebSearchClient = ({
   input,
+  sessionId,
   signal,
 }: {
   input: WebSearchRequest;
+  /**
+   * The session the platform files the search's usage under, named as a
+   * chat request names it, so a search and the turn that asked for it share
+   * one session in the usage records.
+   */
+  sessionId: string;
   signal: AbortSignal;
 }) => Promise<WebSearchClientResult>;
 export type WebSearchClientResult =

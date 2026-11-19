@@ -77,7 +77,7 @@ export {
   type CardFileVersion,
   cardFileVersions,
 } from "./lib/transcript/card-file-versions";
-export { VERSIONS_FOLDER } from "./lib/chat/versions-folder";
+export { VERSIONS_FOLDERS } from "./lib/chat/versions-folder";
 export {
   applyFeedEvent,
   applyOlder,
@@ -162,6 +162,7 @@ export {
 export { readWebSearchResults } from "./lib/web-search-results";
 export {
   chooseAnswer,
+  chooseInReply,
   type ChooseQuestion,
   chooseQuestions,
 } from "./lib/choose-call";

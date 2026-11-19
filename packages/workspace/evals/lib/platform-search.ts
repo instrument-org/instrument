@@ -1,3 +1,4 @@
+import { CLIENT_SESSION_ID_HEADER } from "@instrument-org/ai-gateway";
 import { APP_CLIENT_NAME_STUDIO } from "@instrument-org/shared";
 import fs from "node:fs";
 import { z } from "zod";
@@ -30,7 +31,7 @@ export function platformSearchClient(): WebSearchClient {
   const account = AccountFileSchema.parse(
     JSON.parse(fs.readFileSync(file, "utf8")),
   );
-  return async ({ input, signal }) => {
+  return async ({ input, sessionId, signal }) => {
     // A request that never got a readable answer, as the result says it.
     const failed = (error: unknown) => ({
       errorMessage: `Web search request failed: ${error instanceof Error ? error.message : "unknown error"}.`,
@@ -45,6 +46,7 @@ export function platformSearchClient(): WebSearchClient {
           authorization: `Bearer ${account.token}`,
           "content-type": "application/json",
           "x-client-name": APP_CLIENT_NAME_STUDIO,
+          [CLIENT_SESSION_ID_HEADER]: sessionId,
           "x-client-version": "0.0.0-eval",
         },
         method: "POST",

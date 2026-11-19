@@ -4,7 +4,8 @@ import { type Assertion, defineEval } from "../harness";
 /**
  * A file the agent revises is changed in place, each turn's reply keeps a
  * version of what it listed, and asked to go back the agent finds the
- * earlier version in `.versions/` and copies it back. The picture case is
+ * earlier version in `Versions/`, by its number when the person names one,
+ * and copies it back. The picture case is
  * the one where copying is the only way back: a generated image cannot be
  * made again from memory.
  */
@@ -65,6 +66,13 @@ export const FILE_VERSIONS_EVALS = [
       "hmm, actually go back to the very first one",
     ],
     name: "file-versions-revise-and-go-back",
+    prompt:
+      "Draw me an SVG of a purple moon over a dark hilltop observatory and show it to me.",
+  }),
+  defineEval({
+    assertions: [assertInPlace, assertWentBack],
+    followUps: ["make the moon bigger", "and even bigger", "go back to v1"],
+    name: "file-versions-go-back-by-number",
     prompt:
       "Draw me an SVG of a purple moon over a dark hilltop observatory and show it to me.",
   }),

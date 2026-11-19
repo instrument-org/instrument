@@ -13,6 +13,7 @@ import {
 import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
 import { beginTurnFileVersions, takeOriginals } from "./chat/turn-originals";
+import { keptReader } from "./chat/version-records";
 import { createBashEnv } from "./create-bash-env";
 import { withTurnContext } from "./turn-context";
 import { workDir } from "./work-dir";
@@ -86,7 +87,7 @@ afterAll(async () => {
 
 describe("originals the shell's commands keep", () => {
   it("keeps what sed -i and >> replace, once per file", async () => {
-    beginTurnFileVersions(sessionId);
+    beginTurnFileVersions(sessionId, keptReader(chatId));
     await run(`sed -i 's/first/second/' ${notes} && echo third >> ${notes}`);
     await expect(kept()).resolves.toEqual([["notes.md", "first\n"]]);
     await expect(
@@ -95,7 +96,7 @@ describe("originals the shell's commands keep", () => {
   });
 
   it("keeps nothing for a file the turn made, or one in the work folder", async () => {
-    beginTurnFileVersions(sessionId);
+    beginTurnFileVersions(sessionId, keptReader(chatId));
     await fs.mkdir(workDir(chatId), { recursive: true });
     await fs.writeFile(path.join(workDir(chatId), "draft.md"), "draft\n");
     const fresh = shellPath(path.join(docs, "new.md"));
@@ -116,7 +117,7 @@ describe("originals the shell's commands keep", () => {
         ),
       ),
     );
-    beginTurnFileVersions(sessionId);
+    beginTurnFileVersions(sessionId, keptReader(chatId));
     await run(`for f in ${shellPath(many)}/*.md; do echo over > "$f"; done`);
     expect(takeOriginals(sessionId)).toHaveLength(100);
   });

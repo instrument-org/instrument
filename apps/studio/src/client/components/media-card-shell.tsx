@@ -2,8 +2,9 @@ import { type ViewerFile } from "@/client/atoms/viewer-file";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { cn } from "@/client/lib/utils";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
-import { useRef, useState } from "react";
+import { useContext, useRef, useState } from "react";
 
+import { CardVersionContext } from "./card-version";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { MEDIA_CARD_ASPECT, type MediaCardShape } from "./media-card-shape";
 import {
@@ -59,6 +60,7 @@ export function MediaCardShell({
   const hoverStartRef = useRef<null | number>(null);
   const timerRef = useRef<null | number>(null);
   const dragProps = useFileDrag(file);
+  const version = useContext(CardVersionContext);
 
   const handleMouseEnter = () => {
     hoverStartRef.current = Date.now();
@@ -169,6 +171,14 @@ export function MediaCardShell({
       )}
 
       {bottomBar}
+
+      {/* The version the tile is, in the corner the expand control takes
+          while the pointer is over it. */}
+      {version && (
+        <span className="pointer-events-none absolute top-2.5 right-2.5 z-10 inline-flex h-5 items-center rounded-md bg-black/55 px-1.5 text-xs font-semibold text-white tabular-nums backdrop-blur transition-opacity duration-200 group-hover/media:opacity-0 group-has-[button[data-state=open]]/media:opacity-0">
+          v{version.number}
+        </span>
+      )}
 
       <Tooltip>
         <TooltipTrigger asChild>

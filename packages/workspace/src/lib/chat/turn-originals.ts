@@ -4,37 +4,21 @@ import { type ChatId } from "../../schemas/chat-id";
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type StoreId } from "../../schemas/store-id";
-import { ChatReads } from "../chat-reads";
 import { keepVersion, type KeptVersion } from "../file-versions";
 import { workDir } from "../work-dir";
 import { getWorkspaceConfig } from "../workspace-config";
-import { thisDevice } from "./asks";
 import { VERSIONS_FOLDER } from "./versions-folder";
 
 type Entry = SessionMessageDataPart.FileVersionsDataPart["files"][number];
 
-/** The versions this computer kept of each file in the session, oldest first, by where it is. */
-export async function keptBefore(
-  chatId: ChatId,
-  sessionId: StoreId.Session,
-): Promise<Map<string, KeptVersion[]>> {
-  const kept = new Map<string, KeptVersion[]>();
-  const read = await ChatReads.transcript({ chatId, sessionId });
-  if (read.isErr()) {
-    return kept;
-  }
-  const here = thisDevice();
-  for (const message of read.value) {
-    for (const part of message.parts) {
-      if (part.type === "data-fileVersions" && part.data.device === here) {
-        for (const file of part.data.files) {
-          kept.set(file.hostPath, [...(kept.get(file.hostPath) ?? []), file]);
-        }
-      }
-    }
-  }
-  return kept;
-}
+/**
+ * What the chat recorded of a file before the turn, as `keepVersion` reads
+ * it for a file going into the versions folder `folder` (`keptReader`).
+ */
+export type ReadKept = (
+  file: string,
+  folder: string,
+) => Promise<{ kept: KeptVersion[]; taken: ReadonlySet<string> }>;
 
 /** The most files one turn keeps originals of, so a shell loop over a folder stops copying. */
 const MOST_ORIGINALS = 100;
@@ -48,8 +32,7 @@ const pending = new Map<
   {
     bytes: number;
     files: Entry[];
-    /** The versions the chat kept before the turn, read once a turn. */
-    kept?: Promise<Map<string, KeptVersion[]>>;
+    readKept: ReadKept;
     seen: Set<string>;
   }
 >();
@@ -108,12 +91,11 @@ export async function keepOriginal(original: Original): Promise<boolean> {
     return more();
   }
   try {
-    turn.kept ??= keptBefore(chatId, sessionId);
+    const folder = path.join(workDir(chatId), VERSIONS_FOLDER);
     const version = await keepVersion({
       file: hostPath,
-      folder: path.join(workDir(chatId), VERSIONS_FOLDER),
-      kept: (await turn.kept).get(hostPath),
-      label: "before changes",
+      folder,
+      ...(await turn.readKept(hostPath, folder)),
       read: () => Promise.resolve(bytes),
     });
     if (version?.copy !== undefined) {
@@ -122,6 +104,7 @@ export async function keepOriginal(original: Original): Promise<boolean> {
         copy: AbsolutePathSchema.parse(version.copy),
         hash: version.hash,
         hostPath: AbsolutePathSchema.parse(hostPath),
+        number: version.number,
         path: path.basename(hostPath),
         size: version.size,
       });
@@ -135,9 +118,14 @@ export async function keepOriginal(original: Original): Promise<boolean> {
 /**
  * Starts a session's turn with no originals kept, so one a stopped or failed
  * turn kept, which no turn end recorded, never passes for this turn's.
+ * `readKept` says what the chat recorded of a file, which numbers its
+ * original among its versions.
  */
-export function beginTurnFileVersions(sessionId: StoreId.Session): void {
-  pending.set(sessionId, { bytes: 0, files: [], seen: new Set() });
+export function beginTurnFileVersions(
+  sessionId: StoreId.Session,
+  readKept: ReadKept,
+): void {
+  pending.set(sessionId, { bytes: 0, files: [], readKept, seen: new Set() });
 }
 
 /** The originals a session's turn kept, which the turn's end records; empties them. */

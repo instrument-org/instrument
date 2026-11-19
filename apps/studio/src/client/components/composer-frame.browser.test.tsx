@@ -4,7 +4,7 @@
 // real one: what overflowed the box was a long draft rendered by ProseMirror,
 // not a stand-in of a known height.
 import { describe, expect, it, vi } from "vitest";
-import { render } from "vitest-browser-react";
+import { renderInBrowser } from "@/tests/render-browser";
 
 import { ComposerFrame } from "./composer-frame";
 import { PromptEditor } from "./prompt-editor";
@@ -39,7 +39,7 @@ async function renderFrame({
   draft?: string;
   maxHeight?: number;
 } = {}) {
-  await render(
+  await renderInBrowser(
     <div style={{ width: 480 }}>
       <ComposerFrame
         actions={
@@ -182,7 +182,7 @@ describe("a chip at the head of the composer", () => {
         plan.md
       </span>
     );
-    await render(
+    await renderInBrowser(
       <div style={{ padding: 40, width: 480 }}>
         <ComposerFrame
           actions={<button type="button">Send</button>}
@@ -224,7 +224,7 @@ describe("an overlay on the composer", () => {
   // A new tab's arrival glint once wrapped the note docked over the box too,
   // because it was placed against the box's host rather than the box.
   it("rings the box alone, never a note above it", async () => {
-    await render(
+    await renderInBrowser(
       <div style={{ width: 480 }}>
         <div data-testid="note" style={{ height: 40 }} />
         <ComposerFrame

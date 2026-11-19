@@ -161,6 +161,7 @@ function ActiveChatRow({
             <span className="grid size-3.5 shrink-0 place-items-center [&_svg]:size-3.5">
               <ScreenMark
                 appsBySlug={appsBySlug}
+                chatId={undefined}
                 chatTitles={NO_TITLES}
                 href={chatHref(chat.id)}
               />

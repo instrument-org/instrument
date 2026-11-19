@@ -8,7 +8,7 @@ import {
 import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
-import { FoldedActivityView, RowLine } from "./activity-row";
+import { ActivityRowView, FoldedActivityView, RowLine } from "./activity-row";
 
 // jsdom runs no animation and never delivers `animationend` to React, so what
 // it sees is the sweep's class going on for a changed label.
@@ -109,4 +109,35 @@ describe("FoldedActivityView", () => {
       screen.getAllByRole("button").map((button) => button.textContent),
     ).toEqual(["Reading your plan sheet"]);
   });
+});
+
+describe("ActivityRowView", () => {
+  it.each([
+    [
+      "Writing the scraper",
+      "Building the scraper",
+      "Writing the scraper · 48 lines",
+    ],
+    [undefined, "Building the scraper", "Creating a file · 48 lines"],
+    [undefined, undefined, "48 lines"],
+  ])(
+    "says how far a file with no card to watch it on has got (%s, %s)",
+    (explanation, title, detail) => {
+      const { explanation: _, ...unexplained } = call("");
+      const writing: TurnStep = {
+        ...(explanation === undefined ? unexplained : call(explanation)),
+        shows: { kind: "file", lines: 48, path: "/w/scrape.py" },
+        status: "writing",
+        tool: "tool-write_file",
+      };
+      renderWithProviders(
+        <ActivityRowView
+          chatId={chatId}
+          isLive
+          row={activity([writing], title)}
+        />,
+      );
+      expect(screen.getByText(detail)).toBeTruthy();
+    },
+  );
 });

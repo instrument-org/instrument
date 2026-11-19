@@ -12,6 +12,7 @@ import {
   beginTurnFileVersions,
   takeOriginals,
 } from "../lib/chat/turn-originals";
+import { keptReader } from "../lib/chat/version-records";
 import { workDir } from "../lib/work-dir";
 import { getWorkspaceSkillsDir } from "../lib/workspace-skills-dir";
 import { StoreId } from "../schemas/store-id";
@@ -120,7 +121,7 @@ describe("WriteFile", () => {
     });
     await grantFolder({ chatId, path: "/ext/Docs", source: "attached" });
     const sessionId = StoreId.newSessionId();
-    beginTurnFileVersions(sessionId);
+    beginTurnFileVersions(sessionId, keptReader(chatId));
 
     await runTool(WriteFile, {
       ...makeExecuteArgs({ content: "second", filePath: "/ext/Docs/notes.md" }),

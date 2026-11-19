@@ -11,6 +11,7 @@
 import "@/client/styles/globals.css";
 import { resetStudioModals } from "@/client/atoms/studio-modal";
 import { clearKeptState } from "@/client/lib/kept-state";
+import { watchOpenOverlays } from "@/client/lib/window-drag-overlays";
 import { afterEach } from "vitest";
 
 import { installWindowStubs } from "./window-stubs";
@@ -20,6 +21,10 @@ import { installWindowStubs } from "./window-stubs";
 // store, which no unmount reaches, so a test that opened a modal would leave it
 // open for the next one.
 afterEach(resetStudioModals);
+
+// The stylesheet's window drag rule reads an attribute the app keeps on the
+// root, so the measured app keeps it here too.
+watchOpenOverlays();
 
 // Persisted atoms outlive more than that. What the windows keep (`keptAtom`)
 // is one module's memory here, and a plain `atomWithStorage` writes through to

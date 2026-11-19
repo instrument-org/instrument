@@ -33,6 +33,7 @@ export {
 export * from "./lib/find-cached-model";
 export * from "./lib/get-ai-sdk-image-model";
 export * from "./lib/get-ai-sdk-web-search-model";
+export * from "./lib/hosted-limiter";
 export * from "./lib/image-capabilities";
 export { isRouterModel } from "./lib/is-router-model";
 export * from "./lib/model-cache";
@@ -45,6 +46,7 @@ export { baseURLWithDefault } from "./lib/providers/base-url-with-default";
 export { fetchCredits } from "./lib/providers/fetch-credits";
 export {
   planRefusalIn,
+  platformRefusalCode,
   readPlatformRefusal,
 } from "./lib/read-platform-refusal";
 export {

@@ -30,7 +30,7 @@ describe("readModelStatus and noticeFor", () => {
           "status": "ready",
         },
         "another computer's connection, only another kind here": {
-          "notice": "[problem] Anthropic isn't connected anymore, so Claude Haiku 4.5 isn't available → Switch to openrouter-key",
+          "notice": "[problem] Anthropic isn't connected anymore, so Claude Haiku 4.5 isn't available → Switch to OpenRouter",
           "status": "gone",
         },
         "fine": {
@@ -59,15 +59,15 @@ describe("readModelStatus and noticeFor", () => {
           "status": "no-models",
         },
         "provider removed, same model elsewhere": {
-          "notice": "[problem] Anthropic isn't connected anymore, so Claude Haiku 4.5 isn't available → Switch to openrouter-key",
+          "notice": "[problem] Anthropic isn't connected anymore, so Claude Haiku 4.5 isn't available → Switch to OpenRouter",
           "status": "gone",
         },
         "provider removed, same model through OpenRouter and Instrument": {
-          "notice": "[problem] Claude Haiku 4.5 isn't available anymore → Switch to instrument",
+          "notice": "[problem] Claude Haiku 4.5 isn't available anymore → Switch to Instrument",
           "status": "gone",
         },
         "provider turned off, same model elsewhere": {
-          "notice": "[problem] Anthropic is turned off, so Claude Haiku 4.5 isn't available → Switch to openrouter-key",
+          "notice": "[problem] Anthropic is turned off, so Claude Haiku 4.5 isn't available → Switch to OpenRouter",
           "status": "gone",
         },
         "restricted, with Auto to fall back on": {
@@ -79,11 +79,11 @@ describe("readModelStatus and noticeFor", () => {
           "status": "list-failed",
         },
         "withdrawn, its series continues": {
-          "notice": "[problem] anthropic-key doesn't offer Claude Sonnet 4.5 anymore → Switch to Claude Sonnet 5.5",
+          "notice": "[problem] Anthropic doesn't offer Claude Sonnet 4.5 anymore → Switch to Claude Sonnet 5.5",
           "status": "gone",
         },
         "withdrawn, nothing continues it": {
-          "notice": "[problem] anthropic-key doesn't offer Mystery Model anymore → Switch to Auto",
+          "notice": "[problem] Anthropic doesn't offer Mystery Model anymore → Switch to Auto",
           "status": "gone",
         },
       }

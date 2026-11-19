@@ -23,20 +23,16 @@ import {
   type ReactNode,
 } from "react";
 
-import {
-  codeBlockLines,
-  highlightedLineSpans,
-  plainLineSpan,
-} from "@/shared/syntax-highlight";
+import { type LoadStage } from "@/client/lib/load-stage";
 
-import { useSyntaxHighlighting } from "../../hooks/use-syntax-highlighting";
 import { PageFavicon } from "../favicon";
+import { LoadProgress } from "../window/load-progress";
 import { ImageWaitBloom } from "../message-part/image-wait-bloom";
 import { Markdown } from "../markdown";
 import { Prose } from "../prose";
 import { BorderSweep } from "../shimmer-sweep";
 import { useTheme } from "../theme-provider";
-import { type ColoredLines, streamedCode } from "./streamed-code";
+import { LivePage } from "./live-page";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 import { useDrivenPage, useTranscriptHostPaths } from "./transcript-data";
 
@@ -75,47 +71,53 @@ export function WorkCardView({
     places,
   });
   // A picture of work moving under the pointer, so nothing in it answers a
-  // press. Its caption is one line from the first paint on, so the card never
-  // grows under the rows below it.
+  // press. Every kind has the same box and the same one-line footer from the
+  // first paint on, so the card never grows under the rows below it.
   return (
     <div
-      className="flex w-full max-w-115 flex-col gap-1.5"
+      className="relative w-full max-w-115 rounded-2xl"
       data-work-card={card.kind}
     >
-      <div className="relative h-52 overflow-hidden rounded-xl bg-muted/50 ring-1 ring-border">
-        {viewOf(face, {
-          PagePicture: surface?.PagePicture,
-          sessionId,
-        })}
-        {isCurrent && <BorderSweep />}
-      </div>
-      <div className="flex h-4 items-center gap-1.5 px-0.5 text-xs text-muted-foreground">
-        <span className="flex size-3.5 shrink-0 items-center justify-center">
-          {face.view === "page/picture" ? (
-            // The page's own icon, as its tab shows it.
-            <PageFavicon
-              className="size-3.5"
-              favicon={drivenPage?.favicon}
-              hasTooltip={false}
-              url={face.url}
-            />
-          ) : (
-            MARKS[card.kind]
-          )}
-        </span>
-        <span className="min-w-0 truncate">{face.title}</span>
-        {face.meta && (
-          <span className="shrink-0 text-muted-foreground/70 tabular-nums">
-            · {face.meta}
+      <div className="block w-full overflow-hidden rounded-2xl border border-border bg-card text-left">
+        <div className="relative h-52 overflow-hidden bg-muted/50">
+          {viewOf(face, {
+            drivenPage,
+            PagePicture: surface?.PagePicture,
+            sessionId,
+          })}
+        </div>
+        <div className="flex h-8 items-center gap-1.5 border-t border-border px-2.5 text-xs">
+          <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+            {face.view === "page/picture" ? (
+              // The page's own icon, as its tab shows it.
+              <PageFavicon
+                className="size-3.5"
+                favicon={drivenPage?.favicon}
+                hasTooltip={false}
+                url={face.url}
+              />
+            ) : (
+              MARKS[card.kind]
+            )}
           </span>
-        )}
+          <span className="min-w-0 truncate text-foreground/80">
+            {face.title}
+          </span>
+          {face.meta && (
+            <span className="ml-auto shrink-0 pl-2 text-muted-foreground tabular-nums">
+              {face.meta}
+            </span>
+          )}
+        </div>
       </div>
+      {isCurrent && <BorderSweep />}
     </div>
   );
 }
 
 /** What a view has besides its face. */
 interface ViewContext {
+  drivenPage: ReturnType<typeof useDrivenPage>;
   PagePicture: TranscriptSurface["PagePicture"] | undefined;
   sessionId: StoreId.Session;
 }
@@ -139,6 +141,15 @@ const VIEWS: {
       </span>
     </div>
   ),
+  "files/page": (face) => (
+    <LivePage
+      isWriting={face.isWriting}
+      path={face.path}
+      place={face.place}
+      source={face.source}
+      version={face.version}
+    />
+  ),
   "files/picture": (face) => <PictureRow newest={face.picture} strip={[]} />,
   "files/words": (face) => (
     <TypedWords isWriting={false} path={face.path} words={face.words} />
@@ -156,9 +167,37 @@ const VIEWS: {
   "images/pictures": (face) => (
     <PictureRow newest={face.newest} strip={face.strip} />
   ),
-  "page/picture": (_face, { PagePicture, sessionId }) =>
-    PagePicture ? <PagePicture sessionId={sessionId} /> : null,
+  "page/picture": (face, { drivenPage, PagePicture, sessionId }) => (
+    <PageView
+      // Until the page can be read, a call still going is bringing it up.
+      loadStage={drivenPage?.loadStage ?? (face.isGoing ? "waiting" : "idle")}
+    >
+      {PagePicture && <PagePicture sessionId={sessionId} />}
+    </PageView>
+  ),
 };
+
+/**
+ * A page on a blank ground until its picture comes, with the tab row's load
+ * line along the foot of the picture, over the footer's top edge, while a
+ * navigation is going.
+ */
+function PageView({
+  children,
+  loadStage,
+}: {
+  children: ReactNode;
+  loadStage: LoadStage;
+}) {
+  return (
+    <>
+      <div className="absolute inset-0 overflow-hidden bg-card">{children}</div>
+      <div className="absolute inset-x-0 bottom-0 h-0.5">
+        <LoadProgress stage={loadStage} />
+      </div>
+    </>
+  );
+}
 
 /** A face drawn by its view. */
 function viewOf<V extends WorkCardView>(
@@ -170,7 +209,7 @@ function viewOf<V extends WorkCardView>(
 
 /**
  * A file's words as they arrive, kept at the end while they do: Markdown as it
- * reads, code in its colors, anything else as typed.
+ * reads, anything else as typed.
  */
 function TypedWords({
   isWriting,
@@ -200,7 +239,7 @@ function TypedWords({
           <Markdown hideImages isStreaming={isWriting} markdown={words} />
         </Prose>
       ) : (
-        <FileWords isWriting={isWriting} path={path} text={words} />
+        <div className="whitespace-pre-wrap">{words}</div>
       )}
     </div>
   );
@@ -208,67 +247,6 @@ function TypedWords({
 
 const extensionOf = (path: string) =>
   /\.([^./\\]+)$/.exec(path)?.[1]?.toLowerCase();
-
-/**
- * Some of a file's words as its source reads: code in monospace and its
- * grammar's colors, and anything else, Markdown included, as typed. Words
- * still arriving keep the colors they were shown in (`streamedCode`).
- */
-function FileWords({
-  className,
-  isWriting = false,
-  path,
-  text,
-}: {
-  className?: string;
-  isWriting?: boolean;
-  path: string;
-  text: string;
-}) {
-  const extension = extensionOf(path);
-  const language = MARKDOWN_EXTENSIONS.has(extension ?? "")
-    ? undefined
-    : extension;
-  const { grammar, highlightedHtml, isLanguageSupported } =
-    useSyntaxHighlighting({
-      code: language === undefined || isWriting ? undefined : text,
-      language,
-    });
-  const [colored, setColored] = useState<ColoredLines>();
-  const streamed =
-    isWriting && grammar
-      ? streamedCode(colored, text, {
-          highlight: (code) => highlightedLineSpans(code, grammar),
-          plain: plainLineSpan,
-        })
-      : undefined;
-  if (streamed && streamed.colored !== colored) {
-    setColored(streamed.colored);
-  }
-  const html =
-    streamed && grammar
-      ? codeBlockLines(streamed.spans, grammar)
-      : highlightedHtml;
-  return html ? (
-    <div
-      className={cn(
-        "font-mono [&_pre]:break-words [&_pre]:whitespace-pre-wrap",
-        className,
-      )}
-      dangerouslySetInnerHTML={{ __html: html.join("\n") }}
-    />
-  ) : (
-    <div
-      className={cn(
-        "whitespace-pre-wrap",
-        isLanguageSupported && "font-mono",
-        className,
-      )}
-    >
-      {text}
-    </div>
-  );
-}
 
 function Waiting({ children }: { children: string }) {
   return (
@@ -290,6 +268,14 @@ function PictureRow({
   newest: WorkCardPicture;
   strip: readonly WorkCardPicture[];
 }) {
+  // Keyed by the file and how many times it came before, so a picture keeps
+  // its place in the strip as newer ones push it along.
+  const seen = new Map<string, number>();
+  const stripKeys = strip.map(({ place }) => {
+    const count = seen.get(place) ?? 0;
+    seen.set(place, count + 1);
+    return `${place}#${count.toString()}`;
+  });
   return (
     <div className="flex h-full flex-col items-center gap-2 p-2.5">
       <div className="flex min-h-0 w-full flex-1 items-center justify-center">
@@ -308,7 +294,7 @@ function PictureRow({
                   ? "ring-2 ring-brand-500"
                   : "opacity-80 ring-1 ring-foreground/10",
               )}
-              key={`${index.toString()}:${picture.place}`}
+              key={stripKeys[index]}
               picture={picture}
             />
           ))}
@@ -320,9 +306,9 @@ function PictureRow({
 
 /**
  * A file drawn small by the system: a picture, a page, a document's first page.
- * Nothing shows until the picture has loaded, and a new version takes the old
- * one's place only once it has, so the card never shows a picture loading or
- * one that failed.
+ * Nothing shows until the picture has loaded, then it fades in, and a new
+ * version takes the old one's place only once it has, so the card never shows
+ * a picture loading or one that failed.
  */
 function FilePicture({
   className,
@@ -357,6 +343,14 @@ function FilePicture({
   }, [place, src]);
   // Another file's picture never stands in for this one's.
   return shown?.place === place ? (
-    <img alt="" className={className} draggable={false} src={shown.src} />
+    <img
+      alt=""
+      className={cn(
+        "animate-in duration-300 ease-out fade-in-0 motion-reduce:animate-none",
+        className,
+      )}
+      draggable={false}
+      src={shown.src}
+    />
   ) : null;
 }

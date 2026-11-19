@@ -758,7 +758,7 @@ function ScreenRoute({
         id,
         isShown: true,
         showPage: noop,
-        showsVersions: false,
+        versionsOf: undefined,
       }}
     >
       <WindowContext

@@ -1,4 +1,4 @@
-import { type StepShows } from "./transcript-message";
+import { type StepShows, writtenFileShows } from "./transcript-message";
 import { type ActivityRow, type Turn, type TurnStep } from "./turns-of";
 
 /** The kinds of card. */
@@ -34,11 +34,18 @@ const KIND_OF: Record<StepShows["kind"], WorkCardKind> = {
  * 3. A file card is one file: each file a call names replaces the last, and a
  *    shell call that changed several shows none, since no one of them is what
  *    it made.
+ * 4. A file written whole shows once there is something to see
+ *    (`writeShows`), so a card that comes for it opens on the file as it
+ *    looks rather than on its source going by.
  */
 export function cardsOf({ steps }: Pick<ActivityRow, "steps">): WorkCard[] {
   const cards: WorkCard[] = [];
   for (const [index, step] of steps.entries()) {
-    if (step.status === "failed" || !hasStarted(step, steps.slice(0, index))) {
+    if (
+      step.status === "failed" ||
+      !hasStarted(step, steps.slice(0, index)) ||
+      !writeShows(step)
+    ) {
       continue;
     }
     const changed = (step.facts?.files ?? []).flatMap((file) =>
@@ -66,8 +73,16 @@ export function cardsOf({ steps }: Pick<ActivityRow, "steps">): WorkCard[] {
   return cards;
 }
 
-/** Whether a call has started, of the calls before it in its activity. */
+/**
+ * Whether a call has started, of the calls before it in its activity. A page
+ * being written whole has from its first words: a card draws it as they
+ * arrive, whatever waits ahead of it in its message, and keeps it up while it
+ * waits its turn to be saved.
+ */
 function hasStarted(step: TurnStep, before: readonly TurnStep[]): boolean {
+  if (step.shows?.kind === "file" && step.shows.source !== undefined) {
+    return true;
+  }
   if (step.status === "queued") {
     return false;
   }
@@ -79,6 +94,68 @@ function hasStarted(step: TurnStep, before: readonly TurnStep[]): boolean {
         (other.status === "running" || other.status === "queued"),
     )
   );
+}
+
+/**
+ * Whether a call writing a file whole has something to see yet: a page once
+ * its source so far draws enough (`pageDrawsEnough`), a drawing or a table
+ * once written, prose from its first words, and code or data never. Each only
+ * ever turns true while its call goes on, so a card that opens for one stays.
+ * Any other call has, as far as this goes.
+ */
+function writeShows({ shows, status, tool }: TurnStep): boolean {
+  if (tool !== "tool-write_file" || shows?.kind !== "file") {
+    return true;
+  }
+  switch (writtenFileShows(shows.path)) {
+    case "page": {
+      return (
+        status === "done" ||
+        (shows.source !== undefined && pageDrawsEnough(shows.source))
+      );
+    }
+    case "picture": {
+      return status === "done";
+    }
+    case "words": {
+      return true;
+    }
+    case undefined: {
+      return false;
+    }
+  }
+}
+
+/** The text a page arriving draws before it is worth a card, if it has no heading or picture yet. */
+const PAGE_ENOUGH_TEXT = 200;
+
+/**
+ * What of a page's markup draws nothing: a comment, or an element whose
+ * insides are never drawn as text, each to its end or, unfinished, to the end
+ * of the source so far.
+ */
+const UNDRAWN =
+  /<!--[\s\S]*?(?:-->|$)|<(script|style|template|title|noscript)\b[\s\S]*?(?:<\/\1\s*>|$)/gi;
+
+/** A tag, or one still being written at the end of the source so far. */
+const TAG = /<[^>]*(?:>|$)/g;
+
+/**
+ * Whether a page's source so far draws enough to be worth a card: a heading
+ * with words, a picture, or a few lines of text. Read from the source as it
+ * arrives, so it only ever turns true as more comes.
+ */
+export function pageDrawsEnough(source: string): boolean {
+  const drawn = source.replaceAll(UNDRAWN, "");
+  if (/<(?:img|svg|canvas|video)\b[^>]*>/i.test(drawn)) {
+    return true;
+  }
+  const heading = /<h1\b[^>]*>([\s\S]*?)(?:<\/h1\s*>|$)/i.exec(drawn)?.[1];
+  if (heading !== undefined && /\S/.test(heading.replaceAll(TAG, ""))) {
+    return true;
+  }
+  const text = drawn.replaceAll(TAG, " ").replaceAll(/\s+/g, " ").trim();
+  return text.length >= PAGE_ENOUGH_TEXT;
 }
 
 /**

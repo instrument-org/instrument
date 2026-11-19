@@ -3,6 +3,7 @@ import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
 import {
   type AIGatewayEnv,
   type GetProviderConfigs,
+  type HostedLimiter,
   type ModelCache,
   type ModelRoutes,
   type ReportPlatformRefusal,
@@ -406,6 +407,11 @@ export interface WorkspaceConfig {
    * titles of the pages it links to by their bare addresses.
    */
   lookUpSentLinkTitles?: (text: string) => void;
+  /**
+   * Paces the model proxy's requests to our own platform under what it
+   * admits at once and a minute, shared with the app's other hosted calls.
+   */
+  hostedLimiter?: HostedLimiter;
   /** Told about each hosted request our platform refused (no plan, a spent window). */
   reportPlatformRefusal?: ReportPlatformRefusal;
   registryDir: AbsolutePath;

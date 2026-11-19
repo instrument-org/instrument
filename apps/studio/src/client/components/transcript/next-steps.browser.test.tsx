@@ -56,7 +56,7 @@ function Harness({
       >
         arrive
       </button>
-      <MessageScrollerProvider autoScroll={false} defaultScrollPosition="end">
+      <MessageScrollerProvider autoScroll={false}>
         <MessageScroller>
           <MessageScrollerViewport style={{ height: 200 }}>
             <MessageScrollerContent>
@@ -91,6 +91,9 @@ it("leaves a reader who scrolled away where they are", async () => {
   await vi.waitFor(() => {
     expect(distanceFromEnd()).toBe(0);
   });
+  // A reader scrolls with a wheel or a key, which is what tells the scroller
+  // they took over.
+  viewport().dispatchEvent(new WheelEvent("wheel", { deltaY: -100 }));
   viewport().scrollTop = 100;
   await screen.getByRole("button", { name: "arrive" }).click();
   await vi.waitFor(() => {
@@ -125,7 +128,7 @@ function SentHarness() {
       >
         arrive
       </button>
-      <MessageScrollerProvider autoScroll={false} defaultScrollPosition="end">
+      <MessageScrollerProvider autoScroll={false}>
         <MessageScroller>
           <MessageScrollerViewport style={{ height: 400 }}>
             <MessageScrollerContent>

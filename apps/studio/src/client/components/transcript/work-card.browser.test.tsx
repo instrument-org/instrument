@@ -72,7 +72,10 @@ async function renderStep(shown: TurnStep) {
 
 const SESSION = StoreId.newSessionId();
 
-function cardOf(kind: "files" | "generated" | "images", steps: TurnStep[]) {
+function cardOf(
+  kind: "files" | "generated" | "images" | "page",
+  steps: TurnStep[],
+) {
   return (
     <ThemeProvider>
       <TranscriptRecordsContext value={RECORDS}>
@@ -89,7 +92,7 @@ function cardOf(kind: "files" | "generated" | "images", steps: TurnStep[]) {
 }
 
 async function renderSteps(
-  kind: "files" | "generated" | "images",
+  kind: "files" | "generated" | "images" | "page",
   steps: TurnStep[],
 ) {
   return renderInBrowser(cardOf(kind, steps));
@@ -112,23 +115,6 @@ describe("a live card's file as it is written", () => {
     expect(card?.querySelector("[inert] a")).not.toBeNull();
   });
 
-  it("shows code in its colors, with the line still arriving plain", async () => {
-    const screen = await renderCard(
-      "/work/raw.json",
-      '[{"q": ["website"],\n  "count": "two"',
-    );
-    await expect
-      .poll(() =>
-        [...screen.container.querySelectorAll(".code-highlight .line")].map(
-          (line) =>
-            [...line.querySelectorAll(".syntax-string")].map(
-              (string) => string.textContent,
-            ),
-        ),
-      )
-      .toEqual([['"website"'], []]);
-  });
-
   it("is a picture with nothing to press, its caption one line however long its name", async () => {
     const screen = await renderStep(
       step(
@@ -141,16 +127,39 @@ describe("a live card's file as it is written", () => {
     expect(card?.closest("button, a, [role=button]")).toBeNull();
     expect(card?.querySelector("button, a, [role=button]")).toBeNull();
     await expect.element(screen.getByText(/long name/).first()).toBeVisible();
-    // The 208px picture, the gap, and one 16px line of caption.
-    expect(card?.offsetHeight).toBe(230);
+    // The 208px picture, the 32px footer, and the border around both.
+    expect(card?.offsetHeight).toBe(242);
   });
+
+  it.each([
+    ["a file being written", "files", writing("/work/notes.md", "# Notes")],
+    [
+      "a page",
+      "page",
+      step(
+        { changesPage: true, kind: "page", url: "https://example.com/" },
+        "running",
+      ),
+    ],
+    ["an image", "images", step({ kind: "image", path: TALL }, "done")],
+  ] as const)(
+    "stands as tall for %s, its footer inside the border",
+    async (_name, kind, shown) => {
+      const screen = await renderSteps(kind, [shown]);
+      const card =
+        screen.container.querySelector<HTMLElement>("[data-work-card]");
+      expect(card?.offsetHeight).toBe(242);
+      const footer = card?.querySelector(".border-t");
+      expect(footer?.closest(".border")).not.toBeNull();
+    },
+  );
 
   it("shows a file with no grammar as typed", async () => {
     const screen = await renderCard("/work/notes.txt", "**not bold**");
     await expect.element(screen.getByText("**not bold**")).toBeVisible();
   });
 
-  it("shows a finished page as its picture", async () => {
+  it("shows a finished page as the page, never its source", async () => {
     const screen = await renderStep(
       step(
         {
@@ -163,7 +172,7 @@ describe("a live card's file as it is written", () => {
       ),
     );
     const card = screen.container.querySelector("[data-work-card]");
-    await expect.poll(() => card?.querySelector("img")).not.toBeNull();
+    await expect.poll(() => card?.querySelector("iframe")).not.toBeNull();
     expect(card?.textContent).not.toContain("Roasted");
   });
 });

@@ -41,7 +41,9 @@ function WorkingDots() {
  * only the task's last stretch is ever live. Two lines, tinted while it
  * works and flat once it has finished, the sites and apps it reached after its
  * first line, the task's own Stop on hover, and while it works the task's own live
- * card, since a chat's visual work is mostly its tasks'. It never folds.
+ * card, since a chat's visual work is mostly its tasks', as long as nothing
+ * comes after it in the chat: a card growing above words already there would
+ * move them. It never folds.
  *
  * It comes up as the call that starts the task arrives, before the task
  * exists, as a card that is starting, and the same card carries on once the
@@ -51,11 +53,14 @@ export function TaskCardRow({
   from,
   name,
   sessionId,
+  showsWork = true,
   startedAt,
 }: {
   from?: StoreId.Message;
   name?: string;
   sessionId?: StoreId.Session;
+  /** Whether its live card may show: only while nothing comes after it. */
+  showsWork?: boolean;
   startedAt: Date;
 }) {
   return sessionId === undefined ? (
@@ -64,6 +69,7 @@ export function TaskCardRow({
     <LiveTaskCard
       {...(from && { from })}
       sessionId={sessionId}
+      showsWork={showsWork}
       startedAt={startedAt}
     />
   );
@@ -92,10 +98,12 @@ function StartingTaskCard({
 function LiveTaskCard({
   from,
   sessionId,
+  showsWork,
   startedAt,
 }: {
   from?: StoreId.Message;
   sessionId: StoreId.Session;
+  showsWork: boolean;
   startedAt: Date;
 }) {
   const surface = use(TranscriptSurfaceContext);
@@ -106,7 +114,7 @@ function LiveTaskCard({
   const turn = isWorking
     ? turnsOf(messages, { isRunning: true, sessionId }).at(-1)
     : undefined;
-  const card = turn && workCardOf(turn);
+  const card = showsWork && turn ? workCardOf(turn) : undefined;
   const cardOpens = useCardOpens(card !== undefined);
   const title = facts?.title ?? "Task";
   const firstLine = isWorking

@@ -132,3 +132,25 @@ new RuleTester({
     `import { readFile } from "node:fs/promises"; await readFile(file);`,
   ],
 });
+
+const stageRule = plugin.rules["stage-reader-opts-out"];
+if (!stageRule) {
+  throw new Error("The plugin has no studio/stage-reader-opts-out rule");
+}
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "tsx" } },
+}).run("stage-reader-opts-out", stageRule, {
+  invalid: [
+    `function useHeld() { const stage = useStage(); return stage.now(); }`,
+    `const useHeld = () => { const stage = useStage(); return stage.now(); };`,
+    // The directive belongs to the function that takes the stage.
+    `function Row() { "use no memo"; const read = () => useStage(); return read; }`,
+    `function useHeld() { const stage = useStage(); "use no memo"; return stage; }`,
+  ].map((code) => ({ code, errors: [{ messageId: "stageReader" }] })),
+  valid: [
+    `function useHeld() { "use no memo"; const stage = useStage(); return stage.now(); }`,
+    `const useHeld = function () { "use no memo"; return useStage().now(); };`,
+    `function useOther() { const stage = useStageName(); return stage; }`,
+  ],
+});

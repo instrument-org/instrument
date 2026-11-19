@@ -142,6 +142,11 @@ export function restoredFileModelNote(
   if (data.kind !== "restored" || file === undefined) {
     return undefined;
   }
+  if (file.from !== undefined && file.number !== undefined) {
+    return systemNote`
+      The user restored ${shellPath(file.hostPath)} to v${String(file.from)}. That is the file now, v${String(file.number)}${file.copy === undefined ? "" : `, kept at ${shellPath(file.copy)}`}.
+    `;
+  }
   return systemNote`
     The user restored ${shellPath(file.hostPath)} to an earlier version${file.copy === undefined ? "" : `, the one kept at ${shellPath(file.copy)}`}. That is the file now.
   `;

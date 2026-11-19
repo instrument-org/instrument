@@ -21,7 +21,11 @@ import {
   memo,
   type ReactNode,
   use,
+  useCallback,
+  useEffect,
+  useRef,
   useState,
+  useSyncExternalStore,
 } from "react";
 
 import { AssistantMessage } from "../assistant-message";
@@ -37,7 +41,7 @@ import { RatingCard } from "../message-part/rating-card";
 import { ToolCallBody } from "../message-part/tool-call";
 import { SentFolderChips } from "../sent-folder-chips";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
-import { MessageScrollerItem } from "../ui/message-scroller";
+import { MessageScrollerItem, ScrollPin } from "../ui/message-scroller";
 import { MessageBubble, UserMessage } from "../user-message";
 import { SentChips } from "../window/context-chip";
 import {
@@ -58,6 +62,7 @@ import {
 import { BranchedFromLine } from "./branched-from-line";
 import { FoldsOpenedByFind } from "./folds-opened-by-find";
 import { NextStepRows, useHasNextSteps } from "./next-steps";
+import { useStage } from "./stage/stage-context";
 import { renderDataPart } from "./note-part";
 import { PageTakeoverNote } from "./page-takeover-note";
 import { WorkCardView } from "./work-card";
@@ -72,18 +77,54 @@ import { useWorkingFloor } from "./use-working-floor";
 const THINKING_AFTER_MS = 1000;
 
 /**
- * A row that closes as the fold takes it, told by `AnimatePresence`'s `custom`.
- * A row leaving for any other reason just goes, or what is under it would slide
- * up for no reason the reader can see.
+ * A row that opens into place when it comes after the turn is on screen, so
+ * what is under it (the live card above all) slides down rather than jumping
+ * a row, and closes as the fold takes it, told by `AnimatePresence`'s
+ * `custom`. A row leaving for any other reason just goes, or what is under it
+ * would slide up for no reason the reader can see.
+ *
+ * While it opens, the gap above it comes in with it, and its words are moved
+ * back by as much on the same curve, so they open where they will stay rather
+ * than sliding down the gap's height.
  */
-function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
+function FoldingRow({
+  children,
+  id,
+  isPinned = false,
+  opens,
+}: {
+  children: ReactNode;
+  id: string;
+  /** Kept still on screen while rows above it fold (`usePinnedRow`). */
+  isPinned?: boolean;
+  /** Whether it opens from nothing when it comes, read when it mounts. */
+  opens: boolean;
+}) {
   const isReduced = useReducedMotion();
+  const transition = isReduced ? { duration: 0 } : FOLD_TRANSITION;
+  const ref = useRef<HTMLDivElement>(null);
   return (
     <motion.div
-      className="flex min-w-0 flex-col gap-2 empty:hidden"
+      animate="open"
+      ref={ref}
+      className="flex min-w-0 flex-col has-[>:empty]:hidden"
       data-transcript-row={id}
       exit="leaving"
+      initial={opens ? "closed" : false}
       variants={{
+        closed: {
+          height: 0,
+          marginTop: -ROW_GAP,
+          opacity: 0,
+          overflow: "hidden",
+        },
+        open: {
+          height: "auto",
+          marginTop: 0,
+          opacity: 1,
+          transition,
+          transitionEnd: { overflow: "visible" },
+        },
         leaving: (isFolding: boolean) =>
           isFolding
             ? {
@@ -91,12 +132,21 @@ function FoldingRow({ children, id }: { children: ReactNode; id: string }) {
                 marginTop: -ROW_GAP,
                 opacity: 0,
                 overflow: "hidden",
-                transition: isReduced ? { duration: 0 } : FOLD_TRANSITION,
+                transition,
               }
             : { opacity: 0, transition: { duration: 0 } },
       }}
     >
-      {children}
+      <motion.div
+        className="flex min-w-0 flex-col gap-2"
+        variants={{
+          closed: { y: ROW_GAP },
+          open: { transition, y: 0 },
+        }}
+      >
+        {children}
+      </motion.div>
+      <ScrollPin hold={isPinned} target={ref} />
     </motion.div>
   );
 }
@@ -186,7 +236,7 @@ function OpenerView({
           className="flex w-full flex-wrap justify-end gap-1.5"
           data-slot="sent-with-message"
         >
-          <SentChips chips={chips} />
+          <SentChips chatId={chatId} chips={chips} />
           <SentFolderChips folders={folders} />
           <SentFileChips chatId={chatId} files={files} />
         </div>
@@ -272,15 +322,23 @@ function TurnBody({
   const { onBranch } = use(TranscriptActionsContext);
   // A branch carries the conversation through the reply's last message.
   const branchesAt = turn.inherited ? undefined : replyEnd?.replies.at(-1)?.id;
-  const card = isFolded || !hasCard ? undefined : workCardOf(turn);
-  const cardOpens = useCardOpens(card !== undefined);
   // The card sits under the work it shows, whose working line it goes with,
   // and only while that work is the last thing in the turn: words after it
-  // end it (`workCardOf`).
-  const cardAt = turn.rows.findLastIndex((row) => row.kind === "activity");
-  // The row a reply is held at: a note under the reply leaves it the reply.
-  const replyTailAt = turn.rows.findLastIndex((row) => row.kind !== "note");
-  const rows = turn.rows.flatMap((row, index) => {
+  // end it (`workCardOf`). While the next activity is held back, the card
+  // stays under the last one showing, and moves down as the next opens; held
+  // behind words still coming out, it waits to open with its own row.
+  const heldFrom = useHeldFrom(turn, isFolded);
+  const isHolding = heldFrom !== Number.POSITIVE_INFINITY;
+  const shown = turn.rows.slice(0, heldFrom);
+  const cardAt = shown.findLastIndex((row) => row.kind === "activity");
+  const isUnderWords = shown
+    .slice(cardAt + 1)
+    .some((row) => row.kind === "text");
+  const card =
+    isFolded || !hasCard || isUnderWords ? undefined : workCardOf(turn);
+  const cardOpens = useCardOpens(card !== undefined);
+  const pinnedRow = usePinnedRow(turn, isFolded);
+  const rows = shown.flatMap((row, index) => {
     const out = [];
     if (isFolded && row.id === turn.foldLineAt) {
       out.push(
@@ -302,13 +360,18 @@ function TurnBody({
           ? turn.live
           : undefined;
       out.push(
-        <FoldingRow id={row.id} key={row.id}>
+        // Words open in place as they come out, so only the other rows open.
+        <FoldingRow
+          id={row.id}
+          isPinned={row.id === pinnedRow}
+          key={row.id}
+          opens={row.kind !== "text"}
+        >
           <RowView
             chatId={chatId}
             isLive={live !== undefined}
             isLast={isLast}
             isNewest={isLast && index === turn.rows.length - 1}
-            isReplyTail={isLast && index === replyTailAt}
             row={row}
             thought={live?.thought}
           />
@@ -342,7 +405,7 @@ function TurnBody({
           Read after this step
         </p>
       )}
-      {turn.live?.kind === "thinking" && !waitsForStep && (
+      {turn.live?.kind === "thinking" && !waitsForStep && !isHolding && (
         <ThinkingRow
           since={turn.live.since}
           thought={
@@ -352,10 +415,10 @@ function TurnBody({
           }
         />
       )}
-      {turn.phase !== "working" && (
+      {turn.phase !== "working" && !isHolding && (
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
-      {replyEnd?.hasFooter && (
+      {replyEnd?.hasFooter && !isHolding && (
         <ReplyFoot
           chatId={chatId}
           isLast={isLast}
@@ -367,7 +430,7 @@ function TurnBody({
           }
         />
       )}
-      {replyEnd?.ratingCard && (
+      {replyEnd?.ratingCard && !isHolding && (
         <RatingCard chatId={chatId} part={replyEnd.ratingCard} />
       )}
       {turn.branchedFrom && <BranchedFromLine part={turn.branchedFrom} />}
@@ -414,6 +477,160 @@ function CommandCards({
         }}
       />
     ));
+}
+
+/**
+ * Where the turn's rows stop for now, so nothing on screen moves because
+ * something above it is still changing: after the first reply whose words are
+ * still coming out, so a step, a card or Thinking never shows under words
+ * still being written; and after a step that has just finished, while its
+ * working line folds away, so what comes next opens below it once it is still
+ * rather than sliding up behind it. The rest show once their row is done,
+ * which the stage keeps a fraction of a second behind the stream. Any turn may
+ * still be writing: a message sent mid-turn or a wake turn makes another turn
+ * the last while the one before finishes its words.
+ *
+ * Replies held back are pointed at their text as it grows, waiting, so their
+ * words start coming out when they show rather than appearing at once. Once
+ * the turn folds, what the Worked row stands for is never drawn, so it holds
+ * nothing back: a reply waiting there would wait for good.
+ */
+function useHeldFrom(turn: Turn, isFolded: boolean): number {
+  // Reads the stage's clock and points reveals while rendering, which a
+  // memoized render would skip or answer from an earlier time.
+  "use no memo";
+  const stage = useStage();
+  const isReduced = useReducedMotion();
+  const { rows } = turn;
+  const liveId =
+    turn.live?.kind === "activity" ? turn.live.activityId : undefined;
+  const settleKey = `settle:${turn.id}`;
+  const foldMs = isReduced === true ? 0 : FOLD_TRANSITION.duration * 1000;
+  // The step that last stopped working while it was the last row, and when on
+  // the stage's clock: its working line is folding away until `foldMs` later.
+  const [settle, setSettle] = useState<{
+    after: number;
+    count: number;
+    ended?: { at: number; index: number };
+    liveId?: string;
+  }>({ after: -1, count: rows.length, liveId });
+  // What this render reads: a change made here is read at once, since the
+  // render carries on with the old state and a stale one holds the wrong rows.
+  let current = settle;
+  if (settle.liveId !== liveId || settle.count !== rows.length) {
+    let { ended } = settle;
+    if (settle.liveId !== undefined && settle.liveId !== liveId) {
+      const index = rows.findIndex((row) => row.id === settle.liveId);
+      ended =
+        index !== -1 && index === settle.count - 1
+          ? { at: stage.now(), index }
+          : undefined;
+    }
+    // A task's card closes its live work once something comes after it.
+    if (rows.length > settle.count && rows[settle.count - 1]?.kind === "task") {
+      ended = { at: stage.now(), index: settle.count - 1 };
+    }
+    let { after } = settle;
+    // Something new under a step still folding its line waits until it is
+    // still, so it opens below it rather than sliding up behind it.
+    if (ended && rows.length > ended.index + 1) {
+      const left = ended.at + foldMs - stage.now();
+      if (left > 0) {
+        stage.hold(settleKey, left);
+        after = ended.index;
+      }
+      ended = undefined;
+    }
+    current = { after, count: rows.length, ended, liveId };
+    setSettle(current);
+  }
+  const texts = rows.flatMap((row, index) =>
+    row.kind === "text" && !(isFolded && turn.foldedRowIds.has(row.id))
+      ? [
+          {
+            id: row.part.metadata.id,
+            index,
+            isStreaming: row.part.state === "streaming",
+            text: row.part.text,
+          },
+        ]
+      : [],
+  );
+  const ids = [settleKey, ...texts.map((text) => text.id)].join(" ");
+  const subscribe = useCallback(
+    (listener: () => void) => {
+      const leaves = ids
+        .split(" ")
+        .map((id) => stage.subscribeReveal(id, listener));
+      return () => {
+        for (const leave of leaves) {
+          leave();
+        }
+      };
+    },
+    [ids, stage],
+  );
+  const heldFrom = useSyncExternalStore(subscribe, () => {
+    const settling =
+      !isFolded && current.after !== -1 && stage.isHeld(settleKey)
+        ? current.after + 1
+        : Number.POSITIVE_INFINITY;
+    for (const text of texts) {
+      if (text.index >= settling) {
+        break;
+      }
+      // A reply the stage has not seen came whole, and shows whole.
+      const cut = stage.cutOf(text.id);
+      if (cut !== undefined && cut < text.text.length) {
+        return text.index + 1;
+      }
+    }
+    return settling;
+  });
+  for (const text of texts) {
+    if (text.index >= heldFrom) {
+      stage.setTarget(text.id, text.text, text.isStreaming, true);
+    }
+  }
+  return heldFrom;
+}
+
+/** How long after a fold starts its rows have closed, with a few frames to spare. */
+const FOLD_SETTLED_MS = FOLD_TRANSITION.duration * 1000 + 160;
+
+/**
+ * The row the scroller keeps still on screen while the turn folds: the answer,
+ * the first row after the work the fold takes. It is held from the turn's end
+ * until the fold has closed, so what folds above it scrolls away rather than
+ * pulling it up from where it is being read. None for a turn first drawn
+ * already folded, which never folds in front of the reader.
+ */
+function usePinnedRow(turn: Turn, isFolded: boolean): string | undefined {
+  const [hasSeenWork] = useState(!isFolded);
+  const [hasFolded, setHasFolded] = useState(false);
+  useEffect(() => {
+    if (!isFolded) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setHasFolded(true);
+    }, FOLD_SETTLED_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [isFolded]);
+  const { endedAt, foldedRowIds, rows } = turn;
+  if (
+    !hasSeenWork ||
+    hasFolded ||
+    endedAt === undefined ||
+    foldedRowIds.size === 0
+  ) {
+    return undefined;
+  }
+  const lastFolded = rows.findLastIndex((row) => foldedRowIds.has(row.id));
+  return rows.slice(lastFolded + 1).find((row) => !foldedRowIds.has(row.id))
+    ?.id;
 }
 
 /** Whether the turn is folded now, turning so when its wait for a summary runs out. */
@@ -590,7 +807,6 @@ function RowView({
   isLast,
   isLive,
   isNewest = false,
-  isReplyTail = false,
   row,
   thought,
 }: {
@@ -599,8 +815,6 @@ function RowView({
   isLive: boolean;
   /** Nothing comes after it in the chat. */
   isNewest?: boolean;
-  /** The chat's last reply, held at its start while following. */
-  isReplyTail?: boolean;
   row: TurnRow;
   thought?: StepPart;
 }) {
@@ -652,6 +866,7 @@ function RowView({
           {...(row.from && { from: row.from })}
           {...(row.name !== undefined && { name: row.name })}
           {...(row.sessionId && { sessionId: row.sessionId })}
+          showsWork={isNewest}
           startedAt={row.startedAt}
         />
       );
@@ -660,11 +875,7 @@ function RowView({
       return (
         // As tall as the row it replaces, so the transcript does not shrink under
         // a message held at the top when Thinking gives way to a one-line reply.
-        <div
-          className="min-h-7"
-          data-reply-row={row.part.metadata.id}
-          data-reply-tail={isReplyTail || undefined}
-        >
+        <div className="min-h-7" data-reply-row={row.part.metadata.id}>
           <AssistantMessage chatId={chatId} part={row.part} />
         </div>
       );

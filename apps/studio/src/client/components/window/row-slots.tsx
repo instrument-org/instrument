@@ -30,8 +30,9 @@ export function useRowSlots() {
   return {
     rowProps: {
       // No box of its own, so a page's load line inside it is drawn against
-      // the field.
-      fieldEnd: <div className="contents" ref={setField} />,
+      // the field. It takes the field's rounding, so what draws to the
+      // field's edges in it (the load line) is cut by the field's corners.
+      fieldEnd: <div className="contents rounded-[inherit]" ref={setField} />,
       leading: (
         <div
           className="flex shrink-0 items-center empty:hidden"

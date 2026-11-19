@@ -536,6 +536,63 @@ const noSyncContentRead = defineRule({
   },
 });
 
+type FunctionNode = ESTree.ArrowFunctionExpression | ESTree.Function;
+
+const optsOutOfMemo = (fn: FunctionNode) =>
+  fn.body?.type === "BlockStatement" &&
+  fn.body.body.some(
+    (statement) =>
+      statement.type === "ExpressionStatement" &&
+      statement.directive === "use no memo",
+  );
+
+/**
+ * The transcript's stage keeps a clock and the reveals outside React, and a
+ * hook reading either while rendering gets a stale answer from a memoized
+ * render: a cached `stage.now()` once dated a fold long over and slid a reply
+ * up. So a function taking the stage opts out of React Compiler memoizing.
+ */
+const stageReaderOptsOut = defineRule({
+  create(context) {
+    // The functions the visit is inside, innermost last.
+    const functions: FunctionNode[] = [];
+    const enter = (node: FunctionNode) => {
+      functions.push(node);
+    };
+    const exit = () => {
+      functions.pop();
+    };
+    return {
+      ArrowFunctionExpression: enter,
+      "ArrowFunctionExpression:exit": exit,
+      CallExpression(node) {
+        if (
+          node.callee.type !== "Identifier" ||
+          node.callee.name !== "useStage"
+        ) {
+          return;
+        }
+        const fn = functions.at(-1);
+        if (fn && !optsOutOfMemo(fn)) {
+          context.report({ messageId: "stageReader", node });
+        }
+      },
+      FunctionDeclaration: enter,
+      "FunctionDeclaration:exit": exit,
+      FunctionExpression: enter,
+      "FunctionExpression:exit": exit,
+    };
+  },
+  meta: {
+    messages: {
+      stageReader:
+        'A function taking the stage reads its clock or reveals outside React, which a memoized render answers from an earlier time. Open the function with the "use no memo" directive and a line saying what it reads.',
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 export default definePlugin({
   meta: { name: "studio" },
   rules: {
@@ -549,5 +606,6 @@ export default definePlugin({
     "no-sync-content-read": noSyncContentRead,
     "no-transition-colors": noTransitionColors,
     "one-tooltip-provider": oneTooltipProvider,
+    "stage-reader-opts-out": stageReaderOptsOut,
   },
 });

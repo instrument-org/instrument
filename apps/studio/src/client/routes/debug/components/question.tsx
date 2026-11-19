@@ -6,6 +6,9 @@ import { Button } from "@/client/components/ui/button";
 import { type ChooseQuestion } from "@instrument-org/workspace/client";
 import { createFileRoute } from "@tanstack/react-router";
 import { type ComponentProps, useState } from "react";
+import { DebugPageScroller } from "../-page-scroller";
+import { DebugState } from "../-shell";
+import { questionStates } from "../-states/question";
 
 export const Route = createFileRoute("/debug/components/question")({
   component: RouteComponent,
@@ -57,10 +60,12 @@ const SEVERAL: ChooseQuestion[] = [
   },
 ];
 
+type QuestionStateId = (typeof questionStates)[number]["id"];
+
 const variants: {
   description?: string;
+  id: QuestionStateId;
   props: Omit<ComponentProps<typeof QuestionCard>, "onAnswer">;
-  title: string;
 }[] = [
   {
     description: "Between Send and the answer reaching the agent.",
@@ -69,7 +74,7 @@ const variants: {
       sending: { replies: [{ picked: ["Vue"] }] },
       status: "open",
     },
-    title: "Sending",
+    id: "sending",
   },
   {
     props: {
@@ -77,7 +82,7 @@ const variants: {
       questions: ONE,
       status: "closed",
     },
-    title: "Picked a choice",
+    id: "picked",
   },
   {
     props: {
@@ -88,7 +93,7 @@ const variants: {
       questions: ONE,
       status: "closed",
     },
-    title: "Picked a choice, with a note",
+    id: "picked-with-note",
   },
   {
     props: {
@@ -96,7 +101,7 @@ const variants: {
       questions: ONE,
       status: "closed",
     },
-    title: "Answered in their own words",
+    id: "own-words",
   },
   {
     props: {
@@ -107,7 +112,7 @@ const variants: {
       questions: ONE,
       status: "closed",
     },
-    title: "Skipped, with a note",
+    id: "skipped-with-note",
   },
   {
     props: {
@@ -122,13 +127,13 @@ const variants: {
       questions: SEVERAL,
       status: "closed",
     },
-    title: "Several answered",
+    id: "several-answered",
   },
   {
     description:
       "The person wrote in the chat instead, so nothing is left to take an answer.",
     props: { questions: SEVERAL, status: "ended" },
-    title: "Ended without an answer",
+    id: "ended",
   },
 ];
 
@@ -144,11 +149,11 @@ const SEND_DELAY_MS = 1200;
 
 /** An open card answered here rather than by a session, showing what the answer sends. */
 function Playground({
+  id,
   questions,
-  title,
 }: {
+  id: QuestionStateId;
   questions: ChooseQuestion[];
-  title: string;
 }) {
   const [output, setOutput] = useState<ChooseOutput>();
   const [sending, setSending] = useState<ChooseOutput>();
@@ -164,10 +169,10 @@ function Playground({
   };
 
   return (
-    <section className="flex flex-col gap-3">
+    <DebugState className="flex flex-col gap-3" id={id}>
       <div className="flex items-end justify-between gap-2">
         <div>
-          <p className="text-sm font-medium">{title}</p>
+          <p className="text-sm font-medium">{stateLabel(id)}</p>
           <p className="text-xs text-muted-foreground">
             Answer it to see the card send, then close, and the output it sends.
           </p>
@@ -198,35 +203,31 @@ function Playground({
           {JSON.stringify(output, null, 2)}
         </pre>
       )}
-    </section>
+    </DebugState>
   );
+}
+
+function stateLabel(id: QuestionStateId): string {
+  return questionStates.find((state) => state.id === id)?.label ?? id;
 }
 
 function RouteComponent() {
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-8 p-8">
-        <header className="flex flex-col gap-1">
-          <p className="text-sm font-medium text-muted-foreground">
-            Components
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Question card
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            What the agent&rsquo;s <code>choose</code> call draws. The user
-            picks a choice, writes their own answer, or skips each question, can
-            add a note, and sends them all together.
-          </p>
-        </header>
+        <p className="text-sm text-muted-foreground">
+          What the agent&rsquo;s <code>choose</code> call draws. The user picks
+          a choice, writes their own answer, or skips each question, can add a
+          note, and sends them all together.
+        </p>
 
         <div className="flex flex-col gap-10">
-          <Playground questions={ONE} title="One question" />
-          <Playground questions={SEVERAL} title="Several questions" />
+          <Playground id="one-question" questions={ONE} />
+          <Playground id="several-questions" questions={SEVERAL} />
           {variants.map((v) => (
-            <section className="flex flex-col gap-3" key={v.title}>
+            <DebugState className="flex flex-col gap-3" id={v.id} key={v.id}>
               <div>
-                <p className="text-sm font-medium">{v.title}</p>
+                <p className="text-sm font-medium">{stateLabel(v.id)}</p>
                 {v.description && (
                   <p className="text-xs text-muted-foreground">
                     {v.description}
@@ -234,10 +235,10 @@ function RouteComponent() {
                 )}
               </div>
               <QuestionCard {...v.props} onAnswer={noop} />
-            </section>
+            </DebugState>
           ))}
         </div>
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }

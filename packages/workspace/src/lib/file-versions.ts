@@ -6,24 +6,76 @@ import path from "node:path";
 /** The largest file a version is copied for; a bigger one is recorded without a copy. */
 export const MOST_COPIED_BYTES = 10 * 1024 * 1024;
 
-/** The most a folder of versions keeps, its oldest copies going first past it. */
+/** The most a chat's versions keep, its oldest copies going first past it. */
 const MOST_KEPT_BYTES = 200 * 1024 * 1024;
 
-/** One file's contents at a moment: their hash, size, and the copy kept of them. */
+/** One file's contents at a moment: their hash, size, number, and the copy kept of them. */
 export interface KeptVersion {
   copy?: string;
   hash: string;
+  /** Which version of the file it is in the chat, from 1, the oldest. */
+  number: number;
   size: number;
 }
 
 /**
- * Keeps a version of `file` in `folder`, under a folder named for the file and
- * a name made of the moment and `label`: `<folder>/moon.svg/2026-11-15 12.01
- * make it bigger.svg`. Contents already kept reuse that copy, so a file no
- * turn changed, or one put back as it was, costs nothing. The copy is a
- * clone where the disk makes one (APFS), so it takes no room until one side
- * changes. A kept copy is reused only while it still holds those contents.
- * Undefined for anything that is not a file.
+ * Extensions macOS takes a folder for a document by (a package), so a folder
+ * of versions named with one would show in the Finder as a broken document.
+ */
+const PACKAGE_EXTENSIONS = new Set([
+  "action",
+  "app",
+  "appex",
+  "band",
+  "bundle",
+  "component",
+  "doccarchive",
+  "dsym",
+  "fcpbundle",
+  "framework",
+  "imovielibrary",
+  "kext",
+  "key",
+  "logicx",
+  "mdimporter",
+  "mpkg",
+  "musiclibrary",
+  "numbers",
+  "pages",
+  "photoslibrary",
+  "pkg",
+  "playground",
+  "plugin",
+  "prefpane",
+  "qlgenerator",
+  "rtfd",
+  "saver",
+  "scptd",
+  "sparsebundle",
+  "theater",
+  "tvlibrary",
+  "utm",
+  "wdgt",
+  "workflow",
+  "xcodeproj",
+  "xcworkspace",
+  "xpc",
+]);
+
+/**
+ * Keeps a version of `file` in `folder`, numbered in a folder of the file's
+ * own: `<folder>/moon.svg/v3.svg`. Contents the newest version already has
+ * are that version, under its number and reusing its copy, so a file no turn
+ * changed costs nothing; any other contents are the next number, contents an
+ * older version had included, and so is every version kept `fresh` (a
+ * restore). The copy is a clone where the disk makes one (APFS), so it takes
+ * no room until one side changes. Numbers only go up, and one whose file is
+ * already there (its copy edited since, or a keeper at once) is passed
+ * over. Undefined for anything that is not a file.
+ *
+ * The file's folder is the one its versions are already kept in, or else
+ * the first of `<name>`, `<name> 2` and on that no other file's versions
+ * are in. A package's name (`deck.key`) loses its extension there.
  *
  * With `read`, the copy is made from the bytes it returns, so a file the
  * rules holding the agent refuse it, or a symlink leading out of what they
@@ -35,27 +87,39 @@ export interface KeptVersion {
 export async function keepVersion({
   file,
   folder,
+  fresh = false,
   kept = [],
-  label,
-  now = new Date(),
   read,
+  taken = new Set(),
 }: {
   file: string;
   folder: string;
-  /** The versions already kept of this file, any of which a copy may reuse. */
+  /** Whether it is a number of its own even for the contents the newest version has. */
+  fresh?: boolean;
+  /**
+   * The versions already kept of this file, oldest first, each with its copy
+   * where that is on this computer.
+   */
   kept?: readonly KeptVersion[];
-  label: string;
-  now?: Date;
   /** Reads the file through the agent's rules, refusing what they refuse. */
   read?: () => Promise<Uint8Array>;
+  /** The folders in `folder` other files' versions are kept in, by name. */
+  taken?: ReadonlySet<string>;
 }): Promise<KeptVersion | undefined> {
   const stats = await fs.stat(file).catch(() => undefined);
   if (!stats?.isFile()) {
     return undefined;
   }
   const { size } = stats;
+  const newest = kept.at(-1);
+  const most = Math.max(0, ...kept.map((version) => version.number));
   if (size > MOST_COPIED_BYTES) {
-    return { hash: statHash(stats), size };
+    const hash = statHash(stats);
+    return {
+      hash,
+      number: !fresh && newest?.hash === hash ? newest.number : most + 1,
+      size,
+    };
   }
   const bytes = read && (await read().catch(() => undefined));
   if (read && bytes === undefined) {
@@ -64,25 +128,48 @@ export async function keepVersion({
   const hash = bytes
     ? createHash("sha256").update(bytes).digest("hex")
     : await hashOf(file);
-  for (const version of kept.toReversed()) {
-    if (
-      version.hash === hash &&
-      version.copy !== undefined &&
-      // A copy edited since it was kept no longer holds these contents.
-      (await hashOf(version.copy).catch(() => undefined)) === hash
-    ) {
-      return { copy: version.copy, hash, size };
+  const same = !fresh && newest?.hash === hash ? newest.number : undefined;
+  if (same !== undefined) {
+    for (const version of kept.toReversed()) {
+      if (
+        version.number === same &&
+        version.copy !== undefined &&
+        // A copy edited since it was kept no longer holds these contents.
+        (await hashOf(version.copy).catch(() => undefined)) === hash
+      ) {
+        return { copy: version.copy, hash, number: same, size };
+      }
     }
   }
-  const into = path.join(folder, path.basename(file));
-  await fs.mkdir(into, { recursive: true });
-  const copy = await copyUnder(
-    bytes ?? file,
-    into,
-    `${stampOf(now)} ${label}`.trim(),
-    path.extname(file),
-  );
-  return { copy, hash, size };
+  const into = await folderFor({ file, folder, kept, taken });
+  const ext = path.extname(file);
+  // The newest version's number, for a copy of it this computer lacks.
+  if (same !== undefined) {
+    const copy = await copyAs(bytes ?? file, into, same, ext);
+    if (copy !== undefined) {
+      return { copy, hash, number: same, size };
+    }
+  }
+  for (let number = most + 1; ; number++) {
+    const copy = await copyAs(bytes ?? file, into, number, ext);
+    if (copy !== undefined) {
+      return { copy, hash, number, size };
+    }
+  }
+}
+
+/**
+ * The name of the folder a file's versions are kept in: its own, less a
+ * package's extension and the dots and spaces that leaves at its end, which
+ * Windows Explorer can't open a folder by.
+ */
+function versionsFolderName(name: string): string {
+  const ext = path.extname(name);
+  if (!PACKAGE_EXTENSIONS.has(ext.slice(1).toLowerCase())) {
+    return name;
+  }
+  const cut = name.slice(0, -ext.length).replace(/[. ]+$/, "");
+  return cut === "" ? name : cut;
 }
 
 /**
@@ -104,16 +191,22 @@ export async function contentsOf(
 }
 
 /**
- * Removes the oldest copies in `folder` until what it keeps fits `most`
- * bytes, and any folder that leaves empty.
+ * Removes the oldest copies in `folders` until what they keep together fits
+ * `most` bytes, and any folder that leaves empty.
  */
 export async function trimVersions(
-  folder: string,
+  folders: readonly string[],
   most = MOST_KEPT_BYTES,
 ): Promise<void> {
-  const entries = await fs
-    .readdir(folder, { recursive: true, withFileTypes: true })
-    .catch(() => []);
+  const entries = (
+    await Promise.all(
+      folders.map((folder) =>
+        fs
+          .readdir(folder, { recursive: true, withFileTypes: true })
+          .catch(() => []),
+      ),
+    )
+  ).flat();
   const files = await Promise.all(
     entries
       .filter((entry) => entry.isFile())
@@ -134,6 +227,73 @@ export async function trimVersions(
   }
 }
 
+/**
+ * The folder in `folder` a file's versions go in: the one they are already
+ * kept in here, or a new one named for the file that no other file's
+ * versions are in, claimed by making it, so two keepers at once never share
+ * one.
+ */
+async function folderFor({
+  file,
+  folder,
+  kept,
+  taken,
+}: {
+  file: string;
+  folder: string;
+  kept: readonly KeptVersion[];
+  taken: ReadonlySet<string>;
+}): Promise<string> {
+  const own = kept
+    .flatMap(({ copy }) =>
+      copy !== undefined && path.dirname(path.dirname(copy)) === folder
+        ? [path.dirname(copy)]
+        : [],
+    )
+    .at(-1);
+  if (own !== undefined) {
+    await fs.mkdir(own, { recursive: true });
+    return own;
+  }
+  await fs.mkdir(folder, { recursive: true });
+  const name = versionsFolderName(path.basename(file));
+  for (let n = 1; ; n++) {
+    const each = n === 1 ? name : withNumber(name, n);
+    if (taken.has(each)) {
+      continue;
+    }
+    const at = path.join(folder, each);
+    try {
+      await fs.mkdir(at);
+      return at;
+    } catch (error) {
+      if (!isTaken(error)) {
+        throw error;
+      }
+    }
+  }
+}
+
+/** The most bytes a file name may take on the disks the app runs on. */
+const MOST_NAME_BYTES = 255;
+
+/**
+ * `name` with ` <n>` after it, its end cut so the whole fits in a file name:
+ * a name already at the limit would otherwise make a folder no disk takes.
+ */
+function withNumber(name: string, n: number): string {
+  const suffix = ` ${String(n)}`;
+  const room = MOST_NAME_BYTES - Buffer.byteLength(suffix);
+  let kept = "";
+  for (const char of name) {
+    if (Buffer.byteLength(kept + char) > room) {
+      break;
+    }
+    kept += char;
+  }
+  return `${kept}${suffix}`;
+}
+
 /** What a file too big to copy is recorded by: enough to tell that it changed. */
 function statHash(stats: { mtimeMs: number; size: number }): string {
   return `stat:${String(stats.size)}:${String(stats.mtimeMs)}`;
@@ -147,43 +307,34 @@ async function hashOf(file: string): Promise<string> {
   return hash.digest("hex");
 }
 
-/** `2026-11-15 12.01`, in local time, sorting as it reads. */
-function stampOf(now: Date): string {
-  const two = (n: number) => String(n).padStart(2, "0");
-  return `${String(now.getFullYear())}-${two(now.getMonth() + 1)}-${two(now.getDate())} ${two(now.getHours())}.${two(now.getMinutes())}`;
-}
-
 /**
- * Copies `source`, a file or its bytes, to `<folder>/<name><ext>`, or
- * `<name> 2<ext>` and on when that is taken, claiming the name with the copy
- * itself so two keepers at once never land on one.
+ * Copies `source`, a file or its bytes, to `<folder>/v<number><ext>`,
+ * claiming the name with the copy itself; undefined when it is taken.
  */
-async function copyUnder(
+async function copyAs(
   source: string | Uint8Array,
   folder: string,
-  name: string,
+  number: number,
   ext: string,
-): Promise<string> {
-  for (let n = 1; ; n++) {
-    const at = path.join(
-      folder,
-      `${n === 1 ? name : `${name} ${String(n)}`}${ext}`,
-    );
-    try {
-      await (typeof source === "string"
-        ? fs.copyFile(
-            source,
-            at,
-            fs.constants.COPYFILE_FICLONE | fs.constants.COPYFILE_EXCL,
-          )
-        : fs.writeFile(at, source, { flag: "wx" }));
-      return at;
-    } catch (error) {
-      if (
-        !(error instanceof Error && "code" in error && error.code === "EEXIST")
-      ) {
-        throw error;
-      }
+): Promise<string | undefined> {
+  const at = path.join(folder, `v${String(number)}${ext}`);
+  try {
+    await (typeof source === "string"
+      ? fs.copyFile(
+          source,
+          at,
+          fs.constants.COPYFILE_FICLONE | fs.constants.COPYFILE_EXCL,
+        )
+      : fs.writeFile(at, source, { flag: "wx" }));
+    return at;
+  } catch (error) {
+    if (isTaken(error)) {
+      return undefined;
     }
+    throw error;
   }
+}
+
+function isTaken(error: unknown): boolean {
+  return error instanceof Error && "code" in error && error.code === "EEXIST";
 }

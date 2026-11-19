@@ -43,7 +43,7 @@ function Harness({
       </button>
       <div className="relative min-h-0 flex-1" ref={frame}>
         {edge && <TranscriptEdgeOverlay edge={edge} />}
-        <MessageScrollerProvider autoScroll defaultScrollPosition="end">
+        <MessageScrollerProvider autoScroll>
           <MessageScroller className="min-h-0 flex-1">
             <MessageScrollerViewport>
               <MessageScrollerContent className="gap-2 p-4 pb-8">

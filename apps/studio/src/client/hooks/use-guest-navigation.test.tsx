@@ -26,7 +26,6 @@ function fakeGuest(url: string, targetId: BrowserTargetId = FIRST) {
       events.dispatchEvent(new Event(event));
     },
     forward: false,
-    isLoading: () => guest.loading,
     loadStage: () => (guest.loading ? "waiting" : "idle"),
     loading: false,
     on: (event: string, listener: () => void) => {

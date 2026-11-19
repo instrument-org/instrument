@@ -76,6 +76,7 @@ import {
 } from "./computer-page";
 import { asksOwnPlace, type OpenOptions, useWindow } from "./context";
 import { reachablePath } from "./file-tabs";
+import { ShownVersion } from "./file-versions";
 import { useGroupTab } from "./group-tab";
 import { type SettledStep } from "./files-step";
 import { scrollOpenFileOnSpace } from "./scroll-open-file";
@@ -474,8 +475,9 @@ export function FilesScreen({
   // tab's row says which version it is, a chat's pane, and never over a
   // page's file, whose page draws in a guest of its own. Anywhere else the
   // copy takes the file's place, at its own address.
+  const versionsOf = groupTab?.versionsOf;
   const isVersionOver =
-    version !== undefined && groupTab?.showsVersions === true && !isPageFile;
+    version !== undefined && versionsOf !== undefined && !isPageFile;
   const showVersionInPlace = useEffectEvent(() => {
     if (version !== undefined) {
       showFile(version, { replace: true });
@@ -790,7 +792,8 @@ export function FilesScreen({
       : undefined;
   // A copy a chat kept of the file, drawn over the file, which stays open
   // under it, out of reach: Restore shows what it put back there without
-  // opening the file again. The row's actions act on the copy meanwhile.
+  // opening the file again. It is read only, and the version row takes the
+  // place of the row with the file's actions, its own aimed at the copy.
   // It stays out of sight until it has the copy to show, so what was there
   // stays in view until then: the file, or the copy shown before it, which
   // stays under it a while for that.
@@ -812,20 +815,7 @@ export function FilesScreen({
       clearTimeout(timer);
     };
   }, [under]);
-  const versionLayer = (
-    copy: string,
-    {
-      actionsInToolbar,
-      actionsInto,
-      actionsTrail,
-      isUnder,
-    }: {
-      actionsInToolbar: boolean;
-      actionsInto: HTMLElement | null | undefined;
-      actionsTrail: ReactNode;
-      isUnder: boolean;
-    },
-  ) => (
+  const versionLayer = (copy: string, { isUnder }: { isUnder: boolean }) => (
     <div
       className={cn(
         "absolute inset-0 bg-background",
@@ -836,44 +826,27 @@ export function FilesScreen({
       inert={isUnder}
       key={copy}
     >
-      <FileViewer
-        actionsInToolbar={actionsInToolbar}
-        actionsInto={isUnder ? null : actionsInto}
-        actionsLead={actionsLead}
-        actionsTrail={actionsTrail}
-        className={FULL_BLEED}
-        editable
-        file={{
-          filename: segmentsOf(copy).at(-1) ?? copy,
-          hostPath: copy,
-          url: getComputerFileUrl({ hostPath: copy }),
-        }}
-        keyboardHome={!isUnder}
-      />
+      {versionsOf && (
+        <ShownVersion chatId={versionsOf} copy={copy}>
+          <FileViewer
+            actionsInto={null}
+            className={FULL_BLEED}
+            editable={false}
+            file={{
+              filename: segmentsOf(copy).at(-1) ?? copy,
+              hostPath: copy,
+              url: getComputerFileUrl({ hostPath: copy }),
+            }}
+          />
+        </ShownVersion>
+      )}
     </div>
   );
-  const versionOver = (
-    actionsInto: HTMLElement | null | undefined,
-    {
-      actionsInToolbar = false,
-      actionsTrail,
-    }: { actionsInToolbar?: boolean; actionsTrail?: ReactNode } = {},
-  ) =>
+  const versionOver =
     over !== undefined && viewerFile ? (
       <>
-        {under !== undefined &&
-          versionLayer(under, {
-            actionsInToolbar,
-            actionsInto,
-            actionsTrail,
-            isUnder: true,
-          })}
-        {versionLayer(over, {
-          actionsInToolbar,
-          actionsInto,
-          actionsTrail,
-          isUnder: false,
-        })}
+        {under !== undefined && versionLayer(under, { isUnder: true })}
+        {versionLayer(over, { isUnder: false })}
       </>
     ) : null;
 
@@ -1236,14 +1209,7 @@ export function FilesScreen({
                                     />
                                   )}
                                 </div>
-                                {versionOver(
-                                  isPresent ? fileActionsInto : null,
-                                  {
-                                    actionsTrail: isFolderShown
-                                      ? closeButton
-                                      : null,
-                                  },
-                                )}
+                                {versionOver}
                                 {/* A page in Edit keeps its asks in its own dock instead. */}
                                 {!(
                                   hostedTabId !== undefined &&
@@ -1298,7 +1264,7 @@ export function FilesScreen({
                 />
               )}
             </div>
-            {versionOver(ownTabActionsInto, { actionsInToolbar: true })}
+            {versionOver}
           </LinkSurface>
         ) : (
           <ComputerPage

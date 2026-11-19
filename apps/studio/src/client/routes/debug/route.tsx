@@ -1,205 +1,75 @@
 import { InternalLink } from "@/client/components/internal-link";
-import {
-  Collapsible,
-  CollapsibleContent,
-} from "@/client/components/ui/collapsible";
-import {
-  Sidebar,
-  SidebarContent,
-  SidebarGroup,
-  SidebarGroupContent,
-  SidebarGroupLabel,
-  SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
-  SidebarProvider,
-} from "@/client/components/ui/sidebar";
-import { chatListOptions } from "@/client/components/window/chat-list-query";
-import { byLastUserMessage } from "@/client/components/window/chats";
-import { useQuery } from "@tanstack/react-query";
-import {
-  createFileRoute,
-  Outlet,
-  useLocation,
-  useSearch,
-} from "@tanstack/react-router";
+import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
+import { createFileRoute, Outlet, useLocation } from "@tanstack/react-router";
+import { useState } from "react";
+import { z } from "zod";
 
-import { appPages, componentPages } from "./-debug-routes";
-import { scenarios } from "./-transcript/scenarios";
-import { trialSurfaces } from "./-trial-modes";
+import { debugPageAt } from "./-debug-routes";
+import { DebugPagePicker } from "./-page-picker";
+import { DebugSlotsContext } from "./-shell";
+
+const searchSchema = z.object({
+  /** Draws the asked-for state by itself, for a screenshot of only it. */
+  alone: z.boolean().optional(),
+  /** A state's id on the page, which the page scrolls to. */
+  state: z.string().optional(),
+  /** The tab a page with tabs opens on. */
+  tab: z.string().optional(),
+});
 
 export const Route = createFileRoute("/debug")({
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: "Debug" }],
+    meta: [{ title: "Debug pages" }],
   }),
   staticData: { tabIcon: "code" },
+  validateSearch: searchSchema,
 });
 
-/** The real chats the transcript page can replay, most recent first. */
-function ChatsToReplay() {
-  const { chat: active } = useSearch({ strict: false });
-  const { data: chats = [] } = useQuery(chatListOptions());
-  return (
-    <div className="max-h-48 shrink-0 overflow-y-auto border-b pb-1">
-      {byLastUserMessage(chats).map(({ id, title }) => (
-        <SidebarMenuSubItem key={id}>
-          <SidebarMenuSubButton asChild isActive={id === active}>
-            <InternalLink
-              search={{ chat: id }}
-              to="/debug/components/transcript"
-            >
-              <span>{title}</span>
-            </InternalLink>
-          </SidebarMenuSubButton>
-        </SidebarMenuSubItem>
-      ))}
-    </div>
-  );
-}
-
-/** Every debug page behind one sidebar, whichever one is up. */
+/**
+ * Every debug page under one header: the way back to the index, the page's
+ * title as a picker of every page, and what the page adds after it.
+ */
 function RouteComponent() {
   const { pathname } = useLocation();
-  const search = useSearch({ strict: false });
-  const transcriptPage = componentPages.find(
-    (page) => page.id === "transcript",
-  );
-  const defaultScenarioId = scenarios[0]?.id;
-  const activeScenarioId = search.scenario ?? defaultScenarioId;
-  const isTranscriptRoute = pathname === transcriptPage?.to;
-  const isTrialModesRoute = pathname === "/debug/trial-modes";
-  const activeSurfaceId = search.surface ?? trialSurfaces[0].id;
+  const { alone } = Route.useSearch();
+  const page = debugPageAt(pathname);
+  const [trail, setTrail] = useState<HTMLElement | null>(null);
+  const [end, setEnd] = useState<HTMLElement | null>(null);
+  const [aloneLayer, setAloneLayer] = useState<HTMLElement | null>(null);
 
   return (
-    <main className="flex h-full min-h-0 min-w-0 flex-1 overflow-hidden">
-      <SidebarProvider
-        className="min-h-0 w-full flex-1 overflow-hidden"
-        defaultOpen
-      >
-        <Sidebar className="min-h-0 shrink-0" collapsible="none">
-          <SidebarContent className="gap-0">
-            <SidebarGroup>
-              <SidebarGroupLabel>App</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {appPages.map((page) => (
-                    <SidebarMenuItem key={page.id}>
-                      <SidebarMenuButton
-                        asChild
-                        className="h-auto"
-                        isActive={pathname === page.to}
-                      >
-                        <InternalLink to={page.to}>
-                          <span>{page.label}</span>
-                        </InternalLink>
-                      </SidebarMenuButton>
-                      {page.id === "trial-modes" && (
-                        <Collapsible open={isTrialModesRoute}>
-                          <CollapsibleContent>
-                            <SidebarMenuSub>
-                              {trialSurfaces.map((surface) => (
-                                <SidebarMenuSubItem key={surface.id}>
-                                  <SidebarMenuSubButton
-                                    asChild
-                                    className="h-auto py-1 [&>span:last-child]:whitespace-normal"
-                                    isActive={
-                                      isTrialModesRoute &&
-                                      surface.id === activeSurfaceId
-                                    }
-                                  >
-                                    <InternalLink
-                                      search={{
-                                        mode: search.mode,
-                                        surface: surface.id,
-                                      }}
-                                      to="/debug/trial-modes"
-                                    >
-                                      <span>{surface.label}</span>
-                                    </InternalLink>
-                                  </SidebarMenuSubButton>
-                                </SidebarMenuSubItem>
-                              ))}
-                            </SidebarMenuSub>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      )}
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-            <SidebarGroup>
-              <SidebarGroupLabel>Components</SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu>
-                  {componentPages.map((page) => {
-                    const isTranscriptPage = page.id === "transcript";
-                    const pageSearch =
-                      isTranscriptPage && defaultScenarioId
-                        ? { scenario: defaultScenarioId }
-                        : undefined;
-
-                    return (
-                      <SidebarMenuItem key={page.id}>
-                        <SidebarMenuButton
-                          asChild
-                          className="h-auto"
-                          isActive={pathname === page.to}
-                        >
-                          <InternalLink search={pageSearch} to={page.to}>
-                            <span>{page.label}</span>
-                          </InternalLink>
-                        </SidebarMenuButton>
-                        {isTranscriptPage && transcriptPage && (
-                          <Collapsible open={isTranscriptRoute}>
-                            <CollapsibleContent>
-                              <SidebarMenuSub>
-                                <ChatsToReplay />
-                                {scenarios.map((scenario) => (
-                                  <SidebarMenuSubItem key={scenario.id}>
-                                    <SidebarMenuSubButton
-                                      asChild
-                                      // Wrapped rather than truncated. A
-                                      // scenario is picked by reading its name,
-                                      // and the ends are where several of them
-                                      // differ from each other.
-                                      className="h-auto py-1 [&>span:last-child]:whitespace-normal"
-                                      isActive={
-                                        isTranscriptRoute &&
-                                        !search.chat &&
-                                        scenario.id === activeScenarioId
-                                      }
-                                    >
-                                      <InternalLink
-                                        search={{ scenario: scenario.id }}
-                                        to={transcriptPage.to}
-                                      >
-                                        <span>{scenario.name}</span>
-                                      </InternalLink>
-                                    </SidebarMenuSubButton>
-                                  </SidebarMenuSubItem>
-                                ))}
-                              </SidebarMenuSub>
-                            </CollapsibleContent>
-                          </Collapsible>
-                        )}
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          </SidebarContent>
-        </Sidebar>
-        <SidebarInset className="flex min-h-0 flex-1 flex-col overflow-hidden">
+    <DebugSlotsContext value={{ alone: aloneLayer, end, trail }}>
+      <main className="relative flex h-full min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="flex h-12 shrink-0 items-center gap-1 border-b px-3">
+          {page ? (
+            <>
+              <InternalLink
+                className="rounded-md px-1.5 py-1 text-sm text-muted-foreground hover:text-foreground"
+                to="/debug"
+              >
+                Debug pages
+              </InternalLink>
+              <CaretRightIcon className="size-3 text-muted-foreground/60" />
+              <DebugPagePicker current={page} />
+            </>
+          ) : (
+            <span className="px-1.5 text-sm font-medium">Debug pages</span>
+          )}
+          <div className="flex min-w-0 items-center gap-1" ref={setTrail} />
+          <div className="flex-1" />
+          <div className="flex items-center gap-2" ref={setEnd} />
+        </header>
+        <div className="min-h-0 flex-1">
           <Outlet />
-        </SidebarInset>
-      </SidebarProvider>
-    </main>
+        </div>
+        {alone ? (
+          <div
+            className="absolute inset-0 z-20 grid place-items-center overflow-auto bg-background p-8"
+            ref={setAloneLayer}
+          />
+        ) : null}
+      </main>
+    </DebugSlotsContext>
   );
 }

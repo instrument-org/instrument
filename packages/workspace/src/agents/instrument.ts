@@ -11,6 +11,7 @@ import { folderReach } from "../lib/chat/folder-reach";
 import { endOfTurnNote } from "../lib/end-of-turn-checks";
 import { keepTurnFileVersions } from "../lib/chat/turn-file-versions";
 import { beginTurnFileVersions } from "../lib/chat/turn-originals";
+import { keptReader } from "../lib/chat/version-records";
 import { currentEnvironment } from "../lib/environment";
 import { runningModelText } from "../model-text/notes/model-change-model-text";
 import { TypedError } from "../lib/errors";
@@ -213,7 +214,7 @@ export const instrumentAgent = setupAgent({
   onStart: async ({ sessionId, chatId }) => {
     beginSetupChangeTracking({ id: chatId, sessionId });
     beginChatChangeTracking({ id: chatId, sessionId });
-    beginTurnFileVersions(sessionId);
+    beginTurnFileVersions(sessionId, keptReader(chatId));
   },
   // A reply whose links open nothing gets one step more to correct them. A
   // turn that ends keeps a version of each file its reply handed over, before

@@ -114,8 +114,9 @@ export function UndoReplyFiles({
       <button
         className={cn(
           SHARED.messageFooterButton,
-          "flex items-center gap-1 px-1.5 text-xs",
+          "flex items-center gap-1 px-1.5 text-xs whitespace-nowrap",
         )}
+        aria-label="Undo changes"
         onClick={() => {
           setOpen(true);
           void undoable.refetch({ cancelRefetch: false });
@@ -123,7 +124,8 @@ export function UndoReplyFiles({
         type="button"
       >
         <ArrowCounterClockwiseIcon size={MESSAGE_FOOTER_ICON_SIZE} />
-        Undo changes
+        {/* Down to its icon on the narrowest footer row. */}
+        <span className="@max-[20rem]/footer:hidden">Undo changes</span>
       </button>
       <AlertDialog onOpenChange={setOpen} open={open}>
         <AlertDialogContent maxWidth="28rem">

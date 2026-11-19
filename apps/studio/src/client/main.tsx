@@ -13,6 +13,7 @@ import { initNetworkStatusForwarding } from "./lib/network-status-forwarding";
 import { reportClosedRPCPort } from "./lib/report-closed-rpc-port";
 import { initDebugRpcBridge } from "./lib/debug-rpc-bridge";
 import { initStudioDrive } from "./lib/studio-drive";
+import { watchOpenOverlays } from "./lib/window-drag-overlays";
 
 declare global {
   var __studioRoot: Root | undefined;
@@ -22,6 +23,7 @@ initExceptionCapture();
 initBeforeLeaving();
 initDebugRpcBridge();
 initNetworkStatusForwarding();
+watchOpenOverlays();
 
 function start() {
   const rootElement = document.querySelector("#root");

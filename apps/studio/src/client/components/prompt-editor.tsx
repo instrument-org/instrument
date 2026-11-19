@@ -20,6 +20,7 @@ import {
   PopoverContent,
 } from "@/client/components/ui/popover";
 import { useComposerMenuPlacement } from "@/client/hooks/use-composer-menu-placement";
+import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { type AppMention as AppMentionRef } from "@/client/lib/app-mention";
 import {
   type ComposerCommand,
@@ -57,6 +58,24 @@ import { createPortal } from "react-dom";
 
 import { dictationKey, dictationPlugin } from "./prompt-editor-dictation";
 import {
+  linkAtCaret,
+  linkAtPos,
+  linkRect,
+  linkSelectionToPasted,
+  type PromptLink,
+  promptLinksKey,
+  promptLinksPlugin,
+  removeLink,
+  setLinkHref,
+  withCopiedLinks,
+} from "./prompt-editor-links";
+import {
+  continueList,
+  indentListItem,
+  promptListsPlugin,
+  removeListMarker,
+} from "./prompt-editor-lists";
+import {
   dispatchPaste,
   pastedPathsPlugin,
   pathQuoteKeys,
@@ -80,6 +99,7 @@ import {
   slashMenuPlugin,
   type SlashMenuState,
 } from "./slash-menu";
+import { PromptLinkBar } from "./prompt-link-bar";
 
 // `baseKeymap` deliberately leaves history out, so undo/redo only work once the
 // keys are bound alongside the history plugin.
@@ -96,7 +116,18 @@ const editorPlugins = () => [
   pathsPlugin(window.electron.process.platform),
   pastedPathsPlugin(),
   pathQuoteKeys(),
+  promptLinksPlugin(),
+  promptListsPlugin(),
   history(),
+  // A list item's own keys, ahead of the general ones below, each giving way
+  // off a list item: Shift-Enter carries the marker on, Backspace just past
+  // a marker takes it out, and Tab moves the item in or out.
+  keymap({
+    Backspace: removeListMarker,
+    "Shift-Enter": continueList,
+    "Shift-Tab": indentListItem(-1),
+    Tab: indentListItem(1),
+  }),
   keymap({
     Backspace: deleteTokenBackward,
     Delete: deleteTokenForward,
@@ -333,6 +364,23 @@ export function PromptEditor({
   const [{ index: selectedIndex, menu, scroll }, setSlashMenu] =
     useState<SlashMenuState>({ index: 0, menu: null, scroll: false });
   const [chips, setChips] = useState<TokenChip[]>([]);
+  // The link the caret is in while the box has focus, which the link bar acts
+  // on. Kept by value, so a keystroke elsewhere in the line draws nothing new.
+  const [activeLink, setActiveLink] = useState<PromptLink | null>(null);
+  const showLink = (link: PromptLink | null | undefined) => {
+    setActiveLink((current) =>
+      sameLink(current, link ?? null) ? current : (link ?? null),
+    );
+  };
+  const linkBarRef = useRef<HTMLDivElement>(null);
+  // Whether the box has a link in it, which is when the opener below is
+  // mounted: it reaches the window and the app's queries, which a box with no
+  // link to open has no need of.
+  const [hasLinks, setHasLinks] = useState(false);
+  const openerRef = useRef<OpenLink>(null);
+  const openLink: OpenLink = (href, newTab) => {
+    openerRef.current?.(href, newTab);
+  };
   const chipIdRef = useRef(0);
   const [overflowing, setOverflowing] = useState(false);
   const initialPropsRef = useRef({ autoFocus, placeholder });
@@ -403,10 +451,21 @@ export function PromptEditor({
           onChangeEvent(promptTextFromDoc(nextState.doc));
         }
         setSlashMenu(slashMenuOf(nextState));
+        showLink(view.hasFocus() ? linkAtCaret(nextState) : null);
+        setHasLinks(hasLinksIn(nextState));
       },
       handleDOMEvents: {
-        blur: (blurred) => {
+        blur: (blurred, event) => {
           blurred.dispatch(closeSlashMenu(blurred.state));
+          // Into the link bar's own address field, the bar stays up.
+          const to = event.relatedTarget;
+          if (!(to instanceof Node && linkBarRef.current?.contains(to))) {
+            showLink(null);
+          }
+          return false;
+        },
+        focus: (focused) => {
+          showLink(linkAtCaret(focused.state));
           return false;
         },
         paste: (_view, event) => onPasteEvent(event),
@@ -472,6 +531,15 @@ export function PromptEditor({
         }
         return false;
       },
+      handleClick: (clicked, pos, event) => {
+        const link = commandKeyHeld(event) && linkAtPos(clicked.state, pos);
+        if (!link) {
+          return false;
+        }
+        event.preventDefault();
+        openLink(link.href, true);
+        return true;
+      },
       handlePaste: (editorView, event) => {
         const clipboardData = event.clipboardData;
         const text =
@@ -480,7 +548,19 @@ export function PromptEditor({
         if (!text) {
           return false;
         }
-        pasteInto(editorView, text, currentSkills());
+        // An address pasted over selected words links them.
+        const linked = linkSelectionToPasted(editorView.state, text);
+        if (linked) {
+          editorView.dispatch(linked.setMeta("paste", true));
+          return true;
+        }
+        // Words copied from a page or a document keep the links they had.
+        const html = clipboardData?.getData("text/html");
+        pasteInto(
+          editorView,
+          html ? withCopiedLinks(text, html) : text,
+          currentSkills(),
+        );
         return true;
       },
       // A token in the draft is the same token the sent message will show, so
@@ -541,6 +621,7 @@ export function PromptEditor({
       }),
     });
     viewRef.current = view;
+    setHasLinks(hasLinksIn(view.state));
     // Not while the person walks a list with the arrows (`mayTakeKeyboard`).
     if (initialProps.autoFocus && mayTakeKeyboard()) {
       view.focus();
@@ -713,42 +794,97 @@ export function PromptEditor({
     setValue: replaceDocument,
   }));
 
+  const editLink = (transaction: (state: EditorState) => Transaction) => {
+    const view = viewRef.current;
+    if (view) {
+      view.dispatch(transaction(view.state));
+      view.focus();
+    }
+  };
   return (
-    <Popover open={menuOpen}>
-      {/* Fills the column it is placed in rather than carrying a height of its
+    <>
+      {hasLinks && <LinkOpener openerRef={openerRef} />}
+      <Popover open={activeLink !== null && !menuOpen}>
+        <LinkBarAnchor link={activeLink} viewRef={viewRef} />
+        {activeLink && (
+          <PopoverContent
+            align="start"
+            className="w-auto rounded-xl p-0"
+            onCloseAutoFocus={preventDefault}
+            // Escape closes the bar and goes no further, as for the slash menu:
+            // what holds the box takes the next one as its own.
+            onEscapeKeyDown={(event) => {
+              event.stopPropagation();
+              showLink(null);
+            }}
+            onFocusOutside={preventDefault}
+            onInteractOutside={preventDefault}
+            onOpenAutoFocus={preventDefault}
+            side="top"
+            sideOffset={6}
+          >
+            <div ref={linkBarRef}>
+              <PromptLinkBar
+                // A different link gets a fresh bar, never one still editing the last.
+                key={`${activeLink.from}:${activeLink.href}`}
+                link={activeLink}
+                onDone={() => {
+                  const view = viewRef.current;
+                  view?.focus();
+                  showLink(view ? linkAtCaret(view.state) : null);
+                }}
+                onEdit={(href) => {
+                  editLink((state) => setLinkHref(state, activeLink, href));
+                }}
+                onOpen={() => {
+                  openLink(activeLink.href, false);
+                }}
+                onRemove={() => {
+                  editLink((state) => removeLink(state, activeLink));
+                }}
+              />
+            </div>
+          </PopoverContent>
+        )}
+      </Popover>
+      <Popover open={menuOpen}>
+        {/* Fills the column it is placed in rather than carrying a height of its
           own: what there is room for is the composer's question to answer, and
           the scroller below takes whatever that turns out to be. */}
-      <PopoverAnchor asChild>
-        <div className="relative flex min-h-0 flex-1 flex-col" ref={columnRef}>
-          {/* The fade masks the text only: the composer's background sits on
+        <PopoverAnchor asChild>
+          <div
+            className="relative flex min-h-0 flex-1 flex-col"
+            ref={columnRef}
+          >
+            {/* The fade masks the text only: the composer's background sits on
               the container around this, so the faded edge dissolves into it
               whichever theme is on. */}
-          <div
-            className={cn(
-              "min-h-0 flex-1 overflow-y-auto",
-              overflowing && "scroll-fade-y",
-            )}
-            ref={mountRef}
-          />
-          {chips.map((chip) =>
-            createPortal(
-              chip.token.type === "app" ? (
-                <AppMention app={chip.token.app} />
-              ) : (
-                <SkillMentionByName
-                  name={chip.token.name}
-                  // The composer's own controls stay the tab order; a draft
-                  // with several tokens should not put a stop at each one.
-                  tabIndex={-1}
-                />
+            <div
+              className={cn(
+                "min-h-0 flex-1 overflow-y-auto",
+                overflowing && "scroll-fade-y",
+              )}
+              ref={mountRef}
+            />
+            {chips.map((chip) =>
+              createPortal(
+                chip.token.type === "app" ? (
+                  <AppMention app={chip.token.app} />
+                ) : (
+                  <SkillMentionByName
+                    name={chip.token.name}
+                    // The composer's own controls stay the tab order; a draft
+                    // with several tokens should not put a stop at each one.
+                    tabIndex={-1}
+                  />
+                ),
+                chip.target,
+                String(chip.id),
               ),
-              chip.target,
-              String(chip.id),
-            ),
-          )}
-        </div>
-      </PopoverAnchor>
-      {/*
+            )}
+          </div>
+        </PopoverAnchor>
+        {/*
         The caret owns this menu, so the content must never take focus or claim
         the pointer: the editor keeps both, and closing is driven by where the
         caret ends up (`slash-menu.ts`) or by the editor losing focus. Radix is here
@@ -761,80 +897,156 @@ export function PromptEditor({
         the box it hangs off. A row's is that corner less the 4px it sits in by,
         so a highlighted first or last row curves alongside it.
       */}
-      <PopoverContent
-        align="start"
-        alignOffset={alignOffset}
-        avoidCollisions={false}
-        className="overflow-y-auto rounded-[20px] p-1 shadow-float-lg"
-        maxHeight="18rem"
-        onCloseAutoFocus={preventDefault}
-        // The popover's layer takes Escape on the document before the editor
-        // sees it, and marks it handled, so the menu is closed here. It goes
-        // no further: what holds the box (a grown draft window) takes an
-        // Escape from the editor as its own.
-        onEscapeKeyDown={(event) => {
-          event.stopPropagation();
-          dispatchToMenu(closeSlashMenu);
-        }}
-        onFocusOutside={preventDefault}
-        onInteractOutside={preventDefault}
-        onOpenAutoFocus={preventDefault}
-        side={side}
-        sideOffset={sideOffset}
-        style={{ width }}
-      >
-        {entries.map((entry, index) => (
-          <Fragment
-            key={
-              entry.type === "skill"
-                ? `skill:${entry.match.skill.id}`
-                : entry.type === "command"
-                  ? `command:${entry.command.id}`
-                  : entry.type === "app"
-                    ? `app:${entry.app.slug}`
-                    : `action:${entry.action.id}`
-            }
-          >
-            {index === firstAppIndex && firstAppIndex > 0 && (
-              <MenuGroupHeader label="Apps" />
-            )}
-            {index === firstSkillIndex && firstSkillIndex > 0 && (
-              <MenuGroupHeader label="Skills" />
-            )}
-            <MenuEntryButton
-              onHover={() => {
-                dispatchToMenu((state) => hoverSlashMenu(state, index));
-              }}
-              onSelect={() => {
-                selectEntry(entry);
-              }}
-              ref={(element) => {
-                if (index === selectedIndex && scroll) {
-                  element?.scrollIntoView({ block: "nearest" });
-                }
-              }}
-              selected={index === selectedIndex}
+        <PopoverContent
+          align="start"
+          alignOffset={alignOffset}
+          avoidCollisions={false}
+          className="overflow-y-auto rounded-[20px] p-1 shadow-float-lg"
+          maxHeight="18rem"
+          onCloseAutoFocus={preventDefault}
+          // The popover's layer takes Escape on the document before the editor
+          // sees it, and marks it handled, so the menu is closed here. It goes
+          // no further: what holds the box (a grown draft window) takes an
+          // Escape from the editor as its own.
+          onEscapeKeyDown={(event) => {
+            event.stopPropagation();
+            dispatchToMenu(closeSlashMenu);
+          }}
+          onFocusOutside={preventDefault}
+          onInteractOutside={preventDefault}
+          onOpenAutoFocus={preventDefault}
+          side={side}
+          sideOffset={sideOffset}
+          style={{ width }}
+        >
+          {entries.map((entry, index) => (
+            <Fragment
+              key={
+                entry.type === "skill"
+                  ? `skill:${entry.match.skill.id}`
+                  : entry.type === "command"
+                    ? `command:${entry.command.id}`
+                    : entry.type === "app"
+                      ? `app:${entry.app.slug}`
+                      : `action:${entry.action.id}`
+              }
             >
-              {entry.type === "skill" ? (
-                <SkillMenuRow match={entry.match} />
-              ) : entry.type === "command" ? (
-                <CommandMenuRow command={entry.command} name={entry.name} />
-              ) : entry.type === "app" ? (
-                <AppMenuRow app={entry.app} ranges={entry.labelRanges} />
-              ) : (
-                <>
-                  <entry.action.icon className="size-4 shrink-0" />
-                  <FuzzyHighlight
-                    ranges={entry.labelRanges}
-                    text={entry.action.label}
-                  />
-                </>
+              {index === firstAppIndex && firstAppIndex > 0 && (
+                <MenuGroupHeader label="Apps" />
               )}
-            </MenuEntryButton>
-          </Fragment>
-        ))}
-      </PopoverContent>
-    </Popover>
+              {index === firstSkillIndex && firstSkillIndex > 0 && (
+                <MenuGroupHeader label="Skills" />
+              )}
+              <MenuEntryButton
+                onHover={() => {
+                  dispatchToMenu((state) => hoverSlashMenu(state, index));
+                }}
+                onSelect={() => {
+                  selectEntry(entry);
+                }}
+                ref={(element) => {
+                  if (index === selectedIndex && scroll) {
+                    element?.scrollIntoView({ block: "nearest" });
+                  }
+                }}
+                selected={index === selectedIndex}
+              >
+                {entry.type === "skill" ? (
+                  <SkillMenuRow match={entry.match} />
+                ) : entry.type === "command" ? (
+                  <CommandMenuRow command={entry.command} name={entry.name} />
+                ) : entry.type === "app" ? (
+                  <AppMenuRow app={entry.app} ranges={entry.labelRanges} />
+                ) : (
+                  <>
+                    <entry.action.icon className="size-4 shrink-0" />
+                    <FuzzyHighlight
+                      ranges={entry.labelRanges}
+                      text={entry.action.label}
+                    />
+                  </>
+                )}
+              </MenuEntryButton>
+            </Fragment>
+          ))}
+        </PopoverContent>
+      </Popover>
+    </>
+  );
+}
+
+/** Whether two answers to "which link is the caret in" are the same link. */
+/** Opens a link from the box; `newTab` asks for a tab of its own. */
+type OpenLink = (href: string, newTab: boolean) => void;
+
+/**
+ * Hands the editor a way to open its links: a plain open goes where the
+ * surface opens a page, and a Cmd-click asks for a tab of its own, as a link
+ * does anywhere else in the window.
+ */
+function LinkOpener({
+  openerRef,
+}: {
+  openerRef: React.RefObject<OpenLink | null>;
+}) {
+  const gesturesFor = useGesturesFor();
+  useLayoutEffect(() => {
+    openerRef.current = (href, newTab) => {
+      const gestures = gesturesFor({ kind: "page", url: href });
+      (newTab
+        ? (gestures.separate ?? gestures.primary)
+        : gestures.primary
+      )?.run();
+    };
+    return () => {
+      openerRef.current = null;
+    };
+  });
+  return null;
+}
+
+/**
+ * Where the link bar hangs: over the start of the link, read whenever the bar
+ * is placed, so it follows the line as the box scrolls or grows.
+ *
+ * Its own component so the anchor stays one object per link: Radix's popper
+ * sets state whenever it is handed a new one, so a new anchor on every
+ * keystroke leaves React a render owed after each one, and a long enough run
+ * of typing ends in "Maximum update depth exceeded".
+ */
+function LinkBarAnchor({
+  link,
+  viewRef,
+}: {
+  link: PromptLink | null;
+  viewRef: React.RefObject<EditorView | null>;
+}) {
+  const anchor = {
+    getBoundingClientRect: () => {
+      const view = viewRef.current;
+      if (!view || !link || link.from > view.state.doc.content.size) {
+        return new DOMRect();
+      }
+      const { bottom, left, top } = linkRect(view, link);
+      return new DOMRect(left, top, 0, bottom - top);
+    },
+  };
+  return <PopoverAnchor virtualRef={{ current: anchor }} />;
+}
+
+function hasLinksIn(state: EditorState) {
+  return (promptLinksKey.getState(state)?.links.length ?? 0) > 0;
+}
+
+function sameLink(a: PromptLink | null, b: PromptLink | null) {
+  return (
+    a === b ||
+    (a !== null &&
+      b !== null &&
+      a.from === b.from &&
+      a.to === b.to &&
+      a.href === b.href &&
+      a.labeled === b.labeled)
   );
 }
 

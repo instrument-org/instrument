@@ -38,11 +38,14 @@ import { Route as DebugComponentsIndexRouteImport } from './routes/debug/compone
 import { Route as DebugComponentsAlertsRouteImport } from './routes/debug/components/alerts'
 import { Route as DebugComponentsAppIconsRouteImport } from './routes/debug/components/app-icons'
 import { Route as DebugComponentsColorsRouteImport } from './routes/debug/components/colors'
+import { Route as DebugComponentsControlsRouteImport } from './routes/debug/components/controls'
 import { Route as DebugComponentsElevationRouteImport } from './routes/debug/components/elevation'
 import { Route as DebugComponentsErrorCardRouteImport } from './routes/debug/components/error-card'
 import { Route as DebugComponentsFileIconsRouteImport } from './routes/debug/components/file-icons'
 import { Route as DebugComponentsFormElementsRouteImport } from './routes/debug/components/form-elements'
+import { Route as DebugComponentsIconsRouteImport } from './routes/debug/components/icons'
 import { Route as DebugComponentsModelNoticesRouteImport } from './routes/debug/components/model-notices'
+import { Route as DebugComponentsNoticesRouteImport } from './routes/debug/components/notices'
 import { Route as DebugComponentsProviderIconsRouteImport } from './routes/debug/components/provider-icons'
 import { Route as DebugComponentsQuestionRouteImport } from './routes/debug/components/question'
 import { Route as DebugComponentsSpinnerRouteImport } from './routes/debug/components/spinner'
@@ -195,6 +198,11 @@ const DebugComponentsColorsRoute = DebugComponentsColorsRouteImport.update({
   path: '/colors',
   getParentRoute: () => DebugComponentsRoute,
 } as any)
+const DebugComponentsControlsRoute = DebugComponentsControlsRouteImport.update({
+  id: '/controls',
+  path: '/controls',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
 const DebugComponentsElevationRoute =
   DebugComponentsElevationRouteImport.update({
     id: '/elevation',
@@ -219,12 +227,22 @@ const DebugComponentsFormElementsRoute =
     path: '/form-elements',
     getParentRoute: () => DebugComponentsRoute,
   } as any)
+const DebugComponentsIconsRoute = DebugComponentsIconsRouteImport.update({
+  id: '/icons',
+  path: '/icons',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
 const DebugComponentsModelNoticesRoute =
   DebugComponentsModelNoticesRouteImport.update({
     id: '/model-notices',
     path: '/model-notices',
     getParentRoute: () => DebugComponentsRoute,
   } as any)
+const DebugComponentsNoticesRoute = DebugComponentsNoticesRouteImport.update({
+  id: '/notices',
+  path: '/notices',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
 const DebugComponentsProviderIconsRoute =
   DebugComponentsProviderIconsRouteImport.update({
     id: '/provider-icons',
@@ -289,11 +307,14 @@ export interface FileRoutesByFullPath {
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/controls': typeof DebugComponentsControlsRoute
   '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
+  '/debug/components/icons': typeof DebugComponentsIconsRoute
   '/debug/components/model-notices': typeof DebugComponentsModelNoticesRoute
+  '/debug/components/notices': typeof DebugComponentsNoticesRoute
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
@@ -329,11 +350,14 @@ export interface FileRoutesByTo {
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/controls': typeof DebugComponentsControlsRoute
   '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
+  '/debug/components/icons': typeof DebugComponentsIconsRoute
   '/debug/components/model-notices': typeof DebugComponentsModelNoticesRoute
+  '/debug/components/notices': typeof DebugComponentsNoticesRoute
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
@@ -373,11 +397,14 @@ export interface FileRoutesById {
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
   '/debug/components/app-icons': typeof DebugComponentsAppIconsRoute
   '/debug/components/colors': typeof DebugComponentsColorsRoute
+  '/debug/components/controls': typeof DebugComponentsControlsRoute
   '/debug/components/elevation': typeof DebugComponentsElevationRoute
   '/debug/components/error-card': typeof DebugComponentsErrorCardRoute
   '/debug/components/file-icons': typeof DebugComponentsFileIconsRoute
   '/debug/components/form-elements': typeof DebugComponentsFormElementsRoute
+  '/debug/components/icons': typeof DebugComponentsIconsRoute
   '/debug/components/model-notices': typeof DebugComponentsModelNoticesRoute
+  '/debug/components/notices': typeof DebugComponentsNoticesRoute
   '/debug/components/provider-icons': typeof DebugComponentsProviderIconsRoute
   '/debug/components/question': typeof DebugComponentsQuestionRoute
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
@@ -417,11 +444,14 @@ export interface FileRouteTypes {
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
+    | '/debug/components/controls'
     | '/debug/components/elevation'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
+    | '/debug/components/icons'
     | '/debug/components/model-notices'
+    | '/debug/components/notices'
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
@@ -457,11 +487,14 @@ export interface FileRouteTypes {
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
+    | '/debug/components/controls'
     | '/debug/components/elevation'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
+    | '/debug/components/icons'
     | '/debug/components/model-notices'
+    | '/debug/components/notices'
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
@@ -500,11 +533,14 @@ export interface FileRouteTypes {
     | '/debug/components/alerts'
     | '/debug/components/app-icons'
     | '/debug/components/colors'
+    | '/debug/components/controls'
     | '/debug/components/elevation'
     | '/debug/components/error-card'
     | '/debug/components/file-icons'
     | '/debug/components/form-elements'
+    | '/debug/components/icons'
     | '/debug/components/model-notices'
+    | '/debug/components/notices'
     | '/debug/components/provider-icons'
     | '/debug/components/question'
     | '/debug/components/spinner'
@@ -729,6 +765,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsColorsRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
+    '/debug/components/controls': {
+      id: '/debug/components/controls'
+      path: '/controls'
+      fullPath: '/debug/components/controls'
+      preLoaderRoute: typeof DebugComponentsControlsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/elevation': {
       id: '/debug/components/elevation'
       path: '/elevation'
@@ -757,11 +800,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsFormElementsRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
+    '/debug/components/icons': {
+      id: '/debug/components/icons'
+      path: '/icons'
+      fullPath: '/debug/components/icons'
+      preLoaderRoute: typeof DebugComponentsIconsRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/model-notices': {
       id: '/debug/components/model-notices'
       path: '/model-notices'
       fullPath: '/debug/components/model-notices'
       preLoaderRoute: typeof DebugComponentsModelNoticesRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
+    '/debug/components/notices': {
+      id: '/debug/components/notices'
+      path: '/notices'
+      fullPath: '/debug/components/notices'
+      preLoaderRoute: typeof DebugComponentsNoticesRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
     '/debug/components/provider-icons': {
@@ -864,11 +921,14 @@ interface DebugComponentsRouteChildren {
   DebugComponentsAlertsRoute: typeof DebugComponentsAlertsRoute
   DebugComponentsAppIconsRoute: typeof DebugComponentsAppIconsRoute
   DebugComponentsColorsRoute: typeof DebugComponentsColorsRoute
+  DebugComponentsControlsRoute: typeof DebugComponentsControlsRoute
   DebugComponentsElevationRoute: typeof DebugComponentsElevationRoute
   DebugComponentsErrorCardRoute: typeof DebugComponentsErrorCardRoute
   DebugComponentsFileIconsRoute: typeof DebugComponentsFileIconsRoute
   DebugComponentsFormElementsRoute: typeof DebugComponentsFormElementsRoute
+  DebugComponentsIconsRoute: typeof DebugComponentsIconsRoute
   DebugComponentsModelNoticesRoute: typeof DebugComponentsModelNoticesRoute
+  DebugComponentsNoticesRoute: typeof DebugComponentsNoticesRoute
   DebugComponentsProviderIconsRoute: typeof DebugComponentsProviderIconsRoute
   DebugComponentsQuestionRoute: typeof DebugComponentsQuestionRoute
   DebugComponentsSpinnerRoute: typeof DebugComponentsSpinnerRoute
@@ -883,11 +943,14 @@ const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsAlertsRoute: DebugComponentsAlertsRoute,
   DebugComponentsAppIconsRoute: DebugComponentsAppIconsRoute,
   DebugComponentsColorsRoute: DebugComponentsColorsRoute,
+  DebugComponentsControlsRoute: DebugComponentsControlsRoute,
   DebugComponentsElevationRoute: DebugComponentsElevationRoute,
   DebugComponentsErrorCardRoute: DebugComponentsErrorCardRoute,
   DebugComponentsFileIconsRoute: DebugComponentsFileIconsRoute,
   DebugComponentsFormElementsRoute: DebugComponentsFormElementsRoute,
+  DebugComponentsIconsRoute: DebugComponentsIconsRoute,
   DebugComponentsModelNoticesRoute: DebugComponentsModelNoticesRoute,
+  DebugComponentsNoticesRoute: DebugComponentsNoticesRoute,
   DebugComponentsProviderIconsRoute: DebugComponentsProviderIconsRoute,
   DebugComponentsQuestionRoute: DebugComponentsQuestionRoute,
   DebugComponentsSpinnerRoute: DebugComponentsSpinnerRoute,

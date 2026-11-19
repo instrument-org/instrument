@@ -14,13 +14,12 @@ import { workDir } from "../work-dir";
 import { sessionToolFs } from "../tool-fs";
 import { shellPath } from "../workspace-fs-layout";
 import { thisDevice } from "./asks";
-import { keptBefore, takeOriginals } from "./turn-originals";
-import { VERSIONS_FOLDER } from "./versions-folder";
+import { takeOriginals } from "./turn-originals";
+import { keptOf, versionRecords } from "./version-records";
+import { VERSIONS_FOLDER, VERSIONS_FOLDERS } from "./versions-folder";
 
 /** The most files one reply's versions are kept for. */
 const MOST_FILES = 10;
-
-export { VERSIONS_FOLDER } from "./versions-folder";
 
 type Entry = SessionMessageDataPart.FileVersionsDataPart["files"][number];
 
@@ -77,30 +76,29 @@ export async function keepTurnFileVersions({
       throw saved.error;
     }
   };
-  const folder = path.join(workDir(chatId), VERSIONS_FOLDER);
   // What the turn's tools kept before first changing a file goes first, so
   // the reply's own record of the file stays its newest.
   if (originals.length > 0) {
     await record(originals, "original");
   }
-  const files = await keepNamedFiles({ chatId, folder, messages, sessionId });
+  const files = await keepNamedFiles({ chatId, messages, sessionId });
   if (files.length > 0) {
     await record(files);
   }
   if (originals.length > 0 || files.length > 0) {
-    await trimVersions(folder);
+    await trimVersions(
+      VERSIONS_FOLDERS.map((name) => path.join(workDir(chatId), name)),
+    );
   }
 }
 
 /** Keeps a version of each file the turn's reply names in its files fence. */
 async function keepNamedFiles({
   chatId,
-  folder,
   messages,
   sessionId,
 }: {
   chatId: ChatId;
-  folder: string;
   messages: readonly SessionMessage.WithParts[];
   sessionId: StoreId.Session;
 }): Promise<Entry[]> {
@@ -125,24 +123,32 @@ async function keepNamedFiles({
     chatId,
     filePaths: named,
   });
-  const previous = await keptBefore(chatId, sessionId);
+  const records = await versionRecords(chatId);
   // Read as the agent reads, so a listed symlink cannot copy out what the
   // rules keep it from.
   const agentFs = await sessionToolFs({ chatId, sessionId });
-  const label = labelOf(messages[start]);
+  const folder = path.join(workDir(chatId), VERSIONS_FOLDER);
+  const versionsFolders = VERSIONS_FOLDERS.map((name) =>
+    path.join(workDir(chatId), name),
+  );
   const files: Entry[] = [];
   for (const written of named) {
     const hostPath = resolved.get(written);
-    if (!hostPath || isInside(folder, hostPath)) {
+    if (
+      !hostPath ||
+      files.some((file) => file.hostPath === hostPath) ||
+      versionsFolders.some((versions) => isInside(versions, hostPath))
+    ) {
       continue;
     }
+    // A file whose version the disk refuses is left out, so the reply's
+    // other files still keep theirs.
     const kept = await keepVersion({
       file: hostPath,
       folder,
-      label,
-      kept: previous.get(hostPath),
+      ...keptOf(records, hostPath, folder),
       read: () => agentFs.fs.readFileBuffer(shellPath(hostPath)),
-    });
+    }).catch(() => undefined);
     if (kept) {
       files.push({
         ...(kept.copy !== undefined && {
@@ -150,25 +156,13 @@ async function keepNamedFiles({
         }),
         hash: kept.hash,
         hostPath,
+        number: kept.number,
         path: written,
         size: kept.size,
       });
     }
   }
   return files;
-}
-
-/** The first words the person asked the turn with, fit for a file's name. */
-function labelOf(opener: SessionMessage.WithParts | undefined): string {
-  const words = (opener?.parts ?? [])
-    .flatMap((part) => (part.type === "text" ? [part.text] : []))
-    .join(" ")
-    .replaceAll(/[^\p{L}\p{N}' -]+/gu, " ")
-    .trim()
-    .split(/\s+/u)
-    .slice(0, 6)
-    .join(" ");
-  return words.slice(0, 48).trim();
 }
 
 function isInside(folder: string, file: string): boolean {

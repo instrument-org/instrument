@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { DebugPageScroller } from "../-page-scroller";
 
 export const Route = createFileRoute("/debug/components/elevation")({
   component: RouteComponent,
@@ -105,18 +106,12 @@ const ramps: { description: string; levels: Level[]; title: string }[] = [
 
 function RouteComponent() {
   return (
-    <div className="size-full overflow-y-auto">
+    <DebugPageScroller>
       <div className="mx-auto flex w-full max-w-4xl flex-col gap-10 p-8">
-        <header className="flex flex-col gap-1">
-          <p className="text-sm font-medium text-muted-foreground">
-            Components
-          </p>
-          <h1 className="text-2xl font-semibold tracking-tight">Elevation</h1>
-          <p className="text-sm text-muted-foreground">
-            The shadows the app lifts things off the page with. Each one changes
-            with the theme, so look at this page in light and dark mode.
-          </p>
-        </header>
+        <p className="text-sm text-muted-foreground">
+          The shadows the app lifts things off the page with. Each one changes
+          with the theme, so look at this page in light and dark mode.
+        </p>
 
         {ramps.map((ramp) => (
           <section className="flex flex-col gap-4" key={ramp.title}>
@@ -142,6 +137,6 @@ function RouteComponent() {
           </section>
         ))}
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }

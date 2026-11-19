@@ -460,7 +460,13 @@ function MailLink({
  * repeatedly is the ordinary case, and each render after the first would
  * otherwise hold the width of an icon about to be taken away again.
  */
-function SiteIcon({ className, href }: { className?: string; href: string }) {
+export function SiteIcon({
+  className,
+  href,
+}: {
+  className?: string;
+  href: string;
+}) {
   const isIconless = useIsIconlessThisSession(href);
   const retry = useFaviconRetry(href);
   const src = getFaviconUrl(href, retry);

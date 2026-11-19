@@ -1,14 +1,16 @@
 import {
   AI_GATEWAY_API_KEY_NOT_NEEDED,
   AI_GATEWAY_API_PATH,
+  OUR_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CLIENT_SESSION_ID_HEADER, PROVIDERS_PATH } from "../constants";
+import { type HostedLimiter, type HostedRelease } from "../lib/hosted-limiter";
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
 import { workersAiTestOpenAiCompatBaseUrl } from "../test/workers-ai-fixtures";
-import { type AIGatewayEnv } from "../types";
+import { type AIGatewayEnv, type ReportPlatformRefusal } from "../types";
 import { providerApp } from "./provider";
 
 function AIProviderConfigId(id: string): AIGatewayProviderConfig.Type["id"] {
@@ -17,12 +19,30 @@ function AIProviderConfigId(id: string): AIGatewayProviderConfig.Type["id"] {
 }
 
 /** The gateway with one provider configured, mounted where the real one is. */
-function gatewayWith(config: AIGatewayProviderConfig.Type) {
+function gatewayWith(
+  config: AIGatewayProviderConfig.Type,
+  vars: {
+    hostedLimiter?: HostedLimiter;
+    reportPlatformRefusal?: ReportPlatformRefusal;
+  } = {},
+) {
   return new Hono<AIGatewayEnv>()
     .basePath(AI_GATEWAY_API_PATH)
     .use("*", async (context, next) => {
       context.set("getAIProviderConfigs", () => [config]);
       context.set("captureException", vi.fn());
+      context.set("clientInfo", {
+        clientArch: "arm64",
+        clientName: "studio",
+        clientPlatform: "darwin",
+        clientVersion: "1.0.0",
+      });
+      if (vars.hostedLimiter) {
+        context.set("hostedLimiter", vars.hostedLimiter);
+      }
+      if (vars.reportPlatformRefusal) {
+        context.set("reportPlatformRefusal", vars.reportPlatformRefusal);
+      }
       await next();
     })
     .route(PROVIDERS_PATH, providerApp);
@@ -247,5 +267,171 @@ describe("Responses streams that close early", () => {
     expect(await response.json()).toMatchObject({
       error: { code: "stream_ended_early" },
     });
+  });
+});
+
+describe("hosted request limits", () => {
+  const ours: AIGatewayProviderConfig.Type = {
+    ...OUR_PROVIDER_CONFIG,
+    apiKey: "account-token",
+    baseURL: "https://api.example.test",
+  };
+
+  /** A limiter that grants every request at once and records what it was asked. */
+  function fakeLimiter() {
+    const release = vi.fn<HostedRelease>();
+    const acquire = vi.fn<HostedLimiter["acquire"]>(() =>
+      Promise.resolve(release),
+    );
+    const limiter: HostedLimiter = {
+      acquire,
+      setLimits: vi.fn(),
+      snapshot: () => ({ ceiling: 8, inFlight: 0, queued: 0 }),
+    };
+    return { acquire, limiter, release };
+  }
+
+  // Outside the node server, only a Responses request's body can be proxied
+  // (it is read whole), so the other paths are asked for with a GET.
+  const send = (
+    config: AIGatewayProviderConfig.Type,
+    vars: Parameters<typeof gatewayWith>[1],
+    {
+      path = "/responses",
+      signal,
+    }: { path?: string; signal?: AbortSignal } = {},
+  ) =>
+    gatewayWith(config, vars).request(
+      `${AI_GATEWAY_API_PATH}${PROVIDERS_PATH}/${config.id}${path}`,
+      {
+        headers: {
+          authorization: "Bearer internal-gateway-key",
+          [CLIENT_SESSION_ID_HEADER]: "ses_1",
+        },
+        ...(path === "/responses" && {
+          body: JSON.stringify({ input: [], model: "instrument/auto" }),
+          method: "POST",
+        }),
+        signal,
+      },
+    );
+
+  it("holds a slot in the chat's queue until the streamed answer has been read", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() => Promise.resolve(new Response("data: one\n\n"))),
+    );
+    const { acquire, limiter, release } = fakeLimiter();
+
+    const response = await send(ours, { hostedLimiter: limiter });
+
+    expect(acquire).toHaveBeenCalledWith(
+      expect.objectContaining({ key: "ses_1", lane: "agent" }),
+    );
+    expect(release).not.toHaveBeenCalled();
+    expect(await response.text()).toBe("data: one\n\n");
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for a decision in the priority lane", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() => Promise.resolve(Response.json({}))),
+    );
+    const { acquire, limiter } = fakeLimiter();
+
+    await send(ours, { hostedLimiter: limiter }, { path: "/decision" });
+
+    expect(acquire).toHaveBeenCalledWith(
+      expect.objectContaining({ lane: "priority" }),
+    );
+  });
+
+  it("never holds back a provider the person brought", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() => Promise.resolve(Response.json({}))),
+    );
+    const { acquire, limiter } = fakeLimiter();
+
+    await send(
+      {
+        apiKey: "provider-key",
+        cacheIdentifier: "openai",
+        id: AIProviderConfigId("openai"),
+        type: "openai",
+      },
+      { hostedLimiter: limiter },
+    );
+
+    expect(acquire).not.toHaveBeenCalled();
+  });
+
+  it("tells the limiter and the app which code our platform refused with", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() =>
+        Promise.resolve(
+          Response.json(
+            { error: { code: "concurrency-limit", message: "Too many" } },
+            { status: 429 },
+          ),
+        ),
+      ),
+    );
+    const { limiter, release } = fakeLimiter();
+    const report = vi.fn<ReportPlatformRefusal>();
+
+    const response = await send(ours, {
+      hostedLimiter: limiter,
+      reportPlatformRefusal: report,
+    });
+
+    expect(response.status).toBe(429);
+    await vi.waitFor(() => {
+      expect(release).toHaveBeenCalledWith({ refusal: "concurrency-limit" });
+    });
+    expect(release).toHaveBeenCalledTimes(1);
+    expect(report).toHaveBeenCalledWith(
+      expect.objectContaining({ code: "concurrency-limit", status: 429 }),
+    );
+  });
+
+  it("frees the slot when the upstream request fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(() => Promise.reject(new TypeError("fetch failed"))),
+    );
+    const { limiter, release } = fakeLimiter();
+
+    await send(ours, { hostedLimiter: limiter });
+
+    expect(release).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends nothing for a request whose client gave up while it waited", async () => {
+    const upstream = vi.fn<typeof fetch>();
+    vi.stubGlobal("fetch", upstream);
+    const controller = new AbortController();
+    const limiter: HostedLimiter = {
+      acquire: ({ signal }) =>
+        new Promise((_resolve, reject) => {
+          signal?.addEventListener("abort", () => {
+            reject(new DOMException("The request was aborted.", "AbortError"));
+          });
+          controller.abort();
+        }),
+      setLimits: vi.fn(),
+      snapshot: () => ({ ceiling: 8, inFlight: 8, queued: 1 }),
+    };
+
+    const response = await send(
+      ours,
+      { hostedLimiter: limiter },
+      { signal: controller.signal },
+    );
+
+    expect(response.status).toBe(499);
+    expect(upstream).not.toHaveBeenCalled();
   });
 });

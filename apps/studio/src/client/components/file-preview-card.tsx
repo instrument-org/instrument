@@ -18,10 +18,11 @@ import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PlayIcon } from "@phosphor-icons/react/Play";
-import { useRef, useState } from "react";
+import { useContext, useRef, useState } from "react";
 
 import { usePrefetchFileOpenTarget } from "../hooks/use-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
+import { CardVersionContext } from "./card-version";
 import { DrawingPicture } from "./excalidraw-editor/drawing-picture";
 import { FileTypeIcon } from "./extend/file-system";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
@@ -39,6 +40,7 @@ import {
 } from "./ui/context-menu";
 import { contextMenuComponents } from "./ui/menu-components";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { VersionTag } from "./version-tag";
 
 export function FilePreviewCard({
   keepsActionsRoom,
@@ -259,6 +261,7 @@ function FileRowCard({
     fileActions.showOpen ||
     fileActions.showReveal;
   const prefetchOpenTarget = usePrefetchFileOpenTarget();
+  const version = useContext(CardVersionContext);
 
   const row = (
     <div
@@ -300,8 +303,13 @@ function FileRowCard({
             <span className="break-all">{hostPath}</span>
           </TooltipContent>
         </Tooltip>
-        <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
-          {isMissing ? FILE_MISSING_LABEL : getFileKindLabel(file)}
+        <span className="flex min-w-0 items-center gap-1.5 text-xs leading-[18px] font-medium text-muted-foreground">
+          {version && (
+            <VersionTag className="h-4 text-[11px]" number={version.number} />
+          )}
+          <span className="truncate">
+            {isMissing ? FILE_MISSING_LABEL : getFileKindLabel(file)}
+          </span>
         </span>
       </div>
       {/* No width until the row is hovered or has focus, so a name in a

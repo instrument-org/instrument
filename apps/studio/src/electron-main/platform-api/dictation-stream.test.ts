@@ -1,3 +1,4 @@
+import { hostedLimiter } from "@/electron-main/lib/hosted-limiter";
 import { type DictationStreamEvent } from "@/shared/dictation";
 import { createServer } from "node:http";
 import { type AddressInfo } from "node:net";
@@ -186,6 +187,25 @@ describe("listenForDictation", () => {
         },
       ]
     `);
+  });
+
+  it("holds a priority slot while the socket is open, and frees it at the end", async () => {
+    api = await fakeApi("words");
+    const acquire = vi.spyOn(hostedLimiter, "acquire");
+    const inFlight: number[] = [];
+
+    for await (const event of listenForDictation({ surface: "composer" })) {
+      inFlight.push(hostedLimiter.snapshot().inFlight);
+      if (event.type === "open") {
+        finishDictation(event.id);
+      }
+    }
+
+    expect(acquire).toHaveBeenCalledWith(
+      expect.objectContaining({ lane: "priority" }),
+    );
+    expect(new Set(inFlight)).toEqual(new Set([1]));
+    expect(hostedLimiter.snapshot().inFlight).toBe(0);
   });
 
   it("passes on billing's refusal when the API refuses the socket for it", async () => {

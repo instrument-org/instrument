@@ -70,7 +70,7 @@ function Conversation({
   const unheld = older.filter((turn) => !held.includes(turn));
   return (
     <div data-find-surface ref={surfaceRef} style={{ height: 300, width: 360 }}>
-      <MessageScrollerProvider defaultScrollPosition="end">
+      <MessageScrollerProvider>
         <MessageScroller>
           <MessageScrollerViewport>
             <MessageScrollerContent ref={contentRef}>

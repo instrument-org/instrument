@@ -9,11 +9,14 @@ import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { modelsHeldBack } from "@/client/lib/billing";
 import { rpcClient } from "@/client/rpc/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useState } from "react";
 import { z } from "zod";
 
-import { getDebugRoute } from "./-debug-routes";
+import { getDebugPage } from "./-debug-routes";
+import { DebugPageScroller } from "./-page-scroller";
+import { DebugHeaderEnd, DebugState } from "./-shell";
+import { trialStates } from "./-states/trial-offers";
 import {
   CLAUDE_ACCOUNT_MODEL,
   OUR_MODEL,
@@ -28,7 +31,7 @@ import {
   trialModeOffer,
   trialModes,
   trialModeStatus,
-  trialSurfaces,
+  trialModeUser,
 } from "./-trial-modes";
 
 const noop = () => {};
@@ -137,56 +140,55 @@ const surfaces = [
     signedIn: false,
   },
 ] as const satisfies readonly {
-  id: (typeof trialSurfaces)[number]["id"];
+  id: (typeof trialStates)[number]["id"];
   render: (mode: TrialModeId) => ReactNode;
   signedIn: boolean;
 }[];
 
 const searchSchema = z.object({
   mode: z.string().optional(),
+  /** An older address for a surface, which goes to it as `?state=`. */
   surface: z.string().optional(),
 });
 
 export const Route = createFileRoute("/debug/trial-modes")({
+  beforeLoad: ({ search }) => {
+    if (search.surface) {
+      // oxlint-disable-next-line typescript/only-throw-error
+      throw redirect({
+        replace: true,
+        search: { mode: search.mode, state: search.surface },
+        to: "/debug/trial-modes",
+      });
+    }
+  },
   component: RouteComponent,
   head: () => ({
-    meta: [{ title: getDebugRoute("trial-modes").title }],
+    meta: [{ title: getDebugPage("trial-modes").label }],
   }),
   validateSearch: searchSchema,
 });
 
 /**
- * A looking tool: each trial surface under each way the platform can offer
- * the trial, from fixture answers to `billing.offer` and `billing.status`
- * seeded into a QueryClient of the surface's own, so nothing here reads or
- * changes the real account. Its buttons still reach the real RPC, so it is
- * for looking, not clicking.
+ * A looking tool: every trial surface under one of the ways the platform can
+ * offer the trial, from fixture answers to `billing.offer` and
+ * `billing.status` seeded into a QueryClient of each surface's own, so
+ * nothing here reads or changes the real account. Its buttons still reach
+ * the real RPC, so it is for looking, not clicking.
  */
 function RouteComponent() {
   const search = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
-  const surface =
-    surfaces.find((item) => item.id === search.surface) ?? surfaces[0];
-  const surfaceId = surface.id;
   const modeId = (
     trialModes.find((item) => item.id === search.mode) ?? trialModes[0]
   ).id;
-  const surfaceLabel = trialSurfaces.find(
-    (item) => item.id === surfaceId,
-  )?.label;
 
   return (
-    <div className="flex size-full flex-col overflow-hidden">
-      <header className="flex h-13 shrink-0 items-center justify-between gap-4 border-b px-6">
-        <div className="flex min-w-0 items-baseline gap-2">
-          <h1 className="truncate text-sm font-medium">{surfaceLabel}</h1>
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {surface.signedIn ? "Signed in" : "Signed out"}
-          </span>
-        </div>
+    <DebugPageScroller className="size-full overflow-auto bg-muted/40">
+      <DebugHeaderEnd>
         <Tabs
           onValueChange={(mode) => {
-            void navigate({ search: { mode, surface: surfaceId } });
+            void navigate({ search: (previous) => ({ ...previous, mode }) });
           }}
           value={modeId}
         >
@@ -198,30 +200,47 @@ function RouteComponent() {
             ))}
           </TabsList>
         </Tabs>
-      </header>
-      <div className="min-h-0 flex-1 overflow-auto bg-muted/40 p-8">
-        <div
-          className="mx-auto w-fit overflow-hidden rounded-xl bg-background shadow-xs ring-1 ring-foreground/8"
-          data-trial-mode={modeId}
-          data-trial-surface={surfaceId}
-        >
-          <FixtureQueries
-            key={`${surfaceId}:${modeId}`}
-            mode={modeId}
-            signedIn={surface.signedIn}
+      </DebugHeaderEnd>
+      <div className="flex w-fit min-w-full flex-col items-center gap-12 p-8">
+        {surfaces.map((surface) => (
+          <DebugState
+            className="flex flex-col gap-2.5"
+            id={surface.id}
+            key={surface.id}
           >
-            {surface.render(modeId)}
-          </FixtureQueries>
-        </div>
+            <p className="flex items-baseline gap-2">
+              <span className="text-sm font-medium">
+                {trialStates.find((state) => state.id === surface.id)?.label}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {surface.signedIn ? "Signed in" : "Signed out"}
+              </span>
+            </p>
+            <div
+              className="w-fit overflow-hidden rounded-xl bg-background shadow-xs ring-1 ring-foreground/8"
+              data-trial-mode={modeId}
+              data-trial-surface={surface.id}
+            >
+              <FixtureQueries
+                key={modeId}
+                mode={modeId}
+                signedIn={surface.signedIn}
+              >
+                {surface.render(modeId)}
+              </FixtureQueries>
+            </div>
+          </DebugState>
+        ))}
       </div>
-    </div>
+    </DebugPageScroller>
   );
 }
 
 /**
- * A QueryClient holding the mode's offer, the account's status and whether
- * it is signed in, stamped far in the future so no surface reads them again.
- * Anything else a surface asks for goes to the real RPC.
+ * A QueryClient holding the mode's offer, whether the account is signed in
+ * and, signed in, who it is and its status, stamped far in the future so no
+ * surface reads them again. Anything else a surface asks for goes to the
+ * real RPC.
  */
 function FixtureQueries({
   children,
@@ -260,6 +279,16 @@ function FixtureQueries({
         trialModeStatus(mode),
         { updatedAt },
       );
+      // The account card reads who is signed in again each time it mounts,
+      // whatever the cache holds, so the fixture answers that read in place
+      // of the real one, which has no account to give.
+      queryClient.setQueryDefaults(rpcClient.user.live.me.key(), {
+        behavior: {
+          onFetch: (context) => {
+            context.fetchFn = () => trialModeUser;
+          },
+        },
+      });
     }
     return queryClient;
   });

@@ -20,7 +20,23 @@ export function viewContextModelNote(
   data: ViewContext,
   shellPath: ShellPath = (hostPath) => hostPath,
 ) {
-  return `${screenNote(data, shellPath)}${otherChatNote(data)}${chosenNote(data, shellPath)}${tabsNote(data)}`;
+  return `${screenNote(data, shellPath)}${otherChatNote(data)}${chosenNote(data, shellPath)}${tabsNote(data)}${questionNote(data)}`;
+}
+
+/** The question on show on the card, which a bare number or a choice's words in the message answer. */
+function questionNote(data: ViewContext) {
+  const { question } = data;
+  if (!question) {
+    return "";
+  }
+  const which =
+    question.of > 1 ? `question ${question.at} of ${question.of}, ` : "";
+  const choices = question.choices
+    .map((label, index) => `${index + 1}. ${label}`)
+    .join("; ");
+  return systemNote`
+    Your card was up, on ${which}"${question.text}" (${choices}). A number or a choice's words in this message answer that question.
+  `;
 }
 
 /** Another chat named beside what was on screen; on its own, the screen note says it. */

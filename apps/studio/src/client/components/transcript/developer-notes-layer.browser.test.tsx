@@ -26,7 +26,6 @@ import {
 } from "../ui/message-scroller";
 import DeveloperNotesLayer from "./developer-notes-layer";
 import { TranscriptRecordsContext } from "./transcript-data";
-import { useSlideToSent } from "./use-slide-to-sent";
 
 const PEEK = 80;
 
@@ -46,15 +45,9 @@ const noteOn = (at: number): DeveloperNote => ({
   turn: turnId(at),
 });
 
-function Slide({
-  armRef,
-  contentRef,
-}: {
-  armRef: RefObject<() => void>;
-  contentRef: RefObject<HTMLElement | null>;
-}) {
-  const { releaseAutoScroll } = useMessageScroller();
-  useSlideToSent({ armRef, contentRef, release: releaseAutoScroll });
+function Slide({ armRef }: { armRef: RefObject<() => void> }) {
+  const { armSlide } = useMessageScroller();
+  armRef.current = armSlide;
   return null;
 }
 
@@ -71,11 +64,7 @@ function Harness({ hasLayer }: { hasLayer: boolean }) {
     developerNotes: { bodies: {}, notes: indexes.map(noteOn) },
   });
   return (
-    <MessageScrollerProvider
-      autoScroll
-      defaultScrollPosition="end"
-      scrollPreviousItemPeek={PEEK}
-    >
+    <MessageScrollerProvider autoScroll scrollPreviousItemPeek={PEEK}>
       <MessageScroller>
         <MessageScrollerViewport
           className="@container/transcript"
@@ -111,7 +100,7 @@ function Harness({ hasLayer }: { hasLayer: boolean }) {
               </TranscriptRecordsContext>
             )}
           </MessageScrollerContent>
-          <Slide armRef={armRef} contentRef={contentRef} />
+          <Slide armRef={armRef} />
         </MessageScrollerViewport>
       </MessageScroller>
     </MessageScrollerProvider>

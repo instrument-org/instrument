@@ -31,6 +31,7 @@ export const RPC_ERROR_CODES = {
   // A drop or paste the planner refused (a folder into itself, a clash with
   // no answer, a Replace it may not make), which the Finder shows as said.
   CANNOT_PLACE: "expected",
+  CANNOT_RESTORE: "expected",
   CANNOT_TRASH: "fault",
   CANNOT_UNDO: "expected",
   CANNOT_WRITE: "fault",

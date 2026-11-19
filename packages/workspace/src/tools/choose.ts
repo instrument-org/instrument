@@ -28,7 +28,8 @@ const NoteSchema = z.string().trim().min(1).optional();
  * or skip each card from any device; the computer that asked writes each
  * answer onto its call, and once the turn's cards are all done wakes the
  * chat once, the way a permission card's answer does (`drive-asks.ts`).
- * Writing in the chat instead closes them unanswered.
+ * Writing in the chat instead closes them as answered in that reply, which
+ * the call records (`inReply`) for the card to say.
  *
  * The answered outputs are what a call returned when the turn waited on the
  * card, which transcripts from then still hold.
@@ -40,7 +41,7 @@ const chooseCapability = defineCapability({
   surfaces: {
     tool: {
       description:
-        "Put one to four questions with multiple choice options to the user on one card in the chat. The card shows them one question at a time, each with your choices, a row for an answer in their own words, a note, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. They send every answer together. Questions you need answered before going on go on one card, never a card each; ask a later card only for a question that depends on an earlier answer. Your turn ends on this call, and their answers reach you later as a message of their own, so do what does not depend on them first. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.",
+        "Put one to four questions with multiple choice options to the user on one card in the chat. The card shows them one question at a time, each with your choices numbered from 1, a row for an answer in their own words, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. They send every answer together, or reply in the chat instead, which may name a choice by its number. When the choices differ in a way easier seen than read (a layout, code, a mockup, a few facts side by side), give every choice a `detail` showing it; leave `detail` out for plain preferences and yes/no. Questions you need answered before going on go on one card, never a card each; ask a later card only for a question that depends on an earlier answer. Your turn ends on this call, and their answers reach you later as a message of their own, so do what does not depend on them first. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.",
       execute: async ({ chatId, input, messageId, partId, sessionId }) => {
         // Asked during the turn, so held until the session is at rest.
         await recordQuestion(
@@ -81,6 +82,11 @@ const chooseCapability = defineCapability({
            */
           answer: SessionMessageDataPart.QuestionCardAnswerSchema.optional(),
           asked: z.literal(true),
+          /**
+           * Written onto the call when the person wrote in the chat while the
+           * card was up, which closes it: the reply is their answer.
+           */
+          inReply: z.literal(true).optional(),
         }),
         z.object({ declined: z.literal(true), note: NoteSchema }),
         z.object({

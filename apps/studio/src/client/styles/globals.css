@@ -22,6 +22,34 @@
   margin: 0;
 }
 
+/* A link in the box, underlined as the sent message underlines one, with the
+   site's icon in front once it has loaded (prompt-editor-links.ts). */
+.prompt-editor .prompt-link {
+  text-decoration: underline;
+  text-decoration-color: color-mix(
+    in oklab,
+    var(--foreground) 40%,
+    transparent
+  );
+  text-underline-offset: 3px;
+}
+
+.prompt-editor .prompt-site-icon:not([hidden]) {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin: 0 4px 0 0;
+  border-radius: 2px;
+  vertical-align: -2px;
+}
+
+/* A list item wraps under its first word rather than under its marker; the
+   marker's width is measured in the box's font (prompt-editor-lists.ts). */
+.prompt-editor p.prompt-list-line {
+  padding-left: var(--prompt-hang);
+  text-indent: calc(-1 * var(--prompt-hang));
+}
+
 /* The words being heard, where they will land: at the end of the last line,
    the stretch still being heard fainter, then a short bar marking the spot.
    Not part of the text, so the caret never enters it. */
@@ -1276,26 +1304,9 @@ body {
 /* While something open folds at a press anywhere else, no part of the window
  * is a handle for moving it, so a press on the tab strip, the sidebar or the
  * title bar reaches the document and puts it away instead of moving the
- * window. Read from the document rather than set by each overlay, so it lasts
- * exactly as long as an open one is in it and no cleanup can leave the window
- * stuck in place. Radix's menus, popovers, selects and dialogs carry their role
- * and `data-state="open"` on their content; a floating panel of our own marks
- * itself `data-no-window-drag` while it is shown, and the Markdown editor's
- * menus (`.md-popover`) are in the document only while open. Tooltips and
- * hover cards have no such role, so showing one leaves dragging alone. The
- * same list closes them at a press in a page (`OPEN_OVERLAY` in
- * `lib/browser-pool.ts`), which reaches the page's guest and not the document. */
-:root:has(
-    :is(
-      [role="menu"],
-      [role="dialog"],
-      [role="alertdialog"],
-      [role="listbox"]
-    )[data-state="open"],
-    [data-no-window-drag],
-    .md-popover
-  )
-  * {
+ * window. What counts as open, and why the root carries it, is
+ * `lib/window-drag-overlays.ts`. */
+:root[data-overlay-open] * {
   -webkit-app-region: no-drag !important;
 }
 
@@ -1380,7 +1391,7 @@ a.cursor-pointer {
  * anything else worth animating here either moves the text or, as a filter
  * would, puts every one of them on its own compositing layer for the duration. */
 [data-stream-word] {
-  animation: stream-word-in 800ms ease-out both;
+  animation: stream-word-in 240ms ease-out both;
 }
 
 @keyframes stream-word-in {

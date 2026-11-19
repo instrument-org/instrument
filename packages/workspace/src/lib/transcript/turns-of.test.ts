@@ -1409,6 +1409,56 @@ describe("the work card", () => {
     expect(shows?.kind === "file" && shows.words).toBe(words);
   });
 
+  it.each([
+    [
+      "code as it is written",
+      "/scrape.py",
+      "import os\nprint(1)",
+      "input-streaming",
+      2,
+    ],
+    ["code ending its line", "/scrape.py", "import os\n", "input-streaming", 1],
+    ["data", "/rows.json", "{", "input-streaming", 1],
+    [
+      "no code once written",
+      "/scrape.py",
+      "a\nb",
+      "output-available",
+      undefined,
+    ],
+    [
+      "no prose, which its card shows",
+      "/a.md",
+      "# A\nb",
+      "input-streaming",
+      undefined,
+    ],
+    [
+      "no page, which its card shows",
+      "/a.html",
+      "<h1>\n",
+      "input-streaming",
+      undefined,
+    ],
+  ] as const)(
+    "counts the lines of %s",
+    (_, filePath, content, state, lines) => {
+      const [turn] = turnsOf(
+        [
+          typed("Do the thing"),
+          message("assistant", (id) => [
+            call(id, "write_file", { content, filePath }, {}, state),
+          ]),
+        ],
+        { isRunning: true },
+      );
+      const shows = turn?.rows
+        .flatMap((row) => (row.kind === "activity" ? row.steps : []))
+        .at(-1)?.shows;
+      expect(shows?.kind === "file" ? shows.lines : "no file").toBe(lines);
+    },
+  );
+
   it("ends the card at what the agent says after the work, working or ended, and puts one up again at the next call", () => {
     const searched = (id: Parameters<typeof call>[0]) =>
       call(

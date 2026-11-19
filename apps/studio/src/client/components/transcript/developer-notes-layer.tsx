@@ -599,6 +599,9 @@ export default function DeveloperNotesLayer({
       {card && (
         <div
           data-dn="card"
+          // Pinned, a press anywhere else puts it away, the window bar
+          // included (`globals.css`).
+          data-no-window-drag={isPinned ? "" : undefined}
           data-side={card.side}
           onPointerDown={() => {
             setIsPinned(true);

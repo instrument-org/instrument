@@ -16,6 +16,7 @@ import { getGuest } from "@/client/lib/browser-pool";
 import { cn } from "@/client/lib/utils";
 import {
   browserTargetOf,
+  type ChatId,
   parseBrowserTargetId,
 } from "@instrument-org/workspace/client";
 import { rpcClient } from "@/client/rpc/client";
@@ -38,6 +39,8 @@ import { useComputerVolumes } from "./computer-volumes";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { useFileTabTitles } from "./file-tab-titles";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
+import { computerTabOf } from "./file-tabs";
+import { isInVersionsFolder, VersionTabMark } from "./file-versions";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
 import { tasksOfHref } from "./tab-location";
@@ -45,6 +48,7 @@ import { chatOfTab, draftOfTab } from "./tab-model";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { type StripTab, TabStrip } from "./tab-strip";
 import { useBookmarkEdits } from "./web-start";
+import { useWindowTabs } from "./window-tabs";
 import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
@@ -123,6 +127,9 @@ export function PaneTabs({
   trailing?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
+  // The chat whose versions of a file a tab may have up: the one its group
+  // has up, as the tab's row reads it.
+  const { chatUpIn } = useWindowTabs();
   const volumes = useComputerVolumes();
   const fileTitles = useFileTabTitles(
     tabs.map((tab) => (tab.kind === "page" ? undefined : tab.href)),
@@ -222,6 +229,7 @@ export function PaneTabs({
           icon={
             <ScreenMark
               appsBySlug={appsBySlug}
+              chatId={tab.group === undefined ? undefined : chatUpIn(tab.group)}
               chatTitles={chatTitles}
               href={tab.href}
             />
@@ -256,6 +264,7 @@ export function PaneTabs({
             glintIcon: (
               <ScreenMark
                 appsBySlug={appsBySlug}
+                chatId={tab.group === undefined ? undefined : chatUpIn(tab.group)}
                 chatTitles={chatTitles}
                 href={tab.href}
               />
@@ -590,19 +599,33 @@ function PaneTabMenu({
   );
 }
 
-/** A screen's small mark: a file's type, a folder, or the screen's own icon. */
+/**
+ * A screen's small mark: a file's type, or the number of the version of it
+ * a chat's tab has up, a folder, or the screen's own icon.
+ */
 export function ScreenMark({
   appsBySlug,
+  chatId,
   chatTitles,
   href,
 }: {
   appsBySlug: Presentation["appsBySlug"];
+  chatId: ChatId | undefined;
   chatTitles: Presentation["chatTitles"];
   href: string;
 }) {
   const location = screenLocation(href, { appsBySlug, chatTitles });
   if (location.kind === "file") {
-    return <FileTypeIcon className="size-3.5" fileName={location.name} />;
+    const icon = <FileTypeIcon className="size-3.5" fileName={location.name} />;
+    // A copy is over its file, or in its place for a page's file.
+    const copy =
+      computerTabOf(href)?.version ??
+      (isInVersionsFolder(location.path) ? location.path : undefined);
+    return chatId === undefined || copy === undefined ? (
+      icon
+    ) : (
+      <VersionTabMark chatId={chatId} copy={copy} fallback={icon} />
+    );
   }
   if (location.kind === "folder") {
     return <FileSystemFolderGlyph className="h-3 w-auto" />;

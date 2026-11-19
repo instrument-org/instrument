@@ -4,7 +4,7 @@ Where a build comes from and where it goes. [auto-updater.md](auto-updater.md) i
 
 ## Cutting one
 
-`pnpm tag:release:patch` from `apps/studio`, or `:minor`, each with a `:beta` variant, runs [`tag-release.ts`](../../apps/studio/scripts/tag-release.ts). It fetches tags, verifies the `registry` submodule has nothing newer on its remote (the pointer a tag captures is the bundled content that ships), rebases the current branch onto origin's, bumps `apps/studio/package.json`, commits that file alone as `release: vX.Y.Z`, tags it, and pushes the branch and the tag in one atomic push; the tag is what starts the build. When origin moved in between, the push is rejected and the script deletes the unpushed tag, rebases the release commit, tags it again, and retries, so the branch never takes a merge commit and the tag is always on it. `--no-push` stops after tagging.
+`pnpm tag:release:patch` from `apps/studio`, or `:minor`, each with a `:beta` variant, and `tag:release:minor:alpha`, runs [`tag-release.ts`](../../apps/studio/scripts/tag-release.ts). It fetches tags, verifies the `registry` submodule has nothing newer on its remote (the pointer a tag captures is the bundled content that ships), rebases the current branch onto origin's, bumps `apps/studio/package.json`, commits that file alone as `release: vX.Y.Z`, tags it, and pushes the branch and the tag in one atomic push; the tag is what starts the build. When origin moved in between, the push is rejected and the script deletes the unpushed tag, rebases the release commit, tags it again, and retries, so the branch never takes a merge commit and the tag is always on it. `--no-push` stops after tagging.
 
 ## What the tag starts
 

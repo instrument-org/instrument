@@ -1,8 +1,13 @@
+import { hostedLimiter } from "@/electron-main/lib/hosted-limiter";
 import {
   type DictationLanguage,
   type DictationStreamEvent,
   type DictationSurface,
 } from "@/shared/dictation";
+import {
+  type HostedRelease,
+  platformRefusalCode,
+} from "@instrument-org/ai-gateway";
 import { WebSocket } from "ws";
 import { z } from "zod";
 
@@ -50,6 +55,45 @@ export async function* listenForDictation({
     yield { failure: { kind: "signed-out" }, type: "unavailable" };
     return;
   }
+  // The open socket counts as one hosted request for as long as it is open.
+  // Someone is talking, so it goes ahead of agent work.
+  let release: HostedRelease;
+  try {
+    release = await hostedLimiter.acquire({
+      key: "",
+      lane: "priority",
+      signal,
+    });
+  } catch {
+    return;
+  }
+  let refusal: string | undefined;
+  try {
+    yield* streamDictation({
+      language,
+      onRefused: (code) => {
+        refusal = code;
+      },
+      signal,
+      surface,
+    });
+  } finally {
+    release({ refusal });
+  }
+}
+
+async function* streamDictation({
+  language,
+  onRefused,
+  signal,
+  surface,
+}: {
+  language?: DictationLanguage;
+  /** Told the code our platform refused the stream with, if it did. */
+  onRefused: (code: string | undefined) => void;
+  signal?: AbortSignal;
+  surface: DictationSurface;
+}): AsyncGenerator<DictationStreamEvent> {
   const base = platformApiBaseUrl().replace(/^http/, "ws");
   const query = language ? `?${new URLSearchParams({ language })}` : "";
   const socket = new WebSocket(`${base}/dictation/stream${query}`, {
@@ -107,6 +151,7 @@ export async function* listenForDictation({
       body += data.toString();
     });
     response.on("end", () => {
+      onRefused(platformRefusalCode(body));
       const failure = dictationFailureOf(response.statusCode ?? 0, body);
       push({ failure, type: "unavailable" });
       end();

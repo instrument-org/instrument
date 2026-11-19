@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { StoreId } from "../../schemas/store-id";
 import { type TurnStep } from "./turns-of";
-import { cardsOf, type WorkCard } from "./work-card";
+import { cardsOf, pageDrawsEnough, type WorkCard } from "./work-card";
 import {
   workCardFace,
   type WorkCardLookups,
@@ -82,8 +82,24 @@ describe("a files card's face", () => {
       ]),
     ],
     [
+      "a page arriving",
+      "files/page",
+      card("files", [
+        step(
+          {
+            kind: "file",
+            path: "/w/page.html",
+            source: "<!doctype html><h1>Hi",
+            words: "<h1>Hi",
+          },
+          "writing",
+        ),
+      ]),
+      nowhere,
+    ],
+    [
       "a page once written",
-      "files/picture",
+      "files/page",
       card("files", [
         step({
           kind: "file",
@@ -94,12 +110,9 @@ describe("a files card's face", () => {
       ]),
     ],
     [
-      "a page written, not yet found",
-      "files/words",
-      card("files", [
-        step({ kind: "file", path: "/w/page.html", words: "<p>" }),
-      ]),
-      nowhere,
+      "a page a shell call changed",
+      "files/page",
+      card("files", [step(undefined)], { isNew: false, path: "/w/page.html" }),
     ],
     [
       "a file with no words",
@@ -117,11 +130,40 @@ describe("a files card's face", () => {
       card("files", [step({ kind: "file", path: "/w/a.pdf" }, "running")]),
       nowhere,
     ],
+    [
+      "a drawing written",
+      "files/picture",
+      card("files", [
+        step({ isNew: true, kind: "file", path: "/w/a.svg", words: "<svg>" }),
+      ]),
+    ],
+    [
+      "a drawing written, not yet found",
+      "files/none",
+      card("files", [
+        step({ isNew: true, kind: "file", path: "/w/a.svg", words: "<svg>" }),
+      ]),
+      nowhere,
+    ],
   ]);
 
   it("names what each shows", () => {
     expect(faces).toMatchInlineSnapshot(`
       {
+        "a drawing written": {
+          "meta": "New file",
+          "picture": {
+            "place": "/w/a.svg",
+          },
+          "title": "a.svg",
+          "view": "files/picture",
+        },
+        "a drawing written, not yet found": {
+          "meta": "New file",
+          "path": "/w/a.svg",
+          "title": "a.svg",
+          "view": "files/none",
+        },
         "a file with no words": {
           "meta": "Updated",
           "picture": {
@@ -136,19 +178,29 @@ describe("a files card's face", () => {
           "title": "a.pdf",
           "view": "files/none",
         },
-        "a page once written": {
-          "picture": {
-            "place": "/w/page.html",
-            "version": 7,
-          },
-          "title": "page.html",
-          "view": "files/picture",
-        },
-        "a page written, not yet found": {
+        "a page a shell call changed": {
+          "isWriting": false,
+          "meta": "Updated",
           "path": "/w/page.html",
+          "place": "/w/page.html",
           "title": "page.html",
-          "view": "files/words",
-          "words": "<p>",
+          "view": "files/page",
+        },
+        "a page arriving": {
+          "isWriting": true,
+          "meta": "Writing",
+          "path": "/w/page.html",
+          "source": "<!doctype html><h1>Hi",
+          "title": "page.html",
+          "view": "files/page",
+        },
+        "a page once written": {
+          "isWriting": false,
+          "path": "/w/page.html",
+          "place": "/w/page.html",
+          "title": "page.html",
+          "version": 7,
+          "view": "files/page",
         },
         "what a shell call changed": {
           "meta": "New file",
@@ -357,21 +409,25 @@ describe("a page card's face", () => {
     expect(faces).toMatchInlineSnapshot(`
       {
         "an address": {
+          "isGoing": false,
           "title": "example.com",
           "url": "https://www.example.com/a",
           "view": "page/picture",
         },
         "nothing known": {
+          "isGoing": false,
           "title": "Browser",
           "url": undefined,
           "view": "page/picture",
         },
         "nothing known yet": {
+          "isGoing": true,
           "title": "Opening a page",
           "url": undefined,
           "view": "page/picture",
         },
         "the tab driven": {
+          "isGoing": false,
           "title": "Example",
           "url": "https://other.com/",
           "view": "page/picture",
@@ -405,5 +461,125 @@ describe("the calls a card shows", () => {
     writing.metadata = { ...running.metadata, id: StoreId.newPartId() };
     expect(cardsOf({ steps: [running, writing] })).toEqual([]);
     expect(cardsOf({ steps: [writing] })).toHaveLength(1);
+  });
+
+  it("shows a page as it is written, and while it waits its turn, whatever is ahead of it", () => {
+    const running = step(
+      { kind: "file", path: "/w/request.md", words: "#" },
+      "running",
+    );
+    const page = (status: TurnStep["status"]) => ({
+      ...write(
+        { kind: "file", path: "/w/page.html", source: "<h1>Hi" },
+        status,
+      ),
+      metadata: { ...running.metadata, id: StoreId.newPartId() },
+    });
+    for (const status of ["writing", "queued"] as const) {
+      const shown = page(status);
+      expect(cardsOf({ steps: [running, shown] }).at(-1)?.steps).toEqual([
+        shown,
+      ]);
+    }
+  });
+
+  it.each([
+    ["prose", "/w/notes.md", true, true],
+    ["plain text", "/w/notes.txt", true, true],
+    ["code", "/w/scrape.py", false, false],
+    ["styles", "/w/site.css", false, false],
+    ["data", "/w/rows.json", false, false],
+    ["a file with no extension", "/w/Makefile", false, false],
+    ["a drawing", "/w/chart.svg", false, true],
+    ["a table", "/w/rows.csv", false, true],
+    ["a page", "/w/page.html", false, true],
+  ])(
+    "shows %s written whole as it is written (%s: %s) and once written (%s)",
+    (_kind, path, asWritten, once) => {
+      const shows = { kind: "file", path, words: "a" } as const;
+      expect(cardsOf({ steps: [write(shows, "writing")] })).toHaveLength(
+        asWritten ? 1 : 0,
+      );
+      expect(cardsOf({ steps: [write(shows)] })).toHaveLength(once ? 1 : 0);
+    },
+  );
+
+  it("opens a page's card once its source draws enough, and keeps it as more comes", () => {
+    const opensAt = PAGE.indexOf("<h1>Plan") + "<h1>P".length;
+    const shown = Array.from(
+      { length: PAGE.length + 1 },
+      (_, end) =>
+        cardsOf({
+          steps: [
+            write(
+              {
+                kind: "file",
+                path: "/w/page.html",
+                source: PAGE.slice(0, end),
+              },
+              "writing",
+            ),
+          ],
+        }).length > 0,
+    );
+    expect(shown.indexOf(true)).toBe(opensAt);
+    expect(shown.slice(opensAt).every(Boolean)).toBe(true);
+  });
+
+  it("keeps the card before a write with nothing to show up", () => {
+    const notes = write({ kind: "file", path: "/w/notes.md", words: "#" });
+    const later = (shows: TurnStep["shows"]) =>
+      cardsOf({ steps: [notes, write(shows, "writing")] }).at(-1)?.steps;
+    expect(later({ kind: "file", path: "/w/scrape.py", words: "x" })).toEqual([
+      notes,
+    ]);
+    expect(
+      later({ kind: "file", path: "/w/page.html", source: PAGE.slice(0, 80) }),
+    ).toEqual([notes]);
+  });
+});
+
+/** A call writing a file whole. */
+const write = (shows: TurnStep["shows"], status?: TurnStep["status"]) => ({
+  ...step(shows, status),
+  tool: "tool-write_file" as const,
+});
+
+/** A page as the page skill's pages open: a head of styles and a script, then the body. */
+const PAGE = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>A plan for the spring launch, with every date and owner</title>
+<style>
+  body { font: 16px/1.5 Inter, sans-serif; } h1 { font-size: 2rem; }
+  .lede { color: #555; } /* <h1>not this</h1> */
+</style>
+<script>document.documentElement.dataset.ready = "<h1>nor this</h1>";</script>
+</head>
+<body>
+<!-- <h1>a heading left out</h1> -->
+<header><nav><a href="#dates">Dates</a></nav></header>
+<main>
+<h1>Plan for the spring launch</h1>
+<p class="lede">Three dates, two owners, and one open question.</p>
+</main>
+</body>
+</html>`;
+
+describe("whether a page arriving draws enough", () => {
+  it.each([
+    ["its head alone", false, PAGE.slice(0, PAGE.indexOf("<body>"))],
+    ["a heading with no words yet", false, "<body><h1><span class="],
+    ["a heading with words", true, "<body><h1>Plan"],
+    ["a picture still being written", false, '<body><img src="chart.pn'],
+    ["a picture", true, '<body><img src="chart.png">'],
+    ["a drawing", true, "<body><svg viewBox='0 0 10 10'>"],
+    ["a few lines of text", true, `<body><p>${"word ".repeat(42)}`],
+    ["a line of text", false, `<body><p>${"word ".repeat(30)}`],
+    ["text in a script", false, `<body><script>${"word ".repeat(80)}`],
+    ["text in a comment", false, `<body><!-- ${"word ".repeat(80)}`],
+  ])("from %s: %s", (_name, enough, source) => {
+    expect(pageDrawsEnough(source)).toBe(enough);
   });
 });

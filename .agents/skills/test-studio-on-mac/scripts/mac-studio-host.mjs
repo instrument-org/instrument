@@ -6,7 +6,14 @@
 //   node mac-studio-host.mjs stop   --host <ssh-host>
 //   node mac-studio-host.mjs tunnel --host <ssh-host> [--local-port <port>]
 //   node mac-studio-host.mjs status --host <ssh-host>
-//   node mac-studio-host.mjs reset-vm --base <utm-vm> --vm <utm-vm> --host <ssh-host> [--dir <folder>]
+//   node mac-studio-host.mjs reset-vm --base <utm-vm> --vm <utm-vm> --host <ssh-host> [--dir <folder>] [--purpose <words>]
+//   node mac-studio-host.mjs release --host <ssh-host>
+//
+// Every command but status takes the host for the agent session running it
+// (the `claude` process it runs under) in a lock file on this computer,
+// `~/.instrument-test-hosts/<host>.json`, and refuses while another live
+// session holds it. The lock lapses when its session ends or after
+// LOCK_IDLE_MS without a command, and `release` gives it up.
 //
 // `--dir` defaults to $INSTRUMENT_VM_DIR, this computer's folder of base VMs.
 //
@@ -17,12 +24,22 @@
 
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { createServer } from "node:net";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 
 const CDP_PORT = 48183;
+/** How long a lock on a host lasts after the last command that touched it. */
+const LOCK_IDLE_MS = 2 * 60 * 60 * 1000;
+/** How long a utmctl call may take before UTM counts as not answering. */
+const UTM_TIMEOUT_MS = 20_000;
 const PREVIEW_ARCHIVE_PATTERN =
   /^Instrument Preview \(([\da-z-]+)\)-.*-arm64-mac\.zip$/u;
 const NAME_PATTERN = /^[\da-z-]+$/u;
@@ -50,6 +67,8 @@ async function main() {
   const command = argv.shift();
   const host = takeFlag("--host");
   if (!host || !HOST_PATTERN.test(host)) fail("Pass --host <ssh-host>.");
+  if (command === "release") return report(releaseHost(host));
+  if (command !== "status") holdHost(host, takeFlag("--purpose", command));
   switch (command) {
     case "install-preview": {
       const run = takeFlag("--run");
@@ -80,7 +99,7 @@ async function main() {
     }
     default:
       fail(
-        `Unknown command ${JSON.stringify(command)}. Use install-preview, start, stop, status, tunnel, or reset-vm.`,
+        `Unknown command ${JSON.stringify(command)}. Use install-preview, start, stop, status, tunnel, reset-vm, or release.`,
       );
   }
 }
@@ -306,8 +325,96 @@ async function tunnel(host, requested) {
   );
 }
 
+/**
+ * The agent session this command runs for: the nearest `claude` process
+ * above it, which every command a session runs shares. Falls back to the
+ * parent, so a person's own shell holds the host for as long as it is open.
+ */
+function sessionPid() {
+  let pid = process.ppid;
+  for (let i = 0; i < 12 && pid > 1; i++) {
+    const row = spawnSync("ps", ["-o", "ppid=,comm=", "-p", String(pid)], {
+      encoding: "utf8",
+    }).stdout.trim();
+    const match = /^(\d+)\s+(.*)$/u.exec(row);
+    if (!match) break;
+    if (/(^|\/)claude$/u.test(match[2])) return pid;
+    pid = Number(match[1]);
+  }
+  return process.ppid;
+}
+
+function isAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error.code === "EPERM";
+  }
+}
+
+function lockPath(host) {
+  return path.join(homedir(), ".instrument-test-hosts", `${host}.json`);
+}
+
+function readLock(host) {
+  try {
+    return JSON.parse(readFileSync(lockPath(host), "utf8"));
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Takes `host` for this session, or fails naming the live session that has
+ * it: its process, folder, what it said it was doing, and since when.
+ */
+function holdHost(host, purpose) {
+  const pid = sessionPid();
+  const now = Date.now();
+  const held = readLock(host);
+  if (
+    held &&
+    held.pid !== pid &&
+    isAlive(held.pid) &&
+    now - held.touched < LOCK_IDLE_MS
+  ) {
+    fail(
+      `${host} is in use by another session (pid ${held.pid}, in ${held.cwd}, "${held.purpose}", since ${new Date(held.since).toLocaleTimeString()}, last command ${Math.round((now - held.touched) / 60000)} min ago). Wait for it, or ask the person whether it is done; it lapses ${LOCK_IDLE_MS / 3600000} h after its last command or when that session ends.`,
+    );
+  }
+  mkdirSync(path.dirname(lockPath(host)), { recursive: true });
+  writeFileSync(
+    lockPath(host),
+    JSON.stringify({
+      cwd: process.cwd(),
+      pid,
+      purpose: held?.pid === pid ? held.purpose : purpose,
+      since: held?.pid === pid ? held.since : now,
+      touched: now,
+    }),
+  );
+}
+
+function releaseHost(host) {
+  const held = readLock(host);
+  if (held && held.pid !== sessionPid() && isAlive(held.pid)) {
+    fail(`${host} is held by another session (pid ${held.pid}); not released.`);
+  }
+  rmSync(lockPath(host), { force: true });
+  return { host, released: true };
+}
+
 function utm(...args) {
-  const result = spawnSync("utmctl", args, { encoding: "utf8" });
+  const result = spawnSync("utmctl", args, {
+    encoding: "utf8",
+    timeout: UTM_TIMEOUT_MS,
+  });
+  if (result.error?.code === "ETIMEDOUT") {
+    fail(
+      `UTM did not answer \`utmctl ${args.join(" ")}\` within ${UTM_TIMEOUT_MS / 1000} s, so it is wedged rather than busy. If no VM is running (\`pgrep -fl Virtualization.VirtualMachine\` finds none), quit UTM (\`pkill -x UTM\`) and run this again; with a VM running, ask the person first.`,
+    );
+  }
   return {
     ok: result.status === 0,
     out: `${result.stdout}${result.stderr}`.trim(),
@@ -382,8 +489,11 @@ async function resetVm(host, base, vm, dir) {
       `--vm must name the clone, not the base: resetting ${vm} would delete the clean copy.`,
     );
   await wakeUtm();
-  if (vmStatus(base) !== "stopped")
-    fail(`${base} must stay stopped; it is the clean copy.`);
+  const baseStatus = vmStatus(base);
+  if (baseStatus !== "stopped")
+    fail(
+      `${base} must stay stopped; it is the clean copy. UTM says: ${baseStatus || "(nothing)"}.`,
+    );
   if (dir) checkBaseBundle(base, dir);
   // The clone is thrown away, so it is powered off rather than shut down.
   if (vmStatus(vm) === "started") {

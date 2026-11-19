@@ -18,7 +18,6 @@ import {
   useState,
 } from "react";
 
-import { PageFavicon } from "../favicon";
 import { useChatTasks } from "../window/child-tasks-query";
 import { WindowContext } from "../window/context";
 import { taskHref } from "../window/tab-location";
@@ -57,31 +56,24 @@ function PageShot({
   if (url === undefined && hasDrawn) {
     setHasDrawn(false);
   }
-  // The page's icon, which each page's first picture fades in over once it
-  // has drawn; a later picture of the page replaces the one before in place.
-  return (
-    <>
-      <div className="flex h-full items-center justify-center [&_img]:size-6 [&_svg]:size-6">
-        <PageFavicon favicon={tab.favicon} url={page ?? ""} />
-      </div>
-      {url && (
-        <div className="absolute inset-0 flex items-center justify-center p-2.5">
-          <img
-            alt=""
-            className={cn(
-              "max-h-full max-w-full rounded-md shadow-xs ring-1 ring-foreground/10 transition-opacity duration-200",
-              !hasDrawn && "opacity-0",
-            )}
-            draggable={false}
-            onLoad={() => {
-              setHasDrawn(true);
-            }}
-            src={url}
-          />
-        </div>
+  // Each page's first picture fades in over the blank ground once it has
+  // drawn; a later picture of the page replaces the one before in place. It
+  // fills the width from the page's top and is cut off at the bottom, the way
+  // a browser shows a page taller than its window.
+  return url ? (
+    <img
+      alt=""
+      className={cn(
+        "block w-full transition-opacity duration-200",
+        !hasDrawn && "opacity-0",
       )}
-    </>
-  );
+      draggable={false}
+      onLoad={() => {
+        setHasDrawn(true);
+      }}
+      src={url}
+    />
+  ) : null;
 }
 
 /** Connects a transcript to the app: its records, its window and its pages. */

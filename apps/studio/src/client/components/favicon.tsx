@@ -98,7 +98,9 @@ export function Favicon({
  * A site with no icon anywhere, as its initial on a quiet tile: the same
  * mark wherever the site is drawn, in the neutral of the chrome around it so
  * it reads as standing in for an icon rather than being one. The initial is
- * the host's, without its `www.`, so one site has one letter everywhere.
+ * the host's, without its `www.`, so one site has one letter everywhere. An
+ * address with no name (localhost, an IP address) has no initial worth
+ * showing, so it gets a globe on the same tile.
  */
 export function FaviconFallback({
   className,
@@ -113,6 +115,7 @@ export function FaviconFallback({
     "",
   );
   const first = host.trim().codePointAt(0);
+  const isNameless = isNamelessHost(host);
   // Drawn rather than laid out, so the letter scales with whatever box the
   // caller gives it, and a caller that sizes its icons by their svg sizes
   // this one too.
@@ -124,17 +127,37 @@ export function FaviconFallback({
       viewBox="0 0 16 16"
     >
       <rect className="fill-foreground/10" height="16" rx="3" width="16" />
-      <text
-        className="fill-foreground/60 font-semibold select-none"
-        dominantBaseline="central"
-        fontSize="9.5"
-        textAnchor="middle"
-        x="8"
-        y="8.5"
-      >
-        {first === undefined ? "" : String.fromCodePoint(first).toUpperCase()}
-      </text>
+      {isNameless ? (
+        <g className="stroke-foreground/60" fill="none" strokeWidth="1.1">
+          <circle cx="8" cy="8" r="4.75" />
+          <ellipse cx="8" cy="8" rx="2" ry="4.75" />
+          <path d="M3.25 8h9.5" />
+        </g>
+      ) : (
+        <text
+          className="fill-foreground/60 font-semibold select-none"
+          dominantBaseline="central"
+          fontSize="9.5"
+          textAnchor="middle"
+          x="8"
+          y="8.5"
+        >
+          {first === undefined ? "" : String.fromCodePoint(first).toUpperCase()}
+        </text>
+      )}
     </svg>
+  );
+}
+
+/** A host that is only an address: empty, localhost, or an IPv4 or IPv6 address. */
+function isNamelessHost(host: string): boolean {
+  const name = host.trim().toLowerCase().replace(/\.$/, "");
+  return (
+    name === "" ||
+    name === "localhost" ||
+    name.endsWith(".localhost") ||
+    /^\d{1,3}(?:\.\d{1,3}){3}$/.test(name) ||
+    name.startsWith("[")
   );
 }
 

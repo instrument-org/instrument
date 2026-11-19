@@ -32,7 +32,7 @@ import { PageAgentOverlay } from "./page-agent-overlay";
 import { computerTabOf } from "./file-tabs";
 import {
   FileVersionsButton,
-  FileVersionStrip,
+  FileVersionRows,
   versionHref,
 } from "./file-versions";
 import { GroupTabContext } from "./group-tab";
@@ -259,8 +259,8 @@ export function GroupItem({
     up.kind === "screen" ? computerTabOf(up.href)?.version : undefined;
   /**
    * A file a chat's replies handed over keeps a version per reply, listed
-   * from its row, and a kept copy open here says which one it is in a strip
-   * over it, whether it is shown over the file or in its place.
+   * from its row, and a kept copy open here turns the row into the version
+   * row, whether it is shown over the file or in its place.
    */
   const versionsOf = (location: TabLocation) =>
     chatId !== undefined && location.kind === "file"
@@ -283,7 +283,13 @@ export function GroupItem({
    * screen's tab to a site.
    */
   const row = (location: TabLocation) => {
+    const versions = versionsOf(location);
     return (
+      <FileVersionRows
+        {...(versions
+          ? { versions: { ...versions, isOverFile: version !== undefined } }
+          : {})}
+      >
       <TabLocationRow
         address={addressOfTab(up)}
         canGoBack={canGoBack}
@@ -325,6 +331,7 @@ export function GroupItem({
           </>
         }
       />
+      </FileVersionRows>
     );
   };
 
@@ -369,7 +376,6 @@ export function GroupItem({
                 }
               />
             )}
-            {pageVersions && <FileVersionStrip {...pageVersions} />}
           </>
         }
       >
@@ -446,12 +452,6 @@ export function GroupItem({
               {...(isFiles ? { lead: rowProps.leading } : {})}
             />
           )}
-          {versions && (
-            <FileVersionStrip
-              {...versions}
-              isOverFile={version !== undefined}
-            />
-          )}
         </>
       }
     >
@@ -468,7 +468,7 @@ export function GroupItem({
           showPage: (url) => {
             browser?.open(url, { group, replacing: up });
           },
-          showsVersions: chatId !== undefined,
+          versionsOf: chatId,
         }}
       >
         <WindowContext

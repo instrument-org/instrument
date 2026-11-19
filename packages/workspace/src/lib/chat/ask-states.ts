@@ -44,6 +44,11 @@ export interface AskState {
    * on its own computer, where the system's prompt is.
    */
   pending?: Taken;
+  /**
+   * An open question the person wrote past, which their message answers:
+   * not stopped first, nor asked again past.
+   */
+  replied?: true;
 }
 
 /**
@@ -54,6 +59,8 @@ export interface AskState {
 export interface MovedPast {
   stoppedAt?: Date;
   typed?: StoreId.Message;
+  /** When the person wrote `typed`. */
+  typedAt?: Date;
 }
 
 /** How far the person moved past what the chat asked, from its own session (`MovedPast`). */
@@ -63,11 +70,34 @@ export function movedPastOf(
 ): MovedPast {
   const typed = messages.findLast(
     (message) => message.role === "user" && isTypedByUser(message),
-  )?.id;
+  );
   return {
     ...(stopped?.by === "person" && { stoppedAt: stopped.at }),
-    ...(typed && { typed }),
+    ...(typed && { typed: typed.id, typedAt: typed.metadata.createdAt }),
   };
+}
+
+/**
+ * Whether the person wrote past an open question on show, which their
+ * message answers, with no Stop of theirs between its asking and the
+ * message. A held question was never on show, so nothing answered it.
+ */
+function isRepliedPast(ask: AskRecord, moved: MovedPast | undefined): boolean {
+  if (
+    ask.kind !== "question" ||
+    ask.held === true ||
+    ask.stage.is !== "open" ||
+    moved?.typed === undefined ||
+    moved.typed <= ask.messageId
+  ) {
+    return false;
+  }
+  const { stoppedAt, typedAt } = moved;
+  return (
+    stoppedAt === undefined ||
+    stoppedAt.getTime() < ask.askedAt.getTime() ||
+    (typedAt !== undefined && stoppedAt.getTime() > typedAt.getTime())
+  );
 }
 
 /** Whether the person moved past an open question or sign-in: wrote after its call, or stopped since. */
@@ -141,6 +171,11 @@ export function askStates({
         askers.length > 0 &&
         !isMovedPast(ask, movedPast) &&
         !isAskedAgain(ask, asks);
+      const replied =
+        !live &&
+        askers.length > 0 &&
+        !isAskedAgain(ask, asks) &&
+        isRepliedPast(ask, movedPast);
       const unused = live ? unusedAnswers(ask, toAsk) : [];
       const pending = unused.find((answer) => isFreshAsk(answer.at, now));
       const away =
@@ -152,6 +187,7 @@ export function askStates({
         askers,
         live,
         ...(pending && { pending }),
+        ...(replied && { replied: true as const }),
         ...(away && { away }),
       };
     })

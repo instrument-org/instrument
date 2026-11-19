@@ -58,7 +58,7 @@ async function tabAt(entries: string[], closeTab?: () => void) {
               id: "tab_missing",
               isShown: true,
               showPage: () => {},
-              showsVersions: false,
+              versionsOf: undefined,
             }}
           >
             <RouterProvider router={router} />

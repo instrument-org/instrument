@@ -9,7 +9,12 @@ import {
 import { LOCAL_RPC_DEFAULTS } from "@/client/lib/local-rpc-defaults";
 import { MutationCache, QueryClient } from "@tanstack/react-query";
 
-import { type Frame, type FrameMark, growingChunks } from "./frames";
+import {
+  callDetail,
+  type Frame,
+  type FrameMark,
+  growingChunks,
+} from "./frames";
 
 type Message = SessionMessage.WithParts;
 type Part = SessionMessagePart.Type;
@@ -45,9 +50,15 @@ export function lastTurns(stored: Message[], count: number): Message[] {
 
 /** A finished call writing, running, then as stored; one still going only as stored. */
 function callBeats(part: SessionMessagePart.ToolPart, from: number): Beat[] {
+  const detail = callDetail(part.input);
   const beat = (at: number, phase: FrameMark["phase"], state: Part): Beat => ({
     at: Math.max(from, at),
-    mark: { kind: "call", phase, toolType: part.type },
+    mark: {
+      ...(detail !== undefined && { detail }),
+      kind: "call",
+      phase,
+      toolType: part.type,
+    },
     parts: [state],
   });
   if (part.state !== "output-available" && part.state !== "output-error") {
@@ -80,7 +91,11 @@ function wordBeats(part: Extract<Part, { text: string }>, at: number): Beat[] {
   const kind = part.type === "text" ? "prose" : "reasoning";
   const end = Math.max(at, part.metadata.endedAt?.getTime() ?? at);
   const metadata = { ...part.metadata, endedAt: undefined };
-  const chunks = growingChunks(part.text, 6);
+  // About as fine as a provider streams, so the recorded pace has pieces to pace.
+  const chunks = growingChunks(
+    part.text,
+    Math.max(6, Math.ceil(part.text.split(" ").length / 4)),
+  );
   return [
     ...chunks.map((text, index) => ({
       at: at + ((end - at) * index) / chunks.length,
@@ -150,7 +165,7 @@ export function chatFrames(stored: readonly Message[]): Frame[] {
   const shown = new Map<Message, Message>();
   const landed = new Map<StoreId.Part, Part>();
   const frames: Frame[] = [];
-  for (const { head, mark, message, parts } of beats) {
+  for (const { at, head, mark, message, parts } of beats) {
     for (const part of parts ?? []) {
       landed.set(part.metadata.id, part);
     }
@@ -167,9 +182,49 @@ export function chatFrames(stored: readonly Message[]): Frame[] {
         last?.role !== "assistant" ||
         !last.metadata.finishedAt ||
         last.metadata.finishReason === "tool-calls";
-      frames.push({ isAgentRunning, mark, messages });
+      frames.push({ at, isAgentRunning, mark, messages });
     }
   }
   Object.assign(frames.at(-1) ?? {}, { isAgentRunning: false });
   return frames.slice(-MAX_FRAMES);
+}
+
+/** A message as of a frame, by the message it was, with every date moved by `by` ms. */
+const shifted = new WeakMap<Message, { by: number; message: Message }>();
+
+/**
+ * A replayed frame's messages with their dates moved so the frame's own time
+ * is now: a row that measures itself against the wall clock, such as Thinking,
+ * then reads the time it read when the frame was recorded. A message that did
+ * not change between frames stays the one object, so long as `by` does.
+ */
+export function messagesAsOfNow(
+  messages: readonly Message[],
+  by: number,
+): Message[] {
+  return messages.map((message) => {
+    const known = shifted.get(message);
+    if (known?.by === by) {
+      return known.message;
+    }
+    // The cast is the walk's: it keeps every shape it is handed but a date's.
+    const moved = movedDates(message, by) as Message;
+    shifted.set(message, { by, message: moved });
+    return moved;
+  });
+}
+
+function movedDates(value: unknown, by: number): unknown {
+  if (value instanceof Date) {
+    return new Date(value.getTime() + by);
+  }
+  if (Array.isArray(value)) {
+    return value.map((each: unknown) => movedDates(each, by));
+  }
+  if (typeof value === "object" && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, each]) => [key, movedDates(each, by)]),
+    );
+  }
+  return value;
 }

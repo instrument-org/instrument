@@ -2,7 +2,7 @@
 // bridge does while a long transcript lays out is the whole of whether the
 // reader arrives at the bottom. Measured, since jsdom has no layout.
 import { renderInBrowser } from "@/tests/render-browser";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { expect, it, vi } from "vitest";
 
 import {
@@ -32,7 +32,6 @@ function distanceFromEnd() {
  * on a timer after the bridge's first pass, the way images and cards do.
  */
 function Harness({ arrivals }: { arrivals: number[] }) {
-  const contentRef = useRef<HTMLDivElement>(null);
   const [blocks, setBlocks] = useState(3);
   useEffect(() => {
     const timers = arrivals.map((delay) =>
@@ -47,11 +46,11 @@ function Harness({ arrivals }: { arrivals: number[] }) {
     };
   }, [arrivals]);
   return (
-    <MessageScrollerProvider autoScroll={false} defaultScrollPosition="end">
-      <ScrollToEndBridge contentRef={contentRef} signal="loaded" />
+    <MessageScrollerProvider autoScroll={false}>
+      <ScrollToEndBridge signal="loaded" />
       <MessageScroller>
         <MessageScrollerViewport style={{ height: VIEWPORT_HEIGHT }}>
-          <MessageScrollerContent ref={contentRef}>
+          <MessageScrollerContent>
             {Array.from({ length: blocks }, (_, index) => (
               <div data-block key={index} style={{ height: BLOCK_HEIGHT }}>
                 block {index}

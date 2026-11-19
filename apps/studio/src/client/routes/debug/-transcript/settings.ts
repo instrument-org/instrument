@@ -51,3 +51,12 @@ export const showsBottomEdgeAtom = atomWithStorage(
 // pace here to be a multiple of, since a frame is one event and events are not
 // evenly spaced in life.
 export const speedAtom = atomWithStorage("debug-transcript-speed", 4);
+
+/**
+ * How a replay arrives: `steps`, a frame at a time at `speedAtom`'s rate, or
+ * the id of a timed profile (`timing.ts`), streaming at its own pace.
+ */
+export const arrivalAtom = atomWithStorage("debug-transcript-arrival", "even");
+
+/** How fast a timed replay plays, as a multiple of its own pace. */
+export const rateAtom = atomWithStorage("debug-transcript-rate", 1);

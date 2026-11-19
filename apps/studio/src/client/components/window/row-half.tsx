@@ -54,6 +54,7 @@ import { screenLocation, screenPresentation } from "./screen-presentation";
 import { chatOfTab, draftOfTab } from "./tab-model";
 import { useTaskTitles } from "./task-titles";
 import { locationCrumbs, tasksOfHref } from "./tab-location";
+import { useWindowTabs } from "./window-tabs";
 
 /**
  * What the sidebar's rows read beyond the window's tabs: every chat, every
@@ -497,6 +498,7 @@ export function TabMark({
   chatTitles: Map<ChatId, string>;
   tab: WindowTab;
 }) {
+  const { chatUpIn } = useWindowTabs();
   const capture = usePageCaptures().find(
     ({ targetId, using }) =>
       (using.audio || using.video) &&
@@ -524,6 +526,7 @@ export function TabMark({
     <span className="grid size-3.5 shrink-0 place-items-center [&_svg]:size-3.5">
       <ScreenMark
         appsBySlug={appsBySlug}
+        chatId={tab.group === undefined ? undefined : chatUpIn(tab.group)}
         chatTitles={chatTitles}
         href={tab.href}
       />

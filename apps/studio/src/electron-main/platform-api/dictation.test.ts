@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { hostedLimiter } from "@/electron-main/lib/hosted-limiter";
+
 import { transcribeDictation } from "./dictation";
 import { getToken } from "./utils";
 
@@ -50,6 +52,28 @@ describe("transcribeDictation", () => {
         "ok": false,
       }
     `);
+  });
+
+  it("sends the recording in the priority lane, and frees the slot with the platform's refusal", async () => {
+    const release = vi.fn();
+    const acquire = vi
+      .spyOn(hostedLimiter, "acquire")
+      .mockResolvedValue(release);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      Response.json(
+        { error: { code: "concurrency-limit", message: "Too many" } },
+        { status: 429 },
+      ),
+    );
+
+    await transcribeDictation({ audio, surface: "composer" });
+
+    expect(acquire).toHaveBeenCalledWith(
+      expect.objectContaining({ lane: "priority" }),
+    );
+    expect(release).toHaveBeenCalledExactlyOnceWith({
+      refusal: "concurrency-limit",
+    });
   });
 
   it("posts the raw recording with its type, surface, and language", async () => {

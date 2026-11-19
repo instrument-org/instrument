@@ -195,7 +195,7 @@ describe("a link's menu in a window with tabs", () => {
             id: "tab-left",
             isShown: true,
             showPage: vi.fn(),
-            showsVersions: false,
+            versionsOf: undefined,
           }}
         >
           <PageOpenContext value={surfaceOpen}>

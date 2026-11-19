@@ -48,6 +48,7 @@ import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
 import { getGuest, pageHoldingKeyboard } from "@/client/lib/browser-pool";
 import { keptInOtherWindows } from "@/client/lib/kept-state";
+import { restoreUnsentFeedback } from "@/client/lib/problem-reports";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import {
@@ -453,6 +454,13 @@ function WindowShell({
   useRefreshProjectsOnChange();
   useRefetchOnWindowSwitch();
   useEffect(() => installKeyboardHome(), []);
+  useEffect(() => {
+    // A turn later, so the Toaster has subscribed before its toast goes up.
+    const timer = setTimeout(restoreUnsentFeedback, 0);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, []);
   // Where the tab up stands, read off its own router, which the context above
   // is: the rail lights its place and the group on screen follows it. Each
   // part is read on its own, so a step that changes none of them (a file

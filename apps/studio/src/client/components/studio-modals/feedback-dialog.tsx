@@ -9,7 +9,11 @@ import {
   openReportDialog,
 } from "@/client/atoms/report-dialog";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
-import { discardFeedback } from "@/client/lib/problem-reports";
+import {
+  discardFeedback,
+  forgetUnsentFeedback,
+  keepUnsentFeedback,
+} from "@/client/lib/problem-reports";
 import { Button } from "@/client/components/ui/button";
 import {
   DialogBody,
@@ -464,6 +468,7 @@ export function FeedbackDialogContent({
     };
     const sending = { ...draft, finished: true };
     setDraft(sending);
+    keepUnsentFeedback(draft);
     onClose();
     toast.work({
       done: "Thanks! Feedback submitted.",
@@ -474,6 +479,7 @@ export function FeedbackDialogContent({
             ? { ...current, finished: true }
             : current,
         );
+        forgetUnsentFeedback();
         for (const heard of draft.onSent) {
           heard();
         }

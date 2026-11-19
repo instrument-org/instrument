@@ -336,7 +336,10 @@ describe("the feedback draft", () => {
     async ({ fails, onBar }) => {
       const work = vi.spyOn(toast, "work").mockImplementation(() => {});
       vi.mocked(rpcClient.problems.sendFeedback.call).mockImplementationOnce(
-        () => (fails ? Promise.reject(new Error("499")) : Promise.resolve({ id: "sent" })),
+        () =>
+          fails
+            ? Promise.reject(new Error("499"))
+            : Promise.resolve({ id: "sent" }),
       );
       await open();
       typeNote("The list jumps to the top.");

@@ -3,15 +3,25 @@ import {
   feedbackDraftAtom,
   type FeedbackRequest,
   isFeedbackWaiting,
+  newFeedbackDraft,
+  openReportDialog,
   type ProblemReportRequest,
 } from "@/client/atoms/report-dialog";
-import { type Condition, type PendingProblem } from "@/shared/problem-reports";
+import {
+  type Condition,
+  FeedbackTagSchema,
+  type PendingProblem,
+} from "@/shared/problem-reports";
+import { WINDOW_KEPT_FILE } from "@/shared/kept-state";
 import { captureOnce } from "@/client/lib/capture-exception";
+import { takeKept, writeKept } from "@/client/lib/kept-state";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { type ExceptionEvent } from "@instrument-org/shared/exceptions";
+import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { getDefaultStore } from "jotai";
+import { z } from "zod";
 
 /**
  * Throws the feedback draft away, with an Undo that brings it back to its
@@ -20,6 +30,7 @@ import { getDefaultStore } from "jotai";
 export function discardFeedback(draft: FeedbackDraft) {
   const store = getDefaultStore();
   store.set(feedbackDraftAtom, { ...draft, finished: true });
+  forgetUnsentFeedback();
   if (isFeedbackWaiting(draft)) {
     toast("Feedback discarded", {
       action: {
@@ -30,6 +41,77 @@ export function discardFeedback(draft: FeedbackDraft) {
       },
     });
   }
+}
+
+/**
+ * Feedback sent and not yet confirmed, kept with its window so a quit or a
+ * sleep partway through the upload leaves its words for the next launch.
+ * Images are left out for their size, and what goes with the note is
+ * gathered again when it is sent.
+ */
+const UNSENT_FEEDBACK_KEY = "unsent-feedback.v1";
+
+const UnsentFeedbackSchema = z.object({
+  chatId: ChatIdSchema.optional(),
+  note: z.string(),
+  sendActions: z.boolean(),
+  sendChat: z.boolean(),
+  surface: z.string(),
+  tag: FeedbackTagSchema.optional(),
+  writeups: z.array(z.object({ text: z.string(), title: z.string() })),
+});
+
+/** Keeps the draft's words until the service confirms them. */
+export function keepUnsentFeedback(draft: FeedbackDraft) {
+  writeKept(WINDOW_KEPT_FILE, UNSENT_FEEDBACK_KEY, {
+    chatId: draft.chatId ?? draft.captureChat,
+    note: draft.note,
+    sendActions: draft.sendActions,
+    sendChat: draft.sendChat,
+    surface: draft.request.surface,
+    tag: draft.tag,
+    writeups: draft.writeups,
+  } satisfies z.input<typeof UnsentFeedbackSchema>);
+}
+
+export function forgetUnsentFeedback() {
+  writeKept(WINDOW_KEPT_FILE, UNSENT_FEEDBACK_KEY, undefined);
+}
+
+/**
+ * Puts feedback an earlier launch never finished sending back on its bar,
+ * with a toast saying so. It stays kept until it is sent or thrown away, so
+ * another quit before then brings it back again.
+ */
+export function restoreUnsentFeedback() {
+  const kept = UnsentFeedbackSchema.safeParse(
+    takeKept(WINDOW_KEPT_FILE, UNSENT_FEEDBACK_KEY),
+  );
+  const store = getDefaultStore();
+  if (!kept.success || isFeedbackWaiting(store.get(feedbackDraftAtom))) {
+    return;
+  }
+  const { chatId, note, sendActions, sendChat, surface, tag, writeups } =
+    kept.data;
+  const request = feedbackReport({ chatId, surface, tag });
+  const draft = {
+    ...newFeedbackDraft(request),
+    note,
+    sendActions,
+    sendChat,
+    writeups,
+  };
+  store.set(feedbackDraftAtom, draft);
+  keepUnsentFeedback(draft);
+  toast("Your feedback didn't finish sending.", {
+    action: {
+      label: "Open",
+      onClick: () => {
+        openReportDialog(request);
+      },
+    },
+    description: "It's waiting at the bottom of the window.",
+  });
 }
 
 /**

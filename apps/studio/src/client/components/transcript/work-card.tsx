@@ -71,45 +71,64 @@ export function WorkCardView({
     places,
   });
   // A picture of work moving under the pointer, so nothing in it answers a
-  // press. Every kind has the same box and the same one-line footer from the
-  // first paint on, so the card never grows under the rows below it.
-  return (
+  // press; a page's card as a whole brings its tab up in the chat's pane.
+  // Every kind has the same box and the same one-line footer from the first
+  // paint on, so the card never grows under the rows below it.
+  const onShowPage = surface?.onShowPage;
+  const shows = drivenPage && onShowPage ? drivenPage.tabId : undefined;
+  const box = (
+    <div className="block w-full overflow-hidden rounded-2xl border border-border bg-card text-left">
+      <div className="relative h-52 overflow-hidden bg-muted/50">
+        {viewOf(face, {
+          drivenPage,
+          PagePicture: surface?.PagePicture,
+          sessionId,
+        })}
+      </div>
+      <div className="flex h-8 items-center gap-1.5 border-t border-border px-2.5 text-xs">
+        <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+          {face.view === "page/picture" ? (
+            // The page's own icon, as its tab shows it.
+            <PageFavicon
+              className="size-3.5"
+              favicon={drivenPage?.favicon}
+              hasTooltip={false}
+              url={face.url}
+            />
+          ) : (
+            MARKS[card.kind]
+          )}
+        </span>
+        <span className="min-w-0 truncate text-foreground/80">
+          {face.title}
+        </span>
+        {face.meta && (
+          <span className="ml-auto shrink-0 pl-2 text-muted-foreground tabular-nums">
+            {face.meta}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+  return shows !== undefined && onShowPage ? (
+    <button
+      aria-label={`Show ${face.title}`}
+      className="relative block w-full max-w-115 rounded-2xl text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      data-work-card={card.kind}
+      onClick={() => {
+        onShowPage(shows);
+      }}
+      type="button"
+    >
+      {box}
+      {isCurrent && <BorderSweep />}
+    </button>
+  ) : (
     <div
       className="relative w-full max-w-115 rounded-2xl"
       data-work-card={card.kind}
     >
-      <div className="block w-full overflow-hidden rounded-2xl border border-border bg-card text-left">
-        <div className="relative h-52 overflow-hidden bg-muted/50">
-          {viewOf(face, {
-            drivenPage,
-            PagePicture: surface?.PagePicture,
-            sessionId,
-          })}
-        </div>
-        <div className="flex h-8 items-center gap-1.5 border-t border-border px-2.5 text-xs">
-          <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-            {face.view === "page/picture" ? (
-              // The page's own icon, as its tab shows it.
-              <PageFavicon
-                className="size-3.5"
-                favicon={drivenPage?.favicon}
-                hasTooltip={false}
-                url={face.url}
-              />
-            ) : (
-              MARKS[card.kind]
-            )}
-          </span>
-          <span className="min-w-0 truncate text-foreground/80">
-            {face.title}
-          </span>
-          {face.meta && (
-            <span className="ml-auto shrink-0 pl-2 text-muted-foreground tabular-nums">
-              {face.meta}
-            </span>
-          )}
-        </div>
-      </div>
+      {box}
       {isCurrent && <BorderSweep />}
     </div>
   );

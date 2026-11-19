@@ -1,7 +1,7 @@
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type WindowTab } from "@/client/atoms/window";
+import { paneOpenByGroupAtom, type WindowTab } from "@/client/atoms/window";
 import {
   browserTargetOf,
   type BrowserTargetId,
@@ -9,6 +9,7 @@ import {
   type StoreId,
 } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
+import { useSetAtom } from "jotai";
 import {
   type ReactNode,
   useContext,
@@ -21,6 +22,7 @@ import {
 import { useChatTasks } from "../window/child-tasks-query";
 import { WindowContext } from "../window/context";
 import { taskHref } from "../window/tab-location";
+import { useWindowTabs } from "../window/window-tabs";
 import { type TranscriptSurface, TranscriptSurfaceContext } from "./surface";
 import { LiveChatContext, useDrivenTab } from "./transcript-data";
 import { usePagePicture } from "./use-page-picture";
@@ -86,15 +88,33 @@ export function LiveTranscriptSurface({
 }) {
   const appWindow = useContext(WindowContext);
   const showChatFile = useShowChatFile();
+  const { select } = useWindowTabs();
+  const setPaneOpenByGroup = useSetAtom(paneOpenByGroupAtom);
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const stopCommand = useMutation(
     rpcClient.workspace.chats.backgroundProcesses.stop.mutationOptions(),
   );
   // Every chat's tasks are read once here, so each card shares one subscription.
   useChatTasks(chat);
-  const latest = useRef({ appWindow, chat, showChatFile, stop, stopCommand });
+  const latest = useRef({
+    appWindow,
+    chat,
+    select,
+    setPaneOpenByGroup,
+    showChatFile,
+    stop,
+    stopCommand,
+  });
   useLayoutEffect(() => {
-    latest.current = { appWindow, chat, showChatFile, stop, stopCommand };
+    latest.current = {
+      appWindow,
+      chat,
+      select,
+      setPaneOpenByGroup,
+      showChatFile,
+      stop,
+      stopCommand,
+    };
   });
   const [surface] = useState<TranscriptSurface>(() => ({
     onOpenFile: (path) => {
@@ -105,6 +125,13 @@ export function LiveTranscriptSurface({
     },
     onOpenUrl: (url) => {
       latest.current.appWindow?.openPage(url, { show: true });
+    },
+    onShowPage: (tabId) => {
+      // In front in its chat, with the chat's pane open, as the agent's own
+      // `show` does.
+      const now = latest.current;
+      now.select(tabId);
+      now.setPaneOpenByGroup((current) => ({ ...current, [now.chat]: true }));
     },
     onStopCommand: ({ id, sessionId }) => {
       latest.current.stopCommand.mutate({

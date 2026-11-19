@@ -215,6 +215,7 @@ export function useDrivenPage(sessionId: StoreId.Session | undefined):
   | {
       favicon?: string;
       loadStage?: LoadStage;
+      tabId: string;
       title?: string;
       url?: string;
     }
@@ -226,6 +227,7 @@ export function useDrivenPage(sessionId: StoreId.Session | undefined):
     tab && {
       ...(tab.favicon && { favicon: tab.favicon }),
       ...(nav.url !== null && { loadStage: nav.loadStage }),
+      tabId: tab.id,
       ...(tab.title && { title: tab.title }),
       ...(url && { url }),
     }

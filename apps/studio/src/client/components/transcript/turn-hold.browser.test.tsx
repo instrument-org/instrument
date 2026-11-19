@@ -13,9 +13,10 @@ import {
   type TranscriptMessage,
   transcriptMessage,
 } from "@instrument-org/workspace/client";
+import { frameData, MotionGlobalConfig } from "motion/react";
 import { useState } from "react";
 
-import { expect, it, vi } from "vitest";
+import { expect, it, onTestFinished, vi } from "vitest";
 
 import {
   MessageScroller,
@@ -234,6 +235,13 @@ it.each([
     const frames = framesOfCase();
     const stage = new Stage();
     stage.setRate(0);
+    // Motion's animations (a row opening, a step's line folding) run on a
+    // clock of their own, so it moves with the stage's: on real time, how far
+    // a fold had come when a row was measured hung on the runner's speed.
+    MotionGlobalConfig.useManualTiming = true;
+    onTestFinished(() => {
+      MotionGlobalConfig.useManualTiming = false;
+    });
     const screen = await renderInBrowser(
       <Harness frames={frames} stage={stage} />,
     );
@@ -272,6 +280,7 @@ it.each([
       }
       for (let tick = 0; tick < 6; tick += 1) {
         stage.step(50);
+        frameData.timestamp += 50;
         await new Promise(requestAnimationFrame);
         look();
       }

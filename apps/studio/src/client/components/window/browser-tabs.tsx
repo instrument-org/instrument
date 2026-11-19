@@ -19,6 +19,7 @@ import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
+import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
 import { isPageEditAddress } from "@instrument-org/shared";
 import { pageTextOf, READ_PAGE_TEXT } from "@instrument-org/shared/page-text";
 import {
@@ -51,6 +52,7 @@ import {
   isHomeTab,
   openPage as openPageIn,
   type PageTab,
+  pageBecomesFile,
   pageNavigated,
   patchPage,
   titleAtNavigation,
@@ -60,6 +62,7 @@ import {
 } from "./tab-model";
 import {
   everyTabIdAtom,
+  hostGroupOf,
   newScreenId,
   useWindowTabs,
   useWindowTabsChange,
@@ -415,6 +418,27 @@ export function BrowserTabs({
               ? {}
               : { favicon: undefined }),
           });
+        }
+        // A page tab that lands on a page's file becomes the file's tab, the
+        // one kind of tab a file on the computer has, whoever sent it there:
+        // the agent, a link, a bookmark, a step back. The guest goes on as
+        // the page that tab draws, under the id agents already know it by.
+        const filePath = hostPathOfFileUrl(url);
+        const group = latest.current.tabs.find((tab) => tab.id === id)?.group;
+        if (
+          filePath !== undefined &&
+          group !== undefined &&
+          !group.startsWith(HOSTED_PAGE_GROUP_PREFIX) &&
+          getFileType({ filename: filePath }) === "html"
+        ) {
+          const fileTab = newScreenId();
+          change((current) =>
+            pageBecomesFile(current, {
+              file: { href: fileHref(filePath), id: fileTab },
+              hostGroup: hostGroupOf(fileTab),
+              page: id,
+            }),
+          );
         }
       };
       // A local page's own `history.pushState` moves its address without

@@ -10,6 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   adoptGroup,
+  pageBecomesFile,
   closeTab,
   dropGroup,
   navigateScreen,
@@ -656,5 +657,55 @@ describe("pageBecameDownload", () => {
     ]);
 
     expect(pageBecameDownload(state, "s", HOME)).toBe(state);
+  });
+});
+
+describe("pageBecomesFile", () => {
+  const FILE = "/Users/casey/site/a.html";
+  const before = { href: "/apps", id: "apps", kind: "screen" } as const;
+
+  // The page tab's guest goes on as the file tab's page, under the id an
+  // agent already drives it by; the file tab stands in its place and keeps
+  // what the tab showed before the page.
+  it("puts a file tab in the page's place and keeps the page as the one it draws", () => {
+    const next = pageBecomesFile(
+      windowOf(
+        [
+          { ...pageTab("page", `file://${FILE}`, CHAT), past: [before] },
+          pageTab("other", "https://example.com/", CHAT),
+        ],
+        { [CHAT]: "page" },
+      ),
+      {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        page: "page",
+      },
+    );
+    expect(shape(next)).toEqual({
+      [CHAT]: "*file other",
+      "page:file": "*page",
+    });
+    expect(next.tabs[0]).toMatchObject({
+      group: CHAT,
+      href: fileHref(FILE),
+      kind: "screen",
+      past: [before],
+      stripKey: "page",
+    });
+    expect(next.tabs.at(-1)).toEqual(
+      pageTab("page", `file://${FILE}`, "page:file"),
+    );
+  });
+
+  it("leaves a tab that is no page as it is", () => {
+    const state = windowOf([before]);
+    expect(
+      pageBecomesFile(state, {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        page: "apps",
+      }),
+    ).toBe(state);
   });
 });

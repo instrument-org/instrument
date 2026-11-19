@@ -586,6 +586,48 @@ export function pageTakesOver(
 }
 
 /**
+ * A page tab that went to a page's file on the computer becoming that file's
+ * tab, the inverse of {@link pageTakesOver}: a file tab stands where the page
+ * stood, in its place in the strip and its group, with what the tab showed
+ * before the page behind it, and the page, guest and all, goes on as the page
+ * that tab draws, in `hostGroup`. Its guest's own history comes with it, so
+ * back from the file walks the page's sites as a browser's would.
+ */
+export function pageBecomesFile(
+  state: WindowTabs,
+  {
+    file,
+    hostGroup,
+    page: pageId,
+  }: { file: { href: string; id: string }; hostGroup: string; page: string },
+): WindowTabs {
+  const page = state.tabs.find((entry) => entry.id === pageId);
+  if (page?.kind !== "page" || page.group === undefined) {
+    return state;
+  }
+  const {
+    future: _future,
+    isOpened: _opened,
+    past,
+    stripKey,
+    ...hosted
+  } = page;
+  const replaced = replaceTab(state, pageId, {
+    group: page.group,
+    href: file.href,
+    id: file.id,
+    ...(page.isOpened === undefined ? {} : { isOpened: page.isOpened }),
+    kind: "screen",
+    ...(past === undefined ? {} : { past }),
+    stripKey: stripKey ?? page.id,
+  });
+  return {
+    ...replaced,
+    tabs: [...replaced.tabs, { ...hosted, group: hostGroup }],
+  };
+}
+
+/**
  * A new page tab. In a tab's place, it takes that tab's place in the strip
  * and under its strip key, so the strip sees one tab changing rather than one
  * leaving and another arriving, and it is what that group has up. Otherwise

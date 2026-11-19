@@ -23,6 +23,7 @@ import path from "node:path";
 import { chatDir } from "../../src/lib/record-folders";
 import { type Session } from "../../src/schemas/session";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
+import { isToolPart } from "../../src/lib/is-tool-part";
 import { type Assertion, defineEval } from "../harness";
 import { getSharedChrome } from "../lib/shared-chrome";
 
@@ -497,6 +498,44 @@ const answeredDelivery = replied(
 
 const LONG_JOB =
   "Go through all four pages of this catalog and add every item that costs under $3 to my cart.";
+
+/**
+ * The chat's steps that wrote to the user and then called another tool,
+ * after its first call: the words between calls, which the call's own
+ * explanation already shows the user as it runs.
+ */
+function linesBetweenCalls(sessions: Session.WithMessagesAndParts[]): string[] {
+  const lines: string[] = [];
+  let called = false;
+  for (const message of sessions.flatMap((session) => session.messages)) {
+    if (message.role === "user") {
+      called = false;
+      continue;
+    }
+    const text = message.parts
+      .flatMap((part) => (part.type === "text" ? [part.text.trim()] : []))
+      .filter(Boolean)
+      .join(" ");
+    const calls = message.parts.some((part) => isToolPart(part));
+    if (called && calls && text) {
+      lines.push(text);
+    }
+    called ||= calls;
+  }
+  return lines;
+}
+
+const quietBetweenCalls: Assertion = {
+  check: ({ sessions }) => {
+    const lines = linesBetweenCalls(sessions);
+    return {
+      evidence: `${lines.length} between calls: ${lines.map((line) => line.slice(0, 80)).join(" | ") || "none"}`,
+      passed: lines.length <= 1,
+      text: "The chat writes at most one line between its calls",
+    };
+  },
+  text: "The chat writes at most one line between its calls",
+};
 /**
  * The chat's first step hands the long job to t1, naming the shop tab, so
  * the follow-up meets a task driving the tab on every model.
@@ -509,6 +548,17 @@ const RETURNS_FOLLOW_UP =
   "Oh, and what's their returns policy? There's a link at the bottom of the page.";
 
 export const TAB_LOCK_EVALS = [
+  defineEval({
+    assertions: [cartIsUnderThree, formUntouched, noOrder, quietBetweenCalls],
+    kind: "chat",
+    // The chat does the whole job itself in one turn, a call per page and
+    // item, the shape where a model narrates each step before the next.
+    name: "tab-lock-chat-does-the-job",
+    prompt: LONG_JOB,
+    sharedBrowser: true,
+    teardown: recordOutcome,
+    viewing,
+  }),
   defineEval({
     assertions: [
       formIsFilled,

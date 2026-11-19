@@ -27,7 +27,6 @@ import { type LoadStage } from "@/client/lib/load-stage";
 
 import { PageFavicon } from "../favicon";
 import { LoadProgress } from "../window/load-progress";
-import { ADDRESS_FIELD_CLASS_NAME, PageAddress } from "../window/page-address";
 import { ImageWaitBloom } from "../message-part/image-wait-bloom";
 import { Markdown } from "../markdown";
 import { Prose } from "../prose";
@@ -71,44 +70,47 @@ export function WorkCardView({
     ...(drivenPage && { drivenPage }),
     places,
   });
-  // A page's card is a small browser window, whose address strip says what
-  // the caption would, so its box takes the caption's room as well and the
-  // card stands as tall as any other.
-  const isPage = face.view === "page/picture";
   // A picture of work moving under the pointer, so nothing in it answers a
-  // press. Its caption is one line from the first paint on, so the card never
-  // grows under the rows below it.
+  // press. Every kind has the same box and the same one-line footer from the
+  // first paint on, so the card never grows under the rows below it.
   return (
     <div
-      className="flex w-full max-w-115 flex-col gap-1.5"
+      className="relative w-full max-w-115 rounded-2xl"
       data-work-card={card.kind}
     >
-      <div
-        className={cn(
-          "relative overflow-hidden rounded-xl bg-muted/50 ring-1 ring-border",
-          isPage ? "h-57.5" : "h-52",
-        )}
-      >
-        {viewOf(face, {
-          drivenPage,
-          PagePicture: surface?.PagePicture,
-          sessionId,
-        })}
-        {isCurrent && <BorderSweep />}
-      </div>
-      {!isPage && (
-        <div className="flex h-4 items-center gap-1.5 px-0.5 text-xs text-muted-foreground">
-          <span className="flex size-3.5 shrink-0 items-center justify-center">
-            {MARKS[card.kind]}
+      <div className="block w-full overflow-hidden rounded-2xl border border-border bg-card text-left">
+        <div className="relative h-52 overflow-hidden bg-muted/50">
+          {viewOf(face, {
+            drivenPage,
+            PagePicture: surface?.PagePicture,
+            sessionId,
+          })}
+        </div>
+        <div className="flex h-8 items-center gap-1.5 border-t border-border px-2.5 text-xs">
+          <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+            {face.view === "page/picture" ? (
+              // The page's own icon, as its tab shows it.
+              <PageFavicon
+                className="size-3.5"
+                favicon={drivenPage?.favicon}
+                hasTooltip={false}
+                url={face.url}
+              />
+            ) : (
+              MARKS[card.kind]
+            )}
           </span>
-          <span className="min-w-0 truncate">{face.title}</span>
+          <span className="min-w-0 truncate text-foreground/80">
+            {face.title}
+          </span>
           {face.meta && (
-            <span className="shrink-0 text-muted-foreground/70 tabular-nums">
-              · {face.meta}
+            <span className="ml-auto shrink-0 pl-2 text-muted-foreground tabular-nums">
+              {face.meta}
             </span>
           )}
         </div>
-      )}
+      </div>
+      {isCurrent && <BorderSweep />}
     </div>
   );
 }
@@ -166,70 +168,32 @@ const VIEWS: {
     <PictureRow newest={face.newest} strip={face.strip} />
   ),
   "page/picture": (face, { drivenPage, PagePicture, sessionId }) => (
-    <PageWindow
-      favicon={drivenPage?.favicon}
+    <PageView
       // Until the page can be read, a call still going is bringing it up.
       loadStage={drivenPage?.loadStage ?? (face.isGoing ? "waiting" : "idle")}
-      placeholder={face.title}
-      url={face.url}
     >
       {PagePicture && <PagePicture sessionId={sessionId} />}
-    </PageWindow>
+    </PageView>
   ),
 };
 
 /**
- * A page as a small browser window: the address field from a tab's row along
- * the top, scaled down, with its load line, and the page under it on a blank
- * ground until its picture comes.
+ * A page on a blank ground until its picture comes, with the tab row's load
+ * line along the foot of the picture, over the footer's top edge, while a
+ * navigation is going.
  */
-function PageWindow({
+function PageView({
   children,
-  favicon,
   loadStage,
-  placeholder,
-  url,
 }: {
   children: ReactNode;
-  favicon: string | undefined;
   loadStage: LoadStage;
-  /** What the field says before there is an address. */
-  placeholder: string;
-  url: string | undefined;
 }) {
   return (
     <>
-      <div className="flex h-8 items-center border-b border-border bg-background px-1">
-        <div
-          className={cn(
-            ADDRESS_FIELD_CLASS_NAME,
-            "relative flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-2 text-[11px]",
-          )}
-        >
-          {url ? (
-            <>
-              {/* The page's own icon, as its tab shows it. */}
-              <PageFavicon
-                className="size-3"
-                favicon={favicon}
-                hasTooltip={false}
-                url={url}
-              />
-              <PageAddress url={url} />
-            </>
-          ) : (
-            <>
-              <GlobeIcon className="size-3 shrink-0 text-muted-foreground" />
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {placeholder}
-              </span>
-            </>
-          )}
-          <LoadProgress stage={loadStage} />
-        </div>
-      </div>
-      <div className="absolute inset-x-0 top-8 bottom-0 overflow-hidden bg-card">
-        {children}
+      <div className="absolute inset-0 overflow-hidden bg-card">{children}</div>
+      <div className="absolute inset-x-0 bottom-0 h-0.5">
+        <LoadProgress stage={loadStage} />
       </div>
     </>
   );

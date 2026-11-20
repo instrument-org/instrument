@@ -117,12 +117,14 @@ const BREAK_AFTER = /(?<=[-_.\s])/;
 export function FolderTrail({
   className,
   lastHasMenu = true,
+  muteParents = false,
   path,
   wrap = false,
 }: {
   className?: string;
   /** Whether the last folder has a menu of its own; off where what it sits in already offers one for that folder. */
   lastHasMenu?: boolean;
+  muteParents?: boolean;
   path: string;
   wrap?: boolean;
 }) {
@@ -225,7 +227,16 @@ export function FolderTrail({
         part={(at, content) => {
           const crumbPath = crumbs[at]?.path;
           const shown = (
-            <span className="flex min-w-0 items-center">{content}</span>
+            <span
+              className={cn(
+                "flex min-w-0 items-center",
+                muteParents &&
+                  at < labels.length - 1 &&
+                  "text-muted-foreground",
+              )}
+            >
+              {content}
+            </span>
           );
           return crumbPath === undefined ||
             (!lastHasMenu && at === labels.length - 1) ? (

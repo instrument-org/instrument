@@ -10,7 +10,9 @@ import {
 /**
  * The history a task continues from after its context window was reset.
  *
- * A rollover keeps what the user said and discards what the model said. The
+ * A rollover keeps what the user said and discards what the model said, and
+ * of every user message but the newest it keeps only the words and what was
+ * sent with them, not the notes the app attached (`typedOnly`). The
  * user's words are the part that cannot be reconstructed: a constraint given
  * forty turns ago is still binding, and a summary of it is a paraphrase we
  * chose to trust. Assistant turns are dropped instead, which costs the model's
@@ -283,10 +285,48 @@ function retainNewestUserMessages(
     }
 
     budget -= size;
-    retained.unshift(message);
+    retained.unshift(retained.length === 0 ? message : typedOnly(message));
   }
 
   return retained;
+}
+
+/**
+ * The data parts an older carried message keeps: what came with the user's
+ * own words (their files, marks, answers and named skills, or the chat's words
+ * to a task), the running processes the next note is measured against
+ * (`backgroundProcesses` reads its last-told across the whole history), and
+ * the rollover mark, which no note renders.
+ */
+const TYPED_DATA_PARTS = new Set<SessionMessagePart.Type["type"]>([
+  "data-asks",
+  "data-attachments",
+  "data-backgroundProcesses",
+  "data-contextRollover",
+  "data-fromChat",
+  "data-questionAnswer",
+  "data-skillMentions",
+]);
+
+/**
+ * A carried user message other than the newest, with only what the user
+ * typed and sent. The notes the app attached to it (memory, the view, the
+ * browser's tabs, the project, folder and setup changes) described the
+ * moment it was sent, and each is said again on the newest carried message or
+ * after it: a `state` note says the whole picture on the first message that
+ * has one, and a `diff` note is measured from the boundary or from the
+ * baseline a rollover rewrites. Carried on every older message, they cost a
+ * fresh window more than the words they came with.
+ */
+function typedOnly(
+  message: SessionMessage.WithParts,
+): SessionMessage.WithParts {
+  const parts = message.parts.filter(
+    (part) => !part.type.startsWith("data-") || TYPED_DATA_PARTS.has(part.type),
+  );
+  return parts.length === message.parts.length
+    ? message
+    : { ...message, parts };
 }
 
 function userTextLength(message: SessionMessage.WithParts): number {

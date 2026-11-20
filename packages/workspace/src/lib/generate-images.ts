@@ -20,12 +20,7 @@ import {
   type PlanRefusal,
   type WorkspaceServerURL,
 } from "@instrument-org/shared";
-import {
-  APICallError,
-  generateImage,
-  generateText,
-  NoImageGeneratedError,
-} from "ai";
+import { APICallError, generateImage, NoImageGeneratedError } from "ai";
 import { err, ok, ResultAsync } from "neverthrow";
 
 import { type StoreId } from "../schemas/store-id";
@@ -60,10 +55,6 @@ export class NoImageProvider extends Error {
 // Loose agent-supplied image parameters. Validated and routed per selected
 // model by resolveImageParameters; unsupported knobs are dropped.
 type ImageGenerationParameters = Record<string, boolean | number | string>;
-
-// An image made by a language model is recorded with the rest of the image
-// request by `generateImageStream`, so the AI SDK's own recording stays off.
-const RECORDED_BY_CALLER = { isEnabled: false };
 
 interface ImageStreamChunk {
   // The parameters actually forwarded to the model, after dropping unsupported
@@ -158,7 +149,7 @@ export async function generateBufferedImage({
   sourceImages?: Buffer[];
   workspaceConfig: WorkspaceConfig;
 }) {
-  const { config, model, type } = resolved;
+  const { config, model } = resolved;
 
   if (sourceImages && sourceImages.length > 0) {
     const maxSourceImages = SOURCE_IMAGE_LIMITS[config.type];
@@ -180,48 +171,6 @@ export async function generateBufferedImage({
 
   return ResultAsync.fromPromise(
     (async () => {
-      if (type === "language") {
-        const textResult =
-          sourceImages && sourceImages.length > 0
-            ? await generateText({
-                abortSignal: signal,
-                headers,
-                telemetry: RECORDED_BY_CALLER,
-                messages: [
-                  {
-                    content: [
-                      ...sourceImages.map((buf) => ({
-                        image: buf,
-                        type: "image" as const,
-                      })),
-                      { text: prompt, type: "text" as const },
-                    ],
-                    role: "user" as const,
-                  },
-                ],
-                model,
-              })
-            : await generateText({
-                abortSignal: signal,
-                headers,
-                telemetry: RECORDED_BY_CALLER,
-                model,
-                prompt,
-              });
-
-        return {
-          appliedParameters: {},
-          config,
-          images: textResult.files,
-          modelId: model.modelId,
-          modelIdServed: servedModelId(
-            model.modelId,
-            textResult.response.modelId,
-          ),
-          usage: textResult.usage,
-        };
-      }
-
       // Validate agent params against the selected model's capabilities and
       // route them: aspectRatio as a standard AI SDK param, the rest under the
       // provider's own options key. Unsupported knobs are dropped.

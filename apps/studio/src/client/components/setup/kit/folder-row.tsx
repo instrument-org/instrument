@@ -1,4 +1,3 @@
-import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { DestinationRow } from "@/client/components/instrument-folder";
 import { type Destination } from "@/client/components/instrument-folder-steps";
 import { Button } from "@/client/components/ui/button";
@@ -35,13 +34,7 @@ export function FolderLocation({
   withContents?: boolean;
 }) {
   const change = onChange && (
-    <Button
-      // Pulled right by what the padding adds, so the word stays where the
-      // row's own padding puts it.
-      className="-mr-2 h-9 px-3 text-brand-700 dark:text-brand-300"
-      onClick={onChange}
-      variant="ghost"
-    >
+    <Button className="px-3" onClick={onChange} variant="outline">
       {changeLabel}
     </Button>
   );
@@ -51,7 +44,6 @@ export function FolderLocation({
       <div className="overflow-hidden rounded-2xl border bg-card">
         {path === undefined ? (
           <div className="flex items-center gap-3 px-4 py-3">
-            <FileSystemFolderGlyph className="h-5.75 w-7.5 shrink-0" />
             <span aria-hidden className="flex flex-1 py-0.75">
               <span className="h-3.5 w-56 rounded-xs bg-muted" />
             </span>
@@ -59,12 +51,12 @@ export function FolderLocation({
           </div>
         ) : (
           <DestinationRow
+            appearance="setup"
             className="px-4"
             destination={destination}
             dim={dim}
             end={change}
             path={path}
-            trailClassName="font-medium"
             withContents={withContents}
           />
         )}

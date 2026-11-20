@@ -20,8 +20,8 @@ const createdAt = new Date("2026-01-01T00:00:00.000Z");
 
 /**
  * The first `agent-browser` command a session runs brings the skill with it,
- * and the instructions come back whenever the model's view of the session no
- * longer holds them. `--help` stands in for a browser command: it is answered
+ * and once the model's view of the session no longer holds them, the next one
+ * brings a pointer to them. `--help` stands in for a browser command: it is answered
  * by the wrapper without a browser, and it is still the command having run.
  */
 describe("bash attaches the agent-browser skill", () => {
@@ -132,7 +132,7 @@ describe("bash attaches the agent-browser skill", () => {
     expect((await bash("agent-browser --help")).browserSkill).toBeUndefined();
   });
 
-  it("attaches it again once a rollover drops the turn that carried it", async () => {
+  it("points back to it once a rollover drops the turn that carried it", async () => {
     await saveSession();
     const earlier = await record(await bash("echo earlier"));
     const carried = await record(await bash("agent-browser --help"));
@@ -140,7 +140,27 @@ describe("bash attaches the agent-browser skill", () => {
     expect((await bash("agent-browser --help")).browserSkill).toBeUndefined();
 
     await saveSession(carried.id);
-    expect((await bash("agent-browser --help")).browserSkill).toBeDefined();
+    const pointer = await bash("agent-browser --help");
+    expect(pointer.browserSkill).toEqual({
+      content: "",
+      contentTruncated: false,
+      earlier: true,
+      name: "agent-browser",
+      origin: "instrument",
+    });
+    await record(pointer);
+
+    expect((await bash("agent-browser --help")).browserSkill).toBeUndefined();
+  });
+
+  it("attaches it whole to a session never handed it, whatever its rollovers", async () => {
+    await saveSession();
+    const later = await record(await bash("echo later"));
+    await saveSession(later.id);
+
+    expect((await bash("agent-browser --help")).browserSkill).toMatchObject({
+      content: expect.stringContaining("# agent-browser in Instrument"),
+    });
   });
 
   it("attaches it to a task forked after the chat rolled over past the turn that carried it", async () => {
@@ -165,7 +185,7 @@ describe("bash attaches the agent-browser skill", () => {
 
     expect(
       (await bash("agent-browser --help", { session: task.id })).browserSkill,
-    ).toBeDefined();
+    ).toMatchObject({ earlier: true });
   });
 
   it("counts the turn before a rollover as carrying it for a model the session lifted the boundary for", async () => {
@@ -183,7 +203,45 @@ describe("bash attaches the agent-browser skill", () => {
     expect(
       (await bash("agent-browser --help", { asked: roomy })).browserSkill,
     ).toBeUndefined();
-    expect((await bash("agent-browser --help")).browserSkill).toBeDefined();
+    expect((await bash("agent-browser --help")).browserSkill).toMatchObject({
+      earlier: true,
+    });
+  });
+
+  it("renders a pointer to a guide handed over before the window", async () => {
+    const output = await bash("echo hi");
+    const rendered = BashTool.toModelOutput({
+      input: { command: output.command, yieldMs: 30_000 },
+      output: {
+        ...output,
+        browserSkill: {
+          content: "",
+          contentTruncated: false,
+          earlier: true,
+          name: "agent-browser",
+          origin: "instrument",
+        },
+        durationMs: 5,
+        output: "done\n",
+      },
+      toolCallId: "call-1",
+    });
+    if (rendered.type !== "text") {
+      throw new TypeError(`Expected text output, got ${rendered.type}`);
+    }
+    expect(rendered.value).toMatchInlineSnapshot(`
+      "Exit code: 0
+
+      Command output:
+
+      done
+
+      Duration: 5 ms
+
+      <instrument-system-note>
+      You were given the \`agent-browser\` guide earlier in this session, in turns no longer shown here. Keep working the way you were; \`load_skill\` with \`agent-browser\` shows it again if you need it.
+      </instrument-system-note>"
+    `);
   });
 
   it("renders the skill last, after the command output", async () => {

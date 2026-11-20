@@ -2,11 +2,15 @@ import {
   type AIProviderConfigId,
   type AIProviderType,
   OUR_PROVIDER_CONFIG,
+  type WorkspaceServerURL,
 } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { type AIGatewayProviderConfig } from "../schemas/provider-config";
-import { selectImageProviderConfigs } from "./get-ai-sdk-image-model";
+import {
+  getImageModelFor,
+  selectImageProviderConfigs,
+} from "./get-ai-sdk-image-model";
 
 function config(type: AIProviderType, id: string = type) {
   return {
@@ -28,6 +32,30 @@ function order(chatOn: string, configs: AIGatewayProviderConfig.Type[]) {
     configs,
   }).map((c) => c.id);
 }
+
+describe("getImageModelFor", () => {
+  it.each([
+    ["openai", "gpt-image-2.5-flare"],
+    ["openrouter", "openai/gpt-image-2.5-flare"],
+    ["vercel", "openai/gpt-image-2.5-flare"],
+    ["google", "gemini-3.1-flash-lite-image"],
+    [OUR_PROVIDER_CONFIG.type, "instrument/auto-image"],
+  ] as const)("selects the image model for %s", async (type, modelId) => {
+    const [imageConfig] = selectImageProviderConfigs({
+      callingModel: { params: { providerConfigId: undefined } },
+      configs: [config(type)],
+    });
+    if (!imageConfig) {
+      throw new Error(`No image config for ${type}`);
+    }
+    const result = await getImageModelFor({
+      config: imageConfig,
+      workspaceServerURL: "http://localhost" as WorkspaceServerURL,
+    });
+
+    expect(result.isOk() && result.value.model.modelId).toBe(modelId);
+  });
+});
 
 describe("selectImageProviderConfigs", () => {
   it.each([

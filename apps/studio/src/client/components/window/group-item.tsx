@@ -400,7 +400,7 @@ export function GroupItem({
           onClick={noop}
         />
       }
-      trailing={<BrowserStartTail onOpenPage={openHere} />}
+      trailing={<BrowserStartTail isNewTab onOpenPage={openHere} />}
     />
   ) : chatOfTab(up) === undefined ? (
     row(location)

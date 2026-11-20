@@ -110,7 +110,7 @@ export async function requireApp(
     const connection = await readConnection(app.slug);
     if (!isConnected(connection, app.manifestHash)) {
       throw new Error(
-        `"${app.slug}" is ${describeConnection(connection, app.manifestHash, role)}.`,
+        `"${app.slug}" is ${describeConnection(connection, app.manifestHash, { role, web: app.manifest.type === "web" })}.`,
       );
     }
   }
@@ -1152,7 +1152,9 @@ export const appsList = defineCapability({
         connected: isConnected(connections[app.slug], app.manifestHash),
         name: app.name,
         slug: app.slug,
-        status: describeConnection(connections[app.slug], app.manifestHash),
+        status: describeConnection(connections[app.slug], app.manifestHash, {
+          web: app.manifest.type === "web",
+        }),
         type: app.manifest.type,
       })),
       invalid: invalid.map(({ message, slug }) => ({ message, slug })),

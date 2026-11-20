@@ -172,7 +172,7 @@ export function ChatMenuCaret(props: ComponentProps<"button">) {
       aria-label="Chat menu"
       className={cn(
         SEGMENT,
-        "shrink-0 rounded-r-lg pr-1.5 pl-0.5 data-[state=open]:bg-foreground/8",
+        "shrink-0 rounded-r-lg px-1 data-[state=open]:bg-foreground/8",
       )}
       type="button"
     >

@@ -1,17 +1,21 @@
 import { openAppWindow } from "@/electron-main/windows/app-window";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
+import { windowsMayOpen } from "@/electron-main/windows/launch";
 
 /**
  * Put the foreground window ({@link getForegroundWindow}) on screen, making one
  * if none is left. For the paths that have to leave the user somewhere: a
  * canceled quit, a deep link that arrived with every window closed. Outside
  * macOS a process with no window can't be reached again at all, so none of them
- * may end with nothing shown.
+ * may end with nothing shown. Before the launch has opened the windows there
+ * is none to show, and boot puts them up itself.
  */
 export function ensureForegroundWindowVisible() {
   const target = getForegroundWindow();
   if (!target) {
-    openAppWindow();
+    if (windowsMayOpen()) {
+      openAppWindow();
+    }
     return;
   }
   if (target.isMinimized()) {

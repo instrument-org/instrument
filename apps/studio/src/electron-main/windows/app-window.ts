@@ -1,5 +1,6 @@
 import { WINDOW_CARD_GAP } from "@/shared/constants";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
+import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { logBootMark } from "@/electron-main/lib/boot-timing";
 import { getAppSession } from "@/electron-main/lib/app-session";
 import { createContextMenu } from "@/electron-main/lib/context-menu";
@@ -84,6 +85,7 @@ import {
   windowListingGroup,
   windowWithGroupTabShowing,
 } from "@/electron-main/windows/tab-showing";
+import { windowsMayOpen } from "@/electron-main/windows/launch";
 import { commandWindow } from "@/electron-main/windows/window-command";
 import { trackWindowBounds } from "@/electron-main/windows/window-bounds";
 import { folderHref } from "@/shared/computer-href";
@@ -108,13 +110,6 @@ const openWindows = new Map<string, BrowserWindow>();
 
 /** The open windows, the one last in front first. */
 let inFront: BrowserWindow[] = [];
-
-/**
- * Whether boot has opened a window yet. It opens the first once setup's
- * facts are known, so an ask that arrives before then waits for that one
- * rather than opening a window of its own.
- */
-let hasOpened = false;
 
 /** The windows whose every tab went to another window, which leave nothing to come back to. */
 const emptied = new Set<BrowserWindow>();
@@ -632,12 +627,7 @@ export function restoreAppWindows() {
       }
     };
     for (const window of windows) {
-      // A link during boot can have opened one already, and it will not say so again.
-      if (window.isVisible()) {
-        onUp();
-      } else {
-        window.once("ready-to-show", onUp);
-      }
+      window.once("ready-to-show", onUp);
     }
   }
 }
@@ -653,6 +643,11 @@ export function openNewAppWindow(
   }: { bounds?: ReturnType<typeof cascadedBounds> } = {},
 ): BrowserWindow | null {
   if (isSetupUp()) {
+    return null;
+  }
+  // Boot opens the windows a launch starts with, and one asked for before
+  // then is among them (`windows/launch.ts`).
+  if (!windowsMayOpen()) {
     return null;
   }
   const id = newWindowId();
@@ -839,6 +834,7 @@ export function reopenClosedAppWindow({ after }: { after?: number } = {}) {
   );
   if (
     id === undefined ||
+    !windowsMayOpen() ||
     isSetupUp() ||
     (after !== undefined && windowClosedAt(id) <= after)
   ) {
@@ -994,14 +990,21 @@ function createAppWindow(
     isSpare = false,
   }: { bounds?: ReturnType<typeof cascadedBounds>; isSpare?: boolean } = {},
 ): BrowserWindow {
-  // A second launch or a link can open it while boot is on its way to doing so.
+  // A window already open comes forward rather than opening twice.
   const open = openWindows.get(id);
   if (open && !open.isDestroyed()) {
     inFront = [open, ...inFront.filter((each) => each !== open)];
     rememberWindowInFront(id);
     return open;
   }
-  hasOpened = true;
+  // Every way to a window waits for the launch to open them
+  // (`windows/launch.ts`); one that gets past would come up before the main
+  // process answers its page, or beside the ones boot restores.
+  if (!windowsMayOpen()) {
+    captureServerException(
+      new Error("An app window opened before the launch opened the windows"),
+    );
+  }
   watchSetup();
   const remembered = rememberedStateOf(id);
 
@@ -1374,10 +1377,9 @@ function askAppWindow(ask: AppWindowAsk) {
     return;
   }
   asks.ask(ask);
-  // An ask that launched the app arrives before boot has made a window, and
-  // a link's can arrive after ready, while boot still waits on setup; boot
-  // opens this one itself, and the ask waits for it.
-  if (hasOpened) {
+  // Before the launch has opened the windows, the ask waits for the one it
+  // opens (`windows/launch.ts`).
+  if (windowsMayOpen()) {
     openAppWindow();
   }
 }

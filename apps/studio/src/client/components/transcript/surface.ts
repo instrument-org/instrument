@@ -52,6 +52,8 @@ export interface TranscriptSurface {
   onOpenFile: (path: string) => void;
   onOpenTask: (id: StoreId.Session) => void;
   onOpenUrl: (url: string) => void;
+  /** Brings a chat's page tab up in its pane; absent where the transcript opens nothing. */
+  onShowPage?: (tabId: string) => void;
   onStopCommand: (command: Pick<CommandFacts, "id" | "sessionId">) => void;
   onStopTask: (id: StoreId.Session) => void;
 }

@@ -31,6 +31,7 @@ import {
   type WorkDir,
 } from "../schemas/paths";
 import { absolutePathJoin } from "./absolute-path-join";
+import { VERSIONS_FOLDERS } from "./chat/versions-folder";
 import {
   canonicalizeThroughMissing,
   hostPathWithin,
@@ -925,6 +926,12 @@ function layoutRules(
     // what another made; the chat's own may be elsewhere (a test's).
     system("allow", homeDataLayout(given.home).workDir),
     system("allow", layout.chat.hostRoot),
+    // The app's own copies of the chat's files, which Undo and the version
+    // numbers stand on: the agent copies a version out to go back to it, and
+    // only the app writes one.
+    ...VERSIONS_FOLDERS.map((name) =>
+      system("readOnly", nodePath.join(layout.chat.hostRoot, name)),
+    ),
     ...(layout.chats ? [system("readOnly", layout.chats.hostRoot)] : []),
     ...(layout.record
       ? [

@@ -8,7 +8,7 @@ import { systemNote } from "../notes/system-note";
  * nobody reads its lines as they come.
  */
 export const TURN_NOTE = systemNote`
-  Before using any tool, tell the user in a sentence what you are doing. If no tool is needed, just answer.
+  Before your first tool call, tell the user in a sentence what you are doing. If no tool is needed, just answer.
 `;
 
 /**

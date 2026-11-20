@@ -1,3 +1,4 @@
+import { TOOL_NAMES } from "../../tools/name";
 import { INSTRUMENT_COMMAND } from "./instrument-command";
 
 /**
@@ -26,3 +27,10 @@ export const APPS_ARE_THE_CHATS = `Setting up and connecting apps is the chat's.
 
 /** Why a task's setup word changes nothing. */
 export const APP_SETUP_IS_THE_CHATS = `only the chat sets up and changes apps, since every chat uses them. ${NAME_IT_IN_YOUR_NEEDS}`;
+
+/**
+ * Where a web app stands, for the chat, before the user has said they are
+ * signed in: nothing sees a session in the browser, so the site is checked
+ * before the user is asked to sign in again.
+ */
+export const WEB_APP_NOT_SIGNED_IN = `not marked signed in. Open its site in a tab first: if it loads signed in, ask the user to press Done signing in on a ${TOOL_NAMES.connectApp} card (call it if none is open) rather than sign in again; otherwise ${TOOL_NAMES.connectApp}`;

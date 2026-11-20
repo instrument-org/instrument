@@ -7,7 +7,8 @@ import { type ReactNode } from "react";
  * clear of the icon under it: gray and still while a chat waits on the user,
  * pulsing green while one works, and still green while one has something not
  * yet seen. The rail's Chat wears it for every chat; a chat's window tab and
- * its bar along the foot wear it, smaller, for that chat alone.
+ * its bar along the foot wear it, smaller, for that chat alone, as does a
+ * chat's mark in a group's row of several tabs, working included.
  */
 export function ChatMarkDot({
   className,
@@ -37,12 +38,20 @@ export function ChatMarkDot({
   );
 }
 
-/** The dot a chat's mark wears: a question waiting on the person, else a reply not yet seen. */
+/**
+ * The dot a chat's mark wears: a question waiting on the person, else, with
+ * `isWorkShown`, the pulse of a chat at work, as a one-line row of the chat
+ * list wears it, else a reply not yet seen.
+ */
 export function chatDotOf(
-  chat: Pick<Chat, "status" | "unread"> | undefined,
-): "unread" | "waiting" | undefined {
+  chat: Pick<Chat, "status" | "unread" | "working"> | undefined,
+  { isWorkShown = false }: { isWorkShown?: boolean } = {},
+): RailChatMark | undefined {
   if (chat?.status === "waiting") {
     return "waiting";
+  }
+  if (isWorkShown && chat?.working === true) {
+    return "working";
   }
   return chat?.unread === true ? "unread" : undefined;
 }
@@ -50,15 +59,15 @@ export function chatDotOf(
 /**
  * One chat's icon wherever it stands for the chat (its tab in a strip, its
  * half of a sidebar row, its row of the bookmarks bar's Chats menu): the dot on
- * its corner for a reply not yet seen or a question waiting, and the icon
- * alone otherwise. `ring` is what the icon sits on.
+ * its corner for a reply not yet seen, a question waiting or, where the
+ * caller asks for it, work going on, and the icon alone otherwise. `ring` is what the icon sits on.
  */
 export function ChatMarkIcon({
   dot,
   icon,
   ring,
 }: {
-  dot: "unread" | "waiting" | undefined;
+  dot: RailChatMark | undefined;
   icon: ReactNode;
   ring?: string;
 }) {

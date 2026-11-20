@@ -40,9 +40,10 @@ interface MarkRun {
 /**
  * A tab group's row as two lines of a fixed height: the group's title over
  * every tab's mark in tab order, side by side with a gap between the sides,
- * then what its lead tab says. The lead is its first chat, else the left
- * side's front tab, so a group with a chat goes by that chat wherever it
- * sits. Tabs beside each other that wear the same mark (five pages of one
+ * then, for a group of one tab, what that tab says; a chat at work in a
+ * group of more wears its mark's working pulse instead. The title is the
+ * lead tab's: its first chat, else the left side's front tab, so a group
+ * with a chat goes by that chat wherever it sits. Tabs beside each other that wear the same mark (five pages of one
  * site, three wireframes) are one mark and their count. Under the pointer,
  * one X at the row's end closes the whole group.
  */
@@ -56,7 +57,7 @@ export function GroupRowLines({
   chatTitles: Map<ChatId, string>;
   close?: { label: string; run: () => void } | undefined;
   isCloseShown: boolean;
-  /** Whether the group is up: a chat's mark wears no dot there. */
+  /** Whether the group is up: a chat's mark wears no dot there but the working pulse. */
   isOnScreen: boolean;
   sides: RowSides;
 }) {
@@ -92,15 +93,21 @@ export function GroupRowLines({
       }
       return runs;
     }, []);
+  // With more than one tab, the second line is the marks alone, so a chat
+  // at work says so by its mark's pulse, on screen or not.
+  const isMarksOnly = sides.length > 1 || sides[0].tabs.length > 1;
+  const dotOf = (chat: ChatId) => {
+    const listed = chats.find((each) => each.id === chat);
+    if (!isOnScreen) {
+      return chatDotOf(listed, { isWorkShown: isMarksOnly });
+    }
+    return isMarksOnly && listed?.working === true ? "working" : undefined;
+  };
   const markOf = (tab: WindowTab) => {
     const chat = chatOfTab(tab);
     return (
       <ChatMarkIcon
-        dot={
-          chat === undefined || isOnScreen
-            ? undefined
-            : chatDotOf(chats.find((each) => each.id === chat))
-        }
+        dot={chat === undefined ? undefined : dotOf(chat)}
         icon={
           <TabMark appsBySlug={appsBySlug} chatTitles={chatTitles} tab={tab} />
         }
@@ -146,7 +153,8 @@ export function GroupRowLines({
               </Fragment>
             ))}
           </span>
-          {lines.line !== "" &&
+          {!isMarksOnly &&
+            lines.line !== "" &&
             (lines.tone === "work" ? (
               <span className="brand-shiny-text min-w-0 truncate">
                 {lines.line}

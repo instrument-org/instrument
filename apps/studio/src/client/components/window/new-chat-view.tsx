@@ -49,6 +49,7 @@ import {
 import { AskPills } from "./ask-pills";
 import { type Project } from "./chats";
 import { projectColor } from "./project-colors";
+import { NewChatProjectButton } from "./new-chat-project-button";
 import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
 import { includedItemsOf } from "./draft-context";
@@ -230,7 +231,7 @@ export function NewChatView({
 
   const projectId = draft?.projectId ?? boxes[tabId]?.projectId;
   const project = shell.projects.find((entry) => entry.id === projectId);
-  // Picked for it (New in a project, or a project from the plus), or with
+  // Picked for it (New in a project, or its Project button), or with
   // the sidebar standing in the project it is filed under, the new chat is
   // that project's room, and says so. A project only suggested by its words
   // files it quietly.
@@ -242,11 +243,11 @@ export function NewChatView({
       : undefined;
   const pickProject = useSetAtom(pickNewChatProjectAtom);
   /**
-   * The new chat filed under a project from the plus, as New in that
-   * project files one; picking the project it is under takes it off.
+   * The new chat filed under a project from its Project button, as New in
+   * that project files one, or taken out of the one it is under.
    */
-  const fileUnder = (picked: Project) => {
-    const next = roomOf?.id === picked.id ? undefined : picked.id;
+  const fileUnder = (picked: Project | undefined) => {
+    const next = picked?.id;
     pickProject({ projectId: next, tabId });
     if (draft) {
       updateDraft({
@@ -341,12 +342,17 @@ export function NewChatView({
     onOpenWeb: () => {
       openBeside(BROWSER_HREF);
     },
-    projects: {
-      list: shell.projects.filter((entry) => !entry.retired),
-      onPick: fileUnder,
-      picked: roomOf?.id,
-    },
   };
+  const projectButton = (
+    <NewChatProjectButton
+      onPick={fileUnder}
+      onReturnFocus={() => {
+        inputRef.current?.focus();
+      }}
+      picked={roomOf}
+      projects={shell.projects.filter((entry) => !entry.retired)}
+    />
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -374,6 +380,23 @@ export function NewChatView({
           isCentered ? "max-w-2xl" : "max-w-3xl pb-3",
         )}
         onKeyDownCapture={(event) => {
+          // Backspace in an empty box takes the project off, the way a
+          // token comes out of a search field.
+          if (
+            roomOf &&
+            words === "" &&
+            event.key === "Backspace" &&
+            !event.shiftKey &&
+            !event.altKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            event.target instanceof HTMLElement &&
+            event.target.isContentEditable
+          ) {
+            event.preventDefault();
+            fileUnder(undefined);
+            return;
+          }
           if (
             address &&
             event.key === "Enter" &&
@@ -398,16 +421,15 @@ export function NewChatView({
           isLoading={false}
           keyboardHome
           besidePlus={
-            address ? (
-              <>
-                {besidePlus}
+            <>
+              {projectButton}
+              {besidePlus}
+              {address && (
                 <span className="text-xs whitespace-nowrap text-muted-foreground">
                   {commandEnter} sends to chat
                 </span>
-              </>
-            ) : (
-              besidePlus
-            )
+              )}
+            </>
           }
           modelURI={shell.defaultModelURI}
           onFolders={(paths) => {
@@ -522,26 +544,18 @@ export function NewChatView({
  * between them changes what it shows and nothing moves.
  */
 function NewChatHead({
-  caption,
   heading,
   mark,
 }: {
-  /** A quieter line under the heading, hung below it so the mark and the heading stay where the plain new chat has them. */
-  caption?: ReactNode;
   heading: ReactNode;
   mark: ReactNode;
 }) {
   return (
-    <div className="relative flex flex-col items-center gap-y-5">
+    <div className="flex flex-col items-center gap-y-5">
       <div className="grid size-18 place-items-center">{mark}</div>
       <h1 className="font-serif text-2xl leading-none font-normal tracking-[-0.03em] whitespace-nowrap @xl/app-content:text-3xl @3xl/app-content:text-4xl">
         {heading}
       </h1>
-      {caption !== undefined && (
-        <p className="absolute top-full mt-3 text-sm whitespace-nowrap text-muted-foreground">
-          {caption}
-        </p>
-      )}
     </div>
   );
 }
@@ -560,7 +574,7 @@ function NewChatIntro() {
   );
 }
 
-/** The project a new chat is filed under, in the plain new chat's place: its mark, its name, and where the chat goes. */
+/** The project a new chat is filed under, in the plain new chat's place: its mark and its name. */
 function ProjectRoom({ project }: { project: Project }) {
   return (
     <div
@@ -568,7 +582,6 @@ function ProjectRoom({ project }: { project: Project }) {
       style={projectTint(projectColor(project))}
     >
       <NewChatHead
-        caption="New chats here go into this project."
         heading={
           <span className="text-(--project-tint-ink)">{project.name}</span>
         }

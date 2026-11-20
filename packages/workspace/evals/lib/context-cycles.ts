@@ -118,8 +118,17 @@ function sentBrowserGuide(message: Message): boolean {
       return false;
     }
     const output: unknown = part.output;
+    // A pointer to a guide handed over before the window (`earlier`) is not
+    // the guide.
     return (
-      typeof output === "object" && output !== null && "browserSkill" in output
+      typeof output === "object" &&
+      output !== null &&
+      "browserSkill" in output &&
+      !(
+        typeof output.browserSkill === "object" &&
+        output.browserSkill !== null &&
+        "earlier" in output.browserSkill
+      )
     );
   });
 }

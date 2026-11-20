@@ -782,9 +782,15 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
 /**
  * The skill's instructions after the command that brought them, led by a note
  * saying why they are here, so the model reads them as the skill it would
- * otherwise have loaded rather than as something the command printed.
+ * otherwise have loaded rather than as something the command printed. A
+ * pointer (`earlier`) says where the guide went and how to see it again.
  */
 function browserSkillText(skill: BrowserSkill) {
+  if (skill.earlier) {
+    return systemNote`
+      You were given the \`${AGENT_BROWSER_COMMAND.name}\` guide earlier in this session, in turns no longer shown here. Keep working the way you were; \`${TOOL_NAMES.loadSkill}\` with \`${skill.name}\` shows it again if you need it.
+    `.trim();
+  }
   const truncation = skill.contentTruncated
     ? ` Only the beginning of the guide fits here. Run \`${AGENT_BROWSER_COMMAND.name} skills get core\` for the rest before relying on it.`
     : "";

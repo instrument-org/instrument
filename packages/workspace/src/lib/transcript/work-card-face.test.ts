@@ -624,7 +624,7 @@ describe("whether a page arriving draws enough", () => {
     ["its head alone", false, PAGE.slice(0, PAGE.indexOf("<body>"))],
     ["a heading with no words yet", false, "<body><h1><span class="],
     ["a heading with words", true, "<body><h1>Plan"],
-    ["a picture still being written", false, '<body><img src="chart.pn'],
+    ["a picture still being written", false, '<body><img src="chart.p'],
     ["a picture", true, '<body><img src="chart.png">'],
     ["a drawing", true, "<body><svg viewBox='0 0 10 10'>"],
     ["a few lines of text", true, `<body><p>${"word ".repeat(42)}`],

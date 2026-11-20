@@ -213,6 +213,8 @@ export function contextCycles(
         continue;
       }
       const before = steps[afterStep];
+      // A summary asked for again records both attempts' usage added
+      // together, which reads here as a cut twice its size.
       const promptAtCut =
         part.data.summaryUsage?.inputTokens ?? before?.prompt ?? 0;
       const promptAfter = steps[afterStep + 1]?.prompt;

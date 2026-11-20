@@ -10,7 +10,7 @@ A person can have any number of app windows open on one workspace. They are full
 
 | What | Where | Who sees it |
 | --- | --- | --- |
-| The strip of tabs, the tab groups it lists (`tab-group-list.v2`), the drafts and chats floating over it, whether the inbox is out | `window` kept file, `window/windows/<id>.json` | That window alone |
+| The strip of tabs, the tab groups it lists (`tab-group-list.v2`), the drafts and chats floating over it, whether the inbox is out, the Chats place's one tab (`CHATS_PLACE_GROUP`) | `window` kept file, `window/windows/<id>.json` | That window alone |
 | Each tab group's sides, their tabs and the one up on each, which side has the keyboard, its pin and its share | `groups` kept file, `window/groups.json`, one key per group (`tab-groups.v3/<group>`) | Every window, live |
 | Where else the person left off (billing notes and the like) | `layout` kept file | Every window, live |
 | How things are laid out (widths, views, zoom) | `view` kept file | Every window, live |

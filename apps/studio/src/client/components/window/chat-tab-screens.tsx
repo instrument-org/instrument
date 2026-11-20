@@ -16,6 +16,7 @@ import { useListedChat } from "./chat-tab-menu";
 import { useWindow } from "./context";
 import { ChatScreen } from "./chat-screen";
 import { ChatListToggle, WithChatList } from "./chats-page";
+import { useChatsPlaceAround } from "./chats-place";
 import { HeldMark } from "./context-chip";
 import { layoutReadOf } from "./group-awareness";
 import { useGroupTab } from "./group-tab";
@@ -69,7 +70,8 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
 }
 
 /**
- * The head over a chat in its tab: the toggle for the chat list, its title,
+ * The head over a chat in its tab: the toggle for the chat list (none in
+ * the Chats place, whose list stays), its title,
  * which renames it, and the
  * caret that opens its menu at the left; at the right, the folders the
  * chat saved files in, each opened beside the chat as a click in the chat
@@ -83,6 +85,7 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
   const chat = useListedChat(chatId);
   const writtenFolders = useChatWrittenFolders(chatId);
   const tabId = groupTab?.id;
+  const isPlace = useChatsPlaceAround() !== null;
   const beside = tabId === undefined ? undefined : windowTabs.besideOf(tabId);
   const shownFolder = writtenFolders.find(
     (folder) => beside?.kind === "screen" && beside.href === folderHref(folder),
@@ -90,7 +93,7 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
   return (
     <ChatHeader
       chat={chat}
-      leading={<ChatListToggle />}
+      {...(isPlace ? {} : { leading: <ChatListToggle /> })}
       onArchived={() => {
         groupTab?.close();
       }}
@@ -279,8 +282,6 @@ export function GroupNewChatScreen({
           tabId={tabId}
           takesCaret={isActive && hasKeyboard}
         />
-        {/* Where a chat's head has it, ahead of the title. */}
-        <ChatListToggle className="absolute top-2.5 left-3" />
       </div>
     </WithChatList>
   );

@@ -17,7 +17,13 @@ import {
 } from "@/client/components/icons/row-density-icons";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useAtom } from "jotai";
-import { type ComponentType, useEffect, useRef, useState } from "react";
+import {
+  type ComponentType,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 
 import {
   type ChatFilters,
@@ -33,6 +39,7 @@ import {
   type RowDensity,
   rowDensityAtom,
 } from "./chat-list-view";
+import { PANE_TOP_ROW } from "./pane-top";
 import { type SearchToken, SearchField } from "./search-field";
 
 /** The marks the search offers as tokens, in the order it offers them. */
@@ -72,6 +79,7 @@ export function FilterHead({
   onFiltersChange,
   onLeaveProject,
   project,
+  title,
 }: {
   chats: Filterable[];
   filters: ChatFilters;
@@ -80,7 +88,23 @@ export function FilterHead({
   onLeaveProject: () => void;
   /** The project the column stands in, if it stands in one. */
   project: Project | undefined;
+  /**
+   * A row over the lines naming the list, with the view button at its end
+   * in place of the search's: the Chats place's head.
+   */
+  title?: ReactNode;
 }) {
+  const titleRow = title !== undefined && (
+    // As tall as the chat head across the divider, and the window moves by it.
+    <div
+      className={cn("flex h-12 shrink-0 items-center gap-1 px-2", PANE_TOP_ROW)}
+    >
+      {title}
+      <span className="flex-1" />
+      <ViewButton />
+    </div>
+  );
+  const viewHere = title === undefined && <ViewButton />;
   const searchRef = useRef<HTMLInputElement>(null);
   const [isSearchAsked, setSearchAsked] = useState(false);
   const isSearched = filters.search !== "" || filters.tags.length > 0;
@@ -145,88 +169,94 @@ export function FilterHead({
   if (project) {
     const isFieldShown = isSearchAsked || isSearched;
     return (
-      // Its controls center 24px down, on the line of the chat head's
-      // 48px row across the divider.
-      <div
-        aria-label="Filters"
-        className="flex h-13 shrink-0 items-center gap-1.5 px-2 pb-1"
-        role="group"
-      >
-        {!isFieldShown && (
-          <button
-            className="flex h-8 items-center gap-1 rounded-lg pr-2.5 pl-1.5 text-[13px] text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
-            onClick={onLeaveProject}
-            type="button"
-          >
-            <CaretLeftIcon className="size-3.5" weight="bold" />
-            Inbox
-          </button>
-        )}
-        <span className="flex-1" hidden={isFieldShown} />
-        {isFieldShown ? (
-          // Grows out of the glass it stood in for.
-          <div className="head-field-in flex min-w-0 flex-1">{search}</div>
-        ) : (
-          <button
-            aria-label="Search"
-            className={HEAD_ICON_BUTTON}
-            onClick={() => {
-              setSearchAsked(true);
-              requestAnimationFrame(() => {
-                searchRef.current?.focus();
-              });
-            }}
-            title="Search"
-            type="button"
-          >
-            <MagnifyingGlassIcon className="size-4" />
-          </button>
-        )}
-        <ViewButton />
-      </div>
+      <>
+        {titleRow}
+        {/* Its controls center 24px down, on the line of the chat head's
+        48px row across the divider. */}
+        <div
+          aria-label="Filters"
+          className="flex h-13 shrink-0 items-center gap-1.5 px-2 pb-1"
+          role="group"
+        >
+          {!isFieldShown && (
+            <button
+              className="flex h-8 items-center gap-1 rounded-lg pr-2.5 pl-1.5 text-[13px] text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
+              onClick={onLeaveProject}
+              type="button"
+            >
+              <CaretLeftIcon className="size-3.5" weight="bold" />
+              Inbox
+            </button>
+          )}
+          <span className="flex-1" hidden={isFieldShown} />
+          {isFieldShown ? (
+            // Grows out of the glass it stood in for.
+            <div className="head-field-in flex min-w-0 flex-1">{search}</div>
+          ) : (
+            <button
+              aria-label="Search"
+              className={HEAD_ICON_BUTTON}
+              onClick={() => {
+                setSearchAsked(true);
+                requestAnimationFrame(() => {
+                  searchRef.current?.focus();
+                });
+              }}
+              title="Search"
+              type="button"
+            >
+              <MagnifyingGlassIcon className="size-4" />
+            </button>
+          )}
+          {viewHere}
+        </div>
+      </>
     );
   }
   return (
-    // The search row centers 24px down, on the line of the chat head's 48px
-    // row across the divider.
-    <div
-      aria-label="Filters"
-      className="flex shrink-0 flex-col gap-1.5 px-2 pt-1.5 pb-2.5"
-      role="group"
-    >
-      <div className="flex items-center gap-1.5">
-        {search}
-        <ViewButton />
-      </div>
+    <>
+      {titleRow}
+      {/* The search row centers 24px down, on the line of the chat head's
+      48px row across the divider. */}
       <div
-        aria-label="Places"
-        className="flex items-center gap-0.5"
-        role="tablist"
+        aria-label="Filters"
+        className="flex shrink-0 flex-col gap-1.5 px-2 pt-1.5 pb-2.5"
+        role="group"
       >
-        {PLACES.map((place) => {
-          const isOn = filters.place === place.id;
-          return (
-            <button
-              aria-selected={isOn}
-              className={cn(
-                "h-7 rounded-md px-2 text-[13px]",
-                isOn
-                  ? "bg-foreground/7 font-medium text-foreground"
-                  : "text-foreground/60 hover:bg-foreground/4 hover:text-foreground",
-              )}
-              key={place.label}
-              onClick={() => {
-                onFiltersChange(inPlace(filters, place.id));
-              }}
-              role="tab"
-              type="button"
-            >
-              {place.label}
-            </button>
-          );
-        })}
+        <div className="flex items-center gap-1.5">
+          {search}
+          {viewHere}
+        </div>
+        <div
+          aria-label="Places"
+          className="flex items-center gap-0.5"
+          role="tablist"
+        >
+          {PLACES.map((place) => {
+            const isOn = filters.place === place.id;
+            return (
+              <button
+                aria-selected={isOn}
+                className={cn(
+                  "h-7 rounded-md px-2 text-[13px]",
+                  isOn
+                    ? "bg-foreground/7 font-medium text-foreground"
+                    : "text-foreground/60 hover:bg-foreground/4 hover:text-foreground",
+                )}
+                key={place.label}
+                onClick={() => {
+                  onFiltersChange(inPlace(filters, place.id));
+                }}
+                role="tab"
+                type="button"
+              >
+                {place.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

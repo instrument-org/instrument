@@ -6,7 +6,13 @@ import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
-import { useEffect, useEffectEvent, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import { spokenMessage, toast } from "@/client/lib/toast";
 
 import { useAppsBySlug } from "./apps-by-slug";
@@ -58,6 +64,7 @@ export function ChatPane({
   onOpenChat,
   onOpenDraft,
   openChatId,
+  title,
 }: {
   /** The chat that just started from a draft, whose row arrives with a motion of its own. */
   arrivedId?: string;
@@ -76,6 +83,8 @@ export function ChatPane({
   onOpenDraft: (id: string) => void;
   /** The chat open beside the list, if one is. */
   openChatId: string | undefined;
+  /** A head over the list naming it, which takes the view button: the Chats place's. */
+  title?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
   const shell = useShell();
@@ -278,6 +287,7 @@ export function ChatPane({
             setFilters((current) => inPlace(current, undefined));
           }}
           project={chosenProject}
+          {...(title === undefined ? {} : { title })}
         />
         {isAISearch && (
           <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">

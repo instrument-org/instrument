@@ -1,14 +1,14 @@
-import { openBuiltInPage } from "@/client/atoms/page-requests";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
+import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { useQuery } from "@tanstack/react-query";
-import { atom, useAtom, useAtomValue, useStore } from "jotai";
+import { atom, useAtom, useAtomValue } from "jotai";
 import { useEffect, useEffectEvent, useState } from "react";
 
 import {
@@ -16,7 +16,6 @@ import {
   type ActiveChatsKept,
   activeChats,
   chatsInView,
-  tabHoldingChat,
 } from "./active-chats";
 import { useAppsBySlug } from "./apps-by-slug";
 import { useChatActionsFor } from "./chat-actions";
@@ -24,23 +23,23 @@ import { chatListOptions } from "./chat-list-query";
 import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { ChatRow } from "./chat-row";
 import { type Chat, type Project } from "./chats";
+import { useChatsPlace } from "./chats-place";
 import { DeleteChatDialog } from "./delete-chat-dialog";
-import { useIsGroupOpen, windowTabGroupsAtom } from "./open-groups";
+import { windowTabGroupsAtom } from "./open-groups";
 import { ScreenMark } from "./pane-tabs";
-import { useTabGroupActions } from "./tab-groups";
-import { selectedTabIn } from "./tab-model";
 import { useNow } from "./use-now";
 import { useSetChatProject } from "./use-set-chat-project";
-import { CHATS_INDEX_HREF, chatHref } from "./window-href";
-import { useWindowTabs, windowTabsAtom } from "./window-tabs";
+import { chatHref } from "./window-href";
+import { windowTabsAtom } from "./window-tabs";
 
 /**
- * The chats that came to want a look while no sidebar row showed them
- * (`activeChats`), over the sidebar's foot: a reply not yet seen, or a
- * question waiting. Under a Chats heading that opens the Chats page, up to
- * three rows, drawn as the Chats page draws them at one line with no
- * controls, each chat's mark wearing its dot, then a row that opens the whole
- * list above it. Takes no room while none do.
+ * The Chats heading over the sidebar's foot, which makes Chats the window's
+ * place (`useChatsPlace`) and reads as on while it is, and under it the
+ * chats that came to want a look while no sidebar row showed them
+ * (`activeChats`): a reply not yet seen, or a question waiting. Up to three
+ * rows, drawn as the Chats page draws them at one line with no controls,
+ * each chat's mark wearing its dot, then a row that opens the whole list
+ * above it. A row opens its chat in the place, picked in the list.
  */
 export function ActiveChatsList({
   onNewProject,
@@ -53,10 +52,7 @@ export function ActiveChatsList({
   const chats = useActiveChats();
   const [isMoreOpen, setMoreOpen] = useState(false);
   const [deleting, setDeleting] = useState<Chat>();
-  const openTab = useOpenChatTab();
-  if (chats.length === 0) {
-    return null;
-  }
+  const place = useChatsPlace();
   const row = (chat: Chat) => (
     <ActiveChatRow
       chat={chat}
@@ -69,7 +65,7 @@ export function ActiveChatsList({
       }}
       onOpen={() => {
         setMoreOpen(false);
-        openTab(chat.id);
+        place.enter(chat.id);
       }}
       projects={projects}
     />
@@ -77,15 +73,27 @@ export function ActiveChatsList({
   const rest = chats.length - ACTIVE_CHATS_SHOWN;
   return (
     <section aria-label="Chats" className="flex shrink-0 flex-col pt-1.5 pl-2">
+      {/* On, it says so in its ink alone, with no fill behind it. */}
       <button
-        className="group/heading flex h-7 w-fit shrink-0 items-center gap-1 rounded-md px-2.5 text-[12px] font-medium text-muted-foreground hover:bg-foreground/[0.04] hover:text-foreground"
+        aria-current={place.isUp ? "page" : undefined}
+        className={cn(
+          "group/heading flex h-7 w-fit shrink-0 items-center gap-1 rounded-md px-2.5 text-[12px] hover:bg-foreground/[0.04] hover:text-foreground",
+          place.isUp
+            ? "font-semibold text-foreground"
+            : "font-medium text-muted-foreground",
+        )}
         onClick={() => {
-          openBuiltInPage(CHATS_INDEX_HREF);
+          place.enter();
         }}
         type="button"
       >
         Chats
-        <CaretRightIcon className="size-3 text-muted-foreground/70 group-hover/heading:text-foreground" />
+        <CaretRightIcon
+          className={cn(
+            "size-3 group-hover/heading:text-foreground",
+            place.isUp ? "text-foreground/60" : "text-muted-foreground/70",
+          )}
+        />
       </button>
       <div className="flex flex-col">
         {chats.slice(0, ACTIVE_CHATS_SHOWN).map(row)}
@@ -220,40 +228,3 @@ function keyOf(kept: ActiveChatsKept): string {
 
 /** The list's marks name no chat: a chat's mark is the same whatever its title. */
 const NO_TITLES = new Map<ChatId, string>();
-
-/**
- * Brings up the tab already holding a chat (`tabHoldingChat`): its group up,
- * the tab up in its side, that side with the keyboard. Only when no tab
- * holds it, opens it as a new tab in the group up, right after the tab up on
- * the side with the keyboard, up there itself; in a new group only when no
- * group is up.
- */
-function useOpenChatTab() {
-  const store = useStore();
-  const windowTabs = useWindowTabs();
-  const groups = useTabGroupActions();
-  const isOpen = useIsGroupOpen();
-  return (chat: ChatId) => {
-    const listed = store.get(windowTabGroupsAtom);
-    const held = tabHoldingChat(store.get(windowTabsAtom).tabs, chat, {
-      isHere: (group) => listed?.includes(group) === true,
-      isOpen,
-    });
-    if (held) {
-      windowTabs.select(held.id);
-      groups.show(held.group);
-      return;
-    }
-    const group = groups.groupUp();
-    if (group === undefined) {
-      groups.openChat(chat);
-      return;
-    }
-    const up = selectedTabIn(store.get(windowTabsAtom), group)?.id;
-    windowTabs.openScreen(chatHref(chat), {
-      ...(up === undefined ? {} : { after: up }),
-      group,
-      select: true,
-    });
-  };
-}

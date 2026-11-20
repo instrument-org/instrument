@@ -5,11 +5,11 @@ import {
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { keptAtom } from "@/client/lib/kept-state";
-import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useLocation, useRouter } from "@tanstack/react-router";
 import { atom, useAtomValue, useSetAtom } from "jotai";
+import { noop } from "radashi";
 import {
   createContext,
   type ReactNode,
@@ -22,8 +22,11 @@ import {
 
 import { ChatPane } from "./chat-pane";
 import { CHAT_WIDTH_MIN, isListOver, LIST_WIDTH_MIN } from "./chat-list-width";
+import { useChatsPlaceAround } from "./chats-place";
 import { useGroupTab } from "./group-tab";
+import { SidebarToggle } from "./inbox-toggle";
 import { useShell } from "./shell-context";
+import { useTabGroupActions } from "./tab-groups";
 import { CHATS_INDEX_HREF, chatHref, newChatHref } from "./window-href";
 
 /** The tabs showing the chat list beside their chat, by id: none until the person opens it, or opens a chat from the Chats page. */
@@ -99,6 +102,8 @@ function TabChatList({ openChatId }: { openChatId: ChatId | undefined }) {
   const shell = useShell();
   const router = useRouter();
   const list = use(ChatListOpenContext);
+  const place = useChatsPlaceAround();
+  const groups = useTabGroupActions();
   const go = (href: string, replace = false) => {
     // Beside the chat it stays; over the chat it makes way for the one picked.
     list?.setOpen(!list.isOverlay);
@@ -114,12 +119,22 @@ function TabChatList({ openChatId }: { openChatId: ChatId | undefined }) {
       <ChatPane
         arrivedId={shell.arrivedId}
         drafts={shell.drafts}
-        // An archived chat is put away, so the list takes the tab back.
+        // An archived chat is put away, so the list takes the tab back; in
+        // the Chats place, the next chat takes its place.
         onArchiveOpen={() => {
-          go(CHATS_INDEX_HREF);
+          if (place) {
+            place.away(openChatId);
+          } else {
+            go(CHATS_INDEX_HREF);
+          }
         }}
         onDeleted={(id) => {
-          if (id === openChatId) {
+          if (id !== openChatId) {
+            return;
+          }
+          if (place) {
+            place.away(id);
+          } else {
             go(CHATS_INDEX_HREF, true);
           }
         }}
@@ -130,13 +145,19 @@ function TabChatList({ openChatId }: { openChatId: ChatId | undefined }) {
           }
         }}
         // The tab already writing the draft comes up, wherever it is; with
-        // none, this tab goes to it.
+        // none, this tab goes to it, or from the Chats place a group of its
+        // own, since the place shows only chats.
         onOpenDraft={(id) => {
           shell.showDraft(id, () => {
-            go(newChatHref(id));
+            if (place) {
+              groups.openDraft(id);
+            } else {
+              go(newChatHref(id));
+            }
           });
         }}
         openChatId={openChatId}
+        {...(place ? { title: <PlaceTitle /> } : {})}
       />
     </div>
   );
@@ -159,6 +180,7 @@ export function WithChatList({
 }) {
   const groupTab = useGroupTab();
   const tabId = groupTab?.id;
+  const isPlace = useChatsPlaceAround() !== null;
   const [isBeside, setBeside] = useChatListOpen(tabId);
   const [isOver, setOver] = useChatListOpen(tabId, listOverTabsAtom);
   const listWidth = useAtomValue(listWidthAtom);
@@ -202,7 +224,9 @@ export function WithChatList({
       observer.disconnect();
     };
   }, []);
-  const isOverlay = isListOver(width, listWidth);
+  // The Chats place is the list, so it stands beside the chat however
+  // narrow the place is, and nothing puts it away.
+  const isOverlay = !isPlace && isListOver(width, listWidth);
   // Widened past it, the list over the chat is put away, so narrowing again
   // does not bring it back over the chat.
   useLayoutEffect(() => {
@@ -210,13 +234,13 @@ export function WithChatList({
       setOver(false);
     }
   });
-  const isOpen = isOverlay ? isOver : isBeside;
-  const setOpen = isOverlay ? setOver : setBeside;
+  const isOpen = isPlace || (isOverlay ? isOver : isBeside);
+  const setOpen = isPlace ? noop : isOverlay ? setOver : setBeside;
   return (
     <div className="absolute inset-0 flex min-w-0" ref={ref}>
       <ChatListOpenContext value={{ isOpen, isOverlay, setOpen }}>
         <StudioSidebarRail
-          bounds={listBounds(width)}
+          bounds={isPlace ? placeListBounds(width) : listBounds(width)}
           isOpen={isOpen}
           isOverlay={isOverlay}
           label="Resize the chat list"
@@ -248,8 +272,36 @@ function listBounds(width: number): RailBounds {
   };
 }
 
+/**
+ * The list's bounds in the Chats place: never folded away, and never wider
+ * than half the place, so the chat beside it keeps the larger share.
+ */
+function placeListBounds(width: number): RailBounds {
+  return {
+    initial: LIST_WIDTH_MIN,
+    max: Math.min(
+      LIST_WIDTH_MAX,
+      Math.max(LIST_WIDTH_MIN, Math.floor(width / 2)),
+    ),
+    min: LIST_WIDTH_MIN,
+  };
+}
+
+/**
+ * The head over the list in the Chats place: the sidebar's toggle, then
+ * the place's name.
+ */
+function PlaceTitle() {
+  return (
+    <>
+      <SidebarToggle />
+      <h1 className="min-w-0 truncate text-[15px] font-semibold">Chats</h1>
+    </>
+  );
+}
+
 /** The control ahead of a chat's title that shows the chat list beside it in this tab, and puts it away. */
-export function ChatListToggle({ className }: { className?: string }) {
+export function ChatListToggle() {
   const list = use(ChatListOpenContext);
   const isOpen = list?.isOpen ?? false;
   const label = isOpen ? "Hide chats" : "Show chats";
@@ -258,7 +310,7 @@ export function ChatListToggle({ className }: { className?: string }) {
       <Button
         aria-label={label}
         aria-pressed={isOpen}
-        className={cn("size-7 shrink-0 text-muted-foreground/70", className)}
+        className="size-7 shrink-0 text-muted-foreground/70"
         onClick={() => {
           list?.setOpen(!isOpen);
         }}

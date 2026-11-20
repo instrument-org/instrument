@@ -4,6 +4,7 @@ import {
   siteGroupOf,
 } from "@/client/components/window/app-tabs";
 import { type PageChromeSlots } from "@/client/components/window/browser-tabs";
+import { ChatsPlaceView } from "@/client/components/window/chats-place-view";
 import { GroupView } from "@/client/components/window/group-view";
 import { GroupItem } from "@/client/components/window/group-item";
 import { useGroupTab } from "@/client/components/window/group-tab";
@@ -12,6 +13,7 @@ import { useTabSurface } from "@/client/components/window/tab-surface";
 import { chatHref, matchScreen } from "@/client/components/window/window-href";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { rpcClient } from "@/client/rpc/client";
+import { CHATS_PLACE_GROUP } from "@/shared/kept-state";
 import { StoreId } from "@instrument-org/workspace/client";
 import {
   createFileRoute,
@@ -88,8 +90,8 @@ function SiteView({ group }: { group: string }) {
 }
 
 /**
- * One of the window's tabs, as its address has it: a tab group, or a site
- * opened at the window's level. The window around the tabs is drawn once,
+ * One of the window's tabs, as its address has it: a tab group, the Chats
+ * place, or a site opened at the window's level. The window around the tabs is drawn once,
  * by the window, whatever tab is up. A tab of a group is the screen alone,
  * under the row its group's view draws.
  */
@@ -104,7 +106,11 @@ function TabContent() {
   const screen = matchScreen(href);
   switch (screen.kind) {
     case "group": {
-      return <GroupView group={screen.group} />;
+      return screen.group === CHATS_PLACE_GROUP ? (
+        <ChatsPlaceView />
+      ) : (
+        <GroupView group={screen.group} />
+      );
     }
     // A chat or a draft asked for by its address: the window moves to the
     // group with its tab (`useTabGroupUpkeep`).

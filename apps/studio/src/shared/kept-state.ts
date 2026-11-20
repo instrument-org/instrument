@@ -104,13 +104,24 @@ export function unlistedTabGroups(
 export const HOSTED_PAGE_GROUP_PREFIX = "page:";
 
 /**
+ * The group behind a window's Chats place: one tab, at a chat with the list
+ * beside it, that no sidebar lists and no other window shows. Each window
+ * keeps its own under this one key, in its own file.
+ */
+export const CHATS_PLACE_GROUP = "place:chats";
+
+/**
  * Which file a group of window tabs is kept in. A tab group belongs to this
  * computer whichever window shows it. A page drawn inside a surface is that window's alone,
  * made when the surface comes and closed when it goes, so another window showing
  * the same tab draws a page of its own and is not left blank by this one's going.
+ * The Chats place is the window's alone too.
  */
 export function fileOfTabGroup(group: string): KeptFile {
-  return group.startsWith(HOSTED_PAGE_GROUP_PREFIX) ? "window" : "groups";
+  return group.startsWith(HOSTED_PAGE_GROUP_PREFIX) ||
+    group === CHATS_PLACE_GROUP
+    ? "window"
+    : "groups";
 }
 
 /** Whether a key a window keeps is the tab of a page drawn inside its surfaces, which goes with no other window. */

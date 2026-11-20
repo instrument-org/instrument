@@ -28,10 +28,18 @@ import http from "node:http";
 import path from "node:path";
 import { z } from "zod";
 
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+
+import { setChatProject } from "../../src/lib/chat/chats";
+import { createProject } from "../../src/lib/chat/projects";
+import { memoryDir, saveMemory } from "../../src/lib/memory/store";
 import { chatDir } from "../../src/lib/record-folders";
+import { type ChatId } from "../../src/schemas/chat-id";
 import { type Session } from "../../src/schemas/session";
 import { type SessionMessageDataPart } from "../../src/schemas/session/message-data-part";
-import { type Assertion, defineEval } from "../harness";
+import { type StoreId } from "../../src/schemas/store-id";
+import { type Assertion, defineEval, type EvalCase } from "../harness";
+import { seedChatHistory } from "../lib/seed-chat-history";
 import {
   type ContextCycles,
   contextCycles,
@@ -617,6 +625,8 @@ function report(label: string, cycles: ContextCycles) {
       results: one.results,
     })),
     estimatedUSD: Math.round((cycles.estimatedUSD ?? 0) * 1000) / 1000,
+    /** The job's first request, which a long chat starts already full. */
+    firstPrompt: prompts[0],
     label,
     prompt: spreadOf(prompts),
     requests: cycles.steps.length,
@@ -708,28 +718,428 @@ const viewing: SessionMessageDataPart.ViewContextDataPart = {
   url: SHEET_URL,
 };
 
-export const SHEET_ROLLOVER_EVALS = [
-  defineEval({
-    assertions: [
-      sheetIsRight,
-      contextMeasured,
-      noRecheckAfterRollover,
-      keptNewestResult,
-    ],
-    folders: [{ inPlace: true, path: DOCUMENTS }],
-    kind: "chat",
-    // The Claude account lists no price, so the run's cost is unread and the
-    // default token cap would stop it in its first few dozen requests.
-    maxRunTokens: 40_000_000,
-    name: "sheet-rollover-browser-job",
-    prompt:
-      "The warehouse just finished its count, it's in Documents/Warehouse count.csv. Please put those numbers into this Q4 inventory sheet: for every SKU in the count, set Units on hand and Unit cost in the sheet to the counted values. Some are blank in the sheet and some are out of date. Leave the CSV and every other cell alone, and tell me when the sheet is done.",
-    setup: () => {
-      fs.mkdirSync(DOCUMENTS, { recursive: true });
-      fs.writeFileSync(COUNT_FILE, `${SHEET.count}\n`);
+// ---------------------------------------------------------------------------
+// A long chat before the job
+
+/**
+ * What the person keeps in memory. A whole memory note lists each one's first
+ * line, and a long chat carries one note from every window it rolled over
+ * into.
+ */
+const MEMORIES = [
+  [
+    "name",
+    "The user's name is Dana Whitfield. She runs inventory and purchasing for Whitfield Hardware, a three-store chain, and is the only person who edits the inventory sheets.",
+  ],
+  [
+    "stores",
+    "Whitfield Hardware has stores in Reno, Columbus and Dallas, plus a warehouse in Allentown that receives from suppliers and ships to all three stores twice a week.",
+  ],
+  [
+    "sheet-owner",
+    "Dana owns the Q4 inventory sheet; the store managers can comment on it, but only she edits Units on hand and Unit cost, and she wants every edit made in the sheet itself.",
+  ],
+  [
+    "count-schedule",
+    "The warehouse does a full cycle count at the end of each quarter, and spot counts on the 1st and 15th of each month for fast-moving categories like Fasteners and Safety.",
+  ],
+  [
+    "cost-rounding",
+    "Unit costs are kept to the cent, with no currency sign and no thousands separator, because the accounting export reads the column as a plain number.",
+  ],
+  [
+    "discontinued",
+    "Discontinued SKUs stay on the sheet until year end so the auditors can trace them; never delete a row, even when its units reach zero.",
+  ],
+  [
+    "reorder-policy",
+    "Reorder level is set by the store managers each spring from the prior year's sales; Dana does not change it during the year and asks that nobody else does.",
+  ],
+  [
+    "supplier-ridgeway",
+    "Ridgeway Supply invoices net 45 and ships from Sparks, NV; their lead time is about 6 business days, longer in December when their warehouse runs a reduced crew.",
+  ],
+  [
+    "supplier-atlas",
+    "Atlas Industrial is the main supplier for power tools and has a 3% early-payment discount when invoices are paid within 10 days of delivery.",
+  ],
+  [
+    "supplier-northgate",
+    "Northgate Tools changed their SKU prefixes in 2025; old HT- codes map one to one to their new catalog, and the sheet keeps the old HT- codes.",
+  ],
+  [
+    "supplier-bayline",
+    "Bayline Distributors handles garden and seasonal stock; they want orders by Tuesday noon Eastern for a Friday delivery to the Allentown warehouse.",
+  ],
+  [
+    "supplier-keystone",
+    "Keystone Hardware is the fallback supplier for fasteners when Ridgeway is backordered; their prices run about 8% higher, so Dana uses them only when she has to.",
+  ],
+  [
+    "bins",
+    "Bin codes are aisle letter then shelf number, like C-14; the Allentown warehouse uses aisles A through H, and aisle H is overflow for seasonal stock.",
+  ],
+  [
+    "counted-by",
+    "J. Ortiz, M. Chen and R. Patel are the three warehouse counters; Ortiz leads the quarter-end count and sends the count file when it is done.",
+  ],
+  [
+    "status-values",
+    "The Status column only takes Active or Discontinued; anything else, including a trailing space, breaks the accounting import that runs every night.",
+  ],
+  [
+    "notes-column",
+    "The Notes column is for the store managers' comments; Dana prefers it left alone unless she asks for something to be written there.",
+  ],
+  [
+    "weekly-report",
+    "Every Monday morning Dana sends the owners a one-page summary of stock value by category and any item that went below its reorder level that week.",
+  ],
+  [
+    "shrink",
+    "Shrink above 2% in any category needs a note to the owners with the likely cause, such as damage in receiving, theft, or a miscount.",
+  ],
+  [
+    "seasonal",
+    "Garden stock is seasonal: counts drop sharply from October, the slow sellers are marked down in November, and restock starts in February.",
+  ],
+  [
+    "safety-stock",
+    "Safety items (gloves, goggles, respirators) must never go below their reorder level; flag any that do right away rather than at the end of a job.",
+  ],
+  [
+    "paint",
+    "Paint is mixed in store, so Units on hand for paint counts base cans, not finished colors; tint and primer are counted separately.",
+  ],
+  [
+    "electrical",
+    "Electrical stock has a compliance hold: recalled lots are marked in Notes and are not sold, but they stay in Units on hand until the supplier collects them.",
+  ],
+  [
+    "plumbing",
+    "PEX fittings come in bags of 10 but are counted by the piece, so a count of 40 is four bags; supply lines are counted by the piece too.",
+  ],
+  [
+    "power-tools",
+    "Power tools are serialized; the quarter-end count includes display units, which are marked Display in Notes and are sold at a discount.",
+  ],
+  [
+    "tone",
+    "Dana likes short updates: what changed, what needs her, nothing else. She reads them on her phone between store visits.",
+  ],
+  [
+    "time-zone",
+    "Dana works on Eastern time and usually starts at 7 am; the Dallas store is an hour behind and Reno is three hours behind.",
+  ],
+  [
+    "spreadsheets",
+    "Dana's sheets live in the browser; she does not keep local copies, does not want CSV exports changed, and does not want new tabs added to a sheet.",
+  ],
+  [
+    "approvals",
+    "Changes to more than 50 rows at once need a heads-up to the Columbus manager, Priya Nair, who reconciles the store's books on Fridays.",
+  ],
+  [
+    "vendor-portal",
+    "Atlas and Ridgeway have vendor portals; Dana signs in herself and does not share passwords, so purchase orders are placed by her, not by anyone else.",
+  ],
+  [
+    "year-end",
+    "Year-end close is December 31; the Q4 sheet freezes on January 5 for the auditors, and after that only Dana's accountant may change it.",
+  ],
+].map(([name = "", text = ""]) => ({ name, text }));
+
+const PROJECT_INSTRUCTIONS = `Inventory and purchasing for Whitfield Hardware.
+
+- The Q4 inventory sheet in the browser is the record. Edit it in place; never export, re-import or rebuild it.
+- Units on hand and Unit cost come only from a warehouse count or an invoice. Never estimate them.
+- Keep costs to the cent with no currency sign.
+- Never change Reorder level, Notes or Status unless asked.
+- When a count disagrees with the sheet by more than 20%, list those SKUs at the end rather than asking mid-job.
+- Store managers: Reno (Luis Ortega), Columbus (Priya Nair), Dallas (Tom Becker).
+- Suppliers: Ridgeway Supply, Atlas Industrial, Northgate Tools, Bayline Distributors, Keystone Hardware.
+- The weekly report goes out Monday morning; the quarter-end count lands in the last week of the quarter.`;
+
+/** What the person asked in the chat's earlier turns, and what it answered. */
+const EARLIER_TURNS: [ask: string, reply: string][] = [
+  [
+    "What's the reorder level on the contractor rakes?",
+    "The contractor rakes have a reorder level of 34 in Reno and 41 in Dallas.",
+  ],
+  [
+    "Which power tools are below their reorder level?",
+    "Three are below: the compact impact driver in Columbus, the pro jigsaw in Dallas and the standard grinder in Reno.",
+  ],
+  [
+    "Can you check how many safety goggles we have across all stores?",
+    "Across the three stores there are 212 pairs of safety goggles, all Active.",
+  ],
+  [
+    "Is the Bayline order for garden hoses on the sheet yet?",
+    "Not yet: the garden hose rows still show last month's counts.",
+  ],
+  [
+    "What does row 48 say in Notes?",
+    'Row 48, the standard washers, says "Check damaged cartons".',
+  ],
+  [
+    "How many SKUs are discontinued?",
+    "There are 37 discontinued SKUs, most of them in Paint and Garden.",
+  ],
+  [
+    "Sort out which electrical items have recall notes.",
+    "Two electrical rows carry recall notes, both outlet covers from the same lot.",
+  ],
+  [
+    "What's our total stock value in Fasteners?",
+    "Fasteners come to about $18,400 at current unit costs.",
+  ],
+  [
+    "Which supplier has the most SKUs on the sheet?",
+    "Ridgeway Supply, with 98 SKUs, then Atlas Industrial with 91.",
+  ],
+  [
+    "Did the Columbus counts from the 1st get entered?",
+    "Yes, the spot counts from the 1st are in for Columbus.",
+  ],
+  [
+    "Find anything with a unit cost over $80.",
+    "Eleven SKUs are over $80, all power tools except one respirator.",
+  ],
+  [
+    "Which bins in aisle C are empty?",
+    "None of the aisle C bins are empty; C-07 has the fewest units, 6.",
+  ],
+  [
+    "Is the Dallas grinder still backordered?",
+    'The Notes on the Dallas grinder say "Vendor backorder", last counted in September.',
+  ],
+  [
+    "How many rows did Ortiz count last quarter?",
+    "J. Ortiz is on 148 rows from the Q3 count.",
+  ],
+  [
+    "What's the cheapest drill we carry?",
+    "The lightweight drill at $41.20 is the cheapest.",
+  ],
+  [
+    "Which plumbing items have no Units on hand?",
+    "Four plumbing rows are blank in Units on hand: two PEX elbows and two supply lines.",
+  ],
+  [
+    "Pull up the paint primer rows.",
+    "There are six primer rows, three in Reno and three in Columbus.",
+  ],
+  [
+    "Has anything in Safety dropped below reorder?",
+    "Yes, respirators in Dallas are at 9 against a reorder level of 15.",
+  ],
+  [
+    "What did we decide about the Northgate prefixes?",
+    "Old HT- codes map one to one to Northgate's new catalog, so the sheet keeps the HT- codes.",
+  ],
+  [
+    "Which garden items are discontinued?",
+    "Nine garden rows are discontinued, mostly sprinklers and older trowels.",
+  ],
+  [
+    "Check the Reno hammers.",
+    "Reno has three hammer rows: 44, 61 and 18 units on hand.",
+  ],
+  [
+    "What's the count date range in the sheet?",
+    "Last counted dates run from 2026-01-12 to 2026-09-27.",
+  ],
+  [
+    "Is anything counted twice?",
+    "No SKU appears twice; every SKU is on one row.",
+  ],
+  [
+    "How many rows have Notes filled in?",
+    "About a third of the rows have something in Notes.",
+  ],
+  [
+    "Which suppliers do we use for paint?",
+    "Paint comes from Keystone Hardware and Bayline Distributors.",
+  ],
+  [
+    "What's the most expensive item in Garden?",
+    "The heavy-duty sprinkler system at $88.40.",
+  ],
+  [
+    "Find the impact drivers.",
+    "There are seven impact driver rows across the three stores.",
+  ],
+  ["Any rows missing a bin code?", "No, every row has a bin code."],
+  [
+    "What's the stock value in Power tools?",
+    "Power tools come to roughly $96,000 at current costs.",
+  ],
+  ["How many Active SKUs are there?", "413 SKUs are Active."],
+  [
+    "Which store has the most hand tools?",
+    "Columbus has the most hand tools on hand, about 1,900 units.",
+  ],
+  [
+    "Look for any negative counts.",
+    "There are no negative counts on the sheet.",
+  ],
+  [
+    "What's on row 200?",
+    "Row 200 is a standard roller kit in Dallas with 63 on hand.",
+  ],
+  [
+    "Which wrench sets are low?",
+    "The compact wrench set in Reno is at 7 against a reorder level of 12.",
+  ],
+  [
+    "Are the electrical outlets all Active?",
+    "Yes, all outlet rows are Active.",
+  ],
+  [
+    "How many units of hex bolts in total?",
+    "Hex bolts come to 2,340 units across the stores.",
+  ],
+  ["Which SKUs were last counted by Chen?", "M. Chen is on 141 rows."],
+  [
+    "Is the tape measure count from Dallas in?",
+    "The Dallas tape measures were last counted 2026-09-15.",
+  ],
+  [
+    "What's the reorder level for drop cloths?",
+    "Drop cloths have a reorder level of 25 in every store.",
+  ],
+  [
+    "Do we stock respirators in Reno?",
+    "Yes, two respirator rows in Reno, with 22 and 14 on hand.",
+  ],
+  [
+    "Which items are seasonal in Notes?",
+    "Fourteen rows say Seasonal, all in Garden and Paint.",
+  ],
+  [
+    "What's the average unit cost in Plumbing?",
+    "Plumbing averages about $36 a unit.",
+  ],
+  [
+    "Any duplicate product names?",
+    "Several product names repeat across stores, but each has its own SKU.",
+  ],
+  [
+    "How many SKUs does Keystone supply?",
+    "Keystone Hardware supplies 87 SKUs.",
+  ],
+  [
+    "OK, the quarter-end count should land today.",
+    "Sounds good. Send me the count file when it's in and I'll put it into the sheet.",
+  ],
+];
+
+/** A seeded turn's view: the sheet, at the cell the person was on. */
+function viewingAt(turn: number): SessionMessageDataPart.ViewContextDataPart {
+  const at = `${SHEET_URL}#range=G${String(2 + ((turn * 37) % ROWS))}`;
+  return {
+    page: {
+      tab: SHEET_TAB,
+      tabs: [{ id: SHEET_TAB, title: "Q4 inventory", url: at }],
+      title: "Q4 inventory",
+      url: at,
     },
-    sharedBrowser: true,
-    teardown: recordOutcome,
-    viewing,
+    screen: "browser",
+    url: at,
+  };
+}
+
+/** A seeded rollover's summary, in the sections the summary prompt asks for. */
+function seededSummary(turn: number): string {
+  return `## Goal
+Dana Whitfield runs inventory for Whitfield Hardware and is working in the Q4 inventory sheet (${SHEET_URL}). She asks quick questions about rows, suppliers and counts; the quarter-end warehouse count is due, and when it lands its Units on hand and Unit cost go into the sheet. Standing instructions: edit the sheet in place, never change Reorder level, Notes or Status unless asked, costs to the cent with no currency sign, leave CSV exports alone.
+
+## Done and found
+- Answered ${String(turn)} questions so far about rows, reorder levels, suppliers and counts.
+- The sheet has ${String(ROWS)} data rows (rows 2 to ${String(ROWS + 1)}), columns A to L: SKU, Product, Category, Warehouse, Supplier, Reorder level, Units on hand, Unit cost, Last counted, Bin, Notes, Status.
+- The grid shows 40 rows at a time. The Name box jumps to a cell; the formula bar edits the selected cell, and Enter commits and moves down.
+- No edits made to the sheet yet in this chat.
+
+## Files
+(none)
+
+## Decisions
+- Answer from the live sheet rather than from earlier reads, since store managers comment on it during the day.
+
+## Next
+- Wait for the quarter-end count file, then enter it into the sheet.`;
+}
+
+/**
+ * The 45 turns before the job, with what the app attaches to each (memory,
+ * the view, the browser's tabs, the project's instructions) and a rollover
+ * every five.
+ */
+async function seedLongChat({
+  chatId,
+  modelURI,
+  sessionId,
+}: {
+  chatId: ChatId;
+  modelURI: string;
+  sessionId: StoreId.Session;
+}) {
+  for (const memory of MEMORIES) {
+    await saveMemory(memoryDir(), memory);
+  }
+  const project = await createProject({
+    instructions: PROJECT_INSTRUCTIONS,
+    name: "Store ops",
+  });
+  await setChatProject(chatId, project.id);
+  await seedChatHistory({
+    chatId,
+    modelURI: AIGatewayModelURI.Schema.parse(modelURI),
+    rolloverEvery: 5,
+    sessionId,
+    summary: seededSummary,
+    turns: EARLIER_TURNS.map(([ask, reply], turn) => ({
+      ask,
+      reply,
+      viewing: viewingAt(turn),
+    })),
+  });
+}
+
+const JOB = {
+  assertions: [
+    sheetIsRight,
+    contextMeasured,
+    noRecheckAfterRollover,
+    keptNewestResult,
+  ],
+  folders: [{ inPlace: true, path: DOCUMENTS }],
+  kind: "chat",
+  // The Claude account lists no price, so the run's cost is unread and the
+  // default token cap would stop it in its first few dozen requests.
+  maxRunTokens: 40_000_000,
+  prompt:
+    "The warehouse just finished its count, it's in Documents/Warehouse count.csv. Please put those numbers into this Q4 inventory sheet: for every SKU in the count, set Units on hand and Unit cost in the sheet to the counted values. Some are blank in the sheet and some are out of date. Leave the CSV and every other cell alone, and tell me when the sheet is done.",
+  setup: () => {
+    fs.mkdirSync(DOCUMENTS, { recursive: true });
+    fs.writeFileSync(COUNT_FILE, `${SHEET.count}\n`);
+  },
+  sharedBrowser: true,
+  teardown: recordOutcome,
+  viewing,
+} satisfies Omit<EvalCase, "name">;
+
+export const SHEET_ROLLOVER_EVALS = [
+  defineEval({ ...JOB, name: "sheet-rollover-browser-job" }),
+  /**
+   * The same job at the end of a long chat, as the recorded one was: the
+   * window it starts in carries every earlier user message the last rollover
+   * kept, with what the app attached to each.
+   */
+  defineEval({
+    ...JOB,
+    history: seedLongChat,
+    name: "sheet-rollover-long-chat",
   }),
 ];

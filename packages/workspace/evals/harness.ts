@@ -705,6 +705,16 @@ export interface EvalCase {
    * then keeps a `workspace.db`, as the app does, which every case in the
    * process shares.
    */
+  /**
+   * Earlier turns of the case's own session, written once its chat exists and
+   * before its prompt is sent (`lib/seed-chat-history.ts`): for a case about
+   * what a long chat carries, which one that starts at its prompt never has.
+   */
+  history?: (chat: {
+    chatId: ChatId;
+    modelURI: string;
+    sessionId: StoreId.Session;
+  }) => Promise<void>;
   requests?: (chat: {
     chatId: ChatId;
     sessionId: StoreId.Session;
@@ -1186,12 +1196,15 @@ export async function runEvals(
               uri,
             });
           }
-          const { requests } = evalCase;
+          const { history, requests } = evalCase;
           return startRun(
             {
-              ...(requests && {
+              ...((requests ?? history) && {
                 beforeSend: async (chat) => {
-                  writeRequests(await requests(chat), Date.now());
+                  await history?.({ ...chat, modelURI: uri });
+                  if (requests) {
+                    writeRequests(await requests(chat), Date.now());
+                  }
                 },
               }),
               files: evalCase.files,

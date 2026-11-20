@@ -5,9 +5,12 @@
  * one. For a case scored on the cost of context management rather than only on
  * whether the work got done.
  *
- * One assistant message is one request, its `usage` what the provider reported
- * for it, cache reads included. A summary rollover's own request is not a
- * message; its usage is on the `data-contextRollover` part.
+ * One assistant message with `usage` is one request, its usage what the
+ * provider reported for it, cache reads included; a reply with none, as a
+ * case seeds an earlier conversation with, is no request, and a rollover
+ * before the first request is part of that conversation, not of the run. A
+ * summary rollover's own request is not a message; its usage is on the
+ * `data-contextRollover` part.
  */
 import { isToolPart } from "../../src/lib/is-tool-part";
 import { type Session } from "../../src/schemas/session";
@@ -158,7 +161,7 @@ export function contextCycles(
   /** Each message's position among the requests: the step it is or follows. */
   const stepAt = new Map<string, number>();
   for (const message of messages) {
-    if (message.role === "assistant") {
+    if (message.role === "assistant" && message.metadata.usage !== undefined) {
       const commands = commandsOf(message);
       steps.push({
         cacheReadTokens:
@@ -197,6 +200,9 @@ export function contextCycles(
         (one) => one.id === part.metadata.messageId,
       );
       const afterStep = stepAt.get(part.metadata.messageId) ?? -1;
+      if (afterStep === -1) {
+        continue;
+      }
       const before = steps[afterStep];
       const promptAtCut =
         part.data.summaryUsage?.inputTokens ?? before?.prompt ?? 0;

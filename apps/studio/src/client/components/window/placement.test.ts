@@ -5,9 +5,12 @@ import {
 } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
+import { draftGroupOf } from "@/shared/drafts";
+import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
+
 import { type OpenOptions } from "./context";
 import {
-  chatOfAskingPage,
+  groupOfAskingPage,
   pagePlacementOf,
   type PlacementContext,
   screenPlacementOf,
@@ -203,23 +206,40 @@ describe("where a chat's tasks open", () => {
   });
 });
 
-describe("chatOfAskingPage", () => {
+describe("groupOfAskingPage", () => {
+  const hostGroupOf = (tabId: string) => `${HOSTED_PAGE_GROUP_PREFIX}${tabId}`;
+  const draftGroup = draftGroupOf("draft-1");
   const chatPage = StoreId.newTabId();
   const taskPage = StoreId.newTabId();
+  const draftPage = StoreId.newTabId();
   const sitePage = StoreId.newTabId();
+  const chatFileTab = StoreId.newTabId();
+  const chatFilePage = StoreId.newTabId();
+  const ownFilePage = StoreId.newTabId();
   const tabs = [
     { group: CHAT, id: chatPage },
     { group: CHAT, id: taskPage },
+    { group: draftGroup, id: draftPage },
     { group: "site:abc", id: sitePage },
+    { group: CHAT, id: chatFileTab },
+    { group: hostGroupOf(chatFileTab), id: chatFilePage },
+    { group: hostGroupOf(StoreId.newTabId()), id: ownFilePage },
   ];
 
   it.each([
     ["a chat's own page", browserTargetOf(chatPage), CHAT],
     ["a task's page in a chat", browserTargetOf(taskPage), CHAT],
+    ["a page beside a new chat", browserTargetOf(draftPage), draftGroup],
+    ["a file's page in a chat", browserTargetOf(chatFilePage), CHAT],
+    [
+      "a file's page of the window's own",
+      browserTargetOf(ownFilePage),
+      undefined,
+    ],
     ["a page of the window's own", browserTargetOf(sitePage), undefined],
     ["a page no tab holds", browserTargetOf(StoreId.newTabId()), undefined],
     ["an unreadable target", "nonsense", undefined],
-  ])("names the chat for %s", (_case, targetId, expected) => {
-    expect(chatOfAskingPage(targetId, tabs)).toBe(expected);
+  ])("names the group for %s", (_case, targetId, expected) => {
+    expect(groupOfAskingPage(targetId, tabs)).toBe(expected);
   });
 });

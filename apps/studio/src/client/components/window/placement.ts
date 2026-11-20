@@ -1,5 +1,8 @@
 import { type ChatId } from "@instrument-org/workspace/client";
 
+import { draftOfGroup } from "@/shared/drafts";
+import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
+
 import { type OpenOptions } from "./context";
 import { isGroupScreenHref } from "./group-screen";
 import { tasksOfHref } from "./tab-location";
@@ -180,14 +183,24 @@ export function tasksPlacementOf(
 }
 
 /**
- * The chat a page that asked for a tab of its own is in (a `target=_blank`
- * link, a sign-in button, a middle- or Cmd-click), named by the browser
- * target it asked from, so the tab opens beside it in that chat. Undefined
- * for a page of the window's own, whose tab opens across the window's bar.
+ * The group of chat tabs a page that asked for a tab of its own is in (a
+ * `target=_blank` link, a sign-in button, a middle- or Cmd-click), named by
+ * the browser target it asked from, so the tab opens beside it there: a
+ * chat's, or a new chat's still being written. A page a file tab draws in its
+ * viewer is in the group of that file tab. Undefined for a page of the
+ * window's own, whose tab opens across the window's bar.
  */
-export function chatOfAskingPage(
+export function groupOfAskingPage(
   targetId: string,
   tabs: readonly { group?: string; id: string }[],
-): ChatId | undefined {
-  return chatOfGroup(tabs.find((tab) => tab.id === targetId)?.group);
+): string | undefined {
+  let group = tabs.find((tab) => tab.id === targetId)?.group;
+  // A viewer's page is in a group no strip lists, named for its file tab.
+  if (group?.startsWith(HOSTED_PAGE_GROUP_PREFIX)) {
+    const owner = group.slice(HOSTED_PAGE_GROUP_PREFIX.length);
+    group = tabs.find((tab) => tab.id === owner)?.group;
+  }
+  return chatOfGroup(group) !== undefined || draftOfGroup(group) !== undefined
+    ? group
+    : undefined;
 }

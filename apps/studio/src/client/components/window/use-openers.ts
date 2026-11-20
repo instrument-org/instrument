@@ -32,7 +32,7 @@ import { isInVersionsFolder, versionHref } from "./file-versions";
 import { openMenuLink } from "./menu-link";
 import { openLinkAddress } from "./open-link-address";
 import {
-  chatOfAskingPage,
+  groupOfAskingPage,
   pagePlacementOf,
   type PlacementContext,
   screenPlacementOf,
@@ -619,8 +619,8 @@ export function useOpeners({
   /**
    * A tab a page asked for (a `target=_blank` link, a sign-in button, a
    * middle- or Cmd-click, the page's menu) opens beside the page that asked:
-   * in its chat when the page is a chat's, so a sign-in started there stays
-   * there, and across the window's own bar otherwise.
+   * in its chat when the page is a chat's or a new chat's, so a sign-in
+   * started there stays there, and across the window's own bar otherwise.
    */
   const openFromPage = ({
     background,
@@ -641,17 +641,17 @@ export function useOpeners({
       openPage(url, { newWindow });
       return;
     }
-    const chat = chatOfAskingPage(targetId, windowTabs.allTabs);
-    if (chat === undefined) {
+    const group = groupOfAskingPage(targetId, windowTabs.allTabs);
+    if (group === undefined) {
       // A page in no chat is the person's own, which no agent drives, so a
       // `tabId` it carries names no result: the workspace names a popup only
       // to the session that worked in the page, and sessions work in their
       // chat's tabs alone.
       openPage(url, { behind: background, newTab: true });
     } else if (background) {
-      browser?.openBehind(url, chat, tabId);
+      browser?.openBehind(url, group, tabId);
     } else {
-      openPage(url, { group: chat, ownTab: true, show: true });
+      openPage(url, { group, ownTab: true, show: true });
     }
   };
 

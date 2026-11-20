@@ -7,7 +7,8 @@ import { type Assertion, defineEval } from "../harness";
  * earlier version in `Versions/`, by its number when the person names one,
  * and copies it back. The picture case is
  * the one where copying is the only way back: a generated image cannot be
- * made again from memory.
+ * made again from memory. Every case checks the agent leaves the copies in
+ * `Versions/` to the app.
  */
 
 type Kept = SessionMessageDataPart.FileVersionsDataPart["files"][number];
@@ -57,9 +58,41 @@ const assertWentBack: Assertion = {
   text: "Going back restores the first version's contents",
 };
 
+/**
+ * The agent never tried to write in `Versions/`, which is the app's alone:
+ * no tool call came back refused there.
+ */
+const assertLeftVersionsAlone: Assertion = {
+  check: ({ sessions }) => {
+    const text = "Leaves the app's Versions folder alone";
+    const refused = sessions
+      .flatMap((session) => session.messages)
+      .flatMap((message) => message.parts)
+      .flatMap((part) =>
+        part.type.startsWith("tool-") && "output" in part
+          ? [JSON.stringify([part.input, part.output])]
+          : [],
+      )
+      .filter(
+        (call) =>
+          /Versions\//.test(call) &&
+          /read-only|Operation not permitted|Read-only file system/i.test(call),
+      );
+    return {
+      evidence:
+        refused.length === 0
+          ? "No call was refused in Versions/"
+          : `Refused: ${refused.map((call) => call.slice(0, 200)).join(" | ")}`,
+      passed: refused.length === 0,
+      text,
+    };
+  },
+  text: "Leaves the app's Versions folder alone",
+};
+
 export const FILE_VERSIONS_EVALS = [
   defineEval({
-    assertions: [assertInPlace, assertWentBack],
+    assertions: [assertInPlace, assertWentBack, assertLeftVersionsAlone],
     followUps: [
       "make the moon bigger",
       "and even bigger",
@@ -70,14 +103,14 @@ export const FILE_VERSIONS_EVALS = [
       "Draw me an SVG of a purple moon over a dark hilltop observatory and show it to me.",
   }),
   defineEval({
-    assertions: [assertInPlace, assertWentBack],
+    assertions: [assertInPlace, assertWentBack, assertLeftVersionsAlone],
     followUps: ["make the moon bigger", "and even bigger", "go back to v1"],
     name: "file-versions-go-back-by-number",
     prompt:
       "Draw me an SVG of a purple moon over a dark hilltop observatory and show it to me.",
   }),
   defineEval({
-    assertions: [assertInPlace, assertWentBack],
+    assertions: [assertInPlace, assertWentBack, assertLeftVersionsAlone],
     followUps: [
       "make it nighttime",
       "now add a full moon",
@@ -89,7 +122,7 @@ export const FILE_VERSIONS_EVALS = [
   // A picture drawn with code and marked up twice, where each mark-up has
   // to land in the same file for Undo changes to put the previous one back.
   defineEval({
-    assertions: [assertInPlace],
+    assertions: [assertInPlace, assertLeftVersionsAlone],
     followUps: [
       "add a red box around the tallest bar",
       "now add a blue box around the shortest one too",

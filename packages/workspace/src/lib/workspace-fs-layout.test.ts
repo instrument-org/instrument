@@ -265,6 +265,35 @@ describe("buildBashFs", () => {
       );
     });
 
+    // Only the app writes a version, so the numbers the person goes back by
+    // name what the app kept.
+    it("copies a version out of Versions and changes none in it", async () => {
+      const kept = path.join(work, "Versions", "turtle.svg");
+      await fs.mkdir(kept, { recursive: true });
+      await fs.writeFile(path.join(kept, "v1.svg"), "<svg>plain</svg>");
+      const bash = await makeChatBash();
+      const back = await bash.exec("cp Versions/turtle.svg/v1.svg turtle.svg");
+      expect(back.exitCode).toBe(0);
+      await expect(
+        fs.readFile(path.join(work, "turtle.svg"), "utf8"),
+      ).resolves.toBe("<svg>plain</svg>");
+      for (const command of [
+        "echo cute > turtle.svg && cp turtle.svg Versions/turtle.svg/v1.svg",
+        "cp turtle.svg Versions/turtle.svg/v2.svg",
+        "mkdir -p Versions/moon.svg",
+        "rm Versions/turtle.svg/v1.svg",
+        "mv Versions/turtle.svg/v1.svg moved.svg",
+      ]) {
+        const write = await bash.exec(command);
+        expect({ [command]: write.exitCode }).not.toEqual({ [command]: 0 });
+      }
+      expect(await fs.readdir(kept)).toEqual(["v1.svg"]);
+      await expect(
+        fs.readFile(path.join(kept, "v1.svg"), "utf8"),
+      ).resolves.toBe("<svg>plain</svg>");
+      expect(existsSync(path.join(work, "Versions", "moon.svg"))).toBe(false);
+    });
+
     // The drafts are in the workspace's `.instrument/`, which is otherwise
     // closed, and a draft can ask a computer to send it.
     it("reads a draft and changes none of the drafts", async () => {

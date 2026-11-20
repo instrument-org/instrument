@@ -199,6 +199,51 @@ describe("applyContextRollover", () => {
     expect(second).toBe("b".repeat(15_000));
   });
 
+  it("carries only what was typed and sent on every user message but the newest", () => {
+    const sent = (messageId: string) =>
+      ({
+        id: id(messageId),
+        parts: [
+          { data: {}, type: "data-memory" },
+          { data: {}, type: "data-viewContext" },
+          { text: `asked in ${messageId}`, type: "text" },
+          { data: {}, type: "data-attachments" },
+          { data: {}, type: "data-browserStatus" },
+          { data: {}, type: "data-backgroundProcesses" },
+          { data: {}, type: "data-project" },
+        ],
+        role: "user",
+      }) as unknown as SessionMessage.WithParts;
+
+    const rolled = applyContextRollover({
+      messages: [
+        sent("u1"),
+        message("a1", "assistant"),
+        sent("u2"),
+        message("a2", "assistant"),
+      ],
+      rolledOverAfterMessageId: id("a2"),
+    });
+
+    expect(
+      rolled.map((entry) => [
+        entry.id,
+        entry.parts.map((part) => part.type).join(" "),
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        [
+          "u1",
+          "text data-attachments data-backgroundProcesses",
+        ],
+        [
+          "u2",
+          "data-memory data-viewContext text data-attachments data-browserStatus data-backgroundProcesses data-project",
+        ],
+      ]
+    `);
+  });
+
   it("leaves no half characters at the edges of the cut", () => {
     // The eleven trailing plain characters shift the tail's cut onto the low
     // half of an emoji, which is the half a plain slice would keep.

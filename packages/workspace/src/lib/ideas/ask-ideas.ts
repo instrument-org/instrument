@@ -11,18 +11,15 @@ import { z } from "zod";
 
 import { getWorkspaceServerURL } from "../../logic/server/url";
 import { activityTelemetry } from "../activity/record";
-import { readActions } from "../actions/read";
-import { actionSentence } from "../actions/sentence";
-import { mayShareActions } from "../actions/sharing";
 import { getWorkspaceConfig } from "../workspace-config";
 import { cut, fileText } from "./file-text";
 import { ideasFrom } from "./ideas-from";
 
 /**
  * Ideas for what to ask about the tabs in front of the person, for a tab
- * group with no chat in it and for a new tab: one call to the connection's
- * fast model with the tabs' text (and, for a new tab, what they did in the
- * app lately), which answers up to three lines or none. Only a Claude
+ * group with no chat in it and for a new chat beside them: one call to the
+ * connection's fast model with the tabs' text, which answers up to three
+ * lines or none, and no call at all with no tabs. Only a Claude
  * account, a ChatGPT account and Instrument have a fast model to spend on
  * it; on any other connection the ideas never show. Calls the tabs changing
  * set off are paced (`pace`); one the person asks for always goes.
@@ -50,10 +47,6 @@ export const IdeaTriggerSchema = z.enum(["tabs", "new-tab"]);
 const FRONT_CHARS = 12_000;
 const NEXT_CHARS = 4000;
 const READ_IN_FULL = 4;
-
-/** How far back what the person did is read, and how much of it. */
-const ACTIONS_SINCE_MS = 30 * 60_000;
-const ACTIONS_MAX = 25;
 
 /**
  * Three lines of under 60 characters, twice over: Instrument's and
@@ -103,7 +96,9 @@ Reply with only the lines or NONE, and nothing else.`;
 
 /** One per trigger, each word for word the same on every call, for the cache. */
 const INSTRUCTIONS = {
-  "new-tab": instructionFor("Lean on what they did most recently."),
+  "new-tab": instructionFor(
+    "Only about what's open beside the new chat, the tab in front first, never anything else.",
+  ),
   tabs: instructionFor(
     "Only about what's open here, the tab in front first, never anything else.",
   ),
@@ -264,11 +259,8 @@ async function ask({
     return [];
   }
   const built = performance.now();
-  const context = await contextOf(tabs, {
-    withActions: trigger === "new-tab",
-  });
-  // A new tab in a group of its own, with nothing done lately: nothing to
-  // have an idea about.
+  const context = await contextOf(tabs);
+  // A new tab in a group of its own: nothing to have an idea about.
   if (context === undefined) {
     return [];
   }
@@ -370,35 +362,14 @@ function readablePath(hostPath: string): string {
     : hostPath;
 }
 
-/** What goes to the model: what the person did lately `withActions`, then each tab under its budget. */
+/** What goes to the model: each tab under its budget, or nothing with no tabs. */
 async function contextOf(
   tabs: readonly IdeaTab[],
-  { withActions }: { withActions: boolean },
 ): Promise<string | undefined> {
-  const parts: string[] = [];
-  if (withActions && mayShareActions()) {
-    const now = Date.now();
-    const actions = (await readActions({ since: now - ACTIONS_SINCE_MS }))
-      .filter((action) => action.kind !== "capped")
-      .toReversed()
-      .slice(0, ACTIONS_MAX);
-    if (actions.length > 0) {
-      parts.push(
-        "What they did in the app lately, newest first:",
-        ...actions.map(
-          (action) =>
-            `- ${Math.max(1, Math.round((now - Date.parse(action.at)) / 60_000))}m ago · ${actionSentence(action, readablePath)}`,
-        ),
-        "",
-      );
-    }
-  }
   if (tabs.length === 0) {
-    return parts.length === 0
-      ? undefined
-      : [...parts, "Nothing else is open beside the new tab."].join("\n");
+    return undefined;
   }
-  parts.push("What they have open, the tab in front first:");
+  const parts = ["What they have open, the tab in front first:"];
   for (const [index, tab] of tabs.entries()) {
     const where = tab.path
       ? readablePath(tab.path)

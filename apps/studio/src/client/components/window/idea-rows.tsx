@@ -6,9 +6,11 @@ import { cn } from "../../lib/utils";
 import { ShortcutKeys } from "../shortcut-keys";
 
 /**
- * Ideas as rows drawn as a chat's next-message rows are (`next-steps.tsx`):
- * the bent arrow, the muted line, a wash under the pointer, and ⌘↩ on the
- * first while the box is empty. With words in the box the rows step back.
+ * Ideas as rows drawn as a chat's next-message rows are (`next-steps.tsx`),
+ * a step quieter: the bent arrow, the faint line, a wash under the pointer,
+ * and ⌘↩ on the first while the box is empty. With words in the box the
+ * rows step back further. While they are being made, one faint bar stands
+ * where the first will come.
  * A press never takes the caret from the box. `highlighted` is the row the
  * box's arrow keys are on, washed as under the pointer and marked ↩.
  */
@@ -16,6 +18,7 @@ export function IdeaRows({
   className,
   highlighted,
   isBoxEmpty,
+  isMaking = false,
   lines,
   onSend,
   trailing,
@@ -23,13 +26,28 @@ export function IdeaRows({
   className?: string;
   highlighted?: number;
   isBoxEmpty: boolean;
+  isMaking?: boolean;
   lines: readonly string[];
   onSend: (line: string) => void;
   /** Shown at the rows' end while the pointer is over them. */
   trailing?: ReactNode;
 }) {
   if (lines.length === 0) {
-    return null;
+    return isMaking ? (
+      <div
+        aria-label="Making ideas"
+        className={cn(
+          "flex h-7 animate-in items-center gap-1 delay-300 duration-500 fade-in-0 fill-mode-both",
+          className,
+        )}
+        role="status"
+      >
+        <span className="shrink-0 p-1 text-muted-foreground/30">
+          <ArrowBendDownRightIcon size={MESSAGE_FOOTER_ICON_SIZE} />
+        </span>
+        <span className="ml-1.5 h-2 w-40 animate-pulse rounded-full bg-muted-foreground/10" />
+      </div>
+    ) : null;
   }
   return (
     <div
@@ -38,7 +56,7 @@ export function IdeaRows({
         "group/ideas flex animate-in flex-col items-start transition-opacity duration-150 fade-in-0 slide-in-from-bottom-1",
         !isBoxEmpty &&
           highlighted === undefined &&
-          "opacity-60 hover:opacity-100",
+          "opacity-50 hover:opacity-100",
         className,
       )}
       role="group"
@@ -53,7 +71,7 @@ export function IdeaRows({
         return (
           <button
             className={cn(
-              "group/next-step -mx-1 flex h-7 max-w-full items-center gap-1 text-left text-[13px] text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground",
+              "group/next-step -mx-1 flex h-7 max-w-full items-center gap-1 text-left text-[13px] text-muted-foreground/70 outline-none hover:text-foreground focus-visible:text-foreground",
               isHighlighted && "text-foreground",
             )}
             key={line}
@@ -67,7 +85,7 @@ export function IdeaRows({
           >
             <span
               className={cn(
-                "shrink-0 p-1 text-muted-foreground/60 group-hover/next-step:text-foreground/70",
+                "shrink-0 p-1 text-muted-foreground/40 group-hover/next-step:text-foreground/70",
                 isHighlighted && "text-foreground/70",
               )}
             >

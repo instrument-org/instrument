@@ -83,7 +83,12 @@ export function useTabIdeas({
   /** The tabs the ideas are about, the one in front first. */
   tabs: readonly WindowTab[];
   trigger: Trigger;
-}): { ask: () => void; lines: readonly string[] } {
+}): {
+  ask: () => void;
+  /** Whether ideas for these tabs are on their way, none having come yet. */
+  isMaking: boolean;
+  lines: readonly string[];
+} {
   const shell = useShell();
   const isShown = useIsActiveTab();
   const titleOf = useTabTitle(shell.chatTitles);
@@ -157,14 +162,18 @@ export function useTabIdeas({
     }
   };
   if (!isOn) {
-    return { ask, lines: [] };
+    return { ask, isMaking: false, lines: [] };
   }
+  const lines =
+    known.get(key) ?? (answered?.key === key ? answered.lines : undefined);
   return {
     ask,
-    lines:
-      known.get(key) ??
-      (answered?.key === key ? answered.lines : undefined) ??
-      [],
+    isMaking:
+      lines === undefined &&
+      !held &&
+      isShown &&
+      shell.defaultModelURI !== undefined,
+    lines: lines ?? [],
   };
 }
 
@@ -201,13 +210,17 @@ export function noteIdeaTaken() {
     .catch(() => undefined);
 }
 
-/** What makes a tab the same tab for the ideas: where it is, a page's place in itself aside. */
+/**
+ * What makes a tab the same tab for the ideas: the tab itself and where it
+ * is, a page's place in itself aside, so ideas for one tab never show for
+ * another, and a tab gone somewhere else drops the ideas it had.
+ */
 function identityOf(tab: WindowTab): string {
   if (tab.kind !== "page") {
-    return tab.href;
+    return `${tab.id} ${tab.href}`;
   }
   const url = tab.url ?? tab.openedUrl;
-  return url === undefined ? tab.id : url.replace(/#.*$/, "");
+  return `${tab.id} ${url === undefined ? "" : url.replace(/#.*$/, "")}`;
 }
 
 /** Whether a tab shows one file: a page at a file's address, or Files open at one. */
@@ -289,4 +302,22 @@ export function ideaTabsOf(
   return [...ups, ...rest].filter(
     (tab) => tab.id !== leaving && !isChatTab(tab) && !isNewChatTab(tab),
   );
+}
+
+/**
+ * What a new chat's ideas are made from: the pages, files and folders in
+ * its group, the one in front first, as {@link ideaTabsOf} orders them.
+ * The app's own screens are about nothing to have an idea about.
+ */
+export function ideaSourcesOf(
+  layout: { focused: 0 | 1; sides: { tabs: WindowTab[]; up?: string }[] },
+  leaving: string,
+): WindowTab[] {
+  return ideaTabsOf(layout, leaving).filter((tab) => {
+    if (tab.kind === "page") {
+      return (tab.url ?? tab.openedUrl) !== undefined;
+    }
+    const computer = computerTabOf(tab.href);
+    return computer !== undefined && computer.root !== COMPUTER_ROOT;
+  });
 }

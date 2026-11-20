@@ -77,7 +77,7 @@ import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { IdeaRows } from "./idea-rows";
 import { openSettings } from "@/client/atoms/settings-modal";
 import {
-  ideaTabsOf,
+  ideaSourcesOf,
   noteIdeaTaken,
   useIdeasAvailable,
   useTabIdeas,
@@ -354,16 +354,18 @@ export function NewChatView({
     }
   };
   const isOffering = completions.rows.length > 0;
-  // Ideas for a new chat, from what else its group has open and what the
-  // person did lately, as next-message rows under the centered box.
-  const ideasOn = useIdeasAvailable() && isCentered;
+  // Ideas for a new chat, made from the pages, files and folders beside it
+  // in its group, as next-message rows under the centered box. A new chat
+  // with nothing beside it has none.
   const ownGroup = windowTabs.allTabs.find((tab) => tab.id === tabId)?.group;
+  const ideaSources =
+    ownGroup === undefined
+      ? []
+      : ideaSourcesOf(windowTabs.layoutOf(ownGroup), tabId);
+  const ideasOn = useIdeasAvailable() && isCentered && ideaSources.length > 0;
   const ideas = useTabIdeas({
-    isOn: ideasOn && ownGroup !== undefined,
-    tabs:
-      ownGroup === undefined
-        ? []
-        : ideaTabsOf(windowTabs.layoutOf(ownGroup), tabId),
+    isOn: ideasOn,
+    tabs: ideaSources,
     trigger: "new-tab",
   });
   const sendIdea = (line: string) => {
@@ -595,6 +597,7 @@ export function NewChatView({
           <IdeaRows
             className="absolute inset-x-6 top-full mt-3"
             isBoxEmpty={words.trim() === ""}
+            isMaking={ideas.isMaking}
             lines={ideas.lines}
             onSend={sendIdea}
             trailing={

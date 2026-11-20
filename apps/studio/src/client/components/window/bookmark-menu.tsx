@@ -42,12 +42,12 @@ import { BookmarkEditor } from "./bookmark-editor";
 import { PlaceItems } from "./place-items";
 import { useBookmarkEdits } from "./web-start";
 
-/** Whether the bookmarks bar shows, a preference of the workspace's: shown until it says otherwise. */
+/** Whether the bookmarks bar shows beyond a new tab, a preference of the workspace's: only once it is turned on. */
 export function useShowsBookmarksBar() {
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
-  return preferences?.showBookmarksBar !== false;
+  return preferences?.showBookmarksBar === true;
 }
 
 /**

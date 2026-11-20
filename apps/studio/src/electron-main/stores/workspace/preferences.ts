@@ -83,9 +83,10 @@ export const WorkspacePreferencesSchema = z.object({
   // Chats may read what the person did in the app, from the action log in
   // the machine folder; see `mayShareActions` in the workspace's config.
   shareActionsWithChats: z.boolean().catch(true),
-  // The bookmarks bar under every tab's address row, in every window; put
-  // away and brought back from the View menu or the bar's own menu.
-  showBookmarksBar: z.boolean().catch(true),
+  // The bookmarks bar under every tab's address row but a chat's, in every
+  // window, brought out and put away from the View menu or the bar's own
+  // menu. Off, it shows on a new tab alone.
+  showBookmarksBar: z.boolean().catch(false),
   // Ideas in the Ask corner of a tab group with no chat, and under a new
   // tab's box; see ask-ideas.ts in the workspace package.
   showIdeas: z.boolean().catch(true),

@@ -432,12 +432,15 @@ export function GroupItem({
       head={
         <>
           {head}
-          <BookmarksBar
-            files={{ group }}
-            isAlwaysShown={isNewChat}
-            onOpen={openHere}
-            onVisit={takeOver}
-          />
+          {/* A chat is the app's own page, which the bar never sits over. */}
+          {chatOfTab(up) === undefined && (
+            <BookmarksBar
+              files={{ group }}
+              isAlwaysShown={isNewChat}
+              onOpen={openHere}
+              onVisit={takeOver}
+            />
+          )}
           {/* Files' own row: the folder's controls over the folder, the
               file's (its versions, then what it draws into `viewEnd`) over
               the file. */}

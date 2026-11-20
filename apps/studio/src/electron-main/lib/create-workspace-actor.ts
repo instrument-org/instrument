@@ -353,28 +353,34 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     return count;
   };
 
-  // Warn before stopping in-flight agents and the jobs chats left running.
-  // Fails open so a count error never blocks quitting.
+  // Warn before stopping the chats at work and the jobs chats left running.
+  // Fails open so a count error never blocks quitting. A chat waiting on the
+  // person is not counted: its question is still there at the next launch.
   const confirmQuitWithRunningWork = async (): Promise<boolean> => {
-    let count = 0;
+    let chatCount = 0;
     try {
-      count = await countRunningAgents();
+      ({ count: chatCount } = await call(
+        workspaceRouter.chats.agentStatus.aliveChatCount,
+        undefined,
+        { context: { workspaceConfig, workspaceRef: actor } },
+      ));
     } catch (error) {
       captureServerException(error);
       return true;
     }
 
     const prompt = quitPrompt({
-      agentCount: count,
+      chatCount,
       jobNames: runningJobNames(),
     });
     if (!prompt) {
       return true;
     }
 
+    const { confirm, ...words } = prompt;
     const options: Electron.MessageBoxOptions = {
-      ...prompt,
-      buttons: ["Cancel", "Quit"],
+      ...words,
+      buttons: ["Cancel", confirm],
       cancelId: 0,
       defaultId: 0,
       noLink: true,

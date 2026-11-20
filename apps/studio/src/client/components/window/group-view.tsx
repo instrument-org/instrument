@@ -858,7 +858,7 @@ function SideCard({
           onSelect={(id) => {
             windowTabs.select(id);
           }}
-          newMenu={<RecentlyClosedMenu menu="context" />}
+          newMenu={<RecentlyClosedMenu />}
           reopen={shell.reopenTab}
           onTabPress={(key, event) => {
             const tab = tabs.find((each) => stripKeyOf(each) === key);

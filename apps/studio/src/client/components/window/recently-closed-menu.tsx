@@ -1,3 +1,4 @@
+import { sidebarWidthAtom } from "@/client/atoms/tab-groups";
 import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
@@ -9,87 +10,63 @@ import {
   ContextMenuShortcut,
 } from "@/client/components/ui/context-menu";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/client/components/ui/popover";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { focusHomeIn } from "@/client/lib/keyboard-home";
 import { keyboardSide } from "@/client/lib/keyboard-place";
 import { SCREENS } from "@/shared/instrument-screens";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
-import { useRef } from "react";
+import { useAtomValue } from "jotai";
+import { useRef, useState } from "react";
 
+import { appTabsAtom } from "./app-tabs";
 import { useAppsBySlug } from "./apps-by-slug";
+import { closedGroupsOf } from "./closed-groups";
+import { GroupRowLines } from "./group-row-lines";
 import { TabMark } from "./row-half";
 import { useShell } from "./shell-context";
 import { useTabTitle } from "./tab-title";
 import { useRecentlyClosed } from "./window-space-menu";
 
-/** The menu parts each way of opening the list draws it with. */
-const PARTS = {
-  context: {
-    Item: ContextMenuItem,
-    Label: ContextMenuLabel,
-    Separator: ContextMenuSeparator,
-    Shortcut: ContextMenuShortcut,
-  },
-  dropdown: {
-    Item: DropdownMenuItem,
-    Label: DropdownMenuLabel,
-    Separator: DropdownMenuSeparator,
-    Shortcut: DropdownMenuShortcut,
-  },
-};
+/** After a pick, the caret goes where the side with the keyboard puts it, as reopening from Activity does, and stays off what opened the list. */
+function focusHomeAfterPick(event: Event, hasPicked: { current: boolean }) {
+  if (!hasPicked.current) {
+    return;
+  }
+  hasPicked.current = false;
+  event.preventDefault();
+  const side = keyboardSide();
+  if (side) {
+    focusHomeIn(side);
+  }
+}
 
 /**
- * The tabs and groups closed lately, as a right click on a strip's plus and
- * a press on the sidebar's History button offer them: each by its mark and
- * name, a group by its first tab's with how many tabs it brings back, and a
- * pick brings that one back where it stood. The first row names Reopen
- * Closed Tab's key, which brings it back, and the last opens History's page.
- * After a pick the caret goes where the side with the keyboard puts it, as
- * reopening from Activity does, and stays off the button that opened it.
+ * The tabs and groups closed lately, as a right click on a strip's plus
+ * offers them: each by its mark and name, a group by its first tab's with
+ * how many tabs it brings back, and a pick brings that one back where it
+ * stood. The first row names Reopen Closed Tab's key, which brings it back,
+ * and the last opens History's page. After a pick the caret goes where the
+ * side with the keyboard puts it, as reopening from Activity does.
  */
-export function RecentlyClosedMenu({
-  menu,
-}: {
-  /** A right click's menu, or a button's. */
-  menu: keyof typeof PARTS;
-}) {
+export function RecentlyClosedMenu() {
   const shell = useShell();
   const closed = useRecentlyClosed();
   const appsBySlug = useAppsBySlug();
   const titleOf = useTabTitle(shell.chatTitles);
   const hasPicked = useRef(false);
-  const { Item, Label, Separator, Shortcut } = PARTS[menu];
-  const content = {
-    className: "max-w-80 min-w-48",
-    onCloseAutoFocus: (event: Event) => {
-      if (!hasPicked.current) {
-        return;
-      }
-      hasPicked.current = false;
-      event.preventDefault();
-      const side = keyboardSide();
-      if (side) {
-        focusHomeIn(side);
-      }
-    },
-  };
   const rows = (
     <>
-      <Label>Recently Closed</Label>
+      <ContextMenuLabel>Recently Closed</ContextMenuLabel>
       {closed.length === 0 ? (
-        <Item disabled>No closed tabs</Item>
+        <ContextMenuItem disabled>No closed tabs</ContextMenuItem>
       ) : (
         closed.map((entry, index) => (
-          <Item
+          <ContextMenuItem
             key={entry.id}
             onClick={() => {
               hasPicked.current = true;
@@ -110,42 +87,57 @@ export function RecentlyClosedMenu({
               </span>
             ) : null}
             {index === 0 ? (
-              <Shortcut className="pl-4">
+              <ContextMenuShortcut className="pl-4">
                 {formatAcceleratorText(WINDOW_SHORTCUTS.reopenTab.accelerator)}
-              </Shortcut>
+              </ContextMenuShortcut>
             ) : null}
-          </Item>
+          </ContextMenuItem>
         ))
       )}
-      <Separator />
-      <Item
+      <ContextMenuSeparator />
+      <ContextMenuItem
         onClick={() => {
           hasPicked.current = true;
           openBuiltInPage(SCREENS.activity.href);
         }}
       >
         Show All History
-      </Item>
+      </ContextMenuItem>
     </>
   );
-  return menu === "dropdown" ? (
-    <DropdownMenuContent align="end" {...content}>
+  return (
+    <ContextMenuContent
+      className="max-w-80 min-w-48"
+      onCloseAutoFocus={(event) => {
+        focusHomeAfterPick(event, hasPicked);
+      }}
+    >
       {rows}
-    </DropdownMenuContent>
-  ) : (
-    <ContextMenuContent {...content}>{rows}</ContextMenuContent>
+    </ContextMenuContent>
   );
 }
 
 /**
- * The sidebar's History button: a press opens the recently closed list, as
- * a right click on a strip's plus does. ⌘Y opens History's page itself.
+ * The sidebar's History button: a press opens the tab groups closed lately
+ * over the sidebar, newest first, each as the sidebar's row showed it as it
+ * closed, and a pick brings that group back up. ⌘Y opens History's page
+ * itself, as the popover's last row does.
  */
 export function HistoryButton() {
+  const shell = useShell();
+  const [isOpen, setOpen] = useState(false);
+  const hasPicked = useRef(false);
+  const closed = closedGroupsOf(useAtomValue(appTabsAtom).recentlyClosed);
+  const sidebarWidth = useAtomValue(sidebarWidthAtom);
+  const pick = (run: () => void) => {
+    hasPicked.current = true;
+    setOpen(false);
+    run();
+  };
   return (
-    <DropdownMenu modal={false}>
+    <Popover onOpenChange={setOpen} open={isOpen}>
       <ToolbarTooltip chord="showActivity" label={SCREENS.activity.title}>
-        <DropdownMenuTrigger asChild>
+        <PopoverTrigger asChild>
           <Button
             aria-label={SCREENS.activity.title}
             className="size-7 text-muted-foreground/70 [-webkit-app-region:no-drag]"
@@ -154,9 +146,65 @@ export function HistoryButton() {
           >
             <ClockCounterClockwiseIcon className="size-4" />
           </Button>
-        </DropdownMenuTrigger>
+        </PopoverTrigger>
       </ToolbarTooltip>
-      <RecentlyClosedMenu menu="dropdown" />
-    </DropdownMenu>
+      {/* As wide as the sidebar less its edges, on the sidebar's own
+          ground, so it reads as the sidebar's list growing up from its foot. */}
+      <PopoverContent
+        align="end"
+        className="flex w-auto flex-col bg-ground p-1.5 ring-1 ring-foreground/8"
+        maxHeight="520px"
+        onCloseAutoFocus={(event) => {
+          focusHomeAfterPick(event, hasPicked);
+        }}
+        side="top"
+        sideOffset={6}
+        style={{ width: sidebarWidth - 12 }}
+      >
+        <p className="shrink-0 px-2.5 pt-1 pb-1.5 text-[12px] font-medium text-muted-foreground">
+          Recently Closed
+        </p>
+        {closed.length === 0 ? (
+          <p className="px-2.5 pb-2 text-[13px] text-muted-foreground">
+            Tab groups you close show up here.
+          </p>
+        ) : (
+          <div className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
+            {closed.map((group) => (
+              <button
+                className="flex shrink-0 rounded-lg px-2.5 py-1.5 text-left hover:bg-foreground/[0.04]"
+                key={group.id}
+                onClick={() => {
+                  pick(() => {
+                    shell.reopenClosed(group.id);
+                  });
+                }}
+                type="button"
+              >
+                <GroupRowLines
+                  chatTitles={shell.chatTitles}
+                  isCloseShown={false}
+                  isOnScreen={false}
+                  sides={group.sides}
+                />
+              </button>
+            ))}
+          </div>
+        )}
+        <div className="mt-1 shrink-0 border-t border-border/60 pt-1">
+          <button
+            className="flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
+            onClick={() => {
+              pick(() => {
+                openBuiltInPage(SCREENS.activity.href);
+              });
+            }}
+            type="button"
+          >
+            Show All History
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }

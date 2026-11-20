@@ -190,6 +190,8 @@ interface PromptInputProps {
   addMenu?: boolean;
   /** What stands beside the plus along the box's foot: something offered to the message, such as the tabs it goes with. */
   besidePlus?: React.ReactNode;
+  /** The host's own commands a slash starting the box offers, after the box's. */
+  commands?: ComposerCommand[];
   /** Shows an attached file or folder on disk where the host shows what goes with the message; without it a picture opens large. */
   onShowItem?: (item: { kind: "file" | "folder"; path: string }) => void;
   /** The attached file or folder the host shows now, whose chip is drawn raised. */
@@ -267,6 +269,7 @@ export const PromptInput = ({
   actionsInto,
   addMenu = true,
   besidePlus,
+  commands: hostCommands = [],
   onShowItem,
   shownPath,
   attachmentsLead,
@@ -843,6 +846,7 @@ export const PromptInput = ({
         );
       },
     },
+    ...hostCommands,
   ];
 
   const composerPlaces: ComposerPlaces | undefined = places && {

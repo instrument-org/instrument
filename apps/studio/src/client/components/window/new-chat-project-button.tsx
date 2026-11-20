@@ -29,11 +29,16 @@ import { projectTint } from "./project-tint";
  * it off.
  */
 export function NewChatProjectButton({
+  isOpen,
+  onOpenChange,
   onPick,
   onReturnFocus,
   picked,
   projects,
 }: {
+  /** Whether its list is open, which `/project` in the box opens too. */
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
   /** Files the new chat under a project, or under none. */
   onPick: (project: Project | undefined) => void;
   /** Puts the caret back in the prompt once the list has done its job. */
@@ -41,10 +46,10 @@ export function NewChatProjectButton({
   picked: Project | undefined;
   projects: Project[];
 }) {
-  const [isOpen, setOpen] = useState(false);
   const [find, setFind] = useState("");
   const chose = (project: Project | undefined) => {
-    setOpen(false);
+    onOpenChange(false);
+    setFind("");
     onPick(project);
     onReturnFocus();
   };
@@ -61,7 +66,7 @@ export function NewChatProjectButton({
     >
       <Popover
         onOpenChange={(next) => {
-          setOpen(next);
+          onOpenChange(next);
           setFind("");
         }}
         open={isOpen}

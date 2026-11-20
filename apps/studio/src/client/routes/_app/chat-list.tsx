@@ -10,8 +10,7 @@ import { z } from "zod";
 /**
  * The Chats page: every chat there is, as the Chat screen's inbox listed
  * them, the index Chat's chip goes to. A chat picked from the list opens in
- * this tab. An address naming a project stands
- * the list in it, as a project's All chats opens it, one naming a place
+ * this tab. An address naming a project stands the list in it, one naming a place
  * stands it there, as Drafts opens it, and one naming words searches for
  * them, as the address field's search row opens it.
  */

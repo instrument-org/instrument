@@ -1,5 +1,4 @@
 import { openProjectDetails } from "@/client/atoms/project-details-modal";
-import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { openSettings } from "@/client/atoms/settings-modal";
 import {
   SIDEBAR_WIDTH_DEFAULT,
@@ -24,10 +23,8 @@ import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
-import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
-import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -84,7 +81,6 @@ import { windowTabGroupsAtom } from "./open-groups";
 import { isPinnedGroup, type TabGroup } from "./tab-groups";
 import { chatListOptions } from "./chat-list-query";
 import { chatOfTab } from "./tab-model";
-import { CHATS_INDEX_HREF } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 import { TabMenuAtPoint } from "./tab-menu-items";
 import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
@@ -125,8 +121,7 @@ export function sidebarBounds(width: number): RailBounds {
  * The sidebar of tab groups down the window's left: the window's own row at
  * its top (past the traffic lights, Activity and the bell; the update pill at its end),
  * the projects, the pinned groups over a plain line, New, the
- * rest under it, newest first, and, in a project, the way into its chats at
- * the list's end; at its foot, the account, Settings and Help. Opening a project takes the list over,
+ * rest under it, newest first; at its foot, the account, Settings and Help. Opening a project takes the list over,
  * under its banner. A row dragged within the list lands where it is let
  * go, pinned above the line or unpinned below it, and one dragged out goes
  * to a window of its own or to another window's list (`pressGroupRow`).
@@ -290,7 +285,6 @@ export function GroupSidebar({
     ...(pinned.length > 0 ? [":divider"] : []),
     ":new",
     ...rest.map((entry) => `row:${entry.group}`),
-    ...(project ? [":history"] : []),
   ];
   const roomAt = room?.before === undefined ? -1 : items.indexOf(room.before);
   const place = (item: string) => ({
@@ -360,19 +354,6 @@ export function GroupSidebar({
           />
         </ListItem>
         {rest.map((entry) => listItem(entry, "rest"))}
-        {project && (
-          <ListItem key=":history" {...place(":history")}>
-            <AllChatsRow
-              icon={<ChatsCircleIcon className="size-4" />}
-              label="All chats"
-              onOpen={() => {
-                openBuiltInPage(
-                  `${CHATS_INDEX_HREF}?${new URLSearchParams({ project: project.id }).toString()}`,
-                );
-              }}
-            />
-          </ListItem>
-        )}
       </AnimatePresence>
       {/* A room at the list's end takes up space for a whole group. */}
       {room && room.before === undefined && room.gap > 0 && (
@@ -616,32 +597,6 @@ function NewRow({ onNew }: { onNew: () => void }) {
       <SoftKey>
         {formatAcceleratorText(WINDOW_SHORTCUTS.newChat.accelerator)}
       </SoftKey>
-    </button>
-  );
-}
-
-/**
- * The row under a project's groups that opens the page of its chats, dimmed
- * so it reads as past the groups rather than one of them.
- */
-function AllChatsRow({
-  icon,
-  label,
-  onOpen,
-}: {
-  icon: ReactNode;
-  label: string;
-  onOpen: () => void;
-}) {
-  return (
-    <button
-      className="mt-1 flex h-8 w-full shrink-0 items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-muted-foreground/70 hover:bg-foreground/5 hover:text-foreground"
-      onClick={onOpen}
-      type="button"
-    >
-      {icon}
-      <span className="flex-1 text-left">{label}</span>
-      <CaretRightIcon className="size-3.5" />
     </button>
   );
 }

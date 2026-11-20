@@ -167,7 +167,6 @@ export function sidebarDropAt(
   const rest = items.filter((each) => each.dataset.dropSection === "rest");
   const newRow = items.find((each) => keyOf(each) === ":new");
   const divider = items.find((each) => keyOf(each) === ":divider");
-  const history = items.find((each) => keyOf(each) === ":history");
   if (!newRow) {
     return { drop: undefined, isOver: true };
   }
@@ -219,7 +218,7 @@ export function sidebarDropAt(
     const half = LIST_GAP_PX / 2;
     return {
       drop: {
-        before: keyOf(next ?? (isPinned ? (divider ?? newRow) : history)),
+        before: keyOf(next ?? (isPinned ? (divider ?? newRow) : undefined)),
         gap: 0,
         kind: "between",
         place: {
@@ -271,7 +270,7 @@ export function sidebarDropAt(
   });
   const lastRest = rest.at(-1);
   slots.push({
-    before: history,
+    before: undefined,
     place: { ...(lastRest ? { after: groupOf(lastRest) } : {}), pinned: false },
     y: lastRest ? bottom(lastRest) : bottom(newRow),
   });

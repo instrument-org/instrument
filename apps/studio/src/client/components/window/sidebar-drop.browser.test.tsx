@@ -8,9 +8,9 @@ const LIST_TOP = 40;
 
 /**
  * The sidebar as `GroupSidebar` lays it out, at fixed heights: a pinned row,
- * the divider, New, two rows, History, and the empty list under them. In the
- * list's px, the items stand at pinned 0-52, divider 54-67, New 69-105, b
- * 107-159, c 161-213, History 215-251, and the empty list from 253.
+ * the divider, New, two rows, and the empty list under them. In the list's
+ * px, the items stand at pinned 0-52, divider 54-67, New 69-105, b 107-159,
+ * c 161-213, and the empty list from 215.
  */
 function layOut() {
   document.body.innerHTML = `
@@ -22,7 +22,6 @@ function layOut() {
         <div data-drop-item=":new" style="height: 36px; flex-shrink: 0;"></div>
         <div data-drop-item="row:draft:b" data-drop-group="draft:b" data-drop-section="rest" style="height: 52px; flex-shrink: 0;"></div>
         <div data-drop-item="row:draft:c" data-drop-group="draft:c" data-drop-section="rest" style="height: 52px; flex-shrink: 0;"></div>
-        <div data-drop-item=":history" style="height: 36px; flex-shrink: 0;"></div>
         <div data-drop-empty="" style="flex: 1; min-height: 0;"></div>
       </div>
     </nav>
@@ -102,13 +101,12 @@ describe("a tab over the sidebar", () => {
     [
       "the last row's bottom half",
       210,
-      line(":history", 214, { after: "draft:c" }),
+      line(undefined, 214, { after: "draft:c" }),
     ],
-    ["History", 230, line(":history", 214, { after: "draft:c" })],
     [
       "the empty list under the rows",
       400,
-      line(":history", 214, { after: "draft:c" }),
+      line(undefined, 214, { after: "draft:c" }),
     ],
   ])("over %s lands at %j", (_, y, drop) => {
     expect(sidebarDropAt(...at(y), TAB)).toEqual({ drop, isOver: true });
@@ -153,14 +151,6 @@ describe("a tab over the sidebar", () => {
     expect(sidebarDropAt(...at(126), carry).drop).toEqual(
       line("row:draft:b", 106, { before: "draft:b" }),
     );
-  });
-
-  it("lands at the end, past the last item, in a list without History", () => {
-    document.querySelector("[data-drop-item=':history']")?.remove();
-    expect(sidebarDropAt(...at(400), TAB)).toEqual({
-      drop: line(undefined, 214, { after: "draft:c" }),
-      isOver: true,
-    });
   });
 
   it("never goes into its own group's row, however long it rests there", () => {
@@ -238,7 +228,7 @@ describe("a whole group over the sidebar", () => {
       "at the end, over the empty list",
       400,
       {
-        before: ":history",
+        before: undefined,
         gap: 54,
         kind: "between",
         place: { after: "draft:c", pinned: false },
@@ -258,11 +248,11 @@ describe("a whole group over the sidebar", () => {
       ?.toggleAttribute("data-lifted", true);
     expect(sidebarDropAt(...at(400), GROUP)).toEqual({
       drop: {
-        before: ":history",
+        before: undefined,
         gap: 54,
         kind: "between",
         place: { after: "draft:b", pinned: false },
-        top: 215,
+        top: 161,
       },
       isOver: true,
     });

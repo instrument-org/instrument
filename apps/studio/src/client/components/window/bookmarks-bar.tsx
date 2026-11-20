@@ -108,6 +108,8 @@ export function BookmarksBar({
 }
 
 type BarProps = {
+  /** Drawn on the page's own ground with no line under it, where the page carries on from it: a new tab's. */
+  bleeds?: boolean;
   /** Files at the bar's start, with the places of this group's Files sidebar. */
   files?: { group: string };
   onOpen: (url: string) => void;
@@ -115,7 +117,7 @@ type BarProps = {
   onVisit?: (href: string) => void;
 };
 
-function Bar({ files, onOpen, onVisit }: BarProps) {
+function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
   const state = useAtomValue(bookmarksStateAtom);
   const items = barItems(state);
   const others = rootItems(state, OTHER_ROOT);
@@ -192,7 +194,10 @@ function Bar({ files, onOpen, onVisit }: BarProps) {
         <ContextMenuTrigger asChild>
           <div
             aria-label="Bookmarks"
-            className="flex h-8 shrink-0 items-center gap-1 border-b border-border bg-background px-1.5"
+            className={cn(
+              "flex h-8 shrink-0 items-center gap-1 px-1.5",
+              !bleeds && "border-b border-border bg-background",
+            )}
             ref={bar}
             role="toolbar"
           >

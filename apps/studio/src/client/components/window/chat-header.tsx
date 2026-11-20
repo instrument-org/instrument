@@ -35,6 +35,7 @@ import { ProjectMark } from "./project-mark";
 import { ProjectPicker } from "./project-picker";
 import { type ChatRename, useChatRename } from "./use-chat-rename";
 import { useTitleArrival } from "./use-title-arrival";
+import { PANE_TOP_ROW, usePaneTop } from "./pane-top";
 
 /**
  * The head over a chat's conversation. Its title at the left, which renames
@@ -72,6 +73,7 @@ export function ChatHeader({
   /** What sits at the head's right. */
   trailing?: ReactNode;
 }) {
+  const top = usePaneTop();
   const [isDeleting, setDeleting] = useState(false);
   return (
     <>
@@ -85,11 +87,14 @@ export function ChatHeader({
       )}
       <div
         className={cn(
-          "group/head @container/head flex h-12 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background pr-3",
-          leading ? "pl-3" : "pl-4",
+          "group/head @container/head flex h-12 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background",
+          top ? "pr-1.5" : "pr-3",
+          top?.lead ? "pl-0" : leading ? "pl-3" : "pl-4",
+          top && PANE_TOP_ROW,
           className,
         )}
       >
+        {top?.lead}
         <div className="flex h-8 min-w-0 flex-1 items-center gap-x-1">
           {leading}
           {chat ? (
@@ -114,6 +119,7 @@ export function ChatHeader({
           {chat && <TaskBackgroundProcesses chatId={chat.id} />}
           {trailing}
         </div>
+        {top?.corner}
       </div>
     </>
   );

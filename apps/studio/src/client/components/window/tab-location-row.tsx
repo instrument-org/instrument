@@ -76,6 +76,7 @@ import {
   locationCrumbs,
   type TabLocation,
 } from "./tab-location";
+import { PANE_TOP_ROW, usePaneTop } from "./pane-top";
 
 /**
  * The row every tab wears: back, forward, a page's reload, home, and where
@@ -107,6 +108,7 @@ export function TabLocationRow({
   fieldTakesCaret,
   fillsTab = false,
   hasField = true,
+  isBare = false,
   leading,
   liveAddress,
   location,
@@ -138,6 +140,8 @@ export function TabLocationRow({
   fillsTab?: boolean;
   /** Whether the row has the field that says where you are; a tab whose own page takes addresses has only the arrows and reload. */
   hasField?: boolean;
+  /** Whether back, forward and reload stand as bare marks, out of their framed group: a new tab's, which only hints at a browser. */
+  isBare?: boolean;
   /** What the page puts ahead of the row's own controls, at its far left: a toggle for a panel along the page's left edge. */
   leading?: ReactNode;
   /** The address of the page up as it stands, read when the field is pressed: a page's file, with wherever the page has gone in itself. */
@@ -157,6 +161,7 @@ export function TabLocationRow({
   /** What this page can do with itself, held at the row's right edge. */
   trailing?: ReactNode;
 }) {
+  const top = usePaneTop();
   const openIn = openInAppTargetOf(location);
   const place = locationText(location);
   // Whether the field's words have the caret, where a press selects in them
@@ -183,14 +188,22 @@ export function TabLocationRow({
       // up its words for its mark when the row is narrow.
       className={cn(
         "@container/tabrow flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5",
+        top && PANE_TOP_ROW,
         className,
       )}
       data-tab-location=""
     >
+      {top?.lead}
       {leading}
       {/* Back, forward and a page's reload framed as one control, the way a
         browser keeps them together. */}
-      <div className={TOOLBAR_GROUP_CLASSNAME}>
+      <div
+        className={
+          isBare
+            ? "flex shrink-0 items-center gap-0.5 not-has-[button]:hidden"
+            : TOOLBAR_GROUP_CLASSNAME
+        }
+      >
         {onBack && onForward && (
           <>
             <TabRowControl
@@ -220,7 +233,7 @@ export function TabLocationRow({
       {hasField ? (
         <div
           className={cn(
-            "group/field @container/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
+            "group/field @container/field relative flex h-8 min-w-0 flex-1 cursor-text items-center gap-2 rounded-xl bg-(--field-fill) px-3 text-[13px] ring-1 ring-foreground/[0.06] [-webkit-app-region:no-drag] [--field-fill:color-mix(in_oklab,var(--foreground)_4.5%,var(--background))] focus-within:ring-foreground/20 focus-within:[--field-fill:var(--card)]",
             // The app's icon and the star sit at the field's end, with room
             // to breathe inside the curve.
             (openIn || address) && "pr-2",
@@ -306,6 +319,7 @@ export function TabLocationRow({
           of the file's own controls, so the × that closes it stays last. */}
       {lookTarget && <ExpandFileControl file={lookTarget.tab} />}
       {trailing}
+      {top?.corner}
     </div>
   );
 }

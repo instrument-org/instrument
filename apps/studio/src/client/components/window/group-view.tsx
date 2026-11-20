@@ -1,4 +1,7 @@
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
+import { PlusIcon } from "@phosphor-icons/react/Plus";
+import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
+import { XIcon } from "@phosphor-icons/react/X";
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
@@ -37,6 +40,8 @@ import { GroupItem } from "./group-item";
 import { SidebarToggle } from "./inbox-toggle";
 import { usePageHost } from "./page-hosts";
 import { PaneTabs, type SplitMenuActions, stripKeyOf } from "./pane-tabs";
+import { PaneTopContext } from "./pane-top";
+import { TabRowControl } from "./tab-location-row";
 import {
   pressSideTab,
   useSidePagesTarget,
@@ -734,6 +739,50 @@ function SideCard({
     },
   };
 
+  // A pane of one tab draws no strip: its tab's own row is its top, with
+  // the sidebar's toggle at its start and the pane's corner at its end
+  // (`PaneTop`). One held over it or carried off it keeps the strip.
+  const hasStrip =
+    drawn.tabs.length > 1 ||
+    drawn.heldAt !== undefined ||
+    drawn.carriedKey !== undefined;
+  const newTabHere = () => {
+    windowTabs.openScreen(NEW_TAB_HREF, {
+      group,
+      select: true,
+      side: sideIndex,
+    });
+  };
+  // Split for a group of one side; in a split, each side's × in its place,
+  // since the window shows two sides at most.
+  const splitControl =
+    layout.sides.length === 2 ? (
+      <TabRowControl
+        chord="closeSplit"
+        disabled={split.onCloseSplit === undefined}
+        icon={<XIcon className="size-4" />}
+        label="Close Split"
+        onClick={() => {
+          split.onCloseSplit?.();
+        }}
+      />
+    ) : (
+      <TabRowControl
+        chord="newTabInSplit"
+        disabled={false}
+        icon={<SquareSplitHorizontalIcon className="size-4" />}
+        label="New Tab in Split"
+        onClick={split.onNewChatInSplit}
+      />
+    );
+  // The window's own end, at the last side's right.
+  const windowEnd = isLast ? (
+    <>
+      <AskCorner group={group} key={group} layout={layout} />
+      <CaptionRoom />
+    </>
+  ) : undefined;
+
   return (
     <div
       className={cn(
@@ -784,61 +833,84 @@ function SideCard({
       }}
       style={style}
     >
-      <PaneTabs
-        carriedKey={drawn.carriedKey}
-        chatTitles={shell.chatTitles}
-        chords={chords}
-        chosenId={drawn.chosenId ?? up?.id}
-        className={SIDE_TABS}
-        heldAt={drawn.heldAt}
-        lead={isFirst ? <SidebarToggle /> : undefined}
-        onClose={shell.requestClose}
-        onDuplicate={(tab) => {
-          copyOf(tab, { after: tab.id, side: "same" });
-        }}
-        onNew={() => {
-          windowTabs.openScreen(NEW_TAB_HREF, {
-            group,
-            select: true,
-            side: sideIndex,
-          });
-        }}
-        onSelect={(id) => {
-          windowTabs.select(id);
-        }}
-        newMenu={<RecentlyClosedMenu menu="context" />}
-        reopen={shell.reopenTab}
-        onTabPress={(key, event) => {
-          const tab = tabs.find((each) => stripKeyOf(each) === key);
-          if (tab) {
-            pressSideTab(event, { group, side: sideIndex, tab });
-          }
-        }}
-        side={sideIndex}
-        split={split}
-        tabs={drawn.tabs}
-        taskTitles={shell.childTitles}
-        trailing={
-          isLast ? (
+      {hasStrip && (
+        <PaneTabs
+          carriedKey={drawn.carriedKey}
+          chatTitles={shell.chatTitles}
+          chords={chords}
+          chosenId={drawn.chosenId ?? up?.id}
+          className={SIDE_TABS}
+          heldAt={drawn.heldAt}
+          lead={isFirst ? <SidebarToggle /> : undefined}
+          onClose={shell.requestClose}
+          onDuplicate={(tab) => {
+            copyOf(tab, { after: tab.id, side: "same" });
+          }}
+          onNew={() => {
+            windowTabs.openScreen(NEW_TAB_HREF, {
+              group,
+              select: true,
+              side: sideIndex,
+            });
+          }}
+          onSelect={(id) => {
+            windowTabs.select(id);
+          }}
+          newMenu={<RecentlyClosedMenu menu="context" />}
+          reopen={shell.reopenTab}
+          onTabPress={(key, event) => {
+            const tab = tabs.find((each) => stripKeyOf(each) === key);
+            if (tab) {
+              pressSideTab(event, { group, side: sideIndex, tab });
+            }
+          }}
+          side={sideIndex}
+          split={split}
+          tabs={drawn.tabs}
+          taskTitles={shell.childTitles}
+          trailing={
             <>
-              <AskCorner group={group} key={group} layout={layout} />
-              <CaptionRoom />
+              {splitControl}
+              {windowEnd}
             </>
-          ) : undefined
-        }
-      />
+          }
+        />
+      )}
       <div className="relative min-h-0 flex-1" data-side-page={sideIndex}>
         {up && (
-          <GroupItem
-            closeTab={shell.requestClose}
-            group={group}
-            hasKeyboard={hasKeyboard}
-            isShown
-            key={up.id}
-            onPageChrome={setPageChrome}
-            onPageHost={setPageHost}
-            up={up}
-          />
+          <PaneTopContext
+            value={
+              hasStrip
+                ? null
+                : {
+                    corner: (
+                      <div className="flex shrink-0 items-center gap-0.5">
+                        <TabRowControl
+                          chord="newTab"
+                          disabled={false}
+                          icon={<PlusIcon className="size-4" />}
+                          label="New Tab"
+                          onClick={newTabHere}
+                        />
+                        {splitControl}
+                        {windowEnd}
+                      </div>
+                    ),
+                    lead: isFirst ? <SidebarToggle /> : undefined,
+                  }
+            }
+          >
+            <GroupItem
+              closeTab={shell.requestClose}
+              group={group}
+              hasKeyboard={hasKeyboard}
+              isShown
+              key={up.id}
+              onPageChrome={setPageChrome}
+              onPageHost={setPageHost}
+              up={up}
+            />
+          </PaneTopContext>
         )}
       </div>
     </div>

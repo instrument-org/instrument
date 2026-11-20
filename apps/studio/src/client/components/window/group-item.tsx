@@ -52,9 +52,7 @@ import { chatOfTab } from "./tab-model";
 import { useTabSteps } from "./use-tab-steps";
 import { matchScreen, type Screen } from "./window-href";
 import { useShell } from "./shell-context";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { fileHref } from "@/shared/computer-href";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { useWindowTabs } from "./window-tabs";
 
 /**
@@ -290,47 +288,47 @@ export function GroupItem({
           ? { versions: { ...versions, isOverFile: version !== undefined } }
           : {})}
       >
-      <TabLocationRow
-        address={addressOfTab(up)}
-        canGoBack={canGoBack}
-        canGoForward={canGoForward}
-        {...(location.kind === "file"
-          ? { liveAddress: () => liveAddressOf(location.path) }
-          : {})}
-        className="border-b-0"
-        // A file's Expand is the view's, in its row under the bookmarks bar.
-        expandsFile={false}
-        location={location}
-        {...(before ? {} : { onBack: goBack, onForward: goForward })}
-        onSite={openHere}
-        onVisit={visitHere}
-        {...(up.kind === "page" ? { title: up.title } : {})}
-        {...rowProps}
-        {...(isReloaded
-          ? {
-              reload: (
-                <>
-                  {rowProps.reload}
-                  <TabRowControl
-                    chord="reloadPage"
-                    disabled={false}
-                    icon={<ArrowClockwiseIcon className="size-4" />}
-                    label="Reload"
-                    onClick={reloadScreen}
-                  />
-                </>
-              ),
-            }
-          : {})}
-        {...(isFiles ? {} : { leading: rowProps.leading })}
-        trailing={
-          <>
-            {/* The extensions' buttons go before the page's own controls. */}
-            {location.kind === "page" && <BrowserExtensionButtons />}
-            {rowProps.trailing}
-          </>
-        }
-      />
+        <TabLocationRow
+          address={addressOfTab(up)}
+          canGoBack={canGoBack}
+          canGoForward={canGoForward}
+          {...(location.kind === "file"
+            ? { liveAddress: () => liveAddressOf(location.path) }
+            : {})}
+          className="border-b-0"
+          // A file's Expand is the view's, in its row under the bookmarks bar.
+          expandsFile={false}
+          location={location}
+          {...(before ? {} : { onBack: goBack, onForward: goForward })}
+          onSite={openHere}
+          onVisit={visitHere}
+          {...(up.kind === "page" ? { title: up.title } : {})}
+          {...rowProps}
+          {...(isReloaded
+            ? {
+                reload: (
+                  <>
+                    {rowProps.reload}
+                    <TabRowControl
+                      chord="reloadPage"
+                      disabled={false}
+                      icon={<ArrowClockwiseIcon className="size-4" />}
+                      label="Reload"
+                      onClick={reloadScreen}
+                    />
+                  </>
+                ),
+              }
+            : {})}
+          {...(isFiles ? {} : { leading: rowProps.leading })}
+          trailing={
+            <>
+              {/* The extensions' buttons go before the page's own controls. */}
+              {location.kind === "page" && <BrowserExtensionButtons />}
+              {rowProps.trailing}
+            </>
+          }
+        />
       </FileVersionRows>
     );
   };
@@ -394,13 +392,15 @@ export function GroupItem({
     screenLocation(up.href, { appsBySlug, chatTitles, taskTitles }),
     surface,
   );
+  // A new tab hints at a browser with bare, quiet controls and no field,
+  // since its own box takes an address; a chat is the app's own page and
+  // has no row over it at all.
   const head = isNewChat ? (
     <TabLocationRow
       canGoBack={canGoBack}
       canGoForward={canGoForward}
-      className="border-b-0"
-      fieldHint={<LocationKeys />}
-      fieldTakesCaret={false}
+      hasField={false}
+      isBare
       location={location}
       onBack={goBack}
       onForward={goForward}
@@ -419,9 +419,9 @@ export function GroupItem({
       }
       trailing={<BrowserStartTail onOpenPage={openHere} />}
     />
-  ) : (
+  ) : chatOfTab(up) === undefined ? (
     row(location)
-  );
+  ) : null;
   const versions = versionsOf(location);
   const content = router ? (
     <RouterProvider key={reloads} router={router} />
@@ -435,6 +435,7 @@ export function GroupItem({
           {/* A chat is the app's own page, which the bar never sits over. */}
           {chatOfTab(up) === undefined && (
             <BookmarksBar
+              bleeds={isNewChat}
               files={{ group }}
               isAlwaysShown={isNewChat}
               onOpen={openHere}
@@ -535,15 +536,6 @@ const RELOADED_SCREENS = new Set<Screen["kind"]>([
   "settings",
   "skills",
 ]);
-
-/** The chord that puts the caret in the address field, at the end of the empty field. */
-function LocationKeys() {
-  return (
-    <span className="pointer-events-none absolute top-1/2 right-2.5 inline-flex h-4.5 -translate-y-1/2 items-center rounded-[4px] bg-foreground/[0.04] px-1 font-sans text-[11px] font-medium text-muted-foreground/70 ring-1 ring-foreground/[0.06]">
-      {formatAcceleratorText(WINDOW_SHORTCUTS.search.accelerator)}
-    </span>
-  );
-}
 
 /** What a card holds, edge to edge with nothing around it: the pane's own look. */
 function Bare({

@@ -199,9 +199,12 @@ describe("QuestionCard with one question", () => {
     return onAnswer;
   };
 
-  it("sends a click on a choice at once, with no Send or note to go through", () => {
+  it("sends a click on a choice at once, with no note to go through", () => {
     const onAnswer = open();
-    expect(screen.queryByRole("button", { name: "Send" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Send" })).toHaveProperty(
+      "disabled",
+      true,
+    );
     expect(screen.queryByRole("button", { name: "Add a note" })).toBeNull();
 
     fireEvent.click(screen.getByRole("radio", { name: "Vue" }));
@@ -226,6 +229,20 @@ describe("QuestionCard with one question", () => {
       key: "Enter",
     });
     expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  it("trades Skip for Send once the user has typed an answer of their own", () => {
+    const onAnswer = open();
+    const own = screen.getByLabelText("Your own answer");
+    fireEvent.change(own, { target: { value: "   " } });
+    expect(screen.getByRole("button", { name: "Skip" })).toBeDefined();
+
+    fireEvent.change(own, { target: { value: "Svelte" } });
+    expect(screen.queryByRole("button", { name: "Skip" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Send" }));
+    expect(onAnswer).toHaveBeenCalledExactlyOnceWith({
+      replies: [{ picked: ["Svelte"] }],
+    });
   });
 
   it.each(["Skip", "Close"])("skips the question with %s", (name) => {

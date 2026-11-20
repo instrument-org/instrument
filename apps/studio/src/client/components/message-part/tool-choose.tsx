@@ -86,7 +86,9 @@ function isSettled(draft: Draft) {
  * on a choice of a question of one answer is that answer: the card moves on
  * to the next question still waiting, or sends once none is. A question of
  * several answers counts its picks and moves on with its arrow. Every
- * question has a row for the person's own words and Skip. A question whose
+ * question has a row for the person's own words, Skip, and the arrow, which
+ * waits until the question has an answer and then takes the place of Skip:
+ * Next while another question still waits, Send once none does. A question whose
  * choices carry `detail` shows it beside the choices, or under them in a
  * narrow chat, for the choice the keyboard is on or the pointer rests on.
  *
@@ -280,6 +282,10 @@ export function QuestionCard({
   };
   const pickedCount =
     current.picked.length + (current.own.trim() === "" ? 0 : 1);
+  const isAnswered = hasReply(current);
+  const sends = questions.every(
+    (_, index) => index === step || isSettled(draftAt(index)),
+  );
 
   return (
     <ToolCard>
@@ -401,8 +407,10 @@ export function QuestionCard({
               ? `${String(pickedCount)} picked`
               : (place ?? "")}
           </span>
+          {/* Kept in the layout once answered, so the arrow stays put. */}
           <Button
-            className="text-muted-foreground"
+            aria-hidden={isAnswered}
+            className={cn("text-muted-foreground", isAnswered && "invisible")}
             disabled={isHolding}
             onClick={skip}
             size="xs"
@@ -410,20 +418,18 @@ export function QuestionCard({
           >
             Skip
           </Button>
-          {question?.multiSelect ? (
-            <Button
-              aria-label={step === questions.length - 1 ? "Send" : "Next"}
-              className="size-7 rounded-full"
-              disabled={isHolding || !hasReply(current)}
-              onClick={() => {
-                settle(current);
-              }}
-              size="icon"
-              variant="brand"
-            >
-              <ArrowRightIcon className="size-3.5" weight="bold" />
-            </Button>
-          ) : null}
+          <Button
+            aria-label={sends ? "Send" : "Next"}
+            className="size-7 rounded-full"
+            disabled={isHolding || !isAnswered}
+            onClick={() => {
+              settle(current);
+            }}
+            size="icon"
+            variant="brand"
+          >
+            <ArrowRightIcon className="size-3.5" weight="bold" />
+          </Button>
         </div>
       </div>
     </ToolCard>

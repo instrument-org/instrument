@@ -46,7 +46,6 @@ import {
 } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
-  hasOpenedAppWindow,
   openAppFile,
   openAppWindow,
   openNewAppWindow,
@@ -57,6 +56,7 @@ import {
 } from "@/electron-main/windows/app-window";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
+import { startLaunch } from "@/electron-main/windows/launch";
 import {
   comeBackAsLeft,
   showHeldWindows,
@@ -136,6 +136,38 @@ import { watchProcessCpu } from "./lib/process-cpu";
 // the running instance.
 const gotTheLock = is.dev || app.requestSingleInstanceLock();
 
+// Everything handed over from outside goes through the launch, which keeps
+// any window from opening before boot has restored the workspace's
+// (`windows/launch.ts`).
+const launch = startLaunch(
+  {
+    activate: activateApp,
+    comeForward: focusForegroundWindow,
+    focusRefusal: () => {
+      BrowserWindow.getAllWindows()[0]?.focus();
+    },
+    log: (line) => {
+      logger.scope("launch").info(line);
+    },
+    openFiles: (paths) => {
+      for (const filePath of paths) {
+        openAppFile(filePath);
+      }
+    },
+    openLink: handleDeepLink,
+    openNewWindow: () => openNewAppWindow() !== null,
+    restoreWindows: ({ personAsked }) => {
+      // A person who asked for the app while it booted gets its windows up
+      // in front of them, even on a launch meant to come back as it was left.
+      if (personAsked) {
+        comeBackAsLeft(undefined);
+      }
+      restoreAppWindows();
+    },
+  },
+  { refused: getWorkspaceRefusal() !== undefined },
+);
+
 if (gotTheLock) {
   protocol.registerSchemesAsPrivileged([
     {
@@ -177,59 +209,46 @@ if (gotTheLock) {
 
   registerCrashDiagnostics(app);
 
+  // The app launched again (macOS routes links and files through the events
+  // below instead): to come forward, the taskbar's New Window task, a link or
+  // files.
   app.on("second-instance", (_event, commandLine) => {
-    // A refused workspace's window is the only one, and takes nothing else.
-    if (getWorkspaceRefusal()) {
-      BrowserWindow.getAllWindows()[0]?.focus();
-      return;
-    }
-    // The taskbar's New Window task, which opens one unless setup is up.
-    if (asksForNewWindow(commandLine) && openNewAppWindow()) {
-      return;
-    }
-    focusForegroundWindow();
-
-    const url = linkInArgv(commandLine);
-    if (url) {
-      handleDeepLink(url);
-    }
-    for (const filePath of filesInArgv(commandLine, {
-      defaultApp: process.defaultApp,
-    })) {
-      openAppFile(filePath);
-    }
+    launch.receive({
+      files: filesInArgv(commandLine, { defaultApp: process.defaultApp }),
+      kind: "secondLaunch",
+      newWindow: asksForNewWindow(commandLine),
+      url: linkInArgv(commandLine),
+    });
   });
 
   // A file handed over from the Finder: a double click where Instrument is
   // the default, or Open With. Listened for before ready, because a file that
-  // launches the app arrives before it is; the screen waits for the window.
+  // launches the app arrives before it is.
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
-    if (!getWorkspaceRefusal()) {
-      openAppFile(filePath);
-    }
+    launch.receive({ kind: "files", paths: [filePath] });
   });
 
   // A link handed over from outside, listened for before ready for the same
   // reason: the link that launches the app arrives before it is.
   app.on("open-url", (event, url) => {
     event.preventDefault();
-    if (!getWorkspaceRefusal()) {
-      handleDeepLink(url);
-    }
+    launch.receive({ kind: "link", url });
+  });
+
+  // The Dock icon, which brings a window back once every window is closed.
+  app.on("activate", () => {
+    launch.receive({ kind: "activate" });
   });
 
   // The same hand-overs on Windows and Linux, for a launch that starts the app.
-  if (!getWorkspaceRefusal()) {
-    for (const filePath of filesInArgv(process.argv, {
-      defaultApp: process.defaultApp,
-    })) {
-      openAppFile(filePath);
-    }
-    const url = linkInArgv(process.argv);
-    if (url) {
-      handleDeepLink(url);
-    }
+  launch.receive({
+    kind: "files",
+    paths: filesInArgv(process.argv, { defaultApp: process.defaultApp }),
+  });
+  const launchUrl = linkInArgv(process.argv);
+  if (launchUrl !== undefined) {
+    launch.receive({ kind: "link", url: launchUrl });
   }
 
   void app.whenReady().then(bootstrapPrimaryInstance).catch(handleBootFailure);
@@ -472,7 +491,7 @@ async function bootstrapPrimaryInstance() {
   // The window opens at setup's size or its own, so it waits for setup's
   // slow facts (a few seconds at most, and never once setup is finished).
   await timeBootStep("setupStateKnown", setupStateKnown);
-  restoreAppWindows();
+  launch.openWindows();
   logBootMark("restoreAppWindows");
 
   // Let the initial window render before running the best-effort cache warmup.
@@ -508,23 +527,25 @@ async function bootstrapPrimaryInstance() {
 
   // The app directory as we serve it now, in place of the one built in.
   startAppCatalog();
+}
 
-  app.on("activate", function () {
-    // An agent's instance waiting off screen comes up when its Dock icon is
-    // clicked.
-    if (showHeldWindows()) {
-      return;
-    }
-    // The Dock icon brings a window back once every window is closed. A
-    // hidden window drawing a file's picture is not one to come back to.
-    if (!getForegroundWindow()) {
-      openAppWindow();
-    }
-  });
+/** The Dock icon clicked once the windows are open. */
+function activateApp() {
+  // An agent's instance waiting off screen comes up when its Dock icon is
+  // clicked.
+  if (showHeldWindows()) {
+    return;
+  }
+  // The Dock icon brings a window back once every window is closed. A
+  // hidden window drawing a file's picture is not one to come back to.
+  if (!getForegroundWindow()) {
+    openAppWindow();
+  }
 }
 
 /**
- * Bring the active foreground window forward.
+ * Bring the active foreground window forward, once the windows are open
+ * (`Launch.comeForward` holds it until then).
  *
  * With no window to come forward this opens one. Relaunching the app is how a
  * user asks for a window back, and the single-instance lock routes that launch
@@ -537,14 +558,6 @@ function focusForegroundWindow() {
       target.restore();
     }
     target.focus();
-    return;
-  }
-
-  // A second launch or a launch's own link can land here while boot is still
-  // on its way to restoring the windows, ready or not; that boot opens them
-  // itself and puts up what was asked. A window opened now would be one more
-  // than boot restores, and up before the RPC handshake is listened for.
-  if (!hasOpenedAppWindow()) {
     return;
   }
   ensureForegroundWindowVisible();
@@ -560,7 +573,7 @@ function focusForegroundWindow() {
 function handleDeepLink(url: string) {
   void openOutsideLink(url, {
     ask: (asks) => {
-      showFromOutside(asks, focusForegroundWindow);
+      showFromOutside(asks, launch.comeForward);
     },
     log: (line) => {
       // Scoped here, not at the top: a launch's own link comes through

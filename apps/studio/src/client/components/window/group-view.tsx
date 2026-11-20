@@ -54,7 +54,12 @@ import { useSideMotion } from "./side-motion";
 import { windowTabGroupsAtom } from "./open-groups";
 import { useTabGroupActions } from "./tab-groups";
 import { useGroupTabMoves } from "./tab-drag";
-import { type GroupLayout, type GroupSide } from "./tab-model";
+import {
+  type GroupLayout,
+  type GroupSide,
+  isChatTab,
+  isNewChatTab,
+} from "./tab-model";
 import {
   leftWidthAt,
   scrollToShow,
@@ -752,8 +757,10 @@ function SideCard({
       side: sideIndex,
     });
   };
-  // Split for a group of one side; in a split, each side's × in its place,
-  // since the window shows two sides at most.
+  // Split for a group of one side, named Chat beside a tab that is not a
+  // chat, since it opens one; in a split, each side's × in its place, since
+  // the window shows two sides at most.
+  const isUpChat = up !== undefined && (isChatTab(up) || isNewChatTab(up));
   const splitControl =
     layout.sides.length === 2 ? (
       <TabRowControl
@@ -772,6 +779,7 @@ function SideCard({
         icon={<SquareSplitHorizontalIcon className="size-4" />}
         label="New Tab in Split"
         onClick={split.onNewChatInSplit}
+        word={isUpChat ? undefined : "Chat"}
       />
     );
   // The window's own end, at the last side's right.

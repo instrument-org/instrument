@@ -348,6 +348,7 @@ export function ExpandFileControl({
 /**
  * One of the row's own controls: a mark, what it is called, and what it
  * does, with the chord that does the same in the tooltip where it has one.
+ * `word` is shown after the mark, where the mark alone would not say enough.
  */
 export function TabRowControl({
   chord,
@@ -355,18 +356,23 @@ export function TabRowControl({
   icon,
   label,
   onClick,
+  word,
 }: {
   chord?: WindowShortcutId;
   disabled: boolean;
   icon: ReactNode;
   label: string;
   onClick: () => void;
+  word?: string;
 }) {
   return (
     <ToolbarTooltip chord={chord} label={label}>
       <button
         className={cn(
-          "grid size-7 shrink-0 place-items-center rounded-lg",
+          "shrink-0 rounded-lg",
+          word === undefined
+            ? "grid size-7 place-items-center"
+            : "flex h-7 items-center gap-1.5 pr-2.5 pl-2 text-[13px] font-medium",
           disabled
             ? "text-foreground/25"
             : "text-foreground/60 hover:bg-foreground/8 hover:text-foreground",
@@ -376,6 +382,7 @@ export function TabRowControl({
         type="button"
       >
         {icon}
+        {word}
       </button>
     </ToolbarTooltip>
   );

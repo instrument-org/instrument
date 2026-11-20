@@ -1,6 +1,6 @@
 import { type ScreenView } from "@/client/atoms/window";
-import { type SettingsTab } from "@/client/atoms/settings-modal";
 import { recordWindowAction, type WindowAction } from "@/client/lib/actions";
+import { SETTINGS_SECTIONS } from "@/shared/instrument-screens";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useEffect, useState } from "react";
 
@@ -14,10 +14,10 @@ import { matchScreen } from "./window-href";
 export const SCREEN_SETTLE_MS = 1500;
 
 /**
- * The screen in front as the action log keeps it: Settings while it is
- * open, then what the tab in view says it shows (a folder and what is
- * selected in it, Apps, Tasks), then what its address names (a chat, an
- * app's page). Nothing for a file or a page, which the app's history
+ * The screen in front as the action log keeps it: what the tab in view
+ * says it shows (a folder and what is selected in it, Apps, Tasks), then
+ * what its address names (a chat, an app's page, a part of Settings, a
+ * built-in page). Nothing for a file or a page, which the app's history
  * records as they are opened, a new tab, or a screen not listed here.
  */
 export function screenActionOf({
@@ -25,7 +25,6 @@ export function screenActionOf({
   chatTitle,
   folderPath,
   href,
-  settingsTab,
   view,
 }: {
   appName: (slug: string) => string | undefined;
@@ -34,13 +33,8 @@ export function screenActionOf({
   folderPath?: string;
   /** The tab's address, left out where it names a folder or a file. */
   href?: string;
-  /** The page Settings is at, while it is open. */
-  settingsTab?: SettingsTab;
   view: null | ScreenView;
 }): null | WindowAction {
-  if (settingsTab) {
-    return { kind: "screen", name: `Settings › ${settingsTab}` };
-  }
   if (view?.file) {
     return null;
   }
@@ -82,6 +76,23 @@ export function screenActionOf({
     }
     case "task": {
       return { kind: "screen", name: "Tasks" };
+    }
+    case "settings": {
+      return {
+        kind: "screen",
+        name: screen.section
+          ? `Settings › ${SETTINGS_SECTIONS[screen.section]}`
+          : "Settings",
+      };
+    }
+    case "chats": {
+      return { kind: "screen", name: "Chats" };
+    }
+    case "memories": {
+      return { kind: "screen", name: "Memory" };
+    }
+    case "skills": {
+      return { kind: "screen", name: "Skills" };
     }
     default: {
       return null;

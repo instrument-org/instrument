@@ -3,6 +3,7 @@ import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
 import { err, ok, ResultAsync } from "neverthrow";
 
 import { type FileUpload } from "../schemas/file-upload";
+import { type LayoutRead } from "../schemas/group-layout";
 import { type MountedFolder } from "../schemas/mounted-folder";
 import { AbsolutePathSchema } from "../schemas/paths";
 import { type SessionMessage } from "../schemas/session/message";
@@ -16,6 +17,7 @@ import { createBackgroundProcessesPart } from "./create-background-processes-par
 import { createBrowserStatusPart } from "./create-browser-status-part";
 import { createMemoryPart } from "./create-memory-part";
 import { createSetupNewsPart } from "./setup-news";
+import { layoutParts } from "./group-layout-parts";
 import { goesUnsaid } from "./state-notes";
 import { readWorkspaceInstructions } from "./workspace-instructions";
 import { detectDateChange } from "./date-change";
@@ -45,6 +47,7 @@ export async function newMessage({
   folders,
   fromChat,
   fromDraft,
+  layout,
   modelURI,
   prompt,
   sessionId,
@@ -64,6 +67,8 @@ export async function newMessage({
   fromChat?: SessionMessageDataPart.FromChatDataPart;
   /** The draft this was sent from, by its id; see the message's metadata. */
   fromDraft?: string;
+  /** The tab group the chat works in, as the window read it at the send; see `layoutParts`. */
+  layout?: LayoutRead;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
   sessionId: StoreId.Session;
@@ -140,6 +145,16 @@ export async function newMessage({
     });
   }
 
+  parts.push(
+    ...(await layoutParts({
+      chatId,
+      createdAt,
+      messageId,
+      read: layout,
+      sessionId,
+    })),
+  );
+
   if (asks) {
     parts.push({
       data: asks,
@@ -202,6 +217,9 @@ export async function newMessage({
   }
   for (const item of chippedPaths(viewing)) {
     await grantChipped(chatId, item);
+  }
+  for (const path of viewing?.groupFiles ?? []) {
+    await grantChipped(chatId, { kind: "file", path });
   }
 
   const backgroundProcessesPart = await createBackgroundProcessesPart({

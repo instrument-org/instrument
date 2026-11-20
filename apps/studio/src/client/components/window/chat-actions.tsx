@@ -134,7 +134,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
           // the star is lit while it is starred.
           icon: <NotificationIcon className="size-3.5" weight="fill" />,
           id: "read",
-          label: "Mark as read",
+          label: "Mark as Read",
           run: () => {
             read(input);
           },
@@ -142,7 +142,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
       : {
           icon: <NotificationIcon className="size-3.5" />,
           id: "unread",
-          label: "Mark as unread",
+          label: "Mark as Unread",
           run: () => {
             unread(input);
           },
@@ -179,7 +179,7 @@ export function useChatActionsFor(): (chat: Chat) => RowAction[] {
     const feedback: RowAction = {
       icon: <ChatTextIcon className="size-3.5" />,
       id: "feedback",
-      label: "Send feedback…",
+      label: "Send Feedback…",
       menuOnly: true,
       run: () => {
         openReportDialog(

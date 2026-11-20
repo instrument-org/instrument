@@ -7,7 +7,7 @@ const SHIFT_MS = 260;
 /**
  * Slides the element in as the project it shows changes, the way a
  * navigation stack pushes and pops: from the right into a project or from
- * one project to another, from the left back out to the inbox. Played on the
+ * one project to another, from the left back out to the whole list. Played on the
  * element already drawn, so nothing in it remounts and the list keeps its
  * rows, its focus and its scroll. Nothing on the first draw, and nothing
  * where the reader asked for less motion.

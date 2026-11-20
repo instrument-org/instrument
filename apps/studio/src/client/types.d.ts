@@ -76,6 +76,11 @@ declare global {
       // a quit runs and waits on before the app exits (`shared/leaving.ts`).
       // Absent outside Electron.
       onLeaving?: (finish: () => Promise<void>) => void;
+      // Hands main the window's question before a close the person asked
+      // for (`shared/window-close.ts`): true to close, false to stay, and a
+      // promise while the person is asked. Answers a way to take it back.
+      // Absent outside Electron.
+      onCloseAsked?: (ask: () => boolean | Promise<boolean>) => () => void;
       // Dev-only: forward a renderer log entry to the main-process dev log.
       rendererLog?: (entry: { args: unknown[]; level: string }) => void;
       // Hand files to the OS as a native drag, by where they are on the

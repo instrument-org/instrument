@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { CommandMenu } from "./command-menu";
-import { NewTabPage } from "./new-tab-page";
 
 const opened = vi.hoisted(() => ({ page: vi.fn<(url: string) => void>() }));
 
@@ -30,9 +29,9 @@ vi.mock("@/client/rpc/client", () => {
 
 vi.mock("@/client/components/window/shell-context", () => ({
   useShell: () => ({
-    appTabs: { openNewTab: () => undefined },
     goToPlace: () => undefined,
-    newDraft: () => undefined,
+    newGroup: () => undefined,
+    newTab: () => undefined,
     projects: [],
   }),
 }));
@@ -41,37 +40,24 @@ vi.mock("@/client/components/theme-provider", () => ({
   useTheme: () => ({ setTheme: () => undefined, theme: "system" }),
 }));
 
-vi.mock("./context", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./context")>()),
-  useWindow: () => ({ openPage: opened.page, openScreen: () => undefined }),
-}));
+/** The menu Cmd+K opens, open. */
+async function renderMenu() {
+  const store = createStore();
+  store.set(commandMenuOpenAtom, true);
+  await renderInBrowser(
+    <CommandMenu openPage={opened.page} openScreen={() => undefined} />,
+    { store },
+  );
+}
 
 // Words pasted in arrive in one change, from the list shown before anything
 // was typed straight to the rows for the whole of them. Return runs the row
 // picked, so one has to be, and it is the first: what the words name.
 describe("the row Return runs after a paste", () => {
-  it.each([
-    [
-      "the command menu",
-      async () => {
-        const store = createStore();
-        store.set(commandMenuOpenAtom, true);
-        await renderInBrowser(
-          <CommandMenu openPage={opened.page} openScreen={() => undefined} />,
-          { store },
-        );
-      },
-    ],
-    [
-      "a new tab",
-      async () => {
-        await renderInBrowser(<NewTabPage />);
-      },
-    ],
-  ])("in %s is the first", async (_where, render) => {
-    await render();
+  it("is the first", async () => {
+    await renderMenu();
     const field = page.getByRole("combobox");
-    await expect.element(page.getByText("Go to")).toBeVisible();
+    await expect.element(page.getByText("Commands")).toBeVisible();
 
     await userEvent.fill(field, "/Users/sam/Documents");
     await expect
@@ -80,11 +66,11 @@ describe("the row Return runs after a paste", () => {
 
     // A row picked by a key stays picked while the words stay.
     await userEvent.fill(field, "");
-    await expect.element(page.getByText("Go to")).toBeVisible();
+    await expect.element(page.getByText("Commands")).toBeVisible();
     await userEvent.keyboard("{ArrowDown}");
     await expect
-      .element(page.getByRole("option", { selected: true }))
-      .toMatchTextContent("Files");
+      .element(page.getByRole("option").nth(1))
+      .toHaveAttribute("aria-selected", "true");
 
     await userEvent.fill(field, "example.org");
     await expect
@@ -96,28 +82,10 @@ describe("the row Return runs after a paste", () => {
 });
 
 describe("the row Return runs while typing", () => {
-  it.each([
-    [
-      "the command menu",
-      async () => {
-        const store = createStore();
-        store.set(commandMenuOpenAtom, true);
-        await renderInBrowser(
-          <CommandMenu openPage={opened.page} openScreen={() => undefined} />,
-          { store },
-        );
-      },
-    ],
-    [
-      "a new tab",
-      async () => {
-        await renderInBrowser(<NewTabPage />);
-      },
-    ],
-  ])("in %s is for every letter typed", async (_where, render) => {
-    await render();
+  it("is for every letter typed", async () => {
+    await renderMenu();
     const field = page.getByRole("combobox");
-    await expect.element(page.getByText("Go to")).toBeVisible();
+    await expect.element(page.getByText("Commands")).toBeVisible();
 
     // Return straight after the last letter, before the rows can follow.
     await userEvent.type(field, "example.com{Enter}");
@@ -125,8 +93,8 @@ describe("the row Return runs while typing", () => {
   });
 
   it("stays on the first row when the rows change under a resting pointer", async () => {
-    await renderInBrowser(<NewTabPage />);
-    await expect.element(page.getByText("Go to")).toBeVisible();
+    await renderMenu();
+    await expect.element(page.getByText("Commands")).toBeVisible();
     const first = page.getByRole("option").first();
     const last = page.getByRole("option").last();
     await expect.element(first).toHaveAttribute("aria-selected", "true");
@@ -158,7 +126,7 @@ describe("the row Return runs while typing", () => {
 
 describe("the menu's icons", () => {
   it("asks for no icon for an address being typed", async () => {
-    await renderInBrowser(<NewTabPage />);
+    await renderMenu();
     const asked: string[] = [];
     const watch = new MutationObserver(() => {
       for (const image of document.querySelectorAll("img")) {

@@ -1,7 +1,13 @@
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { describe, expect, it } from "vitest";
 
-import { asksMoreThan, isSameTabIdentity, tabIdentityOf } from "./tab-identity";
+import {
+  asksMoreThan,
+  isSameTabIdentity,
+  chatOfAddress,
+  tabGroupOfAddress,
+  tabIdentityOf,
+} from "./tab-identity";
 
 const HOME = "/Users/mac-user";
 const NOTES = `${HOME}/notes.md`;
@@ -31,6 +37,12 @@ describe("isSameTabIdentity", () => {
     ["an app", "/apps/github", "/apps/github/"],
     ["the release notes", "/release-notes", "/release-notes"],
     ["the extensions", "/extensions", "/extensions"],
+    ["every chat, whatever it searches", "/chat-list", "/chat-list?q=trip"],
+    [
+      "the debug pages, whichever is up",
+      "/debug",
+      "/debug/components/transcript?scenario=long-reply",
+    ],
     [
       "a version shown over its file and the copy at its own address",
       fileHref(NOTES, { version: `${HOME}/.versions/notes.md` }),
@@ -106,5 +118,31 @@ describe("asksMoreThan", () => {
     ["a task by its chat", "/tasks/s1?chat=c1", "/tasks/s1", false],
   ])("%s", (_, asked, shown, expected) => {
     expect(asksMoreThan(asked, shown)).toBe(expected);
+  });
+});
+
+describe("chatOfAddress", () => {
+  it.each([
+    ["/chats/2026-10-01-roofer", "2026-10-01-roofer"],
+    ["/chats/2026-10-01-roofer?x=1", "2026-10-01-roofer"],
+    ["/chats?group=group%3A1", undefined],
+    ["/chats?draft=d1", undefined],
+  ])("%s asks for %s", (href, chat) => {
+    expect(chatOfAddress(href)).toBe(chat);
+  });
+});
+
+describe("tabGroupOfAddress", () => {
+  it.each([
+    ["/chats?group=group%3A1", "group:1"],
+    ["/chats?group=2026-10-01-roofer", "2026-10-01-roofer"],
+    ["/chats/2026-10-01-roofer", undefined],
+    ["/chats?draft=d1", undefined],
+    ["/chats", undefined],
+    ["/apps", undefined],
+    ["/tasks/s1?chat=c1", undefined],
+    [folderHref(HOME), undefined],
+  ])("%s stands on %s", (href, group) => {
+    expect(tabGroupOfAddress(href)).toBe(group);
   });
 });

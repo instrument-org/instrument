@@ -13,8 +13,10 @@ import {
   useHostedPage,
 } from "./hosted-page";
 
+const GROUP = StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA");
 const FILE_URL = "file:///Users/mac-user/site/index.html";
-const GROUP = "page:files";
+/** The page each file tab draws in its viewer, by the file tab's id. */
+const PAGE_OF: Record<string, string> = { files: StoreId.newTabId() };
 
 const window_ = vi.hoisted(() => ({
   close: vi.fn<(id: string) => void>(),
@@ -37,68 +39,32 @@ vi.mock("./window-tabs", async (importOriginal) => ({
   useWindowTabs: () => ({ allTabs: window_.tabs, close: window_.close }),
 }));
 
-function Viewer() {
-  useHostedPage({
-    group: GROUP,
-    host: { chrome: false, isActive: true },
+function screenTab(id: string, href: string, side?: 1): WindowTab {
+  return { group: GROUP, href, id, kind: "screen", ...(side ? { side } : {}) };
+}
+
+function hostedPage(owner: string): WindowTab {
+  return {
+    group: `page:${owner}`,
+    id: PAGE_OF[owner] ?? owner,
+    kind: "page",
+    openedAt: 0,
     url: FILE_URL,
-  });
-  return null;
+  };
 }
 
 describe("useHostedPage", () => {
   beforeEach(() => {
     window_.close.mockClear();
-    window_.tabs = [
-      { group: GROUP, id: StoreId.newTabId(), kind: "page", url: FILE_URL },
-    ];
+    window_.tabs = [hostedPage("files")];
   });
 
-  it("closes the page once its viewer goes", async () => {
-    const { unmount } = render(<Viewer />);
-    unmount();
-    await Promise.resolve();
-    expect(window_.close).toHaveBeenCalledTimes(1);
-  });
-
-  // A file tab's screen drawn afresh (its router made again) puts its viewer
-  // away and back in one commit, and the page stays with the new one.
-  it("keeps the page for a viewer drawn afresh in one commit", async () => {
-    const { rerender } = render(<Viewer key="before" />);
-    rerender(<Viewer key="after" />);
-    await Promise.resolve();
-    expect(window_.close).not.toHaveBeenCalled();
-  });
-});
-
-const CHAT = StoreId.SessionSchema.parse("ses_01JAAAAAAAAAAAAAAAAAAAAAAA");
-const PAGE_ID = StoreId.newTabId();
-const PAGE_FILE = fileHref("/Users/mac-user/site/index.html");
-
-function screenTab(id: string, href: string): WindowTab {
-  return { group: CHAT, href, id, kind: "screen" };
-}
-
-const hostedPage: WindowTab = {
-  group: "page:files",
-  id: PAGE_ID,
-  kind: "page",
-  openedAt: 0,
-  url: FILE_URL,
-};
-
-describe("a file tab's page outliving its viewer", () => {
-  beforeEach(() => {
-    window_.close.mockClear();
-    window_.tabs = [hostedPage];
-  });
-
-  // A group draws only the tab up, so another tab coming up takes the file
-  // tab's viewer away; its page staying open keeps it live for the viewer's
-  // return and for an agent driving it.
+  // A group draws only the tab up on each side, so switching tabs there
+  // takes the file tab's viewer away; its page staying open is what keeps
+  // it live, rather than loaded again when the tab comes back up.
   it.each([
-    ["keeps the page while its tab stands on the file", true, []],
-    ["closes the page when its tab goes", false, [PAGE_ID]],
+    ["keeps the page when its tab is only put behind", true, []],
+    ["closes the page when its tab goes", false, [PAGE_OF.files]],
   ])("%s", async (_case, keeps, closed) => {
     const { unmount } = renderHook(() =>
       useHostedPage({
@@ -109,11 +75,35 @@ describe("a file tab's page outliving its viewer", () => {
       }),
     );
     unmount();
-    // The surface lets its page go once the commit taking it away is done.
     await Promise.resolve();
     expect(window_.close.mock.calls.map(([id]) => id)).toEqual(closed);
   });
 
+  // A file tab moved to the other side of its group, or its screen's router
+  // made again, draws its viewer afresh: the old one goes and the new one
+  // comes in one commit, and the page stays with the new one.
+  it("keeps the page for a viewer drawn afresh in one commit", async () => {
+    function Viewer() {
+      useHostedPage({
+        group: "page:files",
+        host: { chrome: false, isActive: true },
+        keepsPage: () => false,
+        url: FILE_URL,
+      });
+      return null;
+    }
+    const { rerender } = render(<Viewer key="before" />);
+    rerender(<Viewer key="after" />);
+    await Promise.resolve();
+    expect(window_.close).not.toHaveBeenCalled();
+  });
+});
+
+const PAGE_ID = PAGE_OF.files ?? "files";
+const PAGE_FILE = fileHref("/Users/mac-user/site/index.html");
+const pageOfFiles = hostedPage("files");
+
+describe("a file tab's page", () => {
   it.each([
     ["on a page's file", PAGE_FILE, "/Users/mac-user/site/index.html"],
     [
@@ -137,7 +127,7 @@ describe("a file tab's page outliving its viewer", () => {
       false,
     ],
   ])("keeps the page of a tab %s", (_case, tabs, expected) => {
-    expect(keepsHostedPage([...tabs, hostedPage], "files")).toBe(expected);
+    expect(keepsHostedPage([...tabs, pageOfFiles], "files")).toBe(expected);
   });
 
   it.each([
@@ -156,7 +146,7 @@ describe("a file tab's page outliving its viewer", () => {
     ],
     ["its tab not read yet", [], [], []],
   ])("closes a kept page with %s", (_case, tabs, seen, stranded) => {
-    expect(strandedHostedPages([...tabs, hostedPage], new Set(seen))).toEqual(
+    expect(strandedHostedPages([...tabs, pageOfFiles], new Set(seen))).toEqual(
       stranded,
     );
   });
@@ -169,10 +159,10 @@ describe("agentPageOfTab", () => {
     [
       "a page tab by its own id",
       [],
-      { ...hostedPage, group: CHAT },
+      { ...pageOfFiles, group: GROUP },
       { id: PAGE_ID },
     ],
-    ["a file tab by the page it draws", [hostedPage], files, { id: PAGE_ID }],
+    ["a file tab by the page it draws", [pageOfFiles], files, { id: PAGE_ID }],
     [
       "a file tab with no page yet by where its page opens",
       [],
@@ -192,7 +182,7 @@ describe("agentPageOfTab", () => {
 
 describe("undrawnHostedStep", () => {
   const files = screenTab("files", PAGE_FILE);
-  const tabs = [files, hostedPage];
+  const tabs = [files, pageOfFiles];
 
   // An agent drives the page of a file tab behind another; with no viewer
   // drawn to follow the page, the window moves the tab.
@@ -226,7 +216,7 @@ describe("undrawnHostedStep", () => {
   });
 
   it("leaves a page of no file tab's alone", () => {
-    const page = { ...hostedPage, group: CHAT };
+    const page = { ...pageOfFiles, group: GROUP };
     expect(
       undrawnHostedStep([page], {
         isDrawn: () => false,

@@ -1,4 +1,10 @@
 import { captureException } from "@/client/lib/capture-exception";
+import { focusHomeIn } from "@/client/lib/keyboard-home";
+import {
+  isPageOnSideWithoutKeyboard,
+  keyboardSide,
+  pageOfSide,
+} from "@/client/lib/keyboard-place";
 import {
   IDLE_LOAD,
   type LoadEvent,
@@ -9,6 +15,8 @@ import {
 import { rpcClient } from "@/client/rpc/client";
 import {
   BROWSER_GUEST_VIEWPORT,
+  BROWSER_ZOOM_MAX,
+  BROWSER_ZOOM_MIN,
   type BrowserGuestTarget,
   browserPartition,
 } from "@/shared/browser";
@@ -19,7 +27,10 @@ import {
   PAGE_THUMB_CHANNEL,
   type PageRemoteMessage,
 } from "@/shared/page-editor-channels";
-import { type BrowserTargetId } from "@instrument-org/workspace/client";
+import {
+  type BrowserTargetId,
+  parseBrowserTargetId,
+} from "@instrument-org/workspace/client";
 import { sleep } from "radashi";
 
 // Backoff before re-establishing a dropped desired-targets stream so a hard
@@ -99,8 +110,8 @@ interface PooledWebview {
   handle: GuestHandle | null;
   // Last size the guest was shown at, which it keeps while parked when that
   // was in a host above the pane (a draft window), since it is shown there
-  // again; a guest last shown in the pane, or never shown, parks at
-  // `paneSize`.
+  // again; a guest last shown in the pane, or never shown, parks at its
+  // pane's size (`paneSizeOf`).
   lastVisibleBounds: Bounds | null;
   shownAbovePane: boolean;
   targetId: BrowserTargetId;
@@ -253,6 +264,13 @@ const pool = new Map<BrowserTargetId, PooledWebview>();
 // relaying out from another one in front of the person.
 let paneSize: null | { height: number; width: number } = null;
 
+// The size each pane last showed a page at, by the pane its tab stands in (a
+// side of a tab group, two of which stand side by side at widths of their
+// own), and the pane each page's tab stands in, as `setPagePanes` was last
+// told. A page whose pane has shown nothing yet parks at `paneSize`.
+const paneSizes = new Map<string, { height: number; width: number }>();
+let pagePanes: ReadonlyMap<BrowserTargetId, string> = new Map();
+
 // How long the pane's size holds before parked guests follow it, so dragging
 // a window edge does not relayout every page behind the one on screen at
 // each frame.
@@ -268,8 +286,14 @@ let lastHostFocusedElement: HTMLElement | null = null;
 // holding focus, and only this renderer-side DOM focus moves it across the
 // process boundary -- the main process cannot do it for us. The guest's own
 // `document.activeElement` survives losing and regaining focus, so this alone
-// puts typing back into whatever the agent last clicked.
+// puts typing back into whatever the agent last clicked. A page on the side
+// of a tab group without the keyboard never gets it this way, since the
+// person's keys would follow it there: main then refuses the agent's keys
+// that need focus, and plain typing reaches the page without it.
 function focusGuest(targetId: BrowserTargetId) {
+  if (isPageOnSideWithoutKeyboard(targetId)) {
+    return;
+  }
   pool.get(targetId)?.webview.focus({ preventScroll: true });
 }
 
@@ -330,15 +354,71 @@ export function giveKeyboardTo(targetId: BrowserTargetId) {
   passKeyboardTo(targetId);
 }
 
+/**
+ * Holds keeping every page from taking the keyboard, and the pages that
+ * would have taken it meanwhile. A page with the keyboard hears the window's
+ * keys, and the window's loss of focus, in a process of its own, so a press
+ * that may become a drag, and the drag, hold pages off: Escape and another
+ * app taking the window still reach the drag.
+ */
+let keyboardHolds = 0;
+const heldBack = new Set<BrowserTargetId>();
+
+/**
+ * Keeps pages from taking the keyboard until the returned function is
+ * called, which hands it to a page that would have taken it meanwhile, its
+ * claim as fresh as when it was made.
+ */
+export function holdKeyboardFromPages(): () => void {
+  keyboardHolds += 1;
+  let isHeld = true;
+  return () => {
+    if (!isHeld) {
+      return;
+    }
+    isHeld = false;
+    keyboardHolds -= 1;
+    if (keyboardHolds > 0) {
+      return;
+    }
+    const waiting = [...heldBack];
+    heldBack.clear();
+    const lapses = Date.now() + HEIR_WAIT_MS;
+    for (const targetId of waiting) {
+      for (const claims of [keyboardSends, keyboardHeirs]) {
+        if (claims.has(targetId)) {
+          claims.set(targetId, lapses);
+        }
+      }
+      passKeyboardTo(targetId);
+    }
+  };
+}
+
 function passKeyboardTo(targetId: BrowserTargetId) {
   const pooled = pool.get(targetId);
   if (!pooled?.handle || !paintOwners.has(targetId)) {
+    return;
+  }
+  if (keyboardHolds > 0) {
+    const now = Date.now();
+    if (
+      [keyboardSends, keyboardHeirs].some(
+        (claims) => (claims.get(targetId) ?? 0) >= now,
+      )
+    ) {
+      heldBack.add(targetId);
+    }
     return;
   }
   const sent = keyboardSends.get(targetId);
   const lapses = keyboardHeirs.get(targetId);
   keyboardSends.delete(targetId);
   keyboardHeirs.delete(targetId);
+  // A page on the side without the keyboard never takes it.
+  if (isPageOnSideWithoutKeyboard(targetId)) {
+    return;
+  }
   if (sent !== undefined && Date.now() <= sent) {
     pooled.webview.focus({ preventScroll: true });
     return;
@@ -400,13 +480,19 @@ function recordHostFocus(event: FocusEvent) {
 // commit, so a blur there becomes `webview.focus()` and the guest takes the
 // keyboard back from whatever the new screen focused (a new tab's address
 // field).
+//
+// A page up on the side of a tab group with the keyboard keeps it: it leaves
+// one slot for another as that side takes the keyboard, and handing focus
+// back then would put it in the side that just lost the keyboard.
 function releaseGuestFocus(targetId: BrowserTargetId) {
   queueMicrotask(() => {
     const pooled = pool.get(targetId);
+    const side = keyboardSide();
     if (
       !pooled ||
       paintOwners.has(targetId) ||
-      document.activeElement !== pooled.webview
+      document.activeElement !== pooled.webview ||
+      (side !== null && pageOfSide(side) === targetId)
     ) {
       return;
     }
@@ -416,6 +502,20 @@ function releaseGuestFocus(targetId: BrowserTargetId) {
 }
 
 function restoreHostFocus() {
+  // The caret goes back to where it was only on the side of a tab group
+  // that still has the keyboard; otherwise into that side's home, since a
+  // caret landing on the other side gives that side the keyboard.
+  const side = keyboardSide();
+  const holder = lastHostFocusedElement?.closest("[data-group-side]");
+  if (
+    side !== null &&
+    holder !== null &&
+    holder !== undefined &&
+    holder !== side
+  ) {
+    focusHomeIn(side);
+    return;
+  }
   if (lastHostFocusedElement?.isConnected) {
     lastHostFocusedElement.focus({ preventScroll: true });
   }
@@ -427,7 +527,11 @@ const paintOwners = new Map<BrowserTargetId, symbol>();
 interface SlotClaim {
   bottomRadius: string;
   bounds: Bounds;
+  /** The part of the window the slot is seen through, which the guest is cut to. */
+  clip?: Bounds;
   layer: number;
+  /** The width a page an agent opened first lays out at, when this slot is narrower (see showOverSlot). */
+  layoutWidth?: number;
   renderedSize: null | undefined | { height: number; width: number };
   // Order the slot first asked in, which breaks a tie between two slots on one
   // layer in favor of the newer; re-measuring keeps a slot's place.
@@ -452,6 +556,26 @@ const desiredSurfaces = new Map<
   BrowserTargetId,
   { height: number; width: number }
 >();
+
+// The zoom an agent's page was given so it lays out at a width the side is
+// too narrow for: the desktop width a page the agent opened starts at, or the
+// width the agent asked for with a viewport request while the page was shown.
+// It holds across the tab's navigations until the person zooms the page
+// themselves, which takes it out of here, and is what the address field's
+// zoom chip tells apart from the person's own zoom.
+const agentZooms = new Map<BrowserTargetId, number>();
+
+// A layout width waiting to become a zoom: worked out once, against the
+// slot's width, the next time a slot shows the guest and it is ready to drive.
+const pendingLayouts = new Map<BrowserTargetId, number>();
+
+// Targets a slot has shown, so the desktop width a page the agent opened starts
+// at is decided once, by the first slot that shows it.
+const shownOnce = new Set<BrowserTargetId>();
+
+// The narrowest zoom an agent's page starts at. Under it the text is too small
+// to read, and the page lays out narrower than desktop instead.
+const AGENT_PAGE_MIN_ZOOM = 0.5;
 
 // Ids of targets whose guest has attached, mirrored from the desired-targets
 // stream so the UI can show the live guest vs a placeholder without a second
@@ -588,6 +712,29 @@ export function initBrowserPool(): () => void {
     }
   }
 
+  async function runPagePresses() {
+    while (true) {
+      if (signal.aborted) {
+        return;
+      }
+      try {
+        const subscription = await rpcClient.browser.events.pagePressed.call(
+          undefined,
+          { signal },
+        );
+        for await (const { targetId } of subscription) {
+          pagePressed(targetId);
+        }
+      } catch (error) {
+        if (controller.signal.aborted) {
+          return;
+        }
+        captureException(error);
+      }
+      await sleep(RECONNECT_DELAY_MS);
+    }
+  }
+
   async function runGuestFocusRequests() {
     while (true) {
       if (signal.aborted) {
@@ -664,6 +811,8 @@ export function initBrowserPool(): () => void {
   void run();
   void runFocusRestores();
   void runGuestFocusRequests();
+  void runPagePresses();
+  window.addEventListener("blur", onHostBlur, { signal });
   void runGuestSurfaces();
   void runPageSteps();
 
@@ -691,6 +840,106 @@ export function pageHoldingKeyboard(): BrowserTargetId | null {
     }
   }
   return null;
+}
+
+const pagePressListeners = new Set<(targetId: BrowserTargetId) => void>();
+
+/** When the person last pressed the pointer in each page, which main reports since the host document never sees it. */
+const pagePressedAt = new Map<BrowserTargetId, number>();
+
+/**
+ * Calls `listener` with a page each time the person presses the pointer in
+ * it: a press the host document never sees, since it goes to the guest.
+ * The one way a page gives its side of a tab group the keyboard; a page
+ * taking focus otherwise (autofocus, a script, a load) does not.
+ */
+export function onPagePress(listener: (targetId: BrowserTargetId) => void) {
+  pagePressListeners.add(listener);
+  return () => {
+    pagePressListeners.delete(listener);
+  };
+}
+
+/** Whether the person has pressed the pointer in a tab's page since launch. */
+export function wasPagePressed(tabId: string): boolean {
+  const targetId = parseBrowserTargetId(tabId);
+  return targetId !== null && pagePressedAt.has(targetId);
+}
+
+function pagePressed(targetId: BrowserTargetId) {
+  pagePressedAt.set(targetId, Date.now());
+  // A popover stays open when focus moves into a page, so a press in one of
+  // this window's pages reaches the window's own listeners as a press on
+  // nothing: on the root element, outside the React tree, where only what
+  // listens on the document or the window (an open overlay's outside press
+  // above all) hears it. The click completes it, since a popover waits for
+  // one before it folds. The root says while one is open
+  // (`lib/window-drag-overlays.ts`).
+  if (
+    pool.has(targetId) &&
+    document.documentElement.hasAttribute("data-overlay-open")
+  ) {
+    const press = {
+      bubbles: true,
+      button: 0,
+      cancelable: true,
+      composed: true,
+    };
+    const root = document.documentElement;
+    root.dispatchEvent(
+      new PointerEvent("pointerdown", {
+        ...press,
+        isPrimary: true,
+        pointerType: "mouse",
+      }),
+    );
+    root.dispatchEvent(new MouseEvent("click", press));
+  }
+  for (const listener of pagePressListeners) {
+    listener(targetId);
+  }
+}
+
+/** How long a page that took the keyboard waits for the press main reports, which may arrive after the focus, in ms. */
+const PRESS_REPORT_WAIT_MS = 150;
+
+/**
+ * Hands the keyboard back to the side that has it from a page on the other
+ * side that took it without a press of the person's: a page focusing
+ * itself, or one a load, a script or an agent's click focused. Waits a moment first for a
+ * press main may still be reporting, which gives the page's side the
+ * keyboard instead.
+ */
+function keepKeyboardOnItsSide(targetId: BrowserTargetId) {
+  if (!isPageOnSideWithoutKeyboard(targetId)) {
+    return;
+  }
+  setTimeout(() => {
+    const pooled = pool.get(targetId);
+    const side = keyboardSide();
+    const pressed = pagePressedAt.get(targetId) ?? 0;
+    if (
+      !pooled ||
+      document.activeElement !== pooled.webview ||
+      Date.now() - pressed < PRESS_REPORT_WAIT_MS * 4 ||
+      !isPageOnSideWithoutKeyboard(targetId) ||
+      side === null
+    ) {
+      return;
+    }
+    pooled.webview.blur();
+    focusHomeIn(side);
+  }, PRESS_REPORT_WAIT_MS);
+}
+
+/** The host document losing the keyboard, as it does to a page taking it. */
+function onHostBlur() {
+  queueMicrotask(() => {
+    const target = pageHoldingKeyboard();
+    if (target !== null) {
+      keepKeyboardOnItsSide(target);
+    }
+  });
 }
 
 /**
@@ -815,6 +1064,14 @@ export function showOverSlot(
   // it does not stand square past a rounder frame or round inside a square one:
   // one length for both, or two, the bottom left's and then the bottom right's.
   bottomRadius = VISIBLE_BOTTOM_RADIUS,
+  // The part of the window the slot can be seen through, for a slot inside a
+  // scroller: the guest is cut to it, since a guest on the body is no child
+  // of the scroller to be clipped by it.
+  clip?: Bounds,
+  // The width a page an agent opened lays out at when this slot is the first
+  // to show it and is narrower: the page is zoomed out once, so it lays out at
+  // that width and fits the slot, and keeps that zoom wherever it goes after.
+  layoutWidth?: number,
 ) {
   if (!pool.has(targetId)) {
     return;
@@ -824,7 +1081,9 @@ export function showOverSlot(
   claims.set(owner, {
     bottomRadius,
     bounds,
+    ...(clip === undefined ? {} : { clip }),
     layer,
+    ...(layoutWidth === undefined ? {} : { layoutWidth }),
     renderedSize,
     since: claims.get(owner)?.since ?? nextClaimOrder++,
   });
@@ -839,17 +1098,20 @@ export function subscribeAttachedTargets(listener: () => void): () => void {
   };
 }
 
-// Record a size the agent asked for and put the guest at it if it is parked.
-// A guest a slot is showing keeps the slot's bounds: the user is looking at it,
-// and the request takes effect the next time it parks.
+// Record a size the agent asked for. A parked guest is put at it, at its own
+// size. A guest a slot shows keeps the slot's bounds, since the user is looking
+// at it, and lays out at the width asked for by zooming to fit the slot, which
+// it also does the next time a slot shows a guest asked about while parked.
 function applyDesiredSurface(
   targetId: BrowserTargetId,
   size: null | { height: number; width: number },
 ) {
   if (size) {
     desiredSurfaces.set(targetId, size);
+    pendingLayouts.set(targetId, size.width);
   } else {
     desiredSurfaces.delete(targetId);
+    pendingLayouts.delete(targetId);
   }
 
   const pooled = pool.get(targetId);
@@ -857,26 +1119,84 @@ function applyDesiredSurface(
     return;
   }
   pooled.desiredSurface = size;
-  if (!paintOwners.has(targetId)) {
-    applyPaintHost(pooled);
+  if (paintOwners.has(targetId)) {
+    placeGuest(targetId);
+    return;
   }
+  // At its own size a parked guest lays out at the size asked for only unzoomed.
+  if (size && agentZooms.has(targetId)) {
+    setAgentZoom(pooled, 1);
+  }
+  applyPaintHost(pooled);
+}
+
+// Zoom a guest for the agent's side, as the address field's chip shows it.
+// Main zooms it, keeping the zoom to this guest: a page's zoom is otherwise
+// its site's, and would reach the person's own tabs on the same site.
+function setAgentZoom(pooled: PooledWebview, factor: number) {
+  if (factor === 1) {
+    agentZooms.delete(pooled.targetId);
+  } else {
+    agentZooms.set(pooled.targetId, factor);
+  }
+  zoomAlone(pooled.targetId, factor);
+  pooled.webview.dispatchEvent(new Event("zoom-set"));
+  const shownAt = paintOwners.has(pooled.targetId)
+    ? pooled.lastVisibleBounds
+    : null;
+  if (shownAt) {
+    reportEffectiveSurface(pooled, layoutOf(pooled, shownAt));
+  }
+}
+
+// Turn a layout width waiting for this guest into a zoom against the slot
+// showing it, once the guest can be driven. A request it answers is spent, so
+// parking the guest keeps the slot's size and zoom rather than the size asked.
+function applyPendingLayout(pooled: PooledWebview, bounds: Bounds) {
+  const { targetId } = pooled;
+  const layoutWidth = pendingLayouts.get(targetId);
+  if (layoutWidth === undefined || !pooled.handle) {
+    return;
+  }
+  pendingLayouts.delete(targetId);
+  desiredSurfaces.delete(targetId);
+  pooled.desiredSurface = null;
+  setAgentZoom(
+    pooled,
+    Math.min(
+      BROWSER_ZOOM_MAX,
+      Math.max(BROWSER_ZOOM_MIN, bounds.width / layoutWidth),
+    ),
+  );
+}
+
+function zoomAlone(targetId: BrowserTargetId, factor: number) {
+  void rpcClient.browser.zoomGuestAlone.call({ factor, targetId });
+}
+
+/** The zoom the agent's side gave the target's page, while the person has not zoomed it themselves. */
+export function agentZoomOf(targetId: BrowserTargetId): number | undefined {
+  return agentZooms.get(targetId);
 }
 
 // On-screen-sized but visually hidden. NOT display:none / far-offscreen, which
 // would drop the compositor surface and break CDP capture/input. Held at the
-// size it will be shown at (the pane's, or a default before the pane has shown
-// a page) so showing it doesn't jump, and clamped to what this window can actually rasterize: a guest shown in a
-// panel is bounded by the window anyway, but the default is not, so in a window
-// narrower than 985px or shorter than 616px it would otherwise park over the cap.
+// size it will be shown at (its pane's, or a default before a pane has shown a
+// page) so showing it doesn't jump, and clamped to what this window can
+// actually rasterize: a guest shown in a panel is bounded by the window anyway,
+// but the default is not, so in a window narrower than 985px or shorter than
+// 616px it would otherwise park over the cap.
 function applyPaintHost(pooled: PooledWebview) {
   const { container, desiredSurface, webview } = pooled;
   const budget = maxRasterSize();
   const requested =
     desiredSurface ??
-    (pooled.shownAbovePane ? pooled.lastVisibleBounds : paneSize);
+    (pooled.shownAbovePane
+      ? pooled.lastVisibleBounds
+      : paneSizeOf(pooled.targetId));
   const width = Math.min(requested?.width ?? VIEW_W, budget.width);
   const height = Math.min(requested?.height ?? VIEW_H, budget.height);
-  reportEffectiveSurface(pooled, { height, width });
+  reportEffectiveSurface(pooled, layoutOf(pooled, { height, width }));
 
   Object.assign(container.style, {
     borderRadius: "",
@@ -920,6 +1240,9 @@ function disposeWebview(targetId: BrowserTargetId) {
   slotClaims.delete(targetId);
   keyboardHeirs.delete(targetId);
   layeredPages.delete(targetId);
+  agentZooms.delete(targetId);
+  pendingLayouts.delete(targetId);
+  shownOnce.delete(targetId);
 }
 
 // Guest creation happens only here, driven by `reconcile` off the main
@@ -958,6 +1281,7 @@ function ensureWebview(
   // tracks the host document's activeElement correctly.
   webview.addEventListener("focus", () => {
     void rpcClient.browser.syncFocus.call({ focused: true, targetId });
+    keepKeyboardOnItsSide(targetId);
   });
   webview.addEventListener("blur", () => {
     void rpcClient.browser.syncFocus.call({ focused: false, targetId });
@@ -992,9 +1316,15 @@ function ensureWebview(
     stepPage(targetId, args?.[0] === "forward" ? "forward" : "back");
   });
 
-  // A new document has nothing of its own open until it says so.
+  // A new document has nothing of its own open until it says so. The agent's
+  // zoom is given again on each one, as a document from another site is laid
+  // out at its own zoom while the guest still answers with the old one.
   webview.addEventListener("did-navigate", () => {
     layeredPages.delete(targetId);
+    const zoom = agentZooms.get(targetId);
+    if (zoom !== undefined) {
+      zoomAlone(targetId, zoom);
+    }
   });
 
   // A page's load to a new document (`LoadStage`), moved on by each event
@@ -1070,6 +1400,13 @@ function ensureWebview(
           targetId,
           webview.getWebContentsId(),
         );
+        const zoom = agentZooms.get(targetId);
+        if (zoom !== undefined) {
+          zoomAlone(targetId, zoom);
+        }
+        if (paintOwners.has(targetId)) {
+          placeGuest(targetId);
+        }
         publishAttached();
         passKeyboardTo(targetId);
       }
@@ -1168,6 +1505,8 @@ function guestHandle(
       }, undefined);
     },
     setZoom: (factor) => {
+      // The person's own zoom, which the agent's side never gives back.
+      agentZooms.delete(targetId);
       guard(() => {
         webview.setZoomFactor(factor);
       }, undefined);
@@ -1229,15 +1568,60 @@ function parkAgain() {
   }
 }
 
-// The pane is a slot on the window's own layer; a host above it (a draft
+function paneSizeOf(targetId: BrowserTargetId) {
+  const pane = pagePanes.get(targetId);
+  return (pane === undefined ? undefined : paneSizes.get(pane)) ?? paneSize;
+}
+
+// A pane is a slot on the window's own layer; a host above it (a draft
 // window, a look) shows its page at a size of its own.
-function notePaneSize(size: { height: number; width: number }) {
-  if (paneSize?.width === size.width && paneSize.height === size.height) {
+function notePaneSize(
+  targetId: BrowserTargetId,
+  size: { height: number; width: number },
+) {
+  const pane = pagePanes.get(targetId);
+  const kept = pane === undefined ? undefined : paneSizes.get(pane);
+  const same = (other: null | undefined | typeof size) =>
+    other?.width === size.width && other.height === size.height;
+  if (same(paneSize) && (pane === undefined || same(kept))) {
     return;
   }
   paneSize = size;
+  if (pane !== undefined) {
+    paneSizes.set(pane, size);
+  }
   clearTimeout(paneSettle);
   paneSettle = setTimeout(parkAgain, PANE_SETTLE_MS);
+}
+
+/**
+ * Says which pane each page's tab stands in, whole on each change: a parked
+ * page is laid out at the size its own pane last showed a page at, so a tab
+ * behind the one up on either side of a group comes up at its side's width.
+ */
+export function setPagePanes(panes: ReadonlyMap<BrowserTargetId, string>) {
+  pagePanes = panes;
+  // A page already up was shown before its pane was known.
+  for (const [targetId, pooled] of pool) {
+    const pane = panes.get(targetId);
+    if (
+      pane !== undefined &&
+      paintOwners.has(targetId) &&
+      !pooled.shownAbovePane &&
+      pooled.lastVisibleBounds &&
+      !paneSizes.has(pane)
+    ) {
+      const { height, width } = pooled.lastVisibleBounds;
+      paneSizes.set(pane, { height, width });
+    }
+  }
+  const standing = new Set(panes.values());
+  for (const pane of paneSizes.keys()) {
+    if (!standing.has(pane)) {
+      paneSizes.delete(pane);
+    }
+  }
+  parkAgain();
 }
 
 /**
@@ -1267,10 +1651,24 @@ function onFullScreenChange() {
     leaveFullScreen(pooled);
     // Esc reaches the page only while it holds the keyboard, which a page an
     // agent sent into full screen need not.
-    if (paintOwners.has(pooled.targetId)) {
+    if (
+      paintOwners.has(pooled.targetId) &&
+      !isPageOnSideWithoutKeyboard(pooled.targetId)
+    ) {
       pooled.webview.focus({ preventScroll: true });
     }
   }
+}
+
+/** A `clip-path` cutting a guest at `bounds` to the part of it inside `clip`. */
+function clipInset(bounds: Bounds, clip: Bounds): string {
+  const top = Math.max(0, clip.y - bounds.y);
+  const left = Math.max(0, clip.x - bounds.x);
+  const bottom = Math.max(0, bounds.y + bounds.height - (clip.y + clip.height));
+  const right = Math.max(0, bounds.x + bounds.width - (clip.x + clip.width));
+  return top + left + bottom + right === 0
+    ? ""
+    : `inset(${top}px ${right}px ${bottom}px ${left}px)`;
 }
 
 /** Puts the guest in the frontmost slot asking for it, or parks it when none is. */
@@ -1298,7 +1696,10 @@ function placeGuest(targetId: BrowserTargetId) {
     leaveFullScreen(pooled);
     return;
   }
-  const [owner, { bottomRadius, bounds, layer, renderedSize }] = winner;
+  const [
+    owner,
+    { bottomRadius, bounds, clip, layer, layoutWidth, renderedSize },
+  ] = winner;
   const [bottomLeft = bottomRadius, bottomRight = bottomLeft] = bottomRadius
     .trim()
     .split(/\s+/);
@@ -1307,20 +1708,35 @@ function placeGuest(targetId: BrowserTargetId) {
   pooled.lastVisibleBounds = bounds;
   pooled.shownAbovePane = layer > 0;
   if (layer === 0) {
-    notePaneSize({ height: bounds.height, width: bounds.width });
+    notePaneSize(targetId, { height: bounds.height, width: bounds.width });
   }
+  if (layoutWidth !== undefined && !shownOnce.has(targetId)) {
+    shownOnce.add(targetId);
+    if (
+      bounds.width < layoutWidth &&
+      !pendingLayouts.has(targetId) &&
+      !agentZooms.has(targetId)
+    ) {
+      pendingLayouts.set(
+        targetId,
+        Math.min(layoutWidth, bounds.width / AGENT_PAGE_MIN_ZOOM),
+      );
+    }
+  }
+  applyPendingLayout(pooled, bounds);
   // After the commit that put it here, once the view it replaced is gone.
   queueMicrotask(() => {
     passKeyboardTo(targetId);
   });
-  reportEffectiveSurface(pooled, {
-    height: bounds.height,
-    width: bounds.width,
-  });
+  reportEffectiveSurface(
+    pooled,
+    layoutOf(pooled, { height: bounds.height, width: bounds.width }),
+  );
   const { container, webview } = pooled;
 
   Object.assign(container.style, {
     borderRadius: corners,
+    clipPath: clip === undefined ? "" : clipInset(bounds, clip),
     contain: "layout paint size style",
     height: `${bounds.height}px`,
     left: `${bounds.x}px`,
@@ -1405,6 +1821,20 @@ function publishAttached() {
   for (const listener of targetListeners) {
     listener();
   }
+}
+
+// The size a page laid out in an element of `size` sees, at the guest's zoom.
+function layoutOf(
+  pooled: PooledWebview,
+  size: { height: number; width: number },
+): { height: number; width: number } {
+  // The agent's zoom as set, since the guest answers with the old one until
+  // the change reaches it.
+  const zoom = agentZooms.get(pooled.targetId) ?? pooled.handle?.zoom() ?? 1;
+  return {
+    height: Math.round(size.height / zoom),
+    width: Math.round(size.width / zoom),
+  };
 }
 
 // Tell main what the guest is actually laid out at. `desiredSurfaces` in main

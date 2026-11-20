@@ -13,7 +13,8 @@ import {
  * Router-free shell shared by {@link ErrorCard} (router-caught) and
  * {@link AppErrorFallback} (shell crashes, rendered outside any router), and
  * the page for an address no screen answers: the card chrome around what went
- * wrong (`children`). Recovery affordances differ per caller, so they pass
+ * wrong (`children`, when there is more to show than the words). Recovery
+ * affordances differ per caller, so they pass
  * their own footer `actions`, a report among them. The words are selectable,
  * since someone reading them may copy them into a report or a search.
  */
@@ -24,7 +25,7 @@ export function ErrorCardShell({
   title = "Something went wrong",
 }: {
   actions: ReactNode;
-  children: ReactNode;
+  children?: ReactNode;
   description: string;
   title?: string;
 }) {
@@ -34,7 +35,9 @@ export function ErrorCardShell({
         <CardTitle className="text-base">{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-2">{children}</CardContent>
+      {children ? (
+        <CardContent className="space-y-2">{children}</CardContent>
+      ) : null}
       <CardFooter className="flex items-center justify-end">
         {actions}
       </CardFooter>

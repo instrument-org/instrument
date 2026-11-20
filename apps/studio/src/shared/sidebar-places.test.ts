@@ -30,6 +30,15 @@ describe("sidebar places", () => {
     expect(rows(places)).toEqual(["casey", "Desktop", "Work", "Archive"]);
   });
 
+  it("pins a folder at the place among the rows it was let go", () => {
+    const places = pinPlace(NO_SIDEBAR_CHANGES, "/Users/casey/Work", [
+      "/Users/casey",
+      "/Users/casey/Work",
+      "/Users/casey/Desktop",
+    ]);
+    expect(rows(places)).toEqual(["casey", "Work", "Desktop"]);
+  });
+
   it("hides an unpinned default until it is restored, keeping what was pinned", () => {
     let places = pinPlace(NO_SIDEBAR_CHANGES, "/Users/casey/Work");
     places = unpinPlace(places, "/Users/casey");
@@ -97,6 +106,14 @@ describe("sidebar places", () => {
       first: "/Users/casey",
     },
     {
+      name: "a row moved to the top",
+      places: pinPlace(NO_SIDEBAR_CHANGES, "/Users/casey/Desktop", [
+        "/Users/casey/Desktop",
+        "/Users/casey",
+      ]),
+      first: "/Users/casey/Desktop",
+    },
+    {
       name: "the next row once the top one is unpinned",
       places: unpinPlace(NO_SIDEBAR_CHANGES, "/Users/casey"),
       first: "/Users/casey/Desktop",
@@ -112,11 +129,10 @@ describe("sidebar places", () => {
     },
     {
       name: "the next row past a home folder of apps",
-      places: adoptSystemSidebar(
-        NO_SIDEBAR_CHANGES,
-        ["/Users/casey/Applications", "/Users/casey"],
-        defaults.map((place) => place.path),
-      ),
+      places: pinPlace(NO_SIDEBAR_CHANGES, "/Users/casey/Applications", [
+        "/Users/casey/Applications",
+        "/Users/casey",
+      ]),
       first: "/Users/casey",
     },
     {

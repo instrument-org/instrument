@@ -1,4 +1,5 @@
 import {
+  ContextMenuCheckboxItem,
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuShortcut,
@@ -7,6 +8,7 @@ import {
   ContextMenuSubTrigger,
 } from "@/client/components/ui/context-menu";
 import {
+  DropdownMenuCheckboxItem,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
@@ -21,6 +23,12 @@ import {
 // dropdown (overflow "...") and a context menu (right click), callers take one of
 // these bags and use its members instead of importing a specific package's parts.
 export interface MenuComponents {
+  /** A row that is on or off, its tick at the row's end. */
+  CheckboxItem: React.ComponentType<{
+    checked?: boolean;
+    children?: React.ReactNode;
+    onSelect?: (event: Event) => void;
+  }>;
   Item: React.ComponentType<{
     children?: React.ReactNode;
     className?: string;
@@ -44,6 +52,7 @@ export interface MenuComponents {
 }
 
 export const contextMenuComponents: MenuComponents = {
+  CheckboxItem: ContextMenuCheckboxItem,
   Item: ContextMenuItem,
   Separator: ContextMenuSeparator,
   Shortcut: ContextMenuShortcut,
@@ -53,6 +62,7 @@ export const contextMenuComponents: MenuComponents = {
 };
 
 export const dropdownMenuComponents: MenuComponents = {
+  CheckboxItem: DropdownMenuCheckboxItem,
   Item: DropdownMenuItem,
   Separator: DropdownMenuSeparator,
   Shortcut: DropdownMenuShortcut,

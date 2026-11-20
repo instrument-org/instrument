@@ -1,3 +1,4 @@
+import { WINDOW_CARD_GAP } from "@/shared/constants";
 import {
   workDir,
   ChatIdSchema,
@@ -32,9 +33,16 @@ import {
 } from "@/electron-main/lib/exception-store";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { isOnlyAppWindow } from "@/electron-main/windows/app-window";
+import {
+  isAppWindow,
+  isOnlyAppWindow,
+} from "@/electron-main/windows/app-window";
+import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
-import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
+import {
+  setTrafficLightForZoom,
+  setTrafficLightsShown,
+} from "@/electron-main/windows/traffic-lights";
 import { osConventionsFor } from "@/shared/os-conventions";
 import { THIRD_PARTY_LICENSES_DIR_NAME } from "@/shared/third-party-licenses";
 import { ExceptionEventSchema } from "@instrument-org/shared/exceptions";
@@ -482,7 +490,25 @@ const restoreClearedExceptions = base.input(z.void()).handler(() => {
 const syncZoom = base
   .input(z.object({ zoom: z.number() }))
   .handler(({ context, input }) => {
-    setTrafficLightForZoom(getCallingWindow(context.webContentsId), input.zoom);
+    const window = getCallingWindow(context.webContentsId);
+    setTrafficLightForZoom(
+      window,
+      input.zoom,
+      window && isAppWindow(window) ? WINDOW_CARD_GAP : 0,
+    );
+  });
+
+// The macOS traffic lights of the window that asked, shown while its sidebar
+// is out and hidden while it is put away.
+const showTrafficLights = base
+  .input(z.object({ isShown: z.boolean() }))
+  .handler(({ context, input }) => {
+    setTrafficLightsShown(
+      getCallingWindow(context.webContentsId),
+      input.isShown,
+      getAppZoom(),
+      WINDOW_CARD_GAP,
+    );
   });
 
 // Custom title-bar window controls (Windows/Linux, and macOS when force-shown).
@@ -748,6 +774,7 @@ export const utils = {
   showContextMenu,
   showFileInFolder,
   showFolderPicker,
+  showTrafficLights,
   syncZoom,
   chatWorkFolderPath,
   toggleMaximizeWindow,

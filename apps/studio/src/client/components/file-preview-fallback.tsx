@@ -21,7 +21,6 @@ import {
 } from "./ui/context-menu";
 import { contextMenuComponents } from "./ui/menu-components";
 import { VersionTag } from "./version-tag";
-import { ConvertButton } from "./window/convert-files";
 
 /**
  * The version of a file a card stands for, where a chat's pane has one up
@@ -119,7 +118,6 @@ export function FilePreviewFallback({
             </Button>
           )
         )}
-        {file ? <ConvertButton hostPath={file.hostPath} /> : null}
       </div>
     </div>
   );

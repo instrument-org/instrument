@@ -27,6 +27,7 @@ import { pastedPathOf } from "./context-line";
 
 /** The keys this build writes, and so the ones that are nobody else's. */
 const OWN_KEYS = new Set([
+  "asks",
   "chat",
   "context",
   "created",
@@ -39,7 +40,24 @@ const OWN_KEYS = new Set([
   "updated",
 ]);
 
+/**
+ * A place in a file the person marked and moved into the draft, which goes
+ * with the message: the file, written as a `context` line is
+ * (`context-line.ts`), where in it, what is there, and what they typed.
+ */
+interface DraftFileAsk {
+  /** What the app knows about the place that its text alone does not say. */
+  context?: string;
+  excerpt?: string;
+  file: string;
+  instruction: string;
+  /** Where in the file, as a reader says it: "lines 12-14", "page 3". */
+  target: string;
+}
+
 export interface DraftFile {
+  /** The places marked in files that go with the message, in the order they were marked. */
+  asks?: DraftFileAsk[];
   /** The chat a reply goes into, by its id. Absent on a draft that opens a chat of its own. */
   chat?: string;
   /**
@@ -134,8 +152,10 @@ export function parseDraftFile(
   const sending = chatOf(front.sending);
   const send = typeof front.send === "string" ? front.send.trim() : "";
   const context = linesOf(front.context);
+  const asks = asksOf(front.asks);
   const body = split.body.replaceAll("\r\n", "\n");
   return {
+    ...(asks === undefined ? {} : { asks }),
     ...(chat === undefined ? {} : { chat }),
     ...(context === undefined ? {} : { context }),
     created,
@@ -180,6 +200,20 @@ export function renderDraftFile(draft: DraftFile): string {
       lines.push(`  - ${JSON.stringify(line)}`);
     }
   }
+  if (draft.asks && draft.asks.length > 0) {
+    lines.push("asks:");
+    for (const ask of draft.asks) {
+      lines.push(`  - file: ${JSON.stringify(ask.file)}`);
+      lines.push(`    target: ${JSON.stringify(ask.target)}`);
+      if (ask.excerpt !== undefined) {
+        lines.push(`    excerpt: ${JSON.stringify(ask.excerpt)}`);
+      }
+      lines.push(`    instruction: ${JSON.stringify(ask.instruction)}`);
+      if (ask.context !== undefined) {
+        lines.push(`    context: ${JSON.stringify(ask.context)}`);
+      }
+    }
+  }
   // Last, and in a fixed order, so a key this build does not know keeps its
   // value and its shape without moving the keys above it from one save to
   // the next.
@@ -191,13 +225,14 @@ export function renderDraftFile(draft: DraftFile): string {
 }
 
 /**
- * Whether the draft holds nothing: no words and nothing pasted into it.
- * One like that is deleted rather than kept, so a draft opened and closed
- * again leaves nothing behind, whatever it was opened over.
+ * Whether the draft holds nothing: no words, no ask, and nothing pasted
+ * into it. One like that is deleted rather than kept, so a draft opened and
+ * closed again leaves nothing behind, whatever it was opened over.
  */
 export function isEmptyDraft(draft: DraftFile): boolean {
   return (
     draft.words.trim() === "" &&
+    (draft.asks ?? []).length === 0 &&
     !(draft.context ?? []).some((line) => pastedPathOf(line) !== undefined)
   );
 }
@@ -215,6 +250,37 @@ function bodyWords(body: string): string {
 /** The chat a key names, by its address or its bare id. */
 function chatOf(value: unknown): string | undefined {
   return typeof value === "string" ? chatIdNamedBy(value) : undefined;
+}
+
+/** An `asks` list: each entry naming a file and where in it, in order. */
+function asksOf(value: unknown): DraftFileAsk[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const textOf = (field: unknown) =>
+    typeof field === "string" && field.trim() !== "" ? field : undefined;
+  const asks = value.flatMap((entry: unknown): DraftFileAsk[] => {
+    if (!isRecord(entry)) {
+      return [];
+    }
+    const file = textOf(entry.file)?.trim();
+    const target = textOf(entry.target);
+    if (file === undefined || target === undefined) {
+      return [];
+    }
+    const context = textOf(entry.context);
+    const excerpt = textOf(entry.excerpt);
+    return [
+      {
+        ...(context === undefined ? {} : { context }),
+        ...(excerpt === undefined ? {} : { excerpt }),
+        file,
+        instruction: textOf(entry.instruction) ?? "",
+        target,
+      },
+    ];
+  });
+  return asks.length > 0 ? asks : undefined;
 }
 
 /** A `context` list's lines: each one that is text, in order. */

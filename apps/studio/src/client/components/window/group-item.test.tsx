@@ -28,7 +28,10 @@ vi.mock("./tab-location-row", () => ({
 }));
 
 vi.mock("./window-tabs", () => ({
-  useWindowTabs: () => ({ visitHref: calls.visitHref }),
+  useWindowTabs: () => ({
+    chatUpIn: () => undefined,
+    visitHref: calls.visitHref,
+  }),
 }));
 
 vi.mock("./use-tab-steps", () => ({
@@ -39,14 +42,18 @@ vi.mock("./use-tab-steps", () => ({
   }),
 }));
 
+// The bar under the row, which these cases press nothing on.
+vi.mock("./bookmarks-bar", () => ({ BookmarksBar: () => null }));
+
 vi.mock("./apps-by-slug", () => ({ useAppsBySlug: () => new Map() }));
+vi.mock("./shell-context", () => ({
+  useShell: () => ({ chatTitles: new Map() }),
+}));
 vi.mock("./task-titles", () => ({ useTaskTitles: () => new Map() }));
-vi.mock("./file-ask-button", () => ({ PageAskButton: () => null }));
 
 const appWindow: WindowContextValue = {
   ask: vi.fn(),
   browser: null,
-  askAboutView: vi.fn(),
   openPage: vi.fn(),
   openPath: vi.fn(),
   openScreen: calls.openScreen,

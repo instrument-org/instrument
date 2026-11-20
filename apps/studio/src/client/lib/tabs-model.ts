@@ -1,4 +1,4 @@
-import { matchScreen } from "@/client/components/window/window-href";
+import { type WindowTab } from "@/client/atoms/window";
 import {
   neighborAt,
   type Tab,
@@ -17,17 +17,6 @@ import {
 export type { TabsModel };
 
 const MAX_RECENTLY_CLOSED = 10;
-
-/**
- * Whether a closed tab is worth bringing back: anything but a new tab that
- * never went anywhere, which a reopen would give back as a new one would.
- */
-function isTabInteresting(tab: Tab) {
-  return (
-    (tab.history?.entries.length ?? 0) > 1 ||
-    matchScreen(tab.pathname).kind !== "newTab"
-  );
-}
 
 export function addTab(
   model: TabsModel,
@@ -79,12 +68,10 @@ export function closeTab(
   // `tab.history` is already fresh: TabView captures each router's live stack on
   // every navigation (see setTabPathname), so reopen restores from the model
   // rather than a separate close-time snapshot.
-  const recentlyClosed = isTabInteresting(tab)
-    ? [
-        { ...tab, closedAt: Date.now(), index: closingIndex },
-        ...model.recentlyClosed,
-      ].slice(0, MAX_RECENTLY_CLOSED)
-    : model.recentlyClosed;
+  const recentlyClosed = [
+    { ...tab, closedAt: Date.now(), index: closingIndex },
+    ...model.recentlyClosed,
+  ].slice(0, MAX_RECENTLY_CLOSED);
 
   if (tabs.length === 0) {
     return {
@@ -100,6 +87,107 @@ export function closeTab(
       : model.selectedId;
 
   return { recentlyClosed, selectedId, tabs };
+}
+
+/**
+ * A tab group's tab closed, on the window's closed list beside its own tabs:
+ * at its group's address, holding the tab as its group had it and its place
+ * among the group's tabs, where a reopen puts it back.
+ */
+export function closeGroupTab(
+  model: TabsModel,
+  {
+    id,
+    index,
+    pathname,
+    tab,
+  }: { id: TabId; index: number; pathname: string; tab: WindowTab },
+): TabsModel {
+  return {
+    ...model,
+    recentlyClosed: [
+      { closedAt: Date.now(), groupTab: tab, id, index, pathname },
+      ...model.recentlyClosed,
+    ].slice(0, MAX_RECENTLY_CLOSED),
+  };
+}
+
+/**
+ * A whole tab group closed, on the window's closed list beside its own
+ * tabs: at the group's address, holding every tab it had and which of them
+ * were up (`ups`, by their places among them), so a reopen brings the
+ * group back as it was.
+ */
+export function closeTabGroup(
+  model: TabsModel,
+  {
+    id,
+    pathname,
+    tabs,
+    ups,
+  }: {
+    id: TabId;
+    pathname: string;
+    tabs: WindowTab[];
+    ups?: { active: number; beside?: number };
+  },
+): TabsModel {
+  return {
+    ...model,
+    recentlyClosed: [
+      { closedAt: Date.now(), groupTabs: tabs, id, pathname, ups },
+      ...model.recentlyClosed,
+    ].slice(0, MAX_RECENTLY_CLOSED),
+  };
+}
+
+/**
+ * One side of a tab group closed, on the window's closed list: at the
+ * group's address, holding the side's tabs, which side it was, which of
+ * its tabs was up, and whether it had the keyboard, so a reopen brings the
+ * side back as it was.
+ */
+export function closeGroupSide(
+  model: TabsModel,
+  {
+    focused,
+    id,
+    pathname,
+    side,
+    tabs,
+    up,
+  }: {
+    focused: boolean;
+    id: TabId;
+    pathname: string;
+    side: 0 | 1;
+    tabs: WindowTab[];
+    up: number;
+  },
+): TabsModel {
+  return {
+    ...model,
+    recentlyClosed: [
+      {
+        closedAt: Date.now(),
+        focused,
+        groupTabs: tabs,
+        id,
+        index: up,
+        pathname,
+        side,
+      },
+      ...model.recentlyClosed,
+    ].slice(0, MAX_RECENTLY_CLOSED),
+  };
+}
+
+/** The closed list without one entry, by its id: one reopened. */
+export function forgetClosed(model: TabsModel, { id }: { id: TabId }) {
+  return {
+    ...model,
+    recentlyClosed: model.recentlyClosed.filter((each) => each.id !== id),
+  };
 }
 
 /**
@@ -323,10 +411,10 @@ function closeWhere(
     return model;
   }
   return {
-    recentlyClosed: [
-      ...closed.filter(isTabInteresting),
-      ...model.recentlyClosed,
-    ].slice(0, MAX_RECENTLY_CLOSED),
+    recentlyClosed: [...closed, ...model.recentlyClosed].slice(
+      0,
+      MAX_RECENTLY_CLOSED,
+    ),
     selectedId: id,
     tabs: model.tabs.filter((_, index) => !closes(index, keptIndex)),
   };

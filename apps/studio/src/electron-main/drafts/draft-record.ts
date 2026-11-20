@@ -1,5 +1,6 @@
 import {
   type Draft,
+  type DraftAsk,
   type DraftAttachment,
   type DraftContextItem,
 } from "@/shared/drafts";
@@ -62,7 +63,15 @@ export function draftFileOf(draft: Draft, folders: Folders): DraftFile {
   ]);
   const project =
     draft.projectSource === "suggested" ? undefined : draft.projectId;
+  const asks = (draft.asks ?? []).map((ask) => ({
+    ...(ask.context === undefined ? {} : { context: ask.context }),
+    ...(ask.excerpt === undefined ? {} : { excerpt: ask.excerpt }),
+    file: contextLineOf({ kind: "file", path: ask.path }, folders),
+    instruction: ask.instruction,
+    target: ask.target,
+  }));
   return {
+    ...(asks.length > 0 ? { asks } : {}),
     ...(draft.chatId === undefined ? {} : { chat: draft.chatId }),
     ...(context.length > 0 ? { context } : {}),
     created: new Date(draft.createdAt),
@@ -100,11 +109,30 @@ export function draftOf({ dir, draft }: DraftOnDisk, rootDir: string): Draft {
       context.push(item);
     }
   }
+  const created = draft.created.getTime();
+  // Named by their place in the file, which is all a file says of them.
+  const asks = (draft.asks ?? []).flatMap((ask, at): DraftAsk[] => {
+    const file = contextEntryOf(ask.file, { dir, rootDir });
+    return file?.kind === "file"
+      ? [
+          {
+            ...(ask.context === undefined ? {} : { context: ask.context }),
+            createdAt: created + at,
+            ...(ask.excerpt === undefined ? {} : { excerpt: ask.excerpt }),
+            id: `${draft.id}-ask-${at.toString()}`,
+            instruction: ask.instruction,
+            path: file.path,
+            target: ask.target,
+          },
+        ]
+      : [];
+  });
   return {
+    ...(asks.length > 0 ? { asks } : {}),
     ...(attached.length > 0 ? { attached, inFolder: attached } : {}),
     ...(chat.success ? { chatId: chat.data } : {}),
     ...(context.length > 0 ? { context } : {}),
-    createdAt: draft.created.getTime(),
+    createdAt: created,
     folder: dir,
     id: draft.id,
     ...(draft.send === undefined ? {} : { sendOn: draft.send }),

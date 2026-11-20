@@ -16,9 +16,7 @@ export function useDeveloperMode() {
  * stays on everywhere else. Held only until the window reloads, since it is
  * for a look at one chat rather than a setting.
  */
-export const tabsWithoutDeveloperModeAtom = atom<ReadonlySet<TabId>>(
-  new Set<TabId>(),
-);
+const tabsWithoutDeveloperModeAtom = atom<ReadonlySet<TabId>>(new Set<TabId>());
 
 /**
  * Developer mode as the tab this is drawn in shows it: off in a tab it was

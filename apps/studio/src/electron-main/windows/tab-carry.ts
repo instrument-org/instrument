@@ -20,18 +20,17 @@ import {
   hostedPagesOf,
   keptTabsOf,
   returnSpareWindow,
+  sendGroupTabToWindow,
   sendTabToWindow,
   type SpareWindow,
   takeSpareWindow,
 } from "@/electron-main/windows/app-window";
 import { keepsOffScreen } from "@/electron-main/windows/on-screen";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { APP_TABS_KEY, isHostedPageKey } from "@/shared/kept-state";
 import {
-  APP_TABS_KEY,
-  COMPOSE_KEY,
-  isHostedPageKey,
-} from "@/shared/kept-state";
-import {
+  type GroupTabLanding,
+  groupOfWholeKey,
   type IncomingTab,
   neighborAt,
   type Tab,
@@ -50,9 +49,8 @@ import {
   type CarryPhase,
   isSamePhase,
   landsBy,
-  mergeFloats,
+  overlapOf,
   phaseAt,
-  placeOnWindow,
   type Point,
   whatGoes,
 } from "./tab-carry-rules";
@@ -124,15 +122,22 @@ type Carry = Carrying & {
   isSpareDressed: boolean;
   /** Filled the work area as the drag started, which the window it leaves behind goes on doing. */
   readonly isWindowMaximized: boolean;
+  /**
+   * A tab group's tab: it lands in another window wherever that window says it
+   * does (`landsOn`), its strip or its sidebar, and goes in the spare as a group
+   * of its own.
+   */
+  readonly isGroupTab: boolean;
   readonly moving: TabStanding;
   /** Where the window was. */
   readonly origin: Bounds;
   /**
-   * The window whose strip an only tab's window was already over, which the tab
-   * has not been carried to: it takes the tab only once the pointer has left that
-   * strip.
+   * What of the screen an only tab's window has covered all through the drag:
+   * where it stood as the drag began, less whatever it has since uncovered by
+   * going with the pointer. The person has not seen another window there, so
+   * no window takes the tab there.
    */
-  overAtStart: BrowserWindow | null;
+  hidden: Bounds | null;
   phase: CarryPhase<BrowserWindow>;
   /** What goes with the pointer, off the row. An only tab has its window instead, and a move from a menu no pointer. */
   picture: null | TabPicture;
@@ -163,9 +168,16 @@ function canPlaceWindows() {
   );
 }
 
-/** Whether a person has used a page the tab shows, one drawn inside its screens included. */
-function isUsed({ hostedPages, pages }: TabStanding) {
-  return getBrowserViewManager().isPageUsed([...pages, ...hostedPages]);
+/**
+ * Whether a person has used a page the tab shows, one drawn inside its screens
+ * included. A tab group's tab counts none: its page goes to the window it lands
+ * in, which reloads it with its history.
+ */
+function isUsed({ hostedPages, isGroupTab, pages }: TabStanding) {
+  return (
+    isGroupTab !== true &&
+    getBrowserViewManager().isPageUsed([...pages, ...hostedPages])
+  );
 }
 
 function tell(window: BrowserWindow, view: TabCarryView) {
@@ -184,8 +196,10 @@ function incomingView(
   point: Point,
 ): IncomingTab {
   const { id, pathname } = moving.tab;
+  const bounds = target.getBounds();
   return {
-    clientX: point.x - target.getBounds().x,
+    clientX: point.x - bounds.x,
+    clientY: point.y - bounds.y,
     kind: "incoming",
     pointInTab,
     tab: { id, pathname },
@@ -194,7 +208,6 @@ function incomingView(
 
 /** The drag's first state, the spare window ready, or none where there can be no drag. */
 function beginCarry({
-  at,
   grab,
   isOffRow,
   isOnlyTab,
@@ -202,8 +215,6 @@ function beginCarry({
   pointInTab = 0,
   webContentsId,
 }: {
-  /** Where on the screen a press starts it. A move from a menu has no such place. */
-  at?: Point;
   grab: Point;
   isOffRow: boolean;
   isOnlyTab: boolean;
@@ -257,19 +268,13 @@ function beginCarry({
     from,
     fromId,
     grab,
+    hidden: isOnlyTab ? origin : null,
     isOffRow,
+    isGroupTab: moving.isGroupTab === true,
     isSpareDressed: false,
     isWindowMaximized: isMaximized,
     moving,
     origin,
-    overAtStart:
-      at && canPlace && isOnlyTab
-        ? (windowsToLandOn(from, spare).find(
-            (window) =>
-              placeOnWindow(window.getBounds(), at, stripBandHeight()) ===
-              "band",
-          ) ?? null)
-        : null,
     phase: { kind: "row" },
     picture: null,
     point: null,
@@ -295,7 +300,11 @@ function beginCarry({
  * behind it, which it can where there is something to go with the pointer.
  */
 export function startTabCarry(
-  start: Parameters<typeof beginCarry>[0] & { at: Point; pointInTab: number },
+  start: Parameters<typeof beginCarry>[0] & {
+    /** The tab's page in its window, in CSS px, which its picture shows; the whole window when none. */
+    page?: Bounds | undefined;
+    pointInTab: number;
+  },
 ): { collapsesOffRow: boolean } {
   const started = beginCarry(start);
   if (!started) {
@@ -304,7 +313,7 @@ export function startTabCarry(
   if (started.followsCursor) {
     started.poll = setInterval(followCursor, FOLLOW_MS);
     if (started.spare) {
-      started.picture = openTabPicture(started.from);
+      started.picture = openTabPicture(started.from, start.page);
     }
   }
   return { collapsesOffRow: canPlaceWindows() && started.spare !== null };
@@ -318,6 +327,10 @@ function dressSpare(current: Carry) {
   }
   current.isSpareDressed = true;
   const contents = spare.window.webContents;
+  // A tab group's tab makes its group in the spare, as it is let go.
+  if (goes === "tab" && current.isGroupTab) {
+    return;
+  }
   if (goes === "tab") {
     tellWindowKeptState(spare.id, contents, APP_TABS_KEY, {
       recentlyClosed: [],
@@ -468,6 +481,62 @@ async function drawnWithTab(window: BrowserWindow, id: string, tab: Tab) {
   await drawn(window);
 }
 
+/**
+ * Resolves when a window handed a tab group's tab shows it among the tabs of the
+ * group it has up, no longer held, or a whole group as the group it has up, or
+ * soon anyway.
+ */
+function drawnShowingGroupTab(window: BrowserWindow, key: string) {
+  const group = groupOfWholeKey(key);
+  const selector =
+    group === undefined
+      ? `[data-group-tabs]:not([data-incoming]) [data-tab-key=${JSON.stringify(key)}]`
+      : `[data-group-row=${JSON.stringify(group)}][data-up]`;
+  return drawnOnce(
+    window,
+    `document.querySelector(${JSON.stringify(selector)}) !== null`,
+    BRINGS_UP_LIMIT_MS,
+  );
+}
+
+/**
+ * Hands a tab group's tab to a spare window as a group of its own, once its page
+ * is up to take it: one a drag had to open is still loading. Its page makes a
+ * group of its own as it comes up, so the tab waits for that group, which
+ * gives way to the tab's. False when it never came up.
+ */
+async function sendGroupTabOnceUp(
+  spare: SpareWindow,
+  key: string,
+  landing: GroupTabLanding,
+) {
+  const limit = Date.now() + BRINGS_UP_LIMIT_MS * 3;
+  while (!spare.isUp && !spare.window.isDestroyed() && Date.now() < limit) {
+    await new Promise((resolve) => {
+      setTimeout(resolve, FOLLOW_MS);
+    });
+  }
+  if (!spare.window.isDestroyed()) {
+    // Timed rather than drawn: a spare out of sight draws no frames.
+    await spare.window.webContents
+      .executeJavaScript(
+        `new Promise((resolve) => {
+          const until = Date.now() + ${BRINGS_UP_LIMIT_MS};
+          const check = () => {
+            if (document.querySelector("[data-group-row]") !== null || Date.now() > until) {
+              resolve(true);
+            } else {
+              setTimeout(check, ${FOLLOW_MS});
+            }
+          };
+          check();
+        })`,
+      )
+      .catch(() => undefined);
+  }
+  return sendGroupTabToWindow(spare.window, key, landing);
+}
+
 /** What a window's strip shows right now, for a page only now listening: a spare's is the one thing it can miss. */
 export function tabCarryViewOf(
   webContentsId: number,
@@ -484,6 +553,29 @@ export function placeTabCarry(webContentsId: number, index: number) {
     carry.phase.window.webContents.id === webContentsId
   ) {
     carry.phase.landsAt = index;
+  }
+}
+
+/**
+ * A window's word on where a tab group's tab held over it lands there: its
+ * strip, a group of its sidebar, or a group of its own, and none over anywhere
+ * else, where the tab is as free as off every window.
+ */
+export function placeGroupTabCarry(
+  webContentsId: number,
+  landing: GroupTabLanding | undefined,
+) {
+  const current = carry;
+  if (
+    current?.phase.kind !== "docked" ||
+    current.phase.window.webContents.id !== webContentsId
+  ) {
+    return;
+  }
+  const wasShown = shownPhase(current).kind;
+  current.phase.landsOn = landing;
+  if (current.point && shownPhase(current).kind !== wasShown) {
+    enterPhase(current, current.phase, current.point);
   }
 }
 
@@ -545,29 +637,54 @@ function windowsToLandOn(from: BrowserWindow, spare: null | SpareWindow) {
 
 /** Where the tab stands at a point, off its row. */
 function hitTest(current: Carry, point: Point): CarryPhase<BrowserWindow> {
-  const { from, origin, overAtStart, phase, spare } = current;
+  const { from, hidden, origin, phase, spare } = current;
   // Without a real place for each window, as on Wayland, no other strip can be told apart.
   const others = canPlaceWindows()
-    ? windowsToLandOn(from, spare)
-        .filter((window) => window !== overAtStart)
-        .map((window) => ({
-          bounds: window.getBounds(),
-          reach:
-            phase.kind === "docked" && phase.window === window
-              ? DOCKED_REACH_PX
-              : 0,
-          window,
-        }))
+    ? windowsToLandOn(from, spare).map((window) => ({
+        // Anywhere over another window, where a tab group's tab lands is that window's to say.
+        ...(current.isGroupTab ? { band: Number.POSITIVE_INFINITY } : {}),
+        bounds: window.getBounds(),
+        reach:
+          phase.kind === "docked" && phase.window === window
+            ? DOCKED_REACH_PX
+            : 0,
+        window,
+      }))
     : [];
+  // The pressed window comes first, hiding what is behind it. Where it stays,
+  // its strip is the tab's own row. An only tab's window goes with the
+  // pointer and is no place to land, so it counts only where it has stood
+  // all along, with no band.
+  const pressed = spare
+    ? [{ bounds: origin, window: from }]
+    : hidden
+      ? [{ band: 0, bounds: hidden, window: from }]
+      : [];
   return phaseAt({
     bandHeight: stripBandHeight(),
     from,
     point,
-    windows: spare
-      ? [{ bounds: origin, window: from }, ...others]
-      : // An only tab's window is always under the pointer, and is no place to land.
-        others,
+    windows: [...pressed, ...others],
   });
+}
+
+/**
+ * The phase the drag shows: over another window that says a tab group's tab
+ * lands nowhere there, a window going with the pointer is free, though that
+ * window goes on being told where the pointer is. A picture shows only off
+ * every window, so over one it stays hidden, wherever the tab would land.
+ */
+function shownPhase({
+  isGroupTab,
+  phase,
+  spare,
+}: Carry): CarryPhase<BrowserWindow> {
+  return phase.kind === "docked" &&
+    isGroupTab &&
+    spare === null &&
+    phase.landsOn === undefined
+    ? { kind: "free" }
+    : phase;
 }
 
 function updateCarry() {
@@ -578,33 +695,37 @@ function updateCarry() {
     stopCarry();
     return;
   }
-  const { from, followsCursor, overAtStart, phase, picture, point, spare } =
-    carry;
-  if (
-    overAtStart &&
-    (overAtStart.isDestroyed() ||
-      placeOnWindow(overAtStart.getBounds(), point, stripBandHeight()) !==
-        "band")
-  ) {
-    carry.overAtStart = null;
-  }
+  const { followsCursor, phase, picture, point, spare } = carry;
   const next = carry.isOffRow
     ? hitTest(carry, point)
     : ({ kind: "row" } as const);
   if (!isSamePhase(phase, next)) {
     carry.phase = next;
     enterPhase(carry, phase, point);
-  } else if (phase.kind === "docked") {
+    return;
+  }
+  if (phase.kind === "docked") {
     tell(phase.window, incomingView(carry, phase.window, point));
-  } else if (phase.kind === "free") {
+  }
+  if (shownPhase(carry).kind === "free") {
     if (spare) {
       picture?.moveTo(point);
     } else if (followsCursor) {
-      // Its size named on every step: at a fractional scale on Windows, a move that
-      // names only where grows the window by a pixel each time.
-      from.setBounds(windowBoundsAt(carry, point));
+      placeUnderPointer(carry, point);
     }
   }
+}
+
+/**
+ * Puts an only tab's window under the pointer, which uncovers whatever it no
+ * longer stands over.
+ */
+function placeUnderPointer(current: Carry, point: Point) {
+  const bounds = windowBoundsAt(current, point);
+  // Its size named on every step: at a fractional scale on Windows, a move that
+  // names only where grows the window by a pixel each time.
+  current.from.setBounds(bounds);
+  current.hidden = current.hidden && overlapOf(current.hidden, bounds);
 }
 
 /**
@@ -657,10 +778,11 @@ function enterPhase(
   point: Point,
 ) {
   const { followsCursor, from, phase, picture, spare } = current;
-  if (left.kind === "docked") {
+  if (left.kind === "docked" && !isSamePhase(left, phase)) {
     tell(left.window, { kind: "row" });
   }
-  if (phase.kind === "row") {
+  const shown = shownPhase(current);
+  if (shown.kind === "row") {
     picture?.hide();
     return;
   }
@@ -669,8 +791,10 @@ function enterPhase(
     showSpare(current);
   }
   if (phase.kind === "docked") {
-    picture?.hide();
     tell(phase.window, incomingView(current, phase.window, point));
+  }
+  if (shown.kind === "docked") {
+    picture?.hide();
     if (!spare) {
       setOpacity(from, 0);
     }
@@ -681,7 +805,7 @@ function enterPhase(
   } else if (followsCursor) {
     setOpacity(from, 1);
     leaveMaximized(from);
-    from.setBounds(windowBoundsAt(current, point));
+    placeUnderPointer(current, point);
   }
 }
 
@@ -733,22 +857,32 @@ export async function endTabCarry({
       : undefined;
   // The pointer can have moved on from a strip since it was last read.
   const left = ending.phase;
-  if (
-    left.kind === "docked" &&
-    !(phase?.kind === "docked" && phase.window === left.window)
-  ) {
+  const isStillOver = phase?.kind === "docked" && isSamePhase(left, phase);
+  // A tab group's tab lands only where the window under it last said it does.
+  const landsThere =
+    phase?.kind === "docked" &&
+    (!ending.isGroupTab ||
+      (isStillOver && left.kind === "docked" && left.landsOn !== undefined));
+  if (left.kind === "docked" && !(isStillOver && landsThere)) {
     tell(left.window, { kind: "row" });
   }
-  if (phase?.kind !== "free" && phase?.kind !== "docked") {
+  // Over a window that takes it nowhere, with no picture to say otherwise, a
+  // tab group's tab goes back; a window going with the pointer stays there.
+  const isNowhere =
+    phase?.kind === "docked" &&
+    ending.isGroupTab &&
+    !landsThere &&
+    ending.spare !== null;
+  if ((phase?.kind !== "free" && phase?.kind !== "docked") || isNowhere) {
     stopCarry();
     return NONE;
   }
   try {
     const place = placeAtRelease(ending, at);
     return await releasing(() =>
-      phase.kind === "free"
-        ? standAlone(ending, place)
-        : land(ending, phase.window, place),
+      phase.kind === "docked" && landsThere
+        ? land(ending, phase.window, place)
+        : standAlone(ending, place),
     );
   } catch (error) {
     // A window gone partway. Nothing holds the picture from here, and it stands over everything.
@@ -872,10 +1006,11 @@ async function placeWhenDrawn(
     isMaximized: false,
   },
 ) {
+  // The picture grows from the release while the window draws what it holds.
+  const growing = place ? picture?.growTo(place) : undefined;
   await drawnHolding(from, holding);
-  if (place) {
-    await picture?.growTo(place, from);
-  }
+  picture?.wearBarOf(from);
+  await growing;
   if (spare) {
     setOpacity(spare.window, 1);
   }
@@ -927,7 +1062,6 @@ async function standAlone(
       return NONE;
     }
     await leaveOthersBehind(ending);
-    tellWindowKeptState(ending.fromId, from.webContents, COMPOSE_KEY, []);
     tellWhatItHolds(ending, {
       recentlyClosed: [],
       selectedId: moving.tab.id,
@@ -937,19 +1071,34 @@ async function standAlone(
     return { kind: "keepsTab" };
   }
   const { spare } = ending;
+  // The picture grows from the release while the spare makes the window.
+  const growing = place ? picture?.growTo(place) : undefined;
   dressSpare(ending);
   if (place) {
     placeSpare(spare.window, place);
   }
+  // A tab group's tab is a group of its own there, which the spare makes.
+  if (
+    ending.isGroupTab &&
+    !(await sendGroupTabOnceUp(spare, moving.tab.id, {
+      isWindowOfItsOwn: true,
+      kind: "new",
+    }))
+  ) {
+    picture?.close();
+    stopCarrySpare(spare);
+    return NONE;
+  }
   // A window that cannot be kept unseen is drawn as it comes up.
   if (followsCursor && canKeepWindowsUnseen()) {
     showSpare(ending);
-    await drawnHolding(spare.window, [moving.tab]);
+    await (ending.isGroupTab
+      ? drawnShowingGroupTab(spare.window, moving.tab.id)
+      : drawnHolding(spare.window, [moving.tab]));
   }
   adoptSpare(spare, moving.pages);
-  if (place) {
-    await picture?.growTo(place, spare.window);
-  }
+  picture?.wearBarOf(spare.window);
+  await growing;
   if (!keepsOffScreen()) {
     setOpacity(spare.window, 1);
     spare.window.show();
@@ -974,19 +1123,25 @@ async function land(
     stopCarry();
     return NONE;
   }
-  const { from, fromId, goes, moving, phase, picture, spare } = ending;
-  const landsAt =
-    phase.kind === "docked" && phase.window === target
-      ? phase.landsAt
-      : undefined;
+  const { from, goes, isGroupTab, moving, phase, picture, spare } = ending;
+  const isThere = phase.kind === "docked" && phase.window === target;
+  const landsAt = isThere ? phase.landsAt : undefined;
   const isJoining =
     landsBy({
       goes,
       isTabPageUsed: isUsed(moving),
-    }) === "joining" && sendTabToWindow(moving.tab, targetId, landsAt);
+    }) === "joining" &&
+    (isGroupTab
+      ? sendGroupTabToWindow(
+          target,
+          moving.tab.id,
+          (isThere ? phase.landsOn : undefined) ?? { kind: "tabs" },
+        )
+      : sendTabToWindow(moving.tab, targetId, landsAt));
   // A page that cannot take the tab right now: the carried window can still take
-  // on its strip, which needs nothing of that page.
-  if (!isJoining && goes === "tab") {
+  // on its strip, which needs nothing of that page. A tab group's tab has no
+  // strip of the window's own to take on, and stays where it was let go.
+  if (!isJoining && (goes === "tab" || isGroupTab)) {
     tell(target, { kind: "row" });
     return standAlone(ending, place);
   }
@@ -995,20 +1150,12 @@ async function land(
     return takeStrip(ending, target, targetId, landsAt);
   }
   handPages(moving.pages, target);
-  // An only tab's window closes with nothing to come back to, its floats aside.
-  if (!spare) {
-    tellWindowKeptState(
-      targetId,
-      target.webContents,
-      COMPOSE_KEY,
-      mergeFloats(
-        getWindowKeptState(targetId, COMPOSE_KEY),
-        getWindowKeptState(fromId, COMPOSE_KEY),
-      ),
-    );
-  }
   // Raised only now: until the tab is drawn there, the window shows it held.
-  void drawnWithTab(target, targetId, moving.tab).then(() => {
+  void (
+    isGroupTab
+      ? drawnShowingGroupTab(target, moving.tab.id)
+      : drawnWithTab(target, targetId, moving.tab)
+  ).then(() => {
     tell(target, { kind: "row" });
     picture?.close();
     if (!target.isDestroyed() && !keepsOffScreen()) {
@@ -1054,15 +1201,11 @@ async function takeStrip(
     ...windowKeptKeys(fromId),
   ])) {
     if (key !== APP_TABS_KEY && !isHostedPageKey(key)) {
-      const value = getWindowKeptState(targetId, key);
       tellWindowKeptState(
         fromId,
         from.webContents,
         key,
-        // An only tab's window has its floats yet, where another's left them behind.
-        key === COMPOSE_KEY && !spare
-          ? mergeFloats(getWindowKeptState(fromId, key), value)
-          : value,
+        getWindowKeptState(targetId, key),
       );
     }
   }

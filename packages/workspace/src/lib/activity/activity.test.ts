@@ -299,10 +299,12 @@ describe("the log in the workspace", () => {
       chatId: "c-kyoto",
       connectionName: "Anthropic",
       connectionType: "anthropic",
+      costUsd: null,
       device: OTHER,
       durationMs: 600,
       error: null,
       finishReason: "stop",
+      firstOutputMs: null,
       id,
       imageQuality: null,
       inputTokens: 1401,
@@ -318,6 +320,7 @@ describe("the log in the workspace", () => {
       status: "finished",
       surface: null,
       totalTokens: 1419,
+      trigger: null,
     });
 
   it("keeps an image's quality through its line", () => {

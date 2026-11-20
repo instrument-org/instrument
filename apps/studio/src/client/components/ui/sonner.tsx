@@ -17,7 +17,7 @@ import { Spinner } from "./spinner";
 export const BELL_TOASTER = "bell";
 
 // Toasts sit low in the window's bottom-left corner, where the pointer rarely
-// is; a window with a rail moves them in past it (`window/window-frame.tsx`).
+// is, over the sidebar when it is open (`window/window-frame.tsx`).
 // A toast with only a title is a one-line pill as wide as its words; one with
 // a description is a card at the stack's full width. Sonner
 // keeps the stacking and swiping; `unstyled` hands every surface to these

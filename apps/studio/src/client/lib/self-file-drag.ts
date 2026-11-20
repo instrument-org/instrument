@@ -34,10 +34,21 @@
 const MAX_AGE_MS = 2000;
 
 let startedAt = 0;
+// What the drag was pressed on, where the drag knows it.
+let source: Element | null = null;
 
-/** Whether the drag in the air is one this app started and that has not left. */
-export function isSelfFileDrag() {
-  return startedAt !== 0 && Date.now() - startedAt < MAX_AGE_MS;
+/**
+ * Whether the drag in the air is one this app started and that has not
+ * left. Asked by a place that takes drops (`within`), only a drag pressed on
+ * something inside that place counts: a file dragged there from anywhere
+ * else in the window was carried there on purpose.
+ */
+export function isSelfFileDrag(within?: Element) {
+  return (
+    startedAt !== 0 &&
+    Date.now() - startedAt < MAX_AGE_MS &&
+    (within === undefined || source === null || within.contains(source))
+  );
 }
 
 /**
@@ -48,9 +59,16 @@ export function releaseSelfFileDrag() {
   startedAt = 0;
 }
 
-/** Called as this app hands files to the OS, with where they are. */
-export function trackSelfFileDrag(paths: readonly string[] = []) {
+/**
+ * Called as this app hands files to the OS, with where they are; `from`,
+ * what the drag was pressed on.
+ */
+export function trackSelfFileDrag(
+  paths: readonly string[] = [],
+  { from = null }: { from?: Element | null } = {},
+) {
   startedAt = Date.now();
+  source = from;
   carried = paths.length > 0 ? new Set(paths) : null;
   carriedSince = startedAt;
   carriedSeen = startedAt;

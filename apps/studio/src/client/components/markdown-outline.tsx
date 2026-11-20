@@ -7,6 +7,12 @@ import {
   useOutlineLayout,
 } from "@/client/hooks/use-markdown-outline";
 import { flashJumpTarget } from "@/client/lib/flash-jump-target";
+import {
+  foldToWidth,
+  KEPT_PANEL,
+  showsPanel,
+  togglePanel,
+} from "@/client/lib/panel-fold";
 import { cn } from "@/client/lib/utils";
 import { CaretLineLeftIcon } from "@phosphor-icons/react/CaretLineLeft";
 import { CaretLineRightIcon } from "@phosphor-icons/react/CaretLineRight";
@@ -57,12 +63,13 @@ const SCROLLBAR_CLEARANCE = 12;
  * so a wheel over it scrolls the document, as a wheel over the gutter always
  * has, where a sibling laid over the same pixels would swallow it.
  *
- * Which of the two is the width's call until the reader makes it theirs: a
- * wide layout opens with the column, a narrow one with the rail, and either
- * can be turned into the other from a control on it -- a narrow pane can pin
- * the column in place at the cost of prose width, a wide one can put it away.
- * The choice is remembered for this document and no longer; the next file
- * opens on the width's answer again.
+ * The column is what the reader keeps until they put it away, and shows
+ * while the layout is wide; a narrower one folds it to the rail, and it
+ * comes back as the layout widens again (`panel-fold.ts`). Put away by hand,
+ * it stays the rail at every width; pinned by hand in a narrow pane, it
+ * stays a column at the cost of prose width until the width next crosses
+ * the line. The choice is remembered for this document and no longer; the
+ * next file opens on the width's answer again.
  */
 export function MarkdownDocument({
   children,
@@ -80,15 +87,25 @@ export function MarkdownDocument({
   );
   const scrollRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const [preference, setPreference] = useState<"column" | "rail" | null>(null);
+  const [fold, setFold] = useState(KEPT_PANEL);
   const headings = useMarkdownHeadings(scrollElement, headingSelector);
   const layout = useOutlineLayout(scrollElement, layoutElement);
-  const wide = layout.width >= WIDE_MIN_WIDTH;
+  // Unmeasured, the layout has no width yet and the outline is the rail.
+  const isMeasured = layout.width > 0;
+  if (isMeasured) {
+    const fitted = foldToWidth(
+      fold,
+      layout.width,
+      (width) => width >= WIDE_MIN_WIDTH,
+    );
+    if (fitted !== fold) {
+      setFold(fitted);
+    }
+  }
   // Nothing at all for a document with fewer than two headings, where there
   // is nowhere to jump to.
   const hasOutline = headings.length >= 2;
-  const column =
-    hasOutline && (preference === "column" || (preference === null && wide));
+  const column = hasOutline && isMeasured && showsPanel(fold);
 
   return (
     <div
@@ -107,11 +124,11 @@ export function MarkdownDocument({
             <MarkdownOutline
               // A rail the reader just made out of the column has the pointer
               // sitting on it, right where the column's control was.
-              armOnLeave={preference === "rail"}
+              armOnLeave={!fold.isWanted}
               headings={headings}
               layout={layout}
               onToggle={() => {
-                setPreference("column");
+                setFold(togglePanel);
               }}
               scrollElement={scrollElement}
               variant="rail"
@@ -126,7 +143,7 @@ export function MarkdownDocument({
           headings={headings}
           layout={layout}
           onToggle={() => {
-            setPreference("rail");
+            setFold(togglePanel);
           }}
           scrollElement={scrollElement}
           variant="column"
@@ -417,8 +434,8 @@ function MarkdownOutline({
               armed &&
               "group-hover/outline:visible group-hover/outline:translate-x-0 group-hover/outline:scale-100 group-hover/outline:opacity-100 group-hover/outline:delay-100",
           )}
-          // Pinned, a press anywhere else puts it away, the window bar
-          // included (`globals.css`).
+          // Pinned, a press anywhere else puts it away, the tab strip and the
+          // title bar included (`globals.css`).
           data-no-window-drag={pinned ? "" : undefined}
         >
           {list}

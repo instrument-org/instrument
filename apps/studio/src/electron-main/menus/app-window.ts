@@ -1,7 +1,11 @@
 import { isSetupUp } from "@/electron-main/lib/setup-state";
 import { matchesAccelerator } from "@/electron-main/menus/match-accelerator";
 import { commandWindow } from "@/electron-main/windows/window-command";
-import { isDeveloperMode } from "@/electron-main/stores/workspace/preferences";
+import {
+  isDeveloperMode,
+  showsBookmarksBar,
+  toggleBookmarksBar,
+} from "@/electron-main/stores/workspace/preferences";
 import { CODE_EDITOR_FOCUS_CHANNEL } from "@/shared/constants";
 import { OS_CONVENTIONS, osOf } from "@/shared/os-conventions";
 import { resolveAccelerator } from "@/shared/shortcuts";
@@ -55,6 +59,9 @@ interface WindowChord {
  */
 const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   back: "chevron.backward",
+  bookmarkAllTabs: "star.square.on.square",
+  bookmarkTab: "star",
+  closeSplit: "xmark.rectangle",
   closeTab: "xmark.square",
   commandMenu: "command",
   editPage: "pencil",
@@ -62,11 +69,10 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   findInPage: "doc.text.magnifyingglass",
   findNext: "chevron.down",
   findPrevious: "chevron.up",
+  focusLeftSide: "rectangle.lefthalf.filled",
+  focusRightSide: "rectangle.righthalf.filled",
   forward: "chevron.forward",
-  goToApps: "square.grid.2x2",
-  goToBrowser: "globe",
-  goToChat: "bubble.left.and.bubble.right",
-  goToFiles: "folder",
+  newTabInSplit: "rectangle.split.2x1",
   newChat: "square.and.pencil",
   newTab: "plus.square.on.square",
   nextChat: "arrow.down",
@@ -79,10 +85,12 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   search: "magnifyingglass",
   searchChats: "text.magnifyingglass",
   showActivity: "clock.arrow.circlepath",
-  toggleInbox: "sidebar.left",
+  showBookmarks: "book.closed",
+  toggleBookmarksBar: "book",
+  toggleSidebar: "sidebar.left",
 };
 
-/** Sends a command to the window's renderer, which holds the tabs and the inbox: every chord's id is one. */
+/** Sends a command to the window's renderer, which holds the tabs and the tab groups: every chord's id is one. */
 const command = (name: WindowShortcutId) => (window: BrowserWindow) => {
   commandWindow(window, name);
 };
@@ -103,7 +111,7 @@ function chord(
 }
 
 const FILE_CHORDS: WindowChord[] = [
-  // Where mail keeps New Message: a draft of a new chat, at the corner.
+  // A new tab group, at the top of the sidebar's list.
   chord("newChat"),
   chord("commandMenu", (window) => {
     // As with the field below: a page guest holding the keyboard keeps the
@@ -123,8 +131,8 @@ const FILE_CHORDS: WindowChord[] = [
   chord("findInPage"),
   chord("findNext"),
   chord("findPrevious"),
-  // The inbox's search, which the window brings up and gives the keyboard;
-  // like the field above, taken back from a page guest first.
+  // The Chats page's search, which the window brings up and gives the
+  // keyboard; like the field above, taken back from a page guest first.
   chord("searchChats", (window) => {
     window.webContents.focus();
     commandWindow(window, "searchChats");
@@ -156,11 +164,16 @@ const TAB_CHORDS: WindowChord[] = [
 ];
 
 /**
- * The inbox column put away and brought back, on the usual sidebar chord:
- * the column is this window's sidebar.
+ * The bookmarks bar shown or hidden in every window at once, a preference the
+ * main process keeps, so the chord changes it here and no window is asked.
  */
+const BOOKMARKS_BAR_CHORD = chord("toggleBookmarksBar", () => {
+  toggleBookmarksBar();
+});
+
+/** The sidebar of tab groups put away and brought back, on the usual sidebar chord. */
 const VIEW_CHORDS: WindowChord[] = [
-  chord("toggleInbox"),
+  chord("toggleSidebar"),
   chord("editPage"),
   // The page in front of the user, never the window: reloading the window
   // takes every browser guest down with its document. The window decides
@@ -168,25 +181,33 @@ const VIEW_CHORDS: WindowChord[] = [
   chord("reloadPage"),
 ];
 
-/** The rail's places, the tab up going to one the way a press on the rail takes it. */
-const PLACE_CHORDS: WindowChord[] = [
-  chord("goToChat"),
-  chord("goToFiles"),
-  chord("goToBrowser"),
-  chord("goToApps"),
-];
-
 /**
- * Down and up the inbox from the chat on screen, in the order the list
- * shows, on the keys each system steps between conversations with
+ * Down and up the sidebar from the tab group on screen, in the order the
+ * list shows, on the keys each system steps between conversations with
  * (`window-shortcuts.ts`).
  */
 const CHAT_CHORDS: WindowChord[] = [chord("nextChat"), chord("previousChat")];
 
 /**
- * The chords the tab bar answers to, on whichever screen is up: next and
- * previous by Ctrl+Tab (and by this system's own second chord, below), a tab
- * by place with Cmd+1 through Cmd+8, and the last with Cmd+9, as browsers do.
+ * A sidebar row by its place (`groupByPlace`): Control and a number on a
+ * Mac, Alt and one elsewhere. Hidden rows, as the tabs' by place are.
+ */
+const GROUP_SWITCH_CHORDS: WindowChord[] = Array.from(
+  { length: 9 },
+  (_, index) => ({
+    accelerator: IS_MAC ? `Control+${index + 1}` : `Alt+${index + 1}`,
+    label: `Tab Group ${index + 1}`,
+    run: (window: BrowserWindow) => {
+      commandWindow(window, { index: index + 1, type: "selectGroup" });
+    },
+    visible: false,
+  }),
+);
+
+/**
+ * The chords a tab group's tabs answer to: next and previous by Ctrl+Tab
+ * (and by this system's own second chord, below), a tab by place with Cmd+1
+ * through Cmd+8, and the last with Cmd+9, as browsers do.
  * Those nine are hidden rows, left out of the menu as Chrome leaves them out
  * of its own, which a focused page guest still reaches.
  */
@@ -211,8 +232,37 @@ const TAB_SWITCH_CHORDS: WindowChord[] = [
  */
 const HISTORY_CHORDS: WindowChord[] = [chord("back"), chord("forward")];
 
-/** Everything the person did, as a browser's History menu shows all of it. */
+/** The tab groups closed to History, as a browser's History menu shows all of it. */
 const ACTIVITY_CHORDS: WindowChord[] = [chord("showActivity")];
+
+/**
+ * Chrome's Bookmarks menu: its manager, the Bookmarks page, which the
+ * window brings up and gives the keyboard (taken back from a page guest
+ * first); then the star at the end of the address field of the tab the
+ * keyboard is in, and every tab of the group on screen into a new folder,
+ * whose dialog is the window's too.
+ */
+const BOOKMARK_MANAGER_CHORDS: WindowChord[] = [
+  chord("showBookmarks", (window) => {
+    window.webContents.focus();
+    commandWindow(window, "showBookmarks");
+  }),
+];
+const BOOKMARK_CHORDS: WindowChord[] = [
+  chord("bookmarkTab"),
+  chord("bookmarkAllTabs", (window) => {
+    window.webContents.focus();
+    commandWindow(window, "bookmarkAllTabs");
+  }),
+];
+
+/** A new tab on the other side of the group, made where it has one side, the side with the keyboard closed, and the keyboard to either side. */
+const SIDE_CHORDS: WindowChord[] = [
+  chord("newTabInSplit"),
+  chord("closeSplit"),
+  chord("focusLeftSide"),
+  chord("focusRightSide"),
+];
 
 /**
  * This system's second chords for a command (`WINDOW_SHORTCUT_ALIASES`),
@@ -238,14 +288,18 @@ const WINDOW_CHORDS = [
   ...FILE_ALIAS_CHORDS,
   ...VIEW_CHORDS,
   ...VIEW_ALIAS_CHORDS,
-  ...PLACE_CHORDS,
+  BOOKMARKS_BAR_CHORD,
   ...TAB_CHORDS,
   ...TAB_ALIAS_CHORDS,
   ...CHAT_CHORDS,
+  ...GROUP_SWITCH_CHORDS,
   ...TAB_SWITCH_CHORDS,
   ...TAB_SWITCH_ALIAS_CHORDS,
   ...HISTORY_CHORDS,
   ...ACTIVITY_CHORDS,
+  ...BOOKMARK_MANAGER_CHORDS,
+  ...BOOKMARK_CHORDS,
+  ...SIDE_CHORDS,
 ];
 
 /**
@@ -304,14 +358,14 @@ export interface WindowMenuActions {
   canReopenClosed: boolean;
   mergeAll: () => void;
   openNew: () => void;
-  /** A new window, with a new chat up in it. */
+  /** A new window, with a new tab group up in it. */
   openNewWithChat: () => void;
   reopenClosed: () => void;
 }
 
 /**
  * The app window's menu: the other windows' menu, but with the
- * chords a browser has, and the ones an inbox has.
+ * chords a browser has, and the ones the tab groups have.
  */
 export function createAppWindowMenu(
   windows: WindowMenuActions,
@@ -346,14 +400,16 @@ export function createAppWindowMenu(
     ],
   };
 
-  // Chrome's Tab menu: going between the window's tabs and taking one out of
-  // it. Opening, closing and reopening one are in File, where Chrome has them.
+  // Chrome's Tab menu: going between the tab group's tabs and taking one out
+  // into a window of its own. Opening, closing and reopening one are in File,
+  // where Chrome has them.
   const tabMenu: MenuItemConstructorOptions = {
     label: "Tab",
     submenu: [
       ...menuItems(TAB_SWITCH_CHORDS, windows),
       ...menuItems(TAB_SWITCH_ALIAS_CHORDS, windows),
       { type: "separator" },
+      ...menuItems(SIDE_CHORDS, windows),
       {
         click: () => {
           const window = BrowserWindow.getFocusedWindow();
@@ -392,8 +448,18 @@ export function createAppWindowMenu(
     ],
   };
 
-  // The other windows' View menu with the inbox's chord at its head, and the
-  // rail's places and the steps down and up the inbox under it, less
+  // Chrome's Bookmarks menu, after History where Chrome has it.
+  const bookmarksMenu: MenuItemConstructorOptions = {
+    label: "Bookmarks",
+    submenu: [
+      ...menuItems(BOOKMARK_MANAGER_CHORDS, windows),
+      { type: "separator" },
+      ...menuItems(BOOKMARK_CHORDS, windows),
+    ],
+  };
+
+  // The other windows' View menu with the sidebar's chord at its head, and the
+  // places and the steps down and up the sidebar's tab groups under it, less
   // its reload roles, which would reload the window and every page in it
   // (Reload Page above takes Cmd+R; the Developer menu reloads the app). Its
   // zoom chords go to the window, which decides whether they mean a page.
@@ -408,12 +474,18 @@ export function createAppWindowMenu(
   const viewMenu: MenuItemConstructorOptions = {
     ...shared,
     submenu: [
-      ...menuItems(VIEW_CHORDS, windows),
+      ...menuItems(VIEW_CHORDS.slice(0, 1), windows),
+      // Ticked while the bar shows, as Chrome's View menu has it.
+      ...menuItems([BOOKMARKS_BAR_CHORD], windows).map((item) => ({
+        ...item,
+        checked: showsBookmarksBar(),
+        type: "checkbox" as const,
+      })),
+      ...menuItems(VIEW_CHORDS.slice(1), windows),
       ...menuItems(VIEW_ALIAS_CHORDS, windows),
       { type: "separator" },
-      ...menuItems(PLACE_CHORDS, windows),
-      { type: "separator" },
       ...menuItems(CHAT_CHORDS, windows),
+      ...menuItems(GROUP_SWITCH_CHORDS, windows),
       { type: "separator" },
       ...(Array.isArray(shared.submenu)
         ? shared.submenu.filter(
@@ -428,6 +500,7 @@ export function createAppWindowMenu(
     createEditMenu(),
     viewMenu,
     historyMenu,
+    bookmarksMenu,
     tabMenu,
     ...createWindowMenu([
       {
@@ -472,8 +545,8 @@ function resolvedMenuShortcut({
 }
 
 /**
- * What a chord does with no window focused, as a browser's do: New Chat
- * opens a window with a new chat in it, New Tab a window, and Reopen Closed
+ * What a chord does with no window focused, as a browser's do: New Tab Group
+ * opens a window with a new tab group in it, New Tab a window, and Reopen Closed
  * Tab the window closed last. The rest do nothing then.
  */
 function noWindowAction(

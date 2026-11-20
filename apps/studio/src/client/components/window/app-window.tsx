@@ -1,31 +1,32 @@
-import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
+import { keyboardSide } from "@/client/lib/keyboard-place";
 import { OUTSIDE_FILES_MAX } from "@instrument-org/shared";
-import { showProjectInFiles } from "@/client/lib/show-in-files";
+import {
+  setFilesTabOpener,
+  showProjectInFiles,
+} from "@/client/lib/show-in-files";
 import {
   draftsAtom,
+  draftsLoadedAtom,
   removeDraftAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
 import {
+  closingNewChat,
   newChatBoxesAtom,
   pickNewChatProjectAtom,
+  settleMadeDraft,
 } from "@/client/drafts/new-chat-box";
-import { type Draft, draftGroupOf, holdsSomething } from "@/shared/drafts";
+import { type Draft, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
-  chatFiltersAtom,
-  chatGroupAtom,
-  chatSearchAskedAtom,
-  inboxOpenAtom,
-  paneOpenByGroupAtom,
-  chatsOutOf,
+  chatFiltersByTabAtom,
+  NEW_TAB_HREF,
+  type WindowTab,
 } from "@/client/atoms/window";
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
+import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { AppErrorFallback } from "@/client/components/app-error-fallback";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { NavControls } from "@/client/components/nav-controls";
 import { WithDeveloperStrip } from "@/client/components/developer-strip/developer-strip-slot";
-import { settingsTabOf } from "@/client/components/settings/settings-index";
 import { WindowZoomRoot } from "@/client/components/window/window-zoom-root";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ThemeProvider } from "@/client/components/theme-provider";
@@ -35,6 +36,7 @@ import { SetupHost } from "@/client/components/setup/setup-host";
 import { WindowBorder } from "@/client/components/window-border";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { SCREENS, screenOfHref } from "@/shared/instrument-screens";
 import {
   ActiveTabProvider,
   TabIdProvider,
@@ -46,12 +48,12 @@ import { useRefetchOnWindowSwitch } from "@/client/hooks/use-refetch-on-window-s
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
-import { getGuest, pageHoldingKeyboard } from "@/client/lib/browser-pool";
-import { keptInOtherWindows } from "@/client/lib/kept-state";
+import { pageHoldingKeyboard, wasPagePressed } from "@/client/lib/browser-pool";
 import { restoreUnsentFeedback } from "@/client/lib/problem-reports";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
 import {
+  focusChatComposer,
   focusScreenHome,
   installKeyboardHome,
 } from "@/client/lib/keyboard-home";
@@ -60,16 +62,25 @@ import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { restoreTabView } from "@/client/lib/tab-view-state";
-import { setTabPathname } from "@/client/lib/tabs-model";
+import {
+  closeGroupSide,
+  closeGroupTab,
+  closeTabGroup,
+  forgetClosed,
+  setTabPathname,
+} from "@/client/lib/tabs-model";
+import { freshTabId } from "@/client/lib/tab-actions";
+import { type TabId, TabIdSchema } from "@/shared/tabs";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { fileHref, folderHref } from "@/shared/computer-href";
-import { type Tab, type TabId } from "@/shared/tabs";
+import { fileHref } from "@/shared/computer-href";
+import { type Tab } from "@/shared/tabs";
 
 import { useRestoredTabsWaiting } from "./use-restored-tabs-waiting";
-import { type ChatId, browserTargetOf } from "@instrument-org/workspace/client";
+import { useStopBeforeClosing } from "./stop-before-closing";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
   QueryClientProvider,
@@ -81,7 +92,6 @@ import {
   CatchBoundary,
   RouterContextProvider,
   RouterProvider,
-  useNavigate,
   useRouter,
   useRouterState,
 } from "@tanstack/react-router";
@@ -96,47 +106,57 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { AppRail } from "./app-rail";
-import { appsSeenAtAtom, appsSignedOutSince } from "./apps-rail-mark";
-import { AppTabStrip } from "./app-tab-strip";
 import {
   appTabsAtom,
   groupOfHref,
-  INBOX_HREF,
   isChatHref,
   isSiteGroup,
-  newSiteGroup,
-  pageHrefOf,
   placeOfHref,
   putAwaySitesAtom,
   siteGroupsInOtherWindows,
   siteGroupsOf,
   useAppTabs,
 } from "./app-tabs";
-import { COMPOSE_KEY } from "@/shared/kept-state";
 import { useAppsBySlug } from "./apps-by-slug";
+import { addressOfTab } from "@/client/bookmarks/address";
+import { BookmarkAllTabs } from "./bookmark-all-tabs";
+import { useTabTitle } from "./tab-title";
+import { editField } from "./omnibar-field";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions, chromeOfChats } from "./chat-list-query";
-import { ChatPane } from "./chat-pane";
-import { inPlace, NO_FILTERS, strongestMark } from "./chats";
-import { ComposeLayer } from "./compose-layer";
+import { type ChatFilters, inPlace } from "./chats";
 import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens, WindowContext } from "./context";
-import { isPaneOpen, shownPaneTab } from "./draft-context";
+import {
+  chatOfTab,
+  closedGroupTabOf,
+  closedSideOf,
+  closedTabGroupOf,
+  agentCloseKeeps,
+  draftOfTab,
+  isBlankNewTab,
+  isNewChatTab,
+  selectedTabIn,
+  sideIndexOf,
+  upsAmong,
+} from "./tab-model";
+import { setBuiltInPageGroupOpener } from "./built-in-pages";
+import {
+  sidebarRowOrderAtom,
+  tabAtChord,
+  useHeldChordHints,
+} from "./held-chord-hints";
 import { useSignInLanding } from "./use-sign-in-landing";
-import { InboxPeek } from "./inbox-peek";
-import { inboxLandsAtOnceAtom } from "./inbox-room";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
 import { screenActionOf, useRecordScreen } from "./screen-action";
+import { layoutReadOf } from "./group-awareness";
 import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
 import { tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
-import { useCompose } from "./use-compose";
 import { useDrafts } from "./use-drafts";
-import { useInboxPeek } from "./use-inbox-peek";
 import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
@@ -144,62 +164,61 @@ import { useWindowSteps } from "./use-tab-steps";
 import { useSetChatProject } from "./use-set-chat-project";
 import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
-import { useShowActivity } from "./activity-button";
-import { WindowBar, WindowCorner } from "./window-bar";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
+import { GroupSidebar, sidebarBounds } from "./group-sidebar";
+import { TrafficLightsWithSidebar } from "./inbox-toggle";
+import { isGroupScreenHref } from "./group-screen";
+import { useCloseStrandedHostedPages } from "./hosted-page";
+import { DragLayer } from "./drag/drag-layer";
+import { useDragSystem } from "./drag/use-drag-system";
+import { useGroupTabMoves } from "./tab-drag";
 import {
-  chatHref,
-  chatOfGroup,
+  groupAlong,
+  isPinnedGroup,
+  isWorthKeeping,
+  startTabGroupsFromZero,
+  useOpenGroups,
+  useTabGroupActions,
+  useTabGroupUpkeep,
+} from "./tab-groups";
+import { windowTabGroupsAtom } from "./open-groups";
+import {
+  sidebarOpenAtom,
+  sidebarProjectAtom,
+  sidebarWidthAtom,
+} from "@/client/atoms/tab-groups";
+import { StudioSidebarRail } from "@/client/components/studio-sidebar-rail";
+import {
+  CHATS_INDEX_HREF,
+  groupHref,
   chatOfHref,
   matchScreen,
   newChatHref,
   sameHref,
+  SCREEN_ROUTES,
 } from "./window-href";
 import {
+  chatFiltersUpAtom,
   groupOnScreenAtom,
+  newScreenId,
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
-import { flashStripTab } from "./tab-strip";
-import { useCloseStrandedHostedPages } from "./hosted-page";
-import {
-  forgetMovedAway,
-  hasMovedAway,
-  moveTabOut,
-  receiveTab,
-} from "./move-tab";
+import { stripKeyOf } from "./pane-tabs";
+import { flashStripTab, flashStripTabOnceDrawn } from "./tab-strip";
+import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
 import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
 void resolveComputerFileBase();
 
-/** The drafts floating in what another window kept of its floating windows. */
-function floatingDraftIdsOf(kept: unknown): string[] {
-  return (Array.isArray(kept) ? (kept as unknown[]) : []).flatMap((entry) =>
-    typeof entry === "object" &&
-    entry !== null &&
-    "draftId" in entry &&
-    typeof entry.draftId === "string"
-      ? [entry.draftId]
-      : [],
-  );
-}
-
-/** The groups the window's places once kept their tabs under, which nothing shows now. */
-const RETIRED_GROUPS = [
-  "place:apps",
-  "place:discover",
-  "place:files",
-  "place:home",
-];
-
 /**
  * The app window: its tabs across the bar, each a router of its own kept
  * mounted and live behind the one on screen, and around them what the window
- * keeps once whatever tab is up: the rail, the drafts and popped-out chats
- * along the foot, the window's browser, and its chords.
+ * keeps once whatever tab is up: the rail, the drafts, the window's browser,
+ * and its chords.
  *
  * A first launch has no workspace until setup's first step places one, so
  * the window draws setup alone, and loads again once the workspace runs.
@@ -212,13 +231,15 @@ export function AppWindow() {
   );
 }
 
-/** The window's shell above the developer band, which opens a debug page in the tab up. */
+/**
+ * The window's shell above the developer band, whose debug pages open as a
+ * built-in page does: the group's debug tab brought up, or a new one.
+ */
 function WindowContent(props: ComponentProps<typeof WindowShell>) {
-  const navigate = useNavigate();
   return (
     <WithDeveloperStrip
       onOpenDebugPages={() => {
-        void navigate({ to: "/debug" });
+        openBuiltInPage(SCREEN_ROUTES.debug);
       }}
     >
       <WindowShell {...props} />
@@ -252,6 +273,12 @@ function SetupWindow() {
 }
 
 function WorkspaceWindow() {
+  // Before the tabs are read, so a window that has kept no tab groups opens
+  // on none of what an earlier build left in them.
+  const store = useStore();
+  useState(() => {
+    startTabGroupsFromZero(store);
+  });
   const model = useAtomValue(appTabsAtom);
   const routers = useTabRouters(model.tabs);
   const activeRouter = getTabRouter(model.selectedId);
@@ -402,25 +429,71 @@ function AppTabView({
       <PortalContainerProvider>
         {/* The width a screen gets, for `@container/app-content` variants;
           inside the portal provider, never above its target. */}
-        <div className="@container/app-content flex min-h-0 min-w-0 flex-1">
+        <div className="peer @container/app-content flex min-h-0 min-w-0 flex-1">
           <TabIdProvider id={tab.id}>
             <ActiveTabProvider isActive={isActive}>
               <RouterProvider router={router} />
             </ActiveTabProvider>
           </TabIdProvider>
         </div>
+        {/* While the tab draws nothing (its route's code still loading, for
+          seconds on a dev launch), its top drags the window, where the
+          screen's own tab strip will. It retires in the commit that draws
+          the screen, so it never covers the screen's controls. */}
+        {isActive && (
+          <div
+            aria-hidden
+            className="absolute inset-x-0 top-0 hidden h-10 [-webkit-app-region:drag] peer-empty:block"
+          />
+        )}
       </PortalContainerProvider>
     </div>
   );
 }
 
-/** The caret into the field of the tab up's address row, with what is in it selected. */
+/**
+ * The caret into the address field of the tab up on the side with the
+ * keyboard, with what is in it selected.
+ */
 function focusField() {
-  const field = document.querySelector<HTMLInputElement>(
+  const field = (keyboardSide() ?? document).querySelector<HTMLInputElement>(
     "[data-app-tab-active] [data-tab-location] input",
   );
-  field?.focus();
-  field?.select();
+  if (field) {
+    editField(field);
+    field.select();
+  }
+}
+
+/** How long the Chats page has to come up before its search takes the caret, in frames. */
+const CHATS_SEARCH_WAIT_FRAMES = 30;
+
+/**
+ * The caret into the Chats page's search once the page is up, with what is
+ * in it selected: the one on the side with the keyboard, where the page
+ * opens.
+ */
+function focusChatsSearch() {
+  let frames = 0;
+  const attempt = () => {
+    const shown = [
+      ...document.querySelectorAll<HTMLInputElement>(
+        "[data-app-tab-active] [data-chats-search] input",
+      ),
+    ].filter((box) => box.checkVisibility({ visibilityProperty: true }));
+    const box =
+      shown.find((each) => each.closest("[data-keyboard]")) ?? shown[0];
+    if (box) {
+      box.focus();
+      box.select();
+      return;
+    }
+    frames += 1;
+    if (frames < CHATS_SEARCH_WAIT_FRAMES) {
+      requestAnimationFrame(attempt);
+    }
+  };
+  requestAnimationFrame(attempt);
 }
 
 /**
@@ -448,13 +521,85 @@ function WindowShell({
   routers: ReadonlyMap<string, TabRouter>;
   tabs: Tab[];
 }) {
+  const store = useStore();
   const appTabs = useAppTabs();
-  const showActivity = useShowActivity();
+  const groups = useTabGroupActions();
+  const groupTabMoves = useGroupTabMoves();
+  const groupList = useOpenGroups();
+  useHeldChordHints();
+  const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
+  const sidebarWidth = useAtomValue(sidebarWidthAtom);
+  const groupUp = useRouterState({
+    select: (routerState) => groupOfHref(routerState.location.href),
+  });
+  const appTabHref = useRouterState({
+    select: (routerState) => routerState.location.href,
+  });
+  useTabGroupUpkeep(appTabHref, groupList.open);
+  useCloseStrandedHostedPages();
+  // Closing a group stops none of its chats here: the person's close has
+  // stopped them once asked (`askToCloseGroups`), and an agent's leaves them
+  // working. With `keep`, the group a row's menu asked from, which the
+  // window moves to. Answers the entries it put on the closed list.
+  const closeGroups = (
+    closed: readonly string[],
+    keep?: string,
+    { byAgent = false }: { byAgent?: boolean } = {},
+  ): TabId[] => {
+    const entries: TabId[] = [];
+    // Each group goes on the window's closed list whole, so Shift+Cmd+T
+    // brings it back as it was; a group of only blank new tabs leaves
+    // nothing to bring back, and neither does an agent's close of a group
+    // of only agents' own tabs (`agentCloseKeeps`).
+    for (const group of closed) {
+      const kept = windowTabs.allTabs.flatMap((tab) => {
+        if (tab.group !== group) {
+          return [];
+        }
+        const closedAs = closingAsWritten(tab);
+        return closedAs && !isBlankNewTab(closedAs) ? [closedAs] : [];
+      });
+      if (
+        kept.length > 0 &&
+        (!byAgent || agentCloseKeeps(kept, wasPagePressed))
+      ) {
+        const id = freshTabId();
+        store.set(appTabsAtom, (current) =>
+          closeTabGroup(current, {
+            id,
+            pathname: groupHref(group),
+            tabs: kept,
+            ups: upsAmong(windowTabs.layoutOf(group), kept),
+          }),
+        );
+        entries.push(id);
+      }
+    }
+    if (keep === undefined) {
+      for (const group of closed) {
+        groups.close(group, groupList.open);
+      }
+    } else {
+      groups.closeAll(closed, keep);
+    }
+    return entries;
+  };
+  // The window shows one group at a time, in one tab: tabs restored from
+  // the strip a build before this one kept fold into the one up.
+  const foldRestoredTabs = useEffectEvent(() => {
+    const { selectedId, tabs: restored } = appTabs.model;
+    if (selectedId && restored.length > 1) {
+      appTabs.closeOthers(selectedId);
+    }
+  });
+  // Once, as the window opens.
+  useEffect(() => {
+    foldRestoredTabs();
+  }, []);
   const waitingTabs = useRestoredTabsWaiting(tabs, appTabs.model.selectedId);
   useRefreshSkillsOnChange();
   useRefreshProjectsOnChange();
   useRefetchOnWindowSwitch();
-  useCloseStrandedHostedPages();
   useEffect(() => installKeyboardHome(), []);
   useEffect(() => {
     // A turn later, so the Toaster has subscribed before its toast goes up.
@@ -498,50 +643,21 @@ function WindowShell({
   const childTitles = useTaskTitles();
   // Undefined until the list has been read.
   const chatChrome = useChatChrome();
-  const { chatMarks, chatTitles } = chatChrome;
-  // Steady, so the strip is drawn again only when its tabs are.
-  const stripActions = useSteadyCallbacks({
-    onClose: (id: TabId) => {
-      appTabs.close(id);
-    },
-    onCloseOthers: (id: TabId) => {
-      appTabs.closeOthers(id);
-    },
-    onCloseToRight: (id: TabId) => {
-      appTabs.closeToRight(id);
-    },
-    onDuplicate: (id: TabId) => {
-      duplicateAppTab(id);
-    },
-    onNew: () => {
-      appTabs.openNewTab();
-    },
-    onReopenLast: () => {
-      appTabs.reopen();
-    },
-    onReorder: (ids: TabId[]) => {
-      appTabs.reorder(ids);
-    },
-    onSelect: (id: TabId) => {
-      appTabs.select(id);
-    },
-  });
+  const { chatTitles } = chatChrome;
   const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
     useDefaultModelURI();
   const drafts = useAtomValue(draftsAtom);
+  const draftsLoaded = useAtomValue(draftsLoadedAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const removeDraft = useSetAtom(removeDraftAtom);
-  const setChatGroup = useSetAtom(chatGroupAtom);
-  const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
-  const [isInboxOpen, setInboxOpen] = useAtom(inboxOpenAtom);
-  const setChatSearchAsked = useSetAtom(chatSearchAskedAtom);
+  const [chatFilters, setChatFilters] = useAtom(chatFiltersUpAtom);
   const pickNewChatProject = useSetAtom(pickNewChatProjectAtom);
-  const setInboxLandsAtOnce = useSetAtom(inboxLandsAtOnceAtom);
   const sendContextRef = useRef<Shell["sendContext"]>(() =>
     Promise.resolve(undefined),
   );
+  const layoutContextRef = useRef<Shell["layoutContext"]>(() => undefined);
   // The card the tabs are drawn in, measured in layout px, which the inbox
-  // and the floating windows size themselves against.
+  // sizes itself against.
   const [rowElement, setRowElement] = useState<HTMLDivElement | null>(null);
   const [rowWidth, setRowWidth] = useState(0);
   useEffect(() => {
@@ -557,7 +673,6 @@ function WindowShell({
       observer.disconnect();
     };
   }, [rowElement]);
-  const [paneOpenByGroup, setPaneOpenByGroup] = useAtom(paneOpenByGroupAtom);
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const windowTabs = useWindowTabs();
   // What the window's arrows and chords walk: the tab up's history, through
@@ -565,75 +680,44 @@ function WindowShell({
   const windowSteps = useWindowSteps();
   // Every screen a group's tab stands on is walked by a router of its own.
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
+  // The drafts tabs are writing, every window's group tabs being one record:
+  // the one each tab's address names, and the one this window's box for it
+  // writes into.
+  const newChatBoxes = useAtomValue(newChatBoxesAtom);
+  const draftsInTabs = new Set(
+    windowTabs.allTabs.flatMap((tab) => [
+      draftOfTab(tab),
+      newChatBoxes[tab.id]?.draftId ?? undefined,
+    ]),
+  );
 
-  // Apps in the rail wears a dot for an app signed out since Apps was last
-  // shown; showing Apps is what counts as seeing it.
-  const appList = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const [appsSeenAt, setAppsSeenAt] = useAtom(appsSeenAtAtom);
-  useEffect(() => {
-    if (place === "apps") {
-      setAppsSeenAt(Date.now());
-    }
-  }, [place, setAppsSeenAt]);
-  const appsMark = appsSignedOutSince(appList.data?.apps ?? [], appsSeenAt);
-
-  // The chat a tab last had open is where Chat in the rail takes a tab.
-  useEffect(() => {
-    if (!isChat) {
-      return;
-    }
-    setChatGroup(chatUp ?? null);
-  }, [chatUp, isChat, setChatGroup]);
-
-  const compose = useCompose(rowWidth);
-  // The chats floating on screen, which show where they stand themselves, so
-  // the rail's Chat dot leaves them out.
-  const floatingChats = chatsOutOf(compose.placed);
-  // A draft is written over the screen, never on it, and a draft with no
-  // words is not kept past its window, so one left over from a launch goes,
-  // unless its window came back with it. A window whose draft is gone goes.
-  // Once, over what was restored.
+  // A draft with no words is not kept, so one left over from a launch goes.
+  // Once, over what was restored, once main has read the drafts: before
+  // then every draft looks gone.
+  const isSwept = useRef(false);
   const sweepRestored = useEffectEvent(() => {
-    // Another window's are as much its own as this one's are this one's.
-    const floating = new Set([
-      ...compose.entries.flatMap((entry) =>
-        entry.kind === "draft" ? [entry.draftId] : [],
-      ),
-      ...keptInOtherWindows(COMPOSE_KEY).flatMap(floatingDraftIdsOf),
-    ]);
     // A reply waiting in a chat's box is kept by the chat, not by a window
     // of its own, so nothing here takes one away.
     const isKept = (draft: Draft) =>
-      draft.chatId !== undefined ||
-      holdsSomething(draft) ||
-      floating.has(draft.id);
+      draft.chatId !== undefined || isWorthKeeping(draft);
     // A draft's folder goes with it, and what was pasted into it. Once a launch,
     // since a window opening later finds another's new chat box as empty as these.
     void rpcClient.window.takeLaunchSweep.call().then((isFirstUp) => {
       if (isFirstUp) {
         for (const draft of drafts) {
           if (!isKept(draft)) {
-            windowTabs.dropGroup(draftGroupOf(draft.id));
             void removeDraft(draft.id);
           }
         }
       }
     });
-    for (const entry of compose.entries) {
-      if (
-        entry.kind === "draft" &&
-        !drafts.some((draft) => draft.id === entry.draftId)
-      ) {
-        compose.remove(draftGroupOf(entry.draftId));
-      }
-    }
-    for (const group of RETIRED_GROUPS) {
-      windowTabs.dropGroup(group);
-    }
   });
   useEffect(() => {
-    sweepRestored();
-  }, []);
+    if (draftsLoaded && !isSwept.current) {
+      isSwept.current = true;
+      sweepRestored();
+    }
+  }, [draftsLoaded]);
 
   // A site opened at the window's level lives for as long as an open tab
   // can come back to it, by its history as its router holds it now. Past
@@ -696,15 +780,6 @@ function WindowShell({
     settleSites();
   }, [siteGroups, appTabs.model]);
 
-  const setPaneOpen = (group: string, isOpen: boolean) => {
-    setPaneOpenByGroup((current) => ({ ...current, [group]: isOpen }));
-  };
-  /** Brings the pane up for the group on screen, for something opened into it. */
-  const revealPane = () => {
-    if (windowTabs.groupOnScreen !== undefined) {
-      setPaneOpen(windowTabs.groupOnScreen, true);
-    }
-  };
   // Where the tab up wants the window's page drawn. The browser's own face
   // lives in one element for the window's whole life, handed from tab to tab,
   // so a page and its edit session never remount as tabs are switched.
@@ -724,44 +799,87 @@ function WindowShell({
     }
   }, [pageHost, stage]);
 
-  /**
-   * Takes a chat out of the corner: the window goes and the chat comes up in
-   * a tab of the window's own, the one that already has it or a new one, its
-   * pane opened when the window asked for something to be shown.
-   */
-  const expandChat = (
-    chatId: ChatId,
-    { showsPane }: { showsPane: boolean },
-  ) => {
-    compose.remove(chatId);
-    appTabs.openOrFocusChat(chatId);
-    if (showsPane) {
-      setPaneOpen(chatId, true);
-    }
-  };
-
+  const appsBySlug = useAppsBySlug();
+  const tabTitle = useTabTitle(chatTitles);
   const { openNamedPath, openPage, openScreen } = useOpeners({
+    appsBySlug,
     appTabs,
     browser,
     chatTitles,
+    closedEntryOf: (kind, id) =>
+      store.get(appTabsAtom).recentlyClosed.find((entry) => {
+        const closedTabs = closedTabGroupOf(entry) ?? [];
+        const tab = closedGroupTabOf(entry);
+        return kind === "group"
+          ? closedTabs.some((each) => each.group === id) || tab?.group === id
+          : closedTabs.some((each) => each.id === id) || tab?.id === id;
+      })?.id,
+    // The sidebar's X: onto the closed list whole, unless it was only the
+    // agent's own tabs.
+    closeGroup: (group) => {
+      if (!groupList.open.some((entry) => entry.group === group)) {
+        return undefined;
+      }
+      const entries = closeGroups([group], undefined, { byAgent: true });
+      return { isListed: entries.length > 0 };
+    },
+    closeTab: (id) => {
+      requestClose(id, { byAgent: true });
+    },
+    groupTabs: (ids) => {
+      const onScreen = groups.groupUp();
+      const made = groups.make({
+        fill: (group) => {
+          for (const id of ids) {
+            groups.moveTab(id, group);
+          }
+        },
+        isShownHere: false,
+      });
+      groups.place(made, {});
+      // The person's screen goes where its tabs went when none stayed.
+      if (onScreen !== undefined && !groups.hasTabs(onScreen)) {
+        groups.show(made);
+      }
+      return made;
+    },
+    moveTabs: (ids, group) => {
+      for (const id of ids) {
+        groups.moveTab(id, group);
+      }
+    },
     isOpen: opened !== undefined,
-    paneOpenByGroup,
-    revealPane,
-    setPaneOpen,
+    newGroup: (fill, options) => groups.make({ fill, ...options }),
+    openChat: (chat) => {
+      groups.openChat(chat);
+    },
+    reopenClosed: (entry) => {
+      reopenClosed(TabIdSchema.parse(entry));
+    },
+    showGroup: (group, { newWindow = false } = {}) => {
+      if (newWindow) {
+        groups.moveToNewWindow(group, groupList.open);
+      } else {
+        groups.show(group);
+      }
+    },
     windowTabs,
   });
+  // Show in Folder, from anywhere in the window, opens Files as a tab of the
+  // tab group up, read at the moment it is asked.
+  useLayoutEffect(() => {
+    setFilesTabOpener((href) => {
+      openScreen(href, { newTab: true });
+    });
+  });
 
-  const appsBySlug = useAppsBySlug();
   // What a new tab shows, asked for as the window comes up rather than as the
   // tab mounts, so the page lays out from the cache instead of growing a
-  // section at a time as each answer lands. The new tab's own code is split
-  // from the window's, so it is fetched now too, or the first Cmd+T waits on
-  // it. The free trial's offer is the Add a provider sheet's one remote
+  // section at a time as each answer lands. The free trial's offer is the Add a provider sheet's one remote
   // answer, so it is in the cache before the sheet opens. A first launch's
   // window has no workspace to ask until setup places it, and loads again
   // once it does.
   const queryClient = useQueryClient();
-  const { activeRouter } = appTabs;
   useEffect(() => {
     if (!opened || window.api.initialSetupState?.facts.hasWorkspace === false) {
       return;
@@ -771,12 +889,231 @@ function WindowShell({
     );
     void queryClient.prefetchQuery(storageLocationQueryOptions());
     void queryClient.prefetchQuery(rpcClient.billing.offer.queryOptions());
-    void activeRouter?.loadRouteChunk(activeRouter.routesById["/_app/new-tab"]);
-  }, [activeRouter, opened, queryClient]);
+  }, [opened, queryClient]);
 
-  const requestClose = (id: string) => {
-    // Any group's: a popped-out chat's rail closes its tabs here too.
+  /**
+   * A new chat's tab as it closes, at the address of the draft words typed
+   * a moment before make, so it can be reopened with them as one closed a
+   * moment later can. A draft emptied of everything is thrown away here
+   * rather than left for the next launch's sweep (`closingNewChat`).
+   */
+  const closingAsWritten = (tab: undefined | WindowTab) => {
+    const made = tab && settleMadeDraft(store, tab.id);
+    // Before main has read the drafts, every draft looks gone.
+    if (tab?.kind !== "screen" || !store.get(draftsLoadedAtom)) {
+      return tab;
+    }
+    const closing = closingNewChat(
+      { boxes: store.get(newChatBoxesAtom), drafts: store.get(draftsAtom) },
+      { href: tab.href, made, tabId: tab.id },
+    );
+    if (closing.emptied !== undefined) {
+      void removeDraft(closing.emptied);
+    }
+    return closing.href === tab.href ? tab : { ...tab, href: closing.href };
+  };
+  // A group's tab closed goes on the window's closed list, with the window's
+  // own tabs, so Shift+Cmd+T brings it back; an agent's close of its own
+  // scratch tab leaves it off (`agentCloseKeeps`).
+  const requestClose = (
+    id: string,
+    { byAgent = false }: { byAgent?: boolean } = {},
+  ) => {
+    const tab = windowTabs.allTabs.find((each) => each.id === id);
+    const closedAs = closingAsWritten(tab);
+    // A group's last tab closes the group.
+    if (
+      tab?.group !== undefined &&
+      groupList.open.some((entry) => entry.group === tab.group) &&
+      windowTabs.allTabs.every(
+        (each) => each.group !== tab.group || each.id === id,
+      )
+    ) {
+      closeGroups([tab.group], undefined, { byAgent });
+      return;
+    }
+    if (
+      tab?.group !== undefined &&
+      closedAs &&
+      !isBlankNewTab(closedAs) &&
+      (!byAgent || agentCloseKeeps([closedAs], wasPagePressed))
+    ) {
+      const { group } = tab;
+      const index = windowTabs.allTabs
+        .filter((each) => each.group === group)
+        .indexOf(tab);
+      store.set(appTabsAtom, (current) =>
+        closeGroupTab(current, {
+          id: freshTabId(),
+          index,
+          pathname: groupHref(group),
+          tab: closedAs,
+        }),
+      );
+    }
     windowTabs.close(id);
+  };
+  /**
+   * The whole side a tab stands on closed, onto the window's closed list as
+   * one entry that brings the side back; a group of one side closes whole.
+   */
+  const closeSideOf = (id: string) => {
+    const tab = windowTabs.allTabs.find((each) => each.id === id);
+    if (tab?.group === undefined) {
+      return;
+    }
+    const { group } = tab;
+    const layout = windowTabs.layoutOf(group);
+    const side = sideIndexOf(layout, id);
+    if (side === undefined || layout.sides.length < 2) {
+      closeGroups([group]);
+      return;
+    }
+    const sideTabs = layout.sides[side]?.tabs ?? [];
+    const upId = layout.sides[side]?.up;
+    const kept = sideTabs.flatMap((each) => {
+      const closedAs = closingAsWritten(each);
+      return closedAs && !isBlankNewTab(closedAs) ? [closedAs] : [];
+    });
+    if (kept.length > 0) {
+      store.set(appTabsAtom, (current) =>
+        closeGroupSide(current, {
+          focused: layout.focused === side,
+          id: freshTabId(),
+          pathname: groupHref(group),
+          side,
+          tabs: kept,
+          up: Math.max(
+            0,
+            kept.findIndex((each) => each.id === upId),
+          ),
+        }),
+      );
+    }
+    windowTabs.closeSide(group, side);
+  };
+  // The person's closes ask first when they stop a chat at work or waiting
+  // (`useStopBeforeClosing`); an agent's own closes ask no one. A close runs
+  // once answered, so it reaches the closers as they stand then.
+  const stopping = useStopBeforeClosing();
+  const closers = useRef({ closeGroups, closeSideOf, requestClose });
+  useLayoutEffect(() => {
+    closers.current = { closeGroups, closeSideOf, requestClose };
+  });
+  const tabsOfGroups = (closing: readonly string[]) =>
+    windowTabs.allTabs.filter(
+      (tab) => tab.group !== undefined && closing.includes(tab.group),
+    );
+  const askToCloseGroups = (closing: string[], keep?: string) => {
+    stopping.ask(tabsOfGroups(closing), "group", () => {
+      closers.current.closeGroups(closing, keep);
+    });
+  };
+  const askToCloseTab = (id: string) => {
+    stopping.ask(
+      windowTabs.allTabs.filter((tab) => tab.id === id),
+      "tab",
+      () => {
+        closers.current.requestClose(id);
+      },
+    );
+  };
+  const askToCloseSide = (id: string) => {
+    const group = windowTabs.allTabs.find((tab) => tab.id === id)?.group;
+    const layout = group === undefined ? undefined : windowTabs.layoutOf(group);
+    const side = layout && sideIndexOf(layout, id);
+    const sideTabs =
+      layout && side !== undefined && layout.sides.length > 1
+        ? (layout.sides[side]?.tabs ?? [])
+        : tabsOfGroups(group === undefined ? [] : [group]);
+    stopping.ask(sideTabs, "split", () => {
+      closers.current.closeSideOf(id);
+    });
+  };
+  // Closing the window, which main asks about before it goes: every chat
+  // in its tab groups.
+  const askToCloseWindow = useEffectEvent(() =>
+    stopping.askForWindow(
+      tabsOfGroups(groupList.open.map((entry) => entry.group)),
+    ),
+  );
+  useEffect(() => window.api.onCloseAsked?.(askToCloseWindow), []);
+  /**
+   * One entry of the window's closed list back, by its id: a whole tab group
+   * as a group again, its tabs on their sides; a tab into its group, up
+   * there, or as a group of its own when its group has closed.
+   */
+  const reopenClosed = (id: TabId) => {
+    const entry = store
+      .get(appTabsAtom)
+      .recentlyClosed.find((each) => each.id === id);
+    if (!entry) {
+      return;
+    }
+    store.set(appTabsAtom, (current) => forgetClosed(current, { id }));
+    // A tab id is never opened twice. A page's guest went with it, and
+    // comes back when the page shows, at the address it had, the way a
+    // launch brings a tab's page back.
+    const side = closedSideOf(entry);
+    if (
+      side &&
+      groupList.open.some((each) => each.group === side.group) &&
+      windowTabs.allTabs.some((each) => each.group === side.group)
+    ) {
+      windowTabs.reopenSide({
+        ...side,
+        tabs: side.tabs.map((each) => ({ ...each, id: newScreenId() })),
+      });
+      groups.show(side.group);
+      return;
+    }
+    const tab = closedGroupTabOf(entry);
+    const isOpen =
+      tab !== undefined &&
+      groupList.open.some((each) => each.group === tab.group);
+    if (tab && isOpen) {
+      windowTabs.reopen(
+        { ...tab, id: newScreenId() },
+        entry.index ?? Number.POSITIVE_INFINITY,
+      );
+      groups.show(tab.group);
+      return;
+    }
+    // A tab alone, or a side whose group has closed, stands on the one side
+    // its new group has.
+    const reopened = side
+      ? side.tabs.map((each) => ({ ...each, side: undefined }))
+      : (closedTabGroupOf(entry) ?? (tab ? [{ ...tab, side: undefined }] : []));
+    groups.make({
+      fill: (group) => {
+        windowTabs.restoreGroup(
+          group,
+          reopened.map((each) => ({ ...each, group, id: newScreenId() })),
+          side ? { active: side.up } : entry.ups,
+        );
+      },
+    });
+  };
+  /**
+   * What this window closed last back, unless a window closed since, which
+   * comes back instead, the way a browser's one chord brings back either.
+   */
+  const reopenTab = () => {
+    const [entry] = store
+      .get(appTabsAtom)
+      .recentlyClosed.filter(
+        (each) =>
+          closedGroupTabOf(each) !== undefined ||
+          closedTabGroupOf(each) !== undefined,
+      );
+    void rpcClient.window.reopenClosed
+      .call(entry && { after: entry.closedAt ?? 0 })
+      .catch(() => false)
+      .then((windowCameBack) => {
+        if (entry && !windowCameBack) {
+          reopenClosed(entry.id);
+        }
+      });
   };
 
   usePageThumbnailHousekeeping();
@@ -802,11 +1139,11 @@ function WindowShell({
     rpcClient.preferences.checkForUpdates.mutationOptions(),
   );
   const setChatProject = useSetChatProject();
-  // The new-project dialog, asked for from a chat's head or a draft's, with
+  // The new-project dialog, asked for from a chat's menu or a draft's, with
   // what was typed in the picker: the project it makes files that chat or
   // that draft.
   const [newProject, setNewProject] = useState<{
-    /** The chat it files, when that is not the one the tab up has open: a popped-out chat's. */
+    /** The chat it files; without one, the chat the window's tab has open. */
     chatId?: ChatId;
     draftId?: string;
     name?: string;
@@ -821,27 +1158,25 @@ function WindowShell({
     // Followed only while the dialog is up.
     subscribed: newProject !== undefined,
   });
-  // The inbox is on screen in Chat unless it was put away beside a chat;
-  // anywhere else, Chat in the rail peeks it out.
-  const inboxPeek = useInboxPeek({
-    canPeek: !isChat || (chatUp !== undefined && !isInboxOpen),
-  });
 
   // What the tab in view says it shows: a chat's or a site's tab up while
   // its pane is open, or the screen the window's tab is at.
-  const groupUp = windowTabs.active;
+  const tabInView = windowTabs.active;
   const groupInView = windowTabs.groupOnScreen;
   const surfaceInView =
     groupInView === undefined
       ? surfaces[appTabs.model.selectedId ?? ""]
-      : groupUp?.kind === "screen" &&
-          (chatOfGroup(groupInView) === undefined ||
-            isPaneOpen(groupInView, paneOpenByGroup))
-        ? surfaces[groupUp.id]
+      : tabInView?.kind === "screen"
+        ? surfaces[tabInView.id]
         : undefined;
   const screenView = surfaceInView?.view ?? null;
-  // The screen in front, for the action log once it settles.
-  const settings = useAtomValue(settingsModalAtom);
+  // The screen in front, for the action log once it settles: a built-in
+  // page up in the group by its own address, as Settings at its part.
+  const builtInInView =
+    tabInView?.kind === "screen" && screenOfHref(tabInView.href)
+      ? tabInView.href
+      : undefined;
+  const hrefInView = builtInInView ?? screenHref;
   useRecordScreen(
     screenActionOf({
       appName: (slug) => appsBySlug.get(slug)?.name,
@@ -849,8 +1184,7 @@ function WindowShell({
       ...(surfaceInView?.walked
         ? { folderPath: surfaceInView.walked.hostPath }
         : {}),
-      ...(screenHref === undefined ? {} : { href: screenHref }),
-      ...(settings === null ? {} : { settingsTab: settingsTabOf(settings) }),
+      ...(hrefInView === undefined ? {} : { href: hrefInView }),
       view: screenView,
     }),
   );
@@ -862,62 +1196,44 @@ function WindowShell({
       appTabId: appTabs.model.selectedId,
       browser,
       chatTitles,
-      drafts,
       href: hrefNow(),
-      paneOpenByGroup,
       screenView,
       state: opened,
       surfaces,
       ...(volumes ? { volumes } : {}),
       windowTabs,
     });
-  const draftContext = (draftId: string) => readersNow().draftContext(draftId);
+  const draftContext = (draft: Draft, tabId: string | undefined) =>
+    readersNow().draftContext(draft, tabId);
+  // A chat's tab group as a message goes from it, read at the press. The
+  // tab sent from is where the chat's agent works from then on (`chatTab`).
+  const layoutNow = (tabId: string) => {
+    windowTabs.markPrompted(tabId);
+    return layoutReadOf({ appsBySlug, chatTitles, windowTabs }, tabId);
+  };
   useLayoutEffect(() => {
     sendContextRef.current = (options) => readersNow().sendContext(options);
+    layoutContextRef.current = layoutNow;
   });
   const {
     arrivedId,
-    closeDraft,
     discardDraft,
     discardingIds,
     draftFromLink,
     draftWith,
-    expandDraft,
-    newDraft,
-    popOutDraft,
     sentProjects,
     sentWords,
-    showDraft,
     startChat,
     startingIds,
   } = useDrafts({
     browser,
     folders: opened?.folders ?? {},
-    compose,
     draftContext,
     isOpen: opened !== undefined,
+    layoutOf: (tabId) => layoutContextRef.current(tabId),
     isChat,
-    isChatAlone: chatUp !== undefined && !isInboxOpen,
-    openChat: (chatId) => {
-      appTabs.navigate(chatHref(chatId));
-    },
     openDraftInChat: (id) => {
-      setInboxOpen(true);
       appTabs.navigate(newChatHref(id));
-    },
-    openNewChat: (projectId) => {
-      const tabId = appTabs.model.selectedId;
-      if (tabId) {
-        pickNewChatProject({ projectId, tabId });
-      }
-      setInboxOpen(true);
-      appTabs.navigate(newChatHref());
-    },
-    openDrafts: () => {
-      setInboxOpen(true);
-      if (place !== "chat") {
-        appTabs.goToPlace("chat");
-      }
     },
     saveDefaultModelURI,
     projects,
@@ -933,32 +1249,12 @@ function WindowShell({
     setLeavingChat(undefined);
   }
   /**
-   * The list standing in a project, from its row, the command menu, or a
-   * project just made, from wherever the tab is: the inbox comes up, and
-   * whatever chat or draft was up beside it is put away for a new chat
-   * filed under the project, and remembered for the way back out. A search
-   * or a place left over from before would hide the chats it was asked for,
-   * so both go.
+   * The sidebar standing in a project, from the command menu: out if it was
+   * put away.
    */
   const enterProject = (projectId: string) => {
-    const tabId = appTabs.model.selectedId;
-    if (tabId && isChat && chatFilters.projects.length === 0) {
-      if (sameHref(hrefNow(), newChatHref())) {
-        beforeProject.current.delete(tabId);
-      } else {
-        beforeProject.current.set(tabId, hrefNow());
-      }
-    }
-    setLeavingChat(chatUp);
-    setChatFilters({ ...NO_FILTERS, projects: [projectId] });
-    if (inboxPeek.isOpen) {
-      setInboxLandsAtOnce(true);
-    }
-    setInboxOpen(true);
-    if (tabId) {
-      pickNewChatProject({ projectId, tabId });
-    }
-    appTabs.navigate(newChatHref());
+    setSidebarOpen(true);
+    store.set(sidebarProjectAtom, projectId);
   };
   /**
    * The list back in the inbox from its project. The new chat the project
@@ -1000,34 +1296,38 @@ function WindowShell({
       setChatFilters((current) => inPlace(current, undefined));
     }
   }, [isChatOutsideProject, setChatFilters]);
-  // However the list leaves a project (its Inbox, a chat from elsewhere,
-  // the project deleted), a new chat in any tab that the project filed and
-  // that has nothing written yet stops being filed under it.
-  const store = useStore();
-  const lastStanding = useRef(standingProject);
+  // However a tab's list leaves a project (its Inbox, a chat from
+  // elsewhere, the project deleted), that tab's new chat, filed by the
+  // project and with nothing written yet, stops being filed under it.
+  const filtersByTab = useAtomValue(chatFiltersByTabAtom);
+  const lastFilters = useRef(filtersByTab);
   useEffect(() => {
-    const left = lastStanding.current;
-    lastStanding.current = standingProject;
-    if (left === undefined || left === standingProject) {
-      return;
-    }
+    const before = lastFilters.current;
+    lastFilters.current = filtersByTab;
+    const standingIn = (filters: ChatFilters | undefined) =>
+      filters?.projects.length === 1 ? filters.projects[0] : undefined;
     const boxes = store.get(newChatBoxesAtom);
-    for (const [tabId, box] of Object.entries(boxes)) {
-      if (box?.projectId === left && box.draftId === null) {
+    for (const [tabId, filters] of Object.entries(before)) {
+      const left = standingIn(filters);
+      const box = boxes[tabId];
+      if (
+        left !== undefined &&
+        left !== standingIn(filtersByTab[tabId]) &&
+        box?.projectId === left &&
+        box.draftId === null
+      ) {
         pickNewChatProject({ projectId: undefined, tabId });
       }
     }
-  }, [pickNewChatProject, standingProject, store]);
+  }, [filtersByTab, pickNewChatProject, store]);
   /**
-   * The tab up to one of the rail's places, from the rail, its chords, or the
-   * command menu. Chat asked for is the inbox asked for too, even where the
-   * row is narrow enough that it stepped aside. Peeked out already, the list
-   * stays where it is drawn rather than sliding in again under it. The
-   * place the tab is already in takes it back to its root (the inbox, the
-   * home folder, the browser's start, the apps), except that a chat
-   * with its inbox put away gets the inbox back first and stays open. A
-   * place asked for in a tab of its own waits behind, the way a bookmark
-   * middle-clicked in a browser does.
+   * The tab up to one of the places, from their chords, the command menu or
+   * a place's mark in the address row. Chat is the chat of the tab group up:
+   * its column opens when it was put away, and its composer takes the
+   * keyboard. The place the tab is already in takes it back to its root (the
+   * home folder, the browser's start, the apps). A place asked for in a tab
+   * of its own waits behind, the way a bookmark middle-clicked in a browser
+   * does.
    */
   const choosePlace = (
     next: AppPlace,
@@ -1037,29 +1337,36 @@ function WindowShell({
       appTabs.goToPlace(next, { newWindow });
       return;
     }
-    const bringsInboxBack =
-      next === "chat" && chatUp !== undefined && !isInboxOpen;
+    // The chat is the group's first chat's tab, or its first new chat's.
     if (next === "chat") {
-      if (inboxPeek.isOpen) {
-        setInboxLandsAtOnce(true);
+      const group = groups.groupUp();
+      const tab =
+        group === undefined
+          ? undefined
+          : windowTabs
+              .layoutOf(group)
+              .sides.flatMap((side) => side.tabs)
+              .find(
+                (each) => chatOfTab(each) !== undefined || isNewChatTab(each),
+              );
+      if (tab) {
+        windowTabs.select(tab.id);
+        focusChatComposer();
       }
-      setInboxOpen(true);
+      return;
     }
     if (next === place && !newTab) {
-      if (!bringsInboxBack) {
-        appTabs.goToPlace(next, { root: true });
-      }
+      appTabs.goToPlace(next, { root: true });
       return;
     }
     appTabs.goToPlace(next, { behind: newTab, newTab });
   };
-  // The inbox's rows as the tab up lists them, for stepping through them by
-  // chord.
-  const listedChats = useRef<ChatId[]>([]);
-  // A file let go of where nothing else takes it opens the way one dropped
-  // on the Dock icon does.
-  useWindowDropFallback(({ hostPath, isFolder }) => {
-    appTabs.open(isFolder ? folderHref(hostPath) : fileHref(hostPath));
+  // Everything held lands through the window's one drag (`useDragSystem`):
+  // files let go where it takes none and nothing else does open the way
+  // files dropped on the Dock icon do, as a tab group of their own.
+  const drags = useDragSystem({ browser, chatTitles });
+  useWindowDropFallback((files) => {
+    drags.openFilesAsGroup(files);
   });
   // Something from outside the app that a tab already shows comes up there
   // and lights that tab, since a switch alone, or no change at all when the
@@ -1074,37 +1381,102 @@ function WindowShell({
     }
     return true;
   };
+  // A group's tab brought up for something from outside, lit once its group
+  // is drawn.
+  const lightTab = (tab: undefined | WindowTab) => {
+    if (tab) {
+      flashStripTabOnceDrawn(stripKeyOf(tab));
+    }
+  };
+  // A built-in page asked for from anywhere (Settings, History, Manage
+  // Extensions, the sidebar's pages) is a group of its own, as New Tab Group
+  // makes one: the tab of a group already showing it comes up there, and a
+  // blank new tab up takes it in place, as a browser's own pages do, whatever
+  // else its group has.
+  const openBuiltInApart = useEffectEvent((href: string) => {
+    const up = windowTabs.active;
+    if (up && isBlankNewTab(up)) {
+      openScreen(href, { newTab: "reuseBlank" });
+      return;
+    }
+    lightTab(groups.showOrMake(href));
+  });
+  useLayoutEffect(
+    () =>
+      setBuiltInPageGroupOpener((href) => {
+        openBuiltInApart(href);
+      }),
+    [],
+  );
+  /**
+   * Brings up the tab already writing a draft, lit, in this window or in
+   * another that comes forward, so one draft is never in two composers; with
+   * none, `here` puts it up, by default in the tab up.
+   */
+  const revealDraft = (id: string, here?: () => void) => {
+    const tab = groups.revealDraft(id);
+    if (tab === undefined) {
+      if (here === undefined) {
+        appTabs.navigate(newChatHref(id));
+      } else {
+        here();
+      }
+    } else if (store.get(windowTabGroupsAtom)?.includes(tab.group ?? "")) {
+      lightTab(tab);
+    }
+  };
+  // The group on screen's tabs as they stand across it: the left side's
+  // strip, then the right's.
+  const tabsLeftToRight = () => {
+    const group = windowTabs.groupOnScreen;
+    return group === undefined
+      ? []
+      : windowTabs.layoutOf(group).sides.flatMap((side) => side.tabs);
+  };
   useWindowCommands(
     {
       back: () => {
         windowSteps.go("back");
       },
-      // The tab a chat's pane shows, wherever the keyboard is, and the
-      // window's own tab only once no pane tab is in view: one close a
-      // press, read from the tabs as they are at that moment.
+      // The tab up on the side with the keyboard in the group on screen; the
+      // group's last tab closes the group with it, which Shift+Cmd+T and
+      // Activity bring back.
       closeTab: () => {
-        const paneTab = shownPaneTab(
-          store.get(windowTabsAtom),
-          store.get(groupOnScreenAtom),
-          store.get(paneOpenByGroupAtom),
-        );
-        if (paneTab) {
-          requestClose(paneTab.id);
-        } else if (appTabs.model.selectedId) {
-          appTabs.close(appTabs.model.selectedId);
+        const group = store.get(groupOnScreenAtom);
+        if (group === undefined) {
+          return;
+        }
+        const up = selectedTabIn(store.get(windowTabsAtom), group);
+        if (up) {
+          askToCloseTab(up.id);
+        } else {
+          askToCloseGroups([group]);
         }
       },
       forward: () => {
         windowSteps.go("forward");
       },
-      goToPlace: choosePlace,
-      newChat: newDraft,
+      focusSide: (side) => {
+        const group = windowTabs.groupOnScreen;
+        if (
+          group !== undefined &&
+          windowTabs.layoutOf(group).sides[side] !== undefined
+        ) {
+          windowTabs.focusSide(group, side);
+        }
+      },
+      newChat: () => {
+        groups.make();
+      },
       newChatFromLink: draftFromLink,
-      newTab: appTabs.openNewTab,
+      newTab: () => {
+        groups.newTab();
+      },
       // What arrives from outside the app comes up in the tab already showing
       // it, however far that tab has walked within it, and in a tab of its
       // own where none does. Main has already picked this window as the one
       // showing it, or the one in front where none does.
+      // Said alone: the folder it was in opens in the hand-over's tab group.
       missingFile: (name, folder) => {
         toast(
           `${name} is no longer there`,
@@ -1112,12 +1484,6 @@ function WindowShell({
             ? { description: "The folder it was in is gone too." }
             : undefined,
         );
-        if (folder !== undefined) {
-          const href = folderHref(folder);
-          if (!showFromOutside(href)) {
-            openScreen(href, { newTab: true });
-          }
-        }
       },
       notOpened: (count) => {
         toast(
@@ -1155,49 +1521,150 @@ function WindowShell({
             "This version of Instrument doesn't know that kind of link, but a newer one might.",
         });
       },
+      // One thing from outside the app comes up in the tab of this window's
+      // groups already showing it, lit so the eye lands on it, and otherwise
+      // is a tab group of its own at the top of the list.
       openFile: (hostPath) => {
-        const href = fileHref(hostPath);
-        if (!showFromOutside(href)) {
-          appTabs.open(href);
-        }
+        lightTab(groups.showOrMake(fileHref(hostPath)));
+      },
+      // Several at once are always one new group, a tab each in the order
+      // handed over, on one side, with the first up, even where a tab already
+      // shows one of them.
+      openGroup: (hrefs) => {
+        groups.make({
+          fill: (group) => {
+            const [first] = hrefs.map((href) =>
+              windowTabs.openScreen(href, { group }),
+            );
+            if (first !== undefined) {
+              windowTabs.select(first);
+            }
+          },
+        });
       },
       openScreen: (href) => {
-        if (!showFromOutside(href)) {
-          openScreen(href, { newTab: true });
-        }
-      },
-      showTab: showFromOutside,
-      moveTabToNewWindow: () => {
-        if (appTabs.model.selectedId) {
-          void moveTabOut(appTabs.model.selectedId, { kind: "new" });
-        }
-      },
-      receiveTab,
-      reopenTab: appTabs.reopen,
-      search: focusField,
-      searchChats: () => {
-        // A chat's inbox comes back if it was put away; anywhere else the
-        // tab goes to the chats, as the rail takes it there.
-        if (isChat) {
-          setInboxOpen(true);
+        const chat = chatOfHref(href);
+        if (chat !== undefined) {
+          const open = windowTabs.chatTab(chat);
+          groups.revealChat(chat);
+          lightTab(open);
+        } else if (isGroupScreenHref(href)) {
+          lightTab(groups.showOrMake(href));
         } else {
-          choosePlace("chat");
+          openScreen(href);
         }
-        setChatSearchAsked(true);
+      },
+      // A group this window has open comes up, and so does a tab here
+      // showing what the address shows.
+      showTab: (href) => {
+        const group = groupOfHref(href);
+        if (
+          group !== undefined &&
+          store.get(windowTabGroupsAtom)?.includes(group)
+        ) {
+          groups.show(group);
+          return true;
+        }
+        return showFromOutside(href);
+      },
+      // The tab up in the group, to a group and a window of its own, as
+      // dragging it off the window does.
+      moveTabToNewWindow: () => {
+        const up = windowTabs.active;
+        if (up) {
+          groupTabMoves.toNewWindow(up.id);
+        }
+      },
+      // A new tab on the other side of the group on screen, after the tab
+      // up there, with the keyboard, as its tabs' menus' New Tab in Split;
+      // where the group has one side, it becomes the right side.
+      newTabInSplit: () => {
+        const group = windowTabs.groupOnScreen;
+        if (group === undefined) {
+          return;
+        }
+        const layout = windowTabs.layoutOf(group);
+        const other = layout.focused === 1 ? 0 : 1;
+        const upThere = layout.sides[other]?.up;
+        windowTabs.openIn(
+          { group, href: NEW_TAB_HREF, id: newScreenId(), kind: "screen" },
+          {
+            group,
+            select: true,
+            side: other,
+            ...(upThere === undefined ? {} : { after: upThere }),
+          },
+        );
+      },
+      // The side with the keyboard of the group on screen closed whole, as
+      // its strip's Close Split does; nothing where the group has one side.
+      closeSplit: () => {
+        const group = windowTabs.groupOnScreen;
+        if (group === undefined) {
+          return;
+        }
+        const layout = windowTabs.layoutOf(group);
+        const first = layout.sides[layout.focused]?.tabs[0];
+        if (layout.sides.length === 2 && first) {
+          askToCloseSide(first.id);
+        }
+      },
+      receiveGroupTab: groupTabMoves.receive,
+      receiveTab,
+      reopenTab,
+      search: focusField,
+      // The Chats page, every chat open or not, with the caret in its search.
+      searchChats: () => {
+        openBuiltInPage(CHATS_INDEX_HREF);
+        focusChatsSearch();
       },
       showActivity: () => {
-        showActivity();
+        openBuiltInPage(SCREENS.activity.href);
       },
-      selectRelative: appTabs.selectRelative,
-      selectTab: appTabs.selectIndex,
-      toggleInbox: () => {
-        // The inbox is the chat's; elsewhere the chord has nothing to move.
-        if (isChat) {
-          setInboxOpen((isOpen) => !isOpen || chatUp === undefined);
+      showBookmarks: () => {
+        openBuiltInPage(SCREENS.bookmarks.href);
+      },
+      // The tab chords step the tabs of the group up, as a browser's step
+      // its strip, across both sides and round from either end.
+      selectRelative: (direction) => {
+        const { active } = windowTabs;
+        const groupTabs = tabsLeftToRight();
+        const at = groupTabs.findIndex((tab) => tab.id === active?.id);
+        const next =
+          groupTabs[(at + direction + groupTabs.length) % groupTabs.length];
+        if (next) {
+          windowTabs.select(next.id);
         }
       },
+      // Cmd+1 to Cmd+8 by place, and Cmd+9 the last.
+      selectTab: (index) => {
+        const next = tabAtChord(tabsLeftToRight(), index);
+        if (next) {
+          windowTabs.select(next.id);
+        }
+      },
+      // Control+1 to Control+9 (Alt off the Mac): the sidebar's rows by
+      // place, as it lists them, pinned first.
+      selectGroup: (index) => {
+        const order = store.get(sidebarRowOrderAtom) ?? [
+          ...groupList.open.filter(isPinnedGroup).map((entry) => entry.group),
+          ...groupList.open
+            .filter((entry) => !isPinnedGroup(entry))
+            .map((entry) => entry.group),
+        ];
+        const next = order[index - 1];
+        if (next !== undefined) {
+          groups.show(next);
+        }
+      },
+      toggleSidebar: () => {
+        setSidebarOpen((isOpen) => !isOpen);
+      },
       selectChat: (direction) => {
-        appTabs.stepChat(listedChats.current, chatUp, direction);
+        const next = groupAlong(groupList.open, groupUp, direction);
+        if (next !== undefined) {
+          groups.show(next);
+        }
       },
     },
     { isReady: opened !== undefined },
@@ -1211,15 +1678,7 @@ function WindowShell({
         ask: (prompt) => {
           draftWith(prompt);
         },
-        askAbout: (items, words) => {
-          draftWith(words, items);
-        },
         browser,
-        // What is in view goes on the draft as a chip of its own, the
-        // way a file's Ask puts the file there.
-        askAboutView: () => {
-          draftWith("", readersNow().askLines());
-        },
         // With no chat beside the file, a new draft takes what was marked,
         // opened over the file now that the marking is done.
         moveAsksToDraft: (askIds) => {
@@ -1230,43 +1689,6 @@ function WindowShell({
         openScreen,
       }
     : null;
-
-  // A site's tab and the page its group has up, which is what the strip's
-  // menu duplicates or reloads.
-  const pageOfAppTab = (id: TabId) => {
-    const href = tabs.find((tab) => tab.id === id)?.pathname;
-    const group = href === undefined ? undefined : groupOfHref(href);
-    if (group === undefined || !isSiteGroup(group)) {
-      return;
-    }
-    const up = windowTabs.selectedTabIn(group);
-    return up?.kind === "page" ? up : undefined;
-  };
-  /**
-   * A copy of a tab beside it: a screen at the same place with its history,
-   * and a site as a new page at the same address, since one page cannot be
-   * two tabs' at once.
-   */
-  const duplicateAppTab = (id: TabId) => {
-    const page = pageOfAppTab(id);
-    if (page === undefined) {
-      appTabs.duplicate(id);
-      return;
-    }
-    const group = newSiteGroup();
-    browser?.open(page.url, { group });
-    appTabs.duplicate(id, pageHrefOf(group));
-  };
-  /** A site's page reloaded in place, for the strip's Reload; undefined for a tab that is no site. */
-  const reloadablePageOf = (id: TabId) => {
-    const page = pageOfAppTab(id);
-    if (page === undefined) {
-      return;
-    }
-    return () => {
-      getGuest(browserTargetOf(page.id))?.reload();
-    };
-  };
 
   if (ensure.error) {
     return (
@@ -1289,10 +1711,8 @@ function WindowShell({
   }
 
   const shell: Shell = {
-    appTabs,
     arrivedId,
     childTitles,
-    compose,
     defaultModelURI,
     discardDraft,
     // Only a draft holding something is a draft to come back to; one being
@@ -1300,7 +1720,8 @@ function WindowShell({
     // already its chat, and one just discarded is gone unless its Undo brings
     // it back. A reply waiting in a chat's box belongs to that chat and is
     // read there rather than listed here, until the chat is deleted: then it
-    // is listed, so its words can be sent as a chat of their own.
+    // is listed, so its words can be sent as a chat of their own. One a tab
+    // in any window is writing is that tab's, so it is not listed either.
     chatTitles,
     drafts: drafts.filter(
       (draft) =>
@@ -1308,37 +1729,45 @@ function WindowShell({
         (draft.chatId === undefined ||
           (chatChrome.isRead && !chatTitles.has(draft.chatId))) &&
         holdsSomething(draft) &&
+        !draftsInTabs.has(draft.id) &&
         !startingIds.has(draft.id) &&
         !discardingIds.has(draft.id),
     ),
-    goToPlace: choosePlace,
-    newDraft: () => {
-      newDraft();
+    closeGroup: (group) => {
+      askToCloseGroups([group]);
     },
-    onListed: (listed) => {
-      listedChats.current = listed;
+    closeSide: askToCloseSide,
+    goToPlace: choosePlace,
+    newGroup: () => {
+      groups.make();
+    },
+    newTab: () => {
+      groups.newTab();
     },
     onNewDraftProject: (draftId, name) => {
       setNewProject({ draftId, ...(name ? { name } : {}) });
     },
-    onNewProject: (name) => {
-      setNewProject(name ? { name } : {});
+    onNewProject: (chatId, name) => {
+      setNewProject({ chatId, ...(name ? { name } : {}) });
     },
     leaveProject,
     openProject: enterProject,
     openProjectInFiles: (project) => {
       void showProjectInFiles(project);
     },
-    popOutDraft,
-    requestClose,
+    reopenClosed,
+    reopenTab,
+    requestClose: askToCloseTab,
     rowWidth,
+    layoutContext: (tabId) => layoutContextRef.current(tabId),
     sendContext: (options) => sendContextRef.current(options),
     sentProjects,
     sentWords,
     setChatProject,
     setDefaultModelURI,
-    setPaneOpen,
-    showDraft,
+    showDraft: (id, here) => {
+      revealDraft(id, here);
+    },
     startChat,
     projects,
   };
@@ -1352,69 +1781,56 @@ function WindowShell({
       >
         <PageOpenContext value={openPage}>
           <WindowFrame
-            bar={
-              <WindowBar
-                leading={<NavControls steps={windowSteps} />}
-                tabs={
-                  <AppTabStrip
-                    chatMarks={chatMarks}
-                    chatTitles={chatTitles}
-                    childTitles={childTitles}
-                    {...stripActions}
-                    onReload={reloadablePageOf}
-                    selectedId={appTabs.model.selectedId}
-                    tabs={tabs}
-                  />
-                }
-                trailing={<WindowCorner />}
-              />
-            }
-            overlay={
-              <ComposeLayer
-                browser={browser}
-                compose={compose}
-                drafts={drafts}
-                modelURI={defaultModelURI}
-                onChangeDraft={(id, update) => {
-                  updateDraft({ id, update });
-                }}
-                onCloseChat={(chatId) => {
-                  compose.remove(chatId);
-                }}
-                onCloseDraft={closeDraft}
-                onDiscardDraft={discardDraft}
-                onExpandChat={expandChat}
-                onExpandDraft={expandDraft}
-                onModelChange={setDefaultModelURI}
-                onNewChatProject={(chatId, name) => {
-                  setNewProject({ chatId, ...(name ? { name } : {}) });
-                }}
-                onNewProject={(draftId, name) => {
-                  setNewProject({ draftId, ...(name ? { name } : {}) });
-                }}
-                onSetChatProject={setChatProject}
-                onStart={startChat}
-                sendContext={(options) => sendContextRef.current(options)}
-                sentWords={sentWords}
-                projects={projects}
-              />
-            }
+            corner={<TrafficLightsWithSidebar />}
+            hasBar={false}
             rail={
-              <AppRail
-                appsMark={appsMark}
-                chatInView={chatUp}
-                chatMark={strongestMark(
-                  chatChrome.marks.flatMap(([id, mark]) =>
-                    floatingChats.has(id) ? [] : [mark],
-                  ),
+              <StudioSidebarRail
+                bounds={sidebarBounds(
+                  rowWidth + (isSidebarOpen ? sidebarWidth : 0),
                 )}
-                onChoose={choosePlace}
-                onHoverChat={inboxPeek.onRailHover}
-                onNew={() => {
-                  newDraft();
+                isOpen={isSidebarOpen}
+                label="Resize the sidebar"
+                onCollapse={() => {
+                  setSidebarOpen(false);
                 }}
-                place={place}
-              />
+                panelClassName="border-r-0 bg-transparent"
+                widthAtom={sidebarWidthAtom}
+              >
+                {/* The sidebar's History lists the window's closed tabs and
+                  restores them, which it reads from the shell. */}
+                <ShellContext value={shell}>
+                  <GroupSidebar
+                    chatTitles={chatTitles}
+                    groupUp={groupUp}
+                    onClose={(group) => {
+                      askToCloseGroups([group]);
+                    }}
+                    onCloseAll={askToCloseGroups}
+                    onDuplicate={(entry) => {
+                      groups.duplicate(entry);
+                    }}
+                    onNew={(projectId) => {
+                      groups.make(projectId === undefined ? {} : { projectId });
+                    }}
+                    onNewProject={() => {
+                      setNewProject({});
+                    }}
+                    onPin={(group, pinned) => {
+                      groups.pin(group, pinned);
+                    }}
+                    onReopenLast={reopenTab}
+                    onShow={(group, { newWindow }) => {
+                      if (newWindow) {
+                        groups.moveToNewWindow(group, groupList.open);
+                      } else {
+                        groups.show(group);
+                      }
+                    }}
+                    open={groupList.open}
+                    projects={projects}
+                  />
+                </ShellContext>
+              </StudioSidebarRail>
             }
             rowRef={setRowElement}
           >
@@ -1432,69 +1848,17 @@ function WindowShell({
                   ) : null;
                 })}
               </div>
-              <InboxPeek
-                isOpen={inboxPeek.isOpen}
-                leavesAtOnce={inboxPeek.leavesAtOnce}
-                onPointerEnter={inboxPeek.onPointerEnter}
-                onPointerLeave={inboxPeek.onPointerLeave}
-                panelRef={inboxPeek.panelRef}
-              >
-                <ChatPane
-                  arrivedId={arrivedId}
-                  drafts={shell.drafts}
-                  // Only the chat in Chat is ever the open one here, and
-                  // archiving it puts it away, with the inbox back in its
-                  // column.
-                  onArchiveOpen={() => {
-                    inboxPeek.close();
-                    appTabs.navigate(INBOX_HREF);
-                    setInboxOpen(true);
-                  }}
-                  onDeleted={(id) => {
-                    windowTabs.dropGroup(id);
-                    if (id === chatUp) {
-                      inboxPeek.close();
-                      appTabs.navigate(INBOX_HREF, { replace: true });
-                      setInboxOpen(true);
-                    }
-                  }}
-                  onDeleteDraft={discardDraft}
-                  onOpenChat={(entry) => {
-                    inboxPeek.close();
-                    // Peeked out over another place, the chat pops out over
-                    // it, so the place stays where it was; in Chat, with the
-                    // inbox put away, it opens beside where the inbox was.
-                    if (isChat) {
-                      openScreen(chatHref(entry.id));
-                    } else {
-                      compose.float(entry.id);
-                    }
-                  }}
-                  onOpenDraft={(id) => {
-                    inboxPeek.close();
-                    showDraft(id);
-                  }}
-                  onPopOut={(entry) => {
-                    inboxPeek.close();
-                    compose.float(entry.id);
-                    // The chat up in Chat leaves it for its own window, with
-                    // the inbox back in its column.
-                    if (entry.id === chatUp && isChat) {
-                      appTabs.navigate(INBOX_HREF);
-                      setInboxOpen(true);
-                    }
-                  }}
-                  openChatId={chatUp}
-                  outIds={chatsOutOf(compose.entries)}
-                />
-              </InboxPeek>
               <CommandMenu
                 openPage={(url) => {
-                  openPage(url, { newTab: true });
+                  openPage(url);
                 }}
                 openScreen={openScreen}
               />
             </ShellContext>
+            <DragLayer
+              chatTitles={chatTitles}
+              entries={[...groupList.open, ...groupList.elsewhere]}
+            />
             {/* Where the window's page waits while the tab up has none to
               show; hidden, so a guest left over it is parked. */}
             <div hidden ref={holderRef} />
@@ -1510,6 +1874,16 @@ function WindowShell({
               </ActiveTabProvider>,
               stage,
             )}
+            <BookmarkAllTabs
+              pages={() =>
+                tabsLeftToRight().flatMap((tab) => {
+                  const url = addressOfTab(tab);
+                  return url === undefined
+                    ? []
+                    : [{ title: tabTitle(tab), url }];
+                })
+              }
+            />
             {/* Asked for from a chat's head or a draft's, so the project it
               makes is filed on that chat or draft as it lands. */}
             <ProjectDialog
@@ -1563,6 +1937,7 @@ function WindowShell({
           </WindowFrame>
           {/* What a tab's Expand asks to see large, over the window. */}
           <WindowLook />
+          {stopping.dialog}
         </PageOpenContext>
       </FileOpenContext>
     </WindowContext>

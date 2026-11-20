@@ -142,15 +142,20 @@ const BREAK_AFTER = /[-_.\s]/;
  * A name on at most two lines, the way the Finder labels an icon: the first
  * line as full as it gets, broken after a space, hyphen, underscore or dot
  * where one falls in its second half, and the rest on the second line, cut
- * in its middle when it is still too long.
+ * in its middle when it is still too long. `indent` is room the first line
+ * gives up at its start, to a mark drawn before the name.
  */
 export function fitTwoLines(
   text: string,
   width: number,
   font: TextFont,
-  options: { extension?: boolean } = {},
+  {
+    extension = false,
+    indent = 0,
+  }: { extension?: boolean; indent?: number } = {},
 ): [string] | [string, string] {
-  if (textWidth(text, font) <= width) {
+  const firstWidth = width - indent;
+  if (textWidth(text, font) <= firstWidth) {
     return [text];
   }
   const parts = graphemes(text);
@@ -158,7 +163,7 @@ export function fitTwoLines(
   let high = parts.length - 1;
   while (low < high) {
     const middle = Math.ceil((low + high) / 2);
-    if (textWidth(parts.slice(0, middle).join(""), font) <= width) {
+    if (textWidth(parts.slice(0, middle).join(""), font) <= firstWidth) {
       low = middle;
     } else {
       high = middle - 1;
@@ -174,6 +179,6 @@ export function fitTwoLines(
   const rest = parts.slice(first).join("").trimStart();
   return [
     parts.slice(0, first).join("").trimEnd(),
-    fitMiddle(rest, width, font, options),
+    fitMiddle(rest, width, font, { extension }),
   ];
 }

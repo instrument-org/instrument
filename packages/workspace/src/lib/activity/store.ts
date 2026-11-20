@@ -32,7 +32,7 @@ import {
  * only what a file gained. A request this device makes goes to its own file
  * and into the table at once.
  */
-const ACTIVITY_VERSION = 3;
+const ACTIVITY_VERSION = 4;
 
 const COLUMNS = {
   cacheReadTokens: "cache_read_tokens",
@@ -40,10 +40,12 @@ const COLUMNS = {
   chatId: "chat_id",
   connectionName: "connection_name",
   connectionType: "connection_type",
+  costUsd: "cost_usd",
   device: "device",
   durationMs: "duration_ms",
   error: "error",
   finishReason: "finish_reason",
+  firstOutputMs: "first_output_ms",
   id: "id",
   imageQuality: "image_quality",
   inputTokens: "input_tokens",
@@ -59,6 +61,7 @@ const COLUMNS = {
   status: "status",
   surface: "surface",
   totalTokens: "total_tokens",
+  trigger: "trigger",
 } as const satisfies Record<keyof ActivityRow, string>;
 
 const KEYS = Object.keys(COLUMNS) as (keyof ActivityRow)[]; // Object.keys widens to string[]
@@ -136,7 +139,10 @@ function makeActivityTable(database: DatabaseSync): void {
         reasoning_tokens INTEGER,
         total_tokens INTEGER,
         device TEXT,
-        image_quality TEXT
+        image_quality TEXT,
+        cost_usd REAL,
+        first_output_ms INTEGER,
+        trigger TEXT
       ) STRICT;
       CREATE TABLE IF NOT EXISTS activity_files (
         path TEXT PRIMARY KEY,
@@ -289,10 +295,13 @@ export function insertActivity(entry: ActivityEntry): void {
     chatId: entry.chatId ?? null,
     connectionName: entry.connectionName ?? null,
     connectionType: entry.connectionType ?? null,
+    costUsd: entry.costUsd ?? null,
     device: deviceId,
     durationMs: entry.durationMs == null ? null : Math.round(entry.durationMs),
     error: entry.error ?? null,
     finishReason: entry.finishReason ?? null,
+    firstOutputMs:
+      entry.firstOutputMs == null ? null : Math.round(entry.firstOutputMs),
     id: ulid(entry.startedAt),
     imageQuality: entry.imageQuality ?? null,
     inputTokens: entry.inputTokens ?? null,
@@ -308,6 +317,7 @@ export function insertActivity(entry: ActivityEntry): void {
     status: entry.status,
     surface: entry.surface ?? null,
     totalTokens: totalOf(entry),
+    trigger: entry.trigger ?? null,
   };
   try {
     const file = activityFileOf(rootDir, deviceId, row.startedAt);

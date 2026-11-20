@@ -1,7 +1,10 @@
 import { SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
-import { browserStatusModelNote } from "../model-text/notes/browser-status-model-text";
+import {
+  browserStatusChangesModelNote,
+  browserStatusModelNote,
+} from "../model-text/notes/browser-status-model-text";
 import { projectModelNote } from "../model-text/notes/project-model-text";
 import { viewContextModelNote } from "../model-text/notes/view-context-model-text";
 import { workspaceInstructionsModelNote } from "../model-text/notes/workspace-instructions-model-text";
@@ -55,7 +58,8 @@ const STATE_NOTES: { [K in StateName]: StateNote<K> } = {
  * stores the whole picture on every message it can read it for, an empty one
  * included once the session has had something in it (`goesUnsaid`); this is
  * the one place that decides what of it is said: nothing when it reads as the
- * last note said, and nothing for an empty picture before anything was said.
+ * last note said, nothing for an empty picture before anything was said, and
+ * for a picture told by its changes (the pages), only what changed since.
  * A message without the part says nothing, so a picture that could not be
  * read is never mistaken for an empty one.
  *
@@ -65,21 +69,25 @@ const STATE_NOTES: { [K in StateName]: StateNote<K> } = {
 export function stateNotes(
   options: StateNoteOptions = {},
 ): (part: SessionMessagePart.DataPart) => string | undefined {
-  const lastSaid = new Map<StateName, string>();
+  const lastSaid = new Map<
+    StateName,
+    { part: SessionMessagePart.DataPart; text: string }
+  >();
   return (part) => {
     const state = stateOf(part);
     if (state === undefined) {
       return undefined;
     }
-    if (!lastSaid.has(state.name) && state.isEmpty()) {
+    const last = lastSaid.get(state.name);
+    if (last === undefined && state.isEmpty()) {
       return undefined;
     }
     const text = state.note(options);
-    if (lastSaid.get(state.name) === text) {
+    if (last?.text === text) {
       return undefined;
     }
-    lastSaid.set(state.name, text);
-    return text;
+    lastSaid.set(state.name, { part, text });
+    return last === undefined ? text : (state.since?.(last.part) ?? text);
   };
 }
 
@@ -111,16 +119,27 @@ function stateOf(part: SessionMessagePart.Type):
       isEmpty: () => boolean;
       name: StateName;
       note: (options: StateNoteOptions) => string;
+      /** What changed since `before`, the part last said; undefined where the whole note is said again. */
+      since: (before: SessionMessagePart.DataPart) => string | undefined;
     }
   | undefined {
   const entry = <K extends StateName>(name: K, data: DataParts[K]) => ({
     isEmpty: () => STATE_NOTES[name].isEmpty(data),
     name,
     note: (options: StateNoteOptions) => STATE_NOTES[name].note(data, options),
+    since: (_before: SessionMessagePart.DataPart): string | undefined =>
+      undefined,
   });
   switch (part.type) {
     case "data-browserStatus": {
-      return entry("browserStatus", part.data);
+      // The pages are told whole once, then as what changed.
+      return {
+        ...entry("browserStatus", part.data),
+        since: (before) =>
+          before.type === "data-browserStatus"
+            ? browserStatusChangesModelNote(before.data, part.data)
+            : undefined,
+      };
     }
     case "data-project": {
       return entry("project", part.data);

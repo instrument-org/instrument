@@ -1,3 +1,8 @@
+import {
+  matchScreen,
+  newChatHref,
+} from "@/client/components/window/window-href";
+import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { type Draft, isLeftEmpty } from "@/shared/drafts";
 import { atom } from "jotai";
 import { ulid } from "ulid";
@@ -36,6 +41,25 @@ export function newChatWordsKey(tabId: string): string {
   return `new-chat:${tabId}`;
 }
 
+/**
+ * Writes the words still settling in a tab's new chat, and answers the draft
+ * the box made for what was written, which the tab's address may not name
+ * yet: a screen going away, or its tab closing, has it named there, so the
+ * tab comes back with the words.
+ */
+export function settleMadeDraft(
+  store: {
+    get: (atom: typeof newChatBoxesAtom) => Partial<Record<string, NewChatBox>>;
+  },
+  tabId: string,
+): string | undefined {
+  flushWords(newChatWordsKey(tabId));
+  const box = store.get(newChatBoxesAtom)[tabId];
+  return box?.isMadeHere === true && box.draftId !== null
+    ? box.draftId
+    : undefined;
+}
+
 /** The draft a tab's new chat writes into, while it is there. */
 export function draftInNewChatBox(
   drafts: Draft[],
@@ -46,6 +70,21 @@ export function draftInNewChatBox(
   return id === null || id === undefined
     ? undefined
     : drafts.find((draft) => draft.id === id);
+}
+
+/**
+ * The project the person filed a tab's new chat under, by its Project button
+ * or New in a project: the draft's own once there is one, unless the model
+ * only suggested it, and before then the one the box keeps for it.
+ */
+export function pickedNewChatProject(
+  draft: Draft | undefined,
+  box: NewChatBox | undefined,
+): string | undefined {
+  if (draft === undefined) {
+    return box?.projectId;
+  }
+  return draft.projectSource === "suggested" ? undefined : draft.projectId;
 }
 
 /**
@@ -65,6 +104,38 @@ export function isNewChatEmptied(
     isBoxEmpty &&
     isLeftEmpty(draft, { hasTabs })
   );
+}
+
+/**
+ * How a new chat's tab closes: at the address of the draft it writes into
+ * (`made` is the one words settling as it closes just made), so it reopens
+ * with it; or as a new tab with nothing in it where that draft was emptied
+ * of everything, which is to be thrown away now (`emptied`), or is gone.
+ * Any other tab closes at the address it has.
+ */
+export function closingNewChat(
+  {
+    boxes,
+    drafts,
+  }: { boxes: Partial<Record<string, NewChatBox>>; drafts: Draft[] },
+  { href, made, tabId }: { href: string; made?: string; tabId: string },
+): { emptied?: string; href: string } {
+  const screen = matchScreen(href);
+  if (screen.kind !== "inbox") {
+    return { href };
+  }
+  const written = made ?? boxes[tabId]?.draftId ?? screen.draft;
+  if (written === undefined || written === null) {
+    return { href };
+  }
+  const draft = drafts.find((each) => each.id === written);
+  if (draft === undefined) {
+    return { href: newChatHref() };
+  }
+  if (isNewChatEmptied(draft, { hasTabs: false, isBoxEmpty: true })) {
+    return { emptied: draft.id, href: newChatHref() };
+  }
+  return { href: screen.draft === written ? href : newChatHref(written) };
 }
 
 /**
@@ -107,7 +178,9 @@ export const pickNewChatProjectAtom = atom(
  * The draft made for a tab's new chat, and written into from here: for its
  * first words, and for a paste or a page opened beside it, which need a
  * draft before any words have settled into one. Filed under the project
- * picked for it, or the one the caller names. Answers with its id.
+ * picked for it, or the one the caller names. The tab's address names it in
+ * the same step, so the tab is kept naming it however soon the app quits.
+ * Answers with its id.
  */
 export const makeNewChatDraftAtom = atom(
   null,
@@ -136,6 +209,7 @@ export const makeNewChatDraftAtom = atom(
       ...boxes,
       [tabId]: { draftId: draft.id, isMadeHere: true },
     }));
+    getGroupTabRouter(tabId)?.history.replace(newChatHref(draft.id));
     return draft.id;
   },
 );

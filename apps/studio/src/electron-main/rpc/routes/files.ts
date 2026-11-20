@@ -28,6 +28,7 @@ import {
   finishLeftovers,
 } from "@/electron-main/lib/finder-placing/leftovers";
 import {
+  dragFiles,
   trashItem as nativeTrashItem,
   pasteboardFiles,
   resolveAlias,
@@ -617,6 +618,36 @@ const clipboardFiles = base
     return { files };
   });
 
+/**
+ * The files of the drag in the air, for a page to draw them by name while
+ * they are held over it, before a drop hands it their paths. Null off the
+ * Mac and in a build without the bridge, where the page has only their count.
+ */
+const dragged = base
+  .output(
+    z.object({
+      files: z
+        .array(z.object({ isFolder: z.boolean(), path: z.string() }))
+        .nullable(),
+    }),
+  )
+  .handler(async () => {
+    const paths = await dragFiles();
+    if (paths === undefined) {
+      return { files: null };
+    }
+    const files = await Promise.all(
+      paths.map(async (at) => ({
+        isFolder: await fs.stat(at).then(
+          (stats) => stats.isDirectory(),
+          () => false,
+        ),
+        path: at,
+      })),
+    );
+    return { files };
+  });
+
 /** Whether the clipboard holds files a paste would copy in, for the menu's Paste. */
 const clipboardHasFiles = base
   .output(z.object({ hasFiles: z.boolean() }))
@@ -1179,6 +1210,7 @@ export const files = {
   clipboardHasFiles,
   copyInto,
   copyToClipboard,
+  dragged,
   duplicate,
   live,
   missing,

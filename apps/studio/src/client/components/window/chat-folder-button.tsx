@@ -29,8 +29,8 @@ export function useChatWrittenFolders(chat: ChatId | undefined): string[] {
 }
 
 /**
- * Opens the folders the chat saved files in, in the pane beside it, lit
- * while the pane shows one of them. With one folder the button opens it or
+ * Opens the folders the chat saved files in beside the chat, lit while the
+ * other side shows one of them. With one folder the button opens it or
  * hides it again; with several it opens a menu of them by name.
  */
 export function ChatFolderButton({
@@ -42,7 +42,7 @@ export function ChatFolderButton({
   folders: readonly string[];
   onHide: () => void;
   onOpen: (folder: string) => void;
-  /** The folder the pane shows, when it shows one of `folders`. */
+  /** The folder the other side shows, when it shows one of `folders`. */
   shown: string | undefined;
 }) {
   const [only] = folders;

@@ -247,21 +247,19 @@ function ThemeToggle() {
       <TooltipTrigger asChild>
         <button
           aria-label={`Switch to ${next} theme`}
-          className={cn(CELL_CLASS, "text-white/75 hover:text-white")}
+          className={cn(CELL_CLASS, "gap-1 text-white/75 hover:text-white")}
           onClick={() => {
             setTheme(next);
           }}
           type="button"
         >
           <ThemeIcon className="size-3.25" />
+          <span className="text-white/45">
+            {formatAcceleratorText(SHORTCUTS.toggleTheme.accelerator)}
+          </span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="top">
-        Switch to {next}{" "}
-        <span className="opacity-60">
-          {formatAcceleratorText(SHORTCUTS.themeSystem.accelerator)} for system
-        </span>
-      </TooltipContent>
+      <TooltipContent side="top">Switch to {next}</TooltipContent>
     </Tooltip>
   );
 }

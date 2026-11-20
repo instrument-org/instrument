@@ -29,3 +29,23 @@ export const ITEM_IN: Transition = {
   duration: 0.2,
   ease: [0.25, 0.1, 0.25, 1],
 };
+
+/**
+ * How a side of a tab group opens beside the other and closes: Files' curve
+ * for a file sliding in beside its folder (`BESIDE_MOTION_CLASSNAME`), since
+ * both are one thing making room for another at its side.
+ */
+export const SIDE_MOTION: Transition = {
+  duration: 0.38,
+  ease: [0.2, 0, 0, 1],
+};
+
+/**
+ * How a bar in a tab's head shows and hides, the bookmarks bar under the
+ * toolbar: the side's curve, quicker, since the bar is one row and the page
+ * under it only has to be seen moving down or up.
+ */
+export const BAR_MOTION: Transition = {
+  duration: 0.2,
+  ease: [0.2, 0, 0, 1],
+};

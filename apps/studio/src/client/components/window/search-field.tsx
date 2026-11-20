@@ -28,7 +28,9 @@ export interface SearchToken<T extends string> {
  * offer while the keyboard stays in the field.
  */
 export function SearchField<T extends string>({
+  className,
   inputRef,
+  label,
   offered = [],
   onChange,
   onFocusChange,
@@ -37,7 +39,11 @@ export function SearchField<T extends string>({
   tokens = [],
   value,
 }: {
+  /** The field's own box, where a list lines it up with its rows. */
+  className?: string;
   inputRef?: Ref<HTMLInputElement>;
+  /** The name a screen reader gives the field; the placeholder when left out. */
+  label?: string;
   /** The tokens there are any of in this view, offered under the field while it is empty. */
   offered?: SearchToken<T>[];
   onChange: (value: string) => void;
@@ -82,6 +88,7 @@ export function SearchField<T extends string>({
             "bg-foreground/4 hover:bg-foreground/6",
             "focus-within:border-input focus-within:bg-background focus-within:shadow-sm focus-within:hover:bg-background",
             "dark:focus-within:bg-input/30",
+            className,
           )}
         >
           <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -118,7 +125,7 @@ export function SearchField<T extends string>({
             aria-autocomplete="list"
             aria-controls={suggestions.length > 0 ? listId : undefined}
             aria-expanded={suggestions.length > 0}
-            aria-label="Search chats"
+            aria-label={label ?? placeholder}
             role="combobox"
             className="h-full w-0 min-w-12 flex-1 bg-transparent text-ellipsis outline-hidden placeholder:text-muted-foreground"
             onBlur={() => {

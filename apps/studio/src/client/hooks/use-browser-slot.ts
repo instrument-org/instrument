@@ -1,5 +1,6 @@
 import { setPaintHost, showOverSlot } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
+import { autoUpdate } from "@floating-ui/dom";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { useLayoutEffect, useRef, useState } from "react";
@@ -9,15 +10,6 @@ interface DeviceEmulation {
   scale: number;
   width: number;
 }
-
-/**
- * How many frames a slot's position holds before it counts as settled. A guest
- * shown as a slide begins sees a few still frames first, since a CSS transition
- * starts moving only some frames after it is set off, and one that stops looking
- * then stays where the slide started. In frames rather than time so that a busy
- * renderer, drawing few of them, cannot run the wait out.
- */
-const SETTLED_FRAMES = 20;
 
 /**
  * Measures a host slot and drives the pooled guest to paint over it while the
@@ -32,6 +24,7 @@ export function useBrowserSlot({
   hasLoadError,
   isVisible,
   layer,
+  layoutWidth,
   relayoutKey,
   targetId,
 }: {
@@ -49,10 +42,13 @@ export function useBrowserSlot({
   // The window layer the shown guest stands on; see showOverSlot. For a host
   // that floats over the page and would otherwise cover its own guest.
   layer?: number;
+  // The width an agent's page lays out at when the first slot to show it is
+  // narrower, zoomed out to fit (see showOverSlot).
+  layoutWidth?: number;
   // Something that changes whenever the host moves without resizing (a
   // floating window taking a neighbor's place along a row): a move changes
-  // nothing the resize observer or the settle check below can see, so the
-  // slot is measured again whenever this does.
+  // nothing the resize observer can see, so the slot is measured again
+  // whenever this does.
   relayoutKey?: string;
   targetId: BrowserTargetId;
 }) {
@@ -89,8 +85,18 @@ export function useBrowserSlot({
       return;
     }
 
+    // Where the guest was last put, so a measure that finds the slot where
+    // it was tells main nothing.
+    let placed = "";
     const measure = () => {
       const rect = slot.getBoundingClientRect();
+      // A slot inside a scroller that moves it sideways is seen only through
+      // the scroller (`data-guest-clip`), so the guest is cut to that. Looked
+      // up at each measure, since the panel around the slot is moved from one
+      // host to another without being drawn again.
+      const seen = slot
+        .closest<HTMLElement>("[data-guest-clip]")
+        ?.getBoundingClientRect();
       if (rect.width > 0 && rect.height > 0) {
         const device =
           emulatedDeviceWidth && emulatedDeviceHeight
@@ -104,6 +110,17 @@ export function useBrowserSlot({
                 width: emulatedDeviceWidth,
               }
             : null;
+        // A frame around the slot says how round its bottom corners are
+        // through `--guest-bottom-radius`; unsaid, the pool's own default.
+        const radius =
+          getComputedStyle(slot)
+            .getPropertyValue("--guest-bottom-radius")
+            .trim() || undefined;
+        const place = JSON.stringify([rect, seen, device, radius]);
+        if (place === placed) {
+          return;
+        }
+        placed = place;
         showOverSlot(
           targetId,
           {
@@ -120,49 +137,74 @@ export function useBrowserSlot({
               }
             : null,
           layer,
-          // A frame around the slot says how round its bottom corners are
-          // through `--guest-bottom-radius`; unsaid, the pool's own default.
-          getComputedStyle(slot)
-            .getPropertyValue("--guest-bottom-radius")
-            .trim() || undefined,
+          radius,
+          seen
+            ? { height: seen.height, width: seen.width, x: seen.x, y: seen.y }
+            : undefined,
+          layoutWidth,
         );
         syncEmulation(device);
       } else {
+        placed = "";
         setPaintHost(targetId, slotOwner);
         syncEmulation(null);
       }
-      return rect;
     };
 
-    // A panel sliding in or out moves the slot without resizing it, which
-    // ResizeObserver can't catch, and getBoundingClientRect folds the move into
-    // `rect.x`. Track the slot each frame so the guest follows it, and stop once
-    // the position holds for SETTLED_FRAMES, i.e. the slot has settled. Measured
-    // again only when it moves, since each measure tells main.
-    let raf = 0;
-    let stableFrames = 0;
-    let last = measure();
-    const track = () => {
-      const rect = slot.getBoundingClientRect();
-      if (rect.x === last.x && rect.y === last.y) {
-        stableFrames += 1;
+    // The guest follows the slot wherever it goes, measured again whenever
+    // the slot moves in the window, not only when it resizes: a tab moved
+    // to the other side of its group, the sides swapping, the sidebar or
+    // the gutter moving, a panel sliding in, the window resizing. A move is
+    // seen without watching every frame, by an intersection observer whose
+    // root is cut to the slot's own rect, so a change of place changes how
+    // much of the slot it sees. That misses a slot a scroller cuts, which a
+    // scroll moves without changing how much of it shows, so a scroll of
+    // any box around the slot is caught as it reaches the document, which
+    // holds for whichever host the slot is in by then. The slot's own
+    // resizes are watched here: the follower watching them for a slot
+    // standing in as the floating element too would observe it afresh
+    // every frame. The follower takes the slot's rect as it starts and
+    // watches nothing while the slot has no size (a slot first measured in
+    // a hidden holder, or taken off the page for a moment), so it starts
+    // again whenever the slot comes back with a size.
+    let stopFollowing = () => {};
+    let hasSize = false;
+    const follow = () => {
+      stopFollowing();
+      stopFollowing = autoUpdate(slot, slot, measure, {
+        ancestorScroll: false,
+        elementResize: false,
+      });
+    };
+    const sizeOf = () => {
+      const { height, width } = slot.getBoundingClientRect();
+      return width > 0 && height > 0;
+    };
+    const observer = new ResizeObserver(() => {
+      const wasSized = hasSize;
+      hasSize = sizeOf();
+      if (hasSize && !wasSized) {
+        follow();
       } else {
-        stableFrames = 0;
-        last = measure();
+        measure();
       }
-      if (stableFrames < SETTLED_FRAMES) {
-        raf = requestAnimationFrame(track);
+    });
+    observer.observe(slot);
+    hasSize = sizeOf();
+    follow();
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && event.target.contains(slot)) {
+        measure();
       }
     };
-    raf = requestAnimationFrame(track);
-
-    const observer = new ResizeObserver(measure);
-    observer.observe(slot);
-    window.addEventListener("resize", measure);
+    document.addEventListener("scroll", onScroll, {
+      capture: true,
+      passive: true,
+    });
     return () => {
-      cancelAnimationFrame(raf);
       observer.disconnect();
-      window.removeEventListener("resize", measure);
+      stopFollowing();
+      document.removeEventListener("scroll", onScroll, { capture: true });
       setPaintHost(targetId, slotOwner);
       syncEmulation(null);
     };
@@ -171,6 +213,7 @@ export function useBrowserSlot({
     isVisible,
     hasLoadError,
     layer,
+    layoutWidth,
     relayoutKey,
     slotOwner,
     targetId,

@@ -25,6 +25,10 @@ import { type ReactNode, useEffect, useEffectEvent, useRef } from "react";
  * - `panelWidth`: the panel's own width; follows the drag but stays put while
  *   sliding out, which is what prevents the squish.
  * - `panelX`: how far the panel is translated out of its clip.
+ *
+ * Laid over the content (`isOverlay`), it reserves no width: the panel slides
+ * in over what is beside it on the same motion, and a press anywhere outside
+ * it, or Escape, puts it away through `onCollapse`.
  */
 /** How wide a rail may be, where a drag lets go of it, and where it opens. */
 export interface RailBounds {
@@ -40,6 +44,7 @@ export function StudioSidebarRail({
   children,
   isAtOnce = false,
   isOpen,
+  isOverlay = false,
   label = "Resize sidebar",
   onCollapse,
   panelClassName,
@@ -50,6 +55,8 @@ export function StudioSidebarRail({
   /** Whether the next open or close happens at once rather than sliding: one the window made for want of room, in the middle of a resize the slide would fight. */
   isAtOnce?: boolean;
   isOpen: boolean;
+  /** Whether it lies over the content beside it rather than taking room from it, for a box too narrow to share. */
+  isOverlay?: boolean;
   label?: string;
   onCollapse: () => void;
   panelClassName?: string;
@@ -76,6 +83,13 @@ export function StudioSidebarRail({
   // would fight them and jitter.
   const currentStoredWidth = useEffectEvent(() => storedWidth);
   const currentIsAtOnce = useEffectEvent(() => isAtOnce);
+  const currentIsOpen = useEffectEvent(() => isOpen);
+
+  // Laid over the content or beside it: the room it reserves follows at once,
+  // since the switch comes of the box being resized, which a slide would fight.
+  useEffect(() => {
+    layoutWidth.set(!isOverlay && currentIsOpen() ? currentStoredWidth() : 0);
+  }, [isOverlay, layoutWidth]);
 
   const applyWidth = (value: number) => {
     layoutWidth.set(value);
@@ -105,7 +119,16 @@ export function StudioSidebarRail({
   // are driven directly by their handlers, so this only reacts to open/close. A
   // drag drives the width by hand and a mid-drag collapse animates itself, so
   // both are skipped here.
+  //
+  // An open or close that comes with a switch between lying over the content
+  // and beside it is the box's width deciding, not the person, so it lands at
+  // once. That covers the first measurement too: a rail drawn before its box
+  // is measured starts beside the content, and one in a narrow box then
+  // switches over it, already in the state that width gives it.
+  const shownOverlayRef = useRef(isOverlay);
   useEffect(() => {
+    const isOverlaySwitch = shownOverlayRef.current !== isOverlay;
+    shownOverlayRef.current = isOverlay;
     if (isOpen) {
       collapsingRef.current = false;
     }
@@ -113,13 +136,13 @@ export function StudioSidebarRail({
       return;
     }
 
-    if (currentIsAtOnce()) {
+    if (currentIsAtOnce() || isOverlaySwitch) {
       for (const control of widthAnimationsRef.current) {
         control.stop();
       }
       widthAnimationsRef.current = [];
       const width = currentStoredWidth();
-      layoutWidth.set(isOpen ? width : 0);
+      layoutWidth.set(isOpen && !isOverlay ? width : 0);
       panelWidth.set(width);
       panelX.set(isOpen ? 0 : -width);
       opacity.set(isOpen ? 1 : 0);
@@ -132,11 +155,11 @@ export function StudioSidebarRail({
       // can't leave the panel translated out or dimmed. Only when genuinely
       // closed (no reserved layout width) pre-size the panel so it slides in at
       // full width instead of growing from 0.
-      if (layoutWidth.get() === 0) {
+      if (layoutWidth.get() === 0 || isOverlay) {
         panelWidth.set(width);
       }
       controls.push(
-        animate(layoutWidth, width, RAIL_SLIDE_TRANSITION),
+        animate(layoutWidth, isOverlay ? 0 : width, RAIL_SLIDE_TRANSITION),
         animate(panelWidth, width, RAIL_SLIDE_TRANSITION),
         animate(panelX, 0, RAIL_SLIDE_TRANSITION),
         animate(opacity, 1, RAIL_FADE_TRANSITION),
@@ -155,15 +178,33 @@ export function StudioSidebarRail({
       }
       widthAnimationsRef.current = [];
     };
-  }, [isOpen, layoutWidth, opacity, panelWidth, panelX]);
+  }, [isOpen, isOverlay, layoutWidth, opacity, panelWidth, panelX]);
 
   return (
     <motion.div
-      className="relative flex h-full shrink-0"
+      className={cn(
+        "flex h-full shrink-0",
+        isOverlay ? "pointer-events-none absolute inset-0 z-30" : "relative",
+      )}
       ref={containerRef}
-      style={{ opacity, width: layoutWidth }}
+      style={{ opacity, width: isOverlay ? "auto" : layoutWidth }}
     >
-      <div className="relative h-full w-full overflow-hidden">
+      {isOverlay && isOpen && (
+        <button
+          aria-label="Hide the sidebar"
+          className="pointer-events-auto absolute inset-0 cursor-default"
+          onClick={onCollapse}
+          tabIndex={-1}
+          type="button"
+        />
+      )}
+      <motion.div
+        className={cn(
+          "h-full overflow-hidden",
+          isOverlay ? "absolute inset-y-0 left-0" : "relative",
+        )}
+        style={{ width: isOverlay ? panelWidth : "100%" }}
+      >
         {/* select-none only on chrome; content/modal text stays selectable
             so users can copy messages, code, and files. */}
         <motion.div
@@ -171,22 +212,33 @@ export function StudioSidebarRail({
             "absolute inset-y-0 flex h-full flex-col border-border bg-sidebar select-none",
             "left-0 border-r",
             panelClassName,
+            isOverlay && "pointer-events-auto shadow-xl-soft",
           )}
           // Put away while closed, so nothing clipped out of sight takes the
           // keyboard.
           inert={!isOpen}
+          onKeyDown={
+            isOverlay
+              ? (event) => {
+                  if (event.key === "Escape") {
+                    event.stopPropagation();
+                    onCollapse();
+                  }
+                }
+              : undefined
+          }
           style={{ width: panelWidth, x: panelX }}
         >
           {children}
         </motion.div>
-      </div>
-      {isOpen && (
+      </motion.div>
+      {isOpen && !isOverlay && (
         <ResizeHandle
           anchor={() => {
             const rect = containerRef.current?.getBoundingClientRect();
             return rect?.left;
           }}
-          className="right-0 translate-x-1/2"
+          className="right-0 translate-x-full"
           collapse={
             bounds.collapse === undefined
               ? undefined

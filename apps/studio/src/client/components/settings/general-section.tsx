@@ -1,6 +1,5 @@
 import { displayLocale } from "@/client/lib/display-locale";
 import { openReportDialog } from "@/client/atoms/report-dialog";
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import {
   BlockToolbarButton,
@@ -41,9 +40,10 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
-import { useAppTabs } from "@/client/components/window/app-tabs";
+import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { ZoomStepper } from "@/client/components/zoom-controls";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
+import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { cn, isLinux } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -58,7 +58,7 @@ import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { BellSimpleIcon } from "@phosphor-icons/react/BellSimple";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSettingsAsk } from "@/client/components/settings/settings-ask";
 import { type ReactNode, useEffect, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -90,6 +90,7 @@ export function SettingsSection({
 export function GeneralSection() {
   return (
     <div className="space-y-4">
+      <h3 className="text-base font-semibold">General</h3>
       <InterfaceAndTheme />
       <Notifications />
       <SettingsSection title="Dictation">
@@ -98,6 +99,7 @@ export function GeneralSection() {
       <About />
       <SettingsSection title="Chats">
         <NextMessageSuggestions />
+        <ShowIdeas />
       </SettingsSection>
       <SettingsSection title="Advanced">
         <DiagnosticLog />
@@ -130,13 +132,12 @@ function About() {
 
   const developerMode = useDeveloperMode();
 
-  const appTabs = useAppTabs();
-  const closeSettings = useSetAtom(settingsModalAtom);
-
-  const handleOpenReleaseNotes = () => {
-    appTabs.open("/release-notes");
-    closeSettings(null);
-  };
+  // A built-in page: a click walks this tab there, as a browser's settings
+  // open its history.
+  const releaseNotes = useOpenGestures(
+    { href: SCREEN_ROUTES.releaseNotes, kind: "screen" },
+    { isLink: true },
+  );
 
   const { data: appEnvironment } = useQuery({
     ...rpcClient.debug.getAppEnvironment.queryOptions(),
@@ -333,6 +334,7 @@ function About() {
             <Button asChild>
               <ExternalLink
                 href={`${MANUAL_DOWNLOAD_URL}?ref=studio-settings-error`}
+                target="_blank"
               >
                 Download manually
               </ExternalLink>
@@ -383,7 +385,9 @@ function About() {
               {getUpdateStatusContent()}
               <Button
                 className="h-auto p-0 text-xs font-normal text-foreground"
-                onClick={handleOpenReleaseNotes}
+                onAuxClick={releaseNotes.onAuxClick}
+                onClick={releaseNotes.onClick}
+                onContextMenu={releaseNotes.onContextMenu}
                 variant="link"
               >
                 What's new
@@ -405,7 +409,7 @@ function About() {
             </div>
             <div className="flex flex-wrap gap-2">
               <Button asChild size="sm" variant="outline">
-                <ExternalLink href={APP_REPO_URL}>
+                <ExternalLink href={APP_REPO_URL} target="_blank">
                   View source on GitHub
                   <ArrowSquareOutIcon className="size-3.5" />
                 </ExternalLink>
@@ -517,12 +521,12 @@ function DiagnosticLog() {
   // Settings opened by a link to the log arrives with the viewer already up.
   // Compared by identity, so a second such link while Settings is open opens
   // the viewer again after it was closed.
-  const request = useAtomValue(settingsModalAtom);
-  const [viewerOpen, setViewerOpen] = useState(request?.diagnosticLog === true);
-  const [trackedRequest, setTrackedRequest] = useState(request);
-  if (request !== trackedRequest) {
-    setTrackedRequest(request);
-    if (request?.diagnosticLog === true) {
+  const ask = useSettingsAsk();
+  const [viewerOpen, setViewerOpen] = useState(ask?.log === true);
+  const [trackedAsk, setTrackedAsk] = useState(ask);
+  if (ask !== trackedAsk) {
+    setTrackedAsk(ask);
+    if (ask?.log === true) {
       setViewerOpen(true);
     }
   }
@@ -808,6 +812,45 @@ function NextMessageSuggestions() {
         disabled={setSuggestNextMessage.isPending}
         onCheckedChange={(enabled) => {
           setSuggestNextMessage.mutate({ enabled });
+        }}
+      />
+    </label>
+  );
+}
+
+/**
+ * Whether a tab group with no chat, and a new tab, show ideas for what to ask
+ * about what's open. Each set of ideas is a request on the connection's fast
+ * model.
+ */
+function ShowIdeas() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const setShowIdeas = useMutation(
+    rpcClient.preferences.setShowIdeas.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't change that setting", { cause: error });
+      },
+    }),
+  );
+  return (
+    <label
+      className="flex items-start justify-between gap-4"
+      {...settingAnchor("show-ideas")}
+    >
+      <span className="space-y-1">
+        <span className="block text-sm font-medium">Show ideas</span>
+        <span className="block text-xs text-muted-foreground">
+          {APP_NAME} suggests things to ask about the pages and files you have
+          open. It adds a little to your AI usage.
+        </span>
+      </span>
+      <Switch
+        checked={preferences?.showIdeas !== false}
+        disabled={setShowIdeas.isPending}
+        onCheckedChange={(enabled) => {
+          setShowIdeas.mutate({ enabled });
         }}
       />
     </label>

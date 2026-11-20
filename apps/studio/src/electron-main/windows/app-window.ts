@@ -1,3 +1,4 @@
+import { WINDOW_CARD_GAP } from "@/shared/constants";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { logBootMark } from "@/electron-main/lib/boot-timing";
@@ -22,17 +23,28 @@ import {
   FIRST_APP_WINDOW_ID,
   forgetWindowKeptState,
   getWindowKeptState,
+  keptGroupedTabs,
+  keptLoneGroupOfTab,
+  KeptTabGroupSchema,
   setWindowKeptState,
   tellWindowKeptState,
   windowKeptKeys,
 } from "@/electron-main/stores/workspace/kept-state";
 import {
   APP_TABS_KEY,
-  COMPOSE_KEY,
   isHostedPageKey,
-  WINDOW_KEPT_KEYS,
+  keptTabGroupsOf,
+  TAB_GROUPS_KEY,
 } from "@/shared/kept-state";
-import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
+import { chatOfAddress, tabGroupOfAddress } from "@/shared/tab-identity";
+import { workingTabOf } from "@/shared/working-tab";
+import {
+  groupOfWholeKey,
+  type GroupTabLanding,
+  type Tab,
+  type TabsModel,
+  TabsModelSchema,
+} from "@/shared/tabs";
 import { homedir } from "node:os";
 import {
   getAppZoom,
@@ -57,18 +69,22 @@ import {
 import {
   type AppWindowAsk,
   createAppWindowAsks,
+  outsideOpensOf,
   tabHrefOfAsk,
 } from "@/electron-main/windows/app-window-asks";
 import {
   forgetAppWindowName,
   nameAppWindow,
 } from "@/electron-main/windows/app-window-ids";
+import { askBeforeClosing } from "@/electron-main/windows/ask-before-closing";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import {
   otherStripShowing,
   type StripOf,
   stripShowing,
+  windowListingGroup,
+  windowWithGroupTabShowing,
 } from "@/electron-main/windows/tab-showing";
 import { windowsMayOpen } from "@/electron-main/windows/launch";
 import { commandWindow } from "@/electron-main/windows/window-command";
@@ -82,9 +98,6 @@ import {
 import { app, BrowserWindow, powerMonitor } from "electron";
 import { statSync } from "node:fs";
 import path from "node:path";
-import { z } from "zod";
-
-import { mergeFloats } from "./tab-carry-rules";
 
 /** The shape a window takes the first time, before it has been sized. */
 const WINDOW_WIDTH = 1240;
@@ -101,6 +114,10 @@ let inFront: BrowserWindow[] = [];
 
 /** The windows whose every tab went to another window, which leave nothing to come back to. */
 const emptied = new Set<BrowserWindow>();
+/** Windows whose close is waiting on what they answer (`askBeforeClosing`). */
+const askingToClose = new Set<BrowserWindow>();
+/** Windows that answered to close, so the close that follows goes ahead. */
+const agreedToClose = new Set<BrowserWindow>();
 
 /**
  * A window kept booted and out of sight, on none of the lists above, for a tab's
@@ -199,6 +216,98 @@ export function otherAppWindows(webContentsId: number) {
     });
 }
 
+/** The tab groups a window has open, as it keeps them. */
+function keptTabGroupsOfWindow(id: string): string[] {
+  return keptTabGroupsOf(getWindowKeptState(id, TAB_GROUPS_KEY)) ?? [];
+}
+
+/** Whether a window lists a tab group, up or not. */
+function listsGroup(window: BrowserWindow, group: string) {
+  const id = appWindowIdOfWindow(window);
+  return id !== undefined && keptTabGroupsOfWindow(id).includes(group);
+}
+
+/** Whether an open window lists a tab group. */
+function isListedOpen(group: string) {
+  return getAppWindows().some((window) => listsGroup(window, group));
+}
+
+/**
+ * Of some windows with the tab group an address stands on open
+ * (`TAB_GROUPS_KEY`), the first with it up, else the first with it behind
+ * (`windowListingGroup`).
+ */
+function windowListingGroupOf(
+  href: string,
+  among: readonly BrowserWindow[],
+): BrowserWindow | null {
+  const chat = chatOfAddress(href);
+  const group =
+    tabGroupOfAddress(href) ??
+    (chat === undefined
+      ? undefined
+      : workingTabOf(keptGroupedTabs(), chat, isListedOpen)?.group);
+  if (group === undefined) {
+    return null;
+  }
+  return windowListingGroup(group, groupListsOf(among));
+}
+
+/** Each window's tab groups as it keeps them, and the group it has up. */
+function groupListsOf(among: readonly BrowserWindow[]) {
+  return among.flatMap((window) => {
+    const id = appWindowIdOfWindow(window);
+    if (id === undefined) {
+      return [];
+    }
+    const { selectedId, tabs } = keptTabsOf(id);
+    const up = tabs.find((tab) => tab.id === selectedId)?.pathname;
+    return [
+      {
+        listed: keptTabGroupsOfWindow(id),
+        ...(up === undefined ? {} : { up: tabGroupOfAddress(up) }),
+        window,
+      },
+    ];
+  });
+}
+
+/** The tab groups the open windows other than this one have open. */
+export function tabGroupsInOtherWindows(webContentsId: number): string[] {
+  return getAppWindows()
+    .filter((window) => window.webContents.id !== webContentsId)
+    .flatMap((window) => {
+      const id = appWindowIdOfWindow(window);
+      return id === undefined ? [] : keptTabGroupsOfWindow(id);
+    });
+}
+
+/**
+ * Every open window's tab groups, the one in front first: each in its own
+ * order, the group it shows, and which window asked.
+ */
+export function tabGroupsByWindow(webContentsId: number) {
+  return getAppWindows()
+    .filter((window) => window.isVisible())
+    .flatMap((window) => {
+      const id = appWindowIdOfWindow(window);
+      if (id === undefined) {
+        return [];
+      }
+      const model = keptTabsOf(id);
+      const up = model.tabs.find((tab) => tab.id === model.selectedId);
+      const shown =
+        up === undefined ? undefined : tabGroupOfAddress(up.pathname);
+      return [
+        {
+          groups: keptTabGroupsOfWindow(id),
+          isThisWindow: window.webContents.id === webContentsId,
+          ...(shown === undefined ? {} : { shown }),
+        },
+      ];
+    });
+}
+
 /** A window's tabs, as it keeps them. */
 export function keptTabsOf(id: string): TabsModel {
   const parsed = TabsModelSchema.safeParse(
@@ -209,19 +318,17 @@ export function keptTabsOf(id: string): TabsModel {
     : { recentlyClosed: [], selectedId: null, tabs: [] };
 }
 
-const HostedPageGroupSchema = z.object({
-  tabs: z.array(z.object({ id: z.string() })),
-});
-
 /** The pages drawn inside a window's surfaces, which no other window's tabs name and which go when it does. */
 export function hostedPagesOf(id: string): BrowserTargetId[] {
   return windowKeptKeys(id)
     .filter(isHostedPageKey)
     .flatMap(
       (key) =>
-        HostedPageGroupSchema.safeParse(
+        KeptTabGroupSchema.safeParse(
           getWindowKeptState(id, key),
-        ).data?.tabs.map((tab) => browserTargetOf(tab.id)) ?? [],
+        ).data?.sides.flatMap((side) =>
+          side.tabs.map((tab) => browserTargetOf(tab.id)),
+        ) ?? [],
     );
 }
 
@@ -229,13 +336,16 @@ export function hostedPagesOf(id: string): BrowserTargetId[] {
  * The window that has a screen in a tab, by its address or by what it shows
  * (`tabIdentityOf`: a file, a folder, a chat, however far its tab has walked
  * within it): the one with that tab up if there is one, else the one in front
- * of the others with it behind.
+ * of the others with it behind, else the one with its tab group open.
  */
 export function appWindowShowing(
   href: string,
   among: readonly BrowserWindow[] = getAppWindows(),
 ): BrowserWindow | null {
-  return stripShowing(href, stripsOf(among), homedir());
+  return (
+    stripShowing(href, stripsOf(among), homedir()) ??
+    windowListingGroupOf(href, among)
+  );
 }
 
 /** Each window's strip as it keeps it, in the order given. */
@@ -281,20 +391,18 @@ export function appWindowForChat(chatId: string | undefined) {
 }
 
 /**
- * Opens a file handed to the app from outside it, a double click, Open With,
- * or a drop on the Dock icon: in the window with a tab already showing it,
- * else in the window in front or the one this opens. A folder opens in the
- * folder view, standing in it.
+ * What files handed to the app from outside it ask for (a double click, Open
+ * With, a drop on the Dock icon, a launch naming them), in the order given:
+ * a folder in the folder view, standing in it, and a file in its viewer. Put
+ * up through `showFromOutside`: several as one new tab group, one alone
+ * where a tab shows it already.
  */
-export function openAppFile(hostPath: string) {
-  if (isFolder(hostPath)) {
-    openAppScreen(folderHref(hostPath));
-    return;
-  }
-  const ask = { hostPath, type: "openFile" } satisfies AppWindowAsk;
-  if (!showInWindowHolding(ask)) {
-    askAppWindow(ask);
-  }
+export function asksOfAppFiles(hostPaths: readonly string[]): AppWindowAsk[] {
+  return hostPaths.map((hostPath) =>
+    isFolder(hostPath)
+      ? { href: folderHref(hostPath), type: "openScreen" }
+      : { hostPath, type: "openFile" },
+  );
 }
 
 function isFolder(hostPath: string) {
@@ -333,17 +441,21 @@ function showInWindowHolding(ask: AppWindowAsk) {
 }
 
 /**
- * Puts up everything one link from outside asks for, in the order given:
- * each in the window with a tab already showing it, and the rest in the
- * window the first went to, which is the one with its tab, else the one in
- * front or the one this opens. That window alone comes forward, once, by
- * `comeForward` where no window has the first's tab.
+ * Puts up everything one hand-over from outside asks for (a link, files from
+ * the Finder or the Dock, a launch's arguments), the one road every one of
+ * them takes. Several files, folders and pages open as one new tab group in
+ * the window in front (`outsideOpensOf`). One thing alone, a chat included,
+ * comes up in the window with a tab in one of its groups already showing it,
+ * and otherwise opens as a group of its own in the window in front.
+ * Everything after the first goes where the first went, unless
+ * it is a chat open in another window. That window alone comes forward,
+ * once, by `comeForward` where no window has the first's tab.
  */
 export function showFromOutside(
   asked: readonly AppWindowAsk[],
   comeForward: () => void,
 ) {
-  const [first, ...rest] = asked;
+  const [first, ...rest] = outsideOpensOf(asked);
   if (first === undefined) {
     return;
   }
@@ -365,10 +477,25 @@ export function showFromOutside(
   }
 }
 
-/** The window with a tab already showing what an ask puts up (`tabHrefOfAsk`). */
+/**
+ * The window with a tab already showing what an ask puts up (`tabHrefOfAsk`):
+ * in its strip, or in a tab group it lists (`windowWithGroupTabShowing`).
+ */
 function windowHolding(ask: AppWindowAsk) {
   const href = tabHrefOfAsk(ask);
-  return href === undefined ? null : appWindowShowing(href);
+  if (href === undefined) {
+    return null;
+  }
+  const among = getAppWindows();
+  return (
+    appWindowShowing(href, among) ??
+    windowWithGroupTabShowing(
+      href,
+      groupListsOf(among),
+      keptGroupedTabs(),
+      homedir(),
+    )
+  );
 }
 
 /** A window to the front, the person having asked for something it shows. */
@@ -407,7 +534,12 @@ export async function showInOtherWindow(
   const hearing = getAppWindows().filter((window) =>
     listening.has(window.webContents.id),
   );
-  const showing = otherStripShowing(href, stripsOf(hearing), asking, homedir());
+  const showing =
+    otherStripShowing(href, stripsOf(hearing), asking, homedir()) ??
+    windowListingGroupOf(
+      href,
+      hearing.filter((window) => window.webContents.id !== asking),
+    );
   if (!showing) {
     return false;
   }
@@ -506,11 +638,14 @@ export function restoreAppWindows() {
 }
 
 /**
- * A window of its own, standing off the one in front: at these tabs, the
- * first up, or at the inbox with none.
+ * A window of its own, standing off the one in front unless given its place:
+ * at these tabs, the first up, or at the inbox with none.
  */
 export function openNewAppWindow(
   tabs: readonly Tab[] = [],
+  {
+    bounds = cascadedBounds(),
+  }: { bounds?: ReturnType<typeof cascadedBounds> } = {},
 ): BrowserWindow | null {
   if (isSetupUp()) {
     return null;
@@ -528,8 +663,18 @@ export function openNewAppWindow(
       selectedId: first.id,
       tabs: [...tabs],
     });
+    // Opened on these tabs, the window has open the tab groups they stand
+    // on, and only those.
+    setWindowKeptState(id, TAB_GROUPS_KEY, [
+      ...new Set(
+        tabs.flatMap((tab) => {
+          const group = tabGroupOfAddress(tab.pathname);
+          return group === undefined ? [] : [group];
+        }),
+      ),
+    ]);
   }
-  return createAppWindow(id, { bounds: cascadedBounds() });
+  return createAppWindow(id, { bounds });
 }
 
 function openSpareWindow(): SpareWindow {
@@ -608,7 +753,7 @@ export function takeSpareWindow(): SpareWindow | null {
   const taken = waitingSpare;
   waitingSpare = null;
   taken.window.setBackgroundColor(getBackgroundColor());
-  setTrafficLightForZoom(taken.window, getAppZoom());
+  setTrafficLightForZoom(taken.window, getAppZoom(), WINDOW_CARD_GAP);
   return taken;
 }
 
@@ -710,9 +855,12 @@ export function canMergeWindows() {
 }
 
 /**
- * Every other window's tabs, pages and floats into the one in front, and those
- * windows gone with nothing to come back to. Only one window can stay itself, so
- * the tabs open afresh there, each from its address and history.
+ * Every other window's tab groups, pages and floats into the one in front,
+ * and those windows gone with nothing to come back to. Each window's groups
+ * join the end of the front one's list in their own order, less any it
+ * lists already; a group's tabs are the group's wherever it is listed, so
+ * they come with it. The front window keeps its one app tab, on the group
+ * it shows.
  */
 export function mergeAllWindows() {
   const [front, ...others] = getAppWindows();
@@ -722,16 +870,15 @@ export function mergeAllWindows() {
   }
   const manager = getBrowserViewManager();
   const kept = keptTabsOf(to);
-  const tabs = [...kept.tabs];
   const recentlyClosed = [...kept.recentlyClosed];
-  let floats = getWindowKeptState(to, COMPOSE_KEY);
+  const groups = new Set(keptTabGroupsOfWindow(to));
   for (const other of others) {
     const from = appWindowIdOfWindow(other);
     if (from !== undefined) {
-      const model = keptTabsOf(from);
-      tabs.push(...model.tabs);
-      recentlyClosed.push(...model.recentlyClosed);
-      floats = mergeFloats(floats, getWindowKeptState(from, COMPOSE_KEY));
+      recentlyClosed.push(...keptTabsOf(from).recentlyClosed);
+      for (const group of keptTabGroupsOfWindow(from)) {
+        groups.add(group);
+      }
       manager.handOffGuestsOf(
         other.webContents.id,
         front.webContents.id,
@@ -742,9 +889,8 @@ export function mergeAllWindows() {
   tellWindowKeptState(to, front.webContents, APP_TABS_KEY, {
     ...kept,
     recentlyClosed,
-    tabs,
   });
-  tellWindowKeptState(to, front.webContents, COMPOSE_KEY, floats);
+  tellWindowKeptState(to, front.webContents, TAB_GROUPS_KEY, [...groups]);
   for (const other of others) {
     closeEmptiedWindow(other);
   }
@@ -775,6 +921,41 @@ export function sendTabToWindow(tab: Tab, id: string, index?: number) {
     tab,
     type: "receiveTab",
   });
+  return true;
+}
+
+/**
+ * Hands a tab group's tab, by its strip key, to a window, which takes it into
+ * one of its groups where it landed. Says whether it could: a page not
+ * listening yet could not take it. A spare window whose page is up takes it
+ * too, ahead of being a window of its own.
+ */
+export function sendGroupTabToWindow(
+  window: BrowserWindow,
+  key: string,
+  landing: GroupTabLanding,
+) {
+  if (window.isDestroyed()) {
+    return false;
+  }
+  const contentsId = window.webContents.id;
+  if (!listening.has(contentsId) && spareOf(contentsId)?.isUp !== true) {
+    return false;
+  }
+  // A group going whole is listed here before the window it leaves lets
+  // go of it, so no moment has it listed nowhere.
+  const whole = groupOfWholeKey(key) ?? keptLoneGroupOfTab(key);
+  const id = appWindowIdOfWindow(window) ?? spareOf(contentsId)?.id;
+  if (landing.kind === "new" && whole !== undefined && id !== undefined) {
+    const listed = keptTabGroupsOfWindow(id);
+    if (!listed.includes(whole)) {
+      tellWindowKeptState(id, window.webContents, TAB_GROUPS_KEY, [
+        whole,
+        ...listed,
+      ]);
+    }
+  }
+  commandWindow(window, { key, landing, type: "receiveGroupTab" });
   return true;
 }
 
@@ -914,7 +1095,7 @@ function createAppWindow(
   // this window mounts and syncs its own. Set here rather than through the
   // `trafficLightPosition` option, which only applies to frameless windows; this
   // one keeps its macOS frame.
-  setTrafficLightForZoom(window, getAppZoom());
+  setTrafficLightForZoom(window, getAppZoom(), WINDOW_CARD_GAP);
 
   if (!isSpare) {
     showWhenReady(window, () => {
@@ -941,6 +1122,34 @@ function createAppWindow(
     event.preventDefault();
     void requestQuitApproval().then((approved) => {
       if (approved && !window.isDestroyed()) {
+        window.close();
+      }
+    });
+  });
+  // A close that leaves the app running asks the window first, since it
+  // stops the chats at work in its tab groups. A quit's close has asked
+  // already, a spare has no chats, and a window whose tabs all went
+  // elsewhere took its chats with them.
+  window.on("close", (event) => {
+    if (
+      isQuitApproved() ||
+      (quitsWithLastWindow && !hasVisibleWindowOtherThan(window)) ||
+      spareOf(webContentsId) ||
+      emptied.has(window) ||
+      agreedToClose.delete(window)
+    ) {
+      return;
+    }
+    event.preventDefault();
+    // A second close while the first is asked joins it.
+    if (askingToClose.has(window)) {
+      return;
+    }
+    askingToClose.add(window);
+    void askBeforeClosing(window.webContents).then((isClosing) => {
+      askingToClose.delete(window);
+      if (isClosing && !window.isDestroyed()) {
+        agreedToClose.add(window);
         window.close();
       }
     });
@@ -1107,7 +1316,8 @@ export function takePendingAppWindowAsks(
     // What a drag told it while its page was starting, or took back, may have
     // gone unheard: it read its state as it loaded and listens only now.
     for (const key of new Set([
-      ...WINDOW_KEPT_KEYS,
+      APP_TABS_KEY,
+      TAB_GROUPS_KEY,
       ...windowKeptKeys(started.id),
     ])) {
       tellWindowKeptState(

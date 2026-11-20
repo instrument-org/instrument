@@ -12,7 +12,7 @@ import {
   HoverCardTrigger,
 } from "@/client/components/ui/hover-card";
 import { Spinner } from "@/client/components/ui/spinner";
-import { useAppTabs } from "@/client/components/window/app-tabs";
+import { useWindow } from "@/client/components/window/context";
 import { useNow } from "@/client/components/window/use-now";
 import {
   formatAbsoluteTime,
@@ -541,7 +541,7 @@ function UpdateReadyCardBody({
 }) {
   // Mounting again on each open refetches notes that have gone stale.
   const { data: notes, isPending } = useQuery(notesQuery(version));
-  const appTabs = useAppTabs();
+  const { openScreen } = useWindow();
   const now = useNow();
   const asksForPassword = useInstallAsksForPassword();
   const installsUnattended = useInstallsUnattended();
@@ -601,7 +601,7 @@ function UpdateReadyCardBody({
         <Button
           className="px-0 text-brand-text"
           onClick={() => {
-            appTabs.open("/release-notes");
+            openScreen("/release-notes", { newTab: "reuseBlank" });
           }}
           size="sm"
           variant="link"

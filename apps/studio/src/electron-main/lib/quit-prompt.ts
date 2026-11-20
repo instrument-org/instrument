@@ -23,28 +23,30 @@ export function runningJobNames(): string[] {
 }
 
 /**
- * The quit alert's words, or nothing when quitting stops nothing: agents in
- * the middle of a turn, and every job a chat left running, named so the
- * person knows what goes with the app.
+ * The quit alert's words and its button, or nothing when quitting stops
+ * nothing: the chats with an agent at work, counted, and every job a chat
+ * left running, named so the person knows what goes with the app.
  */
 export function quitPrompt({
-  agentCount,
+  chatCount,
   jobNames,
 }: {
-  agentCount: number;
+  chatCount: number;
   jobNames: string[];
-}): { detail: string; message: string } | undefined {
-  if (agentCount === 0 && jobNames.length === 0) {
+}): { confirm: string; detail: string; message: string } | undefined {
+  if (chatCount === 0 && jobNames.length === 0) {
     return undefined;
   }
   const parts: string[] = [];
-  if (agentCount > 0) {
+  if (chatCount > 0) {
     parts.push(
-      "Active tasks will be interrupted and you may lose in-progress work.",
+      chatCount === 1
+        ? "Quitting stops what it's working on."
+        : "Quitting stops what they're working on.",
     );
   }
   if (jobNames.length > 0) {
-    const also = agentCount > 0 ? " also" : "";
+    const also = chatCount > 0 ? " also" : "";
     const lead =
       jobNames.length === 1
         ? `Quitting${also} stops this command, which is still running:`
@@ -55,5 +57,15 @@ export function quitPrompt({
       [lead, ...named, ...(rest > 0 ? [`and ${rest} more`] : [])].join("\n"),
     );
   }
-  return { detail: parts.join("\n\n"), message: `Quit ${APP_NAME}?` };
+  return chatCount > 0
+    ? {
+        confirm: "Stop and Quit",
+        detail: parts.join("\n\n"),
+        message: `Stop ${chatCount.toString()} ${chatCount === 1 ? "chat" : "chats"} and quit?`,
+      }
+    : {
+        confirm: "Quit",
+        detail: parts.join("\n\n"),
+        message: `Quit ${APP_NAME}?`,
+      };
 }

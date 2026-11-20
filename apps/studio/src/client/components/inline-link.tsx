@@ -37,6 +37,7 @@ import { FAVICON_SURFACE_CLASS_NAME } from "./favicon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { AppIcon } from "./window/app-icon";
 import { useAppsBySlug } from "./window/apps-by-slug";
+import { contentOfAddress, useContentDrag } from "./window/drag/content-drag";
 import { InstrumentGlyph } from "./wordmark";
 
 /**
@@ -225,7 +226,7 @@ export function InlineLink({
   const link = instrumentLinkOf(href);
   if (link) {
     return (
-      <AppLink className={className} link={link}>
+      <AppLink address={href} className={className} link={link}>
         {children}
       </AppLink>
     );
@@ -275,15 +276,24 @@ export function AppChipIcon({ slug }: { slug: string }) {
  * rather than a broken link.
  */
 function AppLink({
+  address,
   children,
   className,
   link,
 }: {
+  /** The address the link was written as, which a drag of the chip holds. */
+  address: string;
   children: ReactNode;
   className?: string;
   link: InstrumentLink;
 }) {
-  const gestures = useOpenGestures({ href: link.href, kind: "screen" });
+  const gestures = useOpenGestures(
+    { href: link.href, kind: "screen" },
+    { isLink: true },
+  );
+  const dragProps = useContentDrag(
+    contentOfAddress(address, textOf(children) ?? ""),
+  );
   const open = gestures.destinations.find((entry) => entry.id === "open");
   const body = (
     <ChipBody icon={<AppLinkIcon link={link} />}>{children}</ChipBody>
@@ -300,10 +310,14 @@ function AppLink({
   }
   const chip = (
     <ChipButton
+      {...dragProps}
       className={className}
       onActivate={(event) => {
-        if (wantsNewWindow(event) && gestures.ownWindow) {
-          gestures.ownWindow.run();
+        const inFront = gestures.destinations.find(
+          (entry) => entry.id === "openNewTab",
+        );
+        if (wantsNewWindow(event) && inFront) {
+          inFront.run();
         } else if (wantsNewTab(event) && gestures.separate) {
           gestures.separate.run();
         } else {
@@ -357,6 +371,11 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
     }
     case "skill": {
       return <CubeIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
+    }
+    // A tab group or a tab is a place in the window.
+    case "group":
+    case "tab": {
+      return <AppWindowIcon className={INLINE_CHIP_ICON_CLASS_NAME} />;
     }
     // A task wears the app's own mark, the way the tab's location row draws
     // one: a task is the app at work rather than a thing it holds.
@@ -547,10 +566,19 @@ function WebLink({
     }),
   );
   const titled = pageTitle ? titleLabel(pageTitle, href) : undefined;
+  // Held by the system's drag, as a link in a browser's page is, so it goes
+  // to a page, a field or another app as well as to a tab.
+  const dragProps = useContentDrag(
+    url
+      ? { kind: "link", title: pageTitle ?? label ?? "", url: href }
+      : undefined,
+  );
 
   const anchor = (
     <ExternalLink
       {...props}
+      draggable={false}
+      {...dragProps}
       className={cn(INLINE_LINK_CLASS_NAME, className)}
       href={href}
       // A Markdown title is the same hover, drawn by the OS a beat later. The

@@ -8,6 +8,8 @@ import {
   canReopenClosedAppWindow,
   reopenClosedAppWindow,
   showInOtherWindow as showElsewhere,
+  tabGroupsByWindow as groupsByWindow,
+  tabGroupsInOtherWindows,
   tabShown as noteTabShown,
   takeLaunchSweep as takeSweep,
   takePendingAppWindowAsks,
@@ -16,11 +18,13 @@ import {
   endTabCarry as endCarry,
   moveTabNow,
   noteTabCarry as noteCarry,
+  placeGroupTabCarry as placeGroupCarry,
   placeTabCarry as placeCarry,
   startTabCarry as startCarry,
   tabCarryViewOf,
 } from "@/electron-main/windows/tab-carry";
 import {
+  GroupTabLandingSchema,
   TabMoveDestinationSchema,
   TabSchema,
   TabStandingSchema,
@@ -34,6 +38,7 @@ const PointSchema = z.object({ x: z.number(), y: z.number() });
 const AskSchema = z.discriminatedUnion("type", [
   z.object({ hostPath: z.string(), type: z.literal("openFile") }),
   z.object({ href: z.string(), type: z.literal("openScreen") }),
+  z.object({ hrefs: z.array(z.string()), type: z.literal("openGroup") }),
   z.object({
     folder: z.string().optional(),
     name: z.string(),
@@ -112,12 +117,37 @@ const others = base.handler(async function* ({ context, signal }) {
   });
 });
 
-/** A window of its own, opening on the inbox, or on a tab given it. */
+/** The tab groups the other open windows have open, as they change. */
+const tabGroupsElsewhere = base.handler(async function* ({ context, signal }) {
+  yield* liveRead({
+    changes: [
+      publisher.subscribe("windows.changed", { signal }),
+      publisher.subscribe("window.tab-groups-changed", { signal }),
+    ],
+    read: () => tabGroupsInOtherWindows(context.webContentsId),
+  });
+});
+
+/**
+ * Every open window's tab groups, the one in front first: each window's in
+ * its own order, the group it shows, and whether it is the window asking.
+ */
+const tabGroupsByWindow = base
+  .output(
+    z.array(
+      z.object({
+        groups: z.array(z.string()),
+        isThisWindow: z.boolean(),
+        shown: z.string().optional(),
+      }),
+    ),
+  )
+  .handler(({ context }) => groupsByWindow(context.webContentsId));
+
+/** A window of its own, opening on the inbox, or on a tab given it. Answers whether one opened. */
 const openNew = base
   .input(z.object({ tabs: z.array(TabSchema).optional() }).optional())
-  .handler(({ input }) => {
-    openNewAppWindow(input?.tabs);
-  });
+  .handler(({ input }) => openNewAppWindow(input?.tabs) !== null);
 
 /** Whether a window closed lately can come back. */
 const canReopenClosed = base.handler(() => canReopenClosedAppWindow());
@@ -176,11 +206,14 @@ const mergeAll = base.input(z.void()).handler(() => {
 const startTabCarry = base
   .input(
     z.object({
-      at: PointSchema,
       grab: PointSchema,
       isOffRow: z.boolean(),
       isOnlyTab: z.boolean(),
       moving: TabStandingSchema,
+      page: PointSchema.extend({
+        height: z.number(),
+        width: z.number(),
+      }).optional(),
       pointInTab: z.number(),
     }),
   )
@@ -201,6 +234,19 @@ const placeTabCarry = base
     placeCarry(context.webContentsId, input.index);
   });
 
+/** The asking window in front of the others, as a tab group shown on an agent's ask comes up. */
+const bringForward = base.handler(({ context }) => {
+  const window = getCallingWindow(context.webContentsId);
+  if (!window || window.isDestroyed()) {
+    return;
+  }
+  if (window.isMinimized()) {
+    window.restore();
+  }
+  window.show();
+  window.focus();
+});
+
 /** The window's menu, drawn by the system at a point of the window, where no bar of the system's shows it. */
 const showAppMenu = base.input(PointSchema).handler(({ context, input }) => {
   const window = getCallingWindow(context.webContentsId);
@@ -213,6 +259,13 @@ const showAppMenu = base.input(PointSchema).handler(({ context, input }) => {
   }
 });
 
+/** Where a tab group's tab held over this window lands here, from the window: none where it lands nowhere. */
+const placeGroupTabCarry = base
+  .input(z.object({ landing: GroupTabLandingSchema.nullable() }))
+  .handler(({ context, input }) => {
+    placeGroupCarry(context.webContentsId, input.landing ?? undefined);
+  });
+
 /** Lets the tab go, and says where it lands. */
 const endTabCarry = base
   .input(
@@ -224,16 +277,19 @@ const endTabCarry = base
   .handler(({ input }) => endCarry(input));
 
 export const window = {
+  bringForward,
   canReopenClosed,
   endTabCarry,
   events,
-  live: { others },
+  live: { others, tabGroupsElsewhere },
   mergeAll,
   moveTab,
   noteTabCarry,
+  placeGroupTabCarry,
   placeTabCarry,
   openNew,
   reopenClosed,
+  tabGroupsByWindow,
   showAppMenu,
   showInOtherWindow,
   startTabCarry,

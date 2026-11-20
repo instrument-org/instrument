@@ -1,54 +1,39 @@
-import { type WindowTab } from "@/client/atoms/window";
 import { describe, expect, it } from "vitest";
 
-import { groupScreenTabsOnly, isGroupScreenHref } from "./group-screen";
+import { isGroupScreenHref } from "./group-screen";
 
 describe("isGroupScreenHref", () => {
   it.each([
     "/browser",
-    "/new-tab",
     "/apps",
     "/apps/linear",
     "/tasks/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=2026-10-01-roofer",
     "/files?path=&root=~",
+    "/activity",
+    "/release-notes",
+    "/extensions",
+    "/debug/components/colors",
   ])("lets a group's tab stand at %s", (href) => {
     expect(isGroupScreenHref(href)).toBe(true);
   });
 
+  // A page a later build removed, one a bug built, or an `instrument://`
+  // address the app doesn't know: the tab says the page isn't there.
   it.each([
-    "/release-notes",
-    "/debug/errors",
+    "/apps/linear/settings",
+    "/removed-page?from=older-build",
+    "/tasks/not-a-session",
+    "/missing?address=instrument%3A%2F%2Fnowhere",
+  ])("lets a group's tab stand at %s, an address no screen answers", (href) => {
+    expect(isGroupScreenHref(href)).toBe(true);
+  });
+
+  it.each([
     "/skills/create-page",
     "/memory/no-stevia",
-    "/apps/linear/settings",
+    "/chats/2026-10-01-roofer",
+    "/chats?group=group%3Aa",
   ])("keeps a group's tab from %s", (href) => {
     expect(isGroupScreenHref(href)).toBe(false);
-  });
-});
-
-describe("groupScreenTabsOnly", () => {
-  it("drops screen tabs at, or with a step back onto, a screen no group draws", () => {
-    const tabs: WindowTab[] = [
-      { group: "g", href: "/browser", id: "kept", kind: "screen" },
-      {
-        group: "g",
-        id: "page",
-        kind: "page",
-        openedAt: 0,
-        url: "https://example.com",
-      },
-      { group: "g", href: "/release-notes", id: "notes", kind: "screen" },
-      {
-        group: "g",
-        href: "/apps",
-        id: "walked",
-        kind: "screen",
-        history: { entries: ["/skills/create-page", "/apps"], index: 1 },
-      },
-    ];
-    expect(groupScreenTabsOnly(tabs).map((tab) => tab.id)).toEqual([
-      "kept",
-      "page",
-    ]);
   });
 });

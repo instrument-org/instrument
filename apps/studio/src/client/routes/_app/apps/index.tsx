@@ -16,8 +16,6 @@ export const Route = createFileRoute("/_app/apps/")({
 });
 
 function AppsRoute() {
-  // Beside a chat the apps are a place to pick one from, with nothing to
-  // connect and nothing to say of themselves.
   const groupTab = useGroupTab();
   useTabSurface("view", groupTab ? null : { screen: "apps" });
   const navigate = useNavigate();
@@ -26,7 +24,6 @@ function AppsRoute() {
       onOpenApp={(slug) => {
         void navigate({ params: { slug }, to: "/apps/$slug" });
       }}
-      showsConnect={groupTab === null}
     />
   );
 }

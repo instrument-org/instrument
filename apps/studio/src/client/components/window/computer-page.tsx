@@ -28,15 +28,11 @@ import {
   type FileSystemSortState,
   type FileSystemView,
 } from "@/client/components/extend/file-system";
-import {
-  TOOLBAR_CONTROL_CLASSNAME,
-  TOOLBAR_ICON_BUTTON_CLASSNAME,
-} from "@/client/components/toolbar-control";
+import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
 import {
   isQuickLookPress,
   listingKeys,
 } from "@/client/components/extend/file-system-keys";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import { instrumentFolderGlyphUrl } from "@/client/components/icons/folder-glyph";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { RevealInFolderIcon } from "@/client/components/icons/reveal-in-folder";
@@ -81,7 +77,13 @@ import { computerFolderOptions } from "@/client/lib/live-computer-folder";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { useFileOpenTarget } from "@/client/hooks/use-file-open-target";
 import { useOpenFile } from "@/client/hooks/use-open-file";
-import { wantsNewWindow } from "@/client/hooks/use-open-target";
+import {
+  useBookmarkRow,
+  useWindowPlaces,
+  wantsNewWindow,
+} from "@/client/hooks/use-open-target";
+import { fileAddressOf } from "@/client/bookmarks/address";
+import { keptPathsAtom } from "@/client/bookmarks/store";
 import {
   getComputerFileUrl,
   getComputerThumbnailUrl,
@@ -105,7 +107,12 @@ import {
 } from "@/client/lib/utils";
 import { useWorkspaceFolder } from "@/client/lib/output-folder";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { COMPUTER_ROOT, fileHref, folderHref } from "@/shared/computer-href";
+import {
+  COMPUTER_ROOT,
+  fileHref,
+  folderHref,
+  RECENTS_ROOT,
+} from "@/shared/computer-href";
 import { keptInPlaceReason } from "@/shared/instrument-folders";
 import { RENDERED_EXTENSIONS } from "@/shared/rendered-kinds";
 import {
@@ -121,6 +128,9 @@ import {
   WINDOW_ID,
 } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
+import { StackIcon } from "@phosphor-icons/react/Stack";
+import { StarIcon } from "@phosphor-icons/react/Star";
 import { ClipboardIcon } from "@phosphor-icons/react/Clipboard";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
@@ -176,8 +186,13 @@ import { pictureHoldingKeyboard } from "@/client/lib/picture-keys";
 
 import { openInNewWindow } from "./app-tabs";
 import { useWindow } from "./context";
+import { DROP_LOOK } from "./drag/tone";
 import { arrivalView } from "./files-step";
-import { maySpring, springTimer } from "./spring-loading";
+import { useGroupTab } from "./group-tab";
+import { pressPlace } from "./drag/press-bookmark";
+import { dragAtom } from "./drag/session";
+import { usePinnedTarget } from "./pinned-drops";
+import { maySpring, SPRING_FLASH_MS, springTimer } from "./spring-loading";
 import { type GoFiles } from "./use-files-step";
 import { PlaceMenu } from "./place-menu";
 import { FileThumbnail } from "./file-thumbnail";
@@ -187,7 +202,6 @@ import { FolderMark } from "./folder-mark";
 import { type FileInfoItem, TITLED_NAME } from "./file-info";
 import { lookPathOf, type LookTarget } from "./look-at";
 import { FolderNameMenu } from "./folder-name-menu";
-import { GlyphButton } from "./glyph-button";
 import {
   folderOf,
   homeRelative,
@@ -199,7 +213,6 @@ import {
   segmentsOf,
 } from "./host-path";
 import { useClashQuestions } from "./clash-dialog";
-import { ConvertMenuItem } from "./convert-files";
 import { createPasteTarget } from "./paste-target";
 import { toastWithUndo, withdrawUndoOffer } from "./undo-offers";
 
@@ -238,12 +251,7 @@ const PAGE_ASPECT = 0.78;
 /** How often the recent files and the disks are read again, and how long a listing read ahead stays fresh. */
 const REFRESH_MS = ms("4 seconds");
 
-/**
- * The place that is not a folder: the files the person opened, wherever they
- * live. Stands where a root folder stands, so the browser opens on it the way
- * it opens on Home.
- */
-export const RECENTS_ROOT = "recents:";
+export { RECENTS_ROOT };
 
 /** The order a folder never sorted by hand opens in. */
 const NAME_SORT: FileSystemSortState = { direction: "asc", key: "name" };
@@ -403,7 +411,10 @@ export function ComputerPage({
   /** The layout this step of the tab's history shows the folder in. */
   view: FileSystemView;
 }) {
-  const { askAbout, openScreen, rowLead, rowTail } = useWindow();
+  const { openScreen, rowLead, rowTail } = useWindow();
+  const placesOf = useWindowPlaces();
+  const bookmarkRow = useBookmarkRow();
+  const keptPaths = useAtomValue(keptPathsAtom);
   const isBesideOpen = beside !== undefined && !beside.isClosing;
   const [rowTools, setRowTools] = useState<HTMLElement | null>(null);
   const placesWidth = useAtomValue(finderPlacesWidthAtom);
@@ -889,7 +900,8 @@ export function ComputerPage({
   const placeInto = async (
     mode: "copy" | "move",
     sources: { hostPath: string; isFolder: boolean }[],
-    into: { hostPath: string; prefix: string },
+    /** The folder, and its prefix under the root where it is under it, as a place of the sidebar may not be. */
+    into: { hostPath: string; prefix?: string },
     how: { numbersInPlace?: boolean } = {},
   ) => {
     if (sources.length === 0) {
@@ -959,11 +971,12 @@ export function ComputerPage({
     const folders = new Set(
       sources.flatMap((source) => (source.isFolder ? [source.hostPath] : [])),
     );
-    if (into.prefix === onScreen && placed.length > 0) {
+    const { prefix } = into;
+    if (prefix !== undefined && prefix === onScreen && placed.length > 0) {
       selectWhenListed(
         placed.map(
           (each) =>
-            `${into.prefix}${nameOf(each.path)}${folders.has(each.from) ? "/" : ""}`,
+            `${prefix}${nameOf(each.path)}${folders.has(each.from) ? "/" : ""}`,
         ),
       );
     }
@@ -1035,12 +1048,12 @@ export function ComputerPage({
   };
   const copyInto = (
     sources: { hostPath: string; isFolder: boolean }[],
-    into: { hostPath: string; prefix: string },
+    into: { hostPath: string; prefix?: string },
     how?: { numbersInPlace?: boolean },
   ) => placeInto("copy", sources, into, how);
   const moveInto = (
     sources: { hostPath: string; isFolder: boolean }[],
-    into: { hostPath: string; prefix: string },
+    into: { hostPath: string; prefix?: string },
   ) => placeInto("move", sources, into);
   // What a drop just put in the folder on screen, selected once the re-read
   // lists it: until then there is no row to select.
@@ -1202,18 +1215,6 @@ export function ComputerPage({
   const folderOnScreenPath = isFolderless
     ? undefined
     : (currentListing?.path ?? hostPathOf(onScreen, rootHostPath ?? root));
-  /** A draft with the rows picked to go with it, or with the folder on screen when there are none. */
-  const draftAbout = (picked: (FileSystemItem | undefined)[]) => {
-    const chosen = picked.flatMap((item) => {
-      const itemPath = hostPathOfItem(item);
-      return item && itemPath ? [{ kind: item.kind, path: itemPath }] : [];
-    });
-    if (chosen.length > 0) {
-      askAbout?.(chosen);
-    } else if (folderOnScreenPath !== undefined) {
-      askAbout?.([{ kind: "folder", path: folderOnScreenPath }]);
-    }
-  };
 
   // The folder on screen is one the operating system would not let this app
   // read. On a Mac the first read of a protected folder is the system's own
@@ -1354,10 +1355,20 @@ export function ComputerPage({
     // of the step on screen until the drag ends: dropped here, the tab stays
     // where it dropped, and otherwise it goes back to where the drag began.
     let hasSprung = false;
-    const spring = springTimer((folder) => {
-      hasSprung = true;
-      dropHandlers.current.go({ path: folder, type: "spring" });
-    });
+    // The ring goes out for a moment just before the folder opens.
+    let flashUntil = 0;
+    const spring = springTimer(
+      (folder) => {
+        hasSprung = true;
+        dropHandlers.current.go({ path: folder, type: "spring" });
+      },
+      {
+        flash: () => {
+          flashUntil = performance.now() + SPRING_FLASH_MS;
+          setDropInto(null);
+        },
+      },
+    );
     const endSpring = (dropped: boolean) => {
       spring.stop();
       if (hasSprung) {
@@ -1378,12 +1389,24 @@ export function ComputerPage({
       event.preventDefault();
       event.stopPropagation();
       const prefix = dropHandlers.current.dropIntoOf(event.target);
-      event.dataTransfer.dropEffect = dropEffectOf({
-        altKey: event.altKey,
-        carried: ownFileDragInAir(),
-        into: dropHostPathRef.current(prefix),
-      });
-      setDropInto(prefix);
+      const into = dropHostPathRef.current(prefix);
+      const carried = ownFileDragInAir();
+      // Files this app is dragging, over the folder they are in already or
+      // inside themselves, go nowhere there (the drop below keeps none of
+      // them), so the folder offers nothing, unless Option asks for copies.
+      const goesNowhere =
+        !event.altKey &&
+        carried.length > 0 &&
+        movableInto(
+          carried.map((hostPath) => ({ hostPath })),
+          into,
+        ).length === 0;
+      event.dataTransfer.dropEffect = goesNowhere
+        ? "none"
+        : dropEffectOf({ altKey: event.altKey, carried, into });
+      setDropInto(
+        goesNowhere || performance.now() < flashUntil ? null : prefix,
+      );
       sawOwnFileDrag();
       const resting = dropHandlers.current.springFolderOf(event.target);
       if (resting !== null && event.type === "dragenter") {
@@ -1425,7 +1448,11 @@ export function ComputerPage({
       event.preventDefault();
       event.stopPropagation();
       clear();
-      endSpring(true);
+      spring.stop();
+      hasSprung = false;
+      // Dropped in a folder a rest opened, here or on a place of the
+      // sidebar, the tab stays there.
+      dropHandlers.current.go({ dropped: true, type: "endSpring" });
       const wasSelfDrag = isSelfFileDrag();
       releaseSelfFileDrag();
       const prefix = dropHandlers.current.dropIntoOf(event.target);
@@ -1471,6 +1498,15 @@ export function ComputerPage({
             numbersInPlace: copies && isMacOS(),
           }));
     };
+    // Where the window takes the drag itself (a page's edge), it never
+    // reaches the listing, which would otherwise keep its ring and its rest.
+    const drags = getDefaultStore();
+    const stopWatching = drags.sub(dragAtom, () => {
+      if (drags.get(dragAtom)?.landing) {
+        clear();
+        spring.rest(null);
+      }
+    });
     browser.addEventListener("dragenter", over);
     browser.addEventListener("dragover", over);
     browser.addEventListener("dragleave", leave);
@@ -1480,6 +1516,7 @@ export function ComputerPage({
     return () => {
       clear();
       spring.stop();
+      stopWatching();
       window.removeEventListener("pointermove", pointerBack, {
         capture: true,
       });
@@ -1604,15 +1641,21 @@ export function ComputerPage({
   // the user is typing somewhere.
   const hasRows = items.length > 0;
   // Only the Finder in the window's tab that is up: every tab stays mounted,
-  // and one behind another is not where the keyboard is.
+  // and one behind another is not where the keyboard is. In a tab group, only
+  // on the side with the keyboard.
   const isActiveTab = useIsActiveTab();
+  const hasKeyboard = useGroupTab()?.hasKeyboard ?? true;
   // Beside a file, the file has the keyboard: the folder takes it only for an
   // address opened in it, never as the tab comes up or the file opens.
   // An opening is the address moving on its own, or a new root.
   const opening = `${root}#${arrivals}`;
   const focusedOpening = useRef(isBesideOpen ? opening : null);
   useEffect(() => {
-    if (!isActiveTab || isTypingTarget(document.activeElement)) {
+    if (
+      !isActiveTab ||
+      !hasKeyboard ||
+      isTypingTarget(document.activeElement)
+    ) {
       return;
     }
     if (isBesideOpen && focusedOpening.current === opening) {
@@ -1628,9 +1671,9 @@ export function ComputerPage({
       '[role="option"][tabindex="0"]',
     );
     row?.focus({ preventScroll: true });
-    // Once per opening, when its rows are first there, or when its tab comes
-    // up.
-  }, [opening, hasRows, isActiveTab, isBesideOpen]);
+    // Once per opening, when its rows are first there, or when its tab or
+    // its side comes up.
+  }, [opening, hasRows, isActiveTab, hasKeyboard, isBesideOpen]);
 
   // A folder the system refused has no listing to say where it is, so where
   // it is comes from the root and the prefix instead: the tab row and the
@@ -2030,16 +2073,11 @@ export function ComputerPage({
   // Steady, so the places beside the folder are not drawn again each time
   // the selection moves.
   const placeActions = useSteadyCallbacks({
-    askAbout:
-      askAbout &&
-      ((place: string) => {
-        askAbout([{ kind: "folder", path: place }]);
-      }),
     openInNewTab: (place: string) => {
-      openScreen(folderHref(place), { behind: true, newTab: true });
+      openScreen(folderHref(place), { newTab: true });
     },
     openInNewWindow: (place: string) => {
-      openScreen(folderHref(place), { newWindow: true });
+      openScreen(folderHref(place), { into: "window" });
     },
     restoreDefaults: () => {
       void rpcClient.preferences.restoreDefaultSidebarPlaces
@@ -2053,6 +2091,61 @@ export function ComputerPage({
       void rpcClient.preferences.unpinSidebarPlace
         .call({ path: place })
         .catch(sidebarChangeFailed);
+    },
+    dropInto: (
+      files: readonly { hostPath: string; isFolder: boolean }[],
+      folder: string,
+      { copies }: { copies: boolean },
+    ) => {
+      const into =
+        folder === dropHostPathOf(onScreen)
+          ? { hostPath: folder, prefix: onScreen }
+          : { hostPath: folder };
+      void (copies ? copyInto([...files], into) : moveInto([...files], into));
+    },
+    pinAt: (paths: readonly string[], order: readonly string[]) => {
+      void Promise.all(
+        paths.map((each) =>
+          rpcClient.preferences.pinSidebarPlace.call({
+            order: [...order],
+            path: each,
+          }),
+        ),
+      ).catch(sidebarChangeFailed);
+    },
+    spring: (folder: string | undefined) => {
+      go(
+        folder === undefined
+          ? { dropped: false, type: "endSpring" }
+          : {
+              path: "",
+              root: folder === homePath ? "~" : folder,
+              type: "spring",
+            },
+      );
+    },
+    springs: (folder: string) => {
+      // macOS asks about a guarded folder once, at its top, so one read
+      // before opens without a question.
+      const asksFirst =
+        macosAsksFirst(folder) &&
+        queryClient.getQueryData(
+          rpcClient.workspace.computer.list.queryKey({
+            input: { id: WINDOW_ID, path: folder },
+          }),
+        ) === undefined;
+      return (
+        !isRecents &&
+        folder !== dropHostPathOf(onScreen) &&
+        maySpring({
+          asksFirst,
+          carried: ownFileDragInAir(),
+          folder,
+          hostPath: folder,
+          onScreen: "",
+          refused: false,
+        })
+      );
     },
   });
 
@@ -2069,27 +2162,6 @@ export function ComputerPage({
   const afterMenuClosed = () => {
     afterMenu.current?.();
     afterMenu.current = null;
-  };
-  /** Ask about what is selected, or the folder on screen where nothing is. */
-  const askButton = () => {
-    const about =
-      selectedItems.length > 1
-        ? `${selectedItems.length} items`
-        : (segmentsOf(
-            hostPathOfItem(selectedItem) || (folderOnScreenPath ?? ""),
-          ).at(-1) ?? "this folder");
-    return (
-      <GlyphButton
-        className={cn(TOOLBAR_CONTROL_CLASSNAME, "text-foreground")}
-        onClick={() => {
-          draftAbout(selectedItems.length > 0 ? selectedItems : [selectedItem]);
-        }}
-        size="sm"
-        title={`Ask about “${about}”`}
-      >
-        <span className="@max-lg/finder:sr-only">Ask</span>
-      </GlyphButton>
-    );
   };
   /** What the folder's menus do to a row, or to the folder where there is none. */
   const menuActionsFor = (item: FileSystemItem | undefined) => {
@@ -2114,12 +2186,6 @@ export function ComputerPage({
               onInfoShow(picked.flatMap(infoItemOf));
             }
           : undefined,
-      onNewDraft:
-        askAbout && (item || folderOnScreenPath !== undefined)
-          ? () => {
-              draftAbout(picked);
-            }
-          : undefined,
       onTrash: () => void trash(picked),
       ...(group
         ? {
@@ -2127,11 +2193,14 @@ export function ComputerPage({
               openSeveral(group);
             },
             onOpenInNewTab: () => {
-              openInTabs(group, { behind: true });
+              openInTabs(group, { behind: false });
             },
             onOpenInNewWindow: () => {
               openInWindow(group);
             },
+            onAddToBookmarks: undefined,
+            onOpenInNewGroup: undefined,
+            onOpenInSplit: undefined,
             onQuickLook: undefined,
             onRename: undefined,
             opensOutside: undefined,
@@ -2182,7 +2251,7 @@ export function ComputerPage({
       ];
     });
     if (hrefs.length > 0) {
-      openInNewWindow(...hrefs);
+      void openInNewWindow(...hrefs);
     }
   };
   // Opening several, as a double-click or ⌘O on a selection does: each file
@@ -2198,7 +2267,37 @@ export function ComputerPage({
     });
     openInTabs(inTabs, { behind: false });
   };
+  // The places a row opens in that one thing can: across from this tab, a
+  // tab group of its own, and a bookmark.
+  const placesOfOne = (item: FileSystemItem | undefined) => {
+    const itemPath = hostPathOfItem(item);
+    if (!item || !itemPath) {
+      return {};
+    }
+    const isFolder = item.kind === "folder";
+    const opens = placesOf((options) => {
+      openScreen(
+        isFolder
+          ? folderHref(itemPath)
+          : fileHref(itemPath, {
+              tree: folderOnScreenPath ?? folderOf(itemPath),
+            }),
+        options,
+      );
+    });
+    const placed = (id: "openNewGroup" | "openSplit") =>
+      opens.find((open) => open.id === id)?.run;
+    return {
+      onAddToBookmarks: bookmarkRow(async () => ({
+        title: segmentsOf(itemPath).at(-1) ?? itemPath,
+        url: fileAddressOf(itemPath, { isFolder }),
+      })).run,
+      onOpenInNewGroup: placed("openNewGroup"),
+      onOpenInSplit: placed("openSplit"),
+    };
+  };
   const menuActionsForOne = (item: FileSystemItem | undefined) => ({
+    ...placesOfOne(item),
     opensOutside: ((): FolderMenuActions["opensOutside"] => {
       const tab = item?.kind === "file" ? fileTabOf(item) : undefined;
       if (!tab || !opensOutside(tab)) {
@@ -2244,7 +2343,7 @@ export function ComputerPage({
       }
     },
     onOpenInNewTab: () => {
-      openInTabs(item ? [item] : [], { behind: true });
+      openInTabs(item ? [item] : [], { behind: false });
     },
     onOpenInNewWindow: () => {
       openInWindow(item ? [item] : []);
@@ -2440,6 +2539,11 @@ export function ComputerPage({
                 >
                   {isBesideOpen ? null : (
                     <div
+                      // Drawn anew as the tab's width moves the places over
+                      // the folder or beside it, so the width that follows
+                      // lands at once rather than sliding, the way the
+                      // places do.
+                      key={isNarrow ? "narrow" : "wide"}
                       className={cn(
                         "flex h-11 shrink-0 items-center transition-[width] [interpolate-size:allow-keywords]",
                         EDGE_DIVIDER_CLASSNAME,
@@ -2489,61 +2593,39 @@ export function ComputerPage({
         beside.pickedInto &&
         selectedItems.length > 1 &&
         createPortal(
-          <>
-            {askAbout ? askButton() : null}
-            <FolderOverflowMenu
-              {...menuActionsFor(selectedItem)}
-              item={selectedItem}
-              onClosed={afterMenuClosed}
-            />
-          </>,
+          <FolderOverflowMenu
+            {...menuActionsFor(selectedItem)}
+            item={selectedItem}
+            onClosed={afterMenuClosed}
+          />,
           beside.pickedInto,
         )}
-      {isNarrow && isPlacesOpen && (
-        <button
-          aria-label="Hide the sidebar"
-          className="absolute inset-0 z-20 cursor-default"
-          onClick={() => {
+      {/* Beside the folder the way the window's own rail is: its edge
+          drags, an over-drag puts it away, and it slides at its width, away
+          while a file is open beside the folder. In a narrow tab it slides
+          over the folder instead, and a press outside it puts it away. */}
+      <StudioSidebarRail
+        bounds={PLACES_BOUNDS}
+        isOpen={(isNarrow ? isPlacesOpen : isPlacesShown) && !isBesideOpen}
+        isOverlay={isNarrow}
+        label="Resize the sidebar"
+        onCollapse={() => {
+          if (isNarrow) {
             setPlacesOpen(false);
-          }}
-          tabIndex={-1}
-          type="button"
-        />
-      )}
-      {isNarrow ? (
-        isBesideOpen ? null : (
-          <nav
-            className={cn(
-              "absolute inset-y-0 left-0 z-30 flex w-44 flex-col gap-4 overflow-y-auto border-r border-border bg-background px-2 py-2 text-sm shadow-xl-soft",
-              !isPlacesOpen && "hidden",
-            )}
-            onKeyDown={onPlacesKeyDown}
-          >
-            {placeLists}
-          </nav>
-        )
-      ) : (
-        // Beside the folder the way the window's own rail is: its edge
-        // drags, an over-drag puts it away, and it slides at its width,
-        // away while a file is open beside the folder.
-        <StudioSidebarRail
-          bounds={PLACES_BOUNDS}
-          isOpen={isPlacesShown && !isBesideOpen}
-          label="Resize the sidebar"
-          onCollapse={() => {
+          } else {
             setPlacesShown(false);
-          }}
-          panelClassName="bg-background"
-          widthAtom={finderPlacesWidthAtom}
+          }
+        }}
+        panelClassName="bg-background"
+        widthAtom={finderPlacesWidthAtom}
+      >
+        <nav
+          className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2 text-sm"
+          onKeyDown={onPlacesKeyDown}
         >
-          <nav
-            className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-2 py-2 text-sm"
-            onKeyDown={onPlacesKeyDown}
-          >
-            {placeLists}
-          </nav>
-        </StudioSidebarRail>
-      )}
+          {placeLists}
+        </nav>
+      </StudioSidebarRail>
       {isComputer ? (
         <ComputerOverview
           {...(rowLead
@@ -2582,9 +2664,14 @@ export function ComputerPage({
             <ContextMenuTrigger asChild>
               <div
                 className="relative min-h-0 flex-1"
+                // Files let go here go into the folder, not into tabs
+                // (`useSidePagesTarget`).
+                {...(isDropOpen
+                  ? { "data-file-drop-region": "", "data-folder-drop": "" }
+                  : {})}
                 // A middle click on a row opens it in a tab of its own, waiting
-                // behind, the way Open in New Tab does: a double-click is what
-                // opens one here, since a single click selects.
+                // behind, as a browser's does: a double-click is what opens
+                // one here, since a single click selects.
                 onAuxClick={(event) => {
                   if (
                     event.button !== 1 ||
@@ -2598,7 +2685,7 @@ export function ComputerPage({
                   const item = items.find((entry) => entry.path === itemPath);
                   if (item) {
                     event.preventDefault();
-                    menuActionsFor(item).onOpenInNewTab();
+                    openInTabs([item], { behind: true });
                   }
                 }}
                 // The middle button's own answer is to scroll; here it opens.
@@ -2610,7 +2697,12 @@ export function ComputerPage({
                 ref={browserRef}
               >
                 {dropInto === current ? (
-                  <div className="pointer-events-none absolute inset-1 z-10 rounded-lg ring-2 ring-brand-500 ring-inset" />
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute inset-1 z-10 rounded-lg",
+                      DROP_LOOK.open,
+                    )}
+                  />
                 ) : null}
                 {isAnythingCut ? (
                   // Faded where each view draws its rows, whichever that is.
@@ -2659,6 +2751,12 @@ export function ComputerPage({
                       : undefined
                   }
                   getHostPath={(item) => hostPathOfItem(item) || undefined}
+                  {...(keptPaths.size === 0
+                    ? {}
+                    : {
+                        isBookmarked: (item: FileSystemItem) =>
+                          keptPaths.has(hostPathOfItem(item)),
+                      })}
                   items={titledItems}
                   // A new root is a new browser; a step under the same root
                   // is handed to the one on screen.
@@ -2865,12 +2963,6 @@ export function ComputerPage({
                       onClosed={afterMenuClosed}
                     />
                   )}
-                  renderHeaderPrimary={
-                    askAbout &&
-                    (selectedItem || folderOnScreenPath !== undefined)
-                      ? askButton
-                      : undefined
-                  }
                   // Where the folder's contents would be: the whole browser for
                   // the folder on screen, its column's place beside the folder
                   // above it in the columns, a line under it in the list.
@@ -2997,10 +3089,10 @@ type FolderMenuActions = {
   onCopyPath: () => void;
   onCut: () => void;
   onDuplicate: () => void;
+  /** Keeps it as a bookmark; left out for several. */
+  onAddToBookmarks?: (() => void) | undefined;
   /** Left out where nothing shows a file's info, or the menu is on the folder's empty space. */
   onInfo: (() => void) | undefined;
-  /** A draft with the row, or the folder its empty space is, picked to go with it; left out where no draft can be opened. */
-  onNewDraft?: (() => void) | undefined;
   /** Left out where there is no folder to make one in. */
   onNewFolder: (() => void) | undefined;
   /** What a double-click does: a folder is gone into, a file opened here. */
@@ -3009,6 +3101,10 @@ type FolderMenuActions = {
   onOpenInNewTab: () => void;
   /** What it is in a window of its own, several as tabs of one. */
   onOpenInNewWindow: () => void;
+  /** The first tab of a new tab group; left out for several. */
+  onOpenInNewGroup?: (() => void) | undefined;
+  /** On the other side of this tab's group, made where it has one side; left out for several. */
+  onOpenInSplit?: (() => void) | undefined;
   /** Left out where nothing shows a file over the page. */
   onQuickLook: (() => void) | undefined;
   /** Left out where there is no field to type a name in. */
@@ -3120,9 +3216,9 @@ function FolderOverflowMenu({
   item: FileSystemItem | undefined;
   onClosed: () => void;
 }) {
-  // The recents with nothing selected have nothing to make, paste or ask
-  // about, so the menu would open empty.
-  if (!props.item && !props.onNewFolder && !props.onNewDraft && !props.paste) {
+  // The recents with nothing selected have nothing to make or paste, so the
+  // menu would open empty.
+  if (!props.item && !props.onNewFolder && !props.paste) {
     return null;
   }
   return (
@@ -3163,16 +3259,18 @@ function FolderMenuItems({
   kept,
   menuComponents,
   newFolderFirst = false,
+  onAddToBookmarks,
   onCopy,
   onCopyPath,
   onCut,
   onDuplicate,
   onInfo,
-  onNewDraft,
   onNewFolder,
   onOpen,
+  onOpenInNewGroup,
   onOpenInNewTab,
   onOpenInNewWindow,
+  onOpenInSplit,
   onQuickLook,
   onRename,
   onReveal,
@@ -3213,11 +3311,6 @@ function FolderMenuItems({
     isMacOS() && itemHostPath && !opensUnnamed
       ? { hostPath: itemHostPath }
       : undefined;
-  // The files among what the menu is about; a folder has no format to change.
-  const convertPaths = (group ?? (item ? [item] : [])).flatMap((each) => {
-    const hostPath = each.kind === "file" ? hostPathOfItem(each) : undefined;
-    return hostPath ? [hostPath] : [];
-  });
   // The rest of the selection, opened along with the row in the app picked.
   const openInOthers = (group ?? []).flatMap((each) => {
     const hostPath = hostPathOfItem(each);
@@ -3232,19 +3325,7 @@ function FolderMenuItems({
             <span>New Folder</span>
             <Shortcut>{keys.newFolder}</Shortcut>
           </Item>
-          {item || onNewDraft || (canPaste && paste) || emptyTail ? (
-            <Separator />
-          ) : null}
-        </>
-      ) : null}
-      {onNewDraft ? (
-        <>
-          <Item onClick={onNewDraft}>
-            <InstrumentGlyph className="size-4 text-brand-600 dark:text-brand-400" />
-            <span>Ask</span>
-          </Item>
-          {/* Nothing comes after it on a folder's More menu. */}
-          {item || !newFolderFirst ? <Separator /> : null}
+          {item || (canPaste && paste) || emptyTail ? <Separator /> : null}
         </>
       ) : null}
       {item ? (
@@ -3272,10 +3353,22 @@ function FolderMenuItems({
               {several ? null : <Shortcut>{keys.open}</Shortcut>}
             </Item>
           )}
+          {onOpenInSplit ? (
+            <Item onClick={onOpenInSplit}>
+              <SquareSplitHorizontalIcon className="size-4" />
+              <span>Open in Split</span>
+            </Item>
+          ) : null}
           <Item onClick={onOpenInNewTab}>
             <NewTabIcon className="size-4" />
             <span>{several ? "Open in New Tabs" : "Open in New Tab"}</span>
           </Item>
+          {onOpenInNewGroup ? (
+            <Item onClick={onOpenInNewGroup}>
+              <StackIcon className="size-4" />
+              <span>Open in New Tab Group</span>
+            </Item>
+          ) : null}
           <Item onClick={onOpenInNewWindow}>
             <AppWindowIcon className="size-4" />
             <span>Open in New Window</span>
@@ -3343,10 +3436,6 @@ function FolderMenuItems({
             <span>Duplicate</span>
             {keys.duplicate ? <Shortcut>{keys.duplicate}</Shortcut> : null}
           </Item>
-          <ConvertMenuItem
-            hostPaths={convertPaths}
-            menuComponents={menuComponents}
-          />
           {!several && onQuickLook ? (
             <Item onClick={onQuickLook}>
               <EyeIcon className="size-4" />
@@ -3365,6 +3454,12 @@ function FolderMenuItems({
           {several ? null : (
             <>
               <Separator />
+              {onAddToBookmarks ? (
+                <Item onClick={onAddToBookmarks}>
+                  <StarIcon className="size-4" />
+                  <span>Add to Bookmarks</span>
+                </Item>
+              ) : null}
               <Item onClick={onCopyPath}>
                 <ClipboardTextIcon className="size-4" />
                 <span>Copy Path</span>
@@ -3601,12 +3696,22 @@ function useListedItems({
 
 /** What a place's menu and the place lists do, steady for the life of the screen. */
 type PlaceActions = {
-  /** Left out where the window has no chat to ask in. */
-  askAbout?: (place: string) => void;
+  /** Files let go on a place of Pinned, moved or copied into its folder. */
+  dropInto: (
+    files: readonly { hostPath: string; isFolder: boolean }[],
+    folder: string,
+    how: { copies: boolean },
+  ) => void;
   openInNewTab: (place: string) => void;
   openInNewWindow: (place: string) => void;
+  /** Folders pinned, or rows moved, so Pinned's rows stand in `order`. */
+  pinAt: (paths: readonly string[], order: readonly string[]) => void;
   restoreDefaults: () => void;
   rootTo: (folder: string) => void;
+  /** A place's folder opened under a drag resting on it, or (`undefined`) the view put back. */
+  spring: (folder: string | undefined) => void;
+  /** Whether a place's folder may open under a drag resting on it. */
+  springs: (folder: string) => boolean;
   unpin: (place: string) => void;
 };
 
@@ -3615,16 +3720,9 @@ function placeMenuOf(
   place: string,
   { actions, isPinned }: { actions: PlaceActions; isPinned: boolean },
 ) {
-  const { askAbout } = actions;
   return (
     <PlaceMenu
       hostPath={place}
-      onNewDraft={
-        askAbout &&
-        (() => {
-          askAbout(place);
-        })
-      }
       onOpenInNewTab={() => {
         actions.openInNewTab(place);
       }}
@@ -3686,6 +3784,14 @@ function FinderPlaces({
   );
   const placeMenu = (place: string, { isPinned = false } = {}) =>
     placeMenuOf(place, { actions, isPinned });
+  const pinnedList = useRef<HTMLUListElement>(null);
+  usePinnedTarget({
+    list: () => pinnedList.current,
+    onInto: actions.dropInto,
+    onPin: actions.pinAt,
+    onSpring: actions.spring,
+    springs: actions.springs,
+  });
   return (
     <>
       {/* The app's own places, which nobody unpins: what the person opened,
@@ -3730,12 +3836,14 @@ function FinderPlaces({
             </ContextMenuContent>
           )
         }
+        listRef={pinnedList}
         menu={(place) => placeMenu(place, { isPinned: true })}
         onOpenInNewTab={actions.openInNewTab}
         onOpenInNewWindow={actions.openInNewWindow}
         onOpen={(folder) => {
           actions.rootTo(folder === homePath ? "~" : folder);
         }}
+        pinned={pinned.map((place) => place.path)}
         places={pinned.map((place) => ({
           // The home folder wears the house it wears in the Finder, which
           // is what says the account-named folder is home.
@@ -4584,16 +4692,20 @@ function isTextLike(file: FileSystemFileItem) {
 function PlaceList({
   label,
   labelMenu,
+  listRef,
   menu,
   onOpen,
   onOpenInNewTab,
   onOpenInNewWindow,
   places,
+  pinned,
 }: {
   /** Left out for the app's own places, which need no heading. */
   label?: string;
   /** What a right-click on the heading offers. */
   labelMenu?: ReactNode;
+  /** The list of rows, for Pinned, which takes drops (`usePinnedTarget`). */
+  listRef?: React.Ref<HTMLUListElement>;
   /** What a right-click on a place offers; nothing where a place is not a folder. */
   menu?: (path: string) => ReactNode;
   onOpen: (path: string) => void;
@@ -4607,6 +4719,8 @@ function PlaceList({
     name: string;
     path: string;
   }[];
+  /** For Pinned, its rows' paths in order, which a row dragged out of the window leaves. */
+  pinned?: readonly string[];
 }) {
   return (
     <div>
@@ -4620,51 +4734,104 @@ function PlaceList({
           {labelMenu}
         </ContextMenu>
       )}
-      <ul className="flex flex-col gap-px">
-        {places.map((place) => {
-          const placeMenu = menu?.(place.path);
-          return (
-            <li key={place.path}>
-              <ContextMenu>
-                <ContextMenuTrigger asChild disabled={placeMenu === undefined}>
-                  <button
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
-                      place.isActive && "bg-foreground/8",
-                    )}
-                    onAuxClick={(event) => {
-                      if (event.button === 1) {
-                        event.preventDefault();
-                        onOpenInNewTab(place.path);
-                      }
-                    }}
-                    onClick={(event) => {
-                      if (onOpenInNewWindow && wantsNewWindow(event)) {
-                        onOpenInNewWindow(place.path);
-                      } else {
-                        onOpen(place.path);
-                      }
-                    }}
-                    onMouseDown={(event) => {
-                      if (event.button === 1) {
-                        event.preventDefault();
-                      }
-                    }}
-                    type="button"
-                  >
-                    <span className="flex size-4 shrink-0 items-center justify-center">
-                      {place.icon}
-                    </span>
-                    <MiddleTruncate text={place.name} />
-                  </button>
-                </ContextMenuTrigger>
-                {placeMenu}
-              </ContextMenu>
-            </li>
-          );
-        })}
+      <ul className="flex flex-col gap-px" ref={listRef}>
+        {places.map((place) => (
+          <PlaceRow
+            key={place.path}
+            menu={menu?.(place.path)}
+            onOpen={onOpen}
+            onOpenInNewTab={onOpenInNewTab}
+            onOpenInNewWindow={onOpenInNewWindow}
+            place={place}
+            pinned={pinned}
+          />
+        ))}
       </ul>
     </div>
+  );
+}
+
+/**
+ * A place in the sidebar, which drags as a place, held by the pointer: a
+ * link to Files at its folder, never the folder itself, so nothing is
+ * handed out of the app to copy (`pressPlace`). It joins a strip as a tab,
+ * goes on the bookmarks bar, moves along Pinned, or goes into a message as
+ * its folder; a row of Pinned let go where nothing takes it leaves Pinned,
+ * as in Finder's sidebar. The recents and the computer are no folder, and
+ * stay put.
+ */
+function PlaceRow({
+  menu,
+  onOpen,
+  onOpenInNewTab,
+  onOpenInNewWindow,
+  place,
+  pinned,
+}: {
+  menu: ReactNode;
+  onOpen: (path: string) => void;
+  onOpenInNewTab: (path: string) => void;
+  onOpenInNewWindow?: ((path: string) => void) | undefined;
+  place: {
+    icon: ReactNode;
+    isActive: boolean;
+    name: string;
+    path: string;
+  };
+  pinned: readonly string[] | undefined;
+}) {
+  const isFolder = place.path !== RECENTS_ROOT && place.path !== COMPUTER_ROOT;
+  return (
+    <li
+      {...(pinned
+        ? { "data-pinned-name": place.name, "data-pinned-place": place.path }
+        : {})}
+    >
+      <ContextMenu>
+        <ContextMenuTrigger asChild disabled={menu === undefined}>
+          <button
+            className={cn(
+              "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left hover:bg-foreground/5 data-[state=open]:bg-foreground/5",
+              place.isActive && "bg-foreground/8",
+            )}
+            onPointerDown={(event) => {
+              if (isFolder) {
+                pressPlace(event, {
+                  name: place.name,
+                  path: place.path,
+                  ...(pinned ? { pinned } : {}),
+                });
+              }
+            }}
+            onAuxClick={(event) => {
+              if (event.button === 1) {
+                event.preventDefault();
+                onOpenInNewTab(place.path);
+              }
+            }}
+            onClick={(event) => {
+              if (onOpenInNewWindow && wantsNewWindow(event)) {
+                onOpenInNewWindow(place.path);
+              } else {
+                onOpen(place.path);
+              }
+            }}
+            onMouseDown={(event) => {
+              if (event.button === 1) {
+                event.preventDefault();
+              }
+            }}
+            type="button"
+          >
+            <span className="flex size-4 shrink-0 items-center justify-center">
+              {place.icon}
+            </span>
+            <MiddleTruncate text={place.name} />
+          </button>
+        </ContextMenuTrigger>
+        {menu}
+      </ContextMenu>
+    </li>
   );
 }
 

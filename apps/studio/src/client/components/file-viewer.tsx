@@ -67,6 +67,7 @@ import { useFileOpenControl } from "../hooks/use-file-open-control";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { AskSelection } from "./document-viewers/ask-selection";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
+import { ViewerToolbarEndContext } from "./document-viewers/viewer-toolbar-end";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
@@ -105,7 +106,6 @@ import {
 } from "./ui/menu-components";
 import { toolbarClassName } from "./ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { ConvertMenuItem } from "./window/convert-files";
 
 // The editor and everything under it (Milkdown, CodeMirror's languages) load
 // the first time a Markdown file is opened for editing, not with the viewer.
@@ -928,17 +928,20 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 
 export function FileViewer({
   actionsInto,
+  actionsInToolbar = false,
   actionsLead,
   actionsTrail,
   autoPlay = false,
   className,
   editable = false,
   file,
+  keyboardHome = false,
   onClose,
   onExpand,
   onInfo,
   onLeaveSource,
   page,
+  pageEdit,
   pageMenu,
   silent = false,
 }: {
@@ -948,6 +951,13 @@ export function FileViewer({
    * there once the element is up.
    */
   actionsInto?: HTMLElement | null;
+  /**
+   * Whether a format with a toolbar of its own (a PDF, a document, a
+   * notebook, an archive) takes the actions at that toolbar's end in place
+   * of `actionsInto`, for a file in a tab of its own, so its controls are one
+   * row. The actions show once the toolbar is up.
+   */
+  actionsInToolbar?: boolean;
   /** Buttons of the caller's own, ahead of the viewer's in its head. */
   actionsLead?: ReactNode;
   /** Buttons of the caller's own, after the viewer's in the row it draws them into. */
@@ -971,6 +981,12 @@ export function FileViewer({
    */
   editable?: boolean;
   file: ViewerFile;
+  /**
+   * Whether the screen showing the file is worked from it, so the keyboard
+   * lands in it as the screen comes up (`keyboard-home.ts`): in a live
+   * editor's words, or the file's view, after a file list beside it.
+   */
+  keyboardHome?: boolean;
   onClose?: () => void;
   onExpand?: () => void;
   /** The file's info card, where the screen holding the viewer has one. */
@@ -987,6 +1003,8 @@ export function FileViewer({
    * HTML file alone.
    */
   page?: ReactNode;
+  /** The page's Edit row for the menu, beside Edit source, while `page` is drawn. */
+  pageEdit?: ReactNode;
   /** The page's own items for the menu, while `page` is drawn: its zoom, Print and the rest a browser offers. */
   pageMenu?: ReactNode;
   /** Set where video and audio must never play sound, such as a thumbnail. */
@@ -998,6 +1016,7 @@ export function FileViewer({
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [imageControlsInto, setImageControlsInto] =
     useState<HTMLElement | null>(null);
+  const [toolbarEnd, setToolbarEnd] = useState<HTMLDivElement | null>(null);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
   const imageLoadError = imageErrorUrl === url;
@@ -1121,6 +1140,9 @@ export function FileViewer({
     : readType === undefined
       ? READING_VIEWER
       : VIEWERS[fileType];
+  const takesToolbarEnd =
+    actionsInToolbar && viewer.hasToolbar && !mediaLoadError;
+  const actionsTarget = takesToolbarEnd ? toolbarEnd : actionsInto;
   const viewerContext: ViewerContext = {
     editable,
     fallback: (
@@ -1150,6 +1172,12 @@ export function FileViewer({
     silent,
     wrapLines,
   };
+
+  const rendered = (
+    <ViewerToolbarEndContext value={takesToolbarEnd ? setToolbarEnd : null}>
+      {viewer.render(viewerContext)}
+    </ViewerToolbarEndContext>
+  );
 
   const note = (
     <UpdatedNote ago={updated.ago} shown={updated.shown} turn={updated.turn} />
@@ -1235,10 +1263,6 @@ export function FileViewer({
                 <span>Save as…</span>
               </DropdownMenuItem>
             )}
-            <ConvertMenuItem
-              hostPaths={[hostPath]}
-              menuComponents={dropdownMenuComponents}
-            />
             {canCopy && (
               <DropdownMenuItem onClick={() => void handleCopy()}>
                 <CopyIcon className="size-4" />
@@ -1268,6 +1292,7 @@ export function FileViewer({
               (richView !== undefined || showsFileText) && (
                 <DropdownMenuSeparator />
               )}
+            {page !== undefined && !showsSource && pageEdit}
             {richView !== undefined && (
               <DropdownMenuItem
                 onClick={() => void handleSourceChange(!showsSource)}
@@ -1300,6 +1325,10 @@ export function FileViewer({
     </>
   );
 
+  // After a picture's own home, which takes its keys.
+  const homeProps = keyboardHome
+    ? { "data-keyboard-home": "3", tabIndex: -1 }
+    : {};
   return (
     <div
       className={cn(fileViewerClassName, className)}
@@ -1319,13 +1348,13 @@ export function FileViewer({
           path={hostPath}
         />
       ) : (
-        actionsInto &&
+        actionsTarget &&
         createPortal(
           <div className="flex shrink-0 items-center gap-1">
             {actions}
             {actionsTrail}
           </div>,
-          actionsInto,
+          actionsTarget,
         )
       )}
 
@@ -1342,9 +1371,12 @@ export function FileViewer({
         // Viewers that scroll internally own the whole content area, so they
         // are not nested inside the shared scroll container. The content is
         // the file, so it is text; a viewer's own toolbar and rail say not.
-        <div className="relative flex min-h-0 flex-1 flex-col select-text">
+        <div
+          className="relative flex min-h-0 flex-1 flex-col outline-none select-text"
+          {...homeProps}
+        >
           <UpdatedNoteContext value={markUpdated}>
-            {viewer.render(viewerContext)}
+            {rendered}
           </UpdatedNoteContext>
           {note}
         </div>
@@ -1353,11 +1385,12 @@ export function FileViewer({
         // at the top of the view however far down the file is read.
         <div className="relative flex min-h-0 flex-1 flex-col">
           <div
-            className="relative min-h-0 flex-1 overflow-auto select-text"
+            className="relative min-h-0 flex-1 overflow-auto outline-none select-text"
             ref={contentRef}
+            {...homeProps}
           >
             <UpdatedNoteContext value={markUpdated}>
-              {viewer.render(viewerContext)}
+              {rendered}
             </UpdatedNoteContext>
           </div>
           {note}

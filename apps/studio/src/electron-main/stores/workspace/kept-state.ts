@@ -1,14 +1,17 @@
 import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
+import { publisher } from "@/electron-main/rpc/publisher";
 import { appWindowIdOf } from "@/electron-main/windows/app-window-ids";
 import { movedFilesAddress } from "@/shared/computer-href";
 import {
   isKeptFile,
   KEPT_STATE_CHANNEL,
   type KeptFile,
+  keptTabGroupsOf,
   type KeptSnapshot,
   SHARED_KEPT_FILES,
+  TAB_GROUPS_KEY,
+  unlistedTabGroups,
   WINDOW_KEPT_FILE,
-  WINDOW_KEPT_KEYS,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
 import { BrowserWindow, ipcMain } from "electron";
@@ -155,9 +158,12 @@ export function rewriteFolderAddresses(
   } catch {
     // A workspace no window of this build has opened has none.
   }
-  return [path.join(windowDir, keptFileName("layout")), ...windowFiles].flatMap(
-    (file) => rewriteAddressesIn(file, where),
-  );
+  return [
+    ...SHARED_KEPT_FILES.map((file) =>
+      path.join(windowDir, keptFileName(file)),
+    ),
+    ...windowFiles,
+  ].flatMap((file) => rewriteAddressesIn(file, where));
 }
 
 function rewriteAddressesIn(
@@ -208,10 +214,12 @@ function rewriteAddressesIn(
 }
 
 /**
- * A file's object, or an empty one for a file that is missing or not an
- * object of JSON; undefined for one that is there and could not be read
- * (another program holding it, a refused folder), which is no reason to
- * write over it.
+ * A file's object, or an empty one for a file that is missing; undefined for
+ * one that is there and could not be read (another program holding it, a
+ * refused folder), which is no reason to write over it. A file that is not
+ * an object of JSON is set aside under another name first (`setAside`), so
+ * the next write starts a new one and the old stays for a person to look at;
+ * one that cannot be set aside is not read at all.
  */
 function readObject(file: string): Record<string, unknown> | undefined {
   let raw: string;
@@ -230,10 +238,24 @@ function readObject(file: string): Record<string, unknown> | undefined {
       return Object.fromEntries(Object.entries(value));
     }
   } catch {
-    // Reported below with the case of JSON that is not an object.
+    // Set aside below with the case of JSON that is not an object.
   }
-  logger.warn(`Ignoring kept state in ${file}: not a JSON object`);
-  return {};
+  return setAside(file) ? {} : undefined;
+}
+
+/** A kept file that is not an object of JSON, renamed beside itself; false when it could not be. */
+function setAside(file: string): boolean {
+  const aside = `${file}.corrupt-${Date.now().toString()}`;
+  try {
+    fs.renameSync(file, aside);
+  } catch (error) {
+    logger.warn(`Could not set aside kept state in ${file}`, error);
+    return false;
+  }
+  logger.warn(
+    `Set aside kept state in ${file}, not a JSON object, as ${aside}`,
+  );
+  return true;
 }
 
 let STORE: null | ReturnType<typeof createKeptStateStore> = null;
@@ -243,20 +265,20 @@ let STORE: null | ReturnType<typeof createKeptStateStore> = null;
  * computer's, whose screens and paths they are measured against.
  */
 function getStore() {
-  STORE ??= createKeptStateStore(() => workspaceWindowDir());
+  if (!STORE) {
+    STORE = createKeptStateStore(() => workspaceWindowDir());
+    // A launch starts with only the groups some window lists.
+    sweepTabGroups();
+  }
   return STORE;
 }
 
 const windowStores = new Map<string, ReturnType<typeof createKeptStateStore>>();
 
-/** The first window of a workspace, and the one every earlier build's state belongs to. */
+/** The first window of a workspace. */
 export const FIRST_APP_WINDOW_ID = "app";
 
-/**
- * What one window keeps for itself, in a file named for it. The window an
- * earlier build opened as the only one takes what that build kept in `layout`
- * the first time it is asked for.
- */
+/** What one window keeps for itself, in a file named for it. */
 function windowStoreOf(windowId: string) {
   const known = windowStores.get(windowId);
   if (known) {
@@ -270,23 +292,6 @@ function windowStoreOf(windowId: string) {
     },
   );
   windowStores.set(windowId, store);
-  if (windowId === FIRST_APP_WINDOW_ID) {
-    const earlier = WINDOW_KEPT_KEYS.filter(
-      (key) => getStore().get("layout", key) !== undefined,
-    );
-    for (const key of earlier) {
-      if (store.get(WINDOW_KEPT_FILE, key) === undefined) {
-        store.set(WINDOW_KEPT_FILE, key, getStore().get("layout", key));
-      }
-    }
-    // Out of `layout` only once they are on disk in the window's own file, or
-    // the next launch has them nowhere. Until then it takes them again.
-    if (store.flush()) {
-      for (const key of earlier) {
-        getStore().set("layout", key, undefined);
-      }
-    }
-  }
   return store;
 }
 
@@ -324,8 +329,8 @@ export function tellWindowKeptState(
   }
 }
 
-/** Every other window's kept value of a key, for windows on disk and in memory alike. */
-function otherWindowsValues(key: string, exceptId: string | undefined) {
+/** Every window that keeps something, open or closed to come back, on disk and in memory alike. */
+function everyWindowId() {
   const windowsDir = path.join(workspaceWindowDir(), WINDOWS_FOLDER);
   const onDisk = fs.existsSync(windowsDir)
     ? fs
@@ -333,7 +338,12 @@ function otherWindowsValues(key: string, exceptId: string | undefined) {
         .filter((name) => name.endsWith(".json"))
         .map((name) => name.slice(0, -".json".length))
     : [];
-  return [...new Set([...onDisk, ...windowStores.keys()])].flatMap((id) => {
+  return [...new Set([...onDisk, ...windowStores.keys()])];
+}
+
+/** Every other window's kept value of a key, for windows on disk and in memory alike. */
+function otherWindowsValues(key: string, exceptId: string | undefined) {
+  return everyWindowId().flatMap((id) => {
     if (id === exceptId) {
       return [];
     }
@@ -342,7 +352,37 @@ function otherWindowsValues(key: string, exceptId: string | undefined) {
   });
 }
 
-/** Forgets what a window kept, once it can no longer come back. */
+/**
+ * Removes the tab groups no window lists any more, or with no tabs
+ * (`unlistedTabGroups`), and tells the open windows they went.
+ */
+function sweepTabGroups() {
+  const listed = new Set(
+    everyWindowId().flatMap(
+      (id) => keptTabGroupsOf(getWindowKeptState(id, TAB_GROUPS_KEY)) ?? [],
+    ),
+  );
+  const gone = unlistedTabGroups(getStore().snapshot().groups ?? {}, listed);
+  for (const key of gone) {
+    getStore().set("groups", key, undefined);
+    for (const window of BrowserWindow.getAllWindows()) {
+      if (!window.isDestroyed()) {
+        window.webContents.send(KEPT_STATE_CHANNEL.changed, "groups", key);
+      }
+    }
+  }
+  if (gone.length > 0) {
+    logger.info(
+      `Removed ${gone.length.toString()} tab group(s) no window lists`,
+    );
+    publisher.publish("window.tab-groups-changed", null);
+  }
+}
+
+/**
+ * Forgets what a window kept, once it can no longer come back, and the tab
+ * groups only it listed.
+ */
 export function forgetWindowKeptState(windowId: string) {
   windowStores.get(windowId)?.discard();
   windowStores.delete(windowId);
@@ -357,6 +397,7 @@ export function forgetWindowKeptState(windowId: string) {
     // Another program holding it, and this runs as a window closes.
     logger.warn(`Could not remove kept state in ${file}`, error);
   }
+  sweepTabGroups();
 }
 
 /** One kept value, for the main process's own use of what a window keeps. */
@@ -372,29 +413,51 @@ export function setKeptState(file: KeptFile, key: string, value: unknown) {
   getStore().set(file, key, value);
 }
 
-const KeptTabGroupSchema = z.object({
-  tabs: z.array(z.object({ id: z.string() })),
+/** A kept tab group's tabs, as much of them as main reads (`WINDOW_TABS_KEY`). */
+export const KeptTabGroupSchema = z.object({
+  sides: z.array(
+    z.object({
+      tabs: z.array(
+        z.object({
+          href: z.string().optional(),
+          id: z.string(),
+          openedBy: z.string().optional(),
+          promptedAt: z.number().optional(),
+          /** Where a page tab stands, a file's page at its `file:` URL. */
+          url: z.string().optional(),
+        }),
+      ),
+    }),
+  ),
 });
 
-/**
- * The window group a tab is kept in, by the tab's id: a chat's id for a
- * chat's tab, a site's or draft's otherwise. Undefined for a tab no window
- * has kept yet. A page drawn inside one window's surface is in no group here.
- */
-export function keptTabGroupOf(tabId: string): string | undefined {
+/** Every tab kept in a tab group, with its group's key. */
+export function keptGroupedTabs() {
   const prefix = `${WINDOW_TABS_KEY}/`;
-  const layout = getStore().snapshot().layout ?? {};
-  for (const [key, value] of Object.entries(layout)) {
-    if (
-      key.startsWith(prefix) &&
-      KeptTabGroupSchema.safeParse(value).data?.tabs.some(
-        (tab) => tab.id === tabId,
-      )
-    ) {
-      return key.slice(prefix.length);
-    }
-  }
-  return undefined;
+  const groups = getStore().snapshot().groups ?? {};
+  return Object.entries(groups).flatMap(([key, value]) => {
+    const sides = key.startsWith(prefix)
+      ? KeptTabGroupSchema.safeParse(value).data?.sides
+      : undefined;
+    const group = key.slice(prefix.length);
+    return (sides ?? []).flatMap((side) =>
+      side.tabs.map((tab) => ({ ...tab, group })),
+    );
+  });
+}
+
+/** The tab group a tab is the only tab of, by the tab's id; undefined for a tab with others beside it. */
+export function keptLoneGroupOfTab(tabId: string): string | undefined {
+  const tabs = keptGroupedTabs();
+  const group = tabs.find((tab) => tab.id === tabId)?.group;
+  return tabs.filter((tab) => tab.group === group).length === 1
+    ? group
+    : undefined;
+}
+
+/** The chat whose agent opened a tab, by the tab's id; undefined for one the person opened. */
+export function keptOpenerOfTab(tabId: string): string | undefined {
+  return keptGroupedTabs().find((tab) => tab.id === tabId)?.openedBy;
 }
 
 /** Writes what is still waiting, at once. The quit calls it on its way out. */
@@ -437,9 +500,17 @@ export function serveKeptState() {
         if (windowId !== undefined) {
           windowStoreOf(windowId).set(file, key, value);
         }
+        // Every window lists what the others have open.
+        if (key === TAB_GROUPS_KEY) {
+          publisher.publish("window.tab-groups-changed", null);
+        }
         return;
       }
       getStore().set(file, key, value);
+      // A chat's tab opened, closed or moved changes what each window has open.
+      if (key.startsWith(`${WINDOW_TABS_KEY}/`)) {
+        publisher.publish("window.tab-groups-changed", null);
+      }
       for (const window of BrowserWindow.getAllWindows()) {
         if (!window.isDestroyed() && window.webContents !== event.sender) {
           window.webContents.send(KEPT_STATE_CHANNEL.changed, file, key, value);

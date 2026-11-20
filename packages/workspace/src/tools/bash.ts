@@ -54,6 +54,8 @@ import {
   BrowserFollowUp,
   PageAfterSchema,
   pageAfterText,
+  TabPlaceSchema,
+  tabPlaceText,
   withBrowserFollowUp,
 } from "../lib/shell-commands/agent-browser-follow-up";
 import {
@@ -249,6 +251,11 @@ const bashOutputSchema = z.object({
    * nothing in the call read it afterwards.
    */
   pageAfter: PageAfterSchema.optional(),
+  /**
+   * Where the tab the call's agent-browser commands last put a page in
+   * stands in the user's window when the call ended, and whether they see it.
+   */
+  tabPlace: TabPlaceSchema.optional(),
   /**
    * The last screenshot the call's agent-browser commands took, shown to a
    * model that takes images as part of the result.
@@ -560,7 +567,10 @@ const bashCapability = defineCapability({
         }
 
         const browserFailures = browserFollowUp.takeFailures(outcome.output);
-        const pageAfter = await browserFollowUp.take(signal);
+        const [pageAfter, tabPlace] = await Promise.all([
+          browserFollowUp.take(signal),
+          browserFollowUp.takePlace(signal),
+        ]);
         const screenshotPath = browserFollowUp.takeScreenshot();
         const screenshot =
           screenshotPath !== undefined && model.features.includes("inputImage")
@@ -596,6 +606,7 @@ const bashCapability = defineCapability({
           ...(outcome.exitCode !== 0 && stderr ? { stderr } : {}),
           ...(screenshot ? { screenshot } : {}),
           spillFilePath,
+          ...(tabPlace ? { tabPlace } : {}),
         });
       },
       readOnly: false,
@@ -724,9 +735,12 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
             : []),
         ]
       : [];
-    const pageAfterSection = output.pageAfter
-      ? ["", pageAfterText(output.pageAfter)]
-      : [];
+    // Ahead of the page, since whether the user sees it is what a reply
+    // about it turns on.
+    const pageAfterSection = [
+      ...(output.tabPlace ? ["", tabPlaceText(output.tabPlace)] : []),
+      ...(output.pageAfter ? ["", pageAfterText(output.pageAfter)] : []),
+    ];
     const browserSkillSection = output.browserSkill
       ? ["", browserSkillText(output.browserSkill)]
       : [];

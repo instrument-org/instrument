@@ -140,11 +140,20 @@ body {
   }
 
   /* A page runs in a process of its own, which takes a pointer that crosses it,
-     and the release with it. Nothing else in the window answers to a pointer that
-     is carrying a tab either, as hovering. */
+     and the release with it, from a press that may become a drag onward. Nothing
+     else in the window answers to a pointer that is carrying a tab either, as
+     hovering. */
+  [data-pressing] :is(webview, iframe),
   [data-tab-held] :is(webview, iframe),
   [data-tab-held] body {
     pointer-events: none;
+  }
+
+  /* Something held by the pointer over a place where letting go would change
+     nothing, as the system's drag says with its own pointer. */
+  [data-drop-refused],
+  [data-drop-refused] * {
+    cursor: not-allowed !important;
   }
 }
 
@@ -977,6 +986,16 @@ body {
   initial-value: 0px;
 }
 
+/* Where a file beside its folder in Files starts: the folder's width, or 0
+   with the folder folded away. Registered so the offset is what slides as
+   the folder folds and unfolds, while the file's width, the rest of the
+   tab after it, follows the tab's own width at once. */
+@property --beside-offset {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 /* Scroll-driven edge fade for a vertical scroll area. The mask's top/bottom
    stops are registered as animatable lengths and driven by the element's own
    scroll timeline, so the top fade appears only once scrolled down and the
@@ -1091,21 +1110,32 @@ body {
   }
 }
 
-/* Ends a tab's title before the close control drawn over its end, whose hover
- * background would otherwise sit on the last faint letters. The stops are
- * measured from the title's own box, where the control begins 1rem in, and the
- * name is gone 0.125rem before that. The same with or without the control on
- * screen, so that a name stays put as the pointer comes and goes. */
-@utility tab-title-fade {
-  --tab-title-fade: linear-gradient(
+/* A name too long for its room fades out over its last 2rem (`FadeTitle`,
+ * which marks it `data-overflows`), rather than ending in an ellipsis or cut
+ * through a letter. `--title-fade-clear` keeps that much of its end clear,
+ * for something drawn over it. */
+@utility title-fade {
+  overflow: hidden;
+  white-space: nowrap;
+  --title-fade: linear-gradient(
     to right,
-    #000 0%,
-    #000 calc(100% - 2rem),
-    transparent calc(100% - 1.125rem),
-    transparent 100%
+    #000 calc(100% - var(--title-fade-clear, 0px) - 2rem),
+    transparent calc(100% - var(--title-fade-clear, 0px))
   );
-  mask-image: var(--tab-title-fade);
-  -webkit-mask-image: var(--tab-title-fade);
+  &[data-overflows] {
+    mask-image: var(--title-fade);
+    -webkit-mask-image: var(--title-fade);
+  }
+}
+
+/* A tab's title while its close control shows over its end: the control
+ * begins 1rem into the title's own box, and the name is gone 0.125rem before
+ * that. Masked whether or not the name overflows, since a name that fits can
+ * still run under the control. */
+@utility title-fade-under-close {
+  --title-fade-clear: 1.125rem;
+  mask-image: var(--title-fade);
+  -webkit-mask-image: var(--title-fade);
 }
 
 /* Hairline closing the file viewer's chrome band, inset so it costs no height.
@@ -1272,9 +1302,10 @@ body {
 }
 
 /* While something open folds at a press anywhere else, no part of the window
- * is a handle for moving it, so a press on the window bar or a title row
- * reaches the document and puts it away instead of moving the window. What
- * counts as open, and why the root carries it, is `lib/window-drag-overlays.ts`. */
+ * is a handle for moving it, so a press on the tab strip, the sidebar or the
+ * title bar reaches the document and puts it away instead of moving the
+ * window. What counts as open, and why the root carries it, is
+ * `lib/window-drag-overlays.ts`. */
 :root[data-overlay-open] * {
   -webkit-app-region: no-drag !important;
 }
@@ -2019,10 +2050,10 @@ a.cursor-pointer {
     -webkit-mask-clip: text;
   }
 
-  /* No window drag area of its own. Inside a window tab the copy would
-   * inherit the tab's no-drag, and Chromium takes a box's drag area unclipped:
-   * the whole title and the sliding bar, reaching past the tab over the bar,
-   * where a press then misses the window drag. */
+  /* No window drag area of its own. The copy would inherit the drag or no-drag
+   * of the box it sits in, and Chromium takes a box's drag area unclipped: the
+   * whole text and the sliding bar, reaching past that box over its neighbors,
+   * where a press then lands in the wrong one. */
   .shimmer-sweep,
   .shimmer-sweep::before,
   .shimmer-sweep::after {
@@ -2408,4 +2439,68 @@ a.cursor-pointer {
   100% {
     opacity: 1;
   }
+}
+
+/* A new tab's field arriving: a pale outline that holds for a moment, with a
+ * brighter length of it crossing the way the eye reads, then fading. The ring
+ * is the whole element and the glint a band of background lit through it:
+ * the mask keeps the border box and drops the padding box, leaving a 2px ring
+ * for both to paint on. The band is three boxes wide, so its lit stretch is a
+ * fraction of the box, and it runs from just off the left edge to just off the
+ * right. Ink rather than the brand, and pale. Under reduced motion the pass is
+ * dropped and the outline still fades in and out. */
+@utility field-glint {
+  --field-glint-line: color-mix(in oklab, var(--foreground) 12%, transparent);
+  --field-glint-band: color-mix(in oklab, var(--foreground) 28%, transparent);
+
+  border: 2px solid var(--field-glint-line);
+  background: linear-gradient(
+      115deg,
+      transparent 45%,
+      var(--field-glint-band) 50%,
+      transparent 55%
+    )
+    border-box;
+  background-position: 100% 0;
+  background-size: 300% 100%;
+  mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  animation:
+    field-glint-band 550ms ease-out,
+    field-glint-ring 750ms ease-out both;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: field-glint-ring 750ms ease-out both;
+  }
+}
+
+@keyframes field-glint-band {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0 0;
+  }
+}
+
+@keyframes field-glint-ring {
+  0%,
+  76% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* The tab bar over a chat that is its whole tab group, drawn the way a
+ * browser draws its tab strip: a ground of its own (`--group-strip`), with
+ * the chat's tab lifted off it on the ground of what is under it
+ * (`--tab-selected`). */
+@utility group-strip {
+  --tab-selected: var(--background);
+
+  background-color: var(--group-strip);
 }

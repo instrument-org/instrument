@@ -1,6 +1,6 @@
 # Plan: the floating chat
 
-Status: done. Landed. The small view, the Included region, pop-out and the placeholder, the file tab's tree and links between files, Home as a landing page, the connect buttons, and the `float_every_draft` flag are built. The Apps scenario (a draft started over a connected app's page) and several small views standing at once were not tried in the app.
+Status: superseded. Popped-out chats and the draft windows along the foot were removed; drafts are written on the Chat screen and chats open as tabs.
 
 ## What it is
 

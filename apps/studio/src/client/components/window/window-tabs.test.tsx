@@ -15,13 +15,18 @@ import { describe, expect, it, vi } from "vitest";
 
 import { appTabsAtom } from "./app-tabs";
 import {
+  arrivingNewChatTabsAtom,
   groupOnScreenAtom,
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
+import { newChatHref } from "./window-href";
 
 const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
-const OTHER = ChatIdSchema.parse("2026-10-02-trip");
+const GROUP = "group:1";
+const OTHER = "group:2";
+/** The window's tab standing on a group, as `groupHref` addresses it. */
+const ON_GROUP = `/chats?group=${encodeURIComponent(GROUP)}`;
 
 const TAB = TabIdSchema.parse("tab");
 
@@ -46,7 +51,8 @@ function at(pathname: string) {
 
 describe("the group on screen", () => {
   it.each([
-    ["a chat", `/chats/${CHAT}`, CHAT],
+    ["a group", ON_GROUP, GROUP],
+    ["a chat asked for by its address", `/chats/${CHAT}`, undefined],
     ["the inbox alone", "/chats", undefined],
     ["a site of the window's own", "/sites/abc", "site:abc"],
     ["a screen that is its own route", "/files", undefined],
@@ -58,20 +64,20 @@ describe("the group on screen", () => {
 });
 
 describe("opening into a group", () => {
-  it("brings a screen up in the group on screen, and leaves one opened into a chat behind waiting with nothing up", () => {
-    const { result, store } = at(`/chats/${CHAT}`);
+  it("brings a screen up in the group on screen, and leaves one opened into another group waiting there", () => {
+    const { result, store } = at(ON_GROUP);
     let here: string | undefined;
     act(() => {
       here = result.current.openScreen(BROWSER_HREF);
       result.current.openScreen(BROWSER_HREF, { group: OTHER });
     });
     expect(result.current.active?.id).toBe(here);
-    expect(store.get(windowTabsAtom).activeByGroup).toEqual({ [CHAT]: here });
-    expect(result.current.selectedTabIn(OTHER)).toBeUndefined();
+    expect(store.get(windowTabsAtom).activeByGroup).toEqual({ [GROUP]: here });
+    expect(store.get(windowTabsAtom).activeByGroup).not.toHaveProperty(OTHER);
   });
 
   it("sees, within one tick, what the change before it did", () => {
-    const { result } = at(`/chats/${CHAT}`);
+    const { result } = at(ON_GROUP);
     let first: string | undefined;
     let second: string | undefined;
     act(() => {
@@ -83,7 +89,7 @@ describe("opening into a group", () => {
   });
 
   it("walks a screen tab up to another screen by its own router, keeping it", () => {
-    const { result } = at(`/chats/${CHAT}`);
+    const { result } = at(ON_GROUP);
     let id: string | undefined;
     act(() => {
       id = result.current.openScreen(BROWSER_HREF);
@@ -108,29 +114,132 @@ describe("opening into a group", () => {
   });
 });
 
-describe("the tabs a build with one window kept", () => {
-  it("are read as every window keeps them, group by group, tabs with no group among them", async () => {
+describe("a new chat tab arriving", () => {
+  it("marks only an empty new chat this window opened, for its composer's one glint", () => {
+    const { result, store } = at(ON_GROUP);
+    let fresh: string | undefined;
+    let kept: string | undefined;
+    let page: string | undefined;
+    act(() => {
+      fresh = result.current.openScreen(newChatHref());
+      kept = result.current.openScreen(newChatHref("d1"));
+      page = result.current.openScreen(BROWSER_HREF);
+    });
+    const arriving = store.get(arrivingNewChatTabsAtom);
+    expect(fresh && arriving.has(fresh)).toBe(true);
+    expect(kept && arriving.has(kept)).toBe(false);
+    expect(page && arriving.has(page)).toBe(false);
+    expect(arriving.size).toBe(1);
+  });
+});
+
+describe("the tab groups kept on this computer", () => {
+  /** A group of two sides as `tab-groups.v3` keeps it, the keyboard on the right. */
+  const MEMBER = {
+    focused: 1,
+    pinned: true,
+    share: 0.4,
+    sides: [
+      {
+        tabs: [
+          { id: "tab_1", kind: "page", openedAt: 1 },
+          { id: "tab_2", kind: "page", openedAt: 2 },
+        ],
+        up: "tab_2",
+      },
+      { tabs: [{ href: "/chats", id: "tab_3", kind: "screen" }], up: "tab_3" },
+    ],
+  };
+
+  it("are read and written back in the v3 shape, and nothing an earlier key kept is read", async () => {
     vi.resetModules();
-    const kept = await import("@/client/lib/kept-state");
-    kept.clearKeptState();
-    kept.writeKept("layout", "window-tabs.v9", {
-      activeByGroup: { chat_a: "tab_1" },
+    const set = vi.fn();
+    Object.defineProperty(window, "api", {
+      configurable: true,
+      value: {
+        keptState: {
+          initial: {
+            groups: {
+              "tab-groups.v2/group_b": {
+                active: "tab_9",
+                tabs: [{ group: "group_b", id: "tab_9", kind: "page" }],
+              },
+              "tab-groups.v3/group_a": MEMBER,
+            },
+          },
+          onChange: () => () => {},
+          set,
+        },
+      },
+    });
+    const { useWindowTabs: use, windowTabsAtom: read } =
+      await import("./window-tabs");
+    const store = createStore();
+
+    expect(store.get(read)).toEqual({
+      activeByGroup: { group_a: "tab_3" },
+      besideByGroup: { group_a: "tab_2" },
+      groups: { group_a: { pinned: true, share: 0.4 } },
       tabs: [
-        { group: "chat_a", id: "tab_1", kind: "page", openedAt: 1 },
-        { id: "tab_2", kind: "page", openedAt: 2 },
+        { group: "group_a", id: "tab_1", kind: "page", openedAt: 1 },
+        { group: "group_a", id: "tab_2", kind: "page", openedAt: 2 },
+        {
+          group: "group_a",
+          href: "/chats",
+          id: "tab_3",
+          kind: "screen",
+          side: 1,
+        },
       ],
     });
 
-    const { windowTabsAtom: migrated } = await import("./window-tabs");
-
-    expect(createStore().get(migrated)).toEqual({
-      activeByGroup: { chat_a: "tab_1" },
-      tabs: [
-        { group: "chat_a", id: "tab_1", kind: "page", openedAt: 1 },
-        { id: "tab_2", kind: "page", openedAt: 2 },
-      ],
+    const { result } = renderHook(() => use(), {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <Provider store={store}>{children}</Provider>
+      ),
     });
-    expect(kept.takeKept("layout", "window-tabs.v9")).toBeUndefined();
+    act(() => {
+      result.current.setGroupOwn("group_a", { share: 0.5 });
+    });
+
+    expect(set.mock.calls).toEqual([
+      ["groups", "tab-groups.v3/group_a", { ...MEMBER, share: 0.5 }],
+    ]);
+    Reflect.deleteProperty(window, "api");
+    vi.resetModules();
+  });
+
+  it("keeps every tab of a group a later layout kept with three sides, past the second on the right", async () => {
+    vi.resetModules();
+    Object.defineProperty(window, "api", {
+      configurable: true,
+      value: {
+        keptState: {
+          initial: {
+            groups: {
+              "tab-groups.v3/group_a": {
+                focused: 2,
+                sides: [
+                  { tabs: [{ id: "tab_1", kind: "page" }], up: "tab_1" },
+                  { tabs: [{ id: "tab_2", kind: "page" }], up: "tab_2" },
+                  { tabs: [{ id: "tab_3", kind: "page" }], up: "tab_3" },
+                ],
+              },
+            },
+          },
+          onChange: () => () => {},
+          set: vi.fn(),
+        },
+      },
+    });
+    const { windowTabsAtom: read } = await import("./window-tabs");
+
+    expect(createStore().get(read).tabs).toEqual([
+      { group: "group_a", id: "tab_1", kind: "page" },
+      { group: "group_a", id: "tab_2", kind: "page", side: 1 },
+      { group: "group_a", id: "tab_3", kind: "page", side: 1 },
+    ]);
+    Reflect.deleteProperty(window, "api");
     vi.resetModules();
   });
 });

@@ -23,8 +23,8 @@ import { withoutPathQuotes } from "@/client/lib/path-text";
 import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
+import { chatAddressOf } from "@instrument-org/shared";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
-import { PictureInPictureIcon } from "@phosphor-icons/react/PictureInPicture";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
@@ -41,6 +41,7 @@ import { chatMenuGroups } from "./chat-actions";
 import { type RowDensity } from "./chat-list-view";
 import { ChatMarkDot } from "./chat-mark";
 import { ChatTitleField } from "./chat-title";
+import { useContentDrag } from "./drag/content-drag";
 import {
   activityLabel,
   type Chat,
@@ -102,7 +103,9 @@ export function ChatRow({
   density = "three",
   isArriving = false,
   isOpen,
+  isPlain = false,
   isProjectShown = true,
+  mark,
   now,
   onDelete,
   onNewProject,
@@ -121,8 +124,18 @@ export function ChatRow({
   isArriving?: boolean;
   /** Whether this chat is the one open beside the list. */
   isOpen: boolean;
+  /**
+   * A row of the bookmarks bar's Chats menu: no controls under the pointer
+   * and no hairlines, on rounded rows.
+   */
+  isPlain?: boolean;
   /** Whether the row names the project the chat is filed under: not in the list of that project, which already says it. */
   isProjectShown?: boolean;
+  /**
+   * The chat's mark ahead of its title, which wears the row's dot
+   * (`ChatMarkIcon`) in place of the gutter's.
+   */
+  mark?: ReactNode;
   /** The moment the row's time is read against. */
   now: Date;
   /** Asks before the chat goes to the trash, through the caller's dialog. */
@@ -138,16 +151,18 @@ export function ChatRow({
 }) {
   const filed = projects.find((entry) => entry.id === chat.project);
   const appWindow = useWindow();
-  // A Cmd-click or a middle click, and the menu's row, open the chat in a
-  // tab of the window's own behind the one up, where a plain click opens
-  // it beside the list.
-  const openInNewTab = () => {
-    appWindow.openScreen(chatHref(chat.id), {
-      behind: true,
-      newTab: true,
-    });
+  // A Cmd-click or a middle click opens the chat in a tab of the window's
+  // own behind the one up, and the menu's row in front, where a plain click
+  // opens it beside the list.
+  const openInNewTab = (behind: boolean) => {
+    appWindow.openScreen(chatHref(chat.id), { behind, newTab: true });
   };
-  const clicks = openClickGestures({ open: onOpen, openInNewTab });
+  const clicks = openClickGestures({
+    open: onOpen,
+    openInNewTab: () => {
+      openInNewTab(true);
+    },
+  });
   const [isPicking, setPicking] = useState(false);
   // Held in the flow for a moment after the list closes: the list animates
   // out anchored to the control, and a control that vanished with the
@@ -164,6 +179,11 @@ export function ChatRow({
   };
   const isUnseen = chat.unread;
   const rename = useChatRename(chat);
+  // Dragged, the row is the chat's address, held like any link.
+  const dragProps = useContentDrag(
+    { kind: "link", title: chat.title, url: chatAddressOf(chat.id) },
+    { isOff: rename.isEditing },
+  );
   const titleArrival = useTitleArrival(chat);
   // The menu hands focus back to the row as it closes, which would land
   // after the field took it and blur the rename shut.
@@ -264,8 +284,6 @@ export function ChatRow({
   // The same groups, in the same order, as the menu in the chat's head.
   const groups = chatMenuGroups(actions);
   const live = projects.filter((entry) => !entry.retired);
-  // Beside the ways to open the chat, where the list offers it.
-  const popOut = actions.find((action) => action.id === "popOut");
   const item = (action: RowAction) => (
     <ContextMenuItem
       key={action.id}
@@ -286,13 +304,16 @@ export function ChatRow({
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            rowClassName(isOpen),
+            isPlain
+              ? "group/row relative flex cursor-default items-start gap-1.5 rounded-lg px-2.5 py-1.5 select-none hover:bg-foreground/[0.04] focus-visible:outline-hidden data-[state=open]:bg-foreground/[0.04]"
+              : rowClassName(isOpen),
             // The chat just started from a draft slides into its place;
             // nothing else that lands in the list does this.
             isArriving && "chat-arrive",
           )}
           data-open={isOpen || undefined}
           {...clicks}
+          {...dragProps}
           onKeyDown={(event) => {
             if (event.key === "Enter" && event.target === event.currentTarget) {
               onOpen();
@@ -303,6 +324,9 @@ export function ChatRow({
         >
           <div className="min-w-0 flex-1">
             <div className="flex h-5 items-center gap-1.5">
+              {mark && (
+                <span className="flex shrink-0 text-foreground/65">{mark}</span>
+              )}
               {title}
               {/* At one line the project stands just before the time, so
                   every title starts at the same edge. */}
@@ -313,17 +337,24 @@ export function ChatRow({
               )}
               {/* The time and the star step aside for the row's controls
                   while the pointer is on it. */}
-              <RowActionBar
-                actions={actions}
-                isHeld={isPickerLeaving}
-                leading={tagControl}
-                resting={
-                  <>
-                    {time}
-                    {starMark}
-                  </>
-                }
-              />
+              {isPlain ? (
+                <span className="ml-auto flex shrink-0 items-center gap-1">
+                  {time}
+                  {starMark}
+                </span>
+              ) : (
+                <RowActionBar
+                  actions={actions}
+                  isHeld={isPickerLeaving}
+                  leading={tagControl}
+                  resting={
+                    <>
+                      {time}
+                      {starMark}
+                    </>
+                  }
+                />
+              )}
             </div>
             {density === "three" && (
               <>
@@ -381,7 +412,7 @@ export function ChatRow({
               </div>
             )}
           </div>
-          <RowDot chat={chat} density={density} />
+          {!mark && <RowDot chat={chat} density={density} />}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent
@@ -393,24 +424,22 @@ export function ChatRow({
         }}
       >
         <ContextMenuItem onSelect={onOpen}>Open</ContextMenuItem>
-        <ContextMenuItem onSelect={openInNewTab}>
+        <ContextMenuItem
+          onSelect={() => {
+            openInNewTab(false);
+          }}
+        >
           <NewTabIcon className="size-4" />
           Open in New Tab
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={() => {
-            openInNewWindow(chatHref(chat.id));
+            void openInNewWindow(chatHref(chat.id));
           }}
         >
           <AppWindowIcon className="size-4" />
           Open in New Window
         </ContextMenuItem>
-        {popOut && (
-          <ContextMenuItem onSelect={popOut.run}>
-            <PictureInPictureIcon className="size-4" />
-            Pop Out
-          </ContextMenuItem>
-        )}
         <ContextMenuSeparator />
         {groups.marks.map(item)}
         <ContextMenuSeparator />
@@ -472,7 +501,7 @@ export function ChatRow({
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={onDelete} variant="destructive">
           <TrashIcon className="size-4" />
-          Delete chat…
+          Delete Chat…
         </ContextMenuItem>
       </ContextMenuContent>
     </ContextMenu>
@@ -601,7 +630,7 @@ function HoldsInChat({
   children: ReactNode;
 }) {
   const appWindow = useWindow();
-  const inChat = { group: chatId, ownTab: true, show: true };
+  const inChat = { chat: chatId, ownTab: true, show: true };
   // A new-tab or new-window gesture asks for a place of the window's own instead.
   const options = (asked?: OpenOptions) => ownPlaceOf(asked) ?? inChat;
   return (

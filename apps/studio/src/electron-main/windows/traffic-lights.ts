@@ -18,20 +18,50 @@ const TRAFFIC_LIGHT_X = 12;
 export function setTrafficLightForZoom(
   window: BrowserWindow | null,
   zoom: number,
+  inset = 0,
 ) {
   if (!window || window.isDestroyed() || process.platform !== "darwin") {
     return;
   }
-  window.setWindowButtonPosition(trafficLightPositionForZoom(zoom));
+  window.setWindowButtonPosition(trafficLightPositionForZoom(zoom, inset));
 }
 
-/** Where the cluster sits in a band drawn at `zoom`, apart from any window. */
-export function trafficLightPositionForZoom(zoom: number) {
+/**
+ * Shows or hides a window's macOS traffic lights: the window shows them only
+ * beside its sidebar, so a window whose sidebar is put away has its top left
+ * to itself. Shown again, the system puts them back at the frame's own
+ * place, so they are centered in the band again for the zoom given, level
+ * with the sidebar's toggle beside them.
+ */
+export function setTrafficLightsShown(
+  window: BrowserWindow | null,
+  isShown: boolean,
+  zoom: number,
+  inset = 0,
+) {
+  if (!window || window.isDestroyed() || process.platform !== "darwin") {
+    return;
+  }
+  window.setWindowButtonVisibility(isShown);
+  if (isShown) {
+    window.setWindowButtonPosition(trafficLightPositionForZoom(zoom, inset));
+  }
+}
+
+/**
+ * Where the cluster sits in a band drawn at `zoom`, apart from any window,
+ * with the band `inset` layout px down from the window's top: an app
+ * window's band is its tab strips', under the ground above its card.
+ */
+export function trafficLightPositionForZoom(zoom: number, inset = 0) {
   return {
     x: TRAFFIC_LIGHT_X,
     y: Math.max(
       0,
-      Math.round((TOOLBAR_HEIGHT * zoom - TRAFFIC_LIGHT_CLUSTER_HEIGHT) / 2),
+      Math.round(
+        inset * zoom +
+          (TOOLBAR_HEIGHT * zoom - TRAFFIC_LIGHT_CLUSTER_HEIGHT) / 2,
+      ),
     ),
   };
 }

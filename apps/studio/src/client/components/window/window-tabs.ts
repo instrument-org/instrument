@@ -1,38 +1,66 @@
-import { type BrowserTab, type WindowTab } from "@/client/atoms/window";
-import { atom, useAtomValue, useSetAtom } from "jotai";
+import {
+  type BrowserTab,
+  tabChatFiltersAtom,
+  type WindowTab,
+} from "@/client/atoms/window";
+import { atom, type SetStateAction, useAtomValue, useSetAtom } from "jotai";
+import { z } from "zod";
 
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
-import { keptMembersAtom, takeKept, writeKept } from "@/client/lib/kept-state";
+import { keptMembersAtom } from "@/client/lib/kept-state";
 import {
   fileOfTabGroup,
   HOSTED_PAGE_GROUP_PREFIX,
+  NO_GROUP_MEMBER,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
-import { StoreId } from "@instrument-org/workspace/client";
+import { workingTabOf } from "@/shared/working-tab";
+import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 
 import { appTabsAtom, groupOfHref } from "./app-tabs";
+import { type ChatFilters, NO_FILTERS } from "./chats";
+import {
+  type BesideAsk,
+  handOverBesideChat,
+  openBesideChat,
+  previousOpenedIn,
+} from "./beside-chat";
 import {
   addPages,
   addScreen,
-  adoptGroup,
+  besideOf,
+  chatUpIn,
+  groupLayoutOf,
+  closeSide,
   closeTab,
+  draftOfTab,
   dropGroup,
   everyTabId,
+  focusSide,
+  isNewChatTab,
+  joinSides,
+  type GroupOwn,
+  markOpenedBy,
+  markPrompted,
+  moveTabTo,
   moveToGroup,
   navigateScreen,
-  normalizeWindowTabs,
+  openInGroup,
   openOrFocusScreen,
   openPage,
   pageBecameDownload,
   pageNavigated,
   pageTakesOver,
   patchPage,
+  type Placing,
+  raiseTab,
+  reopenSide,
+  reopenTab,
   reorderGroup,
   replaceTab,
   restoreGroup,
   screenMoved,
   selectTab,
-  type StoredWindowTabs,
   stepTrail,
   stepVisit,
   tabsIn,
@@ -40,27 +68,35 @@ import {
   tabShowingIn,
   tabToScreen,
   type WindowTabs,
+  withGroupOwn,
 } from "./tab-model";
+import { useIsGroupOpen } from "./open-groups";
 import { openLinkAddress } from "./open-link-address";
+import { standInTabsAtom } from "./stand-in-tabs";
 import { sameHref } from "./window-href";
 
-/** The member a tab with no group is kept under. */
-const NO_GROUP = "-";
-
-// What a build with one window kept whole, once, as every window keeps it now: ahead of
-// the atom below, which reads what is kept as it is made.
-const earlierTabs = takeKept("layout", "window-tabs.v9");
-if (isStoredWindowTabs(earlierTabs)) {
-  for (const [member, group] of splitTabGroups(
-    normalizeWindowTabs(earlierTabs),
-  )) {
-    writeKept(fileOfTabGroup(member), `${WINDOW_TABS_KEY}/${member}`, group);
-  }
-}
+/** A kept group's shape; its tabs' own fields are this module's to write and read. */
+const TabGroupMemberSchema = z.object({
+  focused: z.number().int().min(0),
+  pinned: z.boolean().optional(),
+  share: z.number().optional(),
+  sides: z
+    .array(
+      z.object({
+        tabs: z.array(z.looseObject({ id: z.string(), kind: z.string() })),
+        up: z.string().optional(),
+      }),
+    )
+    .min(1),
+});
 
 /**
- * The window's tabs, one list across every group, kept across launches on
- * this computer. Written only here, through the functions of `tab-model.ts`.
+ * Every group's tabs on this computer, one list across them, kept across
+ * launches. Each group is one member of the kept file, under its own id, in
+ * the shape the agent reads a group in: its sides, each its tabs in strip
+ * order and the one up, which side has the keyboard, and its own pin and
+ * share. A tab keeps neither its group nor its side, which the member says.
+ * Written only here, through the functions of `tab-model.ts`.
  */
 const storedTabsAtom = keptMembersAtom<WindowTabs>(
   fileOfTabGroup,
@@ -71,58 +107,96 @@ const storedTabsAtom = keptMembersAtom<WindowTabs>(
   },
 );
 
-interface TabGroupMember {
-  active?: string;
-  tabs: WindowTab[];
+/** A tab as a member keeps it, without its group or side. */
+type KeptTab = Omit<WindowTab, "group" | "side">;
+
+/** A group as it is kept (`WINDOW_TABS_KEY`). */
+interface TabGroupMember extends GroupOwn {
+  focused: 0 | 1;
+  sides: { tabs: KeptTab[]; up?: string }[];
+}
+
+function keptTab({ group: _group, side: _side, ...tab }: WindowTab): KeptTab {
+  return tab;
 }
 
 /**
- * The tabs by group, each kept by itself: a chat, draft or site's tabs and
- * which is up belong to it whichever window shows it (`fileOfTabGroup`).
+ * The tabs by group, each kept by itself as its layout reads
+ * (`groupLayoutOf`): a group's tabs belong to it whichever window shows it
+ * (`fileOfTabGroup`).
  */
-function splitTabGroups({ activeByGroup, tabs }: WindowTabs) {
+function splitTabGroups(state: WindowTabs) {
   const members = new Map<string, TabGroupMember>();
-  const memberOf = (key: string) => {
-    let member = members.get(key);
-    if (!member) {
-      member = { tabs: [] };
-      members.set(key, member);
-    }
-    return member;
-  };
-  for (const tab of tabs) {
-    memberOf(tab.group ?? NO_GROUP).tabs.push(tab);
+  const ungrouped = state.tabs.filter((tab) => tab.group === undefined);
+  if (ungrouped.length > 0) {
+    members.set(NO_GROUP_MEMBER, {
+      focused: 0,
+      sides: [{ tabs: ungrouped.map(keptTab) }],
+    });
   }
-  for (const [group, active] of Object.entries(activeByGroup)) {
-    memberOf(group).active = active;
+  const groups = new Set([
+    ...state.tabs.flatMap((tab) =>
+      tab.group === undefined ? [] : [tab.group],
+    ),
+    ...Object.keys(state.groups ?? {}),
+  ]);
+  for (const group of groups) {
+    const { focused, sides } = groupLayoutOf(state, group);
+    members.set(group, {
+      ...state.groups?.[group],
+      focused,
+      sides: sides.map(({ tabs, up }) => ({
+        tabs: tabs.map(keptTab),
+        ...(up === undefined ? {} : { up }),
+      })),
+    });
   }
   return members;
 }
 
 function joinTabGroups(members: Map<string, unknown>): WindowTabs {
   const activeByGroup: Record<string, string> = {};
+  const besideByGroup: Record<string, string> = {};
+  const groups: Record<string, GroupOwn> = {};
   const tabs: WindowTab[] = [];
-  for (const [group, member] of members) {
-    if (member === null || typeof member !== "object") {
+  for (const [key, value] of members) {
+    const member = TabGroupMemberSchema.safeParse(value).data;
+    if (member === undefined) {
       continue;
     }
-    if ("active" in member && typeof member.active === "string") {
-      activeByGroup[group] = member.active;
+    const group = key === NO_GROUP_MEMBER ? undefined : key;
+    member.sides.forEach((side, at) => {
+      for (const tab of side.tabs) {
+        // Written by this module alone.
+        tabs.push({
+          ...(tab as KeptTab),
+          ...(group === undefined ? {} : { group }),
+          // A side past the second, which a later layout may keep, stands
+          // on the right, so none of its tabs is dropped.
+          ...(at >= 1 ? { side: 1 } : {}),
+        } as WindowTab);
+      }
+    });
+    if (group === undefined) {
+      continue;
     }
-    if ("tabs" in member && Array.isArray(member.tabs)) {
-      tabs.push(...(member.tabs as WindowTab[])); // Written by this module alone.
+    const focused = member.sides[member.focused] ?? member.sides[0];
+    const other = member.sides.find((side) => side !== focused);
+    if (focused?.up !== undefined) {
+      activeByGroup[group] = focused.up;
+    }
+    if (other?.up !== undefined) {
+      besideByGroup[group] = other.up;
+    }
+    const own: GroupOwn = {
+      ...(member.pinned === true ? { pinned: true } : {}),
+      ...(member.share === undefined ? {} : { share: member.share }),
+    };
+    if (Object.keys(own).length > 0) {
+      groups[group] = own;
     }
   }
-  return { activeByGroup, tabs };
-}
-
-/** Whether a kept value is the tabs at all: an object whose tabs, if any, are a list. */
-function isStoredWindowTabs(value: unknown): value is StoredWindowTabs {
-  return (
-    value !== null &&
-    typeof value === "object" &&
-    (!("tabs" in value) || Array.isArray(value.tabs))
-  );
+  return { activeByGroup, besideByGroup, groups, tabs };
 }
 
 /**
@@ -134,12 +208,14 @@ export function hostGroupOf(tabId: string) {
 }
 
 /** The window's tabs, to read; every change goes through `useWindowTabs`. */
-export const windowTabsAtom = atom((get) => get(storedTabsAtom));
+export const windowTabsAtom = atom(
+  (get) => get(standInTabsAtom) ?? get(storedTabsAtom),
+);
 
 /**
- * The group on screen: the chat's id or the site's group the window's
- * tab up stands on, or none for a screen that is its own route. Derived from
- * where that tab is, never kept beside it.
+ * The group on screen: the group the window's tab up stands on, or none for
+ * a screen that is its own route. Derived from where that tab is, never kept
+ * beside it.
  */
 export const groupOnScreenAtom = atom((get) => {
   const model = get(appTabsAtom);
@@ -147,8 +223,37 @@ export const groupOnScreenAtom = atom((get) => {
   return tab ? groupOfHref(tab.pathname) : undefined;
 });
 
+/**
+ * What the chat list of the tab up in the group on screen is narrowed to,
+ * and narrowing it: for what acts on the tab in front rather than from
+ * inside one. Nothing, with no group on screen.
+ */
+export const chatFiltersUpAtom = atom(
+  (get) => {
+    const up = selectedTabIn(get(windowTabsAtom), get(groupOnScreenAtom));
+    return up ? get(tabChatFiltersAtom(up.id)) : NO_FILTERS;
+  },
+  (get, set, update: SetStateAction<ChatFilters>) => {
+    const up = selectedTabIn(get(windowTabsAtom), get(groupOnScreenAtom));
+    if (up) {
+      set(tabChatFiltersAtom(up.id), update);
+    }
+  },
+);
+
 /** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
 export const everyTabIdAtom = atom((get) => everyTabId(get(storedTabsAtom)));
+
+/** No tabs, one set for every reader. */
+const NO_TAB_IDS: ReadonlySet<string> = new Set();
+
+/**
+ * Empty new chat tabs this window opened since it loaded whose composer has
+ * not come up yet. Their arrival is the one moment a new chat's composer
+ * glints (`NewChatView`, which takes its tab out as it comes up), so a tab
+ * restored at launch, one shown again, and one naming a kept draft never do.
+ */
+export const arrivingNewChatTabsAtom = atom(NO_TAB_IDS);
 
 /** One change to the tabs, given the group on screen as it is at that moment. */
 const applyAtom = atom(
@@ -161,10 +266,28 @@ const applyAtom = atom(
       groupOnScreen: string | undefined,
     ) => WindowTabs,
   ) => {
+    // A picture of a window changes nothing.
+    if (get(standInTabsAtom) !== undefined) {
+      return;
+    }
     const current = get(storedTabsAtom);
     const next = update(current, get(groupOnScreenAtom));
-    if (next !== current) {
-      set(storedTabsAtom, next);
+    if (next === current) {
+      return;
+    }
+    set(storedTabsAtom, next);
+    const before = new Set(current.tabs.map((tab) => tab.id));
+    const arriving = next.tabs.filter(
+      (tab) =>
+        !before.has(tab.id) &&
+        isNewChatTab(tab) &&
+        draftOfTab(tab) === undefined,
+    );
+    if (arriving.length > 0) {
+      set(
+        arrivingNewChatTabsAtom,
+        (ids) => new Set([...ids, ...arriving.map((tab) => tab.id)]),
+      );
     }
   },
 );
@@ -178,19 +301,19 @@ export function useWindowTabsChange() {
   return useSetAtom(applyAtom);
 }
 
+/** No group's own record, one object for every render. */
+const NO_GROUP_MEMBER_OWN: Record<string, GroupOwn> = {};
+
 /** A fresh id for a screen tab. */
 export function newScreenId() {
   return StoreId.newTabId();
 }
 
 /**
- * The window's tabs, in groups: every chat has a group of its own, keyed by
- * its session, every draft one under its key, and every site of the window's
- * own one under its. The group on screen is the window's tab up's; the
- * others keep what they have for when they come back, and a host drawing a
- * group somewhere else (a draft's band, a popped-out chat) draws the tab
- * that group has up. A group may hold no tabs at all: the chat or the draft
- * stands over the tabs rather than among them.
+ * The window's tabs, in groups (`WindowTabs`). The group on screen is the
+ * window's tab up's; the others keep what they have for when they come back,
+ * and a host drawing a group somewhere else (a draft's band) draws the tab
+ * that group has up.
  *
  * Every change is applied to the tabs as they are at that moment, with the
  * group on screen read then too, so two changes in one tick each see the
@@ -200,6 +323,7 @@ export function useWindowTabs() {
   const state = useAtomValue(windowTabsAtom);
   const groupOnScreen = useAtomValue(groupOnScreenAtom);
   const apply = useSetAtom(applyAtom);
+  const isOpen = useIsGroupOpen();
 
   /** Applies a change that also answers something, and hands the answer back. */
   const answer = <T>(
@@ -220,7 +344,8 @@ export function useWindowTabs() {
 
   /**
    * Sends a tab to a screen, a step on in its history: a screen tab's router
-   * walks, and the tab follows it as it lands; a page becomes the screen.
+   * walks, and the tab follows it as it lands, a chat's included; a page
+   * becomes the screen.
    */
   const visitHref = (id: string, href: string) => {
     const router = getGroupTabRouter(id);
@@ -236,33 +361,83 @@ export function useWindowTabs() {
   return {
     /** The tab the group on screen has up. */
     active: selectedTabIn(state, groupOnScreen),
-    /** Hands a draft's tabs to the chat it started, the one up still up. */
-    adoptGroup: (from: string, to: string) => {
-      apply((current) => adoptGroup(current, from, to));
-    },
     /** Every tab of every group, for whoever holds something per tab rather than per strip. */
     allTabs: state.tabs,
+    /** The tab up on the other side from a tab, in a group of two sides (`besideOf`). */
+    besideOf: (id: string) => besideOf(state, id),
+    /** The tab a chat's agent works from, where what it opens goes (`workingTabOf`). */
+    chatTab: (chat: ChatId) => workingTabOf(state.tabs, chat, isOpen),
+    /** The chat a group has up, the side with the keyboard first (`chatUpIn`). */
+    chatUpIn: (group: string) => chatUpIn(state, group),
     activeByGroup: state.activeByGroup,
-    /** Page tabs a group gains behind whatever it has up. */
-    addPages: (pages: (BrowserTab & { group: string | undefined })[]) => {
-      apply((current) => addPages(current, pages));
+    /** Page tabs a group gains behind whatever it has up, at its end or right after a tab. */
+    addPages: (
+      pages: (BrowserTab & { group: string | undefined })[],
+      placing: { after?: string } = {},
+    ) => {
+      apply((current) => addPages(current, pages, placing));
     },
     close: (id: string) => {
-      apply((current) => closeTab(current, id, { homeId: newScreenId() }));
+      apply((current) => closeTab(current, id));
+    },
+    /** One side of a group of two closed whole (`closeSide`). */
+    closeSide: (group: string, side: 0 | 1) => {
+      apply((current) => closeSide(current, group, side));
+    },
+    /** A closed side back as the side it was, its tab up, the keyboard where it was (`reopenSide`). */
+    reopenSide: (placing: Parameters<typeof reopenSide>[1]) => {
+      apply((current) => reopenSide(current, placing));
     },
     dropGroup: (group: string) => {
       apply((current) => dropGroup(current, group));
     },
     /** A page whose first navigation became a download: its tab goes back, or closes (`pageBecameDownload`). */
     pageBecameDownload: (id: string) => {
-      apply((current) =>
-        pageBecameDownload(current, id, { homeId: newScreenId() }),
-      );
+      apply((current) => pageBecameDownload(current, id));
     },
-    /** The group on screen, by the chat's id or the site's key, or nothing while none is. */
+    /** A group's pin, or the left side's share of two, set (`withGroupOwn`). */
+    setGroupOwn: (group: string, change: GroupOwn) => {
+      apply((current) => withGroupOwn(current, group, change));
+    },
+    /** What each group keeps of its own, by its id. */
+    groupOwn: state.groups ?? NO_GROUP_MEMBER_OWN,
+    /** A tab marked as opened by a chat's agent (`markOpenedBy`). */
+    markOpenedBy: (id: string, chat: ChatId) => {
+      apply((current) => markOpenedBy(current, id, chat));
+    },
+    /** A tab marked as the one its chat was last sent a message from. */
+    markPrompted: (id: string) => {
+      apply((current) => markPrompted(current, id, Date.now()));
+    },
+    /** A group's two sides made one (`joinSides`). */
+    joinSides: (group: string) => {
+      apply((current) => joinSides(current, group));
+    },
+    /** The side with the keyboard, in a group of two sides, moved to the other. */
+    focusSide: (group: string, side: 0 | 1) => {
+      apply((current) => focusSide(current, group, side));
+    },
+    /** The group on screen, by its key, or nothing while none is. */
     groupOnScreen,
+    /** A group's sides as they are laid out now (`groupLayoutOf`). */
+    layoutOf: (group: string) => groupLayoutOf(state, group),
+    /**
+     * A tab moved to a side of a group, at a place among that side's tabs:
+     * within its strip, to the other side, or to another group
+     * (`moveTabTo`).
+     */
+    moveTo: (move: Parameters<typeof moveTabTo>[1]) => {
+      apply((current) => moveTabTo(current, move));
+    },
     moveToGroup: (id: string, group: string) => {
       apply((current) => moveToGroup(current, id, group));
+    },
+    /**
+     * A tab opened in a group as every open places one: on a side, right
+     * after a tab, up with the keyboard when asked (`openInGroup`).
+     */
+    openIn: (tab: WindowTab, placing: Placing & { select?: boolean }) => {
+      apply((current) => openInGroup(current, tab, placing));
     },
     /**
      * The tab the group on screen has up goes to a screen, in place. Here
@@ -298,10 +473,17 @@ export function useWindowTabs() {
     openOrFocusScreen: (
       to: string,
       {
+        after,
         group,
         isOpened = false,
         select = false,
-      }: { group?: string; isOpened?: boolean; select?: boolean } = {},
+      }: {
+        /** The tab a new one opens right after, on that tab's side. */
+        after?: string;
+        group?: string;
+        isOpened?: boolean;
+        select?: boolean;
+      } = {},
     ): string | undefined => {
       const href = openLinkAddress(to);
       if (href === undefined) {
@@ -313,6 +495,7 @@ export function useWindowTabs() {
           return { state: current, value: undefined };
         }
         const opened = openOrFocusScreen(current, {
+          ...(after === undefined ? {} : { after }),
           group: key,
           href,
           id: newScreenId(),
@@ -345,10 +528,22 @@ export function useWindowTabs() {
     openScreen: (
       to: string,
       {
+        after,
         group,
+        id: given,
         isOpened = false,
         select = false,
-      }: { group?: string; isOpened?: boolean; select?: boolean } = {},
+        side,
+      }: {
+        /** The tab it opens right after, on that tab's side. */
+        after?: string;
+        group?: string;
+        /** The tab's id, for one the strip already draws by it: a file held over it. */
+        id?: string;
+        isOpened?: boolean;
+        select?: boolean;
+        side?: Placing["side"];
+      } = {},
     ): string | undefined => {
       const href = openLinkAddress(to);
       if (href === undefined) {
@@ -359,14 +554,126 @@ export function useWindowTabs() {
         if (key === undefined) {
           return { state: current, value: undefined };
         }
-        const id = newScreenId();
+        const id = given ?? newScreenId();
         return {
           state: addScreen(current, {
+            ...(after === undefined ? {} : { after }),
             group: key,
             href,
             id,
             isOpened,
             select: select || key === onScreen,
+            ...(side === undefined ? {} : { side }),
+          }),
+          value: id,
+        };
+      }, undefined);
+    },
+    /**
+     * A screen opened from a chat's tab (`openBesideChat`). Answers the tab
+     * that shows it, and whether it is up on its side; nothing for a chat's
+     * tab no group has.
+     */
+    openScreenBeside: (
+      to: string,
+      {
+        openedBy,
+        ...ask
+      }: Omit<BesideAsk, "previous"> & {
+        /** The chat whose agent opened it, whose last page it goes right after. */
+        openedBy?: ChatId;
+      },
+    ): undefined | { front: boolean; id: string } => {
+      const href = openLinkAddress(to);
+      if (href === undefined) {
+        return undefined;
+      }
+      return answer<undefined | { front: boolean; id: string }>((current) => {
+        const group = current.tabs.find((tab) => tab.id === ask.chatTab)?.group;
+        if (group === undefined) {
+          return { state: current, value: undefined };
+        }
+        const id = newScreenId();
+        const previous =
+          openedBy === undefined
+            ? undefined
+            : previousOpenedIn(current, group, openedBy);
+        const placed = openBesideChat(
+          current,
+          {
+            group,
+            href,
+            id,
+            isOpened: true,
+            kind: "screen",
+            ...(openedBy === undefined ? {} : { openedBy }),
+          },
+          { ...ask, ...(previous === undefined ? {} : { previous }) },
+        );
+        return {
+          state: placed.state,
+          value: { front: placed.front, id: placed.id },
+        };
+      }, undefined);
+    },
+    /**
+     * A file a chat's reply handed over, beside the chat's tab
+     * (`handOverBesideChat`): the group's tab showing it brought up, or a
+     * tab of the agent's own. Nothing for a chat's tab no group has.
+     */
+    handOverBeside: (
+      to: string,
+      { chatTab, openedBy }: { chatTab: string; openedBy: ChatId },
+    ): undefined | { front: boolean; id: string; isNew: boolean } => {
+      const href = openLinkAddress(to);
+      if (href === undefined) {
+        return undefined;
+      }
+      return answer<undefined | { front: boolean; id: string; isNew: boolean }>(
+        (current) => {
+          if (!current.tabs.some((tab) => tab.id === chatTab && tab.group)) {
+            return { state: current, value: undefined };
+          }
+          const placed = handOverBesideChat(current, {
+            chatTab,
+            href,
+            id: newScreenId(),
+            openedBy,
+          });
+          return {
+            state: placed.state,
+            value: { front: placed.front, id: placed.id, isNew: placed.isNew },
+          };
+        },
+        undefined,
+      );
+    },
+    /**
+     * A screen of its own right after the tab the group on screen has up,
+     * as a link opened in a new tab lands: up at once, or waiting behind
+     * when asked.
+     */
+    openBeside: (
+      to: string,
+      { behind = false }: { behind?: boolean } = {},
+    ): string | undefined => {
+      const href = openLinkAddress(to);
+      if (href === undefined) {
+        return undefined;
+      }
+      return answer<string | undefined>((current, onScreen) => {
+        if (onScreen === undefined) {
+          return { state: current, value: undefined };
+        }
+        const id = newScreenId();
+        return {
+          state: addScreen(current, {
+            after: selectedTabIn(current, onScreen)?.id,
+            group: onScreen,
+            href,
+            id,
+            isOpened: true,
+            select: !behind,
           }),
           value: id,
         };
@@ -378,21 +685,26 @@ export function useWindowTabs() {
      * when its group is on screen or when asked.
      */
     openPage: ({
+      after,
       group,
       page,
       replacing,
       select = false,
+      side,
     }: {
+      after?: string;
       group?: string;
       page: BrowserTab;
       replacing?: WindowTab;
       select?: boolean;
+      side?: Placing["side"];
     }) => {
       apply((current, onScreen) => {
         const key = group ?? onScreen;
         return openPage(current, {
+          ...(after === undefined ? {} : { after }),
+          ...(side === undefined ? {} : { side }),
           group: key,
-          homeId: newScreenId(),
           page,
           ...(replacing ? { replacing } : {}),
           select: select || group === undefined || key === onScreen,
@@ -416,10 +728,22 @@ export function useWindowTabs() {
     replace: (id: string, next: WindowTab) => {
       apply((current) => replaceTab(current, id, next));
     },
-    restoreGroup: (group: string, tabs: WindowTab[]) => {
-      apply((current) => restoreGroup(current, group, tabs));
+    restoreGroup: (
+      group: string,
+      tabs: WindowTab[],
+      ups?: Parameters<typeof restoreGroup>[3],
+    ) => {
+      apply((current) => restoreGroup(current, group, tabs, ups));
     },
-    /** One tab up in its group: on screen when the group is, and what a host drawing the group elsewhere shows. */
+    /** A closed tab back where it stood in its group, up in it. */
+    reopen: (tab: WindowTab, index: number) => {
+      apply((current) => reopenTab(current, { index, tab }));
+    },
+    /** One tab up on its side, the keyboard staying where it is (`raiseTab`). */
+    raise: (id: string) => {
+      apply((current) => raiseTab(current, id));
+    },
+    /** One tab up in its group, with the keyboard: on screen when the group is. */
     select: (id: string) => {
       apply((current) => selectTab(current, id));
     },

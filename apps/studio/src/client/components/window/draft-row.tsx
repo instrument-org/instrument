@@ -1,4 +1,4 @@
-import { type Draft, draftGroupOf } from "@/shared/drafts";
+import { type Draft } from "@/shared/drafts";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -16,10 +16,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 
 import { ProjectWords } from "./chat-row";
 import { activityLabel, draftTitle, type Project } from "./chats";
-import { HeldMark } from "./context-chip";
 import { screenPresentation } from "./screen-presentation";
-import { isHomeTab } from "./tab-model";
-import { useWindowTabs } from "./window-tabs";
 import { RowActionBar } from "./row-action-bar";
 import { type RowAction, rowClassName } from "./row-shell";
 
@@ -127,33 +124,24 @@ export function DraftRow({
 const ROW_MARKS = 5;
 
 /**
- * The marks of what a draft holds: its tabs (a site's icon, a folder, a
- * file's type, an app) and then what its composer was given, by path.
+ * The marks of what a draft holds: what its composer was given, by path, as
+ * a folder or a file's type. A draft has no tabs of its own, and one a tab
+ * is writing is not listed (`AppWindow`'s Drafts).
  */
 function DraftMarks({ draft }: { draft: Draft }) {
-  const { allTabs } = useWindowTabs();
   const appsBySlug = useAppsBySlug();
-  const group = draftGroupOf(draft.id);
   const marks: { icon: ReactNode; key: string }[] = [
-    ...allTabs
-      .filter((tab) => tab.group === group && !isHomeTab(tab))
-      .map((tab) => ({
-        icon: <HeldMark appsBySlug={appsBySlug} tab={tab} />,
-        key: tab.id,
-      })),
-    ...[
-      ...(draft.context ?? []).flatMap((item) =>
-        item.kind === "file" || item.kind === "folder" ? [item] : [],
-      ),
-      ...(draft.attached ?? []),
-    ].map((item) => ({
-      icon: screenPresentation(
-        item.kind === "folder" ? folderHref(item.path) : fileHref(item.path),
-        { appsBySlug },
-      ).icon,
-      key: item.path,
-    })),
-  ];
+    ...(draft.context ?? []).flatMap((item) =>
+      item.kind === "file" || item.kind === "folder" ? [item] : [],
+    ),
+    ...(draft.attached ?? []),
+  ].map((item) => ({
+    icon: screenPresentation(
+      item.kind === "folder" ? folderHref(item.path) : fileHref(item.path),
+      { appsBySlug },
+    ).icon,
+    key: item.path,
+  }));
   const shown = unique(marks, (mark) => mark.key);
   if (shown.length === 0) {
     return null;

@@ -3,6 +3,7 @@ import {
   AppMenuRow,
   type ComposerApp,
 } from "@/client/components/app-mention";
+import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import {
   type ComposerAction,
   MenuGroupHeader,
@@ -26,7 +27,6 @@ import {
   matchComposerCommands,
 } from "@/client/lib/app-commands";
 import { matchComposerActions } from "@/client/lib/composer-action-search";
-import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { baseKeymap, splitBlock } from "prosemirror-commands";

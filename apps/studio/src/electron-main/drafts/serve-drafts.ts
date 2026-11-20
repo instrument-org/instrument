@@ -11,9 +11,17 @@ import { logger } from "../lib/electron-logger";
 import { createDraftStore } from "./draft-store";
 
 /** What a window loading before the workspace opens reads. */
-const NO_DRAFTS: DraftsSnapshot = { acks: {}, drafts: [] };
+const NO_DRAFTS: DraftsSnapshot = { acks: {}, drafts: [], loading: true };
 
 let STORE: null | ReturnType<typeof createDraftStore> = null;
+
+/** Whether the store's first read of the folder is over, read or failed. */
+let isLoaded = false;
+
+/** The store's snapshot, saying so while its first read is under way. */
+function shown(snapshot: DraftsSnapshot): DraftsSnapshot {
+  return isLoaded ? snapshot : { ...snapshot, loading: true };
+}
 
 /** Main's own readers of the drafts, told of each change as the windows are. */
 const listeners = new Set<(snapshot: DraftsSnapshot) => void>();
@@ -39,13 +47,22 @@ export function openDrafts() {
   }
   STORE = createDraftStore({
     moveToTrash: (target) => shell.trashItem(target),
-    onChange: tell,
+    onChange: (snapshot) => {
+      tell(shown(snapshot));
+    },
     rootDir: getWorkspaceFolder(),
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
   const store = STORE;
-  // A window that loaded before the drafts were read has none.
-  store.load().then(() => tell(store.snapshot()), couldNotRead);
+  // A window that loaded before the drafts were read has none, and waits
+  // for this. A read that failed is over too: there is nothing more to wait for.
+  void store
+    .load()
+    .catch(couldNotRead)
+    .finally(() => {
+      isLoaded = true;
+      tell(store.snapshot());
+    });
   store.watch(() => {
     store.reconcile().catch(couldNotRead);
   });
@@ -64,7 +81,7 @@ export function watchDrafts(
 ): () => void {
   listeners.add(listener);
   if (STORE) {
-    listener(STORE.snapshot());
+    listener(shown(STORE.snapshot()));
   }
   return () => {
     listeners.delete(listener);
@@ -102,7 +119,7 @@ function tellWindows(snapshot: DraftsSnapshot) {
  */
 export function serveDrafts() {
   ipcMain.on(DRAFTS_CHANNEL.load, (event) => {
-    event.returnValue = STORE?.snapshot() ?? NO_DRAFTS;
+    event.returnValue = STORE ? shown(STORE.snapshot()) : NO_DRAFTS;
   });
   ipcMain.handle(DRAFTS_CHANNEL.apply, (_event, batch: unknown) => {
     if (!isBatch(batch)) {

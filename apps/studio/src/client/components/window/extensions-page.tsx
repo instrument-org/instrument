@@ -23,7 +23,12 @@ export function ExtensionsPage() {
   const extensions = useBrowserExtensions();
   const actions = useExtensionActions();
   return (
-    <div className="h-full overflow-y-auto">
+    // The page is worked from its content, which the keys scroll.
+    <div
+      className="h-full overflow-y-auto outline-none"
+      data-keyboard-home
+      tabIndex={-1}
+    >
       <div className="mx-auto w-full max-w-3xl px-4 pt-10 pb-8 @xl/app-content:px-6 @5xl/app-content:px-8 @5xl/app-content:pt-14">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>

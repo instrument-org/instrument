@@ -1,0 +1,159 @@
+import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
+import { type ChildTask } from "@instrument-org/workspace/client";
+
+import { type ScreenName } from "@/shared/instrument-screens";
+
+import { type Chat } from "./chats";
+
+/**
+ * The ink of a row's second line: `quiet` for where a tab is, `work` for a
+ * chat or a task at work, `ask` for a chat's question, `news` for a reply not yet
+ * read, `fail` for what went wrong, and `draft` for words typed in a new tab.
+ */
+export type LineTone = "ask" | "draft" | "fail" | "news" | "quiet" | "work";
+
+/**
+ * What one tab says on its two lines in a sidebar row: its title, and under
+ * it `line` in a `tone`. `strong` sets the title in bold while the tab wants
+ * a look: its chat asks something or has a reply not yet read.
+ */
+export interface RowLines {
+  line: string;
+  strong: boolean;
+  title: string;
+  tone: LineTone;
+}
+
+/** How a page's last load stands, where it is not simply shown. */
+export type PageLoad = "failed" | "loading";
+
+/**
+ * A chat's two lines: its title over its latest line, the step it is on
+ * while it works, its question while it asks, and that it stopped when its
+ * last turn failed. The state is the chat's own, so every row showing the
+ * chat says the same. A chat the list has not read yet goes by `title`.
+ */
+export function chatLines(
+  chat: Chat | undefined,
+  title: string,
+  plain: (text: string) => string = (text) => text,
+): RowLines {
+  const named = stripMarkdown(chat?.title ?? title);
+  const latest = chat?.latest?.text ?? "";
+  switch (chat?.status) {
+    case "failed": {
+      return quiet(named, "Stopped", "fail");
+    }
+    case "limited": {
+      return quiet(named, LIMITED_LINES[chat.stoppedFor ?? "usage"]);
+    }
+    case "waiting": {
+      return {
+        line: latest || "Needs you",
+        strong: true,
+        title: named,
+        tone: "ask",
+      };
+    }
+    case "working": {
+      const step = chat.latest?.kind === "step" ? chat.latest.text : undefined;
+      return quiet(named, step ?? "Working", "work");
+    }
+    default: {
+      return chat?.unread === true
+        ? { line: plain(latest), strong: true, title: named, tone: "news" }
+        : quiet(named, plain(latest));
+    }
+  }
+}
+
+/**
+ * A task's two lines: its title over the step it is on while it works, as a
+ * chat at work says it, and that it stopped when its last turn failed; else
+ * over `line`, where it was started. Never a question: what a task waits on
+ * the person for, its chat asks.
+ */
+export function taskLines(
+  task: Pick<ChildTask, "status" | "working"> | undefined,
+  title: string,
+  line: string,
+): RowLines {
+  if (task?.working === true) {
+    const step = task.status.kind === "running" ? task.status.line : "";
+    return quiet(title, step || "Working", "work");
+  }
+  return task?.status.kind === "failed"
+    ? quiet(title, "Stopped", "fail")
+    : quiet(title, line);
+}
+
+/**
+ * A web page's two lines: its title over its site, or "Can't connect" when
+ * it could not be reached. A load is too brief to name.
+ */
+export function pageLines(
+  title: string,
+  url: string | undefined,
+  load: PageLoad | undefined,
+): RowLines {
+  const site = siteOf(url);
+  return load === "failed"
+    ? quiet(title, "Can't connect", "fail")
+    : quiet(title, site);
+}
+
+/** A new tab's two lines: New Tab, over the words typed in it so far. */
+export function newTabLines(words: string | undefined): RowLines {
+  const typed = words?.trim() ?? "";
+  return typed === ""
+    ? quiet("New Tab", "")
+    : { line: typed, strong: false, title: "New Tab", tone: "draft" };
+}
+
+/**
+ * What a built-in page's second line says with no part of it open: the
+ * place it starts at where that is a real place, and nothing where it would
+ * only restate the page's name.
+ */
+export const PAGE_START_LINES = {
+  activity: "",
+  apps: "",
+  browser: "",
+  chats: "",
+  bookmarks: "",
+  extensions: "",
+  files: "Home",
+  memory: "",
+  "release-notes": "",
+  settings: "General",
+  shortcuts: "",
+  skills: "",
+} as const satisfies Record<ScreenName, string>;
+
+/** A chat stopped short of usage, by why: a label, with the details on the chat itself. */
+const LIMITED_LINES = {
+  payment: "Payment failed",
+  plan: "Needs a plan",
+  usage: "Out of usage",
+} as const;
+
+/** Two quiet lines, or in the tone given. */
+export function quiet(
+  title: string,
+  line: string,
+  tone: LineTone = "quiet",
+): RowLines {
+  return { line, strong: false, title, tone };
+}
+
+/** A page's site as a person says it: its host without `www.`. */
+export function siteOf(url: string | undefined): string {
+  if (!url) {
+    return "";
+  }
+  try {
+    return new URL(url).host.replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}

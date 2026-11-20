@@ -4,21 +4,32 @@ import { quitPrompt } from "./quit-prompt";
 
 describe("quitPrompt", () => {
   it("asks nothing when quitting stops nothing", () => {
-    expect(quitPrompt({ agentCount: 0, jobNames: [] })).toBeUndefined();
+    expect(quitPrompt({ chatCount: 0, jobNames: [] })).toBeUndefined();
   });
 
-  it("warns about agents at work", () => {
-    expect(quitPrompt({ agentCount: 2, jobNames: [] })).toMatchInlineSnapshot(`
-      {
-        "detail": "Active tasks will be interrupted and you may lose in-progress work.",
-        "message": "Quit Instrument?",
-      }
+  it("counts the chats at work", () => {
+    expect([
+      quitPrompt({ chatCount: 1, jobNames: [] }),
+      quitPrompt({ chatCount: 2, jobNames: [] }),
+    ]).toMatchInlineSnapshot(`
+      [
+        {
+          "confirm": "Stop and Quit",
+          "detail": "Quitting stops what it's working on.",
+          "message": "Stop 1 chat and quit?",
+        },
+        {
+          "confirm": "Stop and Quit",
+          "detail": "Quitting stops what they're working on.",
+          "message": "Stop 2 chats and quit?",
+        },
+      ]
     `);
   });
 
   it("names a job left running", () => {
     expect(
-      quitPrompt({ agentCount: 0, jobNames: ["Serving the comparison page"] })
+      quitPrompt({ chatCount: 0, jobNames: ["Serving the comparison page"] })
         ?.detail,
     ).toMatchInlineSnapshot(`
       "Quitting stops this command, which is still running:
@@ -26,17 +37,17 @@ describe("quitPrompt", () => {
     `);
   });
 
-  it("names the jobs after the agents", () => {
+  it("names the jobs after the chats", () => {
     expect(
       quitPrompt({
-        agentCount: 1,
+        chatCount: 1,
         jobNames: [
           "Serving the comparison page",
           "Checking Intercom's pricing every hour",
         ],
       })?.detail,
     ).toMatchInlineSnapshot(`
-      "Active tasks will be interrupted and you may lose in-progress work.
+      "Quitting stops what it's working on.
 
       Quitting also stops these commands, which are still running:
       Serving the comparison page
@@ -47,7 +58,7 @@ describe("quitPrompt", () => {
   it("counts the jobs past the first five", () => {
     expect(
       quitPrompt({
-        agentCount: 0,
+        chatCount: 0,
         jobNames: ["One", "Two", "Three", "Four", "Five", "Six", "Seven"],
       })?.detail,
     ).toMatchInlineSnapshot(`

@@ -2,7 +2,6 @@ import { BrowserStartControls } from "@/client/components/window/browser-start-c
 import { WebStart } from "@/client/components/window/web-start";
 import { useWindow } from "@/client/components/window/context";
 import { useGroupTab } from "@/client/components/window/group-tab";
-import { useTabSurface } from "@/client/components/window/tab-surface";
 import { createFileRoute } from "@tanstack/react-router";
 
 /**
@@ -17,9 +16,6 @@ export const Route = createFileRoute("/_app/browser")({
 function WebRoute() {
   const { openPage } = useWindow();
   const groupTab = useGroupTab();
-  // Beside a chat the start is one of the chat's tabs, which the page takes
-  // the place of, and says nothing of itself.
-  useTabSurface("view", groupTab ? null : { screen: "home" });
   const open = (url: string) => {
     if (groupTab) {
       groupTab.showPage(url);

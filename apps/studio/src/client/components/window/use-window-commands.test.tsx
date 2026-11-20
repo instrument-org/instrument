@@ -42,7 +42,7 @@ const handlers = {
   back: vi.fn(),
   closeTab: vi.fn(),
   forward: vi.fn(),
-  goToPlace: vi.fn(),
+  focusSide: vi.fn(),
   missingFile: vi.fn(),
   newChat: vi.fn(),
   newChatFromLink: vi.fn(),
@@ -51,6 +51,7 @@ const handlers = {
   linkNotOpened: vi.fn(),
   newTab: vi.fn(),
   openFile: vi.fn(),
+  openGroup: vi.fn(),
   openScreen: vi.fn(),
   reopenTab: vi.fn(),
   search: vi.fn(),
@@ -58,11 +59,16 @@ const handlers = {
   selectChat: vi.fn(),
   showTab: vi.fn(() => false),
   selectRelative: vi.fn(),
+  selectGroup: vi.fn(),
   selectTab: vi.fn(),
   moveTabToNewWindow: vi.fn(),
+  newTabInSplit: vi.fn(),
+  closeSplit: vi.fn(),
+  receiveGroupTab: vi.fn(),
   receiveTab: vi.fn(),
   showActivity: vi.fn(),
-  toggleInbox: vi.fn(),
+  showBookmarks: vi.fn(),
+  toggleSidebar: vi.fn(),
 };
 
 function Window() {
@@ -91,6 +97,22 @@ describe("useWindowCommands", () => {
       { interval: 1 },
     );
     expect(handlers.openFile).toHaveBeenCalledWith("/Users/mac-user/a.pdf");
+  });
+
+  it("opens files handed over together as one group, while held", async () => {
+    getDefaultStore().set(windowHoldsAtom, [{}]);
+    renderWithDefaultStore(<Window />);
+    const hrefs = [
+      "/files?file=%2FUsers%2Fmac-user%2Fa.md&path=&root=~",
+      "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
+    ];
+    stream.push({ hrefs, type: "openGroup" });
+    await vi.waitFor(
+      () => {
+        expect(handlers.openGroup).toHaveBeenCalledWith(hrefs);
+      },
+      { interval: 1 },
+    );
   });
 
   it("says a file a link named is not there, with the folder it was in", async () => {
@@ -220,6 +242,17 @@ describe("useWindowCommands", () => {
     await vi.waitFor(
       () => {
         expect(handlers.showActivity).toHaveBeenCalledTimes(1);
+      },
+      { interval: 1 },
+    );
+  });
+
+  it("shows the Bookmarks page from the Bookmarks menu's Bookmark Manager", async () => {
+    renderWithDefaultStore(<Window />);
+    stream.push("showBookmarks");
+    await vi.waitFor(
+      () => {
+        expect(handlers.showBookmarks).toHaveBeenCalledTimes(1);
       },
       { interval: 1 },
     );

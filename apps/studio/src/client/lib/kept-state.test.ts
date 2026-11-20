@@ -5,7 +5,6 @@ import {
   clearKeptState,
   keptAtom,
   keptMembersAtom,
-  takeKept,
   writeKept,
 } from "./kept-state";
 
@@ -120,11 +119,5 @@ describe("a value kept member by member", () => {
     ]);
     vi.unstubAllGlobals();
     expect(createStore().get(members())).toEqual({ a: 1, c: 3 });
-  });
-
-  it("takes what an earlier build kept under another key, once", () => {
-    writeKept("layout", "groups.v0", { a: 1 });
-    expect(takeKept("layout", "groups.v0")).toEqual({ a: 1 });
-    expect(takeKept("layout", "groups.v0")).toBeUndefined();
   });
 });

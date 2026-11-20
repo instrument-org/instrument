@@ -74,11 +74,29 @@ const events = {
       }
     }
   }),
+  pagePressed: base.handler(async function* ({ context, signal }) {
+    for await (const event of publisher.subscribe("browser.page-pressed", {
+      signal,
+    })) {
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
+    }
+  }),
   navigationRefused: base.handler(async function* ({ context, signal }) {
     for await (const event of publisher.subscribe(
       "browser.navigation-refused",
       { signal },
     )) {
+      if (isForHost(context.webContentsId, event.targetId)) {
+        yield event;
+      }
+    }
+  }),
+  bookmarkLink: base.handler(async function* ({ context, signal }) {
+    for await (const event of publisher.subscribe("browser.bookmark-link", {
+      signal,
+    })) {
       if (isForHost(context.webContentsId, event.targetId)) {
         yield event;
       }
@@ -215,6 +233,21 @@ const syncGuestShown = base
     // no longer its to give.
     if (isForHost(context.webContentsId, input.targetId)) {
       getBrowserViewManager().setGuestShown(input.targetId, input.shown);
+    }
+  });
+
+// A guest zoomed for the agent's side, whose zoom stays its own rather than
+// its site's.
+const zoomGuestAlone = base
+  .input(
+    z.object({
+      factor: z.number().positive(),
+      targetId: BrowserTargetIdSchema,
+    }),
+  )
+  .handler(({ context, input }) => {
+    if (isForHost(context.webContentsId, input.targetId)) {
+      getBrowserViewManager().zoomGuestAlone(input.targetId, input.factor);
     }
   });
 
@@ -558,6 +591,7 @@ export const browser = {
   setEmulatedDevice,
   syncFocus,
   syncGuestShown,
+  zoomGuestAlone,
   syncGuestsPutAway,
   syncGuestSurface,
   syncHostFocus,

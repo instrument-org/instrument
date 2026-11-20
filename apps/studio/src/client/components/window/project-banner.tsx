@@ -31,7 +31,7 @@ export function ProjectBanner({
   );
   const instructions = stripMarkdown(whole?.instructions ?? "").trim();
   return (
-    <div className="flex shrink-0 flex-col items-start px-4 pt-1 pb-4">
+    <div className="flex shrink-0 flex-col items-start px-2.5 pt-1 pb-4">
       <span className="grid size-11 place-items-center rounded-xl bg-background shadow-xs dark:bg-background/80">
         <ProjectMark
           className="size-7 text-[22px]"

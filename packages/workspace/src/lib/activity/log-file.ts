@@ -37,8 +37,10 @@ const LineSchema = z.object({
   connection: nullish(
     z.object({ name: nullish(z.string()), type: nullish(z.string()) }),
   ),
+  cost: nullish(z.number()),
   error: nullish(z.string()),
   finish: nullish(z.string()),
+  firstMs: nullish(z.number()),
   id: z.string().min(1),
   imageQuality: nullish(z.string()),
   kind: ActivityKindSchema,
@@ -61,6 +63,7 @@ const LineSchema = z.object({
       total: nullish(z.number()),
     }),
   ),
+  trigger: nullish(z.string()),
 });
 
 /** Where a device's activity files are. */
@@ -114,6 +117,7 @@ export function lineOf(row: ActivityRow): string {
     id: row.id,
     at: new Date(row.startedAt).toISOString(),
     ms: row.durationMs,
+    firstMs: row.firstOutputMs,
     status: row.status,
     error: row.error,
     finish: row.finishReason,
@@ -122,6 +126,7 @@ export function lineOf(row: ActivityRow): string {
     chat: row.chatId,
     session: row.sessionId,
     surface: row.surface,
+    trigger: row.trigger,
     connection: present({ name: row.connectionName, type: row.connectionType }),
     model: present({ requested: row.modelRequested, served: row.modelServed }),
     imageQuality: row.imageQuality,
@@ -134,6 +139,7 @@ export function lineOf(row: ActivityRow): string {
       reasoning: row.reasoningTokens,
       total: row.totalTokens,
     }),
+    cost: row.costUsd,
   };
   return `${JSON.stringify(withoutNulls(line))}\n`;
 }
@@ -157,10 +163,12 @@ export function rowOf(line: string, device: string): ActivityRow | undefined {
     chatId: read.chat ?? null,
     connectionName: read.connection?.name ?? null,
     connectionType: read.connection?.type ?? null,
+    costUsd: read.cost ?? null,
     device,
     durationMs: read.ms ?? null,
     error: read.error ?? null,
     finishReason: read.finish ?? null,
+    firstOutputMs: read.firstMs ?? null,
     id: read.id,
     imageQuality: read.imageQuality ?? null,
     inputTokens: read.tokens?.input ?? null,
@@ -176,6 +184,7 @@ export function rowOf(line: string, device: string): ActivityRow | undefined {
     status: read.status,
     surface: read.surface ?? null,
     totalTokens: read.tokens?.total ?? null,
+    trigger: read.trigger ?? null,
   };
 }
 

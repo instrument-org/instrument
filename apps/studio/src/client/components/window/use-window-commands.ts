@@ -3,6 +3,7 @@ import {
   toggleCommandMenu,
 } from "@/client/atoms/command-menu";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { toggleDeveloperStrip } from "@/client/atoms/developer-strip";
@@ -13,22 +14,26 @@ import {
   modalBackStackAtom,
   windowHoldsAtom,
 } from "@/client/atoms/tab-navigation-block";
-import { type AppPlace } from "@/client/atoms/window";
 import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
+import { requestBookmarkTab } from "@/client/components/window/bookmark-star";
+import { requestBookmarkAllTabs } from "./bookmark-all-tabs";
 import { requestFileInfo } from "@/client/components/window/file-info";
+import { interruptHeldHints } from "@/client/components/window/held-chord-hints";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
+import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import {
   findAgainForKeyboard,
   openFindForKeyboard,
 } from "@/client/lib/find-targets";
 import { stepForKeyboard, stepSurfaceAt } from "@/client/lib/history-surfaces";
-import { focusScreenHome } from "@/client/lib/keyboard-home";
+import { pageHoldingKeyboard } from "@/client/lib/browser-pool";
 import { runPageChord } from "@/client/lib/page-chords";
+import { reloadScreenWithKeyboard } from "@/client/lib/screen-reloads";
 import { runPictureChord } from "@/client/lib/picture-keys";
 import { isBackspaceBackPress } from "@/client/components/extend/file-system-keys";
 import { commandKeyHeld, currentOs, isLinux } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { type Tab } from "@/shared/tabs";
+import { type GroupTabLanding, type Tab } from "@/shared/tabs";
 import { safe } from "@orpc/client";
 import { getDefaultStore } from "jotai";
 import { useEffect, useRef } from "react";
@@ -51,7 +56,7 @@ const MODAL_SAFE_COMMANDS = new Set([
   "reloadPage",
   "takeCapture",
   "toggleDeveloperStrip",
-  "toggleInbox",
+  "toggleSidebar",
   "zoomIn",
   "zoomOut",
   "zoomReset",
@@ -81,14 +86,14 @@ export function useWindowCommands(
     back: () => void;
     closeTab: () => void;
     forward: () => void;
-    /** The tab up to one of the rail's places, as a press on the rail takes it. */
-    goToPlace: (place: AppPlace) => void;
+    /** The keyboard to one side of the tab group on screen, where it has that side. */
+    focusSide: (side: 0 | 1) => void;
     /** A draft of a new chat, at the corner. */
     newChat: () => void;
     /** A draft of a new chat with the words a link from outside brought, under the project it named. */
     newChatFromLink: (words: string, projectId?: string) => void;
     newTab: () => void;
-    /** A file a link from outside named that is not there: said, over the folder it was in when that is there. */
+    /** A file a link from outside named that is not there: said, by its name, and whether the folder it was in is gone too. */
     missingFile: (name: string, folder?: string) => void;
     /** How many files a link from outside named past the most one link opens: said. */
     notOpened: (count: number) => void;
@@ -100,10 +105,18 @@ export function useWindowCommands(
     openFile: (hostPath: string) => void;
     /** A screen by its route, from outside the app, so in no tab yet. */
     openScreen: (href: string) => void;
+    /** Files, folders and pages from outside the app, as one new tab group of a tab each, the first up. */
+    openGroup: (hrefs: readonly string[]) => void;
     /** The tab up to a window of its own. */
     moveTabToNewWindow: () => void;
+    /** A new tab on the other side of the group on screen, made where it has one side. */
+    newTabInSplit: () => void;
+    /** The side with the keyboard of the group on screen closed whole, where the group has two. */
+    closeSplit: () => void;
     /** A tab another window handed over, up here at a point along the strip. */
     receiveTab: (tab: Tab, index?: number) => void;
+    /** A tab group's tab another window let go over this one, into a group here by where it landed. */
+    receiveGroupTab: (key: string, landing: GroupTabLanding) => void;
     reopenTab: () => void;
     /** The caret into the window's field, wherever it was. */
     search: () => void;
@@ -111,14 +124,18 @@ export function useWindowCommands(
     searchChats: () => void;
     /** Activity, in the tab showing it or one of its own. */
     showActivity: () => void;
+    /** The Bookmarks page, in the tab showing it or one of its own. */
+    showBookmarks: () => void;
     /** The next or previous chat of the inbox, as listed. */
     selectChat: (direction: -1 | 1) => void;
+    /** A sidebar row by its place, 1 to 9. */
+    selectGroup: (index: number) => void;
     /** Brings up the tab here showing what another window asked for; false where none does. */
     showTab: (href: string) => boolean;
     selectRelative: (direction: -1 | 1) => void;
     selectTab: (index: number) => void;
     /** The inbox column put away or brought back. */
-    toggleInbox: () => void;
+    toggleSidebar: () => void;
   },
   {
     isReady,
@@ -230,14 +247,26 @@ export function useWindowCommands(
           signal: controller.signal,
         });
         for await (const command of commands) {
+          // A chord the main process answered is a key the window never
+          // saw, which puts a held modifier's numbers away all the same.
+          interruptHeldHints();
           if (typeof command === "object") {
-            if (command.type === "selectTab") {
-              // A tab by its place is a tab chord too, held under a dialog.
+            if (
+              command.type === "selectTab" ||
+              command.type === "selectGroup"
+            ) {
+              // A tab or group by its place is a tab chord too, held under a dialog.
               if (getDefaultStore().get(windowHoldsAtom).length === 0) {
-                latest.current.selectTab(command.index);
+                if (command.type === "selectTab") {
+                  latest.current.selectTab(command.index);
+                } else {
+                  latest.current.selectGroup(command.index);
+                }
               }
             } else if (command.type === "receiveTab") {
               latest.current.receiveTab(command.tab, command.index);
+            } else if (command.type === "receiveGroupTab") {
+              latest.current.receiveGroupTab(command.key, command.landing);
             } else if (command.type === "showTab") {
               // Said back either way: main brings this window forward only
               // on a yes, and the asking window opens it itself on a no.
@@ -298,6 +327,28 @@ export function useWindowCommands(
               }
               break;
             }
+            case "bookmarkTab": {
+              // The star of the tab the keyboard is in; nothing where no
+              // address is shown.
+              requestBookmarkTab();
+              break;
+            }
+            case "bookmarkAllTabs": {
+              requestBookmarkAllTabs();
+              break;
+            }
+            case "showBookmarks": {
+              latest.current.showBookmarks();
+              break;
+            }
+            case "newTabInSplit": {
+              latest.current.newTabInSplit();
+              break;
+            }
+            case "closeSplit": {
+              latest.current.closeSplit();
+              break;
+            }
             case "closeTab": {
               latest.current.closeTab();
               break;
@@ -330,24 +381,9 @@ export function useWindowCommands(
               }
               break;
             }
-            case "goToApps": {
-              latest.current.goToPlace("apps");
-              focusScreenHome({ leaving: true });
-              break;
-            }
-            case "goToBrowser": {
-              latest.current.goToPlace("browser");
-              focusScreenHome({ leaving: true });
-              break;
-            }
-            case "goToChat": {
-              latest.current.goToPlace("chat");
-              focusScreenHome({ leaving: true });
-              break;
-            }
-            case "goToFiles": {
-              latest.current.goToPlace("files");
-              focusScreenHome({ leaving: true });
+            case "focusLeftSide":
+            case "focusRightSide": {
+              latest.current.focusSide(command === "focusLeftSide" ? 0 : 1);
               break;
             }
             case "newChat": {
@@ -367,7 +403,7 @@ export function useWindowCommands(
               break;
             }
             case "openSettings": {
-              openSettings({ tab: "General" });
+              openSettings();
               break;
             }
             case "clearBrowsingData": {
@@ -395,8 +431,15 @@ export function useWindowCommands(
               break;
             }
             case "reloadPage": {
-              // The page on screen, when there is one; nothing otherwise.
-              runPageChord("reloadPage");
+              // The page holding the keyboard; else a chat or a built-in
+              // page on the side with it; else the page on screen, when
+              // there is one.
+              if (
+                pageHoldingKeyboard() !== null ||
+                !reloadScreenWithKeyboard()
+              ) {
+                runPageChord("reloadPage");
+              }
               break;
             }
             case "reopenTab": {
@@ -411,8 +454,9 @@ export function useWindowCommands(
               latest.current.searchChats();
               break;
             }
+            // A tab of the group up, as the developer band's button opens them.
             case "openDebugPages": {
-              latest.current.openScreen("/debug");
+              openBuiltInPage(SCREEN_ROUTES.debug);
               break;
             }
             case "takeCapture": {
@@ -427,8 +471,8 @@ export function useWindowCommands(
               latest.current.showActivity();
               break;
             }
-            case "toggleInbox": {
-              latest.current.toggleInbox();
+            case "toggleSidebar": {
+              latest.current.toggleSidebar();
               break;
             }
             case "zoomIn":
@@ -498,7 +542,7 @@ function openOrCloseCommandMenu() {
   }
 }
 
-/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file, files left unopened, a page or a link not opened said, a new chat's words, or a new chat. */
+/** Puts up what something outside the window asked for: a file, a screen by its route, a new tab group of files, a missing file, files left unopened, a page or a link not opened said, a new chat's words, or a new chat. */
 function answer(
   handlers: {
     linkNotOpened: () => void;
@@ -508,6 +552,7 @@ function answer(
     newChat: () => void;
     newChatFromLink: (words: string, projectId?: string) => void;
     openFile: (hostPath: string) => void;
+    openGroup: (hrefs: readonly string[]) => void;
     openScreen: (href: string) => void;
   },
   ask: RPCOutput["window"]["takePending"][number],
@@ -543,6 +588,10 @@ function answer(
     }
     case "openScreen": {
       handlers.openScreen(ask.href);
+      break;
+    }
+    case "openGroup": {
+      handlers.openGroup(ask.hrefs);
       break;
     }
   }

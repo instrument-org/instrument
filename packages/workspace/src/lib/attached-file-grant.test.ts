@@ -210,6 +210,17 @@ describe("sending a file from the disk", () => {
       "none" as const,
     ],
     [
+      "grants a file open in the chat's tab group, and not its folder",
+      (folder: string) => ({
+        viewing: {
+          file: { name: "report.md", path: path.join(folder, "report.md") },
+          groupFiles: [path.join(folder, "report.md")],
+          screen: "file" as const,
+        },
+      }),
+      "file" as const,
+    ],
+    [
       "grants nothing for a file selected in the chat's own tab",
       (folder: string) => ({
         viewing: {

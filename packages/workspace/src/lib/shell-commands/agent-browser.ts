@@ -64,7 +64,9 @@ import {
 } from "./agent-browser-follow-up";
 import { typedTextRuns } from "./agent-browser-typed-text";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
+import { tabStanding } from "../capabilities/window";
 import {
+  activeTabId,
   jsonWithTabIds,
   newTabLine,
   tabOutputOf,
@@ -1085,6 +1087,28 @@ export function createAgentBrowserCommand({
         ...(before ? { before } : {}),
         exitCode,
         startedAt: startedAtEpoch,
+        // Only the window's tabs have a place in it.
+        ...(drivesChatTabs
+          ? {
+              place: async (signal: AbortSignal) => {
+                const tabs = await runAgentBrowser({
+                  ...spawnOptions,
+                  args: [...connectionArgs, ...FOLLOW_UP_TABS_ARGS],
+                  cancelSignal: signal,
+                  input: undefined,
+                });
+                const tab =
+                  tabs.exitCode === 0 ? activeTabId(tabs.stdout) : undefined;
+                const standing =
+                  tab === undefined
+                    ? undefined
+                    : await tabStanding(chatId, tab);
+                return standing && tab !== undefined
+                  ? { ...standing, tab }
+                  : undefined;
+              },
+            }
+          : {}),
         read: async (signal, { messages: reading, snapshot: snapshots }) => {
           const run = (readArgs: string[]) =>
             runAgentBrowser({

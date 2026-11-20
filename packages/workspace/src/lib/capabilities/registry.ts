@@ -20,6 +20,7 @@ import {
   appsTest,
 } from "./apps-setup";
 import { activityList } from "./activity";
+import { bookmarksAdd, bookmarksList } from "./bookmarks";
 import {
   chatsArchive,
   chatsList,
@@ -46,8 +47,12 @@ import { taskSend } from "./task/send";
 import { taskStop } from "./task/stop";
 import {
   windowClose,
+  windowGroup,
+  windowHistory,
   windowList,
+  windowMove,
   windowRead,
+  windowRestore,
   windowWait,
   windowShow,
 } from "./window";
@@ -77,6 +82,8 @@ export const CAPABILITIES: readonly Capability[] = [
   appsIcon,
   appsAccount,
   appsDisconnect,
+  bookmarksList,
+  bookmarksAdd,
   chatsList,
   chatsRename,
   chatsArchive,
@@ -106,6 +113,10 @@ export const CAPABILITIES: readonly Capability[] = [
   windowShow,
   windowRead,
   windowClose,
+  windowGroup,
+  windowMove,
+  windowHistory,
+  windowRestore,
   windowWait,
   xSearch,
   xThread,

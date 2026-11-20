@@ -609,12 +609,50 @@ function isDisproportionateMatch(search: string, oldString: string): boolean {
   );
 }
 
+/** A file's lines, without the empty one after a final newline. */
+function linesOf(text: string): string[] {
+  const lines = text.split("\n");
+  return lines.at(-1) === "" ? lines.slice(0, -1) : lines;
+}
+
+/**
+ * The span of lines an edit changed, 1-based: where it starts, where it ends
+ * in the new file, and where it ended in the old one. An end before the
+ * start is a span with no lines in it, as a deletion leaves.
+ */
+function changedLines(before: string, after: string) {
+  const old = linesOf(before);
+  const now = linesOf(after);
+  const most = Math.min(old.length, now.length);
+  let prefix = 0;
+  while (prefix < most && old[prefix] === now[prefix]) {
+    prefix++;
+  }
+  let suffix = 0;
+  while (
+    suffix < most - prefix &&
+    old[old.length - 1 - suffix] === now[now.length - 1 - suffix]
+  ) {
+    suffix++;
+  }
+  return {
+    end: now.length - suffix,
+    oldEnd: old.length - suffix,
+    start: prefix + 1,
+  };
+}
+
+function lineWords(start: number, end: number): string {
+  return start === end ? `line ${start}` : `lines ${start}-${end}`;
+}
+
+/** The file after the edit, and how many places in it changed. */
 function replace(
   content: string,
   oldString: string,
   newString: string,
   replaceAll = false,
-): string {
+): { content: string; replacements: number } {
   if (oldString === newString) {
     throw new Error("oldString and newString must be different");
   }
@@ -649,17 +687,22 @@ function replace(
         );
       }
       if (replaceAll) {
-        return content.replaceAll(search, newString);
+        return {
+          content: content.replaceAll(search, newString),
+          replacements: content.split(search).length - 1,
+        };
       }
       const lastIndex = content.lastIndexOf(search);
       if (index !== lastIndex) {
         continue;
       }
-      return (
-        content.slice(0, Math.max(0, index)) +
-        newString +
-        content.slice(Math.max(0, index + search.length))
-      );
+      return {
+        content:
+          content.slice(0, Math.max(0, index)) +
+          newString +
+          content.slice(Math.max(0, index + search.length)),
+        replacements: 1,
+      };
     }
   }
 
@@ -719,6 +762,7 @@ const editFileCapability = defineCapability({
 
         let contentOld = "";
         let contentNew = input.newString;
+        let replacements = 1;
 
         if (input.oldString === "") {
           // An empty oldString only creates a file. Models reach for it meaning
@@ -755,12 +799,12 @@ const editFileCapability = defineCapability({
             ending,
           );
           try {
-            contentNew = replace(
+            ({ content: contentNew, replacements } = replace(
               contentOld,
               oldStringConverted,
               newStringConverted,
               input.replaceAll,
-            );
+            ));
           } catch (error) {
             return executeError(
               `Failed to edit file ${fixedPath}: ${error instanceof Error ? error.message : "Unknown error"}`,
@@ -789,15 +833,40 @@ const editFileCapability = defineCapability({
         return ok({
           diff,
           filePath: fixedPath,
+          lines: changedLines(
+            normalizeLineEndings(contentOld),
+            normalizeLineEndings(contentNew),
+          ),
           modifiedAt,
+          replacements,
         });
       },
       readOnly: false,
       timeoutMs: () => ms("30 seconds"),
-      toModelOutput: ({ output }) => {
+      toModelOutput: ({ input, output }) => {
+        const { lines, replacements } = output;
+        // A result stored before the counts were kept reads as it did then.
+        if (lines === undefined || replacements === undefined) {
+          return {
+            type: "text",
+            value: `Successfully edited file ${output.filePath}`,
+          };
+        }
+        if (input.oldString === "") {
+          return {
+            type: "text",
+            value: `Created file ${output.filePath}, ${lines.end} ${lines.end === 1 ? "line" : "lines"}.`,
+          };
+        }
+        const range =
+          lines.end >= lines.start
+            ? `${replacements === 1 ? "now" : "within"} ${lineWords(lines.start, lines.end)}`
+            : lines.oldEnd >= lines.start
+              ? `removing old ${lineWords(lines.start, lines.oldEnd)}`
+              : "no line changed";
         return {
           type: "text",
-          value: `Successfully edited file ${output.filePath}`,
+          value: `Edited file ${output.filePath}: ${replacements} ${replacements === 1 ? "replacement" : "replacements"}, ${range}.`,
         };
       },
       name: "edit_file",
@@ -805,7 +874,11 @@ const editFileCapability = defineCapability({
         diff: z.string().optional(),
         // Relative to the chat's folder, or the absolute path in a writable folder.
         filePath: z.string(),
+        lines: z
+          .object({ end: z.number(), oldEnd: z.number(), start: z.number() })
+          .optional(),
         modifiedAt: z.number(),
+        replacements: z.number().optional(),
       }),
     },
   },

@@ -305,41 +305,6 @@ describe("matchesAccelerator", () => {
       }),
     ).toBe(false);
   });
-
-  describe("a place's chord", () => {
-    const { accelerator } = WINDOW_SHORTCUTS.goToFiles;
-
-    it("is Control and Command with the digit on a Mac", () => {
-      const mac = resolveAccelerator(accelerator, { isMac: true });
-      expect(
-        matchesAccelerator(keyInput("2", "Digit2", "control", "meta"), mac, {
-          isMac: true,
-        }),
-      ).toBe(true);
-      // Cmd+2 alone is the second tab.
-      expect(
-        matchesAccelerator(keyInput("2", "Digit2", "meta"), mac, {
-          isMac: true,
-        }),
-      ).toBe(false);
-    });
-
-    it("is Alt and the digit elsewhere, by the key's place", () => {
-      const other = resolveAccelerator(accelerator, { isMac: false });
-      // AZERTY types é on that key; Alt chords go by where it sits.
-      expect(
-        matchesAccelerator(keyInput("é", "Digit2", "alt"), other, {
-          isMac: false,
-        }),
-      ).toBe(true);
-      // AltGr arrives as Control and Alt, and types ² on German layouts.
-      expect(
-        matchesAccelerator(keyInput("²", "Digit2", "control", "alt"), other, {
-          isMac: false,
-        }),
-      ).toBe(false);
-    });
-  });
 });
 
 describe("the shortcut table", () => {
@@ -426,10 +391,17 @@ describe("CODE_EDITOR_SHORTCUTS", () => {
       });
       // Find is the editor's own search either way: the window hands the
       // press to the find target holding the keyboard. Info is answered from
-      // the menu alone, which an editor's own key never reaches.
+      // the menu alone, which an editor's own key never reaches. The side
+      // chords are the editor's only off the Mac, and an editor leaves them
+      // alone on it.
+      const sides = new Set(["focusLeftSide", "focusRightSide"]);
       expect(
         new Set(taken.filter((id) => id !== "findInPage" && id !== "fileInfo")),
-      ).toEqual(CODE_EDITOR_SHORTCUTS);
+      ).toEqual(
+        new Set(
+          [...CODE_EDITOR_SHORTCUTS].filter((id) => !isMac || !sides.has(id)),
+        ),
+      );
     },
   );
 });
@@ -455,7 +427,12 @@ function boundChords(isMac: boolean) {
               accelerator: `CmdOrCtrl+${index + 1}`,
               name: `tab ${index + 1}`,
             }))
-          : [{ accelerator: resolve(accelerator), name }],
+          : name === "groupByPlace"
+            ? Array.from({ length: 9 }, (_, index) => ({
+                accelerator: `${isMac ? "Control" : "Alt"}+${index + 1}`,
+                name: `group ${index + 1}`,
+              }))
+            : [{ accelerator: resolve(accelerator), name }],
     ),
     ...SHORTCUT_ENTRIES.map(({ descriptor, id }) => ({
       accelerator: resolve(descriptor.accelerator),

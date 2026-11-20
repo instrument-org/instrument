@@ -59,7 +59,6 @@ function DebugIndex() {
               <div className="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3">
                 {pages.map((page) => (
                   <InternalLink
-                    allowOpenNewTab={false}
                     className="group flex flex-col overflow-hidden rounded-xl bg-card shadow-xs ring-1 ring-black/8 hover:ring-black/20 dark:ring-white/10 dark:hover:ring-white/25"
                     key={page.id}
                     to={page.to}

@@ -87,6 +87,30 @@ describe("instrumentLinkOf", () => {
         name: "ses_01J9TASK",
       },
     ],
+    [
+      "instrument://task/ses_01J9TASK?chat=2026-11-17-hotels",
+      {
+        href: "/tasks/ses_01J9TASK?chat=2026-11-17-hotels",
+        kind: "task",
+        name: "ses_01J9TASK",
+      },
+    ],
+    [
+      "instrument://task/ses_01J9TASK?chat=no%20chat",
+      {
+        href: "/tasks/ses_01J9TASK",
+        kind: "task",
+        name: "ses_01J9TASK",
+      },
+    ],
+    [
+      "instrument://chat/2026-11-17-hotels?chat=other",
+      {
+        href: "/chats/2026-11-17-hotels",
+        kind: "chat",
+        name: "2026-11-17-hotels",
+      },
+    ],
   ])("reads %s", (url, expected) => {
     expect(instrumentLinkOf(url)).toEqual(expected);
   });

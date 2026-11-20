@@ -115,8 +115,13 @@ export function withTabLabel(
 
 /** The line `tab new` ends with: the id of the tab it opened, which is the active one. */
 export function newTabLine(json: string): string {
-  const id = parseTabList(json)?.data.tabs.find((tab) => tab.active)?.targetId;
+  const id = activeTabId(json);
   return id === undefined ? "" : `Opened as tab ${id}.\n`;
+}
+
+/** The window's id for the tab `tab list --json` marks active, the one commands act on. */
+export function activeTabId(json: string): string | undefined {
+  return parseTabList(json)?.data.tabs.find((tab) => tab.active)?.targetId;
 }
 
 /** Whether `tab list --json` names the tab with the window's id `tabId`. */

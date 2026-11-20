@@ -1,23 +1,10 @@
-import {
-  type ChosenItem,
-  type Draft,
-  type DraftContextItem,
-} from "@/shared/drafts";
+import { type ChosenItem } from "@/shared/drafts";
 import { type WindowTab } from "@/client/atoms/window";
-import { instrumentLinkOf, instrumentUrlOf } from "@instrument-org/shared";
-import {
-  type ChatId,
-  type SessionMessageDataPart,
-} from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 
 import { includedItemsOf, isIncludable } from "./draft-context";
-import { isFreshTab, isHomeTab } from "./tab-model";
-import { chatOfGroup, chatOfHref } from "./window-href";
-
-type SentChip = SessionMessageDataPart.SentChip;
-
-/** How the key of a chip naming a file or folder by its path starts. */
-const CHOSEN_KEY = "chosen:";
+import { chatOfTab, isFreshTab, isHomeTab, isNewChatTab } from "./tab-model";
+import { chatOfHref } from "./window-href";
 
 /**
  * One thing a message carries about what the user was looking at, which the
@@ -30,8 +17,9 @@ const CHOSEN_KEY = "chosen:";
  *   `items` is what it points at on this computer, when that is something.
  *   A page or an app a draft names by its address is a tab too: the
  *   window's own showing it, or one standing for it.
- * - `chat`: another chat a draft names in its `context`, by its id alone:
- *   what is in it is that chat's. Nothing on screen becomes one.
+ * - `chat`: another chat, by its id alone: what is in it is that chat's. A
+ *   draft names one in its `context`; a chat's tab in the sending group is
+ *   never one.
  */
 export type ContextItem =
   | { item: ChosenItem; key: string; kind: "chosen" }
@@ -64,11 +52,18 @@ function itemOfTab(
   },
 ): ContextItem | undefined {
   const otherChat =
-    tab.group === group
+    tab.group === group || tab.kind !== "screen"
       ? undefined
-      : (chatOfGroup(tab.group) ??
-        (tab.kind === "screen" ? chatOfHref(tab.href) : undefined));
+      : chatOfHref(tab.href);
   if (otherChat !== undefined) {
+    return;
+  }
+  // A chat or a new chat in the sender's group is a conversation of its
+  // own, never something a message carries.
+  if (
+    tab.group === group &&
+    (chatOfTab(tab) !== undefined || isNewChatTab(tab))
+  ) {
     return;
   }
   // The sending group's own screens (a chat's tasks, say) say what they
@@ -88,397 +83,25 @@ function itemOfTab(
   return { items, key, kind: "tab", owned, tab };
 }
 
-/** The chosen, tab and chat items' paths, so a later item does not say again what an earlier one holds. */
-function heldPaths(items: ContextItem[]): ChosenItem[] {
-  return items.flatMap((entry) =>
-    entry.kind === "chosen"
-      ? [entry.item]
-      : entry.kind === "tab"
-        ? (entry.items ?? [])
-        : [],
-  );
-}
-
 /**
- * The lines of `context` a tab of a draft's band stands for, as the draft's
- * file keeps them: the files or folders it points at on this computer, else
- * a page's address or an app's front by its own address. None for a tab
- * that shows something attached to the draft (`held`), or that names
- * nothing a line can (a new tab, the list of apps).
- */
-export function bandTabLines(
-  tab: WindowTab,
-  {
-    finderOf,
-    held,
-  }: {
-    finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
-    held: ChosenItem[];
-  },
-): DraftContextItem[] {
-  const item = itemOfTab(tab, {
-    finderOf,
-    group: tab.group ?? "",
-    held,
-    key: keyOfTab(tab),
-  });
-  return item ? linesOfItem(item) : [];
-}
-
-/**
- * The lines of `context` a chip stands for, as a draft's file keeps them:
- * the files or folders it points at on this computer, else a page's address
- * or an app's front by its own address, or another chat.
- */
-export function linesOfItem(item: ContextItem): DraftContextItem[] {
-  if (item.kind === "chosen") {
-    return [{ kind: item.item.kind, path: item.item.path }];
-  }
-  if (item.kind === "chat") {
-    return [{ chat: item.chat, kind: "chat" }];
-  }
-  if (item.items !== undefined) {
-    return item.items.map((entry) => ({ kind: entry.kind, path: entry.path }));
-  }
-  const url =
-    item.tab.kind === "page" ? item.tab.url : instrumentUrlOf(item.tab.href);
-  return url === undefined ? [] : [{ kind: "link", url }];
-}
-
-/**
- * A draft brought up to carry these lines too, each one it does not carry
- * yet added after its own: what taking an offered chip and an Ask write.
- */
-export function withContextLines(
-  draft: Draft,
-  lines: readonly DraftContextItem[],
-): Draft {
-  const had = new Set((draft.context ?? []).map(lineKeyOf));
-  const added = lines.filter((entry) => {
-    const key = lineKeyOf(entry);
-    if (had.has(key)) {
-      return false;
-    }
-    had.add(key);
-    return true;
-  });
-  return added.length === 0
-    ? draft
-    : { ...draft, context: [...(draft.context ?? []), ...added] };
-}
-
-/**
- * The lines of what the window has in view, as Ask puts them on the draft
- * it opens: what is selected in a folder, else the folder, a file, a page or
- * an app's front. None where the screen names nothing or is a chat's.
- */
-export function inViewLines({
-  finderOf,
-  inView,
-}: {
-  finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
-  inView: undefined | WindowTab;
-}): DraftContextItem[] {
-  const item = inView
-    ? itemOfTab(inView, {
-        finderOf,
-        group: "",
-        held: [],
-        key: keyOfTab(inView),
-      })
-    : undefined;
-  return item ? linesOfItem(item) : [];
-}
-
-/** Which thing a line of `context` names, the same however a folder's path ends: what a band tab and a line are matched by. */
-export function lineKeyOf(entry: DraftContextItem): string {
-  return entry.kind === "file" || entry.kind === "folder"
-    ? `${CHOSEN_KEY}${withoutSlash(entry.path)}`
-    : contextKeyOf(entry);
-}
-
-/**
- * What a draft carries, in the order its chips stand: every tab of the
- * draft's own band, in the band's order, then each line of its `context` no
- * tab of the band stands for (another chat, and a line this window has yet
- * to open as a tab, see `useBandContext`). The file's lines are the record
- * and the band is how this window shows them, so a thing is one chip however
- * both name it. Each of the band's tabs is a chip: picking one shows it, and
- * taking one off closes it. A tab showing something attached to the draft is
- * no chip of its own: the attachment's chip is it. Two tabs showing the same
- * thing are one chip, the first in the band's order.
- *
- * What the window has in view behind the draft is never one of them by
- * itself: it is offered beside the chips (`draftSuggestionOf`), and goes
- * only once the person takes it or opened the draft with Ask, either of
- * which writes its lines into `context` (`withContextLines`).
- */
-export function draftContextItems({
-  allTabs,
-  band,
-  draft,
-  finderOf,
-  group,
-}: {
-  allTabs: WindowTab[];
-  /** The tabs of the draft's own band, in its order. */
-  band: readonly WindowTab[];
-  draft: Draft;
-  finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
-  group: string;
-}): ContextItem[] {
-  const attached = attachedPaths(draft);
-  const shown = new Set(
-    band.flatMap((tab) =>
-      bandTabLines(tab, { finderOf, held: attached }).map(lineKeyOf),
-    ),
-  );
-  const chosen = dedupeChats(
-    (draft.context ?? [])
-      .filter((entry) => !shown.has(lineKeyOf(entry)))
-      .map((entry) => contextItemOf(entry, allTabs)),
-  );
-  const own: ContextItem[] = [];
-  const lined = new Set<string>();
-  for (const tab of band) {
-    const lines = bandTabLines(tab, { finderOf, held: attached }).map(
-      lineKeyOf,
-    );
-    if (lines.length > 0 && lines.every((line) => lined.has(line))) {
-      continue;
-    }
-    for (const line of lines) {
-      lined.add(line);
-    }
-    const key = keyOfTab(tab);
-    const item = itemOfTab(tab, {
-      finderOf,
-      group,
-      held: [...attached, ...heldPaths([...chosen, ...own])],
-      key,
-    });
-    if (item && ![...chosen, ...own].some((entry) => entry.key === item.key)) {
-      own.push(item);
-    }
-  }
-  return [...own, ...chosen];
-}
-
-/**
- * What the window has in view behind a draft, offered to it as the chip it
- * would be: what is selected in a folder, else the folder, a file, a page or
- * an app's front. Taking it writes its lines into the draft's `context`
- * (`linesOfItem`). Nothing where the screen names nothing, where it is
- * another chat's, or where the draft already carries every line of it: a
- * selection the draft has is not offered again as the folder around it.
- */
-export function draftSuggestionOf({
-  allTabs,
-  band,
-  draft,
-  finderOf,
-  group,
-  inView,
-}: {
-  allTabs: WindowTab[];
-  band: readonly WindowTab[];
-  draft: Draft;
-  finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
-  group: string;
-  inView: undefined | WindowTab;
-}): ContextItem | undefined {
-  if (!inView || band.some((tab) => sameTarget(tab, inView))) {
-    return undefined;
-  }
-  const item = itemOfTab(inView, {
-    finderOf,
-    group,
-    held: [],
-    key: keyOfTab(inView),
-  });
-  if (item?.kind !== "tab") {
-    return undefined;
-  }
-  const carried = new Set(
-    [
-      ...attachedPaths(draft),
-      ...linesCarried(
-        draftContextItems({ allTabs, band, draft, finderOf, group }),
-      ),
-    ].map(lineKeyOf),
-  );
-  const lines = linesOfItem(item);
-  return lines.length > 0 && lines.every((line) => carried.has(lineKeyOf(line)))
-    ? undefined
-    : item;
-}
-
-/** Every line the chips stand for, so what one of them carries is not offered again. */
-function linesCarried(items: ContextItem[]): DraftContextItem[] {
-  return items.flatMap(linesOfItem);
-}
-
-/** What is attached to a draft by its path, which a tab of its band showing the same thing does not say again. */
-export function attachedPaths(draft: Draft): ChosenItem[] {
-  return [...(draft.attached ?? []), ...(draft.inFolder ?? [])].map(
-    (entry) => ({ kind: entry.kind, path: entry.path }),
-  );
-}
-
-function withoutSlash(path: string) {
-  return path.length > 1 ? path.replace(/[/\\]+$/, "") : path;
-}
-
-/** The key a draft's chip for one of its `context` items is known by, and taken off by. */
-export function contextKeyOf(entry: DraftContextItem): string {
-  switch (entry.kind) {
-    case "chat": {
-      return `chat:${entry.chat}`;
-    }
-    case "link": {
-      return `link:${entry.url}`;
-    }
-    case "file":
-    case "folder": {
-      return `${CHOSEN_KEY}${entry.path}`;
-    }
-  }
-}
-
-/**
- * The chip one of a draft's `context` items is. A page is the window's own
- * tab at that address while there is one, so its words go with the message;
- * otherwise it, like an app's front, is a tab standing for the address.
- */
-function contextItemOf(
-  entry: DraftContextItem,
-  allTabs: WindowTab[],
-): ContextItem {
-  const key = contextKeyOf(entry);
-  switch (entry.kind) {
-    case "chat": {
-      return { chat: entry.chat, key, kind: "chat" };
-    }
-    case "link": {
-      const href = instrumentLinkOf(entry.url)?.href;
-      const tab: WindowTab =
-        href === undefined
-          ? (allTabs.find(
-              (open) => open.kind === "page" && open.url === entry.url,
-            ) ?? {
-              id: key,
-              kind: "page",
-              openedAt: 0,
-              title: entry.url,
-              url: entry.url,
-            })
-          : { href, id: key, kind: "screen" };
-      return { items: undefined, key, kind: "tab", owned: false, tab };
-    }
-    case "file":
-    case "folder": {
-      return { item: entry, key, kind: "chosen" };
-    }
-  }
-}
-
-/**
- * What a chat's next message carries: the chat's own tab up while its view
- * of it is open, then what the person took for this message from what was
- * offered (`chatSuggestionOf`), as it was when taken. Another chat is never
- * one of them.
+ * What a message from a tab carries, a chat's or a new chat's: the tab up
+ * beside the sending one. Another chat is never one of them.
  */
 export function chatContextItems({
-  chatId,
   finderOf,
-  taken,
+  group,
   up,
 }: {
-  chatId: ChatId;
   finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
-  /** What the person took for the next message. */
-  taken: readonly ContextItem[];
-  /** The chat's tab up, while the chat's view of it is open. */
+  /** The group the sending tab is in, whose tabs are its own. */
+  group: string;
+  /** The tab up beside the sending one, which goes with the message. */
   up: undefined | WindowTab;
 }): ContextItem[] {
   const own = up
-    ? itemOfTab(up, { finderOf, group: chatId, held: [], key: keyOfTab(up) })
+    ? itemOfTab(up, { finderOf, group, held: [], key: keyOfTab(up) })
     : undefined;
-  return own
-    ? [own, ...taken.filter((item) => item.key !== own.key)]
-    : [...taken];
-}
-
-/**
- * What the window has in view behind a popped-out chat, offered to its next
- * message as the chip it would be: what is selected in a folder, else the
- * folder, a file, a page or an app's front. Nothing where the screen names
- * nothing, where it is the chat itself or another chat, or where the message
- * already carries it or one of the chat's messages went with it.
- */
-export function chatSuggestionOf({
-  chatId,
-  finderOf,
-  inView,
-  sent,
-  taken,
-}: {
-  chatId: ChatId;
-  finderOf: (id: string) => null | { folder: string; selected: ChosenItem[] };
-  inView: undefined | WindowTab;
-  /** The chips the chat's messages went with. */
-  sent: readonly SentChip[];
-  taken: readonly ContextItem[];
-}): ContextItem | undefined {
-  if (!inView || inView.group === chatId) {
-    return undefined;
-  }
-  const item = itemOfTab(inView, {
-    finderOf,
-    group: chatId,
-    held: [],
-    key: keyOfTab(inView),
-  });
-  if (item?.kind !== "tab") {
-    return undefined;
-  }
-  if (item.items === undefined) {
-    const { tab } = item;
-    const isCarried =
-      taken.some(
-        (entry) => entry.kind === "tab" && sameTarget(entry.tab, tab),
-      ) ||
-      sent.some((chip) =>
-        tab.kind === "page"
-          ? chip.kind === "page" && chip.url === tab.url
-          : chip.kind === "screen" && chip.url === tab.href,
-      );
-    return isCarried ? undefined : item;
-  }
-  const held = new Set(
-    [
-      ...heldPaths([...taken]),
-      ...sent.flatMap((chip) => (chip.kind === "paths" ? chip.items : [])),
-    ].map((entry) => withoutSlash(entry.path)),
-  );
-  return item.items.every((entry) => held.has(withoutSlash(entry.path)))
-    ? undefined
-    : item;
-}
-
-/**
- * The key a tab's chip is left out by. A screen of the window's own keeps
- * its tab's id wherever it walks, so it is keyed by where it stands too, and
- * a chip left out comes back once that screen is somewhere else.
- */
-/** Whether two tabs show the same thing: the same page, or the same screen. */
-function sameTarget(one: WindowTab, other: WindowTab): boolean {
-  if (one.kind === "page" && other.kind === "page") {
-    return one.url !== undefined && one.url === other.url;
-  }
-  return (
-    one.kind === "screen" && other.kind === "screen" && one.href === other.href
-  );
+  return own ? [own] : [];
 }
 
 function keyOfTab(tab: undefined | WindowTab): string {
@@ -486,62 +109,4 @@ function keyOfTab(tab: undefined | WindowTab): string {
     return "";
   }
   return tab.kind === "screen" ? `tab:${tab.id} ${tab.href}` : `tab:${tab.id}`;
-}
-
-/** One chip per other chat, however many of its tabs stand behind a draft. */
-function dedupeChats(items: ContextItem[]): ContextItem[] {
-  const seen = new Set<ChatId>();
-  return items.filter((entry) => {
-    if (entry.kind !== "chat") {
-      return true;
-    }
-    if (seen.has(entry.chat)) {
-      return false;
-    }
-    seen.add(entry.chat);
-    return true;
-  });
-}
-
-/** A chip as last drawn: the key it was drawn under, what it is, and the lines it stood for. */
-export interface DrawnChip {
-  identity: string;
-  key: string;
-  lines: string[];
-}
-
-/**
- * The key each chip is drawn under, given the chips drawn before. A chip is
- * known by its tab where it is one, else by its key, and keeps the key it
- * was first drawn under. A chip new here that stands for a line a chip
- * drawn before stood for, one that is gone now, takes that chip's key: a
- * draft's line whose tab has just opened in its band is the same chip,
- * changing in place, rather than one going out beside one coming in.
- */
-export function drawnChipsOf(
-  items: readonly ContextItem[],
-  before: readonly DrawnChip[],
-): DrawnChip[] {
-  const identities = items.map((item) =>
-    item.kind === "tab" ? `tab:${item.tab.id}` : item.key,
-  );
-  const now = new Set(identities);
-  const kept = new Map(before.map((chip) => [chip.identity, chip.key]));
-  const gone = before.filter((chip) => !now.has(chip.identity));
-  const used = new Set<string>();
-  return items.map((item, index) => {
-    const identity = identities[index] ?? item.key;
-    const lines = linesOfItem(item).map(lineKeyOf);
-    const heir = kept.has(identity)
-      ? undefined
-      : gone.find(
-          (chip) =>
-            !used.has(chip.key) &&
-            chip.lines.some((line) => lines.includes(line)),
-        );
-    const wanted = kept.get(identity) ?? heir?.key ?? identity;
-    const key = used.has(wanted) ? identity : wanted;
-    used.add(key);
-    return { identity, key, lines };
-  });
 }

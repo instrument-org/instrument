@@ -4,6 +4,7 @@ export { CLIENT_SESSION_ID_HEADER } from "./constants";
 export { providerOptionsForModel } from "./lib/ai-sdk-provider-options";
 export * from "./lib/decision-model";
 export type { TypedError as AIGatewayTypedError } from "./lib/errors";
+export * from "./lib/fast-model";
 export * from "./lib/fetch-ai-sdk-model";
 export * from "./lib/fetch-model";
 export * from "./lib/fetch-model-results";

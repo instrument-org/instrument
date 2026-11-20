@@ -24,6 +24,8 @@ const publish = vi.hoisted(() =>
 vi.mock("@/electron-main/rpc/publisher", () => ({ publisher: { publish } }));
 vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   isDeveloperMode: () => false,
+  showsBookmarksBar: () => true,
+  toggleBookmarksBar: () => undefined,
 }));
 vi.mock("@/electron-main/lib/setup-state", () => ({ isSetupUp: () => false }));
 vi.mock("./other-window", () => ({
@@ -262,7 +264,7 @@ describe("a window chord from the menu", () => {
     });
   });
 
-  it("opens a window for New Chat, New Tab and Reopen Closed Tab with none focused, as a browser does", async () => {
+  it("opens a window for New Tab Group, New Tab and Reopen Closed Tab with none focused, as a browser does", async () => {
     vi.resetModules();
     const { createAppWindowMenu } = await import("./app-window");
     const opened: string[] = [];
@@ -271,7 +273,7 @@ describe("a window chord from the menu", () => {
         ...NO_WINDOW_ACTIONS,
         canReopenClosed,
         openNew: () => opened.push("window"),
-        openNewWithChat: () => opened.push("window with a chat"),
+        openNewWithChat: () => opened.push("window with a tab group"),
         reopenClosed: () => opened.push("window closed last"),
       }).flatMap((menu) => (Array.isArray(menu.submenu) ? menu.submenu : []));
     const choose = (canReopenClosed: boolean, label: string) => {
@@ -285,13 +287,13 @@ describe("a window chord from the menu", () => {
 
     inFront.window = null;
     publish.mockClear();
-    choose(true, "New Chat");
+    choose(true, "New Tab Group");
     choose(true, "New Tab");
     choose(true, "Reopen Closed Tab");
     choose(false, "Reopen Closed Tab");
     choose(true, "Close Tab");
     expect(opened).toEqual([
-      "window with a chat",
+      "window with a tab group",
       "window",
       "window closed last",
     ]);

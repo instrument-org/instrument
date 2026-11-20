@@ -6,6 +6,7 @@ import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { chatsChanged } from "../chat-change-groups";
 import { dataPartVisibility } from "../data-part-visibility";
+import { layoutChangesLine } from "../group-layout";
 import { errorOutcomeOf } from "./error-outcome";
 import { thoughtText, transcriptMessage } from "./transcript-message";
 import { type Turn, type TurnRow, turnsOf } from "./turns-of";
@@ -98,6 +99,7 @@ const NEVER_NOTES = new Set<SessionMessagePart.DataPart["type"]>([
 
 const STATE_PARTS = new Set<SessionMessagePart.DataPart["type"]>([
   "data-browserStatus",
+  "data-groupLayout",
   "data-project",
   "data-viewContext",
   "data-workspaceInstructions",
@@ -122,8 +124,10 @@ const MARK_OF_PART: Record<
   "data-fileChanges": "file",
   "data-folderChanges": "folder",
   "data-fromChat": "chats",
+  "data-groupLayout": "tabs",
   "data-intent": "once",
   "data-jobEvent": "command",
+  "data-layoutChanges": "tabs",
   "data-maxSteps": "limit",
   "data-memory": "memory",
   "data-messageGap": "time",
@@ -295,6 +299,15 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
         "Command ended",
         someOf(part.data.events.map((one) => one.id)),
       );
+    }
+    case "data-groupLayout": {
+      return named(
+        "Tab group",
+        `${part.data.group.id}, ${part.data.sides.map((side) => side.tabs.length.toString()).join(" | ")} tabs`,
+      );
+    }
+    case "data-layoutChanges": {
+      return named("Tab group changed", layoutChangesLine(part.data.changes));
     }
     case "data-maxSteps": {
       return `Step limit: ${part.data.maxStepCount.toString()}`;

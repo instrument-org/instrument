@@ -6,6 +6,7 @@ import {
   groupTabRouterIds,
   setGroupTabRouter,
 } from "@/client/lib/group-tab-router-registry";
+import { forgetTab } from "@/client/lib/kept-by-tab";
 import { createTabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { type TabHistory } from "@/shared/tabs";
@@ -21,7 +22,8 @@ const unsubscribes = new Map<string, () => void>();
  * stood. A tab moved some other way (sent to another address, replaced in
  * place) gets a router made afresh at its new place. Made during render, as
  * the window's own tabs' routers are, so a tab is drawn with its router the
- * first time; a closed tab's router is let go once the change commits.
+ * first time; a closed tab's router, and what its screen kept
+ * (`kept-by-tab.ts`), are let go once the change commits.
  */
 export function useGroupTabRouters(
   tabs: WindowTab[],
@@ -62,6 +64,7 @@ export function useGroupTabRouters(
         unsubscribes.get(id)?.();
         unsubscribes.delete(id);
         deleteGroupTabRouter(id);
+        forgetTab(id);
       }
     }
   }, [live]);

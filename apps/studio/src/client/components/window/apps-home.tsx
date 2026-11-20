@@ -20,7 +20,6 @@ import { useFindTarget } from "@/client/hooks/use-find-target";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
 import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
-import { APPS_HREF } from "@/client/atoms/window";
 import {
   APP_CATEGORIES,
   directoryByUse,
@@ -55,24 +54,10 @@ const RELATED_SKELETONS = 2;
  * first time you open it.
 
  *
- * Opening an app is the host's to do: the place moves its tab to the app's
- * front, a draft moves its own. A draft shows only what is already here,
- * without the services still to connect.
+ * Opening an app is the host's to do: the tab moves to the app's front.
  */
-export function AppsHome({
-  onOpenApp,
-  showsConnect = true,
-}: {
-  onOpenApp: (slug: string) => void;
-  /** Whether the services still to connect, and the broken ones to fix, are offered. */
-  showsConnect?: boolean;
-}) {
-  const { ask, openScreen } = useWindow();
-  // Beside a chat or in a draft there is no search or Connect, so the way to
-  // a new app is the Apps place itself, in a tab of the window's own.
-  const openAppsPlace = () => {
-    openScreen(APPS_HREF, { newTab: true });
-  };
+export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
+  const { ask } = useWindow();
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(
     rpcClient.apps.live.catalog.experimental_liveOptions(),
@@ -106,10 +91,9 @@ export function AppsHome({
   // is to be pressed and moves nothing that is.
   // Read once a search is typed, so a workspace no model can answer for
   // never holds a "Related" place that only empties.
-  const canAskMeaning = useDecisionModelAvailable(showsConnect && typed !== "");
+  const canAskMeaning = useDecisionModelAvailable(typed !== "");
   const asksMeaning =
     canAskMeaning === true &&
-    showsConnect &&
     typed.length >= MEANING_MIN_LENGTH &&
     matches.length === 0;
   const settled = useDebouncedValue(typed, 300);
@@ -189,27 +173,17 @@ export function AppsHome({
       // The keyboard lands on the first app as the screen comes up.
       data-keyboard-home
     >
-      {/* As a page, a centered column and head with room around it. Inside
-        a draft, the narrower column the draft's frame allows. */}
-      <div
-        className={cn(
-          "mx-auto w-full",
-          showsConnect
-            ? "max-w-5xl space-y-12 px-10 pt-14 pb-20"
-            : "max-w-3xl space-y-8 px-8 pt-7 pb-10",
-        )}
-      >
-        {showsConnect ? (
-          <header className="max-w-xl">
-            <h1 className="font-serif text-3xl leading-tight font-normal tracking-tight text-brand-600 dark:text-brand-300">
-              Apps
-            </h1>
-            <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-              Connect the services you already use. Instrument does the setup,
-              then works in them from your chats.
-            </p>
-          </header>
-        ) : null}
+      {/* A centered column and head with room around it. */}
+      <div className="mx-auto w-full max-w-5xl space-y-12 px-10 pt-14 pb-20">
+        <header className="max-w-xl">
+          <h1 className="font-serif text-3xl leading-tight font-normal tracking-tight text-brand-600 dark:text-brand-300">
+            Apps
+          </h1>
+          <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+            Connect the services you already use. Instrument does the setup,
+            then works in them from your chats.
+          </p>
+        </header>
         {list.data === undefined ? (
           <PageSection title="Your apps">
             <MarkSkeletons />
@@ -228,21 +202,8 @@ export function AppsHome({
                   }}
                 />
               ))}
-              {showsConnect ? null : <AddAppMark onOpen={openAppsPlace} />}
             </div>
           </PageSection>
-        ) : null}
-
-        {!showsConnect && list.data !== undefined && own.length === 0 ? (
-          <div className="flex flex-col items-center gap-3 rounded-2xl bg-black/2 px-6 py-8 text-center dark:bg-white/3">
-            <p className="text-sm text-muted-foreground">
-              Once you connect an app, you can use it from any chat.
-            </p>
-            <Button onClick={openAppsPlace} size="sm" variant="outline">
-              <PlusIcon />
-              Add an app
-            </Button>
-          </div>
         ) : null}
 
         {/* The services still to connect, searchable: the popular ones and
@@ -250,87 +211,85 @@ export function AppsHome({
             whatever matches, and for a name the directory does not have,
             the way to ask for it anyway. Every Connect is a message to the
             conversation, since Instrument does the connecting. */}
-        {showsConnect && (
-          <div className="space-y-10">
-            <form
-              className="group/search relative"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (typed !== "" && matches.length === 0) {
-                  connectTyped();
-                }
-              }}
-            >
-              <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground group-focus-within/search:text-foreground" />
-              {/* The cards' surface and edge, a size up since it leads the
+        <div className="space-y-10">
+          <form
+            className="group/search relative"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (typed !== "" && matches.length === 0) {
+                connectTyped();
+              }
+            }}
+          >
+            <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground group-focus-within/search:text-foreground" />
+            {/* The cards' surface and edge, a size up since it leads the
                 shelf, with the brand's green as its focus. */}
-              <input
-                aria-label="Search apps"
-                ref={searchRef}
-                className="h-11 w-full rounded-xl border-0 bg-card pr-4 pl-11 text-[15px] shadow-xs transition-shadow outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:bg-input/30"
-                onChange={(event) => {
-                  setQuery(event.target.value);
-                }}
-                placeholder="Search apps, or name any service"
-                value={query}
-              />
-            </form>
-            {catalog.data === undefined ? (
-              <TileSkeletons />
-            ) : typed === "" ? (
-              <>
-                {popular.length > 0 ? (
-                  <PageSection title="Popular">
-                    <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                      {popular.map(tileFor)}
-                    </div>
-                  </PageSection>
-                ) : null}
-                {rest.length > 0 ? (
-                  <PageSection title="By category">
-                    <CategoryGroups entries={rest} renderTile={tileFor} />
-                  </PageSection>
-                ) : null}
-              </>
-            ) : (
-              <div className="space-y-6">
-                {matches.length > 0 ? (
+            <input
+              aria-label="Search apps"
+              ref={searchRef}
+              className="h-11 w-full rounded-xl border-0 bg-card pr-4 pl-11 text-[15px] shadow-xs transition-shadow outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:bg-input/30"
+              onChange={(event) => {
+                setQuery(event.target.value);
+              }}
+              placeholder="Search apps, or name any service"
+              value={query}
+            />
+          </form>
+          {catalog.data === undefined ? (
+            <TileSkeletons />
+          ) : typed === "" ? (
+            <>
+              {popular.length > 0 ? (
+                <PageSection title="Popular">
                   <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                    {matches.map(searchTileFor)}
+                    {popular.map(tileFor)}
                   </div>
-                ) : null}
-                {/* A service the words name exactly, listed or already
+                </PageSection>
+              ) : null}
+              {rest.length > 0 ? (
+                <PageSection title="By category">
+                  <CategoryGroups entries={rest} renderTile={tileFor} />
+                </PageSection>
+              ) : null}
+            </>
+          ) : (
+            <div className="space-y-6">
+              {matches.length > 0 ? (
+                <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                  {matches.map(searchTileFor)}
+                </div>
+              ) : null}
+              {/* A service the words name exactly, listed or already
                     yours, is the one meant, so "connect it anyway" would
                     only offer it a second time. */}
-                {namesOne(matches, typed) || namesOne(own, typed) ? null : (
-                  <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                    <UnlistedTile
-                      isOnlyOne={matches.length === 0}
-                      name={typed}
-                      onConnect={connectTyped}
-                    />
-                  </div>
-                )}
-                {asksMeaning && !(answered && meant.length === 0) ? (
-                  <div>
-                    <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
-                      Related
-                    </h3>
-                    {answered ? (
-                      <div className="grid animate-in grid-cols-1 gap-3 duration-200 fade-in-0 @xl/apps:grid-cols-2">
-                        {meant.map(searchTileFor)}
-                      </div>
-                    ) : (
-                      <TileSkeletons count={RELATED_SKELETONS} />
-                    )}
-                  </div>
-                ) : null}
-              </div>
-            )}
-          </div>
-        )}
+              {namesOne(matches, typed) || namesOne(own, typed) ? null : (
+                <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                  <UnlistedTile
+                    isOnlyOne={matches.length === 0}
+                    name={typed}
+                    onConnect={connectTyped}
+                  />
+                </div>
+              )}
+              {asksMeaning && !(answered && meant.length === 0) ? (
+                <div>
+                  <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
+                    Related
+                  </h3>
+                  {answered ? (
+                    <div className="grid animate-in grid-cols-1 gap-3 duration-200 fade-in-0 @xl/apps:grid-cols-2">
+                      {meant.map(searchTileFor)}
+                    </div>
+                  ) : (
+                    <TileSkeletons count={RELATED_SKELETONS} />
+                  )}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
 
-        {showsConnect && list.data && list.data.invalid.length > 0 ? (
+        {list.data && list.data.invalid.length > 0 ? (
           <PageSection title="Broken">
             <div className="divide-y divide-border rounded-xl bg-card shadow-xs">
               {list.data.invalid.map((entry) => (
@@ -414,27 +373,6 @@ function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
         ) : null}
       </button>
     </AppContextMenu>
-  );
-}
-
-/**
- * The last of the workspace's marks: a dashed plate with a plus, which opens
- * the Apps place where a new one is found and connected.
- */
-function AddAppMark({ onOpen }: { onOpen: () => void }) {
-  return (
-    <button
-      className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50"
-      onClick={onOpen}
-      type="button"
-    >
-      <span className="grid size-16 place-items-center rounded-2xl border border-dashed border-border text-muted-foreground group-hover:text-foreground">
-        <PlusIcon className="size-6" />
-      </span>
-      <span className="w-full truncate text-[13px] leading-4 font-medium text-muted-foreground group-hover:text-foreground">
-        Add app
-      </span>
-    </button>
   );
 }
 
@@ -735,7 +673,7 @@ function UnlistedTile({
 }
 
 /** What an app not yet connected is waiting for, in a few words under its name. */
-function waitingLine(app: Pick<App, "status">): string {
+export function waitingLine(app: Pick<App, "status">): string {
   switch (app.status) {
     case "declined": {
       return "Not connected";

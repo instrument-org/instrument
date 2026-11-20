@@ -64,6 +64,14 @@ export function transcriptFeedOptions(input: FeedInput | undefined) {
   });
 }
 
+/** Reads a chat's transcripts anew, each of its sessions' that is on screen. */
+export function refetchTranscripts(client: QueryClient, chat: ChatId) {
+  return client.refetchQueries({
+    queryKey: ["transcript-feed", chat],
+    type: "active",
+  });
+}
+
 /** The request out for the page above what each feed holds, by its query's key. */
 const olderPages = new WeakMap<QueryClient, Map<string, Promise<void>>>();
 

@@ -116,7 +116,7 @@ describe("ActivitySection", () => {
     data.set("activity.summary", { actions: 14, requests: 1 });
     renderWithProviders(<ActivitySection />);
     fireEvent.click(
-      await screen.findByRole("button", { name: "Clear activity…" }),
+      await screen.findByRole("button", { name: "Clear history…" }),
     );
     expect(await screen.findByText("14 things")).toBeTruthy();
     expect(screen.getByText("1 request made on this computer")).toBeTruthy();

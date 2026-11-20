@@ -2,15 +2,20 @@ import {
   type PromptDraftKey,
   promptDraftRefAtom,
 } from "@/client/atoms/prompt-value";
+import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import {
   beginReplySendAtom,
   chatBoxesAtom,
+  chatBoxWordsKey,
   makeReplyAtom,
   replyInBox,
   settleReplySendAtom,
   swapInReplyAtom,
+  takeUpArrivedReplyAtom,
   takeUpBoxAtom,
 } from "@/client/drafts/chat-box";
+import { hasWaitingWords } from "@/client/drafts/settle-words";
+import { repliesOf } from "@/shared/drafts";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
@@ -24,7 +29,6 @@ import {
   useDraftStaging,
   useFolderItems,
 } from "@/client/components/draft-staging";
-import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { reachModel } from "@/client/lib/model-status";
 import { createMessageOptions } from "@/client/lib/message-sends";
 import { cn, osConventions } from "@/client/lib/utils";
@@ -38,6 +42,7 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   modelChangeSincePreviousTurn,
+  type LayoutRead,
   type SessionMessageDataPart,
   type SessionMessagePart,
   StoreId,
@@ -51,6 +56,7 @@ import {
   type ReactNode,
   useContext,
   useEffect,
+  useEffectEvent,
   useLayoutEffect,
   useRef,
   useState,
@@ -122,10 +128,12 @@ export function ChatConversation({
   composerLead,
   composerOffer,
   draftKey,
+  layoutContext,
   selectedModelURI: initialSelectedModelURI,
   selectedSessionId,
   sendContext,
   sentPrompt,
+  takesCaret = true,
   chatId,
 }: {
   /**
@@ -142,10 +150,15 @@ export function ChatConversation({
   };
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
   composerLead?: ReactNode;
-  /** What stands beside the composer's plus: something offered to the message, such as what is behind a popped-out chat. */
+  /** What stands beside the composer's plus: something offered to the message, such as the tabs it goes with. */
   composerOffer?: ReactNode;
   /** Which draft the composer edits, and the one "Add to chat" in the transcript writes to. */
   draftKey: PromptDraftKey;
+  /**
+   * The chat's tab group as a message goes, and what changed in it since the
+   * chat's last message; read at the press, beside `sendContext`.
+   */
+  layoutContext?: () => LayoutRead | undefined;
   selectedModelURI?: AIGatewayModelURI.Type;
   selectedSessionId: StoreId.Session;
   /**
@@ -163,6 +176,8 @@ export function ChatConversation({
    * reads as empty on the way.
    */
   sentPrompt?: string;
+  /** Whether the composer takes the caret as it opens. */
+  takesCaret?: boolean;
   chatId: ChatId;
 }) {
   const appWindow = useContext(WindowContext);
@@ -514,6 +529,42 @@ export function ChatConversation({
     promptEditor?.focus();
     promptEditor?.moveCaretToEnd();
   };
+  // A reply started for this chat elsewhere (another window, another device)
+  // while this box writes into nothing and has nothing in it is taken up
+  // here, words and attachments, so one chat never ends up with two replies.
+  // Only one this box has not seen before: a reply already waiting beside
+  // the box stays there.
+  const takeUpArrivedReply = useSetAtom(takeUpArrivedReplyAtom);
+  const seenReplies = useRef<{ chatId: ChatId; ids: Set<string> }>(undefined);
+  const takeUpArrived = useEffectEvent(() => {
+    if (boxChat === undefined) {
+      return;
+    }
+    const replyIds = repliesOf(drafts, boxChat).map((draft) => draft.id);
+    const seen = seenReplies.current;
+    if (seen?.chatId !== boxChat) {
+      seenReplies.current = { chatId: boxChat, ids: new Set(replyIds) };
+      return;
+    }
+    // Empty as the box says (no words, nothing attached, nobody dictating),
+    // with no words of its own still on their way to a reply.
+    const arrived =
+      isBoxEmpty && !hasWaitingWords(chatBoxWordsKey(boxChat))
+        ? takeUpArrivedReply({ chatId: boxChat, known: seen.ids })
+        : undefined;
+    for (const replyId of replyIds) {
+      seen.ids.add(replyId);
+    }
+    if (arrived) {
+      promptInputRef.current?.swapIn({
+        items: itemsOf(arrived),
+        prompt: arrived.words,
+      });
+    }
+  });
+  useEffect(() => {
+    takeUpArrived();
+  }, [drafts, boxChat]);
   // What the chat's reply draft holds besides its words is drawn back into
   // the box as the chat opens: its words come from the draft on their own,
   // and what was pasted into it would otherwise be in the draft's folder
@@ -531,15 +582,16 @@ export function ChatConversation({
     // Every render until the box is there to draw into, and once per chat.
   });
   // A chat coming on screen is a place to reply from, so the caret lands
-  // in the field as it opens, unless it opened as the person walked the
-  // chat list with the arrows (`mayTakeKeyboard`).
+  // in the field as it opens, unless it opened on the side of a tab group
+  // without the keyboard (`takesCaret`) or as the person walked the chat
+  // list with the arrows (`mayTakeKeyboard`).
   useLayoutEffect(() => {
-    if (!isActiveTab || !mayTakeKeyboard()) {
+    if (!takesCaret || !isActiveTab || !mayTakeKeyboard()) {
       return;
     }
     promptEditor?.focus();
     promptEditor?.moveCaretToEnd();
-  }, [isActiveTab, selectedSessionId, promptEditor]);
+  }, [isActiveTab, selectedSessionId, promptEditor, takesCaret]);
 
   // A chat's plus opens things beside the chat: the web's starting view and
   // the computer each as a tab of their own, and Apps where one is connected.
@@ -599,11 +651,13 @@ export function ChatConversation({
     setIsFollowingSubmit(true);
     slideToSentRef.current();
     const dropPending = showPending(prompt);
+    const layout = layoutContext?.();
     void sendContext().then(
       (viewing) => {
         createMessage.mutate(
           {
             id,
+            ...(layout ? { layout } : {}),
             modelURI: selectedModelURI,
             prompt,
             sessionId: selectedSessionId,
@@ -622,7 +676,7 @@ export function ChatConversation({
   const promptInput = (
     <PromptInput
       attachmentsLead={asks?.pills}
-      autoFocus
+      autoFocus={takesCaret}
       // The box shares a column with the conversation, so it gives way to
       // it sooner than a box on a page of its own: a handful of lines, then
       // the words scroll.
@@ -683,6 +737,7 @@ export function ChatConversation({
         // Drawn before what goes with it is read: reading a page can take a
         // moment, and the send is only stored once that is in.
         const dropPending = showPending(prompt);
+        const layout = layoutContext?.();
         // The message names the draft it came from, so the draft names the
         // chat on disk before the message is written: a launch after a crash
         // finds the message by the chat its draft names.
@@ -695,6 +750,7 @@ export function ChatConversation({
                 folders,
                 ...(outgoing ? { fromDraft: outgoing.draftId } : {}),
                 id,
+                ...(layout ? { layout } : {}),
                 modelURI,
                 prompt,
                 sessionId: selectedSessionId,

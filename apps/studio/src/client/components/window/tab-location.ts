@@ -1,6 +1,7 @@
 import { type OpenTarget } from "@/client/lib/open-target";
 import { osConventions } from "@/client/lib/utils";
 import { COMPUTER_ROOT, folderHref } from "@/shared/computer-href";
+import { type ScreenName } from "@/shared/instrument-screens";
 import { expandHomePath, namesFromHome } from "@instrument-org/shared";
 import {
   type ChatId,
@@ -8,8 +9,10 @@ import {
   type StoreId,
 } from "@instrument-org/workspace/client";
 
+import type { BuiltInApp } from "./app-chip";
 import { isInside, segmentsOf, separatorOf } from "./host-path";
 import {
+  chatHref,
   LINK_ADDRESSES,
   matchScreen,
   pathOf,
@@ -67,13 +70,40 @@ export type TabLocation =
       path: string;
     }
   | {
-      /** The chat whose list the task was opened from, which is where its crumb goes back to. */
+      /** The chat the task was started in, which its crumb goes back to. */
+      chat?: { id: ChatId; title: string };
       kind: "task";
       title: string;
     }
   | { icon?: string; kind: "app"; name: string; site?: string }
   | { kind: "apps" }
+  /**
+   * A built-in page of the app, by its name in `SCREENS` (Settings,
+   * Memory, Skills, Chats, Activity, the browser's extensions): the part
+   * of it shown where it has parts (a part of Settings, what Activity is
+   * showing), and the one thing open inside it (an Activity row's
+   * details), each by the name the field reads it by. A part with something
+   * open inside it is somewhere to step back out to, at `partHref`.
+   */
+  | {
+      item?: string;
+      kind: "builtin";
+      part?: string;
+      partHref?: string;
+      screen: ScreenName;
+    }
   | { kind: "chat"; title: string }
+  /** A debug page, at the address the field shows and takes (`debugAddressOf`). */
+  | { address: string; kind: "debug" }
+  /** A page that doesn't exist, at the address it was asked for (`askedAddressOf`). */
+  | { address: string; kind: "missing" }
+  /** Every chat, open or not: the index Chat's chip goes to. */
+  | { kind: "chats" }
+  /**
+   * A chat not started yet: a new tab, which is nowhere yet. It becomes the
+   * chat once something is sent from it, or the page or file put in it.
+   */
+  | { kind: "newChat" }
   | {
       /** Where the folder really is, when that is not where it was walked to: an iCloud Drive app folder. */
       hostPath?: string;
@@ -85,9 +115,7 @@ export type TabLocation =
       selected?: string;
     }
   | { kind: "newTab" }
-  | { kind: "page"; url: string }
-  /** A screen of the browser's own that is no page: the extensions it runs. */
-  | { kind: "screen"; screen: "extensions" };
+  | { kind: "page"; url: string };
 
 /**
  * The place the field shows, as the parts a person reads it in.
@@ -103,14 +131,31 @@ export function locationCrumbs(
   { home, volumes = [] }: { home: string; volumes?: Volume[] },
 ): LocationCrumb[] {
   switch (location.kind) {
+    // An app's page is under Apps, which the field's chip says, and Apps
+    // itself is the chip alone.
     case "app": {
-      return [
-        { label: "Apps", to: { href: "/apps", kind: "screen" } },
-        { label: location.name },
-      ];
+      return [{ label: location.name }];
     }
     case "apps": {
-      return [{ label: "Apps" }];
+      return [];
+    }
+    // A part is a place to step back out to while something inside it is
+    // open, the way a folder is above its file.
+    case "builtin": {
+      const { item, part, partHref } = location;
+      return [
+        ...(part === undefined
+          ? []
+          : [
+              {
+                label: part,
+                ...(item !== undefined && partHref !== undefined
+                  ? { to: { href: partHref, kind: "screen" as const } }
+                  : {}),
+              },
+            ]),
+        ...(item === undefined ? [] : [{ label: item }]),
+      ];
     }
     // A chat hangs from the chat beside the tabs rather than from a screen
     // under one, so there is nothing above it the field could go to.
@@ -139,45 +184,107 @@ export function locationCrumbs(
             count,
           ];
     }
-    // A screen of the browser's own is one place, with nothing above it.
-    case "screen": {
-      return [{ label: "Extensions" }];
-    }
+    case "chats":
+    case "debug":
+    case "missing":
+    case "newChat":
     case "newTab":
     case "page": {
       return [];
     }
+    // A task is under the chat it was started in, which the crumb goes
+    // back to.
     case "task": {
-      return [{ label: location.title }];
+      return [
+        ...(location.chat === undefined
+          ? []
+          : [
+              {
+                label: location.chat.title,
+                to: {
+                  href: chatHref(location.chat.id),
+                  kind: "screen" as const,
+                },
+              },
+            ]),
+        { label: location.title },
+      ];
     }
   }
 }
 
 /**
- * The place a location belongs to whose rail mark leads the field, ahead of
- * its parts: Apps ahead of an app's name, and Files at the top of the
- * computer, which has no mark of its own to keep. A path leads with nothing,
- * since each of its folders shows its own mark.
+ * Which of the app's own apps a location is in, whose chip leads the field:
+ * Chat for a chat, a task and the index of chats, Files for a file or a folder, Apps for an
+ * app's page, and each built-in page its own. A website, a debug page, a
+ * page that doesn't exist and a new tab, a new chat among them, have none.
  */
-export function locationSection(
-  location: TabLocation,
-): "apps" | "files" | undefined {
+export function locationChip(location: TabLocation): BuiltInApp | undefined {
   switch (location.kind) {
-    case "app": {
+    case "app":
+    case "apps": {
       return "apps";
+    }
+    case "builtin": {
+      return location.screen;
+    }
+    case "chat":
+    case "chats":
+    case "task": {
+      return "chat";
     }
     case "file":
     case "folder": {
-      return location.kind === "folder" && location.path === COMPUTER_ROOT
-        ? "files"
-        : undefined;
+      return "files";
     }
-    case "apps":
-    case "chat":
+    case "debug":
+    case "missing":
+    case "newChat":
     case "newTab":
-    case "page":
-    case "screen":
+    case "page": {
+      return undefined;
+    }
+  }
+}
+
+/**
+ * The built-in app the field searches in while it has the caret, named as
+ * its chip names it: the app the tab is in, as a browser's address bar
+ * searches a site once its keyword is typed. Files is left out, since a
+ * file's and a folder's field keeps their real path.
+ */
+export type FieldScope =
+  | "activity"
+  | "apps"
+  | "chat"
+  | "memory"
+  | "settings"
+  | "skills";
+
+/** The built-in pages whose field searches in them. */
+const PAGE_SCOPES: Partial<Record<ScreenName, FieldScope>> = {
+  activity: "activity",
+  memory: "memory",
+  settings: "settings",
+  skills: "skills",
+};
+
+/** The app a tab's field searches in, from where the tab is; none for a page, a file or a new tab. */
+export function fieldScopeOf(location: TabLocation): FieldScope | undefined {
+  switch (location.kind) {
+    case "app":
+    case "apps": {
+      return "apps";
+    }
+    case "builtin": {
+      return PAGE_SCOPES[location.screen];
+    }
+    case "chat":
+    case "chats":
     case "task": {
+      return "chat";
+    }
+    default: {
       return undefined;
     }
   }

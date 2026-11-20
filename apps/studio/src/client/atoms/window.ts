@@ -1,6 +1,4 @@
-import { type ChosenItem, draftGroupOf, draftOfGroup } from "@/shared/drafts";
-import { COMPOSE_KEY } from "@/shared/kept-state";
-import { PANE_DEFAULT_SHARE } from "@/client/atoms/right-pane";
+import { type ChosenItem } from "@/shared/drafts";
 import {
   type FileSystemListColumn,
   type FileSystemGroupKey,
@@ -12,20 +10,35 @@ import {
   type ChatId,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
-import { atom } from "jotai";
+import { atom, type SetStateAction } from "jotai";
+import { atomFamily } from "jotai/utils";
 
 import { keptAtom } from "@/client/lib/kept-state";
 
 /**
- * What the chat column is narrowed to.
- *
- * Here rather than in the pane that reads it, because anything that opens a
- * brand new chat has to put the list back where that chat is visible: a
- * column standing in a project or a place is a column the new chat is very
- * likely not in, and a button that appears to do nothing is a button someone
- * presses again.
+ * What each tab's chat list is narrowed to, by the tab's id: its project,
+ * its place, its search and its marks. A tab not named here lists every
+ * chat, so a new tab's list opens in the inbox whatever another tab's
+ * stands in.
  */
-export const chatFiltersAtom = atom<ChatFilters>(NO_FILTERS);
+export const chatFiltersByTabAtom = atom<
+  Readonly<Partial<Record<string, ChatFilters>>>
+>({});
+
+/** What one tab's chat list is narrowed to, and narrowing it. */
+export const tabChatFiltersAtom = atomFamily((tabId: string) =>
+  atom(
+    (get) => get(chatFiltersByTabAtom)[tabId] ?? NO_FILTERS,
+    (get, set, update: SetStateAction<ChatFilters>) => {
+      const byTab = get(chatFiltersByTabAtom);
+      const next =
+        typeof update === "function"
+          ? update(byTab[tabId] ?? NO_FILTERS)
+          : update;
+      set(chatFiltersByTabAtom, { ...byTab, [tabId]: next });
+    },
+  ),
+);
 
 /** The files cut in this window, by host path: a paste of exactly these moves them. */
 export const filesCutAtom = atom<readonly string[]>([]);
@@ -45,88 +58,14 @@ export interface FinderShown {
   selected: ChosenItem[];
 }
 
-/**
- * One window along the foot: a draft being written, or a chat floating in
- * its small view, and how the window stands. A chat's entry remembers the
- * draft it grew from, so the window that was the draft is the window that
- * is the chat, with no arrival between them.
- */
-export type ComposeEntry = { placement: ComposePlacement } & (
-  | { draftId: string; kind: "draft" }
-  | { chatId: ChatId; fromDraft?: string; kind: "chat" }
-);
-
-/** How a window stands: docked along the window's foot, or put down to a bar along it. */
-export type ComposePlacement = "bar" | "docked";
-
-/** The group key of what a window shows: the draft's tabs, or the chat's. */
-export function composeKeyOf(entry: ComposeEntry): string {
-  return entry.kind === "draft" ? draftGroupOf(entry.draftId) : entry.chatId;
-}
-
-/** The chats up in a window of their own over the row, not put down to a bar. */
-export function chatsOutOf(entries: ComposeEntry[]): Set<string> {
-  return new Set(
-    entries.flatMap((entry) =>
-      entry.kind === "chat" && entry.placement !== "bar" ? [entry.chatId] : [],
-    ),
-  );
-}
-
-/**
- * The windows floating over the row, the way a mail client keeps several
- * compose windows along its foot, oldest first: the newest stands at the
- * right, and the ones there is no room for are not drawn. The drafts being
- * written and the chats in their small views share the row. Kept across
- * launches, so what was floating when the app quit floats again; the drafts
- * themselves are in `draftsAtom` (`client/drafts/store.ts`).
- */
-export const composeAtom = keptAtom<ComposeEntry[]>("window", COMPOSE_KEY, []);
-
 /** The places the rail at the window's edge switches between: the chat, the files, the browser, and the apps. */
 export type AppPlace = "apps" | "browser" | "chat" | "files";
-
-/**
- * The chat a tab last had open, so Chat in the rail takes a tab back to it.
- * Null for the inbox alone.
- */
-export const chatGroupAtom = keptAtom<null | string>(
-  "window",
-  "chat-group.v2",
-  null,
-);
-
-/**
- * Whether the inbox column is shown. Put away, a chat and its tabs have
- * the window to themselves; it comes back on its own when nothing is left
- * on screen without it.
- */
-export const inboxOpenAtom = keptAtom<boolean>("window", "inbox-open.v1", true);
 
 /**
  * Search Chats was asked for and the inbox's search has not taken the
  * keyboard yet: the inbox of the tab up takes it once it is drawn.
  */
 export const chatSearchAskedAtom = atom(false);
-
-/**
- * Whether each group's pane is open, by the chat's id or the draft's
- * key: the tabs beside the conversation, put away and brought back
- * by the toggle over it. A group not named here has its pane open, so a
- * chat whose agent opened something shows it on arrival.
- */
-export const paneOpenByGroupAtom = keptAtom<Record<string, boolean>>(
-  "layout",
-  "pane-open.v2",
-  {},
-);
-
-/** The pane's share of the row beside the conversation, dragged at its edge; one share for every chat. */
-export const paneShareAtom = keptAtom<number>(
-  "view",
-  "pane-share.v1",
-  PANE_DEFAULT_SHARE,
-);
 
 /** A tab of the window's browser: a browser session of the window's own, under `WINDOW_ID`. */
 export interface BrowserTab {
@@ -178,10 +117,29 @@ export type WindowTab = TabHistory & TabVisit;
 interface TabHistory {
   future?: TabVisit[];
   /**
-   * The chat this tab belongs to, by its id, or the draft's key:
-   * what was opened while the chat was on screen stays with the chat.
+   * The tab group it is in, by the group's own id (`newGroupKey`), which
+   * names no chat or draft: none for a page an agent made with no tab yet.
    */
   group?: string;
+  /**
+   * The group it last moved here from, which tells the chat whose group it
+   * joined, or left, that it moved rather than opened or closed.
+   */
+  movedFrom?: string;
+  /** The chat whose agent opened it; absent for a tab the person opened. */
+  openedBy?: ChatId;
+  /**
+   * On a chat's tab, when the person last sent the chat a message from it.
+   * Of a chat's tabs, the one sent from last is where its agent works
+   * (`workingTabOf`).
+   */
+  promptedAt?: number;
+  /**
+   * The side of its group the tab stands on: absent for the first, the left,
+   * and 1 for the second, the right, which a group has only while some tab
+   * stands there (`groupLayoutOf`).
+   */
+  side?: 1;
   /**
    * True when this tab was opened from another one rather than by the user
    * asking for a tab. Back from the start of such a tab closes it, which is
@@ -209,8 +167,11 @@ export function originOf(url: string | undefined): string | undefined {
   }
 }
 
-/** The address a new tab opens at: the page with the box that reaches everything. */
-export const NEW_TAB_HREF = "/new-tab";
+/**
+ * The address a new tab opens at: a new chat, which is the new tab, its
+ * draft named in the address once it has words (`newChatHref`).
+ */
+export const NEW_TAB_HREF = "/chats";
 
 /** The web's starting view beside a chat: an address field over the sites kept and lately seen. */
 export const BROWSER_HREF = "/browser";
@@ -218,35 +179,13 @@ export const BROWSER_HREF = "/browser";
 /** The address of the apps: the tab the Apps place opens on. */
 export const APPS_HREF = "/apps";
 
-/**
- * The address a group's new tab opens at: the page that reaches everything
- * for a draft, and the web's starting view for a chat, whose tabs are its
- * browsers.
- */
-export function newTabHrefOf(group: string | undefined): string {
-  return draftOfGroup(group) === undefined ? BROWSER_HREF : NEW_TAB_HREF;
+/** The address a group's new tab opens at: a new chat, in every group. */
+export function newTabHrefOf(_group?: string): string {
+  return NEW_TAB_HREF;
 }
 
 /** The route a chat's screen is at, followed by the chat's id. */
 export const CHATS_HREF = "/chats";
-
-export const SIDEBAR_WIDTH_MIN = 320;
-/** The inbox's widest: a list to pick a chat from, never a page of its own, so the room past this goes to the chat beside it. */
-export const SIDEBAR_WIDTH_MAX = 440;
-
-const storedInboxWidthAtom = keptAtom<number>(
-  "view",
-  "inbox-width.v1",
-  SIDEBAR_WIDTH_MIN,
-);
-
-/** The inbox column's width in CSS px, dragged by its right edge, and read within its widest whatever was stored. */
-export const inboxWidthAtom = atom(
-  (get) => Math.min(get(storedInboxWidthAtom), SIDEBAR_WIDTH_MAX),
-  (_get, set, width: number) => {
-    set(storedInboxWidthAtom, width);
-  },
-);
 
 /**
  * The layout last chosen anywhere: what a folder with no layout of its own

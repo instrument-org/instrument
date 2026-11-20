@@ -85,6 +85,8 @@ vi.mock("../../../lib/session-layout", async () => {
 const asked: WindowTabAction[] = [];
 /** Whether the window leaves a restore ask unanswered, as it does past the ask's timeout. */
 let restoreUnanswered = false;
+/** Why the window opens no tab, as for a chat whose tab the person closed. */
+let openRefused: string | undefined;
 vi.mock("../../../lib/chat/window-tab", () => ({
   askWindow: ({ action }: { action: WindowTabAction }) => {
     asked.push(action);
@@ -94,9 +96,17 @@ vi.mock("../../../lib/chat/window-tab", () => ({
     if (action.kind === "close") {
       windowList = windowList.filter((entry) => entry.id !== action.tabId);
     }
+    if (action.kind === "adopt") {
+      windowList = [
+        ...windowList,
+        { id: action.tabId, kind: "page", title: "", url: action.url },
+      ];
+    }
     return Promise.resolve({
       requestId: "r",
-      ...(action.kind === "restore" || action.kind === "close"
+      ...(action.kind === "restore" ||
+      action.kind === "close" ||
+      action.kind === "adopt"
         ? { tabId: action.tabId }
         : {}),
     });
@@ -107,6 +117,9 @@ vi.mock("../../../lib/chat/window-tab", () => ({
       show: options.show,
       target: { kind: "page", ...(options.url ? { url: options.url } : {}) },
     });
+    if (openRefused !== undefined) {
+      return Promise.resolve({ error: openRefused });
+    }
     const tabId = StoreId.newTabId();
     windowList = [
       ...windowList,
@@ -133,6 +146,8 @@ function connect(sessionId: StoreId.Session = SESSION_ID) {
     }[]
   >();
   const pages = new Map<BrowserTargetId, { title: string; url: string }>();
+  /** The guests the bridge closed itself, pages that never had a tab. */
+  const closedPages: BrowserTargetId[] = [];
   const sent: Record<string, unknown>[] = [];
   const listeners: Record<string, (data: unknown) => void> = {};
   const ws = {
@@ -149,6 +164,11 @@ function connect(sessionId: StoreId.Session = SESSION_ID) {
   );
   const config = {
     browser: {
+      closeTarget: (targetId: BrowserTargetId) => {
+        live.delete(targetId);
+        closedPages.push(targetId);
+        return Promise.resolve();
+      },
       createTarget: (targetId: BrowserTargetId) => {
         live.add(targetId);
         return Promise.resolve();
@@ -237,6 +257,12 @@ function connect(sessionId: StoreId.Session = SESSION_ID) {
       for (const { onEvent } of subscribers.get(targetId) ?? []) {
         onEvent(method, params, frameSession);
       }
+      await flush();
+    },
+    closedPages,
+    /** The agent's connection closing, as its daemon exits. */
+    disconnects: async () => {
+      listeners.close?.(undefined);
       await flush();
     },
     closeByUser: (targetId: BrowserTargetId) => {
@@ -331,27 +357,44 @@ beforeEach(() => {
 });
 
 describe("a session's browser", () => {
-  it("is every page tab the window groups in the chat, a tab moved in with a draft included, by the window's ids", async () => {
+  it("is the tabs the chat's agents opened and the session worked in, by the window's ids, and a tab of the user's once its agent names it", async () => {
     // A tab the window put in the chat with nothing written about it: a
     // draft's page as it becomes the chat.
     const sent = tab({ worked: false });
     const own = tab();
+    const another = tab({ opened: true, worked: false });
     const { command, events } = connect();
 
     await command("Target.setDiscoverTargets", { discover: true });
     const targets = await command("Target.getTargets");
 
     // The tab the session worked in first, then the rest.
-    expect(
-      (targets.result?.targetInfos as { targetId: string }[]).map(
-        (info) => info.targetId,
-      ),
-    ).toEqual([own.tabId, sent.tabId]);
-    expect(created(events)).toEqual([own.tabId, sent.tabId]);
+    const ids = (infos: unknown) =>
+      (infos as { targetId: string }[]).map((info) => info.targetId);
+    expect(ids(targets.result?.targetInfos)).toEqual([
+      own.tabId,
+      another.tabId,
+    ]);
+    expect(created(events)).toEqual([own.tabId, another.tabId]);
     expect(asked).toEqual([]);
+
+    expect(
+      await announceChatTab(
+        { chatId: TASK_ID, sessionId: SESSION_ID },
+        sent.tabId,
+      ),
+    ).toBe(true);
+    const again = await command("Target.getTargets");
+
+    expect(created(events)).toEqual([own.tabId, another.tabId, sent.tabId]);
+    expect(ids(again.result?.targetInfos)).toEqual([
+      own.tabId,
+      sent.tabId,
+      another.tabId,
+    ]);
   });
 
-  it("gives a session that has worked in none of the chat's tabs a blank tab of its own, listed first", async () => {
+  it("gives a session that has worked in none of the chat's tabs a blank page of its own with no tab, listed first", async () => {
     const theirs = tab({ worked: false });
     const { command } = connect(OTHER_SESSION);
 
@@ -360,12 +403,10 @@ describe("a session's browser", () => {
     const ids = (targets.result?.targetInfos as { targetId: string }[]).map(
       (info) => info.targetId,
     );
-    expect(asked).toEqual([
-      { kind: "open", show: false, target: { kind: "page" } },
-    ]);
-    expect(ids).toHaveLength(2);
-    expect(ids[1]).toBe(theirs.tabId);
-    expect(record.openedTabs.map((opened) => opened.id)).toEqual([ids[0]]);
+    expect(asked).toEqual([]);
+    expect(ids).toHaveLength(1);
+    expect(ids).not.toContain(theirs.tabId);
+    expect(record.openedTabs).toEqual([]);
   });
 
   it("sends a page's commands to that page, and no other, as this session's", async () => {
@@ -496,6 +537,22 @@ describe("a session's browser", () => {
     expect(created(events)).toContain(tabId);
   });
 
+  it("says why when the window opens no tab, never making a group for it", async () => {
+    tab();
+    openRefused = "the user closed this chat's tab, so nothing opened.";
+    const { command } = connect();
+
+    const made = await command("Target.createTarget", {
+      url: "https://example.org/",
+    });
+    openRefused = undefined;
+
+    expect(made.error?.message).toMatchInlineSnapshot(
+      `"The window opened no tab: the user closed this chat's tab, so nothing opened."`,
+    );
+    expect(record.openedTabs).toEqual([]);
+  });
+
   it("refuses a new tab at an address the browser cannot load, and closes the blank tab it made", async () => {
     tab();
     const { command, sendCommand } = connect();
@@ -518,16 +575,33 @@ describe("a session's browser", () => {
     expect(record.openedTabs).toEqual([]);
   });
 
-  it("opens a page asked for with no address as a blank tab in the chat", async () => {
+  it("gives a page asked for with no address its tab in the chat only once it goes somewhere", async () => {
     tab();
-    const { command } = connect();
+    const { command, navigates } = connect();
 
     const made = await command("Target.createTarget", { url: "about:blank" });
+    const tabId = StoreId.TabSchema.parse(made.result?.targetId);
+    expect(asked).toEqual([]);
+    expect(record.openedTabs).toEqual([]);
 
-    expect(asked).toEqual([
-      { kind: "open", show: false, target: { kind: "page" } },
-    ]);
-    expect(record.openedTabs).toEqual([{ id: made.result?.targetId }]);
+    await navigates(browserTargetOf(tabId), {
+      title: "Shop",
+      url: "https://shop/",
+    });
+
+    expect(asked).toEqual([{ kind: "adopt", tabId, url: "https://shop/" }]);
+    expect(record.openedTabs).toEqual([{ id: tabId }]);
+  });
+
+  it("closes a page asked for with no address that never went anywhere with the connection", async () => {
+    tab();
+    const { closedPages, command, disconnects } = connect();
+    const made = await command("Target.createTarget", { url: "about:blank" });
+
+    await disconnects();
+
+    expect(closedPages).toEqual([made.result?.targetId]);
+    expect(asked).toEqual([]);
   });
 
   it.each([
@@ -934,15 +1008,16 @@ describe("a session's start tab", () => {
     return { ...connection, sessionId, start: start ?? "", theirs };
   }
 
-  it("closes when the session opens a tab of its own before going anywhere", async () => {
-    const { command, events, start } = await started();
+  it("closes when the session opens a tab of its own before going anywhere, having never had a tab", async () => {
+    const { closedPages, command, events, start } = await started();
 
     const made = await command("Target.createTarget", {
       url: "https://example.org/",
     });
 
     expect(made.result?.targetId).not.toBe(start);
-    expect(asked).toContainEqual({ kind: "close", tabId: start });
+    expect(closedPages).toEqual([start]);
+    expect(asked.map((action) => action.kind)).toEqual(["open"]);
     expect(events("Target.targetDestroyed")).toContainEqual({
       targetId: start,
     });
@@ -950,7 +1025,7 @@ describe("a session's start tab", () => {
   });
 
   it("closes when the session goes to work in another tab", async () => {
-    const { command, start, theirs } = await started();
+    const { closedPages, command, start, theirs } = await started();
     const attached = await command("Target.attachToTarget", {
       flatten: true,
       targetId: theirs.tabId,
@@ -962,29 +1037,35 @@ describe("a session's start tab", () => {
       attached.result?.sessionId as string,
     );
 
-    expect(asked).toContainEqual({ kind: "close", tabId: start });
+    expect(closedPages).toEqual([start]);
+    expect(asked).toEqual([]);
   });
 
-  it("stays once the session has sent it somewhere", async () => {
-    const { command, navigates, start } = await started();
+  it("gets its tab in the chat once the session sends it somewhere, and stays", async () => {
+    const { closedPages, command, disconnects, navigates, start } =
+      await started();
     const startTarget = browserTargetOf(StoreId.TabSchema.parse(start));
+
     await navigates(startTarget, { title: "Shop", url: "https://shop/" });
-
     await command("Target.createTarget", { url: "https://example.org/" });
+    await disconnects();
 
-    expect(asked).not.toContainEqual({ kind: "close", tabId: start });
+    expect(asked).toContainEqual({
+      kind: "adopt",
+      tabId: start,
+      url: "https://shop/",
+    });
+    expect(record.openedTabs.map((opened) => opened.id)).toContain(start);
+    expect(closedPages).toEqual([]);
   });
 
-  it("is the one the session's next connection starts in, while it is still blank", async () => {
-    const { sessionId, start } = await started();
+  it("closes with the connection while it never went anywhere", async () => {
+    const { closedPages, disconnects, start } = await started();
 
-    const again = connect(sessionId);
-    const targets = await again.command("Target.getTargets");
+    await disconnects();
 
-    expect(asked.filter((action) => action.kind === "open")).toEqual([]);
-    expect(
-      (targets.result?.targetInfos as { targetId: string }[])[0]?.targetId,
-    ).toBe(start);
+    expect(closedPages).toEqual([start]);
+    expect(asked).toEqual([]);
   });
 });
 
@@ -1017,8 +1098,6 @@ describe("a session reconnecting", () => {
     const first = await firstTarget(sessionId);
 
     expect(first).not.toBe(mine.tabId);
-    expect(asked).toEqual([
-      { kind: "open", show: false, target: { kind: "page" } },
-    ]);
+    expect(asked).toEqual([]);
   });
 });

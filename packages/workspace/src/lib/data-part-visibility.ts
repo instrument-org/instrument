@@ -61,11 +61,18 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // on, and what it sent later. Shown in the task's transcript, where they
   // are the reason for everything that follows.
   "data-fromChat": "always",
+  // The chat's tab group as the message went: context for the model, and a
+  // developer's peek, since the person sees the group itself.
+  "data-groupLayout": "dev",
   "data-intent": "dev",
   // The reason a session woke when a command it left running ended. Like a
   // task's finish in the chat, the reply that follows says what came of it,
   // so the note itself is a developer's peek.
   "data-jobEvent": "dev",
+  // What changed in the chat's tab group since the agent last heard: context
+  // for the model, and a developer's peek, since the person made or watched
+  // every change in the window.
+  "data-layoutChanges": "dev",
   "data-maxSteps": "dev",
   // What the agent is told it remembers about the user. Context for the
   // model; the user's copy is the Memory section of Settings.

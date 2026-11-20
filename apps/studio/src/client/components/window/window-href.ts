@@ -1,3 +1,7 @@
+import {
+  isSettingsSection,
+  type SettingsSection,
+} from "@/shared/instrument-screens";
 import { isSameTabIdentity } from "@/shared/tab-identity";
 import { type RegisteredRouter } from "@tanstack/react-router";
 import {
@@ -25,18 +29,33 @@ export type Screen =
   | (ComputerTab & { kind: "computer" })
   | { kind: "debug"; pathname: string }
   | { kind: "extensions" }
+  /** Every bookmark, as a page of its own: a browser's bookmark manager. */
+  | { kind: "bookmarks" }
+  /** A tab group, by its key: the window's tab showing it. */
+  | { group: string; kind: "group" }
+  /** Every chat there is, open or not: the index Chat's chip goes to. */
+  | { kind: "chats" }
   /** The chat with no chat open: a new chat beside the inbox, written into the draft named when there is one. */
   | { draft?: string; kind: "inbox" }
+  /** What Instrument remembers, as a page of its own. */
+  | { kind: "memories" }
   | { kind: "memory"; name: string }
+  /** A tab group a reply links by its id: the window brings it up, or says it closed. */
+  | { kind: "tabGroup"; name: string }
+  /** A tab a reply links by its id: the window brings it up, or says it closed. */
+  | { kind: "windowTab"; name: string }
   | { kind: "namedScreen"; name: string }
-  | { kind: "newTab" }
   /** A project, by its id or its name: its details open over the window. */
   | { kind: "project"; name: string }
   | { kind: "releaseNotes" }
   | { kind: "setting"; name: string }
+  /** Settings, at one of its parts; none named is Settings wherever it stands. */
+  | { kind: "settings"; section?: SettingsSection }
   /** A site opened at the window's own level, by the id its group is kept under. */
   | { id: string; kind: "site" }
   | { kind: "skill"; name: string }
+  /** The skills tasks can use, as a page of their own. */
+  | { kind: "skills" }
   | { chat?: ChatId; kind: "task"; task: StoreId.Session }
   | { kind: "unknown" };
 
@@ -64,20 +83,27 @@ export const SCREEN_ROUTES = {
   apps: "/apps/",
   browser: "/browser",
   chat: "/chats/$id",
+  chats: "/chat-list",
   computer: "/files",
   debug: "/debug",
   extensions: "/extensions",
+  bookmarks: "/bookmarks",
   inbox: "/chats/",
-  newTab: "/new-tab",
+  memories: "/memory",
   releaseNotes: "/release-notes",
+  settings: "/settings/$section",
+  settingsStart: "/settings/",
   site: "/sites/$id",
+  skills: "/skills",
   task: "/tasks/$sessionId",
 } as const satisfies Record<string, RoutePath>;
 
 /**
  * Addresses a link names that are no route of the window's: the window
- * opens each where that thing lives (Settings, a dialog, a skill's folder in
- * Files) rather than as a screen of its own.
+ * opens each where that thing lives (Settings at a row, a dialog, a skill's
+ * folder in Files) rather than as a screen of its own. A setting's address
+ * that names a part of Settings (`/settings/providers`) is that part's route
+ * instead (`SCREEN_ROUTES.settings`).
  */
 export const LINK_ADDRESSES = {
   memory: "/memory/$name",
@@ -85,6 +111,8 @@ export const LINK_ADDRESSES = {
   project: "/projects/$name",
   setting: "/settings/$name",
   skill: "/skills/$name",
+  tabGroup: "/tab-groups/$name",
+  windowTab: "/window-tabs/$name",
 } as const;
 
 /** The parameters a path template names, by name. */
@@ -157,9 +185,6 @@ function decoded(segment: string) {
 export function matchScreen(href: string): Screen {
   const { pathname, search } = parseHref(href);
   const at = <T extends string>(template: T) => matchPath(template, pathname);
-  if (at(SCREEN_ROUTES.newTab)) {
-    return { kind: "newTab" };
-  }
   if (at(SCREEN_ROUTES.browser)) {
     return { kind: "browser" };
   }
@@ -184,6 +209,10 @@ export function matchScreen(href: string): Screen {
     return { kind: "app", slug: app.slug };
   }
   if (at(SCREEN_ROUTES.inbox)) {
+    const group = search.get("group");
+    if (group) {
+      return { group, kind: "group" };
+    }
     const draft = search.get("draft");
     return draft ? { draft, kind: "inbox" } : { kind: "inbox" };
   }
@@ -220,8 +249,27 @@ export function matchScreen(href: string): Screen {
   if (at(SCREEN_ROUTES.extensions)) {
     return { kind: "extensions" };
   }
+  if (at(SCREEN_ROUTES.bookmarks)) {
+    return { kind: "bookmarks" };
+  }
   if (matchPath(SCREEN_ROUTES.debug, pathname, { under: true })) {
     return { kind: "debug", pathname };
+  }
+  if (at(SCREEN_ROUTES.chats)) {
+    return { kind: "chats" };
+  }
+  if (at(SCREEN_ROUTES.memories)) {
+    return { kind: "memories" };
+  }
+  if (at(SCREEN_ROUTES.skills)) {
+    return { kind: "skills" };
+  }
+  if (at(SCREEN_ROUTES.settingsStart)) {
+    return { kind: "settings" };
+  }
+  const settings = at(SCREEN_ROUTES.settings);
+  if (settings && isSettingsSection(settings.section)) {
+    return { kind: "settings", section: settings.section };
   }
   for (const kind of [
     "memory",
@@ -229,6 +277,8 @@ export function matchScreen(href: string): Screen {
     "project",
     "setting",
     "skill",
+    "tabGroup",
+    "windowTab",
   ] as const) {
     const link = at(LINK_ADDRESSES[kind]);
     if (link) {
@@ -237,6 +287,9 @@ export function matchScreen(href: string): Screen {
   }
   return { kind: "unknown" };
 }
+
+/** The index of every chat, open or not: the Chats page. */
+export const CHATS_INDEX_HREF: string = SCREEN_ROUTES.chats;
 
 /**
  * The address of a chat's screen, or of a chat named by its session, which
@@ -257,14 +310,17 @@ export function newChatHref(draftId?: string): string {
     : `${inbox}?${new URLSearchParams({ draft: draftId }).toString()}`;
 }
 
+/** The address of the window's tab showing a tab group, by the group's key. */
+export function groupHref(group: string): string {
+  return `${pathOf(SCREEN_ROUTES.inbox, {})}?${new URLSearchParams({ group }).toString()}`;
+}
+
 /**
- * The chat a group of tabs is, by its key: a chat's group is keyed by its
- * id, and every other group's key (a draft's, a site's, a hosted page's)
- * has a colon in it, which no chat id does.
+ * A fresh tab group's id, minted once for the group's life and read for
+ * nothing: no group's id names a chat or a draft.
  */
-export function chatOfGroup(group: string | undefined): ChatId | undefined {
-  const id = ChatIdSchema.safeParse(group);
-  return id.success ? id.data : undefined;
+export function newGroupKey(): string {
+  return `group:${crypto.randomUUID()}`;
 }
 
 /** The chat whose screen an address is, if it is one. */
@@ -371,6 +427,15 @@ export function sameHref(a: string, b: string) {
  */
 export function showsSame(a: string, b: string) {
   return sameHref(a, b) || isSameTabIdentity(a, b, homeDirOfWindow());
+}
+
+/**
+ * Two addresses show exactly the same one-of-a-kind thing
+ * (`tabIdentityOf`), as main reads the windows' tabs: a site or a new tab
+ * at the same address is not.
+ */
+export function showsSameThing(a: string, b: string) {
+  return isSameTabIdentity(a, b, homeDirOfWindow());
 }
 
 /** The home folder, which a folder rooted at `~` is read against; none outside the app. */

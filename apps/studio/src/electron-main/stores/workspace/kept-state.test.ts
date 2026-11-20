@@ -36,6 +36,7 @@ it("writes each key to its file on flush, and reads them back in a new store", (
   `);
   expect(read("view.json")).toEqual({ "zoom.v1": 1.25 });
   expect(createKeptStateStore(() => dir).snapshot()).toEqual({
+    groups: {},
     layout: { "app-tabs.v2": { tabs: [] } },
     view: { "zoom.v1": 1.25 },
   });
@@ -108,17 +109,45 @@ it("removes a key set to undefined", () => {
 it.each([
   ["not JSON", "{ tabs"],
   ["JSON that is not an object", "[1, 2]"],
-])("reads a file that is %s as empty", (_, contents) => {
+])("sets aside a file that is %s before writing a new one", (_, contents) => {
+  vi.useFakeTimers({ now: 1000 });
   fs.writeFileSync(path.join(dir, "layout.json"), contents);
   fs.writeFileSync(
     path.join(dir, "view.json"),
     JSON.stringify({ "zoom.v1": 1.5 }),
   );
+  const store = createKeptStateStore(() => dir);
 
-  expect(createKeptStateStore(() => dir).snapshot()).toMatchObject({
+  expect(store.snapshot()).toMatchObject({
     layout: {},
     view: { "zoom.v1": 1.5 },
   });
+  store.set("layout", "sidebar.v1", 240);
+  store.flush();
+  vi.useRealTimers();
+
+  expect(fs.readdirSync(dir).toSorted()).toEqual([
+    "layout.json",
+    "layout.json.corrupt-1000",
+    "view.json",
+  ]);
+  expect(
+    fs.readFileSync(path.join(dir, "layout.json.corrupt-1000"), "utf8"),
+  ).toBe(contents);
+  expect(read("layout.json")).toEqual({ "sidebar.v1": 240 });
+});
+
+it("writes nothing over a corrupt file it could not set aside", () => {
+  fs.writeFileSync(path.join(dir, "layout.json"), "{ tabs");
+  const renamed = vi.spyOn(fs, "renameSync").mockImplementationOnce(() => {
+    throw Object.assign(new Error("not permitted"), { code: "EPERM" });
+  });
+  const store = createKeptStateStore(() => dir);
+  store.set("layout", "sidebar.v1", 240);
+  store.flush();
+  renamed.mockRestore();
+
+  expect(fs.readFileSync(path.join(dir, "layout.json"), "utf8")).toBe("{ tabs");
 });
 
 it("leaves no temporary file behind", () => {
@@ -224,48 +253,6 @@ it("writes where a folder went in what each window keeps for itself too", () => 
   });
 });
 
-describe("what an earlier build kept for its only window", () => {
-  const KEPT = { "app-tabs.v2": { tabs: ["kept"] } };
-
-  /** A launch of this build, on the folder under test. */
-  async function launch() {
-    vi.resetModules();
-    vi.doMock("@/electron-main/lib/get-workspace-folder", () => ({
-      workspaceWindowDir: () => dir,
-    }));
-    return import("./kept-state");
-  }
-
-  beforeEach(() => {
-    fs.writeFileSync(path.join(dir, "layout.json"), JSON.stringify(KEPT));
-  });
-
-  afterEach(() => {
-    vi.doUnmock("@/electron-main/lib/get-workspace-folder");
-  });
-
-  it("goes into the first window's own file", async () => {
-    const { flushKeptState, getWindowKeptState } = await launch();
-    expect(getWindowKeptState("app", "app-tabs.v2")).toEqual(
-      KEPT["app-tabs.v2"],
-    );
-    flushKeptState();
-    expect(read("windows/app.json")).toEqual(KEPT);
-    expect(read("layout.json")).toEqual({});
-  });
-
-  it("stays for the next launch while the window's own file cannot take it", async () => {
-    // A folder in the file's place: there, and not something a read can use.
-    fs.mkdirSync(path.join(dir, "windows/app.json"), { recursive: true });
-    const { flushKeptState, getWindowKeptState } = await launch();
-    expect(getWindowKeptState("app", "app-tabs.v2")).toEqual(
-      KEPT["app-tabs.v2"],
-    );
-    flushKeptState();
-    expect(read("layout.json")).toEqual(KEPT);
-  });
-});
-
 it("writes nothing it was told to drop, for a file about to be removed", () => {
   vi.useFakeTimers();
   const store = createKeptStateStore(() => dir);
@@ -274,4 +261,76 @@ it("writes nothing it was told to drop, for a file about to be removed", () => {
   vi.runAllTimers();
   vi.useRealTimers();
   expect(fs.existsSync(path.join(dir, "layout.json"))).toBe(false);
+});
+
+describe("a tab group's lifetime", () => {
+  const member = (tabs: string[]) => ({
+    focused: 0,
+    sides: [{ tabs: tabs.map((id) => ({ id, kind: "page" })) }],
+  });
+
+  /** A launch of this build, on the folder under test. */
+  async function launch() {
+    vi.resetModules();
+    vi.doMock("@/electron-main/lib/get-workspace-folder", () => ({
+      workspaceWindowDir: () => dir,
+    }));
+    vi.doMock("electron", () => ({
+      BrowserWindow: { getAllWindows: () => [] },
+      ipcMain: { on: () => undefined },
+    }));
+    return import("./kept-state");
+  }
+
+  afterEach(() => {
+    vi.doUnmock("@/electron-main/lib/get-workspace-folder");
+    vi.doUnmock("electron");
+  });
+
+  beforeEach(() => {
+    fs.mkdirSync(path.join(dir, "windows"));
+    fs.writeFileSync(
+      path.join(dir, "windows/open.json"),
+      JSON.stringify({ "tab-group-list.v2": ["group:a", "group:empty"] }),
+    );
+    fs.writeFileSync(
+      path.join(dir, "windows/closed.json"),
+      JSON.stringify({ "tab-group-list.v2": ["group:b"] }),
+    );
+    fs.writeFileSync(
+      path.join(dir, "groups.json"),
+      JSON.stringify({
+        "tab-groups.v3/-": member(["t0"]),
+        "tab-groups.v3/group:a": member(["t1"]),
+        "tab-groups.v3/group:b": member(["t2"]),
+        "tab-groups.v3/group:empty": { ...member([]), pinned: true },
+        "tab-groups.v3/group:gone": member(["t3"]),
+        "tab-groups.v3/site:s": member(["t4"]),
+      }),
+    );
+  });
+
+  it("starts a launch with only the groups some window lists, and that have tabs", async () => {
+    const { getKeptState } = await launch();
+    expect(getKeptState("groups", "tab-groups.v3/group:gone")).toBeUndefined();
+    expect(getKeptState("groups", "tab-groups.v3/group:empty")).toBeUndefined();
+    for (const kept of ["-", "group:a", "group:b", "site:s"]) {
+      expect(getKeptState("groups", `tab-groups.v3/${kept}`)).toBeDefined();
+    }
+  });
+
+  it("ends with the window that last listed it, once that window is forgotten", async () => {
+    const { forgetWindowKeptState, getKeptState } = await launch();
+    forgetWindowKeptState("closed");
+    expect(getKeptState("groups", "tab-groups.v3/group:b")).toBeUndefined();
+    expect(getKeptState("groups", "tab-groups.v3/group:a")).toBeDefined();
+  });
+
+  it("stays while a window just opened on it lists it, before it loads", async () => {
+    const { forgetWindowKeptState, getKeptState, setWindowKeptState } =
+      await launch();
+    setWindowKeptState("new", "tab-group-list.v2", ["group:b"]);
+    forgetWindowKeptState("closed");
+    expect(getKeptState("groups", "tab-groups.v3/group:b")).toBeDefined();
+  });
 });

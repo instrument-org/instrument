@@ -10,8 +10,9 @@ import {
 } from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
-import { isWorkedInNow } from "../../lib/chat/driven-tabs";
+import { chatWorkingIn } from "../../lib/chat/driven-tabs";
 import { lastActOf } from "../../lib/tab-activity";
+import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { BrowserTargetIdSchema } from "../../types";
 import { base } from "../base";
@@ -161,9 +162,9 @@ const presence = base
  * tool calls seconds apart, and only whoever is drawing the result knows how
  * long a gap should still read as one piece of work. So this reports arrivals
  * and the client decides how long each one lasts. Beside it, `inUse` says
- * whether a session with a turn running is at work in the tab now
- * (`isWorkedInNow`), read again on every agent's command in any tab and as
- * each session finishes, so a tab an agent moved on from loses it.
+ * whether a session with a turn running used the tab in that turn, and
+ * `chat` whose (`chatWorkingIn`), read again on every agent's command in any
+ * tab and as each session finishes, so a tab loses it as the turn ends.
  *
  * Revision 0 is emitted as soon as the subscription is live, before any
  * command, so a stream that has yet to see one still yields. It also means a
@@ -181,7 +182,9 @@ const agentActivity = base
   .output(
     eventIterator(
       z.object({
-        /** Whether a session with a turn running is at work in the guest now; only when no session was asked about. */
+        /** The chat whose running turn used the guest; only when no session was asked about and one did. */
+        chat: ChatIdSchema.optional(),
+        /** Whether a session with a turn running used the guest in that turn; only when no session was asked about. */
         inUse: z.boolean().optional(),
         /** When an agent (or the session asked about) last worked in the guest, in ms; absent when none has. */
         lastAt: z.number().optional(),
@@ -196,8 +199,11 @@ const agentActivity = base
         sessionId === undefined
           ? lastBrowserAgentActivity(targetId)
           : lastActOf(targetId, sessionId);
+      const chat =
+        sessionId === undefined ? chatWorkingIn(targetId) : undefined;
       return {
-        ...(sessionId === undefined ? { inUse: isWorkedInNow(targetId) } : {}),
+        ...(sessionId === undefined ? { inUse: chat !== undefined } : {}),
+        ...(chat === undefined ? {} : { chat }),
         ...(lastAt === undefined ? {} : { lastAt }),
       };
     };

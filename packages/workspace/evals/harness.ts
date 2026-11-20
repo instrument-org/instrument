@@ -58,6 +58,7 @@ import { session as sessionRoute } from "../src/rpc/routes/session";
 import { chats as chatsRoute } from "../src/rpc/routes/chats";
 import { permissions as permissionsRoute } from "../src/rpc/routes/permissions";
 import { type FileUpload } from "../src/schemas/file-upload";
+import { type LayoutRead } from "../src/schemas/group-layout";
 import { type SessionMessageDataPart } from "../src/schemas/session/message-data-part";
 import { type ChooseQuestion, chooseQuestions } from "../src/lib/choose-call";
 import { type SessionMessagePart } from "../src/schemas/session/message-part";
@@ -750,6 +751,12 @@ export interface EvalCase {
    */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
   /**
+   * The tab group the chat works in as the case's message was sent, as the
+   * window reads it: the notes on the message say it and what changed since,
+   * and nothing more, since no window stands behind the tabs it names.
+   */
+  layout?: LayoutRead;
+  /**
    * One real headless Chrome behind the window's tabs for the run
    * (`lib/shared-chrome.ts`), so the chat and its tasks reach the same pages
    * through the CDP bridge as in the app, rather than each a Chrome of its
@@ -814,6 +821,8 @@ type FollowUp = FollowUpTiming &
          * sent.
          */
         actions?: CaseActions;
+        /** The chat's tab group as this message was sent; see `EvalCase.layout`. */
+        layout?: LayoutRead;
         prompt: string;
         /**
          * What the window showed as this message was sent, for one whose
@@ -1180,6 +1189,7 @@ export async function runEvals(
         };
 
         standInWindow.seed(evalCase.viewing);
+        standInWindow.lay(evalCase.layout);
         const created = creating.then(async () => {
           if (evalCase.kind === "chat") {
             ensureWorkspaceFolder();
@@ -1210,6 +1220,7 @@ export async function runEvals(
               files: evalCase.files,
               folders: folders.length > 0 ? folders : undefined,
               kind: evalCase.kind ?? "task",
+              ...(evalCase.layout ? { layout: evalCase.layout } : {}),
               modelURI: uri,
               name: evalCase.name,
               prompt: evalCase.prompt,
@@ -1896,6 +1907,7 @@ export async function runEvals(
             messageRoute.create,
             {
               id,
+              ...(followUp.layout ? { layout: followUp.layout } : {}),
               modelURI: uri,
               prompt: followUp.prompt,
               sessionId,
@@ -2282,6 +2294,7 @@ async function openChatUnderProject(
       files: evalCase.files,
       folders: folders.length > 0 ? folders : undefined,
       id,
+      ...(evalCase.layout ? { layout: evalCase.layout } : {}),
       modelURI: uri,
       prompt: evalCase.prompt,
       project: project.id,

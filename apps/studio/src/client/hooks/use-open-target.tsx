@@ -1,6 +1,14 @@
+import { useAddBookmark } from "@/client/bookmarks/actions";
+import { fileAddressOf } from "@/client/bookmarks/address";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { PageOpenContext } from "@/client/components/page-open-context";
-import { WindowContext } from "@/client/components/window/context";
+import {
+  type OpenOptions,
+  WindowContext,
+} from "@/client/components/window/context";
+import { GroupTabContext } from "@/client/components/window/group-tab";
+import { segmentsOf } from "@/client/components/window/host-path";
+import { chatOfHref } from "@/client/components/window/window-href";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import {
   copyableOf,
@@ -9,6 +17,12 @@ import {
 } from "@/client/lib/open-target";
 import { commandKeyHeld } from "@/client/lib/utils";
 import { rpcClient, type RPCInput } from "@/client/rpc/client";
+import {
+  instrumentAddressOf,
+  SCREENS,
+  SETTINGS_SECTIONS,
+  screenOfHref,
+} from "@/shared/instrument-screens";
 import {
   isFolderPath,
   isInWorkspacePath,
@@ -52,52 +66,99 @@ async function copiedValue(target: OpenTarget, named: string) {
   return named;
 }
 
+/** Whether a path is a whole one on this computer, as a bookmark keeps it. */
+function isHostPath(path: string) {
+  return /^(?:\/|[a-z]:[\\/]|\\\\)/i.test(path);
+}
+
 /** The middle button, which asks for a place of its own wherever a link is drawn. */
 const MIDDLE_BUTTON = 1;
 
 /** One place a target can be opened, as a row of a menu and the thing that row does. */
 export interface OpenDestination {
   /** Stable across surfaces, and what the native menu hands back. */
-  id: "copy" | "open" | "openBrowser" | "openNewTab" | "openNewWindow";
+  id:
+    | "bookmark"
+    | "copy"
+    | "open"
+    | "openBrowser"
+    | "openNewGroup"
+    | "openNewTab"
+    | "openNewWindow"
+    | "openSplit";
   label: string;
   run: () => void;
+  /** Open in New Tab's tab waiting behind, as a Cmd-click or a middle click asks. */
+  runBehind?: () => void;
 }
+
+/** The rows after the places a thing opens: keeping it and copying it. */
+const isKeepingRow = (destination: OpenDestination) =>
+  destination.id === "bookmark" || destination.id === "copy";
 
 /** Raises the destinations as the OS's own menu, and runs what was picked. */
 export async function showOpenMenu(destinations: OpenDestination[]) {
   const rows: RPCInput["utils"]["showContextMenu"]["items"] =
-    destinations.flatMap((destination, index) => [
-      // The places a thing opens, then the clipboard, are two groups.
-      ...(destination.id === "copy" && index > 0
-        ? [{ separator: true as const }]
-        : []),
-      { id: destination.id, label: destination.label },
-    ]);
+    destinations.flatMap((destination, index) => {
+      const before = destinations[index - 1];
+      return [
+        // The places a thing opens, then keeping and copying it, are two groups.
+        ...(isKeepingRow(destination) && before && !isKeepingRow(before)
+          ? [{ separator: true as const }]
+          : []),
+        { id: destination.id, label: destination.label },
+      ];
+    });
   const picked = await rpcClient.utils.showContextMenu.call({ items: rows });
   destinations.find((destination) => destination.id === picked.id)?.run();
+}
+
+/** How a surface asks for a target's gestures. */
+interface OpenAsked {
+  addReferral?: boolean;
+  /**
+   * A link in text: its menu reads as a browser's does over a link (Open
+   * Link in New Tab, Bookmark Link), and leaves out the plain Open a click
+   * does, which opens beside rather than in place of what the link is in.
+   */
+  isLink?: boolean;
+  /**
+   * A link a plain click opens in a new tab in front, right after the tab
+   * it is in, as a browser opens a `target="_blank"` link: one to a website
+   * from a built-in page. Where the window has no tabs, the click opens it
+   * where it would anyway.
+   */
+  opensNewTab?: boolean;
+  title?: string;
 }
 
 /** The same gestures, for a list whose rows each name a different target. */
 export function useGesturesFor() {
   const destinationsFor = useDestinationsFor();
-  return (target: OpenTarget, options?: { addReferral?: boolean }) => {
+  return (target: OpenTarget, options?: OpenAsked) => {
     const destinations = destinationsFor(target, options);
+    const menu =
+      options?.isLink === true
+        ? destinations.filter((destination) => destination.id !== "open")
+        : destinations;
     // The first place on the list, which is the surface's own wherever it
     // has one: the OS browser is first only where the surface has none.
     const primary = destinations.find(
       (destination) => destination.id !== "copy",
     );
-    const separate =
-      destinations.find((destination) => destination.id === "openNewTab") ??
-      primary;
-    const ownWindow = destinations.find(
-      (destination) => destination.id === "openNewWindow",
+    const newTab = destinations.find(
+      (destination) => destination.id === "openNewTab",
     );
-
+    // A Cmd-click or a middle click: Open in New Tab's tab, waiting behind.
+    const separate =
+      newTab === undefined
+        ? primary
+        : { ...newTab, run: newTab.runBehind ?? newTab.run };
+    const inFront = newTab ?? primary;
     const clicks = openClickGestures({
-      open: () => primary?.run(),
-      openInNewTab: () => (separate ?? primary)?.run(),
-      ...(ownWindow ? { openInNewWindow: ownWindow.run } : {}),
+      open: () => (options?.opensNewTab === true ? inFront : primary)?.run(),
+      openInFront: () => inFront?.run(),
+      openInNewTab: () => separate?.run(),
     });
     return {
       onAuxClick: clicks.onAuxClick,
@@ -107,11 +168,11 @@ export function useGesturesFor() {
         clicks.onClick(event);
       },
       onContextMenu: (event: React.MouseEvent) => {
-        if (destinations.length === 0) {
+        if (menu.length === 0) {
           return;
         }
         event.preventDefault();
-        void showOpenMenu(destinations);
+        void showOpenMenu(menu);
       },
       /** The rows, for a surface that draws its own menu rather than the OS's. */
       destinations,
@@ -119,10 +180,9 @@ export function useGesturesFor() {
       opening: (open: () => void) =>
         openClickGestures({
           open,
-          openInNewTab: () => (separate ?? primary)?.run(),
-          ...(ownWindow ? { openInNewWindow: ownWindow.run } : {}),
+          openInFront: () => inFront?.run(),
+          openInNewTab: () => separate?.run(),
         }),
-      ownWindow,
       primary,
       separate,
     };
@@ -143,30 +203,25 @@ export function useGesturesFor() {
  * generic menu -- "Save Image As" over an icon, and nothing at all over a
  * button -- from answering in its place.
  */
-export function useOpenGestures(
-  target: OpenTarget,
-  options?: { addReferral?: boolean },
-) {
+export function useOpenGestures(target: OpenTarget, options?: OpenAsked) {
   return useGesturesFor()(target, options);
 }
 
 /**
  * The clicks every openable row and card answers the same way: a plain click
- * opens it where the surface says, and a Cmd-click (Ctrl off macOS) or a
- * middle click opens it in a tab of its own behind the one up, the way a
- * browser opens a link. For a surface whose own open is not a target's
- * (a chat opened beside the list, a page in the router), spread onto the
- * row alongside its menu's Open in New Tab, which does what these do.
+ * opens it where the surface says, a Cmd-click (Ctrl off macOS) or a middle
+ * click opens it in a tab of its own behind the one up, the way a browser
+ * opens a link, and a Shift-click in a tab of its own in front
+ * (`openInFront`, the background tab where none is given).
  */
 export function openClickGestures({
   open,
+  openInFront,
   openInNewTab,
-  openInNewWindow,
 }: {
   open: () => void;
+  openInFront?: () => void;
   openInNewTab: () => void;
-  /** What Shift and a click ask, where the surface has windows to open. */
-  openInNewWindow?: () => void;
 }) {
   return {
     onAuxClick: (event: React.MouseEvent) => {
@@ -180,8 +235,10 @@ export function openClickGestures({
       openInNewTab();
     },
     onClick: (event: React.MouseEvent) => {
-      if (openInNewWindow && wantsNewWindow(event)) {
-        openInNewWindow();
+      // Shift and a click, a browser's new window, is a new tab here: only
+      // a menu's Open in New Tab Group makes a group.
+      if (wantsNewWindow(event)) {
+        (openInFront ?? openInNewTab)();
       } else if (wantsNewTab(event)) {
         openInNewTab();
       } else {
@@ -224,6 +281,136 @@ export function wantsNewWindow(event: {
 }
 
 /**
+ * The places of the window's own a link or a file opens in from its menu,
+ * after its own Open, in this order wherever one is offered: Open in Split,
+ * on the other side from the tab the menu was raised in, made where the
+ * group has one side; Open in New Tab, in front; Open in New
+ * Tab Group; and Open in New Window. A link's rows say Open Link, as a
+ * browser's do. `open` opens the target with the options the row picked.
+ */
+export function useWindowPlaces() {
+  const from = useContext(GroupTabContext)?.id;
+  return (
+    open: (options: OpenOptions) => void,
+    { isLink = false }: { isLink?: boolean } = {},
+  ): OpenDestination[] => {
+    const opens = isLink ? "Open Link" : "Open";
+    return [
+      {
+        id: "openSplit",
+        label: `${opens} in Split`,
+        run: () => {
+          open({ into: "split", ...(from === undefined ? {} : { from }) });
+        },
+      },
+      {
+        id: "openNewTab",
+        label: `${opens} in New Tab`,
+        run: () => {
+          open({ newTab: true });
+        },
+        runBehind: () => {
+          open({ behind: true, newTab: true });
+        },
+      },
+      {
+        id: "openNewGroup",
+        label: `${opens} in New Tab Group`,
+        run: () => {
+          open({ into: "group" });
+        },
+      },
+      {
+        id: "openNewWindow",
+        label: `${opens} in New Window`,
+        run: () => {
+          open({ into: "window" });
+        },
+      },
+    ];
+  };
+}
+
+/**
+ * The Add to Bookmarks row of a menu over a file, or Bookmark Link over a
+ * link, keeping the address and title `keep` works out when it is picked.
+ */
+export function useBookmarkRow() {
+  const addBookmark = useAddBookmark();
+  return (
+    keep: () => Promise<{ title: string; url: string }>,
+    { isLink = false }: { isLink?: boolean } = {},
+  ): OpenDestination => ({
+    id: "bookmark",
+    label: isLink ? "Bookmark Link" : "Add to Bookmarks",
+    run: () => {
+      void keep()
+        .then(addBookmark)
+        .catch((error: unknown) => {
+          toast.error("Couldn't add to Bookmarks", { cause: error });
+        });
+    },
+  });
+}
+
+/**
+ * The row that keeps a target as a bookmark, by the address a tab showing it
+ * would have: a page's own, a file's or a folder's on this computer, and the
+ * app's own for a screen. A chat is named by its title, a built-in page by
+ * its own, and a file or a folder by its name. Nothing for a screen no
+ * address names.
+ */
+function useTargetBookmarkRow() {
+  const bookmarkRow = useBookmarkRow();
+  return (
+    target: OpenTarget,
+    title: string | undefined,
+    isLink: boolean,
+  ): OpenDestination | undefined => {
+    const row = (keep: () => Promise<{ title: string; url: string }>) =>
+      bookmarkRow(keep, { isLink });
+    if (target.kind === "page") {
+      return row(async () => ({ title: title ?? "", url: target.url }));
+    }
+    if (target.kind === "path") {
+      return row(async () => {
+        const isFolder = isFolderPath(target.path);
+        const hostPath = await copiedValue(target, target.path);
+        if (!isHostPath(hostPath)) {
+          throw new Error(`No file on this computer at ${target.path}`);
+        }
+        return {
+          title: title ?? segmentsOf(hostPath).at(-1) ?? hostPath,
+          url: fileAddressOf(
+            isFolder ? hostPath.replace(/[\\/]$/, "") : hostPath,
+            {
+              isFolder,
+            },
+          ),
+        };
+      });
+    }
+    const url = instrumentAddressOf(target.href);
+    if (url === undefined) {
+      return undefined;
+    }
+    return row(async () => {
+      const screen = screenOfHref(target.href);
+      const chat = chatOfHref(target.href);
+      const named =
+        screen?.part === undefined
+          ? screen && SCREENS[screen.name].title
+          : `Settings › ${SETTINGS_SECTIONS[screen.part]}`;
+      const chatTitle =
+        chat === undefined
+          ? undefined
+          : (await rpcClient.workspace.chats.byId.call({ id: chat }))?.title;
+      return { title: title ?? named ?? chatTitle ?? "", url };
+    });
+  };
+}
+
+/**
  * Everywhere this target can be opened from where it is drawn, in the order a
  * menu should list them, the first being what a plain click does.
  *
@@ -244,14 +431,17 @@ export function wantsNewWindow(event: {
  */
 function useDestinationsFor(): (
   target: OpenTarget,
-  options?: { addReferral?: boolean },
+  options?: OpenAsked,
 ) => OpenDestination[] {
   const appWindow = useContext(WindowContext);
   const openPageOnSurface = useContext(PageOpenContext);
   const openPathOnSurface = useContext(FileOpenContext);
   const openExternalLink = useOpenExternalLink();
+  const placesOf = useWindowPlaces();
+  const bookmarkRowOf = useTargetBookmarkRow();
 
-  return (target, { addReferral = true } = {}) => {
+  return (target, { addReferral = true, isLink = false, title } = {}) => {
+    const opens = isLink ? "Open Link" : "Open";
     const copyable = copyableOf(target);
     const copy: OpenDestination[] = copyable
       ? [
@@ -270,6 +460,23 @@ function useDestinationsFor(): (
           },
         ]
       : [];
+    // Keeping it and copying it, after the places, where the window has
+    // places of its own.
+    const bookmarkRow = appWindow
+      ? bookmarkRowOf(
+          target.kind === "path" && target.chatId === undefined
+            ? {
+                ...target,
+                ...(appWindow.chatId === undefined
+                  ? {}
+                  : { chatId: appWindow.chatId }),
+              }
+            : target,
+          title,
+          isLink,
+        )
+      : undefined;
+    const keeping = [...(bookmarkRow ? [bookmarkRow] : []), ...copy];
 
     if (target.kind === "page") {
       const { url } = target;
@@ -280,7 +487,7 @@ function useDestinationsFor(): (
         return [
           {
             id: "openBrowser",
-            label: "Open",
+            label: opens,
             run: () => {
               openExternalLink(url, { addReferral });
             },
@@ -295,37 +502,27 @@ function useDestinationsFor(): (
         openPageOnSurface
           ? {
               id: "open" as const,
-              label: "Open",
+              label: opens,
               run: () => {
                 openPageOnSurface(url);
               },
             }
           : {
               id: "openBrowser" as const,
-              label: "Open in Default Browser",
+              label: `${opens} in Default Browser`,
               run: () => {
                 openExternalLink(url, { addReferral });
               },
             },
         ...(appWindow
-          ? [
-              {
-                id: "openNewTab" as const,
-                label: "Open in New Tab",
-                run: () => {
-                  appWindow.openPage(url, { behind: true, newTab: true });
-                },
+          ? placesOf(
+              (options) => {
+                appWindow.openPage(url, options);
               },
-              {
-                id: "openNewWindow" as const,
-                label: "Open in New Window",
-                run: () => {
-                  appWindow.openPage(url, { newWindow: true });
-                },
-              },
-            ]
+              { isLink },
+            )
           : []),
-        ...copy,
+        ...keeping,
       ];
     }
 
@@ -343,24 +540,11 @@ function useDestinationsFor(): (
           },
         },
         ...(appWindow
-          ? [
-              {
-                id: "openNewTab" as const,
-                label: "Open in New Tab",
-                run: () => {
-                  openPathOnSurface(path, { behind: true, newTab: true });
-                },
-              },
-              {
-                id: "openNewWindow" as const,
-                label: "Open in New Window",
-                run: () => {
-                  openPathOnSurface(path, { newWindow: true });
-                },
-              },
-            ]
+          ? placesOf((options) => {
+              openPathOnSurface(path, options);
+            })
           : []),
-        ...copy,
+        ...keeping,
       ];
     }
 
@@ -371,26 +555,18 @@ function useDestinationsFor(): (
     return [
       {
         id: "open",
-        label: "Open",
+        label: opens,
         run: () => {
           appWindow.openScreen(href);
         },
       },
-      {
-        id: "openNewTab",
-        label: "Open in New Tab",
-        run: () => {
-          appWindow.openScreen(href, { behind: true, newTab: true });
+      ...placesOf(
+        (options) => {
+          appWindow.openScreen(href, options);
         },
-      },
-      {
-        id: "openNewWindow",
-        label: "Open in New Window",
-        run: () => {
-          appWindow.openScreen(href, { newWindow: true });
-        },
-      },
-      ...copy,
+        { isLink },
+      ),
+      ...keeping,
     ];
   };
 }

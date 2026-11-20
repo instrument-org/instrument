@@ -7,7 +7,6 @@ import {
   ContextMenuSeparator,
 } from "@/client/components/ui/context-menu";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import { toast } from "@/client/lib/toast";
 import { isMacOS, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -32,7 +31,6 @@ import { useWindow } from "./context";
 export function PlaceMenu({
   hostPath,
   name,
-  onNewDraft,
   onOpenInNewTab,
   onOpenInNewWindow,
   pin,
@@ -40,8 +38,6 @@ export function PlaceMenu({
   hostPath: string;
   /** The name it goes by where it was pressed, for Copy Path to say whose path it copies. */
   name?: string;
-  /** Left out where no draft can be opened. */
-  onNewDraft: (() => void) | undefined;
   onOpenInNewTab: () => void;
   onOpenInNewWindow: () => void;
   /** Pinning it to the sidebar, or unpinning it; left out where neither is offered. */
@@ -49,15 +45,6 @@ export function PlaceMenu({
 }) {
   return (
     <ContextMenuContent className="min-w-48">
-      {onNewDraft ? (
-        <>
-          <ContextMenuItem onClick={onNewDraft}>
-            <InstrumentGlyph className="size-4 text-brand-600 dark:text-brand-400" />
-            <span>Ask</span>
-          </ContextMenuItem>
-          <ContextMenuSeparator />
-        </>
-      ) : null}
       <ContextMenuItem onClick={onOpenInNewTab}>
         <NewTabIcon className="size-4" />
         <span>Open in New Tab</span>
@@ -146,12 +133,12 @@ function placeActionFailed(title: string, error: unknown) {
 /**
  * What `PlaceMenu` offers for a file or folder of the computer named
  * anywhere outside the folder browser, a part of the address above all: a
- * draft about it, a tab of its own, and for a folder, whether the sidebar
+ * tab of its own, and for a folder, whether the sidebar
  * lists it. Pinned is read the way the sidebar reads it, the system's own
  * places that are not unpinned and the ones the person pinned.
  */
 export function usePlaceMenuProps() {
-  const { askAbout, openScreen } = useWindow();
+  const { openScreen } = useWindow();
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -166,24 +153,16 @@ export function usePlaceMenuProps() {
     const isPinned = pinned.some((place) => place.path === hostPath);
     return {
       hostPath,
-      onNewDraft:
-        askAbout &&
-        (() => {
-          askAbout([{ kind, path: hostPath }]);
-        }),
       onOpenInNewTab: () => {
         openScreen(
           kind === "folder" ? folderHref(hostPath) : fileHref(hostPath),
-          {
-            behind: true,
-            newTab: true,
-          },
+          { newTab: true },
         );
       },
       onOpenInNewWindow: () => {
         openScreen(
           kind === "folder" ? folderHref(hostPath) : fileHref(hostPath),
-          { newWindow: true },
+          { into: "window" },
         );
       },
       ...(kind === "folder"

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ChatIdSchema } from "../chat-id";
 import { DeviceIdSchema } from "../device-id";
 import { EnvironmentChangeSchema } from "../environment";
+import { LayoutChangeSchema, LayoutSnapshotSchema } from "../group-layout";
 import {
   AbsolutePathSchema,
   InWorkspacePathSchema,
@@ -33,8 +34,10 @@ export namespace SessionMessageDataPart {
     "fileChanges",
     "fileVersions",
     "fromChat",
+    "groupLayout",
     "intent",
     "jobEvent",
+    "layoutChanges",
     "setupChanges",
     "setupNews",
     "signedIn",
@@ -105,8 +108,10 @@ export namespace SessionMessageDataPart {
     fileVersions: "event",
     folderChanges: "diff",
     fromChat: "event",
+    groupLayout: "diff",
     intent: "event",
     jobEvent: "event",
+    layoutChanges: "event",
     maxSteps: "event",
     memory: "diff",
     messageGap: "event",
@@ -240,9 +245,9 @@ export namespace SessionMessageDataPart {
   /**
    * The tabs of the user's chat, every session's to drive, each by the id
    * `agent-browser tab` takes, with where each stands and what it costs.
-   * The figures are coarse (memory to 10 MB, CPU to a whole percent and left
-   * out under one, the time left to five minutes) so the picture reads the
-   * same from turn to turn while nothing much changes.
+   * The figures are coarse (memory to 100 MB, CPU to 10 percent and left
+   * out under 10) so the picture reads the same from turn to turn while
+   * nothing much changes; earlier builds wrote finer ones and the time left.
    */
   const BrowserStatusDataPartSchema = z.object({
     /** Tabs the app closed since the session was last told, and why. */
@@ -271,7 +276,7 @@ export namespace SessionMessageDataPart {
         /** The other tabs its process draws too, whose cost this is as well. */
         sharedWith: z.array(z.string()).optional(),
         title: z.string().optional(),
-        /** Minutes until its page is unloaded unless it is used. */
+        /** Minutes until its page is unloaded unless it is used: only in notes earlier builds wrote, and no longer told. */
         unloadsInMin: z.number().optional(),
         url: z.string(),
       }),
@@ -1264,8 +1269,8 @@ export namespace SessionMessageDataPart {
     /** The tab on screen, by its id. */
     tab: z.string().optional(),
     /**
-     * Whether that tab is the person's own, outside the chat: one it may
-     * not drive until the person adds it to a message.
+     * Whether that tab is the person's own, outside the chat's tab group:
+     * one it acts in only when asked.
      */
     theirs: z.boolean().optional(),
     /** The chat's other tabs, on screen or not. */
@@ -1370,6 +1375,12 @@ export namespace SessionMessageDataPart {
         }),
       )
       .optional(),
+    /**
+     * The files open in the chat's tab group, by path: part of the
+     * conversation as long as they are there, so each is granted to the chat
+     * as the message is sent, as a file sent with it is.
+     */
+    groupFiles: z.array(z.string()).optional(),
     /** A file open on This Mac, as the person writes its path. */
     file: z
       .object({
@@ -1445,6 +1456,30 @@ export namespace SessionMessageDataPart {
   });
 
   export type ViewContextDataPart = z.output<typeof ViewContextDataPartSchema>;
+
+  /**
+   * The tab group the chat works in: its sides, their tabs in order with the
+   * one up on each, which side has the keyboard, and which tab is this chat,
+   * with where every other tab stood. Written on the chat's own session,
+   * ahead of a person's message or with a wake, only when it reads
+   * differently from the last one written (`layoutParts`).
+   */
+  export const GroupLayoutDataPartSchema = LayoutSnapshotSchema;
+
+  export type GroupLayoutDataPart = z.output<typeof GroupLayoutDataPartSchema>;
+
+  /**
+   * What changed in the tab group the chat works in since the layout before,
+   * by tab. Written beside a layout that has one before it, when something
+   * changed.
+   */
+  export const LayoutChangesDataPartSchema = z.object({
+    changes: z.array(LayoutChangeSchema).min(1),
+  });
+
+  export type LayoutChangesDataPart = z.output<
+    typeof LayoutChangesDataPartSchema
+  >;
 
   /**
    * The local calendar date a session moved onto, as `yyyy-MM-dd`, written to
@@ -1766,8 +1801,10 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.fileChanges]: FileChangesDataPartSchema,
     [NameSchema.enum.fileVersions]: FileVersionsDataPartSchema,
     [NameSchema.enum.fromChat]: FromChatDataPartSchema,
+    [NameSchema.enum.groupLayout]: GroupLayoutDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
     [NameSchema.enum.jobEvent]: JobEventDataPartSchema,
+    [NameSchema.enum.layoutChanges]: LayoutChangesDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,

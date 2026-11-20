@@ -74,25 +74,25 @@ describe("matchSettings", () => {
     expect(titles("what's new")).toEqual(["What's new"]);
   });
 
-  it("finds Activity's switch and history by the words on them", () => {
+  it("finds History's switch and rows by the words on them", () => {
     expect({
-      activity: titles("activity"),
       chats: titles("chats"),
-      clear: titles("clear activity"),
+      clear: titles("clear history"),
+      history: titles("history"),
     }).toMatchInlineSnapshot(`
       {
-        "activity": [
-          "Your activity",
-          "Clear activity",
-          "Keep a history",
-          "Chats can see this",
-        ],
         "chats": [
           "Chats can see this",
           "Chats that can’t be opened",
         ],
         "clear": [
-          "Clear activity",
+          "Clear history",
+        ],
+        "history": [
+          "Your history",
+          "Clear history",
+          "Keep a history",
+          "Chats can see this",
         ],
       }
     `);

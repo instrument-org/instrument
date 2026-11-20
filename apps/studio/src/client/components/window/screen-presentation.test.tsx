@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import routeTreeSource from "../../routeTree.gen.ts?raw";
 import { screenLocation, screenPresentation } from "./screen-presentation";
+import { newChatHref } from "./window-href";
 
 const CONTEXT = { appsBySlug: new Map() };
 
@@ -19,6 +20,13 @@ describe("screenPresentation", () => {
     expect(screenPresentation(INBOX_HREF, CONTEXT).title).toBe("Chat");
   });
 
+  it.each([
+    ["with no draft yet", newChatHref()],
+    ["on its draft", newChatHref("01M7BVSPAMVP4SR3P07E7PFGCQ")],
+  ])("names a new chat's tab New Tab, %s", (_case, href) => {
+    expect(screenPresentation(href, CONTEXT).title).toBe("New Tab");
+  });
+
   it("names a task's tab by its title once known", () => {
     const task = StoreId.newSessionId();
     const taskTitles = new Map([[task, "Book the hotel"]]);
@@ -28,6 +36,7 @@ describe("screenPresentation", () => {
     );
     expect(screenPresentation(href, CONTEXT).title).toBe("Task");
     expect(screenLocation(href, { ...CONTEXT, taskTitles })).toEqual({
+      chat: { id: CHAT_ID, title: "Chat" },
       kind: "task",
       title: "Book the hotel",
     });
@@ -76,6 +85,12 @@ describe("screenPresentation", () => {
   it.each([
     ["a debug tool", "/debug/components", "Debug pages"],
     ["a component page", "/debug/components/colors", "Colors"],
+    ["a page that doesn't exist", "/removed-page", "Page not found"],
+    [
+      "an instrument address the app doesn't know",
+      "/missing?address=instrument%3A%2F%2Fnowhere",
+      "Page not found",
+    ],
   ])("names %s", (_, href, title) => {
     expect(screenPresentation(href, CONTEXT).title).toBe(title);
   });
@@ -94,10 +109,15 @@ describe("screenPresentation", () => {
   it.each([...routes].filter((path) => !NAMED_BY_THE_STRIP.has(path)))(
     "names every tab on %s",
     (path) => {
-      // A task's address names it by its session.
+      // A task's address names it by its session, and Settings' by one of
+      // its parts.
       const href = path.replaceAll(
         /\$\w+/g,
-        path.startsWith("/tasks/") ? StoreId.newSessionId() : "x",
+        path.startsWith("/tasks/")
+          ? StoreId.newSessionId()
+          : path.startsWith("/settings/")
+            ? "general"
+            : "x",
       );
       expect(screenPresentation(href, CONTEXT).title).not.toBe("Tab");
     },
@@ -130,6 +150,54 @@ describe("screenLocation", () => {
     ["the recents", "/files?path=&root=recents%3A", ""],
   ])("places a folder tab at %s", (_, href, path) => {
     expect(screenLocation(href, CONTEXT)).toEqual({ kind: "folder", path });
+  });
+
+  it.each([
+    ["every chat", "/chat-list?q=trip", { kind: "chats" }],
+    ["Activity", "/activity", { kind: "builtin", screen: "activity" }],
+    [
+      "what Activity shows",
+      "/activity?show=files",
+      {
+        kind: "builtin",
+        part: "Files",
+        partHref: "/activity?show=files",
+        screen: "activity",
+      },
+    ],
+    [
+      "a debug page",
+      "/debug/components/transcript?scenario=long-reply",
+      {
+        address: "instrument://debug/components/transcript?scenario=long-reply",
+        kind: "debug",
+      },
+    ],
+    // A page that doesn't exist, at the address it was asked for.
+    [
+      "a page a later build removed",
+      "/removed-page?from=older-build",
+      { address: "/removed-page?from=older-build", kind: "missing" },
+    ],
+    [
+      "an address no task has",
+      "/tasks/not-a-session?chat=2026-10-01-roofer",
+      {
+        address: "/tasks/not-a-session?chat=2026-10-01-roofer",
+        kind: "missing",
+      },
+    ],
+    [
+      "an instrument address the app doesn't know",
+      "/missing?address=instrument%3A%2F%2Fnowhere%2Fx",
+      { address: "instrument://nowhere/x", kind: "missing" },
+    ],
+  ])("places a tab at %s", (_, href, location) => {
+    expect(screenLocation(href, CONTEXT)).toEqual(location);
+  });
+
+  it("names the chats' index Chats", () => {
+    expect(screenPresentation("/chat-list", CONTEXT).title).toBe("Chats");
   });
 
   it("places a chat tab on its chat", () => {

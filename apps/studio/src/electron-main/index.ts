@@ -22,7 +22,11 @@ import {
   setClaudeAccountDefaultModel,
   setDefaultModel,
 } from "@/electron-main/lib/set-default-model";
-import { openOutsideLink } from "@/electron-main/lib/outside-links";
+import { createFilesTogether } from "@/electron-main/lib/files-together";
+import {
+  inArrivalOrder,
+  openOutsideLink,
+} from "@/electron-main/lib/outside-links";
 import {
   setupStateKnown,
   setupStillAsks,
@@ -46,7 +50,7 @@ import {
 } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
-  openAppFile,
+  asksOfAppFiles,
   openAppWindow,
   openNewAppWindow,
   restoreAppWindows,
@@ -54,6 +58,7 @@ import {
   updateAppWindowBackgroundColor,
   waitingAppWindowAsks,
 } from "@/electron-main/windows/app-window";
+import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { startLaunch } from "@/electron-main/windows/launch";
@@ -131,6 +136,13 @@ import { startFreezeWatchdog } from "./lib/freeze-watchdog";
 import { watchMainThreadStalls } from "./lib/main-thread-stalls";
 import { watchProcessCpu } from "./lib/process-cpu";
 
+/**
+ * Gathers the Finder's files into hand-overs (`createFilesTogether`), made at
+ * the first: a file that launches the app arrives before this module has
+ * finished evaluating.
+ */
+let filesTogether: ((hostPath: string) => void) | undefined;
+
 // Dev skips the single-instance lock so multiple worktrees can boot side by
 // side. Packaged builds keep it so second launches (deep links) forward to
 // the running instance.
@@ -149,9 +161,10 @@ const launch = startLaunch(
     log: (line) => {
       logger.scope("launch").info(line);
     },
+    // Files arriving one event each (the Finder's several) open together.
     openFiles: (paths) => {
       for (const filePath of paths) {
-        openAppFile(filePath);
+        openFileTogether(filePath);
       }
     },
     openLink: handleDeepLink,
@@ -222,8 +235,10 @@ if (gotTheLock) {
   });
 
   // A file handed over from the Finder: a double click where Instrument is
-  // the default, or Open With. Listened for before ready, because a file that
-  // launches the app arrives before it is.
+  // the default, Open With, or a drop on the Dock icon. Listened for before
+  // ready, because a file that launches the app arrives before it is. The
+  // system hands several files over one event each, so those arriving
+  // together open together.
   app.on("open-file", (event, filePath) => {
     event.preventDefault();
     launch.receive({ kind: "files", paths: [filePath] });
@@ -572,9 +587,7 @@ function focusForegroundWindow() {
  */
 function handleDeepLink(url: string) {
   void openOutsideLink(url, {
-    ask: (asks) => {
-      showFromOutside(asks, launch.comeForward);
-    },
+    ask: openFromOutside,
     log: (line) => {
       // Scoped here, not at the top: a launch's own link comes through
       // before the module has finished evaluating.
@@ -582,6 +595,36 @@ function handleDeepLink(url: string) {
     },
     waiting: () => waitingAppWindowAsks().length,
   });
+}
+
+/**
+ * Puts up what one hand-over from outside the app asks for, the road every
+ * one takes: a link, files from the Finder or the Dock, and a launch's
+ * arguments. Several files, folders and pages open as one new tab group, and
+ * one thing alone comes up where a tab already shows it, or as a group of
+ * its own (`showFromOutside`).
+ */
+function openFromOutside(asks: readonly AppWindowAsk[]) {
+  showFromOutside(asks, launch.comeForward);
+}
+
+/** Files handed over together, put up after every hand-over that came before them. */
+function openFilesFromOutside(hostPaths: readonly string[]) {
+  if (hostPaths.length === 0) {
+    return;
+  }
+  inArrivalOrder(
+    Promise.resolve(asksOfAppFiles(hostPaths)),
+    openFromOutside,
+  ).catch((error: unknown) => {
+    logger.scope("outside-files").error("Could not open files", error);
+  });
+}
+
+/** A file from the Finder or the Dock, opened with the others arriving with it. */
+function openFileTogether(hostPath: string) {
+  filesTogether ??= createFilesTogether(openFilesFromOutside);
+  filesTogether(hostPath);
 }
 
 /** The link a launch was handed, by the scheme this build answers to. */

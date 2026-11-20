@@ -1,9 +1,24 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { GroupNewChatScreen } from "@/client/components/window/chat-tab-screens";
+import { useGroupTab } from "@/client/components/window/group-tab";
+import { matchScreen } from "@/client/components/window/window-href";
+import { createFileRoute, useRouterState } from "@tanstack/react-router";
 
 /**
- * The chat with no chat open: the inbox across the tab. Drawn by the layout,
- * which draws every chat; the route itself has nothing to draw.
+ * A new chat's tab, the zero state, writing into the draft its address
+ * names. As the window's own tab it is drawn by the layout around it, which
+ * draws every group; the route itself has nothing to draw there.
  */
 export const Route = createFileRoute("/_app/chats/")({
-  component: () => null,
+  component: NewChatRoute,
 });
+
+function NewChatRoute() {
+  const groupTab = useGroupTab();
+  const draft = useRouterState({
+    select: (state) => {
+      const screen = matchScreen(state.location.href);
+      return screen.kind === "inbox" ? screen.draft : undefined;
+    },
+  });
+  return groupTab ? <GroupNewChatScreen draftId={draft} /> : null;
+}

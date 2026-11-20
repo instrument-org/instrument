@@ -1,12 +1,8 @@
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
-import { appTabsAtom } from "@/client/components/window/app-tabs";
 import {
   folderOf,
   joinHostPath,
   segmentsOf,
 } from "@/client/components/window/host-path";
-import { freshTabId } from "@/client/lib/tab-actions";
-import { addTab } from "@/client/lib/tabs-model";
 import { osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
@@ -15,7 +11,6 @@ import {
   PROJECTS_FOLDER_NAME,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
-import { getDefaultStore } from "jotai";
 import { toast } from "@/client/lib/toast";
 
 /**
@@ -42,10 +37,18 @@ export async function revealInFileManager(hostPath: string) {
   }
 }
 
+/** How the app window opens a screen in a tab of its own, which the window sets as it draws. */
+let openTabInWindow: ((href: string) => void) | undefined;
+
+/** Sets how `showInFolder` opens Files in this window: the window's own opener, as a tab of the tab group up. */
+export function setFilesTabOpener(open: (href: string) => void) {
+  openTabInWindow = open;
+}
+
 /**
  * Shows a file or folder on the computer where it lives: in the app window, a
- * tab of the window's own in Files, standing in the folder, or in the one a
- * file is in with the file selected; elsewhere, in the Finder or its
+ * tab of its own in Files, in the tab group up, standing in the folder, or in
+ * the one a file is in with the file selected; elsewhere, in the Finder or its
  * counterpart. A tab of its own rather than the one up, so the person gets a
  * clean place to work from and whatever they were looking at stays put.
  */
@@ -54,18 +57,12 @@ export async function showInFolder(
   { kind }: { kind: "file" | "folder" },
 ) {
   if (hasFilesView()) {
-    const store = getDefaultStore();
-    // Settings sits over the window as a dialog, and the tab would open
-    // behind it.
-    store.set(settingsModalAtom, null);
-    const pathname =
+    openTabInWindow?.(
       kind === "folder"
         ? folderHref(hostPath)
         : folderHref(folderOf(hostPath), {
             select: segmentsOf(hostPath).at(-1),
-          });
-    store.set(appTabsAtom, (model) =>
-      addTab(model, { id: freshTabId(), pathname, select: true }),
+          }),
     );
     return;
   }

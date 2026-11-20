@@ -1,5 +1,5 @@
 import {
-  newTabHrefOf,
+  NEW_TAB_HREF,
   type TabVisit,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -30,7 +30,7 @@ export function stepTabVisit(
     direction === 1
       ? current.future
       : current.kind === "page" && !current.past?.length
-        ? [newTabVisit(current.group)]
+        ? [newTabVisit()]
         : current.past;
   const visit = from?.at(-1);
   if (!visit || !from) return undefined;
@@ -40,9 +40,10 @@ export function stepTabVisit(
       direction === 1
         ? from.slice(0, -1)
         : [...(current.future ?? []), visitOf(current)],
-    // The tab stays the chat's whatever it steps to.
+    // The tab stays in its group and on its side whatever it steps to.
     group: current.group,
     isOpened: current.isOpened,
+    ...(current.side === undefined ? {} : { side: current.side }),
     past:
       direction === -1
         ? from.slice(0, -1)
@@ -57,9 +58,10 @@ export function visitInTab(current: WindowTab, visit: TabVisit): WindowTab {
   return {
     ...visit,
     future: [],
-    // The tab stays the chat's whatever it visits.
+    // The tab stays in its group and on its side whatever it visits.
     group: current.group,
     isOpened: current.isOpened,
+    ...(current.side === undefined ? {} : { side: current.side }),
     past: [...(current.past ?? []), ...(previous ? [visitOf(previous)] : [])],
     stripKey: current.stripKey ?? current.id,
   };
@@ -111,9 +113,9 @@ function leftBehind(
   };
 }
 
-function newTabVisit(group: string | undefined): TabVisit {
+function newTabVisit(): TabVisit {
   return {
-    href: newTabHrefOf(group),
+    href: NEW_TAB_HREF,
     id: StoreId.newTabId(),
     kind: "screen",
   };
@@ -124,6 +126,7 @@ function visitOf(tab: WindowTab): TabVisit {
     future: _future,
     isOpened: _opened,
     past: _past,
+    side: _side,
     stripKey: _key,
     ...visit
   } = tab;

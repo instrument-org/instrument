@@ -385,6 +385,8 @@ const APP_CHIP_ICONS: Record<
   screen: "appWindow",
   settings: "fadersHorizontal",
   skill: "cube",
+  tab: "appWindow",
+  group: "appWindow",
 };
 
 /** The glyph at the front of a link into the app; a task wears the app's own mark. */

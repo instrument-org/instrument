@@ -196,6 +196,52 @@ describe("a window's ops", () => {
     expect(trashed()).toEqual(["image.png"]);
   });
 
+  it("write the asks moved into a draft, and read them back after a relaunch", async () => {
+    const { apply } = await open();
+    const notes = path.join(root, "notes.md");
+    apply({
+      draft: draft("a", {
+        asks: [
+          {
+            createdAt: DAY + 5,
+            excerpt: "Ship it",
+            id: "staged-1",
+            instruction: "Is this still true?",
+            path: notes,
+            target: "line 3",
+          },
+        ],
+      }),
+      type: "create",
+    });
+
+    expect(read()).toMatchInlineSnapshot(`
+      "---
+      id: "a"
+      created: 2026-10-19T12:00:00Z
+      updated: 2026-10-19T12:00:00Z
+      asks:
+        - file: "workspace:/notes.md"
+          target: "line 3"
+          excerpt: "Ship it"
+          instruction: "Is this still true?"
+      ---
+
+
+      "
+    `);
+    expect((await open()).store.snapshot().drafts[0]?.asks).toEqual([
+      {
+        createdAt: DAY,
+        excerpt: "Ship it",
+        id: "a-ask-0",
+        instruction: "Is this still true?",
+        path: notes,
+        target: "line 3",
+      },
+    ]);
+  });
+
   it("write what goes with the message as context, and read it back as chips and the composer's", async () => {
     const { apply, store } = await open();
     const plans = path.join(root, "Kitchen plans");

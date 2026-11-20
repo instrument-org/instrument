@@ -101,8 +101,9 @@
 // toolchain and caches are already set up, so it starts as fast as the
 // developer's instance, and `--with-sign-ins` copies the developer's account and
 // keys into it so it can run a real agent turn. The developer's own instance keeps
-// its workspace. Clean rooms not booted for 3 days are reaped like fixtures;
-// `--fresh` empties one first.
+// its workspace. Like a fixture, each boot starts with no tabs restored
+// (`--keep-tabs` carries them over). Clean rooms not booted for 3 days are
+// reaped like fixtures; `--fresh` empties one first.
 //
 //   node studio-drive.mjs boot --purpose "first chat" --clean-room first-chat --with-sign-ins
 //
@@ -404,28 +405,32 @@ function prepareWorkspace(name, { dirName = name, fresh, keepTabs }) {
 
   reapWorkArtifacts(home);
 
-  // The window's tabs, panes and chat groups live in the layout.json of the
-  // workspace's machine folder, which the seeder never writes, so without this
-  // every tab a run opens comes back on every later boot of the fixture.
   const machineDir = workspaceMachineDir(
     userDataDir,
     path.join(userDataDir, "workspace"),
   );
   if (!keepTabs && machineDir) {
-    rmSync(path.join(machineDir, "window", "layout.json"), { force: true });
-    rmSync(path.join(machineDir, "window", "windows"), {
-      force: true,
-      recursive: true,
-    });
-    rmSync(path.join(machineDir, "window", "window-state.json"), {
-      force: true,
-    });
+    forgetWindows(machineDir);
   }
   if (machineDir) {
     repinSettings(name, machineDir);
   }
 
   return { home, outputDir, tasks: result.tasks, userDataDir };
+}
+
+/**
+ * Forgets the windows a workspace had open: their tabs, their tab groups and
+ * where each window stood, all in the `window` folder of its machine folder,
+ * which neither the seeder nor a clean room's `--fresh` touches. Without it
+ * every tab and group a run opens comes back on every later boot.
+ */
+function forgetWindows(machineDir) {
+  const dir = path.join(machineDir, "window");
+  for (const file of ["layout.json", "groups.json", "window-state.json"]) {
+    rmSync(path.join(dir, file), { force: true });
+  }
+  rmSync(path.join(dir, "windows"), { force: true, recursive: true });
 }
 
 /**
@@ -710,7 +715,7 @@ function copyDevSignIns(keysDir) {
  * `withSignIns` it can run a real agent turn on the developer's sign-ins. The
  * app lists it in developer settings as agent-made; studio-drive reaps it.
  */
-function prepareCleanRoom(name, { purpose, withSignIns }) {
+function prepareCleanRoom(name, { keepTabs, purpose, withSignIns }) {
   reapStaleCleanRooms();
 
   const dir = path.join(CLEAN_ROOMS_ROOT, name);
@@ -745,6 +750,12 @@ function prepareCleanRoom(name, { purpose, withSignIns }) {
     // Into the clean room's machine folder, which the app adopts at its
     // first boot when it is not registered yet.
     copyDevSignIns(keysDirOf(devUserDataDir(), dir));
+  }
+
+  // As for a fixture, each boot starts with no windows from the last.
+  const machineDir = workspaceMachineDir(devUserDataDir(), dir);
+  if (!keepTabs && machineDir) {
+    forgetWindows(machineDir);
   }
 
   // Reaping goes by mtime, as for fixtures.
@@ -1519,7 +1530,7 @@ async function cmdBoot(
     }
   }
   const cleanRoom = CLEAN_ROOM
-    ? prepareCleanRoom(CLEAN_ROOM, { purpose, withSignIns })
+    ? prepareCleanRoom(CLEAN_ROOM, { keepTabs, purpose, withSignIns })
     : undefined;
   const scenario = SCENARIO
     ? prepareScenario(SCENARIO, { keepTabs })

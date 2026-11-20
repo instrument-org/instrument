@@ -308,6 +308,24 @@ static napi_value pasteboardFiles(napi_env env, napi_callback_info info) {
   });
 }
 
+/// The files of the drag in the air, every one of them, while it is still
+/// held: a page hears only how many there are until they are let go, and the
+/// window draws them by name before then. Read on AppKit's thread, as above.
+static napi_value dragFiles(napi_env env, napi_callback_info info) {
+  return answer(env, ^(Done done) {
+    NSArray<NSURL *> *urls = [[NSPasteboard pasteboardWithName:NSPasteboardNameDrag]
+        readObjectsForClasses:@[ NSURL.class ]
+                      options:@{NSPasteboardURLReadingFileURLsOnlyKey : @YES}];
+    NSMutableArray<NSString *> *paths = [NSMutableArray array];
+    for (NSURL *url in urls ?: @[]) {
+      if (url.path != nil) {
+        [paths addObject:url.path];
+      }
+    }
+    done(@{@"paths" : paths});
+  });
+}
+
 /// An errno by the name Node gives it, so main reads a failure as it would
 /// one of its own.
 static NSString *errnoName(int code) {
@@ -476,6 +494,7 @@ static const struct {
     {"fileIcon", fileIcon},
     {"finderEntries", finderEntries},
     {"pasteboardFiles", pasteboardFiles},
+    {"dragFiles", dragFiles},
     {"renameExclusive", renameExclusive},
     {"caseSensitivity", caseSensitivity},
     {"trashItem", trashItem},

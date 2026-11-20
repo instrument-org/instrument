@@ -16,6 +16,8 @@ import { describeErrorCause } from "../describe-error-cause";
 import { recordChanged } from "../record-changes";
 import { resolveChat, sessionOfChat } from "../record-folders";
 import { getWorkspaceConfig } from "../workspace-config";
+import { layoutParts } from "../group-layout-parts";
+import { askWindow } from "./window-tab";
 import { isWorking } from "./activity";
 
 /** What a wake carries: the part that starts the session's turn. */
@@ -333,7 +335,9 @@ async function deliver(wake: Wake, part: WakePart | undefined): Promise<void> {
   try {
     const modelURI = await chatModelURI(chatId);
     await wake.beforeNote?.(part);
-    const message = await saveNote(chatId, sessionId, part);
+    const message = await saveNote(chatId, sessionId, part, {
+      withLayout: true,
+    });
     // Looked up after the note is written, so a model the chat cannot resolve
     // still leaves the news in the conversation, where the user's next
     // message, or Try again on the failure written after it, carries it to
@@ -351,15 +355,40 @@ async function deliver(wake: Wake, part: WakePart | undefined): Promise<void> {
   }
 }
 
+/** How long a wake waits for the window to read the chat's tab group: a window answers in milliseconds. */
+export const WAKE_LAYOUT_TIMEOUT_MS = 1000;
+
+/**
+ * The tab group a chat works in, as its window reads it now; nothing when
+ * the app has no window to ask, or none answers in time.
+ */
+async function layoutNow(chatId: ChatId) {
+  if (getWorkspaceConfig().windowForChat?.(chatId) === undefined) {
+    return undefined;
+  }
+  const answer = await askWindow({
+    action: { kind: "list" },
+    askedBy: chatId,
+    group: chatId,
+    timeoutMs: WAKE_LAYOUT_TIMEOUT_MS,
+  }).catch(() => undefined);
+  return answer?.read;
+}
+
 /**
  * Writes a wake's part as a text-less user message in a session, which shows
  * in the conversation at once and reaches the agent with the session's next
- * turn, whatever starts it.
+ * turn, whatever starts it. `withLayout` adds the tab group the chat works in
+ * when it changed since the log last had it (`layoutParts`), for a wake that
+ * starts a turn: asked of the chat's window then, and left out when there
+ * is none or it does not answer within `WAKE_LAYOUT_TIMEOUT_MS`, so the log keeps the last
+ * layout it had and the next send carries the group as it stands.
  */
 export async function saveNote(
   chatId: ChatId,
   sessionId: StoreId.Session,
   part: WakePart,
+  { withLayout = false }: { withLayout?: boolean } = {},
 ): Promise<SessionMessage.UserWithParts> {
   const createdAt = new Date();
   const messageId = StoreId.newMessageId();
@@ -367,6 +396,15 @@ export async function saveNote(
     id: messageId,
     metadata: { createdAt, sessionId },
     parts: [
+      ...(withLayout
+        ? await layoutParts({
+            chatId,
+            createdAt,
+            messageId,
+            read: await layoutNow(chatId),
+            sessionId,
+          })
+        : []),
       {
         ...part,
         metadata: {

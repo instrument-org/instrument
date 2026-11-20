@@ -1,10 +1,16 @@
 import { FileDropRegion } from "@/client/components/file-drop-region";
 import {
+  currentDrag,
+  pressToDrag,
+} from "@/client/components/window/drag/session";
+import { type WindowHeld } from "@/client/components/window/drag/types";
+import {
   releaseSelfFileDrag,
   trackSelfFileDrag,
 } from "@/client/lib/self-file-drag";
 import { renderInBrowser } from "@/tests/render-browser";
-import { beforeEach, expect, test, vi } from "vitest";
+import { getDefaultStore } from "jotai";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const NOTE = "Drop to attach to your message";
 
@@ -184,6 +190,141 @@ test("keeps ignoring its own drag through a leave it never entered", async () =>
   trackSelfFileDrag();
   fire(region, "dragleave", fileDrag());
 
+  fire(region, "dragenter", fileDrag());
+  expect(isRingUp()).toBe(false);
+
+  fire(region, "drop", fileDrag());
+  expect(onFilesDropped).not.toHaveBeenCalled();
+});
+
+test("takes a drag this app started from outside the region at once", async () => {
+  const { isRingUp, onFilesDropped, region } = await drawRegion();
+  const elsewhere = document.createElement("div");
+  document.body.append(elsewhere);
+
+  // A file card in another chat, or a row of Files, dragged onto this composer.
+  trackSelfFileDrag([], { from: elsewhere });
+  fire(region, "dragenter", fileDrag());
+  await vi.waitFor(() => {
+    expect(isRingUp()).toBe(true);
+  });
+
+  fire(region, "drop", fileDrag());
+  await vi.waitFor(() => {
+    expect(onFilesDropped).toHaveBeenCalledTimes(1);
+  });
+  elsewhere.remove();
+});
+
+/** Lets go of whatever `carryInto` left held, for a test that failed holding it. */
+let letGoOfHeld: () => void = () => undefined;
+afterEach(() => {
+  letGoOfHeld();
+  letGoOfHeld = () => undefined;
+});
+
+/** Presses something the window's own drag holds and carries it into the middle of `over`. */
+function carryInto(held: WindowHeld, over: Element) {
+  const { height, left, top, width } = over.getBoundingClientRect();
+  const at = { x: left + width / 2, y: top + height / 2 };
+  const move = (type: string, x: number, y: number) =>
+    window.dispatchEvent(
+      new PointerEvent(type, {
+        buttons: type === "pointermove" ? 1 : 0,
+        clientX: x,
+        clientY: y,
+        isPrimary: true,
+      }),
+    );
+  pressToDrag(
+    { button: 0, clientX: at.x, clientY: at.y + 200, isPrimary: true },
+    () => ({ grab: { x: 0, y: 0 }, held }),
+  );
+  move("pointermove", at.x, at.y + 150);
+  move("pointermove", at.x, at.y);
+  letGoOfHeld = () => {
+    move("pointerup", at.x, at.y);
+  };
+  return letGoOfHeld;
+}
+
+/** A region taking folders, drawn in the store the window's drag publishes to. */
+async function drawFolderRegion() {
+  const onFoldersDropped = vi.fn();
+  const screen = await renderInBrowser(
+    <FileDropRegion
+      note={NOTE}
+      onFilesDropped={vi.fn()}
+      onFoldersDropped={onFoldersDropped}
+    >
+      <p style={{ height: 80 }}>contents</p>
+    </FileDropRegion>,
+    { store: getDefaultStore() },
+  );
+  const region = screen.container.firstElementChild;
+  if (!region) {
+    throw new Error("the region did not render");
+  }
+  return {
+    isRingUp: () => screen.container.textContent.includes(NOTE),
+    onFoldersDropped,
+    region,
+  };
+}
+
+const PLACE = {
+  id: "tab_p1",
+  kind: "link",
+  place: {
+    path: "/Users/mac-user/Documents",
+    pinned: ["/Users/mac-user/Documents"],
+  },
+  title: "Documents",
+  url: "file:///Users/mac-user/Documents/",
+} as const;
+
+test("adds a place held by the window's drag as its folder, under the ring", async () => {
+  const { isRingUp, onFoldersDropped, region } = await drawFolderRegion();
+  const letGo = carryInto(PLACE, region);
+  expect(currentDrag()?.landing?.kind).toBe("attach");
+  await vi.waitFor(() => {
+    expect(isRingUp()).toBe(true);
+  });
+  letGo();
+
+  expect(onFoldersDropped).toHaveBeenCalledWith([
+    { path: "/Users/mac-user/Documents", type: "folder" },
+  ]);
+  expect(currentDrag()).toBeUndefined();
+  await vi.waitFor(() => {
+    expect(isRingUp()).toBe(false);
+  });
+});
+
+test("leaves a bookmark held over it to the page around it", async () => {
+  const { isRingUp, onFoldersDropped, region } = await drawFolderRegion();
+  const letGo = carryInto(
+    {
+      bookmark: "b1",
+      id: "tab_b1",
+      kind: "link",
+      title: "Example",
+      url: "https://example.com/",
+    },
+    region,
+  );
+  expect(currentDrag()?.landing).toBeUndefined();
+  expect(isRingUp()).toBe(false);
+  letGo();
+
+  expect(onFoldersDropped).not.toHaveBeenCalled();
+});
+
+test("ignores a drag this app started from inside the region", async () => {
+  const { isRingUp, onFilesDropped, region } = await drawRegion();
+  const inside = region.querySelector("p");
+
+  trackSelfFileDrag([], { from: inside });
   fire(region, "dragenter", fileDrag());
   expect(isRingUp()).toBe(false);
 

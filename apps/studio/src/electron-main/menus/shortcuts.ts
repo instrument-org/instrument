@@ -20,6 +20,7 @@ import {
   type BaseWindow,
   BrowserWindow,
   type MenuItemConstructorOptions,
+  nativeTheme,
   type WebContents,
 } from "electron";
 
@@ -67,14 +68,11 @@ const SHORTCUT_ACTIONS: Record<ShortcutId, ShortcutAction> = {
       commandWindow(window, "openSettings");
     }
   },
-  themeDark: () => {
-    getWorkspacePreferences().set("theme", "dark");
-  },
-  themeLight: () => {
-    getWorkspacePreferences().set("theme", "light");
-  },
-  themeSystem: () => {
-    getWorkspacePreferences().set("theme", "system");
+  toggleTheme: () => {
+    getWorkspacePreferences().set(
+      "theme",
+      nativeTheme.shouldUseDarkColors ? "light" : "dark",
+    );
   },
 };
 

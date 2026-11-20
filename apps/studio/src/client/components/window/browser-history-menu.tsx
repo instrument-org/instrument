@@ -3,16 +3,13 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuShortcut,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { useAppTabs } from "@/client/components/window/app-tabs";
+import { useWindow } from "@/client/components/window/context";
 import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 
 import { shownAddress } from "./visited-page-rows";
@@ -45,7 +42,7 @@ export function BrowserHistoryMenu({
 
 function HistoryRows({ onOpen }: { onOpen: (url: string) => void }) {
   const visited = useRecentPages({ limit: SHOWN });
-  const appTabs = useAppTabs();
+  const { openScreen } = useWindow();
   return (
     <>
       <DropdownMenuLabel className="text-xs text-muted-foreground">
@@ -75,13 +72,12 @@ function HistoryRows({ onOpen }: { onOpen: (url: string) => void }) {
       <DropdownMenuSeparator />
       <DropdownMenuItem
         onSelect={() => {
-          appTabs.open(`${SCREEN_ROUTES.activity}?show=pages`);
+          openScreen(`${SCREEN_ROUTES.activity}?show=pages`, {
+            newTab: "reuseBlank",
+          });
         }}
       >
         Show full history
-        <DropdownMenuShortcut>
-          {formatAcceleratorText(WINDOW_SHORTCUTS.showActivity.accelerator)}
-        </DropdownMenuShortcut>
       </DropdownMenuItem>
     </>
   );

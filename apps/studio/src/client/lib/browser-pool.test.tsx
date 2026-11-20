@@ -12,7 +12,10 @@ import {
 import {
   getAttachedTargetsSnapshot,
   getGuest,
+  giveKeyboardTo,
+  holdKeyboardFromPages,
   initBrowserPool,
+  setPagePanes,
   setPaintHost,
   showOverSlot,
 } from "./browser-pool";
@@ -306,6 +309,36 @@ it("hides a parked page while main has it asleep, and shows it in a slot at once
   );
 });
 
+it("holds a page off the keyboard until let go, then hands it over, however long the hold", async () => {
+  const webview = element();
+  if (!webview) {
+    throw new Error("no guest mounted");
+  }
+  const slot = Symbol("slot");
+  showOverSlot(target, inlineBounds, slot);
+  await Promise.resolve();
+  // jsdom's element is a plain one, so the pool's focus is HTMLElement's.
+  const focus = vi.spyOn(HTMLElement.prototype, "focus");
+  vi.useFakeTimers({ toFake: ["Date"] });
+  try {
+    const letGoOfPress = holdKeyboardFromPages();
+    giveKeyboardTo(target);
+    const letGoOfDrag = holdKeyboardFromPages();
+    letGoOfPress();
+    vi.setSystemTime(Date.now() + 60_000);
+    expect(focus.mock.contexts).toEqual([]);
+
+    letGoOfDrag();
+    expect(focus.mock.contexts).toEqual([webview]);
+    letGoOfDrag();
+    expect(focus.mock.contexts).toEqual([webview]);
+  } finally {
+    vi.useRealTimers();
+    focus.mockRestore();
+    setPaintHost(target, slot);
+  }
+});
+
 it("lays out a page no slot has shown at the size the pane shows pages at", async () => {
   const container = () =>
     document.querySelectorAll("webview")[1]?.parentElement?.style;
@@ -326,4 +359,25 @@ it("lays out a page no slot has shown at the size the pane shows pages at", asyn
   setPaintHost(target, pane);
   await new Promise((resolve) => setTimeout(resolve, 200));
   expect(container()?.width).toBe("900px");
+});
+
+it("lays out a page behind at its own side's size, beside a side of another width", async () => {
+  const width = (index: number) =>
+    document.querySelectorAll("webview")[index]?.parentElement?.style.width;
+  setPagePanes(
+    new Map([
+      [target, "group:0"],
+      [behind, "group:1"],
+    ]),
+  );
+  const left = Symbol("left side");
+  const right = Symbol("right side");
+  showOverSlot(behind, { height: 600, width: 400, x: 900, y: 40 }, right);
+  setPaintHost(behind, right);
+  showOverSlot(target, { height: 600, width: 880, x: 0, y: 40 }, left);
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  expect(width(0)).toBe("880px");
+  expect(width(1)).toBe("400px");
+  setPaintHost(target, left);
+  setPagePanes(new Map());
 });

@@ -45,7 +45,6 @@ function RouteComponent() {
           {page ? (
             <>
               <InternalLink
-                allowOpenNewTab={false}
                 className="rounded-md px-1.5 py-1 text-sm text-muted-foreground hover:text-foreground"
                 to="/debug"
               >

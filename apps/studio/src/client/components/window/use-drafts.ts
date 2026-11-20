@@ -1,8 +1,4 @@
-import {
-  draftKeyString,
-  draftSnapshotsAtom,
-} from "@/client/atoms/prompt-value";
-import { cancelWords } from "@/client/drafts/settle-words";
+import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
 import {
   claimDraftAtom,
   createDraftAtom,
@@ -11,94 +7,84 @@ import {
   releaseDraftAtom,
   removeDraftAtom,
 } from "@/client/drafts/store";
-import {
-  type Draft,
-  type DraftContextItem,
-  draftGroupOf,
-  isLeftEmpty,
-} from "@/shared/drafts";
-import { chatFiltersAtom } from "@/client/atoms/window";
+import { type Draft } from "@/shared/drafts";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { holdSendsUntilOpened } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
+import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type ChatId,
+  type FileUpload,
+  type LayoutRead,
   type SessionMessageDataPart,
   StoreId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useAtom, useAtomValue, useSetAtom, useStore } from "jotai";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 import ms from "ms";
 import { useEffect, useState } from "react";
 import { finishBeforeLeaving } from "@/client/lib/before-leaving";
 import { toast } from "@/client/lib/toast";
 import { ulid } from "ulid";
 
-import { NO_FILTERS, type Project } from "./chats";
-import { type DraftSend } from "./compose-window";
-import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
-import { type useCompose } from "./use-compose";
-import { isHomeTab } from "./tab-model";
-import { type useWindowTabs } from "./window-tabs";
+import { type Project } from "./chats";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { pageToChat, pagesForChat } from "./draft-band";
+import { asksPart, stagedAsksAtom, useStagedAskActions } from "./staged-asks";
+import { chatFiltersUpAtom, type useWindowTabs } from "./window-tabs";
+import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
+import { chatHref, newChatHref } from "./window-href";
 
 /** How long a chat just started from a draft is marked as arriving in the inbox; the row's own motion is shorter. */
 const CHAT_ARRIVAL_MS = ms("3 seconds");
 
+/** What the composer hands over to start the chat. */
+export interface DraftSend {
+  files?: FileUpload.Input[];
+  folders?: { path: string }[];
+  modelURI: AIGatewayModelURI.Type;
+  prompt: string;
+}
+
 /**
- * A draft's life around where it is written: in the Chat screen, beside the
- * chat list, or in a window along the row's foot everywhere else; put away
- * with its words kept or thrown away with nothing written, moved between
- * the two, and started as the chat it is for. The windows and the screen are
- * the compose surfaces'; this is what happens to a draft on the way in and
- * out of one.
+ * A draft's life around where it is written, in the Chat screen beside the
+ * chat list: thrown away with a moment to take it back, and started as the
+ * chat it is for.
  */
 export function useDrafts({
   browser,
   folders,
-  compose,
   draftContext,
   isChat,
-  isChatAlone,
   isOpen,
-  openChat,
+  layoutOf,
   openDraftInChat,
-  openDrafts,
-  openNewChat,
   saveDefaultModelURI,
   projects,
   windowTabs,
 }: {
-  /** The window's browser, which opens the pages a draft names as its chat's tabs at the send. */
+  /** The window's browser, which opens the pages a draft names right after its chat's tab at the send. */
   browser: BrowserTabsHandle | null;
   /** The folders the window reaches, for how the agent reaches a file an ask is on. */
   folders: Record<string, { path: string }>;
-  /** The windows along the row's foot, which a draft is written in. */
-  compose: ReturnType<typeof useCompose>;
-  /** What a draft's window has up, read as its chat starts. */
+  /** What a draft has up beside it, read as its chat starts, with the tab it was written in. */
   draftContext: (
-    draftId: string,
+    draft: Draft,
+    tabId: string | undefined,
   ) => Promise<SessionMessageDataPart.ViewContextDataPart | undefined>;
-  /** Whether the tab up is the chat, whose inbox's project a new draft is filed under, and where a draft sent from there opens. */
+  /** Whether the tab up is the chat, whose inbox's project a new draft is filed under. */
   isChat: boolean;
-  /** Whether the tab up is on a chat with the chat list put away, where New leaves the chat up and writes the new one in a window along the foot. */
-  isChatAlone: boolean;
   /** Whether what the window opens on is made; no chat starts before it is. */
   isOpen: boolean;
-  /** Puts the tab up on a chat, whole, for a draft sent from the chat. */
-  openChat: (chatId: ChatId) => void;
+  /** The group of the tab a message goes from, as the chat reads it; see `layoutReadOf`. */
+  layoutOf?: (tabId: string) => LayoutRead | undefined;
   /** Puts the tab up on the Chat screen writing a draft, beside the chat list. */
   openDraftInChat: (id: string) => void;
-  /** Puts the tab up on the chat with its inbox out, wherever the window stood. */
-  openDrafts: () => void;
-  /** Puts the tab up on the Chat screen writing a new chat with nothing in it yet, filed under the project named. */
-  openNewChat: (projectId: string | undefined) => void;
   /** Keeps the model a chat was started with as the one the next draft opens with. */
   saveDefaultModelURI: ReturnType<typeof useDefaultModelURI>[2];
   /** The projects, for the one the inbox stands in. */
   projects: Project[];
-  windowTabs: ReturnType<typeof useWindowTabs>;
+  windowTabs: Pick<ReturnType<typeof useWindowTabs>, "allTabs" | "replace">;
 }) {
   const store = useStore();
   const drafts = useAtomValue(draftsAtom);
@@ -108,7 +94,7 @@ export function useDrafts({
   const releaseDraft = useSetAtom(releaseDraftAtom);
   const draftSent = useSetAtom(draftSentAtom);
   const setDraftSnapshots = useSetAtom(draftSnapshotsAtom);
-  const [chatFilters, setChatFilters] = useAtom(chatFiltersAtom);
+  const chatFilters = useAtomValue(chatFiltersUpAtom);
   const queryClient = useQueryClient();
   const stagedAsks = useAtomValue(stagedAsksAtom);
   const { remove: removeAsks, returnTo: returnAsks } = useStagedAskActions();
@@ -153,45 +139,19 @@ export function useDrafts({
       clearTimeout(timer);
     };
   }, [arrived]);
-  /**
-   * Brings a draft up to go on writing it: in the Chat screen, beside the
-   * chat list, while the tab is on Chat, and in a window along the foot
-   * everywhere else.
-   */
+  /** Brings a draft up to go on writing it, in the Chat screen beside the chat list. */
   const showDraft = (id: string) => {
-    if (isChat) {
-      compose.remove(draftGroupOf(id));
-      openDraftInChat(id);
-    } else {
-      compose.open(id);
-    }
-  };
-  /** Takes a draft's window into the Chat screen, written there in full. */
-  const expandDraft = (id: string) => {
-    compose.remove(draftGroupOf(id));
     openDraftInChat(id);
-  };
-  /** Sends the draft the Chat screen is writing to a window along the foot, leaving a new chat in its place. */
-  const popOutDraft = (id: string) => {
-    compose.open(id);
-    openNewChat(undefined);
   };
   /**
    * Makes a draft, filed under a project when the pane stands in one and with
    * words already in it when a button handed some over, and brings it up
-   * where drafts are written from where the tab stands (see `showDraft`), or
-   * in a window along the foot when `show` says so. Every ask is a new
-   * draft, beside the ones already open.
+   * where drafts are written from where the tab stands (see `showDraft`).
+   * Every ask is a new draft, beside the ones already open.
    */
-  const startDraft = (
-    projectId: string | undefined,
-    words = "",
-    context: DraftContextItem[] = [],
-    show: (id: string) => void = showDraft,
-  ) => {
+  const startDraft = (projectId: string | undefined, words = "") => {
     const now = Date.now();
     const draft: Draft = {
-      ...(context.length > 0 ? { context } : {}),
       createdAt: now,
       id: ulid(),
       ...(projectId ? { projectId } : {}),
@@ -199,7 +159,7 @@ export function useDrafts({
       words,
     };
     createDraft(draft);
-    show(draft.id);
+    showDraft(draft.id);
     return draft.id;
   };
   /** The project the inbox stands in, while the tab is on Chat and the inbox stands in one. */
@@ -208,26 +168,10 @@ export function useDrafts({
       ? projects.find((project) => project.id === chatFilters.projects[0])?.id
       : undefined;
   /**
-   * New, from the rail or its chord: on Chat, a new chat beside the chat
-   * list with nothing made until something is written in it, filed under the
-   * project the inbox stands in; on a chat with the list put away, and
-   * anywhere else, a draft in a window along the foot.
+   * A draft a button hands over a line to, made at once since it has
+   * something in it, filed as New files one.
    */
-  const newDraft = () => {
-    if (isChatAlone) {
-      startDraft(undefined, "", [], compose.open);
-    } else if (isChat) {
-      openNewChat(inboxProject());
-    } else {
-      startDraft(undefined);
-    }
-  };
-  /**
-   * A draft a button hands over a line or what to ask about to, made at once
-   * since it has something in it, filed as New files one.
-   */
-  const draftWith = (words = "", context?: DraftContextItem[]) =>
-    startDraft(inboxProject(), words, context);
+  const draftWith = (words = "") => startDraft(inboxProject(), words);
   /**
    * A new chat a link from outside asked for, with its words: a draft of its
    * own beside any already open, so nothing the person wrote is replaced,
@@ -249,30 +193,21 @@ export function useDrafts({
     );
   }, [draftIds, setDraftSnapshots]);
   /**
-   * Throws a draft away: its window, its folder with what its composer held,
-   * and its tabs. Answers once main has taken it away.
+   * Throws a draft away: its folder with what its composer held, and its
+   * tabs. Answers once main has taken it away.
    */
   const deleteDraft = (id: string) => {
     // What was marked for it goes back to its file's Ask, to be sent another way.
     returnAsks({ draftId: id, kind: "draft" });
-    compose.remove(draftGroupOf(id));
-    const removed = removeDraft(id);
-    windowTabs.dropGroup(draftGroupOf(id));
-    return removed;
+    return removeDraft(id);
   };
   /**
-   * Throws a draft away on the person's say, from its window or from Drafts,
-   * with a moment to take it back: its window goes and it leaves Drafts at
-   * once, and it is deleted only once the toast offering Undo is gone, or
-   * the window goes or the app quits first, since nothing is left to offer
-   * Undo then. Undo puts it back in Drafts, with its window back up if it
-   * had one.
+   * Throws a draft away on the person's say, from Drafts, with a moment to
+   * take it back: it leaves Drafts at once, and it is deleted only once the
+   * toast offering Undo is gone, or the window goes or the app quits first,
+   * since nothing is left to offer Undo then. Undo puts it back in Drafts.
    */
   const discardDraft = (id: string) => {
-    const wasOpen = compose.entries.some(
-      (entry) => entry.kind === "draft" && entry.draftId === id,
-    );
-    compose.remove(draftGroupOf(id));
     setDiscardingIds((current) => new Set(current).add(id));
     let isSettled = false;
     const settle = (keep: boolean) => {
@@ -284,9 +219,6 @@ export function useDrafts({
       setDiscardingIds((current) => withoutId(current, id));
       if (!keep) {
         return deleteDraft(id);
-      }
-      if (wasOpen) {
-        showDraft(id);
       }
       return undefined;
     };
@@ -307,47 +239,18 @@ export function useDrafts({
     });
   };
   /**
-   * Closes a draft's window: one with anything in it is kept in Drafts the
-   * way mail keeps a draft, with a toast offering to go to Drafts, and
-   * one left empty (`isLeftEmpty`, the rule the Chat
-   * screen's new chat keeps too) is thrown away, so a draft opened and
-   * closed again leaves nothing behind. The words come from the window,
-   * since the record follows the box a beat behind. One still dictating is
-   * kept, since the words on their way land in it.
-   */
-  const closeDraft = (id: string, words: string, dictating = false) => {
-    const draft = store.get(draftsAtom).find((entry) => entry.id === id);
-    const hasTabs = windowTabs.allTabs.some(
-      (tab) => tab.group === draftGroupOf(id) && !isHomeTab(tab),
-    );
-    if (!dictating && (!draft || isLeftEmpty(draft, { hasTabs, words }))) {
-      void deleteDraft(id);
-      return;
-    }
-    compose.remove(draftGroupOf(id));
-    toast("Your draft is saved in Drafts", {
-      action: {
-        label: "View",
-        onClick: () => {
-          setChatFilters({ ...NO_FILTERS, place: "drafts" });
-          openDrafts();
-        },
-      },
-    });
-  };
-  /**
    * Starts the chat the draft is for: what its composer sends (the words,
    * the files, the folders, the model) and its project as the first message,
    * with what its band shows as the context; then what the draft gathered
-   * becomes the chat's tabs exactly as they are. Sent from the chat, the
-   * window goes and the tab up opens the chat whole; sent from anywhere
-   * else, the window becomes the chat's small view in the same corner and
-   * the place under it is left as it is. Either way the words sent stand
-   * in its transcript from the press, and the chat's row arrives in the
-   * inbox marked. A send that fails brings the draft back up with what it
-   * held.
+   * becomes the chat's tabs exactly as they are. The tab the draft was
+   * written in opens the chat whole, the words sent standing in its
+   * transcript from the press, and the chat's row arrives in the inbox
+   * marked. A send that fails brings the draft back up with what it held.
+   * `sentFrom` is the tab the draft was written in, which becomes its chat,
+   * named by the screen sending it since a draft made in the same press is
+   * not in the tab's address yet.
    */
-  const startChat = (id: string, send: DraftSend) => {
+  const startChat = (id: string, send: DraftSend, sentFrom: string) => {
     // Read from the store rather than this render: a new chat's draft can be
     // made in the same press that sends it.
     const draft = store.get(draftsAtom).find((entry) => entry.id === id);
@@ -357,13 +260,11 @@ export function useDrafts({
     // Read at the press, while the draft's window and what its band has up
     // are still there to read; the window changes under it at once.
     // With the chips it showed, for the transcript to draw.
-    const viewing = draftContext(id).catch(() => undefined);
+    const viewing = draftContext(draft, sentFrom).catch(() => undefined);
+    const layoutSent = layoutOf?.(sentFrom);
     // Chosen here rather than by the workspace, so the window can be the
     // chat's before the chat exists.
     const sessionId = StoreId.newSessionId();
-    // Read at the press too: where the draft was sent from is where its
-    // chat opens.
-    const opensWhole = isChat;
     // The window becomes the chat before this message has left, so anything
     // sent from it waits for this one to land first.
     const opened = holdSendsUntilOpened(sessionId);
@@ -405,9 +306,8 @@ export function useDrafts({
       // message naming the draft is what says it was sent and a launch after
       // a crash finds that message by the chat the draft names. A draft whose
       // file cannot be written is still sent; what is lost is the chance to
-      // finish the send later. The words go with the claim, so nothing typed
-      // a beat before the press is left to be written after it.
-      cancelWords(draftKeyString({ draftId: id, scope: "draft" }));
+      // finish the send later. The words go with the claim, and the composer
+      // sending them dropped what it had waiting to be written.
       await claimDraft({ chatId, id, words: send.prompt }).catch(
         () => undefined,
       );
@@ -416,15 +316,18 @@ export function useDrafts({
       if (projectId !== undefined) {
         setSentProjects((current) => new Map(current).set(chatId, projectId));
       }
-      if (opensWhole) {
-        compose.remove(draftGroupOf(id));
-        // Written in the Chat screen, the draft's pages stand in the side
-        // panel, so they become the chat's as the tab moves to it: the panel
-        // stays put rather than closing and opening again.
-        handOverTabs(draft, chatId);
-        openChat(chatId);
-      } else {
-        compose.becomeChat(id, chatId);
+      // The tab the draft was written in is the chat from here, in place,
+      // where back does not go to the draft it was. Each web page the draft
+      // names by its address, and no tab of its group shows, opens right
+      // after it (`pageToChat`).
+      turnTab(sentFrom, chatHref(chatId));
+      const chatTab = windowTabs.allTabs.find((tab) => tab.id === sentFrom);
+      if (chatTab?.group !== undefined) {
+        const { group } = chatTab;
+        const own = windowTabs.allTabs.filter((tab) => tab.group === group);
+        for (const url of pagesForChat(draft, own).toReversed()) {
+          pageToChat({ browser, chatTab: { group, id: sentFrom }, url });
+        }
       }
       // Each send settles on its own: the mutation observer follows only the
       // latest call, so callbacks handed to it would be lost for a draft sent
@@ -435,6 +338,7 @@ export function useDrafts({
         folders: send.folders,
         fromDraft: id,
         id: chatId,
+        ...(layoutSent ? { layout: layoutSent } : {}),
         modelURI: send.modelURI,
         prompt: send.prompt,
         ...(draft.projectId ? { project: draft.projectId } : {}),
@@ -452,12 +356,7 @@ export function useDrafts({
       }
       if (failed) {
         releaseDraft(id);
-        if (opensWhole) {
-          windowTabs.adoptGroup(chatId, draftGroupOf(id));
-          showDraft(id);
-        } else {
-          compose.becomeDraft(chatId, id);
-        }
+        turnTab(sentFrom, newChatHref(id));
         setSentWords((current) => withoutKey(current, chatId));
         setSentProjects((current) => withoutKey(current, chatId));
         toast.error("Couldn't start the chat", { cause: failed.error });
@@ -474,53 +373,28 @@ export function useDrafts({
       draftSent(id);
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
-      if (!opensWhole) {
-        handOverTabs(draft, chatId);
-      }
     })();
   };
-  /**
-   * What a draft gathered becomes its chat's tabs, the pages and folders of
-   * its band as they stand, and each web page it names by its address opens
-   * as a tab of the chat's (`pageToChat`); new-tab pages a build before this
-   * one opened a draft on are not carried over, and a draft that gathered
-   * nothing hands over nothing, so the chat opens with no pane.
-   */
-  const handOverTabs = (draft: Draft, chatId: ChatId) => {
-    const group = draftGroupOf(draft.id);
-    const own = windowTabs.allTabs.filter((tab) => tab.group === group);
-    const homes = own.filter((tab) => isHomeTab(tab));
-    for (const home of homes) {
-      windowTabs.close(home.id);
+  /** A tab sent to another address in place, its history's step replaced rather than added to. */
+  const turnTab = (tabId: string, href: string) => {
+    const router = getGroupTabRouter(tabId);
+    if (router) {
+      router.history.replace(href);
+      return;
     }
-    if (homes.length === own.length) {
-      windowTabs.dropGroup(group);
-    } else {
-      windowTabs.adoptGroup(group, chatId);
+    const tab = windowTabs.allTabs.find((entry) => entry.id === tabId);
+    if (tab?.kind === "screen") {
+      windowTabs.replace(tabId, { ...tab, history: undefined, href });
     }
-    pagesForChat(draft, own).forEach((url, index) => {
-      pageToChat({
-        browser,
-        chatId,
-        isUp: index === 0 && homes.length === own.length,
-        url,
-        windowTabs,
-      });
-    });
   };
   return {
     arrivedId: arrived?.chatId,
-    closeDraft,
     discardDraft,
     discardingIds,
     draftFromLink,
     draftWith,
-    expandDraft,
-    newDraft,
-    popOutDraft,
     sentProjects,
     sentWords,
-    showDraft,
     startChat,
     startingIds,
   };

@@ -1,12 +1,7 @@
-import { type ChatId } from "@instrument-org/workspace/client";
-
-import { draftOfGroup } from "@/shared/drafts";
-import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
-
+import { type ChatGesture } from "./beside-chat";
 import { type OpenOptions } from "./context";
 import { isGroupScreenHref } from "./group-screen";
-import { tasksOfHref } from "./tab-location";
-import { chatOfGroup, matchScreen } from "./window-href";
+import { matchScreen } from "./window-href";
 
 /**
  * Where an open lands, decided from the ask and the window as it stands,
@@ -32,6 +27,8 @@ export type PagePlacement =
   | { behind: boolean; kind: "window-tab" }
   /** Into a group not on screen, waiting there; brought on screen when shown. */
   | { activate: boolean; group: string; kind: "group-behind"; show: boolean }
+  /** A tab of its own right after the one up in the group on screen, waiting behind it when asked. */
+  | { behind: boolean; kind: "group-new-tab" }
   /** No group on screen: the window's tab up goes to the site, a step on, or in place of a screen handing its file over. */
   | { kind: "window-site"; replace: boolean }
   /** The page up in the group on screen goes to the address. */
@@ -42,8 +39,9 @@ export type PagePlacement =
   | { kind: "new-page"; replacesUp: boolean };
 
 /**
- * Where a page opens: a window tab of its own when asked; into a group
- * other than the one on screen, waiting there; as a site in the window's tab
+ * Where a page opens: asked for in a new tab, right after the tab up in
+ * the group on screen, or a window tab of its own with no group on screen;
+ * into a group other than the one on screen, waiting there; as a site in the window's tab
  * up when no group is on screen; otherwise in the group on screen, where the
  * page up goes there, or a tab of its own is opened (a website again however
  * many tabs are on it, a file's tab brought forward), or the new page takes
@@ -62,7 +60,12 @@ export function pagePlacementOf(
   { groupOnScreen, up }: PlacementContext,
 ): PagePlacement {
   if (newTab) {
-    return { behind, kind: "window-tab" };
+    if (groupOnScreen === undefined) {
+      return { behind, kind: "window-tab" };
+    }
+    return into === undefined || into === groupOnScreen
+      ? { behind, kind: "group-new-tab" }
+      : { activate: !behind, group: into, kind: "group-behind", show: false };
   }
   if (into !== undefined && into !== groupOnScreen) {
     return { activate, group: into, kind: "group-behind", show };
@@ -90,6 +93,8 @@ export type ScreenPlacement =
   | { kind: "window-navigate" }
   /** Into a group not on screen, waiting there; brought on screen when shown. */
   | { group: string; kind: "group-behind"; select: boolean; show: boolean }
+  /** A tab of its own right after the one up in the group on screen, waiting behind it when asked. */
+  | { behind: boolean; kind: "group-new-tab" }
   /** A tab of the group on screen, opened beside none: it has nothing up to stand in place of. */
   | { kind: "group-open" }
   /** A tab of its own in the group on screen, or the one already at the address. */
@@ -99,9 +104,10 @@ export type ScreenPlacement =
 
 /**
  * Where a screen opens (a chat, a memory, a skill and a chat's tasks are
- * placed before this): a window tab of its own when asked; the window's tab
- * up for an app and for any screen no group's tab stands on (the release
- * notes); into a group other than the one on screen, waiting there;
+ * placed before this): the window's tab up for an app not asked for in a tab of its own, and for any screen no
+ * group's tab stands on (the release notes); asked for in a new tab, right
+ * after the tab up in the group on screen, or a window tab of its own with
+ * no group on screen; into a group other than the one on screen, waiting there;
  * the window's tab up outside a chat; otherwise in the chat on screen, where
  * the tab up goes there, or a tab of its own opens, or one opens with
  * nothing up.
@@ -118,11 +124,20 @@ export function screenPlacementOf(
   }: OpenOptions,
   { groupOnScreen, isChatOnScreen, up }: PlacementContext,
 ): ScreenPlacement {
-  if (newTab) {
-    return { behind, kind: "window-tab" };
-  }
-  if (matchScreen(href).kind === "app" || !isGroupScreenHref(href)) {
+  // An app comes up where it already is, unless asked for in a tab of its own.
+  if (
+    !isGroupScreenHref(href) ||
+    (matchScreen(href).kind === "app" && !newTab)
+  ) {
     return { kind: "window-navigate" };
+  }
+  if (newTab) {
+    if (groupOnScreen === undefined) {
+      return { behind, kind: "window-tab" };
+    }
+    return into === undefined || into === groupOnScreen
+      ? { behind, kind: "group-new-tab" }
+      : { group: into, kind: "group-behind", select: !behind, show: false };
   }
   if (into !== undefined && into !== groupOnScreen) {
     return {
@@ -143,64 +158,86 @@ export function screenPlacementOf(
     : { kind: "group-navigate" };
 }
 
-export type TasksPlacement =
-  /** The chat's tab up already shows tasks, and walks there in place. */
-  | { kind: "in-place" }
-  /** The chat's tab at the address, or a new one, up in the chat, which comes on screen first when it is not. */
-  | { kind: "in-chat"; navigatesWindow: boolean };
-
 /**
- * Where a chat's tasks, or one task, open: a tasks tab already up in the
- * chat on screen walks there in place; anything else gets the chat's tab at
- * that address or a new one, with the chat brought on screen in the
- * window's tab up (or a tab of its own when asked) when it is not there.
+ * An open asking for a new tab the way a browser opens its own pages
+ * (`newTab: "reuseBlank"`), as it lands: in place of a blank New Tab up,
+ * which has nothing worth keeping beside it, and a new tab otherwise. A
+ * window or a place the person asked for stays as asked.
  */
-export function tasksPlacementOf(
-  owner: ChatId,
-  { newTab = false, ownTab = false }: OpenOptions,
-  {
-    groupOnScreen,
-    upInOwner,
-  }: {
-    groupOnScreen: string | undefined;
-    /** The address of the screen the owning chat has up, when it has a screen up. */
-    upInOwner: string | undefined;
-  },
-): TasksPlacement {
-  const walksInPlace =
-    !newTab &&
-    !ownTab &&
-    owner === groupOnScreen &&
-    upInOwner !== undefined &&
-    tasksOfHref(upInOwner) !== undefined;
-  if (walksInPlace) {
-    return { kind: "in-place" };
+export function reuseBlankOf(
+  options: OpenOptions,
+  { up }: Pick<PlacementContext, "up">,
+): OpenOptions {
+  const { newTab, ...rest } = options;
+  if (newTab !== "reuseBlank") {
+    return options;
   }
-  return {
-    kind: "in-chat",
-    navigatesWindow: newTab || owner !== groupOnScreen,
-  };
+  if (rest.newWindow === true || rest.into !== undefined) {
+    return rest;
+  }
+  return up?.isFresh === true ? rest : { ...rest, newTab: true };
 }
 
 /**
- * The group of chat tabs a page that asked for a tab of its own is in (a
- * `target=_blank` link, a sign-in button, a middle- or Cmd-click), named by
- * the browser target it asked from, so the tab opens beside it there: a
- * chat's, or a new chat's still being written. A page a file tab draws in its
- * viewer is in the group of that file tab. Undefined for a page of the
- * window's own, whose tab opens across the window's bar.
+ * An open as it lands inside the window, where only a menu's Open in New Tab
+ * Group or Open in New Window (`into`) makes a group: a Shift-click's window
+ * of its own is a new tab in front.
  */
-export function groupOfAskingPage(
-  targetId: string,
-  tabs: readonly { group?: string; id: string }[],
-): string | undefined {
-  let group = tabs.find((tab) => tab.id === targetId)?.group;
-  // A viewer's page is in a group no strip lists, named for its file tab.
-  if (group?.startsWith(HOSTED_PAGE_GROUP_PREFIX)) {
-    const owner = group.slice(HOSTED_PAGE_GROUP_PREFIX.length);
-    group = tabs.find((tab) => tab.id === owner)?.group;
+export function inGroup(options: OpenOptions): OpenOptions {
+  const { newWindow, ...rest } = options;
+  return newWindow === true ? { ...rest, behind: false, newTab: true } : rest;
+}
+
+/**
+ * What the person did, read from an open's options: a tab asked to wait
+ * behind (a Cmd-click, a middle click), a new tab asked for in front (Open
+ * in New Tab, a Shift-click), or a plain click.
+ */
+export function gestureOf(options: OpenOptions): ChatGesture {
+  if (options.behind === true) {
+    return "background";
   }
-  return chatOfGroup(group) !== undefined || draftOfGroup(group) !== undefined
-    ? group
-    : undefined;
+  return options.newTab === true || options.newWindow === true
+    ? "newTab"
+    : "click";
+}
+
+/** Where a chat opened from inside the window goes (`chatPlacementOf`). */
+export type ChatPlacement =
+  /** From the chat it was clicked in (`openBesideChat`). */
+  | { chatTab: string; gesture: ChatGesture; kind: "beside" }
+  /** Right after the tab it was clicked in, which is no chat. */
+  | { after: string; behind: boolean; group: string; kind: "after" }
+  /** Right after the tab up in the group on screen. */
+  | { behind: boolean; kind: "group-new-tab" }
+  /** The place a menu's Open in Split, New Tab Group or New Window picked. */
+  | { into: "group" | "split" | "window"; kind: "menu" }
+  /** A group of its own, for a window with no group up to put a tab in. */
+  | { kind: "own-group" };
+
+/**
+ * Where a chat opened from inside the window goes: a tab, never a group of
+ * its own unless a menu asked for one or the window has no group up. From
+ * the chat it was clicked in (`place`, from `OpenOptions.chat`) by the
+ * person's gesture, else right after the tab up, in front unless asked to
+ * wait behind.
+ */
+export function chatPlacementOf(
+  asked: OpenOptions,
+  place: undefined | { after: string; group: string; isBeside: boolean },
+  { groupOnScreen }: Pick<PlacementContext, "groupOnScreen">,
+): ChatPlacement {
+  if (asked.into) {
+    return { into: asked.into, kind: "menu" };
+  }
+  const behind = asked.behind === true;
+  if (place?.isBeside === true) {
+    return { chatTab: place.after, gesture: gestureOf(asked), kind: "beside" };
+  }
+  if (place !== undefined) {
+    return { after: place.after, behind, group: place.group, kind: "after" };
+  }
+  return groupOnScreen === undefined
+    ? { kind: "own-group" }
+    : { behind, kind: "group-new-tab" };
 }

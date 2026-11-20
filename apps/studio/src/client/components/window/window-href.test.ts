@@ -103,7 +103,6 @@ describe("sameHref", () => {
 
 it("reads every kind of address", () => {
   const hrefs = [
-    "/new-tab",
     "/browser",
     "/files?path=&root=~",
     "/files?file=%2FUsers%2Fme%2Fa.md&path=&root=~&tree=%2FUsers%2Fme",
@@ -128,10 +127,17 @@ it("reads every kind of address", () => {
     "/extensions",
     "/debug",
     "/debug/components/colors",
+    "/chat-list",
+    "/chat-list?q=trip",
+    "/memory",
     "/memory/trip-notes",
     "/memory/a/b",
+    "/skills",
     "/skills/provider%3Aweb",
     "/projects/prj_01JDAILY",
+    "/settings",
+    "/settings/providers",
+    "/settings/General",
     "/settings/theme",
     "/screen/shortcuts",
     "/nowhere",
@@ -154,6 +160,12 @@ it("reads every kind of address", () => {
         },
         "/browser": {
           "kind": "browser",
+        },
+        "/chat-list": {
+          "kind": "chats",
+        },
+        "/chat-list?q=trip": {
+          "kind": "chats",
         },
         "/chats": {
           "kind": "inbox",
@@ -207,15 +219,15 @@ it("reads every kind of address", () => {
           "path": "",
           "root": "~",
         },
+        "/memory": {
+          "kind": "memories",
+        },
         "/memory/a/b": {
           "kind": "unknown",
         },
         "/memory/trip-notes": {
           "kind": "memory",
           "name": "trip-notes",
-        },
-        "/new-tab": {
-          "kind": "newTab",
         },
         "/nowhere": {
           "kind": "unknown",
@@ -231,6 +243,17 @@ it("reads every kind of address", () => {
           "kind": "namedScreen",
           "name": "shortcuts",
         },
+        "/settings": {
+          "kind": "settings",
+        },
+        "/settings/General": {
+          "kind": "setting",
+          "name": "General",
+        },
+        "/settings/providers": {
+          "kind": "settings",
+          "section": "providers",
+        },
         "/settings/theme": {
           "kind": "setting",
           "name": "theme",
@@ -238,6 +261,9 @@ it("reads every kind of address", () => {
         "/sites/a%3Ab": {
           "id": "a:b",
           "kind": "site",
+        },
+        "/skills": {
+          "kind": "skills",
         },
         "/skills/provider%3Aweb": {
           "kind": "skill",

@@ -1,7 +1,7 @@
 import { useShowChatFile } from "@/client/hooks/use-show-chat-file";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { paneOpenByGroupAtom, type WindowTab } from "@/client/atoms/window";
+import { type WindowTab } from "@/client/atoms/window";
 import {
   browserTargetOf,
   type BrowserTargetId,
@@ -9,7 +9,6 @@ import {
   type StoreId,
 } from "@instrument-org/workspace/client";
 import { useMutation } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
 import {
   type ReactNode,
   useContext,
@@ -89,7 +88,6 @@ export function LiveTranscriptSurface({
   const appWindow = useContext(WindowContext);
   const showChatFile = useShowChatFile();
   const { select } = useWindowTabs();
-  const setPaneOpenByGroup = useSetAtom(paneOpenByGroupAtom);
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const stopCommand = useMutation(
     rpcClient.workspace.chats.backgroundProcesses.stop.mutationOptions(),
@@ -100,7 +98,6 @@ export function LiveTranscriptSurface({
     appWindow,
     chat,
     select,
-    setPaneOpenByGroup,
     showChatFile,
     stop,
     stopCommand,
@@ -110,7 +107,6 @@ export function LiveTranscriptSurface({
       appWindow,
       chat,
       select,
-      setPaneOpenByGroup,
       showChatFile,
       stop,
       stopCommand,
@@ -127,11 +123,8 @@ export function LiveTranscriptSurface({
       latest.current.appWindow?.openPage(url, { show: true });
     },
     onShowPage: (tabId) => {
-      // In front in its chat, with the chat's pane open, as the agent's own
-      // `show` does.
-      const now = latest.current;
-      now.select(tabId);
-      now.setPaneOpenByGroup((current) => ({ ...current, [now.chat]: true }));
+      // In front in its group, as the agent's own `show` does.
+      latest.current.select(tabId);
     },
     onStopCommand: ({ id, sessionId }) => {
       latest.current.stopCommand.mutate({

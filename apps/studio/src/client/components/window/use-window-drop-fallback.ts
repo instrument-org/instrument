@@ -5,10 +5,13 @@ import {
 } from "@/client/lib/self-file-drag";
 import { useEffect, useRef } from "react";
 
+import { filesOfDrop } from "./drag/held-tabs";
+import { type DroppedFile } from "./drag/types";
+
 /**
- * The window as the drop target of last resort: a file let go of where
- * nothing else takes one opens in a tab of its own, the way a drop on the
- * Dock icon does, and a folder opens the Finder standing in it. Nothing is
+ * The window as the drop target of last resort: files let go of where
+ * nothing else takes them open the way a drop on the Dock icon does, every
+ * one of them at once. Nothing is
  * drawn for it, since an outline there would read as a different promise
  * from whatever is under the pointer.
  *
@@ -19,7 +22,7 @@ import { useEffect, useRef } from "react";
  * reaches the window at all.
  */
 export function useWindowDropFallback(
-  onOpen: (dropped: { hostPath: string; isFolder: boolean }) => void,
+  onOpen: (dropped: readonly DroppedFile[]) => void,
 ) {
   const onOpenRef = useRef(onOpen);
   useEffect(() => {
@@ -54,15 +57,9 @@ export function useWindowDropFallback(
       if (isOwnDrag || !event.dataTransfer) {
         return;
       }
-      for (const item of event.dataTransfer.items) {
-        const file = item.kind === "file" ? item.getAsFile() : null;
-        const hostPath = file ? window.api.getFilePath(file) : "";
-        if (hostPath) {
-          onOpenRef.current({
-            hostPath,
-            isFolder: item.webkitGetAsEntry()?.isDirectory ?? false,
-          });
-        }
+      const dropped = filesOfDrop(event.dataTransfer);
+      if (dropped.length > 0) {
+        onOpenRef.current(dropped);
       }
     };
 

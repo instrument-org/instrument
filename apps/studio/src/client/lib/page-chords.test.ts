@@ -7,13 +7,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type PageChord, pageForChord, runPageChord } from "./page-chords";
 
-const { foregroundBrowser, getGuest, pageHoldingKeyboard, stepPage } =
-  vi.hoisted(() => ({
-    foregroundBrowser: vi.fn(),
-    getGuest: vi.fn(),
-    pageHoldingKeyboard: vi.fn(),
-    stepPage: vi.fn(),
-  }));
+const {
+  foregroundBrowser,
+  getGuest,
+  keyboardSide,
+  pageHoldingKeyboard,
+  pageOfSide,
+  stepPage,
+} = vi.hoisted(() => ({
+  foregroundBrowser: vi.fn(),
+  getGuest: vi.fn(),
+  keyboardSide: vi.fn(),
+  pageHoldingKeyboard: vi.fn(),
+  pageOfSide: vi.fn(),
+  stepPage: vi.fn(),
+}));
 
 vi.mock("@/client/lib/browser-pool", () => ({
   getGuest,
@@ -23,6 +31,7 @@ vi.mock("@/client/lib/browser-pool", () => ({
 vi.mock("@/client/lib/foreground-browser-registry", () => ({
   foregroundBrowser,
 }));
+vi.mock("@/client/lib/keyboard-place", () => ({ keyboardSide, pageOfSide }));
 
 const TYPED_IN = browserTargetOf(StoreId.newTabId());
 const LOOKED_AT = browserTargetOf(StoreId.newTabId());
@@ -40,6 +49,7 @@ function where({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  keyboardSide.mockReturnValue(null);
 });
 
 describe("pageForChord", () => {
@@ -61,6 +71,29 @@ describe("pageForChord", () => {
       expect(pageForChord(chord)).toBe(caretInWindow);
     },
   );
+
+  it("means the page of the tab group's side with the keyboard, or none, wherever the caret is", () => {
+    where({ keyboard: TYPED_IN, looking: LOOKED_AT });
+    keyboardSide.mockReturnValue({});
+    pageOfSide.mockReturnValue(LOOKED_AT);
+    for (const chord of [
+      "back",
+      "reloadPage",
+      "zoomIn",
+      "printPage",
+    ] as const) {
+      expect(pageForChord(chord)).toBe(LOOKED_AT);
+    }
+    pageOfSide.mockReturnValue(null);
+    for (const chord of [
+      "back",
+      "reloadPage",
+      "zoomIn",
+      "printPage",
+    ] as const) {
+      expect(pageForChord(chord)).toBeNull();
+    }
+  });
 
   it("means no page when none is on screen", () => {
     where({ keyboard: null, looking: null });

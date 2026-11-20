@@ -96,9 +96,11 @@ export type FilesIntent =
     }
   /**
    * A drag rested on a folder, which opens under it in place of the step on
-   * screen (`ShownStep.sprungFrom`), so the drag can go on into it.
+   * screen (`ShownStep.sprungFrom`), so the drag can go on into it: one
+   * under the root, by its path, or a place of the sidebar, by its own
+   * `root`.
    */
-  | { path: string; type: "spring" }
+  | { path: string; root?: string; type: "spring" }
   /**
    * The folder the tab is rooted at went (thrown away, moved in the Finder):
    * the tab stands in `root`, the nearest folder above it still there, in
@@ -247,8 +249,21 @@ function applied(
     case "leaveGone":
       return [{ path: "", root: intent.root, view: step.view }, "replace"];
     case "spring":
-      // In the columns the folder opens as selecting it does, beside the
-      // column it is in.
+      // A place of the sidebar opens at its own top, in the layout on
+      // screen; in the columns a folder in them opens as selecting it does,
+      // beside the column it is in.
+      if (intent.root !== undefined && intent.root !== step.root) {
+        return [
+          {
+            ...step,
+            path: "",
+            query: undefined,
+            root: intent.root,
+            select: undefined,
+          },
+          "replace",
+        ];
+      }
       return [
         inColumns
           ? selecting(step, intent.path)

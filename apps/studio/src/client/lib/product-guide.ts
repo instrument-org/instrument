@@ -2,9 +2,10 @@ import {
   SETTINGS_INDEX,
   SETTINGS_PAGES,
   type SettingsEntry,
+  settingsTabTitle,
 } from "@/client/components/settings/settings-index";
 import { formatAcceleratorFor } from "@/shared/format-accelerator";
-import { SCREENS } from "@/shared/instrument-screens";
+import { type ScreenName, SCREENS } from "@/shared/instrument-screens";
 import {
   SHORTCUT_GUIDE_ENTRIES,
   SHORTCUT_GUIDE_GROUPS,
@@ -38,6 +39,16 @@ export function productGuideReference({
   ].join("\n");
 }
 
+/**
+ * The parts of the settings index that are pages of their own, by their
+ * screen's name: the guide lists them as screens, each with its rows, which a
+ * settings link still opens.
+ */
+const OWN_PAGES: Partial<Record<SettingsEntry["tab"], ScreenName>> = {
+  Memory: "memory",
+  Skills: "skills",
+};
+
 function settingsSection() {
   const lines = [
     "## Settings",
@@ -47,10 +58,14 @@ function settingsSection() {
     "",
   ];
   for (const [tab, page] of Object.entries(SETTINGS_PAGES)) {
-    if (page.developerOnly) {
+    if (page.developerOnly || tab in OWN_PAGES) {
       continue;
     }
-    lines.push(`### ${tab} (\`${tab.toLowerCase()}\`)`, "", page.detail);
+    lines.push(
+      `### ${settingsTabTitle(tab)} (\`${tab.toLowerCase()}\`)`,
+      "",
+      page.detail,
+    );
     if (page.shownWhen) {
       lines.push(
         "",
@@ -58,20 +73,8 @@ function settingsSection() {
       );
     }
     lines.push("");
-    const rows = SETTINGS_INDEX.filter(
-      (entry): entry is Extract<typeof entry, { detail: string }> =>
-        entry.tab === tab && "detail" in entry && !isDeveloperOnly(entry),
-    );
-    for (const row of rows) {
-      const labels = SETTINGS_INDEX.filter(
-        (entry) => "mark" in entry && entry.mark === row.id,
-      ).map((entry) => `${entry.title} (\`${entry.id}\`)`);
-      lines.push(
-        `- **${row.title}** (\`${row.id}\`): ${sentence(row.detail)}${
-          labels.length > 0 ? ` On it: ${labels.join(", ")}.` : ""
-        }`,
-      );
-    }
+    const rows = rowLines(tab, "- ");
+    lines.push(...rows);
     if (rows.length > 0) {
       lines.push("");
     }
@@ -79,16 +82,36 @@ function settingsSection() {
   return lines.join("\n");
 }
 
+/** A settings page's rows, one line each, with the labels on each. */
+function rowLines(tab: string, bullet: string) {
+  return SETTINGS_INDEX.filter(
+    (entry): entry is Extract<typeof entry, { detail: string }> =>
+      entry.tab === tab && "detail" in entry && !isDeveloperOnly(entry),
+  ).map((row) => {
+    const labels = SETTINGS_INDEX.filter(
+      (entry) => "mark" in entry && entry.mark === row.id,
+    ).map((entry) => `${entry.title} (\`${entry.id}\`)`);
+    return `${bullet}**${row.title}** (\`${row.id}\`): ${sentence(row.detail)}${
+      labels.length > 0 ? ` On it: ${labels.join(", ")}.` : ""
+    }`;
+  });
+}
+
 function screensSection() {
   return [
     "## Screens",
     "",
-    `Link one as \`[Label](${APP_NAME_SLUG}://screen/<name>)\`.`,
+    `Link one as \`[Label](${APP_NAME_SLUG}://screen/<name>)\`. A row listed under one is linked as a setting is, \`[Label](${APP_NAME_SLUG}://settings/<name>)\`.`,
     "",
-    ...Object.entries(SCREENS).map(
-      ([name, screen]) =>
+    ...Object.entries(SCREENS).flatMap(([name, screen]) => {
+      const tab = Object.entries(OWN_PAGES).find(
+        ([, page]) => page === name,
+      )?.[0];
+      return [
         `- **${screen.title}** (\`${name}\`): ${screen.detail}`,
-    ),
+        ...(tab === undefined ? [] : rowLines(tab, "  - ")),
+      ];
+    }),
     "",
   ].join("\n");
 }

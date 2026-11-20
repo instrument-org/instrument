@@ -13,11 +13,14 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteRouteImport } from './routes/_app/route'
 import { Route as DebugRouteRouteImport } from './routes/debug/route'
 import { Route as AppActivityRouteImport } from './routes/_app/activity'
+import { Route as AppBookmarksRouteImport } from './routes/_app/bookmarks'
 import { Route as AppBrowserRouteImport } from './routes/_app/browser'
+import { Route as AppChatListRouteImport } from './routes/_app/chat-list'
 import { Route as AppExtensionsRouteImport } from './routes/_app/extensions'
 import { Route as AppFilesRouteImport } from './routes/_app/files'
-import { Route as AppNewTabRouteImport } from './routes/_app/new-tab'
+import { Route as AppMemoryRouteImport } from './routes/_app/memory'
 import { Route as AppReleaseNotesRouteImport } from './routes/_app/release-notes'
+import { Route as AppSkillsRouteImport } from './routes/_app/skills'
 import { Route as DebugIndexRouteImport } from './routes/debug/index'
 import { Route as DebugAppStatesRouteImport } from './routes/debug/app-states'
 import { Route as DebugBillingRouteImport } from './routes/debug/billing'
@@ -27,6 +30,8 @@ import { Route as AppAppsIndexRouteImport } from './routes/_app/apps/index'
 import { Route as AppAppsSlugRouteImport } from './routes/_app/apps/$slug'
 import { Route as AppChatsIndexRouteImport } from './routes/_app/chats/index'
 import { Route as AppChatsIdRouteImport } from './routes/_app/chats/$id'
+import { Route as AppSettingsIndexRouteImport } from './routes/_app/settings/index'
+import { Route as AppSettingsSectionRouteImport } from './routes/_app/settings/$section'
 import { Route as AppSitesIdRouteImport } from './routes/_app/sites/$id'
 import { Route as AppTasksSessionIdRouteImport } from './routes/_app/tasks/$sessionId'
 import { Route as DebugComponentsIndexRouteImport } from './routes/debug/components/index'
@@ -46,6 +51,7 @@ import { Route as DebugComponentsQuestionRouteImport } from './routes/debug/comp
 import { Route as DebugComponentsSpinnerRouteImport } from './routes/debug/components/spinner'
 import { Route as DebugComponentsToastsRouteImport } from './routes/debug/components/toasts'
 import { Route as DebugComponentsTranscriptRouteImport } from './routes/debug/components/transcript'
+import { Route as DebugComponentsTwoSidesRouteImport } from './routes/debug/components/two-sides'
 import { Route as DebugComponentsTypographyRouteImport } from './routes/debug/components/typography'
 
 const IndexRoute = IndexRouteImport.update({
@@ -67,9 +73,19 @@ const AppActivityRoute = AppActivityRouteImport.update({
   path: '/activity',
   getParentRoute: () => AppRouteRoute,
 } as any)
+const AppBookmarksRoute = AppBookmarksRouteImport.update({
+  id: '/bookmarks',
+  path: '/bookmarks',
+  getParentRoute: () => AppRouteRoute,
+} as any)
 const AppBrowserRoute = AppBrowserRouteImport.update({
   id: '/browser',
   path: '/browser',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppChatListRoute = AppChatListRouteImport.update({
+  id: '/chat-list',
+  path: '/chat-list',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppExtensionsRoute = AppExtensionsRouteImport.update({
@@ -82,14 +98,19 @@ const AppFilesRoute = AppFilesRouteImport.update({
   path: '/files',
   getParentRoute: () => AppRouteRoute,
 } as any)
-const AppNewTabRoute = AppNewTabRouteImport.update({
-  id: '/new-tab',
-  path: '/new-tab',
+const AppMemoryRoute = AppMemoryRouteImport.update({
+  id: '/memory',
+  path: '/memory',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppReleaseNotesRoute = AppReleaseNotesRouteImport.update({
   id: '/release-notes',
   path: '/release-notes',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSkillsRoute = AppSkillsRouteImport.update({
+  id: '/skills',
+  path: '/skills',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const DebugIndexRoute = DebugIndexRouteImport.update({
@@ -135,6 +156,16 @@ const AppChatsIndexRoute = AppChatsIndexRouteImport.update({
 const AppChatsIdRoute = AppChatsIdRouteImport.update({
   id: '/chats/$id',
   path: '/chats/$id',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSettingsIndexRoute = AppSettingsIndexRouteImport.update({
+  id: '/settings/',
+  path: '/settings/',
+  getParentRoute: () => AppRouteRoute,
+} as any)
+const AppSettingsSectionRoute = AppSettingsSectionRouteImport.update({
+  id: '/settings/$section',
+  path: '/settings/$section',
   getParentRoute: () => AppRouteRoute,
 } as any)
 const AppSitesIdRoute = AppSitesIdRouteImport.update({
@@ -239,6 +270,11 @@ const DebugComponentsTranscriptRoute =
     path: '/transcript',
     getParentRoute: () => DebugComponentsRoute,
   } as any)
+const DebugComponentsTwoSidesRoute = DebugComponentsTwoSidesRouteImport.update({
+  id: '/two-sides',
+  path: '/two-sides',
+  getParentRoute: () => DebugComponentsRoute,
+} as any)
 const DebugComponentsTypographyRoute =
   DebugComponentsTypographyRouteImport.update({
     id: '/typography',
@@ -250,11 +286,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/debug': typeof DebugRouteRouteWithChildren
   '/activity': typeof AppActivityRoute
+  '/bookmarks': typeof AppBookmarksRoute
   '/browser': typeof AppBrowserRoute
+  '/chat-list': typeof AppChatListRoute
   '/extensions': typeof AppExtensionsRoute
   '/files': typeof AppFilesRoute
-  '/new-tab': typeof AppNewTabRoute
+  '/memory': typeof AppMemoryRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/skills': typeof AppSkillsRoute
   '/debug/app-states': typeof DebugAppStatesRoute
   '/debug/billing': typeof DebugBillingRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
@@ -262,6 +301,7 @@ export interface FileRoutesByFullPath {
   '/debug/': typeof DebugIndexRoute
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
+  '/settings/$section': typeof AppSettingsSectionRoute
   '/sites/$id': typeof AppSitesIdRoute
   '/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
@@ -280,25 +320,31 @@ export interface FileRoutesByFullPath {
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
   '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
+  '/debug/components/two-sides': typeof DebugComponentsTwoSidesRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps/': typeof AppAppsIndexRoute
   '/chats/': typeof AppChatsIndexRoute
+  '/settings/': typeof AppSettingsIndexRoute
   '/debug/components/': typeof DebugComponentsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/activity': typeof AppActivityRoute
+  '/bookmarks': typeof AppBookmarksRoute
   '/browser': typeof AppBrowserRoute
+  '/chat-list': typeof AppChatListRoute
   '/extensions': typeof AppExtensionsRoute
   '/files': typeof AppFilesRoute
-  '/new-tab': typeof AppNewTabRoute
+  '/memory': typeof AppMemoryRoute
   '/release-notes': typeof AppReleaseNotesRoute
+  '/skills': typeof AppSkillsRoute
   '/debug/app-states': typeof DebugAppStatesRoute
   '/debug/billing': typeof DebugBillingRoute
   '/debug/trial-modes': typeof DebugTrialModesRoute
   '/debug': typeof DebugIndexRoute
   '/apps/$slug': typeof AppAppsSlugRoute
   '/chats/$id': typeof AppChatsIdRoute
+  '/settings/$section': typeof AppSettingsSectionRoute
   '/sites/$id': typeof AppSitesIdRoute
   '/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
@@ -317,9 +363,11 @@ export interface FileRoutesByTo {
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
   '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
+  '/debug/components/two-sides': typeof DebugComponentsTwoSidesRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/apps': typeof AppAppsIndexRoute
   '/chats': typeof AppChatsIndexRoute
+  '/settings': typeof AppSettingsIndexRoute
   '/debug/components': typeof DebugComponentsIndexRoute
 }
 export interface FileRoutesById {
@@ -328,11 +376,14 @@ export interface FileRoutesById {
   '/_app': typeof AppRouteRouteWithChildren
   '/debug': typeof DebugRouteRouteWithChildren
   '/_app/activity': typeof AppActivityRoute
+  '/_app/bookmarks': typeof AppBookmarksRoute
   '/_app/browser': typeof AppBrowserRoute
+  '/_app/chat-list': typeof AppChatListRoute
   '/_app/extensions': typeof AppExtensionsRoute
   '/_app/files': typeof AppFilesRoute
-  '/_app/new-tab': typeof AppNewTabRoute
+  '/_app/memory': typeof AppMemoryRoute
   '/_app/release-notes': typeof AppReleaseNotesRoute
+  '/_app/skills': typeof AppSkillsRoute
   '/debug/app-states': typeof DebugAppStatesRoute
   '/debug/billing': typeof DebugBillingRoute
   '/debug/components': typeof DebugComponentsRouteWithChildren
@@ -340,6 +391,7 @@ export interface FileRoutesById {
   '/debug/': typeof DebugIndexRoute
   '/_app/apps/$slug': typeof AppAppsSlugRoute
   '/_app/chats/$id': typeof AppChatsIdRoute
+  '/_app/settings/$section': typeof AppSettingsSectionRoute
   '/_app/sites/$id': typeof AppSitesIdRoute
   '/_app/tasks/$sessionId': typeof AppTasksSessionIdRoute
   '/debug/components/alerts': typeof DebugComponentsAlertsRoute
@@ -358,9 +410,11 @@ export interface FileRoutesById {
   '/debug/components/spinner': typeof DebugComponentsSpinnerRoute
   '/debug/components/toasts': typeof DebugComponentsToastsRoute
   '/debug/components/transcript': typeof DebugComponentsTranscriptRoute
+  '/debug/components/two-sides': typeof DebugComponentsTwoSidesRoute
   '/debug/components/typography': typeof DebugComponentsTypographyRoute
   '/_app/apps/': typeof AppAppsIndexRoute
   '/_app/chats/': typeof AppChatsIndexRoute
+  '/_app/settings/': typeof AppSettingsIndexRoute
   '/debug/components/': typeof DebugComponentsIndexRoute
 }
 export interface FileRouteTypes {
@@ -369,11 +423,14 @@ export interface FileRouteTypes {
     | '/'
     | '/debug'
     | '/activity'
+    | '/bookmarks'
     | '/browser'
+    | '/chat-list'
     | '/extensions'
     | '/files'
-    | '/new-tab'
+    | '/memory'
     | '/release-notes'
+    | '/skills'
     | '/debug/app-states'
     | '/debug/billing'
     | '/debug/components'
@@ -381,6 +438,7 @@ export interface FileRouteTypes {
     | '/debug/'
     | '/apps/$slug'
     | '/chats/$id'
+    | '/settings/$section'
     | '/sites/$id'
     | '/tasks/$sessionId'
     | '/debug/components/alerts'
@@ -399,25 +457,31 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/toasts'
     | '/debug/components/transcript'
+    | '/debug/components/two-sides'
     | '/debug/components/typography'
     | '/apps/'
     | '/chats/'
+    | '/settings/'
     | '/debug/components/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/activity'
+    | '/bookmarks'
     | '/browser'
+    | '/chat-list'
     | '/extensions'
     | '/files'
-    | '/new-tab'
+    | '/memory'
     | '/release-notes'
+    | '/skills'
     | '/debug/app-states'
     | '/debug/billing'
     | '/debug/trial-modes'
     | '/debug'
     | '/apps/$slug'
     | '/chats/$id'
+    | '/settings/$section'
     | '/sites/$id'
     | '/tasks/$sessionId'
     | '/debug/components/alerts'
@@ -436,9 +500,11 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/toasts'
     | '/debug/components/transcript'
+    | '/debug/components/two-sides'
     | '/debug/components/typography'
     | '/apps'
     | '/chats'
+    | '/settings'
     | '/debug/components'
   id:
     | '__root__'
@@ -446,11 +512,14 @@ export interface FileRouteTypes {
     | '/_app'
     | '/debug'
     | '/_app/activity'
+    | '/_app/bookmarks'
     | '/_app/browser'
+    | '/_app/chat-list'
     | '/_app/extensions'
     | '/_app/files'
-    | '/_app/new-tab'
+    | '/_app/memory'
     | '/_app/release-notes'
+    | '/_app/skills'
     | '/debug/app-states'
     | '/debug/billing'
     | '/debug/components'
@@ -458,6 +527,7 @@ export interface FileRouteTypes {
     | '/debug/'
     | '/_app/apps/$slug'
     | '/_app/chats/$id'
+    | '/_app/settings/$section'
     | '/_app/sites/$id'
     | '/_app/tasks/$sessionId'
     | '/debug/components/alerts'
@@ -476,9 +546,11 @@ export interface FileRouteTypes {
     | '/debug/components/spinner'
     | '/debug/components/toasts'
     | '/debug/components/transcript'
+    | '/debug/components/two-sides'
     | '/debug/components/typography'
     | '/_app/apps/'
     | '/_app/chats/'
+    | '/_app/settings/'
     | '/debug/components/'
   fileRoutesById: FileRoutesById
 }
@@ -518,11 +590,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppActivityRouteImport
       parentRoute: typeof AppRouteRoute
     }
+    '/_app/bookmarks': {
+      id: '/_app/bookmarks'
+      path: '/bookmarks'
+      fullPath: '/bookmarks'
+      preLoaderRoute: typeof AppBookmarksRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
     '/_app/browser': {
       id: '/_app/browser'
       path: '/browser'
       fullPath: '/browser'
       preLoaderRoute: typeof AppBrowserRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/chat-list': {
+      id: '/_app/chat-list'
+      path: '/chat-list'
+      fullPath: '/chat-list'
+      preLoaderRoute: typeof AppChatListRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/extensions': {
@@ -539,11 +625,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppFilesRouteImport
       parentRoute: typeof AppRouteRoute
     }
-    '/_app/new-tab': {
-      id: '/_app/new-tab'
-      path: '/new-tab'
-      fullPath: '/new-tab'
-      preLoaderRoute: typeof AppNewTabRouteImport
+    '/_app/memory': {
+      id: '/_app/memory'
+      path: '/memory'
+      fullPath: '/memory'
+      preLoaderRoute: typeof AppMemoryRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/release-notes': {
@@ -551,6 +637,13 @@ declare module '@tanstack/react-router' {
       path: '/release-notes'
       fullPath: '/release-notes'
       preLoaderRoute: typeof AppReleaseNotesRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/skills': {
+      id: '/_app/skills'
+      path: '/skills'
+      fullPath: '/skills'
+      preLoaderRoute: typeof AppSkillsRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/debug/': {
@@ -614,6 +707,20 @@ declare module '@tanstack/react-router' {
       path: '/chats/$id'
       fullPath: '/chats/$id'
       preLoaderRoute: typeof AppChatsIdRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/settings/': {
+      id: '/_app/settings/'
+      path: '/settings'
+      fullPath: '/settings/'
+      preLoaderRoute: typeof AppSettingsIndexRouteImport
+      parentRoute: typeof AppRouteRoute
+    }
+    '/_app/settings/$section': {
+      id: '/_app/settings/$section'
+      path: '/settings/$section'
+      fullPath: '/settings/$section'
+      preLoaderRoute: typeof AppSettingsSectionRouteImport
       parentRoute: typeof AppRouteRoute
     }
     '/_app/sites/$id': {
@@ -749,6 +856,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DebugComponentsTranscriptRouteImport
       parentRoute: typeof DebugComponentsRoute
     }
+    '/debug/components/two-sides': {
+      id: '/debug/components/two-sides'
+      path: '/two-sides'
+      fullPath: '/debug/components/two-sides'
+      preLoaderRoute: typeof DebugComponentsTwoSidesRouteImport
+      parentRoute: typeof DebugComponentsRoute
+    }
     '/debug/components/typography': {
       id: '/debug/components/typography'
       path: '/typography'
@@ -761,32 +875,42 @@ declare module '@tanstack/react-router' {
 
 interface AppRouteRouteChildren {
   AppActivityRoute: typeof AppActivityRoute
+  AppBookmarksRoute: typeof AppBookmarksRoute
   AppBrowserRoute: typeof AppBrowserRoute
+  AppChatListRoute: typeof AppChatListRoute
   AppExtensionsRoute: typeof AppExtensionsRoute
   AppFilesRoute: typeof AppFilesRoute
-  AppNewTabRoute: typeof AppNewTabRoute
+  AppMemoryRoute: typeof AppMemoryRoute
   AppReleaseNotesRoute: typeof AppReleaseNotesRoute
+  AppSkillsRoute: typeof AppSkillsRoute
   AppAppsSlugRoute: typeof AppAppsSlugRoute
   AppChatsIdRoute: typeof AppChatsIdRoute
+  AppSettingsSectionRoute: typeof AppSettingsSectionRoute
   AppSitesIdRoute: typeof AppSitesIdRoute
   AppTasksSessionIdRoute: typeof AppTasksSessionIdRoute
   AppAppsIndexRoute: typeof AppAppsIndexRoute
   AppChatsIndexRoute: typeof AppChatsIndexRoute
+  AppSettingsIndexRoute: typeof AppSettingsIndexRoute
 }
 
 const AppRouteRouteChildren: AppRouteRouteChildren = {
   AppActivityRoute: AppActivityRoute,
+  AppBookmarksRoute: AppBookmarksRoute,
   AppBrowserRoute: AppBrowserRoute,
+  AppChatListRoute: AppChatListRoute,
   AppExtensionsRoute: AppExtensionsRoute,
   AppFilesRoute: AppFilesRoute,
-  AppNewTabRoute: AppNewTabRoute,
+  AppMemoryRoute: AppMemoryRoute,
   AppReleaseNotesRoute: AppReleaseNotesRoute,
+  AppSkillsRoute: AppSkillsRoute,
   AppAppsSlugRoute: AppAppsSlugRoute,
   AppChatsIdRoute: AppChatsIdRoute,
+  AppSettingsSectionRoute: AppSettingsSectionRoute,
   AppSitesIdRoute: AppSitesIdRoute,
   AppTasksSessionIdRoute: AppTasksSessionIdRoute,
   AppAppsIndexRoute: AppAppsIndexRoute,
   AppChatsIndexRoute: AppChatsIndexRoute,
+  AppSettingsIndexRoute: AppSettingsIndexRoute,
 }
 
 const AppRouteRouteWithChildren = AppRouteRoute._addFileChildren(
@@ -810,6 +934,7 @@ interface DebugComponentsRouteChildren {
   DebugComponentsSpinnerRoute: typeof DebugComponentsSpinnerRoute
   DebugComponentsToastsRoute: typeof DebugComponentsToastsRoute
   DebugComponentsTranscriptRoute: typeof DebugComponentsTranscriptRoute
+  DebugComponentsTwoSidesRoute: typeof DebugComponentsTwoSidesRoute
   DebugComponentsTypographyRoute: typeof DebugComponentsTypographyRoute
   DebugComponentsIndexRoute: typeof DebugComponentsIndexRoute
 }
@@ -831,6 +956,7 @@ const DebugComponentsRouteChildren: DebugComponentsRouteChildren = {
   DebugComponentsSpinnerRoute: DebugComponentsSpinnerRoute,
   DebugComponentsToastsRoute: DebugComponentsToastsRoute,
   DebugComponentsTranscriptRoute: DebugComponentsTranscriptRoute,
+  DebugComponentsTwoSidesRoute: DebugComponentsTwoSidesRoute,
   DebugComponentsTypographyRoute: DebugComponentsTypographyRoute,
   DebugComponentsIndexRoute: DebugComponentsIndexRoute,
 }

@@ -6,11 +6,18 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
+import { ClosedMark } from "@/client/components/activity/recently-closed";
 import { PageFavicon } from "@/client/components/favicon";
 import { ModelMakerIcon } from "@/client/components/model-maker-icon";
+import { ScreenMark } from "@/client/components/window/app-chip";
 import { nameOf } from "@/client/components/window/host-path";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { cn } from "@/client/lib/utils";
+import {
+  isScreenName,
+  type ScreenName,
+  SCREENS,
+} from "@/shared/instrument-screens";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowBendDownRightIcon } from "@phosphor-icons/react/ArrowBendDownRight";
 import { ArrowCircleUpIcon } from "@phosphor-icons/react/ArrowCircleUp";
@@ -26,7 +33,8 @@ const GLYPH = "size-4 text-foreground/60";
 
 /**
  * The mark a row wears: a page's icon, a file's by its kind, a folder's,
- * the chat's for an AI row, and a plain glyph for the rest. Several
+ * the chat's for an AI row, a closed tab's own or a tab group's stack,
+ * and a plain glyph for the rest. Several
  * files moved or thrown away together wear the move's or the bin's.
  */
 export function EntryIcon({
@@ -40,6 +48,9 @@ export function EntryIcon({
   // stands beside the model's name.
   if (entry.kind === "turn") {
     return <PlaceIcon className={cn(GLYPH, className)} place="chat" />;
+  }
+  if (entry.kind === "closed") {
+    return <ClosedMark className={className} closed={entry.closed} />;
   }
   return <ActionIcon action={entry.action} className={className} />;
 }
@@ -112,9 +123,21 @@ function ActionIcon({
       return <GearSixIcon className={glyph} />;
     }
     case "screen": {
-      return <AppWindowIcon className={glyph} />;
+      const screen = screenTitled(action.name.split(" › ")[0] ?? "");
+      return screen ? (
+        <ScreenMark className={glyph} name={screen} />
+      ) : (
+        <AppWindowIcon className={glyph} />
+      );
     }
   }
+}
+
+/** The built-in page a screen row names by its title, as "Chats" or the "Settings" of "Settings › General". */
+function screenTitled(title: string): ScreenName | undefined {
+  return Object.keys(SCREENS)
+    .filter(isScreenName)
+    .find((name) => SCREENS[name].title === title);
 }
 
 /** A model's maker's mark, or nothing for a model no maker is known for. */

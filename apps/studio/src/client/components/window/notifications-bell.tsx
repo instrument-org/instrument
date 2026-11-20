@@ -9,7 +9,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
-import { useAppTabs } from "@/client/components/window/app-tabs";
+import { useWindow } from "@/client/components/window/context";
+import { chatOfHref } from "@/client/components/window/window-href";
+import { useTabGroupActions } from "@/client/components/window/tab-groups";
 import { pendingProblemReport } from "@/client/lib/problem-reports";
 import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { toast } from "@/client/lib/toast";
@@ -53,7 +55,8 @@ export function NotificationsBell() {
   );
   const [open, setOpen] = useState(false);
   const markSeen = useMutation(rpcClient.notices.markSeen.mutationOptions());
-  const appTabs = useAppTabs();
+  const { openScreen } = useWindow();
+  const groups = useTabGroupActions();
   const openAction = (notice: BellNotice) => {
     // Acting on a notice from its toast has shown it, so the bell's dot for
     // it goes too.
@@ -70,7 +73,13 @@ export function NotificationsBell() {
     }
     if (notice.action && "href" in notice.action) {
       setOpen(false);
-      appTabs.open(notice.action.href);
+      // A chat's notice comes forward at the chat's tab, where it has one.
+      const chat = chatOfHref(notice.action.href);
+      if (chat === undefined) {
+        openScreen(notice.action.href, { newTab: true });
+      } else {
+        groups.revealChat(chat);
+      }
       return;
     }
     void openNoticeLink(notice);

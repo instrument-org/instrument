@@ -1,6 +1,6 @@
 import { historyToRestore } from "@/electron-main/browser-view/guest-history";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { keptTabGroupOf } from "@/electron-main/stores/workspace/kept-state";
+import { keptOpenerOfTab } from "@/electron-main/stores/workspace/kept-state";
 import { keepsHistory } from "@/electron-main/stores/workspace/preferences";
 import {
   type BrowserGuestTarget,
@@ -178,6 +178,11 @@ export interface BrowserViewManager {
   // Record whether a slot in the window shows a guest or the pool parks it,
   // as the renderer pool reports each change.
   setGuestShown: (targetId: BrowserTargetId, shown: boolean) => void;
+  // Zoom a guest for the agent's side, keeping its zoom to its own tab from
+  // then on rather than to every page of its site, so it never reaches the
+  // person's own tabs on the same site. One call, so the zoom is never set
+  // while the guest still shares its site's.
+  zoomGuestAlone: (targetId: BrowserTargetId, factor: number) => void;
   // Which of one window's pages it holds only as a step of a tab's history;
   // one of them making sound is closed (`put-away-sound.ts`).
   setGuestsPutAway: (
@@ -532,17 +537,13 @@ function createBrowserViewManager(): BrowserViewManager {
     // Mouse thumb-button navigation + right-click menu so the user can drive it.
     attachGuestInteractions(guest, {
       mayOpen: mayOpenFromPage,
-      openInNewTab: (url: string) => {
-        publisher.publish("browser.open-in-new-tab", {
-          background: false,
-          targetId,
-          url,
-        });
+      bookmark: (url, title) => {
+        publisher.publish("browser.bookmark-link", { targetId, title, url });
       },
-      openInNewWindow: (url: string) => {
+      openIn: (url, place) => {
         publisher.publish("browser.open-in-new-tab", {
           background: false,
-          newWindow: true,
+          ...(place === "tab" ? {} : { into: place }),
           targetId,
           url,
         });
@@ -645,7 +646,10 @@ function createBrowserViewManager(): BrowserViewManager {
         );
       }
       if (isPersonUse(input.type, focusGuard.isGuarded(targetId))) {
-        notePersonUsedTab(targetId, () => keptTabGroupOf(targetId));
+        notePersonUsedTab(targetId, () => keptOpenerOfTab(targetId));
+      }
+      if (byPerson && input.type === "mouseDown") {
+        publisher.publish("browser.page-pressed", { targetId });
       }
       if (
         record &&
@@ -1406,6 +1410,16 @@ function createBrowserViewManager(): BrowserViewManager {
     },
     setEmulatedDevice,
     setGuestFocus,
+    zoomGuestAlone: (targetId, factor) => {
+      const guest = entries.get(targetId)?.webContents;
+      if (!guest || guest.isDestroyed()) {
+        return;
+      }
+      if (guest.getZoomMode() !== "isolated") {
+        guest.setZoomMode("isolated");
+      }
+      guest.setZoomFactor(factor);
+    },
     setGuestShown: (targetId, shown) => {
       const entry = entries.get(targetId);
       if (entry) {

@@ -8,6 +8,12 @@ export interface OmnibarField {
   canComplete: boolean;
   /** Which row the arrows have picked; the first is what Enter does with the words as they stand. */
   highlight: number;
+  /**
+   * Whether the person asked for the field (a press on it, the chord for
+   * it, a letter typed), rather than the caret only arriving there, as it
+   * does on a new tab: only then does the empty field list the bookmarks.
+   */
+  isAsked: boolean;
   /** Whether the box is open for typing rather than showing the place. */
   isEditing: boolean;
   /**
@@ -27,12 +33,17 @@ export type OmnibarFieldEvent =
   | { place?: string | undefined; type: "blur" }
   /** The box empties, and nothing else about it changes. */
   | { type: "clear" }
+  /** The box opens for typing, with the caret already in it: a press on the field, or the chord for it. */
+  | { type: "edit" }
   /**
-   * The caret goes into the box, which opens for typing. `place` is the
-   * place as it stands now, when that is more than the box rested on: a
-   * page's address with where the page has gone in itself.
+   * The caret goes into the box. With `edits`, asked for (a press on the
+   * field, the chord for it), the box opens for typing; without, the caret
+   * came on its way somewhere else (Tab from the page), and the place stays
+   * on show until a letter is typed. `place` is the place as it stands now,
+   * when that is more than the box rested on: a page's address with where
+   * the page has gone in itself.
    */
-  | { place?: string | undefined; type: "focus" }
+  | { edits: boolean; place?: string | undefined; type: "focus" }
   /** The arrows pick a row. */
   | { index: number; type: "highlight" }
   /** Words typed or taken away; `canComplete` says whether the edit was a letter typed at the end. */
@@ -50,6 +61,7 @@ export function initialOmnibarField(
   return {
     canComplete: false,
     highlight: 0,
+    isAsked: false,
     isEditing,
     isFocused: false,
     place: query,
@@ -69,6 +81,7 @@ export function omnibarField(
         ...state,
         canComplete: false,
         highlight: 0,
+        isAsked: false,
         isEditing: false,
         isFocused: false,
         place: event.place ?? state.place,
@@ -78,12 +91,16 @@ export function omnibarField(
     case "clear": {
       return { ...state, query: "" };
     }
+    case "edit": {
+      return { ...state, isAsked: true, isEditing: true };
+    }
     case "focus": {
+      const isEditing = state.isEditing || event.edits;
       return event.place === undefined
-        ? { ...state, isEditing: true, isFocused: true }
+        ? { ...state, isEditing, isFocused: true }
         : {
             ...state,
-            isEditing: true,
+            isEditing,
             isFocused: true,
             place: event.place,
             query: event.place,
@@ -92,11 +109,14 @@ export function omnibarField(
     case "highlight": {
       return { ...state, highlight: event.index };
     }
+    // A letter typed opens the box for typing, wherever the caret came from.
     case "input": {
       return {
         ...state,
         canComplete: event.canComplete,
         highlight: 0,
+        isAsked: true,
+        isEditing: true,
         query: event.query,
       };
     }
@@ -107,4 +127,25 @@ export function omnibarField(
       return { ...state, canComplete: false, highlight: 0, query: event.query };
     }
   }
+}
+
+/** What opens each field on screen for typing, by its box, while it is up. */
+const editors = new WeakMap<HTMLInputElement, () => void>();
+
+/** Has `editField` open the field with this box for typing, until the returned call takes it away. */
+export function registerFieldEditor(box: HTMLInputElement, edit: () => void) {
+  editors.set(box, edit);
+  return () => {
+    editors.delete(box);
+  };
+}
+
+/**
+ * Puts the caret in a field's box and opens it for typing, which is what a
+ * press on the field and the chord for it ask for. The caret arriving any
+ * other way leaves the place on show until a letter is typed.
+ */
+export function editField(box: HTMLInputElement) {
+  box.focus();
+  editors.get(box)?.();
 }

@@ -122,6 +122,50 @@ export const DATA_PART_SAMPLES = {
   toolResultsCleared: { results: 3, through: MESSAGE },
   unknown: { originalType: "data-gone", reason: "no schema" },
   viewContext: { screen: "conversation" },
+  groupLayout: {
+    focused: 1,
+    group: { id: "group_1" },
+    sides: [
+      {
+        tabs: [
+          {
+            address: "https://www.zendesk.com/pricing",
+            id: "tab_01M0000000000000000000000T",
+            isUp: true,
+            kind: "website",
+            title: "Zendesk pricing",
+          },
+        ],
+      },
+      {
+        tabs: [
+          {
+            address: "instrument://chat/chat-1",
+            id: "chat-1",
+            isThisChat: true,
+            isUp: true,
+            kind: "chat",
+            title: "Help desk prices",
+          },
+        ],
+      },
+    ],
+  },
+  layoutChanges: {
+    changes: [
+      {
+        beside: true,
+        change: "opened",
+        side: "left",
+        tab: {
+          address: "https://www.zendesk.com/pricing",
+          id: "tab_01M0000000000000000000000T",
+          kind: "website",
+          title: "Zendesk pricing",
+        },
+      },
+    ],
+  },
   workSummary: { words: "Read two pages" },
   fileVersions: {
     device: "dev_0123ABCD",

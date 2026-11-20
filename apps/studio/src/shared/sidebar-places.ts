@@ -21,9 +21,19 @@ export const NO_SIDEBAR_CHANGES: SidebarPlaces = {
   order: [],
 };
 
-export function pinPlace(places: SidebarPlaces, path: string): SidebarPlaces {
+/**
+ * A folder pinned, at the end of Pinned, or at its place in `order`: the
+ * rows' paths as they stand once it is pinned, which moves a row pinned
+ * already.
+ */
+export function pinPlace(
+  places: SidebarPlaces,
+  path: string,
+  order?: readonly string[],
+): SidebarPlaces {
   return {
     ...places,
+    ...(order ? { order: [...order] } : {}),
     pinned: places.pinned.includes(path)
       ? places.pinned
       : [...places.pinned, path],
@@ -97,11 +107,11 @@ export function pinnedPlaces<Place extends { path: string }>(
 
 /**
  * The folder Files opens at when it is not opened at one of its own: the
- * first row under Pinned. A folder of apps is passed over, since a stock
- * Mac's sidebar, which the first launch adopts, puts Applications first.
- * Nothing when nothing else is pinned. `defaults` are the computer's
- * places, the Instrument folder among them, which stands above Pinned
- * rather than in it.
+ * first row under Pinned, so moving a folder to the top of Pinned picks it.
+ * A folder of apps is passed over, since a stock Mac's sidebar, which the
+ * first launch adopts, puts Applications first. Nothing when nothing else is
+ * pinned. `defaults` are the computer's places, the Instrument folder among
+ * them, which stands above Pinned rather than in it.
  */
 export function firstPinnedFolder(
   defaults: readonly { kind: string; path: string }[],
@@ -131,7 +141,10 @@ export function adoptSystemSidebar(
   system: readonly string[],
   defaults: readonly string[],
 ): SidebarPlaces {
-  const adopted = system.reduce(pinPlace, places);
+  const adopted = system.reduce(
+    (pinned, path) => pinPlace(pinned, path),
+    places,
+  );
   return {
     ...defaults
       .filter((path) => !system.includes(path) && !places.pinned.includes(path))

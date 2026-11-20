@@ -20,6 +20,7 @@ How Instrument looks, notifications, dictation, suggested messages, updates, and
 - **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: What's new (`release-notes`), Check for updates (`check-for-updates`).
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Send feedback (`send-feedback`), Third-party licenses (`third-party-licenses`).
 - **Suggest a next message** (`suggest-next-message`): After a reply, show a few things you might say next.
+- **Show ideas** (`show-ideas`): Show ideas for what to ask about the pages and files you have open.
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
 
 ### Account (`account`)
@@ -41,12 +42,9 @@ The AI models Instrument can use: your ChatGPT, Claude or Grok plan, or a provid
 - **Claude account** (`claude-account`): Use your Claude plan.
 - **Grok account** (`grok-account`): Use your eligible Grok or X subscription here.
 
-### Memory (`memory`)
+### Apps (`apps`)
 
-What Instrument remembers about you, one file per memory, which you can search, open, forget, or add to from another AI.
-
-- **Import from another AI** (`memory-import`): Bring in what another AI knows about you.
-- **Memory folder** (`memory-folder`): Open the folder of your memories, where each one is a file you can read or change.
+The services Instrument works in for you, and connecting another.
 
 ### Permissions (`permissions`)
 
@@ -56,12 +54,6 @@ Which folders and places on this computer Instrument may use.
 - **Folders every chat can use** (`always-open`): Your Instrument folder, each chat's files, past chats and caches, which every chat can use because Instrument needs them.
 - **Reset permissions** (`reset-permissions`): Put every folder and app back the way they were when you installed Instrument.
 
-### Skills (`skills`)
-
-The skills Instrument's tasks can use, and making a new one.
-
-- **New skill** (`new-skill`): Ask for a skill that teaches a new way of working.
-
 ### Storage (`storage`)
 
 Where your Instrument folder is, and chats in it that can’t be opened.
@@ -70,35 +62,45 @@ Where your Instrument folder is, and chats in it that can’t be opened.
 - **LibreOffice** (`libreoffice`): The LibreOffice downloaded for Word, PowerPoint and Excel files, and removing it.
 - **Chats that can’t be opened** (`broken-folders`): Chats in your Instrument folder that can’t be opened.
 
-### Activity (`activity`)
+### History (`activity`)
 
 Whether Instrument keeps a history of what you do in it, whether chats can use it, and clearing it.
 
 - **Keep a history** (`keep-history`): Whether Instrument keeps the pages, files and chats you open, so you can find them again and a chat can tell which file you mean.
 - **Chats can see this** (`share-activity`): Whether chats see what you just did in Instrument, like a folder you opened or files you moved, so they can tell what you mean.
-- **Your activity** (`activity-history`): The history of what you did in Instrument and when, with the AI requests your chats made, which you can search, export, or clear.
-- **Clear activity** (`clear-activity`): Delete what you did in Instrument, its AI requests, or both, from a time range.
+- **Your history** (`activity-history`): The history of what you did in Instrument and when, with the AI requests your chats made, which you can search, export, or clear.
+- **Clear history** (`clear-activity`): Delete what you did in Instrument, its AI requests, or both, from a time range.
 
 ## Screens
 
-Link one as `[Label](instrument://screen/<name>)`.
+Link one as `[Label](instrument://screen/<name>)`. A row listed under one is linked as a setting is, `[Label](instrument://settings/<name>)`.
 
-- **Activity** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
+- **History** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
-- **Browser** (`browser`): A browser of your own, which tasks can work in beside you.
+- **Bookmarks** (`bookmarks`): Every bookmark, in the bookmarks bar's order with its folders, to search, edit, sort and tidy.
+- **Browser** (`browser`): The web's start page, with the sites you kept and lately saw.
+- **Chats** (`chats`): Every chat there is, open or not, to search and open.
 - **Extensions** (`extensions`): The Chrome extensions in your browser, and adding more from the Chrome Web Store.
+- **Files** (`files`): The folders and files on this computer, starting at home.
+- **Memory** (`memory`): What Instrument remembers about you, one file per memory, to search, forget, or import from another AI.
+  - **Import from another AI** (`memory-import`): Bring in what another AI knows about you.
+  - **Memory folder** (`memory-folder`): Open the folder of your memories, where each one is a file you can read or change.
 - **What's new** (`release-notes`): What changed in each version.
+- **Settings** (`settings`): Instrument's settings, a page per part. Link a part or a row with `instrument://settings/<name>`.
 - **Keyboard shortcuts** (`shortcuts`): Every keyboard shortcut, by section.
+- **Skills** (`skills`): The skills tasks can use, and making a new one.
+  - **New skill** (`new-skill`): Ask for a skill that teaches a new way of working.
 
 ## Menu bar
 
 On a Mac these are the menu bar's menus, the first named for Instrument; on Windows and Linux the same menus open from the Menu button in the window's bar, with Settings and Quit at the end of File and updates and About at the end of Help.
 
 - **Instrument**: Check for Updates…, Settings…
-- **File**: New Chat, Command Menu, Search or Ask, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
-- **View**: Toggle Inbox, Edit Page, Reload Page, Go to Chat, Go to Files, Go to Browser, Go to Apps, Next Chat, Previous Chat, Actual Size, Zoom In, Zoom Out
-- **History**: Back, Forward, Show Activity, Clear Browsing Data…
-- **Tab**: Show Next Tab, Show Previous Tab, Move Tab to New Window
+- **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
+- **View**: Toggle Sidebar, Show Bookmarks Bar, Edit Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
+- **History**: Back, Forward, Show History, Clear Browsing Data…
+- **Bookmarks**: Bookmark Manager, Bookmark This Tab…, Bookmark All Tabs…
+- **Tab**: Show Next Tab, Show Previous Tab, New Tab in Split, Close Split, Focus Left Side, Focus Right Side, Move Tab to New Window
 - **Window**: Merge All Windows
 - **Help**: Send Feedback…, Support, Keyboard Shortcuts
 
@@ -108,34 +110,28 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 ### General
 
+- Bookmark Manager: ⌥⌘B / Ctrl+Shift+O
 - Close Window: ⇧⌘W / Ctrl+Shift+W
 - Command Menu: ⌘K / Ctrl+K
 - Find: ⌘F / Ctrl+F
 - Find Next: ⌘G / Ctrl+G
 - Find Previous: ⇧⌘G / Ctrl+Shift+G
-- Go to Apps: ⌃⌘4 / Alt+4
-- Go to Browser: ⌃⌘3 / Alt+3
-- Go to Chat: ⌃⌘1 / Alt+1
-- Go to Files: ⌃⌘2 / Alt+2
 - Keyboard Shortcuts: ? / ?
-- New Chat: ⌘N / Ctrl+N
+- New Tab Group: ⌘N / Ctrl+N
 - New Window: ⇧⌘N / Ctrl+Shift+N
-- Quit: ⌘Q / Ctrl+Q (not on Windows)
-- Search or Ask: ⌘L / Ctrl+L
-- Settings…: ⌘, / Ctrl+,
-- Show Activity: ⌘Y / Ctrl+H
-
-### Chats
-
-- Back to List: Esc / Esc
-- Next Chat: ⌥⌘↓ / Alt+Shift+↓
-- Next Chat in List: ↓ / ↓
+- Open Location…: ⌘L / Ctrl+L
 - Paste as Text: ⇧⌘V / Ctrl+Shift+V
-- Previous Chat: ⌥⌘↑ / Alt+Shift+↑
-- Previous Chat in List: ↑ / ↑
-- Reply to Chat: ↩ / Enter
+- Quit: ⌘Q / Ctrl+Q (not on Windows)
 - Search Chats: ⇧⌘F / Ctrl+Shift+F
-- Toggle Inbox: ⌘B / Ctrl+B
+- Settings…: ⌘, / Ctrl+,
+- Show History: ⌘Y / Ctrl+H
+
+### Tab Groups
+
+- Next Tab Group: ⌥⌘↓ / Alt+Shift+↓
+- Previous Tab Group: ⌥⌘↑ / Alt+Shift+↑
+- Tab Group 1 to 9: ⌃1…9 / Alt+1…9
+- Toggle Sidebar: ⌘B / Ctrl+B
 
 ### Files
 
@@ -151,9 +147,13 @@ Each is written as on a Mac, then as on Windows and Linux.
 
 ### Tabs
 
+- Close Split: ⌥⌘W / Alt+Shift+W
 - Close Tab: ⌘W / Ctrl+W
+- Focus Left Side: ⌥⌘← / Alt+Shift+←
+- Focus Right Side: ⌥⌘→ / Alt+Shift+→
 - Last Tab: ⌘9 / Ctrl+9
 - New Tab: ⌘T / Ctrl+T
+- New Tab in Split: ⌥⌘N / Alt+Shift+N
 - Reopen Closed Tab: ⇧⌘T / Ctrl+Shift+T
 - Show Next Tab: ⌃Tab / Ctrl+Tab
 - Show Previous Tab: ⌃⇧Tab / Ctrl+Shift+Tab
@@ -162,6 +162,8 @@ Each is written as on a Mac, then as on Windows and Linux.
 ### Pages
 
 - Back: ⌘[ / Alt+←
+- Bookmark All Tabs…: ⇧⌘D / Ctrl+Shift+D
+- Bookmark This Tab…: ⌘D / Ctrl+D
 - Edit Page: ⌘E / Ctrl+E
 - Forward: ⌘] / Alt+→
 - Print…: ⌘P / Ctrl+P
@@ -170,6 +172,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 ### View
 
 - Actual Size: ⌘0 / Ctrl+0
+- Show Bookmarks Bar: ⇧⌘B / Ctrl+Shift+B
 - Toggle Full Screen: ⌃⌘F / F11
 - Zoom In: ⌘+ / Ctrl+=
 - Zoom Out: ⌘- / Ctrl+-

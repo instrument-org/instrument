@@ -21,6 +21,7 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { COMPUTER_FILE_REFUSAL_HEADER } from "@/shared/computer-file-refusal";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
+import { keptByTab } from "@/client/lib/kept-by-tab";
 import { giveKeyboardTo } from "@/client/lib/browser-pool";
 import { setHomeFocus } from "@/client/lib/keyboard-home";
 import { togglePlayerIn } from "@/client/lib/media-players";
@@ -37,7 +38,12 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useAtom } from "jotai";
-import { AnimatePresence, motion, useIsPresent } from "motion/react";
+import {
+  AnimatePresence,
+  motion,
+  type MotionStyle,
+  useIsPresent,
+} from "motion/react";
 import {
   type ReactNode,
   useEffect,
@@ -46,8 +52,16 @@ import {
   useRef,
   useState,
 } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { omit } from "radashi";
+import {
+  foldToWidth,
+  hidePanel,
+  KEPT_PANEL,
+  type PanelFold,
+  showsPanel,
+  togglePanel,
+} from "@/client/lib/panel-fold";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { toast } from "@/client/lib/toast";
 
@@ -61,7 +75,6 @@ import {
   RECENTS_ROOT,
 } from "./computer-page";
 import { asksOwnPlace, type OpenOptions, useWindow } from "./context";
-import { FileAskButton } from "./file-ask-button";
 import { reachablePath } from "./file-tabs";
 import { ShownVersion } from "./file-versions";
 import { useGroupTab } from "./group-tab";
@@ -75,12 +88,14 @@ import {
   useKeepsHostedPage,
 } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
-import { PageEditToggle } from "./page-edit";
+import { PageEditMenuItem } from "./page-edit";
 import { PageMenuItems } from "./page-menu-items";
+import { ExpandFileControl } from "./tab-location-row";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useFileInfo } from "./file-info";
 import { useQuickLook } from "./quick-look";
 import { useTabSurface } from "./tab-surface";
+import { useInstantUntilFitted } from "./use-instant-until-fitted";
 import { hostGroupOf, useWindowTabs } from "./window-tabs";
 
 /** A viewer that is the whole of its tab: no card of its own inside the pane's. */
@@ -98,8 +113,8 @@ const BESIDE_BOUNDS: RailBounds = {
   min: 260,
 };
 /**
- * The least room a file opening needs beside the folder, in CSS px. A tab
- * narrower than that opens the file with the folder folded away.
+ * The least room a file needs beside the folder, in CSS px. A tab with less
+ * folds the folder away, and the folder's edge stops short of taking it.
  */
 const FILE_ROOM = 420;
 /** How long a held arrow rests on a file before it shows, as the chat list does. */
@@ -114,6 +129,12 @@ const BESIDE_EXIT_TRANSITION = {
   duration: 0.38,
   ease: [0.2, 0, 0, 1],
 } as const;
+/**
+ * The folder beside a file by tab, whether the person kept it or hid it and
+ * whether the tab last had room for it, with the file it was beside, for
+ * the screen drawn again as its tab comes back up.
+ */
+const folderFoldByTab = keptByTab<{ file: string; fold: PanelFold }>();
 /** The pile several picked make beside the folder, the way the columns draw one. */
 const PILE_POSES = [
   { rotate: 9, x: 24, y: -12 },
@@ -154,7 +175,7 @@ export function FilesScreen({
   const { arrivals, go, step: here } = useFilesStep(routed);
   const { file, path, query, root, select, tree, version, view } = here;
   const source = here.source ?? false;
-  const { openScreen, rowField, rowReload, rowTail } = useWindow();
+  const { openScreen, rowField, rowReload, rowTail, rowView } = useWindow();
   const { moveToGroup, pageTakesOver, stepVisitOf } = useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
@@ -164,6 +185,8 @@ export function FilesScreen({
   // The tab of a chat's or a draft's group this screen is in, when it is
   // not one of the window's own.
   const groupTab = useGroupTab();
+  // The tab this screen is in, of a group or the window's own.
+  const tabId = groupTab?.id ?? appTabId;
   const leaveFile = () => {
     // The tab's own history; or, at its start, a group's tab closes and a
     // window tab goes to the folder the file is in.
@@ -213,7 +236,12 @@ export function FilesScreen({
   // scrolled to is all still there either way.
   const isBesideLayout = file === undefined || tree !== undefined;
   const isFileOpen = isBesideLayout && file !== undefined;
-  const [isFolderShown, setFolderShown] = useState(true);
+  // Drawn again as its tab comes back up, the folder is as the person left
+  // it beside the same file, fitted again to the width the tab comes up at.
+  const [fold, setFold] = useState(() => {
+    const kept = folderFoldByTab.get(tabId);
+    return kept !== undefined && kept.file === file ? kept.fold : KEPT_PANEL;
+  });
   const [besidePicked, setBesidePicked] = useState<ChosenItem[]>([]);
   // Where the folder puts Ask and its menu for several picked.
   const [pickedSlot, setPickedSlot] = useState<HTMLDivElement | null>(null);
@@ -270,6 +298,10 @@ export function FilesScreen({
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [isActiveTab, layout]);
+  // Whether the width was read from a frame laid out since the screen was
+  // drawn. Until then a tab drawn as its group comes up stands in a split
+  // still at the last group's widths.
+  const [isLaidOut, setLaidOut] = useState(false);
   useLayoutEffect(() => {
     if (!layout) {
       return;
@@ -279,35 +311,74 @@ export function FilesScreen({
       setLayoutWidth(layout.offsetWidth);
     };
     measure();
-    const observer = new ResizeObserver(measure);
+    let isFirst = true;
+    const observer = new ResizeObserver(() => {
+      if (!isFirst) {
+        measure();
+        return;
+      }
+      isFirst = false;
+      // Ahead of the frame's paint, so a file is first seen with the folder
+      // fitted to the width it is shown at.
+      flushSync(() => {
+        measure();
+        setLaidOut(true);
+      });
+    });
     observer.observe(layout);
     return () => {
       observer.disconnect();
     };
   }, [layout]);
-  const besideWidth = Math.min(
-    draggedWidth ?? storedBesideWidth,
-    layoutWidth === null
-      ? Number.POSITIVE_INFINITY
-      : Math.max(BESIDE_BOUNDS.min, Math.round(layoutWidth / 2)),
-  );
-  // A file opening from the folder leaves the folder beside it only when the
-  // tab has room for both, measured once the tab has a width.
+  const besideWidthIn = (tabWidth: number) =>
+    Math.min(
+      draggedWidth ?? storedBesideWidth,
+      Math.max(BESIDE_BOUNDS.min, Math.round(tabWidth / 2)),
+    );
+  const besideWidth = besideWidthIn(layoutWidth ?? Number.POSITIVE_INFINITY);
+  // A file opening from the folder opens beside it, kept, and the folder
+  // shows while the tab has room for both: as a split's divider narrows the
+  // tab it folds away, and it comes back as the tab widens again. Measured
+  // once the tab is laid out with a width.
   const isFileShown = file !== undefined;
   const [wasFileShown, setWasFileShown] = useState(isFileShown);
-  const [isFitPending, setFitPending] = useState(isFileShown);
+  let fitted = fold;
   if (wasFileShown !== isFileShown) {
     setWasFileShown(isFileShown);
-    setFitPending(isFileShown);
-  }
-  if (isFitPending && layoutWidth !== null) {
-    setFitPending(false);
-    if (isBesideLayout) {
-      setFolderShown(layoutWidth - besideWidth >= FILE_ROOM);
+    if (isFileShown) {
+      fitted = KEPT_PANEL;
     }
   }
+  const isFitted = isLaidOut && layoutWidth !== null && layoutWidth > 0;
+  if (isFitted) {
+    fitted = foldToWidth(
+      fitted,
+      layoutWidth,
+      (width) => width - besideWidthIn(width) >= FILE_ROOM,
+    );
+  }
+  if (fitted !== fold) {
+    setFold(fitted);
+  }
+  const isFolderShown = showsPanel(fold);
+  useEffect(() => {
+    if (file === undefined) {
+      folderFoldByTab.delete(tabId);
+    } else if (isFitted) {
+      folderFoldByTab.set(tabId, { file, fold });
+    }
+  }, [file, fold, isFitted, tabId]);
+  // The folder's edge stops where the file beside it would have less than
+  // its room, so dragging it never folds it away.
+  const besideMax = Math.max(
+    BESIDE_BOUNDS.min,
+    Math.min(
+      BESIDE_BOUNDS.max,
+      (layoutWidth ?? Number.POSITIVE_INFINITY) - FILE_ROOM,
+    ),
+  );
   const clampBesideWidth = (width: number) =>
-    Math.min(BESIDE_BOUNDS.max, Math.max(BESIDE_BOUNDS.min, Math.round(width)));
+    Math.min(besideMax, Math.max(BESIDE_BOUNDS.min, Math.round(width)));
   const closeBeside = () => {
     go({ type: "closeFile" });
   };
@@ -319,6 +390,9 @@ export function FilesScreen({
   const isArrowHeld = useRef(false);
   const besideFolderRef = useRef<HTMLDivElement>(null);
   const besideFileRef = useRef<HTMLDivElement>(null);
+  // The folder and the file land at their first fit, the folder folded away
+  // in a narrow tab above all, and slide only for what comes after it.
+  const isFitInstant = useInstantUntilFitted(isFitted, besideFolderRef);
   const heldShow = useRef<{ path: string; timer: number } | null>(null);
   const clearHeldShow = () => {
     if (heldShow.current) {
@@ -421,11 +495,10 @@ export function FilesScreen({
   // a tab behind, or a pane put away, keeps its page parked rather than
   // drawn. Its reload and zoom go into the row the way a page tab's do; its
   // menu is the file's own.
-  const tabId = groupTab?.id ?? appTabId;
   const hostGroup = hostGroupOf(tabId);
   const hostedFile = isPageFile ? activeFile.hostPath : undefined;
-  // A group's tab is drawn only while it is up, so this screen goes
-  // whenever another tab comes up there; its page stays live for it.
+  // A group's tab is drawn only while it is up on its side, so this screen
+  // goes whenever another tab comes up there; its page stays live for it.
   const keepsHostedPage = useKeepsHostedPage(tabId);
   const {
     release: releaseHosted,
@@ -777,18 +850,24 @@ export function FilesScreen({
       </>
     ) : null;
 
-  const askButton = activeFile && (
-    <FileAskButton name={activeFile.name} path={activeFile.hostPath} />
+  // Every control for the file goes where its actions do: in the view's row
+  // under the bookmarks bar, or its format's own toolbar, where the tab has
+  // that row, and the address row's tail where it does not. Expand is one of
+  // them there; the address row draws its own otherwise.
+  const fileActionsInto = rowView === undefined ? rowTail : rowView;
+  // A file in a tab of its own with no toolbar of its own wears the view's
+  // row for its actions alone; `rowTail` here puts them back in the address
+  // row and drops that row.
+  const ownTabActionsInto = fileActionsInto;
+  const actionsLead = (
+    <>
+      {rowView !== undefined && activeFile && (
+        <ExpandFileControl
+          file={{ hostPath: activeFile.hostPath, name: activeFile.name }}
+        />
+      )}
+    </>
   );
-  const actionsLead =
-    hostedTabId === undefined ? (
-      askButton
-    ) : (
-      <>
-        <PageEditToggle tabId={hostedTabId} />
-        {askButton}
-      </>
-    );
   // The page's file drawn into the slot the viewer gives it: square at the
   // bottom left while something stands against it, and at the right
   // whatever the pane's own corner is; the pane's corners when nothing does.
@@ -799,6 +878,7 @@ export function FilesScreen({
           ...(hostedTabId === undefined
             ? {}
             : {
+                pageEdit: <PageEditMenuItem tabId={hostedTabId} />,
                 pageMenu: (
                   <PageMenuItems targetId={browserTargetOf(hostedTabId)} />
                 ),
@@ -868,6 +948,9 @@ export function FilesScreen({
 
   if (isBesideLayout) {
     const fileOffset = isFolderShown ? besideWidth : 0;
+    // Shown while the folder is beside the file, to put the file away from
+    // it. With the folder put away the file is the tab's page, and the tab's
+    // own close is the one close it wears.
     const closeButton = (
       <ToolbarTooltip label="Close the file">
         <Button
@@ -934,11 +1017,14 @@ export function FilesScreen({
           }}
           ref={setLayout}
         >
+          {/* While a split's divider or a tab is held, the folder and the
+              file follow the tab's width at once, folding included: a slide
+              started at every step would trail the divider. */}
           <div
             className={cn(
-              "relative h-full shrink-0 overflow-hidden transition-[width]",
+              "relative h-full shrink-0 overflow-hidden transition-[width] in-data-tab-held:transition-none",
               BESIDE_MOTION_CLASSNAME,
-              draggedWidth !== null && "transition-none",
+              (draggedWidth !== null || isFitInstant) && "transition-none",
             )}
             // Folded away, nothing in it takes the keyboard.
             inert={isFileOpen && !isFolderShown}
@@ -972,7 +1058,7 @@ export function FilesScreen({
                           <FolderToggle
                             isOpen={isFolderShown}
                             onToggle={() => {
-                              setFolderShown((shown) => !shown);
+                              setFold(togglePanel);
                             }}
                           />
                         ),
@@ -1008,13 +1094,13 @@ export function FilesScreen({
                   onCollapse: () => {
                     draggedWidthNow.current = null;
                     setDraggedWidth(null);
-                    setFolderShown(false);
+                    setFold(hidePanel);
                   },
                 }}
                 getWidth={() => besideWidth}
                 grows="right"
                 label="Resize the folder"
-                max={BESIDE_BOUNDS.max}
+                max={besideMax}
                 min={BESIDE_BOUNDS.min}
                 onReset={() => {
                   setStoredBesideWidth(BESIDE_BOUNDS.initial);
@@ -1050,17 +1136,24 @@ export function FilesScreen({
               {activeFile &&
                 viewerFile && (
                   // As wide as it will be from the start, so the file slides in
-                  // whole rather than unfolding from a sliver.
+                  // whole rather than unfolding from a sliver. Only the
+                  // folder's offset slides; the width is the rest of the tab
+                  // after it, so it follows the tab as the tab resizes.
                   <motion.div
                     className={cn(
-                      "absolute inset-y-0 left-0 bg-background transition-[width]",
+                      "absolute inset-y-0 left-0 w-[calc(100cqw-var(--beside-offset))] bg-background transition-[--beside-offset] in-data-tab-held:transition-none",
                       BESIDE_MOTION_CLASSNAME,
-                      draggedWidth !== null && "transition-none",
+                      (draggedWidth !== null || isFitInstant) &&
+                        "transition-none",
                       isFolderShown && "border-l border-border",
                     )}
                     exit={{ opacity: 0 }}
                     key="file"
-                    style={{ width: `calc(100cqw - ${fileOffset}px)` }}
+                    // A CSS variable, which motion sets on the element but its
+                    // style type has no name for.
+                    style={
+                      { "--beside-offset": `${fileOffset}px` } as MotionStyle
+                    }
                     transition={BESIDE_EXIT_TRANSITION}
                   >
                     <WhilePresent>
@@ -1076,16 +1169,16 @@ export function FilesScreen({
                                   <SeveralPicked items={besidePicked} />
                                 </div>
                                 {isPresent &&
-                                  rowTail &&
+                                  fileActionsInto &&
                                   createPortal(
                                     <>
                                       <div
                                         className="flex items-center gap-0.5"
                                         ref={setPickedSlot}
                                       />
-                                      {closeButton}
+                                      {isFolderShown ? closeButton : null}
                                     </>,
-                                    rowTail,
+                                    fileActionsInto,
                                   )}
                               </>
                             ) : (
@@ -1097,16 +1190,19 @@ export function FilesScreen({
                                       // folder's own to come back.
                                       actionsInto={
                                         isPresent && !isVersionOver
-                                          ? rowTail
+                                          ? fileActionsInto
                                           : null
                                       }
                                       actionsLead={actionsLead}
-                                      actionsTrail={closeButton}
+                                      actionsTrail={
+                                        isFolderShown ? closeButton : null
+                                      }
                                       // A tab opened behind waits to be looked at.
                                       autoPlay={isActiveTab}
                                       className={FULL_BLEED}
                                       editable
                                       file={viewerFile}
+                                      keyboardHome
                                       key={activeFile.hostPath}
                                       onInfo={fileInfo.openOnFile}
                                       {...pageInSlot(isFolderShown)}
@@ -1146,11 +1242,13 @@ export function FilesScreen({
             <div className="contents" inert={isVersionOver}>
               {refusedView ?? (
                 <FileViewer
-                  actionsInto={isVersionOver ? null : rowTail}
+                  actionsInToolbar
+                  actionsInto={isVersionOver ? null : ownTabActionsInto}
                   actionsLead={actionsLead}
                   className={FULL_BLEED}
                   editable
                   file={viewerFile}
+                  keyboardHome
                   key={activeFile.hostPath}
                   onInfo={fileInfo.openOnFile}
                   {...pageInSlot(false)}

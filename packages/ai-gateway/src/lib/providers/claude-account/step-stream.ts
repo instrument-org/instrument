@@ -56,23 +56,45 @@ export async function pumpStep(
   // result we answered, a message we sent) is the step's input so far.
   let replying = false;
 
-  const finish = (finishReason: LanguageModelV4FinishReason) => {
+  const finish = (
+    finishReason: LanguageModelV4FinishReason,
+    result?: Extract<SDKMessage, { type: "result" }>,
+  ) => {
     const { rateLimit } = session;
     controller.enqueue({
       finishReason,
-      providerMetadata: rateLimit
-        ? {
-            [CLAUDE_ACCOUNT_PROVIDER_ID]: {
-              // The plan's usage, for a surface that shows it later.
-              rateLimit: {
-                rateLimitType: rateLimit.rateLimitType ?? null,
-                resetsAt: rateLimit.resetsAt ?? null,
-                status: rateLimit.status,
-                utilization: rateLimit.utilization ?? null,
+      providerMetadata:
+        rateLimit || result
+          ? {
+              [CLAUDE_ACCOUNT_PROVIDER_ID]: {
+                // The plan's usage, for a surface that shows it later.
+                ...(rateLimit && {
+                  rateLimit: {
+                    rateLimitType: rateLimit.rateLimitType ?? null,
+                    resetsAt: rateLimit.resetsAt ?? null,
+                    status: rateLimit.status,
+                    utilization: rateLimit.utilization ?? null,
+                  },
+                }),
+                // The turn as Claude Code timed and priced it, which tells
+                // its own overhead from the API's: an estimate, cumulative
+                // over a process's turns.
+                ...(result && {
+                  turn: {
+                    costUsd: result.total_cost_usd,
+                    durationApiMs: result.duration_api_ms,
+                    durationMs: result.duration_ms,
+                    timeToRequestMs:
+                      "time_to_request_ms" in result
+                        ? (result.time_to_request_ms ?? null)
+                        : null,
+                    ttftMs:
+                      "ttft_ms" in result ? (result.ttft_ms ?? null) : null,
+                  },
+                }),
               },
-            },
-          }
-        : undefined,
+            }
+          : undefined,
       type: "finish",
       usage: usageOf(stepUsage),
     });
@@ -126,7 +148,7 @@ export async function pumpStep(
       }
       case "result": {
         session.contextWindow = contextWindowOf(message, messageModel);
-        finish(finishReasonOf(stopReason));
+        finish(finishReasonOf(stopReason), message);
         return;
       }
       case "stream_event": {

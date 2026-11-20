@@ -1,4 +1,3 @@
-import { settingsModalAtom } from "@/client/atoms/settings-modal";
 import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { CopyButton } from "@/client/components/copy-button";
@@ -17,7 +16,6 @@ import { AIProviderTypeSchema } from "@instrument-org/shared";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useQuery } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
 import { type ReactNode } from "react";
 
 /**
@@ -41,6 +39,7 @@ const PURPOSE_LABELS: Record<ActivityRequest["purpose"], string> = {
   "chat-title": "Chat title",
   "emoji-suggestion": "Emoji suggestion",
   "next-message": "Suggested reply",
+  "ambient-ideas": "Tab ideas",
   image: "Image",
   other: "Other",
   "settings-search": "Settings search",
@@ -63,6 +62,7 @@ const SURFACE_LABELS: Record<
   draft: "Draft",
   settings: "Settings",
   projects: "Projects",
+  tabs: "Tabs",
 };
 
 const STATUS_LABELS: Record<ActivityRequest["status"], string> = {
@@ -165,7 +165,6 @@ function ConnectionMark({
 /** Where a request came from, as a link to it when it is somewhere that still exists. */
 function OriginLink({ row }: { row: ActivityRequest }) {
   const gesturesFor = useGesturesFor();
-  const closeSettings = useSetAtom(settingsModalAtom);
   const href = originHref(row);
   const gestures = href ? gesturesFor({ href, kind: "screen" }) : undefined;
   const label = originOf(row);
@@ -188,7 +187,6 @@ function OriginLink({ row }: { row: ActivityRequest }) {
       onClick={(event) => {
         event.stopPropagation();
         gestures.onClick(event);
-        closeSettings(null);
       }}
       title={`Open ${label}`}
       type="button"

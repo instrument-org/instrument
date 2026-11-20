@@ -4,8 +4,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   chatOfTaskAddress,
+  fieldScopeOf,
   locationCrumbs,
-  locationSection,
+  locationChip,
   type TabLocation,
   tasksOfHref,
 } from "./tab-location";
@@ -226,7 +227,7 @@ describe("locationCrumbs", () => {
     `);
   });
 
-  it("reads a task as its title and puts an app page under Apps", () => {
+  it("reads a task as its title and an app page as its name", () => {
     expect(readable({ kind: "task", title: "Book the hotel" }))
       .toMatchInlineSnapshot(`
       [
@@ -235,16 +236,20 @@ describe("locationCrumbs", () => {
     `);
     expect(readable({ kind: "app", name: "Notion" })).toMatchInlineSnapshot(`
       [
-        "Apps -> /apps",
         "Notion",
       ]
     `);
   });
 
-  it("gives a screen that is under nothing one part, going nowhere", () => {
-    expect(readable({ kind: "apps" })).toMatchInlineSnapshot(`
+  it("gives a chat one part, going nowhere, and Apps and a built-in page's start none past the chip", () => {
+    expect(readable({ kind: "apps" })).toMatchInlineSnapshot(`[]`);
+    expect(
+      readable({ kind: "builtin", screen: "activity" }),
+    ).toMatchInlineSnapshot(`[]`);
+    expect(readable({ kind: "builtin", part: "Requests", screen: "activity" }))
+      .toMatchInlineSnapshot(`
       [
-        "Apps",
+        "Requests",
       ]
     `);
     expect(readable({ kind: "chat", title: "Caffeine mixes" }))
@@ -253,6 +258,50 @@ describe("locationCrumbs", () => {
         "Caffeine mixes",
       ]
     `);
+  });
+
+  it("makes what Activity shows a place to step back out to while one of its rows is open", () => {
+    expect(
+      readable({
+        item: "Read report.pdf",
+        kind: "builtin",
+        part: "Files",
+        partHref: "/activity?show=files",
+        screen: "activity",
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "Files -> /activity?show=files",
+        "Read report.pdf",
+      ]
+    `);
+    expect(
+      readable({
+        item: "Read report.pdf",
+        kind: "builtin",
+        screen: "activity",
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "Read report.pdf",
+      ]
+    `);
+    expect(
+      readable({
+        kind: "builtin",
+        part: "Files",
+        partHref: "/activity?show=files",
+        screen: "activity",
+      }),
+    ).toMatchInlineSnapshot(`
+      [
+        "Files",
+      ]
+    `);
+  });
+
+  it("gives every chat none past the chip", () => {
+    expect(readable({ kind: "chats" })).toMatchInlineSnapshot(`[]`);
   });
 
   it("says an address whole, and a new tab not at all", () => {
@@ -273,45 +322,73 @@ describe("locationCrumbs", () => {
   });
 });
 
-describe("locationSection", () => {
-  it.each<[string, TabLocation, "apps" | "files" | undefined]>([
+describe("locationChip", () => {
+  it.each<[string, TabLocation, string | undefined]>([
     ["an app page", { kind: "app", name: "Gmail" }, "apps"],
+    ["Apps", { kind: "apps" }, "apps"],
     [
-      "a file under folders",
+      "a file",
+      { kind: "file", name: "a.md", path: "~/Documents/a.md" },
+      "files",
+    ],
+    ["the home folder", { kind: "folder", path: "~" }, "files"],
+    [
+      "the top of the computer",
+      { kind: "folder", path: COMPUTER_ROOT },
+      "files",
+    ],
+    ["a chat", { kind: "chat", title: "Caffeine mixes" }, "chat"],
+    ["every chat", { kind: "chats" }, "chat"],
+    ["a new chat, which is a new tab", { kind: "newChat" }, undefined],
+    ["a task", { kind: "task", title: "Book the hotel" }, "chat"],
+    ["Activity", { kind: "builtin", screen: "activity" }, "activity"],
+    ["a page", { kind: "page", url: "https://example.com/" }, undefined],
+    ["a new tab", { kind: "newTab" }, undefined],
+    ["Extensions", { kind: "builtin", screen: "extensions" }, "extensions"],
+    [
+      "a part of Settings",
+      { kind: "builtin", part: "Providers", screen: "settings" },
+      "settings",
+    ],
+  ])("%s", (_, location, chip) => {
+    expect(locationChip(location)).toBe(chip);
+  });
+});
+
+describe("fieldScopeOf", () => {
+  it.each<[string, TabLocation, string | undefined]>([
+    ["a chat", { kind: "chat", title: "Caffeine mixes" }, "chat"],
+    ["every chat", { kind: "chats" }, "chat"],
+    ["a task", { kind: "task", title: "Book the hotel" }, "chat"],
+    [
+      "a part of Settings",
+      { kind: "builtin", part: "Providers", screen: "settings" },
+      "settings",
+    ],
+    [
+      "an Activity row",
+      { item: "Read report.pdf", kind: "builtin", screen: "activity" },
+      "activity",
+    ],
+    ["Memory", { kind: "builtin", screen: "memory" }, "memory"],
+    ["Skills", { kind: "builtin", screen: "skills" }, "skills"],
+    ["an app page", { kind: "app", name: "Gmail" }, "apps"],
+    ["Apps", { kind: "apps" }, "apps"],
+    // A path and an address are typed and edited where they are.
+    [
+      "a file",
       { kind: "file", name: "a.md", path: "~/Documents/a.md" },
       undefined,
     ],
-    [
-      "a folder under folders",
-      { kind: "folder", path: "~/Documents/Instrument" },
-      undefined,
-    ],
-    [
-      "several picked in a folder",
-      { kind: "folder", path: "~/Documents", picked: 3 },
-      undefined,
-    ],
-    ["the home folder alone", { kind: "folder", path: "~" }, undefined],
-    [
-      "several picked from the recents",
-      { kind: "folder", path: "", picked: 2 },
-      undefined,
-    ],
-    ["Apps", { kind: "apps" }, undefined],
-    ["a chat", { kind: "chat", title: "Caffeine mixes" }, undefined],
-    ["a task", { kind: "task", title: "Book the hotel" }, undefined],
+    ["a folder", { kind: "folder", path: "~" }, undefined],
     ["a page", { kind: "page", url: "https://example.com/" }, undefined],
+    // A page with nothing of its own to search, and a new tab, search
+    // everything.
+    ["Extensions", { kind: "builtin", screen: "extensions" }, undefined],
     ["a new tab", { kind: "newTab" }, undefined],
-    ["Extensions", { kind: "screen", screen: "extensions" }, undefined],
-  ])("%s", (_, location, section) => {
-    expect(locationSection(location)).toBe(section);
-  });
-
-  // The top of the computer is one part, named for the system it runs on.
-  it("leads the top of the computer with Files", () => {
-    expect(locationSection({ kind: "folder", path: COMPUTER_ROOT })).toBe(
-      "files",
-    );
+    ["a new chat, which is a new tab", { kind: "newChat" }, undefined],
+  ])("%s", (_, location, scope) => {
+    expect(fieldScopeOf(location)).toBe(scope);
   });
 });
 

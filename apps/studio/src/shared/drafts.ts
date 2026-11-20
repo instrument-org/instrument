@@ -45,22 +45,47 @@ export type DraftAttachment =
   | { kind: "folder"; path: string };
 
 /**
+ * One place in a file the person marked for Instrument and moved into a
+ * draft: the file by its path on this computer, where in it as a reader
+ * would say it ("lines 12-14"), what is there, and what they typed for it.
+ */
+export interface DraftAsk {
+  /** What the surface knows about the place that its text alone does not say: that a script makes it, say. */
+  context?: string;
+  createdAt: number;
+  /** The words or source at that place, trimmed; nothing for a whole file. */
+  excerpt?: string;
+  id: string;
+  /** What the person typed for it, which may be nothing. */
+  instruction: string;
+  path: string;
+  /** Where in the file: "lines 12-14", "Heading · line 40", "page 3", "whole file". */
+  target: string;
+}
+
+/**
  * A draft: a chat not yet started, or a reply waiting in a chat. The two are
  * told apart by `chatId`, which a reply has from the moment it is made and a
  * new chat's draft never has.
  *
- * What it has gathered (sites, files, folders) is its tab group, kept with
- * the window's tabs under {@link draftGroupOf}; what its composer has besides
- * the words is kept in memory beside it, and the part of that with a place on
- * disk in `attached`. `context` is what the draft was given by name from
- * outside a window (asked about, written into its file); a window opens its
- * files, folders and pages as tabs of the group and keeps only the chats.
- * What is on screen goes only once taken into the group.
+ * A new chat's draft belongs to the tab writing it, whose address names it
+ * (`/chats?draft=<id>`); a reply belongs to its chat's box. What its composer
+ * has besides the words is kept in memory beside it, and the part of that
+ * with a place on disk in `attached`. `context` is what else the person chose
+ * to go with the message, each a chip: a file or folder by its path, another
+ * chat, a page by its address. What is up beside the draft's tab goes only
+ * as the message is sent.
  *
  * `projectSource` is kept while the app runs and never written to the draft's
  * file.
  */
 export interface Draft {
+  /**
+   * The places marked in files and moved into the draft with "Add to new
+   * chat", which go with its message as its asks. Its file writes them as
+   * `asks`, so they come back with the draft after a relaunch.
+   */
+  asks?: DraftAsk[];
   /** What the composer was given that has a place on disk, so it comes back after a relaunch. */
   attached?: DraftAttachment[];
   /**
@@ -155,6 +180,12 @@ export interface DraftsSnapshot {
   acks: Record<string, number>;
   /** Every draft, oldest first. */
   drafts: Draft[];
+  /**
+   * Set while main has not yet read the drafts folder, when `drafts` says
+   * nothing of what is there: before the workspace opens, and while its
+   * first read is under way.
+   */
+  loading?: true;
 }
 
 /** A batch of ops from one window, numbered so main can say which it has applied. */
@@ -324,12 +355,13 @@ function isOptionalField(key: keyof DraftFields): key is OptionalField {
   return key !== "words";
 }
 
-/** Whether a draft has anything in it worth keeping: words, or something attached or in its folder. */
+/** Whether a draft has anything in it worth keeping: words, something attached or in its folder, or an ask. */
 export function holdsSomething(draft: Draft): boolean {
   return (
     draft.words.trim() !== "" ||
     (draft.attached ?? []).length > 0 ||
-    (draft.inFolder ?? []).length > 0
+    (draft.inFolder ?? []).length > 0 ||
+    (draft.asks ?? []).length > 0
   );
 }
 
@@ -358,14 +390,4 @@ export function repliesOf(drafts: Draft[], chatId: ChatId): Draft[] {
   return drafts.filter(
     (draft) => draft.chatId === chatId && draft.sendingTo === undefined,
   );
-}
-
-/** The group key a draft's tabs are kept under. */
-export function draftGroupOf(draftId: string): string {
-  return `draft:${draftId}`;
-}
-
-/** The draft a group key names, if it names one. */
-export function draftOfGroup(group: string | undefined): string | undefined {
-  return group?.startsWith("draft:") ? group.slice("draft:".length) : undefined;
 }

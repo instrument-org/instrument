@@ -1,4 +1,3 @@
-import { composeAtom } from "@/client/atoms/window";
 import { type Tab, type TabCarryView, type TabId } from "@/shared/tabs";
 import { getDefaultStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,7 +46,6 @@ beforeEach(() => {
     selectedId: asId("a"),
     tabs: [asTab("a"), asTab("b"), asTab("c")],
   }));
-  store.set(composeAtom, []);
   layOutStrip(["a", "b", "c"]);
 });
 
@@ -66,6 +64,7 @@ describe("what a strip draws of a held tab", () => {
   it("is the tab among its own while held over its strip", () => {
     const view: TabCarryView = {
       clientX: 0,
+      clientY: 0,
       kind: "incoming",
       pointInTab: 0,
       tab: asTab("held"),
@@ -78,6 +77,7 @@ describe("what a strip draws of a held tab", () => {
   it("does not draw it twice once it has really arrived", () => {
     const view: TabCarryView = {
       clientX: 0,
+      clientY: 0,
       kind: "incoming",
       pointInTab: 0,
       tab: asTab("held"),
@@ -134,6 +134,31 @@ describe("where a held tab stands along a strip", () => {
     layOutStrip(["a", "b", "c"], 2);
     expect(stripIndexAt(110, store.get(appTabsAtom).tabs, asId("a"))).toBe(0);
     expect(stripIndexAt(120, store.get(appTabsAtom).tabs, asId("a"))).toBe(1);
+  });
+
+  it("takes the tabs where a row that scrolls has moved them", () => {
+    document.body.innerHTML = `<div data-app-tab-strip><div role="tablist"><div data-strip-scroller>${[
+      "a",
+      "b",
+      "c",
+    ]
+      .map((id) => `<div data-tab-key="${id}"></div>`)
+      .join("")}</div></div></div>`;
+    const list = document.querySelector("[role=tablist]") as HTMLElement;
+    Object.defineProperty(list, "offsetWidth", { value: 150 });
+    list.getBoundingClientRect = () => ({ left: 0, width: 150 }) as DOMRect;
+    const scroller = document.querySelector(
+      "[data-strip-scroller]",
+    ) as HTMLElement;
+    Object.defineProperty(scroller, "scrollLeft", { value: 100 });
+    document.querySelectorAll("[data-tab-key]").forEach((element, index) => {
+      Object.defineProperty(element, "offsetLeft", { value: index * 100 });
+      Object.defineProperty(element, "offsetWidth", { value: 100 });
+    });
+    // Scrolled a tab along, "b" and "c" stand at -100 and 0 without "a",
+    // so a left edge at 40 is past "b"'s middle and one at 60 past "c"'s.
+    expect(stripIndexAt(40, store.get(appTabsAtom).tabs, asId("a"))).toBe(1);
+    expect(stripIndexAt(60, store.get(appTabsAtom).tabs, asId("a"))).toBe(2);
   });
 });
 

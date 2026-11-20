@@ -12,10 +12,10 @@ import {
 } from "@/client/components/ui/tooltip";
 import { FileOpenContext } from "@/client/components/file-open-context";
 import { useFileDrag } from "@/client/hooks/use-file-drag";
+import { addressOfTab, fileAddressOf } from "@/client/bookmarks/address";
 import { wantsNewTab, wantsNewWindow } from "@/client/hooks/use-open-target";
 import { displayPath } from "@/client/lib/path-utils";
 import {
-  ChipPresence,
   COMPOSER_CHIP_CLASSNAME,
   COMPOSER_CHIP_SELECTED_CLASSNAME,
 } from "@/client/components/attached-item-preview";
@@ -26,35 +26,23 @@ import {
   isFolderPath,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
+import { chatAddressOf } from "@instrument-org/shared";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { XIcon } from "@phosphor-icons/react/X";
-import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { VersionTag } from "@/client/components/version-tag";
-import { useQuery } from "@tanstack/react-query";
-import { AnimatePresence } from "motion/react";
-import { type ReactNode, useContext, useState } from "react";
+import { type ReactNode, useContext } from "react";
 
 import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
-import { chatListOptions } from "./chat-list-query";
-import { useComputerVolumes } from "./computer-volumes";
 import { type OpenOptions, WindowContext } from "./context";
-import {
-  type ContextItem,
-  type DrawnChip,
-  drawnChipsOf,
-} from "./context-items";
+import { contentOfAddress, useContentDrag } from "./drag/content-drag";
 import { pageTabTitle } from "./file-tabs";
 import { useVersionNamed } from "./file-versions";
 import { segmentsOf } from "./host-path";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
-import { chatHref, chatOfGroup } from "./window-href";
+import { chatHref } from "./window-href";
 
 type SentChip = SessionMessageDataPart.SentChip;
-
-/** What a chip of the composer's is, as its tooltip says it. */
-const SENT_WITH_MESSAGE = "Goes with your message";
 
 /** What a chip over a sent message is, as its tooltip says it. */
 const SENT_WITH_THIS_MESSAGE = "Sent with this message";
@@ -67,7 +55,7 @@ const SENT_WITH_THIS_MESSAGE = "Sent with this message";
  */
 export function heldChipOf(
   { items, tab }: { items: ChosenItem[] | undefined; tab: WindowTab },
-  names: Pick<ScreenNames, "appsBySlug" | "volumes">,
+  names: Pick<ScreenNames, "appsBySlug" | "taskTitles" | "volumes">,
 ): SentChip {
   if (items !== undefined && items.length > 0) {
     return {
@@ -87,252 +75,6 @@ export function heldChipOf(
     title: screenPresentation(tab.href, names).title,
     url: tab.href,
   };
-}
-
-/**
- * What the window has in view behind a draft, offered to it beside the plus:
- * dashed and quiet, the way the head offers a project, with a plus where a
- * chip has its x. A press takes it into the draft's band, where it is a chip
- * like any other from then on. Nothing offered goes with the message, so it
- * may follow the screen as the person moves about without changing what is
- * sent.
- */
-export function ContextSuggestion({
-  item,
-  onTake,
-}: {
-  item: ContextItem;
-  onTake: () => void;
-}) {
-  const appsBySlug = useAppsBySlug();
-  const volumes = useComputerVolumes();
-  if (item.kind !== "tab") {
-    return null;
-  }
-  const chip = heldChipOf(
-    { items: item.items, tab: item.tab },
-    { appsBySlug, ...(volumes ? { volumes } : {}) },
-  );
-  const [one] = item.items ?? [];
-  const name = nameOfChip(chip);
-  return (
-    <ToolbarTooltip label="Add to your message">
-      <button
-        aria-label={`Add ${name}`}
-        className="inline-flex h-7 max-w-56 min-w-0 shrink items-center gap-1.5 rounded-[9px] border border-dashed border-border pr-1.5 pl-1.5 text-[12.5px] text-muted-foreground hover:border-foreground/30 hover:text-foreground"
-        data-slot="context-suggestion"
-        onClick={onTake}
-        type="button"
-      >
-        <span className="grid size-4 shrink-0 place-items-center opacity-70 [&_img]:size-4 [&_svg]:size-4">
-          {item.items?.length === 1 && one !== undefined ? (
-            <ItemMark item={one} />
-          ) : (
-            <HeldMark appsBySlug={appsBySlug} tab={item.tab} />
-          )}
-        </span>
-        {/* One line cut short like `truncate`, but free to break anywhere,
-            so the name adds a letter rather than its whole length to the
-            least the composer's row can squeeze the offer to. */}
-        <span className="line-clamp-1 min-w-0 break-all">{name}</span>
-        <PlusIcon className="size-3 shrink-0" />
-      </button>
-    </ToolbarTooltip>
-  );
-}
-
-/**
- * The chip at the head of the words naming one of the draft's own tabs, or
- * what a chat's view has up, in the row an attached file lands in, since it
- * goes with the words as a file does. One quiet line, its mark and name with
- * an x that leaves it out; what it is for is in its tooltip.
- */
-function IncludedChip({
-  appsBySlug,
-  isSelected = false,
-  items,
-  onLeaveOut,
-  onSelect,
-  tab,
-}: {
-  appsBySlug: AppsBySlug;
-  /** Whether the chip's tab is the one its band has up. */
-  isSelected?: boolean;
-  /** What the thing points at on this computer, which the chip names in place of the tab. */
-  items: ChosenItem[] | undefined;
-  onLeaveOut: () => void;
-  /** Puts the chip's tab up in its band, for a chip that is one of a band's tabs. */
-  onSelect?: () => void;
-  tab: WindowTab;
-}) {
-  const volumes = useComputerVolumes();
-  const chip = heldChipOf(
-    { items, tab },
-    { appsBySlug, ...(volumes ? { volumes } : {}) },
-  );
-  const [one] = items ?? [];
-  return (
-    <ContextChip
-      label={
-        <ChipLabel
-          paths={(items ?? []).map((item) => item.path)}
-          said={SENT_WITH_MESSAGE}
-        />
-      }
-      mark={
-        items?.length === 1 && one !== undefined ? (
-          <ItemMark item={one} />
-        ) : (
-          <HeldMark appsBySlug={appsBySlug} tab={tab} />
-        )
-      }
-      isSelected={isSelected}
-      cutsMiddle={isOnePath(chip)}
-      name={nameOfChip(chip)}
-      onLeaveOut={onLeaveOut}
-      {...(onSelect ? { onSelect } : {})}
-      {...(items?.length === 1 && one !== undefined
-        ? { onePath: { chatId: chatOfGroup(tab.group), path: one.path } }
-        : {})}
-      slot="included-chip"
-    />
-  );
-}
-
-/**
- * A composer's chips, one per item it carries (see `ContextItem`), in their
- * order, each with an x that leaves its item out. The one way a composer
- * shows what goes with its words, so a chip is never missing for something
- * that goes.
- *
- * Given a `band`, the chips of that band's tabs are its tabs too: a press on
- * one puts its tab up in the band, and the one up is drawn raised.
- */
-export function ContextChips({
-  band,
-  items,
-  onLeaveOut,
-  onShow,
-}: {
-  band?: {
-    group: string;
-    onSelect: (tabId: string) => void;
-    selectedId: string | undefined;
-  };
-  items: ContextItem[];
-  onLeaveOut: (item: ContextItem) => void;
-  /** Shows what a chip that is no band's tab names, where the host shows such things: behind a popped-out chat, the screen. */
-  onShow?: (item: ContextItem) => void;
-}) {
-  const appsBySlug = useAppsBySlug();
-  const chipOf = (item: ContextItem) => {
-    const leaveOut = () => {
-      onLeaveOut(item);
-    };
-    switch (item.kind) {
-      case "chat": {
-        return <ChatChip chatId={item.chat} onLeaveOut={leaveOut} />;
-      }
-      case "chosen": {
-        return <ChosenChip item={item.item} onLeaveOut={leaveOut} />;
-      }
-      case "tab": {
-        const { tab } = item;
-        const inBand = band !== undefined && tab.group === band.group;
-        return (
-          <IncludedChip
-            appsBySlug={appsBySlug}
-            isSelected={inBand && tab.id === band.selectedId}
-            items={item.items}
-            onLeaveOut={leaveOut}
-            onSelect={
-              inBand
-                ? () => {
-                    band.onSelect(tab.id);
-                  }
-                : onShow
-                  ? () => {
-                      onShow(item);
-                    }
-                  : undefined
-            }
-            tab={tab}
-          />
-        );
-      }
-    }
-  };
-  // Keyed by the tab where a chip is one, so a folder's chip that comes to
-  // name what is selected in it changes in place rather than going and
-  // coming back; and a line's chip whose tab has just opened keeps the
-  // line's key, so it is never drawn twice for a moment (`drawnChipsOf`).
-  const [drawn, setDrawn] = useState<readonly DrawnChip[]>([]);
-  const chips = drawnChipsOf(items, drawn);
-  if (signatureOf(chips) !== signatureOf(drawn)) {
-    setDrawn(chips);
-  }
-  return (
-    <AnimatePresence initial={false}>
-      {items.map((item, index) => (
-        <ChipPresence key={chips[index]?.key ?? item.key}>
-          {chipOf(item)}
-        </ChipPresence>
-      ))}
-    </AnimatePresence>
-  );
-}
-
-/**
- * Another chat the person had open, named and nothing more: what is in it
- * is that chat's, so the conversation is told which chat and not what it
- * shows.
- */
-function ChatChip({
-  chatId,
-  onLeaveOut,
-}: {
-  chatId: ChatId;
-  onLeaveOut: () => void;
-}) {
-  // The chat's title as the list has it: undefined while the list loads,
-  // null once the list has no such chat.
-  const title = useQuery({
-    ...chatListOptions(),
-    select: (chats) => chats.find((chat) => chat.id === chatId)?.title ?? null,
-  }).data;
-  // A chat trashed since is not there to name, and goes with nothing.
-  if (title === null) {
-    return null;
-  }
-  return (
-    <ContextChip
-      label={<ChipLabel paths={[]} said={SENT_WITH_MESSAGE} />}
-      mark={<ChatCircleIcon />}
-      name={title ?? "Chat"}
-      onLeaveOut={onLeaveOut}
-      slot="chat-chip"
-    />
-  );
-}
-
-/** A file or folder the draft was opened on by name, held for the chat until it is left out. */
-function ChosenChip({
-  item,
-  onLeaveOut,
-}: {
-  item: ChosenItem;
-  onLeaveOut: () => void;
-}) {
-  return (
-    <ContextChip
-      label={<ChipLabel paths={[item.path]} said={SENT_WITH_MESSAGE} />}
-      mark={<ItemMark item={item} />}
-      cutsMiddle
-      name={nameOfPath(item.path)}
-      onLeaveOut={onLeaveOut}
-      slot="chosen-chip"
-    />
-  );
 }
 
 /**
@@ -424,6 +166,7 @@ export function SentChips({
                 }
               : undefined
           }
+          holds={{ title: nameOfChip(chip), url: addressOfSent(chip) }}
           cutsMiddle={isOnePath(chip)}
           name={nameOfChip(chip)}
           onOpen={openerOf(chip)}
@@ -435,6 +178,30 @@ export function SentChips({
       ))}
     </div>
   );
+}
+
+/** The address a file or folder chosen for a draft is kept and opened under. */
+function addressOfItem(item: Pick<ChosenItem, "kind" | "path">) {
+  return fileAddressOf(item.path, { isFolder: item.kind === "folder" });
+}
+
+/** The address a chip over a sent message names: a chat's, a page's, a screen's, or its one file or folder's. */
+function addressOfSent(chip: SentChip): string | undefined {
+  switch (chip.kind) {
+    case "chat": {
+      return chatAddressOf(ChatIdSchema.parse(chip.id));
+    }
+    case "page": {
+      return chip.url;
+    }
+    case "screen": {
+      return addressOfTab({ href: chip.url, kind: "screen" });
+    }
+    case "paths": {
+      const [one] = chip.items;
+      return chip.items.length === 1 && one ? addressOfItem(one) : undefined;
+    }
+  }
 }
 
 /** One thing a group holds, as its mark: a page's icon, or a screen's. */
@@ -477,6 +244,7 @@ function ChipLabel({ paths, said }: { paths: string[]; said: string }) {
 function ContextChip({
   cutsMiddle = false,
   drags,
+  holds,
   isSelected = false,
   label,
   mark,
@@ -491,6 +259,8 @@ function ContextChip({
   cutsMiddle?: boolean;
   /** What dragging the chip out of the window carries: a sent chip's files and folders, never a draft's. */
   drags?: { hostPath: string; others: string[] };
+  /** The address the chip names, held as a link when it is dragged and it carries no files. */
+  holds?: { title: string; url: string | undefined };
   /** Whether the chip's tab is the one its band has up. */
   isSelected?: boolean;
   label: ReactNode;
@@ -515,7 +285,12 @@ function ContextChip({
     isSelected && COMPOSER_CHIP_SELECTED_CLASSNAME,
   );
   const fileDragProps = useFileDrag(drags);
-  const dragProps = drags ? fileDragProps : {};
+  const held = holds?.url;
+  const linkDragProps = useContentDrag(
+    held === undefined ? undefined : contentOfAddress(held, holds?.title ?? ""),
+    { isOff: drags !== undefined },
+  );
+  const dragProps = drags ? fileDragProps : linkDragProps;
   const version = useVersionNamed(onePath?.chatId, onePath?.path);
   const shownName = version?.name ?? name;
   const markAndName = (
@@ -581,7 +356,7 @@ function ContextChip({
                 wantsNewWindow(event)
                   ? { newWindow: true }
                   : wantsNewTab(event)
-                    ? { newTab: true }
+                    ? { behind: true, newTab: true }
                     : {},
               );
             }}
@@ -645,11 +420,4 @@ function keyOfChip(chip: SentChip) {
 /** The last name in a path, which is what a chip calls the thing. */
 function nameOfPath(path: string) {
   return segmentsOf(path).at(-1) ?? path;
-}
-
-/** What a set of drawn chips is, to tell whether it changed. */
-function signatureOf(chips: readonly DrawnChip[]): string {
-  return chips
-    .map((chip) => `${chip.identity}=${chip.key}:${chip.lines.join(",")}`)
-    .join("\n");
 }

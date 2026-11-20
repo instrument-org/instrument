@@ -14,25 +14,24 @@ export interface WindowShortcut {
 }
 
 /**
- * The rail's places, one chord each in the rail's order: Control and Command
- * with the digit on a Mac, as Safari puts its sidebar's sections, where
- * Option and a digit types a character; Alt and the digit elsewhere, where
- * Control and Alt together is AltGr on many layouts and types one too. One
- * modifier away from the tabs' Cmd or Ctrl and a digit.
- */
-const placeChord = (digit: number) => ({
-  darwin: `Control+Command+${digit}`,
-  default: `Alt+${digit}`,
-});
-
-/**
- * Down and up the inbox: Option and Command with the arrow on a Mac, where
- * Option and an arrow alone moves the caret. Elsewhere Alt+Shift and the
+ * Down and up the sidebar's tab groups: Option and Command with the arrow on
+ * a Mac, where Option and an arrow alone moves the caret. Elsewhere Alt+Shift and the
  * arrow, which chat apps there step through unread conversations with: GNOME
  * takes Ctrl+Alt and an arrow to switch workspaces, and Alt and ↑ is the
  * parent folder in Files, as in File Explorer.
  */
 const chatChord = (arrow: "Down" | "Up") => ({
+  darwin: `Alt+CmdOrCtrl+${arrow}`,
+  default: `Alt+Shift+${arrow}`,
+});
+
+/**
+ * The keyboard to the left or right side of a tab group: Option and Command
+ * with the arrow on a Mac, as a terminal steps between its split panes, the
+ * group chords' arrows turned sideways; Alt+Shift and the arrow elsewhere,
+ * beside them.
+ */
+const sideChord = (arrow: "Left" | "Right") => ({
   darwin: `Alt+CmdOrCtrl+${arrow}`,
   default: `Alt+Shift+${arrow}`,
 });
@@ -48,6 +47,20 @@ const historyChord = (bracket: "[" | "]", arrow: "Left" | "Right") => ({
 
 export const WINDOW_SHORTCUTS = {
   back: { accelerator: historyChord("[", "Left"), label: "Back" },
+  // Every tab of the group on screen, into a new folder: Chrome's own key.
+  bookmarkAllTabs: {
+    accelerator: "Shift+CmdOrCtrl+D",
+    label: "Bookmark All Tabs…",
+  },
+  // A browser's own key for the star at the end of its address field.
+  bookmarkTab: { accelerator: "CmdOrCtrl+D", label: "Bookmark This Tab…" },
+  // The side with the keyboard closed whole, where the group has two: Close
+  // Tab's chord with Option on a Mac, the system's Close All, and with
+  // Alt+Shift elsewhere, beside New Tab in Split's.
+  closeSplit: {
+    accelerator: { darwin: "Alt+CmdOrCtrl+W", default: "Alt+Shift+W" },
+    label: "Close Split",
+  },
   closeTab: { accelerator: "CmdOrCtrl+W", label: "Close Tab" },
   // The system's file manager's own key: Get Info's on a Mac, and Properties'
   // in File Explorer, GNOME's Files and Dolphin.
@@ -61,31 +74,55 @@ export const WINDOW_SHORTCUTS = {
   findInPage: { accelerator: "CmdOrCtrl+F", label: "Find" },
   findNext: { accelerator: "CmdOrCtrl+G", label: "Find Next" },
   findPrevious: { accelerator: "Shift+CmdOrCtrl+G", label: "Find Previous" },
+  // The keyboard to a side of the tab group on screen, which a press on it
+  // gives too.
+  focusLeftSide: { accelerator: sideChord("Left"), label: "Focus Left Side" },
+  focusRightSide: {
+    accelerator: sideChord("Right"),
+    label: "Focus Right Side",
+  },
   forward: { accelerator: historyChord("]", "Right"), label: "Forward" },
-  goToApps: { accelerator: placeChord(4), label: "Go to Apps" },
-  goToBrowser: { accelerator: placeChord(3), label: "Go to Browser" },
-  goToChat: { accelerator: placeChord(1), label: "Go to Chat" },
-  goToFiles: { accelerator: placeChord(2), label: "Go to Files" },
-  newChat: { accelerator: "CmdOrCtrl+N", label: "New Chat" },
+  newChat: { accelerator: "CmdOrCtrl+N", label: "New Tab Group" },
   newTab: { accelerator: "CmdOrCtrl+T", label: "New Tab" },
-  nextChat: { accelerator: chatChord("Down"), label: "Next Chat" },
+  // A new tab on the other side of the group on screen, made where it has
+  // one side: Chrome's split chord, Option and Command and N on a Mac, and
+  // Alt+Shift+N elsewhere, beside the side chords.
+  newTabInSplit: {
+    accelerator: { darwin: "Alt+CmdOrCtrl+N", default: "Alt+Shift+N" },
+    label: "New Tab in Split",
+  },
+  nextChat: { accelerator: chatChord("Down"), label: "Next Tab Group" },
   nextTab: { accelerator: "Ctrl+Tab", label: "Show Next Tab" },
-  previousChat: { accelerator: chatChord("Up"), label: "Previous Chat" },
+  previousChat: { accelerator: chatChord("Up"), label: "Previous Tab Group" },
   previousTab: { accelerator: "Ctrl+Shift+Tab", label: "Show Previous Tab" },
   printPage: { accelerator: "CmdOrCtrl+P", label: "Print…" },
   reloadPage: { accelerator: "CmdOrCtrl+R", label: "Reload Page" },
   reopenTab: { accelerator: "Shift+CmdOrCtrl+T", label: "Reopen Closed Tab" },
-  search: { accelerator: "CmdOrCtrl+L", label: "Search or Ask" },
-  // Find with Shift, as a code editor searches every file: the inbox's
+  search: { accelerator: "CmdOrCtrl+L", label: "Open Location…" },
+  // Find with Shift, as a code editor searches every file: the Chats page's
   // search, over every chat, where Find is the one chat on screen.
-  searchChats: { accelerator: "Shift+CmdOrCtrl+F", label: "Search Chats" },
+  searchChats: {
+    accelerator: "Shift+CmdOrCtrl+F",
+    label: "Search Chats",
+  },
+  // The Bookmarks page: Chrome's Bookmark Manager key, Option and Command
+  // and B on a Mac, and Ctrl+Shift+O elsewhere.
+  showBookmarks: {
+    accelerator: { darwin: "Alt+CmdOrCtrl+B", default: "Ctrl+Shift+O" },
+    label: "Bookmark Manager",
+  },
   // Show All History's key: ⌘Y in Safari and Chrome on a Mac, and Ctrl+H in
   // browsers elsewhere.
   showActivity: {
     accelerator: { darwin: "CmdOrCtrl+Y", default: "Ctrl+H" },
-    label: "Show Activity",
+    label: "Show History",
   },
-  toggleInbox: { accelerator: "CmdOrCtrl+B", label: "Toggle Inbox" },
+  // A browser's own key for its bookmarks bar.
+  toggleBookmarksBar: {
+    accelerator: "Shift+CmdOrCtrl+B",
+    label: "Show Bookmarks Bar",
+  },
+  toggleSidebar: { accelerator: "CmdOrCtrl+B", label: "Toggle Sidebar" },
 } as const satisfies Record<string, WindowShortcut>;
 
 export type WindowShortcutId = keyof typeof WINDOW_SHORTCUTS;
@@ -94,16 +131,21 @@ export type WindowShortcutId = keyof typeof WINDOW_SHORTCUTS;
  * The window's chords that are a code editor's own keys too, on every
  * system: Back and Forward are its indent and outdent on a Mac and its step
  * over a syntax node elsewhere, and Next and Previous Chat add a cursor above
- * or below on a Mac and copy the line elsewhere, and Find Next and Previous
- * step its own search. While a code editor holds
+ * or below on a Mac and copy the line elsewhere, Focus Left and Right Side
+ * select over a syntax node off the Mac, Find Next and Previous
+ * step its own search, and Bookmark This Tab selects the next match. While a
+ * code editor holds
  * the keyboard these reach it first, and the menu answers only a press it
  * leaves alone. Find is its too, and the window already hands that to the
  * editor's own search.
  */
 export const CODE_EDITOR_SHORTCUTS: ReadonlySet<WindowShortcutId> = new Set([
   "back",
+  "bookmarkTab",
   "findNext",
   "findPrevious",
+  "focusLeftSide",
+  "focusRightSide",
   "forward",
   "nextChat",
   "previousChat",
@@ -142,9 +184,17 @@ export const WINDOW_SHORTCUT_ALIASES: {
 export const WINDOW_MENU_SHORTCUTS = {
   actualSize: { accelerator: "CmdOrCtrl+0", label: "Actual Size" },
   closeWindow: { accelerator: "Shift+CmdOrCtrl+W", label: "Close Window" },
+  // Stands for nine chords, one per sidebar row, which the menu spells out
+  // itself: Control on a Mac, beside Command's tabs, and Alt elsewhere, where
+  // Ctrl is the tab key. macOS gives Control and a number to Spaces only for
+  // someone who turned those shortcuts on.
+  groupByPlace: {
+    accelerator: { darwin: "Control+1…9", default: "Alt+1…9" },
+    label: "Tab Group 1 to 9",
+  },
   lastTab: { accelerator: "CmdOrCtrl+9", label: "Last Tab" },
-  // Cmd+N is a new chat, as it is a new message in mail, so a window takes
-  // Shift, as it does in a code editor and in Notion.
+  // Cmd+N is a new tab group, so a window takes Shift, as it does in a
+  // code editor and in Notion.
   newWindow: { accelerator: "Shift+CmdOrCtrl+N", label: "New Window" },
   // No chord on Windows, as Electron's quit role leaves it: Alt+F4 is how an
   // app closes there, and Ctrl+Q sits beside Ctrl+W and Tab.

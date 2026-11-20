@@ -42,6 +42,7 @@ import { computerName, thisDevice } from "../../lib/chat/asks";
 
 import { updateSessionTitle } from "../../lib/update-session-title";
 import { FileUpload } from "../../schemas/file-upload";
+import { LayoutReadSchema } from "../../schemas/group-layout";
 import { SessionMessage } from "../../schemas/session/message";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { StoreId } from "../../schemas/store-id";
@@ -97,6 +98,8 @@ const create = base
        */
       fromDraft: z.string().optional(),
       id: ChatIdSchema,
+      /** The tab group the chat works in, as the window read it at the send. */
+      layout: LayoutReadSchema.optional(),
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),
       sessionId: StoreId.SessionSchema.optional(),
@@ -116,6 +119,7 @@ const create = base
         folders,
         fromDraft,
         id,
+        layout,
         modelURI,
         prompt,
         sessionId,
@@ -178,6 +182,7 @@ const create = base
           files: sending.files,
           folders: sending.folders,
           ...(fromDraft ? { fromDraft } : {}),
+          ...(layout ? { layout } : {}),
           modelURI,
           prompt,
           sessionId: finalSessionId,

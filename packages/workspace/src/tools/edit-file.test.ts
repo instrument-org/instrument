@@ -107,7 +107,7 @@ describe("EditFile", () => {
     await expect(readBack("grep-test.txt")).resolves.toBe(GREP_FILE_CONTENT);
   });
 
-  it("replaces the one match and tells the model only that it succeeded", async () => {
+  it("replaces the one match and tells the model how many places and which lines changed", async () => {
     setupMockFs({ "index.ts": "const x = 1;\nconst y = 1;\n" });
 
     const input = {
@@ -124,6 +124,73 @@ describe("EditFile", () => {
     );
     expect(TOOLS.EditFile.toModelOutput({ input, output, toolCallId: "test" }))
       .toMatchInlineSnapshot(`
+      {
+        "type": "text",
+        "value": "Edited file ./index.ts: 1 replacement, now line 1.",
+      }
+    `);
+  });
+
+  it("says what each kind of edit changed", async () => {
+    setupMockFs({
+      "all.txt": "a\nold\nb\nold\nc\n",
+      "grew.txt": "a\nold\nb\n",
+      "removed.txt": "a\nold\nolder\nb\n",
+    });
+    const said = async (
+      input: Parameters<typeof TOOLS.EditFile.execute>[0]["input"],
+    ) => {
+      const output = (
+        await runTool(TOOLS.EditFile, makeExecuteArgs(input))
+      )._unsafeUnwrap();
+      const text = TOOLS.EditFile.toModelOutput({
+        input,
+        output,
+        toolCallId: "test",
+      });
+      return text.type === "text" ? text.value : text;
+    };
+
+    expect({
+      created: await said({
+        filePath: "./new.txt",
+        newString: "one\ntwo\n",
+        oldString: "",
+      }),
+      grew: await said({
+        filePath: "./grew.txt",
+        newString: "one\ntwo\nthree",
+        oldString: "old",
+      }),
+      removed: await said({
+        filePath: "./removed.txt",
+        newString: "",
+        oldString: "old\nolder\n",
+      }),
+      replaceAll: await said({
+        filePath: "./all.txt",
+        newString: "new",
+        oldString: "old",
+        replaceAll: true,
+      }),
+    }).toMatchInlineSnapshot(`
+      {
+        "created": "Created file ./new.txt, 2 lines.",
+        "grew": "Edited file ./grew.txt: 1 replacement, now lines 2-4.",
+        "removed": "Edited file ./removed.txt: 1 replacement, removing old lines 2-3.",
+        "replaceAll": "Edited file ./all.txt: 2 replacements, within lines 2-4.",
+      }
+    `);
+  });
+
+  it("reads a result stored before the counts were kept as it did then", () => {
+    expect(
+      TOOLS.EditFile.toModelOutput({
+        input: { filePath: "./index.ts", newString: "b", oldString: "a" },
+        output: { filePath: "./index.ts", modifiedAt: 0 },
+        toolCallId: "test",
+      }),
+    ).toMatchInlineSnapshot(`
       {
         "type": "text",
         "value": "Successfully edited file ./index.ts",

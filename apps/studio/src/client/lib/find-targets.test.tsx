@@ -111,4 +111,21 @@ describe("placeOf", () => {
     gone.remove();
     expect(placeOf({ focused: document.body, pressed: gone })).toBeNull();
   });
+
+  it("is the side with the keyboard unless the caret is in it or in a dialog", () => {
+    const { at } = layout();
+    const side = at("inbox");
+    expect(
+      placeOf({ focused: at("viewer-find"), pressed: at("row"), side }),
+    ).toBe(side);
+    expect(placeOf({ focused: document.body, pressed: at("row"), side })).toBe(
+      side,
+    );
+    expect(
+      placeOf({ focused: at("row"), pressed: null, side: at("inbox") }),
+    ).toBe(at("row"));
+    expect(placeOf({ focused: at("confirm"), pressed: null, side })).toBe(
+      at("confirm"),
+    );
+  });
 });

@@ -6,8 +6,8 @@ import { type TabId } from "@/shared/tabs";
 import { groupOfHref } from "./app-tabs";
 import { computerTabOf } from "./file-tabs";
 import { joinHostPath } from "./host-path";
-import { isFreshTab, selectedTabIn, type WindowTabs } from "./tab-model";
-import { chatOfGroup, matchScreen } from "./window-href";
+import { isFreshTab } from "./tab-model";
+import { matchScreen } from "./window-href";
 
 /**
  * What a tab a draft was opened over points at on this computer, less what
@@ -50,53 +50,6 @@ export function includedItemsOf(
         { kind: "folder", path: joinHostPath(computer.root, computer.path) },
       ])
     : undefined;
-}
-
-/**
- * Whether a group's pane is open, read from `paneOpenByGroupAtom`: a group
- * the toggle never touched has its pane open.
- */
-export function isPaneOpen(
-  group: string,
-  paneOpenByGroup: Record<string, boolean>,
-): boolean {
-  return paneOpenByGroup[group] ?? true;
-}
-
-/**
- * Whether a group's tab is in view in the window: a site opened at the
- * window's level always shows its page, and a chat shows its tab up only
- * while its pane is open beside it.
- */
-export function isGroupShown(
-  group: string | undefined,
-  paneOpenByGroup: Record<string, boolean>,
-): boolean {
-  if (group === undefined) {
-    return false;
-  }
-  return chatOfGroup(group) === undefined || isPaneOpen(group, paneOpenByGroup);
-}
-
-/**
- * The tab a chat's pane shows beside it, which the window's Close Tab
- * closes before the window's own tab: the tab up in the chat the window's
- * tab stands on, while that chat's pane is open. None for a hidden pane, a
- * draft or a site, which close with the window's tab.
- */
-export function shownPaneTab(
-  state: WindowTabs,
-  groupOnScreen: string | undefined,
-  paneOpenByGroup: Record<string, boolean>,
-): undefined | WindowTab {
-  if (
-    groupOnScreen === undefined ||
-    chatOfGroup(groupOnScreen) === undefined ||
-    !isPaneOpen(groupOnScreen, paneOpenByGroup)
-  ) {
-    return undefined;
-  }
-  return selectedTabIn(state, groupOnScreen);
 }
 
 /**

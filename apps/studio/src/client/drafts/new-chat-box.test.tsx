@@ -1,13 +1,21 @@
 import { storedWordsAtom, typedWordsAtom } from "@/client/atoms/prompt-value";
+import {
+  deleteGroupTabRouter,
+  setGroupTabRouter,
+} from "@/client/lib/group-tab-router-registry";
+import { type TabRouter } from "@/client/lib/tab-router";
 import { createStore } from "jotai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   bindNewChatBoxAtom,
+  closingNewChat,
   draftInNewChatBox,
   isNewChatEmptied,
   newChatBoxesAtom,
+  pickedNewChatProject,
   pickNewChatProjectAtom,
+  settleMadeDraft,
 } from "./new-chat-box";
 import { WORDS_SETTLE_MS } from "./settle-words";
 import { draftsAtom, resetDrafts } from "./store";
@@ -94,6 +102,38 @@ describe("a new chat in the Chat screen", () => {
     },
   );
 
+  it("writes words typed a moment before the screen goes, and names the draft they made", () => {
+    const { inBox, store, type } = window();
+    expect(settleMadeDraft(store, TAB)).toBeUndefined();
+
+    type("Before the switch");
+    const made = settleMadeDraft(store, TAB);
+
+    expect(made).toBe(inBox()?.id);
+    expect(inBox()?.words).toBe("Before the switch");
+  });
+
+  it("names the draft in the tab's address in the step that makes it", () => {
+    const { inBox, store, type } = window();
+    const replace = vi.fn();
+    // Only the history is read: a whole router would load the route tree.
+    setGroupTabRouter(TAB, { history: { replace } } as unknown as TabRouter);
+    try {
+      type("Quit right after this");
+      expect(replace).not.toHaveBeenCalled();
+      settleMadeDraft(store, TAB);
+      expect(replace.mock.calls).toEqual([[`/chats?draft=${inBox()?.id}`]]);
+    } finally {
+      deleteGroupTabRouter(TAB);
+    }
+  });
+
+  it("names no draft the box took up from the address", () => {
+    const { store } = window();
+    store.set(bindNewChatBoxAtom, { draftId: "from-the-address", tabId: TAB });
+    expect(settleMadeDraft(store, TAB)).toBeUndefined();
+  });
+
   it("files the draft under the project picked before there was one", () => {
     const { inBox, settle, store, type } = window();
     store.set(pickNewChatProjectAtom, { projectId: "travel", tabId: TAB });
@@ -105,6 +145,37 @@ describe("a new chat in the Chat screen", () => {
       projectId: "travel",
       projectSource: "chosen",
     });
+  });
+
+  it("keeps the picked project once words make the draft", () => {
+    const { inBox, settle, store, type } = window();
+    store.set(pickNewChatProjectAtom, { projectId: "travel", tabId: TAB });
+    const picked = () =>
+      pickedNewChatProject(inBox(), store.get(newChatBoxesAtom)[TAB]);
+    expect(picked()).toBe("travel");
+
+    type("Hotels");
+    settle();
+    type("Hotels in Lisbon");
+    settle();
+
+    expect(picked()).toBe("travel");
+  });
+
+  it("counts a project the model suggested as not picked", () => {
+    expect(
+      pickedNewChatProject(
+        {
+          createdAt: 0,
+          id: "d",
+          projectId: "travel",
+          projectSource: "suggested",
+          updatedAt: 0,
+          words: "Hotels in Lisbon",
+        },
+        { draftId: "d" },
+      ),
+    ).toBeUndefined();
   });
 
   it("keeps an emptied draft for the screen to judge, and starts over once let go of", () => {
@@ -145,4 +216,66 @@ describe("whether a new chat was emptied", () => {
       ).toBe(expected);
     },
   );
+});
+
+describe("a new chat's tab as it closes", () => {
+  const draft = (id: string, words: string) => ({
+    createdAt: 1,
+    id,
+    updatedAt: 1,
+    words,
+  });
+  const drafts = [draft("kept", "Hotels in Lisbon"), draft("emptied", "")];
+
+  it.each([
+    {
+      boxes: {},
+      expected: { href: "/chats?draft=kept" },
+      href: "/chats?draft=kept",
+      why: "a draft with words keeps its address",
+    },
+    {
+      boxes: { [TAB]: { draftId: "kept" } },
+      expected: { href: "/chats?draft=kept" },
+      href: "/chats",
+      why: "the draft its box writes into is named where the address has none",
+    },
+    {
+      boxes: { [TAB]: { draftId: "emptied" } },
+      expected: { emptied: "emptied", href: "/chats" },
+      href: "/chats?draft=emptied",
+      why: "an emptied draft is thrown away and the tab closes blank",
+    },
+    {
+      boxes: {},
+      expected: { href: "/chats" },
+      href: "/chats?draft=gone",
+      why: "a draft already gone leaves a blank tab",
+    },
+    {
+      boxes: {},
+      expected: { href: "/chats" },
+      href: "/chats",
+      why: "a new tab with no draft closes as it is",
+    },
+    {
+      boxes: { [TAB]: { draftId: "emptied" } },
+      expected: { href: "/settings" },
+      href: "/settings",
+      why: "a tab that is no new chat closes as it is",
+    },
+  ])("$why", ({ boxes, expected, href }) => {
+    expect(closingNewChat({ boxes, drafts }, { href, tabId: TAB })).toEqual(
+      expected,
+    );
+  });
+
+  it("keeps the draft words settling as it closes just made", () => {
+    expect(
+      closingNewChat(
+        { boxes: {}, drafts },
+        { href: "/chats", made: "kept", tabId: TAB },
+      ),
+    ).toEqual({ href: "/chats?draft=kept" });
+  });
 });

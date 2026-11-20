@@ -1,7 +1,11 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { type AppCommand } from "@/shared/app-command";
-import { type Tab, type TabCarryView } from "@/shared/tabs";
+import {
+  type GroupTabLanding,
+  type Tab,
+  type TabCarryView,
+} from "@/shared/tabs";
 import {
   type BrowserTargetId,
   type StoreId,
@@ -44,6 +48,9 @@ interface PublisherEvents {
   // element moves Chromium's keyboard focus across the process boundary;
   // `webContents.focus()` on the guest does not.
   "browser.focus-guest": { targetId: BrowserTargetId };
+  // The person pressed the pointer in a guest, which the host document
+  // never sees, so the renderer can give the side showing it the keyboard.
+  "browser.page-pressed": { targetId: BrowserTargetId };
   // A page in a tab an agent drives tried to go to a file outside the agent's
   // folders and was kept where it is. The app window says so,
   // since otherwise a link the person clicked just does nothing.
@@ -56,11 +63,20 @@ interface PublisherEvents {
   // the one up when `background`.
   "browser.open-in-new-tab": {
     background: boolean;
-    /** In a window of the app's own rather than a tab: a Shift-click, or the menu's Open Link in New Window. */
+    /** A place the page's menu picked: the other side of the page's tab group, a new tab group, or a new window. */
+    into?: "group" | "split" | "window";
+    /** As the first tab of a new tab group: a Shift-click. */
     newWindow?: boolean;
     /** The id the tab opens under, for a popup an agent's page opened, which its result names. */
     tabId?: StoreId.Tab;
     targetId: BrowserTargetId;
+    url: string;
+  };
+  // A link a person kept from a page's menu (Bookmark Link), named by its
+  // text; the window keeps it and says so.
+  "browser.bookmark-link": {
+    targetId: BrowserTargetId;
+    title: string;
     url: string;
   };
   // A page whose first navigation became a person's download, which leaves it
@@ -121,6 +137,8 @@ interface PublisherEvents {
   // The windows open changed, or one of them is called something else: what a
   // tab's menu offers to move it to, and what the Window menu's commands can do.
   "windows.changed": null;
+  // A window changed which tab groups it has open.
+  "window.tab-groups-changed": null;
   // What a window's strip shows of a tab held by the pointer.
   "window.tab-carry": {
     view: TabCarryView;
@@ -138,6 +156,8 @@ interface PublisherEvents {
 /** What one window is asked to do; see `window.command`. */
 export type WindowCommand =
   | "back"
+  | "bookmarkAllTabs"
+  | "bookmarkTab"
   | "clearBrowsingData"
   | "closeTab"
   | "commandMenu"
@@ -147,10 +167,8 @@ export type WindowCommand =
   | "fileInfo"
   | "findPrevious"
   | "forward"
-  | "goToApps"
-  | "goToBrowser"
-  | "goToChat"
-  | "goToFiles"
+  | "focusLeftSide"
+  | "focusRightSide"
   | "newChat"
   | "newTab"
   | "nextChat"
@@ -169,16 +187,23 @@ export type WindowCommand =
   | "search"
   | "searchChats"
   | "showActivity"
-  | "toggleInbox"
+  | "showBookmarks"
+  | "toggleBookmarksBar"
+  | "toggleSidebar"
   | "zoomIn"
   | "zoomOut"
   | "zoomReset"
   | "moveTabToNewWindow"
+  | "newTabInSplit"
+  | "closeSplit"
   | AppWindowAsk
   | { index?: number; tab: Tab; type: "receiveTab" }
+  /** A tab group's tab another window let go here, by its strip key, into one of this window's groups. */
+  | { key: string; landing: GroupTabLanding; type: "receiveGroupTab" }
   /** Another window asked for what a tab here shows: bring it up and say so (`window.tabShown`). */
   | { href: string; requestId: string; type: "showTab" }
-  | { index: number; type: "selectTab" };
+  | { index: number; type: "selectTab" }
+  | { index: number; type: "selectGroup" };
 
 // Per subscription, starting empty when it subscribes: what a subscriber that
 // is still busy with one event holds of the ones after it. Several of these

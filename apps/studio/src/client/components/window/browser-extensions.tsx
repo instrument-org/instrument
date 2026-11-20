@@ -5,7 +5,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
-import { useAppTabs } from "@/client/components/window/app-tabs";
+import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { WindowContext } from "@/client/components/window/context";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { toast } from "@/client/lib/toast";
@@ -18,7 +18,7 @@ import {
   chromeWebStorePageOf,
   desktopAppSteps,
 } from "@/shared/browser-extensions";
-import { SCREEN_ROUTES } from "@/client/components/window/window-href";
+import { SCREENS } from "@/shared/instrument-screens";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
@@ -51,7 +51,6 @@ export function useBrowserExtensions(): BrowserExtension[] {
 /** What the row, the puzzle menu and the Extensions page do to an extension. */
 export function useExtensionActions() {
   const appWindow = useContext(WindowContext);
-  const appTabs = useAppTabs();
   const openExternalLink = useOpenExternalLink();
   const { mutate: remove } = useMutation(
     rpcClient.browserExtensions.remove.mutationOptions({
@@ -83,7 +82,7 @@ export function useExtensionActions() {
   return {
     manage: () => {
       if (appWindow) {
-        appTabs.open(SCREEN_ROUTES.extensions, { newTab: "reuseBlank" });
+        openBuiltInPage(SCREENS.extensions.href);
       }
     },
     openDesktopApp: (extension: BrowserExtension) => {

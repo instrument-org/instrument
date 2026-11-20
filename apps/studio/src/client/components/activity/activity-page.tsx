@@ -9,11 +9,12 @@ import {
   acrossSeam,
   type ActivityRequest,
   type ActivityView,
-  actionText,
   entriesShown,
+  entryText,
   moreFromOf,
   placeOf,
   type Show,
+  SHOW_LABELS,
   SHOWS,
   timelineOf,
   type TimelineEntry,
@@ -21,11 +22,15 @@ import {
   turnPlaceOf,
   pathOfAction,
   turnParts,
-  turnText,
   untilAfterLive,
   withDayHeads,
 } from "@/client/components/activity/activity-timeline";
 import { ClearActivityDialog } from "@/client/components/activity/clear-activity-dialog";
+import {
+  useClosedTabs,
+  useForgetClosed,
+  useRestoreClosed,
+} from "@/client/components/activity/recently-closed";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
@@ -45,11 +50,13 @@ import {
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
 import { SearchField } from "@/client/components/window/search-field";
+import { useTabSurface } from "@/client/components/window/tab-surface";
 import {
   refreshWhileShown,
   useIsActiveTab,
 } from "@/client/hooks/use-active-tab";
 import { useGesturesFor } from "@/client/hooks/use-open-target";
+import { PAGE_FOLD_PX, useIsNarrower } from "@/client/hooks/use-is-narrower";
 import { displayLocale } from "@/client/lib/display-locale";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { toast } from "@/client/lib/toast";
@@ -60,7 +67,6 @@ import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
-import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
@@ -92,19 +98,12 @@ const LIVE_LIMIT = 200;
 export const ACTIONS_KEY = ["actions", "list"];
 export const REQUESTS_KEY = ["activity", "timeline"];
 
-/** The filters over the list, in the order they sit, with what each one shows. */
-const SHOW_LABELS: Record<Show, { label: string; title: string }> = {
-  ai: { label: "AI requests", title: "What your chats asked AI models" },
-  chats: { label: "Chats", title: "Chats you opened" },
-  files: { label: "Files", title: "Files and folders you opened or changed" },
-  pages: { label: "Pages", title: "Pages you visited in the browser" },
-};
-
 const EMPTY: Record<Show, string> = {
   ai: "No AI requests yet.",
   chats: "No chats yet.",
   files: "No files yet.",
   pages: "No pages yet.",
+  tabs: "No closed tabs yet.",
 };
 
 const timeFormat = new Intl.DateTimeFormat(displayLocale, {
@@ -130,7 +129,7 @@ function isIn<T>(query: UseInfiniteQueryResult<InfiniteData<T>>) {
   return !query.isPending && !query.isPlaceholderData;
 }
 
-/** What a removal takes: the person's own rows, and the AI requests of the turns picked. */
+/** What a removal takes from the logs: the person's own rows, and the AI requests of the turns picked. */
 function removalOf(entries: readonly TimelineEntry[]) {
   return {
     actions: entries.flatMap((entry) =>
@@ -148,14 +147,15 @@ function removalOf(entries: readonly TimelineEntry[]) {
 
 /** Whether a row can come out of Activity: a permission answered is its chat's rule, which stays. */
 function isRemovable(entry: TimelineEntry) {
-  return entry.kind === "turn" || entry.action.kind !== "permission";
+  return entry.kind !== "action" || entry.action.kind !== "permission";
 }
 
 /**
  * Activity: what the person did in the app and the AI requests its chats
  * made, newest first, a card per day and a line per thing, the way a
  * browser's history reads. A search and a filter narrow it; a row picked
- * shows its details in a card beside the list, so the list keeps its place.
+ * shows its details in a card beside the list, so the list keeps its place,
+ * or under the row when the page is too narrow for both, as beside a chat.
  *
  * Both logs stay on this computer: the person's in the workspace's machine
  * folder (`docs/architecture/action-log.md`), the requests in the
@@ -282,6 +282,8 @@ export function ActivityPage({
     setLiveSince(until);
   }
 
+  const closed = useClosedTabs();
+  const forgetClosed = useForgetClosed();
   const { entries, waitingOn } = timelineOf({
     actions: {
       complete: isComplete(actions),
@@ -302,6 +304,7 @@ export function ActivityPage({
         timeOf: (request) => request.startedAt,
       }),
     },
+    closed,
     view,
   });
   const shown = entriesShown(entries, { modelName, q, show, words });
@@ -323,6 +326,9 @@ export function ActivityPage({
   };
 
   const picked = shown.find((entry) => entry.id === item);
+  // The row open, which the address field names after Activity's chip.
+  const pickedText = picked ? entryText(picked, { modelName, words }) : null;
+  useTabSurface("item", pickedText && (pickedText.title || pickedText.context));
   const pick = (id: string | undefined) => {
     onSearch({ item: id });
   };
@@ -342,7 +348,7 @@ export function ActivityPage({
   const remove = useMutation(
     rpcClient.activity.remove.mutationOptions({
       onError: (error) => {
-        toast.error("Couldn't remove that from Activity", { cause: error });
+        toast.error("Couldn't remove that from History", { cause: error });
       },
       onSuccess: ({ requestsKept }) => {
         setChecked(new Set());
@@ -356,8 +362,20 @@ export function ActivityPage({
       },
     }),
   );
+  // A closed tab or group comes off the window's closed list at once; the
+  // rest come out of the logs.
   const removeEntries = (removed: readonly TimelineEntry[]) => {
-    remove.mutate(removalOf(removed.filter(isRemovable)));
+    const taken = removed.filter(isRemovable);
+    forgetClosed(
+      taken.flatMap((entry) => (entry.kind === "closed" ? [entry.closed] : [])),
+    );
+    const logged = taken.filter((entry) => entry.kind !== "closed");
+    if (logged.length > 0) {
+      remove.mutate(removalOf(logged));
+    } else {
+      setChecked(new Set());
+      pick(undefined);
+    }
   };
 
   const preferences = useQuery(
@@ -373,6 +391,26 @@ export function ActivityPage({
   );
 
   const empty = shown.length === 0 && !isLoading;
+  // Narrower than a page keeps things beside its list, as beside a chat, the
+  // details open under the row picked rather than beside the list.
+  const [frame, setFrame] = useState<HTMLDivElement | null>(null);
+  const isNarrow = useIsNarrower(frame, PAGE_FOLD_PX);
+  const details = picked ? (
+    <ActivityDetails
+      entry={picked}
+      key={picked.id}
+      onClose={() => {
+        pick(undefined);
+      }}
+      onRemove={
+        isRemovable(picked)
+          ? () => {
+              removeEntries([picked]);
+            }
+          : undefined
+      }
+    />
+  ) : null;
   // The start of the day of the latest read, so the days are worked out
   // again only when the day changes.
   const today = new Date(
@@ -380,14 +418,22 @@ export function ActivityPage({
   ).setHours(0, 0, 0, 0);
 
   return (
-    <div className="flex h-full min-h-0 flex-col bg-background">
+    <div
+      className="@container/activity flex h-full min-h-0 flex-col bg-background"
+      ref={setFrame}
+    >
       {/* One bar: the page's name, how to narrow it, and, at its end, where
         the history is kept and who reads it, which someone landing here
         from the window's corner should see before anything else. */}
-      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-6 py-3">
-        <h1 className="mr-1 text-base font-semibold">Activity</h1>
+      <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-3 @min-[640px]/activity:px-6">
+        <h1 className="mr-1 text-base font-semibold">History</h1>
         {checkedEntries.length > 0 ? (
-          <div className="flex h-9 min-w-0 flex-1 items-center gap-3 rounded-lg bg-foreground/6 px-3 text-sm">
+          <div
+            className={cn(
+              "flex h-9 min-w-0 flex-1 items-center gap-3 rounded-lg bg-foreground/6 px-3 text-sm",
+              UNDER_TITLE_WHEN_NARROW,
+            )}
+          >
             <span className="font-medium">
               {`${checkedEntries.length} selected`}
             </span>
@@ -409,21 +455,29 @@ export function ActivityPage({
               size="sm"
               variant="destructive"
             >
-              Remove from Activity
+              Remove from History
             </Button>
           </div>
         ) : (
-          <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <div className="flex w-64 shrink-0">
+          <div
+            className={cn(
+              "flex min-w-0 flex-wrap items-center gap-3",
+              UNDER_TITLE_WHEN_NARROW,
+            )}
+          >
+            <div className="flex w-64 max-w-full">
               <SearchField
                 onChange={(value) => {
                   onSearch({ item: undefined, q: value });
                 }}
-                placeholder="Search activity"
+                placeholder="Search history"
                 value={q}
               />
             </div>
-            <div className="flex items-center gap-1" role="radiogroup">
+            <div
+              className="flex flex-wrap items-center gap-1"
+              role="radiogroup"
+            >
               {[undefined, ...SHOWS].map((each) => (
                 <button
                   aria-checked={show === each}
@@ -467,7 +521,7 @@ export function ActivityPage({
         />
       </div>
       {isKeeping ? null : (
-        <div className="mx-6 mt-4 flex shrink-0 items-center gap-3 rounded-xl bg-foreground/5 px-4 py-2.5 text-sm">
+        <div className="mx-4 mt-4 flex shrink-0 items-center gap-3 rounded-xl bg-foreground/5 px-4 py-2.5 text-sm @min-[640px]/activity:mx-6">
           <PauseCircleIcon className="size-4.5 shrink-0 text-foreground/70" />
           <span className="flex-1">
             {`${APP_NAME} isn't keeping a history right now.`}
@@ -496,15 +550,11 @@ export function ActivityPage({
         ) : (
           <ActivityList
             checked={checked}
+            detailsUnder={isNarrow ? details : null}
             hasMore={isLoading}
             // Days are named from the latest read, which the live reads keep
             // within `LIVE_MS` of the clock while the tab is up.
             items={withDayHeads(shown, new Date(today), displayLocale)}
-            notice={
-              <AboutCard
-                canChatsRead={preferences.data?.shareActionsWithChats !== false}
-              />
-            }
             loadMore={loadMore}
             onCheck={(entry, on) => {
               setChecked((current) => {
@@ -529,23 +579,8 @@ export function ActivityPage({
             picked={picked?.id ?? null}
           />
         )}
-        {picked ? (
-          <div className="flex w-106 shrink-0 py-4 pr-6">
-            <ActivityDetails
-              entry={picked}
-              key={picked.id}
-              onClose={() => {
-                pick(undefined);
-              }}
-              onRemove={
-                isRemovable(picked)
-                  ? () => {
-                      removeEntries([picked]);
-                    }
-                  : undefined
-              }
-            />
-          </div>
+        {details && !isNarrow ? (
+          <div className="flex w-106 shrink-0 py-4 pr-6">{details}</div>
         ) : null}
       </div>
       <ClearActivityDialog
@@ -558,31 +593,11 @@ export function ActivityPage({
 }
 
 /**
- * What the history is and who reads it, as a card above the first day:
- * someone can land here from the window's corner without looking for it.
+ * Where the bar's search and filters, or what is selected, go on a page too
+ * narrow for one line: under the title and the page's ⋯, a line of their own.
  */
-function AboutCard({ canChatsRead }: { canChatsRead: boolean }) {
-  return (
-    <div className="mb-3 flex items-center gap-3 rounded-xl border border-border bg-card py-2.5 pr-2.5 pl-4">
-      <LockSimpleIcon className="size-4 shrink-0 text-muted-foreground" />
-      <p className="min-w-0 flex-1 text-[13px] leading-5 text-muted-foreground">
-        {canChatsRead
-          ? "Only you can see this history, and it stays on this computer. Chats use it to tell which file or page you're talking about."
-          : "Only you can see this history, and it stays on this computer. Chats can't look at it right now."}
-      </p>
-      <Button
-        className="shrink-0"
-        onClick={() => {
-          openSettings({ tab: "Activity" });
-        }}
-        size="sm"
-        variant="outline"
-      >
-        Settings
-      </Button>
-    </div>
-  );
-}
+const UNDER_TITLE_WHEN_NARROW =
+  "@max-[640px]/activity:order-last @max-[640px]/activity:basis-full";
 
 /** The page's ⋮: what is done with the whole history, and where its settings are. */
 function PageMenu({
@@ -602,7 +617,7 @@ function PageMenu({
       <DropdownMenuContent align="end" className="w-52">
         <DropdownMenuItem onSelect={onClear}>
           <TrashIcon className="size-4" />
-          Clear activity…
+          Clear history…
         </DropdownMenuItem>
         <DropdownMenuItem onSelect={onExport}>
           <DownloadSimpleIcon className="size-4" />
@@ -614,15 +629,18 @@ function PageMenu({
           }}
         >
           <GearSixIcon className="size-4" />
-          Activity settings
+          History settings
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-/** Where a row opens, if anywhere. */
+/** Where a row opens, if anywhere; a closed tab is restored rather than opened. */
 function targetOf(entry: TimelineEntry): OpenTarget | undefined {
+  if (entry.kind === "closed") {
+    return undefined;
+  }
   return entry.kind === "turn"
     ? turnPlaceOf(entry.turn)
     : placeOf(entry.action);
@@ -635,10 +653,10 @@ function targetOf(entry: TimelineEntry): OpenTarget | undefined {
  */
 function ActivityList({
   checked,
+  detailsUnder,
   hasMore,
   items: listed,
   loadMore,
-  notice,
   onCheck,
   onMoreFrom,
   onPick,
@@ -646,11 +664,11 @@ function ActivityList({
   picked,
 }: {
   checked: ReadonlySet<string>;
+  /** The picked row's details, drawn under it when there is no room beside the list. */
+  detailsUnder: React.ReactNode;
   hasMore: boolean;
   items: TimelineItem[];
   loadMore: () => void;
-  /** What the page says above its first day, scrolled with the days. */
-  notice?: React.ReactNode;
   onCheck: (entry: TimelineEntry, on: boolean) => void;
   onMoreFrom: (q: string) => void;
   onPick: (entry: TimelineEntry | undefined) => void;
@@ -658,11 +676,10 @@ function ActivityList({
   picked: null | string;
 }) {
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
-  const items: (TimelineItem | { id: string; kind: "notice" })[] = notice
-    ? [{ id: "notice", kind: "notice" }, ...listed]
-    : listed;
+  const items = listed;
   const modelName = useModelName();
   const gesturesFor = useGesturesFor();
+  const restore = useRestoreClosed();
   const words = { trash: osConventions().trash };
 
   // Measured in layout px: inside the window's CSS `zoom` the default reads
@@ -670,12 +687,7 @@ function ActivityList({
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer({
     count: items.length,
-    estimateSize: (index) =>
-      items[index]?.kind === "notice"
-        ? 76
-        : items[index]?.kind === "day"
-          ? 44
-          : 40,
+    estimateSize: (index) => (items[index]?.kind === "day" ? 44 : 40),
     getItemKey: (index) => items[index]?.id ?? index,
     getScrollElement: () => scroller,
     measureElement: (element) =>
@@ -736,7 +748,10 @@ function ActivityList({
     } else if (event.key === "Enter" && at !== -1) {
       const entry = entries[at];
       const target = entry ? targetOf(entry) : undefined;
-      if (target) {
+      if (entry?.kind === "closed") {
+        event.preventDefault();
+        restore(entry.closed);
+      } else if (target) {
         event.preventDefault();
         gesturesFor(target).primary?.run();
       }
@@ -758,6 +773,16 @@ function ActivityList({
     );
     const more = moreFromOf(entry);
     return [
+      ...(entry.kind === "closed"
+        ? [
+            {
+              label: "Restore",
+              run: () => {
+                restore(entry.closed);
+              },
+            },
+          ]
+        : []),
       ...opens.map((destination) => ({
         label: destination.label,
         run: destination.run,
@@ -787,7 +812,7 @@ function ActivityList({
             "separator" as const,
             {
               destructive: true,
-              label: "Remove from Activity",
+              label: "Remove from History",
               run: () => {
                 onRemove(entry);
               },
@@ -799,7 +824,8 @@ function ActivityList({
 
   return (
     <div
-      className="min-h-0 flex-1 overflow-y-auto px-6 outline-none"
+      className="min-h-0 flex-1 overflow-y-auto px-4 outline-none @min-[640px]/activity:px-6"
+      data-keyboard-home
       onKeyDown={onKeyDown}
       ref={setScroller}
       tabIndex={0}
@@ -817,25 +843,12 @@ function ActivityList({
             ref: virtualizer.measureElement,
             style: { transform: `translateY(${virtual.start}px)` },
           };
-          if (item.kind === "notice") {
-            return (
-              <div
-                className="absolute inset-x-0 top-0"
-                key={item.id}
-                {...placed}
-              >
-                {notice}
-              </div>
-            );
-          }
           if (item.kind === "day") {
             return (
               <div
                 className={cn(
                   "absolute inset-x-0 top-0",
-                  virtual.index > 0 &&
-                    items[virtual.index - 1]?.kind !== "notice" &&
-                    "pt-3",
+                  virtual.index > 0 && "pt-3",
                 )}
                 key={item.id}
                 {...placed}
@@ -846,10 +859,7 @@ function ActivityList({
               </div>
             );
           }
-          const text =
-            item.kind === "turn"
-              ? turnText(item.turn, modelName)
-              : actionText(item.action, words);
+          const text = entryText(item, { modelName, words });
           const context =
             item.kind === "turn" ? (
               <TurnContext parts={turnParts(item.turn, modelName)} />
@@ -871,11 +881,16 @@ function ActivityList({
                   context={context}
                   icon={<EntryIcon entry={item} />}
                   isPicked={picked === item.id}
+                  keepContext={item.kind === "closed"}
                   onCheck={(on) => {
                     onCheck(item, on);
                   }}
                   menu={menuOf(item)}
                   onOpen={({ newTab }) => {
+                    if (item.kind === "closed") {
+                      restore(item.closed);
+                      return;
+                    }
                     if (!target) {
                       return;
                     }
@@ -891,6 +906,11 @@ function ActivityList({
                   }}
                   title={text.title}
                 />
+                {picked === item.id && detailsUnder ? (
+                  <div className="flex max-h-112 flex-col px-1 pt-1 pb-2">
+                    {detailsUnder}
+                  </div>
+                ) : null}
               </div>
             </div>
           );
@@ -903,8 +923,7 @@ function ActivityList({
 /**
  * One thing on one line, the way a browser's history lists a page: a box
  * to pick it with, the time, its mark, what it names, what was done with
- * it, and its ⋮. A click shows its details beside the list and a double
- * click opens it.
+ * it, and its ⋮. A click shows its details and a double click opens it.
  */
 function ActivityRow({
   at,
@@ -912,6 +931,7 @@ function ActivityRow({
   context,
   icon,
   isPicked,
+  keepContext,
   menu,
   onCheck,
   onOpen,
@@ -923,6 +943,8 @@ function ActivityRow({
   context: React.ReactNode;
   icon: React.ReactNode;
   isPicked: boolean;
+  /** Whether what was done is never cut short, as a closed tab group's count. */
+  keepContext: boolean;
   /** What its ⋮ and a right click offer. */
   menu: RowMenuItem[];
   onCheck: (on: boolean) => void;
@@ -937,7 +959,8 @@ function ActivityRow({
         <div
           aria-selected={isPicked}
           className={cn(
-            "group/row flex h-10 cursor-default items-center gap-3 rounded-lg px-2.5 select-none",
+            "group/row flex min-h-10 cursor-default items-center gap-3 rounded-lg px-2.5 select-none",
+            ENTRY_ROW,
             isPicked ? "bg-foreground/8" : "hover:bg-foreground/5",
           )}
           onAuxClick={(event) => {
@@ -960,7 +983,7 @@ function ActivityRow({
           {/* The whole gutter around the box ticks it, so a click a little
         off the box never picks the row instead. */}
           <span
-            className="-my-1 -ml-2.5 grid shrink-0 place-items-center self-stretch pr-1 pl-2.5"
+            className="-my-1 -ml-2.5 grid shrink-0 place-items-center self-stretch pr-1 pl-2.5 @max-[16rem]/entry:hidden"
             onClick={(event) => {
               event.stopPropagation();
               if (event.target === event.currentTarget) {
@@ -979,22 +1002,29 @@ function ActivityRow({
               }}
             />
           </span>
-          <span className="w-16 shrink-0 text-[13px] text-muted-foreground tabular-nums">
+          <span
+            className={cn(
+              "w-16 shrink-0 text-[13px] text-muted-foreground tabular-nums",
+              TIME_COLUMN,
+            )}
+          >
             {timeFormat.format(at)}
           </span>
           <span className="grid size-5 shrink-0 place-items-center">
             {icon}
           </span>
-          <span className="min-w-0 shrink truncate text-sm">{title}</span>
-          <span className="min-w-0 flex-1 truncate text-[13px] text-muted-foreground">
-            {context}
-          </span>
+          <EntryWords
+            at={at}
+            context={context}
+            keepContext={keepContext}
+            title={title}
+          />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 aria-label="More"
                 className={cn(
-                  "shrink-0 text-foreground/60 data-[state=open]:opacity-100",
+                  "shrink-0 text-foreground/60 data-[state=open]:opacity-100 @max-[16rem]/entry:hidden",
                   isPicked
                     ? ""
                     : "opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100",
@@ -1021,6 +1051,67 @@ function ActivityRow({
         <RowMenu components={contextMenuComponents} items={menu} />
       </ContextMenuContent>
     </ContextMenu>
+  );
+}
+
+/**
+ * A row of History's is a container its words and its time answer to:
+ * on one line where there is room, and where there is not, the time leaves
+ * its own column for the line under the name. The narrowest page rows
+ * leave out the box and the ⋮ too, for the words; a right click and the
+ * details still have what the ⋮ has.
+ */
+const ENTRY_ROW = "@container/entry";
+
+/** The time's own column, on a row with room for one line. */
+const TIME_COLUMN = "@max-[30rem]/entry:hidden";
+
+/**
+ * What a row names and what was done with it, and when on a narrow row: on
+ * one line where there is room, the name cut short first, and on two where
+ * there is not. A closed tab or tab group's own words are never cut short,
+ * so the row always says what it is: on two lines they take the time's
+ * place, which its details still show, and wrap where even that is too
+ * narrow.
+ */
+function EntryWords({
+  at,
+  context,
+  keepContext,
+  title,
+}: {
+  at: number;
+  context: React.ReactNode;
+  keepContext: boolean;
+  title: string;
+}) {
+  return (
+    <span className="flex min-w-0 flex-1 flex-col py-1 leading-5 @min-[30rem]/entry:flex-row @min-[30rem]/entry:items-center @min-[30rem]/entry:gap-3 @min-[30rem]/entry:py-0">
+      {title ? (
+        <span className="min-w-0 shrink truncate text-sm">{title}</span>
+      ) : null}
+      <span
+        className={cn(
+          "flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 text-[13px] text-muted-foreground",
+          keepContext && "@min-[30rem]/entry:flex-none",
+        )}
+      >
+        {context ? (
+          <span className={keepContext ? "min-w-0" : "min-w-0 truncate"}>
+            {context}
+          </span>
+        ) : null}
+        <span
+          className={cn(
+            "flex shrink-0 gap-x-1.5 whitespace-nowrap tabular-nums @min-[30rem]/entry:hidden",
+            keepContext && Boolean(context) && "hidden",
+          )}
+        >
+          {context ? <span aria-hidden>·</span> : null}
+          {timeFormat.format(at)}
+        </span>
+      </span>
+    </span>
   );
 }
 

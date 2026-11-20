@@ -68,28 +68,32 @@ function textWidthOf(element: HTMLElement) {
 
 /**
  * Fits `text` to the width its box is given, keeping `fit` up to date as the
- * box resizes, its font finishes loading, or the text changes.
+ * box resizes, its font finishes loading, or the text changes. `indent` is
+ * room, in CSS px, a mark before the text takes from its first line.
  */
 function useFit(
   text: string,
-  fit: (width: number, font: TextFont) => string[],
+  fit: (width: number, font: TextFont, indent: number) => string[],
+  indent = 0,
 ) {
   const box = useRef<HTMLSpanElement>(null);
-  // The lines shown, with the text they were fitted for.
-  const [fitted, setFitted] = useState({ lines: [text], text });
+  // The lines shown, with the text and indent they were fitted for.
+  const [fitted, setFitted] = useState({ indent, lines: [text], text });
   const refit = useEffectEvent(
     (element: HTMLElement, font: TextFont, measured: Measured) => {
       const width = layoutWidth(element);
       // Half a pixel under the box, so a difference between the canvas and
       // the page never clips the last letter.
       const lines =
-        measured.natural <= width + 0.25
+        measured.natural + indent <= width + 0.25
           ? [text]
-          : fit((width - 0.5) / measured.scale, font);
+          : fit((width - 0.5) / measured.scale, font, indent / measured.scale);
       setFitted((previous) =>
-        previous.text === text && previous.lines.join("\n") === lines.join("\n")
+        previous.text === text &&
+        previous.indent === indent &&
+        previous.lines.join("\n") === lines.join("\n")
           ? previous
-          : { lines, text },
+          : { indent, lines, text },
       );
     },
   );
@@ -123,8 +127,12 @@ function useFit(
       refits.delete(afterFonts);
       stop();
     };
-  }, [text]);
-  return { box, lines: fitted.text === text ? fitted.lines : [text] };
+  }, [text, indent]);
+  return {
+    box,
+    lines:
+      fitted.text === text && fitted.indent === indent ? fitted.lines : [text],
+  };
 }
 
 /**
@@ -201,39 +209,66 @@ export function MiddleTruncate({
   );
 }
 
+/** How wide a mark before a two-line name is, in CSS px: its slot's `w-3.5`, and the box's `before:pl-3.5`. */
+const LEAD_WIDTH = 14;
+
 /**
  * A name on at most two lines, the way the Finder labels an icon: the first
  * line as full as it gets, and the rest cut in its middle on the second.
+ * `lead` is a small mark drawn at the start of the first line, as the
+ * Finder draws a tag, which the first line makes room for.
  */
 export function TwoLineTruncate({
   className,
   extension = false,
+  lead,
   text,
 }: {
   className?: string;
   extension?: boolean;
+  lead?: ReactNode;
   text: string;
 }) {
-  const { box, lines } = useFit(text, (width, font) =>
-    fitTwoLines(text, width, font, { extension }),
+  const { box, lines } = useFit(
+    text,
+    (width, font, indent) =>
+      fitTwoLines(text, width, font, { extension, indent }),
+    lead === undefined ? 0 : LEAD_WIDTH,
+  );
+  const leadSlot = lead !== undefined && (
+    <span className="inline-flex w-3.5 justify-start align-[-0.1em]">
+      {lead}
+    </span>
   );
   return (
     <span
-      className={cn(SIZED_BY_WHOLE_TEXT, className)}
+      className={cn(
+        SIZED_BY_WHOLE_TEXT,
+        lead !== undefined && "before:pl-3.5",
+        className,
+      )}
       data-text={text}
       ref={box}
     >
       <span className="col-start-1 row-start-1 min-w-0">
         {lines.length === 1 ? (
-          <span
-            className="block overflow-hidden whitespace-pre"
-            data-fit-line=""
-          >
-            {lines[0]}
-          </span>
+          lead === undefined ? (
+            <span
+              className="block overflow-hidden whitespace-pre"
+              data-fit-line=""
+            >
+              {lines[0]}
+            </span>
+          ) : (
+            <span className="block overflow-hidden whitespace-pre">
+              {leadSlot}
+              <span data-fit-line="">{lines[0]}</span>
+            </span>
+          )
         ) : (
           <>
             <span aria-hidden className="block overflow-hidden whitespace-pre">
+              {leadSlot}
               {lines[0]}
             </span>
             <span aria-hidden className="block overflow-hidden whitespace-pre">

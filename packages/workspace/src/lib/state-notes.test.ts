@@ -100,8 +100,46 @@ describe("stateNotes", () => {
     expect(said(tabs([]))).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      This chat has no tabs open now.
+      Pages gone: t1.
       </instrument-system-note>"
+    `);
+  });
+
+  it("tells the pages whole once, then only the ones that changed", () => {
+    const said = stateNotes();
+    const page = (id: string, memoryMb = 100) => ({
+      id,
+      memoryMb,
+      url: `https://${id}.example/`,
+    });
+    const tabs = (
+      held: ReturnType<typeof page>[],
+    ): SessionMessagePart.DataPart => ({
+      data: { status: "tabs", tabs: held },
+      metadata,
+      type: "data-browserStatus",
+    });
+    expect([
+      said(tabs([page("a"), page("b")])),
+      said(tabs([page("a"), page("b")])),
+      said(tabs([page("a"), page("b", 300), page("c")])),
+      said(tabs([page("b", 300), page("c")])),
+    ]).toMatchInlineSnapshot(`
+      [
+        "
+      <instrument-system-note>
+      Pages in the user's tab group: a at https://a.example/, 100 MB; b at https://b.example/, 100 MB.
+      </instrument-system-note>",
+        undefined,
+        "
+      <instrument-system-note>
+      Pages changed: b at https://b.example/, 300 MB; c at https://c.example/, 100 MB.
+      </instrument-system-note>",
+        "
+      <instrument-system-note>
+      Pages gone: a.
+      </instrument-system-note>",
+      ]
     `);
   });
 });

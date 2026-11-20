@@ -14,7 +14,7 @@ import { z } from "zod";
 export const Route = createFileRoute("/_app/activity")({
   component: ActivityRoute,
   head: () => ({
-    meta: [{ title: "Activity" }],
+    meta: [{ title: "History" }],
   }),
   validateSearch: z.object({
     /** The row whose details are open beside the list, by its id. */

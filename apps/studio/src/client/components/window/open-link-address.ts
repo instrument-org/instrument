@@ -7,6 +7,19 @@ import { APP_NAME } from "@instrument-org/shared";
 import { type LINK_ADDRESSES, matchScreen } from "./window-href";
 
 /**
+ * Brings up the tab group or tab a reply linked, or says it closed: set by
+ * the window's openers once they are up (`useOpeners`).
+ */
+let showLinked: ((kind: "group" | "tab", id: string) => void) | undefined;
+
+/** Sets what a link to a tab group or a tab does in this window. */
+export function setLinkedShower(
+  show: ((kind: "group" | "tab", id: string) => void) | undefined,
+) {
+  showLinked = show;
+}
+
+/**
  * Where each kind of link address opens, by the name it carries: somewhere
  * outside the tabs (Settings, a dialog), answering nothing, or the route a
  * tab stands at for it. Keyed by every link address, so one added there is
@@ -15,8 +28,8 @@ import { type LINK_ADDRESSES, matchScreen } from "./window-href";
 const OPEN_LINK = {
   // A memory is a file, which the window's openers find and open as one
   // (`useOpeners`). Reaching here, the name has no file, or the address came
-  // straight to the tabs: Settings shows the memories there are, and says
-  // when the one named is gone.
+  // straight to the tabs: the Memory page shows the memories there are, and
+  // says when the one named is gone.
   memory: (memory) => {
     openSettings({ memory, tab: "Memory" });
     return undefined;
@@ -44,8 +57,9 @@ const OPEN_LINK = {
     );
     return undefined;
   },
-  // A setting is shown in Settings, on its page and lit; a name Settings has
-  // no row or page for is searched for there instead.
+  // A setting is shown in Settings, on its part and lit, in the Settings
+  // tab of the group up or a new one; a name Settings has no row or part
+  // for is searched for there instead. A part's own name is its route.
   setting: (setting) => {
     openSettings({ setting });
     return undefined;
@@ -58,6 +72,15 @@ const OPEN_LINK = {
     void import("@/client/lib/show-in-files").then(({ showSkillFolder }) =>
       showSkillFolder(skill),
     );
+    return undefined;
+  },
+  // A tab group or a tab is no screen: the window brings it up where it is.
+  tabGroup: (group) => {
+    showLinked?.("group", group);
+    return undefined;
+  },
+  windowTab: (tab) => {
+    showLinked?.("tab", tab);
     return undefined;
   },
 } satisfies Record<
@@ -82,7 +105,9 @@ export function openLinkAddress(href: string): string | undefined {
     case "namedScreen":
     case "project":
     case "setting":
-    case "skill": {
+    case "skill":
+    case "tabGroup":
+    case "windowTab": {
       return OPEN_LINK[screen.kind](screen.name);
     }
     default: {

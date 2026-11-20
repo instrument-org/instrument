@@ -130,26 +130,24 @@ async function chatTabsStatus(
 
 /**
  * Where a tab stands and what it costs, coarse enough that the note reads
- * the same from turn to turn while nothing much changes: memory to 10 MB,
- * CPU to a whole percent and none under one, the time left to five minutes.
+ * the same from turn to turn while nothing much changes: memory to 100 MB,
+ * CPU to 10 percent and none under 10. How long until an unused page
+ * unloads is left out, since it changes with every minute that passes.
  */
 function tabStanding(targetId: BrowserTargetId) {
   const { browser } = getWorkspaceConfig();
   const life = tabLifetime(targetId);
   const cost = browser.guestCost(targetId);
-  const cpu = cost ? Math.round(cost.cpuPercent) : 0;
+  const cpu = cost ? Math.round(cost.cpuPercent / 10) * 10 : 0;
   return {
     ...(life ? { onScreen: life.drawn } : {}),
     ...(browser.isGuestAsleep(targetId) ? { asleep: true } : {}),
     ...(cost
-      ? { memoryMb: Math.max(10, Math.round(cost.memoryBytes / 1e7) * 10) }
+      ? { memoryMb: Math.max(100, Math.round(cost.memoryBytes / 1e8) * 100) }
       : {}),
-    ...(cpu >= 1 ? { cpuPercent: cpu } : {}),
+    ...(cpu >= 10 ? { cpuPercent: cpu } : {}),
     ...(cost && cost.sharedWith.length > 0
       ? { sharedWith: cost.sharedWith }
-      : {}),
-    ...(life?.unloadsInMs != null
-      ? { unloadsInMin: Math.max(5, Math.ceil(life.unloadsInMs / 300_000) * 5) }
       : {}),
   };
 }

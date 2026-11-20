@@ -5,13 +5,16 @@ import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 
 import { type Bounds, type Point } from "./tab-carry-rules";
 
-/** How wide the picture is drawn on the pointer. */
+/**
+ * The box the picture is drawn in on the pointer, keeping the aspect of what
+ * it shows: a whole window comes out the box's width, and a side's tall,
+ * narrow page the box's height.
+ */
 const PICTURE_WIDTH = 320;
+const PICTURE_HEIGHT = 240;
 /** How wide it is kept, to stay sharp as it grows into the window. */
 const IMAGE_WIDTH = 1280;
-/** How long it waits for the bar of the window it stands for, before growing without it. */
-const BAR_WAIT_MS = 120;
-/** How long it takes to grow into the window it stands for, and how often it moves. */
+/** How long it takes to grow into the window it stands for, from the release, and how often it moves. */
 const GROW_MS = 160;
 const GROW_STEP_MS = 8;
 /** The room around the picture for its shadow. */
@@ -34,27 +37,35 @@ html,body{background:transparent;height:100%;margin:0;overflow:hidden}
 
 export interface TabPicture {
   close: () => void;
-  /**
-   * Grows from the pointer to fill where a window is coming up, wearing that window's
-   * tab bar, since the tabs it pictured are not the tabs that window will have.
-   */
-  growTo: (bounds: Bounds, into: BrowserWindow) => Promise<void>;
+  /** Grows from the pointer to fill where a window is coming up, starting at once. */
+  growTo: (bounds: Bounds) => Promise<void>;
   hide: () => void;
   moveTo: (point: Point) => void;
   show: (point: Point) => void;
+  /**
+   * A picture of a whole window puts on the tab bar of the window it is
+   * growing into, once that window has drawn it, since the tabs it pictured
+   * are not the tabs that window will have. A picture of a tab's page has no
+   * bar to change.
+   */
+  wearBarOf: (into: BrowserWindow) => void;
 }
 
 /**
- * A small picture of the window as it stands, which goes with the pointer once the
- * tab is off its row. Nothing of the tab is in it: the tab stays in its window until
- * it is let go. A window of its own, for the length of one drag, that takes neither
- * focus nor the pointer.
+ * A small picture of the tab as it stands, which goes with the pointer once the
+ * tab is off its row: its page (`page`, in the window's CSS px), or the whole
+ * window for a tab that takes its window along or a whole group. A window of its
+ * own, for the length of one drag, that takes neither focus nor the pointer.
  */
-export function openTabPicture(from: BrowserWindow): TabPicture {
-  const { height: fromHeight, width: fromWidth } = from.getContentBounds();
-  const width = PICTURE_WIDTH + SHADOW_ROOM * 2;
-  const height =
-    Math.round((PICTURE_WIDTH * fromHeight) / fromWidth) + SHADOW_ROOM * 2;
+export function openTabPicture(from: BrowserWindow, page?: Bounds): TabPicture {
+  const { height: fromHeight, width: fromWidth } =
+    page ?? from.getContentBounds();
+  const scale = Math.min(
+    PICTURE_WIDTH / fromWidth,
+    PICTURE_HEIGHT / fromHeight,
+  );
+  const width = Math.round(fromWidth * scale) + SHADOW_ROOM * 2;
+  const height = Math.round(fromHeight * scale) + SHADOW_ROOM * 2;
   const window = new BrowserWindow({
     alwaysOnTop: true,
     enableLargerThanScreen: true,
@@ -88,7 +99,7 @@ export function openTabPicture(from: BrowserWindow): TabPicture {
   const loaded = window
     .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(PAGE)}`)
     .catch(() => undefined);
-  void pictureOf(from).then((image) =>
+  void pictureOf(from, page).then((image) =>
     image
       ? loaded.then(() =>
           say(
@@ -119,29 +130,13 @@ export function openTabPicture(from: BrowserWindow): TabPicture {
         window.destroy();
       }
     },
-    growTo: async (bounds, into) => {
+    growTo: async (bounds) => {
       if (
         !isShown ||
         systemPreferences.getAnimationSettings().prefersReducedMotion
       ) {
         return;
       }
-      await Promise.race([
-        barOf(into).then((bar) =>
-          bar
-            ? say(
-                `(() => {
-                  const bar = document.getElementById("bar");
-                  bar.src = ${JSON.stringify(bar)};
-                  return bar.decode();
-                })()`,
-              )
-            : undefined,
-        ),
-        new Promise((resolve) => {
-          setTimeout(resolve, BAR_WAIT_MS);
-        }),
-      ]);
       await new Promise<void>((resolve) => {
         const start = window.getBounds();
         const end = {
@@ -183,6 +178,16 @@ export function openTabPicture(from: BrowserWindow): TabPicture {
       }
     },
     moveTo,
+    wearBarOf: (into) => {
+      if (page) {
+        return;
+      }
+      void barOf(into).then((bar) =>
+        bar
+          ? say(`document.getElementById("bar").src = ${JSON.stringify(bar)};`)
+          : undefined,
+      );
+    },
     show: (point) => {
       isShown = true;
       moveTo(point);
@@ -215,12 +220,22 @@ async function barOf(window: BrowserWindow) {
   return image && !image.isEmpty() ? image.toDataURL() : null;
 }
 
-/** The window as it stands, as an address an image can load. */
-async function pictureOf(from: BrowserWindow) {
+/** The window as it stands, or a part of it in its CSS px, as an address an image can load. */
+async function pictureOf(from: BrowserWindow, part?: Bounds) {
   if (from.isDestroyed()) {
     return null;
   }
-  const image = await from.webContents.capturePage().catch(() => null);
+  const zoom = getAppZoom();
+  const image = await from.webContents
+    .capturePage(
+      part && {
+        height: Math.round(part.height * zoom),
+        width: Math.round(part.width * zoom),
+        x: Math.round(part.x * zoom),
+        y: Math.round(part.y * zoom),
+      },
+    )
+    .catch(() => null);
   if (!image || image.isEmpty()) {
     return null;
   }

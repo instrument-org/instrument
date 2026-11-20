@@ -14,7 +14,6 @@ const tab = (key: string): StripTab => ({
 const strip = (tabs: StripTab[]) => (
   <TabStrip
     onClose={() => {}}
-    onReorder={() => {}}
     onSelect={() => {}}
     selectedKey="b"
     tabs={tabs}

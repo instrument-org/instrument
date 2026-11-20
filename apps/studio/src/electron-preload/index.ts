@@ -14,7 +14,6 @@ import {
 import {
   isKeptFile,
   KEPT_STATE_CHANNEL,
-  type KeptFile,
   type KeptSnapshot,
 } from "@/shared/kept-state";
 import {
@@ -25,11 +24,17 @@ import {
   type DraftTrashRequest,
 } from "@/shared/drafts";
 import { LEAVING_CHANNEL } from "@/shared/leaving";
+import {
+  WINDOW_CLOSE_CHANNEL,
+  type WindowCloseAnswer,
+} from "@/shared/window-close";
 import { type SetupState } from "@/shared/setup";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { injectBrowserAction } from "electron-chrome-extensions/browser-action";
 import os from "node:os";
+
+import { keptChangeFeed } from "./kept-changes";
 
 /**
  * Put the theme class on <html> before the document is parsed.
@@ -145,6 +150,22 @@ function loadDrafts(): DraftsSnapshot {
   return { acks: {}, drafts: [] };
 }
 
+/** The drafts as the preload first read them. */
+const initialDrafts = loadDrafts();
+
+/**
+ * The drafts as main last sent them, heard from the moment the preload runs:
+ * a snapshot main sends before the page's own code listens, such as the one
+ * after its first read of the folder, waits here for it.
+ */
+let latestDrafts = initialDrafts;
+ipcRenderer.on(
+  DRAFTS_CHANNEL.changed,
+  (_event: unknown, snapshot: DraftsSnapshot) => {
+    latestDrafts = snapshot;
+  },
+);
+
 /**
  * The bookmarks as main has them, read synchronously so the browser's
  * starting view draws them in its first render. A failed read starts with
@@ -158,6 +179,8 @@ function loadBookmarks(): BookmarksSnapshot {
       typeof value === "object" &&
       "bookmarks" in value &&
       Array.isArray(value.bookmarks) &&
+      "folders" in value &&
+      Array.isArray(value.folders) &&
       "acks" in value &&
       value.acks !== null &&
       typeof value.acks === "object"
@@ -168,8 +191,40 @@ function loadBookmarks(): BookmarksSnapshot {
   } catch {
     // Starts with none, as below.
   }
-  return { acks: {}, bookmarks: [] };
+  return { acks: {}, bookmarks: [], folders: [] };
 }
+
+const keptInitial = loadKeptState();
+const keptChanges = keptChangeFeed(ipcRenderer);
+
+/**
+ * What the window answers main with before a close the person asked for
+ * (`shared/window-close.ts`): `close` at once while nothing here asks,
+ * which is also a page that has not handed in its question yet, and on a
+ * question that fails, so a close never waits on an error.
+ */
+let askBeforeClosing: (() => boolean | Promise<boolean>) | undefined;
+ipcRenderer.on(WINDOW_CLOSE_CHANNEL.ask, (_event, token: unknown) => {
+  const answer = (said: WindowCloseAnswer) => {
+    ipcRenderer.send(WINDOW_CLOSE_CHANNEL.answer, token, said);
+  };
+  let asked: boolean | Promise<boolean>;
+  try {
+    asked = askBeforeClosing?.() ?? true;
+  } catch {
+    asked = true;
+  }
+  if (typeof asked === "boolean") {
+    answer(asked ? "close" : "stay");
+    return;
+  }
+  answer("asking");
+  void asked
+    .catch(() => true)
+    .then((isClosing) => {
+      answer(isClosing ? "close" : "stay");
+    });
+});
 
 const api: Window["api"] = {
   bookmarks: {
@@ -203,12 +258,16 @@ const api: Window["api"] = {
     apply: async (batch: DraftOpBatch) => {
       await ipcRenderer.invoke(DRAFTS_CHANNEL.apply, batch);
     },
-    initial: loadDrafts(),
+    initial: initialDrafts,
     onChange: (listener) => {
       const forward = (_event: unknown, snapshot: DraftsSnapshot) => {
         listener(snapshot);
       };
       ipcRenderer.on(DRAFTS_CHANNEL.changed, forward);
+      // What main sent before anything here listened.
+      if (latestDrafts !== initialDrafts) {
+        listener(latestDrafts);
+      }
       return () => {
         ipcRenderer.off(DRAFTS_CHANNEL.changed, forward);
       };
@@ -236,21 +295,8 @@ const api: Window["api"] = {
       );
       return Array.isArray(values) ? (values as unknown[]) : [];
     },
-    initial: loadKeptState(),
-    onChange: (listener) => {
-      const forward = (
-        _event: unknown,
-        file: KeptFile,
-        key: string,
-        value: unknown,
-      ) => {
-        listener(file, key, value);
-      };
-      ipcRenderer.on(KEPT_STATE_CHANNEL.changed, forward);
-      return () => {
-        ipcRenderer.off(KEPT_STATE_CHANNEL.changed, forward);
-      };
-    },
+    initial: keptInitial,
+    onChange: keptChanges,
     set: (file, key, value) => {
       ipcRenderer.send(KEPT_STATE_CHANNEL.set, file, key, value);
     },
@@ -270,6 +316,14 @@ const api: Window["api"] = {
           ipcRenderer.send(LEAVING_CHANNEL.done, token);
         });
     });
+  },
+  onCloseAsked: (ask) => {
+    askBeforeClosing = ask;
+    return () => {
+      if (askBeforeClosing === ask) {
+        askBeforeClosing = undefined;
+      }
+    };
   },
   // One-way bridge for forwarding renderer errors to the main-process dev log.
   // The main side only listens in development, so this is a no-op in production.

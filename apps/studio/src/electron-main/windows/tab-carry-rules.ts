@@ -1,5 +1,5 @@
+import { type GroupTabLanding } from "@/shared/tabs";
 import { clamp } from "radashi";
-import { z } from "zod";
 
 /** How far below a new window's top the pointer stands when a tab is let go in the open. */
 const BELOW_WINDOW_TOP_PX = 40;
@@ -23,6 +23,8 @@ export type CarryPhase<W> =
   | {
       /** Where the tab stands in the strip, as the window showing it says. */
       landsAt?: number;
+      /** Where a tab group's tab lands in the window, as that window says: none over anywhere that takes none. */
+      landsOn?: GroupTabLanding;
       kind: "docked";
       window: W;
     }
@@ -57,6 +59,15 @@ export function placeOnWindow(
   return point.y - bounds.y < bandHeight + reach ? "band" : "body";
 }
 
+/** Where two rectangles overlap, or null where they do not. */
+export function overlapOf(a: Bounds, b: Bounds): Bounds | null {
+  const x = Math.max(a.x, b.x);
+  const y = Math.max(a.y, b.y);
+  const width = Math.min(a.x + a.width, b.x + b.width) - x;
+  const height = Math.min(a.y + a.height, b.y + b.height) - y;
+  return width > 0 && height > 0 ? { height, width, x, y } : null;
+}
+
 /**
  * Where a tab off its row stands at a point, from the windows front to back: the
  * first one under the point has it. Over another window's strip it is docked
@@ -73,14 +84,16 @@ export function phaseAt<W>({
   from: W;
   point: Point;
   windows: readonly {
+    /** How tall its strip's band is, where it is not `bandHeight`. */
+    band?: number;
     bounds: Bounds;
     /** How far past its strip it still counts as over it. */
     reach?: number;
     window: W;
   }[];
 }): CarryPhase<W> {
-  for (const { bounds, reach, window } of windows) {
-    const place = placeOnWindow(bounds, point, bandHeight, reach);
+  for (const { band, bounds, reach, window } of windows) {
+    const place = placeOnWindow(bounds, point, band ?? bandHeight, reach);
     if (place === "band") {
       return window === from ? { kind: "row" } : { kind: "docked", window };
     }
@@ -175,28 +188,4 @@ export function landsBy({
   isTabPageUsed: boolean;
 }): "joining" | "takingStrip" {
   return goes === "tab" || !isTabPageUsed ? "joining" : "takingStrip";
-}
-
-const FloatsSchema = z
-  .array(
-    z.looseObject({
-      chatId: z.string().optional(),
-      draftId: z.string().optional(),
-    }),
-  )
-  .catch([]);
-
-/** Two windows' floats as one, a chat or a draft floating in both counted once. */
-export function mergeFloats(kept: unknown, more: unknown) {
-  const seen = new Set<string | undefined>();
-  return [...FloatsSchema.parse(kept), ...FloatsSchema.parse(more)].filter(
-    ({ chatId, draftId }) => {
-      const key = draftId ?? chatId;
-      if (seen.has(key)) {
-        return false;
-      }
-      seen.add(key);
-      return true;
-    },
-  );
 }

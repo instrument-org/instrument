@@ -3,6 +3,11 @@ import { type SettingsTab } from "@/client/atoms/settings-modal";
 import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import { APP_NAME } from "@instrument-org/shared";
 import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
+import {
+  isSettingsSection,
+  SETTINGS_SECTIONS,
+  type SettingsSection,
+} from "@/shared/instrument-screens";
 
 /**
  * One thing Settings search can find: a page, a row of one, or something a
@@ -119,6 +124,13 @@ export const SETTINGS_INDEX = [
     id: "suggest-next-message",
     tab: "General",
     title: "Suggest a next message",
+  },
+  {
+    detail:
+      "Show ideas for what to ask about the pages and files you have open.",
+    id: "show-ideas",
+    tab: "General",
+    title: "Show ideas",
   },
   {
     detail: "A local record to send with a problem report",
@@ -263,13 +275,13 @@ export const SETTINGS_INDEX = [
     detail: `The history of what you did in ${APP_NAME} and when, with the AI requests your chats made, which you can search, export, or clear.`,
     id: "activity-history",
     tab: "Activity",
-    title: "Your activity",
+    title: "Your history",
   },
   {
     detail: `Delete what you did in ${APP_NAME}, its AI requests, or both, from a time range.`,
     id: "clear-activity",
     tab: "Activity",
-    title: "Clear activity",
+    title: "Clear history",
   },
   {
     id: "release-notes",
@@ -348,6 +360,9 @@ export const SETTINGS_PAGES: Record<
   Providers: {
     detail: `The AI models ${APP_NAME} can use: your ChatGPT, Claude or Grok plan, or a provider you add with your own key.`,
   },
+  Apps: {
+    detail: `The services ${APP_NAME} works in for you, and connecting another.`,
+  },
   Memory: {
     detail: `What ${APP_NAME} remembers about you, one file per memory, which you can search, open, forget, or add to from another AI.`,
   },
@@ -371,8 +386,21 @@ export const SETTINGS_PAGES: Record<
   },
 };
 
+/** A tab's name as Settings shows it: its page's title where the tab is a part of Settings, its own name elsewhere. */
+export function settingsTabTitle(tab: string): string {
+  const section = tab.toLowerCase();
+  return isSettingsSection(section) ? SETTINGS_SECTIONS[section] : tab;
+}
+
 // `Object.keys` widens the keys to `string`; they are the record's tabs.
 const SETTINGS_TABS = Object.keys(SETTINGS_PAGES) as SettingsTab[];
+
+/** The tab a part of Settings is, by its address's name: `activity` is the Activity tab. */
+export function settingsTabOfSection(section: SettingsSection): SettingsTab {
+  return (
+    SETTINGS_TABS.find((tab) => tab.toLowerCase() === section) ?? "General"
+  );
+}
 
 /**
  * Where a link's name for a setting lands: a page by its name in any case
@@ -410,27 +438,6 @@ export function settingsTargetOf(
   return { kind: "search", search: name.replaceAll(/[-_:]+/g, " ").trim() };
 }
 
-/**
- * The page Settings shows for what it was opened with: the page asked for,
- * else the one a link's setting is on, else General, which is also where a
- * setting it searches for opens.
- */
-export function settingsTabOf({
-  setting,
-  tab,
-}: {
-  setting?: string;
-  tab?: SettingsTab;
-}): SettingsTab {
-  if (tab) {
-    return tab;
-  }
-  const target = setting === undefined ? undefined : settingsTargetOf(setting);
-  return target === undefined || target.kind === "search"
-    ? "General"
-    : target.tab;
-}
-
 /** Where a setting is, as a person would say the way there: `Settings › General › Zoom`. */
 export function settingsPathOf(name: string): string {
   const target = settingsTargetOf(name);
@@ -439,8 +446,8 @@ export function settingsPathOf(name: string): string {
   }
   const entry = SETTINGS_INDEX.find((row) => row.id === name);
   return entry
-    ? `Settings › ${target.tab} › ${entry.title}`
-    : `Settings › ${target.tab}`;
+    ? `Settings › ${settingsTabTitle(target.tab)} › ${entry.title}`
+    : `Settings › ${settingsTabTitle(target.tab)}`;
 }
 
 export type SettingsMatch = {
@@ -471,7 +478,10 @@ export function matchSettings(
     return [];
   }
   const fields = entries.map((entry) =>
-    joinFuzzyFields([entry.title, entry.page ? "" : entry.tab]),
+    joinFuzzyFields([
+      entry.title,
+      entry.page ? "" : settingsTabTitle(entry.tab),
+    ]),
   );
   const haystack = fields.map((field) => field.haystack);
   const indexes = fuzzy.filter(haystack, needle);

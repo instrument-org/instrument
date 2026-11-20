@@ -40,6 +40,8 @@ interface Gesture {
   armed: boolean;
   originX: number;
   originY: number;
+  /** What the press was on, which a drop back into it ignores (`isSelfFileDrag`). */
+  source: Element | null;
   teardown: () => void;
 }
 
@@ -218,7 +220,7 @@ function useDragGesture({ isRows = false } = {}) {
         // Both set before the drag exists rather than after, so a release quick
         // enough to beat the OS still finds them.
         const paths = [file.hostPath, ...(file.others ?? [])];
-        trackSelfFileDrag(isRows ? paths : []);
+        trackSelfFileDrag(isRows ? paths : [], { from: gesture.source });
         draggedRef.current = true;
         window.api.startFileDrag?.(paths);
       };
@@ -227,6 +229,8 @@ function useDragGesture({ isRows = false } = {}) {
         armed: false,
         originX: event.clientX,
         originY: event.clientY,
+        source:
+          event.currentTarget instanceof Element ? event.currentTarget : null,
         teardown: () => {
           window.removeEventListener("pointercancel", handleEnd);
           window.removeEventListener("pointermove", handleMove);

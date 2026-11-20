@@ -1,43 +1,32 @@
-import { TOOLBAR_ICON_BUTTON_CLASSNAME } from "@/client/components/toolbar-control";
-import { applyBookmarkOpsAtom, bookmarksAtom } from "@/client/bookmarks/store";
-import { orderAfter } from "@/shared/bookmarks";
-import { OpenInAppMenuItems } from "@/client/components/open-in-app";
 import { BrowserDownloadsButton } from "@/client/components/window/browser-downloads";
-import {
-  BrowserExtensionButtons,
-  ManageItems,
-} from "@/client/components/window/browser-extension-buttons";
+import { BrowserExtensionButtons } from "@/client/components/window/browser-extension-buttons";
 import { BrowserFindCard } from "@/client/components/window/browser-find-card";
-import { BrowserHistoryMenu } from "@/client/components/window/browser-history-menu";
+import { BrowserPageMenu } from "@/client/components/window/browser-page-menu";
 import {
   CertificateErrorNotice,
   SignInSheet,
   useGuestSignIn,
 } from "@/client/components/window/browser-guest-security";
+import { ShortcutKeys } from "@/client/components/shortcut-keys";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
 import { Button } from "@/client/components/ui/button";
 import { Delayed } from "@/client/components/ui/delayed";
 import {
   DropdownMenu,
-  DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuShortcut,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
-import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
 } from "@/client/components/ui/input-group";
-import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { Spinner } from "@/client/components/ui/spinner";
 import { WindowContext } from "@/client/components/window/context";
 import { LoadProgress } from "@/client/components/window/load-progress";
@@ -55,15 +44,13 @@ import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { openInAppTargetOfUrl } from "@/client/hooks/use-open-in-app";
 import { useIsTaskPageVisible } from "@/client/hooks/use-task-page-visible";
 import {
+  agentZoomOf,
   getGuest,
   type GuestEventMap,
   stepPage,
 } from "@/client/lib/browser-pool";
 import { emulatedDevicesAtom } from "@/client/lib/emulated-devices";
-import {
-  PageViewAsMenu,
-  PageZoomRow,
-} from "@/client/components/window/page-menu-items";
+import { PageZoomStepper } from "@/client/components/window/page-menu-items";
 import {
   type LocatedPath,
   locateTypedPath,
@@ -88,15 +75,15 @@ import { windowTabsAtom } from "@/client/components/window/window-tabs";
 import { type TypedPath } from "@/client/lib/typed-path";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath } from "@instrument-org/shared";
-import { cn, isMacOS } from "@/client/lib/utils";
+import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
-import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import {
   BROWSER_ZOOM_MAX,
   BROWSER_ZOOM_MIN,
   isCertificateError,
 } from "@/shared/browser";
+import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { steppedZoom } from "@/shared/zoom";
 import { withoutPageEditParam } from "@instrument-org/shared";
 import {
@@ -105,28 +92,14 @@ import {
   type StoreId,
 } from "@instrument-org/workspace/client";
 import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
-import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
-import { BookmarkSimpleIcon } from "@phosphor-icons/react/BookmarkSimple";
-import { BrowsersIcon } from "@phosphor-icons/react/Browsers";
-import { CodeIcon } from "@phosphor-icons/react/Code";
-import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
-import { BroomIcon } from "@phosphor-icons/react/Broom";
-import { ExportIcon } from "@phosphor-icons/react/Export";
-import { FloppyDiskIcon } from "@phosphor-icons/react/FloppyDisk";
-import { PrinterIcon } from "@phosphor-icons/react/Printer";
-import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
-import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
-import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import {
   type ReactNode,
   useContext,
@@ -137,7 +110,6 @@ import {
 } from "react";
 import { PageCaptureMark } from "@/client/components/window/page-capture-mark";
 import { createPortal } from "react-dom";
-import { toast } from "@/client/lib/toast";
 import { tabCarryViewAtom } from "@/client/components/window/tab-carry-view";
 
 /** How many times a page on screen is opened inside `AUTO_OPEN_WINDOW_MS` before its crashing is shown instead. */
@@ -161,8 +133,9 @@ export function BrowserPanel({
   focusAddress = true,
   insideOverlay = false,
   layer,
+  layoutWidth,
+  editPage,
   onEditSource,
-  pageControls,
   relayoutKey,
   restoreUrl,
   tabId,
@@ -200,10 +173,12 @@ export function BrowserPanel({
    * guest's own black default over the surface.
    */
   layer?: number;
+  /** The width an agent's page lays out at when the first slot to show it is narrower, zoomed out to fit (see showOverSlot). */
+  layoutWidth?: number;
   /** Opens the page's text for editing, when the page is a file; the menu offers it. */
   onEditSource?: () => void;
-  /** Drawn ahead of the menu in the row the bar is drawn into, for a page with a mode of its own. */
-  pageControls?: ReactNode;
+  /** The menu's Edit row, beside Edit source, for a page that can be changed in place. */
+  editPage?: ReactNode;
   /** Changes whenever the panel moves without resizing, so the guest is placed again; see useBrowserSlot. */
   relayoutKey?: string;
   /**
@@ -222,6 +197,9 @@ export function BrowserPanel({
   const isBeneath = useAtomValue(tabCarryViewAtom).kind === "beneath";
   const [draftUrl, setDraftUrl] = useState("");
   const [zoomFactor, setZoomFactor] = useState(1);
+  // The zoom is the agent's: an agent's page zoomed out to lay out at a
+  // width its side is too narrow for, until the person zooms it themselves.
+  const [agentZoomed, setAgentZoomed] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [zoomOpen, setZoomOpen] = useState(false);
   // null = the panel's natural size ("Actual size"). Applied via CDP device
@@ -303,6 +281,7 @@ export function BrowserPanel({
       (layer !== undefined && blankPage),
     isVisible,
     layer,
+    layoutWidth,
     relayoutKey,
     targetId,
   });
@@ -486,7 +465,9 @@ export function BrowserPanel({
     // The zoom is the guest's, and moves without the panel: a chord pressed
     // in the page, or a site the guest's zoom was already set for.
     const readZoom = () => {
-      setZoomFactor(guest.zoom());
+      const agentZoom = agentZoomOf(targetId);
+      setZoomFactor(agentZoom ?? guest.zoom());
+      setAgentZoomed(agentZoom !== undefined);
     };
     readZoom();
     const stops = [
@@ -641,39 +622,6 @@ export function BrowserPanel({
           windowContext.openPage(url, { newTab: true });
         }
       : undefined;
-  const bookmarks = useAtomValue(bookmarksAtom);
-  const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
-  const isBookmarked = bookmarks.some((bookmark) => bookmark.url === pageUrl);
-  const toggleBookmark = () => {
-    if (!pageUrl) {
-      return;
-    }
-    if (isBookmarked) {
-      void applyBookmarkOps(
-        bookmarks
-          .filter((bookmark) => bookmark.url === pageUrl)
-          .map((bookmark) => ({ id: bookmark.id, type: "remove" })),
-      );
-      toast("Removed from Bookmarks");
-      return;
-    }
-    // Untitled until the guest is ready; the start view names it by its site instead.
-    const title = guestNow()?.title() ?? "";
-    void applyBookmarkOps([
-      {
-        bookmark: {
-          id: crypto.randomUUID(),
-          order: orderAfter(bookmarks),
-          title,
-          url: pageUrl,
-        },
-        type: "add",
-      },
-    ]);
-    // Said, since nothing on the page itself changes: it shows on the
-    // browser's starting view, where it can be renamed.
-    toast("Added to Bookmarks", { description: title || undefined });
-  };
 
   return (
     <div
@@ -690,11 +638,15 @@ export function BrowserPanel({
       {(() => {
         // The page's menu, the same in either shape of the bar.
         const menu = (
-          <DropdownMenu
-            // Non-modal so clicking into the guest `<webview>` (a separate
-            // WebContents) isn't blocked by the modal body `pointer-events: none`;
-            // combined with the window-blur close above, that dismisses the menu.
-            modal={false}
+          <BrowserPageMenu
+            afterBlockAds={() => guestNow()?.reload()}
+            {...(inWindow
+              ? {
+                  bookmark: { canBookmark: Boolean(pageUrl) },
+                }
+              : {})}
+            editPage={editPage}
+            editSource={onEditSource}
             onOpenChange={(open) => {
               // Not ready yet: the last known zoom stands.
               const current = open ? guestNow() : null;
@@ -703,174 +655,63 @@ export function BrowserPanel({
               }
               setMenuOpen(open);
             }}
+            onOpenHistory={navigateTo}
             open={menuOpen}
-          >
-            <DropdownMenuTrigger asChild>
-              <Button
-                aria-label="More actions"
-                className={TOOLBAR_ICON_BUTTON_CLASSNAME}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <DotsThreeVerticalIcon className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              {openInBrowserTab && (
-                <>
-                  <DropdownMenuItem
-                    disabled={!pageUrl}
-                    onSelect={() => {
+            openInBrowserTab={
+              openInBrowserTab &&
+              (() => {
+                const url = currentUrl();
+                if (url) {
+                  openInBrowserTab(url);
+                }
+              })
+            }
+            page={
+              pageUrl
+                ? {
+                    copyUrl: () => {
                       const url = currentUrl();
                       if (url) {
-                        openInBrowserTab(url);
+                        void navigator.clipboard.writeText(url);
                       }
-                    }}
-                  >
-                    <BrowsersIcon className="size-4" />
-                    Open in Browser Tab
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                </>
-              )}
-              <BrowserHistoryMenu onOpen={navigateTo} />
-              {inWindow && (
-                <DropdownMenuItem disabled={!pageUrl} onSelect={toggleBookmark}>
-                  <BookmarkSimpleIcon className="size-4" />
-                  {isBookmarked ? "Remove from bookmarks" : "Add to bookmarks"}
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem onSelect={openClearBrowsingData}>
-                <BroomIcon className="size-4" />
-                Clear browsing data…
-              </DropdownMenuItem>
-              {pageUrl && (
-                <>
-                  <DropdownMenuSeparator />
-                  <PageZoomRow onZoom={applyZoom} zoom={zoomFactor} />
-                </>
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  guestNow()?.print();
-                }}
-              >
-                <PrinterIcon className="size-4" />
-                Print…
-                <DropdownMenuShortcut>
-                  {formatAcceleratorText(
-                    WINDOW_SHORTCUTS.printPage.accelerator,
-                  )}
-                </DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  find.openFind();
-                }}
-              >
-                <MagnifyingGlassIcon className="size-4" />
-                Find in page
-                <DropdownMenuShortcut>
-                  {formatAcceleratorText(
-                    WINDOW_SHORTCUTS.findInPage.accelerator,
-                  )}
-                </DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  const current = guestNow();
-                  if (current) {
-                    savePage.mutate({ webContentsId: current.webContentsId });
+                    },
+                    devTools: () => {
+                      guestNow()?.openDevTools();
+                    },
+                    find: () => {
+                      find.openFind();
+                    },
+                    hardReload: () => {
+                      guestNow()?.reload({ ignoreCache: true });
+                    },
+                    openIn: openInTarget,
+                    print: () => {
+                      guestNow()?.print();
+                    },
+                    save: () => {
+                      const current = guestNow();
+                      if (current) {
+                        savePage.mutate({
+                          webContentsId: current.webContentsId,
+                        });
+                      }
+                    },
+                    share: () => {
+                      const url = currentUrl();
+                      if (url) {
+                        sharePage.mutate({ url });
+                      }
+                    },
+                    targetId,
                   }
-                }}
-              >
-                <FloppyDiskIcon className="size-4" />
-                Save page as…
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  const url = currentUrl();
-                  if (url) {
-                    void navigator.clipboard.writeText(url);
-                  }
-                }}
-              >
-                <CopyIcon className="size-4" />
-                Copy URL
-              </DropdownMenuItem>
-              {isMacOS() && (
-                <DropdownMenuItem
-                  disabled={!pageUrl}
-                  onSelect={() => {
-                    const url = currentUrl();
-                    if (url) {
-                      sharePage.mutate({ url });
-                    }
-                  }}
-                >
-                  <ExportIcon className="size-4" />
-                  Share…
-                </DropdownMenuItem>
-              )}
-              {/* In a row of the window's the app is the address field's own
-                  button, and the menu names it too, with the others that
-                  could open a page's file. */}
-              {typeof chrome === "object" && openInTarget && (
-                <OpenInAppMenuItems
-                  menuComponents={dropdownMenuComponents}
-                  target={openInTarget}
-                />
-              )}
-              <DropdownMenuSeparator />
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <PuzzlePieceIcon className="size-4" />
-                  Extensions
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  <ManageItems />
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-              <DropdownMenuSeparator />
-              <PageViewAsMenu disabled={!pageUrl} targetId={targetId} />
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  guestNow()?.reload({ ignoreCache: true });
-                }}
-              >
-                <ArrowCounterClockwiseIcon className="size-4" />
-                Hard reload
-              </DropdownMenuItem>
-              <DropdownMenuCheckboxItem
-                checked={preferences?.blockAds ?? true}
-                onCheckedChange={setBlocking}
-              >
-                <ShieldCheckIcon className="size-4" />
-                Block ads
-              </DropdownMenuCheckboxItem>
-              {onEditSource && (
-                <DropdownMenuItem onSelect={onEditSource}>
-                  <CodeIcon className="size-4" />
-                  Edit source
-                </DropdownMenuItem>
-              )}
-              <DropdownMenuItem
-                disabled={!pageUrl}
-                onSelect={() => {
-                  guestNow()?.openDevTools();
-                }}
-              >
-                <TerminalWindowIcon className="size-4" />
-                Developer tools
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                : undefined
+            }
+            zoom={
+              pageUrl && (
+                <PageZoomStepper onZoom={applyZoom} zoom={zoomFactor} />
+              )
+            }
+          />
         );
         // The page's controls and the menu, which the row above can carry as
         // they are, and reload, which it keeps beside its arrows; the
@@ -878,7 +719,6 @@ export function BrowserPanel({
         // opens the page are drawn there by the row itself.
         const controls = (
           <>
-            {pageControls}
             <BrowserDownloadsButton
               surfaceRef={surfaceRef}
               targetId={targetId}
@@ -889,19 +729,48 @@ export function BrowserPanel({
         // The zoom, said in the address field only while the page is not at
         // its own size, the one setting people forget they changed. A press
         // on it is the zoom's stepper, the same one the menu holds.
+        // A zoom the agent's side set wears the agent's color and says why on
+        // hover, so it reads apart from one the person set and forgot.
         const isZoomed = Math.abs(zoomFactor - 1) > 0.001;
+        const agentZoomText =
+          zoomFactor < 1
+            ? "Instrument zoomed out to work faster on the desktop site."
+            : "Instrument zoomed in to work faster on the mobile site.";
+        const zoomTrigger = (
+          <DropdownMenuTrigger
+            aria-label={agentZoomed ? agentZoomText : "Zoom"}
+            className={cn(
+              "flex h-5 shrink-0 items-center rounded-full px-1.5 font-medium tabular-nums",
+              agentZoomed
+                ? "bg-brand-500/12 text-brand-text hover:bg-brand-500/18 data-[state=open]:bg-brand-500/18"
+                : "bg-foreground/8 text-foreground/70 hover:bg-foreground/12 hover:text-foreground data-[state=open]:bg-foreground/12",
+            )}
+          >
+            {Math.round(zoomFactor * 100)}%
+          </DropdownMenuTrigger>
+        );
         const fieldZoom = isZoomed && (
           <DropdownMenu
             modal={false}
             onOpenChange={setZoomOpen}
             open={zoomOpen}
           >
-            <DropdownMenuTrigger
-              aria-label="Zoom"
-              className="flex h-5 shrink-0 items-center rounded-full bg-foreground/8 px-1.5 font-medium text-foreground/70 tabular-nums hover:bg-foreground/12 hover:text-foreground data-[state=open]:bg-foreground/12"
-            >
-              {Math.round(zoomFactor * 100)}%
-            </DropdownMenuTrigger>
+            {agentZoomed ? (
+              <Tooltip delayDuration={300}>
+                <TooltipTrigger asChild>{zoomTrigger}</TooltipTrigger>
+                <TooltipContent
+                  className="flex items-center gap-2"
+                  side="bottom"
+                >
+                  {agentZoomText}
+                  <ShortcutKeys
+                    accelerator={WINDOW_MENU_SHORTCUTS.actualSize.accelerator}
+                  />
+                </TooltipContent>
+              </Tooltip>
+            ) : (
+              zoomTrigger
+            )}
             <DropdownMenuContent
               align="end"
               className="flex items-center gap-1.5 p-1.5"

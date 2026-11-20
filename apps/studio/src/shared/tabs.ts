@@ -46,10 +46,32 @@ export type Tab = z.output<typeof TabSchema>;
 /**
  * A closed tab, with where it stood in the strip so a reopen puts it back
  * there, and when it closed, so a window closed since comes back before it.
+ * A tab group's tab stands on its group's address and holds the tab as the
+ * group had it (`groupTab`), with its place among the group's tabs. A
+ * whole tab group closed holds every tab it had (`groupTabs`), with the
+ * places among them of the tab it had up on the side with the keyboard and
+ * of the one up on the other side (`ups`); one side of a group closed holds
+ * that side's tabs the same way, with which side it was (`side`), as
+ * `index` the place among them of the tab it had up, and whether it had the
+ * keyboard (`focused`).
  */
 const ClosedTabSchema = TabSchema.extend({
   closedAt: z.number().optional(),
+  focused: z.boolean().optional(),
+  groupTab: z.unknown().optional(),
+  groupTabs: z.unknown().optional(),
   index: z.number().optional(),
+  // Any side past the first reopens on the right, so a later layout's
+  // closed side still reads here.
+  side: z
+    .number()
+    .int()
+    .min(0)
+    .transform((side): 0 | 1 => (side >= 1 ? 1 : 0))
+    .optional(),
+  ups: z
+    .object({ active: z.number(), beside: z.number().optional() })
+    .optional(),
 });
 
 export const TabsModelSchema = z.object({
@@ -68,6 +90,12 @@ export function neighborAt<T>(tabs: readonly T[], at: number): T | undefined {
 export const TabStandingSchema = z.object({
   /** Pages drawn inside the tab's screens, which are this window's and go nowhere, but can make it stay with the tab. */
   hostedPages: z.array(BrowserTargetIdSchema),
+  /**
+   * A tab of a tab group, named by its strip key (`tab.id`), whose record every
+   * window shares: the window it goes to takes it into one of its groups
+   * (`GroupTabLanding`) rather than its strip.
+   */
+  isGroupTab: z.boolean().optional(),
   neighborPages: z.array(BrowserTargetIdSchema),
   pages: z.array(BrowserTargetIdSchema),
   tab: TabSchema,
@@ -81,9 +109,65 @@ export const TabMoveDestinationSchema = z.discriminatedUnion("kind", [
 ]);
 export type TabMoveDestination = z.output<typeof TabMoveDestinationSchema>;
 
+/** The prefix of the key a whole tab group is carried under, which no tab's key has. */
+const WHOLE_GROUP = "group:";
+
+/** The key a whole tab group is carried under between windows, as a tab is under its own. */
+export function wholeGroupKey(group: string): string {
+  return `${WHOLE_GROUP}${group}`;
+}
+
+/** The tab group a carried key names whole, if it names one rather than a tab. */
+export function groupOfWholeKey(key: string): string | undefined {
+  return key.startsWith(WHOLE_GROUP)
+    ? key.slice(WHOLE_GROUP.length)
+    : undefined;
+}
+
+/**
+ * Where in a window's sidebar a tab group lands: just before one listed
+ * group, or else just after another, among the pinned rows or the rest.
+ */
+const SidebarPlaceSchema = z.object({
+  after: z.string().optional(),
+  before: z.string().optional(),
+  pinned: z.boolean().optional(),
+});
+export type SidebarPlace = z.output<typeof SidebarPlaceSchema>;
+
+/**
+ * Where a tab group's tab, or a whole group (`wholeGroupKey`), let go over a
+ * window lands there: among the tabs of a side of the group it shows, at a
+ * place (the end when none is named); on a side's page, as that side's last
+ * tab or as a side of its own (`split`); in a group its sidebar lists; or as
+ * a group of its own, at a place in the sidebar (`at`, the top when none is
+ * named), which a window come up for it (`isWindowOfItsOwn`) lists alone.
+ */
+export const GroupTabLandingSchema = z.discriminatedUnion("kind", [
+  z.object({
+    index: z.number().optional(),
+    kind: z.literal("tabs"),
+    side: z.union([z.literal(0), z.literal(1)]).optional(),
+  }),
+  z.object({
+    kind: z.literal("side"),
+    side: z.union([z.literal(0), z.literal(1)]),
+    split: z.boolean(),
+  }),
+  z.object({ group: z.string(), kind: z.literal("group") }),
+  z.object({
+    at: SidebarPlaceSchema.optional(),
+    isWindowOfItsOwn: z.boolean().optional(),
+    kind: z.literal("new"),
+  }),
+]);
+export type GroupTabLanding = z.output<typeof GroupTabLandingSchema>;
+
 /** A tab held over a window's strip, which stands among its tabs at the pointer until it is let go. */
 export interface IncomingTab {
   clientX: number;
+  /** How far down the window the pointer is, which a tab group's tab lands by. */
+  clientY: number;
   kind: "incoming";
   pointInTab: number;
   tab: { id: TabId; pathname: string };

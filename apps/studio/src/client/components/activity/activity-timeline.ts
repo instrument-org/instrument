@@ -1,5 +1,5 @@
 import { folderOf, nameOf } from "@/client/components/window/host-path";
-import { APPS_HREF } from "@/client/atoms/window";
+import { APPS_HREF, type WindowTab } from "@/client/atoms/window";
 import {
   chatHref,
   LINK_ADDRESSES,
@@ -10,6 +10,7 @@ import { isWebPage, type OpenTarget } from "@/client/lib/open-target";
 // Types alone: the client opens its channel to the main process on import.
 import type { RPCInput, RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { type TabId } from "@/shared/tabs";
 import { APP_NAME } from "@instrument-org/shared";
 import { ChatIdSchema, gatherTurns } from "@instrument-org/workspace/client";
 
@@ -43,8 +44,22 @@ export type Turn = {
   requests: ActivityRequest[];
 };
 
+/**
+ * A tab, one side of a tab group, or a whole tab group the window closed,
+ * from the list Shift+Cmd+T reopens, by that list's id, with its tabs as
+ * they were and their titles, and how they stood: one side or two, each
+ * with the tab it had up (`closedSidesOf`).
+ */
+export type ClosedTabs = {
+  id: TabId;
+  kind: "group" | "side" | "tab";
+  sides: readonly { tabs: readonly WindowTab[]; up: string | undefined }[];
+  tabs: readonly { tab: WindowTab; title: string }[];
+};
+
 export type TimelineEntry =
   | { action: ShownAction; at: number; id: string; kind: "action" }
+  | { at: number; closed: ClosedTabs; id: string; kind: "closed" }
   | { at: number; id: string; kind: "turn"; turn: Turn };
 
 export type TimelineItem =
@@ -82,14 +97,18 @@ function isShown(action: PersonAction): action is ShownAction {
  * stop it there are the ones to read next.
  *
  * The requests gather into turns by `gatherTurns`, the rule
- * `instrument activity` reads them by too.
+ * `instrument activity` reads them by too. The tabs and groups closed go
+ * in among the person's own rows by when they closed, as far back as the
+ * logs have loaded.
  */
 export function timelineOf({
   actions,
+  closed = [],
   requests,
   view,
 }: {
   actions: Loaded<PersonAction>;
+  closed?: readonly { at: number; closed: ClosedTabs }[];
   requests: Loaded<ActivityRequest>;
   view: ActivityView;
 }): { entries: TimelineEntry[]; waitingOn: Source[] } {
@@ -124,7 +143,7 @@ export function timelineOf({
     ),
   ].toSorted((a, b) => b.at - a.at);
 
-  const entries = gatherTurns(merged).map((entry): TimelineEntry => {
+  const gathered = gatherTurns(merged).map((entry): TimelineEntry => {
     if (entry.kind === "action") {
       return { ...entry.action, at: entry.at, kind: "action" };
     }
@@ -136,6 +155,24 @@ export function timelineOf({
       turn: { id, requests: entry.requests },
     };
   });
+  const entries =
+    view === "ai"
+      ? gathered
+      : [
+          ...gathered,
+          ...closed.flatMap((each): TimelineEntry[] =>
+            each.at >= shownFrom
+              ? [
+                  {
+                    at: each.at,
+                    closed: each.closed,
+                    id: `closed:${each.closed.id}`,
+                    kind: "closed",
+                  },
+                ]
+              : [],
+          ),
+        ].toSorted((a, b) => b.at - a.at);
 
   const waitingOn = (["actions", "requests"] as const).filter(
     (source) => reach[source] !== -Infinity && reach[source] === shownFrom,
@@ -352,19 +389,101 @@ export function actionText(action: ShownAction, words: Words): RowText {
 }
 
 /** Which of the page's filters a row shows under, past All: none for the rest. */
-export type Show = "ai" | "chats" | "files" | "pages";
+export type Show = "ai" | "chats" | "files" | "pages" | "tabs";
 
 export const SHOWS = [
   "pages",
   "files",
   "chats",
+  "tabs",
   "ai",
 ] as const satisfies Show[];
+
+/** The filters over the list, with what each one shows: its name on the page and in the address field, and its tooltip. */
+export const SHOW_LABELS: Record<Show, { label: string; title: string }> = {
+  ai: { label: "AI requests", title: "What your chats asked AI models" },
+  chats: { label: "Chats", title: "Chats you opened" },
+  files: { label: "Files", title: "Files and folders you opened or changed" },
+  pages: { label: "Pages", title: "Pages you visited in the browser" },
+  tabs: { label: "Tabs", title: "Tabs and tab groups you closed" },
+};
+
+/**
+ * What a closed row says: a tab or a whole tab group by its first tab's
+ * title and what closed; one side of a group as "Closed 2 tabs", or
+ * "Closed" and the title of a side of one.
+ */
+export function closedText(closed: ClosedTabs): RowText {
+  const count = closed.tabs.length;
+  const first = closed.tabs[0]?.title ?? "";
+  switch (closed.kind) {
+    case "group": {
+      return {
+        context: `Closed tab group · ${count} ${count === 1 ? "tab" : "tabs"}`,
+        title: first,
+      };
+    }
+    case "side": {
+      return {
+        context: "",
+        title: count === 1 ? `Closed ${first}` : `Closed ${count} tabs`,
+      };
+    }
+    case "tab": {
+      return { context: "Closed tab", title: first };
+    }
+  }
+}
+
+/** What a row says, whichever log it is from. */
+export function entryText(
+  entry: TimelineEntry,
+  {
+    modelName,
+    words,
+  }: { modelName: (id: null | string) => string; words: Words },
+): RowText {
+  if (entry.kind === "closed") {
+    return closedText(entry.closed);
+  }
+  return entry.kind === "turn"
+    ? turnText(entry.turn, modelName)
+    : actionText(entry.action, words);
+}
+
+/**
+ * Whether a row is one the sidebar's History lists: a closed tab or tab
+ * group, which it restores, or a place visited (a page, a chat, a file or a
+ * folder opened), which it opens. What was done to files, AI requests and
+ * the rest stay on the page.
+ */
+export function bringsBack(entry: TimelineEntry): boolean {
+  if (entry.kind === "closed") {
+    return true;
+  }
+  if (entry.kind === "turn") {
+    return false;
+  }
+  switch (entry.action.kind) {
+    case "page":
+    case "chat":
+    case "file":
+    case "folder": {
+      return placeOf(entry.action) !== undefined;
+    }
+    default: {
+      return false;
+    }
+  }
+}
 
 /** The filter an entry shows under, besides All. */
 function showOf(entry: TimelineEntry): Show | undefined {
   if (entry.kind === "turn") {
     return "ai";
+  }
+  if (entry.kind === "closed") {
+    return "tabs";
   }
   switch (entry.action.kind) {
     case "page": {
@@ -465,15 +584,23 @@ export function entriesShown(
       return true;
     }
     const haystack = (
-      entry.kind === "turn"
+      entry.kind === "closed"
         ? [
-            ...Object.values(turnText(entry.turn, modelName)),
-            ...entry.turn.requests.flatMap((request) => [
-              request.chatTitle ?? "",
-              modelOf(request) ?? "",
+            ...Object.values(closedText(entry.closed)),
+            ...entry.closed.tabs.flatMap(({ tab, title }) => [
+              title,
+              tab.kind === "page" ? (tab.url ?? "") : "",
             ]),
           ]
-        : actionHaystack(entry.action, words)
+        : entry.kind === "turn"
+          ? [
+              ...Object.values(turnText(entry.turn, modelName)),
+              ...entry.turn.requests.flatMap((request) => [
+                request.chatTitle ?? "",
+                modelOf(request) ?? "",
+              ]),
+            ]
+          : actionHaystack(entry.action, words)
     )
       .join("\n")
       .toLowerCase();
@@ -491,6 +618,9 @@ export function moreFromOf(
   if (entry.kind === "turn") {
     const title = leadOf(entry.turn)?.chatTitle;
     return title ? { label: title, q: title } : undefined;
+  }
+  if (entry.kind === "closed") {
+    return undefined;
   }
   const { action } = entry;
   switch (action.kind) {
@@ -640,6 +770,7 @@ const DID: Record<Purpose, string> = {
   "emoji-suggestion": "Suggested an emoji",
   image: "Made an image",
   "next-message": "Suggested a reply",
+  "ambient-ideas": "Suggested ideas for your tabs",
   other: "Made an AI request",
   "project-backfill": "Sorted chats into projects",
   "project-suggestion": "Suggested a project",

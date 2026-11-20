@@ -21,6 +21,7 @@ import { PROCESS_CONTROL_EVALS } from "./process-control";
 import { BROWSER_DATA_EVALS } from "./browser-data";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { BROWSER_TYPING_EVALS } from "./browser-typing";
+import { VIEWPORT_WIDTH_EVALS } from "./viewport-width";
 import { CHAT_HISTORY_EVALS } from "./chat-history";
 import { CHATS_ORGANIZE_EVALS } from "./chats-organize";
 import { PROJECTS_LIFECYCLE_EVALS } from "./projects-lifecycle";
@@ -32,6 +33,7 @@ import { DEVELOPER_TOOLS_EVALS } from "./developer-tools";
 import { DOCUMENT_DESIGN_EVALS } from "./document-design";
 import { FEEDBACK_OFFER_EVALS } from "./feedback-offers";
 import { FILES_FENCE_EVALS } from "./files-fence";
+import { GROUP_LAYOUT_EVALS } from "./group-layout";
 import { HANDOFF_EVALS } from "./handoff";
 import { IMAGE_BUDGET_EVALS } from "./image-budget";
 import { IMAGE_OPTIONS_EVALS } from "./image-options";
@@ -100,6 +102,7 @@ export const EVALS = [
   ...BROWSER_DATA_EVALS,
   ...BROWSER_SELECTION_EVALS,
   ...BROWSER_TYPING_EVALS,
+  ...VIEWPORT_WIDTH_EVALS,
   ...CHAT_HISTORY_EVALS,
   ...CHATS_ORGANIZE_EVALS,
   ...PROJECTS_RESTYLE_EVALS,
@@ -113,6 +116,7 @@ export const EVALS = [
   ...FEEDBACK_OFFER_EVALS,
   ...FILES_FENCE_EVALS,
   ...WHITEBOARD_EVALS,
+  ...GROUP_LAYOUT_EVALS,
   ...HANDOFF_EVALS,
   ...IMAGE_BUDGET_EVALS,
   ...IMAGE_OPTIONS_EVALS,

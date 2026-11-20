@@ -36,6 +36,7 @@ const described = () => ({
 
 vi.mock("@/client/hooks/use-developer-mode", () => ({
   useDeveloperMode: () => false,
+  useTabDeveloperMode: () => false,
 }));
 
 vi.mock("@/client/rpc/client", () => ({

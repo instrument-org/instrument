@@ -187,10 +187,8 @@ async function chatPage(id: ChatId, tab: string) {
     askedBy: id,
     group: id,
   }).catch(() => undefined);
-  const found = listed?.tabs?.find((each) => each.id === tab);
-  return found?.kind === "page"
-    ? { title: found.title, url: found.url }
-    : undefined;
+  const found = listed?.pages?.find((each) => each.id === tab);
+  return found && { title: found.title, url: found.url };
 }
 
 /**

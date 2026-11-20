@@ -1,22 +1,21 @@
 import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { chatNotesAtom } from "@/client/atoms/chat-notes";
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
+import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { openSettings } from "@/client/atoms/settings-modal";
+import { SCREENS } from "@/shared/instrument-screens";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
-import { type AppPlace, APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
-import { bookmarksAtom } from "@/client/bookmarks/store";
+import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
+import { targetOfAddress } from "@/client/bookmarks/address";
 import { PageFavicon } from "@/client/components/favicon";
-import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
+import { settingsTabTitle } from "@/client/components/settings/settings-index";
 import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
-import { folderOf } from "@/client/components/window/host-path";
-import { useAppTabs } from "@/client/components/window/app-tabs";
-import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { displayPath } from "@/client/lib/path-utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
@@ -31,11 +30,9 @@ import {
 } from "@/client/components/ui/dialog";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
-import { PLACES } from "@/client/components/window/app-rail";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
-import { ProjectPill } from "@/client/components/window/chat-row";
 import {
   byLastUserMessage,
   type Chat,
@@ -44,8 +41,11 @@ import {
   projectSearch,
 } from "@/client/components/window/chats";
 import { FolderMark } from "@/client/components/window/folder-mark";
-import { PlaceIcon } from "@/client/components/window/place-icons";
 import { useShell } from "@/client/components/window/shell-context";
+import {
+  matchKnownPages,
+  useKnownPages,
+} from "@/client/components/window/known-pages";
 import { ProjectMark } from "@/client/components/window/project-mark";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
 import { useModalBack } from "@/client/hooks/use-modal-back";
@@ -55,7 +55,6 @@ import {
   toggleDeveloperStrip,
 } from "@/client/atoms/developer-strip";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import {
   locateTypedPath,
   type MissedPath,
@@ -73,8 +72,10 @@ import { iconHostOf } from "@/client/lib/favicon-url";
 import { cn, osConventions } from "@/client/lib/utils";
 import {
   bareAddress,
+  folderNameOf,
   isSearchWords,
 } from "@/client/components/window/omnibar-match";
+import { RowText, whereOfAddress } from "@/client/components/window/row-text";
 import {
   componentPages,
   debugNavigationRoutes,
@@ -86,10 +87,10 @@ import { SHORTCUTS, type ShortcutAccelerator } from "@/shared/shortcuts";
 import {
   WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUTS,
-  type WindowShortcutId,
 } from "@/shared/window-shortcuts";
-import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
+import { fuzzyMatch } from "@/client/lib/fuzzy-match";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
+import { ArrowsInIcon } from "@phosphor-icons/react/ArrowsIn";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
@@ -100,20 +101,21 @@ import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
-import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
+import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
+import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
+import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
+import { ShapesIcon } from "@phosphor-icons/react/Shapes";
+import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StackIcon } from "@phosphor-icons/react/Stack";
-import { StarIcon } from "@phosphor-icons/react/Star";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
-import { unique } from "radashi";
 import {
   type KeyboardEvent,
   type MouseEvent,
@@ -130,36 +132,21 @@ import { displayHostPath, folderNameFromPath } from "@instrument-org/shared";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { toast } from "@/client/lib/toast";
 
-const fuzzy = boundedFuzzy({ intraMode: 1 });
-
-/** Rows per kind past which a search stops listing: enough to choose from, few enough to read. */
-const APPS_SHOWN = 6;
-const PAGES_SHOWN = 6;
-const FOLDERS_SHOWN = 6;
-const FILES_SHOWN = 6;
+/**
+ * Rows per kind past which a search stops listing, the same three the
+ * address field shows, so every kind's best fits above the fold.
+ */
+const PER_KIND_SHOWN = 3;
 /** How long a search has to be before the decision model is asked what it means. */
 const MEANING_MIN_LENGTH = 3;
-/** Chats listed before anything is typed, newest first. */
-const RECENT_CHATS_SHOWN = 5;
+/** What was used last, of every kind, listed before anything is typed. */
+const RECENTS_SHOWN = 4;
 /**
  * The commands listed before anything is typed: the ones worth reaching
  * often, each with its chord. The rest (the theme, clearing browsing data,
  * updates) are found by typing.
  */
-const LISTED_COMMANDS = new Set([
-  "new-chat",
-  "new-tab",
-  "settings",
-  "shortcuts",
-]);
-
-/** Each place's chord, which its Go to row shows. */
-const PLACE_CHORDS = {
-  apps: "goToApps",
-  browser: "goToBrowser",
-  chat: "goToChat",
-  files: "goToFiles",
-} as const satisfies Record<AppPlace, WindowShortcutId>;
+const LISTED_COMMANDS = new Set(["new-group", "new-tab", "settings"]);
 
 /**
  * A search's matched ranges, as start and end pairs, within the piece of a
@@ -181,7 +168,7 @@ function rangesWithin(ranges: null | number[], start: number, length: number) {
   return within;
 }
 
-export const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
+const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
 
 type Item = {
   chord?: ShortcutAccelerator;
@@ -201,28 +188,25 @@ type Item = {
   leavesItself?: true;
   ranges: null | number[];
   run: () => void;
-  /** Marks past the label, as a chat's row in the list wears its project and star. */
-  trailing?: ReactNode;
   type: "item";
 };
 
 type Row =
+  /** A section's heading; an empty label is a rule that sets a row apart without naming it. */
   | { label: string; type: "header" }
   /** The decision model still reading the chats, in the place its rows will take. */
   | { type: "looking" }
   | Item;
 
-/** Where the menu is drawn: over the window by Cmd+K, or as a new tab's page. */
-export type CommandMenuSurface = "dialog" | "page";
-
 /**
- * The menu's rows for the words typed, the same wherever it is drawn: what
- * the words name (an address to open, the places, commands, chats, the apps
- * set up here, pages, files), then a web search for words that are a search, then, when
+ * The menu's rows for the words typed: what
+ * the words name (an address to open, commands, chats, the apps set up
+ * here, pages, files), then a web search for words that are a search, then, when
  * nothing matched by name and the words are no address, the chats the
  * decision model says they mean, below the search so Return never changes
- * under the caret. Before anything is typed, the places, the commands worth
- * reaching often, and the newest chats. Words
+ * under the caret. Each kind lists three at most. Before anything is typed,
+ * what was used last of every kind, and the commands worth reaching often.
+ * Words
  * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
  *
  * The rows follow the words a beat behind while typing, so the field keeps
@@ -235,7 +219,6 @@ export function useCommandMenuRows({
   done,
   openPage,
   openScreen,
-  surface,
   words: typed,
 }: {
   /** Whether the menu is on screen, for what it reads off the disk or asks the model. */
@@ -244,7 +227,6 @@ export function useCommandMenuRows({
   done: (run: () => void) => () => void;
   openPage: (url: string) => void;
   openScreen: (href: string) => void;
-  surface: CommandMenuSurface;
   words: string;
 }): {
   isBang: boolean;
@@ -254,7 +236,6 @@ export function useCommandMenuRows({
 } {
   const words = useDeferredValue(typed);
   const shell = useShell();
-  const appTabs = useAppTabs();
   const { setTheme, theme } = useTheme();
   const developerMode = useDeveloperMode();
   // The apps set up here, by the names the window has for them: one only in
@@ -264,10 +245,11 @@ export function useCommandMenuRows({
     rpcClient.apps.live.list.experimental_liveOptions(),
   );
   // Read only while the menu is up, which is mounted in every window.
-  const visited = useRecentPages({ enabled: active });
+  const { bookmarkPages, recentPages, visited } = useKnownPages({
+    enabled: active,
+  });
   // Described only while the menu is up: each file is looked at on the disk.
   const recentFiles = useRecentFiles({ enabled: active }).files;
-  const bookmarks = useAtomValue(bookmarksAtom);
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
 
   const preferences = useQuery(
@@ -296,30 +278,25 @@ export function useCommandMenuRows({
     ...chatListOptions(),
     subscribed: active,
   });
-  const isPage = surface === "page";
-
   const commands: Omit<Item, "ranges" | "type">[] = [
     {
       chord: WINDOW_SHORTCUTS.newChat.accelerator,
-      icon: <NotePencilIcon />,
-      id: "new-chat",
-      label: "New chat",
+      icon: <StackIcon />,
+      id: "new-group",
+      label: "New tab group",
       run: () => {
-        shell.newDraft();
+        shell.newGroup();
       },
     },
-    // A new tab opening another from its own menu would only stand beside it.
-    ...(isPage
-      ? []
-      : [
-          {
-            chord: WINDOW_SHORTCUTS.newTab.accelerator,
-            icon: <PlusIcon />,
-            id: "new-tab",
-            label: "New tab",
-            run: shell.appTabs.openNewTab,
-          },
-        ]),
+    {
+      chord: WINDOW_SHORTCUTS.newTab.accelerator,
+      icon: <PlusIcon />,
+      id: "new-tab",
+      label: "New tab",
+      run: () => {
+        shell.newTab();
+      },
+    },
     {
       chord: WINDOW_MENU_SHORTCUTS.newWindow.accelerator,
       icon: <AppWindowIcon />,
@@ -330,7 +307,7 @@ export function useCommandMenuRows({
       },
     },
     {
-      icon: <StackIcon />,
+      icon: <ArrowsInIcon />,
       id: "merge-windows",
       label: "Merge all windows",
       run: () => {
@@ -343,7 +320,7 @@ export function useCommandMenuRows({
       id: "settings",
       label: "Settings",
       run: () => {
-        openSettings({ tab: "General" });
+        openSettings();
       },
     },
     {
@@ -396,21 +373,23 @@ export function useCommandMenuRows({
       label: "Clear browsing data",
       run: openClearBrowsingData,
     },
+    // The themes but the one in use, which there is no switching to.
     ...(
       [
-        { icon: <SunIcon />, label: "Light", value: "light" },
-        { icon: <MoonIcon />, label: "Dark", value: "dark" },
-        { icon: <MonitorIcon />, label: "System", value: "system" },
+        { icon: <SunIcon />, label: "Use light theme", value: "light" },
+        { icon: <MoonIcon />, label: "Use dark theme", value: "dark" },
+        { icon: <MonitorIcon />, label: "Use system theme", value: "system" },
       ] as const
-    ).map(({ icon, label, value }) => ({
-      detail: theme === value ? "Current" : undefined,
-      icon,
-      id: `theme-${value}`,
-      label: `Theme: ${label}`,
-      run: () => {
-        setTheme(value);
-      },
-    })),
+    )
+      .filter(({ value }) => value !== theme)
+      .map(({ icon, label, value }) => ({
+        icon,
+        id: `theme-${value}`,
+        label,
+        run: () => {
+          setTheme(value);
+        },
+      })),
     {
       icon: <ArrowsClockwiseIcon />,
       id: "check-for-updates",
@@ -427,9 +406,42 @@ export function useCommandMenuRows({
       chord: WINDOW_SHORTCUTS.showActivity.accelerator,
       icon: <ClockCounterClockwiseIcon />,
       id: "activity",
-      label: "Activity",
+      label: "History",
       run: () => {
-        appTabs.open(SCREEN_ROUTES.activity, { newTab: "reuseBlank" });
+        openBuiltInPage(SCREENS.activity.href);
+      },
+    },
+    {
+      chord: WINDOW_SHORTCUTS.showBookmarks.accelerator,
+      icon: <BookmarksIcon />,
+      id: "bookmarks",
+      label: "Bookmarks",
+      run: () => {
+        openBuiltInPage(SCREENS.bookmarks.href);
+      },
+    },
+    {
+      icon: <ShapesIcon />,
+      id: "apps",
+      label: "Apps",
+      run: () => {
+        openBuiltInPage(SCREENS.apps.href);
+      },
+    },
+    {
+      icon: <FingerprintIcon />,
+      id: "memory",
+      label: "Memory",
+      run: () => {
+        openBuiltInPage(SCREENS.memory.href);
+      },
+    },
+    {
+      icon: <CubeIcon />,
+      id: "skills",
+      label: "Skills",
+      run: () => {
+        openBuiltInPage(SCREENS.skills.href);
       },
     },
     {
@@ -437,7 +449,7 @@ export function useCommandMenuRows({
       id: "release-notes",
       label: "What's new",
       run: () => {
-        appTabs.open(SCREEN_ROUTES.releaseNotes, { newTab: "reuseBlank" });
+        openBuiltInPage(SCREENS["release-notes"].href);
       },
     },
     {
@@ -445,7 +457,7 @@ export function useCommandMenuRows({
       id: "extensions",
       label: "Extensions",
       run: () => {
-        appTabs.open(SCREEN_ROUTES.extensions, { newTab: "reuseBlank" });
+        openBuiltInPage(SCREENS.extensions.href);
       },
     },
   ];
@@ -493,9 +505,10 @@ export function useCommandMenuRows({
   // lists, but General, which is the Settings row itself.
   const settingsTabs = useSettingsTabs().filter((tab) => tab !== "General");
   const settingsRows = settingsTabs.map((tab) => ({
+    detail: "Settings",
     icon: <GearIcon />,
     id: `settings-${tab}`,
-    label: `Settings: ${tab}`,
+    label: settingsTabTitle(tab),
     run: () => {
       openSettings({ tab });
     },
@@ -518,25 +531,6 @@ export function useCommandMenuRows({
       ]
     : [];
 
-  const bookmarkPages = unique(
-    bookmarks.map((bookmark) => ({
-      favicon: undefined,
-      title: bookmark.title,
-      url: bookmark.url,
-    })),
-    (page) => page.url,
-  );
-  const bookmarked = new Set(bookmarkPages.map((page) => page.url));
-  const recentPages = unique(
-    visited
-      .filter((page) => !bookmarked.has(page.url))
-      .map((page) => ({
-        favicon: page.favicon,
-        title: page.title,
-        url: page.url,
-      })),
-    (page) => page.url,
-  );
   const pages = [...bookmarkPages, ...recentPages];
 
   // The folders the Files sidebar lists, in its order: the Instrument
@@ -673,7 +667,7 @@ export function useCommandMenuRows({
                 },
                 ...(typedPath.alsoSearch ? [webSearchItem] : []),
               ],
-              label: "Open",
+              label: "",
             },
           ];
   const chatMatches = isSearch
@@ -686,7 +680,7 @@ export function useCommandMenuRows({
         ),
         ([, app]) => [app.name],
         words,
-      ).slice(0, APPS_SHOWN)
+      ).slice(0, PER_KIND_SHOWN)
     : [];
   // A project is found by its name, and by the word for one: "project" alone
   // lists them all, and beside a name it is left out of what the name is
@@ -701,47 +695,33 @@ export function useCommandMenuRows({
       ? liveProjects.map((item) => ({ item, ranges: null }))
       : fuzzyMatch(liveProjects, (project) => [project.name], projectAsk.name);
 
-  const goTo: Item[] = PLACES.map(({ id, label }) => ({
-    chord: WINDOW_SHORTCUTS[PLACE_CHORDS[id]].accelerator,
-    icon: <PlaceIcon place={id} />,
-    id: `goto:${id}`,
-    label,
-    ranges: null,
-    run: () => {
-      shell.goToPlace(id);
-    },
-    type: "item",
-  }));
-
   const named: { items: Item[]; label: string }[] = isSearch
     ? [
         {
-          items: fuzzyMatch(goTo, (item) => [item.label], words).map(
-            ({ item, ranges }) => ({ ...item, ranges }),
-          ),
-          label: "Go to",
-        },
-        {
           items: fuzzyMatch(
             [...commands, ...settingsRows],
-            (command) => [command.label],
+            (command) => [command.label, command.detail ?? ""],
             words,
-          ).map(({ item, ranges }) => ({ ...item, ranges, type: "item" })),
+          )
+            .slice(0, PER_KIND_SHOWN)
+            .map(({ item, ranges }) => ({ ...item, ranges, type: "item" })),
           label: "Commands",
         },
         // Over the chats rather than under them: there are only ever a few
         // projects, and the chats are the one list here with no end, so under
         // them a project would be out of sight exactly when its name is in
         // many titles. Asked for by the word, they lead outright, since no
-        // place or command answers to it.
+        // command answers to it.
         {
-          items: projectMatches.map(({ item, ranges }) =>
-            projectItem(item, ranges),
-          ),
+          items: projectMatches
+            .slice(0, PER_KIND_SHOWN)
+            .map(({ item, ranges }) => projectItem(item, ranges)),
           label: "Projects",
         },
         {
-          items: chatMatches.map(({ item, ranges }) => chatItem(item, ranges)),
+          items: chatMatches
+            .slice(0, PER_KIND_SHOWN)
+            .map(({ item, ranges }) => chatItem(item, ranges)),
           label: "Chats",
         },
         {
@@ -750,49 +730,45 @@ export function useCommandMenuRows({
           ),
           label: "Apps",
         },
+        // The sidebar's folders the words name, then the files opened lately.
         {
-          items: pageItems(bookmarkPages),
-          label: "Bookmarks",
+          items: [
+            ...fuzzyMatch(folders, (folder) => [folder.name], words).map(
+              ({ item: folder, ranges }): Item => ({
+                icon: <FolderMark path={folder.path} />,
+                id: `folder:${folder.path}`,
+                label: folder.name,
+                ranges,
+                run: () => {
+                  openScreen(folderHref(folder.path));
+                },
+                type: "item",
+              }),
+            ),
+            ...fuzzyMatch(
+              recentFiles,
+              (file) => [file.name, displayPath(file.path)],
+              words,
+            ).map(({ item: file, ranges }) => fileItem(file, ranges)),
+          ].slice(0, PER_KIND_SHOWN),
+          label: "Files",
         },
+        // Bookmarks first, then the pages visited. A file kept as a bookmark
+        // that Files already lists is left to that row.
         {
-          items: pageItems(recentPages),
-          label: "Recent pages",
-        },
-        {
-          items: fuzzyMatch(folders, (folder) => [folder.name], words)
-            .slice(0, FOLDERS_SHOWN)
-            .map(({ item: folder, ranges }) => ({
-              icon: <FolderMark path={folder.path} />,
-              id: `folder:${folder.path}`,
-              label: folder.name,
-              ranges,
-              run: () => {
-                openScreen(folderHref(folder.path));
-              },
-              type: "item",
-            })),
-          label: "Folders",
-        },
-        {
-          items: fuzzyMatch(
-            recentFiles,
-            (file) => [file.name, displayPath(file.path)],
-            words,
-          )
-            .slice(0, FILES_SHOWN)
-            .map(({ item: file, ranges }) => ({
-              detail: displayPath(folderOf(file.path)),
-              icon: <FileTypeIcon fileName={file.name} />,
-              id: `file:${file.path}`,
-              isFileName: true,
-              label: file.name,
-              ranges,
-              run: () => {
-                openScreen(fileHref(file.path));
-              },
-              type: "item",
-            })),
-          label: "Recent files",
+          items: [
+            ...pageItems(
+              bookmarkPages.filter((page) => {
+                const target = targetOfAddress(page.url);
+                return !(
+                  target?.kind === "path" &&
+                  recentFiles.some((file) => file.path === target.path)
+                );
+              }),
+            ),
+            ...pageItems(recentPages),
+          ].slice(0, PER_KIND_SHOWN),
+          label: "Pages",
         },
         {
           items: fuzzyMatch(
@@ -804,8 +780,10 @@ export function useCommandMenuRows({
             id: `debug:${item.href}`,
             label: item.label,
             ranges,
+            // The group's debug tab walks there, as a part of Settings
+            // does, or the page opens in a tab of its own.
             run: () => {
-              openScreen(item.href);
+              openBuiltInPage(item.href);
             },
             type: "item",
           })),
@@ -836,18 +814,33 @@ export function useCommandMenuRows({
     ? [{ items: bangRows, label: "Switches" }]
     : words === ""
       ? [
-          { items: goTo, label: "Go to" },
+          {
+            items: [
+              ...chats
+                .filter((chat) => !chat.archived)
+                .map((chat) => ({
+                  at: chat.lastUserMessageAt,
+                  item: chatItem(chat, null),
+                })),
+              ...recentFiles.map((file) => ({
+                at: file.openedAt,
+                item: fileItem(file, null),
+              })),
+              ...visited.map((page) => ({
+                at: page.at,
+                item: pageItem(page, null),
+              })),
+            ]
+              .toSorted((a, b) => b.at - a.at)
+              .slice(0, RECENTS_SHOWN)
+              .map(({ item }) => item),
+            label: "Recent",
+          },
           {
             items: commands
               .filter((command) => LISTED_COMMANDS.has(command.id))
               .map((command) => ({ ...command, ranges: null, type: "item" })),
             label: "Commands",
-          },
-          {
-            items: byLastUserMessage(chats.filter((chat) => !chat.archived))
-              .slice(0, RECENT_CHATS_SHOWN)
-              .map((chat) => chatItem(chat, null)),
-            label: "Recent chats",
           },
         ]
       : [
@@ -857,7 +850,7 @@ export function useCommandMenuRows({
                 {
                   items: [
                     {
-                      detail: isPage ? "Open in this tab" : "Open in a new tab",
+                      detail: "Open in this tab",
                       // An address being typed is no site anyone has been to
                       // yet, and asking for its icon would send every host
                       // the letters spell out along the way.
@@ -875,13 +868,13 @@ export function useCommandMenuRows({
                       type: "item" as const,
                     },
                   ],
-                  label: "Open",
+                  label: "",
                 },
               ]
             : []),
           ...named,
           ...(site === undefined && isSearchWords(words)
-            ? [{ items: [webSearchItem], label: "Web" }]
+            ? [{ items: [webSearchItem], label: "" }]
             : []),
           {
             items: chatsByMeaning.chats.map((chat) => chatItem(chat, null)),
@@ -912,32 +905,53 @@ export function useCommandMenuRows({
   function pageItems(
     list: { favicon: string | undefined; title: string; url: string }[],
   ): Item[] {
-    return fuzzyMatch(
-      list,
-      (page) => [page.title || bareAddress(page.url), page.url],
-      words,
-    )
-      .slice(0, PAGES_SHOWN)
-      .map(({ item: page, ranges }) => ({
-        detail: page.title ? bareAddress(page.url) : undefined,
-        icon: <PageFavicon favicon={page.favicon} url={page.url} />,
-        id: `page:${page.url}`,
-        label: page.title || bareAddress(page.url),
-        ranges,
-        run: () => {
-          openPage(page.url);
-        },
-        type: "item",
-      }));
+    return matchKnownPages(list, words)
+      .slice(0, PER_KIND_SHOWN)
+      .map(({ item: page, ranges }) => pageItem(page, ranges));
   }
 
-  // A chat's row wears what its row in the list does: the dot its tab
-  // would, then its project and its star past the title.
+  function pageItem(
+    page: { favicon?: string | undefined; title: string; url: string },
+    ranges: null | number[],
+  ): Item {
+    return {
+      detail: page.title ? whereOfAddress(page.url) : undefined,
+      icon: <PageFavicon favicon={page.favicon} url={page.url} />,
+      id: `page:${page.url}`,
+      label: page.title || bareAddress(page.url),
+      ranges,
+      run: () => {
+        openPage(page.url);
+      },
+      type: "item",
+    };
+  }
+
+  function fileItem(
+    file: { name: string; path: string },
+    ranges: null | number[],
+  ): Item {
+    return {
+      detail: folderNameOf(file.path),
+      icon: <FileTypeIcon fileName={file.name} />,
+      id: `file:${file.path}`,
+      isFileName: true,
+      label: file.name,
+      ranges,
+      run: () => {
+        openScreen(fileHref(file.path));
+      },
+      type: "item",
+    };
+  }
+
+  // A chat's row is the address field's: the dot its tab would wear, its
+  // title, then the project it is filed under, and nothing at its right.
   function chatItem(chat: Chat, ranges: null | number[]): Item {
     const project = shell.projects.find((each) => each.id === chat.project);
     const mark = railMarkOf([chat]);
     return {
-      detail: chat.archived ? "Archived" : undefined,
+      detail: project?.name ?? (chat.archived ? "Archived" : undefined),
       dot: mark === "working" ? undefined : mark,
       icon: <ChatCircleIcon />,
       id: `chat:${chat.id}`,
@@ -946,20 +960,6 @@ export function useCommandMenuRows({
       run: () => {
         openScreen(`${CHATS_HREF}/${chat.id}`);
       },
-      trailing:
-        project || chat.starred ? (
-          <>
-            {project && <ProjectPill quiet project={project} />}
-            {chat.starred && (
-              <StarIcon
-                aria-label="Starred"
-                className="size-3.5 text-warning-500"
-                role="img"
-                weight="fill"
-              />
-            )}
-          </>
-        ) : undefined,
       type: "item",
     };
   }
@@ -977,21 +977,22 @@ export function useCommandMenuRows({
     };
   }
 
-  const rows: Row[] = sections.flatMap((section): Row[] =>
-    section.items.length === 0 && !section.looking
-      ? []
-      : [
-          { label: section.label, type: "header" },
-          ...section.items.map((item) => ({
-            ...item,
-            run: item.leavesItself ? item.run : done(item.run),
-          })),
-          ...(section.looking ? [{ type: "looking" as const }] : []),
-        ],
-  );
+  const rows: Row[] = sections
+    .filter((section) => section.items.length > 0 || section.looking)
+    .flatMap((section, index): Row[] => [
+      // A section with no name at the top needs no rule over it: its first
+      // row is plainly what Return runs.
+      ...(index === 0 && section.label === ""
+        ? []
+        : [{ label: section.label, type: "header" as const }]),
+      ...section.items.map((item) => ({
+        ...item,
+        run: item.leavesItself ? item.run : done(item.run),
+      })),
+      ...(section.looking ? [{ type: "looking" as const }] : []),
+    ]);
 
   const selection = useSelection({
-    loop: isPage,
     rows,
     typed,
     words,
@@ -1023,13 +1024,10 @@ interface Selection {
  * a row for what was typed rather than for the letters before it.
  */
 function useSelection({
-  loop,
   rows,
   typed,
   words,
 }: {
-  /** Whether the arrows go round from one end to the other. */
-  loop: boolean;
   rows: Row[];
   /** The words in the field, which `words` follows a beat behind. */
   typed: string;
@@ -1101,9 +1099,7 @@ function useSelection({
         ? by > 0
           ? ids.length - 1
           : 0
-        : loop
-          ? (at + by + ids.length) % ids.length
-          : Math.max(0, Math.min(ids.length - 1, at + by));
+        : Math.max(0, Math.min(ids.length - 1, at + by));
       const nextId = ids[next];
       if (nextId !== undefined) {
         setPicked({ id: nextId, isKeyed: true, words });
@@ -1127,7 +1123,7 @@ function useSelection({
  * The menu's field, which keeps the caret while the list under it answers
  * the keys: the arrows move the row picked and Return runs it.
  */
-export function CommandMenuField({
+function CommandMenuField({
   className,
   containerClassName,
   listId,
@@ -1186,7 +1182,7 @@ export function CommandMenuField({
  * The menu's list, one height whatever the search finds, so it does not
  * grow and shrink under the caret as results come and go.
  */
-export function CommandMenuList({
+function CommandMenuList({
   className,
   isBang,
   itemClassName,
@@ -1264,7 +1260,6 @@ export function CommandMenu({
     },
     openPage,
     openScreen,
-    surface: "dialog",
     words: search.trim(),
   });
 
@@ -1333,7 +1328,10 @@ function ResultRows({
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer<HTMLDivElement, HTMLDivElement>({
     count: rows.length,
-    estimateSize: (i) => (rows[i]?.type === "header" ? 28 : 36),
+    estimateSize: (i) => {
+      const row = rows[i];
+      return row?.type === "header" ? (row.label === "" ? 9 : 28) : 36;
+    },
     getScrollElement: () => parentRef.current,
     // Rows on the first render, before the scroller is measured.
     initialRect: { height: 512, width: 0 },
@@ -1374,9 +1372,13 @@ function ResultRows({
               style={{ transform: `translateY(${virtualItem.start}px)` }}
             >
               {row.type === "header" ? (
-                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                  {row.label}
-                </div>
+                row.label === "" ? (
+                  <div className="mx-2 my-1 border-t border-border" />
+                ) : (
+                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                    {row.label}
+                  </div>
+                )
               ) : row.type === "looking" ? (
                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
                   <Spinner className="size-4" />
@@ -1406,44 +1408,30 @@ function ResultRows({
                       <ChatMarkDot className="size-2 ring-0" mark={row.dot} />
                     ) : null}
                   </span>
-                  {row.isFileName ? (
-                    <span className="flex min-w-0 flex-1 items-baseline">
-                      <MiddleTruncate
-                        className="max-w-full shrink-0"
-                        extension
-                        renderText={(piece, start) => (
-                          <FuzzyHighlight
-                            ranges={rangesWithin(
-                              row.ranges,
-                              start,
-                              piece.length,
-                            )}
-                            text={piece}
-                          />
-                        )}
-                        text={row.label}
-                      />
-                      {row.detail ? (
-                        <span className="ml-2 min-w-0 truncate text-xs text-muted-foreground">
-                          {row.detail}
-                        </span>
-                      ) : null}
-                    </span>
-                  ) : (
-                    <span className="min-w-0 flex-1 truncate">
-                      <FuzzyHighlight ranges={row.ranges} text={row.label} />
-                      {row.detail ? (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          {row.detail}
-                        </span>
-                      ) : null}
-                    </span>
-                  )}
-                  {row.trailing ? (
-                    <span className="flex shrink-0 items-center gap-1">
-                      {row.trailing}
-                    </span>
-                  ) : null}
+                  <RowText
+                    name={
+                      row.isFileName ? (
+                        <MiddleTruncate
+                          className="max-w-full"
+                          extension
+                          renderText={(piece, start) => (
+                            <FuzzyHighlight
+                              ranges={rangesWithin(
+                                row.ranges,
+                                start,
+                                piece.length,
+                              )}
+                              text={piece}
+                            />
+                          )}
+                          text={row.label}
+                        />
+                      ) : (
+                        <FuzzyHighlight ranges={row.ranges} text={row.label} />
+                      )
+                    }
+                    where={row.detail}
+                  />
                   {row.chord === undefined ? null : (
                     <CommandShortcut>
                       {formatAcceleratorText(row.chord)}
@@ -1492,38 +1480,4 @@ function nameMatch<T>(
   return [...found]
     .toSorted(([, a], [, b]) => b.count - a.count)
     .map(([item, { ranges }]) => ({ item, ranges }));
-}
-
-/**
- * The items the words fuzzily match, best first, each with the highlight
- * ranges of its first field, which is the one a row shows. The other fields
- * are searched too, so an address finds a page shown by its title.
- */
-function fuzzyMatch<T>(
-  items: T[],
-  fieldsOf: (item: T) => string[],
-  words: string,
-): { item: T; ranges: null | number[] }[] {
-  if (items.length === 0) {
-    return [];
-  }
-  const joined = items.map((item) => joinFuzzyFields(fieldsOf(item)));
-  const haystack = joined.map((entry) => entry.haystack);
-  // oxlint-disable-next-line unicorn/no-array-method-this-argument
-  const indexes = fuzzy.filter(haystack, words);
-  if (!indexes || indexes.length === 0) {
-    return [];
-  }
-  const info = fuzzy.info(indexes, haystack, words);
-  const order = fuzzy.sort(info, haystack, words);
-  return order.flatMap((orderIndex) => {
-    const index = info.idx[orderIndex] ?? -1;
-    const item = items[index];
-    const fields = joined[index];
-    if (item === undefined || !fields) {
-      return [];
-    }
-    const [ranges] = fields.splitRanges(info.ranges[orderIndex] ?? null);
-    return [{ item, ranges: ranges ?? null }];
-  });
 }

@@ -231,7 +231,7 @@ function matchesPlace(chat: Filterable, filters: ChatFilters) {
  * whatever its case: in the title, the ask, the latest line, a project's name,
  * a file's name, a site, or an app. Nothing searched for matches everything.
  */
-function matchesSearch(
+export function matchesSearch(
   chat: Filterable,
   search: string,
   projectNames: ReadonlyMap<string, string>,
@@ -377,7 +377,7 @@ export function strongestMark(
  * rail's dot sits on its icon for a reply not yet seen or a question waiting,
  * except where the chat is up, which is the chat on screen.
  */
-export function chatMarkShown(
+function chatMarkShown(
   mark: RailChatMark | undefined,
   { isUp }: { isUp: boolean },
 ): { dot?: "unread" | "waiting"; isWorking: boolean } {

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
 import { Omnibar } from "./omnibar";
+import { editField } from "./omnibar-field";
 
 /** What each folder's listing answers, by its path; every other query stays pending. */
 const listings = vi.hoisted(() => new Map<string, unknown>());
@@ -62,6 +63,21 @@ vi.mock("@/client/lib/locate-typed-path", async (importOriginal) => ({
     Promise.resolve({ kind: "missing", path: path.shown }),
 }));
 
+vi.mock("@/client/bookmarks/store", async (importOriginal) => {
+  const { atom } = await import("jotai");
+  return {
+    ...(await importOriginal<typeof import("@/client/bookmarks/store")>()),
+    bookmarksAtom: atom([
+      {
+        id: "radar",
+        order: 1,
+        title: "Weather Radar",
+        url: "https://radar.example.com/",
+      },
+    ]),
+  };
+});
+
 vi.mock("./context", async (importOriginal) => ({
   ...(await importOriginal<typeof import("./context")>()),
   useWindow: () => ({ openPage: () => undefined }),
@@ -91,6 +107,25 @@ describe("a path the field found nothing at", () => {
       .element(page.getByRole("option", { selected: true }))
       .toMatchTextContent("/nowhere/x");
     await expect.element(notice).not.toBeInTheDocument();
+  });
+});
+
+// A new tab's page already shows the bookmarks, so its field pressed with
+// nothing typed lists none of them again.
+describe("a new tab's field pressed with nothing typed", () => {
+  it("lists nothing", async () => {
+    await renderInBrowser(<Omnibar location={{ kind: "newTab" }} />);
+    const field = page.getByRole("combobox");
+    const box = field.element();
+    if (box instanceof HTMLInputElement) {
+      editField(box);
+    }
+
+    await expect.element(field).toHaveAttribute("aria-expanded", "false");
+    await userEvent.keyboard("weather");
+    await expect
+      .element(page.getByRole("option", { name: /Weather Radar/ }))
+      .toMatchTextContent("Weather Radarradar.example.com");
   });
 });
 
@@ -124,8 +159,8 @@ describe("words the field searches the web for", () => {
 // where a name home has too (Documents) would read as home's own.
 describe("a folder's names a whole path reaches", () => {
   it.each([
-    ["C:\\Users\\Public\\Documents", "DocumentsC:\\Users\\Public"],
-    ['"C:\\Users\\Public\\Documents"', "DocumentsC:\\Users\\Public"],
+    ["C:\\Users\\Public\\Documents", "DocumentsPublic"],
+    ['"C:\\Users\\Public\\Documents"', "DocumentsPublic"],
     // In the folder on screen, a name says enough on its own.
     ["C:\\Users\\casey\\Doc", /^Documents$/],
   ])("say where they are for %s", async (typed, row) => {
@@ -187,13 +222,115 @@ describe("a page's file pressed into", () => {
     const field = page.getByRole("combobox");
     // Out of the pointer's way while the place rests over it; the row hands
     // it the caret on a press, as here.
-    field.element().focus();
+    const box = field.element();
+    if (box instanceof HTMLInputElement) {
+      editField(box);
+    }
 
     await expect.element(field).toHaveValue(live);
-    const box = field.element();
     expect(
       box instanceof HTMLInputElement && [box.selectionStart, box.selectionEnd],
     ).toEqual([0, live.length]);
     await expect.element(field).toHaveAttribute("aria-expanded", "false");
+  });
+});
+
+// In a chat and in the app's own pages, the field searches the app its chip
+// names, the way a browser's address bar searches a site once its keyword
+// is in; the place has no address to edit.
+describe("a field searching the app its chip names", () => {
+  const chat = { kind: "chat", title: "Trip to Lisbon" } as const;
+
+  it("opens empty with the chip still there, and Backspace puts the chip away", async () => {
+    await renderInBrowser(
+      <Omnibar location={chat} resting={<span>Trip to Lisbon</span>} />,
+    );
+    const field = page.getByRole("combobox");
+    const box = field.element();
+    if (box instanceof HTMLInputElement) {
+      editField(box);
+    }
+
+    await expect.element(field).toHaveValue("");
+    await expect.element(field).toHaveAttribute("placeholder", "Search chats");
+    await expect
+      .element(page.getByText("Trip to Lisbon"))
+      .not.toBeInTheDocument();
+    await expect.element(page.getByText("Chats")).toBeVisible();
+
+    await userEvent.keyboard("{Backspace}");
+    await expect
+      .element(field)
+      .toHaveAttribute("placeholder", "Search or enter address");
+    await expect.element(page.getByText("Chats")).not.toBeInTheDocument();
+  });
+
+  it("offers the app's own entries for the words typed, best first, then its search", async () => {
+    await renderInBrowser(
+      <Omnibar
+        location={{ kind: "builtin", part: "Providers", screen: "settings" }}
+        resting={<span>Providers</span>}
+      />,
+    );
+    const field = page.getByRole("combobox");
+    const box = field.element();
+    if (box instanceof HTMLInputElement) {
+      editField(box);
+    }
+    await userEvent.keyboard("theme");
+
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toMatchTextContent(/^Theme/);
+    await expect
+      .element(
+        page.getByRole("option", { name: "Search settings for “theme”" }),
+      )
+      .toBeVisible();
+  });
+
+  it("searches for an address typed in, and opens one only once Backspace puts the chip away", async () => {
+    await renderInBrowser(
+      <Omnibar location={chat} resting={<span>Trip to Lisbon</span>} />,
+    );
+    const field = page.getByRole("combobox");
+    const box = field.element();
+    if (box instanceof HTMLInputElement) {
+      editField(box);
+    }
+    await userEvent.keyboard("https://example.org");
+
+    await expect.element(field).toHaveAttribute("placeholder", "Search chats");
+    await expect
+      .element(page.getByText("Chats", { exact: true }))
+      .toBeVisible();
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toMatchTextContent("Search chats for “https://example.org”");
+
+    await userEvent.clear(field);
+    await userEvent.keyboard("{Backspace}");
+    await userEvent.keyboard("https://example.org");
+    await expect
+      .element(field)
+      .toHaveAttribute("placeholder", "Search or enter address");
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toMatchTextContent(/example\.org/);
+  });
+
+  it("keeps the place on show for a caret the keyboard brought, until a letter is typed", async () => {
+    await renderInBrowser(
+      <Omnibar location={chat} resting={<span>Trip to Lisbon</span>} />,
+    );
+    const field = page.getByRole("combobox");
+    field.element().focus();
+
+    await expect.element(page.getByText("Trip to Lisbon")).toBeVisible();
+    await userEvent.keyboard("l");
+    await expect
+      .element(page.getByText("Trip to Lisbon"))
+      .not.toBeInTheDocument();
+    await expect.element(field).toHaveValue("l");
   });
 });

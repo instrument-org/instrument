@@ -20,11 +20,13 @@ export interface InstrumentLink {
 type InstrumentLinkKind =
   | "app"
   | "chat"
+  | "group"
   | "memory"
   | "project"
   | "screen"
   | "settings"
   | "skill"
+  | "tab"
   | "task";
 
 /**
@@ -34,11 +36,13 @@ type InstrumentLinkKind =
 const HOSTS = {
   app: { kind: "app", prefix: "/apps" },
   chat: { kind: "chat", prefix: "/chats" },
+  group: { kind: "group", prefix: "/tab-groups" },
   memory: { kind: "memory", prefix: "/memory" },
   project: { kind: "project", prefix: "/projects" },
   screen: { kind: "screen", prefix: "/screen" },
   settings: { kind: "settings", prefix: "/settings" },
   skill: { kind: "skill", prefix: "/skills" },
+  tab: { kind: "tab", prefix: "/window-tabs" },
   task: { kind: "task", prefix: "/tasks" },
 } as const satisfies Record<
   string,
@@ -267,6 +271,16 @@ export function chatAddressOf(id: string): string {
   return `${APP_NAME_SLUG}://chat/${id}`;
 }
 
+/** A tab group's address, which the window's own list names it by. */
+export function groupAddressOf(id: string): string {
+  return `${APP_NAME_SLUG}://group/${id}`;
+}
+
+/** A window tab's address, by the tab's id. */
+export function tabAddressOf(id: string): string {
+  return `${APP_NAME_SLUG}://tab/${id}`;
+}
+
 /**
  * The chat id a file's `chat:` names: the chat's address, or a bare id,
  * which reads the same. Undefined for an address of anything else.
@@ -319,7 +333,16 @@ export function instrumentLinkOf(url: string): InstrumentLink | undefined {
   if (name === undefined) {
     return undefined;
   }
-  return { href: `${prefix}/${name}`, kind, name };
+  // A task is a session in its chat's store: an address that names the
+  // chat too opens it from anywhere, where one without it needs a chat on
+  // screen to stand beside.
+  const chat = kind === "task" ? parsed.searchParams.get("chat") : null;
+  const href = `${prefix}/${name}`;
+  return {
+    href: chat !== null && NAME.test(chat) ? `${href}?chat=${chat}` : href,
+    kind,
+    name,
+  };
 }
 
 /**

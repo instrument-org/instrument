@@ -976,10 +976,9 @@ describe("permissions.answer", () => {
           publisher.publish("window.tabDone", {
             id: ask.id,
             requestId: ask.requestId,
-            tabs: [
+            pages: [
               {
                 id: tab,
-                kind: "page",
                 title: "Cart",
                 url: "https://example.com/cart",
               },

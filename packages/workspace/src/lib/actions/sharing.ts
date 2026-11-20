@@ -11,4 +11,4 @@ export function mayShareActions(): boolean {
 
 /** Why `instrument activity` lists nothing while the person keeps it to themselves. */
 export const ACTIONS_NOT_SHARED =
-  "the user turned this off in Settings › Activity, so what they do in the app is not shared.";
+  "the user turned this off in Settings › History, so what they do in the app is not shared.";

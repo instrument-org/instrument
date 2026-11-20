@@ -30,10 +30,20 @@ import { PrinterIcon } from "@phosphor-icons/react/Printer";
 import { TerminalWindowIcon } from "@phosphor-icons/react/TerminalWindow";
 import { useAtom } from "jotai";
 import { omit } from "radashi";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 
-/** The page's zoom as a row of its menu: a stepper, and the level as a menu of its own. */
-export function PageZoomRow({
+/** A menu's Zoom row: its name, then the stepper of what the menu zooms. */
+export function ZoomMenuRow({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-center justify-between px-2 py-1.5">
+      <span className="text-sm">Zoom</span>
+      {children}
+    </div>
+  );
+}
+
+/** A page's zoom in its menu: a stepper, and the level as a menu of its own. */
+export function PageZoomStepper({
   onZoom,
   zoom,
 }: {
@@ -51,44 +61,44 @@ export function PageZoomRow({
     );
   };
   return (
-    <div className="flex items-center justify-between px-2 py-1.5">
-      <span className="text-sm">Zoom</span>
-      <ZoomStepperControl
-        canZoomIn={zoom < BROWSER_ZOOM_MAX}
-        canZoomOut={zoom > BROWSER_ZOOM_MIN}
-        onZoomIn={() => {
-          step("in");
-        }}
-        onZoomOut={() => {
-          step("out");
-        }}
-        readout={
-          <ZoomLevelMenu
-            max={BROWSER_ZOOM_MAX}
-            min={BROWSER_ZOOM_MIN}
-            nested
-            onSelect={onZoom}
-            zoom={zoom}
-          />
-        }
-      />
-    </div>
+    <ZoomStepperControl
+      canZoomIn={zoom < BROWSER_ZOOM_MAX}
+      canZoomOut={zoom > BROWSER_ZOOM_MIN}
+      onZoomIn={() => {
+        step("in");
+      }}
+      onZoomOut={() => {
+        step("out");
+      }}
+      readout={
+        <ZoomLevelMenu
+          max={BROWSER_ZOOM_MAX}
+          min={BROWSER_ZOOM_MIN}
+          nested
+          onSelect={onZoom}
+          zoom={zoom}
+        />
+      }
+    />
   );
 }
 
-/** View as, the device sizes a page can be laid out at, as a submenu. */
+/**
+ * View as, the device sizes a page can be laid out at, as a submenu, shown
+ * disabled where the menu has no page under it.
+ */
 export function PageViewAsMenu({
   disabled,
   targetId,
 }: {
   disabled: boolean;
-  targetId: BrowserTargetId;
+  targetId: BrowserTargetId | undefined;
 }) {
   const [devices, setDevices] = useAtom(emulatedDevicesAtom);
-  const device = devices[targetId];
+  const device = targetId === undefined ? undefined : devices[targetId];
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger disabled={disabled}>
+      <DropdownMenuSubTrigger disabled={disabled || targetId === undefined}>
         <DeviceMobileIcon className="size-4" />
         View as
         {device && (
@@ -97,31 +107,33 @@ export function PageViewAsMenu({
           </span>
         )}
       </DropdownMenuSubTrigger>
-      <DropdownMenuSubContent>
-        <DropdownMenuRadioGroup
-          onValueChange={(value) => {
-            const chosen = EMULATED_DEVICES.find((each) => each.id === value);
-            setDevices((current) => {
-              const rest = omit(current, [targetId]);
-              return chosen ? { ...rest, [targetId]: chosen } : rest;
-            });
-          }}
-          value={device?.id ?? "actual-size"}
-        >
-          <DropdownMenuRadioItem value="actual-size">
-            Actual size
-          </DropdownMenuRadioItem>
-          <DropdownMenuSeparator />
-          {EMULATED_DEVICES.map((each) => (
-            <DropdownMenuRadioItem key={each.id} value={each.id}>
-              {each.label}
-              <span className="ml-auto text-xs text-muted-foreground">
-                {each.width}×{each.height}
-              </span>
+      {targetId !== undefined && (
+        <DropdownMenuSubContent>
+          <DropdownMenuRadioGroup
+            onValueChange={(value) => {
+              const chosen = EMULATED_DEVICES.find((each) => each.id === value);
+              setDevices((current) => {
+                const rest = omit(current, [targetId]);
+                return chosen ? { ...rest, [targetId]: chosen } : rest;
+              });
+            }}
+            value={device?.id ?? "actual-size"}
+          >
+            <DropdownMenuRadioItem value="actual-size">
+              Actual size
             </DropdownMenuRadioItem>
-          ))}
-        </DropdownMenuRadioGroup>
-      </DropdownMenuSubContent>
+            <DropdownMenuSeparator />
+            {EMULATED_DEVICES.map((each) => (
+              <DropdownMenuRadioItem key={each.id} value={each.id}>
+                {each.label}
+                <span className="ml-auto text-xs text-muted-foreground">
+                  {each.width}×{each.height}
+                </span>
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuSubContent>
+      )}
     </DropdownMenuSub>
   );
 }
@@ -138,13 +150,15 @@ export function PageMenuItems({ targetId }: { targetId: BrowserTargetId }) {
   return (
     <>
       {guest && (
-        <PageZoomRow
-          onZoom={(factor) => {
-            guest.setZoom(factor);
-            setZoom(factor);
-          }}
-          zoom={zoom}
-        />
+        <ZoomMenuRow>
+          <PageZoomStepper
+            onZoom={(factor) => {
+              guest.setZoom(factor);
+              setZoom(factor);
+            }}
+            zoom={zoom}
+          />
+        </ZoomMenuRow>
       )}
       <DropdownMenuSeparator />
       <DropdownMenuItem

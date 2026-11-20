@@ -14,8 +14,9 @@ function tabIdOfEarlierBuilds(id: string) {
 
 /**
  * A tab one of the chat's agents opened for its own work. It stays until
- * someone closes it; this says which tabs count toward
- * `CHAT_HIDDEN_TAB_CAP` and close with the chat's archiving.
+ * someone closes it; this says which tabs every session of the chat drives
+ * without the agent naming them, which count toward `CHAT_HIDDEN_TAB_CAP`,
+ * and which close with the chat's archiving.
  */
 const OpenedTabSchema = z.object({
   id: BrowserTargetIdSchema,

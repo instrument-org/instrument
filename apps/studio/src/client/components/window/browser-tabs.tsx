@@ -11,6 +11,7 @@ import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import {
   getGuest,
   type GuestHandle,
+  setPagePanes,
   takeGuestTraversal,
 } from "@/client/lib/browser-pool";
 import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
@@ -24,6 +25,7 @@ import { isPageEditAddress } from "@instrument-org/shared";
 import { pageTextOf, READ_PAGE_TEXT } from "@instrument-org/shared/page-text";
 import {
   type BrowserTargetId,
+  type ChatId,
   browserTargetOf,
   StoreId,
 } from "@instrument-org/workspace/client";
@@ -35,9 +37,12 @@ import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { AskTray } from "./ask-tray";
-import { FileAskButton } from "./file-ask-button";
-import { segmentsOf } from "./host-path";
-import { PageEditSession, PageEditToggle } from "./page-edit";
+import {
+  type BesideAsk,
+  openBesideChat,
+  previousOpenedIn,
+} from "./beside-chat";
+import { PageEditMenuItem, PageEditSession } from "./page-edit";
 import { pageHostsAtom, type PageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import {
@@ -47,13 +52,13 @@ import {
 } from "./reconcile-guests";
 import { undrawnHostedStep } from "./hosted-page";
 import { visitInTab } from "./tab-history";
-import { chatOfGroup } from "./window-href";
 import {
   addPages,
   fileTabWalked,
   isHomeTab,
   openPage as openPageIn,
   type PageTab,
+  type Placing,
   pageBecomesFile,
   pageNavigated,
   pageTakesOver,
@@ -62,6 +67,7 @@ import {
   replaceTab,
   selectTab,
   selectedTabIn,
+  sideOf,
 } from "./tab-model";
 import {
   everyTabIdAtom,
@@ -70,6 +76,24 @@ import {
   useWindowTabs,
   useWindowTabsChange,
 } from "./window-tabs";
+
+/** Where a page opened behind goes: a group, right after `after` on its side, under `id` when given, marked as the page of the chat whose agent opened it. */
+interface BehindPlace {
+  after?: string;
+  group: string;
+  id?: StoreId.Tab;
+  openedBy?: ChatId;
+}
+
+/** A page opened beside a chat's tab (`openBesideChat`). */
+type BesidePage = Omit<BesideAsk, "previous"> & {
+  /** The page's own id, for a page an agent made with no tab. */
+  id?: StoreId.Tab;
+  /** The guest is already at the address, so nothing loads again. */
+  isLoaded?: boolean;
+  /** The chat whose agent opened it, whose last page it goes right after. */
+  openedBy?: ChatId;
+};
 
 export interface BrowserTabsHandle {
   /** Sends the guest on screen to an address, in the tab it is in. */
@@ -89,16 +113,21 @@ export interface BrowserTabsHandle {
    */
   open: (url?: string, options?: OpenOptions) => StoreId.Tab;
   /**
-   * Opens a page tab in a chat's group without showing it: the tab joins the
+   * Opens a page tab in a group without showing it: the tab joins the
    * group's list and nothing on screen changes, the pane included. What an
    * agent's own work opens, which the user finds in the list when they want
    * to watch. Opens it under `id` when given. Returns the tab.
    */
-  openBehind: (
+  openBehind: (url: string | undefined, place: BehindPlace) => StoreId.Tab;
+  /**
+   * Opens a page from a chat's tab (`openBesideChat`). Answers the tab that
+   * shows it, and whether it is up on its side; nothing for a chat's tab no
+   * group has.
+   */
+  openBeside: (
     url: string | undefined,
-    group: string,
-    id?: StoreId.Tab,
-  ) => StoreId.Tab;
+    page: BesidePage,
+  ) => undefined | { front: boolean; id: StoreId.Tab };
   /**
    * Adds a page tab to a group with no guest: the window that shows the
    * group opens the page there, at its address. For a page opened into
@@ -207,20 +236,36 @@ const READ_PAGE_WORDS = `(() => {
   };
 })()`;
 
-/** Where a page opens: in a tab's place, or in a named group. */
+/** Where a page opens: in a tab's place, in a named group, or beside the tab up. */
 interface OpenOptions {
+  /** The tab it opens right after, on that tab's side: a link opened from it in a new tab. */
+  after?: string;
+  /** With `newTab`, the page waits behind the tab up. */
+  behind?: boolean;
   /** The group the page belongs to; the group on screen when left out. */
   group?: string;
+  /** A tab of its own right after the one its group has up, as a link opened in a new tab lands. */
+  newTab?: boolean;
   replacing?: WindowTab;
   /** Brings the group on screen at the page, rather than leaving it behind: for what the user asked for by name. */
   show?: boolean;
+  /** The side of the group it opens on (`Placing`). */
+  side?: Placing["side"];
 }
 
 /** Opens a page tab and its guest, returning the tab's id. */
 function openTab(
   change: ReturnType<typeof useWindowTabsChange>,
   url?: string,
-  { group: into, replacing, show = false }: OpenOptions = {},
+  {
+    after,
+    behind = false,
+    group: into,
+    newTab = false,
+    replacing,
+    show = false,
+    side,
+  }: OpenOptions = {},
 ) {
   const id = StoreId.newTabId();
   const page = {
@@ -231,16 +276,24 @@ function openTab(
   // In the group on screen, or the group asked for: a page opened while a
   // chat is up is the chat's, and one a chat asked for while another was
   // up is still that chat's, waiting behind. In a tab's place, the page is
-  // what that tab's group has up.
-  change((current, onScreen) =>
-    openPageIn(current, {
-      group: into ?? onScreen,
-      homeId: newScreenId(),
+  // what that tab's group has up. Asked for in a new tab, it lands right
+  // after the tab up, and waits behind it when asked to.
+  change((current, onScreen) => {
+    const group = into ?? onScreen;
+    const beside =
+      after ?? (newTab ? selectedTabIn(current, group)?.id : undefined);
+    return openPageIn(current, {
+      ...(beside === undefined ? {} : { after: beside }),
+      group,
       page,
       ...(replacing ? { replacing } : {}),
-      select: show || into === undefined || into === onScreen,
-    }),
-  );
+      select:
+        newTab || after !== undefined
+          ? !behind
+          : show || into === undefined || into === onScreen,
+      ...(side === undefined ? {} : { side }),
+    });
+  });
   // Read now: by the time the guest is up, the window may have lost focus
   // to whatever the page opened.
   const audible = url !== undefined && document.hasFocus();
@@ -292,6 +345,24 @@ export function BrowserTabs({
   const everyTabId = useAtomValue(everyTabIdAtom);
   const tabs = allTabs.filter((tab): tab is PageTab => tab.kind === "page");
   const attached = useBrowserTargets();
+  // Each page stands in its group's side, two of which show pages side by
+  // side at widths of their own, so a page behind is laid out at its side's.
+  const panes = tabs
+    .map((tab) => `${tab.id} ${tab.group ?? ""}:${sideOf(tab)}`)
+    .join("\n");
+  useEffect(() => {
+    setPagePanes(
+      new Map(
+        panes
+          .split("\n")
+          .filter((line) => line !== "")
+          .map((line) => {
+            const [id = "", pane = ""] = line.split(" ");
+            return [browserTargetOf(id), pane];
+          }),
+      ),
+    );
+  }, [panes]);
 
   const targetOf = (tab: BrowserTab): BrowserTargetId =>
     browserTargetOf(tab.id);
@@ -596,23 +667,87 @@ export function BrowserTabs({
         });
       },
       open: (url, options) => openTab(change, url, options),
-      openBehind: (url, into, given) => {
+      openBehind: (url, { after, group, id: given, openedBy }) => {
         const id = given ?? StoreId.newTabId();
         change((current) =>
-          addPages(current, [
-            {
-              group: into,
-              id,
-              openedAt: Date.now(),
-              ...(url ? { openedUrl: url, url } : {}),
-            },
-          ]),
+          addPages(
+            current,
+            [
+              {
+                group,
+                id,
+                openedAt: Date.now(),
+                ...(openedBy === undefined ? {} : { openedBy }),
+                ...(url ? { openedUrl: url, url } : {}),
+              },
+            ],
+            after === undefined ? {} : { after },
+          ),
         );
         void rpcClient.workspace.browser.open.call({
           targetId: browserTargetOf(id),
           ...(url ? { url } : {}),
         });
         return id;
+      },
+      openBeside: (url, { id: given, isLoaded = false, openedBy, ...ask }) => {
+        if (
+          given !== undefined &&
+          latest.current.allTabs.some((tab) => tab.id === given)
+        ) {
+          return undefined;
+        }
+        const id = given ?? StoreId.newTabId();
+        let opened: undefined | { front: boolean; id: StoreId.Tab };
+        change((current) => {
+          const group = current.tabs.find(
+            (tab) => tab.id === ask.chatTab,
+          )?.group;
+          if (group === undefined) {
+            return current;
+          }
+          const previous =
+            openedBy === undefined
+              ? undefined
+              : previousOpenedIn(current, group, openedBy);
+          const placed = openBesideChat(
+            current,
+            {
+              group,
+              id,
+              kind: "page",
+              openedAt: Date.now(),
+              ...(openedBy === undefined ? {} : { openedBy }),
+              ...(url ? { openedUrl: url, url } : {}),
+            },
+            { ...ask, ...(previous === undefined ? {} : { previous }) },
+          );
+          opened = {
+            front: placed.front,
+            id: StoreId.TabSchema.parse(placed.id),
+          };
+          return placed.state;
+        });
+        // A page already loaded is opened with no address, so it stays as
+        // it is; the window browser keeps its lifetime from here. A tab
+        // already showing the page has its guest.
+        if (opened?.id === id) {
+          const audible =
+            (ask.isShown === true || ask.gesture !== undefined) &&
+            url !== undefined &&
+            document.hasFocus();
+          void rpcClient.workspace.browser.open
+            .call({
+              targetId: browserTargetOf(id),
+              ...(url && !isLoaded ? { url } : {}),
+            })
+            .then(() => {
+              if (audible) {
+                getGuest(browserTargetOf(id))?.allowSound();
+              }
+            });
+        }
+        return opened;
       },
       openForAnotherWindow: (url, into) => {
         const id = StoreId.newTabId();
@@ -840,26 +975,13 @@ export function BrowserTabs({
           // shows the panel, and a card inset in the pane reads as a frame.
           className="h-full rounded-none shadow-none"
           key={active.id}
+          {...(active.openedBy === undefined
+            ? {}
+            : { layoutWidth: AGENT_PAGE_LAYOUT_WIDTH })}
           {...(editableId === undefined
             ? {}
             : {
-                // A page's file asks about itself the way every file tab
-                // does, beside the Edit control, except in a chat's group,
-                // where asking is the chat itself.
-                pageControls: (
-                  <>
-                    <PageEditToggle tabId={editableId} />
-                    {activeFilePath !== undefined &&
-                      chatOfGroup(active.group) === undefined && (
-                        <FileAskButton
-                          name={
-                            segmentsOf(activeFilePath).at(-1) ?? activeFilePath
-                          }
-                          path={activeFilePath}
-                        />
-                      )}
-                  </>
-                ),
+                editPage: <PageEditMenuItem tabId={editableId} />,
               })}
           {...(activeFilePath === undefined
             ? {}
@@ -895,6 +1017,9 @@ export function BrowserTabs({
             attached={attached.has(targetOf(hostUp))}
             host={host}
             key={group}
+            {...(hostUp.openedBy === undefined
+              ? {}
+              : { layoutWidth: AGENT_PAGE_LAYOUT_WIDTH })}
             place={host.place ?? `${group}:${rowWidth}`}
             tab={hostUp}
           />
@@ -903,6 +1028,14 @@ export function BrowserTabs({
     </div>
   );
 }
+
+/**
+ * The width a page an agent opened lays out at. Most sites switch to their
+ * tablet or phone layout below 1024px, which hides content the agent reads
+ * the page by, so a side narrower than this shows such a page zoomed out to
+ * its desktop layout.
+ */
+const AGENT_PAGE_LAYOUT_WIDTH = 1024;
 
 export function TabIcon({
   favicon,
@@ -925,11 +1058,14 @@ export function TabIcon({
 function ComposePagePanel({
   attached,
   host,
+  layoutWidth,
   place,
   tab,
 }: {
   attached: boolean;
   host: PageHost;
+  /** The width an agent's page lays out at (`AGENT_PAGE_LAYOUT_WIDTH`), zoomed out to fit a narrower side. */
+  layoutWidth?: number;
   place: string;
   tab: BrowserTab;
 }) {
@@ -945,6 +1081,7 @@ function ComposePagePanel({
         insideOverlay={host.insideOverlay ?? false}
         key={tab.id}
         {...(host.layer === undefined ? {} : { layer: host.layer })}
+        {...(layoutWidth === undefined ? {} : { layoutWidth })}
         relayoutKey={place}
         restoreUrl={tab.url}
         tabId={StoreId.TabSchema.parse(tab.id)}

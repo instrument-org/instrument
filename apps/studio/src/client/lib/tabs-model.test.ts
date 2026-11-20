@@ -34,7 +34,7 @@ describe("addTab", () => {
   it("appends and selects by default", () => {
     const next = addTab(emptyTabsModel(), {
       id: id("a"),
-      pathname: "/new-tab",
+      pathname: "/chats",
     });
     expect(next.tabs.map((t) => t.id)).toEqual(["a"]);
     expect(next.selectedId).toBe("a");
@@ -43,7 +43,7 @@ describe("addTab", () => {
   it("respects select: false", () => {
     const start = addTab(emptyTabsModel(), {
       id: id("a"),
-      pathname: "/new-tab",
+      pathname: "/chats",
     });
     const next = addTab(start, {
       id: id("b"),
@@ -109,7 +109,7 @@ describe("selectOrAddTab", () => {
 });
 
 describe("closeTab", () => {
-  const seed = { id: id("fresh"), pathname: "/new-tab" };
+  const seed = { id: id("fresh"), pathname: "/chats" };
 
   it("selects the right neighbor, falling back to left", () => {
     const start = model(
@@ -143,27 +143,6 @@ describe("closeTab", () => {
     const start = model([tab({ id: id("a") }), tab({ id: id("b") })], id("a"));
     const next = closeTab(start, { id: id("a"), newTab: seed });
     expect(next.recentlyClosed.map((t) => t.id)).toEqual(["a"]);
-  });
-
-  it("leaves a new tab that never went anywhere off the closed list", () => {
-    const start = model(
-      [
-        tab({ id: id("blank"), pathname: "/new-tab" }),
-        tab({
-          history: { entries: ["/new-tab", "/chats"], index: 0 },
-          id: id("went"),
-          pathname: "/new-tab",
-        }),
-        tab({ id: id("kept") }),
-      ],
-      id("kept"),
-    );
-    const next = closeOtherTabs(start, { id: id("kept") });
-    expect(next.tabs.map((t) => t.id)).toEqual(["kept"]);
-    expect(next.recentlyClosed.map((t) => t.id)).toEqual(["went"]);
-    expect(
-      closeTab(start, { id: id("blank"), newTab: seed }).recentlyClosed,
-    ).toEqual([]);
   });
 });
 
@@ -216,7 +195,7 @@ describe("reopenClosed", () => {
       addTab(start, { id: id("b"), pathname: "/tasks/9" }),
       {
         id: id("b"),
-        newTab: { id: id("fresh"), pathname: "/new-tab" },
+        newTab: { id: id("fresh"), pathname: "/chats" },
       },
     );
     const reopened = reopenClosed(closed, { id: id("restored") });
@@ -237,7 +216,7 @@ describe("reopenClosed", () => {
       );
       const closed = closeTab(start, {
         id: id(closing),
-        newTab: { id: id("fresh"), pathname: "/new-tab" },
+        newTab: { id: id("fresh"), pathname: "/chats" },
       });
       const reopened = reopenClosed(closed, { id: id("restored") });
       expect(reopened.tabs.map((t) => t.id)).toEqual(expected);
@@ -250,7 +229,7 @@ describe("reopenClosed", () => {
       [tab({ id: id("a") }), tab({ id: id("b") }), tab({ id: id("c") })],
       id("a"),
     );
-    const fresh = { id: id("fresh"), pathname: "/new-tab" };
+    const fresh = { id: id("fresh"), pathname: "/chats" };
     const closedC = closeTab(start, { id: id("c"), newTab: fresh });
     const closedB = closeTab(closedC, { id: id("b"), newTab: fresh });
     // c was third; only a is left, so it lands after a.

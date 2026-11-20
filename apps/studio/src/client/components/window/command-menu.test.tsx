@@ -1,4 +1,6 @@
+import { pageRequestAtom } from "@/client/atoms/page-requests";
 import { renderWithProviders } from "@/tests/render";
+import { getDefaultStore } from "jotai";
 import { installWindowStubs } from "@/tests/window-stubs";
 import { fireEvent, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -47,9 +49,9 @@ vi.mock("@/client/rpc/client", () => {
 
 vi.mock("@/client/components/window/shell-context", () => ({
   useShell: () => ({
-    appTabs: { openNewTab: () => undefined },
     goToPlace: () => undefined,
-    newDraft: () => undefined,
+    newGroup: () => undefined,
+    newTab: () => undefined,
     projects: [],
   }),
 }));
@@ -74,23 +76,40 @@ function setPlatform(platform: NodeJS.Platform) {
   });
 }
 
-/** The Settings tabs the menu finds for "settings", by their labels. */
-function SettingsTabRows() {
+/** Every tab Settings could have, by its title, each looked for by name. */
+const SETTINGS_TITLES = [
+  "General",
+  "Account",
+  "Providers",
+  "Apps",
+  "Permissions",
+  "Storage",
+  "History",
+  "Developer",
+];
+
+/** The Settings tab the menu finds for its title, by its label. */
+function SettingsTabRow({ words }: { words: string }) {
   const { rows } = useCommandMenuRows({
     active: true,
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
-    surface: "dialog",
-    words: "settings",
+    words,
   });
+  return rows.map((row) =>
+    row.type === "item" && row.detail === "Settings" && row.label === words ? (
+      <li key={row.id}>{row.label}</li>
+    ) : null,
+  );
+}
+
+function SettingsTabRows() {
   return (
     <ul>
-      {rows.map((row) =>
-        row.type === "item" && row.label.startsWith("Settings: ") ? (
-          <li key={row.id}>{row.label}</li>
-        ) : null,
-      )}
+      {SETTINGS_TITLES.map((title) => (
+        <SettingsTabRow key={title} words={title} />
+      ))}
     </ul>
   );
 }
@@ -115,14 +134,13 @@ describe("Settings tabs in the command menu in developer mode", () => {
 
     expect(listed()).toEqual(
       [
-        "Settings: Account",
-        "Settings: Activity",
-        "Settings: Developer",
-        "Settings: Memory",
-        "Settings: Permissions",
-        "Settings: Providers",
-        "Settings: Skills",
-        "Settings: Storage",
+        "Account",
+        "Apps",
+        "History",
+        "Developer",
+        "Permissions",
+        "Providers",
+        "Storage",
       ].sort(),
     );
   });
@@ -135,7 +153,6 @@ function MenuRows({ words }: { words: string }) {
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
-    surface: "dialog",
     words,
   });
   return (
@@ -199,11 +216,11 @@ describe("folders and bookmarks in the command menu", () => {
     expect(
       await screen.findByRole("button", { name: "Documents" }),
     ).toBeTruthy();
-    expect(screen.getByText("Folders")).toBeTruthy();
+    expect(screen.getByText("Files")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Backup Disk" })).toBeNull();
   });
 
-  it("lists a bookmarked page under Bookmarks alone", async () => {
+  it("lists a bookmarked page once, ahead of the pages visited", async () => {
     answers.set("history.live.recent", [
       {
         favicon: undefined,
@@ -221,14 +238,78 @@ describe("folders and bookmarks in the command menu", () => {
     await screen.findByRole("button", { name: "Weather Today" });
     expect(screen.getAllByRole("listitem").map((item) => item.textContent))
       .toMatchInlineSnapshot(`
+        [
+          "Pages",
+          "Weather Radar",
+          "Weather Today",
+          "",
+          "Search the web for “weather”",
+        ]
+      `);
+  });
+});
+
+describe("the command menu with nothing typed", () => {
+  it("lists what was used last, then a few commands", async () => {
+    answers.set("history.live.recent", [
+      {
+        at: 1,
+        favicon: undefined,
+        title: "Weather Today",
+        url: "https://today.example.com/",
+      },
+    ]);
+    renderWithProviders(<MenuRows words="" />);
+
+    await screen.findByRole("button", { name: "Weather Today" });
+    expect(screen.getAllByRole("listitem").map((item) => item.textContent))
+      .toMatchInlineSnapshot(`
       [
-        "Bookmarks",
-        "Weather Radar",
-        "Recent pages",
+        "Recent",
         "Weather Today",
-        "Web",
-        "Search the web for “weather”",
+        "Commands",
+        "New tab group",
+        "New tab",
+        "Settings",
       ]
     `);
+  });
+});
+
+// A built-in page the menu lists opens as every command opens one
+// (`BuiltInPageOpener`): a new tab after the tab up, or the tab already
+// showing it brought forward, never in place of the tab up.
+describe("built-in pages in the command menu", () => {
+  it.each([
+    ["History", "/activity"],
+    ["Memory", "/memory"],
+    ["Skills", "/skills"],
+    ["What's new", "/release-notes"],
+    ["Extensions", "/extensions"],
+  ])("asks for %s as a built-in page", (label, href) => {
+    const openScreen = vi.fn();
+    function Rows() {
+      const { rows } = useCommandMenuRows({
+        active: true,
+        done: (run) => run,
+        openPage: () => undefined,
+        openScreen,
+        words: label.toLowerCase(),
+      });
+      const row = rows.find(
+        (each) => each.type === "item" && each.label === label,
+      );
+      return row?.type === "item" ? (
+        <button onClick={row.run} type="button">
+          {row.label}
+        </button>
+      ) : null;
+    }
+    renderWithProviders(<Rows />);
+    fireEvent.click(screen.getByRole("button", { name: label }));
+
+    expect(getDefaultStore().get(pageRequestAtom)).toEqual({ href });
+    expect(openScreen).not.toHaveBeenCalled();
+    getDefaultStore().set(pageRequestAtom, null);
   });
 });

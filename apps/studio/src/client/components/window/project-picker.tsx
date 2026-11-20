@@ -3,26 +3,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/client/components/ui/popover";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { type ComponentProps, type ReactNode, useState } from "react";
+import { type ReactNode, useState } from "react";
 
 import { type Project } from "./chats";
 import { stopHere } from "./row-shell";
 import { ProjectPickList } from "./project-menu";
-
-/** The dashed slot a project goes in while there is none, as a picker's trigger. */
-export function AddProjectChip(props: ComponentProps<"button">) {
-  return (
-    <button
-      className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full border border-dashed border-border px-2 text-[11px] text-muted-foreground hover:border-foreground/30 hover:text-foreground data-[state=open]:text-foreground"
-      type="button"
-      {...props}
-    >
-      <PlusIcon className="size-3" />
-      Project
-    </button>
-  );
-}
 
 /**
  * The one way a chat, a draft or a row is filed: a find field that also

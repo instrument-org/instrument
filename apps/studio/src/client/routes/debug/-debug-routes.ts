@@ -78,6 +78,14 @@ export const debugPages = [
     to: "/debug/components/transcript",
   },
   {
+    group: "look",
+    id: "two-sides",
+    label: "Two sides",
+    line: "Tab groups, their sides and every drag, frozen mid-gesture.",
+    picture: "tiles",
+    to: "/debug/components/two-sides",
+  },
+  {
     group: "chat",
     id: "question",
     label: "Question card",

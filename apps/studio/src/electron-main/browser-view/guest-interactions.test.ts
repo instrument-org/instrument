@@ -29,8 +29,8 @@ const CAT = "https://example.com/cat.jpg";
 function buildMenu(linkURL: string, params: Record<string, unknown> = {}) {
   const handlers = new Map<string, (event: unknown, params: unknown) => void>();
   const loadURL = vi.fn(() => Promise.resolve());
-  const openInNewTab = vi.fn();
-  const openInNewWindow = vi.fn();
+  const bookmark = vi.fn();
+  const openIn = vi.fn();
   const step = vi.fn();
   const goBack = vi.fn();
   const copyImageAt = vi.fn();
@@ -54,9 +54,9 @@ function buildMenu(linkURL: string, params: Record<string, unknown> = {}) {
   } as unknown as WebContents;
 
   attachGuestInteractions(guest, {
+    bookmark,
     mayOpen: () => true,
-    openInNewTab,
-    openInNewWindow,
+    openIn,
     step,
   });
   handlers.get("context-menu")?.(null, {
@@ -64,6 +64,7 @@ function buildMenu(linkURL: string, params: Record<string, unknown> = {}) {
     editFlags: { canCopy: true, canCut: false, canPaste: false },
     hasImageContents: false,
     isEditable: false,
+    linkText: "",
     linkURL,
     mediaType: "none",
     misspelledWord: "",
@@ -96,8 +97,8 @@ function buildMenu(linkURL: string, params: Record<string, unknown> = {}) {
     ),
     loadURL,
     replaceMisspelling,
-    openInNewTab,
-    openInNewWindow,
+    bookmark,
+    openIn,
     openLink: items.find((item) => item.label === "Open Link"),
     openLinkInNewTab: items.find(
       (item) => item.label === "Open Link in New Tab",
@@ -132,7 +133,7 @@ describe("the guest context menu", () => {
   });
 
   it("opens an app link to a file as the file, in a tab or here", () => {
-    const { click, labels, loadURL, openInNewTab } = buildMenu(
+    const { click, labels, loadURL, openIn } = buildMenu(
       "instrument://file//Users/mac-user/wireframes/a.html",
     );
 
@@ -146,8 +147,9 @@ describe("the guest context menu", () => {
     );
     click("Open Link in New Tab");
     click("Open Link");
-    expect(openInNewTab).toHaveBeenCalledWith(
+    expect(openIn).toHaveBeenCalledWith(
       "file:///Users/mac-user/wireframes/a.html",
+      "tab",
     );
     expect(loadURL).toHaveBeenCalledWith(
       "file:///Users/mac-user/wireframes/a.html",
@@ -155,21 +157,38 @@ describe("the guest context menu", () => {
   });
 
   it("offers the link in a tab of the window's own", () => {
-    const { openInNewTab, openLinkInNewTab } = buildMenu(
+    const { openIn, openLinkInNewTab } = buildMenu(
       "file:///Users/me/site/b.html",
     );
 
     (openLinkInNewTab?.click as (() => void) | undefined)?.();
 
-    expect(openInNewTab).toHaveBeenCalledWith("file:///Users/me/site/b.html");
+    expect(openIn).toHaveBeenCalledWith("file:///Users/me/site/b.html", "tab");
   });
 
-  it("offers the link in a window of the app's own", () => {
-    const { click, openInNewWindow } = buildMenu("https://example.com/next");
+  it.each([
+    ["Open Link in Split", "split"],
+    ["Open Link in New Tab Group", "group"],
+    ["Open Link in New Window", "window"],
+  ])("opens the link from %s in the place it names", (label, place) => {
+    const { click, openIn } = buildMenu("https://example.com/next");
 
-    click("Open Link in New Window");
+    click(label);
 
-    expect(openInNewWindow).toHaveBeenCalledWith("https://example.com/next");
+    expect(openIn).toHaveBeenCalledWith("https://example.com/next", place);
+  });
+
+  it("keeps the link as a bookmark under its text", () => {
+    const { bookmark, click } = buildMenu("https://example.com/next", {
+      linkText: "  Next page ",
+    });
+
+    click("Bookmark Link");
+
+    expect(bookmark).toHaveBeenCalledWith(
+      "https://example.com/next",
+      "Next page",
+    );
   });
 
   // Back from a page's first entry is its tab's back (to the screen it was
@@ -241,8 +260,11 @@ describe("the guest context menu", () => {
         "Reload",
         "---",
         "Open Link",
+        "Open Link in Split",
         "Open Link in New Tab",
+        "Open Link in New Tab Group",
         "Open Link in New Window",
+        "Bookmark Link",
         "Copy Link",
         "---",
         "Open Image in New Tab",
@@ -311,7 +333,7 @@ describe("the guest context menu", () => {
   });
 
   it("copies, saves and opens the image under the pointer", () => {
-    const { click, copyImageAt, openInNewTab } = buildMenu("", {
+    const { click, copyImageAt, openIn } = buildMenu("", {
       hasImageContents: true,
       mediaType: "image",
       srcURL: CAT,
@@ -323,7 +345,7 @@ describe("the guest context menu", () => {
 
     expect(copyImageAt).toHaveBeenCalledWith(10, 20);
     expect(saveAsFromPage).toHaveBeenCalledWith(expect.anything(), CAT);
-    expect(openInNewTab).toHaveBeenCalledWith(CAT);
+    expect(openIn).toHaveBeenCalledWith(CAT, "tab");
   });
 
   it("disables Copy Image for an image that has not loaded", () => {

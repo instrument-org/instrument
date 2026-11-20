@@ -3,7 +3,9 @@ import { expandHomePath } from "@instrument-org/shared";
 /**
  * What a tab's address shows, as one thing of which there is only one: a file
  * by its path, a folder in Files by its path, a chat, a draft, a task, the
- * apps, one app, the release notes, the extensions. Two addresses with the
+ * apps, one app, the release notes, the extensions, each built-in page
+ * (Settings at any of its parts, Memory, Skills, Chats, Activity), and the
+ * debug pages at any of theirs. Two addresses with the
  * same identity show the same thing however each tab has walked since (its
  * layout, its selection, the folder beside a file), so a tab at one is the
  * tab to bring forward for the other. Undefined for an address that is not
@@ -26,6 +28,11 @@ export function tabIdentityOf(
   const segments = url.pathname.split("/").filter(Boolean).map(decoded);
   const search = url.searchParams;
   const [first, second, ...below] = segments;
+  // One set of debug pages, whichever of them a tab is at, as Settings is
+  // one whichever part.
+  if (first === "debug") {
+    return first;
+  }
   if (below.length > 0) {
     return undefined;
   }
@@ -37,13 +44,25 @@ export function tabIdentityOf(
       if (second !== undefined) {
         return `chat:${second}`;
       }
+      const group = search.get("group");
+      if (group) {
+        return `group:${group}`;
+      }
       const draft = search.get("draft");
       return draft ? `draft:${draft}` : undefined;
     }
     case "activity":
+    case "bookmarks":
+    case "chat-list":
     case "extensions":
-    case "release-notes": {
+    case "memory":
+    case "release-notes":
+    case "skills": {
       return second === undefined ? first : undefined;
+    }
+    // One Settings, whichever part of it a tab is at.
+    case "settings": {
+      return first;
     }
     case "files": {
       if (second !== undefined) {
@@ -68,6 +87,26 @@ export function tabIdentityOf(
   }
 }
 
+/**
+ * The tab group a window's tab stands on, by the key its address names
+ * (`/chats?group=<key>`). Undefined for any other screen: a chat's address
+ * asks for the group its agent works in (`keptWorkingGroupOfChat`).
+ */
+export function tabGroupOfAddress(href: string): string | undefined {
+  const identity = tabIdentityOf(href);
+  return identity?.startsWith("group:")
+    ? identity.slice("group:".length)
+    : undefined;
+}
+
+/** The chat a window's tab asks for by its address (`/chats/<id>`), if it does. */
+export function chatOfAddress(href: string): string | undefined {
+  const identity = tabIdentityOf(href);
+  return identity?.startsWith("chat:")
+    ? identity.slice("chat:".length)
+    : undefined;
+}
+
 /** Whether two addresses show the same one-of-a-kind thing. */
 export function isSameTabIdentity(a: string, b: string, homeDir?: string) {
   const identity = tabIdentityOf(a, homeDir);
@@ -76,7 +115,7 @@ export function isSameTabIdentity(a: string, b: string, homeDir?: string) {
 
 /** What an address's search says about which thing it is, rather than how it is shown. */
 const IDENTIFYING_SEARCH: Record<string, readonly string[]> = {
-  chats: ["draft"],
+  chats: ["draft", "group"],
   files: ["file", "path", "root", "version"],
   tasks: ["chat"],
 };

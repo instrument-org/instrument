@@ -9,7 +9,13 @@ import {
   useModelName,
 } from "@/client/components/activity/activity-requests";
 import {
+  ClosedTabRows,
+  useRestoreClosed,
+} from "@/client/components/activity/recently-closed";
+import {
   actionText,
+  type ClosedTabs,
+  closedText,
   placeOf,
   type ShownAction,
   type TimelineEntry,
@@ -111,7 +117,8 @@ function fileOf(action: ShownAction): string | undefined {
  * everything else shows what Activity knows, and what was done with it
  * and when is one more row. Its bar puts the way to open it first, and
  * Remove and Close at its end. An AI row lists its requests, each opening what was recorded
- * about it, rather than what was said, which is the chat's to show.
+ * about it, rather than what was said, which is the chat's to show. A
+ * closed tab or tab group lists the tabs it had, and Restore brings it back.
  */
 export function ActivityDetails({
   entry,
@@ -124,9 +131,14 @@ export function ActivityDetails({
   onRemove?: () => void;
 }) {
   const [request, setRequest] = useState<null | string>(null);
+  const restore = useRestoreClosed();
   const action = entry.kind === "action" ? entry.action : undefined;
   const target =
-    entry.kind === "turn" ? turnPlaceOf(entry.turn) : placeOf(entry.action);
+    entry.kind === "turn"
+      ? turnPlaceOf(entry.turn)
+      : entry.kind === "action"
+        ? placeOf(entry.action)
+        : undefined;
   const filePath = action ? fileOf(action) : undefined;
   return (
     <aside
@@ -136,7 +148,19 @@ export function ActivityDetails({
       <div className="flex shrink-0 items-center gap-1.5 border-b border-border p-2">
         {request === null ? (
           <>
-            <OpenButton label={openLabel(action)} target={target} />
+            {entry.kind === "closed" ? (
+              <Button
+                onClick={() => {
+                  restore(entry.closed);
+                }}
+                size="sm"
+                variant="default"
+              >
+                Restore
+              </Button>
+            ) : (
+              <OpenButton label={openLabel(action)} target={target} />
+            )}
             {filePath ? (
               <Button
                 onClick={() => {
@@ -166,7 +190,7 @@ export function ActivityDetails({
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                aria-label="Remove from Activity"
+                aria-label="Remove from History"
                 onClick={onRemove}
                 size="icon-sm"
                 variant="ghost"
@@ -174,7 +198,7 @@ export function ActivityDetails({
                 <TrashIcon className="size-4" />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Remove from Activity</TooltipContent>
+            <TooltipContent>Remove from History</TooltipContent>
           </Tooltip>
         ) : null}
         <Button
@@ -195,6 +219,8 @@ export function ActivityDetails({
           </div>
         ) : entry.kind === "turn" ? (
           <TurnDetails entry={entry} onOpenRequest={setRequest} />
+        ) : entry.kind === "closed" ? (
+          <ClosedDetails entry={entry} />
         ) : (
           <ActionDetails action={entry.action} at={entry.at} />
         )}
@@ -487,6 +513,33 @@ function TurnDetails({
       </OwnInfo>
       <Section title="Requests">
         <RequestRows onOpen={onOpenRequest} turn={turn} />
+      </Section>
+    </>
+  );
+}
+
+/** What closed, under a closed row's title in its details. */
+const CLOSED_KINDS: Record<ClosedTabs["kind"], string> = {
+  group: "Tab group",
+  side: "Side of a tab group",
+  tab: "Tab",
+};
+
+/** What a closed tab or tab group had: its tabs, a line each, and when it closed. */
+function ClosedDetails({
+  entry,
+}: {
+  entry: Extract<TimelineEntry, { kind: "closed" }>;
+}) {
+  const { closed } = entry;
+  const { title } = closedText(closed);
+  return (
+    <>
+      <OwnInfo entry={entry} sub={CLOSED_KINDS[closed.kind]} title={title}>
+        <WhenRow at={entry.at} did="Closed" />
+      </OwnInfo>
+      <Section title={closed.tabs.length === 1 ? "Tab" : "Tabs"}>
+        <ClosedTabRows closed={closed} />
       </Section>
     </>
   );

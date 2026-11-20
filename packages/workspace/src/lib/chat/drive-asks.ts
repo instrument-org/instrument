@@ -1123,8 +1123,8 @@ async function pageNow(
     askedBy: chatId,
     group: chatId,
   }).catch(() => undefined);
-  const tab = listed?.tabs?.find((each) => each.id === ask.target);
-  return tab?.kind === "page" ? { title: tab.title, url: tab.url } : ask.page;
+  const tab = listed?.pages?.find((each) => each.id === ask.target);
+  return tab ? { title: tab.title, url: tab.url } : ask.page;
 }
 
 /**

@@ -15,6 +15,7 @@ const ACTIVITY_PURPOSES = [
   "task",
   "chat-title",
   "next-message",
+  "ambient-ideas",
   "work-summary",
   "title-check",
   "web-search",
@@ -39,6 +40,7 @@ const ACTIVITY_SURFACES = [
   "draft",
   "settings",
   "projects",
+  "tabs",
 ] as const;
 export const ActivitySurfaceSchema = z.enum(ACTIVITY_SURFACES);
 
@@ -79,6 +81,8 @@ export const ActivityRowSchema = z.object({
   chatId: z.string().nullable(),
   connectionName: z.string().nullable(),
   connectionType: z.string().nullable(),
+  /** What the request cost in US dollars, when the provider said. */
+  costUsd: z.number().nullable(),
   /**
    * The device that made the request, by its id; none for a row an earlier
    * build recorded, until this device writes it into its own log.
@@ -87,6 +91,8 @@ export const ActivityRowSchema = z.object({
   durationMs: z.number().nullable(),
   error: z.string().nullable(),
   finishReason: z.string().nullable(),
+  /** How long until the first words of the answer arrived, for a call that streams. */
+  firstOutputMs: z.number().nullable(),
   id: z.string(),
   /** The quality an image request was generated at, when it was said. */
   imageQuality: z.string().nullable(),
@@ -103,6 +109,8 @@ export const ActivityRowSchema = z.object({
   surface: StoredActivitySurfaceSchema.nullable(),
   sessionId: z.string().nullable(),
   totalTokens: z.number().nullable(),
+  /** What set off a request the person did not ask for, such as tabs settling. */
+  trigger: z.string().nullable(),
 });
 export type ActivityRow = z.output<typeof ActivityRowSchema>;
 

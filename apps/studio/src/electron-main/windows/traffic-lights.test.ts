@@ -25,6 +25,16 @@ describe("traffic lights against a zoomed band", () => {
     expect(trafficLightPositionForZoom(0.1).y).toBe(0);
   });
 
+  it.each([
+    [1, 20],
+    [1.5, 34],
+  ])(
+    "centers the cluster on an app window's tab strips, under its card's top gap, at %sx",
+    (zoom, y) => {
+      expect(trafficLightPositionForZoom(zoom, 8)).toEqual({ x: 12, y });
+    },
+  );
+
   it("centers against the band the chrome actually draws", () => {
     const centered = trafficLightPositionForZoom(1);
     expect(centered.y * 2 + 16).toBe(TOOLBAR_HEIGHT);

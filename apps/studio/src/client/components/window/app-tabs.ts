@@ -3,8 +3,6 @@ import {
   type AppPlace,
   APPS_HREF,
   BROWSER_HREF,
-  chatGroupAtom,
-  NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
 import { useFilesStartHref } from "@/client/hooks/use-files-start-href";
@@ -21,45 +19,26 @@ import {
   reorderTabs,
   selectAdjacent,
   selectByIndex,
-  selectOrAddTab,
   selectTab,
   setTabPathname,
 } from "@/client/lib/tabs-model";
-import { APP_TABS_KEY } from "@/shared/kept-state";
+import { APP_TABS_KEY, SITE_GROUP_PREFIX } from "@/shared/kept-state";
 import { asksMoreThan } from "@/shared/tab-identity";
 import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
 import { rpcClient } from "@/client/rpc/client";
 import { folderHref } from "@/shared/computer-href";
-import { draftGroupOf } from "@/shared/drafts";
 import { type TabId } from "@/shared/tabs";
-import { type ChatId } from "@instrument-org/workspace/client";
 import { atom, getDefaultStore, useAtom, useAtomValue, useStore } from "jotai";
 
 import { openLinkAddress } from "./open-link-address";
-import {
-  chatHref,
-  chatOfGroup,
-  chatOfHref,
-  matchScreen,
-  pathOf,
-  SCREEN_ROUTES,
-  showsSame,
-} from "./window-href";
+import { matchScreen, pathOf, SCREEN_ROUTES, showsSame } from "./window-href";
 
 /** The chat with no chat open: the inbox, and where a tab opens when the last one closes. */
 export const INBOX_HREF = "/chats";
 
-/** What a site's group key starts with, before the id its route carries. */
-const SITE_PREFIX = "site:";
-
 /** Whether a group is a site opened at the window's own level, whose back past its page is the window tab's. */
 export function isSiteGroup(group: string | undefined): boolean {
-  return group?.startsWith(SITE_PREFIX) ?? false;
-}
-
-/** Whether an address is a site opened at the window's own level. */
-export function isSiteHref(href: string): boolean {
-  return matchScreen(href).kind === "site";
+  return group?.startsWith(SITE_GROUP_PREFIX) ?? false;
 }
 
 /**
@@ -69,11 +48,16 @@ export function isSiteHref(href: string): boolean {
  */
 export const putAwaySitesAtom = atom<Record<string, WindowTab[]>>({});
 
+/** Whether an address is a site opened at the window's own level. */
+function isSiteHref(href: string): boolean {
+  return matchScreen(href).kind === "site";
+}
+
 /**
  * Whether a closed tab is a site with no page left to give it, as one closed before
  * this launch or in another renderer is.
  */
-export function isGoneSite(
+function isGoneSite(
   { pathname }: { pathname: string },
   putAway: Record<string, WindowTab[]>,
 ) {
@@ -87,20 +71,22 @@ export function newSiteGroup(): string {
 }
 
 /** Addresses in a window of their own beside this one, each a tab, the first up. */
-export function openInNewWindow(...hrefs: string[]) {
-  void rpcClient.window.openNew.call({
+export function openInNewWindow(...hrefs: string[]): Promise<boolean> {
+  return rpcClient.window.openNew.call({
     tabs: hrefs.map((pathname) => ({ id: freshTabId(), pathname })),
   });
 }
 
 /** The address of the tab that shows a site's group. */
 export function pageHrefOf(group: string): string {
-  return pathOf(SCREEN_ROUTES.site, { id: group.slice(SITE_PREFIX.length) });
+  return pathOf(SCREEN_ROUTES.site, {
+    id: group.slice(SITE_GROUP_PREFIX.length),
+  });
 }
 
 /** The group key a site opened at the window's own level is kept under, one per site opened. */
 export function siteGroupOf(id: string): string {
-  return `${SITE_PREFIX}${id}`;
+  return `${SITE_GROUP_PREFIX}${id}`;
 }
 
 /**
@@ -111,21 +97,16 @@ export function siteGroupOf(id: string): string {
 export const appTabsAtom = tabsAtomOf(APP_TABS_KEY, INBOX_HREF);
 
 /**
- * The group of a chat's tabs or a site's page an app tab's address stands
- * on: the chat's id for a chat, the draft's group for a new chat being
- * written in the Chat screen, the site's group for a site, and none for
- * everything else, whose screen is the route itself.
+ * The tab group an app tab's address stands on: the group it names, or a
+ * site's for a site opened at the window's own level, and none for
+ * everything else. A chat's or a draft's address names no group: it asks
+ * for the group with that chat or draft in it (`useTabGroupUpkeep`).
  */
 export function groupOfHref(href: string): string | undefined {
   const screen = matchScreen(href);
   switch (screen.kind) {
-    case "chat": {
-      return screen.chat;
-    }
-    case "inbox": {
-      return screen.draft === undefined
-        ? undefined
-        : draftGroupOf(screen.draft);
+    case "group": {
+      return screen.group;
     }
     case "site": {
       return siteGroupOf(screen.id);
@@ -142,6 +123,7 @@ export function isChatHref(href: string): boolean {
     case "chat":
     case "chatLink":
     case "chatOfSession":
+    case "group":
     case "inbox": {
       return true;
     }
@@ -275,7 +257,6 @@ export function useAppTabs() {
   const store = useStore();
   const [model, setModel] = useAtom(appTabsAtom);
   const putAwaySites = useAtomValue(putAwaySitesAtom);
-  const lastChat = useAtomValue(chatGroupAtom);
   const filesStart = useFilesStartHref();
   const activeRouter = getTabRouter(model.selectedId);
 
@@ -284,31 +265,20 @@ export function useAppTabs() {
    * A window's tabs are the person's to keep as many of as they like, so
    * one already showing the same thing is no reason not to open another;
    * `newTab` is what a Cmd-click or Open in New Tab says, and opens the
-   * same. `newTab: "reuseBlank"` is how a browser opens its own pages: the
-   * tab up goes there instead when it is a blank New Tab or already shows
-   * that screen. A link address opens where it lives instead
-   * (`openLinkAddress`).
+   * same. A link address opens where it lives instead (`openLinkAddress`).
    */
   const open = (
     href: string,
     {
       behind,
-      newTab,
       select = true,
     }: {
       /** Where back goes from the new tab's first address, oldest first. */
       behind?: string[];
-      newTab?: boolean | "reuseBlank";
+      newTab?: boolean;
       select?: boolean;
     } = {},
   ) => {
-    if (newTab === "reuseBlank" && activeRouter) {
-      const up = matchScreen(activeRouter.history.location.href).kind;
-      if (up === "newTab" || up === matchScreen(href).kind) {
-        navigate(href);
-        return;
-      }
-    }
     const at = openLinkAddress(href);
     if (at === undefined) {
       return;
@@ -324,7 +294,13 @@ export function useAppTabs() {
       }),
     );
   };
-  /** The tab up goes to an address, one step on in its history; a link address opens where it lives instead. */
+  /**
+   * The tab up goes to an address, one step on in its history; a link
+   * address opens where it lives instead. A tab group's address takes the
+   * place of where the tab stands rather than adding a step: the window's
+   * one tab only says which group is up, and back and forward walk that
+   * group's tab up, so the window's tab keeps no trail of groups.
+   */
   const navigate = (to: string, { replace = false } = {}) => {
     const href = openLinkAddress(to);
     if (href === undefined) {
@@ -337,7 +313,7 @@ export function useAppTabs() {
     if (activeRouter.history.location.href === href) {
       return;
     }
-    if (replace) {
+    if (replace || isChatHref(href) || isSiteHref(href)) {
       activeRouter.history.replace(href);
     } else {
       activeRouter.history.push(href);
@@ -397,17 +373,16 @@ export function useAppTabs() {
       );
     },
     go,
-    /** The tab up to a place, at the chat it last had open or Files' first pinned folder, unless asked for the place's root. */
+    /** The tab up to a place, Files at its first pinned folder unless asked for the place's root. */
     goToPlace: (
       place: AppPlace,
       { behind = false, newTab = false, newWindow = false, root = false } = {},
     ) => {
       const href = placeHrefOf(place, {
         filesStart: root ? folderHref("~") : filesStart,
-        lastChat: root ? null : lastChat,
       });
       if (newWindow) {
-        openInNewWindow(href);
+        void openInNewWindow(href);
         return;
       }
       // A place is where the tab up goes, whatever another tab shows there.
@@ -419,24 +394,6 @@ export function useAppTabs() {
     model,
     navigate,
     open,
-    /**
-     * Brings up the tab that has a chat, or a new one at it. Decided from the
-     * tabs as they stand at the call rather than as this render saw them, so a
-     * caller holding an older render cannot open a second.
-     */
-    openOrFocusChat: (chatId: ChatId) => {
-      setModel((current) =>
-        selectOrAddTab(current, {
-          id: freshTabId(),
-          matches: (tab) => chatOfHref(tab.pathname) === chatId,
-          pathname: chatHref(chatId),
-        }),
-      );
-    },
-    /** A new tab: the command menu, until something is picked there. */
-    openNewTab: () => {
-      open(NEW_TAB_HREF);
-    },
     // Whichever closed last, this window's tab or a whole window, the way a
     // browser's one chord brings back either.
     reopen: () => {
@@ -459,27 +416,6 @@ export function useAppTabs() {
             );
           }
         });
-    },
-    /**
-     * The next or previous row of the inbox from the chat up, or from no
-     * chat the list's first or last, in the tab up: the chord steps in
-     * place, whatever another tab or window has the chat.
-     */
-    stepChat: (
-      listed: readonly ChatId[],
-      from: ChatId | undefined,
-      direction: -1 | 1,
-    ) => {
-      const at = from === undefined ? -1 : listed.indexOf(from);
-      const next =
-        at === -1
-          ? direction === 1
-            ? listed[0]
-            : listed.at(-1)
-          : listed[at + direction];
-      if (next !== undefined) {
-        navigate(chatHref(next));
-      }
     },
     /** This window's tab already showing what an address shows, up and walked there (`showTabHere`); false where none does. */
     selectShowing: (href: string): boolean => showTabHere(href, { store }),
@@ -504,13 +440,12 @@ export function useAppTabs() {
 }
 
 /**
- * Where the rail takes a tab for a place: the chat at the one it last had
- * open, Files at `filesStart`, the browser's start, and the apps. With no
- * chat named, the chat is the inbox.
+ * Where the rail takes a tab for a place: the inbox, Files at `filesStart`,
+ * the browser's start, and the apps.
  */
 function placeHrefOf(
   place: AppPlace,
-  { filesStart, lastChat }: { filesStart: string; lastChat: null | string },
+  { filesStart }: { filesStart: string },
 ): string {
   switch (place) {
     case "apps": {
@@ -520,8 +455,7 @@ function placeHrefOf(
       return BROWSER_HREF;
     }
     case "chat": {
-      const chat = chatOfGroup(lastChat ?? undefined);
-      return chat ? chatHref(chat) : INBOX_HREF;
+      return INBOX_HREF;
     }
     case "files": {
       return filesStart;

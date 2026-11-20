@@ -11,7 +11,7 @@ import { useEffect } from "react";
 export const tabCarryViewAtom = atom<TabCarryView>({ kind: "row" });
 
 /** Where the tab held over this window's strip stands along it. */
-export const tabCarryIndexAtom = atom<number | undefined>(undefined);
+const tabCarryIndexAtom = atom<number | undefined>(undefined);
 
 export function showTabCarryView(view: TabCarryView) {
   const store = getDefaultStore();
@@ -65,66 +65,63 @@ export function tabsInView(
 }
 
 /**
- * Where the held tab stands over this window's strip, read off the strip as laid
- * out, and told to main, which lands it there.
- */
-export function measureCarryIndex(
-  view: TabCarryView,
-  tabs: readonly { id: TabId }[],
-) {
-  if (view.kind !== "incoming") {
-    return;
-  }
-  const store = getDefaultStore();
-  const index = stripIndexAt(view.clientX - view.pointInTab, tabs, view.tab.id);
-  if (store.get(tabCarryIndexAtom) !== index) {
-    store.set(tabCarryIndexAtom, index);
-    void rpcClient.window.placeTabCarry.call({ index });
-  }
-}
-
-/**
  * Where a tab with its left edge at a point stands among the tabs other than itself, which are
  * taken where they would stand without it, as the strip lays them out. Layout and
  * not what is drawn, since a tab making way is on its way there, and the answer
- * would move it again.
+ * would move it again. Several held together (files held over the strip, one a
+ * tab) stand side by side and are left out as one.
  */
 export function stripIndexAt(
   clientX: number,
-  tabs: readonly { id: TabId }[],
-  except: TabId,
+  tabs: readonly { id: string }[],
+  except: readonly string[] | string,
+  /** What the strip's row is found under, a selector or the element: the window's strip unless named. */
+  root: Element | string = "[data-app-tab-strip]",
 ) {
-  const list = document.querySelector<HTMLElement>(
-    "[data-app-tab-strip] [role=tablist]",
-  );
+  const list =
+    typeof root === "string"
+      ? document.querySelector<HTMLElement>(`${root} [role=tablist]`)
+      : root.querySelector<HTMLElement>("[role=tablist]");
   if (!list) {
     return 0;
   }
+  const isHeld = (key: string | undefined) =>
+    typeof except === "string"
+      ? key === except
+      : key !== undefined && except.includes(key);
   const { left: listLeft, width: listWidth } = list.getBoundingClientRect();
   // On screen px from layout px, which differ by the window's zoom.
   const zoom = listWidth / list.offsetWidth;
+  // A tab in a row that scrolls stands where the scroll has moved it, which
+  // its offset leaves out.
+  const scrolledBy = (element: HTMLElement) => {
+    const scroller = element.closest<HTMLElement>("[data-strip-scroller]");
+    return scroller && list.contains(scroller) ? scroller.scrollLeft : 0;
+  };
   const drawn = [...list.querySelectorAll<HTMLElement>("[data-tab-key]")].map(
     (element) => ({
       key: element.dataset.tabKey,
-      left: element.offsetLeft - list.offsetLeft,
+      left: element.offsetLeft - list.offsetLeft - scrolledBy(element),
       width: element.offsetWidth,
     }),
   );
-  const heldAt = drawn.findIndex(({ key }) => key === except);
+  const heldAt = drawn.findIndex(({ key }) => isHeld(key));
+  const heldTo = drawn.findLastIndex(({ key }) => isHeld(key));
   const held = drawn[heldAt];
-  const slot = held
-    ? (drawn[heldAt + 1]?.left ?? held.left + held.width) - held.left
-    : 0;
+  const last = drawn[heldTo];
+  const slot =
+    held && last
+      ? (drawn[heldTo + 1]?.left ?? last.left + last.width) - held.left
+      : 0;
   const before = drawn.filter(({ key, left, width }, index) => {
-    const standsAt = held && index > heldAt ? left - slot : left;
+    const standsAt = held && index > heldTo ? left - slot : left;
     const past =
       held && index < heldAt ? -TAKES_PLACE_PAST_PX : TAKES_PLACE_PAST_PX;
     return (
-      key !== except &&
-      clientX > listLeft + (standsAt + width / 2 + past) * zoom
+      !isHeld(key) && clientX > listLeft + (standsAt + width / 2 + past) * zoom
     );
   });
-  const others = tabs.filter((tab) => tab.id !== except);
+  const others = tabs.filter((tab) => !isHeld(tab.id));
   const at = others.findIndex((tab) => tab.id === before.at(-1)?.key);
   return at === -1 ? 0 : at + 1;
 }

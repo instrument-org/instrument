@@ -1,8 +1,10 @@
 import {
-  type DropHandlers,
-  DropRegisterContext,
-  type DropRegistration,
-} from "@/client/hooks/use-file-drop-region";
+  dragAtom,
+  useDropTarget,
+} from "@/client/components/window/drag/session";
+import { DROP_LOOK } from "@/client/components/window/drag/tone";
+import { placeOf } from "@/client/components/window/drag/types";
+import { type DropHandlers } from "@/client/hooks/use-file-drop-region";
 import {
   isSelfFileDrag,
   releaseSelfFileDrag,
@@ -11,7 +13,8 @@ import { captureException } from "@/client/lib/capture-exception";
 import { splitTransferItems } from "@/client/lib/transfer-items";
 import { cn } from "@/client/lib/utils";
 import { PaperclipIcon } from "@phosphor-icons/react/Paperclip";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { useAtomValue } from "jotai";
+import { type ReactNode, useEffect, useId, useRef, useState } from "react";
 
 // How long the overlay survives without a `dragover`. Generous, because the
 // only cost of waiting is an overlay that lingers a moment after a drag it
@@ -20,69 +23,79 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 const STALE_DRAG_MS = 1000;
 
 /**
- * The area of the window that takes a dropped file, and the only thing that
- * says so.
- *
- * The region is declared by whoever owns the content, not measured: a task
- * wraps the chat column and the pane beside it is simply outside, a route with
- * nothing beside it wraps everything. So the shape follows the layout rather
- * than a rect each surface has to keep in agreement with its own.
- *
- * That the region is not the window is what the in-app browser makes necessary.
- * Its guest is a `<webview>` on `document.body` with `pointer-events: auto`,
- * so drags over it belong to the page it is showing; a window-wide affordance
- * would draw a border around a region it cannot accept a drop into, which is
- * the same lie as drawing the border only on the composer while taking drops
- * everywhere.
+ * A box that takes a dropped file, the composer's, and the only thing that
+ * says so: its own outline, a little outside it, so the rest of the page
+ * around it still takes what is held as the page does (a side, a split).
+ * A place of Files' sidebar or Files menu held by the window's own drag goes
+ * in as the folder it names, the way that folder dragged from Files' listing
+ * does, under the same outline.
  */
 export function FileDropRegion({
   children,
   className,
+  enabled = true,
   note,
   onFilesDropped,
   onFoldersDropped,
-}: {
+}: DropHandlers & {
   children: ReactNode;
   className?: string;
-  // What a drop does, when the component drawing the region is also the one
-  // that handles it. Given here rather than through `useFileDropRegion`,
-  // because a component cannot read a context it provides in its own JSX: the
-  // hook is for a descendant, which the composer is and a modal's own form is
-  // not. Props win over a descendant's registration.
-} & (
-  | (DropHandlers & { note: string })
-  | (Partial<DropHandlers> & { note?: undefined })
-)) {
-  const [registered, setRegistered] = useState<DropRegistration | null>(null);
+  // Off where the box is not in front: every open tab stays mounted in one
+  // web contents, so without this a single drop fans out to every tab's
+  // composer.
+  enabled?: boolean;
+  note: string;
+}) {
   const [isDragging, setIsDragging] = useState(false);
+  const box = useId();
+  const landing = useAtomValue(dragAtom)?.landing;
+  // A place the window's drag holds, over this box.
+  const isPlaceHere = landing?.kind === "attach" && landing.box === box;
+  // Where the window's drag has a landing of its own (a split target drawn
+  // over the box), letting go goes there, so the box says nothing.
+  const isTakenElsewhere = landing !== undefined && !isPlaceHere;
   const regionRef = useRef<HTMLDivElement>(null);
   const dragDepthRef = useRef(0);
 
-  // Two refs rather than one because the region's own handlers have to satisfy
-  // the same shape a descendant registers, which requires `onFilesDropped`,
-  // while the props are optional until `note` makes them required. Forwarding
-  // through a props ref keeps the registered shape stable and always current.
-  const propsRef = useRef({ onFilesDropped, onFoldersDropped });
+  // The handlers are rebuilt every render (one closes over the attachment
+  // list), so they are read through a ref: binding them would rebind the
+  // region's listeners mid-drag.
+  const handlers = useRef<DropHandlers>({ onFilesDropped, onFoldersDropped });
 
   useEffect(() => {
-    propsRef.current = { onFilesDropped, onFoldersDropped };
+    handlers.current = { onFilesDropped, onFoldersDropped };
   });
 
-  const ownHandlersRef = useRef<DropHandlers>({
-    onFilesDropped: (files) => propsRef.current.onFilesDropped?.(files),
-    onFoldersDropped: (folders) => propsRef.current.onFoldersDropped?.(folders),
-  });
-
-  // Read apart rather than as one registration object: `activeNote` is the only
-  // one of the three that render touches, and keeping it a plain string is what
-  // stops drawing the note from counting as reading a ref during render.
-  const activeNote = note ?? registered?.note;
-  const enabled = note ? true : (registered?.enabled ?? false);
-  const handlers = note ? ownHandlersRef : registered?.handlers;
+  useDropTarget(
+    enabled && onFoldersDropped
+      ? {
+          land: (held) => {
+            const place = placeOf(held);
+            if (place) {
+              handlers.current.onFoldersDropped?.([
+                { path: place.path, type: "folder" },
+              ]);
+            }
+          },
+          landingAt: (_, { held }) =>
+            placeOf(held) ? { box, kind: "attach" } : undefined,
+          rect: ({ held }) => {
+            const region = regionRef.current;
+            if (!placeOf(held) || !region?.checkVisibility()) {
+              return undefined;
+            }
+            const { height, left, top, width } = region.getBoundingClientRect();
+            return width > 0 && height > 0
+              ? { height, left, top, width }
+              : undefined;
+          },
+        }
+      : undefined,
+  );
 
   useEffect(() => {
     const region = regionRef.current;
-    if (!region || !enabled || !handlers) {
+    if (!region || !enabled) {
       return;
     }
 
@@ -116,7 +129,7 @@ export function FileDropRegion({
       // Counted but not drawn: the depth has to stay balanced against the
       // leave that follows, while a ring would be offering to take a file this
       // app is in the middle of handing out.
-      if (e.dataTransfer?.types.includes("Files") && !isSelfFileDrag()) {
+      if (e.dataTransfer?.types.includes("Files") && !isSelfFileDrag(region)) {
         setIsDragging(true);
         keepAlive();
       }
@@ -148,7 +161,7 @@ export function FileDropRegion({
       e.preventDefault();
       e.stopPropagation();
       // Read before `endDrag`, which is what clears it.
-      const isOwnDrag = isSelfFileDrag();
+      const isOwnDrag = isSelfFileDrag(region);
       endDrag();
 
       // A file this app put in the air, let go again without ever leaving the
@@ -196,20 +209,29 @@ export function FileDropRegion({
       region.removeEventListener("dragover", handleDragOver);
       region.removeEventListener("drop", handleDrop);
     };
-  }, [enabled, handlers]);
+  }, [enabled]);
 
   return (
     // `isolate` so the overlay stacks against this region's own contents and
     // nothing else; see docs/findings/leaking-z-index-stacks.md.
-    <div className={cn("relative isolate", className)} ref={regionRef}>
-      <DropRegisterContext value={setRegistered}>
-        {children}
-      </DropRegisterContext>
-      {isDragging && activeNote && (
-        <div className="pointer-events-none absolute inset-2 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-brand-500 bg-brand-500/5">
+    <div
+      className={cn("relative isolate", className)}
+      // Where a side's page leaves files to this region rather than opening
+      // them as tabs (`useSidePagesTarget`).
+      {...(enabled ? { "data-file-drop-region": "" } : {})}
+      ref={regionRef}
+    >
+      {children}
+      {((isDragging && !isTakenElsewhere) || isPlaceHere) && (
+        <div
+          className={cn(
+            "pointer-events-none absolute -inset-1.5 z-10 flex items-center justify-center rounded-[26px]",
+            DROP_LOOK.attach,
+          )}
+        >
           <span className="flex items-center gap-2 rounded-full bg-popover px-4 py-2 text-sm font-medium shadow-float-lg">
             <PaperclipIcon className="size-4 text-brand-600" />
-            {activeNote}
+            {note}
           </span>
         </div>
       )}

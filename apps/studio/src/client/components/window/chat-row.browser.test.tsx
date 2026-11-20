@@ -23,7 +23,6 @@ import { type RowDensity } from "./chat-list-view";
 import { ChatRow } from "./chat-row";
 import { type Chat, type Project } from "./chats";
 import { WindowContext, type WindowContextValue } from "./context";
-import { type RowAction } from "./row-shell";
 
 /** What each of the row's own routes was asked, by name. */
 
@@ -238,7 +237,6 @@ function paneWindow(openScreen = vi.fn()): WindowContextValue {
   return {
     ask: vi.fn(),
     browser: null,
-    askAboutView: vi.fn(),
     openPage: vi.fn(),
     openPath: vi.fn(),
     openScreen,
@@ -299,15 +297,12 @@ async function renderRows(
   chats: Chat[],
   {
     density,
-    leading = [],
     onOpen = vi.fn(),
     onSetProject = vi.fn(),
     openScreen = vi.fn(),
     store,
   }: {
     density?: RowDensity;
-    /** Actions the list puts ahead of the chat's own, as it does Pop out. */
-    leading?: RowAction[];
     onOpen?: Mock<() => void>;
     onSetProject?: Mock<(project: null | string) => void>;
     openScreen?: Mock<(href: string) => void>;
@@ -321,7 +316,7 @@ async function renderRows(
     return chats.map((entry, index) => (
       <div key={index} style={{ width: "400px" }}>
         <ChatRow
-          actions={[...leading, ...actionsFor(entry)]}
+          actions={actionsFor(entry)}
           appsBySlug={
             new Map([
               ["github", { name: "GitHub", site: "https://github.com" }],
@@ -808,24 +803,6 @@ describe("ChatRow", () => {
       .toBeVisible();
   });
 
-  it("offers Pop Out beside the ways to open the chat when the list gives it", async () => {
-    const run = vi.fn();
-    const { rows } = await renderRows([chat()], {
-      leading: [{ icon: null, id: "popOut", label: "Pop out", run }],
-    });
-    const [row] = rows;
-    if (!row) {
-      throw new Error("no row");
-    }
-    row.dispatchEvent(
-      new MouseEvent("contextmenu", { bubbles: true, cancelable: true }),
-    );
-    const items = page.getByRole("menuitem");
-    await expect.element(items.nth(3)).toHaveTextContent("Pop Out");
-    await userEvent.click(items.nth(3));
-    expect(run).toHaveBeenCalledOnce();
-  });
-
   it("keeps what it holds to one line, the files first, clipped at the row's edge rather than wrapped", async () => {
     const files = Array.from(
       { length: 4 },
@@ -1012,7 +989,7 @@ describe("ChatRow", () => {
     expect(window.openPath).toHaveBeenCalledWith(
       "/Users/sam/chat/out/report.md",
       {
-        group: CHAT_ID,
+        chat: CHAT_ID,
         ownTab: true,
         show: true,
       },
@@ -1090,7 +1067,7 @@ describe("the row's actions", () => {
   it("end the title's line while the pointer is on it, out of the flow at rest", async () => {
     const { row } = await renderRow(chat());
     const { bar, labels } = barOf(row);
-    expect(labels).toEqual(["Archive", "Mark as unread", "Star"]);
+    expect(labels).toEqual(["Archive", "Mark as Unread", "Star"]);
     // The pointer is wherever the last test left it, which may be here.
     await userEvent.unhover(row);
     expect(bar.getClientRects().length).toBe(0);
@@ -1125,7 +1102,7 @@ describe("the row's actions", () => {
 
   it("offers a chat put away the way back", async () => {
     const { row } = await renderRow(chat({ archived: true }));
-    expect(barOf(row).labels).toEqual(["Unarchive", "Mark as unread", "Star"]);
+    expect(barOf(row).labels).toEqual(["Unarchive", "Mark as Unread", "Star"]);
     await userEvent.hover(titleOf(row));
     await userEvent.click(actionOf(row, "Unarchive"));
     expect(calls.unarchive).toHaveBeenCalledWith(INPUT);
@@ -1134,8 +1111,8 @@ describe("the row's actions", () => {
   });
 
   it.each<[string, Partial<Chat>, Mock]>([
-    ["Mark as read", { unread: true }, calls.read],
-    ["Mark as unread", { unread: false }, calls.unread],
+    ["Mark as Read", { unread: true }, calls.read],
+    ["Mark as Unread", { unread: false }, calls.unread],
   ])(
     "offers %s, which asks the route and says nothing",
     async (label, overrides, call) => {
@@ -1150,9 +1127,9 @@ describe("the row's actions", () => {
     },
   );
 
-  it("offers Mark as unread on a chat with nothing said in it yet", async () => {
+  it("offers Mark as Unread on a chat with nothing said in it yet", async () => {
     const { row } = await renderRow(chat({ latest: undefined, unread: false }));
-    expect(barOf(row).labels).toEqual(["Archive", "Mark as unread", "Star"]);
+    expect(barOf(row).labels).toEqual(["Archive", "Mark as Unread", "Star"]);
   });
 
   it("raises the row's menu on a right click: the way in, the actions, and the projects", async () => {
@@ -1170,15 +1147,15 @@ describe("the row's actions", () => {
       "Open",
       "Open in New Tab",
       "Open in New Window",
-      "Mark as read",
+      "Mark as Read",
       "Star",
       "Rename",
       "Project",
       "Export as Markdown…",
       "Copy",
-      "Send feedback…",
+      "Send Feedback…",
       "Archive",
-      "Delete chat…",
+      "Delete Chat…",
     ]);
     expect(onOpen).not.toHaveBeenCalled();
 

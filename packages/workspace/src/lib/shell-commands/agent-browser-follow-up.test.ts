@@ -11,9 +11,11 @@ import {
   pageAfterText,
   pageEffect,
   parseFollowUpSnapshot,
+  placesTab,
   readsLiveRegionsFirst,
   savedScreenshotPath,
   showsPageText,
+  tabPlaceText,
 } from "./agent-browser-follow-up";
 
 // Recorded from agent-browser 0.38.1 (`snapshot -i --delta`) against a local
@@ -309,6 +311,149 @@ describe("BrowserFollowUp", () => {
       startedAt: 0,
     });
     expect(await followUp.take(signal)).toBeUndefined();
+  });
+});
+
+describe("placesTab", () => {
+  it.each([
+    { args: ["open", "https://chatgpt.com"], places: true },
+    { args: ["--headed", "goto", "https://example.com"], places: true },
+    { args: ["back"], places: true },
+    { args: ["tab", "new", "https://example.com"], places: true },
+    { args: ["tab", "new"], places: true },
+    { args: ["tab", "tab_01ABC"], places: true },
+    { args: ["tab", "2"], places: true },
+    { args: ["reload"], places: false },
+    { args: ["tab"], places: false },
+    { args: ["tab", "list"], places: false },
+    { args: ["tab", "close", "tab_01ABC"], places: true },
+    { args: ["tab", "close"], places: true },
+    { args: ["click", "@e1"], places: false },
+    { args: ["snapshot", "-i"], places: false },
+  ])("$args -> $places", ({ args, places }) => {
+    expect(placesTab(args)).toBe(places);
+  });
+});
+
+describe("BrowserFollowUp tab place", () => {
+  const signal = new AbortController().signal;
+  const read = () => Promise.resolve({ snapshot: FULL });
+
+  it("places the tab the last opening command left up, even after a read", async () => {
+    const followUp = new BrowserFollowUp();
+    const first = vi.fn(() =>
+      Promise.resolve({
+        place: "showing on the right side",
+        shown: true,
+        tab: "tab_a",
+      }),
+    );
+    const second = vi.fn(() =>
+      Promise.resolve({
+        place: "hidden on your side, the left, behind you",
+        shown: false,
+        tab: "tab_b",
+      }),
+    );
+    followUp.note({
+      args: ["open", "a.com"],
+      exitCode: 0,
+      place: first,
+      read,
+      startedAt: 0,
+    });
+    followUp.note({
+      args: ["tab", "new", "b.com"],
+      exitCode: 0,
+      place: second,
+      read,
+      startedAt: 0,
+    });
+    followUp.note({
+      args: ["snapshot", "-i"],
+      exitCode: 0,
+      place: second,
+      read,
+      startedAt: 0,
+    });
+    expect(await followUp.takePlace(signal)).toEqual({
+      after: "tab new",
+      place: "hidden on your side, the left, behind you",
+      shown: false,
+      tab: "tab_b",
+    });
+    expect(first).not.toHaveBeenCalled();
+    expect(await followUp.takePlace(signal)).toBeUndefined();
+  });
+
+  it.each([
+    { name: "a failed open", args: ["open", "a.com"], exitCode: 1 },
+    { name: "a click", args: ["click", "@e1"], exitCode: 0 },
+  ])("places nothing after $name", async ({ args, exitCode }) => {
+    const followUp = new BrowserFollowUp();
+    const place = vi.fn(() =>
+      Promise.resolve({
+        place: "showing on the right side",
+        shown: true,
+        tab: "tab_a",
+      }),
+    );
+    followUp.note({ args, exitCode, place, read, startedAt: 0 });
+    expect(await followUp.takePlace(signal)).toBeUndefined();
+    expect(place).not.toHaveBeenCalled();
+  });
+
+  it("places the tab commands act in after a tab closes", async () => {
+    const followUp = new BrowserFollowUp();
+    followUp.note({
+      args: ["tab", "close", "tab_b"],
+      exitCode: 0,
+      place: () =>
+        Promise.resolve({
+          place: "hidden on the right side, beside you, behind example.com",
+          shown: false,
+          tab: "tab_a",
+        }),
+      read,
+      startedAt: 0,
+    });
+    const placed = await followUp.takePlace(signal);
+    expect(placed?.after).toBe("tab close");
+    expect(placed && tabPlaceText(placed)).toMatchInlineSnapshot(
+      `"Commands now act in tab tab_a: hidden on the right side, beside you, behind example.com."`,
+    );
+  });
+
+  it("places nothing when the window does not say", async () => {
+    const followUp = new BrowserFollowUp();
+    followUp.note({
+      args: ["open", "a.com"],
+      exitCode: 0,
+      place: () => Promise.reject(new Error("no window")),
+      read,
+      startedAt: 0,
+    });
+    expect(await followUp.takePlace(signal)).toBeUndefined();
+  });
+
+  it("says where the tab stands in the window's words", () => {
+    expect(
+      [
+        { after: "open", place: "showing on the right side, beside you" },
+        { after: "open", place: "hidden on your side, the left, behind you" },
+        {
+          after: "tab",
+          place:
+            'in the tab group "Research" instrument://group/group:r1, hidden in the group\'s one side, behind example.com',
+        },
+      ].map((each) => tabPlaceText({ ...each, shown: false, tab: "tab_a" })),
+    ).toMatchInlineSnapshot(`
+      [
+        "Tab tab_a after \`open\`: showing on the right side, beside you.",
+        "Tab tab_a after \`open\`: hidden on your side, the left, behind you.",
+        "Tab tab_a after \`tab\`: in the tab group "Research" instrument://group/group:r1, hidden in the group's one side, behind example.com.",
+      ]
+    `);
   });
 });
 

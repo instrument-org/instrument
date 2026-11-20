@@ -443,6 +443,17 @@ describe("a drag that opened folders under itself", () => {
     `);
   });
 
+  it("opens a pinned folder of another root at its top, in place of the step it was on", () => {
+    const { step, write } = nextStep(DOCS, {
+      path: "",
+      root: "/Volumes/Work",
+      type: "spring",
+    });
+    expect(`${write} ${line(step)}`).toMatchInlineSnapshot(
+      `"replace path= root=/Volumes/Work view=icons"`,
+    );
+  });
+
   it("writes nothing for a drag that opened none, or once the address moved on its own", () => {
     expect(springEnded(shownStepOf(DOCS), true).writes).toEqual([]);
     const moved = routedStep(sprung(), { ...DOCS, path: "Music/" });

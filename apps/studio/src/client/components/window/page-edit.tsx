@@ -1,9 +1,6 @@
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuShortcut,
-  DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import {
@@ -25,9 +22,6 @@ import { answerRequest, createRequests } from "@/shared/page-editor-requests";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { isPageEditAddress } from "@instrument-org/shared";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { CheckIcon } from "@phosphor-icons/react/Check";
-import { EyeIcon } from "@phosphor-icons/react/Eye";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { noop } from "radashi";
 import { useEffect, useRef, useState } from "react";
@@ -233,81 +227,20 @@ export function PageEditSession({
   ) : null;
 }
 
-/** The two ways a page's tab shows it, as its mode menu names them. */
-const PAGE_MODES = [
-  {
-    description: "See the page as it is",
-    icon: EyeIcon,
-    isEditing: false,
-    label: "Viewing",
-  },
-  {
-    description: "Change the page in place",
-    icon: PencilSimpleIcon,
-    isEditing: true,
-    label: "Editing",
-  },
-] as const;
-
 /**
- * The page's mode, for the row above it: a quiet button naming the mode the
- * page is in, which opens a menu of the two with the current one checked.
- * ⌘E switches between them without it, and the menu says so on the mode it
- * would switch to. Its mark and caret alone in a narrow row.
+ * Edit for the page's ⋮ menu, beside Edit source: checked while the page is
+ * being changed in place. ⌘E does the same without the menu.
  */
-export function PageEditToggle({ tabId }: { tabId: string }) {
+export function PageEditMenuItem({ tabId }: { tabId: string }) {
   const { isEditing, setEditing } = usePageEdit(tabId);
-  const current = PAGE_MODES[isEditing ? 1 : 0];
-  const chord = formatAcceleratorText(WINDOW_SHORTCUTS.editPage.accelerator);
   return (
-    // Non-modal, so a press on the page's guest (its own web contents) is not
-    // swallowed by a modal menu's overlay and closes it instead.
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <button
-          aria-label={`${current.label}. Change how the page is shown`}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-foreground/70 outline-none hover:bg-foreground/8 hover:text-foreground focus-visible:outline-[3px] focus-visible:outline-ring/50 focus-visible:[outline-style:solid] data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground @max-xl/tabrow:gap-1 @max-xl/tabrow:px-1.5"
-          type="button"
-        >
-          <current.icon className="size-3.5" />
-          <span className="@max-xl/tabrow:sr-only">{current.label}</span>
-          <CaretDownIcon className="size-2.5 opacity-60" weight="bold" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="end"
-        className="w-60"
-        // The page, not the trigger, is where attention goes after a pick.
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-        }}
-      >
-        {PAGE_MODES.map((mode) => (
-          <DropdownMenuItem
-            className="items-start gap-2.5 py-2"
-            key={mode.label}
-            onSelect={() => {
-              setEditing(mode.isEditing);
-            }}
-          >
-            <mode.icon className="mt-0.5" />
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="font-medium">{mode.label}</span>
-              <span className="text-xs text-muted-foreground">
-                {mode.description}
-              </span>
-            </span>
-            {mode.isEditing === isEditing ? (
-              <CheckIcon className="mt-0.5 text-foreground" />
-            ) : (
-              <DropdownMenuShortcut className="mt-0.5">
-                {chord}
-              </DropdownMenuShortcut>
-            )}
-          </DropdownMenuItem>
-        ))}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <DropdownMenuCheckboxItem checked={isEditing} onCheckedChange={setEditing}>
+      <PencilSimpleIcon className="size-4" />
+      Edit page
+      <DropdownMenuShortcut>
+        {formatAcceleratorText(WINDOW_SHORTCUTS.editPage.accelerator)}
+      </DropdownMenuShortcut>
+    </DropdownMenuCheckboxItem>
   );
 }
 

@@ -84,6 +84,8 @@ interface MacModule {
   fileIcon: (path: string, pixels: string) => Promise<string>;
   finderEntries: (folder: string) => Promise<string>;
   pasteboardFiles: () => Promise<string>;
+  /** Missing from a module built before it was added. */
+  dragFiles?: () => Promise<string>;
   renameExclusive: (from: string, to: string) => Promise<string>;
   caseSensitivity: (path: string) => Promise<string>;
   trashItem: (path: string) => Promise<string>;
@@ -195,6 +197,20 @@ export async function pasteboardFiles(): Promise<string[] | undefined> {
   return z
     .object({ paths: z.array(z.string()) })
     .parse(JSON.parse(await native.pasteboardFiles())).paths;
+}
+
+/**
+ * The files of the drag in the air, by path, which a page is told only once
+ * they are let go. Undefined off macOS and in a build without the module.
+ */
+export async function dragFiles(): Promise<string[] | undefined> {
+  const native = loadModule();
+  if (!native?.dragFiles) {
+    return undefined;
+  }
+  return z
+    .object({ paths: z.array(z.string()) })
+    .parse(JSON.parse(await native.dragFiles())).paths;
 }
 
 /**

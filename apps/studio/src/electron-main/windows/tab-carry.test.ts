@@ -94,6 +94,7 @@ const picture = vi.hoisted(() => ({
   hide: vi.fn(),
   moveTo: vi.fn(),
   show: vi.fn(),
+  wearBarOf: vi.fn(),
 }));
 const openTabPicture = vi.hoisted(() => vi.fn(() => picture));
 const handOffGuest = vi.hoisted(() => vi.fn());
@@ -181,6 +182,17 @@ vi.mock("@/electron-main/windows/app-window", () => ({
       tabs: [],
     },
   returnSpareWindow,
+  sendGroupTabToWindow: (
+    window: { name: string },
+    key: string,
+    landing: unknown,
+  ) => {
+    if (!state.listening) {
+      return false;
+    }
+    state.sent.push({ key, landing, to: window.name });
+    return true;
+  },
   sendTabToWindow: (tab: unknown, id: string, index?: number) => {
     if (!state.listening) {
       return false;
@@ -199,8 +211,14 @@ vi.mock("@/electron-main/windows/app-window", () => ({
   },
 }));
 
-const { endTabCarry, moveTabNow, noteTabCarry, placeTabCarry, startTabCarry } =
-  await import("./tab-carry");
+const {
+  endTabCarry,
+  moveTabNow,
+  noteTabCarry,
+  placeGroupTabCarry,
+  placeTabCarry,
+  startTabCarry,
+} = await import("./tab-carry");
 
 const PLATFORM = process.platform;
 const asTab = (id: string) => ({ id: id as TabId, pathname: `/${id}` }) as Tab;
@@ -282,7 +300,6 @@ function press(
 ) {
   state.cursor = at;
   return startTabCarry({
-    at,
     grab: { x: 100, y: 20 },
     isOffRow: isOnlyTab,
     isOnlyTab,
@@ -344,6 +361,7 @@ beforeEach(() => {
     picture.hide,
     picture.moveTo,
     picture.show,
+    picture.wearBarOf,
   ]) {
     mock.mockClear();
   }
@@ -456,7 +474,6 @@ describe("a tab let go in the open", () => {
     await letGo();
 
     expect(tabsOf("from")).toEqual(["a"]);
-    expect(state.kept.get("from")?.get("compose.v2")).toEqual([]);
     expect(boundsWhenDrawn).toEqual(BOUNDS);
     // Short of opaque, or a window under it on macOS stops drawing.
     expect(spareOpacityWhenDrawn).toBeLessThan(1);
@@ -547,6 +564,7 @@ describe("near another window's strip", () => {
 
     expect(lastViewOf(3)).toEqual({
       clientX: 200,
+      clientY: 20,
       kind: "incoming",
       pointInTab: 30,
       tab: { id: "a", pathname: "/a" },
@@ -651,6 +669,86 @@ describe("near another window's strip", () => {
     expect(adoptSpareWindow).toHaveBeenCalledWith(state.spare);
     expect(lastViewOf(3)?.kind).toBe("row");
     expect(closeEmptiedWindow).not.toHaveBeenCalled();
+  });
+});
+
+describe("a tab group's tab", () => {
+  const groupTab = (pages: string[] = []) => ({
+    ...moving([], pages),
+    isGroupTab: true,
+  });
+  const OVER_PAGE = { x: 1600, y: 600 };
+
+  it("over another window shows no picture, wherever that window says it lands", () => {
+    press(groupTab());
+    moveTo(IN_THE_OPEN);
+    expect(picture.show).toHaveBeenCalledTimes(1);
+    moveTo(OVER_PAGE);
+    expect(lastViewOf(3)?.kind).toBe("incoming");
+    expect(picture.hide).toHaveBeenCalledTimes(1);
+
+    placeGroupTabCarry(3, { group: "g", kind: "group" });
+    placeGroupTabCarry(3, undefined);
+    expect(picture.show).toHaveBeenCalledTimes(1);
+  });
+
+  it("goes where that window said, with its page, used or not", async () => {
+    state.usedPages = new Set(["own-page"]);
+    press(groupTab(["own-page"]));
+    moveTo(OVER_PAGE);
+    placeGroupTabCarry(3, { index: 1, kind: "tabs" });
+    const end = await letGo();
+
+    expect(end).toEqual({ kind: "losesTab" });
+    expect(state.sent).toEqual([
+      { key: "a", landing: { index: 1, kind: "tabs" }, to: "other" },
+    ]);
+    expect(handOffGuest).toHaveBeenCalledWith("own-page", 3);
+    expect(adoptSpareWindow).not.toHaveBeenCalled();
+    expect(from.bounds).toEqual(BOUNDS);
+  });
+
+  it("let go where that window takes none, goes back", async () => {
+    press(groupTab());
+    moveTo(OVER_PAGE);
+    const end = await letGo();
+
+    expect(end).toEqual({ kind: "none" });
+    expect(state.sent).toEqual([]);
+    expect(adoptSpareWindow).not.toHaveBeenCalled();
+    expect(lastViewOf(3)?.kind).toBe("row");
+  });
+
+  it("let go in the open, is a group of its own in the spare", async () => {
+    press(groupTab());
+    moveTo(IN_THE_OPEN);
+    const end = await letGo();
+
+    expect(end).toEqual({ kind: "losesTab" });
+    expect(state.sent).toEqual([
+      {
+        key: "a",
+        landing: { isWindowOfItsOwn: true, kind: "new" },
+        to: "spare",
+      },
+    ]);
+    expect(adoptSpareWindow).toHaveBeenCalledWith(state.spare);
+  });
+
+  it("as its window's only tab, takes its window there, which closes once it lands", async () => {
+    press(groupTab(), true);
+    moveTo(OVER_PAGE);
+    expect(from.opacity).toBe(1);
+
+    placeGroupTabCarry(3, { kind: "new" });
+    expect(from.opacity).toBe(0);
+    const end = await letGo();
+
+    expect(end).toEqual({ kind: "closes" });
+    expect(state.sent).toEqual([
+      { key: "a", landing: { kind: "new" }, to: "other" },
+    ]);
+    expect(closeEmptiedWindow).toHaveBeenCalledWith(from);
   });
 });
 
@@ -866,19 +964,53 @@ describe("the picture", () => {
     moveTo(IN_THE_OPEN);
     await letGo();
 
-    expect(picture.growTo).toHaveBeenCalledWith(
-      spareWindow.bounds,
-      spareWindow,
-    );
+    expect(picture.growTo).toHaveBeenCalledWith(spareWindow.bounds);
+    expect(picture.wearBarOf).toHaveBeenCalledWith(spareWindow);
     expect(upWhenGrown).toBe(false);
     expect(spareWindow.opacity).toBe(1);
+  });
+
+  it("starts growing at the release, while the window it grows into draws", async () => {
+    press();
+    moveTo(IN_THE_OPEN);
+    let draw = () => undefined as void;
+    spareWindow.webContents.executeJavaScript = () =>
+      new Promise((resolve) => {
+        draw = () => {
+          resolve(true);
+        };
+      });
+    const released = letGo();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(picture.growTo).toHaveBeenCalledTimes(1);
+    expect(picture.wearBarOf).not.toHaveBeenCalled();
+
+    draw();
+    await vi.runAllTimersAsync();
+    await released;
+    expect(picture.wearBarOf).toHaveBeenCalledWith(spareWindow);
+  });
+
+  it("pictures the tab's page when the window says where it is", () => {
+    const pageArea = { height: 600, width: 500, x: 300, y: 80 };
+    startTabCarry({
+      grab: { x: 100, y: 20 },
+      isOffRow: false,
+      isOnlyTab: false,
+      moving: moving(),
+      page: pageArea,
+      pointInTab: 30,
+      webContentsId: 1,
+    });
+    expect(openTabPicture).toHaveBeenCalledWith(from, pageArea);
   });
 
   it("grows into the pressed window when that is what leaves, and has nothing to do for a strip", async () => {
     press(withUsedPage());
     moveTo(IN_THE_OPEN);
     await letGo();
-    expect(picture.growTo).toHaveBeenCalledWith(from.bounds, from);
+    expect(picture.growTo).toHaveBeenCalledWith(from.bounds);
+    expect(picture.wearBarOf).toHaveBeenCalledWith(from);
   });
 });
 
@@ -944,7 +1076,7 @@ describe("the window left behind", () => {
 });
 
 describe("a page drawn inside a screen of the tab", () => {
-  const HOSTED = "window-tabs.v10/page:b";
+  const HOSTED = "tab-groups.v3/page:b";
 
   it("keeps the window with the tab, once someone has used it", async () => {
     state.usedPages = new Set(["hosted"]);
@@ -956,14 +1088,14 @@ describe("a page drawn inside a screen of the tab", () => {
 
   it("is its window's alone, so a window taking over its tabs draws its own", async () => {
     state.kept.get("from")?.set(HOSTED, { tabs: [] });
-    state.kept.get("other")?.set("window-tabs.v10/page:x", { tabs: [] });
+    state.kept.get("other")?.set("tab-groups.v3/page:x", { tabs: [] });
     press(withUsedPage());
     moveTo(OVER_STRIP);
     await letGo();
 
     expect(state.kept.get("spare")?.has(HOSTED)).toBe(false);
     expect(state.kept.get("from")?.get(HOSTED)).toEqual({ tabs: [] });
-    expect(state.kept.get("from")?.has("window-tabs.v10/page:x")).toBe(false);
+    expect(state.kept.get("from")?.has("tab-groups.v3/page:x")).toBe(false);
   });
 });
 
@@ -990,14 +1122,43 @@ describe("a window's only tab", () => {
     expect(from.bounds).toEqual({ ...BOUNDS, x: 1410, y: 1590 });
   });
 
-  it("does not dock a window onto the strip its press was already over", () => {
-    press(moving(), true, OVER_STRIP);
-    moveTo({ x: 1610, y: 122 });
-    expect(lastViewOf(3)).toBeUndefined();
+  describe("in front of another window", () => {
+    // Over the top of the other window's strip.
+    const inFront = (y = 110) => {
+      from.bounds = { height: 400, width: 600, x: 1500, y };
+    };
 
-    moveTo({ x: 1610, y: 500 });
-    moveTo(OVER_STRIP);
-    expect(lastViewOf(3)?.kind).toBe("incoming");
+    it("goes on moving its window over the strip it kept out of sight", () => {
+      inFront();
+      press(moving(), true, OVER_STRIP);
+      moveTo({ x: 1610, y: 122 });
+
+      expect(lastViewOf(3)).toBeUndefined();
+      expect(from.bounds).toMatchObject({ x: 1510, y: 102 });
+    });
+
+    it("lands on that strip once its window has moved off it", () => {
+      inFront();
+      press(moving(), true, OVER_STRIP);
+      moveTo({ x: 1610, y: 500 });
+      moveTo(OVER_STRIP);
+
+      expect(lastViewOf(3)?.kind).toBe("incoming");
+    });
+
+    it("as a tab group's tab, goes on moving its window over the page it kept out of sight, and lands past it", () => {
+      inFront(130);
+      const groupTab = { ...moving(), isGroupTab: true };
+      press(groupTab, true, { x: 1610, y: 150 });
+      moveTo({ x: 1620, y: 170 });
+
+      expect(lastViewOf(3)).toBeUndefined();
+      expect(from.opacity).toBe(1);
+      expect(from.bounds).toMatchObject({ x: 1520, y: 150 });
+
+      moveTo({ x: 2300, y: 600 });
+      expect(lastViewOf(3)?.kind).toBe("incoming");
+    });
   });
 
   it("clears out of the way of a strip it is over, and comes back off it", () => {
@@ -1009,16 +1170,12 @@ describe("a window's only tab", () => {
     expect(from.opacity).toBe(1);
   });
 
-  it("goes to that window, whose floats take its own, and its window closes", async () => {
-    state.kept.get("from")?.set("compose.v2", [{ chatId: "c" }]);
+  it("goes to that window, and its window closes", async () => {
     press(moving(), true);
     moveTo(OVER_STRIP);
     const end = await letGo();
 
     expect(end).toEqual({ kind: "closes" });
-    expect(state.kept.get("other")?.get("compose.v2")).toEqual([
-      { chatId: "c" },
-    ]);
     expect(closeEmptiedWindow).toHaveBeenCalledWith(from);
   });
 

@@ -1,6 +1,6 @@
 import { type Draft } from "@/shared/drafts";
 import { openProjectDetails } from "@/client/atoms/project-details-modal";
-import { chatFiltersAtom } from "@/client/atoms/window";
+import { tabChatFiltersAtom } from "@/client/atoms/window";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
@@ -19,11 +19,14 @@ import {
   type ChatFilters,
   draftTitle,
   hasWords,
+  inPlace,
   matchesFilters,
+  NO_FILTERS,
   outsideFilters,
   type Project,
 } from "./chats";
 import { FilterHead } from "./filter-head";
+import { useGroupTab } from "./group-tab";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { ProjectDialog } from "./project-dialog";
 import { ProjectBanner } from "./project-banner";
@@ -54,9 +57,7 @@ export function ChatPane({
   onListed,
   onOpenChat,
   onOpenDraft,
-  onPopOut,
   openChatId,
-  outIds,
 }: {
   /** The chat that just started from a draft, whose row arrives with a motion of its own. */
   arrivedId?: string;
@@ -73,12 +74,8 @@ export function ChatPane({
   onOpenChat: (chat: Chat) => void;
   /** Opens a draft to go on writing it. */
   onOpenDraft: (id: string) => void;
-  /** Floats a chat in a window of its own over the row, from its row. */
-  onPopOut?: (chat: Chat) => void;
   /** The chat open beside the list, if one is. */
   openChatId: string | undefined;
-  /** The chats already up in a window of their own. */
-  outIds?: ReadonlySet<string>;
 }) {
   const appsBySlug = useAppsBySlug();
   const shell = useShell();
@@ -103,7 +100,15 @@ export function ChatPane({
   );
   const setChatProject = useSetChatProject();
 
-  const [filters, setFilters] = useAtom(chatFiltersAtom);
+  // The list's filters are its tab's, so each tab's list stands where it
+  // was left.
+  const [filters, setFilters] = useAtom(
+    tabChatFiltersAtom(useGroupTab()?.id ?? ""),
+  );
+  /** The list standing in one project, under its own head, in its tint. */
+  const enterProject = (projectId: string) => {
+    setFilters({ ...NO_FILTERS, projects: [projectId] });
+  };
   const density = useAtomValue(rowDensityAtom);
   const groupByDay = useAtomValue(groupByDayAtom);
   // A change of filter is a change of subject, and the newest of the new
@@ -269,7 +274,9 @@ export function ChatPane({
           chats={chats}
           filters={filters}
           onFiltersChange={setFilters}
-          onLeaveProject={shell.leaveProject}
+          onLeaveProject={() => {
+            setFilters((current) => inPlace(current, undefined));
+          }}
           project={chosenProject}
         />
         {isAISearch && (
@@ -307,7 +314,7 @@ export function ChatPane({
                       <ProjectsSection
                         chats={chats}
                         onChoose={(project) => {
-                          shell.openProject(project.id);
+                          enterProject(project.id);
                         }}
                         onDetails={(project) => {
                           openProjectDetails(project.id);
@@ -340,7 +347,6 @@ export function ChatPane({
           }}
           onOpen={onOpenChat}
           onOpenDraft={onOpenDraft}
-          onPopOut={onPopOut}
           onSetProject={(chat, next) => {
             setChatProject(chat.id, next);
           }}
@@ -348,7 +354,6 @@ export function ChatPane({
             setWidenedIn(viewKey);
           }}
           openId={openChatId}
-          outIds={outIds}
           outside={outside.length}
           outsideChats={shownOutside}
           scrollSignal={scrollSignal}
@@ -391,7 +396,7 @@ export function ChatPane({
                 setChatProject(forChat.id, created.id);
                 return;
               }
-              shell.openProject(created.id);
+              enterProject(created.id);
             },
           });
         }}

@@ -48,7 +48,7 @@ async function settle() {
 }
 
 describe("notePersonUsedTab", () => {
-  it("marks a tab its chat's state kept before this launch, found by its group", async () => {
+  it("marks a tab its chat's state kept before this launch, found by its opener", async () => {
     const id = newTab();
     const other = newTab();
     await setChatState(chatDir(chatId), {
@@ -66,15 +66,15 @@ describe("notePersonUsedTab", () => {
   });
 
   it.each([
-    { group: "a chat's group", groupOf: () => chatId },
-    { group: "no group yet", groupOf: () => undefined },
+    { case: "kept with its opener", openerOf: () => chatId },
+    { case: "not kept yet", openerOf: () => undefined },
   ])(
-    "marks a tab used before its entry was written, in $group, as the entry is written",
-    async ({ groupOf }) => {
+    "marks a tab used before its entry was written, $case, as the entry is written",
+    async ({ openerOf }) => {
       const id = newTab();
       const session = StoreId.newSessionId();
 
-      notePersonUsedTab(id, groupOf);
+      notePersonUsedTab(id, openerOf);
       await settle();
       await noteOpenedTab(chatId, id, session);
 
@@ -84,7 +84,7 @@ describe("notePersonUsedTab", () => {
     },
   );
 
-  it("leaves a tab in a group that is no chat's alone", async () => {
+  it("leaves a tab whose opener is no chat alone", async () => {
     const id = newTab();
     const session = StoreId.newSessionId();
 

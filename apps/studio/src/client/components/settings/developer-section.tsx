@@ -32,6 +32,7 @@ import { useState } from "react";
 export function DeveloperSection() {
   return (
     <div className="space-y-6">
+      <h3 className="text-base font-semibold">Developer</h3>
       <PlatformApiServerSetting />
       <ReleaseChannel />
       <FeatureFlags />

@@ -1,23 +1,36 @@
+import {
+  type Show,
+  SHOW_LABELS,
+  SHOWS,
+} from "@/client/components/activity/activity-timeline";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
+import {
+  type ScreenName,
+  SCREENS,
+  SETTINGS_SECTIONS,
+  screenOfHref,
+} from "@/shared/instrument-screens";
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CodeIcon } from "@phosphor-icons/react/Code";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
-import { FileTextIcon } from "@phosphor-icons/react/FileText";
+import { LinkBreakIcon } from "@phosphor-icons/react/LinkBreak";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
-import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { type ReactNode } from "react";
 
+import { ScreenMark } from "./app-chip";
 import { AppIcon } from "./app-icon";
 import { osConventions } from "@/client/lib/utils";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
+import { debugAddressOf } from "./debug-address";
 import { FileMark } from "./file-mark";
 import { FolderMark } from "./folder-mark";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
+import { askedAddressOf } from "./missing-page";
 import { locationCrumbs, type TabLocation, type Volume } from "./tab-location";
 import { type ComputerTab, matchScreen, type Screen } from "./window-href";
 
@@ -66,8 +79,7 @@ export function screenLocation(
     }
     case "chat":
     case "chatLink":
-    case "chatOfSession":
-    case "inbox": {
+    case "chatOfSession": {
       return { kind: "chat", title: chatTitleOf(screen, chatTitles) };
     }
     case "computer": {
@@ -82,28 +94,77 @@ export function screenLocation(
     }
     case "task": {
       return {
+        ...(screen.chat === undefined
+          ? {}
+          : {
+              chat: {
+                id: screen.chat,
+                title: chatTitles?.get(screen.chat) ?? "Chat",
+              },
+            }),
         kind: "task",
         title: taskTitles?.get(screen.task) ?? "Task",
       };
     }
-    case "extensions": {
-      return { kind: "screen", screen: "extensions" };
+    // The chat with no chat open is a new chat, written into its draft.
+    case "inbox": {
+      return { kind: "newChat" };
     }
-    case "activity":
+    // Every chat, which is Chat's own index.
+    case "chats": {
+      return { kind: "chats" };
+    }
+    // What Activity shows, when it is one kind of row, is the part it is at,
+    // and the row open inside it says itself (`TabSurface.item`).
+    case "activity": {
+      const show = activityShowOf(href);
+      return {
+        kind: "builtin",
+        ...(show
+          ? {
+              part: SHOW_LABELS[show].label,
+              partHref: `${SCREENS.activity.href}?show=${show}`,
+            }
+          : {}),
+        screen: "activity",
+      };
+    }
+    // A built-in page, by its name in `SCREENS`, and the part of Settings
+    // shown by its title.
+    case "bookmarks":
     case "browser":
-    case "debug":
+    case "extensions":
+    case "memories":
+    case "releaseNotes":
+    case "settings":
+    case "skills": {
+      const part = screenOfHref(href)?.part;
+      return {
+        kind: "builtin",
+        ...(part ? { part: SETTINGS_SECTIONS[part] } : {}),
+        screen: SCREEN_OF_KIND[screen.kind],
+      };
+    }
+    // A debug page says its own address, which the field takes back.
+    case "debug": {
+      return { address: debugAddressOf(href) ?? href, kind: "debug" };
+    }
+    case "group":
     case "memory":
     case "namedScreen":
-    case "newTab":
     case "project":
-    case "releaseNotes":
     case "setting":
     case "site":
     case "skill":
-    case "unknown": {
+    case "tabGroup":
+    case "windowTab": {
       // A screen the window has no words for reads as the new tab: the
       // place with nothing in particular in it.
       return { kind: "newTab" };
+    }
+    // A page that doesn't exist is at the address it was asked for.
+    case "unknown": {
+      return { address: askedAddressOf(href), kind: "missing" };
     }
   }
 }
@@ -141,10 +202,17 @@ export function screenPresentation(
     // The plain bubble the Chats list wears: one chat is one of those.
     case "chat":
     case "chatLink":
-    case "chatOfSession":
-    case "inbox": {
+    case "chatOfSession": {
       return {
         icon: <ChatCircleIcon className="size-3.5" />,
+        title: chatTitleOf(screen, chatTitles),
+      };
+    }
+    // A new tab is a chat about to start, marked as one being written, in
+    // its strip tab and its sidebar row alike.
+    case "inbox": {
+      return {
+        icon: <NotePencilIcon className="size-3.5" />,
         title: chatTitleOf(screen, chatTitles),
       };
     }
@@ -163,34 +231,38 @@ export function screenPresentation(
         title: folderTitle(screen, { volumes }),
       };
     }
+    case "group": {
+      return {
+        icon: <ChatCircleIcon className="size-3.5" />,
+        title: "Tab group",
+      };
+    }
     case "debug": {
       return {
         icon: <CodeIcon className="size-3.5" />,
         title: debugPageTitle(screen.pathname),
       };
     }
-    case "newTab": {
+    // The index of every chat, under the bubbles of many chats.
+    case "chats": {
       return {
-        icon: <MagnifyingGlassIcon className="size-3.5" />,
-        title: "New tab",
+        icon: <ScreenMark className="size-3.5" name="chats" />,
+        title: SCREENS.chats.title,
       };
     }
-    case "releaseNotes": {
+    // A built-in page by its own name and mark; one Settings tab whichever
+    // part it is at, which the address field says.
+    case "activity":
+    case "bookmarks":
+    case "extensions":
+    case "memories":
+    case "releaseNotes":
+    case "settings":
+    case "skills": {
+      const name = SCREEN_OF_KIND[screen.kind];
       return {
-        icon: <FileTextIcon className="size-3.5" />,
-        title: "What's new",
-      };
-    }
-    case "activity": {
-      return {
-        icon: <ClockCounterClockwiseIcon className="size-3.5" />,
-        title: "Activity",
-      };
-    }
-    case "extensions": {
-      return {
-        icon: <PuzzlePieceIcon className="size-3.5" />,
-        title: "Extensions",
+        icon: <ScreenMark className="size-3.5" name={name} />,
+        title: SCREENS[name].title,
       };
     }
     // One task, a single box of the mark the chat's menu opens the list with.
@@ -206,16 +278,49 @@ export function screenPresentation(
     case "setting":
     case "site":
     case "skill":
-    case "unknown": {
+    case "tabGroup":
+    case "windowTab": {
       return {
         icon: <MagnifyingGlassIcon className="size-3.5" />,
         title: "Tab",
       };
     }
+    case "unknown": {
+      return {
+        icon: <LinkBreakIcon className="size-3.5" />,
+        title: "Page not found",
+      };
+    }
   }
 }
 
-/** The chat a screen address stands on, by the title the window has for it. */
+/** The one kind of row Activity's address shows, if it names one. */
+function activityShowOf(href: string): Show | undefined {
+  let show: null | string;
+  try {
+    show = new URL(href, "http://tabs").searchParams.get("show");
+  } catch {
+    return undefined;
+  }
+  return SHOWS.find((each) => each === show);
+}
+
+/** The built-in page each of the window's own screen kinds is, by its name in `SCREENS`. */
+const SCREEN_OF_KIND = {
+  activity: "activity",
+  bookmarks: "bookmarks",
+  browser: "browser",
+  extensions: "extensions",
+  memories: "memory",
+  releaseNotes: "release-notes",
+  settings: "settings",
+  skills: "skills",
+} as const satisfies Partial<Record<Screen["kind"], ScreenName>>;
+
+/**
+ * The chat a screen address stands on, by the title the window has for it,
+ * and a new chat as the new tab it is until something is sent from it.
+ */
 function chatTitleOf(
   screen: Extract<
     Screen,
@@ -223,6 +328,9 @@ function chatTitleOf(
   >,
   chatTitles: ScreenNames["chatTitles"],
 ) {
+  if (screen.kind === "inbox") {
+    return "New Tab";
+  }
   return (
     (screen.kind === "chat" ? chatTitles?.get(screen.chat) : undefined) ??
     "Chat"

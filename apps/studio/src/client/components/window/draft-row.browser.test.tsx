@@ -12,7 +12,6 @@ import { DraftRow } from "./draft-row";
 const WINDOW: WindowContextValue = {
   ask: vi.fn(),
   browser: null,
-  askAboutView: vi.fn(),
   openPage: vi.fn(),
   openPath: vi.fn(),
   openScreen: vi.fn(),

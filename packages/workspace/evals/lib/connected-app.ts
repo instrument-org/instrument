@@ -17,6 +17,7 @@ export interface AppFixture {
    * `api` (the default) serves the small REST tracker below; `mcp` serves
    * the larger issue tracker in `mcp-tracker.ts` over MCP; `web` is a site
    * the user said they are signed in to, at `url`, with no server at all;
+   * `web-sign-in` is the same site set up and waiting for that word;
    * `sign-in` is an app set up and not connected yet, which signs in
    * directly, for a case that has the agent ask for it (`signInsAnswerAs`);
    * `unfinished` is an API app whose setup stopped before its guide was
@@ -25,7 +26,14 @@ export interface AppFixture {
    * so every call is refused until the user signs in again on a card
    * (`signInsAnswerAs`).
    */
-  kind?: "api" | "mcp" | "sign-in" | "signed-out" | "unfinished" | "web";
+  kind?:
+    | "api"
+    | "mcp"
+    | "sign-in"
+    | "signed-out"
+    | "unfinished"
+    | "web"
+    | "web-sign-in";
   /** What the user calls it, as the manifest carries it. */
   name: string;
   /**
@@ -109,7 +117,7 @@ export async function seedConnectedApps(
   const servers: http.Server[] = [];
   const closers: (() => Promise<void>)[] = [];
   for (const fixture of fixtures) {
-    if (fixture.kind === "web") {
+    if (fixture.kind === "web" || fixture.kind === "web-sign-in") {
       await seedApp(
         fixture,
         {
@@ -119,7 +127,14 @@ export async function seedConnectedApps(
         },
         `Worked on the web${fixture.url === undefined ? "" : ` at ${fixture.url}`}.\n`,
       );
-      await recordConnected(fixture.slug, { apps });
+      if (fixture.kind === "web") {
+        await recordConnected(fixture.slug, { apps });
+      } else {
+        await apps.connections.set(fixture.slug, {
+          status: "needs-sign-in",
+          updatedAt: Date.now(),
+        });
+      }
       continue;
     }
     if (fixture.kind === "sign-in") {

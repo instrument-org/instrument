@@ -61,8 +61,8 @@ export function ConnectControls({
   /** For a card in a chat, the chat, which hears what the user does here even after the card stopped waiting. */
   askedIn?: ChatId;
   /**
-   * For a row of the card in a chat, the buttons that fit in the row: a
-   * sign-in's two, or a web app's one. `primary` lights the first as the one
+   * For a row of the card in a chat, the buttons that fit in the row, two
+   * for a sign-in or a web app. `primary` lights the first as the one
    * to press next. `failure` is how the app's last sign-in ended: another try
    * is offered in the user's own browser beside the app's site, since the
    * site is the one way in that is really different, and a refusal leaves only
@@ -236,20 +236,36 @@ export function ConnectControls({
         setOpenedSite(true);
       }
     };
+    // A row offers the word that the sign-in is done from the start, since
+    // the user may already be signed in, or signed in through a tab the
+    // agent opened, and the row forgets a press of its own when it redraws.
     if (compact) {
       return (
-        <Button
-          className={compact.primary ? undefined : "text-foreground"}
-          disabled={busy || !appWindow?.browser || signInPage === undefined}
-          onClick={() => {
-            openSite();
-            onOpened?.();
-          }}
-          size="sm"
-          variant={compact.primary ? "brand" : "outline"}
-        >
-          Sign in here
-        </Button>
+        <div className="flex shrink-0 items-center gap-1.5 @max-md/transcript:w-full @max-md/transcript:flex-wrap @max-md/transcript:*:flex-1">
+          <Button
+            className={compact.primary ? undefined : "text-foreground"}
+            disabled={busy || !appWindow?.browser || signInPage === undefined}
+            onClick={() => {
+              openSite();
+              onOpened?.();
+            }}
+            size="sm"
+            variant={compact.primary ? "brand" : "outline"}
+          >
+            Sign in here
+          </Button>
+          <Button
+            className="text-foreground"
+            disabled={busy}
+            onClick={() => {
+              markWebSignedIn.mutate({ ...inChat, slug });
+            }}
+            size="sm"
+            variant="outline"
+          >
+            Done signing in
+          </Button>
+        </div>
       );
     }
     return (

@@ -1,3 +1,4 @@
+import { WEB_APP_NOT_SIGNED_IN } from "../../model-text/commands/app-command";
 import { TOOL_NAMES } from "../../tools/name";
 import { z } from "zod";
 
@@ -73,7 +74,10 @@ export interface AppConnectionStore {
 export function describeConnection(
   connection: AppConnection | undefined,
   manifestHash: string,
-  role: "chat" | "task" = "chat",
+  {
+    role = "chat",
+    web = false,
+  }: { role?: "chat" | "task"; web?: boolean } = {},
 ): string {
   // What to run next, for the chat alone: a task neither tests nor connects.
   const next = (step: string) => (role === "chat" ? ` (${step})` : "");
@@ -104,6 +108,10 @@ export function describeConnection(
       return `needs a key from the user${next(TOOL_NAMES.connectApp)}`;
     }
     case "needs-sign-in": {
+      // A web app's sign-in may already be there, unsaid.
+      if (web && role === "chat") {
+        return WEB_APP_NOT_SIGNED_IN;
+      }
       return `needs the user to sign in${next(TOOL_NAMES.connectApp)}`;
     }
   }

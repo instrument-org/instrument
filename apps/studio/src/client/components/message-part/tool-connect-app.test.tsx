@@ -17,6 +17,8 @@ const { mocks, mutation, query } = vi.hoisted(() => ({
     declineSignIn:
       vi.fn<(input: { askId: string; id: string }) => Promise<unknown>>(),
     dismiss: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
+    markWebSignedIn:
+      vi.fn<(input: { chatId?: string; slug: string }) => Promise<unknown>>(),
     signInOnWeb: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
     startOAuth:
       vi.fn<
@@ -46,7 +48,12 @@ vi.mock("@/client/rpc/client", () => ({
         catalogMarks: query("catalogMarks", () => Promise.resolve([])),
         list: query("apps", mocks.apps),
       },
-      markWebSignedIn: mutation(),
+      markWebSignedIn: {
+        mutationOptions: (options: object) => ({
+          ...options,
+          mutationFn: mocks.markWebSignedIn,
+        }),
+      },
       setCredential: mutation(),
       signInOnWeb: {
         mutationOptions: (options: object) => ({
@@ -181,6 +188,7 @@ beforeEach(() => {
   mocks.declineSignIn.mockReset();
   mocks.apps.mockReset();
   mocks.dismiss.mockReset();
+  mocks.markWebSignedIn.mockReset();
   mocks.signInOnWeb.mockReset();
   mocks.startOAuth.mockReset();
   openPage.mockReset();
@@ -255,6 +263,42 @@ describe("the card for one app", () => {
     expect(await screen.findByText("Outlook connected")).toBeTruthy();
     expect(screen.getByText("Connected as you@example.com")).toBeTruthy();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+describe("a web app's row", () => {
+  it("offers Done signing in from the start, for someone already signed in", async () => {
+    mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }, "web"));
+    mocks.markWebSignedIn.mockResolvedValue(undefined);
+    renderCard("chat-1", {
+      kind: "sign-in",
+      name: "Outlook",
+      slug: "outlook",
+      state: "asked",
+    });
+
+    await screen.findByRole("button", { name: "Done signing in" });
+    expect(reads()).toMatchInlineSnapshot(`
+      [
+        "Connect Outlook",
+        "So I can read your mail.",
+        "Outlook",
+        "[Not now]",
+        "[Sign in here]",
+        "[Done signing in]",
+      ]
+    `);
+    fireEvent.click(screen.getByRole("button", { name: "Done signing in" }));
+    await waitFor(
+      () => {
+        expect(mocks.markWebSignedIn.mock.calls[0]?.[0]).toEqual({
+          chatId: "chat-1",
+          slug: "outlook",
+        });
+      },
+      { interval: 1 },
+    );
+    expect(openPage).not.toHaveBeenCalled();
   });
 });
 

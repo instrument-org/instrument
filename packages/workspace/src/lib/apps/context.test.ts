@@ -65,6 +65,22 @@ describe("the apps a session starts with", () => {
     expect(text).not.toContain("app_instructions");
   });
 
+  it("has a web app waiting on its sign-in checked in a tab before the user is asked again", async () => {
+    await seedApp("shopify", {
+      guide: "",
+      name: "Shopify",
+      setup: { type: "web", url: "https://admin.shopify.com" },
+    });
+    await getWorkspaceConfig().apps.connections.set("shopify", {
+      status: "needs-sign-in",
+      updatedAt: Date.now(),
+    });
+
+    expect(await buildAppsContextText()).toContain(
+      "- shopify (Shopify, web at https://admin.shopify.com): not marked signed in. Open its site in a tab first: if it loads signed in, ask the user to press Done signing in on a connect_app card (call it if none is open) rather than sign in again; otherwise connect_app",
+    );
+  });
+
   it("says nothing for a connected app whose file holds a manifest and no words", async () => {
     await writeApp("Linear", "linear", "");
     await connect("linear");

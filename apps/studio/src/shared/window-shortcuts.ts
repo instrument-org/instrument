@@ -46,9 +46,6 @@ const historyChord = (bracket: "[" | "]", arrow: "Left" | "Right") => ({
 });
 
 export const WINDOW_SHORTCUTS = {
-  // The Ask corner of a tab group with no chat in it. Free in the app, and
-  // pages rarely bind it: elsewhere it is every browser's Downloads.
-  askAboutPage: { accelerator: "CmdOrCtrl+J", label: "Ask About This Page" },
   back: { accelerator: historyChord("[", "Left"), label: "Back" },
   // Every tab of the group on screen, into a new folder: Chrome's own key.
   bookmarkAllTabs: {

@@ -78,7 +78,6 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "Tabs: Show Next Tab  ⌃Tab",
         "Tabs: Show Previous Tab  ⌃⇧Tab",
         "Tabs: Tab 1 to 8  ⌘1…8",
-        "Pages: Ask About This Page  ⌘J",
         "Pages: Back  ⌘[",
         "Pages: Bookmark All Tabs…  ⇧⌘D",
         "Pages: Bookmark This Tab…  ⌘D",

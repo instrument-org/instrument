@@ -62,7 +62,6 @@ import {
   SIDE_SHARE_DEFAULT,
   SIDE_WIDTH_MIN,
 } from "./side-widths";
-import { AskCorner } from "./ask-corner";
 import { useTabSurface } from "./tab-surface";
 import { WINDOW_CARD, WINDOW_CARD_GAP } from "./window-frame";
 import { groupOnScreenAtom, newScreenId, useWindowTabs } from "./window-tabs";
@@ -776,12 +775,7 @@ function SideCard({
       />
     );
   // The window's own end, at the last side's right.
-  const windowEnd = isLast ? (
-    <>
-      <AskCorner group={group} key={group} layout={layout} />
-      <CaptionRoom />
-    </>
-  ) : undefined;
+  const windowEnd = isLast ? <CaptionRoom /> : undefined;
 
   return (
     <div

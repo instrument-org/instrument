@@ -76,6 +76,7 @@ import {
   forgetAppWindowName,
   nameAppWindow,
 } from "@/electron-main/windows/app-window-ids";
+import { askBeforeClosing } from "@/electron-main/windows/ask-before-closing";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import {
@@ -113,6 +114,10 @@ let inFront: BrowserWindow[] = [];
 
 /** The windows whose every tab went to another window, which leave nothing to come back to. */
 const emptied = new Set<BrowserWindow>();
+/** Windows whose close is waiting on what they answer (`askBeforeClosing`). */
+const askingToClose = new Set<BrowserWindow>();
+/** Windows that answered to close, so the close that follows goes ahead. */
+const agreedToClose = new Set<BrowserWindow>();
 
 /**
  * A window kept booted and out of sight, on none of the lists above, for a tab's
@@ -1117,6 +1122,34 @@ function createAppWindow(
     event.preventDefault();
     void requestQuitApproval().then((approved) => {
       if (approved && !window.isDestroyed()) {
+        window.close();
+      }
+    });
+  });
+  // A close that leaves the app running asks the window first, since it
+  // stops the chats at work in its tab groups. A quit's close has asked
+  // already, a spare has no chats, and a window whose tabs all went
+  // elsewhere took its chats with them.
+  window.on("close", (event) => {
+    if (
+      isQuitApproved() ||
+      (quitsWithLastWindow && !hasVisibleWindowOtherThan(window)) ||
+      spareOf(webContentsId) ||
+      emptied.has(window) ||
+      agreedToClose.delete(window)
+    ) {
+      return;
+    }
+    event.preventDefault();
+    // A second close while the first is asked joins it.
+    if (askingToClose.has(window)) {
+      return;
+    }
+    askingToClose.add(window);
+    void askBeforeClosing(window.webContents).then((isClosing) => {
+      askingToClose.delete(window);
+      if (isClosing && !window.isDestroyed()) {
+        agreedToClose.add(window);
         window.close();
       }
     });

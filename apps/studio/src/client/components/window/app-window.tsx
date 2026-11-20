@@ -79,6 +79,7 @@ import { fileHref } from "@/shared/computer-href";
 import { type Tab } from "@/shared/tabs";
 
 import { useRestoredTabsWaiting } from "./use-restored-tabs-waiting";
+import { useStopBeforeClosing } from "./stop-before-closing";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
 import {
@@ -536,10 +537,10 @@ function WindowShell({
   });
   useTabGroupUpkeep(appTabHref, groupList.open);
   useCloseStrandedHostedPages();
-  // Closing a group leaves its chats working: a chat goes on with no tab,
-  // and the Chats page shows it at work. With `keep`, the group a row's menu asked
-  // from, which the window moves to. Answers the entries it put on the
-  // closed list.
+  // Closing a group stops none of its chats here: the person's close has
+  // stopped them once asked (`askToCloseGroups`), and an agent's leaves them
+  // working. With `keep`, the group a row's menu asked from, which the
+  // window moves to. Answers the entries it put on the closed list.
   const closeGroups = (
     closed: readonly string[],
     keep?: string,
@@ -991,6 +992,52 @@ function WindowShell({
     }
     windowTabs.closeSide(group, side);
   };
+  // The person's closes ask first when they stop a chat at work or waiting
+  // (`useStopBeforeClosing`); an agent's own closes ask no one. A close runs
+  // once answered, so it reaches the closers as they stand then.
+  const stopping = useStopBeforeClosing();
+  const closers = useRef({ closeGroups, closeSideOf, requestClose });
+  useLayoutEffect(() => {
+    closers.current = { closeGroups, closeSideOf, requestClose };
+  });
+  const tabsOfGroups = (closing: readonly string[]) =>
+    windowTabs.allTabs.filter(
+      (tab) => tab.group !== undefined && closing.includes(tab.group),
+    );
+  const askToCloseGroups = (closing: string[], keep?: string) => {
+    stopping.ask(tabsOfGroups(closing), "group", () => {
+      closers.current.closeGroups(closing, keep);
+    });
+  };
+  const askToCloseTab = (id: string) => {
+    stopping.ask(
+      windowTabs.allTabs.filter((tab) => tab.id === id),
+      "tab",
+      () => {
+        closers.current.requestClose(id);
+      },
+    );
+  };
+  const askToCloseSide = (id: string) => {
+    const group = windowTabs.allTabs.find((tab) => tab.id === id)?.group;
+    const layout = group === undefined ? undefined : windowTabs.layoutOf(group);
+    const side = layout && sideIndexOf(layout, id);
+    const sideTabs =
+      layout && side !== undefined && layout.sides.length > 1
+        ? (layout.sides[side]?.tabs ?? [])
+        : tabsOfGroups(group === undefined ? [] : [group]);
+    stopping.ask(sideTabs, "split", () => {
+      closers.current.closeSideOf(id);
+    });
+  };
+  // Closing the window, which main asks about before it goes: every chat
+  // in its tab groups.
+  const askToCloseWindow = useEffectEvent(() =>
+    stopping.askForWindow(
+      tabsOfGroups(groupList.open.map((entry) => entry.group)),
+    ),
+  );
+  useEffect(() => window.api.onCloseAsked?.(askToCloseWindow), []);
   /**
    * One entry of the window's closed list back, by its id: a whole tab group
    * as a group again, its tabs on their sides; a tab into its group, up
@@ -1401,9 +1448,9 @@ function WindowShell({
         }
         const up = selectedTabIn(store.get(windowTabsAtom), group);
         if (up) {
-          requestClose(up.id);
+          askToCloseTab(up.id);
         } else {
-          closeGroups([group]);
+          askToCloseGroups([group]);
         }
       },
       forward: () => {
@@ -1559,7 +1606,7 @@ function WindowShell({
         const layout = windowTabs.layoutOf(group);
         const first = layout.sides[layout.focused]?.tabs[0];
         if (layout.sides.length === 2 && first) {
-          closeSideOf(first.id);
+          askToCloseSide(first.id);
         }
       },
       receiveGroupTab: groupTabMoves.receive,
@@ -1687,11 +1734,9 @@ function WindowShell({
         !discardingIds.has(draft.id),
     ),
     closeGroup: (group) => {
-      closeGroups([group]);
+      askToCloseGroups([group]);
     },
-    closeSide: (tab) => {
-      closeSideOf(tab);
-    },
+    closeSide: askToCloseSide,
     goToPlace: choosePlace,
     newGroup: () => {
       groups.make();
@@ -1712,7 +1757,7 @@ function WindowShell({
     },
     reopenClosed,
     reopenTab,
-    requestClose,
+    requestClose: askToCloseTab,
     rowWidth,
     layoutContext: (tabId) => layoutContextRef.current(tabId),
     sendContext: (options) => sendContextRef.current(options),
@@ -1758,11 +1803,9 @@ function WindowShell({
                     chatTitles={chatTitles}
                     groupUp={groupUp}
                     onClose={(group) => {
-                      closeGroups([group]);
+                      askToCloseGroups([group]);
                     }}
-                    onCloseAll={(closed, keep) => {
-                      closeGroups(closed, keep);
-                    }}
+                    onCloseAll={askToCloseGroups}
                     onDuplicate={(entry) => {
                       groups.duplicate(entry);
                     }}
@@ -1897,6 +1940,7 @@ function WindowShell({
           </WindowFrame>
           {/* What a tab's Expand asks to see large, over the window. */}
           <WindowLook />
+          {stopping.dialog}
         </PageOpenContext>
       </FileOpenContext>
     </WindowContext>

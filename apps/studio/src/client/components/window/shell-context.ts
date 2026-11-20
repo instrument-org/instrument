@@ -25,9 +25,9 @@ export interface WindowShell {
   chatTitles: Map<ChatId, string>;
   /** Each task's title, for a tab standing on one. */
   childTitles: Map<StoreId.Session, string>;
-  /** Closes a tab group, asking first while its agent works. */
+  /** Closes a tab group, asking first when that stops a chat in it. */
   closeGroup: (group: string) => void;
-  /** Closes the whole side a tab stands on, onto the closed list as one entry. */
+  /** Closes the whole side a tab stands on, onto the closed list as one entry, asking first when that stops a chat on it. */
   closeSide: (tab: string) => void;
   /** The model a new chat starts on, and setting it. */
   defaultModelURI: AIGatewayModelURI.Type | undefined;
@@ -62,7 +62,7 @@ export interface WindowShell {
   reopenClosed: (id: TabId) => void;
   /** What was closed last back, as Shift+Cmd+T does, a window closed since included. */
   reopenTab: () => void;
-  /** Closes one of a chat's tabs, asking first while a task is working in it. */
+  /** Closes a tab, asking first when that stops its chat. */
   requestClose: (id: string) => void;
   /** The width of the card the tabs are drawn in, in layout px. */
   rowWidth: number;

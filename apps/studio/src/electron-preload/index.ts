@@ -24,6 +24,10 @@ import {
   type DraftTrashRequest,
 } from "@/shared/drafts";
 import { LEAVING_CHANNEL } from "@/shared/leaving";
+import {
+  WINDOW_CLOSE_CHANNEL,
+  type WindowCloseAnswer,
+} from "@/shared/window-close";
 import { type SetupState } from "@/shared/setup";
 import { electronAPI } from "@electron-toolkit/preload";
 import { contextBridge, ipcRenderer, webUtils } from "electron";
@@ -193,6 +197,35 @@ function loadBookmarks(): BookmarksSnapshot {
 const keptInitial = loadKeptState();
 const keptChanges = keptChangeFeed(ipcRenderer);
 
+/**
+ * What the window answers main with before a close the person asked for
+ * (`shared/window-close.ts`): `close` at once while nothing here asks,
+ * which is also a page that has not handed in its question yet, and on a
+ * question that fails, so a close never waits on an error.
+ */
+let askBeforeClosing: (() => boolean | Promise<boolean>) | undefined;
+ipcRenderer.on(WINDOW_CLOSE_CHANNEL.ask, (_event, token: unknown) => {
+  const answer = (said: WindowCloseAnswer) => {
+    ipcRenderer.send(WINDOW_CLOSE_CHANNEL.answer, token, said);
+  };
+  let asked: boolean | Promise<boolean>;
+  try {
+    asked = askBeforeClosing?.() ?? true;
+  } catch {
+    asked = true;
+  }
+  if (typeof asked === "boolean") {
+    answer(asked ? "close" : "stay");
+    return;
+  }
+  answer("asking");
+  void asked
+    .catch(() => true)
+    .then((isClosing) => {
+      answer(isClosing ? "close" : "stay");
+    });
+});
+
 const api: Window["api"] = {
   bookmarks: {
     apply: async (batch: BookmarkOpBatch) => {
@@ -283,6 +316,14 @@ const api: Window["api"] = {
           ipcRenderer.send(LEAVING_CHANNEL.done, token);
         });
     });
+  },
+  onCloseAsked: (ask) => {
+    askBeforeClosing = ask;
+    return () => {
+      if (askBeforeClosing === ask) {
+        askBeforeClosing = undefined;
+      }
+    };
   },
   // One-way bridge for forwarding renderer errors to the main-process dev log.
   // The main side only listens in development, so this is a no-op in production.

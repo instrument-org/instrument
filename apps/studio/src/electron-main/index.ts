@@ -46,6 +46,7 @@ import {
 } from "@/electron-main/stores/machine/state";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
+  hasOpenedAppWindow,
   openAppFile,
   openAppWindow,
   openNewAppWindow,
@@ -539,9 +540,11 @@ function focusForegroundWindow() {
     return;
   }
 
-  // A second launch can land here while the first instance is still booting,
-  // before windows may be created; that boot opens its own window anyway.
-  if (!app.isReady()) {
+  // A second launch or a launch's own link can land here while boot is still
+  // on its way to restoring the windows, ready or not; that boot opens them
+  // itself and puts up what was asked. A window opened now would be one more
+  // than boot restores, and up before the RPC handshake is listened for.
+  if (!hasOpenedAppWindow()) {
     return;
   }
   ensureForegroundWindowVisible();

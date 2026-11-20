@@ -104,6 +104,11 @@ let inFront: BrowserWindow[] = [];
  */
 let hasOpened = false;
 
+/** Whether boot has opened a window yet (`hasOpened`). */
+export function hasOpenedAppWindow() {
+  return hasOpened;
+}
+
 /** The windows whose every tab went to another window, which leave nothing to come back to. */
 const emptied = new Set<BrowserWindow>();
 

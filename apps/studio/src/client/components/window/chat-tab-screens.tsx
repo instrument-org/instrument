@@ -15,8 +15,6 @@ import { ChatHeader } from "./chat-header";
 import { useListedChat } from "./chat-tab-menu";
 import { useWindow } from "./context";
 import { ChatScreen } from "./chat-screen";
-import { ChatListToggle, WithChatList } from "./chats-page";
-import { useChatsPlaceAround } from "./chats-place";
 import { HeldMark } from "./context-chip";
 import { layoutReadOf } from "./group-awareness";
 import { useGroupTab } from "./group-tab";
@@ -39,40 +37,36 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
   const hasKeyboard = groupTab?.hasKeyboard ?? true;
   const awareTabs = useAwareTabs(tabId);
   return (
-    <WithChatList openChatId={chatId}>
-      <div className="absolute inset-0 flex flex-col">
-        <ChatTabHead chatId={chatId} />
-        <div className="relative min-h-0 flex-1">
-          <ChatScreen
-            chatId={chatId}
-            composerOffer={awarenessOf(awareTabs)}
-            isUp={isActive && hasKeyboard}
-            key={chatId}
-            {...(tabId === undefined
-              ? {}
-              : { layoutContext: () => shell.layoutContext(tabId) })}
-            onGone={() => {
-              groupTab?.close();
-            }}
-            sendContext={() =>
-              shell.sendContext({
-                chatId,
-                ...(tabId === undefined ? {} : { tabId }),
-              })
-            }
-            sentPrompt={shell.sentWords.get(chatId)}
-            takesCaret={isActive && hasKeyboard}
-          />
-        </div>
+    <div className="absolute inset-0 flex flex-col">
+      <ChatTabHead chatId={chatId} />
+      <div className="relative min-h-0 flex-1">
+        <ChatScreen
+          chatId={chatId}
+          composerOffer={awarenessOf(awareTabs)}
+          isUp={isActive && hasKeyboard}
+          key={chatId}
+          {...(tabId === undefined
+            ? {}
+            : { layoutContext: () => shell.layoutContext(tabId) })}
+          onGone={() => {
+            groupTab?.close();
+          }}
+          sendContext={() =>
+            shell.sendContext({
+              chatId,
+              ...(tabId === undefined ? {} : { tabId }),
+            })
+          }
+          sentPrompt={shell.sentWords.get(chatId)}
+          takesCaret={isActive && hasKeyboard}
+        />
       </div>
-    </WithChatList>
+    </div>
   );
 }
 
 /**
- * The head over a chat in its tab: the toggle for the chat list (none in
- * the Chats place, whose list stays), its title,
- * which renames it, and the
+ * The head over a chat in its tab: its title, which renames it, and the
  * caret that opens its menu at the left; at the right, the folders the
  * chat saved files in, each opened beside the chat as a click in the chat
  * opens a folder.
@@ -85,7 +79,6 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
   const chat = useListedChat(chatId);
   const writtenFolders = useChatWrittenFolders(chatId);
   const tabId = groupTab?.id;
-  const isPlace = useChatsPlaceAround() !== null;
   const beside = tabId === undefined ? undefined : windowTabs.besideOf(tabId);
   const shownFolder = writtenFolders.find(
     (folder) => beside?.kind === "screen" && beside.href === folderHref(folder),
@@ -93,7 +86,6 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
   return (
     <ChatHeader
       chat={chat}
-      {...(isPlace ? { leading: <ChatListToggle /> } : {})}
       onArchived={() => {
         groupTab?.close();
       }}
@@ -253,34 +245,25 @@ function summaryOf(tabs: readonly LayoutTab[]): string {
 
 /**
  * A new chat in a tab of a group, as its route draws it: the zero state,
- * writing into the draft its address names once it has words. The Chats
- * page is this with the chat list open beside it (`opensList`).
+ * writing into the draft its address names once it has words.
  */
-export function GroupNewChatScreen({
-  draftId,
-  opensList = false,
-}: {
-  draftId?: string;
-  opensList?: boolean;
-}) {
+export function GroupNewChatScreen({ draftId }: { draftId?: string }) {
   const groupTab = useGroupTab();
   const isActive = useIsActiveTab();
   const tabId = groupTab?.id ?? "";
   const group = groupTab?.group;
   const hasKeyboard = groupTab?.hasKeyboard ?? true;
   return (
-    <WithChatList openChatId={undefined} opensList={opensList}>
-      <div className="absolute inset-0 flex flex-col">
-        <NewChatView
-          draftId={draftId}
-          ensureGroup={() => group ?? ""}
-          isCentered
-          isPaneShown={false}
-          onOpenBeside={() => undefined}
-          tabId={tabId}
-          takesCaret={isActive && hasKeyboard}
-        />
-      </div>
-    </WithChatList>
+    <div className="absolute inset-0 flex flex-col">
+      <NewChatView
+        draftId={draftId}
+        ensureGroup={() => group ?? ""}
+        isCentered
+        isPaneShown={false}
+        onOpenBeside={() => undefined}
+        tabId={tabId}
+        takesCaret={isActive && hasKeyboard}
+      />
+    </div>
   );
 }

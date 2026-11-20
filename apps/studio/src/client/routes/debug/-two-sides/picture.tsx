@@ -457,7 +457,6 @@ export function SidebarPicture({
       onCloseAll={noop}
       onDuplicate={noop}
       onNew={noop}
-      onNewChatProject={noop}
       onNewProject={noop}
       onPin={noop}
       onReopenLast={noop}

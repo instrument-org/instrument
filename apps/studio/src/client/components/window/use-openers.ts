@@ -10,7 +10,6 @@ import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { CHATS_PLACE_GROUP } from "@/shared/kept-state";
 import {
   type ChatId,
   browserTargetOf,
@@ -168,8 +167,7 @@ export function useOpeners({
    * the person last sent from (`chatTab`), in that tab's group. Beside it
    * where that tab's page type opens beside it (`opensBeside`), otherwise
    * right after it. Undefined for a chat with no tab, which opens where
-   * anything else would. The Chats place's tab is no place to open beside:
-   * its group holds that one tab.
+   * anything else would.
    */
   const placeOf = (
     options: OpenOptions,
@@ -179,9 +177,7 @@ export function useOpeners({
     }
     const asking = windowTabs.allTabs.find((tab) => tab.id === options.from);
     const tab =
-      asking?.group === undefined || asking.group === CHATS_PLACE_GROUP
-        ? windowTabs.chatTab(options.chat)
-        : asking;
+      asking?.group === undefined ? windowTabs.chatTab(options.chat) : asking;
     return tab?.group === undefined
       ? undefined
       : { after: tab.id, group: tab.group, isBeside: opensBeside(tab) };
@@ -224,7 +220,7 @@ export function useOpeners({
     }
     const tab = windowTabs.allTabs.find((each) => each.id === from) ?? active;
     const group = tab?.group ?? windowTabs.groupOnScreen;
-    if (group === undefined || group === CHATS_PLACE_GROUP) {
+    if (group === undefined) {
       newGroup((made) => {
         put({ group: made });
       });

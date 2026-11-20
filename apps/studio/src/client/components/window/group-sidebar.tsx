@@ -58,7 +58,6 @@ import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
 import { sidebarTopInset } from "./inbox-toggle";
 import { type Project } from "./chats";
-import { ActiveChatsList } from "./active-chats-list";
 import { NotificationsBell } from "./notifications-bell";
 import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
@@ -141,7 +140,6 @@ export function GroupSidebar({
   onCloseAll,
   onDuplicate,
   onNew,
-  onNewChatProject,
   onNewProject,
   onPin,
   onReopenLast,
@@ -158,8 +156,6 @@ export function GroupSidebar({
   /** A copy of a group just below it, up in the window. */
   onDuplicate: (entry: TabGroup) => void;
   onNew: (projectId?: string) => void;
-  /** Opens the new-project dialog for a chat, from its row in the Chats list. */
-  onNewChatProject: (chat: ChatId, name?: string) => void;
   onNewProject: () => void;
   /** Pins a group above the line, or takes it back down. */
   onPin: (group: string, pinned: boolean) => void;
@@ -434,13 +430,8 @@ export function GroupSidebar({
             {room?.gap === 0 && <ListDropLine top={room.top} />}
           </GroupList>
         </div>
-        {/* The foot, the Chats list over the account, set off from the
-            groups by its one line. */}
+        {/* The foot, the account, set off from the groups by its one line. */}
         <div className="flex shrink-0 flex-col border-t border-border/60">
-          <ActiveChatsList
-            onNewProject={onNewChatProject}
-            projects={projects}
-          />
           <SidebarFoot
             chatId={groupUp === undefined ? undefined : chatUpIn(groupUp)}
           />

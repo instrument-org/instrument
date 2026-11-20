@@ -1812,9 +1812,6 @@ function WindowShell({
                     onNew={(projectId) => {
                       groups.make(projectId === undefined ? {} : { projectId });
                     }}
-                    onNewChatProject={(chatId, name) => {
-                      setNewProject({ chatId, ...(name ? { name } : {}) });
-                    }}
                     onNewProject={() => {
                       setNewProject({});
                     }}

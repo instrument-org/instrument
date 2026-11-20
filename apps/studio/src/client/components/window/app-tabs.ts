@@ -22,11 +22,7 @@ import {
   selectTab,
   setTabPathname,
 } from "@/client/lib/tabs-model";
-import {
-  APP_TABS_KEY,
-  CHATS_PLACE_GROUP,
-  SITE_GROUP_PREFIX,
-} from "@/shared/kept-state";
+import { APP_TABS_KEY, SITE_GROUP_PREFIX } from "@/shared/kept-state";
 import { asksMoreThan } from "@/shared/tab-identity";
 import { type Tab, type TabsModel, TabsModelSchema } from "@/shared/tabs";
 import { rpcClient } from "@/client/rpc/client";
@@ -104,15 +100,13 @@ export const appTabsAtom = tabsAtomOf(APP_TABS_KEY, INBOX_HREF);
  * The tab group an app tab's address stands on: the group it names, or a
  * site's for a site opened at the window's own level, and none for
  * everything else. A chat's or a draft's address names no group: it asks
- * for the group with that chat or draft in it (`useTabGroupUpkeep`). The
- * Chats place stands on none either, so no group is up while it is, and
- * nothing the window opens lands in it.
+ * for the group with that chat or draft in it (`useTabGroupUpkeep`).
  */
 export function groupOfHref(href: string): string | undefined {
   const screen = matchScreen(href);
   switch (screen.kind) {
     case "group": {
-      return screen.group === CHATS_PLACE_GROUP ? undefined : screen.group;
+      return screen.group;
     }
     case "site": {
       return siteGroupOf(screen.id);

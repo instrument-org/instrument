@@ -47,7 +47,6 @@ export function ChatHeader({
   chat,
   className,
   fallbackTitle = "Chat",
-  leading,
   onArchived,
   onDeleted,
   onNewProject,
@@ -60,8 +59,6 @@ export function ChatHeader({
   className?: string;
   /** The title while there is no chat yet: the words just sent, once there are any. */
   fallbackTitle?: string;
-  /** What sits ahead of the title: the toggle that puts the inbox away. */
-  leading?: ReactNode;
   /** After the chat is archived from its menu, so the window can put it away. */
   onArchived?: () => void;
   /** Told once the chat has been deleted, so the window can put it away. */
@@ -89,14 +86,13 @@ export function ChatHeader({
         className={cn(
           "group/head @container/head flex h-10 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background",
           top ? "pr-1.5" : "pr-3",
-          top?.lead ? "pl-0" : leading ? "pl-3" : "pl-4",
+          top?.lead ? "pl-0" : "pl-4",
           top && PANE_TOP_ROW,
           className,
         )}
       >
         {top?.lead}
         <div className="flex h-8 min-w-0 flex-1 items-center gap-x-1">
-          {leading}
           {chat ? (
             <ChatHeading
               chat={chat}

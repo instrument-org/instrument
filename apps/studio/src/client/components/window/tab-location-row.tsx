@@ -187,7 +187,7 @@ export function TabLocationRow({
       // A container, so what a screen or a page draws into the row can give
       // up its words for its mark when the row is narrow.
       className={cn(
-        "@container/tabrow flex h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5",
+        "@container/tabrow flex h-10 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5",
         top && PANE_TOP_ROW,
         className,
       )}

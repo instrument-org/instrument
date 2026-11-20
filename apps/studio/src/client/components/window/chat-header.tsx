@@ -87,7 +87,7 @@ export function ChatHeader({
       )}
       <div
         className={cn(
-          "group/head @container/head flex h-12 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background",
+          "group/head @container/head flex h-10 w-full min-w-0 shrink-0 items-center gap-x-2 bg-background",
           top ? "pr-1.5" : "pr-3",
           top?.lead ? "pl-0" : leading ? "pl-3" : "pl-4",
           top && PANE_TOP_ROW,

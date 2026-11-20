@@ -97,7 +97,7 @@ export function FilterHead({
   const titleRow = title !== undefined && (
     // As tall as the chat head across the divider, and the window moves by it.
     <div
-      className={cn("flex h-12 shrink-0 items-center gap-1 px-2", PANE_TOP_ROW)}
+      className={cn("flex h-10 shrink-0 items-center gap-1 px-2", PANE_TOP_ROW)}
     >
       {title}
       <span className="flex-1" />
@@ -171,11 +171,11 @@ export function FilterHead({
     return (
       <>
         {titleRow}
-        {/* Its controls center 24px down, on the line of the chat head's
-        48px row across the divider. */}
+        {/* Its controls center 20px down, on the line of the chat head's
+        40px row across the divider. */}
         <div
           aria-label="Filters"
-          className="flex h-13 shrink-0 items-center gap-1.5 px-2 pb-1"
+          className="flex h-11 shrink-0 items-center gap-1.5 px-2 pb-1"
           role="group"
         >
           {!isFieldShown && (
@@ -216,11 +216,11 @@ export function FilterHead({
   return (
     <>
       {titleRow}
-      {/* The search row centers 24px down, on the line of the chat head's
-      48px row across the divider. */}
+      {/* The search row centers 20px down, on the line of the chat head's
+      40px row across the divider. */}
       <div
         aria-label="Filters"
-        className="flex shrink-0 flex-col gap-1.5 px-2 pt-1.5 pb-2.5"
+        className="flex shrink-0 flex-col gap-1.5 px-2 pt-0.5 pb-2.5"
         role="group"
       >
         <div className="flex items-center gap-1.5">

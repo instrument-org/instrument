@@ -139,6 +139,7 @@ import {
   sideIndexOf,
   upsAmong,
 } from "./tab-model";
+import { setBuiltInPageGroupOpener } from "./built-in-pages";
 import {
   sidebarRowOrderAtom,
   tabAtChord,
@@ -1340,6 +1341,25 @@ function WindowShell({
       flashStripTabOnceDrawn(stripKeyOf(tab));
     }
   };
+  // A built-in page asked for from anywhere (Settings, History, the
+  // sidebar's pages) is a group of its own, as New Tab Group makes one: the
+  // tab of a group already showing it comes up there, and a group that is
+  // only a blank new tab takes it in place.
+  const openBuiltInApart = useEffectEvent((href: string) => {
+    const up = windowTabs.active;
+    if (up && windowTabs.tabs.length === 1 && isBlankNewTab(up)) {
+      openScreen(href, { newTab: "reuseBlank" });
+      return;
+    }
+    lightTab(groups.showOrMake(href));
+  });
+  useLayoutEffect(
+    () =>
+      setBuiltInPageGroupOpener((href) => {
+        openBuiltInApart(href);
+      }),
+    [],
+  );
   /**
    * Brings up the tab already writing a draft, lit, in this window or in
    * another that comes forward, so one draft is never in two composers; with

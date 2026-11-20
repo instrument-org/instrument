@@ -268,7 +268,6 @@ export function GroupNewChatScreen({
   const tabId = groupTab?.id ?? "";
   const group = groupTab?.group;
   const hasKeyboard = groupTab?.hasKeyboard ?? true;
-  const awareTabs = useAwareTabs(groupTab?.id);
   return (
     <WithChatList openChatId={undefined} opensList={opensList}>
       <div className="absolute inset-0 flex flex-col">
@@ -277,7 +276,6 @@ export function GroupNewChatScreen({
           ensureGroup={() => group ?? ""}
           isCentered
           isPaneShown={false}
-          besidePlus={awarenessOf(awareTabs)}
           onOpenBeside={() => undefined}
           tabId={tabId}
           takesCaret={isActive && hasKeyboard}

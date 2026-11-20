@@ -78,8 +78,8 @@ import { arrivingNewChatTabsAtom, useWindowTabs } from "./window-tabs";
  * once as a new tab opens on it. In the column
  * beside the group's tabs, the composer is at the foot. The draft its first words make is named in the tab's address, so a
  * draft opened from the Chats page's Drafts comes up here. What it carries besides its words
- * is what a chat's composer carries: its group's tabs, marked in `besidePlus`,
- * and what the person attached. Its title and menu are the chat's tab's.
+ * is what a chat's composer carries: its group's tabs and what the person
+ * attached. Its title and menu are the chat's tab's.
  *
  * Its draft is its tab's, kept however empty it gets while the tab is open;
  * closing the tab, or its group, throws away one emptied of everything.
@@ -88,7 +88,6 @@ export function NewChatView({
   draftId,
   ensureGroup,
   isCentered,
-  besidePlus,
   isPaneShown,
   onOpenBeside,
   tabId,
@@ -102,8 +101,6 @@ export function NewChatView({
   isCentered: boolean;
   /** Whether the side panel shows the draft's tab up, where its tabs stand as a strip rather than as chips. */
   isPaneShown: boolean;
-  /** Drawn beside the composer's plus, as a chat's has it: what goes with a message besides its words. */
-  besidePlus?: ReactNode;
   /** Brings the side panel up for something just opened into it. */
   onOpenBeside: (group: string) => void;
   tabId: string;
@@ -416,7 +413,6 @@ export function NewChatView({
           besidePlus={
             <>
               {projectButton}
-              {besidePlus}
               {address && (
                 <span className="text-xs whitespace-nowrap text-muted-foreground">
                   {commandEnter} sends to chat

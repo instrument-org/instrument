@@ -31,9 +31,15 @@ import {
 import { type Draft } from "@/shared/drafts";
 import { cn, osConventions } from "@/client/lib/utils";
 import { addressInMessage } from "@/client/lib/address-in-message";
+import {
+  locateTypedPath,
+  missedPathNotice,
+  typedPathHere,
+} from "@/client/lib/locate-typed-path";
+import { type TypedPath } from "@/client/lib/typed-path";
+import { toast } from "@/client/lib/toast";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
-import { Kbd } from "@/client/components/ui/kbd";
 import { APP_NAME } from "@instrument-org/shared";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
@@ -54,9 +60,15 @@ import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
 import { includedItemsOf } from "./draft-context";
 import { useShell } from "./shell-context";
-import { AddressMark } from "./app-chip";
 import { useAppsBySlug } from "./apps-by-slug";
 import { useGroupTab } from "./group-tab";
+import { useKnownPages } from "./known-pages";
+import { NewTabCompletionList } from "./new-tab-completion-list";
+import {
+  type BoxCompletion,
+  boxCompletions,
+  offersToOpen,
+} from "./new-tab-completions";
 import { screenPresentation, type ScreenNames } from "./screen-presentation";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
@@ -263,30 +275,49 @@ export function NewChatView({
     });
     onOpenBeside(opened);
   };
-  // A message that is one address offers to go there: Enter goes in this
-  // tab, where Back comes back to these words, and the command key with
-  // Enter (or Send) sends it to the chat as it is. An address of the app's
-  // own goes by the name of what it opens.
+  // A box of one line with no space in it offers what it would open, as the
+  // command menu does: the words themselves, when they are an address or a
+  // place on the computer, then the pages they find. Return opens the one
+  // picked, in this tab, where Back comes back to these words; with none
+  // picked, or once Shift-Return has put the offer away, it sends the words.
+  // The command key with Return (or Send) always sends them.
   const groupTab = useGroupTab();
   const appsBySlug = useAppsBySlug();
   const { keyJoiner, modifierKeys } = osConventions();
   const commandEnter = [modifierKeys.command, "↵"].join(keyJoiner);
   const [words, setWords] = useState("");
-  const address = groupTab ? addressInMessage(words) : undefined;
-  const goTo = address && {
-    address: address.kind === "page" ? address.url : address.address,
-    shown:
-      address.kind === "page"
-        ? address.shown
-        : appAddressName(address.address, {
-            appsBySlug,
-            chatTitles: shell.chatTitles,
-          }),
+  const [isOfferPutAway, setOfferPutAway] = useState(false);
+  if (isOfferPutAway && words === "") {
+    setOfferPutAway(false);
+  }
+  const typedPath = groupTab ? typedPathHere(words) : undefined;
+  const offers =
+    groupTab !== undefined && !isOfferPutAway && offersToOpen(words, typedPath);
+  const known = useKnownPages({ enabled: groupTab !== undefined });
+  const completions = offers
+    ? boxCompletions({
+        address: typedPath ? undefined : addressInMessage(words),
+        bookmarkPages: known.bookmarkPages,
+        path: typedPath,
+        recentPages: known.recentPages,
+        words,
+      })
+    : { picked: -1, rows: [] };
+  const [pickedFor, setPickedFor] = useState<{
+    index: number;
+    words: string;
+  }>();
+  const picked =
+    pickedFor?.words === words && pickedFor.index < completions.rows.length
+      ? pickedFor.index
+      : completions.picked;
+  const pick = (index: number) => {
+    setPickedFor({ index, words });
   };
   // In this tab whatever it opens, a chat included, as sending turns a new
   // tab into its chat in place.
-  const goToAddress = () => {
-    const target = goTo && targetOfAddress(goTo.address);
+  const openAddress = (address: string) => {
+    const target = targetOfAddress(address);
     if (!target) {
       return;
     }
@@ -296,6 +327,31 @@ export function NewChatView({
       windowTabs.visitHref(tabId, hrefOfTarget(target));
     }
   };
+  const openPath = async (path: TypedPath) => {
+    const located = await locateTypedPath(path);
+    if (located.kind === "failed" || located.kind === "missing") {
+      toast.error(missedPathNotice(located));
+      return;
+    }
+    windowTabs.visitHref(
+      tabId,
+      located.kind === "file"
+        ? fileHref(located.path)
+        : folderHref(located.path),
+    );
+  };
+  const openCompletion = (row: BoxCompletion) => {
+    if (row.kind === "path") {
+      void openPath(row.path);
+    } else if (row.kind === "page") {
+      openAddress(row.page.url);
+    } else {
+      openAddress(
+        row.address.kind === "page" ? row.address.url : row.address.address,
+      );
+    }
+  };
+  const isOffering = completions.rows.length > 0;
   // Ideas for a new chat, from what else its group has open and what the
   // person did lately, as next-message rows under the centered box.
   const ideasOn = useIdeasAvailable() && isCentered;
@@ -388,17 +444,36 @@ export function NewChatView({
             return;
           }
           if (
-            address &&
-            event.key === "Enter" &&
-            !event.shiftKey &&
-            !event.altKey &&
-            !event.metaKey &&
-            !event.ctrlKey &&
-            !event.nativeEvent.isComposing
+            !isOffering ||
+            event.altKey ||
+            event.metaKey ||
+            event.ctrlKey ||
+            event.nativeEvent.isComposing
           ) {
+            return;
+          }
+          if (event.key === "Enter" && event.shiftKey) {
             event.preventDefault();
             event.stopPropagation();
-            goToAddress();
+            setOfferPutAway(true);
+            return;
+          }
+          if (event.shiftKey) {
+            return;
+          }
+          const row = completions.rows[picked];
+          if (event.key === "Enter" && row) {
+            event.preventDefault();
+            event.stopPropagation();
+            openCompletion(row);
+          } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            event.stopPropagation();
+            pick(
+              event.key === "ArrowDown"
+                ? Math.min(picked + 1, completions.rows.length - 1)
+                : Math.max(picked - 1, -1),
+            );
           }
         }}
       >
@@ -413,7 +488,7 @@ export function NewChatView({
           besidePlus={
             <>
               {projectButton}
-              {address && (
+              {picked >= 0 && (
                 <span className="text-xs whitespace-nowrap text-muted-foreground">
                   {commandEnter} sends to chat
                 </span>
@@ -480,26 +555,27 @@ export function NewChatView({
         />
         {/* Under the box without moving it, so the box stays where it was
             as the row comes and goes; over it for a box at the foot. */}
-        {goTo && (
-          <button
+        {isOffering && (
+          <NewTabCompletionList
             className={cn(
-              "absolute inset-x-3 flex h-10 items-center gap-2.5 rounded-xl bg-card px-3 text-left text-sm shadow-xs ring-1 ring-foreground/6 hover:bg-accent",
+              "absolute inset-x-3",
               isCentered ? "top-full mt-2" : "bottom-full mb-2",
             )}
-            data-address-go=""
-            onClick={goToAddress}
-            type="button"
-          >
-            <span className="grid size-4 shrink-0 place-items-center">
-              <AddressMark address={goTo.address} className="size-4" />
-            </span>
-            <span className="min-w-0 flex-1 truncate">
-              Go to <span className="font-medium">{goTo.shown}</span>
-            </span>
-            <Kbd>↵</Kbd>
-          </button>
+            nameOfAddress={(row) =>
+              row.address.kind === "page"
+                ? row.address.shown
+                : appAddressName(row.address.address, {
+                    appsBySlug,
+                    chatTitles: shell.chatTitles,
+                  })
+            }
+            onOpen={openCompletion}
+            onPick={pick}
+            picked={picked}
+            rows={completions.rows}
+          />
         )}
-        {!goTo && ideasOn && (
+        {!isOffering && ideasOn && (
           <IdeaRows
             className="absolute inset-x-6 top-full mt-3"
             isBoxEmpty={words.trim() === ""}

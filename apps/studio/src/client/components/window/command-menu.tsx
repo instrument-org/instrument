@@ -8,9 +8,7 @@ import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal"
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
 import { targetOfAddress } from "@/client/bookmarks/address";
-import { bookmarksAtom } from "@/client/bookmarks/store";
 import { PageFavicon } from "@/client/components/favicon";
-import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import {
   FileSystemFolderGlyph,
@@ -44,6 +42,10 @@ import {
 } from "@/client/components/window/chats";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { useShell } from "@/client/components/window/shell-context";
+import {
+  matchKnownPages,
+  useKnownPages,
+} from "@/client/components/window/known-pages";
 import { ProjectMark } from "@/client/components/window/project-mark";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
 import { useModalBack } from "@/client/hooks/use-modal-back";
@@ -53,7 +55,6 @@ import {
   toggleDeveloperStrip,
 } from "@/client/atoms/developer-strip";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { joinFuzzyFields } from "@/client/lib/join-fuzzy-fields";
 import {
   locateTypedPath,
   type MissedPath,
@@ -87,7 +88,7 @@ import {
   WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUTS,
 } from "@/shared/window-shortcuts";
-import { boundedFuzzy } from "@/client/lib/bounded-fuzzy";
+import { fuzzyMatch } from "@/client/lib/fuzzy-match";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowsInIcon } from "@phosphor-icons/react/ArrowsIn";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
@@ -115,7 +116,6 @@ import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
-import { unique } from "radashi";
 import {
   type KeyboardEvent,
   type MouseEvent,
@@ -131,8 +131,6 @@ import {
 import { displayHostPath, folderNameFromPath } from "@instrument-org/shared";
 import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { toast } from "@/client/lib/toast";
-
-const fuzzy = boundedFuzzy({ intraMode: 1 });
 
 /**
  * Rows per kind past which a search stops listing, the same three the
@@ -247,10 +245,11 @@ export function useCommandMenuRows({
     rpcClient.apps.live.list.experimental_liveOptions(),
   );
   // Read only while the menu is up, which is mounted in every window.
-  const visited = useRecentPages({ enabled: active });
+  const { bookmarkPages, recentPages, visited } = useKnownPages({
+    enabled: active,
+  });
   // Described only while the menu is up: each file is looked at on the disk.
   const recentFiles = useRecentFiles({ enabled: active }).files;
-  const bookmarks = useAtomValue(bookmarksAtom);
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
 
   const preferences = useQuery(
@@ -532,25 +531,6 @@ export function useCommandMenuRows({
       ]
     : [];
 
-  const bookmarkPages = unique(
-    bookmarks.map((bookmark) => ({
-      favicon: undefined,
-      title: bookmark.title,
-      url: bookmark.url,
-    })),
-    (page) => page.url,
-  );
-  const bookmarked = new Set(bookmarkPages.map((page) => page.url));
-  const recentPages = unique(
-    visited
-      .filter((page) => !bookmarked.has(page.url))
-      .map((page) => ({
-        favicon: page.favicon,
-        title: page.title,
-        url: page.url,
-      })),
-    (page) => page.url,
-  );
   const pages = [...bookmarkPages, ...recentPages];
 
   // The folders the Files sidebar lists, in its order: the Instrument
@@ -925,11 +905,7 @@ export function useCommandMenuRows({
   function pageItems(
     list: { favicon: string | undefined; title: string; url: string }[],
   ): Item[] {
-    return fuzzyMatch(
-      list,
-      (page) => [page.title || bareAddress(page.url), page.url],
-      words,
-    )
+    return matchKnownPages(list, words)
       .slice(0, PER_KIND_SHOWN)
       .map(({ item: page, ranges }) => pageItem(page, ranges));
   }
@@ -1504,38 +1480,4 @@ function nameMatch<T>(
   return [...found]
     .toSorted(([, a], [, b]) => b.count - a.count)
     .map(([item, { ranges }]) => ({ item, ranges }));
-}
-
-/**
- * The items the words fuzzily match, best first, each with the highlight
- * ranges of its first field, which is the one a row shows. The other fields
- * are searched too, so an address finds a page shown by its title.
- */
-function fuzzyMatch<T>(
-  items: T[],
-  fieldsOf: (item: T) => string[],
-  words: string,
-): { item: T; ranges: null | number[] }[] {
-  if (items.length === 0) {
-    return [];
-  }
-  const joined = items.map((item) => joinFuzzyFields(fieldsOf(item)));
-  const haystack = joined.map((entry) => entry.haystack);
-  // oxlint-disable-next-line unicorn/no-array-method-this-argument
-  const indexes = fuzzy.filter(haystack, words);
-  if (!indexes || indexes.length === 0) {
-    return [];
-  }
-  const info = fuzzy.info(indexes, haystack, words);
-  const order = fuzzy.sort(info, haystack, words);
-  return order.flatMap((orderIndex) => {
-    const index = info.idx[orderIndex] ?? -1;
-    const item = items[index];
-    const fields = joined[index];
-    if (item === undefined || !fields) {
-      return [];
-    }
-    const [ranges] = fields.splitRanges(info.ranges[orderIndex] ?? null);
-    return [{ item, ranges: ranges ?? null }];
-  });
 }

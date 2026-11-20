@@ -44,8 +44,8 @@ describe("resolveImageParameters", () => {
       providerType: INSTRUMENT,
     },
     {
-      note: "gemini-via-openrouter has no quality",
-      parameters: { quality: "high" },
+      note: "Flare on OpenRouter does not accept Gemini’s 8:1 ratio",
+      parameters: { aspectRatio: "8:1" },
       providerType: "openrouter",
     },
     {

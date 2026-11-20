@@ -1,4 +1,4 @@
-import { type ImageModelV4, type LanguageModelV4 } from "@ai-sdk/provider";
+import { type ImageModelV4 } from "@ai-sdk/provider";
 import { OUR_MODELS, type WorkspaceServerURL } from "@instrument-org/shared";
 import { Result } from "typescript-result";
 
@@ -45,11 +45,10 @@ const OWN_PROVIDER_TYPE_PRIORITY: ImageGenerationProviderType[] = [
 ];
 
 const GEMINI_IMAGE_MODEL_ID = "gemini-3.1-flash-lite-image";
-const OPENROUTER_GEMINI_IMAGE_MODEL_ID = `google/${GEMINI_IMAGE_MODEL_ID}`;
+const FLARE_IMAGE_MODEL_ID = "gpt-image-2.5-flare";
+const QUALIFIED_FLARE_IMAGE_MODEL_ID = `openai/${FLARE_IMAGE_MODEL_ID}`;
 
-export type AISDKImageModelResult =
-  | { model: ImageModelV4; type: "image" }
-  | { model: LanguageModelV4; type: "language" };
+export type AISDKImageModelResult = { model: ImageModelV4; type: "image" };
 
 type ImageProviderConfig = AIGatewayProviderConfig.Type & {
   type: ImageGenerationProviderType;
@@ -174,12 +173,12 @@ async function getAISDKImageModel({
     }
     case "openai": {
       const sdk = await createOpenAISDK(config, workspaceServerURL);
-      const model = sdk.image("gpt-image-2.5-flare");
+      const model = sdk.image(FLARE_IMAGE_MODEL_ID);
       return Result.ok({ model, type: "image" as const });
     }
     case "openrouter": {
       const sdk = await createOpenRouterSDK(config, workspaceServerURL);
-      const model = sdk.imageModel(OPENROUTER_GEMINI_IMAGE_MODEL_ID);
+      const model = sdk.imageModel(QUALIFIED_FLARE_IMAGE_MODEL_ID);
       return Result.ok({ model, type: "image" as const });
     }
     case OUR_MODELS.providerType: {
@@ -194,8 +193,8 @@ async function getAISDKImageModel({
     }
     case "vercel": {
       const sdk = createVercelSDK(config, workspaceServerURL);
-      const model = sdk(OPENROUTER_GEMINI_IMAGE_MODEL_ID);
-      return Result.ok({ model, type: "language" as const });
+      const model = sdk.imageModel(QUALIFIED_FLARE_IMAGE_MODEL_ID);
+      return Result.ok({ model, type: "image" as const });
     }
     case "grok-account":
     case "x-ai": {

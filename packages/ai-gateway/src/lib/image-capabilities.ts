@@ -31,9 +31,8 @@ const QUALITY_LEVELS = ["auto", "low", "medium", "high"] as const;
 const GRADED_QUALITY = ["low", "medium", "high"] as const;
 const GPT_IMAGE_BACKGROUND = ["auto", "opaque"] as const;
 
-// OpenRouter's unified images endpoint advertises 14 ratios for the Gemini
-// image model.
-const GEMINI_OPENROUTER_ASPECT_RATIOS = [
+// Aspect ratios for Flare on OpenRouter's Images API.
+const FLARE_OPENROUTER_ASPECT_RATIOS = [
   "1:1",
   "2:3",
   "3:2",
@@ -44,10 +43,10 @@ const GEMINI_OPENROUTER_ASPECT_RATIOS = [
   "9:16",
   "16:9",
   "21:9",
-  "1:4",
-  "4:1",
-  "1:8",
-  "8:1",
+  "1:2",
+  "2:1",
+  "1:3",
+  "3:1",
 ] as const;
 
 // The @ai-sdk/google image config exposes a narrower set.
@@ -97,7 +96,8 @@ const IMAGE_CAPABILITIES: Record<
   },
   openrouter: {
     params: {
-      aspectRatio: { values: GEMINI_OPENROUTER_ASPECT_RATIOS, via: "standard" },
+      aspectRatio: { values: FLARE_OPENROUTER_ASPECT_RATIOS, via: "standard" },
+      quality: { values: QUALITY_LEVELS, via: "providerOption" },
     },
     supportsStreaming: false,
   },

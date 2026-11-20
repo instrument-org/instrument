@@ -41,11 +41,7 @@ import { KeptScrolls } from "./kept-scrolls";
 import { segmentsOf } from "./host-path";
 import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
-import {
-  ExpandFileControl,
-  TabLocationRow,
-  TabRowControl,
-} from "./tab-location-row";
+import { TabLocationRow, TabRowControl } from "./tab-location-row";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { chatOfTab } from "./tab-model";
@@ -100,24 +96,22 @@ export function GroupItem({
   const surface = useAtomValue(tabSurfaceAtom)[up.id];
 
   // The page's reload and controls go into the address row, the way they do
-  // in the pane beside a chat, rather than into a bar of the page's own. A
-  // page that is a file's keeps its controls (Edit, the menu) under the
-  // bookmarks bar with every file's.
+  // in the pane beside a chat, rather than into a bar of the page's own; a
+  // page that is a file's has the file's controls there too.
   const onPageChromeEvent = useEffectEvent(onPageChrome);
   const isPage = up.kind === "page";
   const pageFilePath = isPage ? hostPathOfFileUrl(up.url) : undefined;
-  const pageControlsInto = pageFilePath === undefined ? slots.tail : slots.view;
   useEffect(() => {
     onPageChromeEvent(
       isPage
         ? {
             fieldInto: slots.field,
-            into: pageControlsInto,
+            into: slots.tail,
             reloadInto: slots.reload,
           }
         : undefined,
     );
-  }, [isPage, pageControlsInto, slots.field, slots.reload]);
+  }, [isPage, slots.field, slots.reload, slots.tail]);
   useEffect(
     () => () => {
       onPageChromeEvent(undefined);
@@ -136,6 +130,13 @@ export function GroupItem({
   // sidebar, the view, the sort, search) in a row of their own under it.
   const isFiles = screenKind === "computer";
   const isChat = screenKind === "chat";
+  const computerTab = up.kind === "screen" ? computerTabOf(up.href) : undefined;
+  // A file with no folder beside it has one row: its controls (Expand, its
+  // versions, its menu) at the address row's end, where a folder's go in a
+  // row of their own under it.
+  const isFileAlone =
+    pageFilePath !== undefined ||
+    (computerTab?.file !== undefined && computerTab.tree === undefined);
   /**
    * What a bookmark opens with a plain click: this tab goes there, whatever
    * it is and whatever it names (a chat, Files, a built-in page), as a
@@ -253,8 +254,7 @@ export function GroupItem({
       : liveFileAddress(targetId, path);
 
   /** A copy a chat kept of the file up here, shown over the file. */
-  const version =
-    up.kind === "screen" ? computerTabOf(up.href)?.version : undefined;
+  const version = computerTab?.version;
   /**
    * A file a chat's replies handed over keeps a version per reply, listed
    * from its row, and a kept copy open here turns the row into the version
@@ -296,8 +296,9 @@ export function GroupItem({
             ? { liveAddress: () => liveAddressOf(location.path) }
             : {})}
           className="border-b-0"
-          // A file's Expand is the view's, in its row under the bookmarks bar.
-          expandsFile={false}
+          // A file beside a folder has its Expand in the view's row under the
+          // bookmarks bar; a file alone has it here.
+          expandsFile={isFileAlone}
           location={location}
           {...(before ? {} : { onBack: goBack, onForward: goForward })}
           onSite={openHere}
@@ -320,11 +321,12 @@ export function GroupItem({
                 ),
               }
             : {})}
-          {...(isFiles ? {} : { leading: rowProps.leading })}
+          {...(isFiles && !isFileAlone ? {} : { leading: rowProps.leading })}
           trailing={
             <>
               {/* The extensions' buttons go before the page's own controls. */}
               {location.kind === "page" && <BrowserExtensionButtons />}
+              {isFileAlone && versions && <FileVersionsButton {...versions} />}
               {rowProps.trailing}
             </>
           }
@@ -344,7 +346,6 @@ export function GroupItem({
             name: segmentsOf(filePath).at(-1) ?? filePath,
             path: filePath,
           };
-    const pageVersions = versionsOf(pageLocation);
     return (
       <Bare
         anchorRef={anchorRef}
@@ -356,24 +357,6 @@ export function GroupItem({
               onOpen={openHere}
               onVisit={takeOver}
             />
-            {/* A page that is a file's is a view of the file, with the
-                file's controls under the bar. */}
-            {pageLocation.kind === "file" && (
-              <ScreenToolsRow
-                end={
-                  <>
-                    {pageVersions && <FileVersionsButton {...pageVersions} />}
-                    <ExpandFileControl
-                      file={{
-                        hostPath: pageLocation.path,
-                        name: pageLocation.name,
-                      }}
-                    />
-                    {viewEnd}
-                  </>
-                }
-              />
-            )}
           </>
         }
       >
@@ -444,8 +427,8 @@ export function GroupItem({
           )}
           {/* Files' own row: the folder's controls over the folder, the
               file's (its versions, then what it draws into `viewEnd`) over
-              the file. */}
-          {(isFiles || versions) && (
+              the file beside it. */}
+          {!isFileAlone && (isFiles || versions) && (
             <ScreenToolsRow
               end={
                 <>
@@ -496,7 +479,7 @@ export function GroupItem({
             rowLead: slots.lead,
             rowReload: slots.reload,
             rowTail: slots.tail,
-            ...(isFiles ? { rowView: slots.view } : {}),
+            ...(isFiles && !isFileAlone ? { rowView: slots.view } : {}),
           }}
         >
           {/* A chat opens at its end, as it always does, rather than where

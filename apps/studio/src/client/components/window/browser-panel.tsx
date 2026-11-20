@@ -134,8 +134,8 @@ export function BrowserPanel({
   insideOverlay = false,
   layer,
   layoutWidth,
+  editPage,
   onEditSource,
-  pageControls,
   relayoutKey,
   restoreUrl,
   tabId,
@@ -177,8 +177,8 @@ export function BrowserPanel({
   layoutWidth?: number;
   /** Opens the page's text for editing, when the page is a file; the menu offers it. */
   onEditSource?: () => void;
-  /** Drawn ahead of the menu in the row the bar is drawn into, for a page with a mode of its own. */
-  pageControls?: ReactNode;
+  /** The menu's Edit row, beside Edit source, for a page that can be changed in place. */
+  editPage?: ReactNode;
   /** Changes whenever the panel moves without resizing, so the guest is placed again; see useBrowserSlot. */
   relayoutKey?: string;
   /**
@@ -645,6 +645,7 @@ export function BrowserPanel({
                   bookmark: { canBookmark: Boolean(pageUrl) },
                 }
               : {})}
+            editPage={editPage}
             editSource={onEditSource}
             onOpenChange={(open) => {
               // Not ready yet: the last known zoom stands.
@@ -718,7 +719,6 @@ export function BrowserPanel({
         // opens the page are drawn there by the row itself.
         const controls = (
           <>
-            {pageControls}
             <BrowserDownloadsButton
               surfaceRef={surfaceRef}
               targetId={targetId}

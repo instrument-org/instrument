@@ -941,6 +941,7 @@ export function FileViewer({
   onInfo,
   onLeaveSource,
   page,
+  pageEdit,
   pageMenu,
   silent = false,
 }: {
@@ -1002,6 +1003,8 @@ export function FileViewer({
    * HTML file alone.
    */
   page?: ReactNode;
+  /** The page's Edit row for the menu, beside Edit source, while `page` is drawn. */
+  pageEdit?: ReactNode;
   /** The page's own items for the menu, while `page` is drawn: its zoom, Print and the rest a browser offers. */
   pageMenu?: ReactNode;
   /** Set where video and audio must never play sound, such as a thumbnail. */
@@ -1289,6 +1292,7 @@ export function FileViewer({
               (richView !== undefined || showsFileText) && (
                 <DropdownMenuSeparator />
               )}
+            {page !== undefined && !showsSource && pageEdit}
             {richView !== undefined && (
               <DropdownMenuItem
                 onClick={() => void handleSourceChange(!showsSource)}

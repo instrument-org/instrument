@@ -88,7 +88,7 @@ import {
   useKeepsHostedPage,
 } from "./hosted-page";
 import { LinkSurface } from "./link-surface";
-import { PageEditToggle } from "./page-edit";
+import { PageEditMenuItem } from "./page-edit";
 import { PageMenuItems } from "./page-menu-items";
 import { ExpandFileControl } from "./tab-location-row";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
@@ -861,7 +861,6 @@ export function FilesScreen({
   const ownTabActionsInto = fileActionsInto;
   const actionsLead = (
     <>
-      {hostedTabId !== undefined && <PageEditToggle tabId={hostedTabId} />}
       {rowView !== undefined && activeFile && (
         <ExpandFileControl
           file={{ hostPath: activeFile.hostPath, name: activeFile.name }}
@@ -879,6 +878,7 @@ export function FilesScreen({
           ...(hostedTabId === undefined
             ? {}
             : {
+                pageEdit: <PageEditMenuItem tabId={hostedTabId} />,
                 pageMenu: (
                   <PageMenuItems targetId={browserTargetOf(hostedTabId)} />
                 ),

@@ -42,7 +42,7 @@ import {
   openBesideChat,
   previousOpenedIn,
 } from "./beside-chat";
-import { PageEditSession, PageEditToggle } from "./page-edit";
+import { PageEditMenuItem, PageEditSession } from "./page-edit";
 import { pageHostsAtom, type PageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import {
@@ -981,7 +981,7 @@ export function BrowserTabs({
           {...(editableId === undefined
             ? {}
             : {
-                pageControls: <PageEditToggle tabId={editableId} />,
+                editPage: <PageEditMenuItem tabId={editableId} />,
               })}
           {...(activeFilePath === undefined
             ? {}

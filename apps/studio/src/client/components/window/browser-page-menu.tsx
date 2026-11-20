@@ -68,6 +68,7 @@ export type MenuPage = {
 export function BrowserPageMenu({
   afterBlockAds,
   bookmark,
+  editPage,
   editSource,
   onOpenChange,
   onOpenHistory,
@@ -80,6 +81,8 @@ export function BrowserPageMenu({
   afterBlockAds?: () => void;
   /** The Bookmarks submenu, and whether the tab has an address to keep; absent where nothing keeps bookmarks. */
   bookmark?: { canBookmark: boolean };
+  /** The page's Edit row, drawn beside Edit source. */
+  editPage?: ReactNode;
   editSource?: (() => void) | undefined;
   onOpenChange?: (open: boolean) => void;
   /** A page picked from History. */
@@ -209,6 +212,7 @@ export function BrowserPageMenu({
           <ShieldCheckIcon className="size-4" />
           Block ads
         </DropdownMenuCheckboxItem>
+        {editPage}
         {editSource && (
           <DropdownMenuItem onSelect={editSource}>
             <CodeIcon className="size-4" />

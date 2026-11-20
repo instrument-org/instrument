@@ -8,7 +8,6 @@ import {
 } from "@/client/atoms/tab-groups";
 import { NetworkStatusIndicator } from "@/client/components/network-status/network-status-pill";
 import { type RailBounds } from "@/client/components/studio-sidebar-rail";
-import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import {
   Avatar,
   AvatarFallback,
@@ -24,7 +23,6 @@ import { rpcClient } from "@/client/rpc/client";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
-import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
@@ -119,9 +117,9 @@ export function sidebarBounds(width: number): RailBounds {
 
 /**
  * The sidebar of tab groups down the window's left: the window's own row at
- * its top (past the traffic lights, Activity and the bell; the update pill at its end),
+ * its top (past the traffic lights, the bell; the update pill at its end),
  * the projects, the pinned groups over a plain line, New, the
- * rest under it, newest first; at its foot, the account, Settings and Help. Opening a project takes the list over,
+ * rest under it, newest first; at its foot, the account, History and Help. Opening a project takes the list over,
  * under its banner. A row dragged within the list lands where it is let
  * go, pinned above the line or unpinned below it, and one dragged out goes
  * to a window of its own or to another window's list (`pressGroupRow`).
@@ -746,8 +744,8 @@ export function GroupRow({
  * The sidebar's top row, which drags the window, centered on the tab strips
  * beside it, under the ground above their card: room for the traffic
  * lights on a Mac, then the app's menu off the Mac; the update pill, the
- * mark that Instrument is out of reach while it is, then History and the
- * bell at its end.
+ * mark that Instrument is out of reach while it is, then the bell at its
+ * end.
  */
 function SidebarTop() {
   return (
@@ -759,7 +757,6 @@ function SidebarTop() {
       <span className="flex-1" />
       <UpdateStatusIndicator />
       <NetworkStatusIndicator isIcon />
-      <HistoryButton />
       <NotificationsBell />
     </div>
   );
@@ -784,9 +781,9 @@ function AppMenuButton() {
 }
 
 /**
- * The sidebar's foot: the person signed in, or Sign in when nobody is, either
- * opening Settings at Account; Settings itself; and Help. The space around
- * them moves the window, as the top row's does.
+ * The sidebar's foot: the person signed in, or Settings when nobody is,
+ * either opening Settings; then History and Help. The space around them
+ * moves the window, as the top row's does.
  */
 function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
   const { data: user, isPending } = useLiveUser();
@@ -795,7 +792,7 @@ function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
       <button
         className="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 text-left hover:bg-foreground/5"
         onClick={() => {
-          openSettings({ tab: "Account" });
+          openSettings();
         }}
         type="button"
       >
@@ -814,26 +811,17 @@ function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
         ) : (
           !isPending && (
             <>
-              <UserCircleIcon className="size-6 text-muted-foreground" />
+              <span className="grid size-6 shrink-0 place-items-center text-muted-foreground">
+                <GearSixIcon className="size-4" />
+              </span>
               <span className="min-w-0 truncate text-[13px] font-medium">
-                Sign in
+                Settings
               </span>
             </>
           )
         )}
       </button>
-      <ToolbarTooltip label="Settings">
-        <button
-          aria-label="Settings"
-          className="grid size-7 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
-          onClick={() => {
-            openSettings();
-          }}
-          type="button"
-        >
-          <GearSixIcon className="size-4" />
-        </button>
-      </ToolbarTooltip>
+      <HistoryButton />
       <HelpMenu chatId={chatId} />
     </div>
   );

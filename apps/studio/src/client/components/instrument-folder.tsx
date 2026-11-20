@@ -128,47 +128,52 @@ function DestinationLine({
 /**
  * A destination as one row, the same in setup's Location card, the move
  * confirmation and the questions: a folder, its whole path, what it already
- * is, and `end` (Change, or Show in a question). The mark is always the
- * folder, since the path already leads with its place's own (iCloud Drive's
- * cloud, a disk). A `path` with no `destination` is one not looked at yet,
- * which says nothing under it.
+ * is, and `end` (Change, or Show in a question). In setup the breadcrumb
+ * supplies the icons and emphasizes the destination. A `path` with no
+ * `destination` is one not looked at yet, which says nothing under it.
  */
 export function DestinationRow({
+  appearance,
   className,
   destination,
   dim = false,
   end,
   path,
-  trailClassName,
   withContents = true,
 }: {
+  appearance?: "setup";
   className?: string;
   destination?: Destination | undefined;
   /** Grays the folder out, for one Instrument can't open; `end` stays as it is. */
   dim?: boolean;
   end?: ReactNode;
   path: string;
-  trailClassName?: string;
   /** Says what is in the folder already; a question or note about it says that itself. */
   withContents?: boolean;
 }) {
   return (
     <div className={cn("flex min-w-0 items-center gap-3 p-3", className)}>
-      <span
-        className={cn(
-          "flex w-7 shrink-0 justify-center",
-          dim && "opacity-45 grayscale",
-        )}
-      >
-        <FileSystemFolderGlyph className="h-5 w-auto shrink-0" />
-      </span>
+      {appearance !== "setup" && (
+        <span
+          className={cn(
+            "flex w-7 shrink-0 justify-center",
+            dim && "opacity-45 grayscale",
+          )}
+        >
+          <FileSystemFolderGlyph className="h-5 w-auto shrink-0" />
+        </span>
+      )}
       <span
         className={cn(
           "flex min-w-0 flex-1 flex-col gap-0.5",
           dim && "opacity-45 grayscale",
         )}
       >
-        <FolderTrail className={cn("text-sm", trailClassName)} path={path} />
+        <FolderTrail
+          className={cn("text-sm", appearance === "setup" && "font-medium")}
+          muteParents={appearance === "setup"}
+          path={path}
+        />
         {destination === undefined ? null : (
           <DestinationLine
             destination={destination}

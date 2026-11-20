@@ -1341,13 +1341,14 @@ function WindowShell({
       flashStripTabOnceDrawn(stripKeyOf(tab));
     }
   };
-  // A built-in page asked for from anywhere (Settings, History, the
-  // sidebar's pages) is a group of its own, as New Tab Group makes one: the
-  // tab of a group already showing it comes up there, and a group that is
-  // only a blank new tab takes it in place.
+  // A built-in page asked for from anywhere (Settings, History, Manage
+  // Extensions, the sidebar's pages) is a group of its own, as New Tab Group
+  // makes one: the tab of a group already showing it comes up there, and a
+  // blank new tab up takes it in place, as a browser's own pages do, whatever
+  // else its group has.
   const openBuiltInApart = useEffectEvent((href: string) => {
     const up = windowTabs.active;
-    if (up && windowTabs.tabs.length === 1 && isBlankNewTab(up)) {
+    if (up && isBlankNewTab(up)) {
       openScreen(href, { newTab: "reuseBlank" });
       return;
     }

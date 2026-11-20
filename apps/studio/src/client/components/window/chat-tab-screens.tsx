@@ -93,7 +93,7 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
   return (
     <ChatHeader
       chat={chat}
-      {...(isPlace ? {} : { leading: <ChatListToggle /> })}
+      {...(isPlace ? { leading: <ChatListToggle /> } : {})}
       onArchived={() => {
         groupTab?.close();
       }}

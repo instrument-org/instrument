@@ -3,18 +3,19 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { type Chat } from "./chats";
 import { chatOfTab, groupLayoutOf, type WindowTabs } from "./tab-model";
 
-/** Whether a chat wants a look: a reply not yet seen, or a question or card waiting on the person. */
+/** Whether a chat wants a look: at work, a reply not yet seen, or a question or card waiting on the person. */
 function wantsLook(chat: Chat): boolean {
-  return chat.status === "waiting" || chat.unread;
+  return (
+    chat.status === "working" || chat.status === "waiting" || chat.unread
+  );
 }
 
 /** How many chats the list shows before the rest wait behind its More row. */
 export const ACTIVE_CHATS_SHOWN = 3;
 
 /**
- * The chats a sidebar row shows: the tab up on each side of each group the
- * window lists, the group up included. A chat behind another tab in its side
- * is not one of them.
+ * The chats a sidebar row shows: every tab of each group the window lists,
+ * the group up included, since a row marks each of its tabs.
  */
 export function chatsInView(
   state: WindowTabs,
@@ -22,11 +23,12 @@ export function chatsInView(
 ): Set<ChatId> {
   return new Set(
     listed.flatMap((group) =>
-      groupLayoutOf(state, group).sides.flatMap((side) => {
-        const up = side.tabs.find((tab) => tab.id === side.up);
-        const chat = up === undefined ? undefined : chatOfTab(up);
-        return chat === undefined ? [] : [chat];
-      }),
+      groupLayoutOf(state, group).sides.flatMap((side) =>
+        side.tabs.flatMap((tab) => {
+          const chat = chatOfTab(tab);
+          return chat === undefined ? [] : [chat];
+        }),
+      ),
     ),
   );
 }
@@ -43,12 +45,10 @@ export interface ActiveChatsKept {
 }
 
 /**
- * The sidebar's Chats list. A chat joins when it comes to want a look
- * (`wantsLook`: its reply lands unseen, or it asks) while no sidebar row
- * shows it (`inView`), and on the first look when it already wants one out
- * of view. It stays until it wants a look no longer: seen, with nothing
- * waiting. A chat that already wanted a look when it went out of view never
- * joins, so moving between tabs never changes the list.
+ * The sidebar's Chats list: every chat no sidebar row shows (`inView`) that
+ * wants a look (`wantsLook`: at work, its reply unseen, or it asks), so a
+ * chat whose group was closed while it worked stays in sight. It leaves
+ * once it wants a look no longer, or a row shows it again.
  *
  * Those that stay keep their places. The list grows upward from the
  * sidebar's foot, so a newcomer joins at its top while fewer than
@@ -64,18 +64,13 @@ export function activeChats(
   const wanting = new Map(
     chats.filter((chat) => wantsLook(chat)).map((chat) => [chat.id, chat]),
   );
-  const wanted = before.wanting && new Set(before.wanting);
   const listed = new Set(before.list);
   const list = before.list.flatMap((id) => {
     const chat = wanting.get(id);
-    return chat === undefined ? [] : [chat];
+    return chat === undefined || inView.has(id) ? [] : [chat];
   });
   for (const chat of wanting.values()) {
-    if (
-      listed.has(chat.id) ||
-      inView.has(chat.id) ||
-      wanted?.has(chat.id) === true
-    ) {
+    if (listed.has(chat.id) || inView.has(chat.id)) {
       continue;
     }
     if (list.length < ACTIVE_CHATS_SHOWN) {

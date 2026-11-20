@@ -8,8 +8,7 @@ import { keptAtom } from "@/client/lib/kept-state";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { useLocation, useRouter } from "@tanstack/react-router";
-import { atom, useAtomValue, useSetAtom } from "jotai";
-import { noop } from "radashi";
+import { atom, useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
   createContext,
   type ReactNode,
@@ -31,6 +30,9 @@ import { CHATS_INDEX_HREF, chatHref, newChatHref } from "./window-href";
 
 /** The tabs showing the chat list beside their chat, by id: none until the person opens it, or opens a chat from the Chats page. */
 const listOpenTabsAtom = atom<ReadonlySet<string>>(new Set<string>());
+
+/** Whether the Chats place has its list folded away, by the toggle ahead of its chat's title. */
+const placeListFoldedAtom = atom(false);
 
 /** The tabs too narrow to share with the list that show it over their chat, by id: put away again once a chat is picked, a press lands outside it, or the tab widens. */
 const listOverTabsAtom = atom<ReadonlySet<string>>(new Set<string>());
@@ -225,7 +227,7 @@ export function WithChatList({
     };
   }, []);
   // The Chats place is the list, so it stands beside the chat however
-  // narrow the place is, and nothing puts it away.
+  // narrow the place is, until the chat's toggle folds it away.
   const isOverlay = !isPlace && isListOver(width, listWidth);
   // Widened past it, the list over the chat is put away, so narrowing again
   // does not bring it back over the chat.
@@ -234,8 +236,15 @@ export function WithChatList({
       setOver(false);
     }
   });
-  const isOpen = isPlace || (isOverlay ? isOver : isBeside);
-  const setOpen = isPlace ? noop : isOverlay ? setOver : setBeside;
+  const [isPlaceFolded, setPlaceFolded] = useAtom(placeListFoldedAtom);
+  const isOpen = isPlace ? !isPlaceFolded : isOverlay ? isOver : isBeside;
+  const setOpen = isPlace
+    ? (open: boolean) => {
+        setPlaceFolded(!open);
+      }
+    : isOverlay
+      ? setOver
+      : setBeside;
   return (
     <div className="absolute inset-0 flex min-w-0" ref={ref}>
       <ChatListOpenContext value={{ isOpen, isOverlay, setOpen }}>

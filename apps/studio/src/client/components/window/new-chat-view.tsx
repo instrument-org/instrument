@@ -1,7 +1,6 @@
 import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
 import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
 import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
-import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import { useFilesStartHref } from "@/client/hooks/use-files-start-href";
 import {
   itemsOf,
@@ -230,19 +229,11 @@ export function NewChatView({
   });
   useFolderItems({ draft, input: inputRef, staging });
 
-  const projectId = draft?.projectId ?? boxes[tabId]?.projectId;
-  const project = shell.projects.find((entry) => entry.id === projectId);
-  // Picked for it (New in a project, or its Project button), or with
-  // the sidebar standing in the project it is filed under, the new chat is
-  // that project's room, and says so. A project only suggested by its words
-  // files it quietly.
-  const sidebarProject = useAtomValue(sidebarProjectAtom);
-  const roomOf =
-    project &&
-    (sidebarProject === project.id ||
-      pickedNewChatProject(draft, boxes[tabId]) === project.id)
-      ? project
-      : undefined;
+  // Picked for it (New in a project, or its Project button), the new chat
+  // is that project's room, and says so over its box. A project only
+  // suggested by its words files it quietly.
+  const pickedId = pickedNewChatProject(draft, boxes[tabId]);
+  const roomOf = shell.projects.find((entry) => entry.id === pickedId);
   const pickProject = useSetAtom(pickNewChatProjectAtom);
   /**
    * The new chat filed under a project from its Project button, as New in

@@ -22,7 +22,7 @@ type RowSides = readonly [RowSide, ...RowSide[]];
 type RowSide = { tabs: readonly WindowTab[]; up: WindowTab };
 
 /** The tab a group's row goes by: its first chat, else the left side's front tab. */
-export function leadTabOf(sides: RowSides): WindowTab {
+function leadTabOf(sides: RowSides): WindowTab {
   return (
     sides
       .flatMap((side) => side.tabs)

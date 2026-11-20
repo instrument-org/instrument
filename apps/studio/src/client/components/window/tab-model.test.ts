@@ -24,7 +24,6 @@ import {
   joinSides,
   groupLayoutOf,
   isBlankNewTab,
-  keptOnCloseCount,
   moveTabTo,
   moveToGroup,
   navigateScreen,
@@ -615,24 +614,6 @@ describe("agentCloseKeeps", () => {
     ],
   ])("%s goes on the closed list: %s", (_case, keeps, tabs) => {
     expect(agentCloseKeeps(tabs, (id) => pressed.has(id))).toBe(keeps);
-  });
-});
-
-describe("keptOnCloseCount", () => {
-  it("counts every tab but a blank new tab", () => {
-    expect(
-      keptOnCloseCount([
-        screenTab("n", NEW_TAB_HREF, DRAFT),
-        screenTab("s", "/settings", DRAFT),
-      ]),
-    ).toBe(1);
-    expect(
-      keptOnCloseCount([
-        screenTab("f", "/files", DRAFT),
-        screenTab("s", "/settings", DRAFT),
-        screenTab("n", NEW_TAB_HREF, DRAFT),
-      ]),
-    ).toBe(2);
   });
 });
 

@@ -272,7 +272,6 @@ function row(key: string, options: { isCloseShown?: boolean } = {}) {
       entry={entryOf(key)}
       isUp={false}
       onClose={noop}
-      onCloseSide={noop}
       {...options}
     />
   );
@@ -365,9 +364,9 @@ function CloseSheet() {
     ));
   return (
     <Frame
-      caption="Closing half a split"
+      caption="Closing a group"
       height={400}
-      note="Under the pointer, each half of a split has its own X, which closes that half's tab, and the other half takes the whole row. A row of one side has one X, which closes the group."
+      note="Under the pointer, one X at the row's end closes the whole group, with nothing asked. Reopen Closed Tab brings it back."
       width={860}
     >
       <CastSources>
@@ -379,7 +378,7 @@ function CloseSheet() {
               {
                 cells: both("cl-hover", { isCloseShown: true }),
                 label: "Under the pointer",
-                note: "each half shows its own X",
+                note: "one X at its end",
               },
               {
                 cells: both("cl-closed"),

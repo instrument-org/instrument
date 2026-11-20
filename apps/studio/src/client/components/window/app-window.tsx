@@ -1742,9 +1742,6 @@ function WindowShell({
                     onCloseAll={(closed, keep) => {
                       closeGroups(closed, keep);
                     }}
-                    onCloseSide={(tab) => {
-                      closeSideOf(tab);
-                    }}
                     onDuplicate={(entry) => {
                       groups.duplicate(entry);
                     }}

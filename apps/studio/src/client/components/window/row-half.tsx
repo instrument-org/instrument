@@ -17,15 +17,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import {
-  createContext,
-  type ReactNode,
-  use,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { createContext, type ReactNode, use, useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatListOptions } from "./chat-list-query";
@@ -37,7 +29,6 @@ import { pageTabTitle } from "./file-tabs";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { ScreenMark } from "./pane-tabs";
 import { RowActionBar } from "./row-action-bar";
-import { stopHere } from "./row-shell";
 import {
   chatLines,
   type LineTone,
@@ -71,7 +62,7 @@ export interface RowSources {
 export const RowSourcesContext = createContext<null | RowSources>(null);
 
 /** The rows' sources: a picture's own, else the window's chats and drafts. */
-function useRowSources(): RowSources {
+export function useRowSources(): RowSources {
   const given = use(RowSourcesContext);
   const { data: chats = NO_CHATS } = useQuery({
     ...chatListOptions(),
@@ -84,7 +75,7 @@ function useRowSources(): RowSources {
 const NO_CHATS: readonly Chat[] = [];
 
 /** The ink of each tone of a row's second line; `work` shimmers as the chat list's working line does. */
-const TONE_INK: Record<Exclude<LineTone, "work">, string> = {
+export const TONE_INK: Record<Exclude<LineTone, "work">, string> = {
   ask: "text-foreground",
   draft: "text-foreground/70",
   fail: "text-error-700 dark:text-error-300",
@@ -141,108 +132,13 @@ export function RowHalf({
   );
 }
 
-/**
- * What a half's X closes: `label` names it, and `ask`, when it closes more
- * than one tab, is the question its first click puts in the half's place.
- */
+/** What a row's X closes: `label` names it. */
 export interface RowClose {
-  ask?: CloseQuestion | undefined;
   label: string;
   run: () => void;
 }
 
-/** A close's question in full, and the short form it takes where the full one would not fit. */
-interface CloseQuestion {
-  full: string;
-  short: string;
-}
-
-/**
- * A close's question in the half's place, the whole half one button: the
- * full question with its X where it fits on one line, else the short one
- * alone, never cut off. Leaving it, Escape or focus going elsewhere puts the
- * half back. The button is its own sign of focus, so it draws no ring.
- */
-function CloseAsk({
-  ask,
-  onClose,
-  onLeave,
-}: {
-  ask: CloseQuestion;
-  onClose: () => void;
-  onLeave: () => void;
-}) {
-  const buttonRef = useRef<HTMLButtonElement>(null);
-  const fullRef = useRef<HTMLSpanElement>(null);
-  const [isFull, setFull] = useState(true);
-  useLayoutEffect(() => {
-    const button = buttonRef.current;
-    const full = fullRef.current;
-    if (!button || !full) {
-      return;
-    }
-    button.focus({ preventScroll: true });
-    const fit = () => {
-      const style = getComputedStyle(button);
-      const room =
-        button.clientWidth -
-        Number.parseFloat(style.paddingLeft) -
-        Number.parseFloat(style.paddingRight);
-      setFull(full.offsetWidth <= room);
-    };
-    fit();
-    // The half's width moves as a side opens or closes beside it.
-    const observer = new ResizeObserver(fit);
-    observer.observe(button);
-    return () => {
-      observer.disconnect();
-    };
-  }, []);
-  const fullLabel = (
-    <>
-      <XIcon className="size-3 shrink-0 text-foreground/70" />
-      {ask.full}
-    </>
-  );
-  return (
-    <div className="flex min-w-0 flex-1 basis-0" data-row-half="">
-      <button
-        className="relative flex h-10 min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden rounded-md bg-foreground/8 px-2 text-[13px] font-medium whitespace-nowrap text-foreground outline-none focus-visible:outline-none"
-        onAuxClick={stopHere}
-        onBlur={onLeave}
-        onClick={(event) => {
-          event.stopPropagation();
-          onClose();
-        }}
-        onKeyDown={(event) => {
-          event.stopPropagation();
-          if (event.key === "Escape") {
-            onLeave();
-          }
-        }}
-        onPointerLeave={onLeave}
-        ref={buttonRef}
-        type="button"
-      >
-        {/* The full question at its natural width, measured against the room. */}
-        <span
-          aria-hidden
-          className="invisible absolute flex items-center gap-1"
-          ref={fullRef}
-        >
-          {fullLabel}
-        </span>
-        {isFull ? fullLabel : ask.short}
-      </button>
-    </div>
-  );
-}
-
-/**
- * A row half's two lines, its mark leading the first. An X that asks turns
- * the whole half into its question on the first click, under the pointer, so
- * a second click in the same spot closes; the pointer leaving puts it back.
- */
+/** A row half's two lines, its mark leading the first, and its X at the end. */
 export function RowLinesView({
   close,
   isCloseShown = false,
@@ -254,21 +150,6 @@ export function RowLinesView({
   lines: RowLines;
   mark?: ReactNode;
 }) {
-  const [isAsking, setAsking] = useState(false);
-  if (isAsking && close?.ask !== undefined) {
-    return (
-      <CloseAsk
-        ask={close.ask}
-        onClose={() => {
-          setAsking(false);
-          close.run();
-        }}
-        onLeave={() => {
-          setAsking(false);
-        }}
-      />
-    );
-  }
   // The X stands at the half's end, centered on both lines.
   return (
     <div
@@ -317,13 +198,7 @@ export function RowLinesView({
               icon: <XIcon />,
               id: "close",
               label: close.label,
-              run: () => {
-                if (close.ask === undefined) {
-                  close.run();
-                } else {
-                  setAsking(true);
-                }
-              },
+              run: close.run,
             },
           ]}
           isHeld={isCloseShown}
@@ -338,7 +213,7 @@ export function RowLinesView({
  * a file its folder, a built-in page its name over the part open, a new tab the words
  * typed in it (`row-lines.ts`).
  */
-function useRowLines(
+export function useRowLines(
   tab: WindowTab,
   chatTitles: Map<ChatId, string>,
 ): RowLines {

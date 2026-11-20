@@ -455,7 +455,6 @@ export function SidebarPicture({
       groupUp={groupUp}
       onClose={noop}
       onCloseAll={noop}
-      onCloseSide={noop}
       onDuplicate={noop}
       onNew={noop}
       onNewChatProject={noop}

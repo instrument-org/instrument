@@ -59,19 +59,44 @@ const SUMMARY_MAX_OUTPUT_TOKENS = 8_000;
  * Asked once more when the first answer was not a summary: it called a tool,
  * which is the model carrying on with the task (measured on Haiku 5.5: "I'll
  * keep going on the returns question...", kept as a summary that replaced a
- * 3,300-character one and lost a quote number the user then asked for), or
- * it left out the headings.
+ * 3,300-character one and lost a quote number the user then asked for), it
+ * left out the headings, or it was too short to be one.
  */
 const RETRY_INSTRUCTION = `${SUMMARY_INSTRUCTION}
 
 The last answer to this was not the summary. Tools do nothing here. Write the summary now, as text, under exactly those headings.`;
 
-/** A summary is text, under every heading, with no tool called. */
-function isSummary(text: string, toolCalls: number): boolean {
+/**
+ * The shortest text taken as a summary. One is drawn only once a window has
+ * grown to most of its model's price step, tens of thousands of tokens, and a
+ * summary of that under this length has kept too little to work from:
+ * measured on a beta chat that rolled over 123 times on Haiku 5.5, the two
+ * summaries under it were replies to the user, each replacing a summary of
+ * thousands of characters.
+ */
+const SUMMARY_MIN_CHARACTERS = 1_000;
+
+/**
+ * A summary is text of at least {@link SUMMARY_MIN_CHARACTERS}, with no tool
+ * called, under every heading, or under the first of them where the length
+ * limit cut it off, since a cut takes the later headings with it and what
+ * came before the cut is still the summary.
+ */
+function isSummary({
+  cutOff,
+  text,
+  toolCalls,
+}: {
+  cutOff: boolean;
+  text: string;
+  toolCalls: number;
+}): boolean {
+  const lines = new Set(text.split("\n").map((line) => line.trim()));
   return (
     toolCalls === 0 &&
-    SUMMARY_HEADINGS.every((heading) =>
-      text.split("\n").some((line) => line.trim() === heading),
+    text.trim().length >= SUMMARY_MIN_CHARACTERS &&
+    (cutOff ? SUMMARY_HEADINGS.slice(0, 1) : SUMMARY_HEADINGS).every(
+      (heading) => lines.has(heading),
     )
   );
 }
@@ -132,12 +157,12 @@ export async function summarizeBeforePriceStep({
         ),
       });
     const first = await ask(SUMMARY_INSTRUCTION);
-    // A length cut can take the later headings with it, and what came before
-    // the cut is still the summary.
     const accepted = (answer: typeof first) =>
-      answer.finishReason === "length"
-        ? answer.toolCalls.length === 0 && answer.text.trim() !== ""
-        : isSummary(answer.text, answer.toolCalls.length);
+      isSummary({
+        cutOff: answer.finishReason === "length",
+        text: answer.text,
+        toolCalls: answer.toolCalls.length,
+      });
     const retried = !accepted(first);
     const result = retried ? await ask(RETRY_INSTRUCTION) : first;
     const text = result.text.trim();

@@ -8,11 +8,15 @@ const usage = {
   outputTokens: { reasoning: 0, text: 20, total: 20 },
 };
 
+/** Long enough to be taken as a summary of a window at its price step. */
+const FOUND =
+  "- Harlow quoted $0.071 a unit for 4,000 units, delivered.\n".repeat(20);
+
 const SUMMARY = [
   "## Goal",
   "Plan the move.",
   "## Done and found",
-  "(none)",
+  FOUND,
   "## Files",
   "(none)",
   "## Decisions",
@@ -90,12 +94,14 @@ describe("summarizeBeforePriceStep", () => {
   });
 
   it("says when the length limit cut a summary off", async () => {
-    expect((await summarize(writing("The goal.", "length")))?.summary)
-      .toMatchInlineSnapshot(`
-        "The goal.
+    const cut = `## Goal\nPlan the move.\n## Done and found\n${FOUND}`;
+    expect((await summarize(writing(cut, "length")))?.summary).toBe(
+      `${cut.trim()}\n\n[This summary was cut off at its length limit. The conversation's transcript has what it does not cover.]`,
+    );
+  });
 
-        [This summary was cut off at its length limit. The conversation's transcript has what it does not cover.]"
-      `);
+  it("gives nothing for a cut-off answer that never started the summary", async () => {
+    expect(await summarize(writing(FOUND, "length"))).toBeUndefined();
   });
 
   it("gives nothing for a model that wrote nothing", async () => {
@@ -120,5 +126,36 @@ describe("summarizeBeforePriceStep", () => {
     expect(
       await summarize(writing("Harlow is cheapest, at $0.071.", "stop")),
     ).toBeUndefined();
+  });
+
+  // Measured on a beta chat on Haiku 5.5: two of 123 summaries were replies
+  // to the user under 1,000 characters.
+  it("asks again when the answer is too short to be a summary", async () => {
+    const short = [
+      "## Goal",
+      "Fill in the sheet.",
+      "## Done and found",
+      "The sheet is filled in.",
+      "## Files",
+      "(none)",
+      "## Decisions",
+      "(none)",
+      "## Next",
+      "(none)",
+    ].join("\n");
+    let asked = 0;
+    const shortThenWhole = new MockLanguageModelV4({
+      doGenerate: () => {
+        asked += 1;
+        return Promise.resolve({
+          content: [{ text: asked === 1 ? short : SUMMARY, type: "text" }],
+          finishReason: { raw: "stop", unified: "stop" },
+          usage,
+          warnings: [],
+        });
+      },
+    });
+    expect((await summarize(shortThenWhole))?.summary).toBe(SUMMARY);
+    expect(await summarize(writing(short, "stop"))).toBeUndefined();
   });
 });

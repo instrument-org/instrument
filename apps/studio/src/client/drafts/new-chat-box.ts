@@ -73,6 +73,21 @@ export function draftInNewChatBox(
 }
 
 /**
+ * The project the person filed a tab's new chat under, by its Project button
+ * or New in a project: the draft's own once there is one, unless the model
+ * only suggested it, and before then the one the box keeps for it.
+ */
+export function pickedNewChatProject(
+  draft: Draft | undefined,
+  box: NewChatBox | undefined,
+): string | undefined {
+  if (draft === undefined) {
+    return box?.projectId;
+  }
+  return draft.projectSource === "suggested" ? undefined : draft.projectId;
+}
+
+/**
  * Whether a tab's new chat was emptied of everything it had, so its draft is
  * thrown away. The box counts as well as the draft: a paste makes the draft
  * before its bytes are written into the draft's folder, so for a moment the

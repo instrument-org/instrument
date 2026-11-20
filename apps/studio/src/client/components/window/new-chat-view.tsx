@@ -19,6 +19,7 @@ import {
   makeNewChatDraftAtom,
   newChatBoxesAtom,
   newChatWordsKey,
+  pickedNewChatProject,
   pickNewChatProjectAtom,
   settleMadeDraft,
 } from "@/client/drafts/new-chat-box";
@@ -238,7 +239,8 @@ export function NewChatView({
   const sidebarProject = useAtomValue(sidebarProjectAtom);
   const roomOf =
     project &&
-    (sidebarProject === project.id || boxes[tabId]?.projectId === project.id)
+    (sidebarProject === project.id ||
+      pickedNewChatProject(draft, boxes[tabId]) === project.id)
       ? project
       : undefined;
   const pickProject = useSetAtom(pickNewChatProjectAtom);

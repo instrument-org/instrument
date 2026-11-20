@@ -13,6 +13,7 @@ import {
   draftInNewChatBox,
   isNewChatEmptied,
   newChatBoxesAtom,
+  pickedNewChatProject,
   pickNewChatProjectAtom,
   settleMadeDraft,
 } from "./new-chat-box";
@@ -144,6 +145,37 @@ describe("a new chat in the Chat screen", () => {
       projectId: "travel",
       projectSource: "chosen",
     });
+  });
+
+  it("keeps the picked project once words make the draft", () => {
+    const { inBox, settle, store, type } = window();
+    store.set(pickNewChatProjectAtom, { projectId: "travel", tabId: TAB });
+    const picked = () =>
+      pickedNewChatProject(inBox(), store.get(newChatBoxesAtom)[TAB]);
+    expect(picked()).toBe("travel");
+
+    type("Hotels");
+    settle();
+    type("Hotels in Lisbon");
+    settle();
+
+    expect(picked()).toBe("travel");
+  });
+
+  it("counts a project the model suggested as not picked", () => {
+    expect(
+      pickedNewChatProject(
+        {
+          createdAt: 0,
+          id: "d",
+          projectId: "travel",
+          projectSource: "suggested",
+          updatedAt: 0,
+          words: "Hotels in Lisbon",
+        },
+        { draftId: "d" },
+      ),
+    ).toBeUndefined();
   });
 
   it("keeps an emptied draft for the screen to judge, and starts over once let go of", () => {

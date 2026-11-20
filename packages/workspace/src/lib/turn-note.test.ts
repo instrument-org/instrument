@@ -128,7 +128,7 @@ describe("opensTypedTurn", () => {
 
   it("asks for a sentence before any tool", () => {
     expect(systemNoteBody(TURN_NOTE)).toMatchInlineSnapshot(
-      `"Before using any tool, tell the user in a sentence what you are doing. If no tool is needed, just answer."`,
+      `"Before your first tool call, tell the user in a sentence what you are doing. If no tool is needed, just answer."`,
     );
   });
 });

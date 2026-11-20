@@ -2050,6 +2050,16 @@ a.cursor-pointer {
     -webkit-mask-clip: text;
   }
 
+  /* No window drag area of its own. The copy would inherit the drag or no-drag
+   * of the box it sits in, and Chromium takes a box's drag area unclipped: the
+   * whole text and the sliding bar, reaching past that box over its neighbors,
+   * where a press then lands in the wrong one. */
+  .shimmer-sweep,
+  .shimmer-sweep::before,
+  .shimmer-sweep::after {
+    -webkit-app-region: initial;
+  }
+
   .shimmer-sweep::before {
     content: attr(data-text);
   }

@@ -21,7 +21,6 @@ import { createContext, type ReactNode, use, useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatListOptions } from "./chat-list-query";
-import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { type Chat } from "./chats";
 import { useTasksOf } from "./child-tasks-query";
 import { FadeTitle } from "./fade-title";
@@ -82,55 +81,6 @@ export const TONE_INK: Record<Exclude<LineTone, "work">, string> = {
   news: "text-foreground/80",
   quiet: "text-muted-foreground",
 };
-
-/**
- * One tab as a sidebar row draws it, a whole row or half of one: its mark
- * and its title, then what it says under them (`useRowLines`). Under the
- * pointer, its close X stands at its end, centered on both lines.
- */
-export function RowHalf({
-  chatTitles,
-  close,
-  isCloseShown = false,
-  isOnScreen,
-  tab,
-}: {
-  chatTitles: Map<ChatId, string>;
-  close?: RowClose;
-  /** The X kept up whatever the pointer does, for a picture of the row under it. */
-  isCloseShown?: boolean;
-  /** Whether the tab is on screen, its group up: a chat's mark wears no dot there. */
-  isOnScreen: boolean;
-  tab: WindowTab;
-}) {
-  const appsBySlug = useAppsBySlug();
-  const { chats } = useRowSources();
-  const lines = useRowLines(tab, chatTitles);
-  const chat = chatOfTab(tab);
-  return (
-    <RowLinesView
-      close={close}
-      isCloseShown={isCloseShown}
-      lines={lines}
-      mark={
-        <ChatMarkIcon
-          dot={
-            chat === undefined || isOnScreen
-              ? undefined
-              : chatDotOf(chats.find((each) => each.id === chat))
-          }
-          icon={
-            <TabMark
-              appsBySlug={appsBySlug}
-              chatTitles={chatTitles}
-              tab={tab}
-            />
-          }
-        />
-      }
-    />
-  );
-}
 
 /** What a row's X closes: `label` names it. */
 export interface RowClose {

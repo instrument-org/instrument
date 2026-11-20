@@ -1055,16 +1055,16 @@ function ActivityRow({
 }
 
 /**
- * A row of History's, the page's and the sidebar's alike, is a container
- * its words and its time answer to: on one line where there is room, and
- * where there is not, the time leaves its own column for the line under
- * the name. The narrowest page rows leave out the box and the ⋮ too, for
- * the words; a right click and the details still have what the ⋮ has.
+ * A row of History's is a container its words and its time answer to:
+ * on one line where there is room, and where there is not, the time leaves
+ * its own column for the line under the name. The narrowest page rows
+ * leave out the box and the ⋮ too, for the words; a right click and the
+ * details still have what the ⋮ has.
  */
-export const ENTRY_ROW = "@container/entry";
+const ENTRY_ROW = "@container/entry";
 
 /** The time's own column, on a row with room for one line. */
-export const TIME_COLUMN = "@max-[30rem]/entry:hidden";
+const TIME_COLUMN = "@max-[30rem]/entry:hidden";
 
 /**
  * What a row names and what was done with it, and when on a narrow row: on
@@ -1074,7 +1074,7 @@ export const TIME_COLUMN = "@max-[30rem]/entry:hidden";
  * place, which its details still show, and wrap where even that is too
  * narrow.
  */
-export function EntryWords({
+function EntryWords({
   at,
   context,
   keepContext,

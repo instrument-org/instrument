@@ -8,7 +8,6 @@ import {
   sidebarProjectAtom,
 } from "@/client/atoms/tab-groups";
 import { NetworkStatusIndicator } from "@/client/components/network-status/network-status-pill";
-import { HistoryButton } from "@/client/components/activity/history-popover";
 import { type RailBounds } from "@/client/components/studio-sidebar-rail";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import {
@@ -23,7 +22,6 @@ import { getInitials } from "@/client/lib/get-initials";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
 import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { SCREENS } from "@/shared/instrument-screens";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -35,6 +33,7 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { ChordHint } from "./chord-hint";
+import { HistoryButton } from "./recently-closed-menu";
 import {
   groupChordLabel,
   groupChordNumbers,
@@ -814,11 +813,7 @@ function SidebarTop() {
       <span className="flex-1" />
       <UpdateStatusIndicator />
       <NetworkStatusIndicator isIcon />
-      <HistoryButton
-        onShowAll={() => {
-          openBuiltInPage(SCREENS.activity.href);
-        }}
-      />
+      <HistoryButton />
       <NotificationsBell />
     </div>
   );

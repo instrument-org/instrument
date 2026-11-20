@@ -1,7 +1,7 @@
 import { type ClosedTabs } from "@/client/components/activity/activity-timeline";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { appTabsAtom } from "@/client/components/window/app-tabs";
-import { RowHalf, TabMark } from "@/client/components/window/row-half";
+import { TabMark } from "@/client/components/window/row-half";
 import { ShellContext } from "@/client/components/window/shell-context";
 import {
   closedGroupTabOf,
@@ -113,42 +113,6 @@ export function ClosedTabRows({ closed }: { closed: ClosedTabs }) {
         </li>
       ))}
     </ul>
-  );
-}
-
-/** How many of a side's tabs its strip draws before the rest go in a count. */
-/**
- * A closed group drawn as the sidebar draws its row: each side's tab up as
- * its half (`RowHalf`), two sides split by the row's hairline.
- */
-export function ClosedTabsPicture({ closed }: { closed: ClosedTabs }) {
-  const shell = useContext(ShellContext);
-  const chatTitles = shell?.chatTitles ?? NO_TITLES;
-  return (
-    <div className="flex min-w-0 items-stretch rounded-lg px-2.5 py-1 ring-1 ring-foreground/8">
-      {closed.sides.map((side, index) => {
-        const up = side.tabs.find((tab) => tab.id === side.up) ?? side.tabs[0];
-        return (
-          // Even padding on both sides of the hairline, so the halves are
-          // the same width.
-          <div
-            className={cn(
-              "relative flex min-w-0 flex-1 basis-0",
-              index > 0 && "pl-2",
-              index < closed.sides.length - 1 && "pr-2",
-            )}
-            key={up?.id ?? index}
-          >
-            {index > 0 && (
-              <span className="absolute inset-y-0.5 left-0 w-px bg-foreground/12" />
-            )}
-            {up && (
-              <RowHalf chatTitles={chatTitles} isOnScreen={false} tab={up} />
-            )}
-          </div>
-        );
-      })}
-    </div>
   );
 }
 

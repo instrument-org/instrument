@@ -120,7 +120,7 @@ describe("PermissionAsksFoot", () => {
     expect(screen.getByLabelText("sam › Desktop")).toBeDefined();
     expect(screen.queryByText("Downloads")).toBeNull();
     expect(
-      screen.getByRole("button", { name: "Don’t allow any of these" }),
+      screen.getByRole("button", { name: "Don’t allow any" }),
     ).toBeDefined();
   });
 
@@ -130,7 +130,7 @@ describe("PermissionAsksFoot", () => {
     await screen.findByLabelText("sam › Desktop");
     expect(screen.queryByText(/ of /)).toBeNull();
     expect(
-      screen.queryByRole("button", { name: "Don’t allow any of these" }),
+      screen.queryByRole("button", { name: "Don’t allow any" }),
     ).toBeNull();
   });
 

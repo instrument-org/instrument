@@ -22,13 +22,11 @@ import { cn } from "@/client/lib/utils";
 import { ShieldCheckIcon } from "@phosphor-icons/react/ShieldCheck";
 import { ShieldSlashIcon } from "@phosphor-icons/react/ShieldSlash";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
-import { XIcon } from "@phosphor-icons/react/X";
 
 import { ComposerDock } from "./composer-dock";
 import { Button } from "./ui/button";
 import { Delayed } from "./ui/delayed";
 import { Spinner } from "./ui/spinner";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 type Decision = "allowed" | "always" | "declined";
 type Ask = Exclude<
@@ -229,23 +227,18 @@ function PermissionAskCard({
         {stack.length > 1 ? (
           <div className="-mt-1 -mr-1 flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
             {`1 of ${stack.length}`}
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  aria-label="Don’t allow any of these"
-                  className="size-6"
-                  disabled={busy}
-                  onClick={() => {
-                    declineAll.mutate({ id: chatId });
-                  }}
-                  size="icon-sm"
-                  variant="ghost"
-                >
-                  <XIcon />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>Don’t allow any of these</TooltipContent>
-            </Tooltip>
+            {/* In words, since it answers every card in the stack. */}
+            <Button
+              className="-my-1.5 text-muted-foreground"
+              disabled={busy}
+              onClick={() => {
+                declineAll.mutate({ id: chatId });
+              }}
+              size="sm"
+              variant="ghost"
+            >
+              Don’t allow any
+            </Button>
           </div>
         ) : null}
       </div>

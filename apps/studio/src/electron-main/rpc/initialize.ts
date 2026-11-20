@@ -5,7 +5,7 @@ import {
   type WorkspaceConfig,
 } from "@instrument-org/workspace/electron";
 import { RPCHandler } from "@orpc/server/message-port";
-import { ipcMain } from "electron";
+import { ipcMain, type MessagePortMain, type WebContents } from "electron";
 import { EventEmitter } from "node:events";
 
 import { recordPersonAction } from "../lib/actions";
@@ -90,59 +90,90 @@ function notStarted<T extends object>(): T {
   });
 }
 
+/** Set by `initializeRPC`; until then a window's port waits in `early`. */
+let appUpdater: AppUpdaterHandle | null = null;
+const early: { port: MessagePortMain; sender: WebContents }[] = [];
+
+// Listened for as the module loads, ahead of anything that can open a
+// window: a handshake no one listens for is dropped, and the window's port
+// closes under it once the main process lets its end go.
+ipcMain.on("start-orpc-server", (event) => {
+  // The port handshake is the renderer's one route to the whole router, so
+  // only the top frame gets to open it. Preload is the sole sender and today
+  // it loads in the main frame alone (`nodeIntegrationInSubFrames` is off),
+  // which makes this inert -- it is here so enabling that flag later cannot
+  // quietly hand embedded content a channel to the main process.
+  if (event.senderFrame !== event.sender.mainFrame) {
+    logger.scope("rpc").error("Ignoring RPC port from a subframe");
+    return;
+  }
+
+  const [serverPort] = event.ports;
+
+  if (!serverPort) {
+    logger.scope("rpc").error("No server port found");
+    return;
+  }
+
+  if (appUpdater === null) {
+    early.push({ port: serverPort, sender: event.sender });
+    return;
+  }
+  connect(serverPort, event.sender.id, appUpdater);
+});
+
 /**
- * Opens the router to each window that connects, with the running workspace
- * in its context, or the stand-ins for a window that connects before the
- * workspace starts.
+ * Opens the router to a window's port, with the running workspace in its
+ * context, or the stand-ins for a window that connects before the workspace
+ * starts.
+ */
+function connect(
+  serverPort: MessagePortMain,
+  webContentsId: number,
+  updater: AppUpdaterHandle,
+) {
+  const run = getWorkspaceRun();
+
+  meterRPCPayloads(serverPort, webContentsId);
+  // Said whatever closed it, since the page reloading or closing looks the
+  // same from here as a port lost under a page still open, which the
+  // window's own report tells apart.
+  serverPort.on("close", () => {
+    logger.scope("rpc").info(`Window ${webContentsId}'s RPC port closed`);
+  });
+  handler.upgrade(serverPort, {
+    context: {
+      appUpdater: updater,
+      webContentsId,
+      ...(run.kind === "started"
+        ? {
+            workspaceConfig: run.workspaceConfig,
+            workspaceRef: run.workspaceRef,
+          }
+        : {
+            workspaceConfig: notStarted<WorkspaceConfig>(),
+            workspaceRef: notStarted<WorkspaceActorRef>(),
+          }),
+    },
+  });
+  serverPort.start();
+}
+
+/**
+ * Opens the router to each window that connects from here on, and to any
+ * that connected while boot had yet to get here.
  */
 export function initializeRPC({
-  appUpdater,
+  appUpdater: updater,
 }: {
   appUpdater: AppUpdaterHandle;
 }) {
-  ipcMain.on("start-orpc-server", (event) => {
-    // The port handshake is the renderer's one route to the whole router, so
-    // only the top frame gets to open it. Preload is the sole sender and today
-    // it loads in the main frame alone (`nodeIntegrationInSubFrames` is off),
-    // which makes this inert -- it is here so enabling that flag later cannot
-    // quietly hand embedded content a channel to the main process.
-    if (event.senderFrame !== event.sender.mainFrame) {
-      logger.scope("rpc").error("Ignoring RPC port from a subframe");
-      return;
+  appUpdater = updater;
+  for (const { port, sender } of early.splice(0)) {
+    if (sender.isDestroyed()) {
+      port.close();
+    } else {
+      connect(port, sender.id, updater);
     }
-
-    const [serverPort] = event.ports;
-
-    if (!serverPort) {
-      logger.scope("rpc").error("No server port found");
-      return;
-    }
-
-    const webContentsId = event.sender.id;
-    const run = getWorkspaceRun();
-
-    meterRPCPayloads(serverPort, webContentsId);
-    // Said whatever closed it, since the page reloading or closing looks the
-    // same from here as a port lost under a page still open, which the
-    // window's own report tells apart.
-    serverPort.on("close", () => {
-      logger.scope("rpc").info(`Window ${webContentsId}'s RPC port closed`);
-    });
-    handler.upgrade(serverPort, {
-      context: {
-        appUpdater,
-        webContentsId,
-        ...(run.kind === "started"
-          ? {
-              workspaceConfig: run.workspaceConfig,
-              workspaceRef: run.workspaceRef,
-            }
-          : {
-              workspaceConfig: notStarted<WorkspaceConfig>(),
-              workspaceRef: notStarted<WorkspaceActorRef>(),
-            }),
-      },
-    });
-    serverPort.start();
-  });
+  }
 }

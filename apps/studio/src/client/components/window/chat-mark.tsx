@@ -49,7 +49,7 @@ export function chatDotOf(
 
 /**
  * One chat's icon wherever it stands for the chat (its tab in a strip, its
- * half of a sidebar row, its row of the sidebar's Chats list): the dot on
+ * half of a sidebar row, its row of the bookmarks bar's Chats menu): the dot on
  * its corner for a reply not yet seen or a question waiting, and the icon
  * alone otherwise. `ring` is what the icon sits on.
  */

@@ -125,8 +125,8 @@ export function ChatRow({
   /** Whether this chat is the one open beside the list. */
   isOpen: boolean;
   /**
-   * A row of the sidebar's Chats list: no controls under the pointer and no
-   * hairlines, on the sidebar's rounded rows.
+   * A row of the bookmarks bar's Chats menu: no controls under the pointer
+   * and no hairlines, on rounded rows.
    */
   isPlain?: boolean;
   /** Whether the row names the project the chat is filed under: not in the list of that project, which already says it. */

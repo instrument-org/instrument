@@ -80,13 +80,20 @@ const HEADERS = [
 const UNITS = 6;
 const COST = 7;
 /**
- * Sized so a job that scripts its edits still reads and writes enough to
- * reach the step: measured, 150 rows and 40 SKUs finished in 21 requests with
- * the prompt peaking at 81K, short of clearing and of any rollover.
+ * Sized so the job rolls over: measured on Haiku 5.5, 150 rows and 40 SKUs
+ * finished in 21 requests with the prompt peaking at 81K, and 450 rows and
+ * 150 SKUs in 9 to 33 requests, the job adding 40K to 55K to the prompt and
+ * rolling over once in four runs. A cycle has about 50K of room between the step and a fresh window.
+ * Size alone moves nothing while the edits can be scripted (`signed`); with
+ * them signed, 900 rows and 300 SKUs took 25 to 36 requests and rolled over
+ * at most once, the edits batched into loops of browser commands, and 1,800
+ * rows and 600 SKUs took 52 requests and rolled over once, the second cycle
+ * peaking at 85K. 2,700 rows and 900 SKUs took 25 to 80 requests and rolled
+ * over one to three times.
  */
-const ROWS = 450;
+const ROWS = 2_700;
 /** SKUs the count lists: each needs both its units and its cost right. */
-const TARGETS = 150;
+const TARGETS = 900;
 
 /** A fixed sequence, so every run gets the same sheet. */
 function sequence(seed: number) {
@@ -360,10 +367,15 @@ function select(r, c) {
   nameBox.value = addr(sel.r, sel.c);
   formula.value = values[sel.r][sel.c];
 }
+let rev = ${JSON.stringify(served.rev)};
+${SIGNED}
 function commit(text) {
   const x = new XMLHttpRequest();
   x.open("POST", "/api/cell", false);
+  x.setRequestHeader("x-sheet-sig", signed(rev + ":" + sel.r + ":" + sel.c + ":" + text));
   x.send(JSON.stringify({ c: sel.c, r: sel.r, value: text }));
+  if (x.status !== 204) return;
+  rev = x.getResponseHeader("x-sheet-rev");
   values[sel.r][sel.c] = text;
   document.getElementById("saved").textContent = "Saving...";
   setTimeout(() => { document.getElementById("saved").textContent = "All changes saved"; }, 300);
@@ -419,8 +431,28 @@ select(0, 0);
 /** The sheet as the server holds it, which every edit through the page changes. */
 const served = {
   commits: 0,
+  /** What the next edit is signed over, new after every edit. */
+  rev: Math.random().toString(36).slice(2),
   values: SHEET.rows.map((row) => [...row.cells]),
 };
+
+/**
+ * How the page signs an edit, inside the code that removes itself, as a web
+ * sheet's edits go out in a protocol its own code speaks. Without it the job
+ * was one script: measured on Haiku 5.5, both runs of 1,800 rows read the
+ * page's source with `curl`, then wrote every cell by posting to its API from
+ * `agent-browser eval`, in 10 and 14 requests and with no rollover. Signed over
+ * a value the server changes on every edit, so a recorded request cannot be
+ * sent again either.
+ */
+function signed(text: string): string {
+  let hash = 5381;
+  for (let index = 0; index < text.length; index++) {
+    hash = ((hash * 33) ^ text.charCodeAt(index)) >>> 0;
+  }
+  return hash.toString(36);
+}
+const SIGNED = signed.toString();
 
 /**
  * The session a browser signs in with, set on its own navigation and never on
@@ -446,13 +478,15 @@ const CellSchema = z.object({
 async function serveSheet(): Promise<string> {
   const server = http.createServer((request, response) => {
     const url = new URL(request.url ?? "/", "http://x");
-    if (url.pathname === "/sheet") {
-      const navigation = request.headers["sec-fetch-dest"] === "document";
+    // The page only to the browser's own navigation, as its code is out of
+    // reach of `curl` or a script's fetch.
+    if (
+      url.pathname === "/sheet" &&
+      request.headers["sec-fetch-dest"] === "document"
+    ) {
       response.writeHead(200, {
         "content-type": "text/html",
-        ...(navigation
-          ? { "set-cookie": `${SESSION_COOKIE}; Path=/; HttpOnly` }
-          : {}),
+        "set-cookie": `${SESSION_COOKIE}; Path=/; HttpOnly`,
       });
       response.end(sheetPage());
       return;
@@ -476,11 +510,24 @@ async function serveSheet(): Promise<string> {
       request.on("end", () => {
         const cell = CellSchema.safeParse(JSON.parse(body));
         const row = cell.success ? served.values[cell.data.r] : undefined;
-        if (cell.success && row) {
-          row[cell.data.c] = cell.data.value;
-          served.commits += 1;
+        if (!cell.success || !row) {
+          response.writeHead(400);
+          response.end();
+          return;
         }
-        response.writeHead(cell.success ? 204 : 400);
+        const { c, r, value } = cell.data;
+        if (
+          request.headers["x-sheet-sig"] !==
+          signed(`${served.rev}:${String(r)}:${String(c)}:${value}`)
+        ) {
+          response.writeHead(403);
+          response.end();
+          return;
+        }
+        row[c] = value;
+        served.commits += 1;
+        served.rev = Math.random().toString(36).slice(2);
+        response.writeHead(204, { "x-sheet-rev": served.rev });
         response.end();
       });
       return;

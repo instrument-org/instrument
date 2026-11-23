@@ -392,6 +392,7 @@ export function ChatConversation({
   const handleRetry = (prompt: string) => {
     if (!selectedModelURI) {
       toast.error("Couldn't try again", {
+        action: { label: "Choose a model", onClick: chooseModel },
         description: "Choose a model first.",
       });
       return;
@@ -412,6 +413,7 @@ export function ChatConversation({
   ) => {
     if (!modelURI) {
       toast.error("Couldn't try again", {
+        action: { label: "Choose a model", onClick: chooseModel },
         description: "Choose a model first.",
       });
       return;
@@ -641,6 +643,7 @@ export function ChatConversation({
   const sendNextStep = (prompt: string) => {
     if (!selectedModelURI) {
       toast.error("Couldn't send your message", {
+        action: { label: "Choose a model", onClick: chooseModel },
         description: "Choose a model first.",
       });
       return;

@@ -20,6 +20,9 @@ const WIDTHS = [
  * state here and in `noticesStates` to be drawn.
  */
 const scenarioOf = {
+  "claude-account-disconnected": "Claude account disconnected",
+  "claude-account-only": "Claude account disconnected, nothing else listed",
+  "instrument-logged-out": "Instrument logged out",
   "claude-account-signed-out": "Claude account signed out",
   fine: "fine",
   "list-failed": "the list failed",

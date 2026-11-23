@@ -46,6 +46,21 @@ export const noticesStates = [
     tab: "model-notices",
   },
   {
+    id: "claude-account-disconnected",
+    label: "Claude account disconnected",
+    tab: "model-notices",
+  },
+  {
+    id: "claude-account-only",
+    label: "Claude account disconnected, nothing else listed",
+    tab: "model-notices",
+  },
+  {
+    id: "instrument-logged-out",
+    label: "Instrument logged out",
+    tab: "model-notices",
+  },
+  {
     id: "other-computer-same-kind",
     label: "Another computer's connection, one of the kind here",
     tab: "model-notices",

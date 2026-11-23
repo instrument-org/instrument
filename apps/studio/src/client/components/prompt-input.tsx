@@ -29,6 +29,7 @@ import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { useProviderSwitch } from "@/client/components/settings/provider-switch";
 import { useSignInAgain } from "@/client/hooks/use-sign-in-again";
 import {
   isDictating,
@@ -436,6 +437,7 @@ export const PromptInput = ({
   const { data: disabledProviders } = useQuery(
     rpcClient.providerConfig.live.disabled.experimental_liveOptions(),
   );
+  const providerSwitch = useProviderSwitch();
   const { data: signedOutAccounts } = useQuery(
     rpcClient.notices.live.signedOut.experimental_liveOptions(),
   );
@@ -475,6 +477,14 @@ export const PromptInput = ({
       }
       case "choose": {
         setPickerOpen(true);
+        break;
+      }
+      case "enable": {
+        providerSwitch.setEnabled(action.id, true);
+        break;
+      }
+      case "log-in": {
+        openLogin({ instrumentOnly: true });
         break;
       }
       case "retry": {

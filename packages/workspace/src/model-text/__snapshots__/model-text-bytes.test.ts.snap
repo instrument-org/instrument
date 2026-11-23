@@ -2324,6 +2324,51 @@ exports[`the exported text constants > skillChanges 1`] = `{}`;
 
 exports[`the exported text constants > stoppedToolCall 1`] = `{}`;
 
+exports[`the exported text constants > summaryInstruction 1`] = `
+{
+  "CUT_OFF_NOTE": "[This summary was cut off at its length limit. The conversation's transcript has what it does not cover.]",
+  "RETRY_INSTRUCTION": "<summarize-conversation>
+This conversation is about to be replaced, to keep it small: from here on you will see your instructions, the user's messages, your handoff notes, and a summary you write now in place of everything else above. Write that summary as your whole reply. Do not answer the user, carry on with the task, or call any tool.
+
+Use exactly these headings, under 1,500 words in all, and write "(none)" under one with nothing to say:
+## Goal
+What the user wants overall, and every standing instruction, preference and constraint they gave.
+## Done and found
+What has been done and what came of it, with the specific facts, figures, names, IDs, URLs and file paths a later step will need, and which of the user's questions are answered.
+## Files
+Every file written or changed, and where it is.
+## Decisions
+Decisions made and why, and what failed or was ruled out.
+## Next
+What is in progress and what remains to do next.
+</summarize-conversation>
+
+The last answer to this was not the summary. Tools do nothing here. Write the summary now, as text, under exactly those headings.",
+  "SUMMARY_HEADINGS": [
+    "## Goal",
+    "## Done and found",
+    "## Files",
+    "## Decisions",
+    "## Next",
+  ],
+  "SUMMARY_INSTRUCTION": "<summarize-conversation>
+This conversation is about to be replaced, to keep it small: from here on you will see your instructions, the user's messages, your handoff notes, and a summary you write now in place of everything else above. Write that summary as your whole reply. Do not answer the user, carry on with the task, or call any tool.
+
+Use exactly these headings, under 1,500 words in all, and write "(none)" under one with nothing to say:
+## Goal
+What the user wants overall, and every standing instruction, preference and constraint they gave.
+## Done and found
+What has been done and what came of it, with the specific facts, figures, names, IDs, URLs and file paths a later step will need, and which of the user's questions are answered.
+## Files
+Every file written or changed, and where it is.
+## Decisions
+Decisions made and why, and what failed or was ruled out.
+## Next
+What is in progress and what remains to do next.
+</summarize-conversation>",
+}
+`;
+
 exports[`the exported text constants > systemNote 1`] = `{}`;
 
 exports[`the exported text constants > taskCommand 1`] = `

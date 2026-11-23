@@ -145,6 +145,14 @@ const none = new Set<string>();
 // The removed connection is named by its kind only where a name is known; the
 // case below that leaves it out reads the fallback.
 
+/** A model on a Claude account no list holds any more. */
+const claudeAccountURI = model({
+  canonicalId: "claude-opus-4.5",
+  config: "claude-account",
+  name: "Claude Opus 4.5",
+  provider: "claude-account",
+}).uri;
+
 export const modelStatusScenarios = {
   loading: { dismissedOffers: none, isLoading: true, models: listed },
   fine: { dismissedOffers: none, models: listed, modelURI: sonnet55.uri },
@@ -184,14 +192,27 @@ export const modelStatusScenarios = {
   "Claude account signed out": {
     dismissedOffers: none,
     models: listed,
-    modelURI: model({
-      canonicalId: "claude-opus-4.5",
-      config: "claude-account",
-      name: "Claude Opus 4.5",
-      provider: "claude-account",
-    }).uri,
+    modelURI: claudeAccountURI,
     providerNames: new Map([["claude-account", "Claude account"]]),
     signedOut: new Set(["claude-account"]),
+  },
+  "Claude account disconnected": {
+    dismissedOffers: none,
+    models: listed,
+    modelURI: claudeAccountURI,
+    providerNames: new Map([["claude-account", "Claude"]]),
+  },
+  "Claude account disconnected, nothing else listed": {
+    dismissedOffers: none,
+    models: [],
+    modelURI: claudeAccountURI,
+    providerNames: new Map([["claude-account", "Claude"]]),
+  },
+  "Instrument logged out": {
+    dismissedOffers: none,
+    models: [sonnet55],
+    modelURI: auto.uri,
+    providerNames: new Map([["instrument", APP_NAME]]),
   },
   "provider removed, same model through OpenRouter and Instrument": {
     dismissedOffers: none,

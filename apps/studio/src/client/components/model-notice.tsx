@@ -9,7 +9,7 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
  * and can be set aside; a problem is the app's yellow and goes only when it is
  * fixed.
  *
- * Its button does the thing (switches, retries) rather than opening something
+ * Its first button does the thing (switches, retries) rather than opening something
  * that does, so the note that reports a problem is also the way out of it.
  *
  * `nudge` counts the sends it refused: each new count flashes the note, so a
@@ -32,17 +32,24 @@ export function ModelNoticeRow({
   return (
     <ReplyNote
       action={
-        notice.action && (
-          <ReplyNoteButton
-            onClick={() => {
-              if (notice.action) {
-                onAction(notice.action);
-              }
-            }}
-          >
-            {notice.action.label}
-          </ReplyNoteButton>
-        )
+        <>
+          {[notice.secondary, notice.action].map(
+            (action) =>
+              action && (
+                <ReplyNoteButton
+                  emphasis={
+                    action === notice.action && notice.secondary !== undefined
+                  }
+                  key={action.label}
+                  onClick={() => {
+                    onAction(action);
+                  }}
+                >
+                  {action.label}
+                </ReplyNoteButton>
+              ),
+          )}
+        </>
       }
       className={className}
       data-slot="model-notice"

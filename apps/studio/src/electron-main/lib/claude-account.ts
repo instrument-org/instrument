@@ -6,7 +6,8 @@ import {
 } from "@/electron-main/lib/claude-code-download";
 import { claudeSignInMachine } from "@/electron-main/lib/claude-sign-in";
 import { createScopedLogger } from "@/electron-main/lib/electron-logger";
-import { noteSignedOut } from "@/electron-main/lib/notices";
+import { lostClaudeSignIn } from "@/electron-main/lib/lost-claude-sign-in";
+import { noteSignedOut, signedOutAccounts } from "@/electron-main/lib/notices";
 import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { focusAppWindow } from "@/electron-main/windows/foreground";
@@ -100,6 +101,8 @@ let install: ClaudeCodeInstall | undefined;
 let lastRefresh = 0;
 let refreshing: Promise<ClaudeAccountStatus> | undefined;
 let finishing = false;
+/** The person's own sign-out is under way, so signed out is what they asked for. */
+let signingOut = false;
 
 const signIn = createActor(
   claudeSignInMachine.provide({
@@ -221,16 +224,34 @@ export function refreshClaudeAccountStatus({
     return Promise.resolve(claudeAccountStatus());
   }
   refreshing = readStatus()
-    .then((next) => {
-      // Only from a reading Claude Code gave, and a sign-out the person asked
-      // for reads as signed out without `expired`.
+    .then(async (next) => {
+      // Only from a reading Claude Code gave. No copy installed (one being
+      // replaced after an update) says nothing about the sign-in.
+      if (next.kind === "not-installed") {
+        return next;
+      }
+      const lost = lostClaudeSignIn({
+        before: reading,
+        next,
+        // The notices are this computer's, so one noted in another workspace
+        // counts only where this one has signed in to Claude too.
+        noted:
+          signedOutAccounts().some(
+            (account) => account.id === CLAUDE_ACCOUNT_PROVIDER_CONFIG.id,
+          ) &&
+          (await stat(accountDir()).then(
+            () => true,
+            () => false,
+          )),
+        signingOut,
+      });
       noteSignedOut(
         CLAUDE_ACCOUNT_PROVIDER_CONFIG.type,
-        next.kind === "signed-out" && next.expired
-          ? [{ id: CLAUDE_ACCOUNT_PROVIDER_CONFIG.id }]
-          : [],
+        lost ? [{ id: CLAUDE_ACCOUNT_PROVIDER_CONFIG.id }] : [],
       );
-      return next;
+      return lost && next.kind === "signed-out"
+        ? { ...next, expired: true }
+        : next;
     })
     .catch((error: unknown) => {
       // A status Claude Code could not give (it timed out, or would not
@@ -479,15 +500,20 @@ export async function submitClaudeSignInCode(
  */
 export async function signOutOfClaude() {
   const executablePath = await installedCopy();
-  if (executablePath) {
-    await run(executablePath, ["auth", "logout"], {
-      env: cliEnv(),
-      timeout: 15_000,
-    }).catch((error: unknown) => {
-      log.warn("Claude Code's sign-out failed", error);
-    });
+  signingOut = true;
+  try {
+    if (executablePath) {
+      await run(executablePath, ["auth", "logout"], {
+        env: cliEnv(),
+        timeout: 15_000,
+      }).catch((error: unknown) => {
+        log.warn("Claude Code's sign-out failed", error);
+      });
+    }
+    return await refreshClaudeAccountStatus({ force: true });
+  } finally {
+    signingOut = false;
   }
-  return refreshClaudeAccountStatus({ force: true });
 }
 
 /** Give up on a sign-in still waiting on the browser. */

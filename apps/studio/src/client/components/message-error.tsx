@@ -26,6 +26,7 @@ import {
 } from "@/shared/notices";
 
 import { openReportDialog } from "../atoms/report-dialog";
+import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "../atoms/settings-modal";
 import {
   type OnlineRetry,
@@ -127,6 +128,9 @@ export function MessageError({
   const [expandedPast, setExpandedPast] = useState(false);
   const [reportSent, setReportSent] = useState(false);
   const signInAgain = useSignInAgain();
+  const { data: hasToken } = useQuery(
+    rpcClient.auth.live.hasToken.experimental_liveOptions(),
+  );
   const { data: chatStatus } = useQuery({
     ...chatListOptions(),
     select: (chats) => chats.find((chat) => chat.id === chatId)?.status,
@@ -235,14 +239,31 @@ export function MessageError({
     onModelChange,
     onRunAgain,
     provider,
-    signIn: isSignInAccount(provider)
-      ? () => {
-          signInAgain.signIn(
-            provider,
-            message.metadata.aiGatewayModel?.params.providerConfigId,
-          );
-        }
-      : undefined,
+    logIn:
+      provider === OUR_MODELS.providerType && hasToken === false
+        ? () => {
+            openLogin({ instrumentOnly: true });
+          }
+        : undefined,
+    // While the sign-in it started waits on the browser, the action cancels it.
+    signIn: !isSignInAccount(provider)
+      ? undefined
+      : signInAgain.waiting(provider)
+        ? {
+            label: "Cancel",
+            onClick: () => {
+              signInAgain.cancel(provider);
+            },
+          }
+        : {
+            label: "Sign in",
+            onClick: () => {
+              signInAgain.signIn(
+                provider,
+                message.metadata.aiGatewayModel?.params.providerConfigId,
+              );
+            },
+          },
   });
 
   // A sign-in or a limit of their own account has its fix on the card already;
@@ -568,6 +589,7 @@ function errorActions({
   switchTo,
   classification,
   kind,
+  logIn,
   onModelChange,
   onRunAgain,
   provider,
@@ -576,7 +598,9 @@ function errorActions({
   /** Opens the chat's model picker, where another model might get past it. */
   chooseModel: (() => void) | undefined;
   /** Starts the account's own sign-in again. */
-  signIn: (() => void) | undefined;
+  signIn: ErrorAction | undefined;
+  /** Logs in to Instrument, when its model was refused for being logged out. */
+  logIn: (() => void) | undefined;
   switchTo: AIGatewayModel.Type | undefined;
   classification: string | undefined;
   kind: MessageErrorData["kind"];
@@ -624,10 +648,14 @@ function errorActions({
   }
   if (classification === "auth" || kind === "api-key") {
     if (provider === OUR_MODELS.providerType) {
-      return [...tryAgain, ...changeModel];
+      return [
+        ...(logIn ? [{ label: "Log in", onClick: logIn }] : []),
+        ...tryAgain,
+        ...changeModel,
+      ];
     }
     return isSignInAccount(provider) && signIn
-      ? [{ label: "Sign in", onClick: signIn }, ...tryAgain, ...changeModel]
+      ? [signIn, ...tryAgain, ...changeModel]
       : [providerSettings, ...tryAgain, ...changeModel];
   }
   return [...tryAgain, ...changeModel];

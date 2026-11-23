@@ -14,7 +14,7 @@ describe("readModelStatus and noticeFor", () => {
           {
             status: status.kind,
             ...(notice && {
-              notice: `[${notice.tone}${notice.dismissible ? ", ×" : ""}] ${notice.text}${notice.action ? ` → ${notice.action.label}` : ""}`,
+              notice: `[${notice.tone}${notice.dismissible ? ", ×" : ""}] ${notice.text}${notice.action ? ` → ${[notice.action, notice.secondary].flatMap((action) => action?.label ?? []).join(" | ")}` : ""}`,
             }),
           },
         ];
@@ -22,22 +22,34 @@ describe("readModelStatus and noticeFor", () => {
     );
     expect(read).toMatchInlineSnapshot(`
       {
+        "Claude account disconnected": {
+          "notice": "[problem] Claude isn't connected anymore, so Claude Opus 4.5 isn't available → Connect Claude | Switch to Auto",
+          "status": "gone",
+        },
+        "Claude account disconnected, nothing else listed": {
+          "notice": "[problem] Claude isn't connected anymore, so Claude Opus 4.5 isn't available → Connect Claude | Add a provider",
+          "status": "gone",
+        },
         "Claude account signed out": {
-          "notice": "[problem] You're signed out of Claude → Sign in",
+          "notice": "[problem] You're signed out of Claude → Sign in | Switch to Auto",
+          "status": "gone",
+        },
+        "Instrument logged out": {
+          "notice": "[problem] Instrument isn't connected anymore, so Auto isn't available → Log in to Instrument | Choose a model",
           "status": "gone",
         },
         "another computer's connection, one of the kind here": {
           "status": "ready",
         },
         "another computer's connection, only another kind here": {
-          "notice": "[problem] Anthropic isn't connected anymore, so Claude Haiku 4.5 isn't available → Switch to OpenRouter",
+          "notice": "[problem] Anthropic isn't connected anymore, so Claude Haiku 4.5 isn't available → Switch to OpenRouter | Add a provider",
           "status": "gone",
         },
         "fine": {
           "status": "ready",
         },
         "its provider failed to load": {
-          "notice": "[problem] Couldn't load models from OpenRouter → Retry",
+          "notice": "[problem] Couldn't load models from OpenRouter → Retry | Switch to Auto",
           "status": "provider-failed",
         },
         "loading": {
@@ -59,15 +71,15 @@ describe("readModelStatus and noticeFor", () => {
           "status": "no-models",
         },
         "provider removed, same model elsewhere": {
-          "notice": "[problem] Anthropic isn't connected anymore, so Claude Haiku 4.5 isn't available → Switch to OpenRouter",
+          "notice": "[problem] Anthropic isn't connected anymore, so Claude Haiku 4.5 isn't available → Switch to OpenRouter | Add a provider",
           "status": "gone",
         },
         "provider removed, same model through OpenRouter and Instrument": {
-          "notice": "[problem] Claude Haiku 4.5 isn't available anymore → Switch to Instrument",
+          "notice": "[problem] Claude Haiku 4.5 isn't available anymore → Switch to Instrument | Add a provider",
           "status": "gone",
         },
         "provider turned off, same model elsewhere": {
-          "notice": "[problem] Anthropic is turned off, so Claude Haiku 4.5 isn't available → Switch to OpenRouter",
+          "notice": "[problem] Anthropic is turned off, so Claude Haiku 4.5 isn't available → Enable Anthropic | Switch to OpenRouter",
           "status": "gone",
         },
         "restricted, with Auto to fall back on": {

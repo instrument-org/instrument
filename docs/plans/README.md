@@ -73,6 +73,7 @@ Each entry is the plan's title and the opening of its status.
 - [Structure after the chat rework](structure-after-the-chat-rework.md): In progress.
 - [Inference through the user's Claude and ChatGPT subscriptions](subscription-inference.md): ChatGPT direct route landed (`ca68bb66d`, `8b3b27b53`, first shipped in v2.0.0-beta.37).
 - [Tab groups prototype](tab-groups-prototype.md): open
+- [One owner for every tab](tab-service.md): The back history of a discarded page and the table of where opens land are done.
 - [Testing the Instrument folder](testing-the-instrument-folder.md): Under way.
 - [Virtualize the transcript](transcript-virtualization.md): Proposed.
 - [Two sides prototype](two-sides-prototype.md): open

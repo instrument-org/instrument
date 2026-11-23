@@ -381,6 +381,18 @@ describe.skipIf(WINDOWS)("the rollover notice", () => {
       summarizedNoNotes: contextRolloverNotice(undefined, notesPath, {
         summary: "A summary.",
       }),
+      summarizedStepCarried: contextRolloverNotice(
+        undefined,
+        notesPath,
+        { summary: "A summary." },
+        true,
+      ),
+      noNotesStepCarried: contextRolloverNotice(
+        undefined,
+        notesPath,
+        undefined,
+        true,
+      ),
       withNotes: contextRolloverNotice("Notes.", notesPath),
     }).toMatchSnapshot();
   });

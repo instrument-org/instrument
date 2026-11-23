@@ -258,6 +258,85 @@ describe("applyContextRollover", () => {
     const text = textOf(rolled[0]);
     expect(sanitizeSurrogates(text)).toBe(text);
   });
+
+  describe("a cut right after a step's results", () => {
+    const call = (callId: string, state: string) => ({
+      input: { command: `run ${callId}` },
+      state,
+      toolCallId: callId,
+      type: "tool-bash",
+      ...(state === "output-available" && { output: `ran ${callId}` }),
+    });
+    const step = (parts: object[]) =>
+      ({
+        id: id("a2"),
+        metadata: { modelId: "m", usage: { inputTokens: 89_000 } },
+        parts,
+        role: "assistant",
+      }) as unknown as SessionMessage.WithParts;
+    const rollAfter = (boundary: SessionMessage.WithParts) =>
+      applyContextRollover({
+        messages: [message("u1", "user"), message("a1", "assistant"), boundary],
+        rolledOverAfterMessageId: id("a2"),
+      });
+
+    // Measured on Haiku 5.5: a summarized rollover is drawn while the request
+    // reading the newest results is built, and with the step dropped the
+    // next window read the page again before it edited anything.
+    it("carries the last step whole, its calls with their results", () => {
+      const rolled = rollAfter(
+        step([
+          { type: "step-start" },
+          call("c1", "output-available"),
+          { type: "step-start" },
+          { text: "Filling row 12.", type: "text" },
+          call("c2", "output-available"),
+          call("c3", "input-available"),
+          { data: {}, type: "data-contextRollover" },
+        ]),
+      );
+
+      expect(ids(rolled)).toEqual(["u1", "a2"]);
+      expect(rolled[1]?.parts).toMatchInlineSnapshot(`
+        [
+          {
+            "text": "Filling row 12.",
+            "type": "text",
+          },
+          {
+            "input": {
+              "command": "run c2",
+            },
+            "output": "ran c2",
+            "state": "output-available",
+            "toolCallId": "c2",
+            "type": "tool-bash",
+          },
+        ]
+      `);
+    });
+
+    // The step's usage measured the request at the cut; read as the new
+    // window's occupancy it would roll the session over again at once.
+    it("leaves out the usage the step was measured at", () => {
+      const rolled = rollAfter(step([call("c1", "output-available")]));
+
+      expect(rolled[1]?.metadata).toEqual({ modelId: "m" });
+    });
+
+    it("carries nothing for a step with no finished call", () => {
+      expect(
+        ids(
+          rollAfter(
+            step([
+              { text: "Done.", type: "text" },
+              call("c1", "input-available"),
+            ]),
+          ),
+        ),
+      ).toEqual(["u1"]);
+    });
+  });
 });
 
 describe("rolloverWindowDecision", () => {

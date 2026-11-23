@@ -1308,6 +1308,31 @@ describe("prepareModelMessages", () => {
         },
       );
 
+      // Measured on Haiku 5.5: every summarized rollover was drawn right
+      // after a result, and with the step dropped the next window read the
+      // page again before it edited anything.
+      it("carries the step the cut came after, with its result cut to size", async () => {
+        await save(userMessage("First question"));
+        for (let index = 0; index < 4; index++) {
+          await save(assistantMessageWithUsage(`turn ${index}`, 900));
+        }
+        await save(readStep(60_000, 900));
+
+        const messages = await prepareWith(() =>
+          Promise.resolve({ summary: "Read the notes.", usage: {} }),
+        );
+        const texts = modelTexts(messages);
+        const result = texts.find((text) => text.includes("xxxx"));
+
+        expect(await storedBoundary()).toBeDefined();
+        expect(texts.some((text) => text.includes("turn 0"))).toBe(false);
+        expect(result).toContain("omitted");
+        expect(result?.length).toBeLessThan(25_000);
+        expect(
+          texts.find((text) => text.includes("<context-rollover>")),
+        ).toContain("Your last step before the cut");
+      });
+
       it("draws no boundary when the summary cannot be written", async () => {
         await save(userMessage("First question"));
         for (let index = 0; index < 4; index++) {

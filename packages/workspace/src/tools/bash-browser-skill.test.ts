@@ -139,7 +139,13 @@ describe("bash attaches the agent-browser skill", () => {
     await saveSession(earlier.id);
     expect((await bash("agent-browser --help")).browserSkill).toBeUndefined();
 
+    // A cut right after the step that handed it over carries that step, the
+    // guide with it (`carriedStep`).
     await saveSession(carried.id);
+    expect((await bash("agent-browser --help")).browserSkill).toBeUndefined();
+
+    const after = await record(await bash("echo after"));
+    await saveSession(after.id);
     const pointer = await bash("agent-browser --help");
     expect(pointer.browserSkill).toEqual({
       content: "",

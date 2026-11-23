@@ -2966,6 +2966,13 @@ No handoff notes were found at \`/Users/mac-user/.instrument/chats/c/handoff-not
 
 Rollovers, summaries and handoff notes are your own bookkeeping, not part of the answer: never mention them or link the notes file in a reply. Asking the user about a detail you lost is fine.
 </context-rollover>",
+  "noNotesStepCarried": "<context-rollover>
+This conversation ran out of context and continued in a fresh window. The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed. Your own earlier turns have not been carried across, except your last step: the work you did, what you read, and anything you worked out before that step are no longer in front of you. Your last step before the cut, its calls and their results, is carried across as it was: continue from those results rather than calling again.
+
+No handoff notes were found at \`/Users/mac-user/.instrument/chats/c/handoff-notes.md\`. Treat what is in this window as the remainder of the task rather than the whole of it, and write your notes there before the room runs out again.
+
+Rollovers, summaries and handoff notes are your own bookkeeping, not part of the answer: never mention them or link the notes file in a reply. Asking the user about a detail you lost is fine.
+</context-rollover>",
   "summarized": "<context-rollover>
 This conversation was summarized to keep it small, and continued in a fresh window. The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed. Your own earlier turns are replaced by the summary below, which you wrote at the cut: treat what it says as established rather than something to rediscover. It covers the conversation only up to the cut, though it comes last here: anything in this window from after the cut, your own turns included, is newer, and wins where the two differ.
 
@@ -2981,6 +2988,15 @@ Rollovers, summaries and handoff notes are your own bookkeeping, not part of the
 </context-rollover>",
   "summarizedNoNotes": "<context-rollover>
 This conversation was summarized to keep it small, and continued in a fresh window. The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed. Your own earlier turns are replaced by the summary below, which you wrote at the cut: treat what it says as established rather than something to rediscover. It covers the conversation only up to the cut, though it comes last here: anything in this window from after the cut, your own turns included, is newer, and wins where the two differ.
+
+<summary>
+A summary.
+</summary>
+
+Rollovers, summaries and handoff notes are your own bookkeeping, not part of the answer: never mention them or link the notes file in a reply. Asking the user about a detail you lost is fine.
+</context-rollover>",
+  "summarizedStepCarried": "<context-rollover>
+This conversation was summarized to keep it small, and continued in a fresh window. The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed. Your own earlier turns are replaced by the summary below, which you wrote at the cut: treat what it says as established rather than something to rediscover. It covers the conversation only up to the cut, though it comes last here: anything in this window from after the cut, your own turns included, is newer, and wins where the two differ. Your last step before the cut, its calls and their results, is carried across as it was: continue from those results rather than calling again.
 
 <summary>
 A summary.

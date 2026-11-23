@@ -107,6 +107,10 @@ export {
 } from "./lib/bash-worker/client";
 export { CdpCommandTimeoutError } from "./lib/cdp-command-timeout-error";
 export {
+  runningScriptAskedFor,
+  scriptStillRunningMessage,
+} from "./lib/running-page-script";
+export {
   type CdpMethod,
   cdpMethodsHandled,
   isKnownCdpMethod,

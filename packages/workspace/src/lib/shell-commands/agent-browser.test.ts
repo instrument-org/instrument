@@ -24,6 +24,7 @@ import {
 } from "../../test/helpers/agent-browser-runs";
 import { browserTargetOf } from "../../types";
 import { publisher } from "../../rpc/publisher";
+import { scriptStillRunningMessage } from "../running-page-script";
 import { sessionLayout } from "../session-layout";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import {
@@ -987,6 +988,43 @@ describe("agent-browser routing", () => {
     expect(await agentBrowserRunsOfItsOwn()).toHaveLength(1);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe("✗ Element not found\n");
+  });
+
+  it("waits for a script the page is still running, and answers with its result", async () => {
+    const stillRunning = {
+      exitCode: 1,
+      stderr: `✗ CDP error (Runtime.evaluate): ${scriptStillRunningMessage({ id: "k3s9x0ab", seconds: 20 })}\n`,
+      stdout: "",
+    };
+    let asked = 0;
+    await answerAgentBrowser((given) => {
+      if (!given.includes('__instrumentRunningScript("k3s9x0ab")')) {
+        return stillRunning;
+      }
+      asked += 1;
+      return asked === 1
+        ? stillRunning
+        : { exitCode: 0, stderr: "", stdout: '{"pages":90}\n' };
+    });
+
+    const result = await command.execute(
+      ["eval", "--json", "scanOrders()"],
+      commandCtx,
+    );
+
+    const runs = (await agentBrowserRuns()).map((run) =>
+      run.args.slice(run.args.indexOf(sessionId) + 1),
+    );
+    expect(runs).toStrictEqual([
+      ["eval", "--json", "scanOrders()"],
+      ["eval", "--json", '__instrumentRunningScript("k3s9x0ab")'],
+      ["eval", "--json", '__instrumentRunningScript("k3s9x0ab")'],
+    ]);
+    expect(result).toStrictEqual({
+      exitCode: 0,
+      stderr: "",
+      stdout: '{"pages":90}\n',
+    });
   });
 
   it("passes upload files to the browser absolute", async () => {

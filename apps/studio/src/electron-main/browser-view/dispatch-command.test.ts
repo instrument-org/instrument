@@ -279,6 +279,147 @@ describe("sendCommand", () => {
       await expect(sent).rejects.toMatchObject({ method: "Page.navigate" });
     });
 
+    describe("a script that outlasts its command", () => {
+      const SCRIPT = {
+        awaitPromise: true,
+        expression: "scanOrders()",
+        returnByValue: true,
+      };
+
+      /**
+       * A guest whose debugger holds the script's answer until `finish` is
+       * called, and answers the check of whether the page still runs scripts
+       * unless the page is `blocked`.
+       */
+      function scriptedGuest({ blocked = false } = {}) {
+        let finish: (answer: unknown) => void = noop;
+        const answer = new Promise((resolve) => {
+          finish = resolve;
+        });
+        const wcSendCommand = vi.fn(
+          (_method: string, params: { expression?: string }) =>
+            params.expression === SCRIPT.expression
+              ? answer
+              : blocked
+                ? new Promise(noop)
+                : Promise.resolve({ result: { type: "number", value: 1 } }),
+        );
+        const entries = new Map([
+          [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+        ]);
+        const evaluate = (expression: string) => {
+          const sent = dispatch({
+            entries,
+            method: "Runtime.evaluate",
+            params: { ...SCRIPT, expression },
+          });
+          // Read later; a rejection in between is not unhandled.
+          sent.catch(noop);
+          return sent;
+        };
+        return { evaluate, finish, wcSendCommand };
+      }
+
+      const failureOf = (sent: Promise<unknown>) =>
+        sent.then(
+          () => {
+            throw new Error("the command answered");
+          },
+          (error: unknown) => error as Error,
+        );
+
+      it("says the script is still running when the page answers, and keeps it for the next command", async () => {
+        vi.useFakeTimers();
+        const { evaluate, finish, wcSendCommand } = scriptedGuest();
+
+        const first = evaluate(SCRIPT.expression);
+        await vi.advanceTimersByTimeAsync(20_000);
+        const failure = await failureOf(first);
+
+        expect(failure).not.toBeInstanceOf(CdpCommandTimeoutError);
+        expect(failure.message).toMatch(
+          /^The script was still running after 20s\. The page is responsive/,
+        );
+        const id = /\[running script: (\w+)\]/.exec(failure.message)?.[1];
+
+        // The next command waits on the same script rather than running it
+        // again, and says how long the script has run in all.
+        const second = evaluate(`__instrumentRunningScript("${id}")`);
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect((await failureOf(second)).message).toContain(
+          `still running after 40s`,
+        );
+
+        const third = evaluate(`__instrumentRunningScript("${id}")`);
+        await vi.advanceTimersByTimeAsync(5000);
+        const answer = { result: { type: "object", value: { pages: 90 } } };
+        finish(answer);
+        await expect(third).resolves.toBe(answer);
+
+        expect(
+          wcSendCommand.mock.calls.filter(
+            ([, params]) => params.expression === SCRIPT.expression,
+          ),
+        ).toHaveLength(1);
+        expect(
+          wcSendCommand.mock.calls.some(([, params]) =>
+            params.expression?.includes("__instrumentRunningScript"),
+          ),
+        ).toBe(false);
+
+        // Its answer is delivered once.
+        await expect(
+          evaluate(`__instrumentRunningScript("${id}")`),
+        ).rejects.toThrow("That script's answer is no longer kept");
+      });
+
+      it("fails as a tab that is not responding when the page answers nothing", async () => {
+        vi.useFakeTimers();
+        const { evaluate } = scriptedGuest({ blocked: true });
+
+        const sent = evaluate(SCRIPT.expression);
+        const settled = vi.fn();
+        void sent.then(settled, settled);
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect(settled).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1000);
+        const failure = await failureOf(sent);
+        expect(failure).toBeInstanceOf(CdpCommandTimeoutError);
+        expect(failure.message).toContain("The browser tab is not responding");
+      });
+
+      it("fails a script that does not await as a tab that is not responding", async () => {
+        vi.useFakeTimers();
+        const entries = new Map([
+          [
+            TARGET_ID,
+            makeEntry({
+              sendCommand: vi.fn().mockReturnValue(new Promise(noop)),
+            }),
+          ],
+        ]);
+        const sent = dispatch({
+          entries,
+          method: "Runtime.evaluate",
+          params: { expression: "while (true) {}", returnByValue: true },
+        });
+        sent.catch(noop);
+
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect(await failureOf(sent)).toBeInstanceOf(CdpCommandTimeoutError);
+      });
+
+      it("refuses to wait on a script it does not keep", async () => {
+        const { evaluate, wcSendCommand } = scriptedGuest();
+
+        await expect(
+          evaluate('__instrumentRunningScript("aaaaaaaa")'),
+        ).rejects.toThrow("That script's answer is no longer kept");
+        expect(wcSendCommand).not.toHaveBeenCalled();
+      });
+    });
+
     it("clears the timer once the command answers", async () => {
       vi.useFakeTimers();
       const entry = makeEntry({

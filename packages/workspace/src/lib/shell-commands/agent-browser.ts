@@ -48,6 +48,11 @@ import {
   parseAgentBrowserArgs,
 } from "./agent-browser-args";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
+import {
+  askForAnswerArgs,
+  awaitRunningScript,
+  isEval,
+} from "./agent-browser-running-script";
 import { watchSlowInvocation } from "./agent-browser-slow";
 import {
   currentBrowserFollowUp,
@@ -1068,6 +1073,22 @@ export function createAgentBrowserCommand({
           cancelSignal: ctx.signal,
           input: subprocessStdin(ctx.stdin),
         });
+        if (isEval(resolvedArgs)) {
+          result = await awaitRunningScript({
+            ask: (script) =>
+              runAgentBrowser({
+                ...spawnOptions,
+                args: [
+                  ...connectionArgs,
+                  ...askForAnswerArgs(resolvedArgs, script),
+                ],
+                cancelSignal: ctx.signal,
+                input: undefined,
+              }),
+            first: result,
+            signal: ctx.signal,
+          });
+        }
       } else {
         // Each in turn, stopping at the first that fails, whose output is
         // the command's; otherwise the last one's is.

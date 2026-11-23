@@ -7,6 +7,8 @@ import {
   CdpCommandTimeoutError,
   type CdpMethod,
   isKnownCdpMethod,
+  runningScriptAskedFor,
+  scriptStillRunningMessage,
 } from "@instrument-org/workspace/electron";
 import { noop, sleep } from "radashi";
 
@@ -30,6 +32,13 @@ import { withMacEditingCommands } from "./mac-editing-commands";
 import { withoutMacNativeKeyCode } from "./mac-native-key-code";
 import { typeWithoutFocus } from "./keyboard-without-focus";
 import { handlePrintToPDF } from "./print-to-pdf";
+import {
+  forgetRunningScript,
+  keepRunningScript,
+  type RunningScript,
+  runningScript,
+  ScriptStillRunningError,
+} from "./running-scripts";
 import { startScreencast, stopScreencast } from "./screencast";
 
 // CDP commands that put text or key events into the page. Chromium routes
@@ -459,6 +468,10 @@ async function forwardToDebugger({
     // ready post-navigation, and awaitPromise evals run real user JS. Navigate
     // gets 20s too: Electron answers it at commit, so a server slow to send its
     // first byte holds the answer that long while the navigation carries on.
+    // 20s is as long as any one answer may take: agent-browser gives up on a
+    // command at 30s and then checks the tab for one that stopped responding.
+    // A script that awaits longer is kept running and answered across
+    // commands (`whyUnanswered`).
     const SLOW_COMMANDS = new Set([
       "Page.captureScreenshot",
       "Page.navigate",
@@ -480,15 +493,51 @@ async function forwardToDebugger({
     if (byAgent && !pointerShown) {
       await showAgentCommand(entry, method, delivered, frameSession);
     }
-    const sent = sendToDebugger(
-      wc,
-      method,
-      withMacEditingCommands(
+    // A script an earlier command left running, when this command asks for
+    // its answer: waited on here rather than sent to the page.
+    const kept = method === "Runtime.evaluate" ? keptScriptOf(delivered) : null;
+    const startedAt = Date.now();
+    const sent =
+      kept?.answer ??
+      sendToDebugger(
+        wc,
         method,
-        withoutMacNativeKeyCode(method, delivered),
-      ),
-      session,
-    );
+        withMacEditingCommands(
+          method,
+          withoutMacNativeKeyCode(method, delivered),
+        ),
+        session,
+      );
+    let answered = false;
+    // Why the wait ran out. A script whose page still answers is awaiting
+    // something rather than holding the page, so it is kept for a later
+    // command to ask after; anything else is a page that did not answer.
+    const whyUnanswered = async (): Promise<Error> => {
+      if (
+        method === "Runtime.evaluate" &&
+        (kept !== null || awaitsPromise(delivered)) &&
+        (await pageAnswers(wc, session)) &&
+        !answered
+      ) {
+        const script = kept ?? keepRunningScript(sent, startedAt);
+        return new ScriptStillRunningError(
+          scriptStillRunningMessage({
+            id: script.id,
+            seconds: Math.round((Date.now() - script.startedAt) / 1000),
+          }),
+        );
+      }
+      // Cast is safe: has() is a runtime membership check against a fixed string set
+      const isMouse = MOUSE_COMMANDS.has(
+        method as "Input.dispatchMouseEvent" | "Input.synthesizeTapGesture",
+      );
+      const detail = isMouse
+        ? `CDP command timed out: ${method}. The page did not acknowledge the input within 5s; it may still be loading or be unresponsive. Take a snapshot to see its current state before retrying.`
+        : method === "Page.captureScreenshot"
+          ? `CDP command timed out: ${method}. ${SCREENSHOT_NOT_DRAWN}`
+          : `CDP command timed out: ${method}. The browser tab is not responding. The page may be unresponsive or still loading. Try navigating directly to a URL or ask the user to reload the app if the problem persists.`;
+      return new CdpCommandTimeoutError(method, detail);
+    };
     // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
       method === "Page.captureScreenshot" || method.startsWith("Input.")
@@ -496,21 +545,16 @@ async function forwardToDebugger({
         : sent,
       new Promise<never>((_, reject) => {
         timeout = setTimeout(() => {
-          // Cast is safe: has() is a runtime membership check against a fixed string set
-          const isMouse = MOUSE_COMMANDS.has(
-            method as "Input.dispatchMouseEvent" | "Input.synthesizeTapGesture",
-          );
-          const detail = isMouse
-            ? `CDP command timed out: ${method}. The page did not acknowledge the input within 5s; it may still be loading or be unresponsive. Take a snapshot to see its current state before retrying.`
-            : method === "Page.captureScreenshot"
-              ? `CDP command timed out: ${method}. ${SCREENSHOT_NOT_DRAWN}`
-              : `CDP command timed out: ${method}. The browser tab is not responding. The page may be unresponsive or still loading. Try navigating directly to a URL or ask the user to reload the app if the problem persists.`;
-          reject(new CdpCommandTimeoutError(method, detail));
+          void whyUnanswered().then(reject);
         }, timeoutMs);
       }),
     ]).finally(() => {
+      answered = true;
       clearTimeout(timeout);
     });
+    if (kept) {
+      forgetRunningScript(kept.id);
+    }
     if (press) {
       log.info(
         `agent press targetId=${targetId} ${press.context} ack=${Date.now() - press.at}ms`,
@@ -573,7 +617,9 @@ async function forwardToDebugger({
       );
     }
     const line = `sendCommand error targetId=${targetId} method=${method} error=${String(error)}`;
-    if (isNavigationRace(error)) {
+    if (error instanceof ScriptStillRunningError) {
+      log.info(line);
+    } else if (isNavigationRace(error)) {
       log.debug(line);
     } else {
       log.error(line);
@@ -909,6 +955,56 @@ async function describePress(
     describeHost(entry.targetId).catch(() => "host=unknown"),
   ]);
   return [`at=${x},${y}`, what, host].filter(Boolean).join(" ");
+}
+
+/**
+ * The running script a command asks for the answer of, or null when the
+ * command is a script of its own. Refuses one that is no longer kept, since
+ * the expression that asks is not a script a page could run.
+ */
+function keptScriptOf(params: unknown): null | RunningScript {
+  const id = runningScriptAskedFor(
+    (params as undefined | { expression?: unknown })?.expression,
+  );
+  if (id === undefined) {
+    return null;
+  }
+  const script = runningScript(id);
+  if (!script) {
+    throw new Error(
+      "That script's answer is no longer kept: it finished more than a minute ago, or other scripts were left running after it.",
+    );
+  }
+  return script;
+}
+
+function awaitsPromise(params: unknown): boolean {
+  return (
+    (params as undefined | { awaitPromise?: unknown })?.awaitPromise === true
+  );
+}
+
+/**
+ * Whether the page runs a script when asked, which one with a blocked main
+ * thread does not. A script that is only awaiting leaves the page free to
+ * answer this while its own answer is still pending.
+ */
+function pageAnswers(
+  wc: WebContents,
+  frameSession: string | undefined,
+): Promise<boolean> {
+  return withinGuestProbeTimeout(
+    sendToDebugger(
+      wc,
+      "Runtime.evaluate",
+      { expression: "1", returnByValue: true },
+      frameSession,
+    ).then(
+      () => true,
+      () => false,
+    ),
+    () => false,
+  );
 }
 
 /** A command to the guest's debugger: to the page, or to a frame by its session. */

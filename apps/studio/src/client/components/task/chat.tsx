@@ -126,7 +126,6 @@ const CONVERSATION_COMPOSER_MAX_HEIGHT = 280;
 export function ChatConversation({
   asks,
   composerLead,
-  composerOffer,
   draftKey,
   layoutContext,
   selectedModelURI: initialSelectedModelURI,
@@ -150,8 +149,6 @@ export function ChatConversation({
   };
   /** A chip at the head of the composer's box: what goes with the prompt besides its words. */
   composerLead?: ReactNode;
-  /** What stands beside the composer's plus: something offered to the message, such as the tabs it goes with. */
-  composerOffer?: ReactNode;
   /** Which draft the composer edits, and the one "Add to chat" in the transcript writes to. */
   draftKey: PromptDraftKey;
   /**
@@ -681,7 +678,6 @@ export function ChatConversation({
       // it sooner than a box on a page of its own: a handful of lines, then
       // the words scroll.
       autoResizeMaxHeight={CONVERSATION_COMPOSER_MAX_HEIGHT}
-      besidePlus={composerOffer}
       keyboardHome
       className="relative z-10"
       draftKey={draftKey}

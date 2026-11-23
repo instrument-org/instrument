@@ -5,7 +5,10 @@ import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
 import { type ChannelAnswer, openScriptChannel } from "../capabilities/channel";
 import { scriptSurfaceOpen } from "../capabilities/script-surface";
-import { ensureInstrumentStub } from "../capabilities/stub";
+import {
+  ensureAgentBrowserStub,
+  ensureInstrumentStub,
+} from "../capabilities/stub";
 import { nodePreloadUrl } from "../node-preload";
 import { nodeToolsEnv } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -42,6 +45,7 @@ export async function execNode(
   // sandbox refuses; `instrument` only works with a channel to answer it.
   const preload =
     args[0] === "--version" ? [] : ["--import", await nodePreloadUrl()];
+  await ensureAgentBrowserStub();
   const answer = scriptSurfaceOpen() ? answerScript : undefined;
   if (answer) {
     await ensureInstrumentStub();

@@ -10,7 +10,10 @@ import {
   linkPythonRuntime,
 } from "../capabilities/python-runtime";
 import { scriptSurfaceOpen } from "../capabilities/script-surface";
-import { ensureInstrumentStub } from "../capabilities/stub";
+import {
+  ensureAgentBrowserStub,
+  ensureInstrumentStub,
+} from "../capabilities/stub";
 import { filterShellOutput } from "../filter-shell-output";
 import { pythonBaseDir } from "../python-base";
 import {
@@ -142,6 +145,7 @@ async function runNativePython(
       .filter(Boolean)
       .join(path.delimiter) || undefined;
 
+  await ensureAgentBrowserStub();
   const answer = scriptSurfaceOpen() ? answerScript : undefined;
   if (answer) {
     await ensureInstrumentStub();

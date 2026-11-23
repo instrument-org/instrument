@@ -23,7 +23,12 @@ import { type Capability, CapabilityFailure, defineCapability } from "./define";
 import { unavailableReason } from "./admit";
 import { describeCapabilities, dispatch } from "./dispatch";
 import { CAPABILITIES } from "./registry";
-import { ensureInstrumentStub, INSTRUMENT_STUB_MESSAGE } from "./stub";
+import {
+  AGENT_BROWSER_STUB_MESSAGE,
+  ensureAgentBrowserStub,
+  ensureInstrumentStub,
+  INSTRUMENT_STUB_MESSAGE,
+} from "./stub";
 import { getWorkspaceConfig } from "../workspace-config";
 
 const scope: CapabilityScope = {
@@ -611,3 +616,27 @@ describe.skipIf(process.platform === "win32")("the instrument program", () => {
     expect(result.stderr).toBe(`${INSTRUMENT_STUB_MESSAGE}\n`);
   });
 });
+
+describe.skipIf(process.platform === "win32")(
+  "the agent-browser program",
+  () => {
+    it("tells a script that runs it to loop in the shell, and exits 127", async () => {
+      await ensureAgentBrowserStub();
+      const result = spawnSync(
+        path.join(
+          runtimeLayout(getWorkspaceConfig().runtimeDir).bin,
+          "agent-browser",
+        ),
+        ["eval", "document.title"],
+        { encoding: "utf8" },
+      );
+      expect(result.status).toBe(127);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toBe(`${AGENT_BROWSER_STUB_MESSAGE}\n`);
+      expect(result.stderr).toMatchInlineSnapshot(`
+        "agent-browser: agent-browser runs in Instrument's shell, not from a program, so a script cannot start it. Repeat steps with a loop in the shell (for n in 1 2 3; do agent-browser eval --stdin < step.js; done), and give a script what a command printed through a pipe or a file (agent-browser eval --stdin < rows.js | python parse.py).
+        "
+      `);
+    });
+  },
+);

@@ -45,7 +45,7 @@ import {
 } from "./placement";
 import { visitInTab } from "./tab-history";
 import { taskHref, tasksOfHref } from "./tab-location";
-import { isChatTab, isFreshTab, sideIndexOf } from "./tab-model";
+import { isChatTab, isFreshTab, isSplit, sideIndexOf } from "./tab-model";
 import {
   chatHref,
   chatOfHref,
@@ -157,7 +157,10 @@ export function useOpeners({
     groupOnScreen: windowTabs.groupOnScreen,
     isChatOnScreen: windowTabs.groupOnScreen !== undefined,
     up: active && {
-      isFresh: isFreshTab(active),
+      givesPlace:
+        isFreshTab(active) &&
+        windowTabs.groupOnScreen !== undefined &&
+        !isSplit(windowTabs.layoutOf(windowTabs.groupOnScreen)),
       kind: active.kind,
     },
   };

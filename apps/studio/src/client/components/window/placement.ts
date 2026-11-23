@@ -16,8 +16,11 @@ export interface PlacementContext {
   up:
     | undefined
     | {
-        /** Still its group's own new tab, standing where it opened. */
-        isFresh: boolean;
+        /**
+         * A blank new tab in a group of one side, which what is opened takes
+         * the place of. One on a side of a split keeps its place.
+         */
+        givesPlace: boolean;
         kind: "page" | "screen";
       };
 }
@@ -76,13 +79,13 @@ export function pagePlacementOf(
   if (!ownTab && up?.kind === "page") {
     return { kind: "navigate-up" };
   }
-  const isFresh = up?.isFresh ?? false;
-  if (ownTab && !isFresh) {
+  const givesPlace = up?.givesPlace ?? false;
+  if (ownTab && !givesPlace) {
     return { kind: "own-tab" };
   }
   return {
     kind: "new-page",
-    replacesUp: up !== undefined && (!ownTab || isFresh),
+    replacesUp: up !== undefined && (!ownTab || givesPlace),
   };
 }
 
@@ -130,7 +133,7 @@ export function screenPlacementOf(
     matchScreen(href).kind === "app" &&
     !newTab &&
     groupOnScreen !== undefined &&
-    up?.isFresh === true
+    up?.givesPlace === true
   ) {
     return { kind: "group-navigate" };
   }
@@ -162,7 +165,7 @@ export function screenPlacementOf(
   if (!up) {
     return { kind: "group-open" };
   }
-  return ownTab && !up.isFresh
+  return ownTab && !up.givesPlace
     ? { kind: "group-own-tab" }
     : { kind: "group-navigate" };
 }
@@ -184,7 +187,7 @@ export function reuseBlankOf(
   if (rest.newWindow === true || rest.into !== undefined) {
     return rest;
   }
-  return up?.isFresh === true ? rest : { ...rest, newTab: true };
+  return up?.givesPlace === true ? rest : { ...rest, newTab: true };
 }
 
 /**
@@ -251,7 +254,7 @@ export function chatPlacementOf(
   if (groupOnScreen === undefined) {
     return { kind: "own-group" };
   }
-  return up?.isFresh === true && gestureOf(asked) === "click"
+  return up?.givesPlace === true && gestureOf(asked) === "click"
     ? { kind: "in-place" }
     : { behind, kind: "group-new-tab" };
 }

@@ -136,6 +136,7 @@ import {
   draftOfTab,
   isBlankNewTab,
   isHomeTab,
+  isSplit,
   isNewChatTab,
   selectedTabIn,
   sideIndexOf,
@@ -1464,10 +1465,14 @@ function WindowShell({
   // Extensions, the sidebar's pages) is a group of its own, as New Tab Group
   // makes one: the tab of a group already showing it comes up there, and a
   // blank new tab up takes it in place, as a browser's own pages do, whatever
-  // else its group has.
+  // else its group has, unless the group is a split.
   const openBuiltInApart = useEffectEvent((href: string) => {
     const up = windowTabs.active;
-    if (up && isBlankNewTab(up)) {
+    if (
+      up?.group !== undefined &&
+      isBlankNewTab(up) &&
+      !isSplit(windowTabs.layoutOf(up.group))
+    ) {
       openScreen(href, { newTab: "reuseBlank" });
       return;
     }

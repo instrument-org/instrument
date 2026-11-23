@@ -522,6 +522,20 @@ export function isHomeTab(tab: WindowTab): boolean {
   return screen.kind === "inbox" && screen.draft === undefined;
 }
 
+/**
+ * Whether a blank new tab up in a group is told where to go rather than kept
+ * beside what was asked for. Only where the group has one side: a tab on a
+ * side of a split keeps its place.
+ */
+export function canReuseBlankIn(state: WindowTabs, group: string): boolean {
+  return !isSplit(groupLayoutOf(state, group));
+}
+
+/** Whether a group is laid out on two sides. */
+export function isSplit(layout: GroupLayout): boolean {
+  return layout.sides.length === 2;
+}
+
 /** Whether a tab is a new chat, written in or not: the zero state, at `/chats`. */
 export function isNewChatTab(tab: WindowTab): boolean {
   return tab.kind === "screen" && matchScreen(tab.href).kind === "inbox";
@@ -938,7 +952,7 @@ export function openOrFocusScreen(
     };
   }
   const up = isWaiting ? selectedTabIn(state, group) : undefined;
-  if (up && isHomeTab(up)) {
+  if (up && isHomeTab(up) && canReuseBlankIn(state, group)) {
     const told = mapTab(state, up.id, (tab) => {
       if (tab.kind !== "screen") {
         return tab;

@@ -288,6 +288,24 @@ describe("openOrFocusScreen", () => {
       },
     ]);
   });
+
+  it("leaves a new tab on a side of a split waiting behind as it is", () => {
+    const state = windowOf([
+      screenTab("home", NEW_TAB_HREF, DRAFT),
+      { ...screenTab("right", "/activity", DRAFT), side: 1 },
+    ]);
+    const opened = openOrFocusScreen(state, {
+      group: DRAFT,
+      href: "/apps",
+      id: "new",
+      isWaiting: true,
+      select: true,
+    });
+    expect(opened.id).toBe("new");
+    expect(opened.state.tabs.find((tab) => tab.id === "home")).toEqual(
+      state.tabs[0],
+    );
+  });
 });
 
 describe("a screen tab's own history", () => {

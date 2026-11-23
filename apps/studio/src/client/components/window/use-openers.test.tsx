@@ -147,9 +147,12 @@ const OTHER_BEHIND = "tab_b_behind";
  */
 function windowOnTwoSides({
   browser = null,
+  isSplit = true,
   newGroup = (fill, options) => spies.newGroup(fill, options),
   up = { href: "/chats", id: CHAT_TAB, kind: "screen" },
 }: Partial<Pick<Parameters<typeof useOpeners>[0], "browser" | "newGroup">> & {
+  /** Whether the right side is there at all. */
+  isSplit?: boolean;
   /** The tab the person is in, on the left. */
   up?:
     | { href: string; id: string; kind: "screen" }
@@ -199,13 +202,20 @@ function windowOnTwoSides({
   act(() => {
     result.current.change(() => ({
       activeByGroup: { [GROUP]: up.id, [OTHER_GROUP]: OTHER_UP },
-      besideByGroup: { [GROUP]: RIGHT_UP },
+      ...(isSplit ? { besideByGroup: { [GROUP]: RIGHT_UP } } : {}),
       groups: {},
       tabs: [
         { group: GROUP, ...up },
         { group: GROUP, id: LEFT_PAGE, kind: "page", openedAt: 1 },
-        { group: GROUP, id: RIGHT_UP, kind: "page", openedAt: 2, side: 1 },
-        { group: GROUP, id: RIGHT_BEHIND, kind: "page", openedAt: 3, side: 1 },
+        ...(isSplit
+          ? [RIGHT_UP, RIGHT_BEHIND].map((id, index) => ({
+              group: GROUP,
+              id,
+              kind: "page" as const,
+              openedAt: index + 2,
+              side: 1 as const,
+            }))
+          : []),
         { group: OTHER_GROUP, id: OTHER_UP, kind: "page", openedAt: 4 },
         { group: OTHER_GROUP, id: OTHER_BEHIND, kind: "page", openedAt: 5 },
       ],
@@ -693,6 +703,7 @@ describe("where each gesture opens each kind of thing", () => {
     ["click", {}],
     ["Cmd-click", { behind: true, newTab: true }],
     ["Open in New Tab", { newTab: true }],
+    ["built-in page", { newTab: "reuseBlank" }],
     ["Shift-click", { newWindow: true }],
     ["tab of its own", { ownTab: true }],
     ["other group", { group: OTHER_GROUP }],
@@ -702,7 +713,8 @@ describe("where each gesture opens each kind of thing", () => {
     ["New Window", { into: "window" }],
   ];
   const STANDING: [string, Parameters<typeof windowOnTwoSides>[0]][] = [
-    ["New Tab", {}],
+    ["New Tab", { isSplit: false }],
+    ["New Tab in a split", {}],
     ["a screen", { up: { href: "/activity", id: CHAT_TAB, kind: "screen" } }],
     ["a page", { up: { id: CHAT_TAB, kind: "page", openedAt: 1 } }],
   ];
@@ -762,93 +774,135 @@ describe("where each gesture opens each kind of thing", () => {
     expect(`\n${table.join("\n")}\n`).toMatchInlineSnapshot(`
       "
       settings | click | New Tab | here, left, in place, up, keyboard
+      settings | click | New Tab in a split | here, left, in place, up, keyboard
       settings | click | a screen | here, left, in place, up, keyboard
       settings | click | a page | here, left, in place, up, keyboard
       settings | Cmd-click | New Tab | here, left, new tab, behind
+      settings | Cmd-click | New Tab in a split | here, left, new tab, behind
       settings | Cmd-click | a screen | here, left, new tab, behind
       settings | Cmd-click | a page | here, left, new tab, behind
       settings | Open in New Tab | New Tab | here, left, new tab, up, keyboard
+      settings | Open in New Tab | New Tab in a split | here, left, new tab, up, keyboard
       settings | Open in New Tab | a screen | here, left, new tab, up, keyboard
       settings | Open in New Tab | a page | here, left, new tab, up, keyboard
+      settings | built-in page | New Tab | here, left, in place, up, keyboard
+      settings | built-in page | New Tab in a split | here, left, new tab, up, keyboard
+      settings | built-in page | a screen | here, left, new tab, up, keyboard
+      settings | built-in page | a page | here, left, new tab, up, keyboard
       settings | Shift-click | New Tab | here, left, new tab, up, keyboard
+      settings | Shift-click | New Tab in a split | here, left, new tab, up, keyboard
       settings | Shift-click | a screen | here, left, new tab, up, keyboard
       settings | Shift-click | a page | here, left, new tab, up, keyboard
       settings | tab of its own | New Tab | here, left, in place, up, keyboard
+      settings | tab of its own | New Tab in a split | here, left, new tab, up, keyboard
       settings | tab of its own | a screen | here, left, new tab, up, keyboard
       settings | tab of its own | a page | here, left, new tab, up, keyboard
       settings | other group | New Tab | group_b, left, new tab, behind
+      settings | other group | New Tab in a split | group_b, left, new tab, behind
       settings | other group | a screen | group_b, left, new tab, behind
       settings | other group | a page | group_b, left, new tab, behind
       settings | other group, new tab | New Tab | group_b, left, new tab, up, keyboard
+      settings | other group, new tab | New Tab in a split | group_b, left, new tab, up, keyboard
       settings | other group, new tab | a screen | group_b, left, new tab, up, keyboard
       settings | other group, new tab | a page | group_b, left, new tab, up, keyboard
       settings | Open in Split | New Tab | here, right, new tab, up, keyboard
+      settings | Open in Split | New Tab in a split | here, right, new tab, up, keyboard
       settings | Open in Split | a screen | here, right, new tab, up, keyboard
       settings | Open in Split | a page | here, right, new tab, up, keyboard
       settings | New Tab Group | New Tab | group_new, left, new tab, up, keyboard
+      settings | New Tab Group | New Tab in a split | group_new, left, new tab, up, keyboard
       settings | New Tab Group | a screen | group_new, left, new tab, up, keyboard
       settings | New Tab Group | a page | group_new, left, new tab, up, keyboard
       settings | New Window | New Tab | group_new, left, new tab, up, keyboard
+      settings | New Window | New Tab in a split | group_new, left, new tab, up, keyboard
       settings | New Window | a screen | group_new, left, new tab, up, keyboard
       settings | New Window | a page | group_new, left, new tab, up, keyboard
       app | click | New Tab | here, left, in place, up, keyboard
+      app | click | New Tab in a split | here, left, new tab, up, keyboard
       app | click | a screen | here, left, new tab, up, keyboard
       app | click | a page | here, left, new tab, up, keyboard
       app | Cmd-click | New Tab | here, left, new tab, behind
+      app | Cmd-click | New Tab in a split | here, left, new tab, behind
       app | Cmd-click | a screen | here, left, new tab, behind
       app | Cmd-click | a page | here, left, new tab, behind
       app | Open in New Tab | New Tab | here, left, new tab, up, keyboard
+      app | Open in New Tab | New Tab in a split | here, left, new tab, up, keyboard
       app | Open in New Tab | a screen | here, left, new tab, up, keyboard
       app | Open in New Tab | a page | here, left, new tab, up, keyboard
+      app | built-in page | New Tab | here, left, in place, up, keyboard
+      app | built-in page | New Tab in a split | here, left, new tab, up, keyboard
+      app | built-in page | a screen | here, left, new tab, up, keyboard
+      app | built-in page | a page | here, left, new tab, up, keyboard
       app | Shift-click | New Tab | here, left, new tab, up, keyboard
+      app | Shift-click | New Tab in a split | here, left, new tab, up, keyboard
       app | Shift-click | a screen | here, left, new tab, up, keyboard
       app | Shift-click | a page | here, left, new tab, up, keyboard
       app | tab of its own | New Tab | here, left, in place, up, keyboard
+      app | tab of its own | New Tab in a split | here, left, new tab, up, keyboard
       app | tab of its own | a screen | here, left, new tab, up, keyboard
       app | tab of its own | a page | here, left, new tab, up, keyboard
       app | other group | New Tab | here, left, in place, up, keyboard
+      app | other group | New Tab in a split | here, left, new tab, up, keyboard
       app | other group | a screen | here, left, new tab, up, keyboard
       app | other group | a page | here, left, new tab, up, keyboard
       app | other group, new tab | New Tab | group_b, left, new tab, up, keyboard
+      app | other group, new tab | New Tab in a split | group_b, left, new tab, up, keyboard
       app | other group, new tab | a screen | group_b, left, new tab, up, keyboard
       app | other group, new tab | a page | group_b, left, new tab, up, keyboard
       app | Open in Split | New Tab | here, right, new tab, up, keyboard
+      app | Open in Split | New Tab in a split | here, right, new tab, up, keyboard
       app | Open in Split | a screen | here, right, new tab, up, keyboard
       app | Open in Split | a page | here, right, new tab, up, keyboard
       app | New Tab Group | New Tab | group_new, left, new tab, up, keyboard
+      app | New Tab Group | New Tab in a split | group_new, left, new tab, up, keyboard
       app | New Tab Group | a screen | group_new, left, new tab, up, keyboard
       app | New Tab Group | a page | group_new, left, new tab, up, keyboard
       app | New Window | New Tab | group_new, left, new tab, up, keyboard
+      app | New Window | New Tab in a split | group_new, left, new tab, up, keyboard
       app | New Window | a screen | group_new, left, new tab, up, keyboard
       app | New Window | a page | group_new, left, new tab, up, keyboard
       chat | click | New Tab | here, left, in place, up, keyboard
+      chat | click | New Tab in a split | here, left, new tab, up, keyboard
       chat | click | a screen | here, left, new tab, up, keyboard
       chat | click | a page | here, left, new tab, up, keyboard
       chat | Cmd-click | New Tab | here, left, new tab, behind
+      chat | Cmd-click | New Tab in a split | here, left, new tab, behind
       chat | Cmd-click | a screen | here, left, new tab, behind
       chat | Cmd-click | a page | here, left, new tab, behind
       chat | Open in New Tab | New Tab | here, left, new tab, up, keyboard
+      chat | Open in New Tab | New Tab in a split | here, left, new tab, up, keyboard
       chat | Open in New Tab | a screen | here, left, new tab, up, keyboard
       chat | Open in New Tab | a page | here, left, new tab, up, keyboard
+      chat | built-in page | New Tab | here, left, in place, up, keyboard
+      chat | built-in page | New Tab in a split | here, left, new tab, up, keyboard
+      chat | built-in page | a screen | here, left, new tab, up, keyboard
+      chat | built-in page | a page | here, left, new tab, up, keyboard
       chat | Shift-click | New Tab | here, left, new tab, up, keyboard
+      chat | Shift-click | New Tab in a split | here, left, new tab, up, keyboard
       chat | Shift-click | a screen | here, left, new tab, up, keyboard
       chat | Shift-click | a page | here, left, new tab, up, keyboard
       chat | tab of its own | New Tab | here, left, in place, up, keyboard
+      chat | tab of its own | New Tab in a split | here, left, new tab, up, keyboard
       chat | tab of its own | a screen | here, left, new tab, up, keyboard
       chat | tab of its own | a page | here, left, new tab, up, keyboard
       chat | other group | New Tab | here, left, in place, up, keyboard
+      chat | other group | New Tab in a split | here, left, new tab, up, keyboard
       chat | other group | a screen | here, left, new tab, up, keyboard
       chat | other group | a page | here, left, new tab, up, keyboard
       chat | other group, new tab | New Tab | here, left, new tab, up, keyboard
+      chat | other group, new tab | New Tab in a split | here, left, new tab, up, keyboard
       chat | other group, new tab | a screen | here, left, new tab, up, keyboard
       chat | other group, new tab | a page | here, left, new tab, up, keyboard
       chat | Open in Split | New Tab | here, right, new tab, up, keyboard
+      chat | Open in Split | New Tab in a split | here, right, new tab, up, keyboard
       chat | Open in Split | a screen | here, right, new tab, up, keyboard
       chat | Open in Split | a page | here, right, new tab, up, keyboard
       chat | New Tab Group | New Tab | group_new, left, new tab, up, keyboard
+      chat | New Tab Group | New Tab in a split | group_new, left, new tab, up, keyboard
       chat | New Tab Group | a screen | group_new, left, new tab, up, keyboard
       chat | New Tab Group | a page | group_new, left, new tab, up, keyboard
       chat | New Window | New Tab | group_new, left, new tab, up, keyboard
+      chat | New Window | New Tab in a split | group_new, left, new tab, up, keyboard
       chat | New Window | a screen | group_new, left, new tab, up, keyboard
       chat | New Window | a page | group_new, left, new tab, up, keyboard
       "
@@ -887,33 +941,47 @@ describe("where each gesture opens each kind of thing", () => {
     expect(`\n${table.join("\n")}\n`).toMatchInlineSnapshot(`
       "
       click | New Tab | open {"replacing":"the tab up"}
+      click | New Tab in a split | open {"replacing":"the tab up"}
       click | a screen | open {"replacing":"the tab up"}
       click | a page | navigate {}
       Cmd-click | New Tab | open {"behind":true,"newTab":true}
+      Cmd-click | New Tab in a split | open {"behind":true,"newTab":true}
       Cmd-click | a screen | open {"behind":true,"newTab":true}
       Cmd-click | a page | open {"behind":true,"newTab":true}
       Open in New Tab | New Tab | open {"behind":false,"newTab":true}
+      Open in New Tab | New Tab in a split | open {"behind":false,"newTab":true}
       Open in New Tab | a screen | open {"behind":false,"newTab":true}
       Open in New Tab | a page | open {"behind":false,"newTab":true}
+      built-in page | New Tab | open {"replacing":"the tab up"}
+      built-in page | New Tab in a split | open {"behind":false,"newTab":true}
+      built-in page | a screen | open {"behind":false,"newTab":true}
+      built-in page | a page | open {"behind":false,"newTab":true}
       Shift-click | New Tab | open {"behind":false,"newTab":true}
+      Shift-click | New Tab in a split | open {"behind":false,"newTab":true}
       Shift-click | a screen | open {"behind":false,"newTab":true}
       Shift-click | a page | open {"behind":false,"newTab":true}
       tab of its own | New Tab | open {"replacing":"the tab up"}
+      tab of its own | New Tab in a split | openOrFocus {}
       tab of its own | a screen | openOrFocus {}
       tab of its own | a page | openOrFocus {}
       other group | New Tab | openOrFocus {"group":"group_b","show":false}
+      other group | New Tab in a split | openOrFocus {"group":"group_b","show":false}
       other group | a screen | openOrFocus {"group":"group_b","show":false}
       other group | a page | openOrFocus {"group":"group_b","show":false}
       other group, new tab | New Tab | openOrFocus {"group":"group_b","show":false}
+      other group, new tab | New Tab in a split | openOrFocus {"group":"group_b","show":false}
       other group, new tab | a screen | openOrFocus {"group":"group_b","show":false}
       other group, new tab | a page | openOrFocus {"group":"group_b","show":false}
-      Open in Split | New Tab | open {"after":"tab_right_up","group":"group_a","side":1,"show":true}
+      Open in Split | New Tab | open {"group":"group_a","side":1,"show":true}
+      Open in Split | New Tab in a split | open {"after":"tab_right_up","group":"group_a","side":1,"show":true}
       Open in Split | a screen | open {"after":"tab_right_up","group":"group_a","side":1,"show":true}
       Open in Split | a page | open {"after":"tab_right_up","group":"group_a","side":1,"show":true}
       New Tab Group | New Tab | open {"group":"group_new","show":true}
+      New Tab Group | New Tab in a split | open {"group":"group_new","show":true}
       New Tab Group | a screen | open {"group":"group_new","show":true}
       New Tab Group | a page | open {"group":"group_new","show":true}
       New Window | New Tab | open {"group":"group_new","show":true}
+      New Window | New Tab in a split | open {"group":"group_new","show":true}
       New Window | a screen | open {"group":"group_new","show":true}
       New Window | a page | open {"group":"group_new","show":true}
       "

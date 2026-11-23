@@ -118,6 +118,16 @@ function CompletionMark({ row }: { row: BoxCompletion }) {
       <FileTypeIcon className="size-4" fileName={file} />
     );
   }
+  // A file's address shows the file's type, as a typed path does.
+  if (row.address.kind === "page" && /^file:/i.test(row.address.url)) {
+    return (
+      <PageFavicon
+        className="size-4"
+        hasTooltip={false}
+        url={row.address.url}
+      />
+    );
+  }
   return (
     <AddressMark
       address={

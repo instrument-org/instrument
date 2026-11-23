@@ -853,12 +853,14 @@ export function useCommandMenuRows({
                       detail: "Open in this tab",
                       // An address being typed is no site anyone has been to
                       // yet, and asking for its icon would send every host
-                      // the letters spell out along the way.
-                      icon: isKnownSite ? (
-                        <PageFavicon url={site.url} />
-                      ) : (
-                        <GlobeIcon />
-                      ),
+                      // the letters spell out along the way. A file's address
+                      // asks nobody, and shows the file's type.
+                      icon:
+                        isKnownSite || /^file:/i.test(site.url) ? (
+                          <PageFavicon url={site.url} />
+                        ) : (
+                          <GlobeIcon />
+                        ),
                       id: `open:${site.url}`,
                       label: words,
                       ranges: null,

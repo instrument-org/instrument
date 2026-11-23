@@ -25,7 +25,6 @@ import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { ChordHint } from "./chord-hint";
 import { HistoryButton } from "./recently-closed-menu";
@@ -76,9 +75,7 @@ import {
 } from "./sidebar-drop";
 import { useProjectShift } from "./use-project-shift";
 import { windowTabGroupsAtom } from "./open-groups";
-import { isPinnedGroup, type TabGroup } from "./tab-groups";
-import { chatListOptions } from "./chat-list-query";
-import { chatOfTab } from "./tab-model";
+import { groupsInProject, isPinnedGroup, type TabGroup } from "./tab-groups";
 import { useWindowTabs } from "./window-tabs";
 import { TabMenuAtPoint } from "./tab-menu-items";
 import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
@@ -148,7 +145,7 @@ export function GroupSidebar({
   onCloseAll: (groups: string[], keep: string) => void;
   /** A copy of a group just below it, up in the window. */
   onDuplicate: (entry: TabGroup) => void;
-  onNew: (projectId?: string) => void;
+  onNew: () => void;
   onNewProject: () => void;
   /** Pins a group above the line, or takes it back down. */
   onPin: (group: string, pinned: boolean) => void;
@@ -173,30 +170,8 @@ export function GroupSidebar({
   }
   const washProject = project ?? lastProject;
 
-  const { chatUpIn, layoutOf } = useWindowTabs();
-  const { data: chatList } = useQuery(chatListOptions());
-  // A group is the project's while any chat it has a tab on is filed
-  // there, whatever is up in it, or the draft up in it is.
-  const inProject = (entry: TabGroup) => {
-    if (project === undefined) {
-      return true;
-    }
-    if (entry.kind === "draft" && entry.draft.projectId === project.id) {
-      return true;
-    }
-    const filed = new Set(
-      (chatList ?? []).flatMap((chat) =>
-        chat.project === project.id ? [chat.id] : [],
-      ),
-    );
-    return layoutOf(entry.group).sides.some((side) =>
-      side.tabs.some((tab) => {
-        const chat = chatOfTab(tab);
-        return chat !== undefined && filed.has(chat);
-      }),
-    );
-  };
-  const listed = open.filter(inProject);
+  const { chatUpIn } = useWindowTabs();
+  const listed = groupsInProject(open, project?.id, projects);
   const pinned = listed.filter((entry) => isPinnedGroup(entry));
   const rest = listed.filter((entry) => !isPinnedGroup(entry));
   const chats = open.flatMap((entry) =>
@@ -345,11 +320,7 @@ export function GroupSidebar({
           </ListItem>
         )}
         <ListItem key=":new" {...place(":new")}>
-          <NewRow
-            onNew={() => {
-              onNew(project?.id);
-            }}
-          />
+          <NewRow onNew={onNew} />
         </ListItem>
         {rest.map((entry) => listItem(entry, "rest"))}
       </AnimatePresence>
@@ -424,9 +395,7 @@ export function GroupSidebar({
       >
         <WindowSpaceMenu
           kind="group"
-          onNew={() => {
-            onNew(project?.id);
-          }}
+          onNew={onNew}
           onReopenLast={onReopenLast}
         />
       </TabMenuAtPoint>

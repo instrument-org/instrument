@@ -1,3 +1,4 @@
+import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
 import { AnimatedOutlineBrandIconGlyph } from "@/client/components/brand-icon";
 import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
@@ -82,7 +83,11 @@ import {
   useIdeasAvailable,
   useTabIdeas,
 } from "./use-tab-ideas";
-import { arrivingNewChatTabsAtom, useWindowTabs } from "./window-tabs";
+import {
+  arrivingNewChatTabsAtom,
+  useWindowTabs,
+  windowTabsAtom,
+} from "./window-tabs";
 
 /**
  * A new chat, written in its tab group: the room a chat would have, with the
@@ -179,6 +184,28 @@ export function NewChatView({
   useLayoutEffect(() => {
     followAddress();
   }, [draftId, draftsLoaded, tabId]);
+  // A new chat that has been filed nowhere yet starts filed under the
+  // project its tab group is in, or the one the sidebar stands in.
+  const ownProject =
+    useAtomValue(windowTabsAtom).groups?.[
+      windowTabs.allTabs.find((tab) => tab.id === tabId)?.group ?? ""
+    ]?.project;
+  const startFiled = useEffectEvent(() => {
+    if (
+      draftId !== undefined ||
+      store.get(newChatBoxesAtom)[tabId] !== undefined
+    ) {
+      return;
+    }
+    const start = ownProject ?? store.get(sidebarProjectAtom);
+    if (shell.projects.some((entry) => entry.id === start)) {
+      store.set(pickNewChatProjectAtom, { projectId: start, tabId });
+    }
+  });
+  const areProjectsLoaded = shell.projects.length > 0;
+  useLayoutEffect(() => {
+    startFiled();
+  }, [areProjectsLoaded, draftId, tabId]);
   // What the box held besides its words (a picture's own preview among it)
   // is kept with the draft as the box lets go of it, so this screen shows it
   // again as it was.

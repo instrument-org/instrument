@@ -175,6 +175,8 @@ import { useDragSystem } from "./drag/use-drag-system";
 import { useGroupTabMoves } from "./tab-drag";
 import {
   groupAlong,
+  groupsInProject,
+  listedProject,
   isPinnedGroup,
   isWorthKeeping,
   startTabGroupsFromZero,
@@ -568,6 +570,8 @@ function WindowShell({
           closeTabGroup(current, {
             id,
             pathname: groupHref(group),
+            project: groupList.open.find((entry) => entry.group === group)
+              ?.project,
             tabs: kept,
             ups: upsAmong(windowTabs.layoutOf(group), kept),
           }),
@@ -1092,6 +1096,10 @@ function WindowShell({
           side ? { active: side.up } : entry.ups,
         );
       },
+      // A whole group goes back to the project it was in, or the root.
+      ...(closedTabGroupOf(entry) && !side
+        ? { project: entry.project ?? null }
+        : {}),
     });
   };
   /**
@@ -1123,6 +1131,20 @@ function WindowShell({
     rpcClient.workspace.projects.list.queryOptions(),
   );
   const projects = projectsQuery.data ?? [];
+  // The groups of the project the sidebar stands in, or of its root.
+  const groupsHere = () =>
+    groupsInProject(groupList.open, store.get(sidebarProjectAtom), projects);
+  // The sidebar stands where the group up is listed whenever another comes
+  // up or it changes projects, so it has its row; a step into a project or
+  // back out leaves the group up as it is.
+  const upEntry = groupList.open.find((entry) => entry.group === groupUp);
+  const isUpListed = upEntry !== undefined;
+  const upProject = upEntry && listedProject(upEntry, projects);
+  useEffect(() => {
+    if (isUpListed) {
+      store.set(sidebarProjectAtom, upProject);
+    }
+  }, [groupUp, isUpListed, store, upProject]);
   const createProject = useMutation(
     rpcClient.workspace.projects.create.mutationOptions({
       onError: (error) => {
@@ -1646,9 +1668,10 @@ function WindowShell({
       // Control+1 to Control+9 (Alt off the Mac): the sidebar's rows by
       // place, as it lists them, pinned first.
       selectGroup: (index) => {
+        const listed = groupsHere();
         const order = store.get(sidebarRowOrderAtom) ?? [
-          ...groupList.open.filter(isPinnedGroup).map((entry) => entry.group),
-          ...groupList.open
+          ...listed.filter(isPinnedGroup).map((entry) => entry.group),
+          ...listed
             .filter((entry) => !isPinnedGroup(entry))
             .map((entry) => entry.group),
         ];
@@ -1661,7 +1684,7 @@ function WindowShell({
         setSidebarOpen((isOpen) => !isOpen);
       },
       selectChat: (direction) => {
-        const next = groupAlong(groupList.open, groupUp, direction);
+        const next = groupAlong(groupsHere(), groupUp, direction);
         if (next !== undefined) {
           groups.show(next);
         }
@@ -1809,8 +1832,8 @@ function WindowShell({
                     onDuplicate={(entry) => {
                       groups.duplicate(entry);
                     }}
-                    onNew={(projectId) => {
-                      groups.make(projectId === undefined ? {} : { projectId });
+                    onNew={() => {
+                      groups.make();
                     }}
                     onNewProject={() => {
                       setNewProject({});

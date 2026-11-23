@@ -42,9 +42,11 @@ export interface WindowTabs {
   tabs: WindowTab[];
 }
 
-/** What a group keeps of its own: its pin, and the left side's share of two. */
+/** What a group keeps of its own: its pin, the project it was made in, and the left side's share of two. */
 export interface GroupOwn {
   pinned?: true;
+  /** The project whose set of groups it was made in, by its id. */
+  project?: string;
   /** The left side's share of the row past the gutter; half where absent. */
   share?: number;
 }
@@ -58,6 +60,7 @@ export function withGroupOwn(
   const merged: GroupOwn = { ...state.groups?.[group], ...change };
   const own: GroupOwn = {
     ...(merged.pinned ? { pinned: true } : {}),
+    ...(merged.project === undefined ? {} : { project: merged.project }),
     ...(merged.share === undefined ? {} : { share: merged.share }),
   };
   const { [group]: _was, ...others } = state.groups ?? {};
@@ -1161,7 +1164,7 @@ export function pageBecameDownload(state: WindowTabs, id: string): WindowTabs {
   return strip.length > 1 ? closeTab(state, id) : state;
 }
 
-/** A group gone with everything in it, its pin and share with it. */
+/** A group gone with everything in it, what it keeps of its own with it. */
 export function dropGroup(state: WindowTabs, group: string): WindowTabs {
   if (
     !(group in state.activeByGroup) &&

@@ -1,3 +1,4 @@
+import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
 import {
   claimDraftAtom,
@@ -167,11 +168,17 @@ export function useDrafts({
     isChat && chatFilters.projects.length === 1
       ? projects.find((project) => project.id === chatFilters.projects[0])?.id
       : undefined;
+  /** The project the sidebar stands in. */
+  const sidebarProject = () => {
+    const id = store.get(sidebarProjectAtom);
+    return projects.find((project) => project.id === id)?.id;
+  };
   /**
    * A draft a button hands over a line to, made at once since it has
    * something in it, filed as New files one.
    */
-  const draftWith = (words = "") => startDraft(inboxProject(), words);
+  const draftWith = (words = "") =>
+    startDraft(inboxProject() ?? sidebarProject(), words);
   /**
    * A new chat a link from outside asked for, with its words: a draft of its
    * own beside any already open, so nothing the person wrote is replaced,

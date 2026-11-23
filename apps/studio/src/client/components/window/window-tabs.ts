@@ -79,6 +79,7 @@ import { sameHref } from "./window-href";
 const TabGroupMemberSchema = z.object({
   focused: z.number().int().min(0),
   pinned: z.boolean().optional(),
+  project: z.string().optional(),
   share: z.number().optional(),
   sides: z
     .array(
@@ -94,8 +95,8 @@ const TabGroupMemberSchema = z.object({
  * Every group's tabs on this computer, one list across them, kept across
  * launches. Each group is one member of the kept file, under its own id, in
  * the shape the agent reads a group in: its sides, each its tabs in strip
- * order and the one up, which side has the keyboard, and its own pin and
- * share. A tab keeps neither its group nor its side, which the member says.
+ * order and the one up, which side has the keyboard, and its own pin,
+ * project and share. A tab keeps neither its group nor its side, which the member says.
  * Written only here, through the functions of `tab-model.ts`.
  */
 const storedTabsAtom = keptMembersAtom<WindowTabs>(
@@ -190,6 +191,7 @@ function joinTabGroups(members: Map<string, unknown>): WindowTabs {
     }
     const own: GroupOwn = {
       ...(member.pinned === true ? { pinned: true } : {}),
+      ...(member.project === undefined ? {} : { project: member.project }),
       ...(member.share === undefined ? {} : { share: member.share }),
     };
     if (Object.keys(own).length > 0) {
@@ -395,7 +397,7 @@ export function useWindowTabs() {
     pageBecameDownload: (id: string) => {
       apply((current) => pageBecameDownload(current, id));
     },
-    /** A group's pin, or the left side's share of two, set (`withGroupOwn`). */
+    /** A group's pin, its project, or the left side's share of two, set (`withGroupOwn`). */
     setGroupOwn: (group: string, change: GroupOwn) => {
       apply((current) => withGroupOwn(current, group, change));
     },

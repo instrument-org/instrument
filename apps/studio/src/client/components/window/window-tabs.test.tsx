@@ -138,6 +138,7 @@ describe("the tab groups kept on this computer", () => {
   const MEMBER = {
     focused: 1,
     pinned: true,
+    project: "travel",
     share: 0.4,
     sides: [
       {
@@ -179,7 +180,7 @@ describe("the tab groups kept on this computer", () => {
     expect(store.get(read)).toEqual({
       activeByGroup: { group_a: "tab_3" },
       besideByGroup: { group_a: "tab_2" },
-      groups: { group_a: { pinned: true, share: 0.4 } },
+      groups: { group_a: { pinned: true, project: "travel", share: 0.4 } },
       tabs: [
         { group: "group_a", id: "tab_1", kind: "page", openedAt: 1 },
         { group: "group_a", id: "tab_2", kind: "page", openedAt: 2 },

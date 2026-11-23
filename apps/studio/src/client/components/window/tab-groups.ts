@@ -1,5 +1,5 @@
+import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
-import { pickNewChatProjectAtom } from "@/client/drafts/new-chat-box";
 import { draftsAtom, draftsLoadedAtom } from "@/client/drafts/store";
 import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { freshTabId } from "@/client/lib/tab-actions";
@@ -11,7 +11,7 @@ import { type SidebarPlace } from "@/shared/tabs";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { unique } from "radashi";
-import { useAtomValue, useSetAtom, useStore } from "jotai";
+import { useAtomValue, useStore } from "jotai";
 import { useEffect, useEffectEvent, useRef } from "react";
 
 import {
@@ -23,7 +23,7 @@ import {
   useAppTabs,
 } from "./app-tabs";
 import { chatListOptions } from "./chat-list-query";
-import { type Chat, draftTitle } from "./chats";
+import { type Chat, draftTitle, type Project } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
 import { useTabGroupsElsewhere, windowTabGroupsAtom } from "./open-groups";
 import {
@@ -55,7 +55,8 @@ import { newScreenId, useWindowTabs, windowTabsAtom } from "./window-tabs";
  * either side (the side with the keyboard first), whose latest line and
  * state its row shows, a new chat with words in it up with the keyboard, or
  * tabs alone. A chat's state is the chat's own, so every row with a tab up
- * on one chat shows it. A group is `pinned` by its own pin.
+ * on one chat shows it. A group is `pinned` by its own pin, and in the
+ * `project` it was made in, whatever its chats are filed under.
  */
 export type TabGroup =
   | {
@@ -63,6 +64,7 @@ export type TabGroup =
       group: string;
       kind: "chat";
       pinned: boolean;
+      project?: string;
       title: string;
     }
   | {
@@ -70,12 +72,14 @@ export type TabGroup =
       group: string;
       kind: "draft";
       pinned: boolean;
+      project?: string;
       title: string;
     }
   | {
       group: string;
       kind: "tabs";
       pinned: boolean;
+      project?: string;
       title: string;
     };
 
@@ -151,6 +155,38 @@ export function isWorthKeeping(draft: Draft): boolean {
   );
 }
 
+/**
+ * The project the sidebar lists a group in: none for one whose project is
+ * retired or gone, which has no row to open it from.
+ */
+export function listedProject(
+  entry: TabGroup,
+  projects: readonly Project[],
+): string | undefined {
+  return projects.some(
+    (project) => project.id === entry.project && !project.retired,
+  )
+    ? entry.project
+    : undefined;
+}
+
+/**
+ * The groups the sidebar lists while it stands in a project, or at its root
+ * with none: each group is in one set alone.
+ */
+export function groupsInProject(
+  open: readonly TabGroup[],
+  project: string | undefined,
+  projects: readonly Project[],
+): TabGroup[] {
+  return open.filter(
+    (entry) =>
+      (project === undefined
+        ? listedProject(entry, projects)
+        : entry.project) === project,
+  );
+}
+
 /** One open group, as its row lists it (see `TabGroup`). */
 function openEntry(
   group: string,
@@ -164,7 +200,11 @@ function openEntry(
     state: WindowTabs;
   },
 ): TabGroup {
-  const own = { group, pinned: state.groups?.[group]?.pinned === true };
+  const own = {
+    group,
+    pinned: state.groups?.[group]?.pinned === true,
+    project: state.groups?.[group]?.project,
+  };
   const up = selectedTabIn(state, group);
   const upChat = chatUpIn(state, group);
   const chat = upChat === undefined ? undefined : byId.get(upChat);
@@ -357,7 +397,6 @@ export function useTabGroupActions() {
   const store = useStore();
   const appTabs = useAppTabs();
   const windowTabs = useWindowTabs();
-  const pickProject = useSetAtom(pickNewChatProjectAtom);
 
   /** The group the window shows now, read at the call. */
   const groupUp = () => {
@@ -451,8 +490,9 @@ export function useTabGroupActions() {
   /**
    * A new group at the top of the list, under New, or at a place in it,
    * pinned there when the place is among the pinned rows: one side with a
-   * new chat in it, filed under a project when one is named, unless
-   * something else is to open in it.
+   * new chat in it, unless something else is to open in it. One shown here
+   * is in the project the sidebar stands in, unless another, or none, is
+   * named.
    */
   const make = ({
     fill,
@@ -460,7 +500,7 @@ export function useTabGroupActions() {
     isShownHere = true,
     moving,
     place,
-    projectId,
+    project,
     replace = false,
   }: {
     /** Opens what the group starts with. */
@@ -473,11 +513,19 @@ export function useTabGroupActions() {
     moving?: string;
     /** Where it goes in the list, when not at the top. */
     place?: SidebarPlace;
-    projectId?: string;
+    /** The project it is in, or null for the root. */
+    project?: null | string;
     /** Takes the place of the window's address rather than stepping on from it. */
     replace?: boolean;
   } = {}) => {
     const group = newGroupKey();
+    const into =
+      project === undefined && isShownHere
+        ? store.get(sidebarProjectAtom)
+        : project;
+    if (into) {
+      windowTabs.setGroupOwn(group, { project: into });
+    }
     if (isShownHere) {
       setListed((list) => listedWith(list, group, place));
     }
@@ -491,9 +539,6 @@ export function useTabGroupActions() {
     } else {
       const tab = screenTab(group, href ?? NEW_TAB_HREF);
       windowTabs.openIn(tab, { group, select: true });
-      if (href === undefined && projectId !== undefined) {
-        pickProject({ projectId, tabId: tab.id });
-      }
     }
     if (isShownHere) {
       // From a screen or page that is no tab group's, the new group takes its place.
@@ -534,10 +579,14 @@ export function useTabGroupActions() {
     });
   };
 
-  /** The group to show once `group` is gone: the one after it in the list, else the one before, else a new one. */
+  /** The group to show once `group` is gone, in the project the sidebar stands in: the one after it in the list, else the one before, else a new one. */
   const neighborOf = (group: string, list: readonly TabGroup[]) => {
-    const index = list.findIndex((entry) => entry.group === group);
-    const rest = list.filter((entry) => entry.group !== group);
+    const project = store.get(sidebarProjectAtom);
+    const set = list.filter(
+      (entry) => entry.group === group || entry.project === project,
+    );
+    const index = set.findIndex((entry) => entry.group === group);
+    const rest = set.filter((entry) => entry.group !== group);
     return rest[Math.min(Math.max(index, 0), rest.length - 1)]?.group;
   };
 

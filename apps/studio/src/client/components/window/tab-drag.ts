@@ -1,3 +1,4 @@
+import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import { type WindowTab } from "@/client/atoms/window";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
@@ -169,6 +170,12 @@ export function useGroupTabMoves() {
   /** A whole group from another window: listed where it was let go, or at the top, and up. */
   const receiveWhole = (group: string, landing: GroupTabLanding) => {
     groups.place(group, landing.kind === "new" && landing.at ? landing.at : {});
+    // Let go in a window that was here, it is in the project listed there.
+    if (!(landing.kind === "new" && landing.isWindowOfItsOwn === true)) {
+      windowTabs.setGroupOwn(group, {
+        project: store.get(sidebarProjectAtom),
+      });
+    }
     fillRoom(group);
     groups.show(group);
     if (landing.kind === "new" && landing.isWindowOfItsOwn === true) {

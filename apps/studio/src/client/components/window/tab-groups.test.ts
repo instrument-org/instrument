@@ -11,6 +11,7 @@ import {
   copiedTabs,
   chatsWithNoTab,
   groupLists,
+  groupsInProject,
   isWorthKeeping,
   listedWith,
   listedWithout,
@@ -162,6 +163,73 @@ describe("the tab groups another window has open", () => {
         },
       ).map((each) => each.id),
     ).toEqual([PARIS]);
+  });
+});
+
+describe("the groups of a project", () => {
+  const LISBON = ChatIdSchema.parse("2026-11-10-lisbon");
+  const PARIS = ChatIdSchema.parse("2026-11-10-paris");
+  const chat = (id: Chat["id"], project?: string): Chat => ({
+    archived: false,
+    firstAsk: "",
+    holds: { apps: [], files: [], sites: [] },
+    id,
+    lastUserMessageAt: 1,
+    sessionId: StoreId.newSessionId(),
+    starred: false,
+    status: "idle",
+    title: id,
+    titleByApp: true,
+    unread: false,
+    unreadByUser: false,
+    working: false,
+    ...(project === undefined ? {} : { project }),
+  });
+  const tab = (group: string, id: string, href: string): WindowTab => ({
+    group,
+    href,
+    id,
+    kind: "screen",
+  });
+  const { open } = groupLists({
+    chats: [chat(PARIS, "travel"), chat(LISBON)],
+    drafts: [],
+    elsewhere: [],
+    listed: ["made", "filed", "root", "mixed", "gone", "old"],
+    state: {
+      activeByGroup: {},
+      groups: {
+        gone: { project: "deleted" },
+        made: { project: "travel" },
+        old: { project: "retired" },
+      },
+      tabs: [
+        tab("made", "t1", "/files"),
+        tab("filed", "t2", chatHref(PARIS)),
+        tab("root", "t3", newChatHref()),
+        tab("mixed", "t4", chatHref(LISBON)),
+        tab("mixed", "t5", chatHref(PARIS)),
+        tab("gone", "t6", newChatHref()),
+        tab("old", "t7", newChatHref()),
+      ],
+    },
+  });
+  const project = (id: string, retired?: true) => ({
+    created: new Date(0),
+    id,
+    name: id,
+    ...(retired ? { retired } : {}),
+  });
+  const projects = [project("travel"), project("retired", true)];
+
+  it.each([
+    ["travel", ["made"]],
+    ["retired", ["old"]],
+    [undefined, ["filed", "root", "mixed", "gone", "old"]],
+  ])("%s lists its own", (id, groups) => {
+    expect(
+      groupsInProject(open, id, projects).map((entry) => entry.group),
+    ).toEqual(groups);
   });
 });
 

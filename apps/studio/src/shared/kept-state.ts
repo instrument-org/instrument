@@ -36,6 +36,9 @@ export const APP_TABS_KEY = "app-tabs.v2";
  */
 export const TAB_GROUPS_KEY = "tab-group-list.v2";
 
+/** The key kept once a workspace's recent chats have opened as tab groups (`useOpenRecentChats`). */
+export const RECENT_CHATS_KEY = "recent-chats-opened.v1";
+
 /** The tab groups a window kept, or undefined for a value that is not a list of them. */
 export function keptTabGroupsOf(value: unknown): string[] | undefined {
   return z.array(z.string()).safeParse(value).data;

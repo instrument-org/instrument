@@ -136,6 +136,11 @@ export function clearKeptState() {
   values = new Map();
 }
 
+/** A value as it is kept, for what an earlier build kept under a key no atom reads. */
+export function readKept(file: KeptFile, key: string): unknown {
+  return kept().get(slotOf(file, key));
+}
+
 /** A value kept and taken back out, for what an earlier build kept under another key. */
 export function takeKept(file: KeptFile, key: string): unknown {
   const value = kept().get(slotOf(file, key));

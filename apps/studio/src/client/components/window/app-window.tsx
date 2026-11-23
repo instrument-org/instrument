@@ -185,6 +185,7 @@ import {
   useTabGroupUpkeep,
 } from "./tab-groups";
 import { windowTabGroupsAtom } from "./open-groups";
+import { useOpenRecentChats } from "./recent-chat-groups";
 import {
   sidebarOpenAtom,
   sidebarProjectAtom,
@@ -1131,6 +1132,7 @@ function WindowShell({
     rpcClient.workspace.projects.list.queryOptions(),
   );
   const projects = projectsQuery.data ?? [];
+  useOpenRecentChats({ projects: projectsQuery.data });
   // The groups of the project the sidebar stands in, or of its root.
   const groupsHere = () =>
     groupsInProject(groupList.open, store.get(sidebarProjectAtom), projects);

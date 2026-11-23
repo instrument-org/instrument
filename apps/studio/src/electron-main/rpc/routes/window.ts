@@ -29,6 +29,11 @@ import {
   TabSchema,
   TabStandingSchema,
 } from "@/shared/tabs";
+import {
+  getKeptState,
+  setKeptState,
+} from "@/electron-main/stores/workspace/kept-state";
+import { RECENT_CHATS_KEY } from "@/shared/kept-state";
 import { liveRead } from "@instrument-org/workspace/electron";
 import { Menu } from "electron";
 import { z } from "zod";
@@ -276,6 +281,15 @@ const endTabCarry = base
   )
   .handler(({ input }) => endCarry(input));
 
+/** Whether the asking window is the one to open the person's recent chats as tab groups: the first ever to ask in this workspace. */
+const takeRecentChats = base.output(z.boolean()).handler(() => {
+  if (getKeptState("groups", RECENT_CHATS_KEY) !== undefined) {
+    return false;
+  }
+  setKeptState("groups", RECENT_CHATS_KEY, true);
+  return true;
+});
+
 export const window = {
   bringForward,
   canReopenClosed,
@@ -296,4 +310,5 @@ export const window = {
   tabShown,
   takeLaunchSweep,
   takePending,
+  takeRecentChats,
 };

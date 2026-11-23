@@ -27,7 +27,6 @@ import { type PageChromeSlots } from "./browser-tabs";
 import { asksOwnPlace, useWindow, WindowContext } from "./context";
 import { ScreenToolsRow, useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
-import { BrowserStartTail } from "./browser-start-controls";
 import { PageAgentOverlay } from "./page-agent-overlay";
 import { computerTabOf } from "./file-tabs";
 import {
@@ -400,7 +399,6 @@ export function GroupItem({
           onClick={noop}
         />
       }
-      trailing={<BrowserStartTail isNewTab onOpenPage={openHere} />}
     />
   ) : chatOfTab(up) === undefined ? (
     row(location)

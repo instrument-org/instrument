@@ -29,28 +29,19 @@ export function BrowserStartControls({
  * What a page's row ends in, for a tab with no page loaded (a new tab, the
  * browser's start): the extensions' pill, the downloads, and the page's own
  * menu with the rows that need a page disabled. Its zoom is the window's,
- * which is what a zoom chord there changes. A new tab (`isNewTab`) has the
- * downloads alone.
+ * which is what a zoom chord there changes.
  */
 export function BrowserStartTail({
-  isNewTab = false,
   onOpenPage,
 }: {
-  isNewTab?: boolean;
   onOpenPage: (url: string) => void;
 }) {
   // No page here starts a download, so none is drawn leaving from it.
   const noSurface = useRef<HTMLElement>(null);
-  const downloads = (
-    <BrowserDownloadsButton surfaceRef={noSurface} targetId="" />
-  );
-  if (isNewTab) {
-    return downloads;
-  }
   return (
     <>
       <BrowserExtensionButtons />
-      {downloads}
+      <BrowserDownloadsButton surfaceRef={noSurface} targetId="" />
       <BrowserPageMenu
         bookmark={{ canBookmark: false }}
         onOpenHistory={onOpenPage}

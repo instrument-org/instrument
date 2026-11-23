@@ -30,7 +30,8 @@ function makeBrowser() {
   const asleep = new Set<BrowserTargetId>();
   const slept: BrowserTargetId[] = [];
   const browser: BrowserConfig = {
-    closeTarget: (targetId) => {
+    closeTarget: () => Promise.resolve(),
+    discardTarget: (targetId) => {
       closed.push(targetId);
       destroyed.get(targetId)?.();
       return Promise.resolve();
@@ -246,7 +247,7 @@ describe("windowBrowserLogic", () => {
 
   it("asks for a discard once, however long the guest takes to go", async () => {
     const { browser, closed, send } = start();
-    browser.closeTarget = (targetId) => {
+    browser.discardTarget = (targetId) => {
       closed.push(targetId);
       return Promise.resolve();
     };

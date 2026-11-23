@@ -33,7 +33,14 @@ export interface BrowserConfig {
      * unless the other window is showing it, `always` either way.
      */
     host?: { take?: "always" | "parked"; webContentsId: number },
+    /**
+     * Where the tab stands. A guest discarded there comes back with the pages
+     * behind it.
+     */
+    restoreUrl?: string,
   ) => Promise<void>;
+  /** Closes a tab's guest while its tab stays, to come back as it is next shown. */
+  discardTarget: (targetId: BrowserTargetId) => Promise<void>;
   getTargetMeta: (
     targetId: BrowserTargetId,
   ) => null | { partitionDir: AbsolutePath };

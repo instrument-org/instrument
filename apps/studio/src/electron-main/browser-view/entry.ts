@@ -135,11 +135,11 @@ export interface BrowserEntry {
   // until there is a window to ask.
   hostId: null | number;
   phase: EntryPhase;
-  // What the guest was showing in the window it left, to come back to in this
-  // one, its history with it. Spent as the guest attaches.
+  // What the guest was showing in the window it left, or as it was discarded,
+  // to come back to, the pages behind it with it. Spent as the guest attaches.
   restoreHistory: null | { behind: NavigationEntry[]; url: string };
   // The page the guest's element opens on: its own blank page, or the one a
-  // guest brought over from another window stood on.
+  // guest brought over from another window, or discarded, stood on.
   src: string | undefined;
   // Workspace browser profile directory, threaded through BrowserConfig so the
   // task lifecycle can correlate a target with its storage without re-deriving

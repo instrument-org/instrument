@@ -239,7 +239,7 @@ export const windowBrowserLogic = fromCallback<
         continue;
       }
       guest.discarding = true;
-      void browser.closeTarget(targetId);
+      void browser.discardTarget(targetId);
     }
   };
 

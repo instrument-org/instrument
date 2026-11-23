@@ -10,6 +10,7 @@ import { type BrowserConfig } from "../../types";
 export function createStubBrowserConfig(): BrowserConfig {
   return {
     closeTarget: () => Promise.resolve(),
+    discardTarget: () => Promise.resolve(),
     createTarget: () => Promise.resolve(),
     contentBlocking: () => ({ task: true, workspace: true }),
     getTargetMeta: () => null,

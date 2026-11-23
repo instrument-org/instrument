@@ -57,7 +57,7 @@ export function GrokAccountCard() {
   const continueWithGrok = () => {
     void flow.start().then((result) => {
       if (result) {
-        showConnectToast(result, "grok");
+        showConnectToast(result, "grok", continueWithGrok);
       }
     });
   };

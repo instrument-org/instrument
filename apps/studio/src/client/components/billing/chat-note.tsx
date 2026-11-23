@@ -644,7 +644,16 @@ function PlanAccountNote({
           <ReplyNoteButton onClick={context.openModelPicker}>
             Change model
           </ReplyNoteButton>
-          {stop.kind === "usage-limit" && (
+          {stop.kind === "not-eligible" ? (
+            // Its row in Settings is where another account is signed in to.
+            <ReplyNoteButton
+              onClick={() => {
+                openSettings({ setting: stop.provider, tab: "Providers" });
+              }}
+            >
+              Use another account
+            </ReplyNoteButton>
+          ) : (
             <ReplyNoteButton
               onClick={() => {
                 openSettings(

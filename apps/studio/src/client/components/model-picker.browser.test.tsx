@@ -48,7 +48,7 @@ account.status = onBasic;
 
 const connection = (
   config: string,
-  provider: "anthropic" | "instrument",
+  provider: "anthropic" | "claude-account" | "instrument",
   providerName: string,
 ) => {
   const params = {
@@ -194,6 +194,50 @@ describe("ModelPicker in a browser", () => {
       .element(page.getByText("No models yet"))
       .not.toBeInTheDocument();
   });
+
+  it.each([
+    { listed: models, state: "beside the others" },
+    { listed: [], state: "with nothing else listed" },
+  ])(
+    "shows the chosen model's connection $state while it is not connected, with the way back",
+    async ({ listed }) => {
+      const onAction = vi.fn();
+      const gone = connection(
+        "claude-account",
+        "claude-account",
+        "Claude",
+      )({
+        canonicalId: "claude-opus-5.5",
+        name: "Claude Opus 5.5",
+      });
+      await openPicker(gone, {
+        models: listed,
+        notice: noticeFor(
+          readModelStatus({
+            dismissedOffers: new Set(),
+            models: listed,
+            modelURI: gone.uri,
+            providerNames: new Map([["claude-account", "Claude"]]),
+          }),
+        ),
+        onAction,
+        selectedModel: undefined,
+      });
+      await expect
+        .element(
+          page.getByRole("button", {
+            name: "Claude models (has the chosen model)",
+          }),
+        )
+        .toHaveAttribute("aria-current", "true");
+      await userEvent.click(
+        page.getByRole("button", { name: "Connect Claude" }),
+      );
+      expect(onAction).toHaveBeenCalledWith(
+        expect.objectContaining({ account: "claude-account", kind: "sign-in" }),
+      );
+    },
+  );
 
   it("opens on Instrument with Auto chosen, the rail naming where the rest are", async () => {
     const tree = await openPicker(autoModel);

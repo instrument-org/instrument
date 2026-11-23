@@ -466,7 +466,7 @@ describe("MessageError", () => {
           "unclassified": "Try again, Change model",
           "unknown": "Try again, Change model",
           "unsendable content": "Try again, Change model",
-          "usage limit": "Open provider settings, Try again, Change model",
+          "usage limit": "Change model, Try again, Open provider settings",
         }
       `);
     });

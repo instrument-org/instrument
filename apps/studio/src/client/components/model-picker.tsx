@@ -86,8 +86,12 @@ type ListError = NonNullable<
   RPCOutput["gateway"]["models"]["list"]["errors"]
 >[number];
 
-/** A connection as the rail shows it: one that listed models, or one whose list failed. */
-type RailEntry = Connection & { failed?: ListError };
+/** A connection as the rail shows it: one that listed models, one whose list failed, or the chosen model's while it is not connected. */
+type RailEntry = Connection & {
+  failed?: ListError;
+  /** The chosen model's connection, not connected: what the composer's notice says of it. */
+  missing?: ModelNotice;
+};
 
 export function ModelPicker({
   align = "start",
@@ -142,7 +146,12 @@ export function ModelPicker({
     (modelURI ? (modelNameFromURI(modelURI) ?? null) : null);
   // Nothing connected yet: the panel is only a way to connect something, with
   // no search or provider rail around an empty list.
-  const isEmpty = !isLoading && !isError && !models?.length && !errors?.length;
+  const isEmpty =
+    !isLoading &&
+    !isError &&
+    !models?.length &&
+    !errors?.length &&
+    !notice?.connection;
   const placeholderText = isLoading
     ? "Loading models..."
     : isError
@@ -311,6 +320,18 @@ function PickerPanel({
         name: error.config.displayName ?? error.config.type,
         provider: error.config.type,
       })),
+    // The chosen model's connection while it is not connected, so the place
+    // its models were listed is the place to bring it back.
+    ...(notice?.connection &&
+    !listed.some((entry) => entry.id === notice.connection?.id)
+      ? [
+          {
+            ...notice.connection,
+            isOurs: notice.connection.provider === OUR_MODELS.providerType,
+            missing: notice,
+          },
+        ]
+      : []),
   ];
 
   const chosenConnection =
@@ -433,8 +454,13 @@ function PickerPanel({
                     list holds one connection's. */}
                 <span className="sr-only"> models</span>
               </span>
-              {entry.failed ? (
-                <WarningCircleIcon className="size-4 shrink-0 text-yellow-700 dark:text-yellow-300" />
+              {(entry.failed ?? entry.missing) ? (
+                <>
+                  <WarningCircleIcon className="size-4 shrink-0 text-yellow-700 dark:text-yellow-300" />
+                  {entry.missing && (
+                    <span className="sr-only">(has the chosen model)</span>
+                  )}
+                </>
               ) : (
                 entry.id === chosenConnection && (
                   // Where the chosen model lives, so browsing another
@@ -474,6 +500,8 @@ function PickerPanel({
                   onAction({ kind: "retry", label: "Retry" });
                 }}
               />
+            ) : opened?.missing && !searching ? (
+              <MissingConnection notice={opened.missing} onAction={onAction} />
             ) : isError ? (
               <EmptyMessage text="Couldn't load models">
                 <Button
@@ -922,6 +950,33 @@ function ModelRow({
         </>
       )}
     </CommandItem>
+  );
+}
+
+/** What the composer's notice says and offers, in place of the models its connection would list. */
+function MissingConnection({
+  notice,
+  onAction,
+}: {
+  notice: ModelNotice;
+  onAction: (action: ModelAction) => void;
+}) {
+  return (
+    <EmptyMessage text={notice.text}>
+      {notice.action && (
+        <Button
+          onClick={() => {
+            if (notice.action) {
+              onAction(notice.action);
+            }
+          }}
+          size="sm"
+          variant="brand"
+        >
+          {notice.action.label}
+        </Button>
+      )}
+    </EmptyMessage>
   );
 }
 

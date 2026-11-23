@@ -640,7 +640,7 @@ function errorActions({
     ? [{ label: "Change model", onClick: chooseModel }]
     : [];
   if (classification === "usage-limit") {
-    return [providerSettings, ...tryAgain, ...changeModel];
+    return [...changeModel, ...tryAgain, providerSettings];
   }
   // The same request meets the same rules, so another model leads.
   if (classification === "content-policy") {

@@ -82,8 +82,12 @@ describe("readModelStatus and noticeFor", () => {
           "notice": "[problem] Anthropic is turned off, so Claude Haiku 4.5 isn't available → Enable Anthropic | Switch to OpenRouter",
           "status": "gone",
         },
+        "restricted on Instrument, by the plan": {
+          "notice": "[problem] Claude Opus 5.5 is unavailable. Claude Opus needs a paid plan. → See plans | Switch to Auto",
+          "status": "restricted",
+        },
         "restricted, with Auto to fall back on": {
-          "notice": "[problem] Claude Opus 5.5 is unavailable → Switch to Auto",
+          "notice": "[problem] Claude Opus 5.5 is unavailable. Claude Opus needs a paid plan. → Switch to Auto",
           "status": "restricted",
         },
         "the list failed": {

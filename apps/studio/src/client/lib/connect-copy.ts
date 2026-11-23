@@ -206,6 +206,8 @@ export interface ConnectToastCopy {
   description?: string;
   /** An answer that went wrong, said as an error toast. */
   isError: boolean;
+  /** What pressing to go through the sign-in again is called, where that may help. */
+  retry?: string;
   title: string;
 }
 
@@ -227,6 +229,7 @@ export function connectToast(
         ? {
             description: `Continue with ChatGPT again and allow ${APP_NAME} to use your plan.`,
             isError: true,
+            retry: "Continue",
             title: `${APP_NAME} can't use your ChatGPT plan yet`,
           }
         : undefined;
@@ -234,6 +237,7 @@ export function connectToast(
     case "failed": {
       return {
         isError: true,
+        retry: "Try again",
         title: `Couldn't sign in ${signInTo(provider)}`,
       };
     }
@@ -272,6 +276,7 @@ export function connectToast(
       return {
         description: `Sign in to ${name} again to use your plan here.`,
         isError: true,
+        retry: "Sign in",
         title: `You're signed out of ${name}`,
       };
     }
@@ -279,6 +284,7 @@ export function connectToast(
       return {
         description: `${APP_NAME} couldn't check your ${name} plan. Try again.`,
         isError: true,
+        retry: "Try again",
         title: `${name} didn't answer in time`,
       };
     }

@@ -15,6 +15,8 @@ import { toast } from "./toast";
 export function showConnectToast(
   { modelName, outcome }: ConnectResult,
   provider: ConnectProvider,
+  /** Goes through the sign-in again, offered where that may help. */
+  onRetry?: () => void,
 ) {
   const copy = connectToast(outcome, provider, { modelName });
   if (!copy) {
@@ -22,6 +24,7 @@ export function showConnectToast(
   }
   if (copy.isError) {
     toast.error(copy.title, {
+      action: copy.retry && onRetry && { label: copy.retry, onClick: onRetry },
       cause: outcome.kind === "failed" ? outcome.message : undefined,
       description: copy.description,
     });

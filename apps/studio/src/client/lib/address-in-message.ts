@@ -21,8 +21,9 @@ export type MessageAddress =
  * The address a message is, when its whole text is one: a single word that
  * is an `instrument://` address this build opens, an http(s) URL, or a host
  * the address field would go to (a domain with a known suffix, an IP,
- * localhost, a host with a port), with or without a path. Anything with
- * other words in it is a message.
+ * localhost, a host with a port), with or without a path, or a `file://`
+ * address, which the command menu opens as a page too. Anything with other
+ * words in it is a message.
  */
 export function addressInMessage(words: string): MessageAddress | undefined {
   const word = words.trim();
@@ -34,7 +35,10 @@ export function addressInMessage(words: string): MessageAddress | undefined {
   }
   let url: string | undefined;
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(word)) {
-    url = /^https?:\/\//i.test(word) && URL.canParse(word) ? word : undefined;
+    url =
+      /^(?:https?|file):\/\//i.test(word) && URL.canParse(word)
+        ? word
+        : undefined;
   } else if (!/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(word) && !word.includes("@")) {
     // Another scheme (mailto:, about:) or an email address is not a page.
     const authority = word.split(/[/?#]/, 1)[0] ?? word;
@@ -44,6 +48,13 @@ export function addressInMessage(words: string): MessageAddress | undefined {
     return undefined;
   }
   const parsed = new URL(url);
+  if (parsed.protocol === "file:") {
+    return {
+      kind: "page",
+      shown: `${decodeURIComponent(parsed.pathname)}${parsed.search}${parsed.hash}`,
+      url,
+    };
+  }
   const path = parsed.pathname === "/" ? "" : parsed.pathname;
   const shown =
     `${parsed.host.replace(/^www\./, "")}${path}${parsed.search}`.replace(

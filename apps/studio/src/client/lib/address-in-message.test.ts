@@ -22,6 +22,11 @@ describe("addressInMessage", () => {
       "news.bbc.co.uk/sport",
     ],
     ["localhost:3000", "http://localhost:3000", "localhost:3000"],
+    [
+      "file:///Users/mac-user/wireframes/new%20tab.html?frame=3",
+      "file:///Users/mac-user/wireframes/new%20tab.html?frame=3",
+      "/Users/mac-user/wireframes/new tab.html?frame=3",
+    ],
   ])("reads %s as an address", (words, url, shown) => {
     expect(addressInMessage(words)).toEqual({ kind: "page", shown, url });
   });

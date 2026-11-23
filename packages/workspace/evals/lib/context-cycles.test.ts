@@ -69,7 +69,8 @@ describe("context cycles", () => {
     expect(cycles.rollovers).toMatchObject([
       {
         afterStep: 2,
-        droppedNewestToolResult: true,
+        // Cut right after a result, and that step carried across.
+        droppedNewestToolResult: false,
         promptAfter: 45_000,
         promptAtCut: 90_000,
         readStepsBeforeAct: 2,

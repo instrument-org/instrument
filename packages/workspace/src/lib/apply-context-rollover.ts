@@ -2,6 +2,7 @@ import { type Session } from "../schemas/session";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
+import { isToolPart } from "./is-tool-part";
 import {
   sanitizeSurrogates,
   truncateWithoutSplitting,
@@ -19,7 +20,10 @@ import {
  * own discovered state and buys two things worth more at this point. The
  * transcript stops growing, and a history with no tool calls in it cannot
  * orphan a tool result, so the pairing that every provider rejects is
- * impossible here rather than defended against.
+ * impossible here rather than defended against. The one exception is the
+ * boundary's own step when it ended on results (`carriedStep`), carried
+ * whole: a tool part holds its call and its result together, so carrying the
+ * part never splits the pair.
  *
  * Applied as a view over messages that all remain on disk. Nothing is deleted,
  * so a boundary can be read, shown, or undone later.
@@ -83,8 +87,52 @@ export function applyContextRollover({
 
   const withinWindow = messages.slice(boundary + 1);
   const retained = retainNewestUserMessages(messages.slice(0, boundary + 1));
+  const carried = carriedStep(messages[boundary]);
 
-  return [...retained, ...withinWindow];
+  return [...retained, ...(carried ? [carried] : []), ...withinWindow];
+}
+
+/**
+ * The boundary's step as the window after it is sent it, when the cut came
+ * between that step's results and the request that would have read them:
+ * the calls the step made, each with its result, and what the model said
+ * and reasoned on the way. Undefined for any other boundary.
+ *
+ * A rollover is drawn at the newest message, and a summarized one while the
+ * request that reads the newest results is being built, so without this the
+ * model never sees what its last call returned. Measured on Haiku 5.5
+ * filling a sheet, every summarized rollover cut right after a result, and
+ * the window after it spent two to eight steps reading the page again before
+ * its next edit. Only the last step goes: the calls before it are what the
+ * summary is for. A call with no result yet is left out, since its result is
+ * what a provider needs beside it, and so are the data parts, which describe
+ * the window the step was sent in (the rollover's own mark among them). So
+ * is the step's usage: it measured the request at the cut, and read as the
+ * new window's occupancy it would roll the session over again at once.
+ */
+export function carriedStep(
+  message: SessionMessage.WithParts | undefined,
+): SessionMessage.WithParts | undefined {
+  if (message?.role !== "assistant") {
+    return undefined;
+  }
+  const start = message.parts.findLastIndex(
+    (part) => part.type === "step-start",
+  );
+  const parts = message.parts
+    .slice(start + 1)
+    .filter(
+      (part) =>
+        !part.type.startsWith("data-") &&
+        (!isToolPart(part) ||
+          part.state === "output-available" ||
+          part.state === "output-error"),
+    );
+  if (!parts.some(isToolPart)) {
+    return undefined;
+  }
+  const { usage: _usage, ...metadata } = message.metadata;
+  return { ...message, metadata, parts };
 }
 
 /**

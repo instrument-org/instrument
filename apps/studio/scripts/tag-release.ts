@@ -11,14 +11,17 @@ function checkRegistrySubmodule() {
   try {
     console.log("Checking if registry submodule is up to date...");
 
-    execSync(`cd ${REGISTRY_DIR_PATH} && git fetch origin`, { stdio: "pipe" });
+    // Run in the submodule by `cwd`, never a shell `cd`, so a checkout whose
+    // path has spaces works.
+    execFileSync("git", ["fetch", "origin"], {
+      cwd: REGISTRY_DIR_PATH,
+      stdio: "pipe",
+    });
 
-    const result = execSync(
-      `cd ${REGISTRY_DIR_PATH} && git log HEAD..origin/main --oneline`,
-      {
-        encoding: "utf8",
-        stdio: "pipe",
-      },
+    const result = execFileSync(
+      "git",
+      ["log", "HEAD..origin/main", "--oneline"],
+      { cwd: REGISTRY_DIR_PATH, encoding: "utf8", stdio: "pipe" },
     );
 
     if (result.trim()) {

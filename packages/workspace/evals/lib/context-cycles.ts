@@ -12,6 +12,7 @@
  * summary rollover's own request is not a message; its usage is on the
  * `data-contextRollover` part.
  */
+import { carriedStep } from "../../src/lib/apply-context-rollover";
 import { isToolPart } from "../../src/lib/is-tool-part";
 import { type Session } from "../../src/schemas/session";
 
@@ -41,7 +42,10 @@ interface Rollover {
   /** The step the rollover came after, 0-based over the session's requests. */
   afterStep: number;
   droppedMessages: number;
-  /** Whether the newest message dropped was a step with a tool result in it. */
+  /**
+   * Whether the newest message dropped was a step with a tool result in it,
+   * and the window after it did not carry that step across (`carriedStep`).
+   */
   droppedNewestToolResult: boolean;
   /** The first thing the agent said after the rollover, cut to 300 characters. */
   firstTextAfter?: string;
@@ -228,7 +232,8 @@ export function contextCycles(
           boundary?.role === "assistant" &&
           boundary.parts.some(
             (one) => isToolPart(one) && one.state === "output-available",
-          ),
+          ) &&
+          carriedStep(boundary) === undefined,
         firstTextAfter: later
           .find((step) => step.text !== "")
           ?.text.slice(0, 300),

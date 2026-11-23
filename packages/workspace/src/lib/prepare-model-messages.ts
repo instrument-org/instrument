@@ -52,6 +52,7 @@ import { markRepeatSearchSources } from "./repeat-search-sources";
 import {
   clearOldToolResults,
   toolResultsClearedThrough,
+  withCarriedResultsCapped,
 } from "./tool-result-clearing";
 import { shellPath } from "./workspace-fs-layout";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -581,7 +582,19 @@ export async function prepareModelMessages({
     return err(new Error("The request would record a clearing."));
   }
 
-  const nonEmptyModelMessages = cleared.messages.filter(
+  // The boundary's own step, when the window carries it (`carriedStep`): the
+  // boundary is otherwise never in the window it bounds.
+  const carried =
+    rolledOverAfterMessageId === undefined
+      ? undefined
+      : nonContextMessages.find(
+          (message) => message.id === rolledOverAfterMessageId,
+        );
+
+  const nonEmptyModelMessages = withCarriedResultsCapped({
+    carried,
+    modelMessages: cleared.messages,
+  }).filter(
     (message) => message.content.length > 0 || Boolean(message.providerOptions),
   );
 
@@ -649,6 +662,7 @@ export async function prepareModelMessages({
           await readHandoffNotes(chatId),
           agentHandoffNotesPath(chatId),
           rolloverSummary(allNonContextMessages, rolledOverAfterMessageId),
+          carried !== undefined,
         ),
       ),
     );

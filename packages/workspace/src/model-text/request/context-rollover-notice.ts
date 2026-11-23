@@ -15,18 +15,26 @@
  * asked for notes: it was not running out of room, and an agent asked for
  * notes on every request writes them as a visible step and then tells the
  * person about them.
+ *
+ * `stepCarried` says the cut came right after a step's results and that step
+ * was carried across (`carriedStep`), so the agent continues from what its
+ * last call returned.
  */
 export function contextRolloverNotice(
   notes: string | undefined,
   notesPath: string,
   summarized?: { summary: string },
+  stepCarried = false,
 ): string {
   const carried =
     "The user's messages have been carried across newest first, up to a size budget: older ones may have been dropped whole, and a bracketed [context rollover omitted ...] line stands where the middle of an oversized one was cut. Treat a line like that, or an earlier instruction you cannot find, as something to ask the user about rather than something that never existed.";
+  const lastStep = stepCarried
+    ? " Your last step before the cut, its calls and their results, is carried across as it was: continue from those results rather than calling again."
+    : "";
   const preamble =
     summarized === undefined
-      ? `This conversation ran out of context and continued in a fresh window. ${carried} Your own earlier turns have not been carried across at all: the work you did, what you read, and anything you worked out before the cut are no longer in front of you.`
-      : `This conversation was summarized to keep it small, and continued in a fresh window. ${carried} Your own earlier turns are replaced by the summary below, which you wrote at the cut: treat what it says as established rather than something to rediscover. It covers the conversation only up to the cut, though it comes last here: anything in this window from after the cut, your own turns included, is newer, and wins where the two differ.`;
+      ? `This conversation ran out of context and continued in a fresh window. ${carried} Your own earlier turns have not been carried across${stepCarried ? ", except your last step" : " at all"}: the work you did, what you read, and anything you worked out before ${stepCarried ? "that step" : "the cut"} are no longer in front of you.${lastStep}`
+      : `This conversation was summarized to keep it small, and continued in a fresh window. ${carried} Your own earlier turns are replaced by the summary below, which you wrote at the cut: treat what it says as established rather than something to rediscover. It covers the conversation only up to the cut, though it comes last here: anything in this window from after the cut, your own turns included, is newer, and wins where the two differ.${lastStep}`;
   const summary =
     summarized === undefined
       ? []

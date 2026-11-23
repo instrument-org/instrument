@@ -54,6 +54,7 @@ import * as systemNote from "./notes/system-note";
 import * as taskEvent from "./notes/task-event-model-text";
 import * as undoneChanges from "./notes/undone-changes-model-text";
 import { DATA_PART_SAMPLES } from "../lib/transcript/developer-note-samples";
+import * as summaryInstruction from "./request/summary-instruction";
 import { TURN_NOTE } from "./request/turn-notes";
 import * as viewContext from "./notes/view-context-model-text";
 import {
@@ -223,6 +224,7 @@ const MODULES = {
   stoppedToolCall,
   systemNote,
   taskCommand,
+  summaryInstruction,
   taskEvent,
   // LENGTH_NOTE is pinned through turnNoteFor, below.
   turnNote: { TURN_NOTE },
@@ -381,6 +383,18 @@ describe.skipIf(WINDOWS)("the rollover notice", () => {
       summarizedNoNotes: contextRolloverNotice(undefined, notesPath, {
         summary: "A summary.",
       }),
+      summarizedStepCarried: contextRolloverNotice(
+        undefined,
+        notesPath,
+        { summary: "A summary." },
+        true,
+      ),
+      noNotesStepCarried: contextRolloverNotice(
+        undefined,
+        notesPath,
+        undefined,
+        true,
+      ),
       withNotes: contextRolloverNotice("Notes.", notesPath),
     }).toMatchSnapshot();
   });

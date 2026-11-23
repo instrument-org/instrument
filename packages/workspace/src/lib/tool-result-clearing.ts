@@ -10,6 +10,7 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { ChatWrites } from "./chat-writes";
 import { isToolPart } from "./is-tool-part";
+import { TRUNCATE_HEAD_BYTES, truncateMiddle } from "./truncate-buffer";
 import { workDir } from "./work-dir";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -690,4 +691,91 @@ async function saveClearedResults({
       }
     }),
   );
+}
+
+/**
+ * Bytes kept from each end of the text of a result carried across a rollover
+ * (`carriedStep`): what a command's output is already cut to, so a command's
+ * result goes across whole and only a larger one, such as a long file read,
+ * loses its middle, since the carried step lands in a window drawn to be
+ * small. Results that carry instructions are sent whole, as they are never
+ * cleared either.
+ */
+const CARRIED_RESULT_END_BYTES = TRUNCATE_HEAD_BYTES;
+
+type ToolResultOutput = Extract<
+  Extract<ModelMessage, { role: "tool" }>["content"][number],
+  { type: "tool-result" }
+>["output"];
+
+/** `modelMessages` with the results of the `carried` step cut to size. */
+export function withCarriedResultsCapped({
+  carried,
+  modelMessages,
+}: {
+  carried: SessionMessage.WithParts | undefined;
+  modelMessages: ModelMessage[];
+}): ModelMessage[] {
+  const ids = new Set(
+    carried?.parts.filter(isClearable).map((part) => part.toolCallId),
+  );
+  if (ids.size === 0) {
+    return modelMessages;
+  }
+  return modelMessages.map((message) => {
+    if (message.role !== "tool" || typeof message.content === "string") {
+      return message;
+    }
+    return {
+      ...message,
+      content: message.content.map((part) => {
+        const output =
+          part.type === "tool-result" && ids.has(part.toolCallId)
+            ? cappedOutput(part.output)
+            : undefined;
+        return output === undefined ? part : { ...part, output };
+      }),
+    };
+  });
+}
+
+function cappedText(text: string): string | undefined {
+  const cut = truncateMiddle(text, {
+    headBytes: CARRIED_RESULT_END_BYTES,
+    tailBytes: CARRIED_RESULT_END_BYTES,
+  });
+  return cut.truncated ? cut.content : undefined;
+}
+
+/** `output` with its text cut to size, or undefined when it fits. */
+function cappedOutput(output: ToolResultOutput): ToolResultOutput | undefined {
+  switch (output.type) {
+    case "text":
+    case "error-text": {
+      const value = cappedText(output.value);
+      return value === undefined ? undefined : { ...output, value };
+    }
+    case "json":
+    case "error-json": {
+      const value = cappedText(JSON.stringify(output.value, null, 2));
+      return value === undefined
+        ? undefined
+        : { type: output.type === "json" ? "text" : "error-text", value };
+    }
+    case "content": {
+      let cut = false;
+      const value = output.value.map((item) => {
+        const text = item.type === "text" ? cappedText(item.text) : undefined;
+        if (text === undefined) {
+          return item;
+        }
+        cut = true;
+        return { ...item, text };
+      });
+      return cut ? { ...output, value } : undefined;
+    }
+    case "execution-denied": {
+      return undefined;
+    }
+  }
 }

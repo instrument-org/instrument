@@ -53,7 +53,7 @@ Pages stay `<webview>` guests, each window stays its own renderer, and a page th
 
 Each lands by itself and leaves the app working.
 
-- **A. Pin what it does.** The table of gestures by kind in `use-openers.test.tsx`, beside the reducer tests there are. Done.
+- **A. Pin what it does.** The table of gestures by kind in `use-openers.test.tsx`, beside the reducer tests there are. Done. A blank New Tab gives its place to a plain click on anything, an app and a chat included; one with a draft in it keeps its place.
 - **B. The service.** The pure functions move to shared code with no atom, router or DOM in them. Main owns the state and the windows become mirrors of it. The shape of the files is unchanged, so an earlier build still reads them. This ends the overwrite.
 - **C. Pages follow the tabs.** Main makes and ends guests from the tabs' Life. Unlisted tabs replace hidden groups, and a `page:<id>` group found in a file becomes one. An agent's asks are answered in main, with or without a window.
 - **D. One budget.** The list and the budget above replace the separate limits on guests and on kept screens.
@@ -67,6 +67,7 @@ Each lands by itself and leaves the app working.
 
 ## Risks
 
+- **Hidden pages.** A live page no tab has, with text typed in it, keeps its page and its text when another window's change puts it on a side of a split. Checked in the running app, so step C can place a tab without making its page again.
 - **Routers.** A screen tab walks in its own router, which lives in the renderer. Its history is content the service stores, but a step is still taken in the window, so a step is a command after the fact.
 - **Two windows on one tab.** Only one can have the guest. Which one is a rule in the service.
 - **Files.** A build that reads a newer unlisted tab must not drop it. Unlisted tabs are kept under a key an earlier build ignores.

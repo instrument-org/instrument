@@ -791,7 +791,7 @@ describe("where each gesture opens each kind of thing", () => {
       settings | New Window | New Tab | group_new, left, new tab, up, keyboard
       settings | New Window | a screen | group_new, left, new tab, up, keyboard
       settings | New Window | a page | group_new, left, new tab, up, keyboard
-      app | click | New Tab | here, left, new tab, up, keyboard
+      app | click | New Tab | here, left, in place, up, keyboard
       app | click | a screen | here, left, new tab, up, keyboard
       app | click | a page | here, left, new tab, up, keyboard
       app | Cmd-click | New Tab | here, left, new tab, behind
@@ -803,10 +803,10 @@ describe("where each gesture opens each kind of thing", () => {
       app | Shift-click | New Tab | here, left, new tab, up, keyboard
       app | Shift-click | a screen | here, left, new tab, up, keyboard
       app | Shift-click | a page | here, left, new tab, up, keyboard
-      app | tab of its own | New Tab | here, left, new tab, up, keyboard
+      app | tab of its own | New Tab | here, left, in place, up, keyboard
       app | tab of its own | a screen | here, left, new tab, up, keyboard
       app | tab of its own | a page | here, left, new tab, up, keyboard
-      app | other group | New Tab | here, left, new tab, up, keyboard
+      app | other group | New Tab | here, left, in place, up, keyboard
       app | other group | a screen | here, left, new tab, up, keyboard
       app | other group | a page | here, left, new tab, up, keyboard
       app | other group, new tab | New Tab | group_b, left, new tab, up, keyboard
@@ -821,7 +821,7 @@ describe("where each gesture opens each kind of thing", () => {
       app | New Window | New Tab | group_new, left, new tab, up, keyboard
       app | New Window | a screen | group_new, left, new tab, up, keyboard
       app | New Window | a page | group_new, left, new tab, up, keyboard
-      chat | click | New Tab | here, left, new tab, up, keyboard
+      chat | click | New Tab | here, left, in place, up, keyboard
       chat | click | a screen | here, left, new tab, up, keyboard
       chat | click | a page | here, left, new tab, up, keyboard
       chat | Cmd-click | New Tab | here, left, new tab, behind
@@ -833,10 +833,10 @@ describe("where each gesture opens each kind of thing", () => {
       chat | Shift-click | New Tab | here, left, new tab, up, keyboard
       chat | Shift-click | a screen | here, left, new tab, up, keyboard
       chat | Shift-click | a page | here, left, new tab, up, keyboard
-      chat | tab of its own | New Tab | here, left, new tab, up, keyboard
+      chat | tab of its own | New Tab | here, left, in place, up, keyboard
       chat | tab of its own | a screen | here, left, new tab, up, keyboard
       chat | tab of its own | a page | here, left, new tab, up, keyboard
-      chat | other group | New Tab | here, left, new tab, up, keyboard
+      chat | other group | New Tab | here, left, in place, up, keyboard
       chat | other group | a screen | here, left, new tab, up, keyboard
       chat | other group | a page | here, left, new tab, up, keyboard
       chat | other group, new tab | New Tab | here, left, new tab, up, keyboard

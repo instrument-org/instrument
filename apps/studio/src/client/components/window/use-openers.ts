@@ -395,6 +395,10 @@ export function useOpeners({
         windowTabs.openBeside(href, { behind: placement.behind });
         return;
       }
+      case "in-place": {
+        windowTabs.navigateScreen(href);
+        return;
+      }
       case "own-group": {
         openChat(chat);
         return;

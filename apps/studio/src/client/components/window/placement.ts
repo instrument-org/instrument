@@ -124,7 +124,16 @@ export function screenPlacementOf(
   }: OpenOptions,
   { groupOnScreen, isChatOnScreen, up }: PlacementContext,
 ): ScreenPlacement {
-  // An app comes up where it already is, unless asked for in a tab of its own.
+  // An app comes up where it already is, unless asked for in a tab of its
+  // own, and takes the place of a blank New Tab up.
+  if (
+    matchScreen(href).kind === "app" &&
+    !newTab &&
+    groupOnScreen !== undefined &&
+    up?.isFresh === true
+  ) {
+    return { kind: "group-navigate" };
+  }
   if (
     !isGroupScreenHref(href) ||
     (matchScreen(href).kind === "app" && !newTab)
@@ -210,6 +219,8 @@ export type ChatPlacement =
   | { after: string; behind: boolean; group: string; kind: "after" }
   /** Right after the tab up in the group on screen. */
   | { behind: boolean; kind: "group-new-tab" }
+  /** In the place of the blank New Tab up in the group on screen. */
+  | { kind: "in-place" }
   /** The place a menu's Open in Split, New Tab Group or New Window picked. */
   | { into: "group" | "split" | "window"; kind: "menu" }
   /** A group of its own, for a window with no group up to put a tab in. */
@@ -219,13 +230,13 @@ export type ChatPlacement =
  * Where a chat opened from inside the window goes: a tab, never a group of
  * its own unless a menu asked for one or the window has no group up. From
  * the chat it was clicked in (`place`, from `OpenOptions.chat`) by the
- * person's gesture, else right after the tab up, in front unless asked to
- * wait behind.
+ * person's gesture, else in place of a blank New Tab up for a plain click,
+ * else right after the tab up, in front unless asked to wait behind.
  */
 export function chatPlacementOf(
   asked: OpenOptions,
   place: undefined | { after: string; group: string; isBeside: boolean },
-  { groupOnScreen }: Pick<PlacementContext, "groupOnScreen">,
+  { groupOnScreen, up }: Pick<PlacementContext, "groupOnScreen" | "up">,
 ): ChatPlacement {
   if (asked.into) {
     return { into: asked.into, kind: "menu" };
@@ -237,7 +248,10 @@ export function chatPlacementOf(
   if (place !== undefined) {
     return { after: place.after, behind, group: place.group, kind: "after" };
   }
-  return groupOnScreen === undefined
-    ? { kind: "own-group" }
+  if (groupOnScreen === undefined) {
+    return { kind: "own-group" };
+  }
+  return up?.isFresh === true && gestureOf(asked) === "click"
+    ? { kind: "in-place" }
     : { behind, kind: "group-new-tab" };
 }

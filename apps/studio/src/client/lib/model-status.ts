@@ -48,6 +48,8 @@ export type ModelStatus =
       kind: "restricted";
       message: string;
       model: AIGatewayModel.Type;
+      /** The server's word for why, an open list. */
+      reason: string;
     }
   /** Chosen once, and no connected provider lists it any more. */
   | {
@@ -66,6 +68,8 @@ export type ModelStatus =
       provider?: string;
       /** It was chosen through Instrument, which the person logs in to. */
       isOurs?: boolean;
+      /** The connection it was chosen through, as its address names it. */
+      source?: { id: string; provider: AIProviderType };
       /** Nothing at all is listed, so there is no other model to choose. */
       nothingListed?: boolean;
       /**
@@ -174,6 +178,7 @@ export function readModelStatus({
         kind: "restricted",
         message: model.restricted.message,
         model,
+        reason: model.restricted.reason,
         ...withFix(
           findReplacement(model.canonicalId, oursFirst(models)) ?? auto,
         ),
@@ -258,6 +263,9 @@ export function readModelStatus({
             : "disconnected",
       ...(account && { account }),
       ...(accountSignedOut && { accountId: source.providerConfigId }),
+      ...(source && {
+        source: { id: source.providerConfigId, provider: source.provider },
+      }),
       ...(isOff && {
         disabledId: AIProviderConfigIdSchema.parse(source.providerConfigId),
       }),
@@ -323,6 +331,8 @@ export type ModelAction =
   | { kind: "choose"; label: string }
   /** Use the disabled connection again. */
   | { id: AIProviderConfigId; kind: "enable"; label: string }
+  /** Instrument's plans, on the website, for a model the plan leaves out. */
+  | { kind: "see-plans"; label: string }
   /** Log in to Instrument. */
   | { kind: "log-in"; label: string }
   | { kind: "retry"; label: string }
@@ -340,6 +350,11 @@ export interface ModelNotice {
   action?: ModelAction;
   /** Only an offer: a problem cannot be dismissed, only fixed. */
   dismissible: boolean;
+  /**
+   * The connection the action brings back. It lists no models meanwhile, so
+   * the picker shows it from here.
+   */
+  connection?: { id: string; name: string; provider: AIProviderType };
   /** Another way forward, offered quietly beside the action. */
   secondary?: ModelAction;
   /** Said under the sentence where there is room, as in a toast. */
@@ -365,10 +380,16 @@ export function noticeFor(status: ModelStatus): ModelNotice | null {
     }
     case "restricted": {
       return {
-        action: switchOrChoose(status),
-        detail: status.message,
+        // Only a plan's own restriction is one a plan lifts.
+        ...(status.model.params.provider === OUR_MODELS.providerType &&
+        status.reason === "plan"
+          ? {
+              action: { kind: "see-plans" as const, label: "See plans" },
+              secondary: switchOrChoose(status),
+            }
+          : { action: switchOrChoose(status) }),
         dismissible: false,
-        text: `${status.model.name.trim()} is unavailable`,
+        text: `${status.model.name.trim()} is unavailable. ${status.message}`,
         tone: "problem",
       };
     }
@@ -426,19 +447,23 @@ export function noticeFor(status: ModelStatus): ModelNotice | null {
  */
 function goneActions(
   status: Extract<ModelStatus, { kind: "gone" }>,
-): Pick<ModelNotice, "action" | "secondary"> {
+): Pick<ModelNotice, "action" | "connection" | "secondary"> {
   const move = switchOrChoose(status);
+  const name = status.account
+    ? SIGN_IN_ACCOUNT_NAMES[status.account]
+    : status.isOurs
+      ? APP_NAME
+      : (status.provider ?? status.name);
+  const connection = status.source && { ...status.source, name };
   if (status.account) {
     return {
       action: {
         account: status.account,
         accountId: status.accountId,
         kind: "sign-in",
-        label:
-          status.reason === "signed-out"
-            ? "Sign in"
-            : `Connect ${SIGN_IN_ACCOUNT_NAMES[status.account]}`,
+        label: status.reason === "signed-out" ? "Sign in" : `Connect ${name}`,
       },
+      connection,
       secondary: move,
     };
   }
@@ -449,12 +474,14 @@ function goneActions(
         kind: "enable",
         label: status.provider ? `Enable ${status.provider}` : "Enable",
       },
+      connection,
       secondary: move,
     };
   }
   if (status.isOurs) {
     return {
       action: { kind: "log-in", label: `Log in to ${APP_NAME}` },
+      connection,
       secondary: move,
     };
   }

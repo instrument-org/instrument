@@ -111,6 +111,14 @@ const viaInstrument = model({
   provider: "instrument",
 });
 
+const restrictedOurs = model({
+  canonicalId: "claude-opus-5.5",
+  config: "instrument",
+  name: "Claude Opus 5.5",
+  provider: "instrument",
+  restricted: "Claude Opus needs a paid plan.",
+});
+
 const listed = [auto, sonnet55, sonnet5, opus, viaOpenRouter];
 
 /** A URI for a model no list holds any more. */
@@ -170,6 +178,11 @@ export const modelStatusScenarios = {
     dismissedOffers: none,
     models: listed,
     modelURI: opus.uri,
+  },
+  "restricted on Instrument, by the plan": {
+    dismissedOffers: none,
+    models: [auto, restrictedOurs],
+    modelURI: restrictedOurs.uri,
   },
   "withdrawn, its series continues": {
     dismissedOffers: none,

@@ -29,6 +29,7 @@ import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { openPlans } from "@/client/lib/billing-website";
 import { useProviderSwitch } from "@/client/components/settings/provider-switch";
 import { useSignInAgain } from "@/client/hooks/use-sign-in-again";
 import {
@@ -489,6 +490,10 @@ export const PromptInput = ({
       }
       case "retry": {
         void modelsRefetch();
+        break;
+      }
+      case "see-plans": {
+        openPlans();
         break;
       }
       case "sign-in": {

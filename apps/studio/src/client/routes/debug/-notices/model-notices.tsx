@@ -40,6 +40,7 @@ const scenarioOf = {
   "provider-removed-instrument-first":
     "provider removed, same model through OpenRouter and Instrument",
   "provider-removed-same-model": "provider removed, same model elsewhere",
+  "restricted-by-plan": "restricted on Instrument, by the plan",
   "restricted-auto-fallback": "restricted, with Auto to fall back on",
   "withdrawn-nothing-continues": "withdrawn, nothing continues it",
   "withdrawn-series-continues": "withdrawn, its series continues",

@@ -63,6 +63,13 @@ export function ClaudeAccountCard() {
     return null;
   }
 
+  const continueWithClaude = () => {
+    void flow.start().then((result) => {
+      if (result) {
+        showConnectToast(result, "claude", continueWithClaude);
+      }
+    });
+  };
   const installing = status.install?.state === "downloading";
   const waiting = status.signingIn || installing || flow.waiting;
   const off = status.kind === "signed-in" && providerSwitch.isOff(CLAUDE_ID);
@@ -151,13 +158,7 @@ export function ClaudeAccountCard() {
                 // A sign-in started somewhere else.
                 void rpcClient.claudeAccount.cancelSignIn.call({});
               }}
-              onStart={() => {
-                void flow.start().then((result) => {
-                  if (result) {
-                    showConnectToast(result, "claude");
-                  }
-                });
-              }}
+              onStart={continueWithClaude}
               waiting={waiting}
             >
               Continue with Claude

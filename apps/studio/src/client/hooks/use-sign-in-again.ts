@@ -35,7 +35,9 @@ export function useSignInAgain() {
         : flows[provider].start();
     void started.then((result) => {
       if (result) {
-        showConnectToast(result, provider);
+        showConnectToast(result, provider, () => {
+          signIn(type, accountId);
+        });
       }
     });
   };

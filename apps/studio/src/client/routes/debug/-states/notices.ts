@@ -46,6 +46,11 @@ export const noticesStates = [
     tab: "model-notices",
   },
   {
+    id: "restricted-by-plan",
+    label: "Restricted on Instrument, by the plan",
+    tab: "model-notices",
+  },
+  {
     id: "claude-account-disconnected",
     label: "Claude account disconnected",
     tab: "model-notices",

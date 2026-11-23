@@ -70,7 +70,9 @@ export function ChatGPTAccountCard() {
     setPressed(accountId ?? NEW_ACCOUNT);
     void flow.start(accountId ? { accountId } : undefined).then((result) => {
       if (result) {
-        showConnectToast(result, "chatgpt");
+        showConnectToast(result, "chatgpt", () => {
+          continueWithChatGPT(accountId);
+        });
       }
     });
   };

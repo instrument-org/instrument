@@ -370,8 +370,6 @@ describe("fieldScopeOf", () => {
       { item: "Read report.pdf", kind: "builtin", screen: "activity" },
       "activity",
     ],
-    ["Memory", { kind: "builtin", screen: "memory" }, "memory"],
-    ["Skills", { kind: "builtin", screen: "skills" }, "skills"],
     ["an app page", { kind: "app", name: "Gmail" }, "apps"],
     ["Apps", { kind: "apps" }, "apps"],
     // A path and an address are typed and edited where they are.

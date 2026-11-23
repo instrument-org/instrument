@@ -88,12 +88,6 @@ export function screenActionOf({
     case "chats": {
       return { kind: "screen", name: "Chats" };
     }
-    case "memories": {
-      return { kind: "screen", name: "Memory" };
-    }
-    case "skills": {
-      return { kind: "screen", name: "Skills" };
-    }
     default: {
       return null;
     }

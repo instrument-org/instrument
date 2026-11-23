@@ -3,8 +3,7 @@ import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 
 /**
  * The tabs Settings lists, in its sidebar's order, which is also what the
- * command menu finds by name: in developer mode Developer too. Memory and
- * Skills are pages of their own.
+ * command menu finds by name: in developer mode Developer too.
  */
 export function useSettingsTabs(): SettingsTab[] {
   const isDeveloperMode = useDeveloperMode();
@@ -14,7 +13,9 @@ export function useSettingsTabs(): SettingsTab[] {
     "Account",
     "Providers",
     "Apps",
+    "Memory",
     "Permissions",
+    "Skills",
     "Storage",
     "Activity",
     ...(isDeveloperMode ? (["Developer"] as const) : []),

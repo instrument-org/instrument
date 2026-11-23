@@ -4,7 +4,7 @@ import { z } from "zod";
 import { settingsTargetOf } from "./settings-index";
 
 /**
- * What a Settings, Memory or Skills address asks of the page once, as it
+ * What a Settings address asks of the page once, as it
  * arrives: a row to light, the account's usage to open, the diagnostic log
  * to show, a memory a link named. The page takes them and drops them from
  * its address, so going back to it, or the same ask again, is not a second
@@ -26,8 +26,8 @@ export type ArrivingAsk = {
 
 /**
  * The address a Settings request opens at: a part of Settings by its own
- * name (`/settings/providers`), or Memory's or Skills' own page, with a row a
- * link named to light, or the words it named searched for. A request that
+ * name (`/settings/providers`), with a row a link named to light, or the
+ * words it named searched for. A request that
  * names no part is Settings wherever it stands (`/settings`), which a new tab
  * opens at General.
  */
@@ -50,15 +50,11 @@ export function settingsHrefOf({
     ...(memory === undefined ? [] : [["memory", memory] as const]),
   ];
   const path =
-    page === "Memory"
-      ? "/memory"
-      : page === "Skills"
-        ? "/skills"
-        : page === undefined
-          ? target?.kind === "search"
-            ? "/settings/general"
-            : "/settings"
-          : `/settings/${page.toLowerCase()}`;
+    page === undefined
+      ? target?.kind === "search"
+        ? "/settings/general"
+        : "/settings"
+      : `/settings/${page.toLowerCase()}`;
   const query = search
     .map(([key, value]) => `${key}=${encodeURIComponent(value)}`)
     .join("&");

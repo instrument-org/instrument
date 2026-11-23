@@ -6,11 +6,11 @@ describe("settingsHrefOf", () => {
   it.each([
     [{}, "/settings"],
     [{ tab: "Providers" }, "/settings/providers"],
-    [{ tab: "Memory" }, "/memory"],
-    [{ memory: "roofs", tab: "Memory" }, "/memory?memory=roofs"],
-    [{ tab: "Skills" }, "/skills"],
+    [{ tab: "Memory" }, "/settings/memory"],
+    [{ memory: "roofs", tab: "Memory" }, "/settings/memory?memory=roofs"],
+    [{ tab: "Skills" }, "/settings/skills"],
     [{ setting: "theme" }, "/settings/general?setting=theme"],
-    [{ setting: "memory-import" }, "/memory?setting=memory-import"],
+    [{ setting: "memory-import" }, "/settings/memory?setting=memory-import"],
     [{ setting: "no such setting" }, "/settings/general?q=no%20such%20setting"],
     [{ diagnosticLog: true, tab: "General" }, "/settings/general?log=true"],
     [

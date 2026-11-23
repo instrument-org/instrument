@@ -60,9 +60,6 @@ function SettingsRoute() {
     <SettingsAskContext value={ask}>
       <SettingsPage
         ask={ask}
-        onOpenPage={(entry) => {
-          void navigate({ href: settingsHrefOf({ setting: entry.id }) });
-        }}
         onSearch={(q) => {
           void navigate({
             replace: true,

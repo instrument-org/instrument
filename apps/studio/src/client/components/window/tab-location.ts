@@ -264,9 +264,7 @@ export type FieldScope =
 /** The built-in pages whose field searches in them. */
 const PAGE_SCOPES: Partial<Record<ScreenName, FieldScope>> = {
   activity: "activity",
-  memory: "memory",
   settings: "settings",
-  skills: "skills",
 };
 
 /** The app a tab's field searches in, from where the tab is; none for a page, a file or a new tab. */

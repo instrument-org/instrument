@@ -134,10 +134,8 @@ export function screenLocation(
     case "bookmarks":
     case "browser":
     case "extensions":
-    case "memories":
     case "releaseNotes":
-    case "settings":
-    case "skills": {
+    case "settings": {
       const part = screenOfHref(href)?.part;
       return {
         kind: "builtin",
@@ -255,10 +253,8 @@ export function screenPresentation(
     case "activity":
     case "bookmarks":
     case "extensions":
-    case "memories":
     case "releaseNotes":
-    case "settings":
-    case "skills": {
+    case "settings": {
       const name = SCREEN_OF_KIND[screen.kind];
       return {
         icon: <ScreenMark className="size-3.5" name={name} />,
@@ -311,10 +307,8 @@ const SCREEN_OF_KIND = {
   bookmarks: "bookmarks",
   browser: "browser",
   extensions: "extensions",
-  memories: "memory",
   releaseNotes: "release-notes",
   settings: "settings",
-  skills: "skills",
 } as const satisfies Partial<Record<Screen["kind"], ScreenName>>;
 
 /**

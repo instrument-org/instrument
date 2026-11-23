@@ -10,9 +10,7 @@ import {
   screenOfHref,
 } from "@/shared/instrument-screens";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
-import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
@@ -49,11 +47,9 @@ const SCREEN_MARKS: Record<ScreenName, Glyph> = {
   browser: GlobeIcon,
   extensions: PuzzlePieceIcon,
   files: FolderSimpleIcon,
-  memory: FingerprintIcon,
   "release-notes": NewspaperClippingIcon,
   settings: GearSixIcon,
   shortcuts: KeyboardIcon,
-  skills: CubeIcon,
 };
 
 /** A built-in page's mark alone, in the ink of whatever it stands in. */

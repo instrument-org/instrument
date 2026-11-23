@@ -20,10 +20,8 @@ export function isGroupScreenHref(href: string): boolean {
     case "debug":
     case "extensions":
     case "chats":
-    case "memories":
     case "releaseNotes":
     case "settings":
-    case "skills":
     case "task":
     case "unknown": {
       return true;

@@ -282,8 +282,6 @@ describe("the command menu with nothing typed", () => {
 describe("built-in pages in the command menu", () => {
   it.each([
     ["History", "/activity"],
-    ["Memory", "/memory"],
-    ["Skills", "/skills"],
     ["What's new", "/release-notes"],
     ["Extensions", "/extensions"],
   ])("asks for %s as a built-in page", (label, href) => {

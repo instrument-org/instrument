@@ -55,9 +55,6 @@ const MATCH_CLASS = "rounded-xs bg-brand-500/35 font-semibold text-foreground";
 /** How long a jump waits for its row to be drawn before giving up on it. */
 const FLASH_WAIT_MS = 2000;
 
-/** The pages that left Settings for their own, which its search still finds and opens there. */
-const PAGES_OF_THEIR_OWN: SettingsTab[] = ["Memory", "Skills"];
-
 interface NavItem {
   icon: ElementType;
   isDeveloperMode?: boolean;
@@ -79,7 +76,6 @@ interface NavItem {
  */
 export function SettingsPage({
   ask,
-  onOpenPage,
   onSearch,
   onSection,
   q,
@@ -87,8 +83,6 @@ export function SettingsPage({
 }: {
   /** What the address last asked of the page once: a row to light, a panel to open. */
   ask: null | SettingsAsk;
-  /** Opens a page that left Settings (Memory, Skills) at a row of it, in this tab. */
-  onOpenPage: (entry: SettingsEntry) => void;
   onSearch: (q: string) => void;
   onSection: (tab: SettingsTab) => void;
   q: string;
@@ -100,7 +94,7 @@ export function SettingsPage({
   const isSearching = q.trim().length > 0;
   const search = useSettingsSearch({
     query: q,
-    tabs: [...navItems.map((item) => item.tab), ...PAGES_OF_THEIR_OWN],
+    tabs: navItems.map((item) => item.tab),
   });
   // The result last opened, which stays lit in the list; the row it lights,
   // which a page has none of; and a count so opening the same one again
@@ -159,10 +153,6 @@ export function SettingsPage({
 
   const openResult = (entry: SettingsEntry) => {
     setSearchOpen(false);
-    if (PAGES_OF_THEIR_OWN.includes(entry.tab)) {
-      onOpenPage(entry);
-      return;
-    }
     onSection(entry.tab);
     setJump((last) => ({
       id: entry.id,

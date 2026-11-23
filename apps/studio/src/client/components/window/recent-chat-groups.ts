@@ -167,9 +167,7 @@ function opensBeside(href: string): boolean {
     case "app":
     case "apps":
     case "computer":
-    case "memories":
     case "settings":
-    case "skills":
     case "task": {
       return true;
     }

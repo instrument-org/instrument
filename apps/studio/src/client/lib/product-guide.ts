@@ -5,7 +5,7 @@ import {
   settingsTabTitle,
 } from "@/client/components/settings/settings-index";
 import { formatAcceleratorFor } from "@/shared/format-accelerator";
-import { type ScreenName, SCREENS } from "@/shared/instrument-screens";
+import { SCREENS } from "@/shared/instrument-screens";
 import {
   SHORTCUT_GUIDE_ENTRIES,
   SHORTCUT_GUIDE_GROUPS,
@@ -39,16 +39,6 @@ export function productGuideReference({
   ].join("\n");
 }
 
-/**
- * The parts of the settings index that are pages of their own, by their
- * screen's name: the guide lists them as screens, each with its rows, which a
- * settings link still opens.
- */
-const OWN_PAGES: Partial<Record<SettingsEntry["tab"], ScreenName>> = {
-  Memory: "memory",
-  Skills: "skills",
-};
-
 function settingsSection() {
   const lines = [
     "## Settings",
@@ -58,7 +48,7 @@ function settingsSection() {
     "",
   ];
   for (const [tab, page] of Object.entries(SETTINGS_PAGES)) {
-    if (page.developerOnly || tab in OWN_PAGES) {
+    if (page.developerOnly) {
       continue;
     }
     lines.push(
@@ -103,15 +93,10 @@ function screensSection() {
     "",
     `Link one as \`[Label](${APP_NAME_SLUG}://screen/<name>)\`. A row listed under one is linked as a setting is, \`[Label](${APP_NAME_SLUG}://settings/<name>)\`.`,
     "",
-    ...Object.entries(SCREENS).flatMap(([name, screen]) => {
-      const tab = Object.entries(OWN_PAGES).find(
-        ([, page]) => page === name,
-      )?.[0];
-      return [
+    ...Object.entries(SCREENS).map(
+      ([name, screen]) =>
         `- **${screen.title}** (\`${name}\`): ${screen.detail}`,
-        ...(tab === undefined ? [] : rowLines(tab, "  - ")),
-      ];
-    }),
+    ),
     "",
   ].join("\n");
 }

@@ -512,10 +512,8 @@ const RELOADED_SCREENS = new Set<Screen["kind"]>([
   "debug",
   "extensions",
   "chats",
-  "memories",
   "releaseNotes",
   "settings",
-  "skills",
 ]);
 
 /** What a card holds, edge to edge with nothing around it: the pane's own look. */

@@ -13,7 +13,7 @@ A setting, a page of Settings, or a screen is linked the way anything else in th
 
 - A row of Settings: [Zoom](instrument://settings/zoom). Settings opens on its page with the row lit.
 - A page of Settings: [Providers](instrument://settings/providers).
-- A screen: [Memory](instrument://screen/memory), [Keyboard shortcuts](instrument://screen/shortcuts).
+- A screen: [Keyboard shortcuts](instrument://screen/shortcuts).
 - A project: `instrument://project/<id>`, with the id `instrument projects list` prints. Its details open over the window.
 
 The label is the thing in the user's words, and the name in the address comes from `reference.md`. Give the keyboard shortcut beside the link when there is one. Answer the question first, then link where they would click through; a reply that is only a link makes them do the reading.
@@ -53,8 +53,8 @@ Everything Instrument keeps for the user is plain files in their Instrument fold
 - **Files**: what Instrument made for the user to keep, a folder each in the Files folder, named for the work. A chat filed under a project keeps its files in the project's folder instead. The folder button at the top right of a chat's page opens the folders it saved files in beside the chat, with a menu when there are several.
 - **Drafts**: messages to Instrument the user started and hasn't sent yet, a `DRAFT.md` each in the Drafts folder, with anything pasted into it beside it. A draft stays with the tab it was typed in, and editing the file edits the draft. A draft the user asks Instrument to write (a post, a letter, a document) is their own work and never goes here.
 - **Apps**: a folder each in the Apps folder, with an `APP.md` saying how the service is reached and what Instrument has learned about using it. Sign-ins and keys are kept apart, never in the file. Instrument changes it as it works with the app, and the user can fix it by hand.
-- **Memory**: what Instrument remembers about the user, one Markdown file per memory in the Memory folder of their Instrument folder. The Memory page lists them to search, forget, or bring in from another AI: [Memory](instrument://screen/memory). Settings' search finds it too. Pressing one there, or a link to one, opens its file to read or edit; [Memory folder](instrument://settings/memory-folder) opens the folder in Files.
-- **Skills**: recipes tasks use for a kind of work, and new ones the user asks for: [Skills](instrument://screen/skills). Each skill is a folder: clicking one on the Skills page opens its folder in Files, where the user reads or edits it, or asks Instrument to change it. Only skills in the workspace's own `Skills` folder can be deleted, from the "⋯" on their row.
+- **Memory**: what Instrument remembers about the user, one Markdown file per memory in the Memory folder of their Instrument folder. Settings lists them to search, forget, or bring in from another AI: [Memory](instrument://settings/memory). Pressing one there, or a link to one, opens its file to read or edit; [Memory folder](instrument://settings/memory-folder) opens the folder in Files.
+- **Skills**: recipes tasks use for a kind of work, and new ones the user asks for: [Skills](instrument://settings/skills). Each skill is a folder: clicking one in Settings opens its folder in Files, where the user reads or edits it, or asks Instrument to change it. Only skills in the workspace's own `Skills` folder can be deleted, from the "⋯" on their row.
 - **Models**: Instrument works with its own plan, or the user's ChatGPT, Claude or Grok plan (SuperGrok or X Premium+), or a provider with their own key: [Providers](instrument://settings/providers).
 
 ## Coming from another AI
@@ -64,7 +64,7 @@ Someone moving to Instrument from ChatGPT, Claude, Gemini or another AI brings w
 - **Memories**: [Import from another AI](instrument://settings/memory-import). The user copies a question into the other AI and pastes its answer back, or picks ChatGPT, Claude, Gemini or Grok and Instrument opens it in a tab and asks there once they are signed in. Claude Code, Codex, Gemini CLI and opencode on this computer show there too, and are read from their own folders. Each one opens a new chat with the request in its reply box; once the user sends it, the chat saves the facts as memories and says what it kept and left out. The Memory list groups them under that chat, to be forgotten together if the user wants.
 - **Their plan**: a ChatGPT, Claude or Grok plan they already pay for runs Instrument's chats once they sign in to it: [Providers](instrument://settings/providers).
 - **Projects**: a project they kept there becomes a project here, its instructions in the project's `AGENTS.md` and its files in its folder.
-- **Skills**: skills that Claude Code, Codex and other coding agents keep in their own folders on this computer are in [Skills](instrument://screen/skills) already.
+- **Skills**: skills that Claude Code, Codex and other coding agents keep in their own folders on this computer are in [Skills](instrument://settings/skills) already.
 - **Chats**: chats from another AI don't come over as chats here. An export of them is files like any other, which a chat can read to pick up where they left off.
 
 ## Something wrong

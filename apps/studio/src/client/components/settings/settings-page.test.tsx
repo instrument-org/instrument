@@ -57,7 +57,6 @@ afterEach(() => {
 const page = (props: Partial<Parameters<typeof SettingsPage>[0]> = {}) => (
   <SettingsPage
     ask={null}
-    onOpenPage={() => undefined}
     onSearch={() => undefined}
     onSection={() => undefined}
     q=""
@@ -93,7 +92,6 @@ describe("Settings parts", () => {
       "Developer",
     );
     expect(activePart()?.textContent).toBe(text);
-    expect(screen.queryByRole("button", { name: "Memory" })).toBeNull();
   });
 
   it("asks for the part picked, wide or folded", () => {

@@ -46,6 +46,13 @@ The AI models Instrument can use: your ChatGPT, Claude or Grok plan, or a provid
 
 The services Instrument works in for you, and connecting another.
 
+### Memory (`memory`)
+
+What Instrument remembers about you, one file per memory, which you can search, open, forget, or add to from another AI.
+
+- **Import from another AI** (`memory-import`): Bring in what another AI knows about you.
+- **Memory folder** (`memory-folder`): Open the folder of your memories, where each one is a file you can read or change.
+
 ### Permissions (`permissions`)
 
 Which folders and places on this computer Instrument may use.
@@ -53,6 +60,12 @@ Which folders and places on this computer Instrument may use.
 - **Use folders without asking** (`use-folders-without-asking`): Use any folder that isn't marked Not allowed, without asking.
 - **Folders every chat can use** (`always-open`): Your Instrument folder, each chat's files, past chats and caches, which every chat can use because Instrument needs them.
 - **Reset permissions** (`reset-permissions`): Put every folder and app back the way they were when you installed Instrument.
+
+### Skills (`skills`)
+
+The skills Instrument's tasks can use, and making a new one.
+
+- **New skill** (`new-skill`): Ask for a skill that teaches a new way of working.
 
 ### Storage (`storage`)
 
@@ -82,14 +95,9 @@ Link one as `[Label](instrument://screen/<name>)`. A row listed under one is lin
 - **Chats** (`chats`): Every chat there is, open or not, to search and open.
 - **Extensions** (`extensions`): The Chrome extensions in your browser, and adding more from the Chrome Web Store.
 - **Files** (`files`): The folders and files on this computer, starting at home.
-- **Memory** (`memory`): What Instrument remembers about you, one file per memory, to search, forget, or import from another AI.
-  - **Import from another AI** (`memory-import`): Bring in what another AI knows about you.
-  - **Memory folder** (`memory-folder`): Open the folder of your memories, where each one is a file you can read or change.
 - **What's new** (`release-notes`): What changed in each version.
 - **Settings** (`settings`): Instrument's settings, a page per part. Link a part or a row with `instrument://settings/<name>`.
 - **Keyboard shortcuts** (`shortcuts`): Every keyboard shortcut, by section.
-- **Skills** (`skills`): The skills tasks can use, and making a new one.
-  - **New skill** (`new-skill`): Ask for a skill that teaches a new way of working.
 
 ## Menu bar
 

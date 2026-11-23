@@ -49,12 +49,6 @@ export const SCREENS = {
     href: "/files",
     title: "Files",
   },
-  memory: {
-    detail:
-      "What Instrument remembers about you, one file per memory, to search, forget, or import from another AI.",
-    href: "/memory",
-    title: "Memory",
-  },
   "release-notes": {
     detail: "What changed in each version.",
     href: "/release-notes",
@@ -70,11 +64,6 @@ export const SCREENS = {
     detail: "Every keyboard shortcut, by section.",
     title: "Keyboard shortcuts",
   },
-  skills: {
-    detail: "The skills tasks can use, and making a new one.",
-    href: "/skills",
-    title: "Skills",
-  },
 } as const satisfies Record<
   string,
   { detail: string; href?: string; title: string }
@@ -87,15 +76,16 @@ export const isScreenName = (name: string): name is ScreenName =>
 
 /**
  * The parts of Settings, each a page at `/settings/<name>` with its title,
- * in the order its sidebar lists them. Memory and Skills are pages of their
- * own (`/memory`, `/skills`), not parts of Settings.
+ * in the order its sidebar lists them.
  */
 export const SETTINGS_SECTIONS = {
   general: "General",
   account: "Account",
   providers: "Providers",
   apps: "Apps",
+  memory: "Memory",
   permissions: "Permissions",
+  skills: "Skills",
   storage: "Storage",
   activity: "History",
   developer: "Developer",

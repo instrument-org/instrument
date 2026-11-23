@@ -38,7 +38,6 @@ export type Screen =
   /** The chat with no chat open: a new chat beside the inbox, written into the draft named when there is one. */
   | { draft?: string; kind: "inbox" }
   /** What Instrument remembers, as a page of its own. */
-  | { kind: "memories" }
   | { kind: "memory"; name: string }
   /** A tab group a reply links by its id: the window brings it up, or says it closed. */
   | { kind: "tabGroup"; name: string }
@@ -55,7 +54,6 @@ export type Screen =
   | { id: string; kind: "site" }
   | { kind: "skill"; name: string }
   /** The skills tasks can use, as a page of their own. */
-  | { kind: "skills" }
   | { chat?: ChatId; kind: "task"; task: StoreId.Session }
   | { kind: "unknown" };
 
@@ -89,12 +87,10 @@ export const SCREEN_ROUTES = {
   extensions: "/extensions",
   bookmarks: "/bookmarks",
   inbox: "/chats/",
-  memories: "/memory",
   releaseNotes: "/release-notes",
   settings: "/settings/$section",
   settingsStart: "/settings/",
   site: "/sites/$id",
-  skills: "/skills",
   task: "/tasks/$sessionId",
 } as const satisfies Record<string, RoutePath>;
 
@@ -257,12 +253,6 @@ export function matchScreen(href: string): Screen {
   }
   if (at(SCREEN_ROUTES.chats)) {
     return { kind: "chats" };
-  }
-  if (at(SCREEN_ROUTES.memories)) {
-    return { kind: "memories" };
-  }
-  if (at(SCREEN_ROUTES.skills)) {
-    return { kind: "skills" };
   }
   if (at(SCREEN_ROUTES.settingsStart)) {
     return { kind: "settings" };

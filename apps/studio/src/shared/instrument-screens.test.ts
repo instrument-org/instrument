@@ -16,8 +16,11 @@ describe("built-in pages", () => {
       "instrument://settings/providers",
     ],
     ["/chat-list?q=roof", { name: "chats" }, "instrument://screen/chats"],
-    ["/memory", { name: "memory" }, "instrument://screen/memory"],
-    ["/skills", { name: "skills" }, "instrument://screen/skills"],
+    [
+      "/settings/memory",
+      { name: "settings", part: "memory" },
+      "instrument://settings/memory",
+    ],
     ["/activity", { name: "activity" }, "instrument://screen/activity"],
     ["/apps", { name: "apps" }, "instrument://screen/apps"],
     ["/files", { name: "files" }, "instrument://screen/files"],
@@ -62,17 +65,17 @@ it("offers every built-in page by name, each part of Settings with it", () => {
         "Chats: instrument://screen/chats",
         "Extensions: instrument://screen/extensions",
         "Files: instrument://screen/files",
-        "Memory: instrument://screen/memory",
         "What's new: instrument://screen/release-notes",
         "Settings: instrument://settings/general",
         "Settings › Account: instrument://settings/account",
         "Settings › Providers: instrument://settings/providers",
         "Settings › Apps: instrument://settings/apps",
+        "Settings › Memory: instrument://settings/memory",
         "Settings › Permissions: instrument://settings/permissions",
+        "Settings › Skills: instrument://settings/skills",
         "Settings › Storage: instrument://settings/storage",
         "Settings › History: instrument://settings/activity",
         "Keyboard shortcuts: instrument://screen/shortcuts",
-        "Skills: instrument://screen/skills",
       ]
     `);
 });

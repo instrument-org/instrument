@@ -123,11 +123,9 @@ export const PAGE_START_LINES = {
   bookmarks: "",
   extensions: "",
   files: "Home",
-  memory: "",
   "release-notes": "",
   settings: "General",
   shortcuts: "",
-  skills: "",
 } as const satisfies Record<ScreenName, string>;
 
 /** A chat stopped short of usage, by why: a label, with the details on the chat itself. */

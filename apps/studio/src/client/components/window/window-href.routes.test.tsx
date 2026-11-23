@@ -47,8 +47,7 @@ describe("matchScreen against the route tree", () => {
     "/release-notes",
     "/extensions",
     "/chat-list",
-    "/memory",
-    "/skills",
+    "/settings/memory",
     "/settings/providers",
   ])("puts %s where the router does", (href) => {
     const route = ROUTE_OF_KIND[matchScreen(href).kind];

@@ -32,8 +32,6 @@ describe("screenActionOf", () => {
       { kind: "screen", name: "Settings" },
     ],
     ["Chats", { href: "/chat-list?q=roof" }, { kind: "screen", name: "Chats" }],
-    ["Memory", { href: "/memory" }, { kind: "screen", name: "Memory" }],
-    ["Skills", { href: "/skills" }, { kind: "screen", name: "Skills" }],
     [
       "nothing for a file a viewer shows, which history records",
       {

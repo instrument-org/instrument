@@ -1,38 +1,20 @@
-import { BuiltInPage } from "@/client/components/settings/built-in-page";
-import { MemorySection } from "@/client/components/settings/memory-section";
-import {
-  SettingsAskContext,
-  useArrivingAsk,
-} from "@/client/components/settings/settings-ask";
 import { ARRIVING_SEARCH } from "@/client/components/settings/settings-href";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { z } from "zod";
 
 /**
- * Memory, as a page of its own: what Instrument remembers, one file per
- * memory, and importing from another AI. A link to a memory no file has any
- * more arrives here with its name (`?memory=`), and a link to a row of it
- * with the row (`?setting=`), each taken once.
+ * An address an earlier build gave Memory, kept so a tab or a link saved at
+ * it lands on Settings › Memory with what it asked.
  */
 export const Route = createFileRoute("/_app/memory")({
-  component: MemoryRoute,
-  head: () => ({
-    meta: [{ title: "Memory" }],
-  }),
+  beforeLoad: ({ search }) => {
+    // oxlint-disable-next-line typescript/only-throw-error
+    throw redirect({
+      params: { section: "memory" },
+      replace: true,
+      search,
+      to: "/settings/$section",
+    });
+  },
   validateSearch: z.object(ARRIVING_SEARCH),
 });
-
-function MemoryRoute() {
-  const search = Route.useSearch();
-  const navigate = Route.useNavigate();
-  const ask = useArrivingAsk(search, () => {
-    void navigate({ replace: true, search: {} });
-  });
-  return (
-    <SettingsAskContext value={ask}>
-      <BuiltInPage ask={ask}>
-        <MemorySection />
-      </BuiltInPage>
-    </SettingsAskContext>
-  );
-}

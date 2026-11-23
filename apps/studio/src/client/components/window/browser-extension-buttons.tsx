@@ -46,6 +46,14 @@ import {
 const noticed = new Set<string>();
 
 /**
+ * The pinned buttons already drawn this launch, by extension id. A toolbar
+ * mounts again on every tab switch, so only a button pinned or installed
+ * since it was first seen grows in, as `AnimatePresence initial={false}`
+ * does; until the first pinned list arrives (`isSeen`), nothing does.
+ */
+const drawnPins = { ids: new Set<string>(), isSeen: false };
+
+/**
  * The browser extensions' buttons, framed as one control of the row's
  * family the way Chrome groups them, with the puzzle piece at its end:
  * every pinned extension's button, each opening its popup under itself,
@@ -77,12 +85,30 @@ export function BrowserExtensionButtons() {
   // unpinned ones and dots the refused.
   const unpinned = extensions.filter((extension) => !extension.pinned);
   const refused = extensions.filter(isRefused);
+  const pinnedIds = extensions
+    .filter((extension) => extension.pinned)
+    .map((extension) => extension.id);
+  const entering = drawnPins.isSeen
+    ? pinnedIds.filter((id) => !drawnPins.ids.has(id))
+    : [];
+  useEffect(() => {
+    if (pinnedIds.length === 0 && !drawnPins.isSeen) {
+      return;
+    }
+    drawnPins.isSeen = true;
+    for (const id of pinnedIds) {
+      drawnPins.ids.add(id);
+    }
+  });
   const sheet = [
     ":host{gap:2px}",
     ".action{width:28px;height:28px;border-radius:calc(var(--radius-xl) - 2px);background-size:16px 16px}",
     ".action:hover{background-color:color-mix(in srgb,var(--foreground) 8%,transparent)}",
     "@keyframes extension-enter{from{width:0;opacity:0;transform:scale(.6)}to{width:28px;opacity:1;transform:scale(1)}}",
-    "@media(prefers-reduced-motion:no-preference){.action{animation:extension-enter 360ms cubic-bezier(.2,.8,.2,1)}}",
+    ...entering.map(
+      (id) =>
+        `@media(prefers-reduced-motion:no-preference){#${id}{animation:extension-enter 360ms cubic-bezier(.2,.8,.2,1)}}`,
+    ),
     ...unpinned.map((extension) => `#${extension.id}{display:none}`),
     ...refused.map(
       (extension) =>

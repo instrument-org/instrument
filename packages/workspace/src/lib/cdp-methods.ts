@@ -212,7 +212,7 @@ export const CDP_METHODS = {
   },
   "Page.captureScreenshot": {
     main: "override",
-    why: "a viewport capture is served from the guest's surface (a covered window made to draw), a full-page one is refused with a pointer to PDF, and an element clip goes to the debugger",
+    why: "a viewport capture is served from the guest's surface (a covered window made to draw), a full-page one (a clip that takes in the whole document) is refused with a pointer to PDF, and an element clip goes to the debugger, a viewport's worth at a time when it is larger than the viewport",
   },
   "Page.createIsolatedWorld": {},
   "Page.enable": {},

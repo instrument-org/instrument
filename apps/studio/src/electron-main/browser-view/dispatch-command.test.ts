@@ -674,27 +674,98 @@ describe("sendCommand", () => {
     });
   });
 
-  describe("Page.captureScreenshot full page (captureBeyondViewport)", () => {
-    it("rejects a full-page request and points the agent at PDF export", async () => {
-      const capturePage = vi.fn();
-      const wcSendCommand = vi.fn();
-      const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
-      const entries = new Map([[TARGET_ID, entry]]);
+  describe("Page.captureScreenshot beyond the viewport", () => {
+    const METRICS = {
+      cssContentSize: { height: 4836, width: 1280, x: 0, y: 0 },
+      cssLayoutViewport: {
+        clientHeight: 800,
+        clientWidth: 1280,
+        pageX: 0,
+        pageY: 0,
+      },
+    };
 
-      await expect(
-        dispatch({
-          entries,
-          method: "Page.captureScreenshot",
-          params: {
-            captureBeyondViewport: true,
-            clip: { height: 999, scale: 1, width: 999, x: 0, y: 0 },
-          },
-        }),
-      ).rejects.toThrow(/pdf/i);
-      // Never emits a tiled/viewport image or touches the debugger for full page.
+    /** A debugger that answers the page's layout metrics and any capture. */
+    function debuggerWith(metrics: unknown) {
+      return vi.fn((method: string) =>
+        Promise.resolve(
+          method === "Page.getLayoutMetrics" ? metrics : { data: "ELEMENT" },
+        ),
+      );
+    }
+
+    // agent-browser sends an element and `--full` alike with
+    // captureBeyondViewport and a clip in document coordinates.
+    it.each([
+      ["in view", { height: 90, scale: 1, width: 240, x: 40, y: 119.875 }],
+      [
+        "below the fold",
+        { height: 80, scale: 1, width: 300, x: 20, y: 2869.875 },
+      ],
+    ])("sends an element %s to the debugger as asked", async (_, clip) => {
+      const capturePage = vi.fn();
+      const wcSendCommand = debuggerWith(METRICS);
+      const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
+      const params = { captureBeyondViewport: true, clip, format: "png" };
+
+      const result = await dispatch({
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Page.captureScreenshot",
+        params,
+      });
+
+      expect(result).toEqual({ data: "ELEMENT" });
+      expect(wcSendCommand.mock.calls).toEqual([
+        ["Page.getLayoutMetrics", {}],
+        ["Page.captureScreenshot", params],
+      ]);
       expect(capturePage).not.toHaveBeenCalled();
-      expect(wcSendCommand).not.toHaveBeenCalled();
     });
+
+    it.each([
+      [
+        "a clip of the whole document",
+        { height: 4836, scale: 1, width: 1280, x: 0, y: 0 },
+        METRICS,
+      ],
+      [
+        "a whole document no taller than the viewport",
+        { height: 800, scale: 1, width: 1280, x: 0, y: 0 },
+        {
+          ...METRICS,
+          cssContentSize: { height: 800, width: 1280, x: 0, y: 0 },
+        },
+      ],
+      ["no clip", undefined, METRICS],
+      [
+        "a page that reports no layout",
+        { height: 90, scale: 1, width: 240, x: 40, y: 120 },
+        {},
+      ],
+    ])(
+      "refuses %s and points the agent at PDF export",
+      async (_, clip, metrics) => {
+        const capturePage = vi.fn();
+        const wcSendCommand = debuggerWith(metrics);
+        const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
+
+        await expect(
+          dispatch({
+            entries: new Map([[TARGET_ID, entry]]),
+            method: "Page.captureScreenshot",
+            params: { captureBeyondViewport: true, clip },
+          }),
+        ).rejects.toThrow(
+          "Full-page screenshots are not supported in this browser. To capture the full height of the page, export it to PDF instead: `agent-browser pdf <path>`.",
+        );
+        // No picture is taken either way.
+        expect(capturePage).not.toHaveBeenCalled();
+        expect(wcSendCommand).not.toHaveBeenCalledWith(
+          "Page.captureScreenshot",
+          expect.anything(),
+        );
+      },
+    );
   });
 
   describe("Browser.getWindowForTarget", () => {

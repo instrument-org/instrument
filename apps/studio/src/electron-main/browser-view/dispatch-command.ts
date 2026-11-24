@@ -1,6 +1,6 @@
 import type { Protocol } from "devtools-protocol";
 import type { ProtocolMapping } from "devtools-protocol/types/protocol-mapping";
-import type { NativeImage, WebContents } from "electron";
+import { type NativeImage, nativeImage, type WebContents } from "electron";
 
 import {
   type BrowserTargetId,
@@ -21,6 +21,11 @@ import {
   DEFAULT_VIEWPORT_WIDTH,
 } from "./device-metrics";
 import { applyDownloadBehavior } from "./downloads";
+import {
+  captureElement,
+  coversDocument,
+  type ImageCodec,
+} from "./element-screenshot";
 import { whileEmbedderComposites } from "./embedder-draw";
 import {
   clearGuestSurface,
@@ -160,17 +165,18 @@ export async function sendCommand({
   ensureDebuggerAttached(entry);
   noteUnknownMethod(method);
 
-  const forward = () =>
+  const send = (sentMethod: string, sentParams: unknown) =>
     forwardToDebugger({
       byAgent,
       describeHost,
       entry,
       frameSession,
-      method,
-      params,
+      method: sentMethod,
+      params: sentParams,
       requestGuestFocus,
       targetId,
     });
+  const forward = () => send(method, params);
   const refusal = isKnownCdpMethod(method) ? MAIN_REFUSALS[method] : undefined;
   if (refusal !== undefined) {
     throw new Error(refusal);
@@ -186,7 +192,7 @@ export async function sendCommand({
     );
   }
   return override
-    ? await override({ entry, forward, params, targetId })
+    ? await override({ entry, forward, params, send, targetId })
     : await forward();
 }
 
@@ -196,6 +202,8 @@ interface OverrideCall {
   /** Sends the command on to the guest's debugger after all, for a shape the override leaves alone. */
   forward: () => Promise<unknown>;
   params: unknown;
+  /** Sends the guest's debugger a command of the override's own, behind the checks every command gets there. */
+  send: (method: string, params: unknown) => Promise<unknown>;
   targetId: BrowserTargetId;
 }
 
@@ -258,20 +266,49 @@ export const MAIN_OVERRIDES: {
     return {};
   },
 
-  "Page.captureScreenshot": async ({ entry, forward, params, targetId }) => {
+  "Page.captureScreenshot": async ({
+    entry,
+    forward,
+    params,
+    send,
+    targetId,
+  }) => {
     const p = (params ?? {}) as Protocol.Page.CaptureScreenshotRequest;
-    // Full-page capture (captureBeyondViewport) isn't supported on the `<webview>`
-    // guest: its compositor surface is pinned to the viewport, so Chromium fills an
-    // over-viewport clip by tiling the top of the page (growing the element grows
-    // layout but not the rasterized surface). Rather than return a misleading
-    // viewport crop or a tiled image, fail with a message pointing the agent at PDF
-    // capture, which renders the whole document via the print path and works here.
+    // agent-browser asks for an element (a selector or a ref) and for the
+    // whole page (`--full`) the same way: beyond the viewport, with a clip in
+    // document coordinates. Which one it is shows in the clip, an element's
+    // being less than the document the page's layout metrics report.
     if (p.captureBeyondViewport === true) {
-      throw new Error(
-        "Full-page screenshots are not supported in this browser. To capture the full height of the page, export it to PDF instead: `agent-browser pdf <path>`.",
+      const clip = p.clip;
+      // The debugger's answer, typed by the protocol rather than checked.
+      const metrics = clip
+        ? ((await send(
+            "Page.getLayoutMetrics",
+            {},
+          )) as Partial<Protocol.Page.GetLayoutMetricsResponse>)
+        : undefined;
+      const viewport = metrics?.cssLayoutViewport;
+      const content = metrics?.cssContentSize;
+      // A whole-page capture is refused: the `<webview>` guest's compositor
+      // surface is pinned to the viewport, so Chromium fills a clip larger than
+      // it by repeating the first viewport's worth. The message points the
+      // agent at PDF capture, which renders the whole document via the print
+      // path.
+      if (!clip || !viewport || !content || coversDocument(clip, content)) {
+        throw new Error(
+          "Full-page screenshots are not supported in this browser. To capture the full height of the page, export it to PDF instead: `agent-browser pdf <path>`.",
+        );
+      }
+      return await withoutAgentPointer(entry, () =>
+        captureElement({
+          codec: nativeImageCodec,
+          request: { ...p, clip },
+          send: (request) => send("Page.captureScreenshot", request),
+          viewport,
+        }),
       );
     }
-    // Element clips (a clip without beyond-viewport) still use real CDP.
+    // A clip within the viewport is the debugger's to take as asked.
     if (p.clip) {
       return await withoutAgentPointer(entry, forward);
     }
@@ -679,6 +716,18 @@ async function captureViewportScreenshot(
       : image.toPNG().toString("base64");
   return { data };
 }
+
+/** Reads and writes the pieces of an element capture with Electron's own image type. */
+const nativeImageCodec: ImageCodec = {
+  decode: (png) => {
+    const image = nativeImage.createFromBuffer(png);
+    return { data: image.toBitmap(), ...image.getSize() };
+  },
+  encode: ({ data, height, width }, format, quality) => {
+    const image = nativeImage.createFromBitmap(data, { height, width });
+    return format === "jpeg" ? image.toJPEG(quality ?? 80) : image.toPNG();
+  },
+};
 
 // Electron's debugger does not implement the Browser domain. agent-browser
 // probes Browser.getWindowForTarget to discover window dimensions; return

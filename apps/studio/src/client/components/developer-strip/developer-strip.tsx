@@ -3,6 +3,7 @@ import { featuresAtom } from "@/client/atoms/features";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { CopyButton } from "@/client/components/copy-button";
 import {
+  useFinishSetup,
   useIsSetupUp,
   useSetupState,
 } from "@/client/components/setup/use-setup-state";
@@ -76,9 +77,7 @@ export function DeveloperStrip({
   const { mutate: toggleDevTools } = useMutation(
     rpcClient.debug.toggleDevTools.mutationOptions(),
   );
-  const { mutate: skipSetup } = useMutation(
-    rpcClient.setup.finish.mutationOptions(),
-  );
+  const skipSetup = useFinishSetup();
   const { mutate: setDeveloperMode } = useMutation(
     rpcClient.preferences.setDeveloperMode.mutationOptions(),
   );
@@ -145,13 +144,7 @@ export function DeveloperStrip({
         </StripPopover>
       </Popover>
       {canSkipSetup && (
-        <StripButton
-          onClick={() => {
-            skipSetup();
-          }}
-        >
-          Skip setup
-        </StripButton>
+        <StripButton onClick={skipSetup}>Skip setup</StripButton>
       )}
       <Fact
         className={ROOMY_CLASS}

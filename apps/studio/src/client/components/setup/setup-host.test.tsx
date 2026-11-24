@@ -6,6 +6,7 @@ import { getDefaultStore } from "jotai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SetupHost } from "./setup-host";
+import { heldSetupStepAtom, useFinishSetup } from "./use-setup-state";
 
 // Setup's toaster reads the theme, which is not under test.
 vi.mock("@/client/components/ui/sonner", () => ({ Toaster: () => null }));
@@ -111,6 +112,7 @@ function loadedWith(step: SetupState["step"], back: SetupState["back"] = null) {
 
 afterEach(() => {
   window.api.initialSetupState = undefined;
+  getDefaultStore().set(heldSetupStepAtom, null);
   rpc.answer.mockClear();
   rpc.back.mockClear();
   rpc.finish.mockClear();
@@ -183,6 +185,34 @@ describe("SetupHost", () => {
       },
       { interval: 1 },
     );
+  });
+
+  it("lets go of a held page when setup is finished from outside it", async () => {
+    loadedWith(null);
+    getDefaultStore().set(heldSetupStepAtom, {
+      isNewStepOnly: false,
+      step: "choose-ai",
+    });
+    const Skip = () => (
+      <button onClick={useFinishSetup()} type="button">
+        Skip setup
+      </button>
+    );
+    renderWithDefaultStore(
+      <>
+        <SetupHost />
+        <Skip />
+      </>,
+    );
+    expect(screen.getByRole("heading").textContent).toBe("choose-ai");
+    fireEvent.click(screen.getByRole("button", { name: "Skip setup" }));
+    await vi.waitFor(
+      () => {
+        expect(screen.queryByRole("heading")).toBeNull();
+      },
+      { interval: 1 },
+    );
+    expect(rpc.finish).toHaveBeenCalled();
   });
 
   it("draws nothing and holds nothing when setup is down", () => {

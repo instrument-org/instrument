@@ -330,8 +330,6 @@ const bashCapability = defineCapability({
   summary: "Runs a bash command in the chat's shell.",
   surfaces: {
     tool: {
-      // Built per call: the command list it renders describes capabilities that a
-      // feature flag can turn on and off while the app is running.
       description: () => createBashDescription(),
       async execute({
         input,

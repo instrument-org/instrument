@@ -68,7 +68,7 @@ interface PublisherEvents {
     background: boolean;
     /** A place the page's menu picked: the other side of the page's tab group, a new tab group, or a new window. */
     into?: "group" | "split" | "window";
-    /** As the first tab of a new tab group: a Shift-click. */
+    /** A Shift-click, whose tab opens in front like any other not opened behind. */
     newWindow?: boolean;
     /** The id the tab opens under, for a popup an agent's page opened, which its result names. */
     tabId?: StoreId.Tab;

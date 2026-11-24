@@ -20,7 +20,6 @@ import { type IFileSystem } from "just-bash";
 export interface WalkBudget {
   /** Counts again from zero. */
   reset: () => void;
-  /** `fs` with its directory listings counted against this budget. */
   /**
    * `fs` with its directory listings counted against this budget, but for
    * listings `exempt` says are walked at the sandbox's own budget instead.

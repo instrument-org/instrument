@@ -16,9 +16,8 @@ import {
  * What a session of this role reaches, from folders and rules already read:
  * the chat's work folder (the working directory), its record folder's
  * attachments and handoff notes, the folders the chat reaches, the skills,
- * the temp folders, and for the chat its apps. The
- * chat authors apps, so it gets their folder; a task reaches the apps it was
- * handed through the `app` command alone.
+ * and the temp folders. A chat may change its memories; a task only reads
+ * them.
  *
  * The shell builds its layout here because it reads its folders on the main
  * thread and its rules where it runs; everything else calls

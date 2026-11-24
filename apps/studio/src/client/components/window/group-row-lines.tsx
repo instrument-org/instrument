@@ -11,7 +11,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { FadeTitle } from "./fade-title";
 import { RowActionBar } from "./row-action-bar";
-import { siteOf } from "./row-lines";
+import { siteOf, tabsBesideLead } from "./row-lines";
 import { TabMark, TONE_INK, useRowLines, useRowSources } from "./row-half";
 import { screenLocation } from "./screen-presentation";
 import { chatOfTab } from "./tab-model";
@@ -30,6 +30,9 @@ function leadTabOf(sides: RowSides): WindowTab {
   );
 }
 
+/** How many marks a row draws after its title. */
+const MOST_MARKS = 5;
+
 /** A run of tabs side by side in one side that wear the same mark, drawn once with their count. */
 interface MarkRun {
   count: number;
@@ -38,14 +41,19 @@ interface MarkRun {
 }
 
 /**
- * A tab group's row as two lines of a fixed height: the group's title over
- * every tab's mark in tab order, side by side with a gap between the sides,
- * then, for a group of one tab, what that tab says; a chat at work in a
- * group of more wears its mark's working pulse instead. The title is the
- * lead tab's: its first chat, else the left side's front tab, so a group
- * with a chat goes by that chat wherever it sits. Tabs beside each other that wear the same mark (five pages of one
- * site, three wireframes) are one mark and their count. Under the pointer,
- * one X at the row's end closes the whole group.
+ * A tab group's row as two lines of a fixed height. The first is the lead
+ * tab's mark and title, then every other tab's mark at the line's end, in
+ * tab order with a gap between the sides; the second is what the lead tab
+ * says, in words alone under its title, so no mark stands over another. The
+ * lead tab is the group's first chat, else the left side's front tab, so a
+ * group with a chat goes by that chat wherever it sits. Tabs beside each
+ * other that wear the same mark (five pages of one site, three wireframes)
+ * are one mark and their count, and a tab on the very thing the lead tab is
+ * on (one file open twice) has none. Only the first few marks are drawn, so
+ * a group of many tabs still shows its title. A chat that is not the lead
+ * has no line to say it is at work, so its mark wears the working pulse.
+ * Under the pointer, one X takes the other tabs' place and closes the whole
+ * group.
  */
 export function GroupRowLines({
   chatTitles,
@@ -64,7 +72,8 @@ export function GroupRowLines({
   const appsBySlug = useAppsBySlug();
   const taskTitles = useTaskTitles();
   const { chats } = useRowSources();
-  const lines = useRowLines(leadTabOf(sides), chatTitles);
+  const lead = leadTabOf(sides);
+  const lines = useRowLines(lead, chatTitles);
   const keyOf = (tab: WindowTab): string => {
     if (tab.kind === "page") {
       const path = hostPathOfFileUrl(tab.url);
@@ -93,36 +102,70 @@ export function GroupRowLines({
       }
       return runs;
     }, []);
-  // With more than one tab, the second line is the marks alone, so a chat
-  // at work says so by its mark's pulse, on screen or not.
-  const isMarksOnly = sides.length > 1 || sides[0].tabs.length > 1;
-  const dotOf = (chat: ChatId) => {
+  const dotOf = (chat: ChatId, isLead: boolean) => {
     const listed = chats.find((each) => each.id === chat);
     if (!isOnScreen) {
-      return chatDotOf(listed, { isWorkShown: isMarksOnly });
+      return chatDotOf(listed, { isWorkShown: !isLead });
     }
-    return isMarksOnly && listed?.working === true ? "working" : undefined;
+    return !isLead && listed?.working === true ? "working" : undefined;
   };
   const markOf = (tab: WindowTab) => {
     const chat = chatOfTab(tab);
     return (
       <ChatMarkIcon
-        dot={chat === undefined ? undefined : dotOf(chat)}
+        dot={chat === undefined ? undefined : dotOf(chat, tab.id === lead.id)}
         icon={
           <TabMark appsBySlug={appsBySlug} chatTitles={chatTitles} tab={tab} />
         }
       />
     );
   };
+  // Each side's marks with whether a side stands before it, so a split whose
+  // left side is the lead tab alone still shows its hairline.
+  const others = sides.reduce<{ isAfterSide: boolean; runs: MarkRun[] }[]>(
+    (kept, side, index) => {
+      const room =
+        MOST_MARKS - kept.reduce((sum, each) => sum + each.runs.length, 0);
+      const runs = runsOf(tabsBesideLead(side.tabs, lead)).slice(0, room);
+      return runs.length > 0
+        ? [...kept, { isAfterSide: index > 0, runs }]
+        : kept;
+    },
+    [],
+  );
+  const otherMarks = others.length > 0 && (
+    <span className="flex shrink-0 items-center gap-1 text-foreground/65">
+      {others.map(({ isAfterSide, runs }) => (
+        <Fragment key={runs[0]?.tab.id}>
+          {isAfterSide && (
+            <span aria-hidden className="mx-0.5 h-3 w-px bg-foreground/15" />
+          )}
+          {runs.map((run) => (
+            <span className="flex items-center gap-0.5" key={run.tab.id}>
+              {markOf(run.tab)}
+              {run.count > 1 && (
+                <span className="text-[11px] text-muted-foreground tabular-nums">
+                  {run.count}
+                </span>
+              )}
+            </span>
+          ))}
+        </Fragment>
+      ))}
+    </span>
+  );
   return (
     <div
-      className="flex min-w-0 flex-1 basis-0 items-center gap-1"
+      className="flex h-10 min-w-0 flex-1 basis-0 flex-col justify-center"
       data-row-half=""
     >
-      <div className="flex h-10 min-w-0 flex-1 flex-col justify-center">
+      <div className="flex h-5 min-w-0 items-center gap-2">
+        <span className="grid w-4 shrink-0 place-items-center text-foreground/65">
+          {markOf(lead)}
+        </span>
         <FadeTitle
           className={cn(
-            "h-5 min-w-0 text-[13px] leading-5",
+            "min-w-0 flex-1 text-[13px] leading-5",
             lines.strong
               ? "font-semibold text-foreground"
               : "font-medium text-foreground/85",
@@ -130,55 +173,36 @@ export function GroupRowLines({
         >
           {lines.title}
         </FadeTitle>
-        <div className="flex h-5 min-w-0 items-center gap-1.5 text-[12px] leading-5">
-          <span className="flex shrink-0 items-center gap-1 text-foreground/65">
-            {sides.map((side, index) => (
-              <Fragment key={side.up.id}>
-                {index > 0 && (
-                  <span
-                    aria-hidden
-                    className="mx-0.5 h-3 w-px bg-foreground/15"
-                  />
-                )}
-                {runsOf(side.tabs).map((run) => (
-                  <span className="flex items-center gap-0.5" key={run.tab.id}>
-                    {markOf(run.tab)}
-                    {run.count > 1 && (
-                      <span className="text-[11px] text-muted-foreground tabular-nums">
-                        {run.count}
-                      </span>
-                    )}
-                  </span>
-                ))}
-              </Fragment>
-            ))}
-          </span>
-          {!isMarksOnly &&
-            lines.line !== "" &&
-            (lines.tone === "work" ? (
-              <span className="brand-shiny-text min-w-0 truncate">
-                {lines.line}
-                <ShimmerSweep text={lines.line} />
-              </span>
-            ) : (
-              <span className={cn("min-w-0 truncate", TONE_INK[lines.tone])}>
-                {lines.line}
-              </span>
-            ))}
-        </div>
+        {close ? (
+          <RowActionBar
+            actions={[
+              {
+                icon: <XIcon />,
+                id: "close",
+                label: close.label,
+                run: close.run,
+              },
+            ]}
+            isHeld={isCloseShown}
+            resting={otherMarks}
+          />
+        ) : (
+          otherMarks
+        )}
       </div>
-      {close && (
-        <RowActionBar
-          actions={[
-            {
-              icon: <XIcon />,
-              id: "close",
-              label: close.label,
-              run: close.run,
-            },
-          ]}
-          isHeld={isCloseShown}
-        />
+      {lines.line !== "" && (
+        <div className="flex h-5 min-w-0 items-center pl-6 text-[12px] leading-5">
+          {lines.tone === "work" ? (
+            <span className="brand-shiny-text min-w-0 truncate">
+              {lines.line}
+              <ShimmerSweep text={lines.line} />
+            </span>
+          ) : (
+            <span className={cn("min-w-0 truncate", TONE_INK[lines.tone])}>
+              {lines.line}
+            </span>
+          )}
+        </div>
       )}
     </div>
   );

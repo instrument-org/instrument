@@ -24,6 +24,7 @@ import { chatListOptions } from "./chat-list-query";
 import { type Chat } from "./chats";
 import { useTasksOf } from "./child-tasks-query";
 import { FadeTitle } from "./fade-title";
+import { useFileTabTitles } from "./file-tab-titles";
 import { pageTabTitle } from "./file-tabs";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { ScreenMark } from "./pane-tabs";
@@ -160,8 +161,8 @@ export function RowLinesView({
 
 /**
  * What a tab says on its row's two lines: a chat or a task its state, a page its site,
- * a file its folder, a built-in page its name over the part open, a new tab the words
- * typed in it (`row-lines.ts`).
+ * a file the title it gives itself over its folder, a built-in page its name over the
+ * part open, a new tab the words typed in it (`row-lines.ts`).
  */
 export function useRowLines(
   tab: WindowTab,
@@ -171,6 +172,9 @@ export function useRowLines(
   const appsBySlug = useAppsBySlug();
   const taskTitles = useTaskTitles();
   const load = usePageLoad(tab);
+  const fileTitles = useFileTabTitles([
+    tab.kind === "page" ? undefined : tab.href,
+  ]);
   const named = tab.kind === "page" ? undefined : tasksOfHref(tab.href);
   const tasks = useTasksOf(
     named?.chat === undefined ? [] : [{ chat: named.chat, id: named.task }],
@@ -182,7 +186,12 @@ export function useRowLines(
       ? pageLines(title, tab.url, load)
       : quiet(title, folderLine(path));
   }
-  const names = { appsBySlug, chatTitles, taskTitles };
+  const names = {
+    appsBySlug,
+    chatTitles,
+    ...(fileTitles ? { fileTitles } : {}),
+    taskTitles,
+  };
   const location = screenLocation(tab.href, names);
   const { title } = screenPresentation(tab.href, names);
   switch (location.kind) {

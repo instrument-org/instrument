@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 
+import { type WindowTab } from "@/client/atoms/window";
+import { fileHref } from "@/shared/computer-href";
+
 import { type Chat } from "./chats";
 import {
   chatLines,
   newTabLines,
   pageLines,
   type RowLines,
+  tabsBesideLead,
   taskLines,
 } from "./row-lines";
 
@@ -158,5 +162,55 @@ describe("newTabLines", () => {
       title: "New Tab",
       tone,
     });
+  });
+});
+
+describe("tabsBesideLead", () => {
+  const file = (id: string, path: string): WindowTab => ({
+    href: fileHref(path),
+    id,
+    kind: "screen",
+  });
+  const page = (id: string, url: string): WindowTab => ({
+    id,
+    kind: "page",
+    openedAt: 0,
+    url,
+  });
+  const lead = file("a", "/Users/mac-user/Documents/plan.md");
+
+  it("leaves out the lead tab and a second tab on the same file", () => {
+    const other = file("c", "/Users/mac-user/Documents/notes.md");
+    const site = page("d", "https://example.com/");
+    expect(
+      tabsBesideLead(
+        [lead, file("b", "/Users/mac-user/Documents/plan.md"), other, site],
+        lead,
+      ).map((tab) => tab.id),
+    ).toEqual(["c", "d"]);
+  });
+
+  it("leaves out a second tab on the lead page's address, and keeps another page of its site", () => {
+    const first = page("a", "https://example.com/pricing");
+    expect(
+      tabsBesideLead(
+        [
+          first,
+          page("b", "https://example.com/pricing"),
+          page("c", "https://example.com/plans"),
+        ],
+        first,
+      ).map((tab) => tab.id),
+    ).toEqual(["c"]);
+  });
+
+  it("keeps two tabs that are neither a page nor a file", () => {
+    const chats: WindowTab = { href: "/chats", id: "a", kind: "screen" };
+    expect(
+      tabsBesideLead(
+        [chats, { href: "/chats", id: "b", kind: "screen" }],
+        chats,
+      ),
+    ).toHaveLength(1);
   });
 });

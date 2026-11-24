@@ -3,7 +3,10 @@ import { type ChildTask } from "@instrument-org/workspace/client";
 
 import { type ScreenName } from "@/shared/instrument-screens";
 
+import { type WindowTab } from "@/client/atoms/window";
+
 import { type Chat, draftTitle } from "./chats";
+import { matchScreen } from "./window-href";
 
 /**
  * The ink of a row's second line: `quiet` for where a tab is, `work` for a
@@ -159,4 +162,31 @@ export function siteOf(url: string | undefined): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * What a tab stands on, where a second tab on the same thing adds nothing to
+ * its group's row: a page's address, a file's path. Any other tab is itself.
+ */
+function standsOn(tab: WindowTab): string {
+  if (tab.kind === "page") {
+    return `page:${tab.url ?? tab.openedUrl ?? tab.id}`;
+  }
+  const screen = matchScreen(tab.href);
+  return screen.kind === "computer" && screen.file !== undefined
+    ? `file:${screen.file}`
+    : `tab:${tab.id}`;
+}
+
+/**
+ * The tabs of `tabs` a row marks after its lead tab's title: every one but
+ * the lead and any other tab on the very thing the lead is on, so one file
+ * open twice reads as that file alone.
+ */
+export function tabsBesideLead(
+  tabs: readonly WindowTab[],
+  lead: WindowTab,
+): WindowTab[] {
+  const leadOn = standsOn(lead);
+  return tabs.filter((tab) => tab.id !== lead.id && standsOn(tab) !== leadOn);
 }

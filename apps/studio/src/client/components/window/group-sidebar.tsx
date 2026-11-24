@@ -577,8 +577,9 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
 }
 
 /**
- * One tab group as two lines (`GroupRowLines`): its title over every tab's
- * mark, then, with one tab, what it says, a chat's state among it. The whole row is one press. While the
+ * One tab group as two lines (`GroupRowLines`): its lead tab's mark and
+ * title, then its other tabs' marks, over what the lead tab says, a chat's
+ * state among it. The whole row is one press. While the
  * pointer is on it, one X at its end closes the whole group, as a middle
  * click does, with nothing asked: Reopen brings it back. While a tab held
  * over it would land in its group, it is raised and ringed in place of any

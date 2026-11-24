@@ -1,6 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { DefenseInDepthBox, type IFileSystem } from "just-bash";
 import { existsSync, statSync } from "node:fs";
+import { homedir } from "node:os";
 import nodePath from "node:path";
 
 import { FOLDER_VARIABLES } from "../../constants";
@@ -173,27 +174,27 @@ export function folderAsk({
 }):
   | { allowed: true }
   | { allowed: false; folder: string }
-  | { refusal: string; why: string | undefined } {
+  | { inSettings?: boolean; refusal: string; why?: string } {
   const reach = reachOf(rules, hostPath, "write");
   if (reach.level === "allow") {
     return { allowed: true };
   }
   if (reach.level === "never") {
     return {
+      ...closedWhy(reach),
       refusal: closedNote(reach, shown(hostPath)),
-      why: closedWhy(reach),
     };
   }
   if (isMacosPrivate(hostPath)) {
     return {
       refusal: macosPrivateNote(shown(hostPath)),
-      why: "macOS keeps that folder private to the app it belongs to.",
+      why: "Your Mac keeps this folder private. You can attach the file instead.",
     };
   }
   if (!accountCanWrite(hostPath)) {
     return {
       refusal: systemOwnedNote(shown(hostPath)),
-      why: "Your account on this computer can't change that folder, so allowing it wouldn't let the agent in.",
+      why: "Only an administrator can change this folder.",
     };
   }
   const asked = askableFolder({
@@ -209,28 +210,37 @@ export function folderAsk({
 }
 
 /**
- * Why the rules keep a folder closed, said to the person under the agent's
- * refused ask: {@link closedNote}'s reasons in their words. Undefined for a
- * path named by a second name, which says nothing to them.
+ * Why the rules keep a folder closed, said to the person in the agent's
+ * refused ask: {@link closedNote}'s reasons in their words, and whether a
+ * setting of theirs is the reason. Empty for a path named by a second name,
+ * which says nothing to them.
  */
-function closedWhy(reach: Reach): string | undefined {
+function closedWhy(reach: Reach): { inSettings?: true; why?: string } {
   const rule = reach.rule;
   if (reach.stream) {
-    return undefined;
+    return {};
   }
   if (rule?.appData) {
-    return `That's where ${APP_NAME} keeps its own data.`;
+    return { why: `That's where ${APP_NAME} keeps its own data.` };
   }
   if (rule?.denied) {
-    return "You said not now to that folder in this chat.";
+    return { why: "You said not now to this folder in this chat." };
   }
   if (rule?.level === "readOnly") {
-    return "That folder is read-only here.";
+    return { why: "This folder is read-only here." };
   }
   if (rule?.source === "system" && rule.level === "never") {
-    return `That file runs every time you log in, so ${APP_NAME} never changes it.`;
+    return {
+      why: `That file runs every time you log in, so ${APP_NAME} never changes it.`,
+    };
   }
-  return "That folder is turned off in Settings › Permissions.";
+  // The home folder's own name is the account's, which nobody calls it by.
+  const name =
+    rule && rule.path !== homedir() ? nodePath.basename(rule.path) : "";
+  return {
+    inSettings: true,
+    why: `You turned off ${name === "" ? "this folder" : name} in Settings.`,
+  };
 }
 
 /**

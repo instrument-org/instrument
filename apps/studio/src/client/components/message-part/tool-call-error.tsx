@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import {
   getToolNameByType,
   type SessionMessagePart,
@@ -7,17 +8,52 @@ import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { useState } from "react";
 
+import { useTabDeveloperMode } from "../../hooks/use-developer-mode";
 import { getToolExplanation } from "../../lib/get-tool-explanation";
 import { isCutOff } from "../../lib/is-cut-off";
 import { cn } from "../../lib/utils";
 import { ConfirmedIconButton } from "../confirmed-icon-button";
+import { StepSentence } from "./step-sentence";
 
 type ErrorPart = Extract<
   SessionMessagePart.ToolPart,
   { state: "output-error" }
 >;
 
+/**
+ * A call that failed: one sentence saying so, with the error it came back
+ * with under it for developer mode alone.
+ */
 export function ToolCallError({ part }: { part: ErrorPart }) {
+  const isDeveloperMode = useTabDeveloperMode();
+  return (
+    <>
+      <StepSentence>{failureSentence(part)}</StepSentence>
+      {isDeveloperMode && <ErrorCard part={part} />}
+    </>
+  );
+}
+
+/** What went wrong, where the error says so plainly enough to repeat. */
+function failureSentence(part: ErrorPart): string {
+  const said = part.errorText;
+  // The app's own words for a call that was stopped or cut off.
+  if (said.startsWith("This action was ")) {
+    return said;
+  }
+  if (/\bENOENT\b|no such file/iu.test(said)) {
+    return "That file isn't there anymore.";
+  }
+  if (/\bEACCES\b|\bEPERM\b|permission denied/iu.test(said)) {
+    return `${APP_NAME} doesn't have permission to do this.`;
+  }
+  if (/\bETIMEDOUT\b|timed out/iu.test(said)) {
+    return "This took too long, so it was stopped.";
+  }
+  return "This step didn't work.";
+}
+
+function ErrorCard({ part }: { part: ErrorPart }) {
   const [isRawOpen, setIsRawOpen] = useState(false);
 
   // A string input is text the model sent that never parsed as JSON.

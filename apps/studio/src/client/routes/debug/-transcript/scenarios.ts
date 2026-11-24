@@ -615,15 +615,73 @@ export const scenarios: DebugScenario[] = [
         output: {
           message:
             // oxlint-disable-next-line studio/no-os-words -- a Mac chat, replayed on its debug page
-            '"/Users/mac-user/Library/Mobile Documents" belongs to the system, and only an administrator can change it.',
+            '"/Users/mac-user/Library/Mobile Documents" is private on this Mac.',
           state: "refused",
-          why: "Your account on this computer can't change that folder, so allowing it wouldn't let the agent in.",
+          // oxlint-disable-next-line studio/no-os-words -- a Mac chat, replayed on its debug page
+          why: "Your Mac keeps this folder private. You can attach the file instead.",
         },
         type: "tool-ask_permission",
       }),
       prose(
         "I found the Just Press Record folder in iCloud, but macOS won't let me read it from here.",
       ),
+    ],
+  },
+  {
+    id: "folder-turned-off",
+    name: "A folder turned off in Settings, and a file that's gone",
+    script: [
+      user("Add up my receipts from last year."),
+      activity("Finding the receipts"),
+      call({
+        input: {
+          explanation: "Opening the Taxes folder",
+          kind: "folder",
+          reason: "So I can read the receipts.",
+          target: "/Users/mac-user/Documents/Taxes",
+        },
+        output: {
+          inSettings: true,
+          message: "The person turned that folder off.",
+          state: "refused",
+          why: "You turned off Taxes in Settings.",
+        },
+        type: "tool-ask_permission",
+      }),
+      prose(
+        "Documents › Taxes is turned off, so I couldn't read the receipts.",
+      ),
+      user("Use the ones in Downloads then."),
+      activity("Reading the receipts"),
+      call({
+        input: {
+          explanation: "Opening the Receipts folder",
+          kind: "folder",
+          reason: "So I can read the receipts.",
+          target: "/Users/mac-user/Downloads/Receipts",
+        },
+        output: {
+          inSettings: true,
+          message: "The person turned that folder off.",
+          state: "refused",
+          why: "You turned off Receipts in Settings.",
+        },
+        type: "tool-ask_permission",
+      }),
+      call({
+        input: {
+          explanation: "Reading last year's list",
+          filePath: "/Users/mac-user/Downloads/receipts.csv",
+        },
+        output: {
+          filePath: "/Users/mac-user/Downloads/receipts.csv",
+          state: "does-not-exist",
+          suggestions: [],
+        },
+        type: "tool-read_file",
+      }),
+      ran({ command: "ls", explanation: "Listing what was attached" }),
+      prose("I used the receipts you attached. They come to $1,204."),
     ],
   },
   {

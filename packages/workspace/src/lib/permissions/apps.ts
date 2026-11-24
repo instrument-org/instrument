@@ -34,7 +34,7 @@ function isFor(
 }
 
 /** Whether the person said not now to `app` in this chat. */
-async function appDenied(chatId: ChatId, app: string): Promise<boolean> {
+export async function appDenied(chatId: ChatId, app: string): Promise<boolean> {
   return (await chatDenials(chatId)).some(
     (denial) => denial.kind === "app" && sameApp(denial.target, app),
   );

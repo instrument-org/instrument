@@ -5,11 +5,11 @@ import {
 } from "@/client/components/window/context";
 import { SiteSignInBar } from "@/client/components/window/site-sign-in";
 import {
-  useWindowTabsChange,
+  seedWindowTabsAtom,
   windowTabsAtom,
 } from "@/client/components/window/window-tabs";
 import { renderInBrowser } from "@/tests/render-browser";
-import { createStore } from "jotai";
+import { createStore, useSetAtom } from "jotai";
 import { useEffect } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
@@ -98,14 +98,14 @@ async function showCard(width: number, slugs: readonly string[]) {
   const store = createStore();
   // The tab the window's open answers, which the sign-in is marked on.
   function Tab() {
-    const change = useWindowTabsChange();
+    const seed = useSetAtom(seedWindowTabsAtom);
     useEffect(() => {
-      change(() => ({
+      seed({
         activeByGroup: { g: "tab-1" },
         groups: {},
         tabs: [{ group: "g", id: "tab-1", kind: "page", openedAt: 1 }],
-      }));
-    }, [change]);
+      });
+    }, [seed]);
     return null;
   }
   await renderInBrowser(

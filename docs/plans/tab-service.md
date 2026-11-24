@@ -1,6 +1,6 @@
 # One owner for every tab
 
-Status: open. The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done. Nothing of the service is built.
+Status: open. The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done. Every change a window makes to the tabs is a named command with plain data ([`tab-ops.ts`](../../apps/studio/src/client/components/window/tab-ops.ts)), still applied in the window that asks. The service that applies them in the main process is not built.
 
 ## Problem
 
@@ -70,7 +70,7 @@ A screen stays drawn in its window while another tab or group is up, out of sigh
 Each lands by itself and leaves the app working.
 
 - **A. Pin what it does.** The table of gestures by kind in `use-openers.test.tsx`, beside the reducer tests there are. Done. A plain click on a page or a screen goes to the tab up, a blank New Tab like any other. An app, a chat, and a built-in page opened from a blank New Tab take its place where its group has one side; on a side of a split they open beside it, and a New Tab with a draft in it keeps its place everywhere.
-- **B. The service.** The pure functions move to shared code with no atom, router or DOM in them. Main owns the state and the windows become mirrors of it. The shape of the files is unchanged, so an earlier build still reads them. This ends the overwrite.
+- **B. The service.** Every change becomes a named command with plain data, the ids and times in it made by whoever asks (done). The pure functions are loaded by the main process, which owns the state, and the windows become mirrors of it. The shape of the files is unchanged, so an earlier build still reads them. This ends the overwrite.
 - **C. Pages follow the tabs.** Main makes and ends guests from the tabs' Life. Unlisted tabs replace hidden groups, and a `page:<id>` group found in a file becomes one. An agent's asks are answered in main, with or without a window.
 - **D. One budget.** The list and the budget above replace the separate limits on guests and on kept screens (`KEPT_SCREENS`).
 - **E. One open.** One call takes what to open, the gesture and where it was asked from, and one table answers. `OpenOptions` goes. A closed tab, side or group becomes one kind of record.

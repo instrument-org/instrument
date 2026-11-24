@@ -37,11 +37,7 @@ import { createPortal } from "react-dom";
 import { z } from "zod";
 
 import { AskTray } from "./ask-tray";
-import {
-  type BesideAsk,
-  openBesideChat,
-  previousOpenedIn,
-} from "./beside-chat";
+import { type BesideAsk } from "./beside-chat";
 import { PageEditMenuItem, PageEditSession } from "./page-edit";
 import { pageHostsAtom, type PageHost } from "./page-hosts";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
@@ -54,21 +50,10 @@ import { undrawnHostedStep } from "./hosted-page";
 import { visitInTab } from "./tab-history";
 import { type Opening } from "./tab-openers";
 import {
-  addPages,
-  openingFrom,
-  fileTabWalked,
   blankUpIn,
-  openPage as openPageIn,
   type PageTab,
   type Placing,
-  pageBecomesFile,
-  pageNavigated,
-  pageTakesOver,
-  patchPage,
   titleAtNavigation,
-  replaceTab,
-  selectTab,
-  selectedTabIn,
   sideOf,
 } from "./tab-model";
 import {
@@ -285,23 +270,16 @@ function openTab(
   // up is still that chat's, waiting behind. In a tab's place, the page is
   // what that tab's group has up. Asked for in a new tab, it lands right
   // after the tab up, and waits behind it when asked to.
-  change((current, onScreen) => {
-    const group = into ?? onScreen;
-    const opening =
-      from ?? (newTab ? openingFrom(current, group, undefined) : undefined);
-    const beside = after ?? (newTab ? opening?.tab : undefined);
-    return openPageIn(current, {
-      ...(beside === undefined ? {} : { after: beside }),
-      ...(opening === undefined ? {} : { from: opening }),
-      group,
-      page,
-      ...(replacing ? { replacing } : {}),
-      select:
-        newTab || after !== undefined
-          ? !behind
-          : !behind && (show || into === undefined || into === onScreen),
-      ...(side === undefined ? {} : { side }),
-    });
+  change("openPageTab", {
+    ...(after === undefined ? {} : { after }),
+    behind,
+    ...(from === undefined ? {} : { from }),
+    ...(into === undefined ? {} : { into }),
+    newTab,
+    page,
+    ...(replacing ? { replacing } : {}),
+    show,
+    ...(side === undefined ? {} : { side }),
   });
   // Read now: by the time the guest is up, the window may have lost focus
   // to whatever the page opened.
@@ -451,7 +429,7 @@ export function BrowserTabs({
       id: string,
       changes: Partial<Pick<BrowserTab, "favicon" | "title" | "url">>,
     ) => {
-      change((current) => patchPage(current, id, changes));
+      change("patchPage", id, changes);
     };
     const cleanups = tabIds.split(",").map((id) => {
       if (!id) {
@@ -481,7 +459,7 @@ export function BrowserTabs({
           !isHistoryStep &&
           url !== latest.current.tabs.find((tab) => tab.id === id)?.url
         ) {
-          change((current) => pageNavigated(current, id));
+          change("pageNavigated", id);
         }
         if (url && url !== "about:blank") {
           const was = latest.current.tabs.find((tab) => tab.id === id)?.url;
@@ -528,14 +506,12 @@ export function BrowserTabs({
                 }
               : undefined;
           guest.clearHistory();
-          change((current) =>
-            pageBecomesFile(current, {
-              file: { href: fileHref(filePath), id: fileTab },
-              hostGroup: hostGroupOf(fileTab),
-              ...(left ? { left } : {}),
-              page: id,
-            }),
-          );
+          change("pageBecomesFile", {
+            file: { href: fileHref(filePath), id: fileTab },
+            hostGroup: hostGroupOf(fileTab),
+            ...(left ? { left } : {}),
+            page: id,
+          });
           return;
         }
         // A file tab's page that moves while no viewer of the tab is drawn,
@@ -547,19 +523,17 @@ export function BrowserTabs({
         if (undrawn?.step.kind === "site") {
           guest.clearHistory();
           const { url: siteUrl } = undrawn.step;
-          change((current) =>
-            pageTakesOver(current, {
-              page: id,
-              tab: undrawn.owner,
-              url: siteUrl,
-            }),
-          );
+          change("pageTakesOver", {
+            page: id,
+            tab: undrawn.owner,
+            url: siteUrl,
+          });
         } else if (undrawn?.step.kind === "file") {
           const href = fileHref(undrawn.step.path);
           const { owner } = undrawn;
           const replace =
             getFileType({ filename: undrawn.step.path }) === "html";
-          change((current) => fileTabWalked(current, owner, href, { replace }));
+          change("fileTabWalked", owner, href, { replace });
         }
       };
       // A local page's own `history.pushState` moves its address without
@@ -651,10 +625,7 @@ export function BrowserTabs({
       navigate: (url) => {
         const guest = activeTarget && getGuest(activeTarget);
         if (guest) {
-          change((current, onScreen) => {
-            const shown = selectedTabIn(current, onScreen);
-            return shown ? pageNavigated(current, shown.id) : current;
-          });
+          change("pageNavigatedUp");
           // A rejection is a failed or interrupted load, which did-fail-load shows.
           void guest.load(url).catch(noop);
         }
@@ -664,7 +635,7 @@ export function BrowserTabs({
         if (!tab) {
           return;
         }
-        change((current) => pageNavigated(current, tabId, url));
+        change("pageNavigated", tabId, url);
         const guest = getGuest(targetOf(tab));
         if (guest) {
           void guest.load(url).catch(noop);
@@ -678,23 +649,21 @@ export function BrowserTabs({
       open: (url, options) => openTab(change, url, options),
       openBehind: (url, { after, from, group, id: given, openedBy }) => {
         const id = given ?? StoreId.newTabId();
-        change((current) =>
-          addPages(
-            current,
-            [
-              {
-                group,
-                id,
-                openedAt: Date.now(),
-                ...(openedBy === undefined ? {} : { openedBy }),
-                ...(url ? { openedUrl: url, url } : {}),
-              },
-            ],
+        change(
+          "addPages",
+          [
             {
-              ...(after === undefined ? {} : { after }),
-              ...(from === undefined ? {} : { from }),
+              group,
+              id,
+              openedAt: Date.now(),
+              ...(openedBy === undefined ? {} : { openedBy }),
+              ...(url ? { openedUrl: url, url } : {}),
             },
-          ),
+          ],
+          {
+            ...(after === undefined ? {} : { after }),
+            ...(from === undefined ? {} : { from }),
+          },
         );
         void rpcClient.workspace.browser.open.call({
           targetId: browserTargetOf(id),
@@ -710,36 +679,17 @@ export function BrowserTabs({
           return undefined;
         }
         const id = given ?? StoreId.newTabId();
-        let opened: undefined | { front: boolean; id: StoreId.Tab };
-        change((current) => {
-          const group = current.tabs.find(
-            (tab) => tab.id === ask.chatTab,
-          )?.group;
-          if (group === undefined) {
-            return current;
-          }
-          const previous =
-            openedBy === undefined
-              ? undefined
-              : previousOpenedIn(current, group, openedBy);
-          const placed = openBesideChat(
-            current,
-            {
-              group,
-              id,
-              kind: "page",
-              openedAt: Date.now(),
-              ...(openedBy === undefined ? {} : { openedBy }),
-              ...(url ? { openedUrl: url, url } : {}),
-            },
-            { ...ask, ...(previous === undefined ? {} : { previous }) },
-          );
-          opened = {
-            front: placed.front,
-            id: StoreId.TabSchema.parse(placed.id),
-          };
-          return placed.state;
+        const placed = change("openPageBesideChat", {
+          ask,
+          id,
+          openedAt: Date.now(),
+          ...(openedBy === undefined ? {} : { openedBy }),
+          ...(url ? { url } : {}),
         });
+        const opened = placed && {
+          front: placed.front,
+          id: StoreId.TabSchema.parse(placed.id),
+        };
         // A page already loaded is opened with no address, so it stays as
         // it is; the window browser keeps its lifetime from here. A tab
         // already showing the page has its guest.
@@ -763,11 +713,9 @@ export function BrowserTabs({
       },
       openForAnotherWindow: (url, into) => {
         const id = StoreId.newTabId();
-        change((current) =>
-          addPages(current, [
-            { group: into, id, openedAt: Date.now(), openedUrl: url, url },
-          ]),
-        );
+        change("addPages", [
+          { group: into, id, openedAt: Date.now(), openedUrl: url, url },
+        ]);
         return id;
       },
       openOrFocus: (url, options) => {
@@ -783,7 +731,7 @@ export function BrowserTabs({
         );
         if (atAddress) {
           if (options?.show || key === latest.current.group) {
-            change((current) => selectTab(current, atAddress.id));
+            change("selectTab", atAddress.id);
           }
           return atAddress.id;
         }
@@ -815,7 +763,7 @@ export function BrowserTabs({
           openedUrl: url,
           url,
         });
-        change((current) => replaceTab(current, tab.id, page));
+        change("replaceTab", tab.id, page);
         void rpcClient.workspace.browser.open.call({
           targetId: browserTargetOf(id),
           url,

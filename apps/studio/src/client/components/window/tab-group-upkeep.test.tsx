@@ -4,7 +4,7 @@ import { TabIdSchema } from "@/shared/tabs";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory } from "@tanstack/react-router";
 import { act, renderHook } from "@testing-library/react";
-import { createStore, Provider, useAtomValue } from "jotai";
+import { createStore, Provider, useAtomValue, useSetAtom } from "jotai";
 import { type ReactNode, useSyncExternalStore } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
@@ -17,7 +17,7 @@ import {
   useTabGroupUpkeep,
 } from "./tab-groups";
 import { groupHref, matchScreen } from "./window-href";
-import { useWindowTabsChange, windowTabsAtom } from "./window-tabs";
+import { seedWindowTabsAtom, windowTabsAtom } from "./window-tabs";
 
 vi.mock("@/client/lib/kept-state", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/client/lib/kept-state")>()),
@@ -77,7 +77,10 @@ function windowWithGroup() {
           }) satisfies TabGroup,
       );
       useTabGroupUpkeep(href, open);
-      return { change: useWindowTabsChange(), groups: useTabGroupActions() };
+      return {
+        groups: useTabGroupActions(),
+        seed: useSetAtom(seedWindowTabsAtom),
+      };
     },
     {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -94,11 +97,11 @@ function windowWithGroup() {
       tabs: [{ id: WINDOW_TAB, pathname: NOWHERE_YET }],
     });
     store.set(windowTabGroupsAtom, [GROUP]);
-    result.current.change(() => ({
+    result.current.seed({
       activeByGroup: { [GROUP]: CHAT_TAB },
       groups: {},
       tabs: [{ group: GROUP, href: "/chats", id: CHAT_TAB, kind: "screen" }],
-    }));
+    });
   });
   const tabsAt = (href: string) =>
     store
@@ -106,7 +109,7 @@ function windowWithGroup() {
       .tabs.filter((tab) => tab.kind === "screen" && tab.href === href);
   return {
     actions: () => result.current.groups,
-    change: result.current.change,
+    seed: result.current.seed,
     history,
     store,
     tabsAt,
@@ -270,7 +273,7 @@ describe("the group that comes up as one closes", () => {
   const windowOnGroups = (up: string) => {
     const window = windowWithGroup();
     act(() => {
-      window.change(() => ({
+      window.seed({
         activeByGroup: {},
         groups: Object.fromEntries(
           PINNED.map((group) => [group, { pinned: true }]),
@@ -281,7 +284,7 @@ describe("the group that comes up as one closes", () => {
           id: `tab:${group}`,
           kind: "screen",
         })),
-      }));
+      });
       window.store.set(windowTabGroupsAtom, LISTED);
     });
     act(() => {

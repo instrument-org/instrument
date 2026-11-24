@@ -6,7 +6,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { createStore, Provider } from "jotai";
+import { createStore, Provider, useSetAtom } from "jotai";
 import { type ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -21,7 +21,7 @@ import { useOpeners } from "./use-openers";
 import { chatHref, groupHref } from "./window-href";
 import {
   useWindowTabs,
-  useWindowTabsChange,
+  seedWindowTabsAtom,
   windowTabsAtom,
 } from "./window-tabs";
 
@@ -181,7 +181,7 @@ function windowOnTwoSides({
         showGroup: spies.showGroup,
         windowTabs,
       });
-      return { change: useWindowTabsChange(), openers, windowTabs };
+      return { openers, seed: useSetAtom(seedWindowTabsAtom), windowTabs };
     },
     {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -200,7 +200,7 @@ function windowOnTwoSides({
     });
   });
   act(() => {
-    result.current.change(() => ({
+    result.current.seed({
       activeByGroup: { [GROUP]: up.id, [OTHER_GROUP]: OTHER_UP },
       ...(isSplit ? { besideByGroup: { [GROUP]: RIGHT_UP } } : {}),
       groups: {},
@@ -219,7 +219,7 @@ function windowOnTwoSides({
         { group: OTHER_GROUP, id: OTHER_UP, kind: "page", openedAt: 4 },
         { group: OTHER_GROUP, id: OTHER_BEHIND, kind: "page", openedAt: 5 },
       ],
-    }));
+    });
   });
   return { result, store };
 }

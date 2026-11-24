@@ -51,7 +51,6 @@ import { windowTabGroupsAtom } from "../open-groups";
 import { useOpenGroups, useTabGroupActions } from "../tab-groups";
 import {
   groupLayoutOf,
-  putUpBack,
   sideIndexOf,
   sideOf,
   tabsIn,
@@ -576,7 +575,7 @@ function useCarrier() {
     const upAtStart = upTabsIn(state, held.group);
     const putBack = () => {
       isNeighborUp = false;
-      changeTabs((current) => putUpBack(current, held.group, upAtStart));
+      changeTabs("putUpBack", held.group, upAtStart);
     };
     const showWhereItIs = (isOff: boolean) => {
       const isGone = isOff && collapses && !isEnded;

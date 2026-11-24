@@ -1,3 +1,4 @@
+import { useSetAtom } from "jotai";
 import { renderWithProviders } from "@/tests/render";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
@@ -5,7 +6,7 @@ import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SiteSignInBar, useSiteSignInsEnd } from "./site-sign-in";
-import { useWindowTabsChange, windowTabsAtom } from "./window-tabs";
+import { seedWindowTabsAtom, windowTabsAtom } from "./window-tabs";
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
@@ -68,9 +69,9 @@ function Bars() {
 
 /** The window with the site's page open in a tab marked as Notes' sign-in, and another tab. */
 function Tabs() {
-  const change = useWindowTabsChange();
+  const seed = useSetAtom(seedWindowTabsAtom);
   useEffect(() => {
-    change(() => ({
+    seed({
       activeByGroup: { g: "tab-1" },
       groups: {},
       tabs: [
@@ -83,8 +84,8 @@ function Tabs() {
         },
         { group: "g", id: "tab-2", kind: "page", openedAt: 2 },
       ],
-    }));
-  }, [change]);
+    });
+  }, [seed]);
   return <Bars />;
 }
 

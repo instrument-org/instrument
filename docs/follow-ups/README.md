@@ -40,6 +40,7 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [Whether CI stays near four minutes a run](ci-wall-clock.md): open · Check after: 2026-11-24 · Last checked: 2026-11-10
 - [Why Claude account sessions cold-start, counted over real use](claude-account-cold-starts.md): open · Check after: a week of real chats on a Claude account · Last checked: 2026-11-08 (no Claude account requests in the inspected activity)
 - [Why reply streams drop partway](dropped-reply-streams.md): open · Check after: 2026-11-22, or when production exception reports are accessible · Last checked: 2026-11-08
+- [Whether agents choose from a closed select's folded options as well as from option lines](folded-select-options.md): open · Check after: 2026-12-15, or at the next agent-browser upgrade · Last checked: never
 - [Which parts of the app write their log too fast](log-volume.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the log volume warnings · Last checked: never
 - [How often the main thread freezes in real use, and whether the watchdog tells the truth](main-thread-freezes.md): open · Check after: 2026-12-05 · Last checked: never
 - [How often and how long the main thread stalls in real use](main-thread-stalls.md): open · Check after: 2026-11-22, with OS wake periods separated from foreground stalls · Last checked: 2026-11-08

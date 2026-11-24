@@ -184,7 +184,7 @@ describe("createAgentBrowserCommand", () => {
     {
       args: ["skills", "get", "core", "--ref", "authentication"],
       stderr:
-        "agent-browser: Reference not found: authentication. Available here: references/commands.md, references/snapshot-refs.md, references/trust-boundaries.md.\n",
+        "agent-browser: Reference not found: authentication. Available here: references/instrument.md, references/commands.md, references/snapshot-refs.md, references/trust-boundaries.md.\n",
     },
     {
       args: ["skills", "get", "core", "--ref"],

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   agentBrowserGuide,
+  agentBrowserReferencePaths,
   agentBrowserReferences,
   INSTRUMENT_ADDENDUM,
 } from "./agent-browser-guide";
@@ -130,7 +131,7 @@ describe("the agent-browser guide", () => {
   });
 
   it("names each reference it carries in the addendum, by the name --ref takes", () => {
-    for (const { path } of AGENT_BROWSER_CORE_REFERENCES) {
+    for (const path of agentBrowserReferencePaths()) {
       const stem = path.slice(path.lastIndexOf("/") + 1, -".md".length);
       expect(INSTRUMENT_ADDENDUM).toContain(`\`--ref ${stem}\``);
     }
@@ -156,8 +157,17 @@ describe("the agent-browser guide", () => {
   it("names the references there are when asked for one it does not carry", () => {
     expect(agentBrowserReferences(["authentication"])).toEqual({
       error:
-        "Reference not found: authentication. Available here: references/commands.md, references/snapshot-refs.md, references/trust-boundaries.md",
+        "Reference not found: authentication. Available here: references/instrument.md, references/commands.md, references/snapshot-refs.md, references/trust-boundaries.md",
     });
+  });
+
+  it("carries this app's own reference beside the release's, and with --full", () => {
+    const own = agentBrowserReferences(["instrument"]);
+    expect("text" in own && own.text).toContain('credentials: "include"');
+    expect(agentBrowserGuide()).not.toContain("document.images");
+    expect(agentBrowserGuide({ full: true })).toContain(
+      "<!-- references/instrument.md -->",
+    );
   });
 
   it("drops a list item by how it starts, with its continuation lines, and nothing in a code fence", () => {

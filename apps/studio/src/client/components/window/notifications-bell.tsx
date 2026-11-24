@@ -11,6 +11,11 @@ import {
 } from "@/client/components/ui/popover";
 import { useWindow } from "@/client/components/window/context";
 import { chatOfHref } from "@/client/components/window/window-href";
+import {
+  SIDEBAR_ICON_BUTTON,
+  SIDEBAR_POPOVER_WIDTH,
+  SidebarPopoverAnchor,
+} from "@/client/components/window/sidebar-popover";
 import { useTabGroupActions } from "@/client/components/window/tab-groups";
 import { pendingProblemReport } from "@/client/lib/problem-reports";
 import { formatAbsoluteTime } from "@/client/lib/relative-time";
@@ -111,16 +116,14 @@ export function NotificationsBell() {
       open={open}
     >
       <PopoverTrigger asChild>
-        <Button
+        <button
           aria-label={
             hasProblems || unseen.length > 0
               ? "Notifications, something new"
               : "Notifications"
           }
-          // The new-tab plus's grey, across the bar.
-          className="relative size-7 text-muted-foreground/70 [-webkit-app-region:no-drag]"
-          size="icon-sm"
-          variant="ghost-toolbar"
+          className={cn("relative", SIDEBAR_ICON_BUTTON)}
+          type="button"
         >
           <BellIcon className="size-4" />
           {(hasProblems || unseen.length > 0) && (
@@ -131,11 +134,14 @@ export function NotificationsBell() {
               )}
             />
           )}
-        </Button>
+        </button>
       </PopoverTrigger>
+      <SidebarPopoverAnchor side="bottom" />
       <PopoverContent
-        align="end"
-        className="w-95 overflow-hidden p-0"
+        align="start"
+        // A narrow sidebar's width breaks a notice's words, so there it runs
+        // out past the sidebar.
+        className="min-w-72 overflow-hidden p-0"
         // Focus the panel, not its first row's button, so opening the bell
         // doesn't light that row up; Tab still walks into the rows.
         onOpenAutoFocus={(event) => {
@@ -144,6 +150,7 @@ export function NotificationsBell() {
             event.currentTarget.focus();
           }
         }}
+        style={{ width: SIDEBAR_POPOVER_WIDTH }}
       >
         <div className="flex h-11 items-center px-4 text-[13px] font-semibold">
           Notifications

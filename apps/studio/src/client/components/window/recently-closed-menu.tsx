@@ -1,7 +1,5 @@
-import { sidebarWidthAtom } from "@/client/atoms/tab-groups";
 import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
-import { Button } from "@/client/components/ui/button";
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -29,6 +27,11 @@ import { closedGroupsOf } from "./closed-groups";
 import { GroupRowLines } from "./group-row-lines";
 import { TabMark } from "./row-half";
 import { useShell } from "./shell-context";
+import {
+  SIDEBAR_ICON_BUTTON,
+  SIDEBAR_POPOVER_WIDTH,
+  SidebarPopoverAnchor,
+} from "./sidebar-popover";
 import { useTabTitle } from "./tab-title";
 import { useRecentlyClosed } from "./window-space-menu";
 
@@ -134,7 +137,6 @@ export function HistoryButton() {
     0,
     MOST_LISTED,
   );
-  const sidebarWidth = useAtomValue(sidebarWidthAtom);
   const pick = (run: () => void) => {
     hasPicked.current = true;
     setOpen(false);
@@ -144,28 +146,28 @@ export function HistoryButton() {
     <Popover onOpenChange={setOpen} open={isOpen}>
       <ToolbarTooltip chord="showActivity" label={SCREENS.activity.title}>
         <PopoverTrigger asChild>
-          <Button
+          <button
             aria-label={SCREENS.activity.title}
-            className="size-7 text-muted-foreground/70 [-webkit-app-region:no-drag]"
-            size="icon-sm"
-            variant="ghost-toolbar"
+            className={SIDEBAR_ICON_BUTTON}
+            type="button"
           >
             <ClockCounterClockwiseIcon className="size-4" />
-          </Button>
+          </button>
         </PopoverTrigger>
       </ToolbarTooltip>
-      {/* As wide as the sidebar less its edges, on the sidebar's own
+      <SidebarPopoverAnchor side="top" />
+      {/* As wide as the sidebar's rows and in line with them, on the sidebar's own
           ground, so it reads as the sidebar's list growing up from its foot. */}
       <PopoverContent
-        align="end"
-        className="flex w-auto flex-col bg-ground p-1.5 ring-1 ring-foreground/8"
+        align="start"
+        className="flex flex-col bg-ground p-1.5 ring-1 ring-foreground/8"
         maxHeight="520px"
         onCloseAutoFocus={(event) => {
           focusHomeAfterPick(event, hasPicked);
         }}
         side="top"
         sideOffset={6}
-        style={{ width: sidebarWidth - 12 }}
+        style={{ width: SIDEBAR_POPOVER_WIDTH }}
       >
         <p className="shrink-0 px-2.5 pt-1 pb-1.5 text-[12px] font-medium text-muted-foreground">
           Recently Closed
@@ -178,7 +180,7 @@ export function HistoryButton() {
           <div className="flex min-h-0 flex-col gap-0.5 overflow-y-auto">
             {closed.map((group) => (
               <button
-                className="flex shrink-0 rounded-lg px-2.5 py-1.5 text-left hover:bg-foreground/[0.04]"
+                className="flex shrink-0 rounded-lg px-2.5 py-1.5 text-left hover:bg-foreground/[0.04] focus-visible:-outline-offset-2"
                 key={group.id}
                 onClick={() => {
                   pick(() => {
@@ -199,7 +201,7 @@ export function HistoryButton() {
         )}
         <div className="mt-1 shrink-0 border-t border-border/60 pt-1">
           <button
-            className="flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
+            className="flex h-8 w-full items-center gap-2.5 rounded-lg px-2.5 text-[13px] font-medium text-foreground/70 hover:bg-foreground/5 hover:text-foreground focus-visible:-outline-offset-2"
             onClick={() => {
               pick(() => {
                 openBuiltInPage(SCREENS.activity.href);

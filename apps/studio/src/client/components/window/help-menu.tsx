@@ -19,6 +19,8 @@ import { LifebuoyIcon } from "@phosphor-icons/react/Lifebuoy";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { useRef } from "react";
 
+import { SIDEBAR_ICON_BUTTON } from "./sidebar-popover";
+
 /**
  * Help at the sidebar's foot: a menu in the native Help menu's order. Send
  * feedback opens the feedback dialog about the chat on screen when there is
@@ -36,7 +38,7 @@ export function HelpMenu({ chatId }: { chatId?: ChatId }) {
         <DropdownMenuTrigger asChild>
           <button
             aria-label="Help"
-            className="grid size-7 place-items-center rounded-lg text-muted-foreground hover:bg-foreground/5 hover:text-foreground"
+            className={SIDEBAR_ICON_BUTTON}
             type="button"
           >
             <QuestionIcon className="size-4" />

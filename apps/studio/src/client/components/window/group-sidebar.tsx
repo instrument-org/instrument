@@ -711,7 +711,7 @@ export function GroupRow({
 function SidebarTop() {
   return (
     <div
-      className="flex h-12 shrink-0 items-center gap-1 pt-2 pr-1 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
+      className="relative flex h-12 shrink-0 items-center gap-1 pt-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
       style={{ paddingLeft: sidebarTopInset() }}
     >
       {!isMacOS() && <AppMenuButton />}
@@ -749,7 +749,7 @@ function AppMenuButton() {
 function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
   const { data: user, isPending } = useLiveUser();
   return (
-    <div className="flex h-11 shrink-0 items-center gap-1 pr-1 pl-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]">
+    <div className="relative flex h-11 shrink-0 items-center gap-1 pl-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]">
       <button
         className="flex h-9 min-w-0 flex-1 items-center gap-1.5 rounded-lg px-1.5 text-left hover:bg-foreground/5"
         onClick={() => {

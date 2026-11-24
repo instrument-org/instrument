@@ -1,4 +1,7 @@
-import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
+import {
+  getWorkspaceFolder,
+  workspaceWindowDir,
+} from "@/electron-main/lib/get-workspace-folder";
 import {
   DRAFTS_CHANNEL,
   type DraftOp,
@@ -9,11 +12,15 @@ import { BrowserWindow, ipcMain, shell } from "electron";
 
 import { logger } from "../lib/electron-logger";
 import { createDraftStore } from "./draft-store";
+import { createNewTabDrafts } from "./new-tab-drafts";
 
 /** What a window loading before the workspace opens reads. */
 const NO_DRAFTS: DraftsSnapshot = { acks: {}, drafts: [], loading: true };
 
 let STORE: null | ReturnType<typeof createDraftStore> = null;
+
+/** Which drafts were started in a new tab here, opened with the store. */
+let NEW_TAB_DRAFTS: null | ReturnType<typeof createNewTabDrafts> = null;
 
 /** Whether the store's first read of the folder is over, read or failed. */
 let isLoaded = false;
@@ -54,10 +61,18 @@ export function openDrafts() {
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
   });
   const store = STORE;
+  const newTabDrafts = createNewTabDrafts({ windowDir: workspaceWindowDir() });
+  NEW_TAB_DRAFTS = newTabDrafts;
   // A window that loaded before the drafts were read has none, and waits
   // for this. A read that failed is over too: there is nothing more to wait for.
   void store
     .load()
+    .then(() => {
+      // Off the launch: nothing waits for what closed tabs left.
+      store
+        .discard(newTabDrafts.lost(store.snapshot().drafts))
+        .catch(couldNotRead);
+    })
     .catch(couldNotRead)
     .finally(() => {
       isLoaded = true;
@@ -94,6 +109,14 @@ export function applyDraftOpsInMain(ops: DraftOp[]): void {
   getStore().apply({ client: MAIN_CLIENT, ops, seq: mainSeq });
 }
 
+/**
+ * Leaves for good the drafts named in closed tabs the person cleared from
+ * their history: clearing what can be reopened is not throwing a draft away.
+ */
+export function keepDraftsNamedIn(value: unknown): void {
+  NEW_TAB_DRAFTS?.keepNamedIn(value);
+}
+
 function tell(snapshot: DraftsSnapshot) {
   tellWindows(snapshot);
   for (const listener of listeners) {
@@ -125,7 +148,9 @@ export function serveDrafts() {
     if (!isBatch(batch)) {
       throw new Error("Not a batch of draft changes");
     }
-    getStore().apply(batch);
+    const store = getStore();
+    store.apply(batch);
+    NEW_TAB_DRAFTS?.applied(batch, store.snapshot().drafts);
   });
   ipcMain.handle(DRAFTS_CHANNEL.stage, (_event, request: unknown) => {
     return getStore().stage(request);

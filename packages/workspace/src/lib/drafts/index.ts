@@ -24,6 +24,7 @@ export {
   parseDraftFile,
   renderDraftFile,
 } from "./draft-file";
+export { isSystemClutter } from "../system-clutter";
 export {
   draftFolderItems,
   type DraftFolderItem,

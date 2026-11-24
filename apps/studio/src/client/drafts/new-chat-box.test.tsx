@@ -11,6 +11,7 @@ import {
   bindNewChatBoxAtom,
   closingNewChat,
   draftInNewChatBox,
+  dropNewChatWordsAtom,
   isNewChatEmptied,
   newChatBoxesAtom,
   pickedNewChatProject,
@@ -278,4 +279,28 @@ describe("a new chat's tab as it closes", () => {
       ),
     ).toEqual({ href: "/chats?draft=kept" });
   });
+});
+
+describe("words that open a place", () => {
+  it.each([true, false])(
+    "leave no draft, and keep the project (settled: %s)",
+    (isSettled) => {
+      const { inBox, settle, store, type } = window();
+      type("example.com");
+      if (isSettled) {
+        settle();
+        expect(inBox()).toBeDefined();
+      }
+
+      store.set(dropNewChatWordsAtom, { projectId: "home", tabId: TAB });
+      settle();
+
+      expect(settleMadeDraft(store, TAB)).toBeUndefined();
+      expect(store.get(draftsAtom)).toEqual([]);
+      expect(store.get(newChatBoxesAtom)[TAB]).toEqual({
+        draftId: null,
+        projectId: "home",
+      });
+    },
+  );
 });

@@ -7,7 +7,7 @@ import { type Draft, isLeftEmpty } from "@/shared/drafts";
 import { atom } from "jotai";
 import { ulid } from "ulid";
 
-import { flushWords } from "./settle-words";
+import { cancelWords, flushWords } from "./settle-words";
 import { applyDraftOpsAtom, draftsAtom } from "./store";
 
 /**
@@ -211,6 +211,34 @@ export const makeNewChatDraftAtom = atom(
     }));
     getGroupTabRouter(tabId)?.history.replace(newChatHref(draft.id));
     return draft.id;
+  },
+);
+
+/**
+ * Drops a tab's new chat's words, those still settling and the draft they
+ * made, and names no draft in its address, keeping the project it was filed
+ * under: for words that were an address, as the tab goes there.
+ */
+export const dropNewChatWordsAtom = atom(
+  null,
+  (
+    get,
+    set,
+    { projectId, tabId }: { projectId: string | undefined; tabId: string },
+  ) => {
+    cancelWords(newChatWordsKey(tabId));
+    const id = get(newChatBoxesAtom)[tabId]?.draftId ?? null;
+    set(newChatBoxesAtom, (boxes) => ({
+      ...boxes,
+      [tabId]: {
+        draftId: null,
+        ...(projectId === undefined ? {} : { projectId }),
+      },
+    }));
+    if (id !== null) {
+      void set(applyDraftOpsAtom, [{ id, type: "remove" }]);
+      getGroupTabRouter(tabId)?.history.replace(newChatHref());
+    }
   },
 );
 

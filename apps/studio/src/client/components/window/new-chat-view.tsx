@@ -16,6 +16,7 @@ import {
 import {
   bindNewChatBoxAtom,
   draftInNewChatBox,
+  dropNewChatWordsAtom,
   makeNewChatDraftAtom,
   newChatBoxesAtom,
   newChatWordsKey,
@@ -29,7 +30,7 @@ import {
   draftsLoadedAtom,
   updateDraftAtom,
 } from "@/client/drafts/store";
-import { type Draft } from "@/shared/drafts";
+import { type Draft, holdsSomething } from "@/shared/drafts";
 import { cn, osConventions } from "@/client/lib/utils";
 import {
   locateTypedPath,
@@ -128,6 +129,7 @@ export function NewChatView({
   const boxes = useAtomValue(newChatBoxesAtom);
   const bindBox = useSetAtom(bindNewChatBoxAtom);
   const makeDraft = useSetAtom(makeNewChatDraftAtom);
+  const dropNewChatWords = useSetAtom(dropNewChatWordsAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
   const snapshots = useAtomValue(draftSnapshotsAtom);
   const setSnapshots = useSetAtom(draftSnapshotsAtom);
@@ -297,8 +299,8 @@ export function NewChatView({
     onOpenBeside(opened);
   };
   // A box holding one address or one place on the computer and nothing
-  // else opens it on Return, in this tab, where Back comes back to these
-  // words; anything else in it is a message, which Return sends. The
+  // else opens it on Return, in this tab, and what was
+  // typed to go there is no draft (`takeBackWords`); anything else in it is a message, which Return sends. The
   // command key with Return always sends.
   const groupTab = useGroupTab();
   const { keyJoiner, modifierKeys } = osConventions();
@@ -387,6 +389,26 @@ export function NewChatView({
     setLitFor({ index, words });
   };
   const litRow = pageRows[lit];
+  /**
+   * The words taken out of the box as they open a place, with the draft they
+   * made: an address is not something to send later. A draft holding more
+   * than words stays as it is. Back comes to the new chat, empty, under the
+   * project it was filed under.
+   */
+  const takeBackWords = () => {
+    const held = draftInNewChatBox(
+      store.get(draftsAtom),
+      store.get(newChatBoxesAtom),
+      tabId,
+    );
+    const isBoxWordsOnly =
+      (inputRef.current?.snapshot()?.items.length ?? 0) === 0;
+    if (!isBoxWordsOnly || (held !== undefined && !isWordsOnly(held))) {
+      return;
+    }
+    inputRef.current?.swapIn({ items: [], prompt: "" });
+    dropNewChatWords({ projectId: pickedId, tabId });
+  };
   // In this tab whatever it opens, a chat included, as sending turns a new
   // tab into its chat in place.
   const openAddress = (address: string) => {
@@ -394,6 +416,7 @@ export function NewChatView({
     if (!target) {
       return;
     }
+    takeBackWords();
     if (target.kind === "page") {
       groupTab?.showPage(target.url);
     } else {
@@ -406,6 +429,7 @@ export function NewChatView({
       toast.error(missedPathNotice(located));
       return;
     }
+    takeBackWords();
     windowTabs.visitHref(
       tabId,
       located.kind === "file"
@@ -726,6 +750,15 @@ function ProjectRoom({ project }: { project: Project }) {
         }
       />
     </div>
+  );
+}
+
+/** Whether words are all a new chat's draft has to send. */
+function isWordsOnly(draft: Draft): boolean {
+  return (
+    draft.sendingTo === undefined &&
+    !holdsSomething({ ...draft, words: "" }) &&
+    (draft.context ?? []).length === 0
   );
 }
 

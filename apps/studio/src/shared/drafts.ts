@@ -151,6 +151,8 @@ export type DraftOp =
   | { draft: Draft; type: "create" }
   /** Pointed at the chat it is about to be sent into, with the words it is sent with. */
   | { at: number; chatId: ChatId; id: string; type: "claim"; words: string }
+  /** Opened by the person from Drafts, so it is never thrown away as one a closed tab left. */
+  | { id: string; type: "keep" }
   /** Thrown away, or emptied by hand: gone, with what was pasted into it. */
   | { id: string; type: "remove" }
   /** A send that failed: the draft is the person's again, as it was before the press. */
@@ -260,6 +262,9 @@ function applyDraftOp(drafts: Draft[], op: DraftOp): Draft[] {
         updatedAt: op.at,
         words: op.words,
       }));
+    }
+    case "keep": {
+      return drafts;
     }
     case "release": {
       return changeDraft(

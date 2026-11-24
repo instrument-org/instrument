@@ -12,6 +12,7 @@ import {
   quitsWithLastWindow,
   requestQuitApproval,
 } from "@/electron-main/lib/quit";
+import { keepDraftsNamedIn } from "@/electron-main/drafts/serve-drafts";
 import { getBackgroundColor } from "@/electron-main/lib/theme-utils";
 import { systemRegionArguments } from "@/electron-main/lib/system-country";
 import { isSetupUp } from "@/electron-main/lib/setup-state";
@@ -22,6 +23,7 @@ import { publisher } from "@/electron-main/rpc/publisher";
 import {
   FIRST_APP_WINDOW_ID,
   forgetWindowKeptState,
+  getKeptState,
   getWindowKeptState,
   keptGroupedTabs,
   keptLoneGroupOfTab,
@@ -35,6 +37,7 @@ import {
   isHostedPageKey,
   keptTabGroupsOf,
   TAB_GROUPS_KEY,
+  WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
 import { chatOfAddress, tabGroupOfAddress } from "@/shared/tab-identity";
 import { workingTabOf } from "@/shared/working-tab";
@@ -881,6 +884,9 @@ export function forgetClosedSince(since: number | undefined) {
       (each) => !closedSince(each, since),
     );
     if (recentlyClosed.length < kept.recentlyClosed.length) {
+      keepDraftsNamedIn(
+        kept.recentlyClosed.filter((each) => closedSince(each, since)),
+      );
       tellWindowKeptState(id, window.webContents, APP_TABS_KEY, {
         ...kept,
         recentlyClosed,
@@ -889,6 +895,12 @@ export function forgetClosedSince(since: number | undefined) {
   }
   const windows = closedWindowsSince(since);
   for (const id of windows) {
+    keepDraftsNamedIn([
+      keptTabsOf(id),
+      keptTabGroupsOfWindow(id).map((group) =>
+        getKeptState("groups", `${WINDOW_TABS_KEY}/${group}`),
+      ),
+    ]);
     forgetWindow(id);
     forgetWindowKeptState(id);
   }

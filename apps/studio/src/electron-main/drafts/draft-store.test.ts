@@ -830,3 +830,34 @@ function projectRecordLines(): string {
     .map((file) => fs.readFileSync(file, "utf8"))
     .join("");
 }
+
+describe("discarding", () => {
+  it("moves a draft's whole folder to the Trash, and its words with it", async () => {
+    const { apply, store } = await open();
+    apply({ draft: draft("a", { words: "Left behind" }), type: "create" });
+    await store.reconcile();
+
+    await store.discard(["a"]);
+
+    expect(trashed()).toEqual(["2026-10-19"]);
+    expect(
+      fs.readFileSync(path.join(trashDir, "2026-10-19", "DRAFT.md"), "utf8"),
+    ).toContain("Left behind");
+    expect(store.snapshot().drafts).toEqual([]);
+  });
+
+  it("leaves a folder with anything else in it, and words changed elsewhere", async () => {
+    const { apply, store } = await open();
+    apply({ draft: draft("a", { words: "With a file" }), type: "create" });
+    await store.reconcile();
+    const extra = path.join(path.dirname(fileOf()), "photo.png");
+    fs.writeFileSync(extra, "x");
+    await store.discard(["a"]);
+    fs.rmSync(extra);
+    fs.writeFileSync(fileOf(), read().replace("With a file", "Changed"));
+    await store.discard(["a"]);
+
+    expect(trashed()).toEqual([]);
+    expect(read()).toContain("Changed");
+  });
+});

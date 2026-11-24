@@ -13,6 +13,7 @@ import {
   draftsFolderDir,
   draftFolderItemAt,
   isEmptyDraft,
+  isSystemClutter,
   makeDraftFolder,
   namedByOtherDrafts,
   parseDraftFile,
@@ -447,6 +448,7 @@ export function createDraftStore({
             break;
           }
           case "create":
+          case "keep":
           case "update": {
             break;
           }
@@ -455,6 +457,44 @@ export function createDraftStore({
       persist(before);
       acks[batch.client] = Math.max(acks[batch.client] ?? 0, batch.seq);
       onChange(snapshot());
+    },
+
+    /**
+     * Moves drafts the app lets go of on its own to the Trash, each as its
+     * whole folder, words included, since nobody asked for them to go. Only
+     * a folder with nothing in it but the one draft's file and the system's
+     * clutter goes, and only where the file still reads as the store has it.
+     */
+    async discard(ids: string[]): Promise<void> {
+      for (const id of ids) {
+        const known = onDisk.get(id);
+        const entries = seen.get(id) ?? [];
+        const found = known && readFile(known.file);
+        if (
+          known === undefined ||
+          found === undefined ||
+          textOf(found) !== known.text ||
+          entries.length !== 1 ||
+          entries[0]?.file !== known.file
+        ) {
+          continue;
+        }
+        try {
+          const isAlone = fs
+            .readdirSync(known.dir)
+            .every(
+              (name) =>
+                name === path.basename(known.file) || isSystemClutter(name),
+            );
+          if (isAlone) {
+            await moveToTrash(known.dir);
+            changes += 1;
+          }
+        } catch (error) {
+          logger.error(`Could not move draft ${id} to the Trash`, error);
+        }
+      }
+      await reconcile();
     },
 
     /** Every draft in the folder, read once as the store opens. */

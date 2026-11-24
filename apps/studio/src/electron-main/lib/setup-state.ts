@@ -6,6 +6,7 @@ import {
   setupStateFrom,
   unansweredStep,
 } from "@/electron-main/lib/setup-step";
+import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
   getLocalWorkspace,
@@ -16,6 +17,7 @@ import { WORKSPACE_MACHINE_ENTRIES } from "@instrument-org/shared";
 import fs from "node:fs";
 import path from "node:path";
 import { getMachineState } from "@/electron-main/stores/machine/state";
+import { storeJson } from "@/electron-main/stores/store-json";
 import {
   readSetupRecord,
   writeSetupRecord,
@@ -190,11 +192,19 @@ export function answerSetupIn(machineDir: string): void {
   const file = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.state);
   let state: Record<string, unknown> = {};
   try {
-    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+    const parsed = storeJson(fs.readFileSync(file, "utf8"));
     if (parsed !== null && typeof parsed === "object") {
       state = { ...parsed };
     }
-  } catch {
+  } catch (error) {
+    // Left as it is: what is in it would be lost to the answer alone, and
+    // without the answer the restart only asks for it again.
+    if (
+      !(error instanceof Error && "code" in error && error.code === "ENOENT")
+    ) {
+      logger.error("Could not read the workspace's state", error);
+      return;
+    }
     // None yet: a workspace this computer hasn't opened.
   }
   const own = SetupRecordSchema.safeParse(state.setup);

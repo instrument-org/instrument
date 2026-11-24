@@ -33,6 +33,30 @@ async function* quiet(signal?: AbortSignal) {
   yield* [];
 }
 
+// Main's asks of the window, which a test sends when it needs to: the
+// keyboard given back after an agent's command, and a person's press in a page.
+const asks = vi.hoisted(() => {
+  const feed = <T,>() => {
+    let wake: ((value: T) => void) | null = null;
+    return {
+      send: (value: T) => {
+        wake?.(value);
+      },
+      stream: (_input: unknown, options?: { signal?: AbortSignal }) =>
+        Promise.resolve(
+          (async function* () {
+            while (!options?.signal?.aborted) {
+              yield await new Promise<T>((resolve) => {
+                wake = resolve;
+              });
+            }
+          })(),
+        ),
+    };
+  };
+  return { pressed: feed<{ targetId: string }>(), restore: feed<null>() };
+});
+
 // What main says next about the target, which a test sends when it needs to.
 const targets = vi.hoisted(() => {
   const queued: boolean[] = [];
@@ -73,7 +97,8 @@ vi.mock("@/client/rpc/client", () => {
       browser: {
         events: {
           focusGuest: stream,
-          restoreHostFocus: stream,
+          pagePressed: { call: asks.pressed.stream },
+          restoreHostFocus: { call: asks.restore.stream },
           setGuestSurface: stream,
         },
         live: {
@@ -166,6 +191,50 @@ it("keeps the page in the frontmost slot while one beneath measures after it", (
       "zIndex": "2147483647",
     }
   `);
+});
+
+it("marks the page's guest while a slot shows it", () => {
+  showOverSlot(target, inlineBounds, inline);
+  expect(element()?.hasAttribute("data-page-on-screen")).toBe(true);
+  setPaintHost(target, inline);
+  expect(element()?.hasAttribute("data-page-on-screen")).toBe(false);
+});
+
+describe("the keyboard after an agent's command", () => {
+  const guestOf = (id: string) => {
+    const guest = [...document.querySelectorAll<HTMLElement>("webview")].find(
+      (each) => each.getAttribute("partition")?.includes(id) === true,
+    );
+    if (!guest) {
+      throw new Error("no guest");
+    }
+    // jsdom focuses only what has a tab index; Electron's guest takes focus itself.
+    guest.tabIndex = -1;
+    return guest;
+  };
+  const settled = () =>
+    new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+  it("leaves a page the agent's command put it in", async () => {
+    const guest = guestOf(behind);
+    guest.focus();
+    asks.restore.send(null);
+    await settled();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("stays in a page the person pressed in", async () => {
+    const guest = guestOf(target);
+    asks.pressed.send({ targetId: target });
+    await settled();
+    guest.focus();
+    asks.restore.send(null);
+    await settled();
+    expect(document.activeElement).toBe(guest);
+    guest.blur();
+  });
 });
 
 it("gives the page to the newer of two slots on one layer, and keeps it there as the older re-measures", () => {

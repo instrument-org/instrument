@@ -47,7 +47,7 @@ import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { iconHostOf } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { focusScreenHome } from "@/client/lib/keyboard-home";
+import { leaveField } from "@/client/lib/keyboard-home";
 import {
   locateTypedPath,
   type MissedPath,
@@ -337,10 +337,9 @@ export function Omnibar({
     if (resting === undefined) {
       send({ type: "clear" });
     }
-    input.current?.blur();
     // What was asked for may be the tab up at another address, whose page
     // then has the keyboard, as in a browser.
-    focusScreenHome({ leaving: false });
+    leaveField(input.current);
   };
 
   /**
@@ -633,8 +632,7 @@ export function Omnibar({
               } else if (again) {
                 void openPath(again);
               } else if (resting !== undefined) {
-                event.currentTarget.blur();
-                focusScreenHome({ leaving: false });
+                leaveField(event.currentTarget);
               }
               break;
             }
@@ -646,8 +644,7 @@ export function Omnibar({
               } else if (resting === undefined) {
                 send({ type: "clear" });
               } else {
-                event.currentTarget.blur();
-                focusScreenHome({ leaving: false });
+                leaveField(event.currentTarget);
               }
               break;
             }

@@ -16,7 +16,12 @@
  *   a Mac's buttons do: the rail, a toolbar's toggle, a tab. Tab still
  *   reaches every one.
  * - The keyboard left on nothing a person can see (a column put away, a
- *   screen gone) goes to the home of the screen on show.
+ *   screen gone) goes to the home of the screen on show. What counts as
+ *   nothing is one answer (`isKeyboardNowhere`), for everything that asks
+ *   before it takes the keyboard or sends it home.
+ * - A page gives the keyboard back in one place, to where a person last
+ *   had it (`returnKeyboardToWindow`), and a field a person is done with
+ *   lets go of it in one (`leaveField`).
  */
 
 /** How long a screen has to draw its home after it is asked for, in frames. */
@@ -26,6 +31,13 @@ const HOME_WAIT_FRAMES = 30;
 const PART_WAIT_FRAMES = 300;
 
 const ACTIVE_TAB = "[data-app-tab-active]";
+
+/**
+ * Marks a page's guest while a slot shows it. The pool's to set: a guest is
+ * drawn on the body, outside every element of the window's own, and one put
+ * away stays drawn there out of sight.
+ */
+export const PAGE_ON_SCREEN = "data-page-on-screen";
 
 /** Homes the window cannot put the keyboard in by focusing them, with how to. */
 const homeFocus = new WeakMap<
@@ -39,6 +51,14 @@ const homeFocus = new WeakMap<
  * comes up.
  */
 const lastHomes = new Map<string, string>();
+
+/**
+ * Where a person last put the keyboard: an element of the window, or the
+ * guest of a page they took it into (`notePersonInPage`). A page an agent's
+ * command put the keyboard in is neither, and gives it back here
+ * (`returnKeyboardFromAgent`).
+ */
+let lastPlace: HTMLElement | null = null;
 
 /**
  * How to put the keyboard in a home that is not focusable itself, such as
@@ -118,8 +138,7 @@ export function focusHomeIn(part: HTMLElement) {
     if (!part.isConnected || part.contains(document.activeElement)) {
       return;
     }
-    const now = document.activeElement;
-    if (frames > 0 && now !== null && now !== document.body && isShown(now)) {
+    if (frames > 0 && !isKeyboardNowhere()) {
       return;
     }
     const home = homeIn(part);
@@ -166,6 +185,79 @@ function putKeyboardIn(home: HTMLElement): boolean {
     }
   }
   return true;
+}
+
+/**
+ * A person took a page's keyboard: pressed in it, or the window sent the
+ * keyboard there for them. The pool's to say, since the window hears no
+ * press in a page.
+ */
+export function notePersonInPage(guest: HTMLElement) {
+  lastPlace = guest;
+}
+
+/**
+ * Gives the keyboard back from a page an agent's command put it in. Main
+ * asks after every command of an agent's, whatever the keyboard did
+ * meanwhile, so nothing moves unless a page has it, and a page the person
+ * put it in keeps it.
+ */
+export function returnKeyboardFromAgent() {
+  const held = document.activeElement;
+  if (held?.tagName === "WEBVIEW" && held !== lastPlace) {
+    returnKeyboardToWindow();
+  }
+}
+
+/**
+ * Puts the keyboard back where a person last had it, from a page that took
+ * it for an agent or that no slot shows any more: in that element or page,
+ * while a person can still see it. One on the side of a tab group without
+ * the keyboard is left for the home of the side with it. With that place
+ * gone, a home of the window's own in what is on show takes it, the one its
+ * tab was last worked from first, and never a page's: main asks again while
+ * an agent's command holds a page, which would be handed it each time. With
+ * nothing to take it, the page lets go and the keyboard is on nothing.
+ */
+export function returnKeyboardToWindow() {
+  const was = lastPlace;
+  const side = sideWithKeyboard();
+  if (was?.isConnected && side && isOnSideWithoutKeyboard(was)) {
+    focusHomeIn(side);
+    return;
+  }
+  if (was?.isConnected && isShown(was)) {
+    was.focus({ preventScroll: true });
+    if (document.activeElement === was) {
+      return;
+    }
+  }
+  const homes = side
+    ? [homeIn(side), ...homesIn(side)]
+    : homesIn(document).filter((home) => home.closest(ACTIVE_TAB) !== null);
+  if (
+    homes.some(
+      (home) => home !== null && !homeFocus.has(home) && putKeyboardIn(home),
+    )
+  ) {
+    return;
+  }
+  const held = document.activeElement;
+  if (held instanceof HTMLElement && held.tagName === "WEBVIEW") {
+    held.blur();
+  }
+}
+
+/**
+ * Lets go of a field a person is done with (an address entered, Escape in
+ * an empty search): the keyboard leaves it for the home of the screen on
+ * show, which may be the page the field just sent somewhere.
+ */
+export function leaveField(field: Element | null | undefined) {
+  if (field instanceof HTMLElement) {
+    field.blur();
+  }
+  focusScreenHome({ leaving: false });
 }
 
 /** How long a home that took the keyboard itself waits for its words to be drawn, in ms. */
@@ -317,9 +409,7 @@ function focusQuietly(target: HTMLElement) {
  * none drawn: in a tab group, the part of the side with the keyboard.
  */
 function homeOnShow(): HTMLElement | null {
-  const side = document.querySelector<HTMLElement>(
-    `${ACTIVE_TAB} [data-group-side][data-keyboard]`,
-  );
+  const side = sideWithKeyboard();
   if (side) {
     return homeIn(side);
   }
@@ -340,11 +430,16 @@ function homeIn(root: HTMLElement): HTMLElement | null {
   );
 }
 
-/** Notes the home the keyboard went into, for when its tab is come back to. */
-function rememberHome() {
-  const side = document.querySelector<HTMLElement>(
+/** The side of the tab group on screen that has the keyboard. */
+function sideWithKeyboard() {
+  return document.querySelector<HTMLElement>(
     `${ACTIVE_TAB} [data-group-side][data-keyboard]`,
   );
+}
+
+/** Notes the home the keyboard went into, for when its tab is come back to. */
+function rememberHome() {
+  const side = sideWithKeyboard();
   const tab = side?.dataset.tabUp;
   if (!side || tab === undefined) {
     return;
@@ -411,15 +506,27 @@ function first(root: HTMLElement, selector: string) {
 }
 
 /**
- * Drawn, and not in a part of the screen put out of reach (`inert`).
- * Opacity does not count: a popover or menu fades in from zero, and the
- * keyboard its opening put in it is not gone.
+ * Drawn, and not in a part of the screen put out of reach (`inert`); a
+ * page's guest, while a slot shows it (`PAGE_ON_SCREEN`). Opacity does not
+ * count: a popover or menu fades in from zero, and the keyboard its opening
+ * put in it is not gone.
  */
 function isShown(element: Element) {
-  return (
-    element.closest("[inert]") === null &&
-    element.checkVisibility({ visibilityProperty: true })
-  );
+  if (element.closest("[inert]") !== null) {
+    return false;
+  }
+  return element.tagName === "WEBVIEW"
+    ? element.hasAttribute(PAGE_ON_SCREEN)
+    : element.checkVisibility({ visibilityProperty: true });
+}
+
+/**
+ * Whether the keyboard is in nothing a person can see: on the body, in a
+ * part hidden or put out of reach, or in a page no slot shows.
+ */
+export function isKeyboardNowhere() {
+  const focused = document.activeElement;
+  return focused === null || focused === document.body || !isShown(focused);
 }
 
 /** How long something that just opened waits for a menu or dialog to go before it takes the keyboard, in frames. */
@@ -603,14 +710,29 @@ export function installKeyboardHome() {
     },
     { capture: true, signal },
   );
-  document.addEventListener("focusin", rememberHome, { signal });
+  document.addEventListener(
+    "focusin",
+    (event) => {
+      if (
+        event.target instanceof HTMLElement &&
+        event.target.tagName !== "WEBVIEW"
+      ) {
+        lastPlace = event.target;
+      }
+      rememberHome();
+    },
+    { signal },
+  );
   // A page pressed takes the keyboard with no `focusin` here, only the
   // document's own blur.
   window.addEventListener("blur", rememberHome, { signal });
   // Only for a keyboard whose place went away. One let go onto nothing by a
   // press on the screen's own words (to select them) stays let go.
+  // A page's guest is the pool's to take the keyboard from as it is put
+  // away, and one an agent types into out of sight keeps it.
   const isGone = (element: EventTarget | null) =>
     element instanceof HTMLElement &&
+    element.tagName !== "WEBVIEW" &&
     (!element.isConnected || !isShown(element));
   // A press that put away the part the keyboard is in, which keeps the
   // keyboard while it is out of sight, once the press has done its work.
@@ -653,5 +775,6 @@ export function installKeyboardHome() {
   );
   return () => {
     controller.abort();
+    lastPlace = null;
   };
 }

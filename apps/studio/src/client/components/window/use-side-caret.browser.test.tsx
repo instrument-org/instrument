@@ -1,6 +1,10 @@
-import { installKeyboardHome, setHomeFocus } from "@/client/lib/keyboard-home";
+import {
+  installKeyboardHome,
+  PAGE_ON_SCREEN,
+  setHomeFocus,
+} from "@/client/lib/keyboard-home";
 import { renderInBrowser } from "@/tests/render-browser";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { userEvent } from "vitest/browser";
 
@@ -97,14 +101,14 @@ function Window({ first, prefix }: { first: string; prefix: string }) {
   const [group, setGroup] = useState(first);
   const cardRef = useRef<HTMLDivElement>(null);
   const isPressed = useRef(false);
+  // The pool's mark on a page a slot shows: a chat shows none, and the page
+  // of the group that left is put away.
+  useLayoutEffect(() => {
+    guest.toggleAttribute(PAGE_ON_SCREEN, group !== "chat");
+  }, [group]);
   useSideCaret({
     cardRef,
     hasKeyboard: true,
-    isCaretOnNothing: () =>
-      document.activeElement === null ||
-      document.activeElement === document.body ||
-      // The page of the group that left, parked.
-      (document.activeElement === guest && group === "chat"),
     isCaretOnOtherSide: () => false,
     isPressed,
     shown: group,

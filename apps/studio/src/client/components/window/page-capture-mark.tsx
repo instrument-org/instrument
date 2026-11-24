@@ -395,7 +395,13 @@ function CaptureAsk({
     "camera" | "microphone" | null | undefined
   >(undefined);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  // The devices the menus show, and the ones the preview is opened on by
+  // name: none until one other than the system's own is wanted, so showing
+  // which the system handed the preview does not open it again.
   const [picked, setPicked] = useState<Picked>({});
+  const [wanted, setWanted] = useState<Picked>({});
+  const { audio: wantedAudio, video: wantedVideo } = wanted;
+  const { audio: savedAudio, video: savedVideo } = capture.devices;
   const [stream, setStream] = useState<MediaStream | null>(null);
   const settings = useMutation(
     rpcClient.features.openPrivacySettings.mutationOptions(),
@@ -425,8 +431,8 @@ function CaptureAsk({
       id ? { deviceId: { exact: id } } : true;
     navigator.mediaDevices
       .getUserMedia({
-        audio: wantsAudio && constraint(picked.audio),
-        video: wantsVideo && constraint(picked.video),
+        audio: wantsAudio && constraint(wantedAudio),
+        video: wantsVideo && constraint(wantedVideo),
       })
       .then(async (next) => {
         if (!live) {
@@ -445,25 +451,23 @@ function CaptureAsk({
         setDevices(all);
         // The device the site had last, by its name, else the one the
         // system handed the preview.
-        setPicked((was) => {
-          const idOf = (kind: "audio" | "video") => {
-            const saved = capture.devices[kind];
-            const track = next.getTracks().find((each) => each.kind === kind);
-            return (
-              was[kind] ??
-              all.find(
-                (device) =>
-                  device.kind === `${kind}input` && device.label === saved,
-              )?.deviceId ??
-              realId(listed, track?.getSettings().deviceId)
-            );
-          };
-          const audio = idOf("audio");
-          const video = idOf("video");
-          return audio === was.audio && video === was.video
-            ? was
-            : { audio, video };
-        });
+        const deviceOf = (kind: "audio" | "video") => {
+          const [name, asked] =
+            kind === "audio"
+              ? [savedAudio, wantedAudio]
+              : [savedVideo, wantedVideo];
+          const track = next.getTracks().find((each) => each.kind === kind);
+          const handed = realId(listed, track?.getSettings().deviceId);
+          const saved = all.find(
+            (device) => device.kind === `${kind}input` && device.label === name,
+          )?.deviceId;
+          const shown = asked ?? saved ?? handed;
+          return { shown, want: shown === handed ? asked : shown };
+        };
+        const audio = deviceOf("audio");
+        const video = deviceOf("video");
+        setPicked({ audio: audio.shown, video: video.shown });
+        setWanted({ audio: audio.want, video: video.want });
       })
       .catch(() => undefined);
     return () => {
@@ -476,9 +480,10 @@ function CaptureAsk({
     system,
     wantsAudio,
     wantsVideo,
-    picked.audio,
-    picked.video,
-    capture.devices,
+    wantedAudio,
+    wantedVideo,
+    savedAudio,
+    savedVideo,
   ]);
   const labelOf = (id: string | undefined) =>
     devices.find((device) => device.deviceId === id)?.label;
@@ -523,6 +528,7 @@ function CaptureAsk({
               label="Camera"
               onPick={(id) => {
                 setPicked((was) => ({ ...was, video: id }));
+                setWanted((was) => ({ ...was, video: id }));
               }}
               picked={picked.video}
             />
@@ -543,6 +549,7 @@ function CaptureAsk({
             label="Microphone"
             onPick={(id) => {
               setPicked((was) => ({ ...was, audio: id }));
+              setWanted((was) => ({ ...was, audio: id }));
             }}
             picked={picked.audio}
           />

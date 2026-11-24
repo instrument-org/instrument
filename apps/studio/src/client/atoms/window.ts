@@ -62,10 +62,11 @@ export interface FinderShown {
 export type AppPlace = "apps" | "browser" | "chat" | "files";
 
 /**
- * Search Chats was asked for and the inbox's search has not taken the
- * keyboard yet: the inbox of the tab up takes it once it is drawn.
+ * When Search Chats was asked for, while the Chats page's search has not
+ * taken the keyboard yet: the page up on the side with the keyboard takes it
+ * once it is drawn.
  */
-export const chatSearchAskedAtom = atom(false);
+export const chatSearchAskedAtom = atom<number>();
 
 /** A tab of the window's browser: a browser session of the window's own, under `WINDOW_ID`. */
 export interface BrowserTab {

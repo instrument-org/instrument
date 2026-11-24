@@ -5,6 +5,7 @@ import {
 } from "@/client/components/ui/popover";
 import { Switch } from "@/client/components/ui/switch";
 import { chatSearchAskedAtom } from "@/client/atoms/window";
+import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { cn } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CheckIcon } from "@phosphor-icons/react/Check";
@@ -17,7 +18,9 @@ import {
 } from "@/client/components/icons/row-density-icons";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useAtom } from "jotai";
+import ms from "ms";
 import { type ComponentType, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import {
   type ChatFilters,
@@ -33,7 +36,11 @@ import {
   type RowDensity,
   rowDensityAtom,
 } from "./chat-list-view";
+import { useGroupTab } from "./group-tab";
 import { type SearchToken, SearchField } from "./search-field";
+
+/** How long Search Chats waits for the Chats page to come up. */
+const SEARCH_ASK_MS = ms("10 seconds");
 
 /** The marks the search offers as tokens, in the order it offers them. */
 const TAGS: SearchToken<ChatTag>[] = [
@@ -86,24 +93,34 @@ export function FilterHead({
   const isSearched = filters.search !== "" || filters.tags.length > 0;
   // Search Chats (Shift+Cmd+F) from anywhere in the window. Cmd+F is the
   // chat's own find, so the search over every chat has a chord of its own.
-  const [isChatSearchAsked, setChatSearchAsked] = useAtom(chatSearchAskedAtom);
+  const [searchAskedAt, setSearchAskedAt] = useAtom(chatSearchAskedAtom);
+  const groupTab = useGroupTab();
+  const isActive = useIsActiveTab();
+  const hasKeyboard =
+    isActive &&
+    (groupTab === null || (groupTab.isShown && groupTab.hasKeyboard !== false));
   useEffect(() => {
-    if (!isChatSearchAsked) {
+    if (searchAskedAt === undefined || !hasKeyboard) {
       return;
     }
     const frame = requestAnimationFrame(() => {
-      setChatSearchAsked(false);
-      setSearchAsked(true);
-      // Drawn on the next frame inside a project, where the field was folded.
-      requestAnimationFrame(() => {
-        searchRef.current?.focus();
-        searchRef.current?.select();
+      setSearchAskedAt(undefined);
+      // One whose page came up in another window is not for a page opened
+      // here much later.
+      if (Date.now() - searchAskedAt > SEARCH_ASK_MS) {
+        return;
+      }
+      // Inside a project the field is folded until it is asked for.
+      flushSync(() => {
+        setSearchAsked(true);
       });
+      searchRef.current?.focus();
+      searchRef.current?.select();
     });
     return () => {
       cancelAnimationFrame(frame);
     };
-  }, [isChatSearchAsked, setChatSearchAsked]);
+  }, [hasKeyboard, searchAskedAt, setSearchAskedAt]);
   // A mark is offered while the view, as it stands before any mark narrows
   // it, holds a chat carrying it.
   const unmarked = { ...filters, search: "", tags: [] };

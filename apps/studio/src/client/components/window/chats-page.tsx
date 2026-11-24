@@ -19,11 +19,7 @@ export function ChatsPage() {
   const groupTab = useGroupTab();
   const showChatGroup = useShowChatGroup();
   return (
-    // The search the chord for searching chats puts the caret in.
-    <div
-      className="absolute inset-0 flex justify-center overflow-hidden [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]"
-      data-chats-search=""
-    >
+    <div className="absolute inset-0 flex justify-center overflow-hidden [&_.prose]:text-[13px] [&_.prose]:leading-5 [&_.text-sm]:text-[13px]">
       <div className="flex min-h-0 w-full max-w-170 flex-col">
         <ChatPane
           arrivedId={shell.arrivedId}

@@ -20,6 +20,7 @@ import { type Draft, holdsSomething } from "@/shared/drafts";
 import {
   type AppPlace,
   chatFiltersByTabAtom,
+  chatSearchAskedAtom,
   NEW_TAB_HREF,
   type WindowTab,
 } from "@/client/atoms/window";
@@ -449,37 +450,6 @@ function focusField() {
     editField(field);
     field.select();
   }
-}
-
-/** How long the Chats page has to come up before its search takes the caret, in frames. */
-const CHATS_SEARCH_WAIT_FRAMES = 30;
-
-/**
- * The caret into the Chats page's search once the page is up, with what is
- * in it selected: the one on the side with the keyboard, where the page
- * opens.
- */
-function focusChatsSearch() {
-  let frames = 0;
-  const attempt = () => {
-    const shown = [
-      ...document.querySelectorAll<HTMLInputElement>(
-        "[data-app-tab-active] [data-chats-search] input",
-      ),
-    ].filter((box) => box.checkVisibility({ visibilityProperty: true }));
-    const box =
-      shown.find((each) => each.closest("[data-keyboard]")) ?? shown[0];
-    if (box) {
-      box.focus();
-      box.select();
-      return;
-    }
-    frames += 1;
-    if (frames < CHATS_SEARCH_WAIT_FRAMES) {
-      requestAnimationFrame(attempt);
-    }
-  };
-  requestAnimationFrame(attempt);
 }
 
 /**
@@ -1677,7 +1647,7 @@ function WindowShell({
       // The Chats page, every chat open or not, with the caret in its search.
       searchChats: () => {
         openBuiltInPage(CHATS_INDEX_HREF);
-        focusChatsSearch();
+        store.set(chatSearchAskedAtom, Date.now());
       },
       showActivity: () => {
         openBuiltInPage(SCREENS.activity.href);

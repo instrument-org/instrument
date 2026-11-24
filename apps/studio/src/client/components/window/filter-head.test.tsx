@@ -162,11 +162,11 @@ describe("FilterHead", () => {
     });
     expect(head.queryByRole("combobox")).toBeNull();
     act(() => {
-      store.set(chatSearchAskedAtom, true);
+      store.set(chatSearchAskedAtom, Date.now());
     });
     await waitFor(() => {
       expect(document.activeElement).toBe(head.getByRole("combobox"));
     });
-    expect(store.get(chatSearchAskedAtom)).toBe(false);
+    expect(store.get(chatSearchAskedAtom)).toBeUndefined();
   });
 });

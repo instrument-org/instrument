@@ -16,6 +16,12 @@ describe("needsLoadedDocument", () => {
     [["fill", "@e3", "Ada"]],
     [["press", "Enter"]],
     [["screenshot"]],
+    [["frame", "#checkout"]],
+    [["keyboard", "type", "Ada"]],
+    [["keyboard", "inserttext", "Ada"]],
+    [["keydown", "Shift"]],
+    [["keyup", "Shift"]],
+    [["mouse", "move", "10", "20"]],
     [["--json", "eval", "1"]],
     [["--session", "s1", "snapshot"]],
   ])("waits for a loading document before %j", (args) => {
@@ -37,6 +43,8 @@ describe("needsLoadedDocument", () => {
     // No document to wait for.
     [["tab", "list"]],
     [["dialog", "accept"]],
+    [["storage", "local"]],
+    [["clipboard", "read"]],
     [["close"]],
     [["--version"]],
     [[]],

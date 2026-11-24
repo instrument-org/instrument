@@ -48,7 +48,11 @@ export const TASK_TURN_ARGS = [
  */
 export const TASK_TURN_TIMEOUT_MS = 1000;
 
-/** Commands that find an element, read the page, or put input into it. */
+/**
+ * Commands that find an element, read the page, or put input into it, by the
+ * names the CLI takes at its top level. `storage` and `clipboard` are left
+ * out: neither needs the document's elements.
+ */
 const DOCUMENT_COMMANDS = new Set([
   "check",
   "click",
@@ -59,14 +63,16 @@ const DOCUMENT_COMMANDS = new Set([
   "eval",
   "fill",
   "find",
-  "first",
   "focus",
+  "frame",
   "highlight",
   "hover",
   "is",
   "key",
-  "last",
-  "nth",
+  "keyboard",
+  "keydown",
+  "keyup",
+  "mouse",
   "pdf",
   "press",
   "read",

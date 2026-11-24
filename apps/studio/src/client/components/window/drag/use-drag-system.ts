@@ -600,7 +600,9 @@ function useCarrier() {
     const starting = afterNextPaint().then(async () => {
       const moving = groupTabStanding(store.get(windowTabsAtom), held.key);
       const strip = document
-        .querySelector(`[data-group-side="${held.side}"] [role=tablist]`)
+        .querySelector(
+          `[data-group-up] [data-group-side="${held.side}"] [role=tablist]`,
+        )
         ?.getBoundingClientRect();
       if (isEnded || !moving || !strip) {
         return false;
@@ -610,7 +612,9 @@ function useCarrier() {
       const page = isOnlyTab
         ? undefined
         : document
-            .querySelector(`[data-group-side="${held.side}"] [data-side-page]`)
+            .querySelector(
+              `[data-group-up] [data-group-side="${held.side}"] [data-side-page]`,
+            )
             ?.getBoundingClientRect();
       const started = await rpcClient.window.startTabCarry.call({
         // In a window of its own the tab stands first in the strip, so the

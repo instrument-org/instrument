@@ -80,3 +80,65 @@ describe("a group tab's screen drawn again as its tab comes back up", () => {
     expect(group.scroller().scrollTop).toBe(0);
   });
 });
+
+describe("a screen kept drawn behind another and shown again", () => {
+  const draw = async () => {
+    const screen = (isShown: boolean) => (
+      <KeptScrolls href={DOCUMENT} isShown={isShown} tabId="tab-kept">
+        <div data-scroller="" style={{ height: 200, overflow: "auto" }}>
+          <div style={{ height: 3000 }} />
+        </div>
+      </KeptScrolls>
+    );
+    const rendered = await renderInBrowser(screen(true));
+    const scroller = document.querySelector("[data-scroller]");
+    if (!scroller) {
+      throw new Error("no scroller");
+    }
+    return {
+      scroller,
+      show: (isShown: boolean) => rendered.rerender(screen(isShown)),
+    };
+  };
+
+  it("stays where it was scrolled when something scrolls it as it comes back, as an editor given the caret does", async () => {
+    const kept = await draw();
+    kept.scroller.scrollTop = 900;
+    await nextFrames();
+    await kept.show(false);
+    await kept.show(true);
+
+    kept.scroller.scrollTop = 40;
+    await nextFrames();
+
+    expect(kept.scroller.scrollTop).toBe(900);
+    forgetTab("tab-kept");
+  });
+
+  it("goes where the person scrolls it", async () => {
+    const kept = await draw();
+    kept.scroller.scrollTop = 900;
+    await nextFrames();
+    await kept.show(false);
+    await kept.show(true);
+
+    kept.scroller.dispatchEvent(new WheelEvent("wheel", { bubbles: true }));
+    kept.scroller.scrollTop = 40;
+    await nextFrames();
+
+    expect(kept.scroller.scrollTop).toBe(40);
+    forgetTab("tab-kept");
+  });
+
+  it("is scrolled freely while it was never out of sight", async () => {
+    const kept = await draw();
+    kept.scroller.scrollTop = 900;
+    await nextFrames();
+
+    kept.scroller.scrollTop = 40;
+    await nextFrames();
+
+    expect(kept.scroller.scrollTop).toBe(40);
+    forgetTab("tab-kept");
+  });
+});

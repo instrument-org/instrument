@@ -11,7 +11,11 @@ import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { useQueryClient } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { noop } from "radashi";
-import { useAtomValue } from "jotai";
+import {
+  ActiveTabProvider,
+  useIsActiveTab,
+} from "@/client/hooks/use-active-tab";
+import { useAtomValue, useSetAtom } from "jotai";
 import {
   type ReactNode,
   type Ref,
@@ -42,6 +46,7 @@ import {
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { KeptScrolls } from "./kept-scrolls";
+import { isKeptScreen, keptScreensAtom, withScreenUp } from "./kept-screens";
 import { segmentsOf } from "./host-path";
 import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
@@ -218,16 +223,17 @@ export function GroupItem({
   // With the keyboard in what is up here, back and forward are its steps
   // rather than the window's, the way they are for a page holding it.
   const anchorRef = useRef<HTMLDivElement>(null);
-  useEffect(
-    () =>
-      registerHistorySurface({
-        anchor: () => anchorRef.current,
-        step: (direction) => {
-          stepPage(direction);
-        },
-      }),
-    [],
-  );
+  useEffect(() => {
+    if (!isShown) {
+      return;
+    }
+    return registerHistorySurface({
+      anchor: () => anchorRef.current,
+      step: (direction) => {
+        stepPage(direction);
+      },
+    });
+  }, [isShown]);
 
   // The router of a screen that is up; read before the early returns, as a hook.
   const router = useGroupTabRouter(up.id);
@@ -248,7 +254,7 @@ export function GroupItem({
   };
   const reloadFromWindow = useEffectEvent(reloadScreen);
   useEffect(() => {
-    if (!isReloaded) {
+    if (!isReloaded || !isShown) {
       return;
     }
     return offerScreenReload({
@@ -257,7 +263,18 @@ export function GroupItem({
         reloadFromWindow();
       },
     });
-  }, [isReloaded]);
+  }, [isReloaded, isShown]);
+
+  // A screen up is kept drawn once another tab or group takes its place
+  // (`kept-screens.ts`), the one longest out of sight let go first.
+  const setKeptScreens = useSetAtom(keptScreensAtom);
+  const isKept = isKeptScreen(up);
+  useEffect(() => {
+    if (isShown && isKept) {
+      setKeptScreens((kept) => withScreenUp(kept, up.id));
+    }
+  }, [isKept, isShown, setKeptScreens, up.id]);
+  const isActive = useIsActiveTab();
 
   /** Where the page on a file up here stands now: the page tab's own, or the one a file's viewer draws. */
   const liveAddressOf = (path: string) =>
@@ -390,7 +407,7 @@ export function GroupItem({
   // A new tab hints at a browser with bare, quiet controls and no field,
   // since its own box takes an address; a chat is the app's own page and
   // has no row over it at all.
-  const head = isNewChat ? (
+  const head = !isShown ? null : isNewChat ? (
     <TabLocationRow
       canGoBack={canGoBack}
       canGoForward={canGoForward}
@@ -424,33 +441,37 @@ export function GroupItem({
     <Bare
       anchorRef={anchorRef}
       head={
-        <>
-          {head}
-          {/* A chat is the app's own page, which the bar never sits over. */}
-          {chatOfTab(up) === undefined && (
-            <BookmarksBar
-              bleeds={isNewChat}
-              files={{ group }}
-              isAlwaysShown={isNewChat}
-              onOpen={openHere}
-              onVisit={takeOver}
-            />
-          )}
-          {/* Files' own row: the folder's controls over the folder, the
+        // A screen kept drawn out of sight has no rows over it: they are
+        // the tab up's.
+        isShown && (
+          <>
+            {head}
+            {/* A chat is the app's own page, which the bar never sits over. */}
+            {chatOfTab(up) === undefined && (
+              <BookmarksBar
+                bleeds={isNewChat}
+                files={{ group }}
+                isAlwaysShown={isNewChat}
+                onOpen={openHere}
+                onVisit={takeOver}
+              />
+            )}
+            {/* Files' own row: the folder's controls over the folder, the
               file's (its versions, then what it draws into `viewEnd`) over
               the file beside it. */}
-          {!isFileAlone && (isFiles || versions) && (
-            <ScreenToolsRow
-              end={
-                <>
-                  {versions && <FileVersionsButton {...versions} />}
-                  {viewEnd}
-                </>
-              }
-              {...(isFiles ? { lead: rowProps.leading } : {})}
-            />
-          )}
-        </>
+            {!isFileAlone && (isFiles || versions) && (
+              <ScreenToolsRow
+                end={
+                  <>
+                    {versions && <FileVersionsButton {...versions} />}
+                    {viewEnd}
+                  </>
+                }
+                {...(isFiles ? { lead: rowProps.leading } : {})}
+              />
+            )}
+          </>
+        )
       }
     >
       <GroupTabContext
@@ -504,12 +525,17 @@ export function GroupItem({
           <KeptScrolls
             href={up.href}
             isKept={!isChat && !isNewChat}
+            isShown={isShown}
             tabId={up.id}
           >
             <div
               className={isChat || isNewChat ? "relative h-full" : "contents"}
             >
-              {content}
+              {/* Out of sight, it waits as a window tab behind the one up
+                  does: what it reads on a clock, it reads when it is back. */}
+              <ActiveTabProvider isActive={isActive && isShown}>
+                {content}
+              </ActiveTabProvider>
             </div>
           </KeptScrolls>
         </WindowContext>

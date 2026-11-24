@@ -63,6 +63,8 @@ Chromium's other reasons are left out. A page here is given no USB or Bluetooth 
 
 Pages stay `<webview>` guests, each window stays its own renderer, and a page that moves to another window is made again there unless the window itself is carried. The group files stay where they are.
 
+A screen stays drawn in its window while another tab or group is up, out of sight on the side it was up on (`kept-screens.ts`), as a page's guest stays in the pool. Its count is capped in the window today; step D takes that cap into the one budget, and a screen then has a Life as a page does.
+
 ## Steps
 
 Each lands by itself and leaves the app working.
@@ -70,7 +72,7 @@ Each lands by itself and leaves the app working.
 - **A. Pin what it does.** The table of gestures by kind in `use-openers.test.tsx`, beside the reducer tests there are. Done. A plain click on a page or a screen goes to the tab up, a blank New Tab like any other. An app, a chat, and a built-in page opened from a blank New Tab take its place where its group has one side; on a side of a split they open beside it, and a New Tab with a draft in it keeps its place everywhere.
 - **B. The service.** The pure functions move to shared code with no atom, router or DOM in them. Main owns the state and the windows become mirrors of it. The shape of the files is unchanged, so an earlier build still reads them. This ends the overwrite.
 - **C. Pages follow the tabs.** Main makes and ends guests from the tabs' Life. Unlisted tabs replace hidden groups, and a `page:<id>` group found in a file becomes one. An agent's asks are answered in main, with or without a window.
-- **D. One budget.** The list and the budget above replace the separate limits on guests and on kept screens.
+- **D. One budget.** The list and the budget above replace the separate limits on guests and on kept screens (`KEPT_SCREENS`).
 - **E. One open.** One call takes what to open, the gesture and where it was asked from, and one table answers. `OpenOptions` goes. A closed tab, side or group becomes one kind of record.
 
 ## Validation

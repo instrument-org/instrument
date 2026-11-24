@@ -358,7 +358,7 @@ describe("a web app", () => {
     expect(report.passed).toBe(false);
     expect(report.checks.find((check) => check.name === "credential")).toEqual({
       detail:
-        "The user has not said they are signed in to Google Drive. Open https://drive.google.com in a tab first: if it loads signed in, ask them to press Done signing in on a connect_app card; otherwise ask them with connect_app, whose card opens that page in Instrument's browser.",
+        "The user has not said they are signed in to Google Drive. Open https://drive.google.com in a tab first: if it loads signed in, call connect_app and tell them they are already signed in, so they only press Sign in on the card, then Done on the page it opens; otherwise ask them with connect_app, whose card opens that page in Instrument's browser.",
       name: "credential",
       status: "fail",
     });

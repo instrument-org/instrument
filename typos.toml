@@ -42,6 +42,8 @@ ba = "ba"
 FO = "FO"
 # xargs' `-P` with its count attached, written `-PN`.
 PN = "PN"
+# The plural of PNG, which typos splits into "PN" + "Gs" and "corrects" to ONGs.
+PNGs = "PNGs"
 # Web Audio's own names, which the platform spells the British way.
 AnalyserNode = "AnalyserNode"
 createAnalyser = "createAnalyser"

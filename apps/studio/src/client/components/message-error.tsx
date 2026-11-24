@@ -46,6 +46,7 @@ import { rpcClient } from "../rpc/client";
 import { CopyButton } from "./copy-button";
 import { chatListOptions } from "./window/chat-list-query";
 import { Button } from "./ui/button";
+import { WarningMark } from "./warning-mark";
 import { Spinner } from "./ui/spinner";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 
@@ -85,13 +86,6 @@ interface MessageErrorProps {
 export type RunAgain = (options?: { ifIdle: boolean }) => void;
 
 /** A failure's mark, in the box every row of a turn draws its mark in. */
-function ErrorMark() {
-  return (
-    <span className="flex size-5 shrink-0 items-center justify-center rounded-lg bg-warning-500/15">
-      <WarningIcon className="size-3 text-warning-700 dark:text-warning-300" />
-    </span>
-  );
-}
 
 /**
  * A turn that ended in an error, said in our words with the way forward
@@ -319,7 +313,7 @@ export function MessageError({
         }}
         type="button"
       >
-        <ErrorMark />
+        <WarningMark />
         <span className="min-w-0 truncate text-muted-foreground group-hover/row:text-foreground">
           {title}
         </span>
@@ -346,7 +340,7 @@ export function MessageError({
     return (
       <div className="flex flex-col gap-1 text-xs" role="alert">
         <div className="flex min-h-7 flex-wrap items-center gap-x-1 gap-y-1">
-          <ErrorMark />
+          <WarningMark />
           <span className="mr-1 ml-1 text-sm text-foreground/80">{title}</span>
           {showActions &&
             actions.map((action) => (

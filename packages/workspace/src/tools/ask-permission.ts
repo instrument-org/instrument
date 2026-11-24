@@ -16,7 +16,12 @@ import {
 } from "../lib/permissions/macos";
 import { withoutDataVolume } from "../lib/host-path";
 import { MAC_APPS } from "../lib/mac-apps/apps";
-import { appBundleId, appLevel, appRefusal } from "../lib/permissions/apps";
+import {
+  appBundleId,
+  appDenied,
+  appLevel,
+  appRefusal,
+} from "../lib/permissions/apps";
 import {
   APP_COMMAND,
   APPS_ARE_THE_CHATS,
@@ -135,7 +140,9 @@ const askPermissionCapability = defineCapability({
         z.object({
           message: z.string(),
           state: z.literal("refused"),
-          /** Why no card could go up, said to the person under the step. */
+          /** A setting of the person's is what keeps it closed. */
+          inSettings: z.boolean().optional(),
+          /** Why no card could go up, said to the person when they open the step. */
           why: z.string().optional(),
         }),
       ]),
@@ -159,7 +166,7 @@ function askedFor(kind: "app" | "folder", target: string) {
 }
 
 type Decided =
-  | { message: string; state: "refused"; why?: string }
+  | { inSettings?: boolean; message: string; state: "refused"; why?: string }
   | {
       /**
        * Raises the card for macOS's own answer when macOS keeps the app
@@ -249,6 +256,7 @@ async function folderToAsk(
     return {
       message: decided.refusal,
       state: "refused",
+      ...(decided.inSettings && { inSettings: true }),
       ...(decided.why !== undefined && { why: decided.why }),
     };
   }
@@ -297,9 +305,16 @@ async function appToAsk(
     };
   }
   if (level === "never") {
+    const saidNotNow =
+      (await appDenied(chatId, app.name)) ||
+      (await appDenied(chatId, app.bundleId));
     return {
+      ...(!saidNotNow && { inSettings: true }),
       message: (await appRefusal(chatId, app, undefined)) ?? "",
       state: "refused",
+      why: saidNotNow
+        ? "You said not now to this app in this chat."
+        : `You turned off ${app.name} in Settings.`,
     };
   }
   return { state: "ask", target: given };

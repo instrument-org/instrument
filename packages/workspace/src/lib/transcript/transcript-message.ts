@@ -53,6 +53,13 @@ export type StepShows =
  */
 export interface StepPart {
   activity?: string;
+  /**
+   * A permission ask the app refused before any card went up, for a reason
+   * the person reads. `inSettings` says a setting of theirs is the reason.
+   */
+  blocked?: { inSettings?: true; why: string };
+  /** What a blocked or failed call couldn't do, which is its line. */
+  couldnt?: string;
   explanation?: string;
   metadata: {
     createdAt: Date;
@@ -166,9 +173,7 @@ function transcriptParts(
       return [part];
     }
     const step = toolStep(part, siblings);
-    return readByTheReplyBox(part) || isRefusedAsk(part)
-      ? [step, part]
-      : [step];
+    return readByTheReplyBox(part) ? [step, part] : [step];
   }
   switch (part.type) {
     case "reasoning": {
@@ -228,16 +233,45 @@ function answeredByAPerson(part: SessionMessagePart.ToolPart): boolean {
 }
 
 /**
- * A permission ask the app refused before any card went up, whose reason the
- * person reads under its step: without it the step is all they see of a dead
- * end.
+ * Why the app refused a permission ask before any card went up. An ask that
+ * gives the person no reason is the agent's own mistake, and a failed step.
  */
-function isRefusedAsk(part: SessionMessagePart.ToolPart): boolean {
-  return (
-    part.type === "tool-ask_permission" &&
-    part.state === "output-available" &&
-    part.output.state === "refused"
-  );
+function blockedOf(
+  part: SessionMessagePart.ToolPart,
+): StepPart["blocked"] | undefined {
+  if (
+    part.type !== "tool-ask_permission" ||
+    part.state !== "output-available" ||
+    part.output.state !== "refused" ||
+    part.output.why === undefined
+  ) {
+    return undefined;
+  }
+  return {
+    ...(part.output.inSettings && { inSettings: true }),
+    why: part.output.why,
+  };
+}
+
+/** What a blocked or failed call couldn't do, by the thing's own name. */
+function couldntOf(part: SessionMessagePart.ToolPart): string | undefined {
+  if (part.state !== "output-available") {
+    return undefined;
+  }
+  if (part.type === "tool-ask_permission" && blockedOf(part)) {
+    return part.input.kind === "app"
+      ? `Couldn't use ${part.input.target}`
+      : `Couldn't open ${nameOf(part.input.target)}`;
+  }
+  return part.type === "tool-read_file" &&
+    part.output.state === "does-not-exist"
+    ? `Couldn't find ${nameOf(part.output.filePath)}`
+    : undefined;
+}
+
+/** A path's last name, however its slashes run. */
+function nameOf(path: string): string {
+  return path.split(/[/\\]/).findLast((name) => name !== "") ?? path;
 }
 
 /** A call that ran into the account's plan, which the reply box offers a way past. */
@@ -348,8 +382,12 @@ function toolStep(
     part.type === "tool-bash" && input.command !== undefined
       ? taskCallOf(input.command)
       : undefined;
+  const blocked = blockedOf(part);
+  const couldnt = couldntOf(part);
   return {
     ...(activity && { activity }),
+    ...(blocked && { blocked }),
+    ...(couldnt !== undefined && { couldnt }),
     ...(explanation && { explanation }),
     metadata: part.metadata,
     ...(output.processId && { processId: output.processId }),
@@ -403,7 +441,7 @@ function stepStatus(
     case "output-available": {
       return part.preliminary === true
         ? "running"
-        : didNotWork(output)
+        : didNotWork(output) || refusedAsk(part)
           ? "failed"
           : "done";
     }
@@ -428,6 +466,14 @@ function isNextInLine(
     }
   }
   return false;
+}
+
+function refusedAsk(part: SessionMessagePart.ToolPart): boolean {
+  return (
+    part.type === "tool-ask_permission" &&
+    part.state === "output-available" &&
+    part.output.state === "refused"
+  );
 }
 
 /** A call that returned, and says in its answer that it could not do it. */

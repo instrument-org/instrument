@@ -26,6 +26,8 @@ export interface ActivityRow {
   /** Each label's count across the activity, the newest first. */
   counts: { count: number; label: string }[];
   endedAt?: Date;
+  /** The turn ended in words straight after a blocked step: a dead end, which opens by itself. */
+  endsBlocked?: true;
   id: StoreId.Part;
   kind: "activity";
   sites: string[];
@@ -499,6 +501,9 @@ function buildTurn(
   const summary = body
     .flatMap((message) => message.parts)
     .findLast((part) => part.type === "data-workSummary")?.data.words;
+  if (phase === "done" && !cutAcross) {
+    markDeadEnd(rows);
+  }
   const folded = foldedRows(rows, { cutAcross, phase });
   const live = isLive ? liveOf(rows, body, first) : undefined;
   const startedAt = first.metadata.createdAt;
@@ -866,8 +871,6 @@ function appsSettledBy(message: TranscriptMessage): string[] {
 
 function isAsk(part: TranscriptPart): part is SessionMessagePart.ToolPart {
   return (
-    // Whole only when refused, beside its step (`isRefusedAsk`).
-    part.type === "tool-ask_permission" ||
     part.type === "tool-choose" ||
     part.type === "tool-connect_app" ||
     part.type === "tool-offer_feedback"
@@ -957,6 +960,19 @@ function isRunningStep(step: StepPart): boolean {
   );
 }
 
+/** Marks the activity a finished turn's last step was blocked in, when only words come after it. */
+function markDeadEnd(rows: readonly TurnRow[]): void {
+  const drawn = rows.filter((row) => row.kind !== "note");
+  const last = drawn.findLast((row) => row.kind !== "text");
+  if (
+    drawn.at(-1)?.kind === "text" &&
+    last?.kind === "activity" &&
+    last.steps.findLast((step) => step.tool !== "reasoning")?.blocked
+  ) {
+    last.endsBlocked = true;
+  }
+}
+
 function isRunningRow(row: ActivityRow): boolean {
   return row.steps.some(isRunningStep);
 }
@@ -1008,11 +1024,11 @@ function foldedRows(
   const isSettled = (row: TurnRow) =>
     readsAsWords(row) ||
     isAnswerNote(row) ||
-    // A refused permission ask is a dead end to read, never folded away.
-    (row.kind === "ask" &&
-      !row.isOpen &&
-      row.part.type !== "tool-ask_permission") ||
-    (row.kind === "activity" && !isRunningRow(row));
+    (row.kind === "ask" && !row.isOpen) ||
+    // A blocked step is there to read, never folded away.
+    (row.kind === "activity" &&
+      !isRunningRow(row) &&
+      !row.steps.some((step) => step.blocked));
   if (
     !rows.slice(0, firstWork).every(readsAsWords) ||
     !work.every(isSettled) ||

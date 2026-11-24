@@ -345,19 +345,37 @@ describe("turnsOf", () => {
   it.each([
     [
       "refused",
-      { message: "belongs to the system", state: "refused", why: "Can't." },
-      ["text: On it.", "activity: Finding x2", "ask", "text: I couldn't."],
+      {
+        inSettings: true,
+        message: "belongs to the system",
+        state: "refused",
+        why: "Can't.",
+      },
+      ["text: On it.", "activity: Finding x2", "text: I couldn't."],
       0,
+      {
+        blocked: { inSettings: true, why: "Can't." },
+        couldnt: "Couldn't open Mobile Documents",
+        status: "failed",
+      },
+    ],
+    [
+      "got wrong",
+      { message: "No such app", state: "refused" },
+      ["text: On it.", "activity: Finding x2", "text: I couldn't."],
+      1,
+      { status: "failed" },
     ],
     [
       "asked",
       { kind: "folder", state: "asked", target: "/Users/sam/Notes" },
       ["text: On it.", "activity: Finding x2", "text: I couldn't."],
       1,
+      { status: "done" },
     ],
   ] as const)(
-    "draws a permission ask the app %s under its step, and folds only one that raised a card",
-    (_state, output, rows, folded) => {
+    "keeps a permission ask the app %s in its activity, and folds all but a blocked one",
+    (_state, output, rows, folded, step) => {
       const turns = turnsOf(
         [
           typed("Transcribe this morning's notes"),
@@ -383,8 +401,45 @@ describe("turnsOf", () => {
       const turn = turns.at(-1);
       expect(turn && shape(turn)).toEqual(rows);
       expect(turn?.foldedRowIds.size).toBe(folded);
+      const row = turn?.rows.find((each) => each.kind === "activity");
+      expect(row?.steps.at(-1)).toMatchObject(step);
+      expect(row?.endsBlocked).toBe("blocked" in step ? true : undefined);
     },
   );
+
+  it("opens no activity whose blocked step the work went past", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Transcribe this morning's notes"),
+        message("assistant", (id) => [
+          call(
+            id,
+            "ask_permission",
+            {
+              activity: "Finding",
+              kind: "folder",
+              reason: "To read them.",
+              target: "/Users/sam/Library/Mobile Documents",
+            },
+            { message: "no", state: "refused", why: "Can't." },
+          ),
+          call(
+            id,
+            "bash",
+            { activity: "Finding", command: "ls" },
+            { exitCode: 0 },
+          ),
+          said(id, "Found them elsewhere."),
+        ]),
+      ],
+      { isRunning: false },
+    );
+    expect(
+      turn?.rows.flatMap((row) =>
+        row.kind === "activity" ? [row.endsBlocked] : [],
+      ),
+    ).toEqual([undefined]);
+  });
 
   it("folds the work between what the agent said first and the words it ended on", () => {
     const [turn] = turnsOf(

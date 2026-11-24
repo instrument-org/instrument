@@ -1,3 +1,4 @@
+import { openSettings } from "@/client/atoms/settings-modal";
 import { getToolStreamingLabel, TOOL_ICONS } from "@/client/lib/tool-display";
 import { cn } from "@/client/lib/utils";
 import {
@@ -17,11 +18,14 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { use, useState, type ReactNode } from "react";
 
 import { WorkingMark } from "../icons/working-mark";
+import { StepSentence } from "../message-part/step-sentence";
 import { ToolCallBody } from "../message-part/tool-call";
 import { Favicon } from "../favicon";
 import { AppChipIcon } from "../inline-link";
 import { SessionMarkdown } from "../session-markdown";
 import { ShimmerSweep } from "../shimmer-sweep";
+import { Button } from "../ui/button";
+import { WarningMark } from "../warning-mark";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { FOLD_TRANSITION } from "./card-motion";
 import { RollingText } from "./rolling-text";
@@ -212,26 +216,40 @@ function toolOf(step: TurnStep): ToolName | undefined {
     : (step.tool.slice("tool-".length) as ToolName);
 }
 
+/** A step that came to nothing, which wears the warning mark. */
+function isWarned(step: TurnStep | undefined): boolean {
+  return (
+    step !== undefined &&
+    (step.status === "failed" || step.blocked !== undefined)
+  );
+}
+
 function StepMark({
   arrives = false,
   step,
+  warns = isWarned(step),
 }: {
   /** It takes the working mark's place, so it fades in rather than appearing. */
   arrives?: boolean;
   step: TurnStep | undefined;
+  warns?: boolean;
 }) {
   const tool = step && toolOf(step);
   const Icon = tool ? TOOL_ICONS[tool] : BrainIcon;
   return (
     <span
       className={cn(
-        "flex size-5 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5",
-        step?.status === "failed" && "bg-warning-500/15",
         arrives &&
           "animate-in duration-300 ease-out fade-in-0 zoom-in-75 motion-reduce:animate-none",
       )}
     >
-      {Icon && <Icon className="size-3 text-foreground/70" />}
+      {warns ? (
+        <WarningMark />
+      ) : (
+        <span className="flex size-5 items-center justify-center rounded-lg bg-black/5 dark:bg-white/5">
+          {Icon && <Icon className="size-3 text-foreground/70" />}
+        </span>
+      )}
     </span>
   );
 }
@@ -239,7 +257,8 @@ function StepMark({
 /**
  * An activity: while it works the line with its clock and a line under it
  * saying what it is at (`liveDetail`), and once done a quiet line opening onto its calls. Only
- * the one working has a clock.
+ * the one working has a clock. One a blocked step ended the turn in opens by
+ * itself, to what blocked it.
  */
 export function ActivityRowView({
   chatId,
@@ -253,7 +272,8 @@ export function ActivityRowView({
   /** The thought going on, which the row's own steps leave out. */
   thought?: TurnStep;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [chosenOpen, setIsOpen] = useState<boolean>();
+  const isOpen = chosenOpen ?? row.endsBlocked ?? false;
   const [hasWorked, setHasWorked] = useState(isLive);
   if (isLive && !hasWorked) {
     setHasWorked(true);
@@ -266,6 +286,8 @@ export function ActivityRowView({
   const lastStep = steps.at(-1);
   const counts = countsLine(row.counts);
   const opened = thought ? [...row.steps, thought] : row.steps;
+  // Its line is its one call's own, so it opens straight onto that call.
+  const isOneCall = opened.length === 1 && !(row.title && isWarned(opened[0]));
   const label =
     isLive && !lastStep ? (row.title ?? "Thinking") : activityLine(row);
   // A row that has just come settles on its first words without a roll, its
@@ -289,12 +311,19 @@ export function ActivityRowView({
         isLive ? (
           <WorkingMark />
         ) : (
-          <StepMark arrives={hasWorked} step={lastStep} />
+          <StepMark
+            arrives={hasWorked}
+            step={lastStep}
+            warns={
+              steps.some((step) => step.blocked) ||
+              (isOneCall && isWarned(lastStep))
+            }
+          />
         )
       }
       onClick={() => {
         releaseAutoScroll();
-        setIsOpen((open) => !open);
+        setIsOpen(!isOpen);
       }}
       places={<Badges apps={row.apps} sites={row.sites} />}
       right={
@@ -327,11 +356,16 @@ export function ActivityRowView({
       </AnimatePresence>
       {isOpen && (
         <div className="mt-1 ml-7 flex flex-col gap-1.5">
-          {opened.length === 1 && opened[0] ? (
+          {isOneCall && opened[0] ? (
             <StepDetail chatId={chatId} step={opened[0]} />
           ) : (
             opened.map((step) => (
-              <StepRow chatId={chatId} key={step.metadata.id} step={step} />
+              <StepRow
+                chatId={chatId}
+                key={step.metadata.id}
+                opensByItself={row.endsBlocked && step === lastStep}
+                step={step}
+              />
             ))
           )}
         </div>
@@ -410,13 +444,16 @@ function liveDetail(
 function StepRow({
   chatId,
   label,
+  opensByItself = false,
   step,
 }: {
   chatId: ChatId;
   label?: string;
+  opensByItself?: boolean;
   step: TurnStep;
 }) {
-  const [isOpen, setIsOpen] = useState(false);
+  const [chosenOpen, setIsOpen] = useState<boolean>();
+  const isOpen = chosenOpen ?? opensByItself;
   const releaseAutoScroll = useReleaseAutoScroll();
   return (
     <RowLine
@@ -425,7 +462,7 @@ function StepRow({
       mark={<StepMark step={step} />}
       onClick={() => {
         releaseAutoScroll();
-        setIsOpen((open) => !open);
+        setIsOpen(!isOpen);
       }}
       places={
         <Badges
@@ -438,7 +475,7 @@ function StepRow({
       rowId={step.metadata.id}
     >
       {isOpen && (
-        <div className="my-1">
+        <div className="my-1 has-data-step-words:ml-7">
           <StepDetail chatId={chatId} step={step} />
         </div>
       )}
@@ -446,7 +483,10 @@ function StepRow({
   );
 }
 
-/** What an opened step shows, read whole: a call's card, a thought's words. */
+/**
+ * What an opened step shows: what blocked it, else, read whole, a call's card
+ * or a thought's words.
+ */
 export function StepDetail({
   chatId,
   step,
@@ -454,6 +494,30 @@ export function StepDetail({
   chatId: ChatId;
   step: TurnStep;
 }) {
+  return step.blocked ? (
+    <StepSentence
+      action={
+        step.blocked.inSettings && (
+          <Button
+            onClick={() => {
+              openSettings({ tab: "Permissions" });
+            }}
+            size="xs"
+            variant="secondary"
+          >
+            Open Permissions
+          </Button>
+        )
+      }
+    >
+      {step.blocked.why}
+    </StepSentence>
+  ) : (
+    <StepPartDetail chatId={chatId} step={step} />
+  );
+}
+
+function StepPartDetail({ chatId, step }: { chatId: ChatId; step: TurnStep }) {
   const { onRetry } = use(TranscriptActionsContext);
   const part = useStepPart(step, true);
   if (!part) {

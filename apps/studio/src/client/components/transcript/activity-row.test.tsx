@@ -5,7 +5,7 @@ import {
   StoreId,
   type TurnStep,
 } from "@instrument-org/workspace/client";
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { ActivityRowView, FoldedActivityView, RowLine } from "./activity-row";
@@ -140,4 +140,55 @@ describe("ActivityRowView", () => {
       expect(screen.getByText(detail)).toBeTruthy();
     },
   );
+});
+
+describe("ActivityRowView", () => {
+  const blocked = (inSettings: boolean): TurnStep => ({
+    ...call("Opening the Taxes folder"),
+    blocked: {
+      ...(inSettings && { inSettings: true }),
+      why: "You turned off Taxes in Settings.",
+    },
+    couldnt: "Couldn't open Taxes",
+    status: "failed",
+    tool: "tool-ask_permission",
+  });
+
+  it("opens by itself to what blocked it, and closes", () => {
+    renderWithProviders(
+      <ActivityRowView
+        chatId={chatId}
+        isLive={false}
+        row={{
+          ...activity(
+            [call("Looking for receipts"), blocked(true)],
+            "Finding the receipts",
+          ),
+          endsBlocked: true,
+        }}
+      />,
+    );
+    expect(screen.getByText("Couldn't open Taxes")).toBeTruthy();
+    expect(screen.getByText("You turned off Taxes in Settings.")).toBeTruthy();
+    expect(screen.getByText("Open Permissions")).toBeTruthy();
+
+    fireEvent.click(screen.getByText("Finding the receipts"));
+    expect(screen.queryByText("Couldn't open Taxes")).toBeNull();
+  });
+
+  it("stays closed when the work went on, and offers no setting that isn't the reason", () => {
+    renderWithProviders(
+      <ActivityRowView
+        chatId={chatId}
+        isLive={false}
+        row={activity([blocked(false)], "Finding the receipts")}
+      />,
+    );
+    expect(screen.queryByText("Couldn't open Taxes")).toBeNull();
+
+    fireEvent.click(screen.getByText("Finding the receipts"));
+    fireEvent.click(screen.getByText("Couldn't open Taxes"));
+    expect(screen.getByText("You turned off Taxes in Settings.")).toBeTruthy();
+    expect(screen.queryByText("Open Permissions")).toBeNull();
+  });
 });

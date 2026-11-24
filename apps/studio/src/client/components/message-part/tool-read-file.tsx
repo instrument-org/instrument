@@ -6,6 +6,7 @@ import { filenameFromFilePath } from "../../lib/path-utils";
 import { FileTypeIcon } from "../extend/file-system";
 import { IconButton } from "../icon-button";
 import { ImageWithFallback } from "../image-with-fallback";
+import { StepSentence } from "./step-sentence";
 import { FileToolCard } from "./file-tool-card";
 import { ToolCardActions, ToolCardEmpty } from "./tool-card";
 
@@ -54,11 +55,7 @@ export function ToolReadFile({ part }: { part: ReadFilePart }) {
       );
     }
     case "does-not-exist": {
-      return (
-        <ReadFileCard filePath={output.filePath}>
-          <p className="text-xs text-muted-foreground">File not found</p>
-        </ReadFileCard>
-      );
+      return <StepSentence>That file isn't there anymore.</StepSentence>;
     }
     case "exists": {
       return (

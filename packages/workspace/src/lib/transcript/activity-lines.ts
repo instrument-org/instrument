@@ -59,6 +59,9 @@ export function stepLine(step: TurnStep): string {
   if (step.tool === "reasoning") {
     return "Thought";
   }
+  if (step.couldnt !== undefined) {
+    return step.couldnt;
+  }
   if (step.explanation) {
     return step.explanation;
   }

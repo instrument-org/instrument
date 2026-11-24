@@ -555,7 +555,7 @@ describe.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
               shown: (each) => JSON.stringify(each),
             }),
           ).toMatchObject({
-            why: "Your account on this computer can't change that folder, so allowing it wouldn't let the agent in.",
+            why: "Only an administrator can change this folder.",
           });
         });
 

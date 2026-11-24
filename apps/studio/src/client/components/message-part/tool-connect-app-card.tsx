@@ -130,16 +130,15 @@ export function ConnectAppCard({
       <ToolCard>
         <div className="flex items-center gap-3 px-4 py-3">
           {connected.length > 0 ? (
-            <span className="flex shrink-0 items-center -space-x-2">
+            <span className="flex shrink-0 items-center">
               {connected.map((row) => (
-                <span className="rounded-lg ring-2 ring-card" key={row.slug}>
-                  <AppIcon
-                    icon={drawn.get(row.slug)?.icon}
-                    name={row.name}
-                    site={drawn.get(row.slug)?.site ?? row.site}
-                    size="md"
-                  />
-                </span>
+                <AppIcon
+                  icon={drawn.get(row.slug)?.icon}
+                  key={row.slug}
+                  name={row.name}
+                  site={drawn.get(row.slug)?.site ?? row.site}
+                  size="md"
+                />
               ))}
             </span>
           ) : null}

@@ -518,19 +518,26 @@ function Field({
       <button
         className="flex cursor-default items-center rounded px-1 py-0.5 text-muted-foreground group-hover/field:text-foreground/70 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8 data-[state=open]:text-foreground"
         onAuxClick={gestures?.onAuxClick}
-        onClick={() => {
-          // A part of one of the app's own pages is a step back out on this
-          // tab, the way a folder above a file is: the window would only
-          // bring up the page's tab as it is, the one tab it keeps for it.
-          if (
-            onVisit &&
-            crumb.to?.kind === "screen" &&
-            crumb.path === undefined
-          ) {
-            onVisit(crumb.to.href);
-          } else {
-            open.run();
-          }
+        onClick={(event) => {
+          // A click with Command or Shift opens the part in a tab of its
+          // own, as it does on any row that opens something.
+          gestures
+            ?.opening(() => {
+              // A part of one of the app's own pages is a step back out on
+              // this tab, the way a folder above a file is: the window would
+              // only bring up the page's tab as it is, the one tab it keeps
+              // for it.
+              if (
+                onVisit &&
+                crumb.to?.kind === "screen" &&
+                crumb.path === undefined
+              ) {
+                onVisit(crumb.to.href);
+              } else {
+                open.run();
+              }
+            })
+            .onClick(event);
         }}
         {...(menu ? {} : { onContextMenu: gestures?.onContextMenu })}
         type="button"

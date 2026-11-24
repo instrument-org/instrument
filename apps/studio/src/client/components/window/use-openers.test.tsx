@@ -35,14 +35,17 @@ const { agent, tabDone } = vi.hoisted(() => {
         waiting.push(request);
         wake();
       },
-      async *stream() {
-        for (;;) {
+      async *stream(signal: AbortSignal) {
+        while (!signal.aborted) {
           const next = waiting.shift();
           if (next) {
             yield next;
           } else {
             await new Promise<void>((resolve) => {
               wake = resolve;
+              signal.addEventListener("abort", () => {
+                resolve();
+              });
             });
           }
         }
@@ -101,6 +104,7 @@ vi.mock("@/client/rpc/client", () => ({
       events: {
         bookmarkLink: { call: async () => silent() },
         openInNewTab: { call: async () => silent() },
+        pageBecameDownload: { call: async () => silent() },
       },
     },
     window: {
@@ -114,7 +118,12 @@ vi.mock("@/client/rpc/client", () => ({
     },
     workspace: {
       window: {
-        events: { tab: { call: async () => agent.stream() } },
+        events: {
+          tab: {
+            call: async (_input: undefined, options: { signal: AbortSignal }) =>
+              agent.stream(options.signal),
+          },
+        },
         tabDone: { call: tabDone },
       },
     },
@@ -258,6 +267,49 @@ describe("an agent showing a tab already open", () => {
     const layout = result.current.windowTabs.layoutOf(GROUP);
     expect(layout.focused).toBe(0);
     expect(layout.sides.map((side) => side.up)).toEqual([LEFT_PAGE, RIGHT_UP]);
+  });
+});
+
+describe("an agent's asks after one that goes wrong", () => {
+  it("are answered though a page never answers the read before them", async () => {
+    const browser = {
+      readPageText: () => new Promise<never>(() => {}),
+    } as Partial<BrowserTabsHandle> as BrowserTabsHandle;
+    windowOnTwoSides({ browser });
+    agent.ask({
+      action: { kind: "read", tabId: RIGHT_UP },
+      requestId: "unanswered",
+    });
+    agent.ask({ action: { kind: "show", tabId: LEFT_PAGE }, requestId: "r3" });
+    await waitFor(
+      () => {
+        expect(tabDone).toHaveBeenCalledWith({
+          requestId: "r3",
+          tabId: LEFT_PAGE,
+        });
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  it("are answered though the one before them threw, which says so", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const browser = {
+      readPageText: () => Promise.reject(new Error("no page")),
+    } as Partial<BrowserTabsHandle> as BrowserTabsHandle;
+    windowOnTwoSides({ browser });
+    agent.ask({ action: { kind: "read", tabId: RIGHT_UP }, requestId: "r4" });
+    agent.ask({ action: { kind: "show", tabId: LEFT_PAGE }, requestId: "r5" });
+    await waitFor(() => {
+      expect(tabDone).toHaveBeenCalledWith({
+        requestId: "r5",
+        tabId: LEFT_PAGE,
+      });
+    });
+    expect(tabDone).toHaveBeenCalledWith({
+      error: "the window could not do that.",
+      requestId: "r4",
+    });
   });
 });
 

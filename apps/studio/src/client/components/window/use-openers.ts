@@ -8,6 +8,8 @@ import { bookmarksStateAtom } from "@/client/bookmarks/store";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { takeKeyboardOnArrival } from "@/client/lib/browser-pool";
+import { captureException } from "@/client/lib/capture-exception";
+import { keepListening } from "@/client/lib/keep-listening";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import {
@@ -23,6 +25,7 @@ import { type SidebarPlace } from "@/shared/tabs";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "jotai";
+import { sleep } from "radashi";
 import { useEffect, useRef } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -88,6 +91,14 @@ import { groupLayoutFor, groupReadOf } from "./group-awareness";
 import { windowTabGroupsAtom } from "./open-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
 import { agentPageOfTab, ownerOfHostGroup, pageFileOfTab } from "./hosted-page";
+
+/**
+ * How long an agent's ask holds back the ones after it, which otherwise are
+ * acted on in the order they came. One waiting on a page that never answers
+ * would hold them for good. Shorter than an ask waits for its answer
+ * (`WINDOW_TAB_TIMEOUT_MS`), so one right behind it is still answered.
+ */
+const ASK_HOLD_MS = 1000;
 
 /**
  * What the conversation asks to open, as it asks: a page as a tab, a path
@@ -1422,12 +1433,12 @@ export function useOpeners({
   // A link in text being edited, opened from the window's native menu.
   useEffect(() => {
     const controller = new AbortController();
-    void eachSent(
-      (signal) =>
+    void keepListening({
+      signal: controller.signal,
+      start: (signal) =>
         rpcClient.window.events.openMenuLink.call(undefined, { signal }),
-      controller.signal,
-      openMenuLink,
-    );
+      onEach: openMenuLink,
+    });
     return () => {
       controller.abort();
     };
@@ -1435,14 +1446,14 @@ export function useOpeners({
   // A link a person kept from a page's menu.
   useEffect(() => {
     const controller = new AbortController();
-    void eachSent(
-      (signal) =>
+    void keepListening({
+      signal: controller.signal,
+      start: (signal) =>
         rpcClient.browser.events.bookmarkLink.call(undefined, { signal }),
-      controller.signal,
-      ({ title, url }) => {
+      onEach: ({ title, url }) => {
         openers.current.addBookmark({ title, url });
       },
-    );
+    });
     return () => {
       controller.abort();
     };
@@ -1450,14 +1461,14 @@ export function useOpeners({
   // A link a person asked a page for in a tab of its own.
   useEffect(() => {
     const controller = new AbortController();
-    void eachSent(
-      (signal) =>
+    void keepListening({
+      signal: controller.signal,
+      start: (signal) =>
         rpcClient.browser.events.openInNewTab.call(undefined, { signal }),
-      controller.signal,
-      (ask) => {
+      onEach: (ask) => {
         openers.current.openFromPage(ask);
       },
-    );
+    });
     return () => {
       controller.abort();
     };
@@ -1465,16 +1476,16 @@ export function useOpeners({
   // A page whose first navigation became a download, left with nothing to show.
   useEffect(() => {
     const controller = new AbortController();
-    void eachSent(
-      (signal) =>
+    void keepListening({
+      signal: controller.signal,
+      start: (signal) =>
         rpcClient.browser.events.pageBecameDownload.call(undefined, {
           signal,
         }),
-      controller.signal,
-      ({ targetId }) => {
+      onEach: ({ targetId }) => {
         openers.current.pageBecameDownload(targetId);
       },
-    );
+    });
     return () => {
       controller.abort();
     };
@@ -1484,21 +1495,29 @@ export function useOpeners({
       return;
     }
     const controller = new AbortController();
-    void eachSent(
-      (signal) =>
-        rpcClient.workspace.window.events.tab.call(undefined, { signal }),
-      controller.signal,
-      async (request) => {
-        const answer = await openers.current.actOnTab(request);
-        // The answer goes back to the command that asked, so the
-        // conversation can hand a tab to a task, or say what went wrong,
-        // without waiting for the next message's note.
-        void rpcClient.workspace.window.tabDone.call({
-          requestId: request.requestId,
-          ...answer,
+    const answerAsk = async (request: WindowTabRequest) => {
+      const answer = await openers.current
+        .actOnTab(request)
+        .catch((error: unknown) => {
+          captureException(error);
+          return { error: "the window could not do that." };
         });
+      // The answer goes back to the command that asked, so the
+      // conversation can hand a tab to a task, or say what went wrong,
+      // without waiting for the next message's note.
+      void rpcClient.workspace.window.tabDone.call({
+        requestId: request.requestId,
+        ...answer,
+      });
+    };
+    void keepListening({
+      signal: controller.signal,
+      start: (signal) =>
+        rpcClient.workspace.window.events.tab.call(undefined, { signal }),
+      onEach: async (request) => {
+        await Promise.race([answerAsk(request), sleep(ASK_HOLD_MS)]);
       },
-    );
+    });
     return () => {
       controller.abort();
     };
@@ -1535,22 +1554,4 @@ function sayNoChat() {
   toast("No chat at that address", {
     description: "It may have been deleted, or the link is not for this chat.",
   });
-}
-
-/**
- * Hands on each thing an event stream sends, one at a time, until the stream
- * ends or `signal` stops it.
- */
-async function eachSent<T>(
-  start: (signal: AbortSignal) => Promise<AsyncIterable<T>>,
-  signal: AbortSignal,
-  onEach: (sent: T) => Promise<void> | void,
-) {
-  try {
-    for await (const sent of await start(signal)) {
-      await onEach(sent);
-    }
-  } catch {
-    // The window closing ends the stream.
-  }
 }

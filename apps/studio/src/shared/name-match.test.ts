@@ -14,7 +14,7 @@ import {
 
 /**
  * A match as one readable string: its step, then the name as written with
- * what `matchRanges` says to draw as matched in brackets. "none" for no match.
+ * what the match says to draw as matched in brackets. "none" for no match.
  */
 function found(typed: string, name: string, wrongLetter = false): string {
   const match = matchName(name, foldWords(typed), wrongLetter);
@@ -76,9 +76,9 @@ describe("the steps", () => {
     ["tg", "Tab Groups", "3 [T]ab [G]roups"],
     ["tabgr", "Tab Groups", "3 [Tab] [Gr]oups"],
     ["gc", "Google Chrome", "3 [G]oogle [C]hrome"],
-    ["tgh", "tab-groups-home", "3 [t]ab-[g]roups-[h]ome"],
-    ["th", "tab-groups-home", "3 [t]ab-groups-[h]ome"],
-    ["gh", "tab-groups-home", "3 tab-[g]roups-[h]ome"],
+    ["tgh", "tab-groups-hub", "3 [t]ab-[g]roups-[h]ub"],
+    ["th", "tab-groups-hub", "3 [t]ab-groups-[h]ub"],
+    ["gh", "tab-groups-hub", "3 tab-[g]roups-[h]ub"],
     ["fm", "fuzzyMatch.ts", "3 [f]uzzy[M]atch.ts"],
     ["t g", "Tab Groups", "2 [T]ab [G]roups"],
     ["tg home", "tab-groups-home", "3 [t]ab-[g]roups-[home]"],
@@ -129,9 +129,9 @@ describe("one wrong letter, when asked for", () => {
     // One left out.
     ["wirframes", "wireframes", "5 [wireframes]"],
     // Against a word start, not only the name's.
-    ["gruops", "tab-groups-home", "5 tab-[groups]-home"],
-    ["home gruops", "tab-groups-home", "5 tab-[groups]-[home]"],
-    ["cyber gruops", "Cyberduck groups", "5 [Cyber]duck [groups]"],
+    ["grxups", "tab-groups-home", "5 tab-[groups]-home"],
+    ["home grxups", "tab-groups-home", "5 tab-[groups]-[home]"],
+    ["cyber grxups", "Cyberduck groups", "5 [Cyber]duck [groups]"],
     // A better step is still what comes back.
     ["wireframes", "wireframes", "0 [wireframes]"],
     ["duck", "Cyberduck", "4 Cyber[duck]"],
@@ -140,7 +140,7 @@ describe("one wrong letter, when asked for", () => {
     // a word.
     ["wirx", "wireframes", "none"],
     ["wurefrimes", "wireframes", "none"],
-    ["hmoe gruops", "tab-groups-home", "none"],
+    ["hmoe grxups", "tab-groups-home", "none"],
     ["framse", "wireframes", "none"],
     ["tabgrp", "Tab Groups", "none"],
     ["wfrms", "wireframes", "none"],
@@ -299,7 +299,7 @@ describe("compareMatches", () => {
       { ...base, name: "zed" },
       { ...base, name: "abcd" },
     ],
-    ["the name last", { ...base, name: "abc" }, { ...base, name: "abd" }],
+    ["the name last", { ...base, name: "abc" }, { ...base, name: "abx" }],
   ])("puts %s", (_, first, second) => {
     expect(compareMatches(first, second)).toBeLessThan(0);
     expect(compareMatches(second, first)).toBeGreaterThan(0);

@@ -257,7 +257,7 @@ describe("openTargetSession on a local page", () => {
         method: string,
         params: unknown,
         _frameSession?: string,
-      ) => {
+      ): Promise<unknown> => {
         const expression = (params as { expression?: string }).expression ?? "";
         const assigned = /location\.href\s*=\s*'([^']+)'/.exec(expression);
         if (method === "Runtime.evaluate" && assigned) {
@@ -711,6 +711,139 @@ describe("openTargetSession on a local page", () => {
     ).toBe(false);
   });
 
+  // The teardown puts back what had been answered when the connection
+  // closed. A command the guest answers after that is put back as its
+  // answer arrives.
+  describe("a command answered after its agent left", () => {
+    /** Sends a command the guest answers only when told to, and closes the connection meanwhile. */
+    async function leavesBeforeAnswer(
+      method: string,
+      params: unknown,
+      result: unknown = {},
+    ) {
+      const page = connect();
+      await page.command("Page.enable");
+      let answer!: (result: unknown) => void;
+      page.sendCommand.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            answer = resolve;
+          }),
+      );
+      await page.command(method, params);
+      page.close();
+      const atClose = page.sendCommand.mock.calls.map(
+        ([, sent, sentParams]) => [sent, sentParams],
+      );
+      page.sendCommand.mockClear();
+      return {
+        ...page,
+        answers: async () => {
+          answer(result);
+          await flush();
+          return page.sendCommand.mock.calls.map(([, sent, sentParams]) => [
+            sent,
+            sentParams,
+          ]);
+        },
+        atClose,
+      };
+    }
+
+    it.each([
+      [
+        "Emulation.setGeolocationOverride",
+        { latitude: 1, longitude: 2 },
+        ["Emulation.clearGeolocationOverride", {}],
+      ],
+      [
+        "Emulation.setLocaleOverride",
+        { locale: "ja-JP" },
+        ["Emulation.setLocaleOverride", {}],
+      ],
+      [
+        "Emulation.setTimezoneOverride",
+        { timezoneId: "Asia/Tokyo" },
+        ["Emulation.setTimezoneOverride", { timezoneId: "" }],
+      ],
+      [
+        "Emulation.setTouchEmulationEnabled",
+        { enabled: true, maxTouchPoints: 5 },
+        ["Emulation.setTouchEmulationEnabled", { enabled: false }],
+      ],
+      [
+        "Emulation.setUserAgentOverride",
+        { userAgent: "bot" },
+        ["Emulation.setUserAgentOverride", { userAgent: "" }],
+      ],
+      [
+        "Page.setBypassCSP",
+        { enabled: true },
+        ["Page.setBypassCSP", { enabled: false }],
+      ],
+      [
+        "Security.setIgnoreCertificateErrors",
+        { ignore: true },
+        ["Security.setIgnoreCertificateErrors", { ignore: false }],
+      ],
+      ["Tracing.start", {}, ["Tracing.end", {}]],
+      [
+        "Runtime.addBinding",
+        { name: "leak" },
+        ["Runtime.removeBinding", { name: "leak" }],
+      ],
+    ])("puts %s back when its answer arrives", async (method, params, undo) => {
+      const { answers, atClose } = await leavesBeforeAnswer(method, params);
+      expect(atClose).not.toContainEqual(undo);
+      expect(await answers()).toEqual([undo]);
+    });
+
+    it("takes back a script whose identifier arrives after the agent left", async () => {
+      const { answers } = await leavesBeforeAnswer(
+        "Page.addScriptToEvaluateOnNewDocument",
+        { source: "a" },
+        { identifier: "late-script" },
+      );
+      expect(await answers()).toEqual([
+        [
+          "Page.removeScriptToEvaluateOnNewDocument",
+          { identifier: "late-script" },
+        ],
+      ]);
+    });
+
+    it("sends nothing for a command that leaves nothing on the page", async () => {
+      const { answers } = await leavesBeforeAnswer("Runtime.evaluate", {
+        expression: "1",
+      });
+      expect(await answers()).toEqual([]);
+    });
+
+    it("sends nothing to a page that has gone by then", async () => {
+      const { answers, guest } = await leavesBeforeAnswer(
+        "Emulation.setTouchEmulationEnabled",
+        { enabled: true },
+      );
+      guest.isGone = true;
+      expect(await answers()).toEqual([]);
+    });
+
+    it("never sends the guest a command still waiting its turn when the agent left", async () => {
+      const page = connect();
+      // Queued behind the first read of the chat's folders.
+      const pending = page.command("Network.setCacheDisabled", {
+        cacheDisabled: true,
+      });
+      page.close();
+      await pending;
+      expect(page.sendCommand).not.toHaveBeenCalledWith(
+        expect.anything(),
+        "Network.setCacheDisabled",
+        { cacheDisabled: true },
+      );
+    });
+  });
+
   // A page gone keeps nothing the agent set up, and a command sent to it
   // would only wake a guest on its way out.
   it.each([
@@ -764,7 +897,7 @@ describe("openTargetSession with a frame in a process of its own", () => {
   /** A connection to a page of its own, so no other test's connection shares it. */
   function connect() {
     const target = BrowserTargetIdSchema.parse(
-      `tab_0000000001777777777777777${String(++targets)}`,
+      `tab_00000000017777777777777${String(++targets).padStart(3, "0")}`,
     );
     const guest = { url: page as string | undefined };
     const sent: { id?: number; method?: string; sessionId?: string }[] = [];
@@ -777,7 +910,7 @@ describe("openTargetSession with a frame in a process of its own", () => {
         method: string,
         _params: unknown,
         _frameSession?: string,
-      ) =>
+      ): Promise<unknown> =>
         Promise.resolve(
           method === "Page.addScriptToEvaluateOnNewDocument"
             ? { identifier: "frame-script" }
@@ -1053,5 +1186,32 @@ describe("openTargetSession with a frame in a process of its own", () => {
         waitForDebuggerOnStart: false,
       },
     );
+  });
+
+  it("puts back on its frame what a frame's command left when it is answered after the agent left", async () => {
+    const { attaches, close, command, sendCommand, target } = connect();
+    await command("Page.enable");
+    attaches("iframe", "https://booking.example/widget");
+    let answer!: (result: unknown) => void;
+    sendCommand.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          answer = resolve;
+        }),
+    );
+    await command(
+      "Emulation.setTouchEmulationEnabled",
+      { enabled: true },
+      FRAME,
+    );
+    close();
+    sendCommand.mockClear();
+
+    answer({});
+    await flush();
+
+    expect(sendCommand.mock.calls).toEqual([
+      [target, "Emulation.setTouchEmulationEnabled", { enabled: false }, FRAME],
+    ]);
   });
 });

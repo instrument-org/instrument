@@ -52,6 +52,14 @@ describe("what the browser and the command say about a running script", () => {
     },
   );
 
+  it("finds no script named by an id alone", () => {
+    expect(
+      runningScriptNamedIn(
+        "✗ Evaluation error: Error: order page said [running script: k3s9x0ab]\n",
+      ),
+    ).toBeUndefined();
+  });
+
   it("finds no script named in other output", () => {
     expect(
       runningScriptNamedIn(

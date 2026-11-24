@@ -12,7 +12,14 @@
 /** The ids the browser gives, as both sides read them. */
 const ID = "[a-z0-9]{8}";
 
-const NAMED_IN_MESSAGE = new RegExp(`\\[running script: (${ID})\\]`);
+/**
+ * The whole message, from its first words to the id. An id alone would also
+ * be found in a script's own exception, or in page text one prints, and the
+ * command would then wait on a script instead of reporting what it was given.
+ */
+const NAMED_IN_MESSAGE = new RegExp(
+  `The script was still running after \\d+s\\. The page is responsive, .* \\[running script: (${ID})\\]`,
+);
 
 const ASKED_FOR = new RegExp(`^__instrumentRunningScript\\("(${ID})"\\)$`);
 

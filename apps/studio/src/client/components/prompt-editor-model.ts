@@ -26,7 +26,7 @@ import {
 import {
   type Command,
   type EditorState,
-  type TextSelection,
+  TextSelection,
   type Transaction,
 } from "prosemirror-state";
 
@@ -198,6 +198,32 @@ export function promptDocFromText(value: string) {
     return promptSchema.nodes.paragraph.create(null, Fragment.from(nodes));
   });
   return promptSchema.nodes.doc.create(null, paragraphs);
+}
+
+/**
+ * Puts `words` at the end of the document as a quote, a `> ` before each
+ * line, with a blank line after it, since a line right under a Markdown quote
+ * reads as more of it, and the caret on the line below that. The words go in
+ * as plain text: what looks like a token in them is something being quoted.
+ */
+export function appendQuote(state: EditorState, words: string): Transaction {
+  const { paragraph } = promptSchema.nodes;
+  const lines = words
+    .trim()
+    .replaceAll(/\n{3,}/g, "\n\n")
+    .split("\n")
+    .map((line) => `> ${line}`.trimEnd());
+  const added = [...lines, "", ""].map((line) =>
+    paragraph.create(null, line ? textNodes(line) : []),
+  );
+  const { doc } = state;
+  const last = doc.lastChild;
+  const end = doc.content.size;
+  const tr =
+    last?.content.size === 0
+      ? state.tr.replaceWith(end - last.nodeSize, end, added)
+      : state.tr.insert(end, added);
+  return tr.setSelection(TextSelection.atEnd(tr.doc)).scrollIntoView();
 }
 
 /**

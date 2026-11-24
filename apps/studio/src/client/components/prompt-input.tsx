@@ -143,6 +143,8 @@ export interface PromptInputDraft {
 }
 
 export interface PromptInputRef {
+  /** Adds words after what is written, as a quote, with the caret below it. */
+  appendQuote: (words: string) => void;
   clear: () => void;
   /** Writes the rest of what the words start after the caret, selected (`PromptEditorRef.completeAhead`). */
   completeAhead: (rest: string) => boolean;
@@ -748,6 +750,9 @@ export const PromptInput = ({
   };
 
   useImperativeHandle(ref, () => ({
+    appendQuote: (words) => {
+      promptEditorRef.current?.appendQuote(words);
+    },
     clear: () => {
       promptEditorRef.current?.clear();
       setAttachedItems([]);

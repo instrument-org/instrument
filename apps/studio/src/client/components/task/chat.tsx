@@ -1,3 +1,4 @@
+import { QuoteSelection } from "@/client/components/transcript/quote-selection";
 import {
   type PromptDraftKey,
   promptDraftRefAtom,
@@ -979,6 +980,15 @@ export function ChatConversation({
               </MessageScrollerViewport>
 
               <TranscriptTopFade />
+
+              {!isArchived && (
+                <QuoteSelection
+                  onQuote={(words) => {
+                    promptInputRef.current?.appendQuote(words);
+                  }}
+                  rootRef={contentRef}
+                />
+              )}
 
               <ChatFind
                 chatId={id}

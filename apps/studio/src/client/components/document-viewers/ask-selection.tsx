@@ -4,6 +4,7 @@ import {
   autoUpdate,
   computePosition,
   flip,
+  hide,
   offset,
   type ReferenceElement,
   shift,
@@ -28,13 +29,16 @@ const RESTORE_WINDOW_MS = 400;
  * The floating "Ask" button, drawn as the Markdown editor's
  * selection toolbar draws it: the popover's raised card, the Instrument mark
  * in the brand's green beside a plain label. It follows its reference as the
- * document scrolls, and goes on Escape.
+ * document scrolls, hides while that is scrolled out of sight, and goes on
+ * Escape.
  */
 export function AskButton({
+  label = "Ask",
   onAsk,
   onDismiss,
   reference,
 }: {
+  label?: string;
   onAsk: () => void;
   onDismiss?: () => void;
   reference: ReferenceElement;
@@ -51,12 +55,14 @@ export function AskButton({
     }
     const place = () => {
       void computePosition(reference, element, {
-        middleware: [offset(8), flip(), shift({ padding: 8 })],
+        middleware: [offset(8), flip(), shift({ padding: 8 }), hide()],
         placement: "top",
         strategy: "fixed",
-      }).then(({ x, y }) => {
+      }).then(({ middlewareData, x, y }) => {
         element.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`;
-        element.style.visibility = "visible";
+        element.style.visibility = middlewareData.hide?.referenceHidden
+          ? "hidden"
+          : "visible";
       });
     };
     const stop = autoUpdate(reference, element, place, {
@@ -92,7 +98,7 @@ export function AskButton({
         }}
         type="button"
       >
-        Ask
+        {label}
       </button>
     </div>,
     document.body,

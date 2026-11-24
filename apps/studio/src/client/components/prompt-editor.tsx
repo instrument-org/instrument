@@ -92,6 +92,7 @@ import {
 import {
   appOfNode,
   appendDictated,
+  appendQuote,
   deleteTokenBackward,
   deleteTokenForward,
   promptDocFromPastedText,
@@ -173,6 +174,8 @@ export interface PromptEditorRef {
   completeAhead: (rest: string) => boolean;
   focus: () => void;
   getValue: () => string;
+  /** Adds words after what is written, as a quote, with the caret below it. */
+  appendQuote: (words: string) => void;
   /** Insert at the caret, spaced off from whatever it lands between. */
   insertText: (text: string) => void;
   moveCaretToEnd: () => void;
@@ -819,6 +822,13 @@ export function PromptEditor({
     getValue: () => {
       const view = viewRef.current;
       return view ? promptTextFromDoc(view.state.doc) : "";
+    },
+    appendQuote: (words) => {
+      const view = viewRef.current;
+      if (view) {
+        view.dispatch(closeHistory(appendQuote(view.state, words)));
+        view.focus();
+      }
     },
     insertText,
     pasteText: (text) => {

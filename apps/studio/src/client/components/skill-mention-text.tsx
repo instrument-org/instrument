@@ -14,7 +14,9 @@ import { Fragment } from "react";
  * Deliberately not the composer's ProseMirror view: the transcript is a long
  * scrolling list, and it needs to read a token, not edit one. The two share the
  * parse and the token itself instead. Newlines are emitted as text, so the
- * caller's `whitespace-pre-wrap` still governs wrapping.
+ * caller's `whitespace-pre-wrap` still governs wrapping. A line the sender
+ * quoted (`> `, which is how the composer writes a quote) is set off beside a
+ * rule rather than shown with its mark.
  *
  * A `/name` the user typed or pasted past the menu ("use /release to ship")
  * reads as the same reference, so it becomes the same token once the skill list
@@ -22,55 +24,77 @@ import { Fragment } from "react";
  * is only a guess until then.
  */
 export function SkillMentionText({ text }: { text: string }) {
-  const lines = text
-    .split("\n")
-    .map((line) => splitMessageText(line, window.electron.process.platform));
+  const lines = text.split("\n").map((line) => {
+    const isQuote = /^>(?: |$)/.test(line);
+    return {
+      isQuote,
+      segments: splitMessageText(
+        isQuote ? line.slice(2) : line,
+        window.electron.process.platform,
+      ),
+    };
+  });
   // The list is only wanted to resolve and describe the tokens, so leave it
   // unfetched for the many messages that reference no skill at all. A link or a
   // path is not one: it is drawn from itself and asks the workspace nothing.
   const hasReferences = lines
-    .flat()
+    .flatMap(({ segments }) => segments)
     .some((segment) => segment.type === "skill" || segment.type === "slash");
   const { byName, isSuccess } = useSkillsByName(hasReferences);
 
-  return lines.map((segments, lineIndex) => (
-    <Fragment key={lineIndex}>
-      {lineIndex > 0 ? "\n" : null}
-      {segments.map((segment, segmentIndex) => {
-        if (segment.type === "text") {
-          return <Fragment key={segmentIndex}>{segment.text}</Fragment>;
-        }
-        if (segment.type === "path") {
-          return <PathChip key={segmentIndex} path={segment.path} />;
-        }
-        if (segment.type === "link") {
-          return (
-            <InlineLink href={segment.href} key={segmentIndex}>
-              {segment.label}
-            </InlineLink>
-          );
-        }
-        const summary = byName.get(segment.name);
-        // A bare word is only a skill reference if a skill answers to it as a
-        // slash command. Anything else -- a nonexistent name, a skill the agent
-        // loads on its own, or a name from another tool entirely -- is just text
-        // the user wrote, and linking it would invent a claim they never made.
-        if (segment.type === "slash" && !summary?.userInvocable) {
-          return (
-            <Fragment key={segmentIndex}>
-              {skillMentionLabel(segment.name)}
-            </Fragment>
-          );
-        }
+  return lines.map(({ isQuote, segments }, lineIndex) => {
+    const drawn = segments.map((segment, segmentIndex) => {
+      if (segment.type === "text") {
+        return <Fragment key={segmentIndex}>{segment.text}</Fragment>;
+      }
+      if (segment.type === "path") {
+        return <PathChip key={segmentIndex} path={segment.path} />;
+      }
+      if (segment.type === "link") {
         return (
-          <SkillMention
-            key={segmentIndex}
-            name={segment.name}
-            resolved={isSuccess}
-            summary={summary}
-          />
+          <InlineLink href={segment.href} key={segmentIndex}>
+            {segment.label}
+          </InlineLink>
         );
-      })}
-    </Fragment>
-  ));
+      }
+      const summary = byName.get(segment.name);
+      // A bare word is only a skill reference if a skill answers to it as a
+      // slash command. Anything else -- a nonexistent name, a skill the agent
+      // loads on its own, or a name from another tool entirely -- is just text
+      // the user wrote, and linking it would invent a claim they never made.
+      if (segment.type === "slash" && !summary?.userInvocable) {
+        return (
+          <Fragment key={segmentIndex}>
+            {skillMentionLabel(segment.name)}
+          </Fragment>
+        );
+      }
+      return (
+        <SkillMention
+          key={segmentIndex}
+          name={segment.name}
+          resolved={isSuccess}
+          summary={summary}
+        />
+      );
+    });
+    if (isQuote) {
+      return (
+        <span
+          className="block min-h-5 border-l-2 border-foreground/25 pl-2.5 text-foreground/70"
+          key={lineIndex}
+        >
+          {drawn}
+        </span>
+      );
+    }
+    // A quoted line is a block, which breaks the line on its own.
+    const breaksLine = lineIndex > 0 && lines[lineIndex - 1]?.isQuote !== true;
+    return (
+      <Fragment key={lineIndex}>
+        {breaksLine ? "\n" : null}
+        {drawn}
+      </Fragment>
+    );
+  });
 }

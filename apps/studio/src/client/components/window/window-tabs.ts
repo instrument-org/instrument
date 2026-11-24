@@ -4,15 +4,17 @@ import {
   type WindowTab,
 } from "@/client/atoms/window";
 import { atom, type SetStateAction, useAtomValue, useSetAtom } from "jotai";
+import { isEqual } from "radashi";
 import { useCallback } from "react";
-import { z } from "zod";
-
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
-import { keptMembersAtom } from "@/client/lib/kept-state";
+import {
+  askTabs,
+  keptMembersAtom,
+  onTabsAnswered,
+} from "@/client/lib/kept-state";
 import {
   fileOfTabGroup,
   HOSTED_PAGE_GROUP_PREFIX,
-  NO_GROUP_MEMBER,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
 import { screenOfHref } from "@/shared/instrument-screens";
@@ -54,26 +56,11 @@ import {
   type TabOpArgs,
   type TabOpValue,
 } from "./tab-ops";
+import { joinTabGroups, splitTabGroups } from "./tab-members";
 import { useIsGroupOpen } from "./open-groups";
 import { openLinkAddress } from "./open-link-address";
 import { standInTabsAtom } from "./stand-in-tabs";
 import { asksPartOf, sameHref } from "./window-href";
-
-/** A kept group's shape; its tabs' own fields are this module's to write and read. */
-const TabGroupMemberSchema = z.object({
-  focused: z.number().int().min(0),
-  pinned: z.boolean().optional(),
-  project: z.string().optional(),
-  share: z.number().optional(),
-  sides: z
-    .array(
-      z.object({
-        tabs: z.array(z.looseObject({ id: z.string(), kind: z.string() })),
-        up: z.string().optional(),
-      }),
-    )
-    .min(1),
-});
 
 /**
  * Every group's tabs on this computer, one list across them, kept across
@@ -95,104 +82,91 @@ const keptTabsAtom = keptMembersAtom<WindowTabs>(
 /** Which tab each was opened from, as this window saw it, until it loads again. */
 const openersAtom = atom<TabOpeners>(NO_OPENERS);
 
-/** The kept tabs with this window's own links between them. */
-const storedTabsAtom = atom<WindowTabs>((get) => ({
-  ...get(keptTabsAtom),
-  openers: get(openersAtom),
-}));
-
-/** A tab as a member keeps it, without its group or side. */
-type KeptTab = Omit<WindowTab, "group" | "side">;
-
-/** A group as it is kept (`WINDOW_TABS_KEY`). */
-interface TabGroupMember extends GroupOwn {
-  focused: 0 | 1;
-  sides: { tabs: KeptTab[]; up?: string }[];
-}
-
-function keptTab({ group: _group, side: _side, ...tab }: WindowTab): KeptTab {
-  return tab;
+/** A change this window asked of the main process, with what was true of the window as it asked. */
+interface Asked {
+  command: TabCommand;
+  id: string;
+  onScreen: string | undefined;
+  openers: TabOpeners;
 }
 
 /**
- * The tabs by group, each kept by itself as its layout reads
- * (`groupLayoutOf`): a group's tabs belong to it whichever window shows it
- * (`fileOfTabGroup`).
+ * The changes this window asked for that the main process, which owns the
+ * tabs, has not answered yet, oldest first. Each is shown at once, laid over
+ * the tabs as main last told them, and let go as its answer comes: what main
+ * made of it is in the tabs by then, whether or not that is what this
+ * window expected.
  */
-function splitTabGroups(state: WindowTabs) {
-  const members = new Map<string, TabGroupMember>();
-  const ungrouped = state.tabs.filter((tab) => tab.group === undefined);
-  if (ungrouped.length > 0) {
-    members.set(NO_GROUP_MEMBER, {
-      focused: 0,
-      sides: [{ tabs: ungrouped.map(keptTab) }],
-    });
-  }
-  const groups = new Set([
-    ...state.tabs.flatMap((tab) =>
-      tab.group === undefined ? [] : [tab.group],
-    ),
-    ...Object.keys(state.groups ?? {}),
-  ]);
-  for (const group of groups) {
-    const { focused, sides } = groupLayoutOf(state, group);
-    members.set(group, {
-      ...state.groups?.[group],
-      focused,
-      sides: sides.map(({ tabs, up }) => ({
-        tabs: tabs.map(keptTab),
-        ...(up === undefined ? {} : { up }),
-      })),
-    });
-  }
-  return members;
+const askedAtom = atom<readonly Asked[]>([]);
+askedAtom.onMount = (set) =>
+  onTabsAnswered((id) => {
+    set((asked) => asked.filter((each) => each.id !== id));
+  });
+
+let asks = 0;
+
+/** The tabs this window last showed, which the next ones share what is the same with. */
+let lastShown: WindowTabs | undefined;
+
+/**
+ * The tabs as the main process last told them, with what this window asked
+ * since laid over. Whatever is the same as it was shown before is the very
+ * object it was: main's word arrives as fresh copies of every tab in a group,
+ * and a screen that watches its tab would take each copy for a change.
+ */
+const shownTabsAtom = atom((get) => {
+  const now = get(askedAtom).reduce<WindowTabs>((tabs, ask) => {
+    const { openers: _own, ...kept } = applyTabCommand(
+      { ...tabs, openers: ask.openers },
+      { onScreen: ask.onScreen },
+      ask.command,
+    ).state;
+    return kept;
+  }, get(keptTabsAtom));
+  lastShown = lastShown === undefined ? now : sharingWith(lastShown, now);
+  return lastShown;
+});
+
+/** `now`, made of `was`'s own objects wherever the two say the same. */
+function sharingWith(was: WindowTabs, now: WindowTabs): WindowTabs {
+  const before = new Map(was.tabs.map((tab) => [tab.id, tab]));
+  const tabs = now.tabs.map((tab) => {
+    const same = before.get(tab.id);
+    return same !== undefined && isEqual(same, tab) ? same : tab;
+  });
+  const shared = {
+    activeByGroup: isEqual(was.activeByGroup, now.activeByGroup)
+      ? was.activeByGroup
+      : now.activeByGroup,
+    ...(now.besideByGroup === undefined
+      ? {}
+      : {
+          besideByGroup: isEqual(was.besideByGroup, now.besideByGroup)
+            ? was.besideByGroup
+            : now.besideByGroup,
+        }),
+    ...(now.groups === undefined
+      ? {}
+      : { groups: isEqual(was.groups, now.groups) ? was.groups : now.groups }),
+    tabs:
+      tabs.length === was.tabs.length &&
+      tabs.every((tab, at) => tab === was.tabs[at])
+        ? was.tabs
+        : tabs,
+  } satisfies WindowTabs;
+  return shared.tabs === was.tabs &&
+    shared.activeByGroup === was.activeByGroup &&
+    shared.besideByGroup === was.besideByGroup &&
+    shared.groups === was.groups
+    ? was
+    : shared;
 }
 
-function joinTabGroups(members: Map<string, unknown>): WindowTabs {
-  const activeByGroup: Record<string, string> = {};
-  const besideByGroup: Record<string, string> = {};
-  const groups: Record<string, GroupOwn> = {};
-  const tabs: WindowTab[] = [];
-  for (const [key, value] of members) {
-    const member = TabGroupMemberSchema.safeParse(value).data;
-    if (member === undefined) {
-      continue;
-    }
-    const group = key === NO_GROUP_MEMBER ? undefined : key;
-    member.sides.forEach((side, at) => {
-      for (const tab of side.tabs) {
-        // Written by this module alone.
-        tabs.push({
-          ...(tab as KeptTab),
-          ...(group === undefined ? {} : { group }),
-          // A side past the second, which a later layout may keep, stands
-          // on the right, so none of its tabs is dropped.
-          ...(at >= 1 ? { side: 1 } : {}),
-        } as WindowTab);
-      }
-    });
-    if (group === undefined) {
-      continue;
-    }
-    const focused = member.sides[member.focused] ?? member.sides[0];
-    const other = member.sides.find((side) => side !== focused);
-    if (focused?.up !== undefined) {
-      activeByGroup[group] = focused.up;
-    }
-    if (other?.up !== undefined) {
-      besideByGroup[group] = other.up;
-    }
-    const own: GroupOwn = {
-      ...(member.pinned === true ? { pinned: true } : {}),
-      ...(member.project === undefined ? {} : { project: member.project }),
-      ...(member.share === undefined ? {} : { share: member.share }),
-    };
-    if (Object.keys(own).length > 0) {
-      groups[group] = own;
-    }
-  }
-  return { activeByGroup, besideByGroup, groups, tabs };
-}
+/** The tabs this window shows, with its own links between them. */
+const storedTabsAtom = atom<WindowTabs>((get) => ({
+  ...get(shownTabsAtom),
+  openers: get(openersAtom),
+}));
 
 /**
  * The group of the page a file tab draws in its viewer, by the tab's id: a
@@ -237,7 +211,7 @@ export const chatFiltersUpAtom = atom(
 );
 
 /** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
-export const everyTabIdAtom = atom((get) => everyTabId(get(keptTabsAtom)));
+export const everyTabIdAtom = atom((get) => everyTabId(get(shownTabsAtom)));
 
 /** No tabs, one set for every reader. */
 const NO_TAB_IDS: ReadonlySet<string> = new Set();
@@ -261,9 +235,10 @@ const applyAtom = atom(null, (get, set, command: TabCommand): unknown => {
     return undefined;
   }
   const current = get(storedTabsAtom);
+  const onScreen = get(groupOnScreenAtom);
   const { state: next, value } = applyTabCommand(
     current,
-    { onScreen: get(groupOnScreenAtom) },
+    { onScreen },
     command,
   );
   if (next === current) {
@@ -277,7 +252,21 @@ const applyAtom = atom(null, (get, set, command: TabCommand): unknown => {
     kept.besideByGroup !== current.besideByGroup ||
     kept.groups !== current.groups
   ) {
-    set(keptTabsAtom, kept);
+    // The main process owns the tabs and applies the change itself. What it
+    // changes here is shown at once, until main says what it made of it.
+    asks += 1;
+    const asked: Asked = {
+      command,
+      id: asks.toString(),
+      onScreen,
+      openers: current.openers ?? NO_OPENERS,
+    };
+    if (askTabs(asked)) {
+      set(askedAtom, (all) => [...all, asked]);
+    } else {
+      // With no one to ask, as in a test, the window keeps them itself.
+      set(keptTabsAtom, kept);
+    }
   }
   const before = new Set(current.tabs.map((tab) => tab.id));
   const arriving = next.tabs.filter(

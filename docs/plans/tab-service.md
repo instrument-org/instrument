@@ -1,10 +1,10 @@
 # One owner for every tab
 
-Status: open. The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done. Every change a window makes to the tabs is a named command with plain data ([`tab-ops.ts`](../../apps/studio/src/client/components/window/tab-ops.ts)), still applied in the window that asks. The service that applies them in the main process is not built.
+Status: open. The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done. Step B is done: every change to the tabs is a named command with plain data ([`tab-ops.ts`](../../apps/studio/src/client/components/window/tab-ops.ts)) that the main process applies in the order asks arrive ([`tab-service.ts`](../../apps/studio/src/electron-main/stores/workspace/tab-service.ts)), and a window mirrors it. Steps C, D and E are not built: main does not yet make or end pages, answer an agent with no window, or keep one budget.
 
 ## Problem
 
-Each window keeps the tabs of every group in its own store, changes them there, and writes a group's whole record to the main process, which stores it and passes it on ([`kept-state.ts`](../../apps/studio/src/electron-main/stores/workspace/kept-state.ts)). The last write wins. Two windows that each open a tab in one group before hearing of the other end up with different tabs, and the file keeps one of the two. Nothing later brings them back together, since each window holds what it last heard.
+Until step B, each window kept the tabs of every group in its own store, changed them there, and wrote a group's whole record to the main process, which stored it and passed it on. The last write won: two windows that each opened a tab in one group before hearing of the other ended up with different tabs, the file kept one of the two, and nothing later brought them back together.
 
 Around that, one tab's facts are spread over several places and inferred from each other:
 
@@ -70,7 +70,7 @@ A screen stays drawn in its window while another tab or group is up, out of sigh
 Each lands by itself and leaves the app working.
 
 - **A. Pin what it does.** The table of gestures by kind in `use-openers.test.tsx`, beside the reducer tests there are. Done. A plain click on a page or a screen goes to the tab up, a blank New Tab like any other. An app, a chat, and a built-in page opened from a blank New Tab take its place where its group has one side; on a side of a split they open beside it, and a New Tab with a draft in it keeps its place everywhere.
-- **B. The service.** Every change becomes a named command with plain data, the ids and times in it made by whoever asks (done). The pure functions are loaded by the main process, which owns the state, and the windows become mirrors of it. The shape of the files is unchanged, so an earlier build still reads them. This ends the overwrite.
+- **B. The service.** Done. Every change is a named command with plain data, the ids and times in it made by whoever asks. The main process loads the tab model as it is, owns the tabs, and applies each ask to the kept files; the windows mirror it. Main tells the windows what changed rather than which command ran, so a window never has to compute the same result main did. The shape of the files is unchanged, so an earlier build still reads them. This ends the overwrite.
 - **C. Pages follow the tabs.** Main makes and ends guests from the tabs' Life. Unlisted tabs replace hidden groups, and a `page:<id>` group found in a file becomes one. An agent's asks are answered in main, with or without a window.
 - **D. One budget.** The list and the budget above replace the separate limits on guests and on kept screens (`KEPT_SCREENS`).
 - **E. One open.** One call takes what to open, the gesture and where it was asked from, and one table answers. `OpenOptions` goes. A closed tab, side or group becomes one kind of record.

@@ -64,7 +64,38 @@ export const KEPT_STATE_CHANNEL = {
   changed: "kept-state:changed",
   load: "kept-state:load",
   set: "kept-state:set",
+  /** A window asking one change of the tabs (`TabsAsk`). */
+  tabs: "kept-state:tabs",
+  /** The main process telling a window what a change to the tabs changed (`TabsChanged`). */
+  tabsChanged: "kept-state:tabs-changed",
 } as const;
+
+/**
+ * One change a window asks of the tabs. The main process owns the tabs: it
+ * applies each ask to them as they are when it arrives, one after another
+ * whichever window sent it, so two windows changing one group never undo
+ * each other. The change is a name and plain data (`tab-ops.ts`), with what
+ * is true only of the window asking beside it.
+ */
+export interface TabsAsk {
+  command: { args: readonly unknown[]; op: string };
+  /** The ask's own id, by which the window knows the answer to it. */
+  id: string;
+  /** The group the window has on screen. */
+  onScreen?: string;
+  /** Which tab each was opened from, as the window saw it (`tab-openers.ts`). */
+  openers?: unknown;
+}
+
+/**
+ * What a change to the tabs changed: each kept member that is different
+ * after it, all at once, so a window never shows half of a tab's move. The
+ * window that asked is told which ask this answers, changes or none.
+ */
+export interface TabsChanged {
+  answers?: string;
+  changes: [file: KeptFile, key: string, value: unknown][];
+}
 
 /** The tab groups, kept a group at a time under this key and the group's id. */
 export const WINDOW_TABS_KEY = "tab-groups.v3";

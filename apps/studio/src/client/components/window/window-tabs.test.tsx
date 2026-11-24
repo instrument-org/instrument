@@ -157,9 +157,10 @@ describe("the tab groups kept on this computer", () => {
     ],
   };
 
-  it("are read and written back in the v3 shape, and nothing an earlier key kept is read", async () => {
+  it("are read in the v3 shape, nothing an earlier key kept is read, and a change is asked of the main process", async () => {
     vi.resetModules();
     const set = vi.fn();
+    const askTabs = vi.fn();
     Object.defineProperty(window, "api", {
       configurable: true,
       value: {
@@ -173,7 +174,9 @@ describe("the tab groups kept on this computer", () => {
               "tab-groups.v3/group_a": MEMBER,
             },
           },
+          askTabs,
           onChange: () => () => {},
+          onTabsChanged: () => () => {},
           set,
         },
       },
@@ -209,8 +212,15 @@ describe("the tab groups kept on this computer", () => {
       result.current.setGroupOwn("group_a", { share: 0.5 });
     });
 
-    expect(set.mock.calls).toEqual([
-      ["groups", "tab-groups.v3/group_a", { ...MEMBER, share: 0.5 }],
+    // The main process keeps the tabs, and writes what the change makes of
+    // them (`tab-service.test.ts`).
+    expect(set).not.toHaveBeenCalled();
+    expect(askTabs.mock.calls).toEqual([
+      [
+        expect.objectContaining({
+          command: { args: ["group_a", { share: 0.5 }], op: "withGroupOwn" },
+        }),
+      ],
     ]);
     Reflect.deleteProperty(window, "api");
     vi.resetModules();
@@ -234,7 +244,9 @@ describe("the tab groups kept on this computer", () => {
               },
             },
           },
+          askTabs: vi.fn(),
           onChange: () => () => {},
+          onTabsChanged: () => () => {},
           set: vi.fn(),
         },
       },

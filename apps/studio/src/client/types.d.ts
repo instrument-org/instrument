@@ -59,6 +59,9 @@ declare global {
       // every key as the window loaded, writes back to the main process, and
       // the writes other windows make. Absent outside Electron.
       keptState?: {
+        // One change asked of the tabs, which the main process owns and
+        // applies in the order asks arrive (`TabsAsk`).
+        askTabs: (ask: TabsAsk) => void;
         initial: KeptSnapshot;
         // One key of `window` as every other window kept it, closed ones that
         // can come back included.
@@ -66,6 +69,9 @@ declare global {
         onChange: (
           listener: (file: KeptFile, key: string, value: unknown) => void,
         ) => () => void;
+        // What each change to the tabs changed, this window's and the
+        // others' (`TabsChanged`).
+        onTabsChanged: (listener: (told: TabsChanged) => void) => () => void;
         set: (file: KeptFile, key: string, value: unknown) => void;
       };
       // Tells the main process something the person did that only the

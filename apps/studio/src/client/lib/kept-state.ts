@@ -1,4 +1,8 @@
-import { type KeptFile } from "@/shared/kept-state";
+import {
+  type KeptFile,
+  type TabsAsk,
+  type TabsChanged,
+} from "@/shared/kept-state";
 import { atomWithStorage } from "jotai/utils";
 
 /**
@@ -36,7 +40,55 @@ function kept(): Map<string, unknown> {
       listener(file, key, value);
     }
   });
+  bridge()?.onTabsChanged(hearTabsChanged);
   return values;
+}
+
+/** Who hears which of this window's asks of the tabs the main process has answered. */
+const answerListeners = new Set<(id: string) => void>();
+
+/**
+ * What a change to the tabs changed, as the main process tells it: every
+ * member is taken in before anyone hears of one, so no reader sees half of a
+ * tab's move, and the ask it answers is let go only after.
+ */
+function hearTabsChanged({ answers, changes }: TabsChanged) {
+  for (const [file, key, value] of changes) {
+    remember(file, key, value);
+  }
+  for (const [file, key, value] of changes) {
+    for (const listener of listeners) {
+      listener(file, key, value);
+    }
+  }
+  if (answers !== undefined) {
+    for (const listener of answerListeners) {
+      listener(answers);
+    }
+  }
+}
+
+/**
+ * Asks the main process, which owns the tabs, for one change to them.
+ * False outside Electron, where no one owns them but the asker.
+ */
+export function askTabs(ask: TabsAsk): boolean {
+  const owner = bridge();
+  if (!owner) {
+    return false;
+  }
+  kept();
+  owner.askTabs(ask);
+  return true;
+}
+
+/** Calls `listener` with each of this window's asks as the main process answers it. */
+export function onTabsAnswered(listener: (id: string) => void) {
+  kept();
+  answerListeners.add(listener);
+  return () => {
+    answerListeners.delete(listener);
+  };
 }
 
 function remember(file: KeptFile, key: string, value: unknown) {

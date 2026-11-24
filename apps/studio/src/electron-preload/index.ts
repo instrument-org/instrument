@@ -34,7 +34,7 @@ import { contextBridge, ipcRenderer, webUtils } from "electron";
 import { injectBrowserAction } from "electron-chrome-extensions/browser-action";
 import os from "node:os";
 
-import { keptChangeFeed } from "./kept-changes";
+import { keptChangeFeed, tabsChangedFeed } from "./kept-changes";
 
 /**
  * Put the theme class on <html> before the document is parsed.
@@ -196,6 +196,7 @@ function loadBookmarks(): BookmarksSnapshot {
 
 const keptInitial = loadKeptState();
 const keptChanges = keptChangeFeed(ipcRenderer);
+const tabsChanged = tabsChangedFeed(ipcRenderer);
 
 /**
  * What the window answers main with before a close the person asked for
@@ -295,8 +296,12 @@ const api: Window["api"] = {
       );
       return Array.isArray(values) ? (values as unknown[]) : [];
     },
+    askTabs: (ask) => {
+      ipcRenderer.send(KEPT_STATE_CHANNEL.tabs, ask);
+    },
     initial: keptInitial,
     onChange: keptChanges,
+    onTabsChanged: tabsChanged,
     set: (file, key, value) => {
       ipcRenderer.send(KEPT_STATE_CHANNEL.set, file, key, value);
     },

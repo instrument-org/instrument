@@ -85,7 +85,14 @@ describe("a value kept member by member", () => {
 
     const set = vi.fn();
     vi.stubGlobal("window", {
-      api: { keptState: { initial: {}, onChange: () => () => {}, set } },
+      api: {
+        keptState: {
+          initial: {},
+          onChange: () => () => {},
+          onTabsChanged: () => () => {},
+          set,
+        },
+      },
     });
     store.set(atom, { "own:b": 4, shared: 1 });
     expect(set.mock.calls).toEqual([
@@ -110,7 +117,14 @@ describe("a value kept member by member", () => {
     store.get(atom);
     const set = vi.fn();
     vi.stubGlobal("window", {
-      api: { keptState: { initial: {}, onChange: () => () => {}, set } },
+      api: {
+        keptState: {
+          initial: {},
+          onChange: () => () => {},
+          onTabsChanged: () => () => {},
+          set,
+        },
+      },
     });
     store.set(atom, { a: 1, c: 3 });
     expect(set.mock.calls).toEqual([

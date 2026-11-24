@@ -22,6 +22,7 @@ import {
 import { handleDirectoryIconRequest } from "./directory-icons";
 import { handleLivePageRequest } from "./live-page-frame";
 import { getResourcePath } from "./resource-path";
+import { isSvgLegible } from "./site-icon-legibility";
 import { type Deps as SiteIconDeps, siteIconFor } from "./site-icons";
 import {
   RENDERER_DOCUMENT_POLICY,
@@ -148,7 +149,12 @@ export function siteIconDeps(): SiteIconDeps {
   return {
     dir: path.join(app.getPath("userData"), "site-icons"),
     fetch: (target, init) => net.fetch(target, init),
+    isLegible: isSvgLegible,
     now: Date.now,
+    resolveHost: async (host) => {
+      const { endpoints } = await net.resolveHost(host);
+      return endpoints.map(({ address }) => address);
+    },
   };
 }
 
@@ -231,14 +237,24 @@ async function handleSiteIconRequest({
   }
   const host = decodeURIComponent(url.pathname.slice(1)).toLowerCase();
   try {
-    const icon = await siteIconFor(host, siteIconDeps());
+    const icon = await siteIconFor(
+      host,
+      url.searchParams.get("theme") === "dark" ? "dark" : "light",
+      siteIconDeps(),
+    );
     if (!icon) {
       return new Response(null, { status: 404 });
     }
     return new Response(new Uint8Array(icon.bytes), {
       // The disk copy is the cache; the page's own memory of an image covers a
       // row drawn twice, and a new launch reads the disk again.
-      headers: { "Cache-Control": "no-cache", "Content-Type": icon.type },
+      headers: {
+        "Cache-Control": "no-cache",
+        // An icon is a site's own file, and draws itself and nothing else.
+        "Content-Security-Policy":
+          "default-src 'none'; img-src data:; style-src 'unsafe-inline'",
+        "Content-Type": icon.type,
+      },
     });
   } catch {
     return new Response(null, { status: 503 });

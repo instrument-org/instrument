@@ -23,6 +23,7 @@ import { createContext, use, useState } from "react";
 
 import { useChatTasks } from "../window/child-tasks-query";
 import { useGroupTab } from "../window/group-tab";
+import { tasksOfHref } from "../window/tab-location";
 import { useWindowTabs } from "../window/window-tabs";
 import { type CommandFacts, type TaskCardFacts } from "./surface";
 import { drivenTabOf, isPageCardAway, pagesOf } from "./driven-tab";
@@ -247,6 +248,19 @@ export function useIsCardAway(
     driven: tab && { at, id: tab.id },
     since: Math.max(latest.at, first?.metadata.createdAt.getTime() ?? 0),
   });
+}
+
+/**
+ * Whether a task's own transcript is up beside this one, where it shows the
+ * work its card would.
+ */
+export function useIsTaskBeside(sessionId: StoreId.Session): boolean {
+  const groupTab = useGroupTab();
+  const windowTabs = useWindowTabs();
+  const beside = groupTab ? windowTabs.besideOf(groupTab.id) : undefined;
+  return (
+    beside?.kind === "screen" && tasksOfHref(beside.href)?.task === sessionId
+  );
 }
 
 /**

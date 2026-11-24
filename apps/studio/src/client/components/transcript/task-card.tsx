@@ -19,6 +19,7 @@ import { WorkCardView } from "./work-card";
 import { TranscriptSurfaceContext } from "./surface";
 import {
   useIsCardAway,
+  useIsTaskBeside,
   useTaskFacts,
   useTaskMessages,
 } from "./transcript-data";
@@ -119,7 +120,9 @@ function LiveTaskCard({
     ? turnsOf(messages, { isRunning: true, sessionId }).at(-1)
     : undefined;
   const card = showsWork && turn ? workCardOf(turn) : undefined;
-  const isCardAway = useIsCardAway(card && turn, sessionId);
+  const isPageAway = useIsCardAway(card && turn, sessionId);
+  const isTaskBeside = useIsTaskBeside(sessionId);
+  const isCardAway = isPageAway || isTaskBeside;
   const cardOpens = useCardOpens(card !== undefined && !isCardAway);
   const title = facts?.title ?? "Task";
   const firstLine = isWorking

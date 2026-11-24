@@ -48,7 +48,10 @@ import {
   LIVE_REGION_SETTLE_MS,
   withBrowserFollowUp,
 } from "./agent-browser-follow-up";
-import { DOCUMENT_WAIT_ARGS, TASK_TURN_ARGS } from "./agent-browser-loading";
+import {
+  DOCUMENT_WAIT_ARGS,
+  AFTER_ACTION_PAUSE_ARGS,
+} from "./agent-browser-loading";
 import { NETWORK_IDLE_GAVE_UP, namedWaitGaveUp } from "./agent-browser-wait";
 
 vi.mock("execa");
@@ -81,10 +84,10 @@ const mockCtx = createCommandContext({
 
 /**
  * Whether a run is one the command adds around the agent's own: the wait for
- * a loading document ahead of it, or the task turn after an action.
+ * a loading document ahead of it, or the pause after an action.
  */
 function isAside(args: string[]) {
-  return [DOCUMENT_WAIT_ARGS, TASK_TURN_ARGS].some(
+  return [DOCUMENT_WAIT_ARGS, AFTER_ACTION_PAUSE_ARGS].some(
     (aside) => args.slice(-aside.length).join("\0") === aside.join("\0"),
   );
 }
@@ -1321,7 +1324,7 @@ describe("agent-browser routing", () => {
     expect(await ranOnSession()).toStrictEqual([
       DOCUMENT_WAIT_ARGS,
       ["click", "@e1410"],
-      TASK_TURN_ARGS,
+      AFTER_ACTION_PAUSE_ARGS,
       DOCUMENT_WAIT_ARGS,
       ["eval", "document.body.innerText.slice(-5000)"],
     ]);

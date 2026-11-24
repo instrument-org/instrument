@@ -27,26 +27,22 @@ export const DOCUMENT_WAIT_ARGS = [
 ];
 
 /**
- * Run after an action, to give the page one turn of its task queue before the
- * next command is sent.
+ * Run after an action, to give the page a moment before the next command is
+ * sent.
  *
  * A form submits in a task of its own after the click that caused it, so for
  * a few milliseconds after the click returns no navigation has started and a
- * command sent then reads the page being left. One timer turn later the
- * navigation is under way, and the browser holds the next command for it.
+ * command sent then reads the page being left. A moment later the navigation
+ * is under way, and the browser holds the next command for it.
+ *
+ * The CLI waits this out itself and runs nothing in the page. A script would
+ * be held by a dialog the action opened, and the CLI takes one command at a
+ * time, so the `dialog accept` that follows would wait behind it.
  */
-export const TASK_TURN_ARGS = [
-  "eval",
-  "new Promise((resolve) => setTimeout(resolve, 0))",
-];
+export const AFTER_ACTION_PAUSE_ARGS = ["wait", "20"];
 
-/**
- * How long the task turn may take. A page too busy to run a timer, or one a
- * dialog is blocking, costs an action this much; so does a navigation the
- * action started at once whose server is slower than this to answer, which
- * the next command then waits out instead.
- */
-export const TASK_TURN_TIMEOUT_MS = 1000;
+/** How long the pause may take, for the CLI to start and report. */
+export const AFTER_ACTION_PAUSE_TIMEOUT_MS = 1000;
 
 /**
  * Commands that find an element, read the page, or put input into it, by the

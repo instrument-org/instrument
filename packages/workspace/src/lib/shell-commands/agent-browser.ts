@@ -76,8 +76,8 @@ import {
   DOCUMENT_WAIT_ARGS,
   DOCUMENT_WAIT_TIMEOUT_MS,
   needsLoadedDocument,
-  TASK_TURN_ARGS,
-  TASK_TURN_TIMEOUT_MS,
+  AFTER_ACTION_PAUSE_ARGS,
+  AFTER_ACTION_PAUSE_TIMEOUT_MS,
 } from "./agent-browser-loading";
 import { typedTextRuns } from "./agent-browser-typed-text";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
@@ -1150,7 +1150,7 @@ export function createAgentBrowserCommand({
     const exitCode = result.exitCode ?? 1;
 
     if (drivesPage && exitCode === 0 && readsLiveRegionsFirst(resolvedArgs)) {
-      await runAside(TASK_TURN_ARGS, TASK_TURN_TIMEOUT_MS);
+      await runAside(AFTER_ACTION_PAUSE_ARGS, AFTER_ACTION_PAUSE_TIMEOUT_MS);
     }
 
     // A fetch or --help has no page.

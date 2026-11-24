@@ -387,6 +387,12 @@ export function useWindowTabs() {
       );
     } else if (!sameHref(router.history.location.href, href)) {
       router.history.push(href);
+      // A router hears its history only while its screen is drawn, and
+      // drawn again it stays where it last loaded, so one out of sight loads
+      // here.
+      if (!sameHref(router.latestLocation.href, href)) {
+        void router.load();
+      }
     }
   };
 

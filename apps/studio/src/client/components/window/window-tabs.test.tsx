@@ -100,13 +100,18 @@ describe("opening into a group", () => {
     // The tabs walk a screen tab by its router's history alone, so a router
     // with just that stands in for one over the app's whole route tree, which
     // would cost this file most of its import time.
+    const load = vi.fn(() => Promise.resolve());
     const router = {
       history: createMemoryHistory({ initialEntries: [BROWSER_HREF] }),
-    } as TabRouter;
+      latestLocation: { href: BROWSER_HREF },
+      load,
+    } as unknown as TabRouter;
     setGroupTabRouter(id, router);
     act(() => {
       result.current.navigateScreen("/apps");
     });
+    // Its screen is not drawn, so nothing else loads the address.
+    expect(load).toHaveBeenCalledOnce();
     expect(getGroupTabRouter(id)).toBe(router);
     expect(router.history.location.pathname).toBe("/apps");
     expect(router.history.length).toBe(2);

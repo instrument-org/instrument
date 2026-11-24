@@ -81,10 +81,18 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
   // when a keystroke's render would hold the next one up.
   const typed = useDeferredValue(query.trim());
   const matches = typed === "" ? more : searchDirectory(listed, typed);
-  // Unsearched, the featured services lead as Popular and every other one
-  // follows under its category, so the whole directory is a scroll away.
-  const popular = more.filter((entry) => entry.tier === "featured");
-  const rest = more.filter((entry) => entry.tier !== "featured");
+  // Unsearched, the AIs lead, then the featured services as Popular, and
+  // every other one follows under its category, so the whole directory is a scroll away.
+  const ais = more.filter((entry) => entry.category === "ai");
+  const popular = more.filter(
+    (entry) => entry.tier === "featured" && entry.category !== "ai",
+  );
+  const rest = more.filter(
+    (entry) => entry.tier !== "featured" && entry.category !== "ai",
+  );
+  // A hundred and more tiles below the fold: the page comes up without them
+  // and they follow, so pressing Apps answers at once.
+  const isRestDue = useDeferredValue(true, false);
   // A search the words don't answer ("text my mom") goes to the decision
   // model once the typing settles. Its place at the foot of the results is
   // held from the first key that asks, so what it finds lands where nothing
@@ -168,10 +176,12 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
 
   return (
     <div
-      className="@container/apps h-full min-h-0 overflow-y-auto"
+      className="@container/apps h-full min-h-0 overflow-y-auto outline-none"
       data-find-surface
-      // The keyboard lands on the first app as the screen comes up.
+      // The page itself takes the keyboard as the screen comes up, so the
+      // arrow keys scroll it and no app looks chosen.
       data-keyboard-home
+      tabIndex={-1}
     >
       {/* A centered column and head with room around it. */}
       <div className="mx-auto w-full max-w-5xl space-y-12 px-10 pt-14 pb-20">
@@ -239,6 +249,13 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
             <TileSkeletons />
           ) : typed === "" ? (
             <>
+              {ais.length > 0 ? (
+                <PageSection title="AI">
+                  <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+                    {ais.map(tileFor)}
+                  </div>
+                </PageSection>
+              ) : null}
               {popular.length > 0 ? (
                 <PageSection title="Popular">
                   <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
@@ -246,7 +263,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
                   </div>
                 </PageSection>
               ) : null}
-              {rest.length > 0 ? (
+              {isRestDue && rest.length > 0 ? (
                 <PageSection title="By category">
                   <CategoryGroups entries={rest} renderTile={tileFor} />
                 </PageSection>

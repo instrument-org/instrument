@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-11-10T22:25:29.693Z",
-  "entriesHash": "045c91d1e7dc02cd",
+  "revision": "2026-11-24T16:21:32.088Z",
+  "entriesHash": "36b310f6e34787c9",
   "entries": [
     {
       "slug": "ahrefs",
@@ -866,6 +866,46 @@
       "tier": "featured",
       "rank": 4,
       "registryName": "com.canva.mcp/mcp"
+    },
+    {
+      "slug": "chatgpt",
+      "name": "ChatGPT",
+      "tagline": "Your ChatGPT chats and plan.",
+      "examples": [
+        "Import what ChatGPT remembers about me",
+        "Find an old ChatGPT chat",
+        "Back up all my ChatGPT chats"
+      ],
+      "description": "Work in your ChatGPT account on OpenAI's site: find and read past chats, export them, and read what it remembers about you.",
+      "domain": "chatgpt.com",
+      "authMethods": [],
+      "interfaces": [],
+      "home": "https://chatgpt.com",
+      "category": "ai",
+      "aliases": ["openai", "gpt"],
+      "tier": "featured",
+      "rank": 5,
+      "signIn": "https://chatgpt.com/auth/login"
+    },
+    {
+      "slug": "claude",
+      "name": "Claude",
+      "tagline": "Your Claude chats and plan.",
+      "examples": [
+        "Import what Claude remembers about me",
+        "Find an old Claude chat",
+        "Back up all my Claude chats"
+      ],
+      "description": "Work in your Claude account on Anthropic's site: find and read past chats, export them, and read what it remembers about you.",
+      "domain": "claude.ai",
+      "authMethods": [],
+      "interfaces": [],
+      "home": "https://claude.ai",
+      "category": "ai",
+      "aliases": ["anthropic"],
+      "tier": "featured",
+      "rank": 6,
+      "signIn": "https://claude.ai/login"
     },
     {
       "slug": "clay",
@@ -2171,6 +2211,25 @@
         "Who applied this week?",
         "Which candidates are waiting on feedback?"
       ]
+    },
+    {
+      "slug": "grok",
+      "name": "Grok",
+      "tagline": "Your Grok chats and plan.",
+      "examples": [
+        "Import what Grok remembers about me",
+        "Find an old Grok chat",
+        "Back up all my Grok chats"
+      ],
+      "description": "Work in your Grok account on xAI's site: find and read past chats, export them, and read what it remembers about you.",
+      "domain": "grok.com",
+      "authMethods": [],
+      "interfaces": [],
+      "home": "https://grok.com",
+      "category": "ai",
+      "aliases": ["xai"],
+      "tier": "featured",
+      "rank": 40
     },
     {
       "slug": "heroku",

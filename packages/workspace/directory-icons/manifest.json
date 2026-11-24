@@ -119,6 +119,19 @@
     "license": "MIT",
     "override": "the sets match Canvas LMS by name; Canva is the service listed"
   },
+  "chatgpt": {
+    "source": "svgl",
+    "path": "openai.svg",
+    "dark": "openai_dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "claude": {
+    "source": "svgl",
+    "path": "claude-ai-icon.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
   "clay": {
     "source": "site",
     "url": "https://cdn.prod.website-files.com/61477f2c24a826836f969afe/6a3a92ab3c92c9caa6245619_dot-com_favicon_2026_512.png",
@@ -333,6 +346,13 @@
     "path": "icons/greenhouse/default.svg",
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
+  },
+  "grok": {
+    "source": "svgl",
+    "path": "grok-light.svg",
+    "dark": "grok-dark.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
   },
   "heroku": {
     "source": "svgl",

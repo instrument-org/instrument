@@ -16,6 +16,7 @@ export const APP_CATEGORIES = [
   { id: "money", label: "Money" },
   { id: "stores", label: "Stores & websites" },
   { id: "data", label: "Data & analytics" },
+  { id: "ai", label: "AI" },
   { id: "research", label: "Research" },
   { id: "life", label: "Life & leisure" },
   { id: "automation", label: "Automation" },

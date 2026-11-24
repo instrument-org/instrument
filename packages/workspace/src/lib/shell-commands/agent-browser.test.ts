@@ -34,7 +34,13 @@ import {
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import {
+  GLOBAL_BOOL_FLAGS,
+  GLOBAL_VALUE_FLAGS,
+  RESTORE_FLAG,
+} from "./agent-browser-args";
+import {
   agentBrowserCommandDescription,
+  BLOCKED_FLAGS,
   browserFreeReadEnv,
   classifyInvocation,
   createAgentBrowserCommand,
@@ -97,7 +103,7 @@ async function agentBrowserRunsOfItsOwn() {
   return (await agentBrowserRuns()).filter((run) => !isAside(run.args));
 }
 
-/** What upstream prints for any error that mentions a timeout. */
+/** What upstream prints for an error that mentions a timeout, a load-state wait's aside. */
 const upstreamTimeout = {
   exitCode: 1,
   stderr:
@@ -124,17 +130,15 @@ describe("createAgentBrowserCommand", () => {
     );
   });
 
-  it.each([
-    { flag: "--config" },
-    { flag: "--namespace" },
-    { flag: "--session" },
-    { flag: "--session-name" },
-  ])("blocks harness-owned flag $flag", async ({ flag }) => {
-    const result = await command.execute([flag, "value", "open"], mockCtx);
+  it.each([...BLOCKED_FLAGS].map((flag) => ({ flag })))(
+    "blocks harness-owned flag $flag",
+    async ({ flag }) => {
+      const result = await command.execute([flag, "value", "open"], mockCtx);
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(`flag ${flag} is not allowed`);
-  });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(`flag ${flag} is not allowed`);
+    },
+  );
 
   // Connected to the app's browser, which is already running, the CLI
   // drops an extension.
@@ -307,9 +311,110 @@ describe("classifyInvocation", () => {
     [["open", "a.com"], managed, "tabs"],
     [["tab"], managed, "tabs"],
     [["tab", "keep", "frozen", "tab_01"], managed, "refuse"],
+    // Aliases of commands the app keeps to itself.
+    [["quit"], managed, "refuse"],
+    [["exit"], managed, "refuse"],
+    [["plugins", "list"], managed, "refuse"],
+    [["confirm", "c1"], managed, "refuse"],
+    [["deny", "c1"], managed, "refuse"],
+    [["flow", "run", "checkout"], managed, "refuse"],
+    // A global flag's value is not the command.
+    [["--input-mode", "human", "close"], managed, "refuse"],
+    [["--input-mode", "human", "click", "@e1"], managed, "tabs"],
+    [["--capture", "flow", "open", "a.com"], managed, "refuse"],
+    [["wait", "#spinner", "--state", "hidden"], managed, "tabs"],
+    [["--state", "auth.json", "wait", "#spinner"], managed, "refuse"],
     [["--json", "tab", "--", "keep", "live"], managed, "refuse"],
   ])("%j with %j is %s", (args, config, kind) => {
     expect(classifyInvocation(args, config).kind).toBe(kind);
+  });
+
+  // Every global flag the CLI takes, with what the app does with a command
+  // that carries it. A flag added to the tables shows up here undecided, as
+  // one that passes: refuse it where it selects another browser or
+  // connection, or keeps something for the session beyond its command.
+  // `--download-path` and `--screenshot-dir` pass with their value dropped.
+  it("decides what a command carrying each global flag is", () => {
+    const decisions = Object.fromEntries(
+      [...GLOBAL_VALUE_FLAGS, ...GLOBAL_BOOL_FLAGS, RESTORE_FLAG]
+        .toSorted()
+        .map((flag) => [
+          flag,
+          classifyInvocation(
+            GLOBAL_VALUE_FLAGS.has(flag)
+              ? [flag, "value", "snapshot"]
+              : [flag, "snapshot"],
+            managed,
+          ).kind,
+        ]),
+    );
+    expect(decisions).toMatchInlineSnapshot(`
+      {
+        "--action-policy": "refuse",
+        "--allow-file-access": "tabs",
+        "--allowed-domains": "refuse",
+        "--annotate": "tabs",
+        "--args": "tabs",
+        "--auto-connect": "refuse",
+        "--ca-cert": "refuse",
+        "--capture": "refuse",
+        "--cdp": "refuse",
+        "--cdp-headers": "refuse",
+        "--color-scheme": "tabs",
+        "--config": "refuse",
+        "--confirm-actions": "refuse",
+        "--confirm-interactive": "tabs",
+        "--content-boundaries": "tabs",
+        "--debug": "tabs",
+        "--device": "tabs",
+        "--download-path": "tabs",
+        "--enable": "tabs",
+        "--engine": "tabs",
+        "--executable-path": "refuse",
+        "--extension": "refuse",
+        "--fix": "tabs",
+        "--headed": "tabs",
+        "--headers": "tabs",
+        "--hide-scrollbars": "tabs",
+        "--idle-timeout": "tabs",
+        "--ignore-https-errors": "tabs",
+        "--init-script": "tabs",
+        "--input-mode": "tabs",
+        "--json": "tabs",
+        "--max-output": "tabs",
+        "--model": "tabs",
+        "--namespace": "refuse",
+        "--no-auto-connect": "tabs",
+        "--no-auto-dialog": "tabs",
+        "--no-ca-cert": "tabs",
+        "--no-pin-tab": "tabs",
+        "--no-webmcp": "tabs",
+        "--offline": "tabs",
+        "--pin-tab": "refuse",
+        "--profile": "refuse",
+        "--provider": "refuse",
+        "--proxy": "tabs",
+        "--proxy-bypass": "tabs",
+        "--quick": "tabs",
+        "--quiet": "tabs",
+        "--relaunch": "refuse",
+        "--restore": "refuse",
+        "--restore-check-fn": "refuse",
+        "--restore-check-text": "refuse",
+        "--restore-check-url": "refuse",
+        "--restore-save": "refuse",
+        "--screenshot-dir": "tabs",
+        "--screenshot-format": "tabs",
+        "--screenshot-quality": "tabs",
+        "--session": "refuse",
+        "--session-name": "refuse",
+        "--state": "refuse",
+        "--use-system-ca": "tabs",
+        "--user-agent": "tabs",
+        "--verbose": "tabs",
+        "--webgpu": "tabs",
+      }
+    `);
   });
 });
 
@@ -837,26 +942,21 @@ describe("agent-browser routing", () => {
       "5000",
     ]);
 
-    // The run takes the five seconds the cap gives it.
-    vi.useFakeTimers({ toFake: ["performance"] });
-    try {
-      await answerAgentBrowser(() => {
-        vi.advanceTimersByTime(5000);
-        return upstreamTimeout;
-      });
-      const result = await command.execute(
-        ["wait", "--load", "networkidle"],
-        commandCtx,
-      );
+    await answerAgentBrowser({
+      exitCode: 1,
+      stderr: "✗ Timed out after 5000ms waiting for load state 'networkidle'\n",
+      stdout: "",
+    });
+    const result = await command.execute(
+      ["wait", "--load", "networkidle"],
+      commandCtx,
+    );
 
-      expect(result).toEqual({
-        exitCode: 0,
-        stderr: "",
-        stdout: NETWORK_IDLE_GAVE_UP,
-      });
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(result).toEqual({
+      exitCode: 0,
+      stderr: "",
+      stdout: NETWORK_IDLE_GAVE_UP,
+    });
   });
 
   it.each([
@@ -868,7 +968,7 @@ describe("agent-browser routing", () => {
       stdout: "",
     },
   ])(
-    "shows a network-idle wait's failure that came back before the cap as it is: $stderr",
+    "shows a network-idle wait's other failures as they are: $stderr",
     async (answer) => {
       await answerAgentBrowser(answer);
       const result = await command.execute(
@@ -1342,7 +1442,12 @@ describe("agent-browser routing", () => {
   it("runs the command whatever the wait for the document came to", async () => {
     await answerAgentBrowser((given) =>
       given.includes("wait")
-        ? upstreamTimeout
+        ? {
+            exitCode: 1,
+            stderr:
+              "✗ Timed out after 5000ms waiting for load state 'domcontentloaded'\n",
+            stdout: "",
+          }
         : { exitCode: 0, stderr: "", stdout: '"Orders placed in 2025"\n' },
     );
 

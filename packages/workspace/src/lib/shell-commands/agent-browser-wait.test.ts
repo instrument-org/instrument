@@ -141,41 +141,36 @@ describe("namedWaitGaveUp", () => {
 });
 
 describe("cappedWaitResult", () => {
-  const upstreamTimeout = {
-    exitCode: 1,
-    stderr:
-      "✗ Operation timed out. The page may still be loading or the element may not exist.\n",
-    stdout: "",
-  };
-
   it("turns the capped network-idle timeout into a loaded page with a busy network", () => {
     expect(
-      cappedWaitResult({ kind: "networkidle" }, upstreamTimeout, 5012),
+      cappedWaitResult(
+        { kind: "networkidle" },
+        {
+          exitCode: 1,
+          stderr:
+            "✗ Timed out after 5000ms waiting for load state 'networkidle'\n",
+          stdout: "",
+        },
+      ),
     ).toEqual({ exitCode: 0, stderr: "", stdout: NETWORK_IDLE_GAVE_UP });
   });
 
-  // Upstream prints the same line for a launch or connect failure that
-  // mentions a timeout, which comes back before the cap.
-  it("passes the timeout line through when it came back before the cap", () => {
-    expect(
-      cappedWaitResult({ kind: "networkidle" }, upstreamTimeout, 1200),
-    ).toBe(upstreamTimeout);
-  });
-
   it.each([
+    // Another budget than the cap, or another state.
+    "✗ Timed out after 25000ms waiting for load state 'networkidle'\n",
+    "✗ Timed out after 5000ms waiting for load state 'load'\n",
+    // What upstream prints for any other error that mentions a timeout.
+    "✗ Operation timed out. The page may still be loading or the element may not exist.\n",
     "✗ CDP connection failed: Timeout connecting to CDP at 127.0.0.1:9222\n",
     "Auto-launch failed: Timeout waiting for DevToolsActivePort\n",
     "✗ CDP error (Page.navigate): CDP command timed out: Page.navigate\n",
-  ])("passes a launch or connect timeout through: %s", (stderr) => {
+  ])("passes another timeout through: %s", (stderr) => {
     const result = { exitCode: 1, stderr, stdout: "" };
-    expect(cappedWaitResult({ kind: "networkidle" }, result, 5012)).toBe(
-      result,
-    );
+    expect(cappedWaitResult({ kind: "networkidle" }, result)).toBe(result);
     expect(
       cappedWaitResult(
         { condition: "#a", kind: "selector", state: undefined },
         result,
-        10_012,
       ),
     ).toBe(result);
   });
@@ -183,15 +178,11 @@ describe("cappedWaitResult", () => {
   it("keeps a named wait's timeout a failure and says what to do next", () => {
     const wait = { condition: "Added to Cart", kind: "text" as const };
     expect(
-      cappedWaitResult(
-        wait,
-        {
-          exitCode: 1,
-          stderr: "✗ Wait timed out after 10000ms\n",
-          stdout: "",
-        },
-        10_012,
-      ),
+      cappedWaitResult(wait, {
+        exitCode: 1,
+        stderr: "✗ Wait timed out after 10000ms\n",
+        stdout: "",
+      }),
     ).toEqual({ exitCode: 1, stderr: namedWaitGaveUp(wait), stdout: "" });
   });
 
@@ -201,23 +192,20 @@ describe("cappedWaitResult", () => {
       stderr: "✗ Wait timed out after 25000ms\n",
       stdout: "",
     };
-    expect(
-      cappedWaitResult({ condition: "Added", kind: "text" }, result, 25_012),
-    ).toBe(result);
+    expect(cappedWaitResult({ condition: "Added", kind: "text" }, result)).toBe(
+      result,
+    );
   });
 
   it.each([
     { exitCode: 0, stderr: "", stdout: "✓ Done\n" },
     { exitCode: 1, stderr: "✗ Browser not launched\n", stdout: "" },
   ])("passes $stdout$stderr through", (result) => {
-    expect(cappedWaitResult({ kind: "networkidle" }, result, 5012)).toBe(
-      result,
-    );
+    expect(cappedWaitResult({ kind: "networkidle" }, result)).toBe(result);
     expect(
       cappedWaitResult(
         { condition: "#a", kind: "selector", state: undefined },
         result,
-        10_012,
       ),
     ).toBe(result);
   });

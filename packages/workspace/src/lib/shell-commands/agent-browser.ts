@@ -114,13 +114,22 @@ export function agentBrowserCommandDescription() {
   ].join("\n");
 }
 
-// Flags rejected because the harness owns them: daemon session identity and
-// config/plugin-registry discovery. Connection targeting (--cdp,
+// Flags rejected because the harness owns what they set: daemon session
+// identity, config/plugin-registry discovery, and anything the CLI keeps for
+// the session beyond the command that passed it. Connection targeting (--cdp,
 // --auto-connect, --provider, --profile, --state, --restore*) is refused as a
 // reach for a browser outside the app (see isExternalBrowserInvocation).
 export const BLOCKED_FLAGS = new Set([
+  "--action-policy", // Kept in the session's settings file until `close`, like --allowed-domains; its path would also be read outside the folder rules.
+  "--allowed-domains", // Kept in the session's settings file until `close`, which only the workspace runs, so one command would narrow every later one.
+  "--ca-cert", // Trusts a certificate file for the CLI's own requests, read outside the folder rules.
+  "--capture", // Records the session as a flow file; `flow` is not available here.
+  "--cdp-headers", // Credentials for a --cdp endpoint, which is refused.
   "--config", // A managed empty config is injected so an agent-browser.json in the chat's folder (agent-writable, can register plugins) is never discovered.
+  "--confirm-actions", // Kept in the session's settings file until `close`, like --allowed-domains; `confirm` and `deny` are not available here.
   "--namespace", // Would move daemon/restore state outside the workspace-owned namespace.
+  "--pin-tab", // Sticky for the session: later commands fail once the person closes the tab, where the workspace picks the tab a session works in.
+  "--relaunch", // Drops the daemon's connection to the app's browser and makes another; lifecycle is the workspace's.
   "--session", // Harness injects this; derived from our session id.
   "--session-name", // Upstream's alias for --session.
 ]);
@@ -158,14 +167,20 @@ export const BLOCKED_SUBCOMMANDS = new Set([
   "batch", // Each line is parsed as a full command (quoted args or --json stdin), which would bypass this argv-level policy.
   "chat", // Built-in AI REPL; the agent is the AI.
   "close", // Lifecycle managed by the workspace.
+  "confirm", // Approves an action held by --confirm-actions, which is refused.
   "connect", // Sticky daemon connection state; per-invocation --cdp expresses the same thing without hidden routing state.
   "dashboard", // We have our own UI.
+  "deny", // Denies an action held by --confirm-actions, which is refused.
   "doctor", // Diagnoses real Chrome installs, not our Electron bridge.
+  "exit", // Upstream's alias for close.
+  "flow", // Replays a saved flow file, which can send its requests straight from the CLI, with no page and none of the app's rules.
   "inspect", // Opens Chrome DevTools, which doesn't work against our `<webview>` CDP bridge.
   "install", // Browser binary is bundled with the app.
   "launch", // Daemon pre-launch; a command that needs a page already launches on demand. (`read` never does, with or without this: it is skip-launch upstream.)
   "mcp", // MCP tool hosting is managed outside the in-app browser wrapper.
   "plugin", // Plugin capabilities would bypass workspace policy.
+  "plugins", // Upstream's alias for plugin.
+  "quit", // Upstream's alias for close.
   "session", // Session metadata is owned by the workspace.
   "state", // Persistence managed by the workspace.
   "stream", // Streaming managed by the workspace.
@@ -953,18 +968,30 @@ export function createAgentBrowserCommand({
       // Null out env-var equivalents of harness-owned and connection flags so
       // the user shell can't bypass flag policy. Connection targeting must
       // arrive as CLI flags, where they are refused.
+      AGENT_BROWSER_ACTION_POLICY: undefined,
+      AGENT_BROWSER_ALLOWED_DOMAINS: undefined,
       AGENT_BROWSER_AUTO_CONNECT: undefined,
+      AGENT_BROWSER_CA_CERT: undefined,
+      AGENT_BROWSER_CAPTURE: undefined,
       AGENT_BROWSER_CDP: undefined,
+      AGENT_BROWSER_CDP_HEADERS: undefined,
       AGENT_BROWSER_CONFIG: undefined,
+      AGENT_BROWSER_CONFIRM_ACTIONS: undefined,
       // Uncomment this to enable debug mode.
       // AGENT_BROWSER_DEBUG:
       //   process.env.NODE_ENV === "development" ? "1" : undefined,
       AGENT_BROWSER_EXECUTABLE_PATH: undefined,
       AGENT_BROWSER_EXTENSIONS: undefined,
+      AGENT_BROWSER_FLOWS_DIR: undefined,
       AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
       AGENT_BROWSER_IDLE_TIMEOUT_MS,
       AGENT_BROWSER_INIT_SCRIPTS: undefined,
       AGENT_BROWSER_NAMESPACE: undefined,
+      // With no window to drive the CLI starts a Chrome of its own, and would
+      // otherwise fetch Chrome's release feed to compare its version, then
+      // tell the agent to run `install`, which is refused.
+      AGENT_BROWSER_NO_VERSION_CHECK: "1",
+      AGENT_BROWSER_PIN_TAB: undefined,
       AGENT_BROWSER_PLUGINS: pluginRegistry,
       AGENT_BROWSER_PROFILE: undefined,
       AGENT_BROWSER_PROVIDER: pluginRegistry
@@ -1111,10 +1138,6 @@ export function createAgentBrowserCommand({
     // When the command began, which the follow-up reads the page's messages
     // from.
     const startedAtEpoch = Date.now();
-    // How long the command ran, which tells a capped wait that gave up from
-    // a failure that came back before the cap.
-    const startedAt = performance.now();
-    let elapsedMs: number;
     try {
       if (typedRuns === undefined) {
         result = await runAgentBrowser({
@@ -1155,7 +1178,6 @@ export function createAgentBrowserCommand({
           }
         }
       }
-      elapsedMs = performance.now() - startedAt;
     } finally {
       if (drivesChatTabs) {
         await recordDrivenTabHosts({
@@ -1289,9 +1311,7 @@ export function createAgentBrowserCommand({
       stderr: scrub(result.stderr),
       stdout: scrub(stdout),
     };
-    const answer = cappedWait
-      ? cappedWaitResult(cappedWait, output, elapsedMs)
-      : output;
+    const answer = cappedWait ? cappedWaitResult(cappedWait, output) : output;
     // For the end of the bash call to name, when the call's output does not
     // show it, as when the command's output went to /dev/null.
     if (answer.exitCode !== 0) {

@@ -8,16 +8,20 @@
  * of a global flag, which is how a blocked subcommand slips through as
  * `--headers '{}' close`.
  *
- * The tables mirror the CLI's own; keep them in step when the pinned version
- * moves.
+ * The tables mirror the CLI's own (`GLOBAL_FLAGS_WITH_VALUE` and
+ * `GLOBAL_BOOL_FLAGS` in its `cli/src/flags.rs`), and a test holds them to
+ * the flags the installed CLI's `--help` lists.
  */
 
 /** Global flags that always consume the following argument as their value. */
-const GLOBAL_VALUE_FLAGS = new Set([
+export const GLOBAL_VALUE_FLAGS = new Set([
   "--action-policy",
   "--allowed-domains",
   "--args",
+  "--ca-cert",
+  "--capture",
   "--cdp",
+  "--cdp-headers",
   "--color-scheme",
   "--config",
   "--confirm-actions",
@@ -30,6 +34,7 @@ const GLOBAL_VALUE_FLAGS = new Set([
   "--headers",
   "--idle-timeout",
   "--init-script",
+  "--input-mode",
   "--max-output",
   "--model",
   "--namespace",
@@ -54,7 +59,7 @@ const GLOBAL_VALUE_FLAGS = new Set([
  * Global flags that stand alone, and swallow a following argument only when it
  * is a literal `true` or `false`.
  */
-const GLOBAL_BOOL_FLAGS = new Set([
+export const GLOBAL_BOOL_FLAGS = new Set([
   "--allow-file-access",
   "--annotate",
   "--auto-connect",
@@ -66,10 +71,17 @@ const GLOBAL_BOOL_FLAGS = new Set([
   "--hide-scrollbars",
   "--ignore-https-errors",
   "--json",
+  "--no-auto-connect",
   "--no-auto-dialog",
+  "--no-ca-cert",
+  "--no-pin-tab",
+  "--no-webmcp",
   "--offline",
+  "--pin-tab",
   "--quick",
   "--quiet",
+  "--relaunch",
+  "--use-system-ca",
   "--verbose",
   "--webgpu",
 ]);
@@ -81,8 +93,19 @@ const FLAG_ALIASES = new Map([
   ["-v", "--verbose"],
 ]);
 
-const RESTORE_FLAG = "--restore";
+export const RESTORE_FLAG = "--restore";
 const RESTORE_INLINE_PREFIX = `${RESTORE_FLAG}=`;
+
+/** Ends the options: the CLI reads every argument from it on as data. */
+const END_OF_OPTIONS = "--";
+
+/**
+ * After `wait`, `--state` is the state of the element waited for
+ * (`wait <selector> --state hidden`), read by the command; anywhere else it
+ * is the global flag naming a saved state file.
+ */
+const STATE_FLAG = "--state";
+const WAIT_SUBCOMMAND = "wait";
 
 /**
  * The long-form name a flag token carries, ignoring any inline `=value`.
@@ -117,6 +140,16 @@ export function parseAgentBrowserArgs(args: string[]) {
       continue;
     }
 
+    if (arg === END_OF_OPTIONS) {
+      for (let rest = i; rest < args.length; rest++) {
+        const value = args[rest];
+        if (value !== undefined) {
+          subArgs.push({ index: rest, value });
+        }
+      }
+      break;
+    }
+
     if (arg.startsWith(RESTORE_INLINE_PREFIX)) {
       globalFlags.push({
         name: RESTORE_FLAG,
@@ -127,6 +160,11 @@ export function parseAgentBrowserArgs(args: string[]) {
 
     const name = FLAG_ALIASES.get(arg) ?? arg;
     const next = args[i + 1];
+
+    if (name === STATE_FLAG && subArgs[0]?.value === WAIT_SUBCOMMAND) {
+      subArgs.push({ index: i, value: arg });
+      continue;
+    }
 
     if (GLOBAL_VALUE_FLAGS.has(name)) {
       globalFlags.push({

@@ -63,6 +63,8 @@ it.each([1, 0.9, 1.1, 1.25])(
   "keeps the room under a sent message from growing as the reader wheels past the end at zoom %s",
   async (zoom) => {
     await renderInBrowser(<Harness zoom={zoom} />);
+    // Rows landing before the next frame count as the chat opening, not a send.
+    await new Promise(requestAnimationFrame);
     send();
     const element = viewport();
     await vi.waitFor(() => {
@@ -78,3 +80,8 @@ it.each([1, 0.9, 1.1, 1.25])(
     expect(element.scrollHeight).toBeLessThanOrEqual(start);
   },
 );
+
+it("keeps the scrollbar's room while nothing scrolls", async () => {
+  await renderInBrowser(<Harness zoom={1} />);
+  expect(getComputedStyle(viewport()).scrollbarGutter).toBe("stable");
+});

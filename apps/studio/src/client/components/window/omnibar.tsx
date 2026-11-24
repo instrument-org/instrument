@@ -201,6 +201,7 @@ export function Omnibar({
   initial = "",
   liveAddress,
   location,
+  onSent,
   onSite,
   onVisit,
   resting,
@@ -218,6 +219,8 @@ export function Omnibar({
   liveAddress?: () => string | undefined;
   /** Where the tab is, which is what the field reaches and where a relative path starts. */
   location: TabLocation;
+  /** Called as the field sends the tab somewhere, ahead of the place changing: the words typed are done with. */
+  onSent?: () => void;
   /** Where a site goes when one is asked for: the tab's own guest, on a page. Absent, a new tab. */
   onSite?: (url: string) => void;
   /** Where a screen the field names goes: the tab this row is over, when that tab is not the router's. */
@@ -291,6 +294,7 @@ export function Omnibar({
 
   /** Takes the tab this field is over to a screen: its own when it keeps one, the router's otherwise. */
   const visit = (href: string) => {
+    onSent?.();
     if (onVisit) {
       onVisit(href);
     } else {
@@ -299,6 +303,7 @@ export function Omnibar({
   };
   /** Where a site goes: this tab's own guest on a page, a tab of its own anywhere else. */
   const openSite = (url: string) => {
+    onSent?.();
     noteTypedPage(url);
     (onSite ?? openPage)(url);
   };

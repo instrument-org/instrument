@@ -167,6 +167,11 @@ export function TabLocationRow({
   // Whether the field's words have the caret, where a press selects in them
   // rather than carrying the address out.
   const [isEditing, setIsEditing] = useState(false);
+  const fieldKey = `${location.kind}:${place}`;
+  // The field's key from when words were typed into it until the caret
+  // leaves them: a place that changes under words half typed, as a page its
+  // own redirect or an agent's press moves on does, leaves them as they are.
+  const [typedIn, setTypedIn] = useState<string | null>(null);
   const fieldDrag = useContentDrag(
     address
       ? contentOfAddress(address, title || bookmarkTitleOf(location))
@@ -242,6 +247,12 @@ export function TabLocationRow({
           onBlur={(event) => {
             if (event.target instanceof HTMLInputElement) {
               setIsEditing(false);
+              setTypedIn(null);
+            }
+          }}
+          onInput={(event) => {
+            if (event.target instanceof HTMLInputElement) {
+              setTypedIn((was) => was ?? fieldKey);
             }
           }}
           onFocus={(event) => {
@@ -299,10 +310,14 @@ export function TabLocationRow({
               : { takesCaret: fieldTakesCaret })}
             initial={place}
             // The field starts over whenever the place changes, a new tab
-            // turning into a chat among them.
-            key={`${location.kind}:${place}`}
+            // turning into a chat among them, once nothing is being typed
+            // into it.
+            key={typedIn ?? fieldKey}
             {...(liveAddress ? { liveAddress } : {})}
             location={location}
+            onSent={() => {
+              setTypedIn(null);
+            }}
             {...(onSite ? { onSite } : {})}
             {...(onVisit ? { onVisit } : {})}
             resting={

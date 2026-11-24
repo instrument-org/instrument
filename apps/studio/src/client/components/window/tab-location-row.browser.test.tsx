@@ -13,9 +13,18 @@ const menu = vi.hoisted(() => ({ isUp: false }));
 // test is the box they sit in. A menu item stands in for the menu a part of
 // the place opens: inside the field in React's tree, drawn outside its box.
 vi.mock("./omnibar", () => ({
-  Omnibar: ({ initial }: { initial: string }) => (
+  Omnibar: ({ initial, onSent }: { initial: string; onSent?: () => void }) => (
     <>
-      <input aria-label="Address" defaultValue={initial} />
+      <input
+        aria-label="Address"
+        defaultValue={initial}
+        onKeyDown={(event) => {
+          // Enter sends the tab somewhere, as the field's own does.
+          if (event.key === "Enter") {
+            onSent?.();
+          }
+        }}
+      />
       {menu.isUp &&
         createPortal(<div role="menuitem">Copy Path</div>, document.body)}
     </>
@@ -97,4 +106,43 @@ it("leaves a press on a menu opened from the field to the menu", async () => {
     menu.isUp = false;
     await screen.unmount();
   }
+});
+
+const pageRow = (url: string) => (
+  <TabLocationRow address={url} location={{ kind: "page", url }} title="Page" />
+);
+const addressField = () => {
+  const input = document.querySelector<HTMLInputElement>(
+    'input[aria-label="Address"]',
+  );
+  if (!input) {
+    throw new Error("no field");
+  }
+  return input;
+};
+
+it("keeps words half typed in the field as the place changes under them, until the caret leaves", async () => {
+  const screen = await renderInBrowser(pageRow("https://example.com/a"));
+  const typedIn = addressField();
+  typedIn.focus();
+  await userEvent.keyboard("half");
+  await screen.rerender(pageRow("https://example.com/b"));
+  expect(addressField()).toBe(typedIn);
+  expect(document.activeElement).toBe(typedIn);
+  expect(typedIn.value).toContain("half");
+  typedIn.blur();
+  await expect.poll(() => addressField().value).toBe("https://example.com/b");
+});
+
+it("starts the field over when the place changes with nothing typed, or once the field sent the tab there", async () => {
+  const screen = await renderInBrowser(pageRow("https://example.com/a"));
+  addressField().focus();
+  await screen.rerender(pageRow("https://example.com/b"));
+  expect(addressField().value).toBe("https://example.com/b");
+  const typedIn = addressField();
+  typedIn.focus();
+  await userEvent.keyboard("half{Enter}");
+  await screen.rerender(pageRow("https://example.com/c"));
+  expect(addressField()).not.toBe(typedIn);
+  expect(addressField().value).toBe("https://example.com/c");
 });

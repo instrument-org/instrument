@@ -7,7 +7,7 @@ import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
 import { knowChat } from "../../test/helpers/mock-chat-config";
 import { browserTargetOf } from "../../types";
-import { AGENT_BROWSER_PATH } from "../agent-browser";
+import { agentBrowserPath } from "../agent-browser";
 import { createLocalBashEnv } from "../create-bash-env";
 import { chatDir } from "../record-folders";
 import { runtimeLayout } from "../runtime-dir";
@@ -84,9 +84,13 @@ beforeEach(async () => {
       input?: Buffer;
     },
   ) => {
-    if (file !== AGENT_BROWSER_PATH) {
+    // On a Mac the CLI runs under a profile, as a launcher's last operands.
+    const wrapped = given.indexOf(agentBrowserPath());
+    if (file !== agentBrowserPath() && wrapped === -1) {
       return actual.execa(file, given, options as never);
     }
+    const words =
+      file === agentBrowserPath() ? given : given.slice(wrapped + 1);
     // A stopped command starts nothing, as execa starts nothing for one.
     if (options.cancelSignal?.aborted) {
       return Object.assign(
@@ -94,13 +98,13 @@ beforeEach(async () => {
         { once: () => undefined },
       );
     }
-    const at = given.indexOf("--session");
-    const args = at === -1 ? given : given.slice(at + 2);
+    const at = words.indexOf("--session");
+    const args = at === -1 ? words : words.slice(at + 2);
     runs.push({
       args,
       env: options.env ?? {},
       input: options.input?.toString("utf8"),
-      session: at === -1 ? undefined : given[at + 1],
+      session: at === -1 ? undefined : words[at + 1],
     });
     const ended =
       args[0] === "--json" && args[1] === "eval"

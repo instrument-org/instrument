@@ -204,10 +204,12 @@ function useToastLoudNotices(
 ) {
   const asked = useRef(new Set<string>());
   const shown = useRef(new Set<string>());
+  const listed = useRef<BellNotice[]>([]);
   const focused = useSyncExternalStore(subscribeToWindowFocus, () =>
     document.hasFocus(),
   );
   useEffect(() => {
+    listed.current = notices;
     // A notice whose cause went away (an account signed in again, a choice
     // made in Settings) leaves the list, and its toast goes with it.
     for (const id of shown.current) {
@@ -230,7 +232,8 @@ function useToastLoudNotices(
       void rpcClient.notices.claimToast
         .call({ id: notice.id })
         .then((granted) => {
-          if (!granted) {
+          // Its cause may have gone while the answer was on its way.
+          if (!granted || !listed.current.some(({ id }) => id === notice.id)) {
             return;
           }
           shown.current.add(notice.id);

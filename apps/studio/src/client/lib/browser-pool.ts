@@ -616,6 +616,11 @@ export function goGuest(
   return false;
 }
 
+/** Whether a step `goGuest` made has yet to land. */
+export function hasGuestTraversal(targetId: BrowserTargetId): boolean {
+  return traversals.has(targetId);
+}
+
 /** Whether the guest's latest navigation was a step `goGuest` made, which this answers once. */
 export function takeGuestTraversal(targetId: BrowserTargetId): boolean {
   return traversals.delete(targetId);

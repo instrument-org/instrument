@@ -11,6 +11,7 @@ import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import {
   getGuest,
   type GuestHandle,
+  hasGuestTraversal,
   setPagePanes,
   takeGuestTraversal,
 } from "@/client/lib/browser-pool";
@@ -443,7 +444,13 @@ export function BrowserTabs({
       if (!guest) {
         return;
       }
-      const onNavigate = ({ isNewDocument }: { isNewDocument: boolean }) => {
+      const onNavigate = ({
+        hasLanded = true,
+        isNewDocument,
+      }: {
+        hasLanded?: boolean;
+        isNewDocument: boolean;
+      }) => {
         const url = guest.url();
         // A guest gone since it was read has no page to report.
         if (url === "") {
@@ -454,7 +461,11 @@ export function BrowserTabs({
         if (isPageEditAddress(url)) {
           return;
         }
-        const isHistoryStep = takeGuestTraversal(target);
+        // Listening again reads where the page is, and a step still on its
+        // way is for the navigation it makes to take.
+        const isHistoryStep = hasLanded
+          ? takeGuestTraversal(target)
+          : hasGuestTraversal(target);
         if (
           !isHistoryStep &&
           url !== latest.current.tabs.find((tab) => tab.id === id)?.url
@@ -596,7 +607,7 @@ export function BrowserTabs({
           }
         }
       };
-      onNavigate({ isNewDocument: false });
+      onNavigate({ hasLanded: false, isNewDocument: false });
       const stops = [
         guest.on("did-navigate", () => {
           onNavigate({ isNewDocument: true });

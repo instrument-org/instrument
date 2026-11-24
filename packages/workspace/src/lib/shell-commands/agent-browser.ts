@@ -34,7 +34,12 @@ import {
   getScreenshotsDir,
 } from "../chat-dir-utils";
 import { chatPageTabs } from "../chat/chat-tabs";
-import { announceChatTab, lastActOf, tabsActedInBy } from "../tab-activity";
+import {
+  announceChatTab,
+  closeChatTab,
+  lastActOf,
+  tabsActedInBy,
+} from "../tab-activity";
 import { pageOpenedTabsNote, tabNewsNote } from "./agent-browser-tab-news";
 import { getWorkspaceConfig } from "../workspace-config";
 import {
@@ -77,8 +82,11 @@ import {
 import { typedTextRuns } from "./agent-browser-typed-text";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
 import {
+  isTabClose,
   jsonWithTabIds,
   newTabLine,
+  onlyTabToClose,
+  tabClosedOutput,
   tabOutputOf,
   windowTabIdArgIndex,
   withTabIds,
@@ -978,7 +986,8 @@ export function createAgentBrowserCommand({
       isInfoOnly || browserFreeRead
         ? undefined
         : windowTabIdArgIndex(resolvedArgs);
-    if (tabIdIndex !== undefined) {
+    const closesTab = drivesChatTabs && isTabClose(resolvedArgs);
+    if (tabIdIndex !== undefined || closesTab) {
       const listTabs = () =>
         runAgentBrowser({
           ...spawnOptions,
@@ -990,7 +999,8 @@ export function createAgentBrowserCommand({
       // A tab of the chat's opened since this session's agent-browser
       // connected is announced only now that the agent names it, since
       // agent-browser makes a tab it discovers its active one.
-      const named = resolvedArgs[tabIdIndex];
+      const named =
+        tabIdIndex === undefined ? undefined : resolvedArgs[tabIdIndex];
       if (
         listed.exitCode === 0 &&
         named !== undefined &&
@@ -999,7 +1009,25 @@ export function createAgentBrowserCommand({
       ) {
         listed = await listTabs();
       }
-      if (listed.exitCode === 0) {
+      // agent-browser refuses to close the only tab it has, so one an agent
+      // opened is closed in the window for it. Nothing is left to read after,
+      // and agent-browser makes a blank tab when its next command comes.
+      const only =
+        closesTab && listed.exitCode === 0
+          ? onlyTabToClose(resolvedArgs, listed.stdout)
+          : undefined;
+      if (
+        only !== undefined &&
+        (await closeChatTab({ chatId, sessionId }, only))
+      ) {
+        currentBrowserFollowUp()?.clear();
+        return {
+          exitCode: 0,
+          stderr: "",
+          stdout: tabClosedOutput(resolvedArgs, only),
+        };
+      }
+      if (listed.exitCode === 0 && tabIdIndex !== undefined) {
         commandArgs.splice(
           connectionArgs.length,
           resolvedArgs.length,

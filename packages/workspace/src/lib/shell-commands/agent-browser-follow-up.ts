@@ -589,6 +589,15 @@ export class BrowserFollowUp {
     }
   }
 
+  /**
+   * Drops what is pending: the session's browser has no tab left to read,
+   * and a read would have agent-browser open a blank one.
+   */
+  clear() {
+    this.#pending = undefined;
+    this.#unread = undefined;
+  }
+
   /** Records a command that failed, by what it said about it ({@link failureLine}). */
   noteFailure(args: string[], error: string) {
     if (error === "") {

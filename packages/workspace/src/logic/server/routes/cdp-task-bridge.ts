@@ -20,6 +20,7 @@ import {
   lastActOf,
   noteTabCommand,
   registerTabAnnouncer,
+  registerTabCloser,
   takenOverFrom,
 } from "../../../lib/tab-activity";
 import { type StoreId } from "../../../schemas/store-id";
@@ -84,6 +85,9 @@ interface Attached {
  * `open` never takes a page someone else is on. Opening a tab asks the window for one in the
  * chat, behind whatever the user has up. Closing one an agent opened closes
  * it; closing any other only lets go of it, since that tab is the user's.
+ * agent-browser refuses to close the only tab it has, so the wrapper asks
+ * for that one to be closed here (`closeChatTab` in `tab-activity.ts`), and
+ * the blank tab agent-browser then makes itself is the session's start tab.
  * Nothing here ever selects a tab in the window: switching tabs is the
  * agent's business alone.
  *
@@ -486,16 +490,42 @@ export function handleTaskCdpClient(
         return;
       }
     }
+    // agent-browser left with no tab makes itself a blank one before its
+    // next command, whatever that is.
+    const hasNoTab = announced.size === 0;
     const tab = await openTab(address);
     if (typeof tab === "string") {
       refuse(id, tab);
       return;
     }
     await announce(tab);
-    await closeStartTab();
+    if (hasNoTab && address === undefined) {
+      // The session's tab to start in again, which closes like the first
+      // once the session opens a tab of its own.
+      startTab = tab;
+      startTabs.set(key, tab.targetId);
+    } else {
+      await closeStartTab();
+    }
     answer(id, {
       targetId: tab.tabId,
     } satisfies Protocol.Target.CreateTargetResponse);
+  };
+
+  const openedByAgent = async (tab: Tab) => {
+    const { openedTabs } = await getChatState(chatDir(chatId));
+    return openedTabs.some((opened) => opened.id === tab.targetId);
+  };
+
+  /** Closes a tab in the window, with everything kept of it. */
+  const closeInWindow = async (tab: Tab) => {
+    await askWindow({
+      action: { kind: "close", tabId: tab.tabId },
+      askedBy: chatId,
+      group: resolveChat(chatId),
+    });
+    await forgetOpenedTabs(chatId, new Set([tab.targetId]));
+    forgetTab(tab.targetId);
   };
 
   const closeTarget = async (id: number, params: unknown) => {
@@ -508,15 +538,8 @@ export function handleTaskCdpClient(
     forget(tab.tabId);
     // A tab an agent opened is an agent's to close; any other is the
     // user's, and closing it only lets go of it.
-    const { openedTabs } = await getChatState(chatDir(chatId));
-    if (openedTabs.some((opened) => opened.id === tab.targetId)) {
-      await askWindow({
-        action: { kind: "close", tabId: tab.tabId },
-        askedBy: chatId,
-        group: resolveChat(chatId),
-      });
-      await forgetOpenedTabs(chatId, new Set([tab.targetId]));
-      forgetTab(tab.targetId);
+    if (await openedByAgent(tab)) {
+      await closeInWindow(tab);
     }
     answer(id, { success: true } satisfies Protocol.Target.CloseTargetResponse);
   };
@@ -715,12 +738,47 @@ export function handleTaskCdpClient(
     });
   const stopAnnouncing = registerTabAnnouncer(actor, announceOne);
 
+  /**
+   * Closes a tab an agent opened without agent-browser asking, in order with
+   * its other commands: agent-browser refuses to close the only tab it has,
+   * so the wrapper asks here instead (`closeChatTab`). agent-browser hears
+   * the tab is gone, and makes itself a blank one when its next command
+   * comes. A tab of the user's is left alone, agent-browser's hold on it
+   * too.
+   */
+  const closeOne = (tabId: string) =>
+    new Promise<boolean>((resolve) => {
+      queue = queue
+        .then(async () => {
+          const tab = (await tabs()).find((entry) => entry.tabId === tabId);
+          if (!tab) {
+            // Gone from the window already.
+            forget(tabId);
+            resolve(false);
+            return;
+          }
+          if (closed || !(await openedByAgent(tab))) {
+            resolve(false);
+            return;
+          }
+          forget(tab.tabId);
+          await closeInWindow(tab);
+          resolve(true);
+        })
+        .catch((error: unknown) => {
+          resolve(false);
+          workspaceConfig.captureException(error);
+        });
+    });
+  const stopClosing = registerTabCloser(actor, closeOne);
+
   const end = () => {
     if (closed) {
       return;
     }
     closed = true;
     stopAnnouncing();
+    stopClosing();
     for (const stop of watches.values()) {
       stop();
     }

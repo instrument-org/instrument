@@ -4,6 +4,7 @@ import {
   jsonWithTabIds,
   listsTab,
   newTabLine,
+  onlyTabToClose,
   tabOutputOf,
   windowTabIdArgIndex,
   withTabIds,
@@ -115,6 +116,30 @@ describe("a tab named by the window's id", () => {
     expect(
       withTabLabel(["tab", "tab_01M5Q2CY3JB5G7KJVE1QAZZZZZ"], 1, JSON_LIST),
     ).toEqual(["tab", "tab_01M5Q2CY3JB5G7KJVE1QAZZZZZ"]);
+  });
+});
+
+describe("the only tab agent-browser has", () => {
+  const ONLY = "tab_01M5Q29YA0CTZ3NQY76Z3JQWBF";
+  const ONE = JSON.stringify({
+    data: { tabs: [{ active: true, tabId: "t3", targetId: ONLY }] },
+  });
+
+  it.each([
+    [["tab", "close", ONLY], ONE, ONLY],
+    [["tab", "close"], ONE, ONLY],
+    [["tab", "close", "t3"], ONE, ONLY],
+    [["--json", "tab", "close", ONLY], ONE, ONLY],
+    // Another tab named, which agent-browser answers for itself.
+    [["tab", "close", "tab_01M5Q2CY3JB5G7KJVE1QAZZZZZ"], ONE, undefined],
+    [["tab", "close", "t1"], ONE, undefined],
+    // One of several, which agent-browser closes.
+    [["tab", "close", ONLY], JSON_LIST, undefined],
+    [["tab", "close"], JSON_LIST, undefined],
+    [["tab", ONLY], ONE, undefined],
+    [["tab", "close", ONLY], "not json", undefined],
+  ])("%j with the list %s closes %s", (args, json, tabId) => {
+    expect(onlyTabToClose(args, json)).toBe(tabId);
   });
 });
 

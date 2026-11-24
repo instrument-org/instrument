@@ -96,8 +96,11 @@ const FLAG_ALIASES = new Map([
 export const RESTORE_FLAG = "--restore";
 const RESTORE_INLINE_PREFIX = `${RESTORE_FLAG}=`;
 
-/** Ends the options: the CLI reads every argument from it on as data. */
-const END_OF_OPTIONS = "--";
+/**
+ * Ends the options: the CLI takes no global flag from it on, and hands it and
+ * what follows to the subcommand, whose own parser reads the rest as data.
+ */
+export const END_OF_OPTIONS = "--";
 
 /**
  * After `wait`, `--state` is the state of the element waited for
@@ -124,6 +127,11 @@ export function agentBrowserFlagName(arg: string): string {
  * Split an invocation into the global flags the CLI consumes itself and the
  * arguments its subcommand parser sees. `subArgs` carries each argument's index
  * in the original list so a caller can rewrite one in place.
+ *
+ * `endOfOptions` is where the `--` that ends the options is in the list, or the
+ * list's length without one. A flag counts only ahead of it, so whatever looks
+ * for one reads `args.slice(0, endOfOptions)`; a `--` a value flag took as its
+ * value is that value, as it is to the CLI.
  */
 export function parseAgentBrowserArgs(args: string[]) {
   const globalFlags: {
@@ -133,6 +141,7 @@ export function parseAgentBrowserArgs(args: string[]) {
     valueIndex?: number;
   }[] = [];
   const subArgs: { index: number; value: string }[] = [];
+  let endOfOptions = args.length;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -141,6 +150,7 @@ export function parseAgentBrowserArgs(args: string[]) {
     }
 
     if (arg === END_OF_OPTIONS) {
+      endOfOptions = i;
       for (let rest = i; rest < args.length; rest++) {
         const value = args[rest];
         if (value !== undefined) {
@@ -203,5 +213,5 @@ export function parseAgentBrowserArgs(args: string[]) {
 
   // The CLI takes whatever survives first as the subcommand, flag-looking or
   // not -- `--raw read <url>` is an unknown command to it, not a read.
-  return { globalFlags, subArgs, subcommand: subArgs[0]?.value };
+  return { endOfOptions, globalFlags, subArgs, subcommand: subArgs[0]?.value };
 }

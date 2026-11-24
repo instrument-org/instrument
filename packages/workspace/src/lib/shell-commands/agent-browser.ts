@@ -53,6 +53,7 @@ import {
 } from "../workspace-fs-layout";
 import {
   agentBrowserFlagName,
+  END_OF_OPTIONS,
   parseAgentBrowserArgs,
 } from "./agent-browser-args";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
@@ -518,6 +519,10 @@ type FileOperand = { index: number; op: "read" | "write"; prefix?: string };
  * browser process reads or writes it, picked out the way the CLI's own
  * parser picks them (`cli/src/commands.rs` upstream; keep in step when the
  * pinned version moves). `operands` are the subcommand's own, after it.
+ *
+ * A file is counted among the positionals `positionalsOf` gives, which
+ * passes over the `--` the CLI passes over, so the argument checked is the one
+ * the CLI opens. `diff` reads its flags wherever they are and takes no `--`.
  */
 function fileOperandsOf(
   subcommand: string | undefined,
@@ -525,7 +530,7 @@ function fileOperandsOf(
 ): FileOperand[] {
   const writes = (operand: Operand | undefined): FileOperand[] =>
     operand ? [{ index: operand.index, op: "write" }] : [];
-  const [first, second, third] = operands;
+  const [first, second] = operands;
   switch (subcommand) {
     case "diff": {
       // `--baseline <file>` is read, `--output <file>` written.
@@ -543,19 +548,21 @@ function fileOperandsOf(
       });
     }
     case "download": {
-      return writes(second);
+      return writes(positionalsOf(operands)[1]);
     }
     case "network": {
       return first?.value === "har" && second?.value === "stop"
-        ? writes(third)
+        ? writes(positionalsOf(operands.slice(2))[0])
         : [];
     }
     case "pdf": {
-      return writes(first);
+      return writes(positionalsOf(operands)[0]);
     }
     case "profiler":
     case "trace": {
-      return first?.value === "stop" ? writes(second) : [];
+      return first?.value === "stop"
+        ? writes(positionalsOf(operands.slice(1))[0])
+        : [];
     }
     case "record": {
       if (first?.value !== "start" && first?.value !== "restart") {
@@ -580,7 +587,13 @@ function fileOperandsOf(
       return only && isScreenshotPath(only.value) ? writes(only) : [];
     }
     case "upload": {
-      return operands.slice(1).map(({ index }) => ({ index, op: "read" }));
+      // The CLI drops a `--` ahead of the selector when something follows it,
+      // and sends every word after the selector as a file.
+      const words =
+        first?.value === END_OF_OPTIONS && operands.length > 1
+          ? operands.slice(1)
+          : operands;
+      return words.slice(1).map(({ index }) => ({ index, op: "read" }));
     }
     default: {
       return [];
@@ -595,7 +608,13 @@ function fileOperandsOf(
  */
 function initScriptOperands(
   args: string[],
-  globalFlags: ReturnType<typeof parseAgentBrowserArgs>["globalFlags"],
+  {
+    endOfOptions,
+    globalFlags,
+  }: Pick<
+    ReturnType<typeof parseAgentBrowserArgs>,
+    "endOfOptions" | "globalFlags"
+  >,
 ): FileOperand[] {
   const prefix = `${INIT_SCRIPT_FLAG}=`;
   return [
@@ -604,27 +623,38 @@ function initScriptOperands(
         ? [{ index: valueIndex, op: "read" }]
         : [],
     ),
-    ...args.flatMap((arg, index): FileOperand[] =>
-      arg.startsWith(prefix) ? [{ index, op: "read", prefix }] : [],
-    ),
+    ...args
+      .slice(0, endOfOptions)
+      .flatMap((arg, index): FileOperand[] =>
+        arg.startsWith(prefix) ? [{ index, op: "read", prefix }] : [],
+      ),
   ];
 }
 
-/** The operands that are not a flag or a flag's value. */
+/**
+ * The operands that are not a flag or a flag's value, as the CLI's scanner
+ * (`ArgScanner`) counts them: the first `--` is not one, and every operand
+ * after it is, a flag's name included.
+ */
 function positionalsOf(
   operands: Operand[],
-  flags: { bool: string[]; valued: string[] },
+  flags: { bool: string[]; valued: string[] } = { bool: [], valued: [] },
 ): Operand[] {
   const positionals: Operand[] = [];
+  let optionsEnded = false;
   for (let i = 0; i < operands.length; i++) {
-    const value = operands[i]?.value ?? "";
-    if (flags.valued.includes(value)) {
+    const operand = operands[i];
+    if (!operand) {
+      continue;
+    }
+    if (optionsEnded) {
+      positionals.push(operand);
+    } else if (operand.value === END_OF_OPTIONS) {
+      optionsEnded = true;
+    } else if (flags.valued.includes(operand.value)) {
       i++;
-    } else if (!flags.bool.includes(value)) {
-      const operand = operands[i];
-      if (operand) {
-        positionals.push(operand);
-      }
+    } else if (!flags.bool.includes(operand.value)) {
+      positionals.push(operand);
     }
   }
   return positionals;
@@ -660,17 +690,16 @@ export async function resolveAgentBrowserPathArgs(
   },
   layout: WorkspaceFsLayout,
 ): Promise<{ args: string[] } | { error: string }> {
-  const { globalFlags, subArgs, subcommand } = parseAgentBrowserArgs(args);
+  const parsed = parseAgentBrowserArgs(args);
+  const { subArgs, subcommand } = parsed;
   const textOperands = new Set(
     subcommand !== undefined && !FILE_OPERAND_SUBCOMMANDS.has(subcommand)
       ? subArgs.slice(1).map(({ index }) => index)
       : [],
   );
-  const initScripts = initScriptOperands(args, globalFlags);
-  const fileOperands = [
-    ...fileOperandsOf(subcommand, subArgs.slice(1)),
-    ...initScripts,
-  ];
+  const initScripts = initScriptOperands(args, parsed);
+  const commandFiles = fileOperandsOf(subcommand, subArgs.slice(1));
+  const fileOperands = [...commandFiles, ...initScripts];
   const pathOf = ({ index, prefix = "" }: FileOperand) =>
     (args[index] ?? "").slice(prefix.length);
   const hostCwd = hostPathOf(ctx.fs.resolvePath(ctx.cwd, "."));
@@ -714,9 +743,10 @@ export async function resolveAgentBrowserPathArgs(
     return { args: resolved };
   }
 
-  for (const { value } of subArgs.slice(2)) {
-    if (!(await ctx.fs.exists(shellPathOf(value)))) {
-      return { error: `Upload file not found: "${value}".` };
+  for (const operand of commandFiles) {
+    const named = pathOf(operand);
+    if (!(await ctx.fs.exists(shellPathOf(named)))) {
+      return { error: `Upload file not found: "${named}".` };
     }
   }
   return { args: resolved };
@@ -763,11 +793,15 @@ export function classifyInvocation(
   args: string[],
   { hasNoWindow }: { hasNoWindow: boolean },
 ): Invocation {
-  if (args.some((a) => a === "--help" || a === "-h")) {
+  const { endOfOptions, subArgs, subcommand } = parseAgentBrowserArgs(args);
+  // What follows the `--` is the subcommand's data, which the CLI reads no
+  // flag from: `type @e1 -- --session` types the words.
+  const options = args.slice(0, endOfOptions);
+  if (options.some((a) => a === "--help" || a === "-h")) {
     return { kind: "help" };
   }
   // Matches --flag, --flag=value, and short aliases (-p for --provider).
-  const blockedArg = args.find((a) =>
+  const blockedArg = options.find((a) =>
     BLOCKED_FLAGS.has(agentBrowserFlagName(a)),
   );
   if (blockedArg) {
@@ -776,13 +810,12 @@ export function classifyInvocation(
       stderr: `agent-browser: flag ${blockedArg} is not allowed. The browser session is managed automatically.\n`,
     };
   }
-  if (args.some((a) => agentBrowserFlagName(a) === EXTENSION_FLAG)) {
+  if (options.some((a) => agentBrowserFlagName(a) === EXTENSION_FLAG)) {
     return {
       kind: "refuse",
       stderr: `agent-browser: flag ${EXTENSION_FLAG} has no effect on ${APP_NAME}'s browser: an extension loads only into a browser agent-browser starts itself, and this one is already running.\n`,
     };
   }
-  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
   if (subcommand === ADBLOCK_SUBCOMMAND) {
     return { kind: "adblock", mode: subArgs[1]?.value };
   }
@@ -802,7 +835,7 @@ export function classifyInvocation(
         "agent-browser: `tab keep` is not available in this browser: every tab stays live while an agent works in it, and a tab the user shares cannot be frozen.\n",
     };
   }
-  const isInfoOnly = args.some((a) => {
+  const isInfoOnly = options.some((a) => {
     const flagName = a.includes("=") ? a.slice(0, a.indexOf("=")) : a;
     return INFO_ONLY_FLAGS.has(flagName);
   });
@@ -1570,8 +1603,9 @@ async function spawnAgentBrowser({
 }
 
 function stripHarnessControlledFlags(args: string[]): string[] {
+  const { endOfOptions } = parseAgentBrowserArgs(args);
   const out: string[] = [];
-  for (let i = 0; i < args.length; i++) {
+  for (let i = 0; i < endOfOptions; i++) {
     const arg = args[i];
     if (arg === undefined) {
       continue;
@@ -1586,5 +1620,5 @@ function stripHarnessControlledFlags(args: string[]): string[] {
     }
     out.push(arg);
   }
-  return out;
+  return [...out, ...args.slice(endOfOptions)];
 }

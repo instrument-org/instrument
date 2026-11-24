@@ -98,6 +98,17 @@ describe("parseAgentBrowserArgs", () => {
       "--cdp",
       "9222",
     ]);
+    expect(result.endOfOptions).toBe(2);
+  });
+
+  it.each([
+    { args: ["open", "example.com"], endOfOptions: 2 },
+    // A value flag's value, as the CLI reads it.
+    { args: ["--user-agent", "--", "open"], endOfOptions: 3 },
+    { args: ["--user-agent", "--", "open", "--", "x"], endOfOptions: 3 },
+    { args: ["type", "@e1", "--", "a", "--", "b"], endOfOptions: 2 },
+  ])("ends the options of $args at $endOfOptions", ({ args, endOfOptions }) => {
+    expect(parseAgentBrowserArgs(args).endOfOptions).toBe(endOfOptions);
   });
 
   it("keeps each sub-argument's index in the original list", () => {

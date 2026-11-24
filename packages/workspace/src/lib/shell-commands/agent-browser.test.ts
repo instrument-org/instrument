@@ -366,6 +366,22 @@ describe("classifyInvocation", () => {
     [["wait", "#spinner", "--state", "hidden"], managed, "tabs"],
     [["--state", "auth.json", "wait", "#spinner"], managed, "refuse"],
     [["--json", "tab", "--", "keep", "live"], managed, "refuse"],
+    // What follows the `--` is the command's data, as it is to the CLI.
+    [["type", "@e1", "--", "--allowed-domains"], managed, "tabs"],
+    [["fill", "@e1", "--", "--session", "x", "--help"], managed, "tabs"],
+    [["type", "@e1", "--", "--extension", "--version"], managed, "tabs"],
+    [
+      ["--allowed-domains", "a.com", "type", "@e1", "--", "x"],
+      managed,
+      "refuse",
+    ],
+    [
+      ["type", "@e1", "--allowed-domains", "a.com", "--", "x"],
+      managed,
+      "refuse",
+    ],
+    // A `--` a value flag takes is its value, and ends no options.
+    [["--user-agent", "--", "--session", "x", "open"], managed, "refuse"],
   ])("%j with %j is %s", (args, config, kind) => {
     expect(classifyInvocation(args, config).kind).toBe(kind);
   });
@@ -714,6 +730,10 @@ describe("agent-browser file operands and the folder rules", () => {
   it.each([
     { args: ["upload", "@e1", "../closed/secret.txt"], name: "an upload" },
     {
+      args: ["upload", "--", "@e1", "../closed/secret.txt"],
+      name: "an upload after --",
+    },
+    {
       args: ["upload", "@e1", "notes.txt"],
       name: "an upload through a link in the work folder",
     },
@@ -772,6 +792,19 @@ describe("agent-browser file operands and the folder rules", () => {
         "../closed/d.png",
       ],
     },
+    // The CLI passes over a `--`, so the file is the word after it.
+    { args: ["screenshot", "--", "../closed/page.png"] },
+    { args: ["screenshot", "--", "body", "../closed/page.png"] },
+    { args: ["screenshot", "body", "--", "../closed/page.png"] },
+    { args: ["screenshot", "--full", "--", "body", "--closed/../../closed/p"] },
+    { args: ["pdf", "--", "../closed/page"] },
+    { args: ["download", "--", "@e1", "../closed/report.csv"] },
+    { args: ["download", "@e1", "--", "../closed/report.csv"] },
+    { args: ["record", "start", "--", "../closed/take.webm"] },
+    { args: ["record", "restart", "--cursor", "--", "../closed/take.webm"] },
+    { args: ["trace", "stop", "--", "../closed/trace.json"] },
+    { args: ["profiler", "stop", "--", "../closed/profile.json"] },
+    { args: ["network", "har", "stop", "--", "../closed/traffic.har"] },
   ])("refuses $args writing into a closed folder", async ({ args }) => {
     expect(await resolve(args)).toEqual({
       error: expect.stringContaining("Permission denied"),
@@ -822,6 +855,28 @@ describe("agent-browser file operands and the folder rules", () => {
     [
       ["upload", "@e1", "photo.png"],
       ["upload", "@e1", "<root>/work/photo.png"],
+    ],
+    // The `--` stays where it was, and the file after it is the one spelled out.
+    [
+      ["upload", "--", "@e1", "photo.png"],
+      ["upload", "--", "@e1", "<root>/work/photo.png"],
+    ],
+    [
+      ["pdf", "--", "page.pdf"],
+      ["pdf", "--", "<root>/work/page.pdf"],
+    ],
+    [
+      ["screenshot", "--", "body", "shot.png"],
+      ["screenshot", "--", "body", "<root>/work/shot.png"],
+    ],
+    [
+      ["record", "start", "--", "take.webm", "https://x.com"],
+      ["record", "start", "--", "<root>/work/take.webm", "https://x.com"],
+    ],
+    // Text after the `--` that spells a flag is the page's, not a file.
+    [
+      ["type", "@e1", "--", "--init-script=hook.js"],
+      ["type", "@e1", "--", "--init-script=hook.js"],
     ],
   ])("lets %j work in the work folder", async (args, expected) => {
     expect(await resolve(args)).toEqual({ args: expected });

@@ -282,7 +282,7 @@ describe("the commands the CLI takes", () => {
         "dashboard": "refuse",
         "dblclick": "tabs",
         "deny": "refuse",
-        "device": "tabs",
+        "device": "refuse",
         "dialog": "tabs",
         "diff": "tabs",
         "doctor": "refuse",
@@ -350,7 +350,7 @@ describe("the commands the CLI takes", () => {
         "wait": "tabs",
         "web-vitals": "tabs",
         "webmcp": "tabs",
-        "window": "tabs",
+        "window": "refuse",
       }
     `);
   });

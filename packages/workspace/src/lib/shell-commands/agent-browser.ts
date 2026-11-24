@@ -29,6 +29,7 @@ import {
   agentBrowserGuide,
   agentBrowserReferences,
 } from "../../model-text/guides/agent-browser-guide";
+import { WINDOW_COMMAND } from "../../model-text/commands/window-command";
 import { withTcpListenerClosed } from "../native-sandbox";
 import { recordVisitedHosts } from "../browser-state";
 import { agentSpellingOfFileUrls } from "../local-page-address";
@@ -191,6 +192,23 @@ export const BLOCKED_SUBCOMMANDS = new Set([
   "state", // Persistence managed by the workspace.
   "stream", // Streaming managed by the workspace.
   "upgrade", // Binary is bundled; agent shouldn't self-update.
+]);
+
+// Subcommands refused with what to run in their place, or why there is
+// nothing to run.
+const REDIRECTED_SUBCOMMANDS = new Map([
+  // `device list` lists the iOS simulators on this computer, for the iOS
+  // provider, which is a browser outside the app.
+  [
+    "device",
+    `agent-browser: \`device\` is not available in this browser: it lists iOS simulators for agent-browser's iOS provider, and ${APP_NAME}'s browser is the only one here. \`set device <name>\` is a different command.\n`,
+  ],
+  // `window new` asks the daemon for a browser window of its own, where the
+  // windows are the app's and the person's.
+  [
+    "window",
+    `agent-browser: \`window\` is not available in this browser: the windows are ${APP_NAME}'s. Open a tab with \`agent-browser tab new <url>\`, or put one in front of the user with \`${WINDOW_COMMAND.name} show <url or path>\`.\n`,
+  ],
 ]);
 
 // Flags silently stripped (with their value arg, including --flag=value form)
@@ -917,6 +935,13 @@ export function classifyInvocation(
       kind: "refuse",
       stderr: `agent-browser: subcommand '${subcommand}' is not available in this environment.\n`,
     };
+  }
+  const redirect =
+    subcommand === undefined
+      ? undefined
+      : REDIRECTED_SUBCOMMANDS.get(subcommand);
+  if (redirect !== undefined) {
+    return { kind: "refuse", stderr: redirect };
   }
   if (isTabKeep(subcommand, subArgs)) {
     return {

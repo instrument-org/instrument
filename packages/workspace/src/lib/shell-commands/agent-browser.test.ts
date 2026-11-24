@@ -156,6 +156,29 @@ describe("createAgentBrowserCommand", () => {
     expect(await agentBrowserRuns()).toEqual([]);
   });
 
+  it.each([
+    {
+      args: ["window", "new"],
+      stderr:
+        "agent-browser: `window` is not available in this browser: the windows are Instrument's. Open a tab with `agent-browser tab new <url>`, or put one in front of the user with `instrument window show <url or path>`.\n",
+    },
+    {
+      args: ["--json", "device", "list"],
+      stderr:
+        "agent-browser: `device` is not available in this browser: it lists iOS simulators for agent-browser's iOS provider, and Instrument's browser is the only one here. `set device <name>` is a different command.\n",
+    },
+  ])(
+    "refuses $args with what to run in its place",
+    async ({ args, stderr }) => {
+      expect(await command.execute(args, mockCtx)).toEqual({
+        exitCode: 1,
+        stderr,
+        stdout: "",
+      });
+      expect(await agentBrowserRuns()).toEqual([]);
+    },
+  );
+
   it("serves the CLI's core guide, led by what differs in this app", async () => {
     const result = await command.execute(["skills", "get", "core"], mockCtx);
 
@@ -353,6 +376,10 @@ describe("classifyInvocation", () => {
     [["open", "a.com"], managed, "tabs"],
     [["tab"], managed, "tabs"],
     [["tab", "keep", "frozen", "tab_01"], managed, "refuse"],
+    [["window", "new"], managed, "refuse"],
+    [["device", "list"], managed, "refuse"],
+    // The setting named alike, which emulates a device in the page.
+    [["set", "device", "iPhone 15"], managed, "tabs"],
     // Aliases of commands the app keeps to itself.
     [["quit"], managed, "refuse"],
     [["exit"], managed, "refuse"],

@@ -39,7 +39,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 ## Not available here
 
-Commands and flags that manage the browser itself (sessions, saved state, the credential vault, plugins, installs, \`batch\`) are refused; run each command on its own.
+Commands and flags that manage the browser itself (sessions, saved state, the credential vault, plugins, installs, \`batch\`) are refused; run each command on its own. \`window new\` and \`device list\` are refused too: open a tab with \`tab new <url>\`.
 
 ## References
 
@@ -222,7 +222,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 ## Not available here
 
-Commands and flags that manage the browser itself (sessions, saved state, the credential vault, plugins, installs, \`batch\`) are refused; run each command on its own.
+Commands and flags that manage the browser itself (sessions, saved state, the credential vault, plugins, installs, \`batch\`) are refused; run each command on its own. \`window new\` and \`device list\` are refused too: open a tab with \`tab new <url>\`.
 
 ## References
 
@@ -2019,7 +2019,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 ## Not available here
 
-Commands and flags that manage the browser itself (sessions, saved state, the credential vault, plugins, installs, \`batch\`) are refused; run each command on its own.
+Commands and flags that manage the browser itself (sessions, saved state, the credential vault, plugins, installs, \`batch\`) are refused; run each command on its own. \`window new\` and \`device list\` are refused too: open a tab with \`tab new <url>\`.
 
 ## References
 

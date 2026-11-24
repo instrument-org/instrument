@@ -5,7 +5,7 @@ import { cn } from "@/client/lib/utils";
 import { extensionOf } from "@/shared/rendered-kinds";
 import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatDotOf, ChatMarkIcon } from "./chat-mark";
@@ -21,12 +21,29 @@ import { useTaskTitles } from "./task-titles";
 type RowSides = readonly [RowSide, ...RowSide[]];
 type RowSide = { tabs: readonly WindowTab[]; up: WindowTab };
 
-/** The tab a group's row goes by: its first chat, else the left side's front tab. */
-function leadTabOf(sides: RowSides): WindowTab {
+/**
+ * The tab a group's row goes by: its first chat, else the left side's tab
+ * that was in front when the group was last left. While the group is up, the
+ * row keeps that tab, so picking another tab in it does not rename it; the
+ * front tab at the moment the group goes out of sight becomes the new one.
+ * A tab since closed gives way to the front tab.
+ */
+function useLeadTab(sides: RowSides, isOnScreen: boolean): WindowTab {
+  const front = sides[0].up;
+  const [held, setHeld] = useState(front.id);
+  const [wasOnScreen, setWasOnScreen] = useState(isOnScreen);
+  if (wasOnScreen !== isOnScreen) {
+    setWasOnScreen(isOnScreen);
+    if (!isOnScreen) {
+      setHeld(front.id);
+    }
+  }
   return (
     sides
       .flatMap((side) => side.tabs)
-      .find((tab) => chatOfTab(tab) !== undefined) ?? sides[0].up
+      .find((tab) => chatOfTab(tab) !== undefined) ??
+    sides[0].tabs.find((tab) => tab.id === held) ??
+    front
   );
 }
 
@@ -45,8 +62,9 @@ interface MarkRun {
  * tab's mark and title, then every other tab's mark at the line's end, in
  * tab order with a gap between the sides; the second is what the lead tab
  * says, in words alone under its title, so no mark stands over another. The
- * lead tab is the group's first chat, else the left side's front tab, so a
- * group with a chat goes by that chat wherever it sits. Tabs beside each
+ * lead tab is the group's first chat, else the left side's tab in front
+ * when the group was last left (`useLeadTab`), so a group with a chat goes by
+ * that chat wherever it sits. Tabs beside each
  * other that wear the same mark (five pages of one site, three wireframes)
  * are one mark and their count, and a tab on the very thing the lead tab is
  * on (one file open twice) has none. Only the first few marks are drawn, so
@@ -72,7 +90,7 @@ export function GroupRowLines({
   const appsBySlug = useAppsBySlug();
   const taskTitles = useTaskTitles();
   const { chats } = useRowSources();
-  const lead = leadTabOf(sides);
+  const lead = useLeadTab(sides, isOnScreen);
   const lines = useRowLines(lead, chatTitles);
   const keyOf = (tab: WindowTab): string => {
     if (tab.kind === "page") {

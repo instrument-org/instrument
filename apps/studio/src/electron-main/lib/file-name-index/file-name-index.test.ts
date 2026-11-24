@@ -1,7 +1,7 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { foldFileName } from "@/shared/file-name-match";
+import { foldName } from "@/shared/name-match";
 
 import { createFileNameIndex, searchFileNames } from "./file-name-index";
 import { type FileNames } from "./walk";
@@ -13,7 +13,7 @@ function namesOf(...entries: string[]): FileNames {
   const names = entries.map((entry) => entry.replace(/\/$/, ""));
   return {
     capped: false,
-    folded: names.map(foldFileName),
+    folded: names.map(foldName),
     folders: [FOLDER],
     isFolder: entries.map((entry) => entry.endsWith("/")),
     names,
@@ -75,6 +75,42 @@ describe("searchFileNames", () => {
         path: path.join(FOLDER, "Budget.md"),
       },
     ]);
+  });
+
+  it.each([
+    {
+      finds: ["2026 Budget.xlsx"],
+      typed: "bud 2026",
+      why: "words in any order",
+    },
+    {
+      finds: ["Budget final.xlsx"],
+      typed: "bf",
+      why: "the words' first letters",
+    },
+    { finds: ["Notes.md"], typed: "notse", why: "one wrong letter" },
+    { finds: [], typed: "bdgt", why: "scattered letters" },
+  ])("finds $finds for $typed: $why", ({ finds, typed }) => {
+    expect(searchFileNames(names, typed, 1).map((entry) => entry.name)).toEqual(
+      finds,
+    );
+  });
+
+  it("forgives a wrong letter only when the words find no name as typed", () => {
+    const close = namesOf("Budgte.md", "Budget.md");
+    expect(
+      searchFileNames(close, "budget", 10).map((entry) => entry.name),
+    ).toEqual(["Budget.md"]);
+  });
+
+  it("reports a walk's cost", async () => {
+    const reports: unknown[] = [];
+    const index = createFileNameIndex({
+      report: (cost) => reports.push({ ...cost, ms: 0 }),
+      walk: () => Promise.resolve(namesOf("a.txt", "b.txt")),
+    });
+    await index.search("a", 5);
+    expect(reports).toEqual([{ capped: false, kind: "walk", ms: 0, names: 2 }]);
   });
 
   it.each([

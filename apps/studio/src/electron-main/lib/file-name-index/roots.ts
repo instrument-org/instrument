@@ -1,6 +1,7 @@
+import { createScopedLogger } from "@/electron-main/lib/electron-logger";
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
-import { pinnedPlaces } from "@/shared/sidebar-places";
+import { favoritePlaces } from "@/shared/favorite-places";
 import {
   computerPlaces,
   macosAnsweredFolders,
@@ -104,8 +105,8 @@ async function deviceOf(folder: string): Promise<number | undefined> {
 
 /**
  * What the app's index walks: the workspace's folder, the Instrument
- * folder, and the Files sidebar's Pinned rows as the person left them, each
- * where it really is, so a pinned link leads to its folder. The sidebar's
+ * folder, and the Files sidebar's Favorites as the person left them, each
+ * where it really is, so a link among them leads to its folder. The sidebar's
  * disks and cloud services are left out: a disk's top is the whole computer,
  * and listing a cloud service's folder can fetch from the network.
  *
@@ -116,14 +117,14 @@ async function deviceOf(folder: string): Promise<number | undefined> {
  */
 async function fileNameWalk(): Promise<Parameters<typeof walkFileNames>[0]> {
   const isMac = process.platform === "darwin";
-  const places = (await computerPlaces()).pinned;
+  const places = (await computerPlaces()).favorites;
   const output = places.find((place) => place.kind === "output");
-  const pinned = pinnedPlaces(
+  const favorites = favoritePlaces(
     places
       .filter((place) => place !== output)
       .map((place) => ({ path: place.path })),
-    getMachinePreferences().get("sidebarPlaces"),
-    (pinnedPath) => ({ path: pinnedPath }),
+    getMachinePreferences().get("favoriteChanges"),
+    (favoritePath) => ({ path: favoritePath }),
   );
   const rules = stayOutRules({
     answered: await macosAnsweredFolders(),
@@ -138,7 +139,7 @@ async function fileNameWalk(): Promise<Parameters<typeof walkFileNames>[0]> {
     [
       getWorkspaceFolder(),
       ...(output ? [output.path] : []),
-      ...pinned.map((place) => place.path),
+      ...favorites.map((place) => place.path),
     ].map(async (spelled) => {
       if (!isMac) {
         return fs.realpath(spelled).catch(() => undefined);
@@ -163,7 +164,22 @@ async function fileNameWalk(): Promise<Parameters<typeof walkFileNames>[0]> {
   };
 }
 
+const log = createScopedLogger("FileNameIndex");
+/** How many roots the walk in flight, or the last one, was given. */
+let walkedRoots = 0;
+
 /** The app's index of the names in the workspace and the sidebar's folders. */
 export const fileNameIndex = createFileNameIndex({
-  walk: async () => walkFileNames(await fileNameWalk()),
+  report: (cost) => {
+    log.info(
+      cost.kind === "walk"
+        ? `Walked ${walkedRoots} roots: ${cost.names} names${cost.capped ? " (capped)" : ""} in ${cost.ms} ms`
+        : `Slow search: ${cost.names} names in ${cost.ms} ms`,
+    );
+  },
+  walk: async () => {
+    const walk = await fileNameWalk();
+    walkedRoots = walk.roots.length;
+    return walkFileNames(walk);
+  },
 });

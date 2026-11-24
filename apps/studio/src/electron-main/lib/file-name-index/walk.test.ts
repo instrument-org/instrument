@@ -51,7 +51,7 @@ describe("walkFileNames", () => {
       ]
     `);
     expect(found.capped).toBe(false);
-    expect(found.folded).toContain("notes.md");
+    expect(found.folded.map((name) => name.text)).toContain("notes.md");
   });
 
   it("leaves out hidden names, node_modules, and what a package has inside", async () => {

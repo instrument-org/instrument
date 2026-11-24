@@ -1,4 +1,4 @@
-import { foldFileName } from "@/shared/file-name-match";
+import { type FoldedName, foldName } from "@/shared/name-match";
 import { type Dirent } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -7,12 +7,12 @@ import path from "node:path";
  * The names a walk found, as columns rather than a record per name, since a
  * walk keeps a few hundred thousand of them: entry `i` is `names[i]` in the
  * folder `folders[parents[i]]`, and `folded[i]` is its name as a search
- * compares it. `capped` says a cap, or a folder that stopped answering, cut
+ * matches it (`foldName`). `capped` says a cap, or a folder that stopped answering, cut
  * the walk short.
  */
 export type FileNames = {
   capped: boolean;
-  folded: string[];
+  folded: FoldedName[];
   folders: string[];
   isFolder: boolean[];
   names: string[];
@@ -236,7 +236,7 @@ export async function walkFileNames({
           }
           parent ??= found.folders.push(folder) - 1;
           found.names.push(entry.name);
-          found.folded.push(foldFileName(entry.name));
+          found.folded.push(foldName(entry.name));
           found.parents.push(parent);
           found.isFolder.push(entry.kind === "folder");
           room -= 1;

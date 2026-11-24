@@ -286,9 +286,33 @@ describe("userAgentMetadata", () => {
       architecture: "x86",
       bitness: "64",
       platform: "Windows",
-      platformVersion: "10.0.22631",
+      platformVersion: "15.0.0",
     });
   });
+
+  // Sites tell Windows 11 by a platformVersion of 13 and up, the API contract's
+  // version rather than the system's.
+  it.each([
+    ["win32", "10.0.26200", "19.0.0"],
+    ["win32", "10.0.22000", "14.0.0"],
+    ["win32", "10.0.19045", "10.0.0"],
+    ["win32", "10.0.17763", "7.0.0"],
+    ["linux", "6.8.0", ""],
+    ["darwin", "26.6.2", "26.6.2"],
+  ] as const)(
+    "reports %s %s as platformVersion %s",
+    (platform, systemVersion, expected) => {
+      expect(
+        userAgentMetadata({
+          arch: "x64",
+          chromeVersion: CHROME_BUILD,
+          platform,
+          systemVersion,
+          userAgent: CHROME_UA,
+        }),
+      ).toMatchObject({ platformVersion: expected });
+    },
+  );
 
   it("returns null when the UA carries no version to derive from", () => {
     expect(

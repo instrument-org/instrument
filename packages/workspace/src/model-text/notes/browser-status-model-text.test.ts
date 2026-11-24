@@ -98,4 +98,27 @@ describe("browserStatusModelNote", () => {
       }),
     ).toContain("t1 at https://example.com/, opened by an agent.");
   });
+
+  it("names a tab whose page is unloaded, and says it comes back when used", () => {
+    expect(
+      browserStatusModelNote({
+        status: "tabs",
+        tabs: [
+          { id: "t1", onScreen: true, url: "https://mail.example.com/" },
+          {
+            id: "t2",
+            openedBy: "task",
+            title: "Your Orders",
+            unloaded: true,
+            url: "https://shop.example.com/orders",
+          },
+        ],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      This chat's tabs, which the chat and each of its tasks all see and drive: t1 at https://mail.example.com/, on the user's screen; t2 at https://shop.example.com/orders ("Your Orders"), opened by an agent, its page unloaded. \`agent-browser tab <id>\` switches to one. A page unloaded out of sight comes back from its address the next time the tab is used, without what was typed or scrolled in it.
+      </instrument-system-note>"
+    `);
+  });
 });

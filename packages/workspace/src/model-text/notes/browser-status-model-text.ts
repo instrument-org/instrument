@@ -17,7 +17,9 @@ export function browserStatusModelNote(data: Status) {
   const asleep = data.tabs.some((tab) => tab.asleep)
     ? " A tab asleep draws nothing and runs its timers slowly until a command reaches it, which wakes it with its page as it was."
     : "";
-  const unloads = data.tabs.some((tab) => tab.unloadsInMin !== undefined)
+  const unloads = data.tabs.some(
+    (tab) => tab.unloaded || tab.unloadsInMin !== undefined,
+  )
     ? " A page unloaded out of sight comes back from its address the next time the tab is used, without what was typed or scrolled in it."
     : "";
   return systemNote`
@@ -28,6 +30,9 @@ export function browserStatusModelNote(data: Status) {
 function tabLine(tab: Tab) {
   const title = tab.title ? ` ("${tab.title}")` : "";
   const opened = tab.openedBy === "task" ? ", opened by an agent" : "";
+  if (tab.unloaded) {
+    return `${tab.id} at ${tab.url}${title}${opened}, its page unloaded`;
+  }
   const place =
     tab.onScreen === undefined
       ? ""

@@ -83,8 +83,9 @@ function createPart({
 }
 
 /**
- * The chat's tabs whose pages are up, every session's to drive, as the
- * session names them. Null where there is no window (the eval harness): a
+ * The chat's tabs, every session's to drive, as the session names them: one
+ * whose page is unloaded too, by the title and address the window keeps for
+ * it. Null where there is no window (the eval harness): a
  * session browses in a browser of its own there, so there is nothing true
  * to tell it.
  */
@@ -108,23 +109,20 @@ async function chatTabsStatus(
     chatPageTabs(chatId),
     getChatState(chatDir(chatId)),
   ]);
-  return (listed ?? []).flatMap(({ targetId }) => {
-    if (!browser.getTargetMeta(targetId)) {
-      return [];
-    }
-    const url = browser.getTargetUrl(targetId);
-    const title = titles.get(targetId);
-    return [
-      {
-        id: targetId,
-        ...(openedTabs.some((tab) => tab.id === targetId)
-          ? { openedBy: "task" as const }
-          : {}),
-        ...(title ? { title } : {}),
-        url: spell(url ?? BLANK_PAGE_URL),
-        ...tabStanding(targetId),
-      },
-    ];
+  return (listed ?? []).map((tab) => {
+    const { targetId } = tab;
+    const loaded = browser.getTargetMeta(targetId) !== null;
+    const url = loaded ? browser.getTargetUrl(targetId) : tab.url;
+    const title = loaded ? titles.get(targetId) : tab.title;
+    return {
+      id: targetId,
+      ...(openedTabs.some((opened) => opened.id === targetId)
+        ? { openedBy: "task" as const }
+        : {}),
+      ...(title ? { title } : {}),
+      url: spell(url || BLANK_PAGE_URL),
+      ...(loaded ? tabStanding(targetId) : { unloaded: true }),
+    };
   });
 }
 

@@ -1,26 +1,28 @@
 import { commandLineToolsEnv } from "../../command-line-tools-env";
-import { type LocalMcpAppManifest, type McpAppManifest } from "../manifest";
+import { type PlacedKey } from "../keys";
+import { type McpAppManifest } from "../manifest";
 import { type McpConnectionConfig } from "./client";
 import { type LocalServerLaunch } from "./local-server";
 
 /**
- * Fold an app's stored credential into a local server's launch. The
- * credential reaches the process as the environment variable the manifest
- * names and never as an argument, where another process on this machine
+ * Fold an app's stored keys into a local server's launch. A key
+ * reaches the process as the environment variable the manifest
+ * names for it and never as an argument, where another process on this machine
  * could read it off the command line.
  */
 export function localLaunchConfig(
   launch: LocalServerLaunch,
-  manifest: LocalMcpAppManifest,
-  credential: null | string,
+  keys: PlacedKey[],
 ): LocalServerLaunch {
   return {
     ...launch,
     env: {
       ...launch.env,
-      ...(manifest.auth.kind === "env" && credential !== null
-        ? { [manifest.auth.envVar]: credential }
-        : {}),
+      ...Object.fromEntries(
+        keys.flatMap(({ placement, value }) =>
+          placement.kind === "env" ? [[placement.envVar, value]] : [],
+        ),
+      ),
       // A local server runs outside the native sandbox, so on a Mac without
       // the developer tools this guard is what keeps a stub it reaches from
       // opening their installer, and no manifest replaces it.
@@ -30,28 +32,24 @@ export function localLaunchConfig(
 }
 
 /**
- * Build the connection config for an MCP app by folding its stored
- * credential into the manifest's auth binding. A missing credential for a
- * non-`none` auth mode degrades to `none`, so the connect attempt fails with a
- * clear unauthorized error rather than silently sending an empty token.
+ * Build the connection config for an MCP app: its stored keys as the headers
+ * the manifest places them in. With none (an open server, a signed-in app,
+ * whose injected authProvider authenticates it) it sends no header of its own.
  */
 export function mcpConnectionConfig(
   manifest: McpAppManifest,
-  credential: null | string,
+  keys: PlacedKey[],
 ): McpConnectionConfig {
-  // OAuth apps authenticate via the injected authProvider, not a stored
-  // header credential, so the header config is "none" here.
-  if (manifest.auth.kind === "none" || manifest.auth.kind === "oauth") {
-    return { auth: { kind: "none" }, url: manifest.url };
-  }
-  if (credential === null) {
-    return { auth: { kind: "none" }, url: manifest.url };
-  }
-  if (manifest.auth.kind === "bearer") {
-    return { auth: { kind: "bearer", value: credential }, url: manifest.url };
-  }
   return {
-    auth: { header: manifest.auth.header, kind: "header", value: credential },
+    headers: Object.fromEntries(
+      keys.flatMap(({ placement, value }) =>
+        placement.kind === "bearer"
+          ? [["Authorization", `Bearer ${value}`]]
+          : placement.kind === "header"
+            ? [[placement.header, value]]
+            : [],
+      ),
+    ),
     url: manifest.url,
   };
 }

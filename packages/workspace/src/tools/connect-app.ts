@@ -10,7 +10,7 @@ import {
   readConnection,
   recordConnection,
 } from "../lib/apps/connection";
-import { lookupAppCredential } from "../lib/apps/credential-origin";
+import { lookupAppKeys } from "../lib/apps/credential-origin";
 import { type LocalMcpAppManifest } from "../lib/apps/manifest";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { appSiteFor } from "../lib/apps/site";
@@ -200,7 +200,7 @@ async function localServerNeeds(
   if (!approved || manifest.auth.kind === "none") {
     return "run";
   }
-  const stored = await lookupAppCredential(slug, manifest);
+  const stored = await lookupAppKeys(slug, manifest);
   return stored.kind === "ok" ? "run" : "key";
 }
 

@@ -237,6 +237,23 @@ describe("an API app's key", () => {
     expect(connected?.keyRefused).toBeUndefined();
   });
 
+  it("stays connected on the stored key when one tried in its place is refused", async () => {
+    await putApp(slug, "Keyed", manifestAt(approved.origin));
+    await testApp(slug);
+    const { connections } = getWorkspaceConfig().apps;
+    const before = await connections.get(slug);
+
+    const report = await runAppTest({
+      signal: AbortSignal.timeout(10_000),
+      slug,
+      trying: [{ value: "wrong-key" }],
+    });
+
+    expect(report).toMatchObject({ keyRefused: true, passed: false });
+    expect(approved.authorizations.at(-1)).toBe("Bearer wrong-key");
+    expect(await connections.get(slug)).toEqual(before);
+  });
+
   it("is not sent once the manifest points at another origin", async () => {
     await putApp(slug, "Keyed", manifestAt(elsewhere.origin));
 

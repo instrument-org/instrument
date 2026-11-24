@@ -6,7 +6,8 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { isConnected, readConnection, recordConnection } from "./connection";
 import {
   credentialMovedMessage,
-  lookupAppCredential,
+  hasNoKeyStored,
+  lookupAppKeys,
   redactorFor,
 } from "./credential-origin";
 import {
@@ -17,11 +18,12 @@ import {
 import { clientRefused, listMcpTools } from "./mcp/client";
 import { withAppMcpClient } from "./mcp/run";
 import { mcpAuthProviderForCommand } from "./mcp/tool-auth";
+import { bearerKey, type GivenKey, type PlacedKey } from "./keys";
 import { credentialOrigin } from "./origin-bound";
 import { performSignedInRequest, SignInNeededError } from "./api-oauth";
 import { webInsteadUrl } from "./site";
 import { webInsteadCommand } from "./web-instead";
-import { performAppRequest, redactCredential } from "./request";
+import { performAppRequest, redactKeys } from "./request";
 import { scanAppRecord } from "./secret-scan";
 import {
   type AppInfo,
@@ -33,6 +35,8 @@ import {
 
 export interface AppTestReport {
   checks: AppTestCheck[];
+  /** Whether it failed because the service refused the keys. */
+  keyRefused?: boolean;
   passed: boolean;
   slug: string;
 }
@@ -78,9 +82,16 @@ export function formatAppTestReport(report: AppTestReport): string {
 export async function runAppTest({
   signal,
   slug,
+  trying,
 }: {
   signal: AbortSignal;
   slug: string;
+  /**
+   * Keys to test in place of the stored ones, on a connected app: one that
+   * fails leaves the connection as it stands, since the stored keys are the
+   * ones it still has.
+   */
+  trying?: GivenKey[];
 }): Promise<AppTestReport> {
   const checks: AppTestCheck[] = [];
   const report = () => ({
@@ -165,8 +176,8 @@ export async function runAppTest({
   const { apps } = getWorkspaceConfig();
   // A key goes only to the origin it was saved for; a manifest pointed
   // elsewhere since gets none, and the user is asked again.
-  const lookup = await lookupAppCredential(slug, app.manifest);
-  const credential = lookup.kind === "ok" ? lookup.value : null;
+  const lookup = await lookupAppKeys(slug, app.manifest, { trying });
+  const keys = lookup.kind === "ok" ? lookup.keys : [];
   let missing: "approval" | "key" | "sign-in" | undefined;
   let keyRefused = false;
   if (app.manifest.auth.kind === "none") {
@@ -181,12 +192,14 @@ export async function runAppTest({
       name: "credential",
       ...failure(credentialMovedMessage({ noun: "key", ...lookup })),
     });
-  } else if (app.manifest.type === "mcp-local" && credential === null) {
+  } else if (app.manifest.type === "mcp-local" && lookup.kind === "missing") {
     missing = "key";
+    const { auth } = app.manifest;
+    const reads = auth.kind === "env" ? [auth] : auth.keys;
     checks.push({
       name: "credential",
       ...failure(
-        `No key is stored for this app; its server reads one from ${app.manifest.auth.envVar}. Ask the user for one with ${TOOL_NAMES.connectApp}, then test again.`,
+        `This app ${hasNoKeyStored(lookup.labels)}; its server reads ${reads.map(({ envVar }) => envVar).join(" and ")}. Ask the user for one with ${TOOL_NAMES.connectApp}, then test again.`,
       ),
     });
   } else if (app.manifest.auth.kind === "oauth") {
@@ -228,17 +241,20 @@ export async function runAppTest({
         status: "pass",
       });
     }
-  } else if (credential === null) {
+  } else if (lookup.kind === "missing") {
     missing = "key";
     checks.push({
       name: "credential",
       ...failure(
-        `No key is stored for this app. Ask the user for one with ${TOOL_NAMES.connectApp}, then test again.`,
+        `This app ${hasNoKeyStored(lookup.labels)}. Ask the user for one with ${TOOL_NAMES.connectApp}, then test again.`,
       ),
     });
   } else {
     checks.push({
-      detail: "A key is stored for this app.",
+      detail:
+        keys.length > 1
+          ? `${keys.length} keys are stored for this app.`
+          : "A key is stored for this app.",
       name: "credential",
       status: "pass",
     });
@@ -246,11 +262,11 @@ export async function runAppTest({
 
   // A failure's text reaches the agent, and a local server's stderr or a
   // service's answer can repeat the key it was handed.
-  const redact = await redactorFor(slug, app.manifest, credential);
+  const redact = await redactorFor(slug, app.manifest, keys);
 
   const findings = scanAppRecord({
-    credential,
     guide: guide ?? "",
+    keys: keys.map(({ value }) => value),
     setup: (await readAppSetup(app.slug)) ?? {},
   });
   checks.push(
@@ -290,7 +306,7 @@ export async function runAppTest({
       return finish(report());
     }
     const mcpResult = await withAppMcpClient({
-      credential,
+      keys,
       manifest,
       manifestHash: app.manifestHash,
       run: (client) => listMcpTools(client),
@@ -306,10 +322,7 @@ export async function runAppTest({
         mcpResult.error.reason === "unauthorized"
       ) {
         missing = "sign-in";
-      } else if (
-        credential !== null &&
-        mcpResult.error.reason === "unauthorized"
-      ) {
+      } else if (keys.length > 0 && mcpResult.error.reason === "unauthorized") {
         keyRefused = true;
       }
       // A server that refuses the sign-in client itself refuses every new
@@ -354,13 +367,13 @@ export async function runAppTest({
   const signedIn = manifest.auth.kind === "oauth";
   // A signed-in API's request carries its access token, refreshed when the
   // API refuses it; whatever it sent is kept out of the report.
-  let sent = credential;
+  let sent: PlacedKey[] = keys;
   let canary: Awaited<ReturnType<typeof performAppRequest>>;
   if (signedIn) {
     try {
       const signed = await performSignedInRequest({ ...canaryRequest, slug });
       canary = signed.result;
-      sent = signed.token;
+      sent = [bearerKey(signed.token)];
     } catch (error) {
       if (error instanceof SignInNeededError) {
         missing = "sign-in";
@@ -372,7 +385,7 @@ export async function runAppTest({
       return finish(report());
     }
   } else {
-    canary = await performAppRequest({ ...canaryRequest, credential });
+    canary = await performAppRequest({ ...canaryRequest, keys });
   }
   if (canary.isErr()) {
     checks.push({ name: "canary", ...failure(redact(canary.error.message)) });
@@ -387,7 +400,7 @@ export async function runAppTest({
     if (signedIn && canary.value.status === 401) {
       missing = "sign-in";
     }
-    keyRefused = credential !== null && rejected;
+    keyRefused = keys.length > 0 && rejected;
     checks.push({
       name: "canary",
       ...failure(
@@ -401,9 +414,11 @@ export async function runAppTest({
                   // one when it rides in the wrong place, and the placement is the
                   // thing the agent chose and can change. Naming only the key sends
                   // it back to the card for a key that was right all along.
-                  `The key was refused. That is as often the wrong placement as the wrong key: a service that documents Basic credentials, an \`X-Api-Key\`, or an \`api_key\` query parameter refuses a bearer token just like this. Try the placements the manifest can take (bearer, basic, basic:<user>, header:<Name>, query:<param>) with \`${APP_COMMAND.name} new ${slug} ... --force\`, then \`${APP_COMMAND.name} test ${slug}\`, which reuses the stored key and does not ask the user. Only once every one is refused is the key itself in question: ask for it again with ${TOOL_NAMES.connectApp}, saying what was wrong.`
+                  keys.length > 1
+                  ? `The keys were refused, and the service does not say which. Check each one's placement against the service's documentation first, and change one with \`${APP_COMMAND.name} setup ${slug}\`, keeping its label: \`${APP_COMMAND.name} test ${slug}\` then reuses the stored keys and does not ask the user. Only once the placements are right are the keys in question: ask for them again with ${TOOL_NAMES.connectApp}, saying what was wrong.`
+                  : `The key was refused. That is as often the wrong placement as the wrong key: a service that documents Basic credentials, an \`X-Api-Key\`, or an \`api_key\` query parameter refuses a bearer token just like this. Try the placements the manifest can take (bearer, basic, basic:<user>, header:<Name>, query:<param>) with \`${APP_COMMAND.name} new ${slug} ... --force\`, then \`${APP_COMMAND.name} test ${slug}\`, which reuses the stored key and does not ask the user. Only once every one is refused is the key itself in question: ask for it again with ${TOOL_NAMES.connectApp}, saying what was wrong.`
                 : `Expected a 2xx response; fix the test path or the manifest. Some APIs require static headers on every request (an API-version header, say): set them in the manifest's "headers".`
-        } Response body: ${redactCredential(redact(canary.value.bodyText), sent).slice(0, 400)}`,
+        } Response body: ${redactKeys(redact(canary.value.bodyText), sent).slice(0, 400)}`,
       ),
     });
   }
@@ -426,7 +441,11 @@ export async function runAppTest({
     return result;
   }
 
-  async function finish(result: AppTestReport, toolCount?: number) {
+  async function finish(tested: AppTestReport, toolCount?: number) {
+    const result = { ...tested, ...(keyRefused && { keyRefused }) };
+    if (trying && !result.passed) {
+      return result;
+    }
     if (result.passed) {
       await recordConnection(slug, {
         connectedAt: Date.now(),
@@ -496,7 +515,7 @@ async function testWebApp({
         },
   );
   const findings = scanAppRecord({
-    credential: null,
+    keys: [],
     guide: guide ?? "",
     setup: (await readAppSetup(app.slug)) ?? {},
   });

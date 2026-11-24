@@ -15,7 +15,7 @@ import { z } from "zod";
 import { type HistoryAction } from "./lib/actions/schema";
 import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
-import { type StoredAppCredential } from "./lib/apps/origin-bound";
+import { type StoredAppKey } from "./lib/apps/origin-bound";
 import { type FinderEntry } from "./lib/chat/finder-entries";
 import { type DeviceId } from "./lib/records/device-id";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
@@ -193,10 +193,10 @@ export interface WorkspaceAppsConfig {
   /** Take an app's credential, tokens, and connection away, and tell the UI. */
   disconnect: (slug: string) => Promise<void>;
   /**
-   * The app's stored key with the origin it was saved for. The workspace
-   * sends it only to that origin.
+   * The app's stored keys, each with the origin it was saved for. The
+   * workspace sends a key only to that origin.
    */
-  getCredential: (slug: string) => Promise<null | StoredAppCredential>;
+  getCredentials: (slug: string) => Promise<StoredAppKey[]>;
   /**
    * Present in the desktop app: backs OAuth MCP apps with the app's encrypted
    * store. Optional so headless and test contexts run without sign-in. The

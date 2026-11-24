@@ -128,7 +128,7 @@ async function main(): Promise<number> {
   }
 
   const tools = await withAppMcpClient({
-    credential: null,
+    keys: [],
     manifest,
     manifestHash,
     run: (client) => listMcpTools(client),
@@ -143,7 +143,7 @@ async function main(): Promise<number> {
 
   if (callTool) {
     const result = await withAppMcpClient({
-      credential: null,
+      keys: [],
       manifest,
       manifestHash,
       run: (client) =>

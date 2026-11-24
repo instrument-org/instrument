@@ -30,16 +30,12 @@ import { fetchForMcp } from "./fetch";
 import { type LocalServerLaunch } from "./local-server";
 
 /**
- * How to reach and authenticate to an MCP server. Token auth injects a static
- * header (the credential from the app's store); "none" is for open servers.
- * OAuth is a later addition -- the transport already accepts an authProvider,
- * so it slots in here without changing callers.
+ * How to reach and authenticate to an MCP server: its address, and the
+ * headers its keys ride in (the credentials from the app's store), none for
+ * an open server or one signed in to.
  */
 export interface McpConnectionConfig {
-  auth:
-    | { header: string; kind: "header"; value: string }
-    | { kind: "bearer"; value: string }
-    | { kind: "none" };
+  headers: Record<string, string>;
   url: string;
 }
 
@@ -316,7 +312,7 @@ export async function withMcpClient<T>({
   signal,
 }: {
   // When present (OAuth apps), the SDK reads/refreshes tokens through the
-  // provider and injects the Authorization header itself; config.auth is
+  // provider and injects the Authorization header itself; config.headers are
   // ignored. On a missing/expired token with no interactive follow-up the
   // connect throws UnauthorizedError, surfaced here as `unauthorized`.
   authProvider?: OAuthClientProvider;
@@ -345,28 +341,12 @@ export async function withMcpClient<T>({
       authProvider,
       fetch: fetchForMcp,
       requestInit: {
-        headers: authProvider ? {} : authHeaders(config.auth),
+        headers: authProvider ? {} : config.headers,
         signal,
       },
     }),
     run,
   );
-}
-
-function authHeaders(
-  auth: McpConnectionConfig["auth"],
-): Record<string, string> {
-  switch (auth.kind) {
-    case "bearer": {
-      return { Authorization: `Bearer ${auth.value}` };
-    }
-    case "header": {
-      return { [auth.header]: auth.value };
-    }
-    case "none": {
-      return {};
-    }
-  }
 }
 
 /**

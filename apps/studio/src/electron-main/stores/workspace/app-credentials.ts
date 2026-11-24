@@ -7,21 +7,28 @@ import {
   keyFileSerializer,
   requireSavableKeys,
 } from "@/electron-main/lib/key-file";
-import { type StoredAppCredential } from "@instrument-org/workspace/electron";
+import { type StoredAppKey } from "@instrument-org/workspace/electron";
 import Store from "electron-store";
 import { z } from "zod";
 
-// One secret per app, keyed by the app's folder slug, with the origin it was
-// saved for: the workspace sends it nowhere else. Values only ever leave this
-// store through the workspace config's `getCredential` at request time; the
-// RPC layer exposes presence, never values. A file whose entries carry no
-// origin fails the parse and reads as empty, so those apps ask for a key again.
+// An app's keys, each a record of its own with the origin it was saved for:
+// the workspace sends it nowhere else. An app's one key is under its slug;
+// one of several is under the slug, a slash, and the label its setup gives
+// it, which no slug holds. Values only ever leave this store through the
+// workspace config's `getCredentials` at request time; the RPC layer exposes
+// presence, the date and a long key's last four characters, never values. A
+// file whose entries carry no origin fails the parse and reads as empty, so
+// those apps ask for a key again.
 const AppCredentialsStoreSchema = z
   .object({
     credentials: z
       .record(
         z.string(),
-        z.object({ origin: z.string().min(1), value: z.string() }),
+        z.object({
+          origin: z.string().min(1),
+          savedAt: z.number().optional(),
+          value: z.string(),
+        }),
       )
       .default({}),
   })
@@ -60,26 +67,49 @@ const getAppCredentialsStore = (): Store<AppCredentialsStore> => {
   return APP_CREDENTIALS_STORE;
 };
 
-export function getAppCredential(slug: string): null | StoredAppCredential {
-  return getAppCredentialsStore().get("credentials")[slug] ?? null;
+const recordOf = (slug: string, label: string | undefined) =>
+  label === undefined ? slug : `${slug}/${label}`;
+
+const isOf = (slug: string, record: string) =>
+  record === slug || record.startsWith(`${slug}/`);
+
+export function getAppCredentials(slug: string): StoredAppKey[] {
+  return Object.entries(getAppCredentialsStore().get("credentials")).flatMap(
+    ([record, stored]) =>
+      isOf(slug, record)
+        ? [
+            {
+              ...stored,
+              ...(record === slug
+                ? {}
+                : { label: record.slice(slug.length + 1) }),
+            },
+          ]
+        : [],
+  );
 }
 
-export function hasAppCredential(slug: string): boolean {
-  return slug in getAppCredentialsStore().get("credentials");
-}
-
-export function removeAppCredential(slug: string): void {
+export function removeAppCredentials(slug: string): void {
   requireSavableKeys({ ...FILE, removes: true });
   const store = getAppCredentialsStore();
-  const { [slug]: _removed, ...rest } = store.get("credentials");
-  store.set("credentials", rest);
+  store.set(
+    "credentials",
+    Object.fromEntries(
+      Object.entries(store.get("credentials")).filter(
+        ([record]) => !isOf(slug, record),
+      ),
+    ),
+  );
 }
 
-export function setAppCredential(
-  slug: string,
-  credential: StoredAppCredential,
-): void {
+/** Keeps the keys given, beside whatever others the app has. */
+export function setAppCredentials(slug: string, keys: StoredAppKey[]): void {
   requireSavableKeys(FILE);
   const store = getAppCredentialsStore();
-  store.set("credentials", { ...store.get("credentials"), [slug]: credential });
+  store.set("credentials", {
+    ...store.get("credentials"),
+    ...Object.fromEntries(
+      keys.map(({ label, ...stored }) => [recordOf(slug, label), stored]),
+    ),
+  });
 }

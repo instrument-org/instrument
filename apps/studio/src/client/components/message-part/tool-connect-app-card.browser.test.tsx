@@ -52,6 +52,7 @@ vi.mock("@/client/rpc/client", () => ({
               connection: { status: "needs-sign-in", updatedAt: 1 },
               credentialOrigin: `https://${slug}.example.com`,
               hasCredential: false,
+              keys: [{ isSaved: false }],
               name,
               ...(type === "web"
                 ? { signIn: `https://${slug}.example.com/login` }

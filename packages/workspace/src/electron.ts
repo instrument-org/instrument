@@ -58,8 +58,9 @@ export {
   AppSlugSchema,
   isMcpManifest,
 } from "./lib/apps/manifest";
-export { requireAppCredential } from "./lib/apps/credential-origin";
-export { unsendableCredential } from "./lib/apps/request";
+export { requireAppKeys } from "./lib/apps/credential-origin";
+export { appKeySlots, type GivenKey } from "./lib/apps/keys";
+export { unsendableKey } from "./lib/apps/request";
 export {
   callMcpTool,
   listMcpTools,
@@ -83,7 +84,9 @@ export { mcpAuthProviderForCommand } from "./lib/apps/mcp/tool-auth";
 export {
   credentialOrigin,
   type OriginBound,
+  boundTo,
   type StoredAppCredential,
+  type StoredAppKey,
 } from "./lib/apps/origin-bound";
 export { checkAppSignIns } from "./lib/apps/sign-in-lost";
 export { appHomeFor, appSiteFor } from "./lib/apps/site";

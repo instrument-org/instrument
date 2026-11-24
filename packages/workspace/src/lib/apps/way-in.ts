@@ -174,3 +174,36 @@ export function parseAuth(
     } (got "${value}").`,
   );
 }
+
+/**
+ * The --auth values an app is made with. One is its only key's placement, or
+ * how it is signed in to; several are one labeled placement each
+ * ("API key=header:DD-API-KEY").
+ */
+export function parseAuths(raw: string[], type: "api" | "mcp" | "mcp-local") {
+  const labeled = raw.map((value) => /^\s*([^=:]+?)\s*=(.+)$/.exec(value));
+  if (raw.length < 2 && labeled.every((match) => match === null)) {
+    return parseAuth(raw[0], type);
+  }
+  if (raw.length < 2) {
+    throw new Error(
+      `--auth takes a label only where the service wants several keys, one --auth for each (got "${raw.join('", "')}").`,
+    );
+  }
+  const keys = labeled.map((match) => {
+    const [, label, placement] = match ?? [];
+    if (label === undefined || placement === undefined) {
+      throw new Error(
+        `each of several --auth values is '<Label>=<placement>', the label being the service's name for that key, as --auth 'API key=header:X-Api-Key' (got "${raw.join('", "')}").`,
+      );
+    }
+    const auth = parseAuth(placement, type);
+    if (auth.kind === "none" || auth.kind === "oauth" || auth.kind === "keys") {
+      throw new Error(
+        `"${label}" needs where its key rides, and "${placement.trim()}" is not a place a key rides.`,
+      );
+    }
+    return { ...auth, label };
+  });
+  return { keys, kind: "keys" as const };
+}

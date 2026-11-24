@@ -11,8 +11,15 @@ export interface OriginBound<T> {
   value: T;
 }
 
-/** An app's stored key, with the origin it was saved for. */
-export type StoredAppCredential = OriginBound<string>;
+/** One of an app's stored keys, with the origin it was saved for, and when, where that was recorded. */
+export interface StoredAppCredential extends OriginBound<string> {
+  savedAt?: number | undefined;
+}
+
+/** A stored key under the label its app's setup gives it; an app's one key has none. */
+export interface StoredAppKey extends StoredAppCredential {
+  label?: string | undefined;
+}
 
 /**
  * Where an app's credential goes under this manifest: the origin of its base

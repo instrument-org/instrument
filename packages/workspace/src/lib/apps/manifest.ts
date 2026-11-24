@@ -20,6 +20,75 @@ export const AppSlugSchema = z
 
 export type AppSlug = z.output<typeof AppSlugSchema>;
 
+// What the service calls one of its keys ("Application key"), where an app
+// takes several.
+const KeyLabelSchema = z.string().trim().min(1).max(40);
+
+const EnvVarSchema = z.string().regex(/^[a-z_]\w*$/i, {
+  message: "envVar must be an environment variable name",
+});
+
+const MAX_KEYS = 6;
+
+/**
+ * For a service that wants more than one key with every request: each key's
+ * label and where it rides. Two keys never ride in one place, where the
+ * second would replace the first.
+ */
+function severalKeys<
+  Key extends z.ZodType<{ kind: string; label: string } & PlacementNames>,
+>(key: Key) {
+  return z.strictObject({
+    keys: z
+      .array(key)
+      .min(2, {
+        message:
+          "keys takes two or more; an app with one key names its placement as the auth kind",
+      })
+      .max(MAX_KEYS)
+      .refine((keys) => isUnique(keys.map(({ label }) => label)), {
+        message: "two keys have the same label",
+      })
+      .refine((keys) => isUnique(keys.map(ridesIn)), {
+        message: "two keys ride in the same place",
+      }),
+    kind: z.literal("keys"),
+  });
+}
+
+interface PlacementNames {
+  envVar?: string;
+  header?: string;
+  param?: string;
+}
+
+function isUnique(values: string[]) {
+  return new Set(values).size === values.length;
+}
+
+/** The one place a key rides in, as two keys that clash would both name it. */
+function ridesIn({
+  envVar,
+  header,
+  kind,
+  param,
+}: { kind: string } & PlacementNames): string {
+  switch (kind) {
+    case "env": {
+      return `env:${envVar ?? ""}`;
+    }
+    case "header": {
+      return `header:${(header ?? "").toLowerCase()}`;
+    }
+    case "query": {
+      return `query:${param ?? ""}`;
+    }
+    default: {
+      return "header:authorization";
+    }
+  }
+}
+
 /**
  * How the stored credential is attached to each request. The credential value
  * itself never appears in the manifest: it lives in the app's encrypted
@@ -54,9 +123,28 @@ const ApiAuthSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("oauth") }),
   // ?<param>=<credential>
   z.strictObject({ kind: z.literal("query"), param: z.string().min(1) }),
+  // Several keys, all sent with every request.
+  severalKeys(
+    z.discriminatedUnion("kind", [
+      z.strictObject({
+        kind: z.literal("basic"),
+        label: KeyLabelSchema,
+        user: z.string().min(1).optional(),
+      }),
+      z.strictObject({ kind: z.literal("bearer"), label: KeyLabelSchema }),
+      z.strictObject({
+        header: z.string().min(1),
+        kind: z.literal("header"),
+        label: KeyLabelSchema,
+      }),
+      z.strictObject({
+        kind: z.literal("query"),
+        label: KeyLabelSchema,
+        param: z.string().min(1),
+      }),
+    ]),
+  ),
 ]);
-
-export type AppAuth = z.output<typeof ApiAuthSchema>;
 
 /**
  * Auth for MCP apps. Same credential-injection idea as API auth, minus
@@ -70,6 +158,16 @@ const McpAuthSchema = z.discriminatedUnion("kind", [
   // The MCP server's OAuth metadata and client registration are handled by
   // the SDK; `scope` optionally narrows the requested grants.
   z.strictObject({ kind: z.literal("oauth"), scope: z.string().optional() }),
+  severalKeys(
+    z.discriminatedUnion("kind", [
+      z.strictObject({ kind: z.literal("bearer"), label: KeyLabelSchema }),
+      z.strictObject({
+        header: z.string().min(1),
+        kind: z.literal("header"),
+        label: KeyLabelSchema,
+      }),
+    ]),
+  ),
 ]);
 
 /**
@@ -82,11 +180,16 @@ const LocalMcpAuthSchema = z.discriminatedUnion("kind", [
   z.strictObject({ kind: z.literal("none") }),
   z.strictObject({
     // e.g. GITHUB_TOKEN
-    envVar: z.string().regex(/^[a-z_]\w*$/i, {
-      message: "envVar must be an environment variable name",
-    }),
+    envVar: EnvVarSchema,
     kind: z.literal("env"),
   }),
+  severalKeys(
+    z.strictObject({
+      envVar: EnvVarSchema,
+      kind: z.literal("env"),
+      label: KeyLabelSchema,
+    }),
+  ),
 ]);
 
 /**
@@ -336,7 +439,7 @@ macApp: com.agiletortoise.Drafts-OSX
 auth:
   kind: none
 
-API app (authenticated HTTP requests; auth kinds: bearer, basic (optionally with "user"), header (with "header"), query (with "param"), none), the setup of notion:
+API app (authenticated HTTP requests; auth kinds: bearer, basic (optionally with "user"), header (with "header"), query (with "param"), keys, none), the setup of notion:
 type: api
 url: https://api.notion.com/v1
 auth:
@@ -345,6 +448,21 @@ headers:
   Notion-Version: 2022-06-28
 test:
   path: /users/me
+
+API app whose service wants several keys with every request (each has the service's own name for it and its own kind; an MCP app's keys take bearer or header, a local one's take env with "envVar"), the setup of datadog:
+type: api
+url: https://api.datadoghq.com/api
+auth:
+  kind: keys
+  keys:
+    - label: API key
+      kind: header
+      header: DD-API-KEY
+    - label: Application key
+      kind: header
+      header: DD-APPLICATION-KEY
+test:
+  path: /v2/validate_keys
 
 Web app (a service worked on its own site in ${APP_NAME}'s browser, for one with no sign-in the card can open; "signIn" is optional, the login page when it is not "url"), the setup of google-drive:
 type: web

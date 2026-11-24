@@ -10,7 +10,7 @@ import { useSiteSignIns } from "@/client/components/window/site-sign-in";
 import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
+import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { type ConnectAppResult } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -20,6 +20,8 @@ import { useContext, useState } from "react";
 import { ToolCard } from "./tool-card";
 
 type Row = Extract<ConnectAppResult, { state: "asked" }>;
+
+type ListedApp = RPCOutput["apps"]["list"]["apps"][number];
 
 /** Where a row stands, from its app's connection record. */
 type RowStatus =
@@ -102,9 +104,7 @@ export function ConnectAppCard({
     const status = statuses[index];
     return status !== undefined && !answered(status);
   });
-  // An app moved to its site since the card asked signs in there.
-  const kindOf = (row: Row) =>
-    appOf(row.slug)?.type === "web" ? "web" : row.kind;
+  const kindOf = (row: Row) => kindNow(row, appOf(row.slug));
   // Whether a row has anything to press: not until each app's status is
   // read, not once it is answered, and not an app that wants no sign-in while
   // its connection is being tested.
@@ -254,13 +254,24 @@ export function ConnectAppCard({
   );
 }
 
+/**
+ * What a row asks for as its app stands. An app moved to its site since the
+ * card asked signs in there, and a local server that reads a key asks for it
+ * once it is allowed.
+ */
+function kindNow(row: Row, app: ListedApp | undefined): Row["kind"] {
+  return app?.type === "web"
+    ? "web"
+    : app?.type === "mcp-local" && app.status === "needs-key"
+      ? "key"
+      : row.kind;
+}
+
 /** The line under a row's name, saying where it stands. */
 function rowLine(
   status: RowStatus,
   row: Row,
-  appOf: (
-    slug: string,
-  ) => { connection?: { account?: string; ended?: string } } | undefined,
+  appOf: (slug: string) => ListedApp | undefined,
 ): string | undefined {
   const connection = appOf(row.slug)?.connection;
   switch (status) {
@@ -273,7 +284,9 @@ function rowLine(
       return "Skipped";
     }
     case "failed": {
-      return `Instrument couldn’t connect to ${row.name}.`;
+      return connection?.keyRefused
+        ? `${row.name} didn’t accept ${(appOf(row.slug)?.keys.length ?? 0) > 1 ? "these keys" : "this key"}.`
+        : `Instrument couldn’t connect to ${row.name}.`;
     }
     case "refused": {
       return `${row.name} won’t let this account connect directly.`;
@@ -336,14 +349,7 @@ function ConnectRow({
   const failure =
     status === "failed" || status === "refused" ? status : undefined;
   const app = apps.data?.apps.find((entry) => entry.slug === row.slug);
-  // An app moved to its site since the card asked signs in there, and a local
-  // server that reads a key asks for it once it is allowed.
-  const kind =
-    app?.type === "web"
-      ? "web"
-      : app?.type === "mcp-local" && app.status === "needs-key"
-        ? "key"
-        : row.kind;
+  const kind = kindNow(row, app);
   const opens = kind === "key" || kind === "run";
   const isQuiet =
     status === "declined" || status === "removed" || onPick !== undefined;

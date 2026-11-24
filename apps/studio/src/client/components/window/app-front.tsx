@@ -19,6 +19,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { AppMenuButton } from "@/client/components/window/app-menu";
+import { AppKeys } from "@/client/components/window/app-keys";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
@@ -179,6 +180,7 @@ export function AppFront({
     app.type !== "web" &&
     app.authKind !== "none" &&
     app.authKind !== "oauth";
+  const several = (app?.keys.length ?? 0) > 1;
   const keyRefused = rejectedKey && app.connection?.keyRefused === true;
   const tryAgain = (
     <Button
@@ -202,11 +204,13 @@ export function AppFront({
             ? `Sign in to ${name} again`
             : `Sign in to ${name}`
           : app.status === "needs-key"
-            ? `Add a key from ${name}`
+            ? several
+              ? `Add keys from ${name}`
+              : `Add a key from ${name}`
             : app.status === "needs-approval"
               ? `Allow ${name} to run on ${osConventions().thisComputer}`
               : keyRefused
-                ? `${name} didn’t accept the key`
+                ? `${name} didn’t accept the ${several ? "keys" : "key"}`
                 : app.status === "failed"
                   ? `Couldn’t connect to ${name}`
                   : app.status === "stale"
@@ -223,7 +227,9 @@ export function AppFront({
         : app.status === "stale"
           ? "Try again to connect it as it is now."
           : keyRefused
-            ? "Copy the key again and paste it here. If you’re sure it’s right, ask Instrument for help."
+            ? several
+              ? "Copy the keys again and paste them here. If you’re sure they’re right, ask Instrument for help."
+              : "Copy the key again and paste it here. If you’re sure it’s right, ask Instrument for help."
             : undefined;
   // The way out when the buttons beside it are not getting there: last and
   // quiet, so it reads as help rather than one more way to sign in.
@@ -416,6 +422,17 @@ export function AppFront({
               />
             </DialogContent>
           </Dialog>
+        ) : null}
+
+        {isConnected && app.keys.length > 0 ? (
+          <div className="mt-8">
+            <AppKeys
+              keys={app.keys}
+              name={name}
+              origin={app.credentialOrigin}
+              slug={slug}
+            />
+          </div>
         ) : null}
 
         {/* While the app is still being set up, the one thing that

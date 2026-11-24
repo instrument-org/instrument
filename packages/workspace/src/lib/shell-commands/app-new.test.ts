@@ -105,6 +105,44 @@ describe("app new --auth basic", () => {
     });
   });
 
+  it("writes each of several labeled keys", async () => {
+    await newApiApp(
+      "two-keys",
+      "--auth",
+      "API key=header:DD-API-KEY",
+      "--auth",
+      "Application key=header:DD-APPLICATION-KEY",
+    );
+    expect(await manifestOf("two-keys")).toMatchObject({
+      auth: {
+        keys: [
+          { header: "DD-API-KEY", kind: "header", label: "API key" },
+          {
+            header: "DD-APPLICATION-KEY",
+            kind: "header",
+            label: "Application key",
+          },
+        ],
+        kind: "keys",
+      },
+    });
+  });
+
+  it.each([
+    [["header:A", "header:B"], "each of several --auth values"],
+    [["One=header:A"], "a label only where the service wants several keys"],
+    [["One=header:A", "Two=header:a"], "two keys ride in the same place"],
+    [["One=header:A", "One=header:B"], "two keys have the same label"],
+    [["One=header:A", "Two=oauth"], "not a place a key rides"],
+  ])("refuses --auth %j", async (auths, said) => {
+    const result = await newApiApp(
+      "keys-bad",
+      ...auths.flatMap((auth) => ["--auth", auth]),
+    );
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toContain(said);
+  });
+
   it("names every placement an API app takes when the value is not one", async () => {
     const result = await newApiApp("basic-bad", "--auth", "apiKey");
     expect(result.exitCode).not.toBe(0);

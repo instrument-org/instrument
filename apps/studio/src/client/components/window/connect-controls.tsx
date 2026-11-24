@@ -1,7 +1,8 @@
 import { Button } from "@/client/components/ui/button";
-import { Input } from "@/client/components/ui/input";
 import { Spinner } from "@/client/components/ui/spinner";
 import { cn, osConventions } from "@/client/lib/utils";
+import { Destination } from "@/client/components/window/connect-destination";
+import { KeyForm } from "@/client/components/window/key-form";
 import { WindowContext } from "@/client/components/window/context";
 import {
   type SignInDestination,
@@ -13,7 +14,7 @@ import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { type ReactNode, useContext, useState } from "react";
+import { type ReactNode, useContext } from "react";
 import { toast } from "@/client/lib/toast";
 
 /** A card row's pair of buttons, ending where the row does; in a narrow chat they go under the name, half the row each. */
@@ -104,7 +105,6 @@ export function ConnectControls({
   const appWindow = useContext(WindowContext);
   const inChat = askedIn === undefined ? {} : { chatId: askedIn };
   const openExternalLink = useOpenExternalLink();
-  const [value, setValue] = useState("");
   const site = useSiteSignIn({ askedIn, name, slug });
   // The default browser, for the button that sends the sign-in there.
   const browser = useDefaultBrowser();
@@ -183,24 +183,12 @@ export function ConnectControls({
       },
     }),
   );
-  const setCredential = useMutation(
-    rpcClient.apps.setCredential.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't save the key", { cause: error });
-      },
-      onSuccess: () => {
-        setValue("");
-      },
-    }),
-  );
-
   const busy =
     origin === undefined ||
     allow.isPending ||
     startOAuth.isPending ||
     cancelOAuth.isPending ||
-    site.isDonePending ||
-    setCredential.isPending;
+    site.isDonePending;
 
   // A server that runs here is the one thing the user is agreeing to rather
   // than supplying, so the words say what will run before the button does it.
@@ -423,11 +411,6 @@ export function ConnectControls({
     );
   }
 
-  const save = () => {
-    if (value.trim() !== "" && origin !== undefined) {
-      setCredential.mutate({ ...inChat, origin, slug, value: value.trim() });
-    }
-  };
   // Where the directory says the key is made, so the card says where to go
   // rather than asking for something the user has never seen.
   const keyHelp = listed?.type === "web" ? undefined : listed?.keyHelp;
@@ -453,30 +436,14 @@ export function ConnectControls({
           </Button>
         </div>
       ) : null}
-      <Destination origin={origin}>Instrument sends this key to</Destination>
-      <div className="flex items-center gap-2">
-        <Input
-          autoFocus
-          className="h-8 flex-1 font-mono text-xs"
-          onChange={(event) => {
-            setValue(event.target.value);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              save();
-            }
-          }}
-          placeholder={`Paste the ${name} key`}
-          type="password"
-          value={value}
-        />
-        <Button disabled={busy || value.trim() === ""} onClick={save} size="sm">
-          {setCredential.isPending ? "Checking…" : "Save"}
-        </Button>
-      </div>
-      {alongside ? (
-        <div className="flex flex-wrap gap-2">{alongside}</div>
-      ) : null}
+      <KeyForm
+        alongside={alongside}
+        askedIn={askedIn}
+        keys={listed?.keys ?? []}
+        name={name}
+        origin={origin}
+        slug={slug}
+      />
     </div>
   );
 }
@@ -518,29 +485,5 @@ function SignInOnSiteButton({
     >
       {SIGN_IN_ON_SITE}
     </Button>
-  );
-}
-
-/** The host a key or sign-in goes to, in the words that lead into it. */
-function Destination({
-  children,
-  origin,
-}: {
-  children: string;
-  origin: string | undefined;
-}) {
-  if (origin === undefined) {
-    return null;
-  }
-  const [, runtime, packageName] =
-    /^(node|python)-package:(.+)$/.exec(origin) ?? [];
-  const host =
-    packageName === undefined
-      ? (URL.parse(origin)?.host ?? origin)
-      : `the ${runtime === "node" ? "npm" : "PyPI"} package ${packageName}`;
-  return (
-    <p className="text-xs text-muted-foreground">
-      {children} <span className="font-medium text-foreground">{host}</span>.
-    </p>
   );
 }

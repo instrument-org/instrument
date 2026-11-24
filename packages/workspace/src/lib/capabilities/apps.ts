@@ -17,7 +17,7 @@ import {
 } from "../apps/mac-app";
 import { macosRefusalIn } from "../mac-apps/refusal";
 import { macosAppCard } from "../permissions/macos";
-import { redactorFor, requireAppCredential } from "../apps/credential-origin";
+import { redactorFor, requireAppKeys } from "../apps/credential-origin";
 import {
   anyAppGuideHandedOver,
   appGuideHandedOver,
@@ -37,7 +37,8 @@ import { withAppMcpClient } from "../apps/mcp/run";
 import { SignInAgainError } from "../apps/mcp/tool-auth";
 import { performSignedInRequest, SignInNeededError } from "../apps/api-oauth";
 import { noteIfSignInLost, noteSignInLost } from "../apps/sign-in-lost";
-import { performAppRequest, redactCredential } from "../apps/request";
+import { bearerKey, type PlacedKey } from "../apps/keys";
+import { performAppRequest, redactKeys } from "../apps/request";
 import {
   appFingerprint,
   type AppInfo,
@@ -254,9 +255,9 @@ async function serverGuidance(
     return noted;
   }
   try {
-    const credential = await requireAppCredential(app.slug, manifest);
+    const keys = await requireAppKeys(app.slug, manifest);
     const result = await withAppMcpClient({
-      credential,
+      keys,
       manifest,
       manifestHash: app.manifestHash,
       run: (client) =>
@@ -332,14 +333,14 @@ function taskNeedsChat(
       );
 }
 
-/** The key a call sends; in a task, a missing or moved key is the chat's to ask for. */
-async function credentialFor(
+/** The keys a call sends; in a task, a missing or moved key is the chat's to ask for. */
+async function keysFor(
   slug: string,
   manifest: AppInfo["manifest"],
   role: Role,
-): Promise<null | string> {
+): Promise<PlacedKey[]> {
   try {
-    return await requireAppCredential(slug, manifest);
+    return await requireAppKeys(slug, manifest);
   } catch (error) {
     if (role === "chat") {
       throw error;
@@ -452,11 +453,11 @@ export const appsCall = defineCapability({
           },
         )
       : args;
-    const credential = await credentialFor(app.slug, manifest, ctx.role);
-    const redact = await redactorFor(app.slug, manifest, credential);
+    const keys = await keysFor(app.slug, manifest, ctx.role);
+    const redact = await redactorFor(app.slug, manifest, keys);
     const signal = withTimeout(ctx.signal, REQUEST_TIMEOUT_MS);
     const result = await withAppMcpClient({
-      credential,
+      keys,
       manifest,
       manifestHash: app.manifestHash,
       run: async (client) => {
@@ -603,10 +604,10 @@ export const appsTools = defineCapability({
         "refused",
       );
     }
-    const credential = await credentialFor(app.slug, manifest, ctx.role);
-    const redact = await redactorFor(app.slug, manifest, credential);
+    const keys = await keysFor(app.slug, manifest, ctx.role);
+    const redact = await redactorFor(app.slug, manifest, keys);
     const result = await withAppMcpClient({
-      credential,
+      keys,
       manifest,
       manifestHash: app.manifestHash,
       run: async (client) => ({
@@ -889,27 +890,28 @@ export const appsRequest = defineCapability({
     };
     // A signed-in API sends its access token, and the token it sent is what
     // is kept out of what the agent reads.
-    let credential: null | string;
+    let keys: PlacedKey[];
     let result: Awaited<ReturnType<typeof performAppRequest>>;
     if (app.manifest.auth.kind === "oauth") {
-      ({ result, token: credential } = await performSignedInRequest({
+      const signed = await performSignedInRequest({
         ...request,
         slug: app.slug,
       }).catch(async (error: unknown) => {
         await noteIfSignInLost(app.slug, app.manifest, { cause: error });
         throw taskNeedsChat(app.slug, ctx.role, { cause: error }) ?? error;
-      }));
+      });
+      result = signed.result;
+      keys = [bearerKey(signed.token)];
       // A 401 after the refresh is the service refusing the sign-in it was
       // just handed.
       if (result.isOk() && result.value.status === 401) {
         await noteSignInLost(app.slug);
       }
     } else {
-      credential = await credentialFor(app.slug, app.manifest, ctx.role);
-      result = await performAppRequest({ ...request, credential });
+      keys = await keysFor(app.slug, app.manifest, ctx.role);
+      result = await performAppRequest({ ...request, keys });
     }
-    const { auth } = app.manifest;
-    const redact = (value: string) => redactCredential(value, credential, auth);
+    const redact = (value: string) => redactKeys(value, keys);
     if (result.isErr()) {
       throw new CapabilityFailure(redact(result.error.message));
     }
@@ -993,10 +995,10 @@ export const appsResources = defineCapability({
         "refused",
       );
     }
-    const credential = await requireAppCredential(app.slug, manifest);
-    const redact = await redactorFor(app.slug, manifest, credential);
+    const keys = await requireAppKeys(app.slug, manifest);
+    const redact = await redactorFor(app.slug, manifest, keys);
     const result = await withAppMcpClient({
-      credential,
+      keys,
       manifest,
       manifestHash: app.manifestHash,
       run: async (client) =>
@@ -1090,10 +1092,10 @@ export const appsRead = defineCapability({
         "refused",
       );
     }
-    const credential = await requireAppCredential(app.slug, manifest);
-    const redact = await redactorFor(app.slug, manifest, credential);
+    const keys = await requireAppKeys(app.slug, manifest);
+    const redact = await redactorFor(app.slug, manifest, keys);
     const result = await withAppMcpClient({
-      credential,
+      keys,
       manifest,
       manifestHash: app.manifestHash,
       run: (client) => {

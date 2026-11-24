@@ -9,16 +9,17 @@ interface SecretFinding {
 
 /**
  * Scan an app's setup and guide for secret-shaped strings and for the app's
- * actual stored credential. Neither may ever hold a secret: credentials live
+ * actual stored keys. Neither may ever hold a secret: credentials live
  * only in the app's encrypted store, and every later chat reads the guide.
  */
 export function scanAppRecord({
-  credential,
   guide,
+  keys,
   setup,
 }: {
-  credential: null | string;
   guide: string;
+  /** The app's stored keys, as their values. */
+  keys: string[];
   setup: Record<string, unknown>;
 }): SecretFinding[] {
   const findings: SecretFinding[] = [];
@@ -27,11 +28,7 @@ export function scanAppRecord({
     ["guide", guide],
   ] as const;
   for (const [file, text] of parts) {
-    if (
-      credential !== null &&
-      credential.length > 0 &&
-      text.includes(credential)
-    ) {
+    if (keys.some((key) => key.length > 0 && text.includes(key))) {
       findings.push({
         detail:
           "Contains the app's stored credential verbatim. Remove it -- credentials are injected at request time and must never be written into an app.",

@@ -291,6 +291,13 @@ export function foldWords(typed: string): FoldedWords {
   return { run: words.join(""), text: words.join(" "), words };
 }
 
+/** Whether step 5 can find anything for these words: one of them is long enough to forgive a letter in. */
+export function canForgiveWrongLetter(words: FoldedWords): boolean {
+  return words.words.some(
+    (word) => word.length >= FEWEST_LETTERS_FOR_WRONG_ONE,
+  );
+}
+
 /**
  * How well the words find the name, as one number that is lower for a better
  * match: the step, then where the match starts. `NO_MATCH` when they do not.

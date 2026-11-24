@@ -1,4 +1,9 @@
-import { foldWords, matchRank, NO_MATCH } from "@/shared/name-match";
+import {
+  canForgiveWrongLetter,
+  foldWords,
+  matchRank,
+  NO_MATCH,
+} from "@/shared/name-match";
 import path from "node:path";
 import { z } from "zod";
 
@@ -76,7 +81,13 @@ export function searchFileNames(
     return best;
   };
   const asTyped = bestOf(false);
-  return (asTyped.length > 0 ? asTyped : bestOf(true)).map(({ at }) => {
+  // The second read of every name is skipped when no word is long enough for
+  // it to find anything.
+  const found =
+    asTyped.length > 0 || !canForgiveWrongLetter(words)
+      ? asTyped
+      : bestOf(true);
+  return found.map(({ at }) => {
     const name = names.names[at] ?? "";
     return {
       isFolder: names.isFolder[at] ?? false,

@@ -3,7 +3,8 @@
  * they work when it does?
  *
  * Backgrounding is not a tool the model can be shown in a tool list: a command
- * goes to the background by outliving `yieldMs`, and everything after that
+ * goes to the background by ending with `&` or by outliving `yieldMs`, and
+ * everything after that
  * happens through `jobs`, `fg` and `kill`, which the model only learns about
  * from the `bash` description. So there is nothing below a real agent that can
  * tell us whether the affordance is discoverable -- only whether it functions.
@@ -23,6 +24,8 @@ import { type SessionMessagePart } from "../../src/schemas/session/message-part"
 import { type Assertion, defineEval } from "../harness";
 
 export interface BashCall {
+  /** Set when a trailing `&` sent the command to the background. */
+  backgrounded: boolean;
   command: string;
   /** Absent for a call still running when it returned, or one that errored. */
   exitCode: number | undefined;
@@ -49,6 +52,7 @@ export function bashCalls(sessions: Sessions): BashCall[] {
       const output = "output" in part ? part.output : undefined;
       return [
         {
+          backgrounded: output?.backgrounded === true,
           command,
           exitCode:
             typeof output?.exitCode === "number" ? output.exitCode : undefined,
@@ -158,6 +162,32 @@ const assertPromotedAProcess: Assertion = {
     };
   },
   text: "A command went to the background",
+};
+
+/**
+ * How the description says to start what is not worth waiting for. The other
+ * route, a `yieldMs` too short for the command, also promotes it, and is what
+ * the same model then spends on commands that would have finished in the call.
+ */
+const assertStartedWithAmpersand: Assertion = {
+  check: ({ sessions }) => {
+    const runs = promoted(sessions);
+    const passed = runs.length > 0 && runs.every((call) => call.backgrounded);
+    return {
+      evidence:
+        runs.length === 0
+          ? "Nothing went to the background"
+          : runs
+              .map(
+                (call) =>
+                  `${call.processId}: ${call.backgrounded ? "trailing `&`" : "outlived its `yieldMs`"}`,
+              )
+              .join(", "),
+      passed,
+      text: "Sent it to the background with a trailing `&`",
+    };
+  },
+  text: "Sent it to the background with a trailing `&`",
 };
 
 /**
@@ -364,6 +394,45 @@ const assertNothingWentToTheBackground: Assertion = {
     };
   },
   text: "Left a short command in the foreground",
+};
+
+/**
+ * The whole job in one call. A command that fits the default wait needs no
+ * second call to look at it, and none before it to prepare.
+ */
+const assertRanOneCommand: Assertion = {
+  check: ({ sessions }) => {
+    const calls = bashCalls(sessions);
+    return {
+      evidence: `${calls.length} bash call(s): ${describeCommands(calls)}`,
+      passed: calls.length === 1,
+      text: "Ran the command in a single bash call",
+    };
+  },
+  text: "Ran the command in a single bash call",
+};
+
+/**
+ * No call that only waits: `fg bg_1` (or `wait`) on its own is a model step
+ * spent on a command the call that started it would have waited out.
+ */
+const assertNoCallOnlyWaited: Assertion = {
+  check: ({ sessions }) => {
+    const waits = bashCalls(sessions).filter((call) =>
+      new RegExp(String.raw`^\s*(?:${FG_COMMAND.name}|wait)\b`).test(
+        call.command,
+      ),
+    );
+    return {
+      evidence:
+        waits.length === 0
+          ? "No call was spent waiting"
+          : `Spent on waiting: ${describeCommands(waits)}`,
+      passed: waits.length === 0,
+      text: "Spent no call on `fg` or `wait` alone",
+    };
+  },
+  text: "Spent no call on `fg` or `wait` alone",
 };
 
 /**
@@ -614,16 +683,17 @@ export const BACKGROUND_PROCESS_EVALS = [
   }),
 
   /**
-   * The blocking wait. The turn is split in two on purpose: a model that can
-   * read the duration out of the command will simply raise `yieldMs` and hold
-   * the call open, which is the right answer to "run this and tell me the exit
-   * code" and leaves `fg` unexercised. Being asked for the id first makes the
-   * handoff the only route, and the exit code then only exists on the far side
-   * of a wait.
+   * The blocking wait. The turn is split in two on purpose: the command ends
+   * well inside the default wait, so a model asked only to "run this and tell
+   * me the exit code" holds the call open, which is the right answer and
+   * leaves `fg` unexercised. Being asked for the id first makes the handoff
+   * the only route, by a trailing `&`, and the exit code then only exists on
+   * the far side of a wait the default covers.
    */
   defineEval({
     assertions: [
       assertPromotedAProcess,
+      assertStartedWithAmpersand,
       // The shell rewrites `wait` to `fg`, and the `&` refusal suggests it.
       makeAssertUsedCommand(FG_COMMAND.name, "to wait the command out", [
         "wait",
@@ -689,12 +759,15 @@ export const BACKGROUND_PROCESS_EVALS = [
    * The ending after the turn. The agent is asked not to wait, so its turn
    * ends with the command still running, the way it does when a command sits
    * behind a privacy prompt nobody has answered yet; the command ending then
-   * wakes the conversation, and nobody types again. Run as a chat because a
-   * wake needs a conversation someone has written in.
+   * wakes the conversation, and nobody types again. The command ends inside
+   * the default wait, so only a call that sends it to the background leaves it
+   * running past the turn. Run as a chat because a wake needs a conversation
+   * someone has written in.
    */
   defineEval({
     assertions: [
       assertPromotedAProcess,
+      assertStartedWithAmpersand,
       assertWokenWhenItEnded,
       assertReportedTheCodeOnWaking,
     ],
@@ -749,6 +822,22 @@ export const BACKGROUND_PROCESS_EVALS = [
     name: "background-stopped-command-then-hi",
     prompt:
       "Run `sleep 60` right here in this chat, not as a task, and wait for it to end before you reply.",
+  }),
+
+  /**
+   * The step a short wait wastes. A loop of most of a minute fits the default
+   * wait, so the call that starts it also ends it: one call, nothing sent to
+   * the background, and no second call to wait it out.
+   */
+  defineEval({
+    assertions: [
+      assertRanOneCommand,
+      assertNothingWentToTheBackground,
+      assertNoCallOnlyWaited,
+      assertReportedTheCode,
+    ],
+    name: "background-slow-loop-stays-in-one-call",
+    prompt: `Run this and tell me the code it prints at the end: for i in $(seq 1 45); do echo "row $i done"; sleep 1; done; echo "code $(node -e 'console.log(Math.floor(100000 + Math.random() * 900000))')"`,
   }),
 
   /** The control: an ordinary command must not change behavior. */

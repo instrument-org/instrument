@@ -12,11 +12,11 @@ Killing on timeout is also pure waste. The install already downloaded, the build
 
 One parameter replaces the timeout: `yieldMs`, how long the tool waits before handing back. A command that finishes inside its window returns output and an exit code, exactly as before. A command that does not is **not killed** -- it keeps running, gets an id, and the call returns what it has written so far. From there three shell commands manage it: `jobs` lists them, `fg` prints what one has written since the last read and blocks until it exits, and `kill` stops it.
 
-There is no `background: true` flag. Deliberately starting a long-lived process is spelled `yieldMs: 1000` -- "give me the id promptly" -- which makes explicit intent and accidental overrun the same mechanism, so the agent cannot get one of the two wrong.
+There is no `background: true` flag. Deliberately starting a long-lived process is spelled as a shell spells it, a trailing `&`, which returns the id at once; `yieldMs` is left at its default for everything else.
 
 ### What runs where
 
-The agent's shell is `just-bash`, a JS interpreter over a mounted filesystem with a curated command set, not a real shell (see [agent-sandbox.md](../architecture/agent-sandbox.md)). Backgrounding had to stay inside it: handing the agent a real `sh -c` for long-running commands would give it the host filesystem and every binary on `PATH`, which is precisely what the sandbox exists to prevent. So a background process is a `bash.exec()` call that outlived its yield window, not a detached host process, and `&`/`nohup`/`disown` remain unsupported.
+The agent's shell is `just-bash`, a JS interpreter over a mounted filesystem with a curated command set, not a real shell (see [agent-sandbox.md](../architecture/agent-sandbox.md)). Backgrounding had to stay inside it: handing the agent a real `sh -c` for long-running commands would give it the host filesystem and every binary on `PATH`, which is precisely what the sandbox exists to prevent. So a background process is a `bash.exec()` call that outlived its yield window, not a detached host process: a trailing `&` promotes that call at once, and `&` anywhere else, like `disown`, has nothing to act on.
 
 ### Streaming without a PTY
 

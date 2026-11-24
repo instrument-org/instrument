@@ -17,6 +17,7 @@ import { chatListOptions } from "./chat-list-query";
 import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { ChatRow } from "./chat-row";
 import { byLastUserMessage, type Chat } from "./chats";
+import { useShowChatGroup } from "./chat-group";
 import { DeleteChatDialog } from "./delete-chat-dialog";
 import { ScreenMark } from "./pane-tabs";
 import { useShell } from "./shell-context";
@@ -31,12 +32,14 @@ const RECENT_CHATS_SHOWN = 12;
  * Chats at the bookmarks bar's start, ahead of Files: a press opens the
  * Chats page, as a bookmark opens (`bookmarkClicks`), and the caret beside
  * it lists the chats talked to last, newest first, each in the chat list's
- * one-line row. A pick opens that chat in this tab.
+ * one-line row. A pick brings up the tab group that chat is in, open or
+ * closed (`useShowChatGroup`), and a chat in neither opens in this tab.
  */
 export function ChatsMark({ open }: { open: OpenAddress }) {
   const [isOpen, setOpen] = useState(false);
   const [deleting, setDeleting] = useState<Chat>();
   const { data } = useQuery(chatListOptions());
+  const showChatGroup = useShowChatGroup();
   const recent = byLastUserMessage(
     (data ?? []).filter((chat) => !chat.archived),
   ).slice(0, RECENT_CHATS_SHOWN);
@@ -76,7 +79,9 @@ export function ChatsMark({ open }: { open: OpenAddress }) {
                 }}
                 onOpen={() => {
                   setOpen(false);
-                  open(chatHref(chat.id));
+                  if (!showChatGroup(chat.id)) {
+                    open(chatHref(chat.id));
+                  }
                 }}
               />
             ))

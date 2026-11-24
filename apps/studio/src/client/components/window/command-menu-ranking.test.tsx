@@ -368,7 +368,7 @@ describe("a chat's row in the command menu", () => {
     fireEvent.click(await screen.findByRole("button", { name: FARMERS.title }));
 
     expect(shell.select.mock.calls).toEqual([["chat-tab"]]);
-    expect(shell.showGroup.mock.calls).toEqual([["roofer", undefined]]);
+    expect(shell.showGroup.mock.calls).toEqual([["roofer", {}]]);
     expect(openScreen).not.toHaveBeenCalled();
   });
 

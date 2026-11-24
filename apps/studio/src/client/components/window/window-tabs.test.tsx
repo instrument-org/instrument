@@ -181,6 +181,7 @@ describe("the tab groups kept on this computer", () => {
       activeByGroup: { group_a: "tab_3" },
       besideByGroup: { group_a: "tab_2" },
       groups: { group_a: { pinned: true, project: "travel", share: 0.4 } },
+      openers: { openers: {}, sources: {} },
       tabs: [
         { group: "group_a", id: "tab_1", kind: "page", openedAt: 1 },
         { group: "group_a", id: "tab_2", kind: "page", openedAt: 2 },

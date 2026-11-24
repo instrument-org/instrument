@@ -24,6 +24,8 @@ import {
 } from "./tab-steps";
 import { useWindowTabs } from "./window-tabs";
 
+type CloseTab = (id: string, options: { up: string }) => void;
+
 /** Back and forward for one tab, and whether each has anywhere to go. */
 export interface TabSteps {
   canGoBack: boolean;
@@ -36,18 +38,27 @@ export interface TabSteps {
  * (`stepOf`): the row's arrows over it, the mouse's thumb buttons and the
  * history chords over its page, the page's own menu, and, for a site of the
  * window's own, the window's arrows and chords. `outer` is the window tab's
- * history a site's page runs out into.
+ * history a site's page runs out into, and `closeTab` closes the tab for a
+ * step back past its start, bringing `up` up in its place.
  */
 export function useTabSteps(
   up: undefined | WindowTab,
-  { outer }: { outer?: { back: () => void; canGoBack: boolean } } = {},
+  {
+    closeTab,
+    outer,
+  }: {
+    closeTab: CloseTab;
+    outer?: { back: () => void; canGoBack: boolean };
+  },
 ): TabSteps {
-  const { allTabs, stepTab, stepVisitOf } = useWindowTabs();
+  const { allTabs, backToOpenerOf, stepTab, stepVisitOf } = useWindowTabs();
   const { guest, target } = usePageGuest(
     up?.kind === "page" ? up : up && hostedPageOf(allTabs, up.id),
   );
+  const opener = up && backToOpenerOf(up.id);
   const stack = stepStackOf(up, {
     guest,
+    hasOpener: opener !== undefined,
     ...(outer ? { outer } : {}),
   });
   return {
@@ -59,6 +70,12 @@ export function useTabSteps(
         case "guest": {
           if (target) {
             goGuest(target, direction);
+          }
+          break;
+        }
+        case "opener": {
+          if (up && opener) {
+            closeTab(up.id, { up: opener.id });
           }
           break;
         }
@@ -89,13 +106,14 @@ export function useTabSteps(
 /**
  * Back and forward for the window's tab up, which its arrows and chords
  * walk wherever the keyboard is: in a tab group, the group's tab up alone,
- * so a step never moves to another tab or group; for a site, its page first
+ * so a step never moves to another group, and to another tab only back from
+ * the start of one a link opened, which closes; for a site, its page first
  * and then the tab's history before the site, the way a browser's back
  * leaves a site at its start; anything else, the tab's own router, after the
  * history of a page its file screen draws beside the tree. Read under the
  * tab up's router.
  */
-export function useWindowSteps(): TabSteps {
+export function useWindowSteps({ closeTab }: { closeTab: CloseTab }): TabSteps {
   const router = useRouter();
   const { allTabs, selectedTabIn } = useWindowTabs();
   // The page a file screen in the tab draws in its viewer.
@@ -115,8 +133,9 @@ export function useWindowSteps(): TabSteps {
   const page = useTabSteps(
     group === undefined ? undefined : selectedTabIn(group),
     site === undefined
-      ? {}
+      ? { closeTab }
       : {
+          closeTab,
           outer: {
             back: () => {
               router.history.back();
@@ -129,6 +148,7 @@ export function useWindowSteps(): TabSteps {
     return page;
   }
   const stack: StepStack = {
+    opener: NOWHERE,
     guest: hosted.guest
       ? { back: hosted.guest.canGoBack, forward: hosted.guest.canGoForward }
       : NOWHERE,

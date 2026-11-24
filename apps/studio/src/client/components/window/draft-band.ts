@@ -42,5 +42,9 @@ export function pageToChat({
   chatTab: { group: string; id: string };
   url: string;
 }): void {
-  browser?.openBehind(url, { after: chatTab.id, group: chatTab.group });
+  browser?.openBehind(url, {
+    after: chatTab.id,
+    from: { reason: "link", tab: chatTab.id },
+    group: chatTab.group,
+  });
 }

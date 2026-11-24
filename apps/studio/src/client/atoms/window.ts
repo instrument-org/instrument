@@ -107,10 +107,11 @@ export type TabVisit =
 export type WindowTab = TabHistory & TabVisit;
 
 /**
- * Where a tab has been, and whether it was opened by something else.
+ * Where a tab has been.
  *
- * History belongs to a tab rather than to the window: back never moves you to
- * a different tab, which is the thing that makes a strip of them readable. A
+ * History belongs to a tab rather than to the window: back moves you to a
+ * different tab only from the start of one a link opened, which closes
+ * (`backToOpenerOf`). A
  * page keeps its guest's native history and a screen its router's; past and
  * future retain visits across the boundary between screens and pages.
  */
@@ -140,12 +141,6 @@ interface TabHistory {
    * stands there (`groupLayoutOf`).
    */
   side?: 1;
-  /**
-   * True when this tab was opened from another one rather than by the user
-   * asking for a tab. Back from the start of such a tab closes it, which is
-   * what a tab opened to show one thing should do when you are done with it.
-   */
-  isOpened?: boolean;
   /** Visits across the screen/browser boundary; each guest keeps its native history. */
   past?: TabVisit[];
   /**

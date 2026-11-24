@@ -24,7 +24,12 @@ import {
 import { useAppsBySlug } from "./apps-by-slug";
 import { BookmarksBar } from "./bookmarks-bar";
 import { type PageChromeSlots } from "./browser-tabs";
-import { asksOwnPlace, useWindow, WindowContext } from "./context";
+import {
+  asksOwnPlace,
+  type OpenOptions,
+  useWindow,
+  WindowContext,
+} from "./context";
 import { ScreenToolsRow, useRowSlots } from "./row-slots";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { PageAgentOverlay } from "./page-agent-overlay";
@@ -69,7 +74,7 @@ export function GroupItem({
 }: {
   /** Where back goes from the start of the tab: the window's own tab history, for a site standing at the window's level. */
   before?: { back: () => void; canGoBack: boolean };
-  closeTab: (id: string) => void;
+  closeTab: (id: string, options?: { up?: string }) => void;
   group: string;
   /** Whether its side of the group has the keyboard: a chat or a new chat on the other side leaves the caret alone. */
   hasKeyboard?: boolean;
@@ -142,6 +147,7 @@ export function GroupItem({
    * browser's bookmark takes over the tab it is clicked in, and Back returns.
    */
   const takeOver = (href: string) => {
+    windowTabs.startedOver(up.id);
     if (before) {
       appWindow.openScreen(href);
     } else {
@@ -170,8 +176,12 @@ export function GroupItem({
       windowTabs.visitHref(up.id, href);
     }
   };
+  /** An open from the screen in this tab, which says so; a chat's names its own. */
+  const openedHere = (options: OpenOptions = {}): OpenOptions =>
+    options.chat === undefined ? { from: up.id, ...options } : options;
   /** A site in this tab: the page's own next stop, or a page in place of the screen up. */
   const openHere = (url: string) => {
+    windowTabs.startedOver(up.id);
     if (up.kind === "page" && page) {
       void page.load(url).catch(noop);
     } else {
@@ -183,7 +193,10 @@ export function GroupItem({
   // the window's own, where the window's tab was before the site. The row's
   // arrows and every step asked of the page take these; a site's are the
   // window's own arrows, which read the same steps.
-  const steps = useTabSteps(up, before ? { outer: before } : {});
+  const steps = useTabSteps(up, {
+    closeTab,
+    ...(before ? { outer: before } : {}),
+  });
   const { canGoBack, canGoForward } = steps;
   const goBack = () => {
     steps.go("back");
@@ -459,6 +472,9 @@ export function GroupItem({
         <WindowContext
           value={{
             ...appWindow,
+            openPage: (url, options) => {
+              appWindow.openPage(url, openedHere(options));
+            },
             // A chat's tasks and each task's page walk this tab in place,
             // unless it is the chat's own, which stays on the chat.
             openScreen: (href, options) => {
@@ -471,7 +487,7 @@ export function GroupItem({
                 router.history.push(href);
                 return;
               }
-              appWindow.openScreen(href, options);
+              appWindow.openScreen(href, openedHere(options));
             },
             rowField: slots.field,
             rowLead: slots.lead,

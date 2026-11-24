@@ -11,6 +11,19 @@ import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
 import { computerTabOf } from "./file-tabs";
 import { historyOf, stepTabVisit, visitInTab } from "./tab-history";
 import {
+  addressOfTab,
+  forgetOpeners,
+  handOnOpener,
+  lastOpenedFrom,
+  nextUpAfter,
+  NO_OPENERS,
+  type Opening,
+  openerKeyOf,
+  switchedTabs,
+  type TabOpeners,
+  withOpened,
+} from "./tab-openers";
+import {
   matchScreen,
   sameHref,
   showsSame,
@@ -39,6 +52,8 @@ export interface WindowTabs {
   besideByGroup?: Record<string, string>;
   /** What a group keeps of its own beside its tabs, by its id. */
   groups?: Record<string, GroupOwn>;
+  /** Which tab each was opened from, as this window saw it; never kept on disk. */
+  openers?: TabOpeners;
   tabs: WindowTab[];
 }
 
@@ -263,18 +278,147 @@ function spliceIn(
 export function openInGroup(
   state: WindowTabs,
   tab: WindowTab,
-  { select = false, ...placing }: Placing & { select?: boolean },
+  {
+    from,
+    select = false,
+    isFront = select,
+    ...placing
+  }: Placing & {
+    /** Why it opens, which links it to the tab it opened from (`TabOpeners`). */
+    from?: Opening;
+    /** Whether it comes to the front of its side, for a caller that raises it there itself. */
+    isFront?: boolean;
+    select?: boolean;
+  },
 ): WindowTabs {
+  const layout = groupLayoutOf(state, placing.group);
+  const { side: at } = placeIn(state, placing);
+  const side = layout.sides[at];
+  const links = state.openers ?? NO_OPENERS;
+  const source =
+    from?.tab === undefined
+      ? undefined
+      : side?.tabs.find((entry) => entry.id === from.tab);
+  const after =
+    source && !isFront
+      ? lastOpenedFrom(side?.tabs ?? [], source.id, links)
+      : placing.after;
   const added = normalizeSides(
-    insertInGroup(state, tab, placing),
+    insertInGroup(state, tab, {
+      ...placing,
+      ...(after === undefined ? {} : { after }),
+    }),
     placing.group,
   );
-  return select ? selectTab(added, tab.id) : added;
+  const linked =
+    from === undefined
+      ? added
+      : {
+          ...added,
+          openers: withOpened(links, {
+            isFront,
+            opening: from,
+            side: side?.tabs ?? [],
+            source,
+            tab,
+            up: side?.tabs.find((entry) => entry.id === side.up),
+          }),
+        };
+  return select ? selectTab(linked, tab.id) : linked;
+}
+
+/**
+ * Why the person's open into a group is there (`Opening`): a link in the
+ * group's tab `from`, else something asked of the window with a tab up.
+ */
+export function openingFrom(
+  state: WindowTabs,
+  group: string | undefined,
+  from: string | undefined,
+): Exclude<Opening, { reason: "newTab" }> {
+  if (
+    from !== undefined &&
+    state.tabs.some((tab) => tab.id === from && tab.group === group)
+  ) {
+    return { reason: "link", tab: from };
+  }
+  const up = selectedTabIn(state, group)?.id;
+  return { reason: "asked", ...(up === undefined ? {} : { tab: up }) };
+}
+
+/** The tabs of the side a tab stands on, in strip order, and the one up there. */
+function sideWith(state: WindowTabs, tab: WindowTab): GroupSide {
+  const layout =
+    tab.group === undefined ? undefined : groupLayoutOf(state, tab.group);
+  const at = layout && sideIndexOf(layout, tab.id);
+  return (
+    (at === undefined ? undefined : layout?.sides[at]) ?? {
+      tabs: [],
+      up: undefined,
+    }
+  );
+}
+
+/**
+ * The tab the person picked, up with the keyboard (`selectTab`): what the
+ * side's tabs were opened from is forgotten where the pick starts on
+ * something else (`switchedTabs`).
+ */
+export function pickTab(state: WindowTabs, id: string): WindowTabs {
+  const tab = state.tabs.find((entry) => entry.id === id);
+  const picked = selectTab(state, id);
+  if (!tab || !state.openers) {
+    return picked;
+  }
+  const side = sideWith(state, tab);
+  const was = side.tabs.find((entry) => entry.id === side.up);
+  return was
+    ? { ...picked, openers: switchedTabs(state.openers, side.tabs, was, tab) }
+    : picked;
+}
+
+/**
+ * The person sent a tab to an address of their own, so what its side's tabs
+ * were opened from is forgotten: but not the first thing a new tab at the
+ * side's end is sent to, which is a quick look-up.
+ */
+export function startedOver(state: WindowTabs, id: string): WindowTabs {
+  const tab = state.tabs.find((entry) => entry.id === id);
+  if (!tab || !state.openers) {
+    return state;
+  }
+  const side = sideWith(state, tab);
+  return isHomeTab(tab) && side.tabs.at(-1)?.id === id
+    ? state
+    : { ...state, openers: forgetOpeners(state.openers, side.tabs) };
+}
+
+/**
+ * The tab Back returns to from the start of a tab a link opened, as
+ * Chromium's back-to-opener has it: the one the link was in, while it is on
+ * the same side and at the address it had.
+ */
+export function backToOpenerOf(
+  state: WindowTabs,
+  id: string,
+): undefined | WindowTab {
+  const tab = state.tabs.find((entry) => entry.id === id);
+  const source = tab && state.openers?.sources[openerKeyOf(tab)];
+  if (!source) {
+    return undefined;
+  }
+  return sideWith(state, tab).tabs.find(
+    (entry) =>
+      openerKeyOf(entry) === source.tab &&
+      (entry.kind === "screen"
+        ? showsSame(entry.href, source.at)
+        : addressOfTab(entry) === source.at),
+  );
 }
 
 /**
  * A tab taken out of its group's list as it closes or moves: the side it
- * leaves has the tab before it up, or the one after, where it was up; a side
+ * leaves has the next one up (`nextUpAfter`), where it was up; a side
  * it leaves empty gives the keyboard to the other side, which becomes the
  * whole group once its sides are normalized.
  */
@@ -288,21 +432,23 @@ function takeOut(state: WindowTabs, id: string): WindowTabs {
   if (group === undefined) {
     return { ...state, tabs: remaining };
   }
+  const links = state.openers ?? NO_OPENERS;
+  const openers = state.openers && handOnOpener(state.openers, closing);
+  const linked = openers ? { ...state, openers } : state;
   const layout = groupLayoutOf(state, group);
   const at = sideIndexOf(layout, id) ?? 0;
   const side = layout.sides[at];
   if (side?.up !== id) {
-    return { ...state, tabs: remaining };
+    return { ...linked, tabs: remaining };
   }
-  const index = side.tabs.findIndex((tab) => tab.id === id);
-  const next = side.tabs[index - 1] ?? side.tabs[index + 1];
+  const next = nextUpAfter(side.tabs, id, links);
   const { [group]: _active, ...activeByGroup } = state.activeByGroup;
   const { [group]: _beside, ...besideByGroup } = state.besideByGroup ?? {};
   const other = layout.sides[at === 0 ? 1 : 0]?.up;
   if (at === layout.focused) {
     const active = next?.id ?? other;
     return {
-      ...state,
+      ...linked,
       activeByGroup:
         active === undefined
           ? activeByGroup
@@ -315,7 +461,7 @@ function takeOut(state: WindowTabs, id: string): WindowTabs {
     };
   }
   return {
-    ...state,
+    ...linked,
     besideByGroup:
       next === undefined
         ? besideByGroup
@@ -398,6 +544,10 @@ export function moveTabTo(
   let next: WindowTabs = {
     ...out,
     tabs: spliceIn(out.tabs, placed, { index, side: kept }),
+    // Along its own strip it keeps what it was opened from.
+    ...(from === group && sideOf(tab) === kept
+      ? { openers: state.openers }
+      : {}),
   };
   next = normalizeSides(next, group);
   if (from !== undefined && from !== group) {
@@ -826,25 +976,26 @@ export function addScreen(
   {
     after,
     group,
+    from,
     href,
     id,
-    isOpened = false,
     select,
     side,
   }: {
     /** The tab it opens beside, as a link opened in a new tab lands beside the page it was in. */
     after?: string;
     group: string;
+    from?: Opening;
     href: string;
     id: string;
-    isOpened?: boolean;
     select: boolean;
     side?: Placing["side"];
   },
 ): WindowTabs {
-  const tab: WindowTab = { group, href, id, isOpened, kind: "screen" };
+  const tab: WindowTab = { group, href, id, kind: "screen" };
   return openInGroup(state, tab, {
     ...(after === undefined ? {} : { after }),
+    ...(from === undefined ? {} : { from }),
     group,
     select,
     ...(side === undefined ? {} : { side }),
@@ -932,9 +1083,9 @@ export function openOrFocusScreen(
   {
     after,
     group,
+    from,
     href,
     id,
-    isOpened = false,
     isWaiting,
     select,
   }: {
@@ -944,7 +1095,7 @@ export function openOrFocusScreen(
     href: string;
     /** The id a new tab takes. */
     id: string;
-    isOpened?: boolean;
+    from?: Opening;
     /** Whether the group is waiting behind rather than on screen. */
     isWaiting: boolean;
     select: boolean;
@@ -964,7 +1115,7 @@ export function openOrFocusScreen(
         return tab;
       }
       const { history: _left, ...rest } = tab;
-      return { ...rest, future: [], href, isOpened };
+      return { ...rest, future: [], href };
     });
     return { id: up.id, state: select ? selectTab(told, up.id) : told };
   }
@@ -973,9 +1124,9 @@ export function openOrFocusScreen(
     state: addScreen(state, {
       ...(after === undefined ? {} : { after }),
       group,
+      ...(from === undefined ? {} : { from }),
       href,
       id,
-      isOpened,
       select,
     }),
   };
@@ -1153,15 +1304,20 @@ export function stepTrail(
 }
 
 /**
- * A tab closed. The tab up on its side gives way to the one before it, or
- * the one after; a side's last tab closing leaves the other side as the
+ * A tab closed. The tab up on its side gives way to the next one
+ * (`nextUpAfter`), or to `up` where a step back named it; a side's last tab closing leaves the other side as the
  * whole group, with the keyboard. A group's last tab closes like any other,
  * leaving the group with none.
  */
-export function closeTab(state: WindowTabs, id: string): WindowTabs {
+export function closeTab(
+  state: WindowTabs,
+  id: string,
+  { up }: { up?: string } = {},
+): WindowTabs {
   const group = state.tabs.find((tab) => tab.id === id)?.group;
   const out = takeOut(state, id);
-  return group === undefined ? out : normalizeSides(out, group);
+  const closed = group === undefined ? out : normalizeSides(out, group);
+  return up === undefined ? closed : selectTab(closed, up);
 }
 
 /**
@@ -1200,6 +1356,7 @@ export function dropGroup(state: WindowTabs, group: string): WindowTabs {
   const { [group]: _beside, ...besideByGroup } = state.besideByGroup ?? {};
   const { [group]: _own, ...groups } = state.groups ?? {};
   return {
+    ...state,
     activeByGroup,
     besideByGroup,
     groups,
@@ -1304,7 +1461,6 @@ export function pageTakesOver(
   const {
     future: _future,
     group: _group,
-    isOpened: _opened,
     past: _past,
     stripKey: _key,
     ...visit
@@ -1345,13 +1501,7 @@ export function pageBecomesFile(
   if (page?.kind !== "page" || page.group === undefined) {
     return state;
   }
-  const {
-    future: _future,
-    isOpened: _opened,
-    past,
-    stripKey,
-    ...hosted
-  } = page;
+  const { future: _future, past, stripKey, ...hosted } = page;
   const { group: _group, ...visit } = hosted;
   const behind = [
     ...(past ?? []),
@@ -1370,7 +1520,6 @@ export function pageBecomesFile(
     group: page.group,
     href: file.href,
     id: file.id,
-    ...(page.isOpened === undefined ? {} : { isOpened: page.isOpened }),
     kind: "screen",
     ...(behind.length === 0 ? {} : { past: behind }),
     stripKey: stripKey ?? page.id,
@@ -1393,6 +1542,7 @@ export function openPage(
   state: WindowTabs,
   {
     after,
+    from,
     group,
     page,
     replacing,
@@ -1401,6 +1551,7 @@ export function openPage(
   }: {
     /** The tab it opens beside rather than at the group's end. */
     after?: string;
+    from?: Opening;
     group: string | undefined;
     page: BrowserTab;
     replacing?: WindowTab;
@@ -1426,6 +1577,7 @@ export function openPage(
   }
   return openInGroup(state, tab, {
     ...(after === undefined ? {} : { after }),
+    ...(from === undefined ? {} : { from }),
     group,
     select,
     ...(side === undefined ? {} : { side }),
@@ -1442,7 +1594,7 @@ export function addPages(
   state: WindowTabs,
   pages: (BrowserTab &
     Pick<WindowTab, "openedBy"> & { group: string | undefined })[],
-  { after }: { after?: string } = {},
+  { after, from }: { after?: string; from?: Opening } = {},
 ): WindowTabs {
   let next = state;
   for (const page of pages) {
@@ -1452,6 +1604,7 @@ export function addPages(
         ? { ...next, tabs: [...next.tabs, tab] }
         : openInGroup(next, tab, {
             ...(after === undefined ? {} : { after }),
+            ...(from === undefined ? {} : { from }),
             group: page.group,
           });
   }

@@ -659,9 +659,6 @@ function WindowShell({
   }, [rowElement]);
   const [browser, setBrowser] = useState<BrowserTabsHandle | null>(null);
   const windowTabs = useWindowTabs();
-  // What the window's arrows and chords walk: the tab up's history, through
-  // a site's page first.
-  const windowSteps = useWindowSteps();
   // Every screen a group's tab stands on is walked by a router of its own.
   useGroupTabRouters(windowTabs.allTabs, windowTabs.screenMoved);
   // The drafts tabs are writing, every window's group tabs being one record:
@@ -901,7 +898,14 @@ function WindowShell({
   // scratch tab leaves it off (`agentCloseKeeps`).
   const requestClose = (
     id: string,
-    { byAgent = false }: { byAgent?: boolean } = {},
+    {
+      byAgent = false,
+      up,
+    }: {
+      byAgent?: boolean;
+      /** The tab that comes up in its place, where a step back named it. */
+      up?: string;
+    } = {},
   ) => {
     const tab = windowTabs.allTabs.find((each) => each.id === id);
     const closedAs = closingAsWritten(tab);
@@ -935,7 +939,7 @@ function WindowShell({
         }),
       );
     }
-    windowTabs.close(id);
+    windowTabs.close(id, up === undefined ? {} : { up });
   };
   /**
    * The whole side a tab stands on closed, onto the window's closed list as
@@ -993,15 +997,18 @@ function WindowShell({
       closers.current.closeGroups(closing, keep);
     });
   };
-  const askToCloseTab = (id: string) => {
+  const askToCloseTab = (id: string, options: { up?: string } = {}) => {
     stopping.ask(
       windowTabs.allTabs.filter((tab) => tab.id === id),
       "tab",
       () => {
-        closers.current.requestClose(id);
+        closers.current.requestClose(id, options);
       },
     );
   };
+  // What the window's arrows and chords walk: the tab up's history, through
+  // a site's page first.
+  const windowSteps = useWindowSteps({ closeTab: askToCloseTab });
   const askToCloseSide = (id: string) => {
     const group = windowTabs.allTabs.find((tab) => tab.id === id)?.group;
     const layout = group === undefined ? undefined : windowTabs.layoutOf(group);
@@ -1641,6 +1648,7 @@ function WindowShell({
         windowTabs.openIn(
           { group, href: NEW_TAB_HREF, id: newScreenId(), kind: "screen" },
           {
+            from: { reason: "newTab" },
             group,
             select: true,
             side: other,

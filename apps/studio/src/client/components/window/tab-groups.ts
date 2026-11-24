@@ -616,7 +616,7 @@ export function useTabGroupActions() {
         });
         windowTabs.restoreGroup(group, copied.tabs);
         if (copied.up !== undefined) {
-          windowTabs.select(copied.up);
+          windowTabs.bringUp(copied.up);
         }
         if (copied.beside !== undefined) {
           windowTabs.raise(copied.beside);
@@ -841,7 +841,11 @@ export function useTabGroupActions() {
       make();
       return;
     }
-    windowTabs.openScreen(NEW_TAB_HREF, { group, select: true });
+    windowTabs.openScreen(NEW_TAB_HREF, {
+      from: { reason: "newTab" },
+      group,
+      select: true,
+    });
   };
 
   /** Whether a group has tabs, read now. */

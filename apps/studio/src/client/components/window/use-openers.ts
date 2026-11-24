@@ -266,11 +266,19 @@ export function useOpeners({
               }) ?? after)
             : (windowTabs.openScreen(tab.href, {
                 ...place,
-                isOpened: true,
                 select: isFirst,
               }) ?? after);
       }
     });
+  };
+  /**
+   * The tab up is about to go somewhere asked of the window: one walked by
+   * something in it (`from`), or by nobody (`here`), goes on as it was.
+   */
+  const startOver = ({ from, here }: OpenOptions) => {
+    if (from === undefined && !here && active) {
+      windowTabs.startedOver(active.id);
+    }
   };
   /** Brings a group on screen for something shown into it from outside it. */
   const bringUp = (group: string) => {
@@ -315,6 +323,7 @@ export function useOpeners({
       return browser?.openOrFocus(url, {
         after: place.after,
         behind: !isUp,
+        from: { reason: "link", tab: place.after },
         group: place.group,
         show: isUp,
       });
@@ -333,13 +342,21 @@ export function useOpeners({
         return id;
       }
       case "group-new-tab": {
-        return browser?.open(url, { behind: placement.behind, newTab: true });
+        return browser?.open(url, {
+          behind: placement.behind,
+          newTab: true,
+          ...(asked.from === undefined
+            ? {}
+            : { from: { reason: "link", tab: asked.from } }),
+        });
       }
       case "navigate-up": {
+        startOver(asked);
         browser?.navigate(url);
         return active?.id;
       }
       case "new-page": {
+        startOver(asked);
         const replacing =
           placement.replacesUp && active ? { replacing: active } : undefined;
         const id = browser?.open(url, replacing);
@@ -388,17 +405,21 @@ export function useOpeners({
       case "after": {
         windowTabs.openScreen(href, {
           after: placement.after,
+          from: { reason: "link", tab: placement.after },
           group: placement.group,
-          isOpened: true,
           select: !placement.behind,
         });
         return;
       }
       case "group-new-tab": {
-        windowTabs.openBeside(href, { behind: placement.behind });
+        windowTabs.openBeside(href, {
+          behind: placement.behind,
+          ...(asked.from === undefined ? {} : { from: asked.from }),
+        });
         return;
       }
       case "in-place": {
+        startOver(asked);
         windowTabs.navigateScreen(href);
         return;
       }
@@ -508,8 +529,10 @@ export function useOpeners({
       // tab up, as anything else would.
       if (into === undefined) {
         if (
-          windowTabs.openBeside(at, { behind: options.behind === true }) ===
-          undefined
+          windowTabs.openBeside(at, {
+            behind: options.behind === true,
+            ...(asked.from === undefined ? {} : { from: asked.from }),
+          }) === undefined
         ) {
           openChat(owner);
         }
@@ -538,8 +561,8 @@ export function useOpeners({
       } else if (!isShowing) {
         windowTabs.openOrFocusScreen(at, {
           after: into.after,
+          from: { reason: "link", tab: into.after },
           group: into.group,
-          isOpened: true,
           select: true,
         });
       }
@@ -576,8 +599,8 @@ export function useOpeners({
           place.group === windowTabs.groupOnScreen);
       windowTabs.openOrFocusScreen(href, {
         after: place.after,
+        from: { reason: "link", tab: place.after },
         group: place.group,
-        isOpened: true,
         select: isUp,
       });
       return;
@@ -589,11 +612,14 @@ export function useOpeners({
         if (show) {
           bringUp(group);
         }
-        windowTabs.openOrFocusScreen(href, { group, isOpened: true, select });
+        windowTabs.openOrFocusScreen(href, { group, select });
         return;
       }
       case "group-new-tab": {
-        windowTabs.openBeside(href, { behind: placement.behind });
+        windowTabs.openBeside(href, {
+          behind: placement.behind,
+          ...(asked.from === undefined ? {} : { from: asked.from }),
+        });
         return;
       }
       case "group-navigate": {
@@ -602,6 +628,7 @@ export function useOpeners({
         // another tab of the group already shows it. A built-in page already
         // open comes forward at the part asked for.
         if (options.here || !bringForwardShowing(windowTabs, href)) {
+          startOver(asked);
           windowTabs.navigateScreen(href);
         }
         return;
@@ -626,7 +653,6 @@ export function useOpeners({
         } else {
           windowTabs.openOrFocusScreen(href, {
             group: groupOnScreen,
-            isOpened: true,
             select: placement.kind === "window-navigate" || !placement.behind,
           });
         }
@@ -1281,11 +1307,11 @@ export function useOpeners({
     url: string;
   }) => {
     // A place the page's menu picked, the split across from the page's tab.
+    const asking = windowTabs.allTabs.find((tab) => tab.id === targetId);
     if (into) {
       openPage(url, { from: targetId, into });
       return;
     }
-    const asking = windowTabs.allTabs.find((tab) => tab.id === targetId);
     // Only an agent's popup is named a tab by the workspace, and it never
     // makes a group: from a page with no tab it opens nothing.
     const place = pageOpenPlaceOf(asking, { isAgent: tabId !== undefined });
@@ -1296,14 +1322,23 @@ export function useOpeners({
       // page, so the tab opens under that id.
       browser?.openBehind(url, {
         after: place.after,
+        // An agent's own popup is linked to nothing (`Opening`).
+        ...(tabId === undefined
+          ? { from: { reason: "link", tab: place.after } }
+          : { id: tabId }),
         group: place.group,
-        ...(tabId === undefined ? {} : { id: tabId }),
         ...(asking?.openedBy === undefined
           ? {}
           : { openedBy: asking.openedBy }),
       });
     } else if (place.kind === "after") {
-      browser?.open(url, { after: place.after, group: place.group });
+      browser?.open(url, {
+        after: place.after,
+        ...(tabId === undefined
+          ? { from: { reason: "link", tab: place.after } }
+          : {}),
+        group: place.group,
+      });
     }
   };
 

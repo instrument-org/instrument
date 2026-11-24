@@ -313,7 +313,7 @@ export function NewChatView({
     windowTabs.openScreen(href, {
       after: tabId,
       group: opened,
-      isOpened: true,
+      from: { reason: "link", tab: tabId },
       select: true,
     });
     onOpenBeside(opened);

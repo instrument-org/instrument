@@ -648,7 +648,6 @@ describe("opening a bookmark folder's bookmarks together", () => {
         "app": {
           "group": "group_new",
           "href": "/apps/github",
-          "isOpened": true,
           "kind": "screen",
         },
         "made": [

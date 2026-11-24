@@ -10,9 +10,11 @@ export type StepDirection = "back" | "forward";
  * guest's, whether the page is the tab or is drawn beside a file screen's
  * tree), the screen's own router, the visits across the boundary between pages
  * and screens, and, for a site standing at the window's own level, the
- * window tab's history before the site.
+ * window tab's history before the site. Past them all, back from a tab a
+ * link opened closes it and returns to the tab the link was in
+ * (`backToOpenerOf`).
  */
-const STEP_LAYERS = ["guest", "screen", "visits", "outer"] as const;
+const STEP_LAYERS = ["guest", "screen", "visits", "outer", "opener"] as const;
 
 export type StepLayer = (typeof STEP_LAYERS)[number];
 
@@ -46,6 +48,7 @@ export function stepStackOf(
   tab: undefined | WindowTab,
   {
     guest,
+    hasOpener = false,
     outer,
   }: {
     /**
@@ -53,6 +56,8 @@ export function stepStackOf(
      * for a screen that draws no page.
      */
     guest: { canGoBack: boolean; canGoForward: boolean } | undefined;
+    /** Whether the tab a link to this one was in is there to return to. */
+    hasOpener?: boolean;
     /** The window tab's own history, for a site standing at its level. */
     outer?: { canGoBack: boolean };
   },
@@ -60,6 +65,7 @@ export function stepStackOf(
   if (!tab) {
     return {
       guest: NOWHERE,
+      opener: NOWHERE,
       outer: { back: outer?.canGoBack ?? false, forward: false },
       screen: NOWHERE,
       visits: NOWHERE,
@@ -70,6 +76,11 @@ export function stepStackOf(
     guest: guest
       ? { back: guest.canGoBack, forward: guest.canGoForward }
       : NOWHERE,
+    // A page whose guest is not here may have a history it cannot say.
+    opener: {
+      back: hasOpener && (tab.kind === "screen" || guest !== undefined),
+      forward: false,
+    },
     outer: { back: outer?.canGoBack ?? false, forward: false },
     screen: history
       ? {

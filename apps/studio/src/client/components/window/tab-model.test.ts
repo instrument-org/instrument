@@ -284,7 +284,6 @@ describe("openOrFocusScreen", () => {
         group: DRAFT,
         href: "/apps",
         id: "home",
-        isOpened: false,
         kind: "screen",
       },
     ]);
@@ -1016,7 +1015,7 @@ describe("pageBecameDownload", () => {
     const state = selectTab(
       windowOf([
         pageTab("opener", "https://example.com", CHAT),
-        { ...pageTab("dl", "https://example.com/a.zip", CHAT), isOpened: true },
+        pageTab("dl", "https://example.com/a.zip", CHAT),
       ]),
       "dl",
     );

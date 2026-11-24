@@ -649,10 +649,12 @@ function SideCard({
     tab: WindowTab,
     placing: { after?: string; side: 0 | 1 | "same" },
   ) => {
+    const from = { reason: "asked", tab: tab.id } as const;
     if (tab.kind === "page") {
       const url = tab.url ?? tab.openedUrl;
       if (url !== undefined) {
         appWindow.browser?.open(url, {
+          from,
           group,
           ...placing,
         });
@@ -661,6 +663,7 @@ function SideCard({
     }
     windowTabs.openScreen(tab.href, {
       ...(placing.after === undefined ? {} : { after: placing.after }),
+      from,
       group,
       select: true,
       side: placing.side,
@@ -714,6 +717,7 @@ function SideCard({
       windowTabs.openIn(
         { group, href: NEW_TAB_HREF, id: newScreenId(), kind: "screen" },
         {
+          from: { reason: "newTab" },
           group,
           select: true,
           side: otherSide,
@@ -735,6 +739,7 @@ function SideCard({
     drawn.carriedKey !== undefined;
   const newTabHere = () => {
     windowTabs.openScreen(NEW_TAB_HREF, {
+      from: { reason: "newTab" },
       group,
       select: true,
       side: sideIndex,
@@ -828,12 +833,15 @@ function SideCard({
           className={SIDE_TABS}
           heldAt={drawn.heldAt}
           lead={isFirst ? <SidebarToggle /> : undefined}
-          onClose={shell.requestClose}
+          onClose={(id) => {
+            shell.requestClose(id);
+          }}
           onDuplicate={(tab) => {
             copyOf(tab, { after: tab.id, side: "same" });
           }}
           onNew={() => {
             windowTabs.openScreen(NEW_TAB_HREF, {
+              from: { reason: "newTab" },
               group,
               select: true,
               side: sideIndex,

@@ -1,40 +1,48 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { walkStaysOut } from "./roots";
+import { stayOutRules } from "./roots";
 
 vi.mock("electron", () => ({ app: {} }));
 
-describe("walkStaysOut", () => {
-  const mac = {
-    answered: ["/Users/mac-user/Documents", "/Volumes/Work/Workspace"],
-    home: "/Users/mac-user",
+describe("stayOutRules", () => {
+  const home = "/Users/mac-user";
+  const mac = stayOutRules({
+    answered: new Set(["/users/mac-user/documents", "/volumes/work"]),
+    home,
     platform: "darwin",
-  } as const;
+    workspace: `${home}/Desktop/Instrument`,
+  });
 
   it.each([
-    ["/Users/mac-user", false],
-    ["/Users/mac-user/Projects/site", false],
-    ["/Applications", false],
-    // Answered for, itself and inside.
-    ["/Users/mac-user/Documents", false],
-    ["/Users/mac-user/documents/Taxes/2026", false],
-    ["/Volumes/Work/Workspace/Projects", false],
-    ["/System/Volumes/Data/Users/mac-user/Documents/Taxes", false],
-    // Guarded, and nobody answered yet.
-    ["/Users/mac-user/Desktop", true],
-    ["/Users/mac-user/Downloads/installer", true],
-    ["/Users/mac-user/DOWNLOADS", true],
-    ["/Users/mac-user/Library", true],
-    ["/Users/mac-user/Library/Mobile Documents/com~apple~CloudDocs", true],
-    ["/Users/mac-user/Pictures", true],
-    ["/System/Volumes/Data/Users/mac-user/Desktop", true],
-    ["/Volumes/Work", true],
-    ["/Volumes/Work/Other", true],
-    ["/Volumes/Backup/2026", true],
-    // A name that only starts like a guarded one.
-    ["/Users/mac-user/Desktop notes", false],
+    [`${home}/Projects/site`, false],
+    [`${home}/Documents/Taxes`, false],
+    [`${home}/Downloads`, true],
+    [`${home}/Music`, true],
+    ["/Volumes/Backup", true],
+    // The workspace and what is in it, in a folder nobody answered for.
+    [`${home}/Desktop/Instrument`, false],
+    [`${home}/DESKTOP/instrument/Projects/Site`, false],
+    [`${home}/Desktop/Instrument notes`, true],
+    [`${home}/Desktop`, true],
   ])("on macOS, staying out of %s is %s", (folder, expected) => {
-    expect(walkStaysOut(folder, mac)).toBe(expected);
+    expect(mac.staysOut(folder)).toBe(expected);
+  });
+
+  it("leaves the workspace's exception out when its folder is not known", () => {
+    const rules = stayOutRules({
+      answered: new Set(),
+      home,
+      platform: "darwin",
+      workspace: undefined,
+    });
+    expect(rules.staysOut(`${home}/Desktop/Instrument`)).toBe(true);
+  });
+
+  const windows = stayOutRules({
+    answered: new Set(),
+    home: "C:\\Users\\windows-user",
+    platform: "win32",
+    workspace: undefined,
   });
 
   it.each([
@@ -43,22 +51,16 @@ describe("walkStaysOut", () => {
     ["C:\\Users\\windows-user\\Documents", false],
     ["C:\\Users\\windows-user\\AppData Notes", false],
   ])("on Windows, staying out of %s is %s", (folder, expected) => {
-    expect(
-      walkStaysOut(folder, {
-        answered: [],
-        home: "C:\\Users\\windows-user",
-        platform: "win32",
-      }),
-    ).toBe(expected);
+    expect(windows.staysOut(folder)).toBe(expected);
   });
 
   it("stays out of nothing on Linux", () => {
-    expect(
-      walkStaysOut("/home/linux-user/Documents", {
-        answered: [],
-        home: "/home/linux-user",
-        platform: "linux",
-      }),
-    ).toBe(false);
+    const rules = stayOutRules({
+      answered: new Set(),
+      home: "/home/linux-user",
+      platform: "linux",
+      workspace: undefined,
+    });
+    expect(rules.staysOut("/home/linux-user/Documents")).toBe(false);
   });
 });

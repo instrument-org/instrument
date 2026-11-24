@@ -1,80 +1,90 @@
 import { getWorkspaceFolder } from "@/electron-main/lib/get-workspace-folder";
 import { getMachinePreferences } from "@/electron-main/stores/machine/preferences";
-import { MACOS_GUARDED_HOME_FOLDERS } from "@/shared/macos-guarded-folders";
 import { pinnedPlaces } from "@/shared/sidebar-places";
 import {
   computerPlaces,
   macosAnsweredFolders,
+  macosMayAsk,
+  resolveWithoutAsking,
 } from "@instrument-org/workspace/electron";
+import fs from "node:fs/promises";
 import os from "node:os";
 
 import { createFileNameIndex } from "./file-name-index";
 import { walkFileNames } from "./walk";
 
-/** The Mac's data volume, which shows its folders a second time under this path. */
-const MAC_DATA_VOLUME = "/system/volumes/data";
-
 /**
- * Whether the walk stays out of `folder`, by its path alone, so deciding
+ * Where the walk does not read, decided from a path alone, so deciding
  * reads nothing.
  *
- * On macOS that is every folder where a first read raises the system's
- * prompt (the guarded folders of the home folder, and a disk under
- * `/Volumes`) unless it is in one of `answered`: the folders macOS has
- * already answered for, where a read raises nothing whichever way it
- * answered. The home folder's Library, where programs keep their own data,
- * is among the guarded ones. On Windows it is the home folder's AppData,
- * for the same reason. Names compare whatever their case on both.
+ * On macOS the walk stays out of every folder whose read could raise the
+ * system's prompt: a folder macOS guards with no answer on record
+ * (`macosMayAsk`, over `answered`). The workspace's own folder is the one
+ * exception, with everything in it: the launch read the workspace's records
+ * several folders down inside it, so macOS has answered for whatever guards
+ * it. `workspace` is where that folder really is, or undefined to leave the
+ * exception out.
+ *
+ * On Windows it stays out of the home folder's AppData, where programs keep
+ * their own data. Names compare whatever their case on both.
  */
-export function walkStaysOut(
-  folder: string,
-  {
-    answered,
-    home,
-    platform,
-  }: { answered: readonly string[]; home: string; platform: NodeJS.Platform },
-): boolean {
+export function stayOutRules({
+  answered,
+  home,
+  platform,
+  workspace,
+}: {
+  answered: ReadonlySet<string>;
+  home: string;
+  platform: NodeJS.Platform;
+  workspace: string | undefined;
+}): { staysOut: (folder: string) => boolean } {
   if (platform === "win32") {
-    return isWithin(
-      folder.toLowerCase(),
-      `${home.toLowerCase()}\\appdata`,
-      "\\",
-    );
+    const appData = `${home.toLowerCase()}\\appdata`;
+    return {
+      staysOut: (folder) => isWithin(folder.toLowerCase(), appData, "\\"),
+    };
   }
   if (platform !== "darwin") {
-    return false;
+    return { staysOut: () => false };
   }
-  const spelled = folder.toLowerCase();
-  const at = isWithin(spelled, MAC_DATA_VOLUME, "/")
-    ? spelled.slice(MAC_DATA_VOLUME.length) || "/"
-    : spelled;
-  if (answered.some((open) => isWithin(at, open.toLowerCase(), "/"))) {
-    return false;
-  }
-  return (
-    /^\/volumes\/[^/]+/.test(at) ||
-    MACOS_GUARDED_HOME_FOLDERS.some((name) =>
-      isWithin(at, `${home}/${name}`.toLowerCase(), "/"),
-    )
-  );
+  const inWorkspace = (folder: string) =>
+    workspace !== undefined &&
+    isWithin(folder.toLowerCase(), workspace.toLowerCase(), "/");
+  return {
+    staysOut: (folder) =>
+      !inWorkspace(folder) && macosMayAsk(folder, { answered, home }),
+  };
 }
 
 /** Whether `inner` is `outer` or inside it, both spelled alike. */
 function isWithin(inner: string, outer: string, separator: string): boolean {
-  return inner === outer || inner.startsWith(`${outer}${separator}`);
+  const above = outer.endsWith(separator) ? outer : `${outer}${separator}`;
+  return inner === outer || inner.startsWith(above);
+}
+
+/** The disk a folder is on, read from the folder alone and never from inside it. */
+async function deviceOf(folder: string): Promise<number | undefined> {
+  return fs.lstat(folder).then(
+    (stats) => stats.dev,
+    () => undefined,
+  );
 }
 
 /**
- * Where the index looks: the workspace's folder, the Instrument folder, and
- * the Files sidebar's Pinned rows as the person left them. The sidebar's
+ * What the app's index walks: the workspace's folder, the Instrument
+ * folder, and the Files sidebar's Pinned rows as the person left them, each
+ * where it really is, so a pinned link leads to its folder. The sidebar's
  * disks and cloud services are left out: a disk's top is the whole computer,
  * and listing a cloud service's folder can fetch from the network.
  *
- * The workspace's folder counts as answered for on macOS, since the launch
- * read the workspace's own records there.
+ * On macOS a root is resolved by hand, reading no link kept where the walk
+ * stays out (`resolveWithoutAsking`), and the walk keeps to the home
+ * folder's disk and the disks under `/Volumes`: a disk mounted anywhere
+ * else is one macOS may ask about with nothing in its path to tell.
  */
-async function fileNameRoots() {
-  const workspace = getWorkspaceFolder();
+async function fileNameWalk(): Promise<Parameters<typeof walkFileNames>[0]> {
+  const isMac = process.platform === "darwin";
   const places = (await computerPlaces()).pinned;
   const output = places.find((place) => place.kind === "output");
   const pinned = pinnedPlaces(
@@ -82,24 +92,42 @@ async function fileNameRoots() {
       .filter((place) => place !== output)
       .map((place) => ({ path: place.path })),
     getMachinePreferences().get("sidebarPlaces"),
-    (path) => ({ path }),
+    (pinnedPath) => ({ path: pinnedPath }),
   );
-  const facts = {
-    answered: [workspace, ...macosAnsweredFolders()],
+  const rules = stayOutRules({
+    answered: await macosAnsweredFolders(),
     home: os.homedir(),
     platform: process.platform,
-  };
-  return {
-    roots: [
-      workspace,
+    workspace: isMac
+      ? await resolveWithoutAsking(getWorkspaceFolder(), () => true)
+      : undefined,
+  });
+  const homeDisk = isMac ? await deviceOf(os.homedir()) : undefined;
+  const roots = await Promise.all(
+    [
+      getWorkspaceFolder(),
       ...(output ? [output.path] : []),
       ...pinned.map((place) => place.path),
-    ],
-    staysOut: (folder: string) => walkStaysOut(folder, facts),
+    ].map(async (spelled) => {
+      if (!isMac) {
+        return fs.realpath(spelled).catch(() => undefined);
+      }
+      const real = await resolveWithoutAsking(spelled, rules.staysOut);
+      const isOnKnownDisk =
+        real !== undefined &&
+        (/^\/volumes\/[^/]+/i.test(real) ||
+          (await deviceOf(real)) === homeDisk);
+      return isOnKnownDisk ? real : undefined;
+    }),
+  );
+  return {
+    ...(isMac ? { deviceOf } : {}),
+    roots: roots.filter((root) => root !== undefined),
+    staysOut: rules.staysOut,
   };
 }
 
 /** The app's index of the names in the workspace and the sidebar's folders. */
 export const fileNameIndex = createFileNameIndex({
-  walk: async () => walkFileNames(await fileNameRoots()),
+  walk: async () => walkFileNames(await fileNameWalk()),
 });

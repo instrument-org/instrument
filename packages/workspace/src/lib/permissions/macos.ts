@@ -10,6 +10,7 @@ import { type Asker, recordAsk } from "../chat/asks";
 import { listFolder } from "../chat/folder-look";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type MacApp } from "./apps";
+import { noteMacosFolderListed } from "./macos-folder-answers";
 
 /**
  * How often the window list is read while a look macOS may be asking about
@@ -176,14 +177,6 @@ export function macosRefusedFolders(): string[] {
 }
 
 /**
- * The folders macOS guards that it has answered for, allowed or refused:
- * reading inside one raises no prompt, since macOS asks once.
- */
-export function macosAnsweredFolders(): string[] {
-  return [...folderAnswers.keys()];
-}
-
-/**
  * The card a folder macOS refused takes: one the person can open from the
  * card, or one only Full Disk Access opens (Mail's or Messages' folder, an
  * app's container), which Instrument never asks for, so its card offers no
@@ -210,6 +203,7 @@ export async function lookAsTheApp(
   const look = listFolder(folder).then((looked) => {
     if (looked === "open" || looked === "system") {
       noteMacosFolderAnswer(folder, looked === "open" ? "allowed" : "denied");
+      noteMacosFolderListed(folder, looked);
     }
     return looked;
   });

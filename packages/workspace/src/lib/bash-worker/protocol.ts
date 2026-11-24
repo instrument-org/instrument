@@ -94,6 +94,11 @@ export type FromWorker =
       hostPath: string;
       type: "macos-folder-answer";
     }
+  | {
+      hostPath: string;
+      looked: "open" | "system";
+      type: "macos-folder-listed";
+    }
   | { id: number; result: WireResult; type: "result" }
   /**
    * What answered each command so far, whole: sent when a run adds a row,

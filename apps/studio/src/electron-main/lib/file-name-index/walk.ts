@@ -84,6 +84,9 @@ function folderKey(
   return platform === "linux" ? resolved : resolved.toLowerCase();
 }
 
+/** One entry of a folder as the walk lists it. */
+type Listed = { kind: "file" | "folder"; name: string };
+
 /**
  * The names of the files and folders under `roots`, each root walked a
  * level at a time so a cap keeps the names nearest the top.
@@ -98,10 +101,14 @@ function folderKey(
  * read is passed over, and a root that is missing, a file or a link gives
  * nothing.
  *
+ * With `deviceOf`, a folder on another disk than its root is listed and
+ * never read, so the walk stays off a disk mounted inside a root.
+ *
  * Reads go through `fs.promises`, so the thread the caller is on only ever
  * handles one folder's entries between waits.
  */
 export async function walkFileNames({
+  deviceOf,
   maxNames = MAX_NAMES,
   maxNamesPerRoot = MAX_NAMES_PER_ROOT,
   readFolder = (folder) => fs.readdir(folder, { withFileTypes: true }),
@@ -109,6 +116,7 @@ export async function walkFileNames({
   stallMs = STALL_MS,
   staysOut = () => false,
 }: {
+  deviceOf?: (folder: string) => Promise<number | undefined>;
   maxNames?: number;
   maxNamesPerRoot?: number;
   readFolder?: (folder: string) => Promise<Dirent[]>;
@@ -132,18 +140,33 @@ export async function walkFileNames({
       continue;
     }
     walked.add(key);
+    const start = path.resolve(root);
+    const device = await deviceOf?.(start);
+    const read = async (folder: string) => {
+      const entries = await withinStall(
+        (async () =>
+          deviceOf && folder !== start && (await deviceOf(folder)) !== device
+            ? null
+            : await readFolder(folder))().catch(() => null),
+        stallMs,
+      );
+      if (entries === STALLED || entries === null) {
+        return entries;
+      }
+      return entries.flatMap((entry) => {
+        const kind = kindOf(
+          entry.name,
+          entry.isFile() ? "file" : entry.isDirectory() ? "folder" : "other",
+        );
+        return kind === undefined ? [] : [{ kind, name: entry.name }];
+      });
+    };
+
     let room = Math.min(maxNamesPerRoot, maxNames - found.names.length);
-    const pending = [path.resolve(root)];
+    const pending = [start];
     while (pending.length > 0 && room > 0) {
       const batch = pending.splice(0, READS_AT_ONCE);
-      const lists = await Promise.all(
-        batch.map((folder) =>
-          withinStall(
-            readFolder(folder).catch(() => null),
-            stallMs,
-          ),
-        ),
-      );
+      const lists = await Promise.all(batch.map(read));
       for (const [at, list] of lists.entries()) {
         const folder = batch[at];
         if (list === STALLED) {
@@ -156,10 +179,6 @@ export async function walkFileNames({
         }
         let parent: number | undefined;
         for (const entry of list.toSorted(byName)) {
-          const kind = kindOf(entry);
-          if (kind === undefined) {
-            continue;
-          }
           if (room === 0) {
             found.capped = true;
             break;
@@ -168,11 +187,11 @@ export async function walkFileNames({
           found.names.push(entry.name);
           found.folded.push(foldFileName(entry.name));
           found.parents.push(parent);
-          found.isFolder.push(kind === "folder");
+          found.isFolder.push(entry.kind === "folder");
           room -= 1;
           const entryPath = path.join(folder, entry.name);
           if (
-            kind === "folder" &&
+            entry.kind === "folder" &&
             !rootKeys.has(folderKey(entryPath)) &&
             !staysOut(entryPath)
           ) {
@@ -189,23 +208,26 @@ export async function walkFileNames({
 }
 
 /** What an entry is listed as, or undefined for one that is left out. */
-function kindOf(entry: Dirent): "file" | "folder" | undefined {
-  if (entry.name.startsWith(".")) {
+function kindOf(
+  name: string,
+  is: "file" | "folder" | "other",
+): Listed["kind"] | undefined {
+  if (name.startsWith(".") || is === "other") {
     return undefined;
   }
-  if (entry.isFile()) {
+  if (is === "file") {
     return "file";
   }
-  if (!entry.isDirectory() || SKIPPED_FOLDER_NAMES.has(entry.name)) {
+  if (SKIPPED_FOLDER_NAMES.has(name)) {
     return undefined;
   }
-  return PACKAGE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())
+  return PACKAGE_EXTENSIONS.has(path.extname(name).toLowerCase())
     ? "file"
     : "folder";
 }
 
 /** A folder's entries in one order on every system, so a cap keeps the same names each walk. */
-function byName(a: Dirent, b: Dirent): number {
+function byName(a: Listed, b: Listed): number {
   return a.name < b.name ? -1 : a.name > b.name ? 1 : 0;
 }
 

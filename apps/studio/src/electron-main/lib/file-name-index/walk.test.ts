@@ -234,4 +234,20 @@ describe("walkFileNames", () => {
     `);
     expect(found.capped).toBe(true);
   });
+
+  it("lists a folder on another disk than its root and never reads it", async () => {
+    await make("same/file.txt", "mounted/file.txt");
+    const found = await walkFileNames({
+      deviceOf: (folder) =>
+        Promise.resolve(path.basename(folder) === "mounted" ? 2 : 1),
+      roots: [root],
+    });
+    expect(listed(found)).toMatchInlineSnapshot(`
+      [
+        "mounted/",
+        "same/",
+        "same/file.txt",
+      ]
+    `);
+  });
 });

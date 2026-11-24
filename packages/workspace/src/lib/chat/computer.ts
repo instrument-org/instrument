@@ -17,7 +17,8 @@ import {
   finderEntriesOf,
   resolveThroughAliases,
 } from "./finder-entries";
-import { macosGuardedRoot } from "../permissions/macos";
+import { macosGuardedRoot, noteMacosFolderAnswer } from "../permissions/macos";
+import { noteMacosFolderListed } from "../permissions/macos-folder-answers";
 import { folderReach } from "./folder-reach";
 import { hiddenEntryNames } from "./hidden-entries";
 import {
@@ -301,6 +302,14 @@ export async function readComputerFolder({
       reason === "account"
         ? await shutFolderAbove(hostPath)
         : await guardedFolderAbove(hostPath);
+    if (reason === "system") {
+      noteMacosFolderListed(hostPath, "system");
+      const refusedRoot =
+        refusedBy ?? (isMacosGuardedRoot(hostPath) ? hostPath : undefined);
+      if (refusedRoot !== undefined) {
+        noteMacosFolderAnswer(refusedRoot, "denied");
+      }
+    }
     return {
       folder: {
         display: displayHostPath(hostPath),
@@ -312,6 +321,10 @@ export async function readComputerFolder({
       },
       notes: NO_NOTES,
     };
+  }
+  noteMacosFolderListed(hostPath, "open");
+  if (isMacosGuardedRoot(hostPath)) {
+    noteMacosFolderAnswer(hostPath, "allowed");
   }
   const truncated = dirents.length > maxEntries;
   const kept = truncated
@@ -622,6 +635,11 @@ async function exists(hostPath: string) {
   }
 }
 
+/** Whether a path is one of the folders macOS asks about, itself. */
+function isMacosGuardedRoot(hostPath: string): boolean {
+  return macosGuardedRoot(hostPath) === hostPath;
+}
+
 /**
  * The folder macOS guards above a path it refused (Documents, for a chat's
  * folder in a workspace kept there), when macOS refuses that folder too: the
@@ -640,7 +658,11 @@ async function guardedFolderAbove(
     await (await fs.opendir(guarded)).close();
     return undefined;
   } catch (error) {
-    return readRefusalOf(error) === "system" ? guarded : undefined;
+    if (readRefusalOf(error) !== "system") {
+      return undefined;
+    }
+    noteMacosFolderListed(guarded, "system");
+    return guarded;
   }
 }
 

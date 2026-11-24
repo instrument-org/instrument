@@ -25,6 +25,7 @@ import { withShellOutputSink } from "../shell-commands/output-sink";
 import { setSubprocessTreeObserver } from "../subprocess-tree";
 import { setWorkspaceConfig } from "../workspace-config";
 import { setMacosForwarder } from "../permissions/macos";
+import { setMacosFolderListedForwarder } from "../permissions/macos-folder-answers";
 import { setProtectionForwarder } from "../permissions/windows-protection";
 import { setSetupTouchForwarder } from "../setup-changes";
 import {
@@ -113,6 +114,9 @@ setOriginalForwarder(
       post({ original, requestId, type: "keep-original" });
     }),
 );
+setMacosFolderListedForwarder((hostPath, looked) => {
+  post({ hostPath, looked, type: "macos-folder-listed" });
+});
 setMacosForwarder({
   folderAnswer: (hostPath, answer) => {
     post({ answer, hostPath, type: "macos-folder-answer" });

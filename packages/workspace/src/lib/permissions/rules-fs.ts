@@ -17,6 +17,7 @@ import {
   noteMacosFolderAnswer,
   watchForMacosAsking,
 } from "./macos";
+import { noteMacosFolderListed } from "./macos-folder-answers";
 import { isClosedDiskRoot } from "../disk-root";
 import {
   folderToAskFor,
@@ -387,6 +388,9 @@ export function rulesFs({
           if (isRead) {
             noteMacosFolderAnswer(given(mountPath), "allowed");
           }
+          if (isListing) {
+            noteMacosFolderListed(given(mountPath), "open");
+          }
           return answered;
         } catch (error) {
           // just-bash's own filesystem rethrows a refusal as a plain error
@@ -408,6 +412,7 @@ export function rulesFs({
             );
             if (looked === "system") {
               noteMacosFolderAnswer(folder, "denied");
+              noteMacosFolderListed(folder, "system");
               onRefusal?.(macosRefusalNote(shown));
             } else {
               onRefusal?.(lockedNote(shown));

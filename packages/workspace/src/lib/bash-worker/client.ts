@@ -30,6 +30,7 @@ import {
   noteMacosFolderAnswer,
   watchForMacosAsking,
 } from "../permissions/macos";
+import { noteMacosFolderListed } from "../permissions/macos-folder-answers";
 import { raiseProtectionCard } from "../permissions/windows-protection";
 import { recordSetupTouch } from "../setup-changes";
 import {
@@ -346,6 +347,10 @@ async function onMessage(instance: WorkerInstance, message: FromWorker) {
     }
     case "macos-folder-answer": {
       noteMacosFolderAnswer(message.hostPath, message.answer);
+      return;
+    }
+    case "macos-folder-listed": {
+      noteMacosFolderListed(message.hostPath, message.looked);
       return;
     }
     case "windows-protection-block": {

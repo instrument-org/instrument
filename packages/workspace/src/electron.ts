@@ -133,7 +133,11 @@ export { interruptTasksForQuit } from "./lib/chat/wake";
 export { prepareBundledSkills } from "./lib/prepare-bundled-skills";
 export { readRefusalOf } from "./lib/read-refusal";
 export { appBundleId } from "./lib/permissions/apps";
-export { macosAnsweredFolders } from "./lib/permissions/macos";
+export {
+  macosAnsweredFolders,
+  macosMayAsk,
+  resolveWithoutAsking,
+} from "./lib/permissions/macos-folder-answers";
 export {
   allowThroughProtection,
   confirmedBlock,

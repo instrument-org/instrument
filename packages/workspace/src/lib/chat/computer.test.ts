@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
+import { noteMacosFolderListed } from "../permissions/macos-folder-answers";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
@@ -14,6 +15,11 @@ import {
   type FolderRoot,
   listComputerFolder,
 } from "./computer";
+
+// The record of the folders macOS answered for, watched rather than written.
+vi.mock("../permissions/macos-folder-answers", () => ({
+  noteMacosFolderListed: vi.fn(),
+}));
 
 // Host paths in the running platform's own separators, which is what the
 // listing and the grants both carry: a Windows grant is `C:\Users\casey\Documents`
@@ -86,6 +92,15 @@ describe("listComputerFolder", () => {
     if (folder) {
       await fs.rm(folder, { force: true, recursive: true });
     }
+  });
+
+  it("notes a folder it listed for the record of macOS's answers", async () => {
+    folder = await fs.mkdtemp(path.join(os.tmpdir(), "computer-listing-"));
+    vi.mocked(noteMacosFolderListed).mockClear();
+    await listComputerFolder({ path: folder, chatId });
+    expect(vi.mocked(noteMacosFolderListed).mock.calls).toEqual([
+      [folder, "open"],
+    ]);
   });
 
   it("keeps the newest entries of a folder past the cap, and counts them all", async () => {
@@ -232,12 +247,17 @@ describe("listComputerFolder", () => {
           : opendir(...args)) as typeof opendir);
 
       try {
+        vi.mocked(noteMacosFolderListed).mockClear();
         const refusal = await listComputerFolder({ path: chatFolder, chatId });
         expect(refusal).toMatchObject({
           kind: "refused",
           path: chatFolder,
           reason: "system",
         });
+        expect(vi.mocked(noteMacosFolderListed).mock.calls).toEqual([
+          ...(isGuardedRefused ? [[documentsHere, "system"]] : []),
+          [chatFolder, "system"],
+        ]);
         expect(
           refusal.kind === "refused" && refusal.refusedBy !== undefined
             ? { refusedBy: path.basename(refusal.refusedBy) }

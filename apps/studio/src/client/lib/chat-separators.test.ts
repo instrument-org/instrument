@@ -270,6 +270,30 @@ describe("chatSeparators", () => {
     `);
   });
 
+  it("starts a run where a failed reply was asked again on another model", () => {
+    const failed = reply("2026-09-26T16:12:05", glm);
+    const [change] = sent("2026-09-26T16:12:06", {
+      from: glm,
+      to: sonnet,
+    }).parts;
+    expect(
+      describeSeparators([
+        sent("2026-09-26T16:12:00"),
+        { ...failed, parts: change ? [change] : [] } as typeof failed,
+        reply("2026-09-26T16:12:10", sonnet),
+        sent("2026-09-26T16:20:00", { from: sonnet, to: auto }),
+        reply("2026-09-26T16:20:05", auto),
+      ]).map(({ at, model: named, switched }) => ({ at, named, switched })),
+    ).toEqual([
+      { at: 0, named: "GLM 5.3 Prime", switched: undefined },
+      {
+        at: 3,
+        named: undefined,
+        switched: { from: "Claude Sonnet 5", to: "Auto" },
+      },
+    ]);
+  });
+
   it("names the model switched to before its reply exists", () => {
     expect(
       describeSeparators([

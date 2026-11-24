@@ -1,4 +1,5 @@
 import {
+  isModelSwitch,
   type SessionMessage,
   type SessionMessageDataPart,
   type StoreId,
@@ -91,13 +92,17 @@ export function chatSeparators(
   for (const message of messages) {
     if (message.role === "assistant") {
       run?.replies.push(message);
+      // Asked again on another model: the replies after it are a run of their
+      // own, with the switch drawn as a row under the reply that failed.
+      if (run && switchOn(message)) {
+        run = { replies: [], userId: message.id };
+        runs.push(run);
+      }
     }
     if (message.role === "user") {
       const at = message.metadata.createdAt;
       const isFirst = runs.length === 0;
-      const change = message.parts.find(
-        (part) => part.type === "data-modelChange",
-      );
+      const change = switchOn(message);
       const gap =
         previous !== undefined && isGap(previous.metadata.createdAt, at);
       const on = "writtenOn" in message ? message.writtenOn : undefined;
@@ -116,8 +121,8 @@ export function chatSeparators(
         separators.set(message.id, {
           at,
           change: change && {
-            from: { recorded: change.data.from },
-            to: { recorded: change.data.to },
+            from: { recorded: change.from },
+            to: { recorded: change.to },
           },
           ...(computer && { computer }),
           timed: isFirst || gap || computer !== undefined,
@@ -146,6 +151,18 @@ export function chatSeparators(
     }
   }
   return separators;
+}
+
+/** The switch of model a message's turn recorded on it. */
+function switchOn(
+  message: SessionMessage.WithParts | TranscriptMessage,
+): SessionMessageDataPart.ModelChangeDataPart | undefined {
+  for (const part of message.parts) {
+    if (part.type === "data-modelChange" && isModelSwitch(part.data)) {
+      return part.data;
+    }
+  }
+  return undefined;
 }
 
 /**

@@ -1,7 +1,11 @@
 import { type SessionMessage, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
-import { pendingPrompt, unsettledPrompts } from "./pending-prompts";
+import {
+  pendingPrompt,
+  unsettledPrompts,
+  withSentSwitch,
+} from "./pending-prompts";
 
 const sessionId = StoreId.newSessionId();
 
@@ -86,5 +90,42 @@ describe("unsettledPrompts", () => {
     expect(
       unsettledPrompts([first, second], [...once, stored("again")]),
     ).toEqual([]);
+  });
+});
+
+describe("withSentSwitch", () => {
+  const change = { from: { modelId: "a" }, to: { modelId: "b" } };
+  const entry = pendingPrompt({
+    change,
+    messages: [],
+    prompt: "go",
+    sessionId,
+  });
+  const switches = (messages: readonly { parts: { type: string }[] }[]) =>
+    messages.map(
+      ({ parts }) =>
+        parts.filter((part) => part.type === "data-modelChange").length,
+    );
+
+  it("keeps the line on the stored copy until the turn records its own", () => {
+    const copy = stored("go");
+    expect(switches(withSentSwitch([copy], entry))).toEqual([1]);
+    const recorded = {
+      ...copy,
+      parts: [...copy.parts, ...(entry?.message.parts.slice(1) ?? [])],
+    } as typeof copy;
+    expect(switches(withSentSwitch([recorded], entry))).toEqual([1]);
+  });
+
+  it.each([
+    ["a reply follows", [stored("go"), stored("done", "assistant")]],
+    ["it is another message", [stored("else")]],
+  ])("adds nothing once %s", (_, messages) => {
+    expect(withSentSwitch(messages, entry)).toBe(messages);
+  });
+
+  it("adds nothing for a send with no switch", () => {
+    const messages = [stored("go")];
+    expect(withSentSwitch(messages, send([], "go"))).toBe(messages);
   });
 });

@@ -45,6 +45,7 @@ export { messageGapModelNote } from "./model-text/notes/message-gap-model-text";
 export { gatherTurns } from "./lib/activity/turns";
 export { ActionSchema } from "./lib/actions/schema";
 export {
+  isModelSwitch,
   modelChangeSincePreviousTurn,
   providerAsked,
 } from "./lib/model-change";

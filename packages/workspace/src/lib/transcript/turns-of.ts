@@ -6,6 +6,7 @@ import { askedOnCard } from "../../tools/connect-app-output";
 import { chooseAnswer, chooseInReply } from "../choose-call";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
 import { dataPartVisibility } from "../data-part-visibility";
+import { isModelSwitch } from "../model-change";
 import { type ErrorOutcome, errorOutcomeOf } from "./error-outcome";
 import { isSameChip, seenChipOf } from "./seen-with-message";
 import {
@@ -748,7 +749,11 @@ function rowsOf(
           kind: "ask",
           part,
         });
-      } else if (isDataRow(part) && drawsNote(part)) {
+      } else if (
+        isDataRow(part) &&
+        part.type !== "data-modelChange" &&
+        drawsNote(part)
+      ) {
         rows.push({ id: part.metadata.id, kind: "note", part });
       }
     }
@@ -762,6 +767,14 @@ function rowsOf(
         kind: "error",
         message,
       });
+    }
+    // Recorded on the reply that failed by the run that asks another model, so
+    // it goes under all the reply says, its error included.
+    for (const part of message.parts) {
+      if (part.type === "data-modelChange" && drawsNote(part)) {
+        open = undefined;
+        rows.push({ id: part.metadata.id, kind: "note", part });
+      }
     }
   }
   return rows;
@@ -931,10 +944,14 @@ function drawsNote(part: SessionMessagePart.DataPart): boolean {
     case "data-appEvent":
     // Drawn after the turn's footer.
     case "data-branchedFrom":
-    // Drawn with the message it came on, or by the line above it.
-    case "data-fromChat":
-    case "data-modelChange": {
+    // Drawn with the message it came on.
+    case "data-fromChat": {
       return false;
+    }
+    // A message the person sent has it in the line above; a wake or a failed
+    // reply, which nothing sits over, has it as a row.
+    case "data-modelChange": {
+      return isModelSwitch(part.data);
     }
     case "data-taskEvent": {
       return part.data.events.some(
@@ -1058,7 +1075,9 @@ function foldedRows(
       row.part.type !== "tool-ask_permission") ||
     (row.kind === "activity" && !isRunningRow(row));
   if (
-    !rows.slice(0, firstWork).every(readsAsWords) ||
+    !rows
+      .slice(0, firstWork)
+      .every((row) => readsAsWords(row) || isSwitchNote(row)) ||
     !work.every(isSettled) ||
     !rows.slice(lastWork + 1).every(readsAsWords)
   ) {
@@ -1079,6 +1098,11 @@ function isAnswerNote(row: TurnRow): boolean {
     (row.part.type === "data-permissionAnswer" ||
       row.part.type === "data-pageTakeover")
   );
+}
+
+/** A switch of model, which stays in view above the work it starts. */
+function isSwitchNote(row: TurnRow): boolean {
+  return row.kind === "note" && row.part.type === "data-modelChange";
 }
 
 function liveOf(

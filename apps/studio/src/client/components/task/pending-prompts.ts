@@ -1,5 +1,6 @@
 import {
   type SessionMessage,
+  type SessionMessageDataPart,
   StoreId,
   type TranscriptMessage,
 } from "@instrument-org/workspace/client";
@@ -18,10 +19,13 @@ export interface PendingPrompt {
 }
 
 export function pendingPrompt({
+  change,
   messages,
   prompt,
   sessionId,
 }: {
+  /** The switch of model its turn will record, drawn with it from the press. */
+  change?: SessionMessageDataPart.ModelChangeDataPart;
   messages: readonly Shown[];
   prompt: string;
   sessionId: StoreId.Session;
@@ -48,11 +52,61 @@ export function pendingPrompt({
           text,
           type: "text",
         },
+        ...(change ? [switchPart(change, { createdAt, id, sessionId })] : []),
       ],
       role: "user",
     },
     seen: new Set(messages.map((message) => message.id)),
   };
+}
+
+function switchPart(
+  data: SessionMessageDataPart.ModelChangeDataPart,
+  {
+    createdAt,
+    id,
+    sessionId,
+  }: { createdAt: Date; id: StoreId.Message; sessionId: StoreId.Session },
+) {
+  return {
+    data,
+    metadata: { createdAt, id: StoreId.newPartId(), messageId: id, sessionId },
+    type: "data-modelChange" as const,
+  };
+}
+
+/**
+ * The messages with the switch a send drew kept on its stored copy, until the
+ * turn it starts records the switch there. Storing a message and starting its
+ * turn are two writes, and the line would otherwise go and come back between
+ * them. Anything after the message means the turn has had its say, so then
+ * only what it recorded is drawn.
+ */
+export function withSentSwitch<T extends Shown>(
+  messages: readonly T[],
+  sent: PendingPrompt | undefined,
+): readonly T[] {
+  const last = messages.at(-1);
+  const change = sent?.message.parts.find(
+    (part) => part.type === "data-modelChange",
+  );
+  if (
+    !sent ||
+    !change ||
+    last?.role !== "user" ||
+    last.metadata.sessionId !== sent.message.metadata.sessionId ||
+    sent.seen.has(last.id) ||
+    textOf(last) !== textOf(sent.message) ||
+    last.parts.some((part) => part.type === "data-modelChange")
+  ) {
+    return messages;
+  }
+  return [
+    ...messages.slice(0, -1),
+    // The same message with a part any message may have, which a spread of a
+    // type parameter loses.
+    { ...last, parts: [...last.parts, change] } as T,
+  ];
 }
 
 const textOf = (message: Shown) =>

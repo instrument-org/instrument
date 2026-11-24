@@ -10,8 +10,8 @@ import { ModelUsageChip, RecordedModelChip } from "./model-usage-chip";
  *
  * Above a message the person sent, the switch is drawn by the separator over
  * it (`ChatSeparatorRow`), which this line would only repeat. This one is for
- * the switch nothing sits over: a reply asked again on another model, and a
- * model picked in the composer and not sent yet.
+ * the switch nothing sits over: a failed reply asked again on another model,
+ * and a turn the app started, such as a finished task's.
  */
 export function ModelChangeNote({
   data,
@@ -19,7 +19,7 @@ export function ModelChangeNote({
   data: SessionMessageDataPart.ModelChangeDataPart;
 }) {
   return (
-    <div className="my-4 flex w-full justify-center px-4 text-xs text-muted-foreground">
+    <div className="flex w-full justify-center py-2 text-xs text-muted-foreground opacity-50">
       <ModelSwitch from={{ recorded: data.from }} to={{ recorded: data.to }} />
     </div>
   );

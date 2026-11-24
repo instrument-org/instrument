@@ -34,6 +34,7 @@ import { SentFileChips } from "../sent-file-chips";
 import { SessionMarkdown } from "../session-markdown";
 import { CommandCard } from "../task/command-card";
 import { ChatSeparatorRow } from "../chat-separator";
+import { ModelChangeNote } from "../model-change-note";
 import { InstructionsChangesNote } from "../instructions-changes-note";
 import { WorkingMark } from "../icons/working-mark";
 import { MessageError } from "../message-error";
@@ -863,6 +864,9 @@ function RowView({
       );
     }
     case "note": {
+      if (row.part.type === "data-modelChange") {
+        return <ModelChangeNote data={row.part.data} />;
+      }
       return row.part.type === "data-pageTakeover" ? (
         <PageTakeoverNote
           chatId={chatId}

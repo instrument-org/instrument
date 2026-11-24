@@ -73,7 +73,6 @@ import { toast } from "@/client/lib/toast";
 
 import { useChatNote } from "../billing/chat-note";
 import { ComposerDraftContext } from "../composer-draft-context";
-import { ModelChangeNote } from "../model-change-note";
 import { PromptInput, type PromptInputRef } from "../prompt-input";
 import { RepliesWaiting } from "../replies-waiting";
 import {
@@ -109,6 +108,7 @@ import {
   type PendingPrompt,
   pendingPrompt,
   unsettledPrompts,
+  withSentSwitch,
 } from "./pending-prompts";
 import { TURN_GAP } from "../transcript/card-motion";
 import { FoldsOpenedByFind } from "../transcript/folds-opened-by-find";
@@ -279,21 +279,14 @@ export function ChatConversation({
   const messages = messagesQuery.data?.messages ?? [];
   // What was sent and is not stored yet, drawn after what is: see PendingPrompt.
   const [pending, setPending] = useState<PendingPrompt[]>([]);
+  const [sentSwitch, setSentSwitch] = useState<PendingPrompt>();
   const unsettled = unsettledPrompts(pending, messages);
   if (unsettled.length !== pending.length) {
     setPending(unsettled);
   }
-  // The model the next send runs on, as this computer reaches it, when it is
-  // not the one the last reply asked: said now the way the send will say it,
-  // so a pick shows in the transcript at once (from the plus menu it is
-  // otherwise gone the moment the menu closes), and a chat's model changed on
-  // another computer shows before the send rather than above the message
-  // after it. Once a message waits below the last reply, the turn records
-  // the note above that message and this gives way to it.
   const { data: modelsData } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
-  const nextModel = reachModel(modelsData, selectedModelURI).model;
   // What the person might send next, offered under the chat's last reply
   // once the chat is at rest.
   const { data: nextMessages } = useQuery(
@@ -313,22 +306,29 @@ export function ChatConversation({
       .filter((entry) => entry.message.metadata.sessionId === selectedSessionId)
       .map((entry) => entry.message),
   ];
-  const pendingModelChange =
-    nextModel && shownMessages.at(-1)?.role === "assistant"
-      ? modelChangeSincePreviousTurn({ messages, model: nextModel })
-      : undefined;
   /** Draws the prompt at once, and hands back how to take it away again should the send fail. */
-  const showPending = (prompt: string) => {
+  const showPending = (prompt: string, modelURI: AIGatewayModelURI.Type) => {
+    // A message sent while the session is at work joins the turn going on,
+    // which finishes on the model it began with: only a message that starts a
+    // turn of its own is sure to switch, and any other's line waits for the
+    // turn that records it.
+    const model =
+      isAgentAlive || unsettled.length > 0
+        ? undefined
+        : reachModel(modelsData, modelURI).model;
     const entry = pendingPrompt({
+      change: model && modelChangeSincePreviousTurn({ messages, model }),
       messages,
       prompt,
       sessionId: selectedSessionId,
     });
     if (entry) {
       setPending((current) => [...current, entry]);
+      setSentSwitch(entry);
     }
     return () => {
       setPending((current) => current.filter((other) => other !== entry));
+      setSentSwitch((current) => (current === entry ? undefined : current));
     };
   };
   const isSentStored = sentPrompt !== undefined && messages.length > 0;
@@ -673,7 +673,7 @@ export function ChatConversation({
     }
     setIsFollowingSubmit(true);
     slideToSentRef.current();
-    const dropPending = showPending(prompt);
+    const dropPending = showPending(prompt, selectedModelURI);
     const layout = layoutContext?.();
     void sendContext().then(
       (viewing) => {
@@ -776,7 +776,7 @@ export function ChatConversation({
         const links = outgoing === undefined ? [] : draftLinksOf(replyDraft);
         // Drawn before what goes with it is read: reading a page can take a
         // moment, and the send is only stored once that is in.
-        const dropPending = showPending(prompt);
+        const dropPending = showPending(prompt, modelURI);
         const layout = layoutContext?.();
         // The message names the draft it came from, so the draft names the
         // chat on disk before the message is written: a launch after a crash
@@ -949,7 +949,12 @@ export function ChatConversation({
                             isFollowingSubmit ||
                             shownMessages.length > messages.length
                           }
-                          messages={shownMessages}
+                          messages={withSentSwitch(
+                            shownMessages,
+                            isAgentAlive || isFollowingSubmit
+                              ? sentSwitch
+                              : undefined,
+                          )}
                           onBranch={handleBranch}
                           // An archived chat has no reply box, so no picker.
                           onChooseModel={isArchived ? undefined : chooseModel}
@@ -968,9 +973,6 @@ export function ChatConversation({
                         />
                       </FoldsOpenedByFind>
                     </NextStepsContext>
-                  )}
-                  {pendingModelChange && (
-                    <ModelChangeNote data={pendingModelChange} />
                   )}
                 </MessageScrollerContent>
               </MessageScrollerViewport>

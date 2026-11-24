@@ -140,18 +140,19 @@ describe("modelChangeSincePreviousTurn", () => {
     ).toEqual({ modelId: "auto", provider: "instrument" });
   });
 
-  it("names no provider for a message the workspace wrote", () => {
+  it("looks past a message the workspace wrote to the model asked before it", () => {
     const synthetic = {
       metadata: { modelId: "synthetic", providerId: "system", synthetic: true },
       parts: [],
       role: "assistant",
     } as unknown as SessionMessage.WithParts;
-    expect(
+    const since = (before: string) =>
       modelChangeSincePreviousTurn({
-        messages: [user(), synthetic, user()],
+        messages: [user(), assistant(before), synthetic, user()],
         model,
-      })?.from.provider,
-    ).toBeUndefined();
+      })?.from.modelId;
+    expect(since("current-model")).toBeUndefined();
+    expect(since("roomier-model")).toBe("roomier-model");
   });
 
   it("carries an absent window through rather than inventing one", () => {

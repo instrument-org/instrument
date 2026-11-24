@@ -2,6 +2,7 @@ import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import {
   type AIProviderType,
   AIProviderTypeSchema,
+  SYNTHETIC_MODEL_ID,
 } from "@instrument-org/shared";
 
 import { type SessionMessage } from "../schemas/session/message";
@@ -18,6 +19,9 @@ import { type SessionMessageDataPart } from "../schemas/session/message-data-par
  * assistant message the reliable answer to "what did this session ask last",
  * and it is why this is self-limiting -- the turn after a change records the
  * new model itself, so the change stops being new.
+ *
+ * A message the app wrote in the agent's place (a pause at the step limit, a
+ * wake that could not reach its model) asked no model, so it is looked past.
  *
  * Both windows come along because they are what the move costs, and because
  * they are the fact that separates the move worth acting on from the one that
@@ -39,7 +43,7 @@ export function modelChangeSincePreviousTurn({
 }): SessionMessageDataPart.ModelChangeDataPart | undefined {
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index];
-    if (message?.role !== "assistant") {
+    if (message?.role !== "assistant" || message.metadata.synthetic) {
       continue;
     }
 
@@ -79,6 +83,16 @@ export function modelChangeSincePreviousTurn({
   // Nothing has answered yet, so there is no model to have moved from. The
   // first turn of a session is not a change of anything.
   return undefined;
+}
+
+/**
+ * Whether a recorded change is from a model at all. Records exist that name the
+ * app's own messages as the model moved from, which no one switched from.
+ */
+export function isModelSwitch(
+  change: SessionMessageDataPart.ModelChangeDataPart,
+): boolean {
+  return change.from.modelId !== SYNTHETIC_MODEL_ID;
 }
 
 /**

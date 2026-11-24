@@ -1,3 +1,4 @@
+import { SYNTHETIC_MODEL_ID } from "@instrument-org/shared";
 import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../../schemas/session/message";
@@ -703,6 +704,46 @@ describe("turnsOf", () => {
     expect(cut.phase).toBe("done");
     expect(cut.foldedRowIds.size).toBe(0);
     expect(isTurnFolded(cut, Number.MAX_SAFE_INTEGER)).toBe(false);
+  });
+
+  describe("a switch of model", () => {
+    const switched = (id: StoreId.Message, from = "a") =>
+      ({
+        data: { from: { modelId: from }, to: { modelId: "b" } },
+        metadata: meta(id),
+        type: "data-modelChange",
+      }) as SessionMessagePart.Type;
+    const rowsOf = (messages: TranscriptMessage[]) =>
+      turnsOf(messages, { isRunning: false, sessionId }).flatMap(({ rows }) =>
+        rows.map((row) => (row.kind === "note" ? row.part.type : row.kind)),
+      );
+    const failed = (from?: string) =>
+      message("assistant", (id) => [switched(id, from)], {
+        error: { kind: "unknown", message: "No" },
+      });
+    const answer = () => message("assistant", (id) => [said(id, "Done.")]);
+
+    it("goes under the failed reply that was asked again", () => {
+      const rows = rowsOf([typed("Go"), failed(), answer()]);
+      expect(rows.slice(-2)).toEqual(["data-modelChange", "text"]);
+    });
+
+    it("goes above the reply of a turn the app started", () => {
+      const wake = message("user", (id) => [switched(id)]);
+      const rows = rowsOf([typed("Go"), answer(), wake, answer()]);
+      expect(rows).toContain("data-modelChange");
+    });
+
+    it("is left to the line over a message the person sent", () => {
+      const sent = message("user", (id) => [said(id, "Go"), switched(id)]);
+      expect(rowsOf([sent, answer()])).toEqual(["text"]);
+    });
+
+    it("leaves out one recorded as from the app's own message", () => {
+      expect(
+        rowsOf([typed("Go"), failed(SYNTHETIC_MODEL_ID), answer()]),
+      ).not.toContain("data-modelChange");
+    });
   });
 
   it("says a repeated line once", () => {

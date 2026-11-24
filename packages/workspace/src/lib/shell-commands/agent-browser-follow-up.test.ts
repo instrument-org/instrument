@@ -356,6 +356,106 @@ describe("BrowserFollowUp failures", () => {
   });
 });
 
+describe("BrowserFollowUp own snapshots", () => {
+  const PRINTED = [
+    '- combobox "Size" [expanded=false, ref=e1]: Medium',
+    '  - option "Small" [ref=e3]',
+    '  - option "Medium" [selected, ref=e4]',
+    '  - option "Large" [ref=e5]',
+    '  - option "Extra large" [ref=e6]',
+    '- button "Add" [ref=e2]',
+  ].join("\n");
+  const FOLDED = [
+    '- combobox "Size" [expanded=false, ref=e1]: Medium',
+    '  - 4 options, chosen with `select @e1 <name>`: "Small", "Medium" [selected], "Large", "Extra large"',
+    '- button "Add" [ref=e2]',
+  ].join("\n");
+
+  it.each([
+    { args: ["snapshot", "-i"] },
+    { args: ["snapshot", "-i", "-c"] },
+    { args: ["snapshot", "-i", "--urls"] },
+    { args: ["snapshot", "-i", "-s", "form"] },
+  ])("folds $args printed whole, once", ({ args }) => {
+    const followUp = new BrowserFollowUp();
+    followUp.noteOwnSnapshot(args, `${PRINTED}\n`);
+    const output = `✓ Shop\n${PRINTED}\nlater output\n`;
+
+    expect(followUp.foldOwnSnapshots(output)).toBe(
+      `✓ Shop\n${FOLDED}\nlater output\n`,
+    );
+    expect(followUp.foldOwnSnapshots(output)).toBe(output);
+  });
+
+  it.each([
+    {
+      name: "a filter printed some of its lines",
+      output: '- button "Add" [ref=e2]\n',
+    },
+    {
+      name: "a filter numbered its lines",
+      output: PRINTED.replaceAll(/^/gm, " 1\t"),
+    },
+    { name: "it went to a file", output: "" },
+    { name: "a count of it was printed", output: "6\n" },
+  ])("leaves the output as it is when $name", ({ output }) => {
+    const followUp = new BrowserFollowUp();
+    followUp.noteOwnSnapshot(["snapshot", "-i"], `${PRINTED}\n`);
+
+    expect(followUp.foldOwnSnapshots(output)).toBe(output);
+  });
+
+  it("folds a snapshot printed back from the file it went to", () => {
+    const followUp = new BrowserFollowUp();
+    followUp.noteOwnSnapshot(["snapshot", "-i"], `${PRINTED}\n`);
+
+    expect(followUp.foldOwnSnapshots(`${PRINTED}\n`)).toBe(`${FOLDED}\n`);
+  });
+
+  it("folds each printing of a page snapshotted twice", () => {
+    const followUp = new BrowserFollowUp();
+    followUp.noteOwnSnapshot(["snapshot", "-i"], `${PRINTED}\n`);
+    followUp.noteOwnSnapshot(["snapshot", "-i"], `${PRINTED}\n`);
+
+    expect(followUp.foldOwnSnapshots(`${PRINTED}\n✓ Done\n${PRINTED}\n`)).toBe(
+      `${FOLDED}\n✓ Done\n${FOLDED}\n`,
+    );
+  });
+
+  it.each([
+    { args: ["snapshot", "-i", "--json"], name: "one asked for as JSON" },
+    {
+      args: ["--json", "snapshot", "-i"],
+      name: "one asked for as JSON ahead of the command",
+    },
+    { args: ["get", "text", "body"], name: "another command's output" },
+  ])("leaves $name as printed", ({ args }) => {
+    const followUp = new BrowserFollowUp();
+    followUp.noteOwnSnapshot(args, `${PRINTED}\n`);
+
+    expect(followUp.foldOwnSnapshots(`${PRINTED}\n`)).toBe(`${PRINTED}\n`);
+  });
+
+  it("leaves a snapshot with a line the fold cannot read as printed", () => {
+    // Without `-i` the tree has lines of page text, which have no ref.
+    const whole = `- form\n  - StaticText "Size "\n${PRINTED}`;
+    const followUp = new BrowserFollowUp();
+    followUp.noteOwnSnapshot(["snapshot"], `${whole}\n`);
+
+    expect(followUp.foldOwnSnapshots(`${whole}\n`)).toBe(`${whole}\n`);
+  });
+
+  it("keeps a name with a dollar sign as the page has it", () => {
+    const printed = PRINTED.replace('"Small"', () => '"$& under $1"');
+    const followUp = new BrowserFollowUp();
+    followUp.noteOwnSnapshot(["snapshot", "-i"], printed);
+
+    expect(followUp.foldOwnSnapshots(printed)).toContain(
+      '"$& under $1", "Medium"',
+    );
+  });
+});
+
 describe("failureLine", () => {
   it.each([
     [
@@ -474,9 +574,8 @@ describe("parseFollowUpSnapshot", () => {
       "open",
     );
     expect(parsed?.omittedLines).toBeUndefined();
-    expect(
-      parsed?.text.split("\n").map((line) => line.slice(0, 80)),
-    ).toMatchInlineSnapshot(`
+    expect(parsed?.text.split("\n").map((line) => line.slice(0, 80)))
+      .toMatchInlineSnapshot(`
       [
         "- combobox "Item" [expanded=false, ref=e1]",
         "  - 400 options, chosen with \`select @e1 <name>\`: "Item 0", "Item 1", "Item 2", ",

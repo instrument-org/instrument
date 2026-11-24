@@ -662,6 +662,48 @@ export class BrowserFollowUp {
     return { failed, more: failed.length > 0 ? more : 0 };
   }
 
+  /**
+   * The snapshots the call's own `snapshot` commands printed that have a
+   * closed select to fold, each as printed and as folded.
+   */
+  #ownSnapshots: { folded: string; printed: string }[] = [];
+
+  /**
+   * Records what a `snapshot` command of the agent's own printed, for
+   * {@link foldOwnSnapshots}. One asked for as `--json` is left out, as is
+   * one the fold leaves as it is: a snapshot without `-i`, whose lines of
+   * page text have no ref, a delta, and a page with no closed select.
+   */
+  noteOwnSnapshot(args: string[], stdout: string) {
+    if (
+      parseAgentBrowserArgs(args).subcommand !== "snapshot" ||
+      args.some((arg) => arg === "--json" || arg.startsWith("--json="))
+    ) {
+      return;
+    }
+    const printed = stdout.replace(/\n+$/, "");
+    const folded = foldSnapshotText(printed);
+    if (folded !== printed) {
+      this.#ownSnapshots.push({ folded, printed });
+    }
+  }
+
+  /**
+   * The call's output with each of its own snapshots that is in it whole, as
+   * the CLI printed it, folded ({@link foldSnapshotText}). The command's own
+   * output is never changed, so a pipe, a file or a variable it went to has
+   * the CLI's text, and so does the call's output when what read it printed
+   * something else (`rg`, `head`, `jq`). Once.
+   */
+  foldOwnSnapshots(output: string): string {
+    const snapshots = this.#ownSnapshots;
+    this.#ownSnapshots = [];
+    return snapshots.reduce(
+      (text, { folded, printed }) => text.replaceAll(printed, () => folded),
+      output,
+    );
+  }
+
   #screenshot: string | undefined;
 
   /**

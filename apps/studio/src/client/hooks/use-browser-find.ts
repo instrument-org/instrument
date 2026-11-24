@@ -17,11 +17,26 @@ let lastFindQuery = "";
 /** The find card of each page's panel on screen, by its guest. */
 const pageFindOpeners = new Map<BrowserTargetId, () => void>();
 
-/** Opens the find card of the panel showing this page; false when none is on screen. */
+/** How long a find card asked for under an overlay waits for the overlay to go. */
+const FIND_WAIT_MS = 1000;
+
+/** The page whose find card was asked for while its panel had no opener, and when. */
+let awaited: undefined | { at: number; targetId: BrowserTargetId };
+
+/**
+ * Opens the find card of the panel showing this page; false when none is on
+ * screen. A panel under a full-window overlay has no opener, so one asked for
+ * from the command menu opens as the menu goes and the panel lists its own
+ * again.
+ */
 export function openPageFind(targetId: BrowserTargetId): boolean {
   const open = pageFindOpeners.get(targetId);
-  open?.();
-  return open !== undefined;
+  if (open === undefined) {
+    awaited = { at: Date.now(), targetId };
+    return false;
+  }
+  open();
+  return true;
 }
 
 /**
@@ -230,6 +245,13 @@ export function useBrowserFind({
       openFromMenu();
     };
     pageFindOpeners.set(targetId, open);
+    if (awaited?.targetId === targetId) {
+      const { at } = awaited;
+      awaited = undefined;
+      if (Date.now() - at < FIND_WAIT_MS) {
+        open();
+      }
+    }
     return () => {
       if (pageFindOpeners.get(targetId) === open) {
         pageFindOpeners.delete(targetId);

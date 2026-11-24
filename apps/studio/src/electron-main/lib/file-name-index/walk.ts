@@ -23,14 +23,16 @@ export type FileNames = {
  * The most names one root gives the index. A folder of documents is far
  * under it, and a home folder or a big repository reaches it with its
  * shallowest names kept, since a root is walked a level at a time. A name
- * takes about 125 bytes, so a root is at most 6 MB.
+ * takes about 155 bytes, so a root is at most 8 MB.
  */
 const MAX_NAMES_PER_ROOT = 50_000;
 
 /**
  * The most names the index keeps over all roots, however many folders are
- * pinned: about 25 MB in the main process, and a search, which reads every
- * name on the main thread, done in about 15 ms.
+ * pinned: about 31 MB in the main process, and a search, which reads every
+ * name on the main thread, done in about 10 ms on a recent Mac when the
+ * words find names and about 30 ms when they find none, since every name is
+ * then read a second time for one wrong letter.
  */
 const MAX_NAMES = 200_000;
 

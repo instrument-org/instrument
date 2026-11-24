@@ -19,6 +19,7 @@ import {
   type WindowTabAnswer,
   type WindowTabRequest,
 } from "@instrument-org/workspace/client";
+import { type SidebarPlace } from "@/shared/tabs";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "jotai";
@@ -133,13 +134,17 @@ export function useOpeners({
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
   /**
-   * Makes a new tab group at the top of the list, filled by what is given,
+   * Makes a new tab group at the top of the list or the place named, filled by what is given,
    * and brings it up; or, not shown here, only makes it, for a window of its
    * own to open on. Answers the group.
    */
   newGroup: (
     fill: (group: string) => void,
-    options?: { isShownHere?: boolean },
+    options?: {
+      isShownHere?: boolean;
+      place?: SidebarPlace;
+      returns?: "untilUnrelated";
+    },
   ) => string;
   /** Opens a chat as a new tab group of its own (`useTabGroupActions().openChat`). */
   openChat: (chat: ChatId) => void;
@@ -206,9 +211,20 @@ export function useOpeners({
     put: (place: { after?: string; group: string; side?: 0 | 1 }) => void,
   ) => {
     if (into === "group") {
-      newGroup((group) => {
-        put({ group });
-      });
+      // Under the group it was asked from; from a pinned one, or from no
+      // group's tab, at the top, which is under the line.
+      const source = windowTabs.allTabs.find((tab) => tab.id === from)?.group;
+      newGroup(
+        (group) => {
+          put({ group });
+        },
+        {
+          returns: "untilUnrelated",
+          ...(source === undefined || windowTabs.groupOwn[source]?.pinned
+            ? {}
+            : { place: { after: source } }),
+        },
+      );
       return;
     }
     if (into === "window") {
@@ -1309,7 +1325,11 @@ export function useOpeners({
     // A place the page's menu picked, the split across from the page's tab.
     const asking = windowTabs.allTabs.find((tab) => tab.id === targetId);
     if (into) {
-      openPage(url, { from: targetId, into });
+      const from = pageOpenPlaceOf(asking, { isAgent: false });
+      openPage(url, {
+        from: from.kind === "after" ? from.after : targetId,
+        into,
+      });
       return;
     }
     // Only an agent's popup is named a tab by the workspace, and it never

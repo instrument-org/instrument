@@ -588,6 +588,37 @@ describe("an agent tidying tabs and reading History", () => {
   });
 });
 
+describe("Open in New Tab Group", () => {
+  const windowMaking = () => {
+    const newGroup = vi.fn<Parameters<typeof useOpeners>[0]["newGroup"]>(
+      () => "group_new",
+    );
+    return { ...windowOnTwoSides({ newGroup }), newGroup };
+  };
+  it.each([
+    ["under the group it was asked from", { from: LEFT_PAGE }, false, true],
+    ["at the top from a pinned group", { from: LEFT_PAGE }, true, false],
+    ["at the top from no tab", {}, false, false],
+  ])("is %s", (_case, asked, pinned, isUnder) => {
+    const { newGroup, result } = windowMaking();
+    act(() => {
+      result.current.windowTabs.setGroupOwn(GROUP, {
+        pinned: pinned ? true : undefined,
+      });
+    });
+    act(() => {
+      result.current.openers.openPage("https://a.example/", {
+        ...asked,
+        into: "group",
+      });
+    });
+    expect(newGroup.mock.calls[0]?.[1]).toEqual({
+      returns: "untilUnrelated",
+      ...(isUnder ? { place: { after: GROUP } } : {}),
+    });
+  });
+});
+
 describe("opening a bookmark folder's bookmarks together", () => {
   const NEW_GROUP = "group_new";
   /** A window whose new groups are filled at once, and whose browser says each page it opens. */
@@ -651,7 +682,9 @@ describe("opening a bookmark folder's bookmarks together", () => {
           "kind": "screen",
         },
         "made": [
-          undefined,
+          {
+            "returns": "untilUnrelated",
+          },
         ],
         "opened": [
           "page https://a.example/ in group_new after nothing, up",

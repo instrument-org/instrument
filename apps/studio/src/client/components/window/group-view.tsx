@@ -697,7 +697,12 @@ function SideCard({
     onMoveToNewGroup:
       groupTabCount > 1
         ? (tab) => {
-            groups.make({ moving: tab.id });
+            groups.make({
+              moving: tab.id,
+              ...(windowTabs.groupOwn[group]?.pinned
+                ? {}
+                : { place: { after: group } }),
+            });
           }
         : undefined,
     onMoveToNewWindow: isWindowsOnlyTab

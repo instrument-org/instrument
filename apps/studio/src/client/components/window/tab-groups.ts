@@ -24,6 +24,7 @@ import {
   openInNewWindow,
   useAppTabs,
 } from "./app-tabs";
+import { groupReturnAtom, returnAfterArrival } from "./group-return";
 import { chatListOptions } from "./chat-list-query";
 import { type Chat, draftTitle, type Project } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
@@ -288,7 +289,7 @@ export function chatsWithNoTab(
 }
 
 /** Groups in the order the sidebar lists them: pinned ones first, whatever their places in the window's own list. */
-export function inSidebarOrder(open: readonly TabGroup[]): TabGroup[] {
+function inSidebarOrder(open: readonly TabGroup[]): TabGroup[] {
   return [
     ...open.filter((entry) => isPinnedGroup(entry)),
     ...open.filter((entry) => !isPinnedGroup(entry)),
@@ -509,6 +510,14 @@ export function useTabGroupActions() {
     }
   };
 
+  const setReturn = (group: string, returns: "once" | "untilUnrelated") => {
+    const to = groupUp();
+    store.set(
+      groupReturnAtom,
+      to === undefined ? undefined : { group, once: returns === "once", to },
+    );
+  };
+
   /**
    * A new group at the top of the list, under New, or at a place in it,
    * pinned there when the place is among the pinned rows: one side with a
@@ -524,6 +533,7 @@ export function useTabGroupActions() {
     place,
     project,
     replace = false,
+    returns,
   }: {
     /** Opens what the group starts with. */
     fill?: (group: string) => void;
@@ -539,8 +549,13 @@ export function useTabGroupActions() {
     project?: null | string;
     /** Takes the place of the window's address rather than stepping on from it. */
     replace?: boolean;
+    /** Closing it goes back to the group up now (`GroupReturn`): until the person goes on to another, or, for `once`, switches away at all. */
+    returns?: "once" | "untilUnrelated";
   } = {}) => {
     const group = newGroupKey();
+    if (returns !== undefined && isShownHere) {
+      setReturn(group, returns);
+    }
     const into =
       project === undefined && isShownHere
         ? store.get(sidebarProjectAtom)
@@ -587,12 +602,13 @@ export function useTabGroupActions() {
         state.groups?.[group]?.project === project,
     );
     if (empty === undefined) {
-      make();
+      make({ returns: "once" });
     } else if (empty === groupUp()) {
       // The keyboard may be elsewhere on the group, on a row under its box,
       // where the home would leave it.
       leaveField(document.activeElement);
     } else {
+      setReturn(empty, "once");
       appTabs.navigate(groupHref(empty));
     }
   };
@@ -623,11 +639,13 @@ export function useTabGroupActions() {
         }
       },
       place: { after: entry.group, ...(entry.pinned ? { pinned: true } : {}) },
+      returns: "untilUnrelated",
     });
   };
 
   /**
-   * The group to show once `group` is gone: the row under it in the sidebar,
+   * The group to show once `group` is gone: the one it goes back to
+   * (`GroupReturn`) while that is in the list, else the row under it in the sidebar,
    * else the one above, else none. The rows are read as the sidebar shows
    * them, or worked out from `list` where no row of it shows the group. A row
    * can outlast its group until the next render, so only groups still on this
@@ -644,6 +662,10 @@ export function useTabGroupActions() {
           ),
         ).map((entry) => entry.group);
     const left = order.filter((each) => each === group || isListedHere(each));
+    const back = store.get(groupReturnAtom);
+    if (back?.group === group && left.includes(back.to)) {
+      return back.to;
+    }
     const at = left.indexOf(group);
     return at === -1 ? left[0] : neighborAt(left, at);
   };
@@ -725,7 +747,10 @@ export function useTabGroupActions() {
    * often as it is asked for, and no tab already on it is brought up in its
    * place.
    */
-  const openChat = (chat: ChatId, options: { replace?: boolean } = {}) => {
+  const openChat = (
+    chat: ChatId,
+    options: { replace?: boolean; returns?: "untilUnrelated" } = {},
+  ) => {
     make({ href: chatHref(chat), ...options });
   };
 
@@ -965,6 +990,7 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
       }
       if (lastUp.current !== group) {
         windowTabs.setGroupOwn(group, { shownAt: Date.now() });
+        store.set(groupReturnAtom, (back) => returnAfterArrival(back, group));
       }
       lastUp.current = group;
       return;

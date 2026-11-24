@@ -832,7 +832,7 @@ function WindowShell({
     isOpen: opened !== undefined,
     newGroup: (fill, options) => groups.make({ fill, ...options }),
     openChat: (chat) => {
-      groups.openChat(chat);
+      groups.openChat(chat, { returns: "untilUnrelated" });
     },
     reopenClosed: (entry) => {
       reopenClosed(TabIdSchema.parse(entry));

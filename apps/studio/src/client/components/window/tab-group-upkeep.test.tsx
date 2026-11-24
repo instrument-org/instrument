@@ -362,4 +362,62 @@ describe("the group that comes up as one closes", () => {
       "group:c",
     ]);
   });
+
+  const closed = (window: ReturnType<typeof windowOnGroups>) => {
+    const { groupUp } = window.actions();
+    act(() => {
+      window.actions().close(groupUp() ?? "", entries(LISTED));
+    });
+    return window.history.location.href;
+  };
+  const arriveAt = (
+    { history, store }: ReturnType<typeof windowOnGroups>,
+    group: string,
+  ) => {
+    act(() => {
+      history.push(groupHref(group));
+      store.set(appTabsAtom, (model) => ({
+        ...model,
+        tabs: [{ id: WINDOW_TAB, pathname: groupHref(group) }],
+      }));
+    });
+  };
+
+  it("is the one a new group was made in", () => {
+    const window = windowOnGroups("group:b");
+    act(() => {
+      window.actions().openNew();
+    });
+    expect(closed(window)).toBe(groupHref("group:b"));
+  });
+
+  it("is a neighbor of a new group once switched away from", () => {
+    const window = windowOnGroups("group:b");
+    act(() => {
+      window.actions().openNew();
+    });
+    const { groupUp } = window.actions();
+    const made = groupUp() ?? "";
+    arriveAt(window, "group:b");
+    arriveAt(window, made);
+    expect(closed(window)).not.toBe(groupHref("group:b"));
+  });
+
+  it.each([
+    ["the one it was opened from, looked at in between", "group:b", true],
+    ["a neighbor, once another was looked at", "group:c", false],
+  ])("for a group opened from another is %s", (_case, between, isBack) => {
+    const window = windowOnGroups("group:b");
+    act(() => {
+      window.actions().make({
+        href: "/apps",
+        returns: "untilUnrelated",
+      });
+    });
+    const { groupUp } = window.actions();
+    const made = groupUp() ?? "";
+    arriveAt(window, between);
+    arriveAt(window, made);
+    expect(closed(window) === groupHref("group:b")).toBe(isBack);
+  });
 });

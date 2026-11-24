@@ -84,6 +84,18 @@ describe("fileThumbnail", () => {
     expect(createThumbnailFromPath).toHaveBeenCalledTimes(1);
   });
 
+  it.each(["Containers/com.example.shots/Data/tmp", "Group Containers/group"])(
+    "asks for no picture of a file in another app's %s",
+    async (folder) => {
+      const shot = path.join(root, "Library", folder, "shot.png");
+      await fs.mkdir(path.dirname(shot), { recursive: true });
+      await fs.writeFile(shot, "");
+      createThumbnailFromPath.mockResolvedValue(picture("shot"));
+      expect(await fileThumbnail(shot, 512, { dir })).toBeNull();
+      expect(createThumbnailFromPath).not.toHaveBeenCalled();
+    },
+  );
+
   it("draws a file again once it has been written", async () => {
     createThumbnailFromPath.mockResolvedValueOnce(picture("before"));
     await fileThumbnail(file, 512, { dir });

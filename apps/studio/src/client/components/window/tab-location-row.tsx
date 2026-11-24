@@ -255,6 +255,15 @@ export function TabLocationRow({
             if (event.button !== 0 || (event.ctrlKey && isMacOS())) {
               return;
             }
+            // A press on a menu a part of the place opened reaches here
+            // through React's tree though it is drawn outside the box, and
+            // is the menu's alone.
+            if (
+              event.target instanceof Node &&
+              !event.currentTarget.contains(event.target)
+            ) {
+              return;
+            }
             const input = event.currentTarget.querySelector("input");
             // While the words are being edited, a press selects in them.
             if (input && document.activeElement === input) {

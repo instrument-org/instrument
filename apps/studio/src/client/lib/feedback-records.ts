@@ -7,6 +7,8 @@
  * own name, so a new kind of record shows up without code here.
  */
 
+import { windowsName } from "@instrument-org/shared/windows-version";
+
 /** A field of a record, by its path in the record, and what goes for it. */
 export type RecordField = {
   name: string;
@@ -374,6 +376,13 @@ const SYSTEM_NAMES: Record<string, string> = {
   win32: "Windows",
 };
 
+/** Windows goes by its version's name too, since 10 and 11 both report 10.0. */
+function systemName(platform: string, version: string | undefined): string {
+  return platform === "win32" && version !== undefined
+    ? windowsName(version)
+    : (SYSTEM_NAMES[platform] ?? platform);
+}
+
 /** A JSON file's fields as named rows, for the Diagnostics page. */
 export function aboutFields(content: string): RecordField[] {
   let about: unknown;
@@ -382,12 +391,14 @@ export function aboutFields(content: string): RecordField[] {
   } catch {
     return [{ name: "about.json", value: content.slice(0, FIELD_VALUE_MAX) }];
   }
-  return flatten(about).map((field) => ({
+  const fields = flatten(about);
+  const version = fields.find((field) => field.name === "os.version")?.value;
+  return fields.map((field) => ({
     ...field,
     name: ABOUT_LABELS[field.name] ?? field.name,
     value:
       field.name === "os.platform"
-        ? (SYSTEM_NAMES[field.value] ?? field.value)
+        ? systemName(field.value, version)
         : field.value === "true"
           ? "Yes"
           : field.value === "false"

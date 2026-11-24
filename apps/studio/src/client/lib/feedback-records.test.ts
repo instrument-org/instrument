@@ -1,7 +1,12 @@
 import { outlineSessionLog } from "@instrument-org/workspace/report-outline";
 import { describe, expect, it } from "vitest";
 
-import { chatGroups, kindLabel, recordRows } from "./feedback-records";
+import {
+  aboutFields,
+  chatGroups,
+  kindLabel,
+  recordRows,
+} from "./feedback-records";
 
 const log = (records: unknown[]) =>
   records.map((record) => JSON.stringify(record)).join("\n");
@@ -265,5 +270,17 @@ describe("chatGroups", () => {
         "Failed, Ran, Read file, Sites",
       ]
     `);
+  });
+});
+
+it.each([
+  ["win32", "10.0.26200", "Windows 11"],
+  ["win32", "10.0.19045", "Windows 10"],
+  ["darwin", "27.0.1", "macOS"],
+])("names the system of %s %s %s", (platform, version, expected) => {
+  const about = JSON.stringify({ os: { platform, version } });
+  expect(aboutFields(about)[0]).toMatchObject({
+    name: "System",
+    value: expected,
   });
 });

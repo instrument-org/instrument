@@ -270,6 +270,7 @@ export {
 export { watchFolder } from "./lib/folder-watch";
 export { placePaths, startupPaths } from "./lib/permissions/places";
 export { chatSessions, chatStartedWithApp, chatTitle } from "./lib/chat-info";
+export { osName } from "./lib/get-system-info";
 export { serveStaticFile } from "./logic/server/serve-static";
 export {
   type WorkspaceActorRef,

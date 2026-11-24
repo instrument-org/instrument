@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import { draftSnapshotsAtom } from "@/client/atoms/prompt-value";
 import {
@@ -245,7 +246,7 @@ export function useDrafts({
     const leave = finishBeforeLeaving(() => settle(false));
     toast("Your draft was discarded", {
       action: {
-        label: "Undo",
+        label: UNDO_LABEL,
         onClick: () => {
           void settle(true);
         },

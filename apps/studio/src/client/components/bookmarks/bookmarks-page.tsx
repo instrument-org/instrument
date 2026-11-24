@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
 import {
@@ -181,7 +182,7 @@ export function BookmarksPage({
         : `Deleted ${count.toString()} bookmarks`,
       {
         action: {
-          label: "Undo",
+          label: UNDO_LABEL,
           onClick: () => {
             void apply(restoreOps(now, removed));
           },

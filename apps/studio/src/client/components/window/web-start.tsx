@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import {
   applyBookmarkOpsAtom,
@@ -58,7 +59,7 @@ export function WebStart({
       .then(() => {
         toast("Removed from Frequently visited", {
           action: {
-            label: "Undo",
+            label: UNDO_LABEL,
             onClick: () => {
               void setFrequentHidden(url, false).catch((error: unknown) => {
                 toast.error("Couldn't put the site back", { cause: error });
@@ -229,7 +230,7 @@ export function useBookmarkEdits() {
       void applyBookmarkOps([{ id: bookmark.id, type: "remove" }]);
       toast("Removed from Bookmarks", {
         action: {
-          label: "Undo",
+          label: UNDO_LABEL,
           // Back where it was, by the order it had.
           onClick: () => {
             void applyBookmarkOps([{ bookmark, type: "add" }]);

@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { matchScreen } from "@/client/components/window/window-href";
 import { zoomAtom } from "@/client/atoms/zoom";
@@ -111,7 +112,7 @@ export async function trashCapture(name: string) {
   };
   toast(`Moved the capture to the ${osConventions().trash}`, {
     action: {
-      label: "Undo",
+      label: UNDO_LABEL,
       onClick: () => {
         undone = true;
         void rpcClient.captures.restore

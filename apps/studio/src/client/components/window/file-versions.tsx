@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { formatByteSize } from "@/client/components/extend/file-system";
 import { FileActionsMenuItems } from "@/client/components/file-actions-menu";
 import { ShownVersionContext } from "@/client/components/file-preview-fallback";
@@ -717,7 +718,7 @@ export function useRestoreFileVersion(chatId: ChatId | undefined) {
     }
     toast(said, {
       action: {
-        label: "Undo",
+        label: UNDO_LABEL,
         onClick: () => {
           void restore({ copy: replaced, file, said: "Undone" });
         },

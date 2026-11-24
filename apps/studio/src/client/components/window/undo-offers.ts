@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { toast } from "@/client/lib/toast";
 
 /**
@@ -24,7 +25,7 @@ export function toastWithUndo(
       offer === null
         ? undefined
         : {
-            label: "Undo",
+            label: UNDO_LABEL,
             onClick: () => {
               // Sonner takes the toast away without calling `onDismiss`, and
               // an undo that stops partway would leave the rest held.

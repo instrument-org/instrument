@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { type WindowTab } from "@/client/atoms/window";
 import { type ChatId } from "@instrument-org/workspace/client";
 import {
@@ -162,7 +163,7 @@ function removeFavorite(path: string, favorites: readonly string[]) {
     () => {
       toast(`Removed ${segmentsOf(path).at(-1) ?? path} from Favorites`, {
         action: {
-          label: "Undo",
+          label: UNDO_LABEL,
           onClick: () => {
             void rpcClient.preferences.addFavoritePlace
               .call({ order: [...favorites], path })

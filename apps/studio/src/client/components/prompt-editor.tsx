@@ -5,6 +5,7 @@ import {
 } from "@/client/components/app-mention";
 import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import { setComposeFocus } from "@/client/lib/type-to-compose";
+import { setOwnUndo } from "@/client/lib/undo-toast";
 import {
   type ComposerAction,
   MenuGroupHeader,
@@ -32,7 +33,13 @@ import { matchSkills, type SkillMatch } from "@/client/lib/skill-search";
 import { cn, commandKeyHeld } from "@/client/lib/utils";
 import { baseKeymap, splitBlock } from "prosemirror-commands";
 import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
-import { closeHistory, history, redo, undo } from "prosemirror-history";
+import {
+  closeHistory,
+  history,
+  redo,
+  undo,
+  undoDepth,
+} from "prosemirror-history";
 import { keymap } from "prosemirror-keymap";
 import { Slice } from "prosemirror-model";
 import {
@@ -632,6 +639,7 @@ export function PromptEditor({
       }),
     });
     viewRef.current = view;
+    setOwnUndo(view.dom, () => undoDepth(view.state) > 0);
     setComposeFocus(view.dom, () => {
       // Words left selected are not the letter's to replace.
       const { selection } = view.state;

@@ -1,3 +1,4 @@
+import { undoOnShow } from "@/client/lib/undo-toast";
 import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { type ChosenItem } from "@/shared/drafts";
@@ -1952,7 +1953,9 @@ export function ComputerPage({
       !commandKeyHeld(event) ||
       event.defaultPrevented ||
       isTypingTarget(event.target) ||
-      !(inFolder || nowhere)
+      !(inFolder || nowhere) ||
+      // A toast showing the key is what the key undoes.
+      undoOnShow() !== null
     ) {
       return;
     }

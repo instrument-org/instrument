@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import {
   type FeedbackDraft,
   feedbackDraftAtom,
@@ -34,7 +35,7 @@ export function discardFeedback(draft: FeedbackDraft) {
   if (isFeedbackWaiting(draft)) {
     toast("Feedback discarded", {
       action: {
-        label: "Undo",
+        label: UNDO_LABEL,
         onClick: () => {
           store.set(feedbackDraftAtom, { ...draft, finished: false });
         },

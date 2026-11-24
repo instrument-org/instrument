@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
 import { Button } from "@/client/components/ui/button";
@@ -157,7 +158,7 @@ function ErrorsPanel({
                       onSuccess: () => {
                         toast(`Cleared ${label}`, {
                           action: {
-                            label: "Undo",
+                            label: UNDO_LABEL,
                             onClick: () => {
                               restoreCleared();
                             },

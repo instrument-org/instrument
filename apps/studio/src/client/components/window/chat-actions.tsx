@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { openReportDialog } from "@/client/atoms/report-dialog";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { rpcClient } from "@/client/rpc/client";
@@ -262,7 +263,8 @@ async function exportChat(id: ChatId) {
 
 /**
  * Puts a chat away or brings it back. Each way's toast offers the other
- * way back, so an undo can be undone; the toast hangs off the call's answer
+ * way back, so an undo can be undone, by its button alone: ⌘Z pressed twice
+ * would take the undo back; the toast hangs off the call's answer
  * rather than off a row, since the row is gone from the list by the time it
  * lands. Outside the hook so that it is one function for the window's life,
  * which the actions handed to every row are memoized on.
@@ -271,6 +273,7 @@ export function setArchived(
   queryClient: QueryClient,
   input: ChatInput,
   archived: boolean,
+  { isUndo = false } = {},
 ) {
   // A quick Undo paints over the paint it undoes, so the row never shows
   // the first request's answer in between.
@@ -283,9 +286,9 @@ export function setArchived(
       painting.landed(at);
       toast(archived ? "Archived" : "Moved to Inbox", {
         action: {
-          label: "Undo",
+          label: isUndo ? "Undo" : UNDO_LABEL,
           onClick: () => {
-            setArchived(queryClient, input, !archived);
+            setArchived(queryClient, input, !archived, { isUndo: !isUndo });
           },
         },
       });

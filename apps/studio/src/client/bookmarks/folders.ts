@@ -1,3 +1,4 @@
+import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { toast } from "@/client/lib/toast";
 import {
   type Bookmark,
@@ -72,7 +73,7 @@ export function useBookmarkFolders() {
       void apply([{ id: folder.id, type: "remove" }]);
       toast(`Deleted “${folder.title}”`, {
         action: {
-          label: "Undo",
+          label: UNDO_LABEL,
           onClick: () => {
             void apply([
               { folder, type: "addFolder" },

@@ -299,7 +299,7 @@ function openTab(
       select:
         newTab || after !== undefined
           ? !behind
-          : show || into === undefined || into === onScreen,
+          : !behind && (show || into === undefined || into === onScreen),
       ...(side === undefined ? {} : { side }),
     });
   });

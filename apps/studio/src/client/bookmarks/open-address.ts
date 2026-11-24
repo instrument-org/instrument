@@ -85,13 +85,18 @@ export function openAddressBy(
   }
 }
 
+/** An open asked of a bookmark, whose new tab goes at the end as a browser's does (`OpenOptions.atEnd`). */
+export function askedOfBookmark(asked: OpenOptions): OpenOptions {
+  return asked.newTab === undefined ? asked : { ...asked, atEnd: true };
+}
+
 /** `openAddressBy` against this window, `here` being the tab the address is chosen from. */
 export function useOpenAddress(
   here: Pick<AddressSinks, "loadHere" | "visitHere"> = {},
 ) {
   const appWindow = useWindow();
   return (address: string, asked?: OpenOptions) => {
-    openAddressBy(address, asked, {
+    openAddressBy(address, asked && askedOfBookmark(asked), {
       ...here,
       openPage: (url, options) => {
         appWindow.openPage(url, options);

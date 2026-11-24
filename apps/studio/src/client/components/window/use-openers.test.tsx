@@ -588,6 +588,48 @@ describe("an agent tidying tabs and reading History", () => {
   });
 });
 
+describe("a bookmark opened in a new tab", () => {
+  it.each([
+    ["behind", true],
+    ["in front", false],
+  ])("is last on its side, %s", (_case, behind) => {
+    const { result, store } = windowOnTwoSides();
+    act(() => {
+      result.current.openers.openScreen("/apps/github", {
+        atEnd: true,
+        behind,
+        newTab: true,
+      });
+    });
+    const { activeByGroup, openers, tabs } = store.get(windowTabsAtom);
+    const left = tabs.filter((tab) => tab.group === GROUP && tab.side !== 1);
+    const opened = left.at(-1);
+    expect(left).toHaveLength(3);
+    expect(opened).toMatchObject({ href: "/apps/github" });
+    expect(activeByGroup[GROUP] === opened?.id).toBe(!behind);
+    expect(openers).toEqual({ openers: {}, sources: {} });
+  });
+
+  it("is last for a site too", () => {
+    const open = vi.fn(() => StoreId.newTabId());
+    // Only `open` is reached here; the rest of the handle is the mounted browser's.
+    const browser = { open } as unknown as BrowserTabsHandle;
+    const { result } = windowOnTwoSides({ browser });
+    act(() => {
+      result.current.openers.openPage("https://a.example/", {
+        atEnd: true,
+        behind: true,
+        from: LEFT_PAGE,
+        newTab: true,
+      });
+    });
+    expect(open).toHaveBeenCalledWith("https://a.example/", {
+      behind: true,
+      group: GROUP,
+    });
+  });
+});
+
 describe("Open in New Tab Group", () => {
   const windowMaking = () => {
     const newGroup = vi.fn<Parameters<typeof useOpeners>[0]["newGroup"]>(

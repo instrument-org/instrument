@@ -10,6 +10,8 @@ import { type BrowserTabsHandle } from "./browser-tabs";
  * name rather than what an agent opened behind.
  */
 export interface OpenOptions {
+  /** With `newTab`, the tab goes to the end of its side, opened from no tab: a bookmark's, as a browser opens one. */
+  atEnd?: boolean;
   /** Puts the thing in front of its group without bringing the group on screen: for a group drawn by a window of its own. */
   activate?: boolean;
   /** With `newTab` or `chat`, the tab waits behind, as a browser's does for a middle click, a Cmd-click or Open in New Tab. */

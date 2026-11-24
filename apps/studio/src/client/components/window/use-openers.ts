@@ -359,6 +359,12 @@ export function useOpeners({
         return id;
       }
       case "group-new-tab": {
+        if (asked.atEnd) {
+          return browser?.open(url, {
+            behind: placement.behind,
+            group: windowTabs.groupOnScreen,
+          });
+        }
         return browser?.open(url, {
           behind: placement.behind,
           newTab: true,
@@ -431,6 +437,7 @@ export function useOpeners({
       case "group-new-tab": {
         windowTabs.openBeside(href, {
           behind: placement.behind,
+          ...(asked.atEnd ? { atEnd: true } : {}),
           ...(asked.from === undefined ? {} : { from: asked.from }),
         });
         return;
@@ -652,6 +659,7 @@ export function useOpeners({
       case "group-new-tab": {
         windowTabs.openBeside(href, {
           behind: placement.behind,
+          ...(asked.atEnd ? { atEnd: true } : {}),
           ...(asked.from === undefined ? {} : { from: asked.from }),
         });
         return;

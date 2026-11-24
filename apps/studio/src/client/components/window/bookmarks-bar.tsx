@@ -1,5 +1,8 @@
 import { targetOfAddress } from "@/client/bookmarks/address";
-import { useOpenAddress } from "@/client/bookmarks/open-address";
+import {
+  askedOfBookmark,
+  useOpenAddress,
+} from "@/client/bookmarks/open-address";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
 import { bookmarksStateAtom } from "@/client/bookmarks/store";
 import {
@@ -177,7 +180,7 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
     if (asked === undefined && onVisit) {
       onVisit(href);
     } else {
-      appWindow.openScreen(href, asked);
+      appWindow.openScreen(href, asked && askedOfBookmark(asked));
     }
   };
   const overflow = items.slice(fitting);

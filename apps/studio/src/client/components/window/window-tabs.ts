@@ -722,9 +722,12 @@ export function useWindowTabs() {
     openBeside: (
       to: string,
       {
+        atEnd = false,
         behind = false,
         from,
       }: {
+        /** At the end of the side with the keyboard, opened from no tab (`OpenOptions.atEnd`). */
+        atEnd?: boolean;
         behind?: boolean;
         /** The tab it was asked from, which it opens right after; left out, it was asked of the window, and opens after the tab up. */
         from?: string;
@@ -739,11 +742,13 @@ export function useWindowTabs() {
           return { state: current, value: undefined };
         }
         const id = newScreenId();
-        const opening = openingFrom(current, onScreen, from);
+        const opening = atEnd
+          ? undefined
+          : openingFrom(current, onScreen, from);
         return {
           state: addScreen(current, {
-            ...(opening.tab === undefined ? {} : { after: opening.tab }),
-            from: opening,
+            ...(opening?.tab === undefined ? {} : { after: opening.tab }),
+            ...(opening === undefined ? {} : { from: opening }),
             group: onScreen,
             href,
             id,

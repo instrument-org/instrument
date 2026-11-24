@@ -143,6 +143,8 @@ export interface PromptInputDraft {
 
 export interface PromptInputRef {
   clear: () => void;
+  /** Writes the rest of what the words start after the caret, selected (`PromptEditorRef.completeAhead`). */
+  completeAhead: (rest: string) => boolean;
   focus: () => void;
   /** Insert at the caret, spaced off from whatever it lands between; a token's wire form becomes its chip. */
   insertText: (text: string) => void;
@@ -740,6 +742,8 @@ export const PromptInput = ({
       promptEditorRef.current?.clear();
       setAttachedItems([]);
     },
+    completeAhead: (rest) =>
+      promptEditorRef.current?.completeAhead(rest) ?? false,
     focus: () => {
       promptEditorRef.current?.focus();
     },
@@ -1076,234 +1080,232 @@ export const PromptInput = ({
           </motion.div>
         )}
       </AnimatePresence>
-        {/* The box itself takes files, so the page around it still takes them
+      {/* The box itself takes files, so the page around it still takes them
           as a page does. */}
-        <FileDropRegion
-          enabled={isActiveTab}
-          note="Drop to attach to your message"
-          onFilesDropped={processFiles}
-          onFoldersDropped={attachFolders}
-        >
-          <ComposerFrame
-            actions={
-              <>
-                {/* Gives way first, down to the plus and the least of what is
+      <FileDropRegion
+        enabled={isActiveTab}
+        note="Drop to attach to your message"
+        onFilesDropped={processFiles}
+        onFoldersDropped={attachFolders}
+      >
+        <ComposerFrame
+          actions={
+            <>
+              {/* Gives way first, down to the plus and the least of what is
                 beside it, so the model and Send keep their room; only then
                 does the model's name truncate. Flex shares the squeeze in
                 proportion, so the factor is large enough that the model's
                 share rounds to nothing: a sliver of a pixel would cut even
                 "Auto" short. */}
-                <div className="flex shrink-1000000 items-center gap-1.5">
-                  {addMenu && (
-                    <ComposerAddMenu
-                      actions={actions}
-                      disabled={isLoading}
-                      onReturnFocus={() => {
-                        promptEditorRef.current?.focus();
-                      }}
-                      onSelectSkill={(skill) => {
-                        promptEditorRef.current?.insertText(
-                          skillMentionToken(skill.id),
-                        );
-                      }}
-                      onViewChange={setMenuView}
-                      places={composerPlaces}
-                      skills={userInvocableSkills}
-                      triggerClassName="size-7 rounded-full [&_svg]:size-4"
-                      view={menuView}
+              <div className="flex shrink-1000000 items-center gap-1.5">
+                {addMenu && (
+                  <ComposerAddMenu
+                    actions={actions}
+                    disabled={isLoading}
+                    onReturnFocus={() => {
+                      promptEditorRef.current?.focus();
+                    }}
+                    onSelectSkill={(skill) => {
+                      promptEditorRef.current?.insertText(
+                        skillMentionToken(skill.id),
+                      );
+                    }}
+                    onViewChange={setMenuView}
+                    places={composerPlaces}
+                    skills={userInvocableSkills}
+                    triggerClassName="size-7 rounded-full [&_svg]:size-4"
+                    view={menuView}
+                  />
+                )}
+                {besidePlus}
+              </div>
+
+              <div className="flex min-w-0 flex-auto items-center justify-end gap-4">
+                {!dictating &&
+                  features.context_ring &&
+                  id &&
+                  selectedSessionId && (
+                    <SessionContextRing
+                      id={id}
+                      model={selectedModel}
+                      selectedSessionId={selectedSessionId}
                     />
                   )}
-                  {besidePlus}
-                </div>
 
-                <div className="flex min-w-0 flex-auto items-center justify-end gap-4">
-                  {!dictating &&
-                    features.context_ring &&
-                    id &&
-                    selectedSessionId && (
-                      <SessionContextRing
-                        id={id}
-                        model={selectedModel}
-                        selectedSessionId={selectedSessionId}
+                {!dictating && (
+                  <ModelPicker
+                    align="end"
+                    className="min-w-0 shrink"
+                    disabled={isLoading}
+                    errors={modelsErrors}
+                    isError={modelsIsError}
+                    isLoading={modelsIsLoading}
+                    models={models}
+                    modelURI={reached.uri}
+                    notice={modelNotice}
+                    onAction={handleModelAction}
+                    onAddProvider={addProvider}
+                    onClose={() => {
+                      setPickerOpen(false);
+                      // A model picked just now is not in `modelURI` until
+                      // the next render.
+                      if (modelURI || hasPicked.current) {
+                        promptEditorRef.current?.focus();
+                      }
+                      hasPicked.current = false;
+                    }}
+                    onOpenChange={(open) => {
+                      setPickerOpen(open);
+                      if (open && modelsErrors && modelsErrors.length > 0) {
+                        void modelsRefetch();
+                      }
+                    }}
+                    onValueChange={(uri) => {
+                      hasPicked.current = true;
+                      onModelChange(uri);
+                    }}
+                    open={pickerOpen}
+                    selectedModel={selectedModel}
+                  />
+                )}
+
+                {/* While dictating: the wave, then Cancel and Stop together.
+                  Send is back once the words land; Enter stops and sends. */}
+                <div className="flex shrink-0 items-center gap-1.5">
+                  <DictationControls
+                    dictation={dictation}
+                    disabled={isLoading}
+                  />
+                  {!dictating && onStop && !canSubmit && !isLoading && (
+                    <Button
+                      aria-label="Stop"
+                      className="size-8 shrink-0 rounded-full p-0"
+                      onClick={onStop}
+                      variant="brand"
+                    >
+                      <StopIcon className="size-4" weight="fill" />
+                    </Button>
+                  )}
+                  {!dictating && (!onStop || canSubmit || isLoading) && (
+                    <Button
+                      aria-label="Send"
+                      className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
+                      disabled={!canSubmit}
+                      onClick={send}
+                      variant="brand"
+                    >
+                      {isLoading ? (
+                        <Spinner className="size-5" delay={0} />
+                      ) : (
+                        <ArrowUpIcon className="size-5" />
+                      )}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </>
+          }
+          actionsInto={actionsInto}
+          attachments={
+            (lead || hasAttachmentsLead || attachedItems.length > 0) && (
+              // A file lands in the corner of a box the user is looking away
+              // from, at the caret, so it grows into place rather than appearing
+              // there. `initial={false}`: the first one is carried in by the row
+              // opening around it, and does not need a second motion of its own.
+              // Every child here needs a key of its own: presence tells them
+              // apart by key, and two keyless ones read as the same child.
+              <AnimatePresence initial={false}>
+                <Fragment key="lead">{lead}</Fragment>
+                <Fragment key="attachments-lead">{attachmentsLead}</Fragment>
+                {attachedItems.map((item) => (
+                  <ChipPresence key={item.id}>
+                    {item.type === "folder" ? (
+                      <AttachedItemPreview
+                        hostPath={item.path}
+                        icon={<SystemFolderIcon className="size-4 shrink-0" />}
+                        isSelected={shownPath === item.path}
+                        label={folderLabel(item.path)}
+                        {...(onShowItem
+                          ? {
+                              onClick: () => {
+                                onShowItem({
+                                  kind: "folder",
+                                  path: item.path,
+                                });
+                              },
+                            }
+                          : {})}
+                        onRemove={() => {
+                          removeAttachedItem(item.id);
+                        }}
+                        tooltip={displayPath(item.path)}
+                      />
+                    ) : (
+                      <AttachedFilePreview
+                        filename={item.name}
+                        {...("path" in item ? { hostPath: item.path } : {})}
+                        isSelected={"path" in item && shownPath === item.path}
+                        mimeType={item.mimeType}
+                        onClick={() => {
+                          // On disk, it shows where the host shows what goes
+                          // with the message; only bytes pasted in open large.
+                          if (onShowItem && "path" in item) {
+                            onShowItem({ kind: "file", path: item.path });
+                          } else if (item.url) {
+                            setLookAt(
+                              lookTargetOf({
+                                filename: item.name,
+                                ...("path" in item
+                                  ? { hostPath: item.path }
+                                  : {}),
+                                mimeType: item.mimeType,
+                                url: item.url,
+                              }),
+                            );
+                          }
+                        }}
+                        onPutInMessage={putInMessage(item)}
+                        onRemove={() => {
+                          removeAttachedItem(item.id);
+                        }}
+                        size={item.size}
+                        url={item.url}
                       />
                     )}
-
-                  {!dictating && (
-                    <ModelPicker
-                      align="end"
-                      className="min-w-0 shrink"
-                      disabled={isLoading}
-                      errors={modelsErrors}
-                      isError={modelsIsError}
-                      isLoading={modelsIsLoading}
-                      models={models}
-                      modelURI={reached.uri}
-                      notice={modelNotice}
-                      onAction={handleModelAction}
-                      onAddProvider={addProvider}
-                      onClose={() => {
-                        setPickerOpen(false);
-                        // A model picked just now is not in `modelURI` until
-                        // the next render.
-                        if (modelURI || hasPicked.current) {
-                          promptEditorRef.current?.focus();
-                        }
-                        hasPicked.current = false;
-                      }}
-                      onOpenChange={(open) => {
-                        setPickerOpen(open);
-                        if (open && modelsErrors && modelsErrors.length > 0) {
-                          void modelsRefetch();
-                        }
-                      }}
-                      onValueChange={(uri) => {
-                        hasPicked.current = true;
-                        onModelChange(uri);
-                      }}
-                      open={pickerOpen}
-                      selectedModel={selectedModel}
-                    />
-                  )}
-
-                  {/* While dictating: the wave, then Cancel and Stop together.
-                  Send is back once the words land; Enter stops and sends. */}
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <DictationControls
-                      dictation={dictation}
-                      disabled={isLoading}
-                    />
-                    {!dictating && onStop && !canSubmit && !isLoading && (
-                      <Button
-                        aria-label="Stop"
-                        className="size-8 shrink-0 rounded-full p-0"
-                        onClick={onStop}
-                        variant="brand"
-                      >
-                        <StopIcon className="size-4" weight="fill" />
-                      </Button>
-                    )}
-                    {!dictating && (!onStop || canSubmit || isLoading) && (
-                      <Button
-                        aria-label="Send"
-                        className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
-                        disabled={!canSubmit}
-                        onClick={send}
-                        variant="brand"
-                      >
-                        {isLoading ? (
-                          <Spinner className="size-5" delay={0} />
-                        ) : (
-                          <ArrowUpIcon className="size-5" />
-                        )}
-                      </Button>
-                    )}
-                  </div>
-                </div>
-              </>
-            }
-            actionsInto={actionsInto}
-            attachments={
-              (lead || hasAttachmentsLead || attachedItems.length > 0) && (
-                // A file lands in the corner of a box the user is looking away
-                // from, at the caret, so it grows into place rather than appearing
-                // there. `initial={false}`: the first one is carried in by the row
-                // opening around it, and does not need a second motion of its own.
-                // Every child here needs a key of its own: presence tells them
-                // apart by key, and two keyless ones read as the same child.
-                <AnimatePresence initial={false}>
-                  <Fragment key="lead">{lead}</Fragment>
-                  <Fragment key="attachments-lead">{attachmentsLead}</Fragment>
-                  {attachedItems.map((item) => (
-                    <ChipPresence key={item.id}>
-                      {item.type === "folder" ? (
-                        <AttachedItemPreview
-                          hostPath={item.path}
-                          icon={
-                            <SystemFolderIcon className="size-4 shrink-0" />
-                          }
-                          isSelected={shownPath === item.path}
-                          label={folderLabel(item.path)}
-                          {...(onShowItem
-                            ? {
-                                onClick: () => {
-                                  onShowItem({
-                                    kind: "folder",
-                                    path: item.path,
-                                  });
-                                },
-                              }
-                            : {})}
-                          onRemove={() => {
-                            removeAttachedItem(item.id);
-                          }}
-                          tooltip={displayPath(item.path)}
-                        />
-                      ) : (
-                        <AttachedFilePreview
-                          filename={item.name}
-                          {...("path" in item ? { hostPath: item.path } : {})}
-                          isSelected={"path" in item && shownPath === item.path}
-                          mimeType={item.mimeType}
-                          onClick={() => {
-                            // On disk, it shows where the host shows what goes
-                            // with the message; only bytes pasted in open large.
-                            if (onShowItem && "path" in item) {
-                              onShowItem({ kind: "file", path: item.path });
-                            } else if (item.url) {
-                              setLookAt(
-                                lookTargetOf({
-                                  filename: item.name,
-                                  ...("path" in item
-                                    ? { hostPath: item.path }
-                                    : {}),
-                                  mimeType: item.mimeType,
-                                  url: item.url,
-                                }),
-                              );
-                            }
-                          }}
-                          onPutInMessage={putInMessage(item)}
-                          onRemove={() => {
-                            removeAttachedItem(item.id);
-                          }}
-                          size={item.size}
-                          url={item.url}
-                        />
-                      )}
-                    </ChipPresence>
-                  ))}
-                </AnimatePresence>
-              )
-            }
-            maxHeight={maxHeight}
-            overlay={overlay}
-            ref={setComposerBounds}
-          >
-            {/* Keyed by draft: the editor reads its text once, at mount, so a
+                  </ChipPresence>
+                ))}
+              </AnimatePresence>
+            )
+          }
+          maxHeight={maxHeight}
+          overlay={overlay}
+          ref={setComposerBounds}
+        >
+          {/* Keyed by draft: the editor reads its text once, at mount, so a
             surface that swaps which draft it is composing (one skill page to
             the next) needs a new editor rather than a new prop. */}
-            <PromptEditor
-              actions={slashActions}
-              apps={composerApps}
-              autoFocus={autoFocus}
-              bounds={composerBounds}
-              commands={commands}
-              defaultValue={value}
-              dictating={dictating}
-              // The words being heard show where they will land.
-              dictatingWords={dictating ? landingWords(dictation) : undefined}
-              disabled={isLoading}
-              key={draftKeyed}
-              onChange={setValue}
-              onCommandEnter={hasNothing ? onCommandEnterWhenEmpty : undefined}
-              onPaste={handlePaste}
-              onSubmit={send}
-              placeholder={placeholder}
-              ref={promptEditorRef}
-              skills={userInvocableSkills}
-            />
-          </ComposerFrame>
-        </FileDropRegion>
+          <PromptEditor
+            actions={slashActions}
+            apps={composerApps}
+            autoFocus={autoFocus}
+            bounds={composerBounds}
+            commands={commands}
+            defaultValue={value}
+            dictating={dictating}
+            // The words being heard show where they will land.
+            dictatingWords={dictating ? landingWords(dictation) : undefined}
+            disabled={isLoading}
+            key={draftKeyed}
+            onChange={setValue}
+            onCommandEnter={hasNothing ? onCommandEnterWhenEmpty : undefined}
+            onPaste={handlePaste}
+            onSubmit={send}
+            placeholder={placeholder}
+            ref={promptEditorRef}
+            skills={userInvocableSkills}
+          />
+        </ComposerFrame>
+      </FileDropRegion>
 
       <input
         className="hidden"

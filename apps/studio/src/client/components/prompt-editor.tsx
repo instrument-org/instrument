@@ -156,6 +156,13 @@ export interface PromptEditorRef {
   /** Put dictated words at the end, after a space on the last line. */
   appendDictation: (text: string) => void;
   clear: () => void;
+  /**
+   * Writes `rest` in after the caret and selects it, the way an address
+   * field finishes an address: the next letter typed replaces it and
+   * Backspace takes it away. Only with the caret at the end of the words and
+   * nothing selected, and answers whether it wrote.
+   */
+  completeAhead: (rest: string) => boolean;
   focus: () => void;
   getValue: () => string;
   /** Insert at the caret, spaced off from whatever it lands between. */
@@ -770,6 +777,22 @@ export function PromptEditor({
     },
     clear: () => {
       replaceDocument("");
+    },
+    completeAhead: (rest) => {
+      const view = viewRef.current;
+      if (!view || view.composing) {
+        return false;
+      }
+      const { doc, selection } = view.state;
+      const at = selection.to;
+      if (!selection.empty || at !== TextSelection.atEnd(doc).to) {
+        return false;
+      }
+      const tr = view.state.tr.insertText(rest, at);
+      tr.setSelection(TextSelection.create(tr.doc, at, at + rest.length));
+      // Undo goes back over what the person typed, never to these letters.
+      view.dispatch(tr.setMeta("addToHistory", false));
+      return true;
     },
     focus: () => viewRef.current?.focus(),
     getValue: () => {

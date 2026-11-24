@@ -176,6 +176,14 @@ export function macosRefusedFolders(): string[] {
 }
 
 /**
+ * The folders macOS guards that it has answered for, allowed or refused:
+ * reading inside one raises no prompt, since macOS asks once.
+ */
+export function macosAnsweredFolders(): string[] {
+  return [...folderAnswers.keys()];
+}
+
+/**
  * The card a folder macOS refused takes: one the person can open from the
  * card, or one only Full Disk Access opens (Mail's or Messages' folder, an
  * app's container), which Instrument never asks for, so its card offers no

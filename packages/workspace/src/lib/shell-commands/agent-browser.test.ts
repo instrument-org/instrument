@@ -1552,6 +1552,34 @@ describe("agent-browser routing", () => {
     });
   });
 
+  it("hands its own snapshot to the call to fold, and prints it as the CLI did", async () => {
+    const printed = [
+      '- combobox "Size" [expanded=false, ref=e1]: Medium',
+      '  - option "Small" [ref=e3]',
+      '  - option "Medium" [selected, ref=e4]',
+      '  - option "Large" [ref=e5]',
+      '  - option "Extra large" [ref=e6]',
+      "",
+    ].join("\n");
+    await answerAgentBrowser(() => ({
+      exitCode: 0,
+      stderr: "",
+      stdout: printed,
+    }));
+    const followUp = new BrowserFollowUp();
+
+    const result = await withBrowserFollowUp(followUp, () =>
+      command.execute(["snapshot", "-i"], commandCtx),
+    );
+
+    expect(result.stdout).toBe(printed);
+    expect(followUp.foldOwnSnapshots(printed)).toMatchInlineSnapshot(`
+      "- combobox "Size" [expanded=false, ref=e1]: Medium
+        - 4 options, chosen with \`select @e1 <name>\`: "Small", "Medium" [selected], "Large", "Extra large"
+      "
+    `);
+  });
+
   it("records a failed command and the line it gave for failing", async () => {
     await answerAgentBrowser((given) =>
       given.includes("click")

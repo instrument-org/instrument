@@ -4,9 +4,12 @@ import {
   isDrivenByWorkingAgent,
   isPageWork,
 } from "@instrument-org/workspace/electron";
+import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 import { noop } from "radashi";
 
 import type { BrowserEntry } from "./entry";
+
+import { emulationScaleOf } from "./device-emulation";
 
 /**
  * The agent's pointer: a dart drawn in the page where an agent works, so the
@@ -22,6 +25,11 @@ import type { BrowserEntry } from "./entry";
  * or full-screen element does not cover it. Being part of the page, it is in
  * every picture taken of the page except the agent's own screenshots, which
  * hide it while they are taken.
+ *
+ * A page's own zoom scales everything drawn in it, so each act carries the
+ * size to draw the pointer at (`pointerSize`), which keeps it one size on
+ * screen whatever the page's zoom: the app's size for it, as the app's own
+ * chrome is.
  */
 
 /** The isolated world the pointer runs in, one no other script of the app uses. */
@@ -47,7 +55,7 @@ type Act =
   | ({ kind: "move" | "press" | "release" } & Point)
   | ({ kind: "restore" } & Point)
   | ({ kind: "scroll"; dy: number } & Partial<Point>)
-  | { kind: "here" | "hide" | "leave" | "type" | "unhide" };
+  | { kind: "here" | "hide" | "leave" | "size" | "type" | "unhide" };
 
 type Queued = { act: Act; done: () => void };
 
@@ -60,6 +68,8 @@ type PointerState = {
   queue: Queued[];
   /** Whether an act is on its way to the page, so the next waits rather than racing it. */
   sending: boolean;
+  /** The size the page last drew the pointer at; undefined until an act has gone to it. */
+  size: number | undefined;
   watch: ReturnType<typeof setInterval> | undefined;
 };
 
@@ -73,6 +83,7 @@ function stateOf(entry: BrowserEntry): PointerState {
       present: false,
       queue: [],
       sending: false,
+      size: undefined,
       watch: undefined,
     };
     pointers.set(entry, state);
@@ -190,6 +201,16 @@ async function stillDriven(entry: BrowserEntry, state: PointerState) {
     !wc.isDestroyed() &&
     // A tab whose drivers cannot be read keeps its pointer until they can.
     (await isDrivenByWorkingAgent(entry.targetId).catch(() => true));
+  if (
+    driven &&
+    state.present &&
+    wc &&
+    pointerSizeIn(entry, wc) !== state.size
+  ) {
+    // The page's zoom or the app's changed under a pointer at rest, which no
+    // act of the agent's would resize until its next.
+    void send(entry, state, { kind: "size" });
+  }
   if (driven || !state.present) {
     return;
   }
@@ -271,7 +292,8 @@ async function drain(entry: BrowserEntry, state: PointerState) {
       }
       const wc = entry.webContents;
       if (wc && !wc.isDestroyed()) {
-        await applyInPage(wc, next.act);
+        state.size = pointerSizeIn(entry, wc);
+        await applyInPage(wc, next.act, state.size);
       }
       next.done();
     }
@@ -280,9 +302,41 @@ async function drain(entry: BrowserEntry, state: PointerState) {
   }
 }
 
-/** Applies an act in the page, installing the pointer first in a document that has none. */
-async function applyInPage(wc: WebContents, act: Act): Promise<void> {
-  const payload = JSON.stringify(act);
+/**
+ * How many of a page's px one px of the pointer takes, for a pointer that is
+ * the same size on screen whatever scales its page. The page's zoom and the
+ * scale a device preview draws it at both shrink or grow what is drawn in
+ * it, so the pointer is drawn at their inverse; the app's UI zoom scales it
+ * with the app's own chrome. 1 for a factor that is not a scale.
+ */
+export function pointerSize({
+  appZoom,
+  emulationScale,
+  pageZoom,
+}: {
+  appZoom: number;
+  emulationScale: number;
+  pageZoom: number;
+}): number {
+  const size = appZoom / (pageZoom * emulationScale);
+  return Number.isFinite(size) && size > 0 ? Math.round(size * 1e4) / 1e4 : 1;
+}
+
+function pointerSizeIn(entry: BrowserEntry, wc: WebContents): number {
+  return pointerSize({
+    appZoom: getAppZoom(),
+    emulationScale: emulationScaleOf(entry),
+    pageZoom: wc.getZoomFactor(),
+  });
+}
+
+/** Applies an act in the page at a pointer size, installing the pointer first in a document that has none. */
+async function applyInPage(
+  wc: WebContents,
+  act: Act,
+  size: number,
+): Promise<void> {
+  const payload = `${JSON.stringify(act)}, ${size}`;
   const timeoutMs = act.kind === "move" ? GLIDE_WAIT_MS : PAGE_TIMEOUT_MS;
   const answer = await runInPage(
     wc,
@@ -294,6 +348,7 @@ async function applyInPage(wc: WebContents, act: Act): Promise<void> {
     answer === MISSING &&
     act.kind !== "leave" &&
     act.kind !== "hide" &&
+    act.kind !== "size" &&
     act.kind !== "unhide"
   ) {
     await runInPage(
@@ -424,6 +479,11 @@ const POINTER_SOURCE = String.raw`function (config) {
     opacity: "0",
     "will-change": "transform, opacity",
   });
+  // The sized box scales the dart and its tag about the tip, to the size main
+  // asks for: s.size page px to each px of the pointer's own, which its
+  // lengths and the distances its motion goes by are in.
+  const sized = document.createElement("div");
+  set(sized, { position: "absolute", left: "0", top: "0", "transform-origin": "0 0" });
   const pose = document.createElement("div");
   set(pose, { position: "absolute", left: "0", top: "0", "transform-origin": "0 0" });
   const breath = document.createElement("div");
@@ -476,7 +536,8 @@ const POINTER_SOURCE = String.raw`function (config) {
     opacity: "0",
     transition: "opacity 320ms ease",
   });
-  body.append(pose, tag);
+  sized.append(pose, tag);
+  body.append(sized);
   root.append(ring, body);
   document.documentElement.append(host);
 
@@ -491,6 +552,7 @@ const POINTER_SOURCE = String.raw`function (config) {
     flight: null,
     side: 1,
     lean: 0,
+    size: 1,
     scale: 1,
     scaleV: 0,
     pressed: false,
@@ -535,8 +597,8 @@ const POINTER_SOURCE = String.raw`function (config) {
   // the tip, where it is not cut off.
   const placeTag = () => {
     const view = document.documentElement;
-    const right = s.x + TAG_X + s.tagW + 2 > (view.clientWidth || innerWidth);
-    const below = s.y + TAG_Y + s.tagH + 2 > (view.clientHeight || innerHeight);
+    const right = s.x + (TAG_X + s.tagW + 2) * s.size > (view.clientWidth || innerWidth);
+    const below = s.y + (TAG_Y + s.tagH + 2) * s.size > (view.clientHeight || innerHeight);
     const flip = (right ? "r" : "") + (below ? "b" : "");
     if (flip === s.flip) return;
     s.flip = flip;
@@ -568,7 +630,7 @@ const POINTER_SOURCE = String.raw`function (config) {
       }
     }
     // The dart leans into its travel and rights itself as it lands.
-    const vx = (s.x - s.prevX) / dt;
+    const vx = (s.x - s.prevX) / s.size / dt;
     s.prevX = s.x;
     s.lean += (9 * Math.tanh(vx / 1.8) - s.lean) * (1 - Math.exp(-dt / 70));
     // Springs: the press squeezes the dart and lets it bounce back; a scroll
@@ -579,7 +641,7 @@ const POINTER_SOURCE = String.raw`function (config) {
     s.scale += s.scaleV * t;
     s.nudgeV += (-300 * s.nudge - 21 * s.nudgeV) * t;
     s.nudge += s.nudgeV * t;
-    body.style.transform = "translate(" + s.x + "px, " + (s.y + s.nudge) + "px)";
+    body.style.transform = "translate(" + s.x + "px, " + (s.y + s.nudge * s.size) + "px)";
     pose.style.transform = "rotate(" + s.lean + "deg) scale(" + s.scale + ")";
     placeTag();
     const settled =
@@ -598,17 +660,26 @@ const POINTER_SOURCE = String.raw`function (config) {
   const wake = () => {
     if (!s.raf) s.raf = requestAnimationFrame(frame);
   };
+  const resize = (size) => {
+    if (!(size > 0) || size === s.size) return;
+    s.size = size;
+    sized.style.transform = "scale(" + size + ")";
+    s.flip = "";
+    if (s.shown) wake();
+  };
 
   // Glides from where the dart is to a point on a curve that bows to one side,
   // alternating, in a time that grows with the distance as a hand's does,
-  // overshooting a little and settling back. Resolves on arrival.
+  // overshooting a little and settling back. Resolves on arrival. The time,
+  // the bow and the overshoot go by the distance in the pointer's px.
   const fly = (x, y, idle) =>
     new Promise((resolve) => {
       if (s.flight) s.flight.resolve();
       const dx = x - s.x;
       const dy = y - s.y;
       const d = Math.hypot(dx, dy);
-      if (d < 3 || still() || document.hidden) {
+      const far = d / s.size;
+      if (far < 3 || still() || document.hidden) {
         s.flight = null;
         s.x = x;
         s.y = y;
@@ -616,12 +687,12 @@ const POINTER_SOURCE = String.raw`function (config) {
         resolve();
         return;
       }
-      const dur = idle ? 1000 + Math.random() * 500 : clamp(80 + 70 * Math.log2(d / 24 + 1), 140, 380);
+      const dur = idle ? 1000 + Math.random() * 500 : clamp(80 + 70 * Math.log2(far / 24 + 1), 140, 380);
       s.side = -s.side;
       const nx = -dy / d;
       const ny = dx / d;
-      const bow = (idle ? 0.3 : 1) * Math.min(0.1 * d, 30) * smooth(30, 160, d) * s.side;
-      const over = idle ? 0 : Math.min(0.03 * d, 4);
+      const bow = (idle ? 0.3 : 1) * Math.min(0.1 * far, 30) * smooth(30, 160, far) * s.side * s.size;
+      const over = idle ? 0 : Math.min(0.03 * far, 4) * s.size;
       const ox = x + (dx / d) * over;
       const oy = y + (dy / d) * over;
       const flight = {
@@ -666,7 +737,7 @@ const POINTER_SOURCE = String.raw`function (config) {
         );
       }
       const angle = Math.random() * Math.PI * 2;
-      const reach = 4 + Math.random() * 8;
+      const reach = (4 + Math.random() * 8) * s.size;
       void fly(s.anchor.x + Math.cos(angle) * reach, s.anchor.y + Math.sin(angle) * reach, true);
     }
     s.idle = setTimeout(idleStep, 2400 + Math.random() * 1800);
@@ -726,8 +797,8 @@ const POINTER_SOURCE = String.raw`function (config) {
     ring.style.top = y + "px";
     ring.animate(
       [
-        { opacity: 0.9, transform: "scale(0.3)" },
-        { opacity: 0, transform: "scale(1.6)" },
+        { opacity: 0.9, transform: "scale(" + 0.3 * s.size + ")" },
+        { opacity: 0, transform: "scale(" + 1.6 * s.size + ")" },
       ],
       { duration: 480, easing: "cubic-bezier(0.2, 0, 0, 1)" },
     );
@@ -749,8 +820,11 @@ const POINTER_SOURCE = String.raw`function (config) {
   };
 
   const api = {
-    apply(act) {
+    apply(act, size) {
+      resize(size);
       switch (act.kind) {
+        case "size":
+          return;
         case "here":
           if (!s.shown || s.leaving) show(center(), true);
           return;
@@ -771,7 +845,7 @@ const POINTER_SOURCE = String.raw`function (config) {
           s.anchor = { x: act.x, y: act.y };
           // A press away from the move before it, as one re-aimed into a
           // wrapped link's first line, takes the dart with it.
-          if (Math.hypot(act.x - s.x, act.y - s.y) > 3) void fly(act.x, act.y, false);
+          if (Math.hypot(act.x - s.x, act.y - s.y) > 3 * s.size) void fly(act.x, act.y, false);
           raise();
           pulse(act.x, act.y);
           verb("Clicking");
@@ -790,7 +864,7 @@ const POINTER_SOURCE = String.raw`function (config) {
           const at = typeof act.x === "number" ? act : null;
           if (!s.shown || s.leaving) show(at || center(), true);
           verb("Scrolling");
-          if (at && Math.hypot(at.x - s.x, at.y - s.y) > 40) {
+          if (at && Math.hypot(at.x - s.x, at.y - s.y) > 40 * s.size) {
             s.anchor = { x: at.x, y: at.y };
             void fly(at.x, at.y, false);
           }
@@ -801,11 +875,11 @@ const POINTER_SOURCE = String.raw`function (config) {
         }
         case "type": {
           const r = focused();
-          if (!s.shown || s.leaving) show(r ? { x: r.left + 16, y: r.top + r.height / 2 } : center(), true);
+          if (!s.shown || s.leaving) show(r ? { x: r.left + 16 * s.size, y: r.top + r.height / 2 } : center(), true);
           verb("Typing");
           if (r && !(s.x >= r.left && s.x <= r.right && s.y >= r.top && s.y <= r.bottom)) {
-            const x = r.left + Math.min(r.width / 2, Math.max(14, r.width * 0.15));
-            const y = r.top + Math.min(r.height / 2, 18);
+            const x = r.left + Math.min(r.width / 2, Math.max(14 * s.size, r.width * 0.15));
+            const y = r.top + Math.min(r.height / 2, 18 * s.size);
             s.anchor = { x, y };
             void fly(x, y, false);
           }

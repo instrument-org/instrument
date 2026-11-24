@@ -1397,6 +1397,9 @@ export function createAgentBrowserCommand({
         currentBrowserFollowUp()?.noteScreenshot(saved);
         screenshotNote = await cutScreenshotNote(saved);
       }
+      if (exitCode === 0) {
+        followUp?.noteOwnSnapshot(resolvedArgs, scrub(result.stdout));
+      }
       followUp?.note({
         args: resolvedArgs,
         ...(before ? { before } : {}),

@@ -24,6 +24,11 @@ import {
 } from "./guest-surface";
 import { log } from "./log";
 
+// The agent's pointer reads the app's zoom, which is kept in the workspace.
+vi.mock("@/electron-main/stores/workspace/window-state", () => ({
+  getAppZoom: () => 1,
+}));
+
 const TARGET_ID = browserTargetOf(StoreId.newTabId());
 const OTHER_TARGET_ID = browserTargetOf(StoreId.newTabId());
 const HOST_ID = 7;
@@ -38,6 +43,7 @@ interface FakeWebContents {
   debugger: FakeDebugger;
   executeJavaScript: Mock<(code: string) => Promise<unknown>>;
   executeJavaScriptInIsolatedWorld: ReturnType<typeof vi.fn>;
+  getZoomFactor: () => number;
   hostWebContents?: {
     capturePage: ReturnType<typeof vi.fn>;
     executeJavaScript: Mock<(code: string) => Promise<unknown>>;
@@ -91,6 +97,7 @@ function makeEntry({
         }),
         // Nothing in the isolated world (the agent's pointer) answers.
         executeJavaScriptInIsolatedWorld: vi.fn().mockResolvedValue(undefined),
+        getZoomFactor: () => 1,
         // The window's renderer, which answers whether the guest holds the
         // keyboard.
         hostWebContents: {

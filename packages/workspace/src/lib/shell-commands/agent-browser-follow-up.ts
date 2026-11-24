@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 
 import { parseAgentBrowserArgs } from "./agent-browser-args";
+import { foldSnapshotText } from "./agent-browser-snapshot-fold";
 
 /**
  * The page snapshot a bash call ends with when its agent-browser commands left
@@ -727,6 +728,48 @@ export class BrowserFollowUp {
     return { failed, more: failed.length > 0 ? more : 0 };
   }
 
+  /**
+   * The snapshots the call's own `snapshot` commands printed that have a
+   * closed select to fold, each as printed and as folded.
+   */
+  #ownSnapshots: { folded: string; printed: string }[] = [];
+
+  /**
+   * Records what a `snapshot` command of the agent's own printed, for
+   * {@link foldOwnSnapshots}. One asked for as `--json` is left out, as is
+   * one the fold leaves as it is: a snapshot without `-i`, whose lines of
+   * page text have no ref, a delta, and a page with no closed select.
+   */
+  noteOwnSnapshot(args: string[], stdout: string) {
+    if (
+      parseAgentBrowserArgs(args).subcommand !== "snapshot" ||
+      args.some((arg) => arg === "--json" || arg.startsWith("--json="))
+    ) {
+      return;
+    }
+    const printed = stdout.replace(/\n+$/, "");
+    const folded = foldSnapshotText(printed);
+    if (folded !== printed) {
+      this.#ownSnapshots.push({ folded, printed });
+    }
+  }
+
+  /**
+   * The call's output with each of its own snapshots that is in it whole, as
+   * the CLI printed it, folded ({@link foldSnapshotText}). The command's own
+   * output is never changed, so a pipe, a file or a variable it went to has
+   * the CLI's text, and so does the call's output when what read it printed
+   * something else (`rg`, `head`, `jq`). Once.
+   */
+  foldOwnSnapshots(output: string): string {
+    const snapshots = this.#ownSnapshots;
+    this.#ownSnapshots = [];
+    return snapshots.reduce(
+      (text, { folded, printed }) => text.replaceAll(printed, () => folded),
+      output,
+    );
+  }
+
   #screenshot: string | undefined;
 
   /**
@@ -897,7 +940,9 @@ const DeltaSchema = z.object({
  * (once as a ref operation, once as a tree line). Only the tree lines and the
  * removed refs are kept, the removed refs first, since they are ours to state
  * and the element names in the tree lines are the page's text. Anything that
- * does not parse as a delta is read as a full snapshot rather than dropped.
+ * does not parse as a delta is read as a full snapshot rather than dropped,
+ * with the options of each closed select folded into a line
+ * ({@link foldSnapshotText}).
  */
 export function parseFollowUpSnapshot(
   output: string,
@@ -960,8 +1005,11 @@ export function parseFollowUpSnapshot(
       };
     }
   }
-  const kept = withinBudget(body, FULL_SNAPSHOT_CHAR_BUDGET);
-  const omittedLines = body.length - kept.length;
+  // Folded ahead of the cut, so the lines a closed select's options took go
+  // to the controls after it.
+  const lines = foldSnapshotText(body.join("\n")).split("\n");
+  const kept = withinBudget(lines, FULL_SNAPSHOT_CHAR_BUDGET);
+  const omittedLines = lines.length - kept.length;
   return {
     after,
     kind: "full",

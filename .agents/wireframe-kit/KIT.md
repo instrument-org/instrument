@@ -9,9 +9,9 @@ The pieces of Studio, for drawing a proposed flow with the `wireframe` skill. Th
 A page is a part of frames, written as the skill's `SKILL.md` describes (`meta()`, then one `frame()` per frame, helpers just above the first frame that uses them), with the kit's functions in scope. Build it with the kit's build, then check it:
 
 ```bash
-node .agents/wireframe-kit/build.mjs ~/wireframes/parts/YYYY-MM-DD-<surface>-<variant>.frames.html ~/wireframes/YYYY-MM-DD-<surface>-<variant>.html
-node .agents/wireframe-kit/check.mjs ~/wireframes/YYYY-MM-DD-<surface>-<variant>.html            # one picture of the grid, marks on, to the temp folder
-node .agents/wireframe-kit/check.mjs ~/wireframes/YYYY-MM-DD-<surface>-<variant>.html --frame 3  # frame 3 alone at true size
+node .agents/wireframe-kit/build.mjs <part>.frames.html <page>.html
+node .agents/wireframe-kit/check.mjs <page>.html            # one picture of the grid, marks on, to the temp folder
+node .agents/wireframe-kit/check.mjs <page>.html --frame 3  # frame 3 alone at true size
 ```
 
 - The build runs every block in Node first and prints a FAIL line with the part's line for a block that fails, a frame that draws `undefined` or `NaN`, a field the page doesn't read, an empty callout, and a color class the skin lacks. The page is written either way, with an error tile where a frame failed. `RAW=3` or `RAW=all` also writes frames alone at true size to the temp folder.
@@ -26,7 +26,7 @@ A part may define a helper under any kit name (`row`, `card`, `W`); only `meta` 
 - **The baseline**, [`baseline.js`](baseline.js): one frame per surface as it stands (the chat list, window tabs, Files, Browser, New tab, ⌘K, Apps, Settings, Send feedback, the chat and its cards, the docked draft, the floating chat, the model picker, setup, and the Mac around the window). Build it and look before a round, then copy the nearest frame's object into your `frame(...)` and change only what the proposal argues about:
 
 ```bash
-node .agents/wireframe-kit/build.mjs .agents/wireframe-kit/baseline.js ~/wireframes/kit-baseline.html
+node .agents/wireframe-kit/build.mjs .agents/wireframe-kit/baseline.js <page>.html
 ```
 
 - **The pieces**, for what neither has: `win`, `card` and `composer` in Studio's look, plus the skill's `bar`, `chip`, `pill`, `crop` and `box` (REFERENCE.md, "Pieces").
@@ -58,7 +58,7 @@ A page about how two surfaces share the screen names both of them (_Page and cha
 
 ## Where the files go
 
-Wireframes are working artifacts, not history: write them outside the repository, wherever your own setup keeps pages, and never commit one. A decision a wireframe settled belongs in the plan's prose or a decision record. Only finished pages sit at the top level of that folder (`~/wireframes` above): a part lives in its `parts/` folder under the page's name, and anything made on the way (a screenshot, the frames `RAW` writes) goes in your scratch or temp folder.
+Wireframes are working artifacts, not history: write them outside the repository, wherever your own setup keeps pages, and never commit one. A decision a wireframe settled belongs in the plan's prose or a decision record. Keep a part where you can find it again from its page, and anything made on the way (a screenshot, the frames `RAW` writes) in your scratch or temp folder.
 
 ## When you need more
 

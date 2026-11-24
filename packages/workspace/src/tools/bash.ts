@@ -563,7 +563,11 @@ const bashCapability = defineCapability({
 
         await settleFacts(outcome.output);
 
-        const { truncated } = truncateMiddle(outcome.output);
+        // What the model reads of a snapshot the call printed whole has its
+        // closed selects folded, as the snapshot a call ends with does.
+        const output = browserFollowUp.foldOwnSnapshots(outcome.output);
+
+        const { truncated } = truncateMiddle(output);
 
         let spillFilePath: undefined | z.output<typeof RelativePathSchema>;
         if (truncated) {
@@ -572,7 +576,7 @@ const bashCapability = defineCapability({
           );
           const absPath = absolutePathJoin(workDir(chatId), spillFilePath);
           await fs.mkdir(path.dirname(absPath), { recursive: true });
-          await fs.writeFile(absPath, outcome.output, {
+          await fs.writeFile(absPath, output, {
             encoding: "utf8",
             signal,
           });
@@ -616,7 +620,7 @@ const bashCapability = defineCapability({
           ...(handOffs.length > 0 ? { handOffs } : {}),
           ...(asks.length > 0 ? { asks } : {}),
           omittedBytes: 0,
-          output: outcome.output,
+          output,
           ...(pageAfter ? { pageAfter } : {}),
           ...ran(),
           ...(outcome.exitCode !== 0 && stderr ? { stderr } : {}),

@@ -5,8 +5,8 @@ A part that defines `META` and `SCREEN` (`{ w, h, draw, controls }`, the skill's
 [`replay/`](replay/) plays a chat back from its records in a design under exploration, as such a prototype with a scrubber under it. The point is to draw a design against real chats, with their real pauses, long runs of steps, tasks and failures, rather than against made-up ones:
 
 ```bash
-node .agents/wireframe-kit/replay/build-replay.mjs <chat-records-dir> ~/wireframes/YYYY-MM-DD-chat-replay-<what>.html \
-  --design ~/wireframes/parts/<the design's part>.js --title "Chat replay: <what>" --chat "<the chat's title>" [--pictures | --icons]
+node .agents/wireframe-kit/replay/build-replay.mjs <chat-records-dir> <page>.html \
+  --design <the design's part>.js --title "Chat replay: <what>" --chat "<the chat's title>" [--pictures | --icons]
 ```
 
 - `<chat-records-dir>` is a chat's `.instrument/chats/<id>/` folder, with its tasks' logs beside its own. An eval keeps one per chat in its run's workspace, a temp folder the system clears in time, so copy the workspace out if the run is worth replaying later.

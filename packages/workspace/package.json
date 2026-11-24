@@ -40,6 +40,7 @@
     "script:dump-session-transcript": "tsx scripts/dump-session-transcript.ts",
     "script:dump-sessions": "tsx scripts/dump-sessions.ts",
     "script:flicker-inventory": "tsx scripts/flicker-inventory.ts",
+    "script:measure-snapshot-fold": "tsx scripts/measure-snapshot-fold.ts",
     "script:probe-app-directory": "tsx scripts/probe-app-directory.ts",
     "script:query-chat-db": "tsx scripts/query-chat-db.ts",
     "script:record-fixture-session": "tsx scripts/record-fixture-session.ts",

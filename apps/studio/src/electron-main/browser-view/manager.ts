@@ -84,6 +84,12 @@ import { noteFrameSession } from "./keyboard-without-focus";
 import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
 import { isCapturing } from "./page-capture";
+import {
+  isEdited,
+  isTypedCharacter,
+  notePersonEdit,
+  typedIntoFrame,
+} from "./page-edits";
 import { createPutAwaySound } from "./put-away-sound";
 import { stopScreencast } from "./screencast";
 import {
@@ -622,6 +628,20 @@ function createBrowserViewManager(): BrowserViewManager {
     guest.on("focus", () => {
       focusGuard.onGuestFocus(targetId);
     });
+    // A character typed while a frame below the main one has the keyboard.
+    // Heard before the key is dispatched, since a frame in a process of its
+    // own raises no `input-event` here.
+    guest.on("before-input-event", (_event, input) => {
+      const record = guests.get(guest.id);
+      if (
+        record &&
+        isTypedCharacter(input) &&
+        !focusGuard.isGuarded(targetId) &&
+        typedIntoFrame(guest)
+      ) {
+        notePersonEdit(record, "frame");
+      }
+    });
     guest.on("input-event", (_event, input) => {
       const record = guests.get(guest.id);
       if (record && input.type === "mouseWheel") {
@@ -882,8 +902,8 @@ function createBrowserViewManager(): BrowserViewManager {
       if (isDrivenInstance()) {
         webPreferences.backgroundThrottling = false;
       }
-      // Inert on every page but a file being edited in place, where it hands
-      // the editor to the guest's isolated world; see page-editor/sessions.ts.
+      // Every guest's preload. On a file being edited in place it hands the
+      // editor to the guest's isolated world; see page-editor/sessions.ts.
       webPreferences.preload = pageEditorPreloadPath();
 
       pendingAttachQueue.push(entry);
@@ -1243,6 +1263,7 @@ function createBrowserViewManager(): BrowserViewManager {
     },
     guestCost: (targetId) => guestCost(entries, targetId),
     isGuestAsleep: (targetId) => entries.get(targetId)?.asleep ?? false,
+    isGuestEdited: (targetId) => isEdited(liveGuestOf(targetId)),
     personInputAt: (targetId) => {
       const guestId = entries.get(targetId)?.webContents?.id;
       const record = guestId === undefined ? undefined : guests.get(guestId);

@@ -28,6 +28,7 @@ function makeBrowser() {
   const busy = new Set<BrowserTargetId>();
   const closed: BrowserTargetId[] = [];
   const asleep = new Set<BrowserTargetId>();
+  const edited = new Set<BrowserTargetId>();
   const slept: BrowserTargetId[] = [];
   const browser: BrowserConfig = {
     closeTarget: () => Promise.resolve(),
@@ -45,6 +46,7 @@ function makeBrowser() {
     isGuestAsleep: (targetId) => asleep.has(targetId),
     personInputAt: () => undefined,
     isGuestBusy: (targetId) => busy.has(targetId),
+    isGuestEdited: (targetId) => edited.has(targetId),
     listTargets: () => Promise.resolve([]),
     loadPage: () => Promise.resolve(),
     onTargetDestroyed: (targetId, listener) => {
@@ -67,6 +69,7 @@ function makeBrowser() {
     browser,
     busy,
     closed,
+    edited,
     slept,
     /** The guest goes on its own: its tab closed, or its renderer crashed. */
     destroy: (targetId: BrowserTargetId) => destroyed.get(targetId)?.(),
@@ -215,6 +218,24 @@ describe("windowBrowserLogic", () => {
     expect(closed).toEqual([]);
 
     busy.delete(page);
+    await pass(DISCARD_CHECK_MS);
+    expect(closed).toEqual([page]);
+  });
+
+  it("keeps a page a person entered something into, asleep, until it loads another document", async () => {
+    const { closed, edited, send, slept } = start();
+    const page = tab();
+    send("acquireVisible", page);
+    send("registerTarget", page);
+    edited.add(page);
+    send("releaseVisible", page);
+
+    await pass(SEEN_TAB_DISCARD_MS * 3);
+    expect(closed).toEqual([]);
+    expect(slept).toContain(page);
+    expect(tabLifetime(page)?.unloadsInMs).toBeNull();
+
+    edited.delete(page);
     await pass(DISCARD_CHECK_MS);
     expect(closed).toEqual([page]);
   });

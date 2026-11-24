@@ -55,6 +55,12 @@ export type PageRemoteMessage =
  */
 export const PAGE_CAPTURE_CHANNEL = "page-capture";
 
+/**
+ * A field of the page was changed by real input, from the guest's preload to
+ * main, with nothing on it.
+ */
+export const PAGE_EDIT_CHANNEL = "page-edit";
+
 /** From main to the guest's preload: end every track the page is capturing. */
 export const PAGE_CAPTURE_STOP_CHANNEL = "page-capture:stop";
 

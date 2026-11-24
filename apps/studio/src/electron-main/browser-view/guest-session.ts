@@ -25,6 +25,7 @@ import {
   listenForPageCapture,
   originOf,
 } from "./page-capture";
+import { listenForPageEdits } from "./page-edits";
 import { refusePasskeys } from "./passkey-policy";
 import {
   confineLocalPagesToTheirFolder,
@@ -193,6 +194,7 @@ export function configureGuestSession(profileDir: string): Session {
   routeGuestDownloads(guestSession, guests);
   enableBrowserExtensions(guestSession, extensionsDirOf(profileDir));
   listenForPageCapture();
+  listenForPageEdits();
   return guestSession;
 }
 

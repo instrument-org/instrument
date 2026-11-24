@@ -1,6 +1,6 @@
 # One owner for every tab
 
-Status: open. The back history of a discarded page and the table of where opens land are done. Nothing of the service is built.
+Status: open. The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done. Nothing of the service is built.
 
 ## Problem
 
@@ -43,7 +43,21 @@ A command that no longer applies (a tab closed under it) does nothing, and the w
 
 ### What lives and for how long
 
-One list of tabs by last use and one budget, sized from the computer's memory, for pages and screens alike. A tab on screen, playing sound, capturing, loading, with an agent working in it, or with unsaved input is never put away; where unsaved input cannot be read, it counts as there. The rest go oldest first past the budget, and sooner under memory pressure. A page put away keeps its address and what was behind it.
+One list of tabs by last use and one budget, sized from the computer's memory, for pages and screens alike. The rest go oldest first past the budget, and sooner under memory pressure. A page put away keeps its address and what was behind it.
+
+A tab is never put away for the reasons a browser built on Chromium keeps one, each read from the tab rather than guessed. The discard clocks there are today keep all of them, so the budget takes the list as it stands:
+
+| Kept while | Read from |
+| --- | --- |
+| On screen | What each window draws |
+| Playing sound, downloading, or open in DevTools | The guest |
+| In a call on the microphone or camera | The page's own tracks, told by its preload |
+| An agent is working in it | Its commands and its turn |
+| A person entered something since the page loaded | A real `input` in a field, told by its preload, and a field the browser filled again on Back or a reload. A character typed into a frame below the main one counts, since nothing says where it landed |
+
+A key pressed in a page is not on the list: nearly every page a person has looked at has had one, and a budget that kept them all would put nothing away.
+
+Chromium's other reasons are left out. A page here is given no USB or Bluetooth device and no notifications, so it holds neither. A PDF comes back at its start, which loses a place and nothing entered. A list of sites to always keep is a setting, to add when someone asks for it.
 
 ### What stays
 

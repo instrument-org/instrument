@@ -83,8 +83,15 @@ export interface BrowserConfig {
   /** Whether the guest is asleep (`sleepGuest`), until a command or the window showing it wakes it. */
   isGuestAsleep: (targetId: BrowserTargetId) => boolean;
   /**
+   * Whether a person entered something into the guest's page since it
+   * loaded: typed, pasted, dictated or picked. Unloading the page would lose
+   * it, so such a page keeps its guest out of sight, asleep.
+   */
+  isGuestEdited: (targetId: BrowserTargetId) => boolean;
+  /**
    * Whether the guest is in the middle of something its page cannot get
-   * back after a reload: playing sound, downloading, or open in DevTools.
+   * back after a reload: playing sound, downloading, in a call on the
+   * microphone or camera, or open in DevTools.
    */
   isGuestBusy: (targetId: BrowserTargetId) => boolean;
   listTargets: () => Promise<BrowserTarget[]>;

@@ -109,6 +109,70 @@ describe("createGuestRegistry", () => {
     expect(registry.entryOf(contents.id)).toBeUndefined();
   });
 
+  it("forgets what a person entered once the page loads another document, and only then", () => {
+    const registry = createGuestRegistry();
+    const contents = contentsIn({});
+    const record = registry.track(
+      contents as unknown as WebContents,
+      "webview",
+    );
+    record.edited = true;
+
+    commit(contents, 2, "https://example.com/frame");
+    contents.emit("did-navigate-in-page", {}, "https://example.com/#a", true);
+    expect(record.edited).toBe(true);
+
+    contents.emit(
+      "did-frame-navigate",
+      {},
+      "https://example.com/b",
+      200,
+      "",
+      true,
+      4,
+      1,
+    );
+    expect(record.edited).toBe(false);
+  });
+
+  it("forgets it when a load fails onto an error page, and keeps it when a load is called off", () => {
+    const registry = createGuestRegistry();
+    const contents = contentsIn({});
+    const record = registry.track(
+      contents as unknown as WebContents,
+      "webview",
+    );
+    record.edited = true;
+
+    contents.emit(
+      "did-fail-load",
+      {},
+      -3,
+      "ERR_ABORTED",
+      "https://a.test",
+      true,
+    );
+    contents.emit(
+      "did-fail-load",
+      {},
+      -105,
+      "ERR_NAME",
+      "https://a.test",
+      false,
+    );
+    expect(record.edited).toBe(true);
+
+    contents.emit(
+      "did-fail-load",
+      {},
+      -105,
+      "ERR_NAME",
+      "https://a.test",
+      true,
+    );
+    expect(record.edited).toBe(false);
+  });
+
   it("exempts the guests of the tabs an agent names from ad blocking, and only while it asks", () => {
     const registry = createGuestRegistry();
     const contents = contentsIn({});

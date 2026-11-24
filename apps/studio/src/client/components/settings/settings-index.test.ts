@@ -184,8 +184,8 @@ describe("settingsTargetOf", () => {
         "release-notes": {
           "kind": "row",
           "mark": "version",
-          "path": "Settings › General › What's new",
-          "tab": "General",
+          "path": "Settings › About › What's new",
+          "tab": "About",
         },
         "text-size": {
           "kind": "search",

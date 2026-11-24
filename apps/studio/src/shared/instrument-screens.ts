@@ -80,14 +80,17 @@ export const isScreenName = (name: string): name is ScreenName =>
  */
 export const SETTINGS_SECTIONS = {
   general: "General",
+  dictation: "Dictation",
   account: "Account",
   providers: "Providers",
   apps: "Apps",
   memory: "Memory",
-  permissions: "Permissions",
   skills: "Skills",
-  storage: "Storage",
+  permissions: "Permissions",
   activity: "History",
+  storage: "Storage",
+  support: "Support",
+  about: "About",
   developer: "Developer",
 } as const;
 

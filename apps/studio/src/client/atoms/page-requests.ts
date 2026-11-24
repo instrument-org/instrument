@@ -2,16 +2,19 @@ import { resetStudioModals } from "@/client/atoms/studio-modal";
 import { atom, getDefaultStore } from "jotai";
 
 export type SettingsTab =
+  | "About"
   | "Account"
   | "Activity"
   | "Apps"
   | "Developer"
+  | "Dictation"
   | "General"
   | "Memory"
   | "Permissions"
   | "Providers"
   | "Skills"
-  | "Storage";
+  | "Storage"
+  | "Support";
 
 /**
  * Where Settings opens: a part of it, a row a link names, and what the part
@@ -21,7 +24,7 @@ export type SettingsTab =
 export interface SettingsRequest {
   /** Expand the account's usage panel on the Providers tab. */
   providerUsage?: "claude-account";
-  /** Open the General tab's diagnostic log viewer over Settings. */
+  /** Open the Support tab's diagnostic log viewer over Settings. */
   diagnosticLog?: boolean;
   /** A memory a link named, by its name, which the Memory page says is gone when no file has it. */
   memory?: string;

@@ -72,37 +72,37 @@ export const SETTINGS_INDEX = [
   {
     detail: "Pick the microphone you dictate into.",
     id: "dictation-microphone",
-    tab: "General",
+    tab: "Dictation",
     title: "Dictation microphone",
   },
   {
     detail: "Pick the language you speak, or let dictation detect it.",
     id: "dictation-language",
-    tab: "General",
+    tab: "Dictation",
     title: "Dictation language",
   },
   {
     detail: "A sound when dictation starts and stops.",
     id: "dictation-sounds",
-    tab: "General",
+    tab: "Dictation",
     title: "Dictation sounds",
   },
   {
     detail: `Whether your computer lets ${APP_NAME} use the microphone.`,
     id: "microphone-access",
-    tab: "General",
+    tab: "Dictation",
     title: "Microphone access",
   },
   {
     detail: `Which version of ${APP_NAME} you have, and updates`,
     id: "version",
-    tab: "General",
+    tab: "About",
     title: "Version and updates",
   },
   {
-    detail: "View the source, or tell us about something that isn't working.",
+    detail: "View the source, and the licenses of what it ships with.",
     id: "open-source",
-    tab: "General",
+    tab: "About",
     title: "Open source",
   },
   {
@@ -128,7 +128,7 @@ export const SETTINGS_INDEX = [
   {
     detail: "A local record to send with a problem report",
     id: "diagnostic-log",
-    tab: "General",
+    tab: "Support",
     title: "Diagnostic log",
   },
   {
@@ -279,31 +279,31 @@ export const SETTINGS_INDEX = [
   {
     id: "release-notes",
     mark: "version",
-    tab: "General",
+    tab: "About",
     title: "What's new",
   },
   {
     id: "check-for-updates",
     mark: "version",
-    tab: "General",
+    tab: "About",
     title: "Check for updates",
   },
   {
     id: "view-source",
     mark: "open-source",
-    tab: "General",
+    tab: "About",
     title: "View source on GitHub",
   },
   {
+    detail: "Tell us about something that isn't working.",
     id: "send-feedback",
-    mark: "open-source",
-    tab: "General",
+    tab: "Support",
     title: "Send feedback",
   },
   {
     id: "third-party-licenses",
     mark: "open-source",
-    tab: "General",
+    tab: "About",
     title: "Third-party licenses",
   },
   {
@@ -312,7 +312,7 @@ export const SETTINGS_INDEX = [
     tab: "General",
     title: "Send a test notification",
   },
-  { id: "view-log", mark: "diagnostic-log", tab: "General", title: "View log" },
+  { id: "view-log", mark: "diagnostic-log", tab: "Support", title: "View log" },
   { id: "log-out", mark: "account", tab: "Account", title: "Log out" },
 ] as const satisfies readonly SettingsEntry[];
 
@@ -345,7 +345,11 @@ export const SETTINGS_PAGES: Record<
   { detail: string; developerOnly?: true; shownWhen?: string }
 > = {
   General: {
-    detail: `How ${APP_NAME} looks, notifications, dictation, suggested messages, updates, and the diagnostic log.`,
+    detail: `How ${APP_NAME} looks, notifications, and suggested messages.`,
+  },
+  Dictation: {
+    detail:
+      "The microphone you dictate into, the language you speak, and dictation's sounds.",
   },
   Account: {
     detail: `Who you're logged in to ${APP_NAME} as, your plan and its usage limits, and billing.`,
@@ -359,18 +363,24 @@ export const SETTINGS_PAGES: Record<
   Memory: {
     detail: `What ${APP_NAME} remembers about you, one file per memory, which you can search, open, forget, or add to from another AI.`,
   },
+  Skills: {
+    detail: `The skills ${APP_NAME}'s tasks can use, and making a new one.`,
+  },
   Permissions: {
     detail: `Which folders and places on this computer ${APP_NAME} may use.`,
   },
-  Skills: {
-    detail: `The skills ${APP_NAME}'s tasks can use, and making a new one.`,
+  Activity: {
+    detail: `Whether ${APP_NAME} keeps a history of what you do in it, whether chats can use it, and clearing it.`,
   },
   Storage: {
     detail:
       "Where your Instrument folder is, and chats in it that can’t be opened.",
   },
-  Activity: {
-    detail: `Whether ${APP_NAME} keeps a history of what you do in it, whether chats can use it, and clearing it.`,
+  Support: {
+    detail: `Sending feedback, what ${APP_NAME} sends when something goes wrong, and the diagnostic log.`,
+  },
+  About: {
+    detail: `Which version of ${APP_NAME} you have, updates, the source, and third-party licenses.`,
   },
   Developer: {
     detail: "The API server, the release channel, and feature flags.",

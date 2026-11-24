@@ -336,8 +336,14 @@ function ConnectRow({
   const failure =
     status === "failed" || status === "refused" ? status : undefined;
   const app = apps.data?.apps.find((entry) => entry.slug === row.slug);
-  // An app moved to its site since the card asked signs in there.
-  const kind = app?.type === "web" ? "web" : row.kind;
+  // An app moved to its site since the card asked signs in there, and a local
+  // server that reads a key asks for it once it is allowed.
+  const kind =
+    app?.type === "web"
+      ? "web"
+      : app?.type === "mcp-local" && app.status === "needs-key"
+        ? "key"
+        : row.kind;
   const opens = kind === "key" || kind === "run";
   const isQuiet =
     status === "declined" || status === "removed" || onPick !== undefined;

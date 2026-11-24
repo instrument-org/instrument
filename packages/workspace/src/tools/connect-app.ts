@@ -10,6 +10,8 @@ import {
   readConnection,
   recordConnection,
 } from "../lib/apps/connection";
+import { lookupAppCredential } from "../lib/apps/credential-origin";
+import { type LocalMcpAppManifest } from "../lib/apps/manifest";
 import { describeLocalLaunch } from "../lib/apps/mcp/local-server";
 import { appSiteFor } from "../lib/apps/site";
 import {
@@ -147,7 +149,9 @@ async function askFor(requested: string): Promise<ConnectAppResult> {
     manifest.type === "web"
       ? "web"
       : manifest.type === "mcp-local"
-        ? "run"
+        ? await localServerNeeds(slug, manifest, {
+            approved: connection?.approvedManifestHash === manifestHash,
+          })
         : manifest.auth.kind === "oauth"
           ? "sign-in"
           : manifest.auth.kind === "none"
@@ -185,6 +189,19 @@ async function askFor(requested: string): Promise<ConnectAppResult> {
     state: "asked",
     ...(manifest.type === "web" ? { url: manifest.url } : {}),
   };
+}
+
+/** A local server asks to be allowed first, then for the key it reads, where it reads one it does not have. */
+async function localServerNeeds(
+  slug: string,
+  manifest: LocalMcpAppManifest,
+  { approved }: { approved: boolean },
+): Promise<"key" | "run"> {
+  if (!approved || manifest.auth.kind === "none") {
+    return "run";
+  }
+  const stored = await lookupAppCredential(slug, manifest);
+  return stored.kind === "ok" ? "run" : "key";
 }
 
 /** What the model reads of a call that named one app, the card being that app's alone. */

@@ -108,6 +108,39 @@ describe("connect_app", () => {
     }
   });
 
+  it("asks for a local server's key once the server is allowed, and not before", async () => {
+    const local = {
+      auth: { envVar: "SERVICE_TOKEN", kind: "env" },
+      package: "service-mcp",
+      runtime: "node",
+      type: "mcp-local",
+    } satisfies AppManifest;
+    await writeApp({
+      guide: "",
+      manifest: local,
+      name: "Local",
+      slug: AppSlugSchema.parse("local"),
+    });
+    const lisbon = await chat();
+    expect(await ask(lisbon, ["local"])).toMatchObject({
+      apps: [{ kind: "run", state: "asked" }],
+    });
+
+    const { manifestHash } = (await loadApp("local"))._unsafeUnwrap();
+    await getWorkspaceConfig().apps.connections.set("local", {
+      approvedManifestHash: manifestHash,
+      status: "needs-key",
+      updatedAt: 1,
+    });
+    expect(await ask(lisbon, ["local"])).toMatchObject({
+      apps: [{ kind: "key", state: "asked" }],
+    });
+    expect(await readConnection("local")).toMatchObject({
+      approvedManifestHash: manifestHash,
+      status: "needs-key",
+    });
+  });
+
   it("names the computer whose call it is, still up or written past", async () => {
     const lisbon = await chat();
     const partId = StoreId.newPartId();

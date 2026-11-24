@@ -176,7 +176,8 @@ export function ConnectControls({
       },
       onSuccess: (report) => {
         const failure = report.checks.find((check) => check.status === "fail");
-        if (failure) {
+        // A missing key is asked for next, in the same place.
+        if (failure && failure.name !== "credential") {
           toast.error(`Couldn't connect ${name}`, { cause: failure.detail });
         }
       },
@@ -531,12 +532,12 @@ function Destination({
   if (origin === undefined) {
     return null;
   }
-  let host = origin;
-  try {
-    host = new URL(origin).host;
-  } catch {
-    // Not a URL: shown as it is.
-  }
+  const [, runtime, packageName] =
+    /^(node|python)-package:(.+)$/.exec(origin) ?? [];
+  const host =
+    packageName === undefined
+      ? (URL.parse(origin)?.host ?? origin)
+      : `the ${runtime === "node" ? "npm" : "PyPI"} package ${packageName}`;
   return (
     <p className="text-xs text-muted-foreground">
       {children} <span className="font-medium text-foreground">{host}</span>.

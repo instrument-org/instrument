@@ -829,6 +829,11 @@ const allow = base
       slug: input.slug,
     });
     const failure = report.checks.find((check) => check.status === "fail");
+    // Allowed, and the server reads a key the user has yet to give: the same
+    // card asks for it, so there is nothing to tell the chat yet.
+    if (failure?.name === "credential") {
+      return report;
+    }
     await appChanged(input.slug, {
       detail: report.passed
         ? "its server was installed and started"

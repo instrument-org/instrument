@@ -213,6 +213,47 @@ beforeEach(() => {
   showTab.mockReturnValue(true);
 });
 
+describe("the card for a local server that reads a key", () => {
+  it.each([
+    { asks: "[Allow and connect]", status: "needs-approval" },
+    { asks: "[Save]", status: "needs-key" },
+  ])("asks $asks when the app $status", async ({ asks, status }) => {
+    mocks.apps.mockResolvedValue({
+      apps: [
+        {
+          authKind: "env",
+          bundled: false,
+          connection: { status, updatedAt: 1 },
+          credentialOrigin: "node-package:service-mcp",
+          endpoint: "service-mcp",
+          hasCredential: false,
+          name: "Local",
+          runs: "the npm package service-mcp",
+          slug: "outlook",
+          status,
+          type: "mcp-local",
+        },
+      ],
+    });
+    renderCard(undefined, {
+      kind: "run",
+      name: "Local",
+      runs: "the npm package service-mcp",
+      slug: "outlook",
+      state: "asked",
+    });
+
+    await waitFor(() => {
+      expect(reads()).toContain(asks);
+    });
+    if (status === "needs-key") {
+      expect(reads()).toContain(
+        "The key goes only to the npm package service-mcp.",
+      );
+    }
+  });
+});
+
 describe("the card for one app", () => {
   it("is the same card with one row, leading with the person's own browser", async () => {
     mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }));

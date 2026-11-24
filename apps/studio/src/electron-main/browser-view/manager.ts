@@ -324,13 +324,14 @@ function createBrowserViewManager(): BrowserViewManager {
     return `window=${window} tab=${String(tab)}`;
   }
 
+  // Asked of the window whether or not it has the system's focus: a press
+  // in a guest moves the keyboard within its window either way, and a
+  // person coming back to a window an agent worked in while it was behind
+  // finds the keyboard where they left it. The renderer moves nothing
+  // unless a page the person did not take holds it.
   function restoreHostFocus(targetId: BrowserTargetId) {
     const host = hostOf(targetId);
-    if (
-      !host ||
-      host.isDestroyed() ||
-      !BrowserWindow.fromWebContents(host)?.isFocused()
-    ) {
+    if (!host || host.isDestroyed()) {
       return;
     }
     publisher.publish("browser.restore-host-focus", { targetId });

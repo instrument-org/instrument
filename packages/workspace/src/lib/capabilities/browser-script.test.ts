@@ -345,4 +345,19 @@ console.log(child.stdout.trim());`),
       commandRuns.rows().find((row) => row.name === "agent-browser"),
     ).toMatchObject({ count: 3, source: "bundled" });
   });
+
+  // As for typed commands: the script has seen the page it left.
+  it("attaches no page when the script read the page after its last change", async () => {
+    const followUp = new BrowserFollowUp();
+    const bash = await shell();
+    await withBrowserFollowUp(followUp, () =>
+      bash.exec(
+        node(`await instrument.browser("open", "https://example.com/orders");
+await instrument.browser("eval", "document.title");`),
+      ),
+    );
+
+    expect(await followUp.take(new AbortController().signal)).toBeUndefined();
+    expect(runs.filter((run) => run.args[0] === "snapshot")).toEqual([]);
+  });
 });

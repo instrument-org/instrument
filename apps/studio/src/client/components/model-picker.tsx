@@ -1,4 +1,4 @@
-import { openSettings } from "@/client/atoms/settings-modal";
+import { useOpenSettings } from "@/client/components/window/use-open-settings";
 import { Button } from "@/client/components/ui/button";
 import {
   Command,
@@ -989,6 +989,7 @@ function FailedConnection({
   isOurs: boolean;
   onRetry: () => void;
 }) {
+  const openSettings = useOpenSettings();
   return (
     <EmptyMessage
       detail={error.message}

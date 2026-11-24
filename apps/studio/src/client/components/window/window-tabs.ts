@@ -14,6 +14,7 @@ import {
   NO_GROUP_MEMBER,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
+import { screenOfHref } from "@/shared/instrument-screens";
 import { workingTabOf } from "@/shared/working-tab";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 
@@ -83,7 +84,7 @@ import {
 import { useIsGroupOpen } from "./open-groups";
 import { openLinkAddress } from "./open-link-address";
 import { standInTabsAtom } from "./stand-in-tabs";
-import { sameHref } from "./window-href";
+import { asksPartOf, sameHref } from "./window-href";
 
 /** A kept group's shape; its tabs' own fields are this module's to write and read. */
 const TabGroupMemberSchema = z.object({
@@ -616,7 +617,8 @@ export function useWindowTabs() {
     /**
      * A screen opened from a chat's tab (`openBesideChat`). Answers the tab
      * that shows it, and whether it is up on its side; nothing for a chat's
-     * tab no group has.
+     * tab no group has. A built-in page already there walks to the part
+     * asked for.
      */
     openScreenBeside: (
       to: string,
@@ -632,7 +634,9 @@ export function useWindowTabs() {
       if (href === undefined) {
         return undefined;
       }
-      return answer<undefined | { front: boolean; id: string }>((current) => {
+      const shown = answer<
+        undefined | { front: boolean; id: string; was: string | undefined }
+      >((current) => {
         const group = current.tabs.find((tab) => tab.id === ask.chatTab)?.group;
         if (group === undefined) {
           return { state: current, value: undefined };
@@ -653,11 +657,27 @@ export function useWindowTabs() {
           },
           { ...ask, ...(previous === undefined ? {} : { previous }) },
         );
+        const there = current.tabs.find((tab) => tab.id === placed.id);
         return {
           state: placed.state,
-          value: { front: placed.front, id: placed.id },
+          value: {
+            front: placed.front,
+            id: placed.id,
+            was: there?.kind === "screen" ? there.href : undefined,
+          },
         };
       }, undefined);
+      if (shown === undefined) {
+        return undefined;
+      }
+      if (
+        shown.was !== undefined &&
+        screenOfHref(href) !== undefined &&
+        asksPartOf(href, shown.was)
+      ) {
+        visitHref(shown.id, href);
+      }
+      return { front: shown.front, id: shown.id };
     },
     /**
      * A file a chat's reply handed over, beside the chat's tab

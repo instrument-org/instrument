@@ -29,7 +29,8 @@ import { toast } from "@/client/lib/toast";
 import { isSiteGroup, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
-import { type OpenAllTab, type OpenOptions } from "./context";
+import { asksOwnPlace, type OpenAllTab, type OpenOptions } from "./context";
+import { settingsHrefOf } from "@/client/components/settings/settings-href";
 import { opensBeside } from "./beside-chat";
 import { bringForwardShowing } from "./built-in-pages";
 import { isInVersionsFolder, versionHref } from "./file-versions";
@@ -491,7 +492,14 @@ export function useOpeners({
         rpcClient.workspace.memory.locate.call({ name: screen.name }),
       ).then(([error, hostPath]) => {
         if (error || hostPath === null) {
-          openLinkAddress(href);
+          if (placeOf(asked) === undefined) {
+            openLinkAddress(href);
+          } else {
+            openScreen(
+              settingsHrefOf({ memory: screen.name, tab: "Memory" }),
+              asked,
+            );
+          }
         } else {
           openScreen(fileHref(hostPath), asked);
         }
@@ -506,6 +514,16 @@ export function useOpeners({
       // A chat's address that names none of the chats here: a screen
       // at it would be a chat with nothing in it.
       sayNoChat();
+      return;
+    }
+    // A setting clicked in a chat, or asked for in a place of its own, is
+    // its part of Settings with its row to light, placed as any other screen
+    // is. Anywhere else it opens as Settings does (`openLinkAddress`).
+    if (
+      screen.kind === "setting" &&
+      (placeOf(asked) !== undefined || asksOwnPlace(asked))
+    ) {
+      openScreen(settingsHrefOf({ setting: screen.name }), asked);
       return;
     }
     // A skill, a setting or a named screen opens where it lives,

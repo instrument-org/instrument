@@ -179,6 +179,10 @@ describe("an app address an agent opens", () => {
     ["instrument://screen/chats", "/chat-list"],
     ["instrument://screen/activity", "/activity"],
     ["instrument://memory/no-stevia", undefined],
+    [
+      "instrument://settings/grok-account",
+      "/settings/providers?setting=grok-account",
+    ],
     ["instrument://settings/no-such-row", undefined],
     ["instrument://new-chat", undefined],
   ])("%s opens at %s", (address, href) => {

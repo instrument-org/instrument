@@ -1020,3 +1020,86 @@ describe("where each gesture opens each kind of thing", () => {
     `);
   });
 });
+
+describe("a setting clicked in a chat", () => {
+  const CHAT = ChatIdSchema.parse("2026-11-24-grok");
+  const LINK = "/settings/grok-account";
+  const ROW = "/settings/providers?setting=grok-account";
+  const asked = { chat: CHAT, from: CHAT_TAB, ownTab: true, show: true };
+  const inChat = {
+    up: { href: `/chats/${CHAT}`, id: CHAT_TAB, kind: "screen" as const },
+  };
+  const screens = (tabs: { href?: string; side?: 0 | 1 }[]) =>
+    tabs
+      .filter((tab) => tab.href?.startsWith("/settings"))
+      .map((tab) => [tab.href, tab.side ?? 0]);
+
+  it("opens on the right of a chat on the left, leaving Settings in another group where it is", () => {
+    const { result, store } = windowOnTwoSides(inChat);
+    act(() => {
+      result.current.windowTabs.openIn(
+        {
+          group: OTHER_GROUP,
+          href: "/settings/general",
+          id: "tab_settings",
+          kind: "screen",
+        },
+        { group: OTHER_GROUP },
+      );
+    });
+    act(() => {
+      result.current.openers.openScreen(LINK, asked);
+    });
+    const { tabs } = store.get(windowTabsAtom);
+    expect(screens(tabs.filter((tab) => tab.group === GROUP))).toEqual([
+      [ROW, 1],
+    ]);
+    expect(screens(tabs.filter((tab) => tab.group === OTHER_GROUP))).toEqual([
+      ["/settings/general", 0],
+    ]);
+  });
+
+  it("walks Settings already on the right to the row", () => {
+    const { result, store } = windowOnTwoSides(inChat);
+    act(() => {
+      result.current.openers.openScreen("/settings/general", asked);
+    });
+    act(() => {
+      result.current.openers.openScreen(LINK, asked);
+    });
+    expect(screens(store.get(windowTabsAtom).tabs)).toEqual([[ROW, 1]]);
+  });
+
+  it("opens right after a chat on the right, in its side", () => {
+    const { result, store } = windowOnTwoSides(inChat);
+    act(() => {
+      result.current.windowTabs.moveTo({
+        group: GROUP,
+        id: CHAT_TAB,
+        index: 0,
+        side: 1,
+      });
+    });
+    act(() => {
+      result.current.openers.openScreen(LINK, asked);
+    });
+    const right = result.current.windowTabs.layoutOf(GROUP).sides[1]?.tabs;
+    expect(right?.map((tab) => tab.id === CHAT_TAB).indexOf(true)).toBe(0);
+    expect(right?.[1]).toMatchObject({ href: ROW });
+    expect(screens(store.get(windowTabsAtom).tabs)).toEqual([[ROW, 1]]);
+  });
+
+  it("opens behind on a Command-click", () => {
+    const { result, store } = windowOnTwoSides(inChat);
+    act(() => {
+      result.current.openers.openScreen(LINK, {
+        ...asked,
+        behind: true,
+        newTab: true,
+        show: false,
+      });
+    });
+    expect(screens(store.get(windowTabsAtom).tabs)).toEqual([[ROW, 0]]);
+    expect(result.current.windowTabs.active?.id).toBe(CHAT_TAB);
+  });
+});

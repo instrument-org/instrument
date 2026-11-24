@@ -8,16 +8,20 @@
  * of a global flag, which is how a blocked subcommand slips through as
  * `--headers '{}' close`.
  *
- * The tables mirror the CLI's own; keep them in step when the pinned version
- * moves.
+ * The tables mirror the CLI's own (`GLOBAL_FLAGS_WITH_VALUE` and
+ * `GLOBAL_BOOL_FLAGS` in its `cli/src/flags.rs`), and a test holds them to
+ * the flags the installed CLI's `--help` lists.
  */
 
 /** Global flags that always consume the following argument as their value. */
-const GLOBAL_VALUE_FLAGS = new Set([
+export const GLOBAL_VALUE_FLAGS = new Set([
   "--action-policy",
   "--allowed-domains",
   "--args",
+  "--ca-cert",
+  "--capture",
   "--cdp",
+  "--cdp-headers",
   "--color-scheme",
   "--config",
   "--confirm-actions",
@@ -30,6 +34,7 @@ const GLOBAL_VALUE_FLAGS = new Set([
   "--headers",
   "--idle-timeout",
   "--init-script",
+  "--input-mode",
   "--max-output",
   "--model",
   "--namespace",
@@ -54,7 +59,7 @@ const GLOBAL_VALUE_FLAGS = new Set([
  * Global flags that stand alone, and swallow a following argument only when it
  * is a literal `true` or `false`.
  */
-const GLOBAL_BOOL_FLAGS = new Set([
+export const GLOBAL_BOOL_FLAGS = new Set([
   "--allow-file-access",
   "--annotate",
   "--auto-connect",
@@ -66,10 +71,17 @@ const GLOBAL_BOOL_FLAGS = new Set([
   "--hide-scrollbars",
   "--ignore-https-errors",
   "--json",
+  "--no-auto-connect",
   "--no-auto-dialog",
+  "--no-ca-cert",
+  "--no-pin-tab",
+  "--no-webmcp",
   "--offline",
+  "--pin-tab",
   "--quick",
   "--quiet",
+  "--relaunch",
+  "--use-system-ca",
   "--verbose",
   "--webgpu",
 ]);
@@ -81,8 +93,22 @@ const FLAG_ALIASES = new Map([
   ["-v", "--verbose"],
 ]);
 
-const RESTORE_FLAG = "--restore";
+export const RESTORE_FLAG = "--restore";
 const RESTORE_INLINE_PREFIX = `${RESTORE_FLAG}=`;
+
+/**
+ * Ends the options: the CLI takes no global flag from it on, and hands it and
+ * what follows to the subcommand, whose own parser reads the rest as data.
+ */
+export const END_OF_OPTIONS = "--";
+
+/**
+ * After `wait`, `--state` is the state of the element waited for
+ * (`wait <selector> --state hidden`), read by the command; anywhere else it
+ * is the global flag naming a saved state file.
+ */
+const STATE_FLAG = "--state";
+const WAIT_SUBCOMMAND = "wait";
 
 /**
  * The long-form name a flag token carries, ignoring any inline `=value`.
@@ -101,6 +127,11 @@ export function agentBrowserFlagName(arg: string): string {
  * Split an invocation into the global flags the CLI consumes itself and the
  * arguments its subcommand parser sees. `subArgs` carries each argument's index
  * in the original list so a caller can rewrite one in place.
+ *
+ * `endOfOptions` is where the `--` that ends the options is in the list, or the
+ * list's length without one. A flag counts only ahead of it, so whatever looks
+ * for one reads `args.slice(0, endOfOptions)`; a `--` a value flag took as its
+ * value is that value, as it is to the CLI.
  */
 export function parseAgentBrowserArgs(args: string[]) {
   const globalFlags: {
@@ -110,11 +141,23 @@ export function parseAgentBrowserArgs(args: string[]) {
     valueIndex?: number;
   }[] = [];
   const subArgs: { index: number; value: string }[] = [];
+  let endOfOptions = args.length;
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === undefined) {
       continue;
+    }
+
+    if (arg === END_OF_OPTIONS) {
+      endOfOptions = i;
+      for (let rest = i; rest < args.length; rest++) {
+        const value = args[rest];
+        if (value !== undefined) {
+          subArgs.push({ index: rest, value });
+        }
+      }
+      break;
     }
 
     if (arg.startsWith(RESTORE_INLINE_PREFIX)) {
@@ -127,6 +170,11 @@ export function parseAgentBrowserArgs(args: string[]) {
 
     const name = FLAG_ALIASES.get(arg) ?? arg;
     const next = args[i + 1];
+
+    if (name === STATE_FLAG && subArgs[0]?.value === WAIT_SUBCOMMAND) {
+      subArgs.push({ index: i, value: arg });
+      continue;
+    }
 
     if (GLOBAL_VALUE_FLAGS.has(name)) {
       globalFlags.push({
@@ -165,5 +213,5 @@ export function parseAgentBrowserArgs(args: string[]) {
 
   // The CLI takes whatever survives first as the subcommand, flag-looking or
   // not -- `--raw read <url>` is an unknown command to it, not a read.
-  return { globalFlags, subArgs, subcommand: subArgs[0]?.value };
+  return { endOfOptions, globalFlags, subArgs, subcommand: subArgs[0]?.value };
 }

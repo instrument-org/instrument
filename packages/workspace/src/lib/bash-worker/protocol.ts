@@ -12,6 +12,7 @@ import {
   type ChannelReply,
   type ChannelRequest,
 } from "../capabilities/channel";
+import { type ScriptShell } from "../capabilities/context";
 import { type BashEnvOptions } from "../create-bash-env";
 import { type Asker } from "../chat/asks";
 import { type SetupTouch } from "../setup-changes";
@@ -109,7 +110,14 @@ export type FromWorker =
       type: "tree";
     }
   /** What a script's `instrument` asks, answered on main where app credentials are. */
-  | { callId: number; id: number; request: ChannelRequest; type: "capability" }
+  | {
+      callId: number;
+      /** The shell of the command that started the script. */
+      from?: ScriptShell;
+      id: number;
+      request: ChannelRequest;
+      type: "capability";
+    }
   | { chatId: ChatId; requestId: number; type: "venv"; venv: AbsolutePath }
   /** A skill's Python environment, built on main, which builds each one once. */
   | {

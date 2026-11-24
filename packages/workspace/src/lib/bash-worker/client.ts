@@ -4,6 +4,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { type Worker, type WorkerOptions } from "node:worker_threads";
 import { omit, pick } from "radashi";
 
+import { browserThrough } from "../capabilities/browser";
 import { answerChannel, type ChannelAnswer } from "../capabilities/channel";
 import { type BashEnvOptions, type BashRunner } from "../create-bash-env";
 import { chatRules } from "../permissions/chat-rules";
@@ -106,12 +107,16 @@ export function bashWorkerEnabled(): boolean {
 /**
  * The registry's answer for one bash call's scripts, held to the chat's
  * folder rules as the shell's own `instrument` is. The rules are read at the
- * first request, once for the call.
+ * first request, once for the call. A script's `agent-browser` runs in
+ * `mainBash`, the shell the worker's own `agent-browser` comes back to.
  */
-function scriptAnswer(options: BashEnvOptions): ChannelAnswer {
+function scriptAnswer(
+  options: BashEnvOptions,
+  mainBash: () => Promise<BashRunner>,
+): ChannelAnswer {
   const role = options.role ?? "task";
   let answer: Promise<ChannelAnswer> | undefined;
-  return async (request, signal) => {
+  return async (request, signal, from) => {
     answer ??= chatRules({
       chatId: options.chatId,
       folders: options.folders,
@@ -131,10 +136,11 @@ function scriptAnswer(options: BashEnvOptions): ChannelAnswer {
           ? {}
           : { partId: options.callPartId }),
         role,
+        runBrowser: browserThrough(mainBash),
         sessionId: options.sessionId,
       }),
     );
-    return (await answer)(request, signal);
+    return (await answer)(request, signal, from);
   };
 }
 
@@ -167,7 +173,12 @@ export function createRemoteBash(
           }
         };
         const entry: PendingExec = {
-          answerScript: answerScript ?? scriptAnswer(options),
+          answerScript:
+            answerScript ??
+            scriptAnswer(
+              options,
+              () => (entry.mainBash ??= entry.mainBashFactory()),
+            ),
           calls: new Map(),
           commandRuns: currentCommandRuns(),
           inContext: AsyncLocalStorage.snapshot(),
@@ -523,6 +534,7 @@ async function runProxiedCapability(
             entry.signal
               ? AbortSignal.any([controller.signal, entry.signal])
               : controller.signal,
+            message.from,
           ),
         )
       : {

@@ -19,7 +19,10 @@ export {
   countOwnActivity,
   removeOwnActivity,
 } from "./lib/activity/store";
-export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
+export {
+  closeAgentBrowserSessionsOfEndedApps,
+  closeAllAgentBrowserSessions,
+} from "./lib/agent-browser-cleanup";
 export {
   type AppCatalogEntry,
   catalogEntryMacApp,
@@ -112,10 +115,15 @@ export {
 } from "./lib/bash-worker/client";
 export { CdpCommandTimeoutError } from "./lib/cdp-command-timeout-error";
 export {
+  runningScriptAskedFor,
+  scriptStillRunningMessage,
+} from "./lib/running-page-script";
+export {
   type CdpMethod,
   cdpMethodsHandled,
   isKnownCdpMethod,
 } from "./lib/cdp-methods";
+export { MAX_SCREENSHOT_PIXELS } from "./lib/shell-commands/agent-browser-screenshot-cut";
 export { installAISDKWarningLogger } from "./lib/log-ai-sdk-warnings";
 export { startLoginShellPath } from "./lib/login-shell-path";
 export { FFMPEG_PATH, FFPROBE_PATH } from "./lib/ffmpeg";

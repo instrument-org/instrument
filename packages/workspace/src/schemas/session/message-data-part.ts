@@ -278,6 +278,8 @@ export namespace SessionMessageDataPart {
         /** The other tabs its process draws too, whose cost this is as well. */
         sharedWith: z.array(z.string()).optional(),
         title: z.string().optional(),
+        /** The tab is open with its page unloaded, which loads again from `url` when the tab is used. */
+        unloaded: z.boolean().optional(),
         /** Minutes until its page is unloaded unless it is used: only in notes earlier builds wrote, and no longer told. */
         unloadsInMin: z.number().optional(),
         url: z.string(),

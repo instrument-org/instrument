@@ -221,6 +221,10 @@ const UNDONE_ON_LEAVING: Record<string, [string, Record<string, unknown>]> = {
     "Emulation.setTimezoneOverride",
     { timezoneId: "" },
   ],
+  "Emulation.setTouchEmulationEnabled": [
+    "Emulation.setTouchEmulationEnabled",
+    { enabled: false },
+  ],
   "Emulation.setUserAgentOverride": [
     "Emulation.setUserAgentOverride",
     { userAgent: "" },
@@ -243,6 +247,10 @@ interface LeftOnPage {
   bindings: Set<string>;
   changed: Set<string>;
   scripts: Set<string>;
+}
+
+function emptyLeftOnPage(): LeftOnPage {
+  return { bindings: new Set(), changed: new Set(), scripts: new Set() };
 }
 
 function noteLeftOnPage(
@@ -479,11 +487,7 @@ export function openTargetSession({
   // Set once the page has gone: its tab closed, or another window took it,
   // where nothing this connection set up comes along.
   let pageGone = false;
-  const leftOnPage: LeftOnPage = {
-    bindings: new Set(),
-    changed: new Set(),
-    scripts: new Set(),
-  };
+  const leftOnPage = emptyLeftOnPage();
   const fileGate = createLocalFileGate({
     currentUrl: () => workspaceConfig.browser.getTargetUrl(targetId),
     onLayout: (layout) => {
@@ -608,7 +612,7 @@ export function openTargetSession({
     const frame: Frame = {
       announced: false,
       frameId: targetInfo.targetId,
-      left: { bindings: new Set(), changed: new Set(), scripts: new Set() },
+      left: emptyLeftOnPage(),
       parent,
       url: targetInfo.url,
       used: false,
@@ -811,6 +815,13 @@ export function openTargetSession({
       return;
     }
 
+    // A command still waiting its turn when the connection ended goes
+    // nowhere: the teardown has already put the page back, and nothing would
+    // put back what this one changed.
+    if (ended) {
+      return;
+    }
+
     // Real inbound command from agent-browser: count it as agent activity and
     // make the page known to the browser's lifetime. The agent is the only
     // writer on this page so this matches real agent command rate without
@@ -838,7 +849,22 @@ export function openTargetSession({
     }
     toGuest(method, params ?? {}, frameSession)
       .then(async (result) => {
-        noteLeftOnPage(frame?.left ?? leftOnPage, method, params, result);
+        if (ended) {
+          // The teardown put back only what had been answered by then, so
+          // what this answer would have left on the page is taken back here.
+          const late = emptyLeftOnPage();
+          noteLeftOnPage(late, method, params, result);
+          if (
+            !pageGone &&
+            workspaceConfig.browser.getTargetMeta(targetId) !== null
+          ) {
+            for (const [undo, undoParams] of undoLeftOnPage(late)) {
+              void toGuest(undo, undoParams, frameSession).catch(noop);
+            }
+          }
+        } else {
+          noteLeftOnPage(frame?.left ?? leftOnPage, method, params, result);
+        }
         // Electron answers `Page.navigate` as soon as the load is committed,
         // and agent-browser's `open` returns on that answer rather than
         // blocking for the load event -- so a read one step later saw an empty

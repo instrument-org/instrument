@@ -55,7 +55,7 @@ export interface CdpMethodRule {
 }
 
 /** The agent-browser release whose commands this table was read from. */
-export const CDP_METHODS_READ_FROM = "0.39.4";
+export const CDP_METHODS_READ_FROM = "0.44.0";
 
 const TARGET_TREE =
   "the guest's debugger would answer with every Electron target (the app window, DevTools), so the bridge answers with the tabs the task holds";
@@ -89,19 +89,19 @@ export const CDP_METHODS = {
   },
   "DOM.describeNode": {},
   "DOM.enable": {},
-  "DOM.getBoxModel": {
+  "DOM.getBoxModel": {},
+  "DOM.getContentQuads": {
     main: "wrapped",
     why: "the measurement is kept, so the press that follows can be refused if the element moved",
   },
   "DOM.getDocument": {},
   "DOM.getFrameOwner": {},
-  "DOM.querySelectorAll": {},
+  "DOM.getNodeForLocation": {},
   "DOM.resolveNode": {},
-  "DOM.scrollIntoViewIfNeeded": {
-    main: "wrapped",
-    why: "answered once the element's box holds still, since pages reflow a frame or two after a scroll",
-  },
   "DOM.setFileInputFiles": {},
+  "DOMStorage.setDOMStorageItem": {
+    why: "sent only to restore saved state, which the agent-browser command refuses (`state`, `--state`, `--restore`)",
+  },
   "Emulation.clearDeviceMetricsOverride": {
     main: "override",
     sender: "none",
@@ -117,6 +117,10 @@ export const CDP_METHODS = {
   },
   "Emulation.setEmulatedMedia": {
     why: "also sent by the bridge when a connection closes, to put the page back",
+  },
+  "Emulation.setFocusEmulationEnabled": {
+    main: "refuse",
+    why: "main keeps focus emulation on for every guest an agent drives, and switching it off would blur the page; only `tab keep`, which the agent-browser command refuses, sends it",
   },
   "Emulation.clearGeolocationOverride": {
     sender: "bridge",
@@ -135,6 +139,10 @@ export const CDP_METHODS = {
     why: "sent when a connection closes, to put the page back",
   },
   "Emulation.setTimezoneOverride": {
+    session: "wrapped",
+    why: "recorded, and undone when the connection closes, so the person's tab is not left emulating what the agent set",
+  },
+  "Emulation.setTouchEmulationEnabled": {
     session: "wrapped",
     why: "recorded, and undone when the connection closes, so the person's tab is not left emulating what the agent set",
   },
@@ -204,7 +212,7 @@ export const CDP_METHODS = {
   },
   "Page.captureScreenshot": {
     main: "override",
-    why: "a viewport capture is served from the guest's surface (a covered window made to draw), a full-page one is refused with a pointer to PDF, and an element clip goes to the debugger",
+    why: "a viewport capture is served from the guest's surface (a covered window made to draw), and a clip beyond the viewport, an element's or the whole page's, goes to the debugger a viewport's worth at a time, joined into one image of at most 16384 pixels a side",
   },
   "Page.createIsolatedWorld": {},
   "Page.enable": {},
@@ -235,6 +243,10 @@ export const CDP_METHODS = {
     why: "agent-browser never sends it, but a command through its inspect proxy can; switched back off when the connection closes",
   },
   "Page.setDocumentContent": {},
+  "Page.setWebLifecycleState": {
+    main: "refuse",
+    why: "a frozen tab stays frozen for the person, who shares it; only `tab keep`, which the agent-browser command refuses, sends it",
+  },
   "Page.startScreencast": {
     main: "override",
     why: "a guest's debugger has no screencast; main captures frames on an interval and sends them as Page.screencastFrame",
@@ -247,16 +259,15 @@ export const CDP_METHODS = {
     session: "wrapped",
     why: "recorded, and taken back when the connection closes, so nothing the agent left runs on the person's later loads in the tab",
   },
-  "Runtime.callFunctionOn": {
-    main: "wrapped",
-    why: "agent-browser's scroll-and-measure script is run again until two runs agree",
-  },
+  "Runtime.callFunctionOn": {},
   "Runtime.enable": {},
   "Runtime.evaluate": {
     main: "wrapped",
-    why: "given 20s, since its promise runs the page's own code; the scroll-and-measure script is run again until two runs agree",
+    why: "given 20s, since its promise runs the page's own code; a script still awaiting then is kept, for a later command to ask for its answer",
   },
+  "Runtime.getProperties": {},
   "Runtime.releaseObject": {},
+  "Runtime.releaseObjectGroup": {},
   "Runtime.removeBinding": {
     sender: "bridge",
     why: "sent when a connection closes, for each binding it added",

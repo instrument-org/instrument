@@ -1282,6 +1282,7 @@ function createBrowserViewManager(): BrowserViewManager {
       return (
         entry !== undefined &&
         (entry.downloadsRunning > 0 ||
+          entry.capturesRunning > 0 ||
           (guest !== null &&
             guest !== undefined &&
             !guest.isDestroyed() &&

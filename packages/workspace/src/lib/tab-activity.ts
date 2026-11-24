@@ -195,6 +195,46 @@ export async function announceChatTab(
   return told.includes(true);
 }
 
+/** Each open bridge connection's way to close a tab for its agent, by its chat and session. */
+const closers = new Map<string, Set<(tabId: string) => Promise<boolean>>>();
+
+/** Lets a session's bridge connection be asked to close a tab (`closeChatTab`); returns the way to stop. */
+export function registerTabCloser(
+  { chatId, sessionId }: { chatId: ChatId; sessionId: StoreId.Session },
+  close: (tabId: string) => Promise<boolean>,
+): () => void {
+  const key = `${chatId}/${sessionId}`;
+  const set = closers.get(key) ?? new Set();
+  set.add(close);
+  closers.set(key, set);
+  return () => {
+    set.delete(close);
+    if (set.size === 0 && closers.get(key) === set) {
+      closers.delete(key);
+    }
+  };
+}
+
+/**
+ * Closes a tab an agent opened for the session, in the window, and tells the
+ * session's agent-browser it is gone: the way to close the only tab that
+ * agent-browser has, which it refuses to close itself. False when no
+ * connection of the session's is open, the tab is none of the chat's, or it
+ * is the person's, which is left as it is.
+ */
+export async function closeChatTab(
+  { chatId, sessionId }: { chatId: ChatId; sessionId: StoreId.Session },
+  tabId: string,
+): Promise<boolean> {
+  let closed = false;
+  // One at a time: the first connection to close it leaves the others
+  // nothing to close.
+  for (const close of closers.get(`${chatId}/${sessionId}`) ?? []) {
+    closed = (await close(tabId)) || closed;
+  }
+  return closed;
+}
+
 /**
  * Whether someone other than the session (another session, or the person)
  * acted in a tab after the session's last command there: a tab it should

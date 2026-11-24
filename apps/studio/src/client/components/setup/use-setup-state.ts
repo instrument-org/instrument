@@ -1,6 +1,7 @@
 import { rpcClient } from "@/client/rpc/client";
-import { type SetupState } from "@/shared/setup";
-import { useQuery } from "@tanstack/react-query";
+import { type SetupState, type SetupStep } from "@/shared/setup";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { atom, useSetAtom } from "jotai";
 
 /**
  * Where setup is, from the window's first render: the preload's read as the
@@ -18,4 +19,23 @@ export function useSetupState(): null | SetupState {
 /** Whether setup is drawn over the window. */
 export function useIsSetupUp() {
   return (useSetupState()?.step ?? null) !== null;
+}
+
+/**
+ * The step a page keeps on screen past the moment its facts settle it, until
+ * that page answers or finishes (`hold`), or setup is finished around it.
+ */
+export const heldSetupStepAtom = atom<null | {
+  isNewStepOnly: boolean;
+  step: SetupStep;
+}>(null);
+
+/** Finishes setup, letting go of a page held on screen. */
+export function useFinishSetup() {
+  const setHeld = useSetAtom(heldSetupStepAtom);
+  const { mutate } = useMutation(rpcClient.setup.finish.mutationOptions());
+  return () => {
+    setHeld(null);
+    mutate(undefined);
+  };
 }

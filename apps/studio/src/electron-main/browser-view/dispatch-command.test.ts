@@ -13,7 +13,7 @@ import {
 import { noop } from "radashi";
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
 
-import { MAIN_OVERRIDES, sendCommand } from "./dispatch-command";
+import { MAIN_OVERRIDES, MAIN_REFUSALS, sendCommand } from "./dispatch-command";
 import { type BrowserEntry, createEntry } from "./entry";
 import { noteFrameSession } from "./keyboard-without-focus";
 import {
@@ -25,6 +25,7 @@ import {
 import { log } from "./log";
 
 const TARGET_ID = browserTargetOf(StoreId.newTabId());
+const OTHER_TARGET_ID = browserTargetOf(StoreId.newTabId());
 const HOST_ID = 7;
 
 interface FakeDebugger {
@@ -279,6 +280,202 @@ describe("sendCommand", () => {
       await expect(sent).rejects.toMatchObject({ method: "Page.navigate" });
     });
 
+    describe("a script that outlasts its command", () => {
+      const SCRIPT = {
+        awaitPromise: true,
+        expression: "scanOrders()",
+        returnByValue: true,
+      };
+
+      /**
+       * A guest whose debugger holds the script's answer until `finish` is
+       * called, and answers the check of whether the page still runs scripts
+       * unless the page is `blocked`.
+       */
+      function scriptedGuest({ blocked = false } = {}) {
+        const block = (now: boolean) => {
+          blocked = now;
+        };
+        let finish: (answer: unknown) => void = noop;
+        const answer = new Promise((resolve) => {
+          finish = resolve;
+        });
+        const wcSendCommand = vi.fn(
+          (_method: string, params: { expression?: string }) =>
+            params.expression === SCRIPT.expression
+              ? answer
+              : blocked
+                ? new Promise(noop)
+                : Promise.resolve({ result: { type: "number", value: 1 } }),
+        );
+        const entries = new Map([
+          [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+          [OTHER_TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+        ]);
+        const evaluate = (expression: string, targetId = TARGET_ID) => {
+          const sent = dispatch({
+            entries,
+            method: "Runtime.evaluate",
+            params: { ...SCRIPT, expression },
+            targetId,
+          });
+          // Read later; a rejection in between is not unhandled.
+          sent.catch(noop);
+          return sent;
+        };
+        return { block, evaluate, finish, wcSendCommand };
+      }
+
+      const failureOf = (sent: Promise<unknown>) =>
+        sent.then(
+          () => {
+            throw new Error("the command answered");
+          },
+          (error: unknown) => error as Error,
+        );
+
+      it("says the script is still running when the page answers, and keeps it for the next command", async () => {
+        vi.useFakeTimers();
+        const { evaluate, finish, wcSendCommand } = scriptedGuest();
+
+        const first = evaluate(SCRIPT.expression);
+        await vi.advanceTimersByTimeAsync(20_000);
+        const failure = await failureOf(first);
+
+        expect(failure).not.toBeInstanceOf(CdpCommandTimeoutError);
+        expect(failure.message).toMatch(
+          /^The script was still running after 20s\. The page is responsive/,
+        );
+        const id = /\[running script: (\w+)\]/.exec(failure.message)?.[1];
+
+        // The next command waits on the same script rather than running it
+        // again, and says how long the script has run in all.
+        const second = evaluate(`__instrumentRunningScript("${id}")`);
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect((await failureOf(second)).message).toContain(
+          `still running after 40s`,
+        );
+
+        const third = evaluate(`__instrumentRunningScript("${id}")`);
+        await vi.advanceTimersByTimeAsync(5000);
+        const answer = { result: { type: "object", value: { pages: 90 } } };
+        finish(answer);
+        await expect(third).resolves.toBe(answer);
+
+        expect(
+          wcSendCommand.mock.calls.filter(
+            ([, params]) => params.expression === SCRIPT.expression,
+          ),
+        ).toHaveLength(1);
+        expect(
+          wcSendCommand.mock.calls.some(([, params]) =>
+            params.expression?.includes("__instrumentRunningScript"),
+          ),
+        ).toBe(false);
+
+        // Its answer is delivered once.
+        await expect(
+          evaluate(`__instrumentRunningScript("${id}")`),
+        ).rejects.toThrow("That script's answer is no longer kept");
+      });
+
+      it("keeps waiting on a kept script whose page misses one check, and fails it after two in a row", async () => {
+        vi.useFakeTimers();
+        const guest = scriptedGuest();
+
+        const first = guest.evaluate(SCRIPT.expression);
+        await vi.advanceTimersByTimeAsync(20_000);
+        const id = /\[running script: (\w+)\]/.exec(
+          (await failureOf(first)).message,
+        )?.[1];
+        const ask = async () => {
+          const sent = guest.evaluate(`__instrumentRunningScript("${id}")`);
+          await vi.advanceTimersByTimeAsync(21_000);
+          return await failureOf(sent);
+        };
+
+        // The page is in a long task of its own when the check lands.
+        guest.block(true);
+        expect((await ask()).message).toContain("still running after 41s");
+
+        // Answering again clears the miss.
+        guest.block(false);
+        expect((await ask()).message).toContain("still running after 61s");
+        guest.block(true);
+        expect((await ask()).message).toContain("[running script:");
+
+        const failure = await ask();
+        expect(failure).toBeInstanceOf(CdpCommandTimeoutError);
+        expect(failure.message).toContain("The browser tab is not responding");
+      });
+
+      it("fails as a tab that is not responding when the page answers nothing", async () => {
+        vi.useFakeTimers();
+        const { evaluate } = scriptedGuest({ blocked: true });
+
+        const sent = evaluate(SCRIPT.expression);
+        const settled = vi.fn();
+        void sent.then(settled, settled);
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect(settled).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(1000);
+        const failure = await failureOf(sent);
+        expect(failure).toBeInstanceOf(CdpCommandTimeoutError);
+        expect(failure.message).toContain("The browser tab is not responding");
+      });
+
+      it("fails a script that does not await as a tab that is not responding", async () => {
+        vi.useFakeTimers();
+        const entries = new Map([
+          [
+            TARGET_ID,
+            makeEntry({
+              sendCommand: vi.fn().mockReturnValue(new Promise(noop)),
+            }),
+          ],
+        ]);
+        const sent = dispatch({
+          entries,
+          method: "Runtime.evaluate",
+          params: { expression: "while (true) {}", returnByValue: true },
+        });
+        sent.catch(noop);
+
+        await vi.advanceTimersByTimeAsync(20_000);
+        expect(await failureOf(sent)).toBeInstanceOf(CdpCommandTimeoutError);
+      });
+
+      it("refuses to wait on a script another tab runs", async () => {
+        vi.useFakeTimers();
+        const { evaluate, finish } = scriptedGuest();
+
+        const first = evaluate(SCRIPT.expression);
+        await vi.advanceTimersByTimeAsync(20_000);
+        const id = /\[running script: (\w+)\]/.exec(
+          (await failureOf(first)).message,
+        )?.[1];
+
+        await expect(
+          evaluate(`__instrumentRunningScript("${id}")`, OTHER_TARGET_ID),
+        ).rejects.toThrow("it runs in another tab");
+
+        // Its own tab still gets the answer.
+        const asked = evaluate(`__instrumentRunningScript("${id}")`);
+        finish("done");
+        await expect(asked).resolves.toBe("done");
+      });
+
+      it("refuses to wait on a script it does not keep", async () => {
+        const { evaluate, wcSendCommand } = scriptedGuest();
+
+        await expect(
+          evaluate('__instrumentRunningScript("aaaaaaaa")'),
+        ).rejects.toThrow("That script's answer is no longer kept");
+        expect(wcSendCommand).not.toHaveBeenCalled();
+      });
+    });
+
     it("clears the timer once the command answers", async () => {
       vi.useFakeTimers();
       const entry = makeEntry({
@@ -477,26 +674,137 @@ describe("sendCommand", () => {
     });
   });
 
-  describe("Page.captureScreenshot full page (captureBeyondViewport)", () => {
-    it("rejects a full-page request and points the agent at PDF export", async () => {
+  describe("Page.captureScreenshot beyond the viewport", () => {
+    const METRICS = {
+      cssContentSize: { height: 4836, width: 1280, x: 0, y: 0 },
+      cssLayoutViewport: {
+        clientHeight: 800,
+        clientWidth: 1280,
+        pageX: 0,
+        pageY: 0,
+      },
+    };
+
+    /** A debugger that answers the page's layout metrics and any capture. */
+    function debuggerWith(metrics: unknown) {
+      return vi.fn((method: string) =>
+        Promise.resolve(
+          method === "Page.getLayoutMetrics" ? metrics : { data: "ELEMENT" },
+        ),
+      );
+    }
+
+    // agent-browser sends an element and `--full` alike with
+    // captureBeyondViewport and a clip in document coordinates.
+    it.each([
+      ["in view", { height: 90, scale: 1, width: 240, x: 40, y: 119.875 }],
+      [
+        "below the fold",
+        { height: 80, scale: 1, width: 300, x: 20, y: 2869.875 },
+      ],
+    ])("sends an element %s to the debugger as asked", async (_, clip) => {
       const capturePage = vi.fn();
-      const wcSendCommand = vi.fn();
+      const wcSendCommand = debuggerWith(METRICS);
       const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
-      const entries = new Map([[TARGET_ID, entry]]);
+      const params = { captureBeyondViewport: true, clip, format: "png" };
+
+      const result = await dispatch({
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Page.captureScreenshot",
+        params,
+      });
+
+      expect(result).toEqual({ data: "ELEMENT" });
+      expect(wcSendCommand.mock.calls).toEqual([
+        ["Page.getLayoutMetrics", {}],
+        ["Page.captureScreenshot", params],
+      ]);
+      expect(capturePage).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      [
+        "a clip of the whole document",
+        { height: 800, scale: 1, width: 1280, x: 0, y: 0 },
+      ],
+      ["no clip, which is the whole document", undefined],
+    ])("captures a page one viewport tall from %s", async (_, clip) => {
+      const wcSendCommand = debuggerWith({
+        ...METRICS,
+        cssContentSize: { height: 800, width: 1280, x: 0, y: 0 },
+      });
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+
+      const result = await dispatch({
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Page.captureScreenshot",
+        params: { captureBeyondViewport: true, clip, format: "png" },
+      });
+
+      expect(result).toEqual({ data: "ELEMENT" });
+      expect(wcSendCommand.mock.calls).toEqual([
+        ["Page.getLayoutMetrics", {}],
+        [
+          "Page.captureScreenshot",
+          {
+            captureBeyondViewport: true,
+            clip: { height: 800, scale: 1, width: 1280, x: 0, y: 0 },
+            format: "png",
+          },
+        ],
+      ]);
+    });
+
+    it("takes a whole page taller than the viewport a viewport at a time", async () => {
+      const wcSendCommand = debuggerWith(METRICS);
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+
+      // The pieces here are no images, so joining them fails; what is asked
+      // of the debugger before that is what this reads.
+      await dispatch({
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Page.captureScreenshot",
+        params: {
+          captureBeyondViewport: true,
+          clip: { height: 4836, scale: 1, width: 1280, x: 0, y: 0 },
+        },
+      }).catch(() => undefined);
+
+      expect(wcSendCommand.mock.calls.slice(0, 2)).toEqual([
+        ["Page.getLayoutMetrics", {}],
+        [
+          "Page.captureScreenshot",
+          {
+            captureBeyondViewport: true,
+            clip: { height: 800, scale: 1, width: 1280, x: 0, y: 0 },
+            format: "png",
+          },
+        ],
+      ]);
+    });
+
+    it("refuses when the page reports no layout", async () => {
+      const capturePage = vi.fn();
+      const wcSendCommand = debuggerWith({});
+      const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
 
       await expect(
         dispatch({
-          entries,
+          entries: new Map([[TARGET_ID, entry]]),
           method: "Page.captureScreenshot",
           params: {
             captureBeyondViewport: true,
-            clip: { height: 999, scale: 1, width: 999, x: 0, y: 0 },
+            clip: { height: 90, scale: 1, width: 240, x: 40, y: 120 },
           },
         }),
-      ).rejects.toThrow(/pdf/i);
-      // Never emits a tiled/viewport image or touches the debugger for full page.
+      ).rejects.toThrow(
+        "The page did not report its size, so nothing beyond the viewport could be captured. Capture the viewport with `agent-browser screenshot`, or export the page with `agent-browser pdf <path>`.",
+      );
       expect(capturePage).not.toHaveBeenCalled();
-      expect(wcSendCommand).not.toHaveBeenCalled();
+      expect(wcSendCommand).not.toHaveBeenCalledWith(
+        "Page.captureScreenshot",
+        expect.anything(),
+      );
     });
   });
 
@@ -692,91 +1000,27 @@ describe("sendCommand", () => {
     });
   });
 
-  // Pages reflow a frame or two after a scroll, so a point measured straight
-  // after one can be stale by the time the press lands.
-  describe("settling after a scroll", () => {
-    const box = (y: number) => ({
-      model: { content: [0, y, 10, y, 10, y + 10, 0, y + 10] },
+  // agent-browser measures an element's content quads, checks what their
+  // center would hit, and presses it several commands later. A page that
+  // moves in between would take the press on whatever is at the point by
+  // then.
+  describe("a press on an element that moved", () => {
+    const quads = (y: number) => ({
+      quads: [[0, y, 10, y, 10, y + 10, 0, y + 10]],
     });
+    const click = { button: "left", clickCount: 1, x: 5, y: 398 };
 
-    it("answers a scroll only once the element's box holds still", async () => {
-      const boxes = [box(393), box(356), box(356)];
-      const wcSendCommand = vi
-        .fn()
-        .mockImplementation((method: string) =>
-          Promise.resolve(method === "DOM.getBoxModel" ? boxes.shift() : {}),
-        );
-      const entry = makeEntry({ sendCommand: wcSendCommand });
-
-      await dispatch({
-        entries: new Map([[TARGET_ID, entry]]),
-        method: "DOM.scrollIntoViewIfNeeded",
-        params: { backendNodeId: 7 },
-      });
-
-      expect(
-        wcSendCommand.mock.calls.filter(([m]) => m === "DOM.getBoxModel"),
-      ).toHaveLength(3);
-    });
-
-    it("re-runs agent-browser's scroll-and-measure script until two runs agree", async () => {
-      const points = [
-        { x: 1, y: 427 },
-        { x: 1, y: 390 },
-        { x: 1, y: 390 },
-      ];
-      const wcSendCommand = vi
-        .fn()
-        .mockImplementation(() =>
-          Promise.resolve({ result: { value: points.shift() } }),
-        );
-      const entry = makeEntry({ sendCommand: wcSendCommand });
-
-      const result = await dispatch({
-        entries: new Map([[TARGET_ID, entry]]),
-        method: "Runtime.evaluate",
-        params: {
-          expression:
-            "(() => { el.scrollIntoView({ block: 'center' }); const blockerAt = 0; return { x, y }; })()",
-        },
-      });
-
-      expect(result).toEqual({ result: { value: { x: 1, y: 390 } } });
-      expect(wcSendCommand).toHaveBeenCalledTimes(3);
-    });
-
-    // The element was measured at box(393), whose center is 5,398; each case
-    // lists what the re-measures before the press answer.
-    it.each([
-      {
-        label: "sends an unmoved press as it came",
-        remeasures: [box(393)],
-        sentAt: { x: 5, y: 398 },
-      },
-      {
-        label: "sends a press and its release to where a moved element settled",
-        remeasures: [box(356), box(356)],
-        sentAt: { x: 5, y: 361 },
-      },
-      {
-        label: "refuses a press when the moved element is gone",
-        refusal: /can no longer be found.*Take a snapshot/,
-        remeasures: [box(356), "detached"],
-      },
-      {
-        label: "refuses a press when the element is gone straight away",
-        refusal: /can no longer be found.*Take a snapshot/,
-        remeasures: ["detached"],
-      },
-      {
-        label: "refuses a press when the element keeps moving",
-        refusal: /kept moving/,
-        remeasures: [box(356), box(320)],
-      },
-    ])("$label", async ({ refusal, remeasures, sentAt }) => {
-      const answers: unknown[] = [box(393), ...remeasures];
+    /**
+     * A guest that answers each `DOM.getContentQuads` with the next of
+     * `answers`, and names `underPointer` as the element at any point asked
+     * about.
+     */
+    function guestMeasuring(answers: unknown[], underPointer?: string) {
       const wcSendCommand = vi.fn().mockImplementation((method: string) => {
-        if (method !== "DOM.getBoxModel") {
+        if (method === "Runtime.evaluate") {
+          return Promise.resolve({ result: { objectId: underPointer } });
+        }
+        if (method !== "DOM.getContentQuads") {
           return Promise.resolve({});
         }
         const answer = answers.shift();
@@ -784,17 +1028,47 @@ describe("sendCommand", () => {
           ? Promise.reject(new Error("Node is detached from document"))
           : Promise.resolve(answer);
       });
-      const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([[TARGET_ID, entry]]);
-      const send = (method: string, params: unknown) =>
-        dispatch({
-          entries,
-          method,
-          params,
-        });
-      const click = { button: "left", clickCount: 1, x: 5, y: 398 };
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
+      const sent = (method: string) =>
+        wcSendCommand.mock.calls.filter(([m]) => m === method);
+      return {
+        measurements: () => sent("DOM.getContentQuads"),
+        presses: () =>
+          sent("Input.dispatchMouseEvent").filter(
+            ([, params]) =>
+              (params as { type: string }).type === "mousePressed",
+          ),
+        send: (method: string, params: unknown, frameSession?: string) =>
+          dispatch({ entries, frameSession, method, params }),
+        sent,
+      };
+    }
 
-      await send("DOM.getBoxModel", { backendNodeId: 7 });
+    // The element was measured at quads(393), whose center is 5,398; each
+    // case lists what measuring it again before the press answers.
+    it.each([
+      { label: "sends an unmoved press as it came", remeasure: quads(393) },
+      {
+        label: "refuses a press when the element moved",
+        refusal: /element moved after it was measured.*Click it again/,
+        remeasure: quads(356),
+      },
+      {
+        label: "refuses a press when the element is gone",
+        refusal: /can no longer be found.*Take a snapshot/,
+        remeasure: "detached",
+      },
+      {
+        label: "refuses a press when the element has no box left",
+        refusal: /can no longer be found.*Take a snapshot/,
+        remeasure: { quads: [] },
+      },
+    ])("$label", async ({ refusal, remeasure }) => {
+      const { presses, send } = guestMeasuring([quads(393), remeasure]);
+
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
       const press = send("Input.dispatchMouseEvent", {
         ...click,
         type: "mousePressed",
@@ -802,87 +1076,372 @@ describe("sendCommand", () => {
 
       if (refusal) {
         await expect(press).rejects.toThrow(refusal);
-        expect(wcSendCommand).not.toHaveBeenCalledWith(
-          "Input.dispatchMouseEvent",
-          expect.anything(),
-        );
+        expect(presses()).toEqual([]);
         return;
       }
       await press;
-      await send("Input.dispatchMouseEvent", {
-        ...click,
-        type: "mouseReleased",
-      });
-      expect(answers).toHaveLength(0);
-      expect(
-        wcSendCommand.mock.calls.filter(
-          ([m]) => m === "Input.dispatchMouseEvent",
-        ),
-      ).toEqual(
-        ["mousePressed", "mouseReleased"].map((type) => [
-          "Input.dispatchMouseEvent",
-          { ...click, ...sentAt, type },
-        ]),
-      );
+      expect(presses()).toEqual([
+        ["Input.dispatchMouseEvent", { ...click, type: "mousePressed" }],
+      ]);
     });
 
-    it("sends a press and its release into the first line of a link that wraps", async () => {
-      // A link from 508 to 643 on one line and 264 to 339 on the next: its
-      // box's center, 453,264, is on the text between the two.
-      const wrapped = {
-        model: { content: [264, 242, 643, 242, 643, 287, 264, 287] },
-      };
-      const wcSendCommand = vi.fn().mockImplementation((method: string) =>
-        Promise.resolve(
-          method === "DOM.getBoxModel"
-            ? wrapped
-            : method === "DOM.getContentQuads"
-              ? {
-                  quads: [
-                    [508, 242, 643, 242, 643, 261, 508, 261],
-                    [264, 268, 339, 268, 339, 287, 264, 287],
-                  ],
-                }
-              : {},
-        ),
-      );
-      const entries = new Map([
-        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
-      ]);
-      const send = (method: string, params: unknown) =>
-        dispatch({ entries, method, params });
-      const click = { button: "left", clickCount: 1, x: 453.5, y: 264.5 };
+    it("takes the largest piece of a link that wraps as the point measured", async () => {
+      // A link from 508 to 643 on one line and 264 to 339 on the next.
+      // agent-browser presses the center of the longer piece, rounded.
+      const wrapped = (dy: number) => ({
+        quads: [
+          [508, 242 + dy, 643, 242 + dy, 643, 261 + dy, 508, 261 + dy],
+          [264, 268 + dy, 339, 268 + dy, 339, 287 + dy, 264, 287 + dy],
+        ],
+      });
+      const { presses, send } = guestMeasuring([wrapped(0), wrapped(-36)]);
 
-      await send("DOM.getBoxModel", { backendNodeId: 7 });
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
+      await expect(
+        send("Input.dispatchMouseEvent", {
+          ...click,
+          type: "mousePressed",
+          x: 576,
+          y: 252,
+        }),
+      ).rejects.toThrow(/element moved after it was measured/);
+      expect(presses()).toEqual([]);
+    });
+
+    it("sends a press aimed somewhere else without measuring again", async () => {
+      const answers = [quads(393), quads(356)];
+      const { presses, send } = guestMeasuring(answers);
+
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
+      await send("Input.dispatchMouseEvent", {
+        ...click,
+        type: "mousePressed",
+        x: 200,
+        y: 40,
+      });
+
+      expect(answers).toHaveLength(1);
+      expect(presses()).toHaveLength(1);
+    });
+
+    it("checks only the first press of a double click", async () => {
+      const answers = [quads(393), quads(393), quads(356)];
+      const { presses, send } = guestMeasuring(answers);
+
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
+      for (const clickCount of [1, 2]) {
+        for (const type of ["mousePressed", "mouseReleased"]) {
+          await send("Input.dispatchMouseEvent", {
+            ...click,
+            clickCount,
+            type,
+          });
+        }
+      }
+
+      expect(answers).toHaveLength(1);
+      expect(presses()).toHaveLength(2);
+    });
+
+    it("measures after the agent's pointer has shown the press, with nothing asked of the page between that and the press", async () => {
+      // The page moves the element while it draws the pointer's press.
+      let y = 393;
+      let movesAt: number | undefined = 356;
+      const asked: string[] = [];
+      const wcSendCommand = vi.fn().mockImplementation((method: string) => {
+        asked.push(method);
+        return Promise.resolve(
+          method === "DOM.getContentQuads" ? quads(y) : {},
+        );
+      });
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+      const entries = new Map([[TARGET_ID, entry]]);
+      const send = (method: string, params: unknown) =>
+        dispatch({ byAgent: true, entries, method, params });
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
+      asked.length = 0;
+      const page = entry.webContents;
+      if (!page) {
+        throw new Error("the entry has no page");
+      }
+      vi.spyOn(page, "executeJavaScriptInIsolatedWorld").mockImplementation(
+        () => {
+          asked.push("pointer");
+          y = movesAt ?? y;
+          return Promise.resolve(undefined);
+        },
+      );
+
+      await expect(
+        send("Input.dispatchMouseEvent", { ...click, type: "mousePressed" }),
+      ).rejects.toThrow(/element moved after it was measured/);
+      expect(asked).toEqual(["pointer", "DOM.getContentQuads"]);
+
+      y = 393;
+      movesAt = undefined;
+      asked.length = 0;
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
       await send("Input.dispatchMouseEvent", {
         ...click,
         type: "mousePressed",
       });
-      await send("Input.dispatchMouseEvent", {
-        ...click,
-        type: "mouseReleased",
-      });
-
-      expect(
-        wcSendCommand.mock.calls
-          .filter(([m]) => m === "Input.dispatchMouseEvent")
-          .map(([, p]) => p as { x: number; y: number }),
-      ).toMatchObject([
-        { type: "mousePressed", x: 575.5, y: 251.5 },
-        { type: "mouseReleased", x: 575.5, y: 251.5 },
+      expect(asked).toEqual([
+        "DOM.getContentQuads",
+        "pointer",
+        "DOM.getContentQuads",
+        "Input.dispatchMouseEvent",
       ]);
     });
 
-    it("runs any other evaluation once", async () => {
-      const wcSendCommand = vi.fn().mockResolvedValue({ result: {} });
-      const entry = makeEntry({ sendCommand: wcSendCommand });
+    it("holds the point pressed, which agent-browser rounds, to the element rather than the point measured", async () => {
+      // Measured from 0.4 to 10.4 across, so its center is 5.4 and the press
+      // comes at 5. Moved to start at 5.2, the element still has 5.4 on it
+      // and no longer has 5.
+      const across = (x: number) => ({
+        quads: [[x, 393, x + 10, 393, x + 10, 403, x, 403]],
+      });
+      const { presses, send } = guestMeasuring([across(0.4), across(5.2)]);
 
-      await dispatch({
-        entries: new Map([[TARGET_ID, entry]]),
-        method: "Runtime.evaluate",
-        params: { expression: "location.href" },
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
+      await expect(
+        send("Input.dispatchMouseEvent", { ...click, type: "mousePressed" }),
+      ).rejects.toThrow(/element moved after it was measured/);
+      expect(presses()).toEqual([]);
+    });
+
+    // A click by selector or by `find` names no element to the debugger: the
+    // pointer arriving at 5,398 is the first the host sees of it, and the
+    // element there is the one measured.
+    describe("that agent-browser measured in a script of its own", () => {
+      const move = { type: "mouseMoved", x: 5, y: 398 };
+      const press = { ...click, type: "mousePressed" };
+
+      it.each([
+        { label: "sends a press on an unmoved element", then: quads(393) },
+        {
+          label: "refuses a press when the element moved",
+          refusal: /element moved after it was measured.*Click it again/,
+          then: quads(364),
+        },
+        {
+          label: "refuses a press when the element is gone",
+          refusal: /can no longer be found.*Take a snapshot/,
+          then: "detached",
+        },
+        {
+          // A hover style that grows the element, or lifts it a little.
+          label: "sends a press on an element that changed around the point",
+          then: { quads: [[-2, 389, 12, 389, 12, 403, -2, 403]] },
+        },
+      ])("$label", async ({ refusal, then }) => {
+        const { measurements, presses, send, sent } = guestMeasuring(
+          [quads(393), then],
+          "element-1",
+        );
+
+        await send("Input.dispatchMouseEvent", move);
+        const pressed = send("Input.dispatchMouseEvent", press);
+
+        if (refusal) {
+          await expect(pressed).rejects.toThrow(refusal);
+          expect(presses()).toEqual([]);
+        } else {
+          await pressed;
+          expect(presses()).toEqual([["Input.dispatchMouseEvent", press]]);
+        }
+        expect(sent("Runtime.evaluate")).toEqual([
+          [
+            "Runtime.evaluate",
+            expect.objectContaining({
+              expression: "document.elementFromPoint(5, 398)",
+            }),
+          ],
+        ]);
+        expect(measurements()).toEqual([
+          ["DOM.getContentQuads", { objectId: "element-1" }],
+          ["DOM.getContentQuads", { objectId: "element-1" }],
+        ]);
       });
 
+      it("holds a press on an element's padding to the element staying where it was", async () => {
+        // The pointer is at 5,398 and the content box starts below it.
+        const { presses, send } = guestMeasuring(
+          [quads(400), quads(401)],
+          "element-1",
+        );
+
+        await send("Input.dispatchMouseEvent", move);
+        await expect(send("Input.dispatchMouseEvent", press)).rejects.toThrow(
+          /element moved after it was measured/,
+        );
+        expect(presses()).toEqual([]);
+      });
+
+      it("refuses a press on an element's content once the content has left the point, however little it moved", async () => {
+        // The pointer is at 5,398, just inside content that starts at 397.8.
+        const { presses, send } = guestMeasuring(
+          [quads(397.8), quads(398.2)],
+          "element-1",
+        );
+
+        await send("Input.dispatchMouseEvent", move);
+        await expect(send("Input.dispatchMouseEvent", press)).rejects.toThrow(
+          /element moved after it was measured/,
+        );
+        expect(presses()).toEqual([]);
+      });
+
+      it("takes the element under the pointer afresh each time the pointer arrives", async () => {
+        // The page puts another button where the first was between two
+        // arrivals at the same point, as a hover that swaps one for the
+        // other does.
+        const under = ["element-1", "element-2"];
+        const wcSendCommand = vi
+          .fn()
+          .mockImplementation((method: string, params: unknown) => {
+            if (method === "Runtime.evaluate") {
+              return Promise.resolve({ result: { objectId: under.shift() } });
+            }
+            if (method !== "DOM.getContentQuads") {
+              return Promise.resolve({});
+            }
+            return under.length === 0 &&
+              (params as { objectId: string }).objectId === "element-1"
+              ? Promise.reject(new Error("Node is detached from document"))
+              : Promise.resolve(quads(393));
+          });
+        const entries = new Map([
+          [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+        ]);
+        const send = (params: unknown) =>
+          dispatch({ entries, method: "Input.dispatchMouseEvent", params });
+
+        await send(move);
+        await send(move);
+        await send(press);
+
+        expect(
+          wcSendCommand.mock.calls.filter(
+            ([method]) => method === "DOM.getContentQuads",
+          ),
+        ).toEqual([
+          ["DOM.getContentQuads", { objectId: "element-1" }],
+          ["DOM.getContentQuads", { objectId: "element-2" }],
+          ["DOM.getContentQuads", { objectId: "element-2" }],
+        ]);
+      });
+
+      it("checks a click by ref against the element agent-browser named", async () => {
+        const { measurements, presses, send, sent } = guestMeasuring(
+          [quads(393), quads(356)],
+          "element-1",
+        );
+
+        await send("DOM.getContentQuads", { backendNodeId: 7 });
+        await send("Input.dispatchMouseEvent", move);
+        await expect(send("Input.dispatchMouseEvent", press)).rejects.toThrow(
+          /element moved after it was measured/,
+        );
+
+        expect(sent("Runtime.evaluate")).toEqual([]);
+        expect(measurements()).toEqual([
+          ["DOM.getContentQuads", { backendNodeId: 7 }],
+          ["DOM.getContentQuads", { backendNodeId: 7 }],
+        ]);
+        expect(presses()).toEqual([]);
+      });
+
+      it("checks a press in a frame of its own against the element in that frame", async () => {
+        const { presses, send, sent } = guestMeasuring(
+          [quads(393), quads(364)],
+          "element-1",
+        );
+
+        await send("Input.dispatchMouseEvent", move, "frame-session-1");
+        await expect(
+          send("Input.dispatchMouseEvent", press, "frame-session-1"),
+        ).rejects.toThrow(/element moved after it was measured/);
+
+        expect(
+          [...sent("Runtime.evaluate"), ...sent("DOM.getContentQuads")].map(
+            ([, , session]) => session as unknown,
+          ),
+        ).toEqual(["frame-session-1", "frame-session-1", "frame-session-1"]);
+        expect(presses()).toEqual([]);
+      });
+
+      it("sends a press in a frame of its own that stayed where it was", async () => {
+        const { presses, send } = guestMeasuring(
+          [quads(393), quads(393)],
+          "element-1",
+        );
+
+        await send("Input.dispatchMouseEvent", move, "frame-session-1");
+        await send("Input.dispatchMouseEvent", press, "frame-session-1");
+
+        expect(presses()).toEqual([
+          ["Input.dispatchMouseEvent", press, "frame-session-1"],
+        ]);
+      });
+
+      it("sends a press where the pointer found no element", async () => {
+        const answers = [quads(393)];
+        const { presses, send } = guestMeasuring(answers);
+
+        await send("Input.dispatchMouseEvent", move);
+        await send("Input.dispatchMouseEvent", press);
+
+        expect(answers).toHaveLength(1);
+        expect(presses()).toHaveLength(1);
+      });
+
+      it("measures nothing again for a pointer that moves on without pressing", async () => {
+        const answers = [quads(393), quads(100), quads(364)];
+        const { presses, send } = guestMeasuring(answers, "element-1");
+
+        // A hover at one point, the pointer sent to a second, a press at a third.
+        await send("Input.dispatchMouseEvent", move);
+        await send("Input.dispatchMouseEvent", { ...move, x: 60, y: 105 });
+        await send("Input.dispatchMouseEvent", { ...press, x: 200, y: 40 });
+
+        expect(answers).toHaveLength(1);
+        expect(presses()).toHaveLength(1);
+      });
+    });
+
+    // agent-browser's own click script waits in the page for the element to
+    // hold still, so running it a second time would wait twice and could
+    // scroll again.
+    it.each([
+      {
+        method: "Runtime.evaluate",
+        params: {
+          awaitPromise: true,
+          expression:
+            "(async () => { el.scrollIntoView({ block: 'center' }); const blockerAt = 0; return { x, y }; })()",
+        },
+      },
+      {
+        method: "Runtime.callFunctionOn",
+        params: {
+          awaitPromise: true,
+          functionDeclaration:
+            "async function() { this.scrollIntoViewIfNeeded(true); return { x, y }; }",
+          objectId: "1",
+        },
+      },
+    ])("runs agent-browser's click script once, as $method", async (script) => {
+      const wcSendCommand = vi
+        .fn()
+        .mockResolvedValue({ result: { value: { x: 1, y: 390 } } });
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+
+      const result = await dispatch({
+        entries: new Map([[TARGET_ID, entry]]),
+        ...script,
+      });
+
+      expect(result).toEqual({ result: { value: { x: 1, y: 390 } } });
       expect(wcSendCommand).toHaveBeenCalledTimes(1);
     });
   });
@@ -1441,8 +2000,8 @@ describe("typing without focus", () => {
 
 describe("a frame in a process of its own", () => {
   const FRAME = "frame-session-1";
-  const box = (y: number) => ({
-    model: { content: [0, y, 10, y, 10, y + 10, 0, y + 10] },
+  const quads = (y: number) => ({
+    quads: [[0, y, 10, y, 10, y + 10, 0, y + 10]],
   });
 
   it("sends the frame's command to the frame's session", async () => {
@@ -1485,21 +2044,23 @@ describe("a frame in a process of its own", () => {
   // the same frame, since each is in that frame's own coordinates.
   it.each([
     {
-      label: "re-aims a press in the frame that measured it, measuring there",
+      label: "refuses a moved element's press in the frame that measured it",
       measuredIn: FRAME,
-      sentAt: { x: 5, y: 361 },
+      refused: true,
     },
     {
       label: "sends a frame's press as it came after a measurement of the page",
       measuredIn: undefined,
-      sentAt: { x: 5, y: 398 },
+      refused: false,
     },
-  ])("$label", async ({ measuredIn, sentAt }) => {
-    const answers: unknown[] = [box(393), box(356), box(356)];
+  ])("$label", async ({ measuredIn, refused }) => {
+    const answers: unknown[] = [quads(393), quads(356)];
     const wcSendCommand = vi
       .fn()
       .mockImplementation((method: string) =>
-        Promise.resolve(method === "DOM.getBoxModel" ? answers.shift() : {}),
+        Promise.resolve(
+          method === "DOM.getContentQuads" ? answers.shift() : {},
+        ),
       );
     const entry = makeEntry({ sendCommand: wcSendCommand });
     const entries = new Map([[TARGET_ID, entry]]);
@@ -1512,37 +2073,43 @@ describe("a frame in a process of its own", () => {
       });
     const click = { button: "left", clickCount: 1, x: 5, y: 398 };
 
-    await send("DOM.getBoxModel", { backendNodeId: 7 }, measuredIn);
-    await send(
+    await send("DOM.getContentQuads", { backendNodeId: 7 }, measuredIn);
+    const press = send(
       "Input.dispatchMouseEvent",
       { ...click, type: "mousePressed" },
       FRAME,
     );
-    await send(
-      "Input.dispatchMouseEvent",
-      { ...click, type: "mouseReleased" },
-      FRAME,
-    );
+    if (refused) {
+      await expect(press).rejects.toThrow(/element moved/);
+    } else {
+      await press;
+    }
 
     expect(
-      wcSendCommand.mock.calls.filter(([m]) => m === "DOM.getBoxModel"),
+      wcSendCommand.mock.calls.filter(([m]) => m === "DOM.getContentQuads"),
     ).toEqual(
-      (measuredIn ? [0, 1, 2] : [0]).map(() =>
-        measuredIn
-          ? ["DOM.getBoxModel", { backendNodeId: 7 }, measuredIn]
-          : ["DOM.getBoxModel", { backendNodeId: 7 }],
-      ),
+      measuredIn
+        ? [0, 1].map(() => [
+            "DOM.getContentQuads",
+            { backendNodeId: 7 },
+            measuredIn,
+          ])
+        : [["DOM.getContentQuads", { backendNodeId: 7 }]],
     );
     expect(
       wcSendCommand.mock.calls.filter(
         ([m]) => m === "Input.dispatchMouseEvent",
       ),
     ).toEqual(
-      ["mousePressed", "mouseReleased"].map((type) => [
-        "Input.dispatchMouseEvent",
-        { ...click, ...sentAt, type },
-        FRAME,
-      ]),
+      refused
+        ? []
+        : [
+            [
+              "Input.dispatchMouseEvent",
+              { ...click, type: "mousePressed" },
+              FRAME,
+            ],
+          ],
     );
   });
 });
@@ -1553,6 +2120,40 @@ describe("the table of CDP methods", () => {
       cdpMethodsHandled("main", "override").toSorted(),
     );
   });
+
+  it("lists exactly the commands main refuses", () => {
+    expect(Object.keys(MAIN_REFUSALS).toSorted()).toEqual(
+      cdpMethodsHandled("main", "refuse").toSorted(),
+    );
+  });
+
+  it.each([undefined, "frame-session-1"])(
+    "refuses the commands that would freeze or blur a tab, with frame session %s",
+    async (frameSession) => {
+      const wcSendCommand = vi.fn().mockResolvedValue({});
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
+
+      await expect(
+        dispatch({
+          entries,
+          frameSession,
+          method: "Page.setWebLifecycleState",
+          params: { state: "frozen" },
+        }),
+      ).rejects.toThrow(/cannot be frozen/);
+      await expect(
+        dispatch({
+          entries,
+          frameSession,
+          method: "Emulation.setFocusEmulationEnabled",
+          params: { enabled: false },
+        }),
+      ).rejects.toThrow(/stays live/);
+      expect(wcSendCommand).not.toHaveBeenCalled();
+    },
+  );
 
   it("warns once about a command it does not know, and still sends it on", async () => {
     const warn = vi.spyOn(log, "warn").mockImplementation(noop);

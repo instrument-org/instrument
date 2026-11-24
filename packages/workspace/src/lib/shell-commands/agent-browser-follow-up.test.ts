@@ -312,6 +312,13 @@ describe("BrowserFollowUp", () => {
     });
     expect(await followUp.take(signal)).toBeUndefined();
   });
+
+  it("reads nothing once the session's last tab closed", async () => {
+    const { followUp, read } = run([{ args: ["click", "@e1"] }]);
+    followUp.clear();
+    expect(await followUp.take(signal)).toBeUndefined();
+    expect(read).not.toHaveBeenCalled();
+  });
 });
 
 describe("placesTab", () => {

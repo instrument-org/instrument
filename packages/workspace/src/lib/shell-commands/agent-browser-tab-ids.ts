@@ -124,6 +124,48 @@ export function activeTabId(json: string): string | undefined {
   return parseTabList(json)?.data.tabs.find((tab) => tab.active)?.targetId;
 }
 
+/** Whether the invocation is `tab close`, of the tab it names or the current one. */
+export function isTabClose(args: readonly string[]): boolean {
+  const { subArgs, subcommand } = parseAgentBrowserArgs([...args]);
+  return subcommand === "tab" && subArgs[1]?.value === "close";
+}
+
+/**
+ * The window's id of the tab a `tab close` would close when it is the only
+ * tab agent-browser has, which agent-browser refuses to close ("Cannot close
+ * the last tab"): the one tab `tab list --json` names, when the invocation
+ * names it, by the window's id or agent-browser's label, or names none.
+ */
+export function onlyTabToClose(
+  args: readonly string[],
+  json: string,
+): string | undefined {
+  const { subArgs } = parseAgentBrowserArgs([...args]);
+  const tabs = parseTabList(json)?.data.tabs;
+  const [only] = tabs ?? [];
+  if (!isTabClose(args) || only === undefined || tabs?.length !== 1) {
+    return undefined;
+  }
+  const ref = subArgs[2]?.value;
+  return ref === undefined || ref === only.targetId || ref === only.tabId
+    ? only.targetId
+    : undefined;
+}
+
+/** What `tab close` prints for a tab it closed, named by the window's id, as text or as `--json`. */
+export function tabClosedOutput(
+  args: readonly string[],
+  tabId: string,
+): string {
+  const { globalFlags } = parseAgentBrowserArgs([...args]);
+  const json = globalFlags.some(
+    (flag) => flag.name === "--json" && flag.value !== "false",
+  );
+  return json
+    ? `${JSON.stringify({ data: { closed: true, tabId, targetId: tabId }, error: null, success: true })}\n`
+    : `✓ Tab [${tabId}] closed\n`;
+}
+
 /** Whether `tab list --json` names the tab with the window's id `tabId`. */
 export function listsTab(json: string, tabId: string): boolean {
   return (

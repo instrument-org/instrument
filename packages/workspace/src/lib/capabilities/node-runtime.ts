@@ -11,6 +11,9 @@ import { SCRIPT_CHANNEL_ENV } from "./channel";
  * other methods make a request through an API app, any other name calls
  * that MCP tool with one object of arguments, `.call(tool, args)` calls one
  * whatever its name, and `.tools()` and `.tool(name)` list them.
+ * `instrument.browser("open", url)` runs one `agent-browser` command and
+ * resolves to what it printed; one that fails rejects with its `exitCode`,
+ * `stderr` and `stdout`.
  *
  * Positional arguments map onto a capability's fields by the describe
  * answer, asked once at the first call, and a last object carries the rest.
@@ -105,14 +108,23 @@ if (globalThis.instrument === undefined && token !== undefined) {
   ]) {
     hidden(Class.prototype, "name", name);
   }
-  const errorOf = ({ ask, kind, message }) =>
-    kind === "ask"
-      ? new NeedsPermission(message, ask)
-      : kind === "card"
-        ? new CardShown(message)
-        : kind === "read-first"
-          ? new ReadGuideFirst(message)
-          : new InstrumentError(message, kind);
+  const errorOf = ({ ask, command, kind, message }) => {
+    const error =
+      kind === "ask"
+        ? new NeedsPermission(message, ask)
+        : kind === "card"
+          ? new CardShown(message)
+          : kind === "read-first"
+            ? new ReadGuideFirst(message)
+            : new InstrumentError(message, kind);
+    // A command that failed, as execFileSync's error names how it ended.
+    if (command !== undefined) {
+      hidden(error, "exitCode", command.exitCode);
+      hidden(error, "stderr", command.stderr);
+      hidden(error, "stdout", command.stdout);
+    }
+    return error;
+  };
 
   const pending = new Map();
   let nextId = 0;
@@ -240,9 +252,17 @@ if (globalThis.instrument === undefined && token !== undefined) {
     new Proxy({}, {
       get: (_target, key) => (typeof key === "string" && key !== "then" ? verb(name, key) : undefined),
     });
+  // One agent-browser command, its words as arguments or as one array, and
+  // a last object for what it reads on stdin: what it printed.
+  const browser = (...given) => {
+    const options = isObject(given.at(-1)) ? given.pop() : {};
+    const words = given.length === 1 && Array.isArray(given[0]) ? given[0] : given;
+    return call("browser.run", { ...options, args: words.map(String) });
+  };
   const root = {
     app,
     apps: namespace("apps"),
+    browser,
     call,
     CardShown,
     describe: async (name) => {

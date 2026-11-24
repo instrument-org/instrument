@@ -8,12 +8,16 @@ import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SETUP_STEPS, type SetupStep } from "@/shared/setup";
 import { useMutation } from "@tanstack/react-query";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useState } from "react";
+import { useAtom } from "jotai";
 
 import { SetupPageSwitch } from "./kit/setup-page-switch";
 
 import { SETUP_PAGES } from "./step-pages";
-import { useSetupState } from "./use-setup-state";
+import {
+  heldSetupStepAtom,
+  useFinishSetup,
+  useSetupState,
+} from "./use-setup-state";
 
 /**
  * Setup, drawn over the whole app window while it is up, with the app loaded
@@ -24,21 +28,14 @@ import { useSetupState } from "./use-setup-state";
  */
 export function SetupHost() {
   const state = useSetupState();
-  // The step a page keeps on screen past the moment its facts settle it,
-  // until that page answers or finishes (`hold`).
-  const [held, setHeld] = useState<null | {
-    isNewStepOnly: boolean;
-    step: SetupStep;
-  }>(null);
+  const [held, setHeld] = useAtom(heldSetupStepAtom);
   const step = held?.step ?? state?.step ?? null;
   useHoldWindow(step !== null);
   const { mutate: answer } = useMutation(
     rpcClient.setup.answer.mutationOptions(),
   );
   const { mutate: back } = useMutation(rpcClient.setup.back.mutationOptions());
-  const { mutate: finish } = useMutation(
-    rpcClient.setup.finish.mutationOptions(),
-  );
+  const finish = useFinishSetup();
   const isReduced = useReducedMotion() ?? false;
   const isNewStepOnly = held?.isNewStepOnly ?? state?.isNewStepOnly ?? false;
 
@@ -60,10 +57,7 @@ export function SetupHost() {
               back({ step: from });
             }}
             backTo={state?.step === step ? (state.back ?? null) : null}
-            finish={() => {
-              setHeld(null);
-              finish(undefined);
-            }}
+            finish={finish}
             hold={() => {
               setHeld({ isNewStepOnly, step });
             }}

@@ -429,9 +429,9 @@ export default defineConfig(({ command }) => {
     command === "serve"
       ? path.resolve(import.meta.dirname, "resources/ffmpeg")
       : null;
-  const agentBrowserBinDir =
+  const agentBrowserDir =
     command === "serve"
-      ? path.dirname(require.resolve("agent-browser/bin/agent-browser.js"))
+      ? path.dirname(require.resolve("agent-browser/package.json"))
       : null;
 
   const isProduction = command === "build";
@@ -501,7 +501,7 @@ export default defineConfig(({ command }) => {
         "process.env.INSTRUMENT_VELOPACK_FEED_URL": JSON.stringify(
           process.env.INSTRUMENT_VELOPACK_FEED_URL ?? "",
         ),
-        __AGENT_BROWSER_BIN_DIR__: JSON.stringify(agentBrowserBinDir),
+        __AGENT_BROWSER_DIR__: JSON.stringify(agentBrowserDir),
         __FFMPEG_DIR__: JSON.stringify(ffmpegDir),
       },
       plugins: [

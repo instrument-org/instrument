@@ -26,6 +26,9 @@ export function browserStatusModelNote(data: Status) {
  */
 function tabLine(tab: Tab) {
   const opened = tab.openedBy === "task" ? ", opened by an agent" : "";
+  if (tab.unloaded) {
+    return `${tab.id} at ${tab.url}${opened}, its page unloaded`;
+  }
   const place =
     tab.onScreen === false
       ? `, out of sight${tab.asleep ? " and asleep" : ""}`

@@ -84,7 +84,12 @@ import {
   type WaitInterrupt,
 } from "../lib/wait-interrupts";
 
-const DEFAULT_YIELD_MS = ms("30 seconds");
+/**
+ * Long enough that a build, an install or a loop over a few dozen things ends
+ * inside the call that started it, where a shorter wait hands back a process id
+ * that costs a second call to wait out.
+ */
+const DEFAULT_YIELD_MS = ms("2 minutes");
 const MIN_YIELD_MS = 250;
 /**
  * Beyond this, holding a tool call open is worse than polling. Chosen to still
@@ -247,6 +252,12 @@ const bashOutputSchema = z.object({
     })
     .optional(),
   /**
+   * What the agent-browser commands a script of the call ran had to say
+   * past their own output, which the script read: who else used a tab, a
+   * popup a page opened.
+   */
+  browserNews: z.array(z.string()).optional(),
+  /**
    * The page after the call's agent-browser commands changed it, when
    * nothing in the call read it afterwards.
    */
@@ -304,13 +315,14 @@ const bashCapability = defineCapability({
       .default(DEFAULT_YIELD_MS)
       .meta({
         description: [
-          "How long to wait for the command before yielding.",
+          "How long to wait for the command before the call returns.",
           "A command that finishes sooner returns its output as usual; one that",
           "does not is NOT killed -- it keeps running and you get a process id",
           `to follow with the \`${FG_COMMAND.name}\` command.`,
           `Default ${DEFAULT_YIELD_MS}; range ${MIN_YIELD_MS}-${MAX_YIELD_MS}.`,
-          "Pass a small value (e.g. 1000) when you are deliberately starting a",
-          "long-lived process such as a server and want its id promptly.",
+          "Leave it unset for ordinary commands. Raise it to cover a command",
+          "you know runs longer than the default. Start a server or watcher",
+          "with a trailing `&`, which returns its id at once.",
         ].join(" "),
       }),
   }),
@@ -580,18 +592,22 @@ const bashCapability = defineCapability({
                 signal,
               })
             : undefined;
-        const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
-          ? await browserSkillToDeliver({
-              sessionId,
-              chatId,
-              model: model.canonicalId,
-            })
-          : undefined;
+        const browserNews = browserFollowUp.takeNews();
+        const browserSkill =
+          commands.includes(AGENT_BROWSER_COMMAND.name) ||
+          browserFollowUp.scripted
+            ? await browserSkillToDeliver({
+                sessionId,
+                chatId,
+                model: model.canonicalId,
+              })
+            : undefined;
         const guidesShown = appGuidesShown(appGuides, outcome.output);
 
         return ok({
           ...(guidesShown.length > 0 ? { appGuides: guidesShown } : {}),
           ...(browserFailures.failed.length > 0 ? { browserFailures } : {}),
+          ...(browserNews.length > 0 ? { browserNews } : {}),
           ...(browserSkill ? { browserSkill } : {}),
           command: input.command,
           commands,
@@ -679,7 +695,7 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
       const promotedSkippedBuilds = ignoredBuildsNote(displayOutput);
       const dropNotice =
         output.omittedBytes > 0
-          ? `[${formatBytes(output.omittedBytes)} of earlier output was dropped: the command wrote faster than this call could hold, and this happened before the log file existed, so it is gone. Use a smaller yieldMs to start reading sooner.]\n`
+          ? `[${formatBytes(output.omittedBytes)} of earlier output was dropped: the command wrote faster than this call could hold, and this happened before the log file existed, so it is gone. A command started with a trailing \`&\` has its log from the start.]\n`
           : "";
       const logNotice = output.logWriteError
         ? `[The process log could not be written: ${output.logWriteError}]\n`
@@ -724,17 +740,20 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
     const hasErrors = output.exitCode !== 0;
     const exitLine = `Exit code: ${output.exitCode ?? "unknown"}`;
     const failures = output.browserFailures;
-    const failuresSection = failures
-      ? [
-          "",
-          ...failures.failed.map(
-            ({ command, error }) => `\`${command}\` failed: ${error}`,
-          ),
-          ...(failures.more > 0
-            ? [`${failures.more} more agent-browser commands failed.`]
-            : []),
-        ]
-      : [];
+    const failuresSection = [
+      ...(failures
+        ? [
+            "",
+            ...failures.failed.map(
+              ({ command, error }) => `\`${command}\` failed: ${error}`,
+            ),
+            ...(failures.more > 0
+              ? [`${failures.more} more agent-browser commands failed.`]
+              : []),
+          ]
+        : []),
+      ...(output.browserNews ? ["", ...output.browserNews] : []),
+    ];
     // Ahead of the page, since whether the user sees it is what a reply
     // about it turns on.
     const pageAfterSection = [

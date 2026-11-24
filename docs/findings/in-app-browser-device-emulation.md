@@ -29,7 +29,7 @@ Both rejected attempts argued with Chromium over the *layout* while leaving the 
 
 That works because a parked guest is not bounded by the panel — it is a fixed, near-transparent element that can be any size. It is bounded by something else, measured afterwards: Chromium rasterizes at most 1.3x the window's content box per axis and crops past that while the page keeps reporting the larger size. Requests over that budget are refused with the maximum rather than clamped, since a clamped guest would report a viewport its own screenshots disagree with. See [browser-guest-raster-cap](browser-guest-raster-cap.md).
 
-What has not changed: an agent still cannot capture more than a viewport, and PDF export is still the answer for a whole page. The sibling [full-page screenshot finding](in-app-browser-full-page-screenshots.md) is unaffected.
+What has not changed: one capture still cannot be larger than the viewport. A whole page is taken a viewport's worth at a time and joined; see the sibling [full-page screenshot finding](in-app-browser-full-page-screenshots.md).
 
 ## Previous behavior, while the command was refused
 

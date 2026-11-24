@@ -4,13 +4,20 @@ import path from "node:path";
 
 import { FOLDER_VARIABLES } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
-import { type ChannelAnswer, openScriptChannel } from "../capabilities/channel";
+import {
+  answerFrom,
+  type ChannelAnswer,
+  openScriptChannel,
+} from "../capabilities/channel";
 import {
   ensurePythonRuntime,
   linkPythonRuntime,
 } from "../capabilities/python-runtime";
 import { scriptSurfaceOpen } from "../capabilities/script-surface";
-import { ensureInstrumentStub } from "../capabilities/stub";
+import {
+  ensureAgentBrowserStub,
+  ensureInstrumentStub,
+} from "../capabilities/stub";
 import { filterShellOutput } from "../filter-shell-output";
 import { pythonBaseDir } from "../python-base";
 import {
@@ -73,7 +80,13 @@ function createPythonCommandNamed(
 ) {
   return {
     ...defineCommand(name, (args, ctx) =>
-      runNativePython(chatId, name, args, ctx, answerScript),
+      runNativePython(
+        chatId,
+        name,
+        args,
+        ctx,
+        answerScript && answerFrom(answerScript, ctx),
+      ),
     ),
     acceptsPipeHandoff: true,
   };
@@ -137,11 +150,28 @@ async function runNativePython(
     await linkPythonRuntime(venv);
   }
   const base = bare ? pythonBaseDir() : undefined;
+  // `-I` and `-E` have Python ignore every `PYTHON*` variable, the command's
+  // own `PYTHONPATH` with the shell's. Where the command puts something
+  // there, it does the ignoring itself: the shell's variables are left out
+  // and the flag is not passed on, so the folders it added are still read,
+  // and with them the `sitecustomize` that takes the channel.
+  const isolation = withoutEnvironmentFlags(finalArgs);
+  const isolates =
+    isolation.ignoresEnvironment &&
+    (instrument !== undefined || base !== undefined || Boolean(skill.layer));
+  const shellEnv = isolates
+    ? Object.fromEntries(
+        Object.entries(env).filter(
+          ([key]) => !(key.startsWith("PYTHON") && ctx.env.has(key)),
+        ),
+      )
+    : env;
   const pythonPath =
-    [instrument?.site, instrument?.modules, base, env.PYTHONPATH]
+    [instrument?.site, instrument?.modules, base, shellEnv.PYTHONPATH]
       .filter(Boolean)
       .join(path.delimiter) || undefined;
 
+  await ensureAgentBrowserStub();
   const answer = scriptSurfaceOpen() ? answerScript : undefined;
   if (answer) {
     await ensureInstrumentStub();
@@ -156,7 +186,7 @@ async function runNativePython(
     return await runNative(
       ctx,
       interpreter.python,
-      finalArgs,
+      isolates ? isolation.args : finalArgs,
       {
         cancelSignal: ctx.signal,
         ...(scriptChannel && { scriptChannel }),
@@ -166,7 +196,7 @@ async function runNativePython(
         // bare reads no packages of the person's own (their user
         // site-packages), as a virtualenv reads none.
         env: {
-          ...env,
+          ...shellEnv,
           ...(skill.venv
             ? {
                 PATH: [environmentBinDir(skill.venv), env.PATH]
@@ -204,6 +234,70 @@ async function runNativePython(
 
 /** Options of Python's own that take the argument after them. */
 const VALUE_OPTIONS = new Set(["W", "X"]);
+
+/**
+ * A `python` command line with the options that have it ignore the
+ * environment taken out, and whether it had one: `-E` goes, and `-I`, which
+ * is `-E`, `-s` and `-P` together, is left as the other two. Only Python's
+ * own options are read, the ones before the script, `-c` or `-m`.
+ */
+export function withoutEnvironmentFlags(args: string[]): {
+  args: string[];
+  ignoresEnvironment: boolean;
+} {
+  const kept: string[] = [];
+  let ignoresEnvironment = false;
+  let index = 0;
+  for (; index < args.length; index++) {
+    const arg = args[index] ?? "";
+    if (arg === "-" || arg === "--" || !arg.startsWith("-")) {
+      break;
+    }
+    if (arg.startsWith("--")) {
+      kept.push(arg);
+      if (arg === "--check-hash-based-pycs" && index + 1 < args.length) {
+        kept.push(args[++index] ?? "");
+      }
+      continue;
+    }
+    // A cluster of single-letter options (`-IB`), the last of which may take
+    // a value, attached (`-Wignore`) or as the next argument.
+    let letters = "";
+    let rest = "";
+    let ends = false;
+    for (let position = 1; position < arg.length; position++) {
+      const letter = arg[position] ?? "";
+      if (letter === "c" || letter === "m" || VALUE_OPTIONS.has(letter)) {
+        rest = arg.slice(position);
+        ends = letter === "c" || letter === "m";
+        if (position === arg.length - 1 && index + 1 < args.length) {
+          kept.push(`-${letters}${rest}`, args[++index] ?? "");
+          rest = "";
+          letters = "";
+        }
+        break;
+      }
+      if (letter === "E" || letter === "I") {
+        ignoresEnvironment = true;
+        if (letter === "I") {
+          letters += ["s", "P"]
+            .filter((each) => !letters.includes(each))
+            .join("");
+        }
+        continue;
+      }
+      letters += letter;
+    }
+    if (letters !== "" || rest !== "") {
+      kept.push(`-${letters}${rest}`);
+    }
+    if (ends) {
+      index++;
+      break;
+    }
+  }
+  return { args: [...kept, ...args.slice(index)], ignoresEnvironment };
+}
 
 /**
  * The script a `python` command line runs, as given: its first argument

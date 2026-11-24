@@ -93,7 +93,21 @@ const echo: ChannelAnswer = (request) =>
                   'Not sent: before the first request to "guide", its guide.\n\n# Guide\n',
               },
             }
-          : { result: { args: request.args, capability: request.capability } },
+          : JSON.stringify(request.args).includes('"--session"')
+            ? {
+                error: {
+                  command: {
+                    exitCode: 1,
+                    stderr: "agent-browser: flag --session is not allowed.\n",
+                    stdout: "",
+                  },
+                  kind: "failed",
+                  message: "agent-browser: flag --session is not allowed.",
+                },
+              }
+            : {
+                result: { args: request.args, capability: request.capability },
+              },
   );
 
 let channel: ScriptChannel | undefined;
@@ -216,6 +230,35 @@ instrument.app("guide").get("/me")`,
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toContain(
       'instrument.ReadGuideFirst: Not sent: before the first request to "guide", its guide.\n\n# Guide',
+    );
+  });
+
+  it("runs a browser command from its words, as arguments or a list, with stdin", async () => {
+    const result = await run(
+      `import instrument
+print(instrument.browser("open", "https://example.com"))
+print(instrument.browser(["get", "title"]))
+print(instrument.browser("eval", "--stdin", stdin="document.title"))`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toMatchInlineSnapshot(`
+      "{'args': {'args': ['open', 'https://example.com']}, 'capability': 'browser.run'}
+      {'args': {'args': ['get', 'title']}, 'capability': 'browser.run'}
+      {'args': {'args': ['eval', '--stdin'], 'stdin': 'document.title'}, 'capability': 'browser.run'}"
+    `);
+  });
+
+  it("raises a failed browser command with its exit code and what it printed", async () => {
+    const result = await run(
+      `import instrument
+try:
+    instrument.browser("--session", "mine", "open", "https://example.com")
+except instrument.Error as error:
+    print(error.kind, error.exit_code, repr(error.stderr), repr(error.stdout), error)`,
+    );
+    expect(result.stderr).toBe("");
+    expect(result.stdout).toMatchInlineSnapshot(
+      `"failed 1 'agent-browser: flag --session is not allowed.\\n' '' agent-browser: flag --session is not allowed."`,
     );
   });
 

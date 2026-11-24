@@ -129,23 +129,33 @@ with the check, none, and a daemon the agent started is still gone after stop.
 
 ## Storage locations (for reference)
 
-All agent-browser state except the socket dir is scoped and leak-free:
+All agent-browser state is scoped:
 
 | data                                  | path                                          | scope                                                |
 | ------------------------------------- | --------------------------------------------- | ---------------------------------------------------- |
-| daemon socket + sidecars              | `/tmp/.instrument-browser/<sessionId>.*`      | machine-global dir, ULID-session-scoped filename     |
+| daemon socket + sidecars              | `/tmp/.instrument-browser/<pid>/<sessionId>.*` | per app process, ULID-session-scoped filename        |
 | Chromium profile                      | `<workspaceRoot>/.instrument/browser-session` | per workspace (intentional; see 2026-07-13 decision) |
 | agent-browser `$HOME` + `config.json` | `<task>/.instrument/agent-browser-home`       | per task                                             |
 | screenshots                           | `<task>/work/screenshots`                     | per task                                             |
 | downloads                             | `<task>/downloads`                            | per task                                             |
 
-The socket dir is machine-global because pushing it under a workspace/task dir
+The socket dir is under `/tmp` because pushing it under a workspace/task dir
 reintroduces the 103-byte unix socket path limit (why `d4616d648` moved it to a
-short `/tmp` path; there's a 60-byte assertion in `agent-browser.test.ts`).
-Session isolation is by ULID filename, not directory. userData (and thus
-workspace root) is already separated dev-vs-packaged, so profiles/tasks never
-collide across installs. The only cross-install hazard is the undiscriminating
-`close --all` verb over the shared socket dir; per-session close avoids it.
+short `/tmp` path; `agent-browser.test.ts` asserts the longest path fits).
+userData (and thus workspace root) is already separated dev-vs-packaged, so
+profiles/tasks never collide across installs.
+
+Every app process once shared the one folder `/tmp/.instrument-browser`, and
+`close --all` closes every daemon in the folder it is pointed at, so any
+instance quitting closed the daemons of every other instance running on the
+machine: a second development instance, or the installed app beside one. The
+other instance's next command started a new daemon with an empty ref map, and
+one in flight failed with "Invalid response: EOF". Each process now has a
+folder of its own under that one, named for its pid (`agentBrowserSocketDir`),
+which its quit closes and removes. A process that crashed or was killed leaves
+its folder, and the next launch closes and removes every folder whose pid is no
+longer running (`closeAgentBrowserSessionsOfEndedApps`). That catches orphans
+that still have a `.pid`, not the deadlock class above.
 
 ## Not yet done
 
@@ -154,10 +164,6 @@ collide across installs. The only cross-install hazard is the undiscriminating
   reuse). This is the only thing that reaps an already-deadlocked daemon. Cross
   -platform kill is the friction (`libc::kill` / `taskkill` / `TerminateProcess`
   or `tree-kill`).
-- **Restore the boot sweep** removed as collateral in `57b3707ee` (it deleted
-  the workspace machine's `Running` entry/exit cleanup while moving the exit half
-  to `before-quit`). It catches crash/SIGKILL orphans that still have a `.pid`,
-  but not the deadlock class.
 - **Upstream:** the real fix is `rt.shutdown_timeout(...)` or `process::exit(0)`
   after `run_daemon` returns (all sidecars are already unlinked by then), plus
   calling `StreamServer::shutdown()` on daemon exit. Not filed.

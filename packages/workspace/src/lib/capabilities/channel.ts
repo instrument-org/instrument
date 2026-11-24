@@ -4,7 +4,11 @@ import { rm } from "node:fs/promises";
 import net from "node:net";
 import { z } from "zod";
 
-import { type CapabilityScope, capabilityContexts } from "./context";
+import {
+  type CapabilityScope,
+  capabilityContexts,
+  type ScriptShell,
+} from "./context";
 import { type CapabilityErrorReply } from "./define";
 import {
   type DescribedCapability,
@@ -40,11 +44,28 @@ export type ChannelReply =
   | { error: CapabilityErrorReply }
   | { result: unknown };
 
-/** What answers a script's requests, under the signal of the command that started it. */
+/**
+ * What answers a script's requests, under the signal of the command that
+ * started it and, where that command says, from its shell.
+ */
 export type ChannelAnswer = (
   request: ChannelRequest,
   signal: AbortSignal | undefined,
+  from?: ScriptShell,
 ) => Promise<ChannelReply>;
+
+/**
+ * The answer for the scripts one command starts: each request is answered
+ * from the folder and environment that command ran with, which the script
+ * never names.
+ */
+export function answerFrom(
+  answer: ChannelAnswer,
+  ctx: { cwd: string; env: Map<string, string> },
+): ChannelAnswer {
+  const from = { cwd: ctx.cwd, env: Object.fromEntries(ctx.env) };
+  return (request, signal) => answer(request, signal, from);
+}
 
 /**
  * The answer for a bash call's scripts: the registry's dispatcher, with the
@@ -52,8 +73,8 @@ export type ChannelAnswer = (
  */
 export function answerChannel(scope: CapabilityScope): ChannelAnswer {
   const contextFor = capabilityContexts(scope, "script");
-  return async (request, signal) => {
-    const ctx = contextFor(signal);
+  return async (request, signal, from) => {
+    const ctx = contextFor(signal, undefined, from);
     if (request.kind === "describe") {
       return { capabilities: describeCapabilities(ctx) };
     }

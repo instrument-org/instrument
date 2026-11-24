@@ -71,7 +71,6 @@ const config: KnipConfig = {
       ignoreDependencies: [
         "node-api-headers", // Resolved by path in scripts/build-mac-helper.ts
         "dugite", // Needed to ensure the git binary is available
-        "agent-browser", // Imported in Vite build to resolve the binary path
         "just-bash", // Kept external by electron.vite.config.ts and loaded by the bundled workspace package, so it ships as a dependency
         "@anthropic-ai/claude-agent-sdk", // Resolved at runtime by ai-gateway's createRequire for the Claude Code manifest
       ],
@@ -105,7 +104,6 @@ const config: KnipConfig = {
       ],
       ignore: ["fixtures/**/*"],
       ignoreBinaries: [
-        "ldd",
         "xcode-select",
         "reg.exe", // Windows' registry tool, for the build the MXC canary's verdict is kept per (src/lib/mxc-canary.ts)
         "mkfifo", // Makes the FIFO a tier B uutils file must not be (unsandboxed-uutils-operand.test.ts)

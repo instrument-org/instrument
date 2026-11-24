@@ -23,7 +23,12 @@ import { type Capability, CapabilityFailure, defineCapability } from "./define";
 import { unavailableReason } from "./admit";
 import { describeCapabilities, dispatch } from "./dispatch";
 import { CAPABILITIES } from "./registry";
-import { ensureInstrumentStub, INSTRUMENT_STUB_MESSAGE } from "./stub";
+import {
+  AGENT_BROWSER_STUB_MESSAGE,
+  ensureAgentBrowserStub,
+  ensureInstrumentStub,
+  INSTRUMENT_STUB_MESSAGE,
+} from "./stub";
 import { getWorkspaceConfig } from "../workspace-config";
 
 const scope: CapabilityScope = {
@@ -450,6 +455,7 @@ describe("the registry", () => {
         "apps.request",
         "apps.resources",
         "apps.tools",
+        "browser.run",
         "images.generate",
         "memory.list",
         "memory.show",
@@ -480,6 +486,7 @@ describe("the registry", () => {
         "apps.request",
         "apps.resources",
         "apps.tools",
+        "browser.run",
         "images.generate",
         "memory.list",
         "memory.show",
@@ -620,3 +627,30 @@ describe.skipIf(process.platform === "win32")("the instrument program", () => {
     expect(result.stderr).toBe(`${INSTRUMENT_STUB_MESSAGE}\n`);
   });
 });
+
+describe.skipIf(process.platform === "win32")(
+  "the agent-browser program",
+  () => {
+    it("tells a script that runs it how its own call reaches the browser, and exits 127", async () => {
+      await ensureAgentBrowserStub();
+      const result = spawnSync(
+        path.join(
+          runtimeLayout(getWorkspaceConfig().runtimeDir).bin,
+          "agent-browser",
+        ),
+        ["eval", "document.title"],
+        { encoding: "utf8" },
+      );
+      expect(result.status).toBe(127);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toBe(`${AGENT_BROWSER_STUB_MESSAGE}\n`);
+      expect(result.stderr).toMatchInlineSnapshot(`
+        "agent-browser: agent-browser runs in Instrument's shell, not from a program, so a script cannot start it as one. A script calls it with the same words and gets back what it printed:
+          Python: import instrument; out = instrument.browser("eval", js)
+          Node: const out = await instrument.browser("eval", js)
+        A loop in the shell repeats steps too (for n in 1 2 3; do agent-browser eval --stdin < step.js; done).
+        "
+      `);
+    });
+  },
+);

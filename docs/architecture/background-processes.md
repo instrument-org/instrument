@@ -7,7 +7,7 @@ The design argument and the rejected alternatives are in the [plan](../plans/bac
 ## The one rule
 
 ```
-bash(command, yieldMs = 30s)
+bash(command, yieldMs = 2 min)
         │
         ├── finishes within yieldMs ──────────►  exit code + output      (unchanged)
         │
@@ -126,7 +126,7 @@ The agent may stop the processes it started, and nothing else on the person's co
 | Pending output per process | 256 KB | Held in memory between reads |
 | Process log | 16 MB | On disk at `.tool-output/bg_N.log`, opened following no link (`own-file.ts`) |
 | One `fg` wait | the call's remaining `yieldMs`, 10 min ceiling | A wait that outlived its call would promote the call itself, answering with a second id instead of output. An explicit `--timeout` can only lower it. A message arriving for the session ends the wait early (`lib/wait-interrupts.ts`), since a steer is heard at the next step and a step spent waiting would hold it for the whole window |
-| `yieldMs` | 250 ms – 10 min, default 30 s | Tool-call timeout is `yieldMs + 30 s` so promotion always wins |
+| `yieldMs` | 250 ms – 10 min, default 2 min | The default covers a build, an install or a loop over a few dozen things, so the command ends in the call that started it; a server or watcher is started with a trailing `&`. Tool-call timeout is `yieldMs + 30 s` so promotion always wins |
 | Kill escalation | SIGTERM → 1 s → SIGKILL → 4 s | Then `uncertain` |
 | Finished records kept | 32 per session | A late poll still finds its exit code |
 

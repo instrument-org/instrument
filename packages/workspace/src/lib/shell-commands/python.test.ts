@@ -15,7 +15,11 @@ import { runtimeLayout } from "../runtime-dir";
 import { venvPython } from "../uv";
 import { getWorkspaceConfig } from "../workspace-config";
 import { shellPath } from "../workspace-fs-layout";
-import { createPythonCommand, pythonScript } from "./python";
+import {
+  createPythonCommand,
+  pythonScript,
+  withoutEnvironmentFlags,
+} from "./python";
 import { chatLayout } from "../../test/helpers/chat-layout";
 
 vi.mock("execa");
@@ -296,6 +300,86 @@ describe("python", () => {
     [[], undefined],
   ])("finds the script in %j", (args, script) => {
     expect(pythonScript(args)).toBe(script);
+  });
+
+  it.each([
+    [["-I", "scan.py"], ["-sP", "scan.py"], true],
+    [["-E", "scan.py", "-I"], ["scan.py", "-I"], true],
+    [["-IB", "scan.py"], ["-sPB", "scan.py"], true],
+    [["-sI", "scan.py"], ["-sP", "scan.py"], true],
+    [
+      ["-EW", "ignore", "-c", "print(1)", "-E"],
+      ["-W", "ignore", "-c", "print(1)", "-E"],
+      true,
+    ],
+    [["-Ic", "print(1)"], ["-sPc", "print(1)"], true],
+    [
+      ["-Xdev", "-E", "-m", "http.server", "-I"],
+      ["-Xdev", "-m", "http.server", "-I"],
+      true,
+    ],
+    [["-s", "scan.py", "-E"], ["-s", "scan.py", "-E"], false],
+    [["-c", "print('-E')"], ["-c", "print('-E')"], false],
+    [["--", "-E"], ["--", "-E"], false],
+  ])(
+    "takes the environment options out of %j",
+    (args, kept, ignoresEnvironment) => {
+      expect(withoutEnvironmentFlags(args)).toEqual({
+        args: kept,
+        ignoresEnvironment,
+      });
+    },
+  );
+
+  it.each([["-I"], ["-E"]])(
+    "keeps its own folders on the path of a bare interpreter run with %s, and drops the shell's variables itself",
+    async (flag) => {
+      const { execa } = await import("execa");
+      const { pythonToRun } = await import("../venv");
+      vi.mocked(pythonToRun).mockResolvedValueOnce({
+        python: "/runtime/python/bin/python3.12",
+        venv: undefined,
+      });
+      vi.mocked(execa).mockResolvedValueOnce({ all: "", exitCode: 0 } as never);
+
+      await command.execute([flag, "-c", "import instrument"], {
+        ...mockCtx,
+        env: new Map([
+          ["PYTHONPATH", "/somewhere/else"],
+          ["PYTHONWARNINGS", "error"],
+        ]),
+      });
+
+      const call = vi.mocked(execa).mock.lastCall as unknown as
+        | [string, string[], { env?: Record<string, string> }]
+        | undefined;
+      const { preload } = runtimeLayout(getWorkspaceConfig().runtimeDir);
+      expect(call?.[1]).toEqual([
+        ...(flag === "-I" ? ["-sP"] : []),
+        "-c",
+        "import instrument",
+      ]);
+      expect(call?.[2].env?.PYTHONPATH).toBe(
+        [path.join(preload, "python-site"), path.join(preload, "python")].join(
+          path.delimiter,
+        ),
+      );
+      expect(call?.[2].env?.PYTHONWARNINGS).toBeUndefined();
+      expect(call?.[2].env?.PYTHONNOUSERSITE).toBe("1");
+    },
+  );
+
+  it("passes -I through to a virtualenv's interpreter, whose own folder links instrument", async () => {
+    const { execa } = await import("execa");
+    vi.mocked(execa).mockResolvedValueOnce({ all: "", exitCode: 0 } as never);
+
+    await command.execute(["-I", "-c", "import instrument"], mockCtx);
+
+    expect(vi.mocked(execa).mock.calls.at(-1)?.[1]).toEqual([
+      "-I",
+      "-c",
+      "import instrument",
+    ]);
   });
 
   it("passes -c code with a real path through unchanged", async () => {

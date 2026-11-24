@@ -670,7 +670,7 @@ export const NOTES_APP: MacAppDefinition = {
 
 export const MESSAGES_APP: MacAppDefinition = {
   about:
-    "Messages on this Mac, which sends iMessages, and texts through the person's iPhone. Messages' scripting can't read conversations, so nothing here reads them; the only ways to are Full Disk Access or Accessibility for Instrument, which you never reach for on your own.",
+    "Messages on this Mac, which sends iMessages, and texts through the person's iPhone. Messages' scripting can't read conversations, so nothing here reads them. On macOS 27.3 or later the person can let Instrument into the Messages folder alone (~/Library/Messages, whose chat.db is the history): in System Settings, Privacy & Security, Files & Folders, Instrument, they press + and pick that folder, and macOS asks for their password. Say so when the work needs past messages and let them decide; once they have, ask for that folder like any other. Before 27.3 the only ways are Full Disk Access or Accessibility for Instrument, which you never reach for on your own.",
   bundleId: "com.apple.MobileSMS",
   name: "Messages",
   server: "apple-messages",

@@ -98,4 +98,27 @@ describe("browserStatusModelNote", () => {
       }),
     ).toContain("t1 at https://example.com/, opened by an agent.");
   });
+
+  it("names a tab whose page is unloaded, and says it comes back when used", () => {
+    expect(
+      browserStatusModelNote({
+        status: "tabs",
+        tabs: [
+          { id: "t1", onScreen: true, url: "https://mail.example.com/" },
+          {
+            id: "t2",
+            openedBy: "task",
+            title: "Your Orders",
+            unloaded: true,
+            url: "https://shop.example.com/orders",
+          },
+        ],
+      }),
+    ).toMatchInlineSnapshot(`
+      "
+      <instrument-system-note>
+      Pages in the user's tab group: t1 at https://mail.example.com/; t2 at https://shop.example.com/orders, opened by an agent, its page unloaded.
+      </instrument-system-note>"
+    `);
+  });
 });

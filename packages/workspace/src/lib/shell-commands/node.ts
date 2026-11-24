@@ -3,9 +3,16 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 import { type AbsolutePath } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
-import { type ChannelAnswer, openScriptChannel } from "../capabilities/channel";
+import {
+  answerFrom,
+  type ChannelAnswer,
+  openScriptChannel,
+} from "../capabilities/channel";
 import { scriptSurfaceOpen } from "../capabilities/script-surface";
-import { ensureInstrumentStub } from "../capabilities/stub";
+import {
+  ensureAgentBrowserStub,
+  ensureInstrumentStub,
+} from "../capabilities/stub";
 import { nodePreloadUrl } from "../node-preload";
 import { nodeToolsEnv } from "../tool-isolation";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -42,6 +49,7 @@ export async function execNode(
   // sandbox refuses; `instrument` only works with a channel to answer it.
   const preload =
     args[0] === "--version" ? [] : ["--import", await nodePreloadUrl()];
+  await ensureAgentBrowserStub();
   const answer = scriptSurfaceOpen() ? answerScript : undefined;
   if (answer) {
     await ensureInstrumentStub();
@@ -116,17 +124,15 @@ export const NODE_COMMAND = {
 } as const;
 
 /**
- * `node` as a real process. With `answerScript`, the script gets the
+ * `node` as a real process. With `answer`, the script gets the
  * `instrument` global (`capabilities/node-runtime.ts`), and this command
  * answers each call it makes over a loopback channel opened for that one
  * process.
  */
-export function createNodeCommand(
-  chatId: ChatId,
-  answerScript?: ChannelAnswer,
-) {
+export function createNodeCommand(chatId: ChatId, answer?: ChannelAnswer) {
   const command = defineCommand(NODE_COMMAND.name, async (args, ctx) => {
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
+    const answerScript = answer && answerFrom(answer, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
 
     if (args.length === 0 && !stdinProgram && ctx.stdinHandoff === undefined) {

@@ -24,11 +24,11 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [A task cannot look at what it drew](a-task-cannot-look-at-what-it-drew.md): harness gap fixed in 95af4cfc3 (`hasNoWindow`;
 - [A thumbnail request nobody wants is still drawn](a-thumbnail-request-nobody-wants-is-still-drawn.md): contained, checked 2026-10-27.
 - [Agent-browser `download` never restores the browser's download behavior](agent-browser-download-behavior-not-reset.md): moot here.
-- [Agent-browser's network-idle wait reports success when it times out](agent-browser-network-idle-reports-done-on-timeout.md): worked around in the wrapper (`agent-browser-wait.ts`), which gives an uncapped `wait --load networkidle` a five-second timeout and says so when the network...
+- [Agent-browser's network-idle wait reported success when it timed out](agent-browser-network-idle-reports-done-on-timeout.md): fixed upstream.
 - [Orphaned agent-browser daemons](agent-browser-orphaned-daemons.md): partly fixed.
 - [Agent-browser snapshot refs die on the daemon idle timeout](agent-browser-ref-map-idle-ttl.md): fixed in 20647086c by raising the daemon idle timeout to five minutes;
 - [Agent-browser's `type` presses Enter for every line break](agent-browser-type-presses-enter-for-line-breaks.md): worked around in the wrapper (`agent-browser-typed-text.ts`), which types text with a line break inside it as one insertion;
-- [Agent clicks land where the element was, not where it is](agent-clicks-land-where-the-element-was.md): understood and worked around in the gateway (`apps/studio/src/electron-main/browser-view/dispatch-command.ts`);
+- [Agent clicks land where the element was, not where it is](agent-clicks-land-where-the-element-was.md): fixed in agent-browser for the reflow, and for a wrapped link clicked by ref: from 0.44.0 it waits in the page for an element to hold still, and a ref click...
 - [The agent's filesystem work stalls the window, and not by blocking it](agent-filesystem-work-stalls-the-window.md): contained: every agent shell runs in a worker thread since 57faeef2c (`packages/workspace/src/lib/bash-worker/`), which takes this stall off main;
 - [Agent prompt surface: what we measured, and what is still open](agent-prompt-surface-review.md): open items, measured once.
 - [Agent tool surface: gaps against three reference harnesses](agent-tool-surface-review.md): partly overtaken, not re-audited in full.
@@ -63,7 +63,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [Haiku narrates between tool calls, and prompt wording does not move it](haiku-narrates-between-calls.md)
 - [HTML file artifacts: in-iframe link navigation can't be tracked or driven](html-artifact-iframe-navigation.md): moot: the sandboxed iframe was removed in 15dae28cb (checked 2026-10-02).
 - [In-app browser: device/viewport emulation isn't safe for agent-browser](in-app-browser-device-emulation.md): superseded: the request is honored again, by a different mechanism.
-- [In-app browser: full-page screenshots aren't supported](in-app-browser-full-page-screenshots.md): still open, workaround in place (PDF export), checked 2026-10-02.
+- [In-app browser: full-page screenshots tile unless taken a viewport at a time](in-app-browser-full-page-screenshots.md): resolved 2026-11-24: `agent-browser screenshot --full` is taken a viewport's worth at a time and joined.
 - [What the in-app browser reports about itself](in-app-browser-self-report.md): current, except that the identity the guest presents has changed since.
 - [Leaking z-index stacks in the renderer](leaking-z-index-stacks.md): resolved for the surfaces listed below;
 - [Local transcription: engine choice](local-transcription-engine.md): the engine comparison is deliberately left unresolved, because the measurement that would settle it has not been run.

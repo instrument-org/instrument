@@ -1724,7 +1724,7 @@ describe("llmRequestLogic", () => {
         {
           "input": {
             "command": "instrument task new",
-            "yieldMs": 30000,
+            "yieldMs": 120000,
           },
           "type": "tool-bash",
         },

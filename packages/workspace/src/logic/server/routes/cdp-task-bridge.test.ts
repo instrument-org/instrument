@@ -4,7 +4,9 @@ import { WebSocket } from "ws";
 import { cdpMethodsHandled } from "../../../lib/cdp-methods";
 import {
   announceChatTab,
+  closeChatTab,
   noteTabCommand,
+  tabsActedInBy,
   takeTabNews,
 } from "../../../lib/tab-activity";
 import { StoreId } from "../../../schemas/store-id";
@@ -285,6 +287,7 @@ function connect(sessionId: StoreId.Session = SESSION_ID) {
       await flush();
     },
     command,
+    disconnect: () => listeners.close?.(undefined),
     events,
     /** A tab's page moving on by itself, as a clicked link takes it. */
     navigates: async (
@@ -721,6 +724,52 @@ describe("a session's browser", () => {
     expect(asked).toEqual([]);
     expect(windowList.map((entry) => entry.id)).toContain(theirs.tabId);
   });
+
+  it("closes the only tab the agent has when the wrapper asks, and tells the agent it is gone", async () => {
+    const own = tab({ opened: true });
+    const { command, events } = connect();
+    await command("Target.getTargets");
+
+    expect(
+      await closeChatTab({ chatId: TASK_ID, sessionId: SESSION_ID }, own.tabId),
+    ).toBe(true);
+
+    expect(asked).toEqual([{ kind: "close", tabId: own.tabId }]);
+    expect(windowList).toEqual([]);
+    expect(record.openedTabs).toEqual([]);
+    expect(events("Target.targetDestroyed")).toEqual([{ targetId: own.tabId }]);
+    // The note a finished task leaves names the tabs it drove.
+    expect(tabsActedInBy(SESSION_ID)).not.toContain(own.targetId);
+  });
+
+  it("leaves a tab of the user's as it is when the wrapper asks to close it", async () => {
+    const theirs = tab();
+    const { command, events } = connect();
+    await command("Target.getTargets");
+
+    expect(
+      await closeChatTab(
+        { chatId: TASK_ID, sessionId: SESSION_ID },
+        theirs.tabId,
+      ),
+    ).toBe(false);
+
+    expect(asked).toEqual([]);
+    expect(events("Target.targetDestroyed")).toEqual([]);
+    expect(windowList.map((entry) => entry.id)).toEqual([theirs.tabId]);
+  });
+
+  it("closes nothing for the wrapper once the session's connection is gone", async () => {
+    const own = tab({ opened: true });
+    const sessionId = StoreId.newSessionId();
+    connect(sessionId).disconnect();
+
+    expect(await closeChatTab({ chatId: TASK_ID, sessionId }, own.tabId)).toBe(
+      false,
+    );
+    expect(asked).toEqual([]);
+  });
+
   it.each(
     cdpMethodsHandled("task", "override").filter((method) =>
       method.startsWith("Target."),
@@ -1066,6 +1115,55 @@ describe("a session's start tab", () => {
 
     expect(closedPages).toEqual([start]);
     expect(asked).toEqual([]);
+  });
+});
+
+describe("a session whose only tab was closed", () => {
+  /** A session connected with one tab an agent opened, closed for it since. */
+  async function emptied() {
+    const own = tab({ opened: true });
+    const connection = connect();
+    await connection.command("Target.getTargets");
+    await closeChatTab({ chatId: TASK_ID, sessionId: SESSION_ID }, own.tabId);
+    asked.length = 0;
+    // agent-browser makes itself a page before its next command.
+    const made = await connection.command("Target.createTarget", {
+      url: "about:blank",
+    });
+    return { ...connection, blank: made.result?.targetId as string };
+  }
+
+  it("carries on in a blank page with no tab, as one new to the chat starts in", async () => {
+    const { blank } = await emptied();
+
+    expect(blank).toBeTruthy();
+    expect(asked).toEqual([]);
+    expect(windowList).toEqual([]);
+  });
+
+  it("has that blank page closed once it opens a tab of its own", async () => {
+    const { blank, closedPages, command } = await emptied();
+
+    const made = await command("Target.createTarget", {
+      url: "https://example.org/",
+    });
+
+    expect(closedPages).toContain(blank);
+    expect(windowList.map((entry) => entry.id)).toEqual([
+      made.result?.targetId,
+    ]);
+  });
+
+  it("keeps that tab once it has sent it somewhere", async () => {
+    const { blank, command, navigates } = await emptied();
+    await navigates(browserTargetOf(StoreId.TabSchema.parse(blank)), {
+      title: "Shop",
+      url: "https://shop/",
+    });
+
+    await command("Target.createTarget", { url: "https://example.org/" });
+
+    expect(asked).not.toContainEqual({ kind: "close", tabId: blank });
   });
 });
 

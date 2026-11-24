@@ -16,7 +16,7 @@ import { type BrowserConfig } from "../../types";
 import { WebSearch } from "../../tools/web-search";
 import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
-  AGENT_BROWSER_PATH,
+  agentBrowserPath,
   AGENT_BROWSER_SOCKET_DIR,
   readSessionName,
 } from "../agent-browser";
@@ -1474,7 +1474,7 @@ async function spawnAgentBrowser({
     ? ["--config", managedConfigPath, ...args]
     : args;
   // It drives the app's own browser, so no native sandbox wraps it.
-  recordProgramStart(AGENT_BROWSER_PATH, "skipped");
+  recordProgramStart(agentBrowserPath(), "skipped");
 
   if (managedConfigPath) {
     await fs.mkdir(path.dirname(managedConfigPath), { recursive: true });
@@ -1484,7 +1484,7 @@ async function spawnAgentBrowser({
   const { subcommand } = parseAgentBrowserArgs(args);
 
   if (process.platform !== "win32") {
-    const subprocess = execa(AGENT_BROWSER_PATH, managedArgs, {
+    const subprocess = execa(agentBrowserPath(), managedArgs, {
       cancelSignal,
       cwd,
       env,
@@ -1521,7 +1521,7 @@ async function spawnAgentBrowser({
     // detached daemon that can keep inherited stdout/stderr pipe handles alive;
     // waiting directly on the CLI process exit avoids treating pipe EOF as part
     // of command completion.
-    const child = spawn(AGENT_BROWSER_PATH, managedArgs, {
+    const child = spawn(agentBrowserPath(), managedArgs, {
       cwd,
       env,
       stdio: ["pipe", stdoutFd, stderrFd],

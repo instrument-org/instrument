@@ -14,23 +14,47 @@ declare const __AGENT_BROWSER_DIR__: null | string;
 
 const req = createRequire(import.meta.url);
 
-// The binary is in the platform package agent-browser depends on, so it is
-// resolved from agent-browser's own folder: pnpm links it only there.
-function binaryPath() {
-  const binary = agentBrowserBinary(platform(), arch());
-  if (!binary) {
-    throw new Error(`agent-browser has no build for ${platform()}-${arch()}`);
-  }
+// The platform package is one agent-browser depends on, so it is resolved from
+// agent-browser's own folder: pnpm links it only there.
+function resolveFromAgentBrowser(id: string) {
   const packageDir =
     __AGENT_BROWSER_DIR__ ??
     path.dirname(req.resolve("agent-browser/package.json"));
-  const manifest = createRequire(path.join(packageDir, "package.json")).resolve(
-    `${binary.packageName}/package.json`,
-  );
+  return createRequire(path.join(packageDir, "package.json")).resolve(id);
+}
+
+/**
+ * agent-browser's binary for a platform and architecture. `resolve` finds a
+ * file of the one platform package that pair names, and is asked for no other.
+ */
+export function agentBrowserBinaryPath(
+  platformName: string,
+  archName: string,
+  resolve: (id: string) => string,
+) {
+  const binary = agentBrowserBinary(platformName, archName);
+  if (!binary) {
+    throw new Error(
+      `agent-browser has no build for ${platformName}-${archName}`,
+    );
+  }
+  const manifest = resolve(`${binary.packageName}/package.json`);
   return path.join(path.dirname(manifest), binary.path);
 }
 
-export const AGENT_BROWSER_PATH = unpackAsarPath(binaryPath());
+let binaryPath: string | undefined;
+
+/**
+ * The binary this computer runs. It is found when a caller first runs the
+ * program, so loading this module asks for no package: only the running
+ * platform's is installed, and a module that loads this one may never run it.
+ */
+export function agentBrowserPath() {
+  binaryPath ??= unpackAsarPath(
+    agentBrowserBinaryPath(platform(), arch(), resolveFromAgentBrowser),
+  );
+  return binaryPath;
+}
 
 // Idle ms after which the agent-browser daemon self-terminates. The CLI counts
 // this from the last command (each invocation re-arms the timer) and, on fire,

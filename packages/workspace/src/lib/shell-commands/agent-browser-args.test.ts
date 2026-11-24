@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-import { AGENT_BROWSER_PATH } from "../agent-browser";
+import { agentBrowserPath } from "../agent-browser";
 import {
   agentBrowserFlagName,
   GLOBAL_BOOL_FLAGS,
@@ -175,7 +175,7 @@ describe("parseAgentBrowserArgs", () => {
 // here until it is in the tables, and the wrapper's own test of what it does
 // with each flag then asks for a decision.
 describe("the tables of global flags", () => {
-  const help = execFileSync(AGENT_BROWSER_PATH, ["--help"], {
+  const help = execFileSync(agentBrowserPath(), ["--help"], {
     encoding: "utf8",
   });
   const listed = [...sectionsOf(help, ["Authentication:", "Options:"])].map(

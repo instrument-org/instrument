@@ -140,7 +140,7 @@ import {
 } from "./shell-commands/command-runs";
 import { createPathProgramResolver } from "./shell-commands/path-program";
 import { createWhichCommand } from "./shell-commands/which";
-import { AGENT_BROWSER_PATH } from "./agent-browser";
+import { agentBrowserPath } from "./agent-browser";
 import { FFMPEG_PATH, FFPROBE_PATH } from "./ffmpeg";
 import { gitBinaryPath } from "./git";
 import { RG_DISK_PATH } from "./ripgrep";
@@ -611,7 +611,7 @@ const ALL_CUSTOM_COMMAND_DEFS: CustomCommandDef[] = [
  */
 const COMMAND_PROGRAMS: Record<string, (chatId: ChatId) => string | undefined> =
   {
-    [AGENT_BROWSER_COMMAND.name]: () => AGENT_BROWSER_PATH,
+    [AGENT_BROWSER_COMMAND.name]: agentBrowserPath,
     [FFMPEG_COMMAND.name]: () => FFMPEG_PATH,
     [FFPROBE_COMMAND.name]: () => FFPROBE_PATH,
     [GIT_COMMAND.name]: () => gitBinaryPath(),

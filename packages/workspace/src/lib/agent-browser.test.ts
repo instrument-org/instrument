@@ -1,10 +1,14 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { platform } from "node:os";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../schemas/store-id";
-import { AGENT_BROWSER_SOCKET_DIR } from "./agent-browser";
+import {
+  AGENT_BROWSER_SOCKET_DIR,
+  agentBrowserBinaryPath,
+  agentBrowserPath,
+} from "./agent-browser";
 
 const isWindows = platform() === "win32";
 
@@ -29,4 +33,64 @@ describe("AGENT_BROWSER_SOCKET_DIR", () => {
       expect(Buffer.byteLength(socketPath)).toBeLessThanOrEqual(103);
     },
   );
+});
+
+describe("agentBrowserBinaryPath", () => {
+  // Only the running platform's package is installed, so asking for any
+  // other one throws wherever this runs.
+  it.each([
+    ["darwin", "arm64", "@agent-browser/cli-darwin-arm64", "agent-browser"],
+    ["darwin", "x64", "@agent-browser/cli-darwin-x64", "agent-browser"],
+    ["linux", "arm64", "@agent-browser/cli-linux-arm64-gnu", "agent-browser"],
+    ["linux", "x64", "@agent-browser/cli-linux-x64-gnu", "agent-browser"],
+    [
+      "win32",
+      "arm64",
+      "@agent-browser/cli-win32-x64-msvc",
+      "agent-browser.exe",
+    ],
+    ["win32", "x64", "@agent-browser/cli-win32-x64-msvc", "agent-browser.exe"],
+  ])(
+    "asks only for the %s-%s package",
+    (platformName, archName, packageName, program) => {
+      const asked: string[] = [];
+      const binary = agentBrowserBinaryPath(platformName, archName, (id) => {
+        asked.push(id);
+        return path.join("/packages", id);
+      });
+      expect(asked).toEqual([`${packageName}/package.json`]);
+      expect(binary).toBe(path.join("/packages", packageName, "bin", program));
+    },
+  );
+
+  it("names the platform it has no build for", () => {
+    expect(() =>
+      agentBrowserBinaryPath("freebsd", "x64", () => {
+        throw new Error("asked for a package");
+      }),
+    ).toThrow("agent-browser has no build for freebsd-x64");
+  });
+});
+
+describe("agentBrowserPath", () => {
+  it("is the installed binary for this computer", () => {
+    expect(path.basename(agentBrowserPath())).toBe(
+      isWindows ? "agent-browser.exe" : "agent-browser",
+    );
+  });
+
+  // A test that builds another platform's menus or paths loads this module
+  // under that platform's name, where the package it names is not installed.
+  it("asks for no package while the module loads", async () => {
+    const real = process.platform;
+    Object.defineProperty(process, "platform", {
+      value: real === "darwin" ? "linux" : "darwin",
+    });
+    vi.resetModules();
+    try {
+      await expect(import("./agent-browser")).resolves.toBeDefined();
+    } finally {
+      Object.defineProperty(process, "platform", { value: real });
+    }
+  });
 });

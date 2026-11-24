@@ -4,6 +4,7 @@ import {
   type ComposerApp,
 } from "@/client/components/app-mention";
 import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
+import { setComposeFocus } from "@/client/lib/type-to-compose";
 import {
   type ComposerAction,
   MenuGroupHeader,
@@ -631,6 +632,16 @@ export function PromptEditor({
       }),
     });
     viewRef.current = view;
+    setComposeFocus(view.dom, () => {
+      // Words left selected are not the letter's to replace.
+      const { selection } = view.state;
+      if (!selection.empty) {
+        view.dispatch(
+          view.state.tr.setSelection(TextSelection.near(selection.$to, -1)),
+        );
+      }
+      view.focus();
+    });
     setHasLinks(hasLinksIn(view.state));
     // Not while the person walks a list with the arrows (`mayTakeKeyboard`).
     if (initialProps.autoFocus && mayTakeKeyboard()) {

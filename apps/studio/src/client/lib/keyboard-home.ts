@@ -447,6 +447,28 @@ function homeIn(root: HTMLElement): HTMLElement | null {
   );
 }
 
+/**
+ * The words of the composer on show, for a letter typed on nothing: in a tab
+ * group, the one on the side with the keyboard, and null when that side
+ * shows something else.
+ */
+export function composerWithKeyboard(): HTMLElement | null {
+  const root = sideWithKeyboard() ?? document;
+  return (
+    [
+      ...root.querySelectorAll<HTMLElement>(
+        '[data-keyboard-home] [data-slot="composer-frame"] [contenteditable="true"]',
+      ),
+    ].find(
+      (each) =>
+        each.closest(ACTIVE_TAB) !== null &&
+        each.closest('[aria-hidden="true"]') === null &&
+        isShown(each) &&
+        !isOnSideWithoutKeyboard(each),
+    ) ?? null
+  );
+}
+
 /** The side of the tab group on screen that has the keyboard. */
 function sideWithKeyboard() {
   return document.querySelector<HTMLElement>(

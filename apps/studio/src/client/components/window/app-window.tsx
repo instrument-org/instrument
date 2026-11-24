@@ -58,6 +58,7 @@ import {
   installKeyboardHome,
   isKeyboardNowhere,
 } from "@/client/lib/keyboard-home";
+import { installTypeToCompose } from "@/client/lib/type-to-compose";
 import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
@@ -587,6 +588,7 @@ function WindowShell({
   useRefreshProjectsOnChange();
   useRefetchOnWindowSwitch();
   useEffect(() => installKeyboardHome(), []);
+  useEffect(() => installTypeToCompose(), []);
   useEffect(() => {
     // A turn later, so the Toaster has subscribed before its toast goes up.
     const timer = setTimeout(restoreUnsentFeedback, 0);

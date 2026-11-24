@@ -140,13 +140,6 @@ const setShowBookmarksBar = base
     getWorkspacePreferences().set("showBookmarksBar", input.enabled);
   });
 
-/** Whether tab groups and new tabs show ideas for what to ask. */
-const setShowIdeas = base
-  .input(z.object({ enabled: z.boolean() }))
-  .handler(({ input }) => {
-    getWorkspacePreferences().set("showIdeas", input.enabled);
-  });
-
 const setSuggestNextMessage = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
@@ -305,7 +298,6 @@ export const preferences = {
   setKeepHistory,
   setShareActionsWithChats,
   setShowBookmarksBar,
-  setShowIdeas,
   setSuggestNextMessage,
   setTheme,
   removeFavoritePlace,

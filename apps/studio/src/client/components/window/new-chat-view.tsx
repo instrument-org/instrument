@@ -78,14 +78,6 @@ import { type SearchThing, useSearchSources } from "./search-sources";
 import { typedAddressName } from "./typed-address-row";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
-import { IdeaRows } from "./idea-rows";
-import { openSettings } from "@/client/atoms/settings-modal";
-import {
-  ideaSourcesOf,
-  noteIdeaTaken,
-  useIdeasAvailable,
-  useTabIdeas,
-} from "./use-tab-ideas";
 import {
   arrivingNewChatTabsAtom,
   useWindowTabs,
@@ -478,32 +470,6 @@ export function NewChatView({
     }
   };
   const isOffering = completions.rows.length > 0;
-  // Ideas for a new chat, made from the pages, files and folders beside it
-  // in its group, as next-message rows under the centered box. A new chat
-  // with nothing beside it has none.
-  const ideaSources =
-    ownGroup === undefined
-      ? []
-      : ideaSourcesOf(windowTabs.layoutOf(ownGroup), tabId);
-  const ideasOn = useIdeasAvailable() && isCentered && ideaSources.length > 0;
-  const ideas = useTabIdeas({
-    isOn: ideasOn,
-    tabs: ideaSources,
-    trigger: "new-tab",
-  });
-  const sendIdea = (line: string) => {
-    if (shell.defaultModelURI === undefined) {
-      return;
-    }
-    noteIdeaTaken();
-    cancelWords(newChatWordsKey(tabId));
-    const id = draft?.id ?? makeDraft({ tabId, words: line });
-    shell.startChat(
-      id,
-      { modelURI: shell.defaultModelURI, prompt: line },
-      tabId,
-    );
-  };
   const places = {
     computerName: osConventions().computer,
     onOpenApps: () => {
@@ -662,13 +628,6 @@ export function NewChatView({
             }
           }}
           shownPath={shownPath}
-          onCommandEnterWhenEmpty={
-            ideas.lines[0] === undefined
-              ? undefined
-              : () => {
-                  sendIdea(ideas.lines[0] ?? "");
-                }
-          }
           onModelChange={shell.setDefaultModelURI}
           onWordsChange={takeWords}
           // Once, as a new tab's composer first comes up: never as the tab
@@ -720,26 +679,6 @@ export function NewChatView({
             onPick={pick}
             picked={picked}
             rows={completions.rows}
-          />
-        )}
-        {!isOffering && ideasOn && (
-          <IdeaRows
-            className="absolute inset-x-6 top-full mt-3"
-            isBoxEmpty={words.trim() === ""}
-            isMaking={ideas.isMaking}
-            lines={ideas.lines}
-            onSend={sendIdea}
-            trailing={
-              <button
-                className="px-1 text-[11px] text-muted-foreground/60 hover:text-muted-foreground"
-                onClick={() => {
-                  openSettings({ setting: "show-ideas" });
-                }}
-                type="button"
-              >
-                Turn off ideas
-              </button>
-            }
           />
         )}
       </div>

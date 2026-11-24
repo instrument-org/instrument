@@ -8,6 +8,10 @@ import {
   noteSearchPick,
   readSearchPicks,
 } from "@/electron-main/stores/workspace/state";
+import {
+  countClosedSince,
+  forgetClosedSince,
+} from "@/electron-main/windows/app-window";
 import { pickLogSchema } from "@/shared/remembered-picks";
 import { distinct, liveRead, where } from "@instrument-org/workspace/electron";
 import { eventIterator } from "@orpc/server";
@@ -22,22 +26,38 @@ const SinceSchema = z.object({
 
 /**
  * Removes every visit at or after `since`, the person's and an agent's, and
- * every page left with no visits. `removed` counts the visits.
+ * every page left with no visits. `removed` counts the visits. With
+ * `closedTabs`, what closed in that time can no longer come back either, in
+ * any window.
  */
 const clear = base
-  .input(SinceSchema)
+  .input(SinceSchema.extend({ closedTabs: z.boolean().optional() }))
   .output(z.object({ removed: z.number() }))
-  .handler(({ input }) => getHistoryStore().clear(input.since));
+  .handler(({ input }) => {
+    if (input.closedTabs) {
+      forgetClosedSince(input.since);
+    }
+    return getHistoryStore().clear(input.since);
+  });
 
 /**
  * What clearing from `since` would take, as the person sees it: how many
  * pages they visited visibly in that time, and those pages' hosts,
- * most-visited first.
+ * most-visited first, and how many things closed in that time can come back.
  */
 const summary = base
   .input(SinceSchema)
-  .output(z.object({ count: z.number(), hosts: z.array(z.string()) }))
-  .handler(({ input }) => getHistoryStore().summary(input.since));
+  .output(
+    z.object({
+      closedCount: z.number(),
+      count: z.number(),
+      hosts: z.array(z.string()),
+    }),
+  )
+  .handler(({ input }) => ({
+    ...getHistoryStore().summary(input.since),
+    closedCount: countClosedSince(input.since),
+  }));
 
 const PageSchema = z.object({
   /** When the person last visited it, epoch ms. */

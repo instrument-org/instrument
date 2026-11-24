@@ -1,7 +1,10 @@
 import { clearBrowsingDataModalAtom } from "@/client/atoms/clear-browsing-data-modal";
 import { ACTIONS_KEY } from "@/client/components/activity/activity-keys";
 import { Button } from "@/client/components/ui/button";
-import { Checkbox } from "@/client/components/ui/checkbox";
+import {
+  ClearBox,
+  TimeRangeField,
+} from "@/client/components/clear-dialog-parts";
 import {
   Dialog,
   DialogBody,
@@ -10,14 +13,6 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/client/components/ui/select";
-import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import {
@@ -27,15 +22,13 @@ import {
   cookiesDetail,
   historyDetail,
   sinceOf,
-  TIME_RANGES,
   type TimeRangeId,
 } from "@/client/lib/browsing-data";
-import { forgetClosedSince } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useAtom, useStore } from "jotai";
-import { useId, useState } from "react";
+import { useAtom } from "jotai";
+import { useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 /**
@@ -105,31 +98,19 @@ function ClearBrowsingDataContent({
     // What is there changes with every page; each opening asks again.
     gcTime: 0,
   });
-  const store = useStore();
   const queryClient = useQueryClient();
-  const closedCount = store
-    .get(appTabsAtom)
-    .recentlyClosed.filter(
-      ({ closedAt }) =>
-        range === "all" ||
-        (closedAt !== undefined &&
-          closedAt >= (sinceOf(range, openedAt) ?? -Infinity)),
-    ).length;
   const clear = useMutation({
     mutationFn: async () => {
       const since = sinceOf(range, Date.now());
       await Promise.all([
-        picked.history && rpcClient.history.clear.call({ since }),
+        picked.history &&
+          rpcClient.history.clear.call({ closedTabs: true, since }),
         (picked.cache || picked.siteData) &&
           rpcClient.browsingData.clear.call({
             cache: picked.cache,
             siteData: picked.siteData,
           }),
       ]);
-      // The closed tabs are the browser's history too, and go with it.
-      if (picked.history) {
-        store.set(appTabsAtom, (current) => forgetClosedSince(current, since));
-      }
     },
     onError: (error) => {
       toast.error("Couldn't clear your browsing data", { cause: error });
@@ -154,42 +135,18 @@ function ClearBrowsingDataContent({
       </div>
 
       <DialogBody className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-4">
-          <label className="text-sm" htmlFor="clear-browsing-data-range">
-            Time range
-          </label>
-          <Select
-            onValueChange={(value) => {
-              const option = TIME_RANGES.find((r) => r.id === value);
-              if (option) {
-                setRange(option.id);
-              }
-            }}
-            value={range}
-          >
-            <SelectTrigger className="w-40" id="clear-browsing-data-range">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end" position="popper">
-              {TIME_RANGES.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <TimeRangeField onChange={setRange} range={range} />
 
         <div className="flex flex-col gap-1">
-          <BucketRow
+          <ClearBox
             checked={picked.history}
-            detail={history && historyDetail({ ...history, closedCount })}
+            detail={history && historyDetail(history)}
             label="Browsing history"
             onCheckedChange={(checked) => {
               setPicked((current) => ({ ...current, history: checked }));
             }}
           />
-          <BucketRow
+          <ClearBox
             checked={picked.siteData}
             detail={summary && cookiesDetail(summary.cookieSites)}
             label="Cookies and other site data"
@@ -197,7 +154,7 @@ function ClearBrowsingDataContent({
               setPicked((current) => ({ ...current, siteData }));
             }}
           />
-          <BucketRow
+          <ClearBox
             checked={picked.cache}
             detail={summary && cacheDetail(summary.cacheBytes)}
             label="Cached images and files"
@@ -224,44 +181,5 @@ function ClearBrowsingDataContent({
         </Button>
       </DialogFooter>
     </DialogContent>
-  );
-}
-
-function BucketRow({
-  checked,
-  detail,
-  label,
-  onCheckedChange,
-}: {
-  checked: boolean;
-  /** How much there is, once it is known. */
-  detail: string | undefined;
-  label: string;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  const id = useId();
-  return (
-    <label className="flex cursor-default items-start gap-3 rounded-lg px-1 py-2">
-      <Checkbox
-        aria-describedby={`${id}-detail`}
-        aria-labelledby={`${id}-label`}
-        checked={checked}
-        className="mt-0.5"
-        onCheckedChange={(value) => {
-          onCheckedChange(value === true);
-        }}
-      />
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm" id={`${id}-label`}>
-          {label}
-        </span>
-        <span
-          className="min-h-4 text-xs text-muted-foreground"
-          id={`${id}-detail`}
-        >
-          {detail}
-        </span>
-      </span>
-    </label>
   );
 }

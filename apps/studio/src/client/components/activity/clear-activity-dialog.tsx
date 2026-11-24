@@ -1,5 +1,8 @@
 import { Button } from "@/client/components/ui/button";
-import { Checkbox } from "@/client/components/ui/checkbox";
+import {
+  ClearBox,
+  TimeRangeField,
+} from "@/client/components/clear-dialog-parts";
 import {
   Dialog,
   DialogBody,
@@ -8,19 +11,8 @@ import {
   DialogFooter,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/client/components/ui/select";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
-import {
-  sinceOf,
-  TIME_RANGES,
-  type TimeRangeId,
-} from "@/client/lib/browsing-data";
+import { sinceOf, type TimeRangeId } from "@/client/lib/browsing-data";
 import {
   activityClearedMessage,
   thingsDetail,
@@ -29,7 +21,7 @@ import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useId, useState } from "react";
+import { useState } from "react";
 
 /**
  * Clears the record of what the person did in the app the way Clear browsing
@@ -116,34 +108,10 @@ function ClearActivityContent({
       </div>
 
       <DialogBody className="flex flex-col gap-4">
-        <div className="flex items-center justify-between gap-4">
-          <label className="text-sm" htmlFor="clear-activity-range">
-            Time range
-          </label>
-          <Select
-            onValueChange={(value) => {
-              const option = TIME_RANGES.find((each) => each.id === value);
-              if (option) {
-                setRange(option.id);
-              }
-            }}
-            value={range}
-          >
-            <SelectTrigger className="w-40" id="clear-activity-range">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent align="end" position="popper">
-              {TIME_RANGES.map((option) => (
-                <SelectItem key={option.id} value={option.id}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        <TimeRangeField onChange={setRange} range={range} />
 
         <div className="flex flex-col gap-1">
-          <BoxRow
+          <ClearBox
             checked={picked.opened}
             detail={summary && thingsDetail(summary.opened)}
             label="Files and chats you opened"
@@ -151,7 +119,7 @@ function ClearActivityContent({
               setPicked((current) => ({ ...current, opened }));
             }}
           />
-          <BoxRow
+          <ClearBox
             checked={picked.changes}
             detail={
               summary &&
@@ -164,7 +132,7 @@ function ClearActivityContent({
               setPicked((current) => ({ ...current, changes }));
             }}
           />
-          <BoxRow
+          <ClearBox
             checked={picked.requests}
             detail={
               summary &&
@@ -203,44 +171,5 @@ function ClearActivityContent({
         </Button>
       </DialogFooter>
     </DialogContent>
-  );
-}
-
-function BoxRow({
-  checked,
-  detail,
-  label,
-  onCheckedChange,
-}: {
-  checked: boolean;
-  /** How much there is in the range, once it is known. */
-  detail: string | undefined;
-  label: string;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  const id = useId();
-  return (
-    <label className="flex cursor-default items-start gap-3 rounded-lg px-1 py-2">
-      <Checkbox
-        aria-describedby={`${id}-detail`}
-        aria-labelledby={`${id}-label`}
-        checked={checked}
-        className="mt-0.5"
-        onCheckedChange={(value) => {
-          onCheckedChange(value === true);
-        }}
-      />
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm" id={`${id}-label`}>
-          {label}
-        </span>
-        <span
-          className="min-h-4 text-xs text-muted-foreground"
-          id={`${id}-detail`}
-        >
-          {detail}
-        </span>
-      </span>
-    </label>
   );
 }

@@ -39,6 +39,7 @@ import {
 import { chatOfAddress, tabGroupOfAddress } from "@/shared/tab-identity";
 import { workingTabOf } from "@/shared/working-tab";
 import {
+  closedSince,
   groupOfWholeKey,
   type GroupTabLanding,
   type Tab,
@@ -847,6 +848,53 @@ export function reopenClosedAppWindow({ after }: { after?: number } = {}) {
   }
   createAppWindow(id);
   return true;
+}
+
+/** The closed windows that can come back and were closed at or after `since`, or all of them. */
+function closedWindowsSince(since: number | undefined) {
+  return rememberedWindowIds(FIRST_APP_WINDOW_ID).closed.filter(
+    (id) =>
+      !openWindows.has(id) &&
+      (since === undefined || windowClosedAt(id) >= since),
+  );
+}
+
+/** How many tabs, tab groups and windows closed at or after `since` can come back, over every open window. */
+export function countClosedSince(since: number | undefined) {
+  return (
+    closedWindowsSince(since).length +
+    [...openWindows.keys()].reduce(
+      (count, id) =>
+        count +
+        keptTabsOf(id).recentlyClosed.filter((each) => closedSince(each, since))
+          .length,
+      0,
+    )
+  );
+}
+
+/** Forgets the tabs, tab groups and windows closed at or after `since`, or all of them, so none comes back in any window. */
+export function forgetClosedSince(since: number | undefined) {
+  for (const [id, window] of openWindows) {
+    const kept = keptTabsOf(id);
+    const recentlyClosed = kept.recentlyClosed.filter(
+      (each) => !closedSince(each, since),
+    );
+    if (recentlyClosed.length < kept.recentlyClosed.length) {
+      tellWindowKeptState(id, window.webContents, APP_TABS_KEY, {
+        ...kept,
+        recentlyClosed,
+      });
+    }
+  }
+  const windows = closedWindowsSince(since);
+  for (const id of windows) {
+    forgetWindow(id);
+    forgetWindowKeptState(id);
+  }
+  if (windows.length > 0) {
+    publisher.publish("windows.changed", null);
+  }
 }
 
 /** Whether there is more than one window to merge. */

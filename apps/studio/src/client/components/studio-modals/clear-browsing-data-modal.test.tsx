@@ -33,7 +33,11 @@ vi.mock("@/client/rpc/client", () => ({
       clear: { call: clearHistory },
       summary: {
         queryOptions: ({ input }: { input: { since?: number } }) => ({
-          queryFn: () => ({ count: 5, hosts: ["github.com", "x.com"] }),
+          queryFn: () => ({
+            closedCount: 0,
+            count: 5,
+            hosts: ["github.com", "x.com"],
+          }),
           queryKey: ["history.summary", input.since],
         }),
       },

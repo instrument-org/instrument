@@ -15,27 +15,23 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Switch } from "@/client/components/ui/switch";
-import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
-import { forgetClosedSince } from "@/client/lib/tabs-model";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useStore } from "jotai";
 import { type ReactNode, useId, useState } from "react";
 
 /**
  * Settings › Activity: whether the app keeps a history of what the person
  * does in it, whether chats may read it, and clearing it. The history itself
- * is Activity, a tab of its own.
+ * is History, a tab of its own.
  */
 export function ActivitySection() {
   const queryClient = useQueryClient();
-  const store = useStore();
   // A built-in page: a click walks this tab there, as a browser's settings
   // open its history.
   const history = useOpenGestures(
@@ -172,11 +168,8 @@ export function ActivitySection() {
                 opened: true,
                 requests: true,
               }),
-              rpcClient.history.clear.call({}),
+              rpcClient.history.clear.call({ closedTabs: true }),
             ]);
-            store.set(appTabsAtom, (current) =>
-              forgetClosedSince(current, undefined),
-            );
             startOver();
           }
         }}

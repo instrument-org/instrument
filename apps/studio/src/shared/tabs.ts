@@ -83,6 +83,14 @@ export const TabsModelSchema = z.object({
 });
 export type TabsModel = z.output<typeof TabsModelSchema>;
 
+/** Whether a tab or tab group closed at or after `since`; with none, that is every one. One closed before closes were timed is older than any time. */
+export function closedSince(
+  { closedAt }: TabsModel["recentlyClosed"][number],
+  since: number | undefined,
+) {
+  return since === undefined || (closedAt !== undefined && closedAt >= since);
+}
+
 /** What comes up in place of the tab at a place along a strip: the one to its right, or else its left. */
 export function neighborAt<T>(tabs: readonly T[], at: number): T | undefined {
   return tabs[at + 1] ?? tabs[at - 1];

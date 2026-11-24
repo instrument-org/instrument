@@ -98,7 +98,7 @@ describe("ActivitySection", () => {
         opened: true,
         requests: true,
       });
-      expect(clearPages).toHaveBeenCalledWith({});
+      expect(clearPages).toHaveBeenCalledWith({ closedTabs: true });
     });
     expect(setKeep).toHaveBeenCalledWith({ enabled: false });
   });

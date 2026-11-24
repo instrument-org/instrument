@@ -593,10 +593,136 @@ const stageReaderOptsOut = defineRule({
   },
 });
 
+const TIMERS = new Set(["requestAnimationFrame", "setInterval", "setTimeout"]);
+
+/** The timer a call starts, by name, as a global's or as a window's own. */
+const timerStarted = ({ callee }: ESTree.CallExpression) => {
+  const name =
+    callee.type === "Identifier"
+      ? callee.name
+      : callee.type === "MemberExpression" &&
+          !callee.computed &&
+          callee.property.type === "Identifier"
+        ? callee.property.name
+        : undefined;
+  return name !== undefined && TIMERS.has(name) ? name : undefined;
+};
+
+/** Whether what a call answers goes nowhere, so nothing can cancel the timer. */
+const isDiscarded = (node: ESTree.CallExpression) => {
+  const { parent } = node;
+  if (parent.type === "ExpressionStatement") {
+    return true;
+  }
+  if (parent.type === "UnaryExpression") {
+    return parent.operator === "void";
+  }
+  if (parent.type !== "ArrowFunctionExpression" || parent.body !== node) {
+    return false;
+  }
+  // An arrow answering its timer hands the handle on, but for one given to a
+  // promise or to another timer, which read nothing from it.
+  const caller = parent.parent;
+  return caller.type === "NewExpression"
+    ? caller.callee.type === "Identifier" && caller.callee.name === "Promise"
+    : caller.type === "CallExpression" &&
+        caller.callee !== parent &&
+        timerStarted(caller) !== undefined;
+};
+
+const isZeroDelay = (node: ESTree.CallExpression, timer: string) => {
+  const delay = node.arguments[1];
+  return (
+    timer === "setTimeout" &&
+    (delay === undefined || (delay.type === "Literal" && delay.value === 0))
+  );
+};
+
+/**
+ * A timer whose handle nothing keeps cannot be canceled, so it acts on
+ * whatever is there when it goes off, and one of no delay waits only for
+ * whatever happens to be queued. The places written before the rule are
+ * counted by file in the package's `.oxlintrc.json`, and a file's count only
+ * falls: one over it reports every place in the file, since which is new is
+ * not known here, and one under it asks for the lower count.
+ */
+const noLooseTimers = defineRule({
+  create(context) {
+    const path = context.filename.replaceAll("\\", "/");
+    const [recorded = {}] = context.options as [Record<string, number>?];
+    const allowed =
+      Object.entries(recorded).find(([file]) =>
+        path.endsWith(`/${file}`),
+      )?.[1] ?? 0;
+    const found: { messageId: string; node: ESTree.CallExpression }[] = [];
+    return {
+      CallExpression(node) {
+        const timer = timerStarted(node);
+        if (timer === undefined) {
+          return;
+        }
+        if (isZeroDelay(node, timer)) {
+          found.push({ messageId: "zeroDelay", node });
+        } else if (isDiscarded(node)) {
+          found.push({ messageId: timer, node });
+        }
+      },
+      "Program:exit"(node) {
+        const excused = new Set(
+          context.sourceCode
+            .getAllComments()
+            .filter((comment) =>
+              /oxlint-disable-next-line .*studio\/no-loose-timers/.test(
+                comment.value,
+              ),
+            )
+            .map((comment) => comment.loc.end.line + 1),
+        );
+        // A line excused by a comment is reported for the comment to hide, and
+        // takes none of the file's count.
+        const counted = found.filter(
+          (each) => !excused.has(each.node.loc.start.line),
+        );
+        const data = {
+          allowed: String(allowed),
+          count: String(counted.length),
+        };
+        for (const each of found) {
+          if (counted.length > allowed || !counted.includes(each)) {
+            context.report({ ...each, data });
+          }
+        }
+        if (counted.length < allowed) {
+          context.report({ data, messageId: "fewer", node });
+        }
+      },
+    };
+  },
+  meta: {
+    messages: {
+      fewer:
+        "This file has {{count}} loose timers where {{allowed}} are recorded. Lower its count under studio/no-loose-timers in apps/studio/.oxlintrc.json, or drop the entry at none.",
+      requestAnimationFrame:
+        "Nothing can cancel this frame ({{count}} loose timers here, {{allowed}} recorded). What a render draws is read or focused in useLayoutEffect or the element's ref; a wait for a paint is afterNextPaint; otherwise keep the handle and cancel it. A wait with no event and nothing to cancel takes `// oxlint-disable-next-line studio/no-loose-timers -- <why>`.",
+      setInterval:
+        "Nothing can stop this interval ({{count}} loose timers here, {{allowed}} recorded). A clock on screen is useNow; re-reading something is a live query or refetchInterval; otherwise keep the handle and clear it.",
+      setTimeout:
+        "Nothing can cancel this timer, so it goes off over whatever came since ({{count}} loose timers here, {{allowed}} recorded). Wait for the thing itself: onCloseAutoFocus, transitionend, the promise. A real delay keeps its handle and clears it as it starts again and as its owner goes. A wait with no event and nothing to cancel takes `// oxlint-disable-next-line studio/no-loose-timers -- <why>`.",
+      zeroDelay:
+        "A timer of no delay runs after whatever happens to be queued ({{count}} loose timers here, {{allowed}} recorded). Put the work in the layout effect that follows the state change, in the handler that causes it, or in a menu's onCloseAutoFocus. Work that must leave the event it is in takes `// oxlint-disable-next-line studio/no-loose-timers -- <why>`.",
+    },
+    schema: [
+      { additionalProperties: { minimum: 1, type: "integer" }, type: "object" },
+    ],
+    type: "problem",
+  },
+});
+
 export default definePlugin({
   meta: { name: "studio" },
   rules: {
     "no-either-command-key": noEitherCommandKey,
+    "no-loose-timers": noLooseTimers,
     "no-os-words": noOsWords,
     "no-raw-anchor": noRawAnchor,
     "no-raw-webview": noRawWebview,

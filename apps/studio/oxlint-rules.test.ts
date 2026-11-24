@@ -154,3 +154,57 @@ new RuleTester({
     `function useOther() { const stage = useStageName(); return stage; }`,
   ],
 });
+
+const timerRule = plugin.rules["no-loose-timers"];
+if (!timerRule) {
+  throw new Error("The plugin has no studio/no-loose-timers rule");
+}
+
+/** A line with one loose timer, in a file with none recorded. */
+const loose = (code: string, messageId: string) => ({
+  code,
+  errors: [{ messageId }],
+});
+const recorded = [{ "client/held.ts": 1 }];
+const held = "/repo/src/client/held.ts";
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "ts" } },
+}).run("no-loose-timers", timerRule, {
+  invalid: [
+    loose(`setTimeout(clear, 200);`, "setTimeout"),
+    loose(`window.setTimeout(clear, 200);`, "setTimeout"),
+    loose(`void setTimeout(clear, 200);`, "setTimeout"),
+    loose(`setInterval(tick, 1000);`, "setInterval"),
+    loose(`requestAnimationFrame(focus);`, "requestAnimationFrame"),
+    loose(`new Promise((done) => setTimeout(done, 50));`, "setTimeout"),
+    loose(
+      `const frame = requestAnimationFrame(() => requestAnimationFrame(run));`,
+      "requestAnimationFrame",
+    ),
+    loose(`const timer = setTimeout(run, 0);`, "zeroDelay"),
+    loose(`const timer = setTimeout(run);`, "zeroDelay"),
+    // One more than the file's count, which is the new one, is not known.
+    {
+      code: `setTimeout(a, 1); setTimeout(b, 1);`,
+      errors: [{ messageId: "setTimeout" }, { messageId: "setTimeout" }],
+      filename: held,
+      options: recorded,
+    },
+    {
+      code: `const timer = setTimeout(a, 1);`,
+      errors: [{ messageId: "fewer" }],
+      filename: held,
+      options: recorded,
+    },
+  ],
+  valid: [
+    `const timer = setTimeout(clear, 200);`,
+    `timer = setTimeout(clear, 200);`,
+    `handles.push(setTimeout(clear, 200));`,
+    `const later = (run) => setTimeout(run, 200);`,
+    `function later(run) { return setTimeout(run, 200); }`,
+    `clearTimeout(timer);`,
+    { code: `setTimeout(a, 1);`, filename: held, options: recorded },
+  ],
+});

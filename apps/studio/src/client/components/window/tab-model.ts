@@ -790,6 +790,15 @@ export function closedTabGroupOf({
     : undefined;
 }
 
+/** Every tab a closed entry brings back: a group's, a side's, or the lone tab; none for an entry holding no group's tabs. */
+export function closedTabsOf(entry: {
+  groupTab?: unknown;
+  groupTabs?: unknown;
+}): (WindowTab & { group: string })[] {
+  const tab = closedGroupTabOf(entry);
+  return closedTabGroupOf(entry) ?? (tab ? [tab] : []);
+}
+
 /**
  * One side of a group a closed entry holds (`closeGroupSide`): its group,
  * which side it was, its tabs, the place among them of the one it had up,

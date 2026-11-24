@@ -13,13 +13,13 @@ import {
   moreFromOf,
   type PersonAction,
   placeOf,
-  type Show,
   timelineOf,
   type TimelineEntry,
   turnText,
   untilAfterLive,
   withDayHeads,
 } from "./activity-timeline";
+import { isListedAction, type Show } from "@/shared/history-show";
 
 // Times are local, so a day head is the same wherever the suite runs.
 const at = (hour: number, minute: number, second = 0) =>
@@ -498,9 +498,9 @@ describe("actionText", () => {
   it("opens what each row names, and nothing for an error or what went to the bin", () => {
     expect(
       actions.flatMap((each) =>
-        each.kind === "capped"
-          ? []
-          : [`${each.kind}: ${JSON.stringify(placeOf(each))}`],
+        isListedAction(each)
+          ? [`${each.kind}: ${JSON.stringify(placeOf(each))}`]
+          : [],
       ),
     ).toMatchInlineSnapshot(`
       [
@@ -528,7 +528,6 @@ describe("actionText", () => {
         "permission: {"href":"/chats/kitchen-remodel-quotes","kind":"screen"}",
         "error: undefined",
         "error: undefined",
-        "screen: {"href":"/settings/Models","kind":"screen"}",
         "setting: {"href":"/settings/Zoom","kind":"screen"}",
       ]
     `);
@@ -537,7 +536,7 @@ describe("actionText", () => {
 
 describe("entriesShown", () => {
   const entry = (did: PersonAction, n: number): TimelineEntry => {
-    if (did.kind === "capped") {
+    if (!isListedAction(did)) {
       throw new Error("not a row");
     }
     return { action: did, at: at(14, n), id: String(n), kind: "action" };

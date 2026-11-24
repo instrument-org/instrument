@@ -78,7 +78,12 @@ import { appTabsAtom } from "./app-tabs";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { closedText } from "./closed-groups";
-import { closedGroupTabOf, closedSideOf, closedTabGroupOf } from "./tab-model";
+import {
+  closedGroupTabOf,
+  closedSideOf,
+  closedTabGroupOf,
+  closedTabsOf,
+} from "./tab-model";
 import { groupLayoutFor, groupReadOf } from "./group-awareness";
 import { windowTabGroupsAtom } from "./open-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
@@ -906,7 +911,7 @@ export function useOpeners({
         : screenPresentation(tab.href, { appsBySlug, chatTitles }).title;
     const closed = store.get(appTabsAtom).recentlyClosed.flatMap((entry) => {
       const whole = closedTabGroupOf(entry);
-      const tabs = whole ?? [closedGroupTabOf(entry)].filter((tab) => !!tab);
+      const tabs = closedTabsOf(entry);
       if (entry.closedAt === undefined || tabs.length === 0) {
         return [];
       }

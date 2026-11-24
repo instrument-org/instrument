@@ -19,7 +19,6 @@ import {
   entryText,
   moreFromOf,
   placeOf,
-  type Show,
   timelineOf,
   type TimelineEntry,
   type TimelineItem,
@@ -29,6 +28,7 @@ import {
   untilAfterLive,
   withDayHeads,
 } from "@/client/components/activity/activity-timeline";
+import { type Show } from "@/shared/history-show";
 import { ClearActivityDialog } from "@/client/components/activity/clear-activity-dialog";
 import { HistoryPlaces } from "@/client/components/activity/history-places";
 import {
@@ -181,18 +181,11 @@ function isRemovable(entry: TimelineEntry) {
  * Saving a CSV is the only way either leaves, and the person does that.
  */
 export function ActivityPage({
-  item,
   onSearch,
   q,
   show,
 }: {
-  /** The row whose details are open, by its id. */
-  item?: string | undefined;
-  onSearch: (next: {
-    item?: string | undefined;
-    q?: string;
-    show?: Show | undefined;
-  }) => void;
+  onSearch: (next: { q?: string; show?: Show | undefined }) => void;
   q: string;
   show: Show | undefined;
 }) {
@@ -341,9 +334,12 @@ export function ActivityPage({
     }
   };
 
-  const picked = shown.find((entry) => entry.id === item);
-  const pick = (id: string | undefined) => {
-    onSearch({ item: id });
+  // The row whose details are open, by its id.
+  const [pickedId, pick] = useState<string | undefined>();
+  const picked = shown.find((entry) => entry.id === pickedId);
+  const narrow = (next: Parameters<typeof onSearch>[0]) => {
+    pick(undefined);
+    onSearch(next);
   };
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
   const checkedEntries = shown.filter((entry) => checked.has(entry.id));
@@ -369,7 +365,7 @@ export function ActivityPage({
         startOver();
         if (requestsKept > 0) {
           toast(
-            "AI requests made on your other computers can only be removed there.",
+            "AI usage from your other computers can only be removed there.",
           );
         }
       },
@@ -441,9 +437,7 @@ export function ActivityPage({
       className="@container/activity flex h-full min-h-0 flex-col bg-background"
       ref={setFrame}
     >
-      {/* One bar: the page's name, how to narrow it, and, at its end, where
-        the history is kept and who reads it, which someone landing here
-        from the window's corner should see before anything else. */}
+      {/* One bar: the page's name, its search, and its menu. */}
       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-3 @min-[640px]/activity:px-6">
         <h1 className="mr-1 text-base font-semibold">History</h1>
         {checkedEntries.length > 0 ? (
@@ -487,7 +481,7 @@ export function ActivityPage({
             <div className="flex w-64 max-w-full">
               <SearchField
                 onChange={(value) => {
-                  onSearch({ item: undefined, q: value });
+                  narrow({ q: value });
                 }}
                 placeholder="Search history"
                 value={q}
@@ -501,15 +495,20 @@ export function ActivityPage({
           onClear={() => {
             setClearing(true);
           }}
-          onExport={() => {
-            void rpcClient.activity.saveCsv
-              .call({ view: show === "closed" ? "all" : view })
-              .then(({ status }) => {
-                if (status === "failed") {
-                  toast.error("The file couldn't be saved.");
+          onExport={
+            // The closed groups are no record to save.
+            show === "closed"
+              ? undefined
+              : () => {
+                  void rpcClient.activity.saveCsv
+                    .call(show === undefined ? {} : { show })
+                    .then(({ status }) => {
+                      if (status === "failed") {
+                        toast.error("The file couldn't be saved.");
+                      }
+                    });
                 }
-              });
-          }}
+          }
         />
       </div>
       {isKeeping ? null : (
@@ -540,7 +539,7 @@ export function ActivityPage({
           closedCount={closed.length}
           isNarrow={isNarrow}
           onShow={(next) => {
-            onSearch({ item: undefined, show: next });
+            narrow({ show: next });
           }}
           show={show}
         />
@@ -591,7 +590,7 @@ export function ActivityPage({
                 });
               }}
               onMoreFrom={(found) => {
-                onSearch({ item: undefined, q: found });
+                narrow({ q: found });
               }}
               onPick={(entry) => {
                 pick(entry?.id);
@@ -697,13 +696,13 @@ function Empty({ q, show }: { q: string; show: Show | undefined }) {
 const UNDER_TITLE_WHEN_NARROW =
   "@max-[640px]/activity:order-last @max-[640px]/activity:basis-full";
 
-/** The page's ⋮: what is done with the whole history, and where its settings are. */
+/** The page's ⋯: what is done with the whole history, and where its settings are. */
 function PageMenu({
   onClear,
   onExport,
 }: {
   onClear: () => void;
-  onExport: () => void;
+  onExport: (() => void) | undefined;
 }) {
   return (
     <DropdownMenu>
@@ -713,7 +712,10 @@ function PageMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
-        <DropdownMenuItem onSelect={onExport}>
+        <DropdownMenuItem
+          disabled={onExport === undefined}
+          {...(onExport ? { onSelect: onExport } : {})}
+        >
           <DownloadSimpleIcon className="size-4" />
           Export CSV
         </DropdownMenuItem>

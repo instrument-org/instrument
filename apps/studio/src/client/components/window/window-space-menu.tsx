@@ -19,7 +19,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 
 import { appTabsAtom } from "./app-tabs";
-import { closedGroupTabOf, closedTabGroupOf } from "./tab-model";
+import { closedTabsOf } from "./tab-model";
 
 /** One thing on the window's closed list: a tab, or a whole tab group by its first tab. */
 interface ClosedEntry {
@@ -38,15 +38,9 @@ interface ClosedEntry {
 export function useRecentlyClosed(): ClosedEntry[] {
   const { recentlyClosed } = useAtomValue(appTabsAtom);
   return recentlyClosed.flatMap((entry) => {
-    const tab = closedGroupTabOf(entry);
-    if (tab) {
-      return [{ id: entry.id, tab, tabCount: 1 }];
-    }
-    const tabs = closedTabGroupOf(entry);
-    const [first] = tabs ?? [];
-    return tabs && first
-      ? [{ id: entry.id, tab: first, tabCount: tabs.length }]
-      : [];
+    const tabs = closedTabsOf(entry);
+    const [first] = tabs;
+    return first ? [{ id: entry.id, tab: first, tabCount: tabs.length }] : [];
   });
 }
 

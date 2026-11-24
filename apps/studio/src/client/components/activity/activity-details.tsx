@@ -11,7 +11,7 @@ import {
 import {
   actionText,
   placeOf,
-  type ShownAction,
+  type ListedAction,
   type TimelineEntry,
   turnParts,
   turnPlaceOf,
@@ -66,13 +66,10 @@ function whenOf(at: number, now = new Date()) {
 }
 
 /** What the open button says for a row, by where it goes. */
-function openLabel(action: ShownAction | undefined) {
+function openLabel(action: ListedAction | undefined) {
   switch (action?.kind) {
     case "setting": {
       return "Show in Settings";
-    }
-    case "screen": {
-      return action.name.startsWith("Settings") ? "Show in Settings" : "Open";
     }
     case "update": {
       return "What's New";
@@ -87,7 +84,7 @@ function openLabel(action: ShownAction | undefined) {
 }
 
 /** The file a row is about, which Show in Folder shows. */
-function fileOf(action: ShownAction): string | undefined {
+function fileOf(action: ListedAction): string | undefined {
   switch (action.kind) {
     case "file":
     case "open-with":
@@ -323,7 +320,7 @@ function OwnInfo({
 }
 
 /** What one of the person's own rows names, where it is, and what else is known about it. */
-function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
+function ActionDetails({ action, at }: { action: ListedAction; at: number }) {
   const words = { trash: osConventions().trash };
   const text = actionText(action, words);
   const entry: TimelineEntry = { action, at, id: "", kind: "action" };
@@ -451,9 +448,6 @@ function ActionDetails({ action, at }: { action: ShownAction; at: number }) {
     }
     case "app": {
       return own("App", null, text.context);
-    }
-    case "screen": {
-      return own("Screen", null, "Opened");
     }
   }
 }

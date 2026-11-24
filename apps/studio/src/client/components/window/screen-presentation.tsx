@@ -1,8 +1,5 @@
-import {
-  type Show,
-  SHOW_LABELS,
-  SHOWS,
-} from "@/client/components/activity/activity-timeline";
+import { SHOW_LABELS } from "@/client/components/activity/activity-timeline";
+import { type Show, SHOWS } from "@/shared/history-show";
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
 import {

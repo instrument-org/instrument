@@ -1,8 +1,6 @@
-import {
-  type Show,
-  SHOW_LABELS,
-} from "@/client/components/activity/activity-timeline";
+import { SHOW_LABELS } from "@/client/components/activity/activity-timeline";
 import { cn } from "@/client/lib/utils";
+import { type Show } from "@/shared/history-show";
 import { ChartBarIcon } from "@phosphor-icons/react/ChartBar";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
@@ -42,14 +40,13 @@ export function HistoryPlaces({
   show: Show | undefined;
 }) {
   return (
-    <div
-      aria-label="Show"
+    <nav
+      aria-label="History"
       className={
         isNarrow
           ? "flex shrink-0 flex-wrap items-center gap-1 border-b border-border px-4 py-2"
           : "flex w-48 shrink-0 flex-col gap-0.5 overflow-y-auto border-r border-border px-2.5 py-3"
       }
-      role="radiogroup"
     >
       {PLACES.map(({ icon: Icon, show: each }) => {
         const label = each === undefined ? "All" : SHOW_LABELS[each];
@@ -59,7 +56,7 @@ export function HistoryPlaces({
               <div className="my-1.5 h-px shrink-0 bg-border" />
             ) : null}
             <button
-              aria-checked={show === each}
+              aria-current={show === each ? "page" : undefined}
               className={
                 isNarrow
                   ? cn(
@@ -78,7 +75,6 @@ export function HistoryPlaces({
               onClick={() => {
                 onShow(each);
               }}
-              role="radio"
               type="button"
             >
               {isNarrow ? null : (
@@ -94,6 +90,6 @@ export function HistoryPlaces({
           </Fragment>
         );
       })}
-    </div>
+    </nav>
   );
 }

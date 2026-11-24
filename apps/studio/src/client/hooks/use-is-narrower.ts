@@ -1,9 +1,9 @@
 import { useLayoutEffect, useState } from "react";
 
 /**
- * Below this width, in CSS px, a built-in page (Settings, Activity) folds
+ * Below this width, in CSS px, a built-in page (Settings, History) folds
  * what it keeps beside its content: Settings' sidebar to a rail of icons,
- * Activity's details under the row picked. Half a window, as a side of a
+ * History's list of filters to pills. Half a window, as a side of a
  * tab group is, is under it; a whole window is over it.
  */
 export const PAGE_FOLD_PX = 640;

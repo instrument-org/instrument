@@ -32,7 +32,7 @@ import {
 import { Textarea } from "@/client/components/ui/textarea";
 import { isDictating } from "@/client/hooks/use-dictation";
 import { useModalBack } from "@/client/hooks/use-modal-back";
-import { EntryIcon } from "@/client/components/activity/activity-icons";
+import { ActionIcon } from "@/client/components/activity/activity-icons";
 import {
   actionText,
   type ShownAction,
@@ -987,10 +987,7 @@ function ActionsReview({
               {timeOfDay(Date.parse(action.at))}
             </span>
             <span className="grid size-4 shrink-0 place-items-center">
-              <EntryIcon
-                className="size-3.5"
-                entry={{ action, at: 0, id: "", kind: "action" }}
-              />
+              <ActionIcon action={action} className="size-3.5" />
             </span>
             <span className="min-w-0 shrink truncate">{text.title}</span>
             <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">

@@ -8,8 +8,9 @@ import {
 } from "@/client/components/window/window-href";
 import { isWebPage, type OpenTarget } from "@/client/lib/open-target";
 // Types alone: the client opens its channel to the main process on import.
-import type { RPCInput, RPCOutput } from "@/client/rpc/client";
+import type { RPCOutput } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
+import { isListedAction, type Show, showOfAction } from "@/shared/history-show";
 import { APP_NAME } from "@instrument-org/shared";
 import { ChatIdSchema, gatherTurns } from "@instrument-org/workspace/client";
 
@@ -28,13 +29,16 @@ export type ActivityRequest =
 export type PersonAction = RPCOutput["actions"]["list"]["actions"][number];
 
 /**
- * An action the list shows. A `capped` line says where the log stopped
+ * An action a row can say. A `capped` line says where the log stopped
  * writing, which is not something the person did.
  */
 export type ShownAction = Exclude<PersonAction, { kind: "capped" }>;
 
+/** An action History lists (`isListedAction`). */
+export type ListedAction = Exclude<ShownAction, { kind: "screen" }>;
+
 /** Which of the two logs the list shows: both, the person's, or the AI's. */
-export type ActivityView = RPCInput["activity"]["saveCsv"]["view"];
+export type ActivityView = "ai" | "all" | "yours";
 
 /** The requests one chat turn made, newest first. */
 export type Turn = {
@@ -44,7 +48,7 @@ export type Turn = {
 };
 
 export type TimelineEntry =
-  | { action: ShownAction; at: number; id: string; kind: "action" }
+  | { action: ListedAction; at: number; id: string; kind: "action" }
   | { at: number; id: string; kind: "turn"; turn: Turn };
 
 export type TimelineItem =
@@ -66,15 +70,6 @@ function reachOf(complete: boolean, times: readonly number[]) {
   return times.length === 0
     ? Infinity
     : times.reduce((oldest, at) => Math.min(oldest, at));
-}
-
-/**
- * Whether a line of the log is a row: not one saying where the log stopped
- * writing, nor a visit to one of the app's own screens, which is only the
- * way to something else.
- */
-function isShown(action: PersonAction): action is ShownAction {
-  return action.kind !== "capped" && action.kind !== "screen";
 }
 
 /**
@@ -118,7 +113,7 @@ export function timelineOf({
       const nth = seen.get(action.at) ?? 0;
       seen.set(action.at, nth + 1);
       const at = actionTimes[index] ?? 0;
-      return isShown(action) && at >= shownFrom
+      return isListedAction(action) && at >= shownFrom
         ? [{ action: { action, id: `${action.at}#${nth}` }, at }]
         : [];
     }),
@@ -355,18 +350,6 @@ export function actionText(action: ShownAction, words: Words): RowText {
   }
 }
 
-/** The page's filters, past All: the kinds of row, and the tab groups closed, which are cards. */
-export type Show = "ai" | "changes" | "chats" | "closed" | "files" | "pages";
-
-export const SHOWS = [
-  "pages",
-  "files",
-  "chats",
-  "changes",
-  "ai",
-  "closed",
-] as const satisfies Show[];
-
 /** What each filter is called, on the page and in the address field. */
 export const SHOW_LABELS: Record<Show, string> = {
   ai: "AI usage",
@@ -429,27 +412,11 @@ function showOf(entry: TimelineEntry): Show {
   if (entry.kind === "turn") {
     return "ai";
   }
-  switch (entry.action.kind) {
-    case "page": {
-      return "pages";
-    }
-    case "folder":
-    case "file":
-    case "open-with":
-    case "download": {
-      return "files";
-    }
-    case "chat": {
-      return "chats";
-    }
-    default: {
-      return "changes";
-    }
-  }
+  return showOfAction(entry.action.kind);
 }
 
 /** Everything a search may find a person's row by: its words, and the paths and address behind them. */
-function actionHaystack(action: ShownAction, words: Words): string[] {
+function actionHaystack(action: ListedAction, words: Words): string[] {
   const { context, title } = actionText(action, words);
   const found = [title, context];
   switch (action.kind) {
@@ -592,11 +559,10 @@ export function moreFromOf(
 /**
  * Where opening a row of the person's own goes: the folder or file it names
  * in Files, where files were moved or copied to with the first selected, the
- * chat (a permission's too), the page, the setting changed or the screen
- * named, Apps for an app, and the release notes for an update. Nothing for
+ * chat (a permission's too), the page, the setting changed, Apps for an app, and the release notes for an update. Nothing for
  * an error or what went to the bin.
  */
-export function placeOf(action: ShownAction): OpenTarget | undefined {
+export function placeOf(action: ListedAction): OpenTarget | undefined {
   switch (action.kind) {
     case "folder":
     case "new-folder": {
@@ -643,16 +609,6 @@ export function placeOf(action: ShownAction): OpenTarget | undefined {
         kind: "screen",
       };
     }
-    case "screen": {
-      const [place, below] = action.name.split(" › ");
-      if (place === "Settings") {
-        return {
-          href: pathOf(LINK_ADDRESSES.setting, { name: below ?? "General" }),
-          kind: "screen",
-        };
-      }
-      return place === "Apps" ? { href: APPS_HREF, kind: "screen" } : undefined;
-    }
     case "app": {
       return { href: APPS_HREF, kind: "screen" };
     }
@@ -667,7 +623,7 @@ export function placeOf(action: ShownAction): OpenTarget | undefined {
 }
 
 /** The path a row's Copy Path puts on the clipboard: the file or folder it names. */
-export function pathOfAction(action: ShownAction): string | undefined {
+export function pathOfAction(action: ListedAction): string | undefined {
   switch (action.kind) {
     case "folder":
     case "new-folder":

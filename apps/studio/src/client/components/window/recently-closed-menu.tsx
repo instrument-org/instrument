@@ -38,7 +38,7 @@ import { useRecentlyClosed } from "./window-space-menu";
 /** How many closes a menu lists, newest first; History's page has every one. */
 const MOST_LISTED = 10;
 
-/** After a pick, the caret goes where the side with the keyboard puts it, as reopening from Activity does, and stays off what opened the list. */
+/** After a pick, the caret goes where the side with the keyboard puts it, as reopening from History does, and stays off what opened the list. */
 function focusHomeAfterPick(event: Event, hasPicked: { current: boolean }) {
   if (!hasPicked.current) {
     return;
@@ -57,7 +57,7 @@ function focusHomeAfterPick(event: Event, hasPicked: { current: boolean }) {
  * how many tabs it brings back, and a pick brings that one back where it
  * stood. The first row names Reopen Closed Tab's key, which brings it back,
  * and the last opens History's page. After a pick the caret goes where the
- * side with the keyboard puts it, as reopening from Activity does.
+ * side with the keyboard puts it, as reopening from History does.
  */
 export function RecentlyClosedMenu() {
   const shell = useShell();

@@ -58,7 +58,7 @@ export function EntryIcon({
   return <ActionIcon action={entry.action} className={className} />;
 }
 
-function ActionIcon({
+export function ActionIcon({
   action,
   className,
 }: {

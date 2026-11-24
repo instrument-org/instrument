@@ -66,7 +66,7 @@ function actionCells(action: Action): string[] {
 }
 
 /**
- * The Activity screen's CSV: the AI requests as the workspace writes them,
+ * History's CSV: the AI requests as the workspace writes them,
  * the person's actions, or both in one file newest first. With both, each
  * row says which it is, and each has the other's columns empty.
  *
@@ -102,12 +102,9 @@ export function activityExportCsv({
   const timed = [
     ...actions.map((action) => ({
       at: Date.parse(action.at),
-      line: [
-        csvCell(action.at),
-        "Your activity",
-        ...actionCells(action),
-        noRequest,
-      ].join(","),
+      line: [csvCell(action.at), "You", ...actionCells(action), noRequest].join(
+        ",",
+      ),
     })),
     ...rows.map((row) => {
       const comma = row.indexOf(",");
@@ -115,7 +112,7 @@ export function activityExportCsv({
       const rest = comma === -1 ? "" : row.slice(comma + 1);
       return {
         at: Date.parse(started),
-        line: [started, "AI request", noAction, rest].join(","),
+        line: [started, "AI usage", noAction, rest].join(","),
       };
     }),
   ].toSorted((a, b) => b.at - a.at);

@@ -6,6 +6,7 @@ import { getHistoryStore } from "@/electron-main/browser-view/history-store";
 import { activityExportCsv } from "@/electron-main/lib/activity-csv";
 import { base } from "@/electron-main/rpc/base";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
+import { isListedAction, showOfAction, SHOWS } from "@/shared/history-show";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   type Action,
@@ -25,20 +26,21 @@ import path from "node:path";
 import { z } from "zod";
 
 /**
- * Saves what the Activity screen shows, as its `view` picks it, to a CSV
- * file the person picks: the AI requests, what the person did, or both. A
+ * Saves what History shows, as its filter picks it, to a CSV file the person
+ * picks: one kind of row, or without one everything, the AI requests too. A
  * copy of their own rather than the records themselves: a record is the
  * only copy of what it holds, so it is never shown in the Finder for someone
  * to move or delete by accident.
  */
 const saveCsv = base
-  .input(z.object({ view: z.enum(["all", "yours", "ai"]) }))
+  .input(z.object({ show: z.enum(SHOWS).exclude(["closed"]).optional() }))
   .output(z.object({ status: z.enum(["canceled", "failed", "saved"]) }))
   .handler(async ({ context, input }) => {
+    const { show } = input;
     const stamp = new Date().toISOString().slice(0, 10);
     const defaultPath = path.join(
       app.getPath("downloads"),
-      `${APP_NAME.toLowerCase()}-activity-${stamp}.csv`,
+      `${APP_NAME.toLowerCase()}-history-${stamp}.csv`,
     );
     const parent = getCallingWindow(context.webContentsId);
     // Parented so macOS presents a sheet on the window rather than blocking
@@ -52,12 +54,19 @@ const saveCsv = base
     try {
       const csv = activityExportCsv({
         actions:
-          input.view === "ai"
+          show === "ai"
             ? undefined
             : (await readActions({ since: 0 }))
-                .filter((action) => action.kind !== "capped")
+                .filter(isListedAction)
+                .filter(
+                  (action) =>
+                    show === undefined || showOfAction(action.kind) === show,
+                )
                 .toReversed(),
-        requests: input.view === "yours" ? undefined : await activityCsv({}),
+        requests:
+          show === undefined || show === "ai"
+            ? await activityCsv({})
+            : undefined,
       });
       await fs.writeFile(result.filePath, csv);
       return { status: "saved" as const };
@@ -79,29 +88,18 @@ const SinceSchema = z.object({
  * it left out.
  */
 function boxOf(action: Action): "changes" | "opened" | undefined {
-  const kind: string = action.kind === "capped" ? action.of : action.kind;
-  switch (kind) {
-    case "page":
-    case "permission": {
-      return undefined;
-    }
-    case "chat":
-    case "download":
-    case "file":
-    case "folder":
-    case "open-with":
-    case "screen": {
-      return "opened";
-    }
-    default: {
-      return "changes";
-    }
+  const kind = action.kind === "capped" ? action.of : action.kind;
+  if (kind === "permission") {
+    return undefined;
   }
-}
-
-/** Whether an action is one History lists: not where the log stopped, nor a visit to one of the app's screens. */
-function isListed(action: Action) {
-  return action.kind !== "capped" && action.kind !== "screen";
+  // A visit to one of the app's screens is no row of History's, and goes
+  // with the rest of what the person opened.
+  const show = kind === "screen" ? "files" : showOfAction(kind);
+  return show === "pages"
+    ? undefined
+    : show === "changes"
+      ? "changes"
+      : "opened";
 }
 
 /**
@@ -123,7 +121,7 @@ const summary = base
       readActions({ since: input.since ?? 0 }),
       countOwnActivity(input.since),
     ]);
-    const listed = actions.filter(isListed).map(boxOf);
+    const listed = actions.filter(isListedAction).map(boxOf);
     return {
       changes: listed.filter((box) => box === "changes").length,
       opened: listed.filter((box) => box === "opened").length,
@@ -165,7 +163,7 @@ const clear = base
   });
 
 /**
- * Takes rows out of Activity: what the person did, each from where it is
+ * Takes rows out of History: what the person did, each from where it is
  * kept (a page or a file opened from the history with the repeats the row
  * stood for, a download from the download list, the rest from the action
  * log), and the AI requests named, those this computer made, answering how

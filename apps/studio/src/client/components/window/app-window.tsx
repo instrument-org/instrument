@@ -134,6 +134,7 @@ import {
   closedGroupTabOf,
   closedSideOf,
   closedTabGroupOf,
+  closedTabsOf,
   agentCloseKeeps,
   draftOfTab,
   isBlankNewTab,
@@ -793,11 +794,10 @@ function WindowShell({
     chatTitles,
     closedEntryOf: (kind, id) =>
       store.get(appTabsAtom).recentlyClosed.find((entry) => {
-        const closedTabs = closedTabGroupOf(entry) ?? [];
-        const tab = closedGroupTabOf(entry);
-        return kind === "group"
-          ? closedTabs.some((each) => each.group === id) || tab?.group === id
-          : closedTabs.some((each) => each.id === id) || tab?.id === id;
+        const closedTabs = closedTabsOf(entry);
+        return closedTabs.some((each) =>
+          kind === "group" ? each.group === id : each.id === id,
+        );
       })?.id,
     // The sidebar's X: onto the closed list whole, unless it was only the
     // agent's own tabs.
@@ -1145,11 +1145,7 @@ function WindowShell({
   const reopenTab = () => {
     const [entry] = store
       .get(appTabsAtom)
-      .recentlyClosed.filter(
-        (each) =>
-          closedGroupTabOf(each) !== undefined ||
-          closedTabGroupOf(each) !== undefined,
-      );
+      .recentlyClosed.filter((each) => closedTabsOf(each).length > 0);
     void rpcClient.window.reopenClosed
       .call(entry && { after: entry.closedAt ?? 0 })
       .catch(() => false)

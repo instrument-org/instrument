@@ -1,6 +1,5 @@
 import { renderWithProviders } from "@/tests/render";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
-import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
@@ -95,27 +94,11 @@ beforeEach(() => {
   calls.set("workspace.activity.list", () => []);
 });
 
-/** The page with its address held the way the route holds it, so a row picked opens its details. */
 function page(props: Partial<Parameters<typeof ActivityPage>[0]> = {}) {
   const onSearch = vi.fn();
-  function Routed() {
-    const [item, setItem] = useState<string | undefined>();
-    return (
-      <ActivityPage
-        item={item}
-        onSearch={(next) => {
-          onSearch(next);
-          if ("item" in next) {
-            setItem(next.item);
-          }
-        }}
-        q=""
-        show={undefined}
-        {...props}
-      />
-    );
-  }
-  const { queryClient } = renderWithProviders(<Routed />);
+  const { queryClient } = renderWithProviders(
+    <ActivityPage onSearch={onSearch} q="" show={undefined} {...props} />,
+  );
   return { onSearch, queryClient };
 }
 
@@ -187,8 +170,8 @@ describe("ActivityPage", () => {
   it("asks for a filter by changing the address", async () => {
     const { onSearch } = page();
     await screen.findByText("notes.md");
-    fireEvent.click(screen.getByRole("radio", { name: "Websites" }));
-    expect(onSearch).toHaveBeenCalledWith({ item: undefined, show: "pages" });
+    fireEvent.click(screen.getByRole("button", { name: "Websites" }));
+    expect(onSearch).toHaveBeenCalledWith({ show: "pages" });
   });
 
   it("shows a row's details over the list, and removes it from there", async () => {

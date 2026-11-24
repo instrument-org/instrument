@@ -19,7 +19,7 @@ const SHOWN = 8;
 
 /**
  * A page menu's History: the pages visited lately, each opened in this tab,
- * then the whole of it, which is Activity showing pages. Read only while
+ * then all of them, which is History showing websites. Read only while
  * the submenu is open.
  */
 export function BrowserHistoryMenu({
@@ -77,7 +77,7 @@ function HistoryRows({ onOpen }: { onOpen: (url: string) => void }) {
           });
         }}
       >
-        Show full history
+        Show All History
       </DropdownMenuItem>
     </>
   );

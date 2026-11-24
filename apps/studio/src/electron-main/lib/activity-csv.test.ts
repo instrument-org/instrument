@@ -44,11 +44,11 @@ describe("activityExportCsv", () => {
     expect(activityExportCsv({ actions: ACTIONS, requests: REQUESTS }))
       .toMatchInlineSnapshot(`
       "Time,Source,What,Path,Paths,From,To,Names,Selected,App,Chat,Title,Address,Name,Did,Message,Where,Value,Result,Error
-      2026-11-05T20:50:00.000Z,Your activity,move,,,/Users/sam/Downloads,/Users/sam/Archive,"a.pdf
+      2026-11-05T20:50:00.000Z,You,move,,,/Users/sam/Downloads,/Users/sam/Archive,"a.pdf
       b, c.pdf",,,,,,,,,,,,
-      2026-11-05T20:44:00.000Z,AI request,,,,,,,,,,,,,,,,,finished,
-      2026-11-05T20:40:00.000Z,Your activity,page,,,,,,,,,Where's My Refund?,https://www.irs.gov/refunds,,,,,,,
-      2026-11-05T20:30:00.000Z,AI request,,,,,,,,,,,,,,,,,failed,"Bad request:
+      2026-11-05T20:44:00.000Z,AI usage,,,,,,,,,,,,,,,,,finished,
+      2026-11-05T20:40:00.000Z,You,page,,,,,,,,,Where's My Refund?,https://www.irs.gov/refunds,,,,,,,
+      2026-11-05T20:30:00.000Z,AI usage,,,,,,,,,,,,,,,,,failed,"Bad request:
       ""model"" is unknown"
       "
     `);

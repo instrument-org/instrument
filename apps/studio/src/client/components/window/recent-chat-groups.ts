@@ -12,7 +12,7 @@ import { AGENT_SPLIT_CHAT_SHARE } from "./beside-chat";
 import { chatListOptions } from "./chat-list-query";
 import { byLastUserMessage, type Chat, type Project } from "./chats";
 import { windowTabGroupsAtom } from "./open-groups";
-import { chatOfTab, closedGroupTabOf, closedTabGroupOf } from "./tab-model";
+import { chatOfTab, closedTabsOf } from "./tab-model";
 import { chatHref, matchScreen, newGroupKey } from "./window-href";
 import { newScreenId, useWindowTabs, windowTabsAtom } from "./window-tabs";
 
@@ -200,11 +200,7 @@ export function useOpenRecentChats({
       return;
     }
     const now = Date.now();
-    const closed = store
-      .get(appTabsAtom)
-      .recentlyClosed.flatMap(
-        (entry) => closedTabGroupOf(entry) ?? closedGroupTabOf(entry) ?? [],
-      );
+    const closed = store.get(appTabsAtom).recentlyClosed.flatMap(closedTabsOf);
     const skip = new Set(
       [...store.get(windowTabsAtom).tabs, ...closed].flatMap(
         (tab) => chatOfTab(tab) ?? [],

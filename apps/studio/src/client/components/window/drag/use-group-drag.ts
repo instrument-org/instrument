@@ -36,6 +36,13 @@ import { pullOf } from "./use-sidebar-drag";
  */
 const STRIP_REACH_PX = 14;
 
+/** How much of the top of a side's page stands in for its strip while the side draws none: its tab's own row. */
+const SIDE_HEAD_PX = 40;
+
+/** How far in from the row's ends the line across a side's head stands, and how thick. */
+const HEAD_LINE_INSET_PX = 8;
+const HEAD_LINE_PX = 2;
+
 /** The part of a rect inside another, if any. */
 function clipped(rect: Rect, by: Rect): Rect | undefined {
   const left = Math.max(rect.left, by.left);
@@ -200,10 +207,17 @@ function steadyLandingAt({
  * tab held along it stands where its left edge is (`stripIndexAt`), its
  * neighbors making room; a tab, a whole group, files or a link from
  * elsewhere leave it standing still (`steadyLandingAt`).
+ *
+ * A side of one tab draws no strip, so the row at the top of its page
+ * stands in for one: a piece of the window held over it lands at the side's
+ * end, and the strip comes up for it (`useStripLandsHere`), with its room
+ * down that row too, so the strip pushing the row down takes nothing out
+ * from under the pointer.
  */
 export function useStripTarget({
   group,
   isOn,
+  page,
   side,
   strip,
   tabs,
@@ -211,11 +225,19 @@ export function useStripTarget({
   group: string;
   /** Whether the strip is up, in the window's tab up. */
   isOn: boolean;
+  /** The side's page (`data-side-page`), whose top row is the side's head. */
+  page: () => Element | null | undefined;
   side: 0 | 1;
   /** The strip's element (`data-group-tabs`). */
   strip: () => HTMLElement | null | undefined;
   tabs: readonly WindowTab[];
 }) {
+  /** The side's head, for a piece of the window, while it has one tab at most. */
+  const headFor = (held: Held) => {
+    const rect =
+      tabs.length <= 1 && isPieceOfWindow(held) ? rectOf(page()) : undefined;
+    return rect && { ...rect, height: Math.min(rect.height, SIDE_HEAD_PX) };
+  };
   useDropTarget(
     isOn
       ? {
@@ -224,11 +246,33 @@ export function useStripTarget({
             // A group lands its tabs in another group's strip, and only from
             // this window, as at a split target.
             if (
-              !root ||
-              (held.kind === "group" &&
-                (held.group === group || input === "remote"))
+              held.kind === "group" &&
+              (held.group === group || input === "remote")
             ) {
               return undefined;
+            }
+            if (!root) {
+              const head = headFor(held);
+              // The side's own only tab is on it already.
+              return head &&
+                !(
+                  held.kind === "tab" &&
+                  held.group === group &&
+                  held.side === side
+                )
+                ? {
+                    group,
+                    index: tabs.length,
+                    kind: "strip",
+                    line: {
+                      height: HEAD_LINE_PX,
+                      left: head.left + HEAD_LINE_INSET_PX,
+                      top: head.top + 1,
+                      width: head.width - HEAD_LINE_INSET_PX * 2,
+                    },
+                    side,
+                  }
+                : undefined;
             }
             if (
               held.kind !== "tab" ||
@@ -245,15 +289,18 @@ export function useStripTarget({
             );
             return { group, index, kind: "strip", side };
           },
-          rect: () => {
+          rect: ({ held }) => {
             const rect = rectOf(strip());
-            return rect
-              ? {
-                  ...rect,
-                  height: rect.height + STRIP_REACH_PX * 2,
-                  top: rect.top - STRIP_REACH_PX,
-                }
-              : undefined;
+            const head = headFor(held);
+            if (!rect) {
+              return head;
+            }
+            const top = rect.top - STRIP_REACH_PX;
+            const bottom = Math.max(
+              rect.top + rect.height + STRIP_REACH_PX,
+              head ? head.top + head.height : 0,
+            );
+            return { ...rect, height: bottom - top, top };
           },
           scrolls: {
             axis: "x",
@@ -262,6 +309,21 @@ export function useStripTarget({
           },
         }
       : undefined,
+  );
+}
+
+/** Whether what is held is a piece of the window, which lands in a strip: a tab, a whole group, a bookmark or a place. Files and a link are content, which a page's own row takes. */
+function isPieceOfWindow(held: Held) {
+  return held.kind === "tab" || held.kind === "group" || isBookmark(held);
+}
+
+/** Whether something from elsewhere is held over a side's strip, or over the row that stands in for one, which brings the strip up. */
+export function useStripLandsHere(group: string, side: 0 | 1) {
+  const landing = useAtomValue(dragAtom)?.landing;
+  return (
+    landing?.kind === "strip" &&
+    landing.group === group &&
+    landing.side === side
   );
 }
 

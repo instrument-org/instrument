@@ -49,6 +49,7 @@ import {
   pressSideTab,
   useSidePagesTarget,
   useSideStrip,
+  useStripLandsHere,
   useStripTarget,
 } from "./drag/use-group-drag";
 import { RecentlyClosedMenu } from "./recently-closed-menu";
@@ -599,10 +600,13 @@ function SideCard({
   useStripTarget({
     group,
     isOn: isActive,
+    page: () =>
+      cardRef.current?.querySelector(`[data-side-page="${sideIndex}"]`),
     side: sideIndex,
     strip,
     tabs,
   });
+  const isLandedOn = useStripLandsHere(group, sideIndex);
   // What is held over the strip stands among its tabs where it would land.
   const drawn = useSideStrip({ group, side: sideIndex, tabs });
 
@@ -816,11 +820,13 @@ function SideCard({
 
   // A pane of one tab draws no strip: its tab's own row is its top, with
   // the sidebar's toggle at its start and the pane's corner at its end
-  // (`PaneTop`). One held over it or carried off it keeps the strip.
+  // (`PaneTop`). One held over it or carried off it keeps the strip, and a
+  // piece of the window held over that row brings it up to land in.
   const hasStrip =
     drawn.tabs.length > 1 ||
     drawn.heldAt !== undefined ||
-    drawn.carriedKey !== undefined;
+    drawn.carriedKey !== undefined ||
+    isLandedOn;
   const newTabHere = () => {
     windowTabs.openScreen(NEW_TAB_HREF, {
       from: { reason: "newTab" },

@@ -24,6 +24,7 @@ function Strip({ group }: { group: string }) {
   useStripTarget({
     group,
     isOn: true,
+    page: () => null,
     side: 0,
     strip: () => document.querySelector<HTMLElement>("[data-group-tabs]"),
     tabs: [
@@ -371,4 +372,78 @@ it("opens a place as a tab from a strip's line", async () => {
   expect(currentDrag()?.landing).toEqual(strip);
   pointer("pointerup", 150, STRIP_Y);
   expect(landed).toHaveBeenCalledWith(PLACE, strip);
+});
+
+/** One side of one tab, which draws no strip: its page from the window's left edge, 100px down, with the row every page has at its top. */
+function LoneSide({ side = 0 }: { side?: 0 | 1 }) {
+  const tabs = [{ href: "/only", id: "only", kind: "screen" as const }];
+  useStripTarget({
+    group: "up",
+    isOn: true,
+    page: () => document.querySelector(`[data-side-page="${String(side)}"]`),
+    side,
+    strip: () => null,
+    tabs,
+  });
+  useSidePagesTarget({
+    group: "up",
+    isOn: true,
+    layout: { focused: 0, sides: [{ tabs, up: "only" }] },
+    scroller: () => document.querySelector<HTMLElement>("[data-pages]"),
+  });
+  return (
+    <div
+      data-pages=""
+      style={{ height: 600, left: 0, position: "fixed", top: 100, width: 800 }}
+    >
+      <div data-side-page={side} style={{ height: 600, width: 800 }} />
+    </div>
+  );
+}
+
+/** A tab of another group, held from the sidebar's side of the window to a point. */
+const holdTabAt = (x: number, y: number) => {
+  pressToDrag(
+    { button: 0, clientX: 10, clientY: ROW_Y, isPrimary: true },
+    () => ({
+      grab: { x: 0, y: 0 },
+      held: { group: "other", id: "c", key: "c", kind: "tab", side: 0 },
+    }),
+  );
+  pointer("pointermove", 10, ROW_Y - 40);
+  pointer("pointermove", x, y);
+};
+
+it("lands a tab held over the top row of a side with no strip at that side's end", async () => {
+  await renderInBrowser(<LoneSide />);
+  holdTabAt(400, 115);
+
+  expect(currentDrag()?.landing).toMatchObject({
+    group: "up",
+    index: 1,
+    kind: "strip",
+    side: 0,
+  });
+});
+
+it("lands it nowhere over the middle of that side's page, as a piece of the window never does", async () => {
+  await renderInBrowser(<LoneSide />);
+  holdTabAt(400, 400);
+
+  expect(currentDrag()?.landing).toBeUndefined();
+});
+
+it("leaves the top row to the side's own only tab, which is on it already", async () => {
+  await renderInBrowser(<LoneSide />);
+  pressToDrag(
+    { button: 0, clientX: 400, clientY: 115, isPrimary: true },
+    () => ({
+      grab: { x: 0, y: 0 },
+      held: { group: "up", id: "only", key: "only", kind: "tab", side: 0 },
+    }),
+  );
+  pointer("pointermove", 400, 140);
+  pointer("pointermove", 420, 118);
+
+  expect(currentDrag()?.landing).toBeUndefined();
 });

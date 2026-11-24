@@ -495,9 +495,8 @@ export function GroupItem({
         <WindowContext
           value={{
             ...appWindow,
-            openPage: (url, options) => {
-              appWindow.openPage(url, openedHere(options));
-            },
+            openPage: (url, options) =>
+              appWindow.openPage(url, openedHere(options)),
             // A chat's tasks and each task's page walk this tab in place,
             // unless it is the chat's own, which stays on the chat.
             openScreen: (href, options) => {

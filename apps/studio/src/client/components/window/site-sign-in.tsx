@@ -5,27 +5,34 @@ import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { atom, useAtom, useAtomValue } from "jotai";
-import { useContext, useEffect } from "react";
+import { type WindowTab } from "@/client/atoms/window";
+import { useContext, useEffect, useEffectEvent } from "react";
 
 import { WindowContext } from "./context";
+import { useWindowTabs } from "./window-tabs";
 
 /** How long the bar over a sign-in page says the app connected before it goes. */
 const CONNECTED_FOR_MS = 4000;
 
+type SiteSignIn = NonNullable<WindowTab["signIn"]> & { tab: string };
+
 /**
- * The sign-ins on an app's own site the window started and still waits on,
- * by slug: the tab the site opened in, the chat that asked, and when the
- * app's connection record was last written as the site opened. Held by the
- * window, so a card or a page that redraws still knows its site is open, and
- * only the tab named here draws the bar with Done.
+ * The sign-ins on an app's own site still waited on, by slug: the tab the
+ * site opened in (`WindowTab.signIn`), the chat that asked, and when the
+ * app's connection record was last written as the site opened. Read from
+ * the tabs, which are kept across launches, so a card or a page that redraws
+ * still knows its site is open, a tab that comes back has its bar, and only
+ * that tab draws it.
  */
-export const siteSignInsAtom = atom<
-  ReadonlyMap<
-    string,
-    { chatId: ChatId | undefined; from: number | undefined; tab: string }
-  >
->(new Map());
+export function useSiteSignIns(): ReadonlyMap<string, SiteSignIn> {
+  return new Map(
+    useWindowTabs().allTabs.flatMap((tab) =>
+      tab.kind === "page" && tab.signIn !== undefined
+        ? [[tab.signIn.slug, { ...tab.signIn, tab: tab.id }] as const]
+        : [],
+    ),
+  );
+}
 
 function useApp(slug: string | undefined) {
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
@@ -60,10 +67,10 @@ export function useSiteSignIn({
   slug: string;
 }) {
   const appWindow = useContext(WindowContext);
-  const [signIns, setSignIns] = useAtom(siteSignInsAtom);
+  const windowTabs = useWindowTabs();
   const app = useApp(slug);
   const mark = useMarkSignedIn(name);
-  const started = signIns.get(slug);
+  const started = useSiteSignIns().get(slug);
   const signInPage = app?.type === "web" ? app.signIn : undefined;
 
   /** Notes the tab the app's site opened in, from which the bar and the row's Done follow. */
@@ -71,13 +78,12 @@ export function useSiteSignIn({
     if (tab === undefined) {
       return;
     }
-    setSignIns((current) =>
-      new Map(current).set(slug, {
-        chatId: askedIn,
-        from: app?.connection?.updatedAt,
-        tab,
-      }),
-    );
+    const from = app?.connection?.updatedAt;
+    windowTabs.markSignIn(tab, {
+      ...(askedIn === undefined ? {} : { chatId: askedIn }),
+      ...(from === undefined ? {} : { from }),
+      slug,
+    });
   };
   return {
     canOpen: Boolean(appWindow?.browser) && signInPage !== undefined,
@@ -108,44 +114,52 @@ export function useSiteSignIn({
  * or removed. The site's tab is an ordinary tab from then on.
  */
 export function useSiteSignInsEnd() {
-  const [signIns, setSignIns] = useAtom(siteSignInsAtom);
+  const signIns = useSiteSignIns();
+  const windowTabs = useWindowTabs();
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
+  const drop = useEffectEvent((slugs: string[]) => {
+    for (const slug of slugs) {
+      const tab = signIns.get(slug)?.tab;
+      if (tab !== undefined) {
+        windowTabs.markSignIn(tab, undefined);
+      }
+    }
+  });
+  const appOf = (slug: string) =>
+    apps.data?.apps.find((app) => app.slug === slug);
+  // Named by their slugs, so each effect runs as its list changes and not
+  // as the map is rebuilt.
+  const over = apps.data
+    ? [...signIns]
+        .filter(([slug, { from }]) => {
+          const app = appOf(slug);
+          return (
+            app === undefined ||
+            (app.status === "declined" && app.connection?.updatedAt !== from)
+          );
+        })
+        .map(([slug]) => slug)
+        .join("\n")
+    : "";
+  const connected = [...signIns.keys()]
+    .filter((slug) => appOf(slug)?.status === "connected")
+    .join("\n");
   useEffect(() => {
-    if (signIns.size === 0 || !apps.data) {
-      return;
+    if (over !== "") {
+      drop(over.split("\n"));
     }
-    const drop = (slugs: string[]) => {
-      setSignIns(
-        (current) =>
-          new Map([...current].filter(([slug]) => !slugs.includes(slug))),
-      );
-    };
-    const statusOf = (slug: string) =>
-      apps.data.apps.find((app) => app.slug === slug);
-    const over = [...signIns].flatMap(([slug, { from }]) => {
-      const app = statusOf(slug);
-      return app === undefined ||
-        (app.status === "declined" && app.connection?.updatedAt !== from)
-        ? [slug]
-        : [];
-    });
-    if (over.length > 0) {
-      drop(over);
-      return;
-    }
-    const connected = [...signIns.keys()].filter(
-      (slug) => statusOf(slug)?.status === "connected",
-    );
-    if (connected.length === 0) {
+  }, [over]);
+  useEffect(() => {
+    if (connected === "") {
       return;
     }
     const timeout = window.setTimeout(() => {
-      drop(connected);
+      drop(connected.split("\n"));
     }, CONNECTED_FOR_MS);
     return () => {
       window.clearTimeout(timeout);
     };
-  }, [signIns, apps.data, setSignIns]);
+  }, [connected]);
 }
 
 /**
@@ -156,9 +170,8 @@ export function useSiteSignInsEnd() {
  * nothing.
  */
 export function SiteSignInBar({ tabId }: { tabId: string }) {
-  const signIns = useAtomValue(siteSignInsAtom);
   const [slug, started] =
-    [...signIns].find(([, entry]) => entry.tab === tabId) ?? [];
+    [...useSiteSignIns()].find(([, entry]) => entry.tab === tabId) ?? [];
   const app = useApp(slug);
   const name = app?.name ?? "";
   const mark = useMarkSignedIn(name);

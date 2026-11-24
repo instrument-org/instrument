@@ -5,7 +5,9 @@ import {
 } from "@/client/components/window/context";
 import { renderWithProviders } from "@/tests/render";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
+import { useWindowTabsChange } from "@/client/components/window/window-tabs";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToolConnectApp } from "./tool-connect-app";
@@ -143,6 +145,7 @@ function renderCard(
   } satisfies WindowContextValue;
   return renderWithProviders(
     <WindowContext.Provider value={window}>
+      <OpenTab />
       <ToolConnectApp
         part={{
           input: { reason: "So I can read your mail.", slugs: ["outlook"] },
@@ -170,6 +173,19 @@ function renderCard(
 }
 
 const PART_ID = StoreId.newPartId();
+
+/** The tab the window's open answers ("tab-1"), which a site's sign-in is marked on. */
+function OpenTab() {
+  const change = useWindowTabsChange();
+  useEffect(() => {
+    change(() => ({
+      activeByGroup: { g: "tab-1" },
+      groups: {},
+      tabs: [{ group: "g", id: "tab-1", kind: "page", openedAt: 1 }],
+    }));
+  }, [change]);
+  return null;
+}
 
 /** The card's lines and buttons, lines first. */
 function reads(): string[] {

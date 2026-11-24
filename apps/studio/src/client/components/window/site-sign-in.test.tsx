@@ -1,13 +1,11 @@
 import { renderWithProviders } from "@/tests/render";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  SiteSignInBar,
-  siteSignInsAtom,
-  useSiteSignInsEnd,
-} from "./site-sign-in";
+import { SiteSignInBar, useSiteSignInsEnd } from "./site-sign-in";
+import { useWindowTabsChange, windowTabsAtom } from "./window-tabs";
 
 const { mocks } = vi.hoisted(() => ({
   mocks: {
@@ -68,16 +66,34 @@ function Bars() {
   );
 }
 
-function renderBars() {
-  const rendered = renderWithProviders(<Bars />);
-  act(() => {
-    rendered.store.set(
-      siteSignInsAtom,
-      new Map([["notes", { chatId: CHAT, from: 1, tab: "tab-1" }]]),
-    );
-  });
-  return rendered;
+/** The window with the site's page open in a tab marked as Notes' sign-in, and another tab. */
+function Tabs() {
+  const change = useWindowTabsChange();
+  useEffect(() => {
+    change(() => ({
+      activeByGroup: { g: "tab-1" },
+      groups: {},
+      tabs: [
+        {
+          group: "g",
+          id: "tab-1",
+          kind: "page",
+          openedAt: 1,
+          signIn: { chatId: CHAT, from: 1, slug: "notes" },
+        },
+        { group: "g", id: "tab-2", kind: "page", openedAt: 2 },
+      ],
+    }));
+  }, [change]);
+  return <Bars />;
 }
+
+function renderBars() {
+  return renderWithProviders(<Tabs />);
+}
+
+const marked = (store: ReturnType<typeof renderBars>["store"]) =>
+  store.get(windowTabsAtom).tabs.filter((tab) => tab.signIn !== undefined);
 
 beforeEach(() => {
   mocks.apps.mockReset();
@@ -112,8 +128,10 @@ describe("the bar over a sign-in page", () => {
     act(() => {
       vi.advanceTimersByTime(4000);
     });
-    expect(store.get(siteSignInsAtom).size).toBe(0);
+    expect(marked(store)).toEqual([]);
     expect(screen.getByTestId("opened").textContent).toBe("");
+    // The tab stays, an ordinary one.
+    expect(store.get(windowTabsAtom).tabs).toHaveLength(2);
     vi.useRealTimers();
   });
 
@@ -122,7 +140,7 @@ describe("the bar over a sign-in page", () => {
     const { store } = renderBars();
 
     await waitFor(() => {
-      expect(store.get(siteSignInsAtom).size).toBe(0);
+      expect(marked(store)).toEqual([]);
     });
   });
 

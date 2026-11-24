@@ -44,6 +44,7 @@ import {
   type GroupOwn,
   markOpenedBy,
   markPrompted,
+  markSignIn,
   moveTabTo,
   moveToGroup,
   navigateScreen,
@@ -446,6 +447,10 @@ export function useWindowTabs() {
     /** A tab marked as the one its chat was last sent a message from. */
     markPrompted: (id: string) => {
       apply((current) => markPrompted(current, id, Date.now()));
+    },
+    /** A tab marked as the page an app's sign-in waits on, or unmarked (`markSignIn`). */
+    markSignIn: (id: string, signIn: WindowTab["signIn"]) => {
+      apply((current) => markSignIn(current, id, signIn));
     },
     /** A group's two sides made one (`joinSides`). */
     joinSides: (group: string) => {

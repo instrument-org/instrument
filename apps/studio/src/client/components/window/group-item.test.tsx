@@ -29,6 +29,7 @@ vi.mock("./tab-location-row", () => ({
 
 vi.mock("./window-tabs", () => ({
   useWindowTabs: () => ({
+    allTabs: [],
     chatUpIn: () => undefined,
     visitHref: calls.visitHref,
   }),

@@ -6,7 +6,7 @@ import {
   useDefaultBrowser,
 } from "@/client/components/window/connect-controls";
 import { WindowContext } from "@/client/components/window/context";
-import { siteSignInsAtom } from "@/client/components/window/site-sign-in";
+import { useSiteSignIns } from "@/client/components/window/site-sign-in";
 import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
@@ -54,7 +54,7 @@ export function ConnectAppCard({
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const drawn = useAppsBySlug();
   const signInsWaiting = useAtomValue(signInsWaitingAtom);
-  const siteSignIns = useAtomValue(siteSignInsAtom);
+  const siteSignIns = useSiteSignIns();
   const browser = useDefaultBrowser();
   // The row the user pressed, up for as long as it has anything to press.
   const [picked, setPicked] = useState<string>();

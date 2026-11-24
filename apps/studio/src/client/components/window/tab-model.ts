@@ -1379,6 +1379,31 @@ export function markOpenedBy(
     : state;
 }
 
+/**
+ * A tab marked as the page an app's sign-in on its own site waits on, or
+ * with that mark taken off. One page per app: any other tab marked for the
+ * same app loses its mark.
+ */
+export function markSignIn(
+  state: WindowTabs,
+  id: string,
+  signIn: WindowTab["signIn"],
+): WindowTabs {
+  if (!state.tabs.some((tab) => tab.id === id)) {
+    return state;
+  }
+  return {
+    ...state,
+    tabs: state.tabs.map((tab) => {
+      if (tab.id !== id && tab.signIn?.slug !== signIn?.slug) {
+        return tab;
+      }
+      const { signIn: _was, ...rest } = tab;
+      return tab.id === id && signIn !== undefined ? { ...rest, signIn } : rest;
+    }),
+  };
+}
+
 /** A tab marked as the one its chat was last sent a message from (`workingTabOf`). */
 export function markPrompted(
   state: WindowTabs,

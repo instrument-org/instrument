@@ -3,12 +3,14 @@ import {
   WindowContext,
   type WindowContextValue,
 } from "@/client/components/window/context";
+import { SiteSignInBar } from "@/client/components/window/site-sign-in";
 import {
-  SiteSignInBar,
-  siteSignInsAtom,
-} from "@/client/components/window/site-sign-in";
+  useWindowTabsChange,
+  windowTabsAtom,
+} from "@/client/components/window/window-tabs";
 import { renderInBrowser } from "@/tests/render-browser";
 import { createStore } from "jotai";
+import { useEffect } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { page } from "vitest/browser";
 
@@ -93,8 +95,21 @@ async function showCard(width: number, slugs: readonly string[]) {
     showTab: () => true,
   } satisfies WindowContextValue;
   const store = createStore();
+  // The tab the window's open answers, which the sign-in is marked on.
+  function Tab() {
+    const change = useWindowTabsChange();
+    useEffect(() => {
+      change(() => ({
+        activeByGroup: { g: "tab-1" },
+        groups: {},
+        tabs: [{ group: "g", id: "tab-1", kind: "page", openedAt: 1 }],
+      }));
+    }, [change]);
+    return null;
+  }
   await renderInBrowser(
     <WindowContext.Provider value={appWindow}>
+      <Tab />
       <div className="@container/transcript" style={{ width }}>
         <ConnectAppCard
           reason="So I can read your notes and mail."
@@ -133,7 +148,9 @@ describe.each([720, 380])("a web app's row in a %spx chat", (width) => {
     await button("Sign in").click();
     await expect.element(button("Show page")).toBeVisible();
     expect(pressedAt(signIn)?.textContent).toBe("Show page");
-    expect(store.get(siteSignInsAtom).get("notes")?.tab).toBe("tab-1");
+    expect(
+      store.get(windowTabsAtom).tabs.find((tab) => tab.id === "tab-1")?.signIn,
+    ).toEqual({ from: 1, slug: "notes" });
 
     await button("Done").click();
     expect(mocks.markWebSignedIn.mock.lastCall?.[0]).toEqual({ slug: "notes" });

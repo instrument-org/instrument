@@ -141,6 +141,14 @@ interface TabHistory {
    * stands there (`groupLayoutOf`).
    */
   side?: 1;
+  /**
+   * On a page opened at an app's own site for a sign-in still waited on
+   * (`useSiteSignIn`): the app, the chat that asked, and when the app's
+   * connection record was last written as the site opened. Kept with the
+   * tab, so the bar with Done is over it again after a launch and goes when
+   * the tab does.
+   */
+  signIn?: { chatId?: ChatId; from?: number; slug: string };
   /** Visits across the screen/browser boundary; each guest keeps its native history. */
   past?: TabVisit[];
   /**

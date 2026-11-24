@@ -40,8 +40,11 @@ const PASSES = [
   },
   // The indexes in docs/ sections, from each file's title and status.
   { command: "node scripts/docs.ts --write", label: "docs indexes and links" },
-  // Spelling before format, so every pass below sees corrected text.
-  { command: "pnpm fix:spelling", label: "spelling" },
+  // Spelling is listed, never written: typos applies any correction it has
+  // only one of, and it splits words it does not know ("PNGs" into "PN" +
+  // "Gs", rewritten "ONGs"), so an unattended write corrupts good text.
+  // `pnpm fix:spelling` applies them when someone has read the list.
+  { command: "pnpm check:spelling", label: "spelling" },
   FORMAT,
   ...(process.argv.includes("--lint")
     ? [

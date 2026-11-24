@@ -284,6 +284,89 @@ describe("the SVG a page names for itself", () => {
     expect(await rememberPageIcon(page, d)).toBe(false);
   });
 
+  it("is not asked for again unguarded when its address is refused", async () => {
+    const fetch = proxyAnswering(none);
+    const iconUrls = ["http://192.168.1.1/x.svg", "http://10.0.0.1/y.png"];
+
+    expect(await rememberPageIcon({ ...page, iconUrls }, deps(fetch))).toBe(
+      false,
+    );
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("stands for a day against its front page naming another, or none", async () => {
+    const fetch = proxyAnswering(svgOf("one"), svgOf("two"), none, unreachable);
+    const d = deps(fetch);
+    const naming = (name: string) =>
+      rememberPageIcon(
+        { ...page, iconUrls: [`https://example.com/${name}`] },
+        d,
+      );
+    await naming("one.svg");
+
+    expect(await naming("two.svg")).toBe(false);
+    await naming("badge.png");
+    expect(await textFor(d, "dark")).toBe("one");
+    now += 2 * DAY_MS;
+    expect(await naming("two.svg")).toBe(true);
+    expect(await textFor(d, "dark")).toBe("two");
+    now += 2 * DAY_MS;
+    await naming("plain.png");
+    expect(await textFor(d, "dark")).toBeUndefined();
+  });
+
+  it("is the front page's when both pages' are fetched at once", async () => {
+    let answer: (response: Response) => void = () => undefined;
+    const slow = new Promise<Response>((resolve) => {
+      answer = resolve;
+    });
+    const fetch = proxyAnswering(() => slow, svgOf("front"));
+    const d = deps(fetch);
+    const docs = rememberPageIcon(
+      {
+        ...page,
+        iconUrls: ["https://example.com/docs.svg"],
+        pageUrl: "https://example.com/docs",
+      },
+      d,
+    );
+    const front = rememberPageIcon(page, d);
+    answer(await svgOf("docs")());
+    await Promise.all([docs, front]);
+
+    expect(await textFor(d, "dark")).toBe("front");
+  });
+
+  it.each([
+    ["www.example.com", "example.com"],
+    ["example.com", "www.example.com"],
+  ])("opened at %s is the icon at %s too", async (opened, other) => {
+    const fetch = proxyAnswering(svgOf("page"));
+    const d = deps(fetch);
+    await rememberPageIcon({ ...page, pageUrl: `https://${opened}/` }, d);
+
+    expect((await siteIconFor(other, "dark", d))?.bytes.toString()).toBe(
+      "page",
+    );
+  });
+
+  it.each([
+    ["unreachable", unreachable],
+    ["not an SVG", found],
+  ])(
+    "gives way to the page's first icon when it is %s and the proxy has none",
+    async (_name, answer) => {
+      const fetch = proxyAnswering(answer, none, found);
+      const d = deps(fetch);
+
+      expect(await rememberPageIcon(page, d)).toBe(true);
+      expect(fetch.mock.calls[2]?.[0]).toBe("https://example.com/a.ico");
+      expect((await siteIconFor("example.com", "dark", d))?.type).toBe(
+        "image/png",
+      );
+    },
+  );
+
   it("is kept apart for each theme, and stands in for the other where it can be seen", async () => {
     const fetch = proxyAnswering(svgOf("white ink"), svgOf("dark ink"));
     const d = deps(fetch);

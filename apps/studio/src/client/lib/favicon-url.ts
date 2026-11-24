@@ -1,3 +1,4 @@
+import { siteOf } from "@/shared/site-of";
 import { APP_PROTOCOL } from "@instrument-org/shared";
 import { useSyncExternalStore } from "react";
 
@@ -29,7 +30,7 @@ export function getFaviconUrl(url: string, retry = 0): string {
  */
 export function useFaviconUrl(url: string): string {
   return useSyncExternalStore(subscribeToAddress, () =>
-    getFaviconUrl(url, retries.get(hostOf(url)) ?? 0),
+    getFaviconUrl(url, retries.get(siteOf(hostOf(url))) ?? 0),
   );
 }
 
@@ -47,17 +48,17 @@ export function useFaviconUrl(url: string): string {
  */
 let iconlessThisSession: ReadonlySet<string> = new Set<string>();
 
-/** How many times each host has been given another icon, so the address asked for next is one the page has not already drawn or seen fail. */
+/** How many times each site (`siteOf`) has been given another icon, so the address asked for next is one the page has not already drawn or seen fail. */
 const retries = new Map<string, number>();
 
 const listeners = new Set<() => void>();
 
 /** A site given another icon, or one after failing, so every row drawing it asks again. */
 export function siteIconChanged(url: string) {
-  const host = hostOf(url);
-  retries.set(host, (retries.get(host) ?? 0) + 1);
+  const site = siteOf(hostOf(url));
+  retries.set(site, (retries.get(site) ?? 0) + 1);
   iconlessThisSession = new Set(
-    [...iconlessThisSession].filter((entry) => entry !== host),
+    [...iconlessThisSession].filter((entry) => siteOf(entry) !== site),
   );
   notify();
 }

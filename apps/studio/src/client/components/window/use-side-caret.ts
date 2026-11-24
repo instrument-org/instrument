@@ -1,4 +1,8 @@
-import { focusHomeIn, focusOnceLayersClose } from "@/client/lib/keyboard-home";
+import {
+  focusHomeIn,
+  focusOnceLayersClose,
+  isKeyboardNowhere,
+} from "@/client/lib/keyboard-home";
 import { type RefObject, useEffect, useEffectEvent } from "react";
 
 /**
@@ -11,7 +15,6 @@ import { type RefObject, useEffect, useEffectEvent } from "react";
 export function useSideCaret({
   cardRef,
   hasKeyboard,
-  isCaretOnNothing,
   isCaretOnOtherSide,
   isPressed,
   shown,
@@ -19,7 +22,6 @@ export function useSideCaret({
   cardRef: RefObject<HTMLElement | null>;
   /** Whether the side has the keyboard, in a group on screen. */
   hasKeyboard: boolean;
-  isCaretOnNothing: () => boolean;
   isCaretOnOtherSide: () => boolean;
   isPressed: RefObject<boolean>;
   /** The group and tab the side shows. */
@@ -35,11 +37,11 @@ export function useSideCaret({
         focus: () => {
           focusHomeIn(card);
         },
-        holds: () => !isCaretOnOtherSide() && !isCaretOnNothing(),
+        holds: () => !isCaretOnOtherSide() && !isKeyboardNowhere(),
       });
     } else if (
       isCaretOnOtherSide() ||
-      (isCaretOnNothing() && !isPressed.current)
+      (isKeyboardNowhere() && !isPressed.current)
     ) {
       focusHomeIn(card);
     }

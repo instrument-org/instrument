@@ -84,6 +84,15 @@ describe("createFocusGuard", () => {
     expect(restoreHostFocus).not.toHaveBeenCalled();
   });
 
+  it("says a guest gives the keyboard back only while a command holds it and the host had it", () => {
+    const guard = makeGuard();
+    expect(guard.returnsKeyboard(TARGET_ID)).toBe(false);
+    guard.armCommand(TARGET_ID, true, true);
+    expect(guard.returnsKeyboard(TARGET_ID)).toBe(true);
+    guard.releaseHost();
+    expect(guard.returnsKeyboard(TARGET_ID)).toBe(false);
+  });
+
   it("does not bounce when the host never claimed focus", () => {
     const guard = makeGuard();
     guard.armCommand(TARGET_ID, false, true);

@@ -2,7 +2,7 @@ import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
 import { draftsAtom, draftsLoadedAtom } from "@/client/drafts/store";
 import { keptInOtherWindows } from "@/client/lib/kept-state";
-import { focusScreenHome } from "@/client/lib/keyboard-home";
+import { leaveField } from "@/client/lib/keyboard-home";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { type Draft, holdsSomething } from "@/shared/drafts";
@@ -577,10 +577,7 @@ export function useTabGroupActions() {
     } else if (empty === groupUp()) {
       // The keyboard may be elsewhere on the group, on a row under its box,
       // where the home would leave it.
-      if (document.activeElement instanceof HTMLElement) {
-        document.activeElement.blur();
-      }
-      focusScreenHome({ leaving: false });
+      leaveField(document.activeElement);
     } else {
       appTabs.navigate(groupHref(empty));
     }

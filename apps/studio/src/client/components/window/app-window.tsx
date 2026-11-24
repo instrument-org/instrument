@@ -48,7 +48,7 @@ import { useRefetchOnWindowSwitch } from "@/client/hooks/use-refetch-on-window-s
 import { useRefreshSkillsOnChange } from "@/client/hooks/use-refresh-skills-on-change";
 import { useRefreshProjectsOnChange } from "@/client/hooks/use-refresh-projects-on-change";
 import { useTabRouters } from "@/client/hooks/use-tab-routers";
-import { pageHoldingKeyboard, wasPagePressed } from "@/client/lib/browser-pool";
+import { wasPagePressed } from "@/client/lib/browser-pool";
 import { restoreUnsentFeedback } from "@/client/lib/problem-reports";
 import { resolveComputerFileBase } from "@/client/lib/computer-file-url";
 import { ICON_CONTEXT_VALUE } from "@/client/lib/icon-context";
@@ -56,6 +56,7 @@ import {
   focusChatComposer,
   focusScreenHome,
   installKeyboardHome,
+  isKeyboardNowhere,
 } from "@/client/lib/keyboard-home";
 import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
@@ -334,36 +335,16 @@ function AppTabView({
   tab: Tab;
 }) {
   const setModel = useSetAtom(appTabsAtom);
-  // Where the keyboard was in this tab, which it goes back to as the tab
-  // comes up, or the screen's home where it was nowhere yet, unless it is
-  // somewhere on screen by then (the tab strip's own arrows, a field a
-  // command opened).
-  const lastFocused = useRef<HTMLElement | null>(null);
+  // The keyboard goes to the screen's home as the tab comes up, the one the
+  // tab was last worked from, unless it is somewhere on screen by then (the
+  // tab strip's own arrows, a field a command opened).
   const arrivesWithFocus = Boolean(tab.arrivingView?.focus);
   useEffect(() => {
-    if (!isActive) {
+    if (!isActive || arrivesWithFocus) {
       return;
     }
     const restore = () => {
-      const focused = document.activeElement;
-      const kept = lastFocused.current;
-      const isOnScreen =
-        focused instanceof HTMLElement &&
-        focused !== document.body &&
-        (focused.tagName === "WEBVIEW"
-          ? pageHoldingKeyboard() !== null
-          : focused.checkVisibility({
-              opacityProperty: true,
-              visibilityProperty: true,
-            }));
-      if (isOnScreen || arrivesWithFocus) {
-        return;
-      }
-      if (kept?.isConnected) {
-        kept.focus({ preventScroll: true });
-      }
-      // What is gone, or takes no keyboard any more, leaves it on nothing.
-      if (!kept || document.activeElement !== kept) {
+      if (isKeyboardNowhere()) {
         focusScreenHome({ leaving: false });
       }
     };
@@ -427,11 +408,6 @@ function AppTabView({
         isActive ? "visible" : "invisible opacity-0",
       )}
       {...(isActive ? { "data-app-tab-active": "" } : {})}
-      onFocus={(event) => {
-        if (event.target instanceof HTMLElement) {
-          lastFocused.current = event.target;
-        }
-      }}
     >
       <PortalContainerProvider>
         {/* The width a screen gets, for `@container/app-content` variants;

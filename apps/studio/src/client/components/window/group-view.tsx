@@ -586,11 +586,6 @@ function SideCard({
   // composer, or a file. With a menu up, that waits for the caret the menu
   // hands back as it goes.
   const isPressed = useRef(false);
-  const isCaretOnNothing = () =>
-    document.activeElement === null ||
-    document.activeElement === document.body ||
-    (document.activeElement.tagName === "WEBVIEW" &&
-      pageHoldingKeyboard() === null);
   const isCaretOnOtherSide = () => {
     const card = cardRef.current;
     const now = document.activeElement;
@@ -616,7 +611,6 @@ function SideCard({
   useSideCaret({
     cardRef,
     hasKeyboard: hasKeyboard && isActive,
-    isCaretOnNothing,
     isCaretOnOtherSide,
     isPressed,
     shown: up && `${group}/${up.id}`,

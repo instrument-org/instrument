@@ -1,5 +1,18 @@
 import { captureException } from "@/client/lib/capture-exception";
-import { focusHomeIn } from "@/client/lib/keyboard-home";
+import {
+  focusHomeIn,
+  isKeyboardNowhere,
+  notePersonInPage,
+  PAGE_ON_SCREEN,
+  returnKeyboardFromAgent,
+  returnKeyboardToWindow,
+} from "@/client/lib/keyboard-home";
+import {
+  isKeyboardLentFromField,
+  onKeyboardLentToPage,
+  returnLentKeyboard,
+  tellWindowKeyboardLeft,
+} from "@/client/lib/keyboard-loan";
 import {
   isPageOnSideWithoutKeyboard,
   keyboardSide,
@@ -277,10 +290,6 @@ let pagePanes: ReadonlyMap<BrowserTargetId, string> = new Map();
 const PANE_SETTLE_MS = 150;
 let paneSettle: ReturnType<typeof setTimeout> | undefined;
 
-// The last focused Studio element, retained when agent CDP input crosses into
-// a guest so focus can return to the exact host element it displaced.
-let lastHostFocusedElement: HTMLElement | null = null;
-
 // Put keyboard focus on a guest so agent keyboard input dispatched to it is
 // actually delivered there. Chromium routes keyboard input to the widget
 // holding focus, and only this renderer-side DOM focus moves it across the
@@ -420,34 +429,19 @@ function passKeyboardTo(targetId: BrowserTargetId) {
     return;
   }
   if (sent !== undefined && Date.now() <= sent) {
+    notePersonInPage(pooled.webview);
     pooled.webview.focus({ preventScroll: true });
     return;
   }
-  if (lapses === undefined || Date.now() > lapses || !isKeyboardOffScreen()) {
+  if (lapses === undefined || Date.now() > lapses || !isKeyboardNowhere()) {
     return;
   }
+  notePersonInPage(pooled.webview);
   pooled.webview.focus({ preventScroll: true });
 }
 
 function callOffKeyboardSends() {
   keyboardSends.clear();
-}
-
-/**
- * Whether the keyboard is in nothing the person can see: on the body, or
- * on an element hidden with the view it was in (every window tab stays
- * mounted, hidden with `visibility`).
- */
-function isKeyboardOffScreen() {
-  const focused = document.activeElement;
-  return (
-    focused === null ||
-    focused === document.body ||
-    !focused.checkVisibility({
-      opacityProperty: true,
-      visibilityProperty: true,
-    })
-  );
 }
 
 function recordHostFocus(event: FocusEvent) {
@@ -458,7 +452,6 @@ function recordHostFocus(event: FocusEvent) {
   // Somewhere the person put the keyboard on purpose, which outranks a page
   // still on its way.
   keyboardHeirs.clear();
-  lastHostFocusedElement = target;
   // With no guests mounted nothing can steal focus, so skip the per-focusin
   // RPC. The main process re-seeds its claim from window focus whenever a
   // guarded command starts (see the manager's sendCommand).
@@ -503,28 +496,8 @@ function releaseGuestFocus(targetId: BrowserTargetId) {
       focusHomeIn(side);
       return;
     }
-    restoreHostFocus();
+    returnKeyboardToWindow();
   });
-}
-
-function restoreHostFocus() {
-  // The caret goes back to where it was only on the side of a tab group
-  // that still has the keyboard; otherwise into that side's home, since a
-  // caret landing on the other side gives that side the keyboard.
-  const side = keyboardSide();
-  const holder = lastHostFocusedElement?.closest("[data-group-side]");
-  if (
-    side !== null &&
-    holder !== null &&
-    holder !== undefined &&
-    holder !== side
-  ) {
-    focusHomeIn(side);
-    return;
-  }
-  if (lastHostFocusedElement?.isConnected) {
-    lastHostFocusedElement.focus({ preventScroll: true });
-  }
 }
 
 // The slot currently showing each guest.
@@ -706,7 +679,7 @@ export function initBrowserPool(): () => void {
             signal,
           });
         for await (const _ of subscription) {
-          restoreHostFocus();
+          returnKeyboardFromAgent();
         }
       } catch (error) {
         if (controller.signal.aborted) {
@@ -819,11 +792,13 @@ export function initBrowserPool(): () => void {
   void runGuestFocusRequests();
   void runPagePresses();
   window.addEventListener("blur", onHostBlur, { signal });
+  const stopAskingAfterKeyboard = onKeyboardLentToPage(askAfterKeyboard);
   void runGuestSurfaces();
   void runPageSteps();
 
   return () => {
     controller.abort();
+    stopAskingAfterKeyboard();
     document.removeEventListener("focusin", recordHostFocus);
     document.removeEventListener("pointerdown", callOffKeyboardSends, true);
     document.removeEventListener("fullscreenchange", onFullScreenChange);
@@ -874,6 +849,10 @@ export function wasPagePressed(tabId: string): boolean {
 
 function pagePressed(targetId: BrowserTargetId) {
   pagePressedAt.set(targetId, Date.now());
+  const pressed = pool.get(targetId);
+  if (pressed) {
+    notePersonInPage(pressed.webview);
+  }
   // A popover stays open when focus moves into a page, so a press in one of
   // this window's pages reaches the window's own listeners as a press on
   // nothing: on the root element, outside the React tree, where only what
@@ -936,6 +915,52 @@ function keepKeyboardOnItsSide(targetId: BrowserTargetId) {
     pooled.webview.blur();
     focusHomeIn(side);
   }, PRESS_REPORT_WAIT_MS);
+}
+
+/**
+ * Settles a page found holding the keyboard the window has not heard it
+ * lost. One an agent's command put it in gives it back when main asks, so
+ * the window goes on unheard. Any other needs a press of the person's to
+ * keep a keyboard it took from a field: without one, by the time main
+ * would have reported it, the field has it back, and main is told the
+ * window has the keyboard still. A page that took it from nothing keeps it.
+ */
+function askAfterKeyboard(guest: HTMLElement) {
+  const targetId = [...pool].find(
+    ([, pooled]) => pooled.webview === guest,
+  )?.[0];
+  const keeps = () => {
+    if (document.activeElement === guest) {
+      tellWindowKeyboardLeft();
+    }
+  };
+  if (targetId === undefined) {
+    keeps();
+    return;
+  }
+  void rpcClient.browser.returnsKeyboard.call({ targetId }).then((returns) => {
+    if (returns) {
+      return;
+    }
+    if (!isKeyboardLentFromField()) {
+      keeps();
+      return;
+    }
+    setTimeout(() => {
+      if (document.activeElement !== guest) {
+        return;
+      }
+      const pressed = pagePressedAt.get(targetId) ?? 0;
+      if (
+        Date.now() - pressed < PRESS_REPORT_WAIT_MS * 4 ||
+        !returnLentKeyboard()
+      ) {
+        keeps();
+        return;
+      }
+      void rpcClient.browser.syncHostFocus.call();
+    }, PRESS_REPORT_WAIT_MS);
+  }, keeps);
 }
 
 /** The host document losing the keyboard, as it does to a page taking it. */
@@ -1697,6 +1722,7 @@ function placeGuest(targetId: BrowserTargetId) {
   reportShown(pooled, winner !== undefined);
   if (!winner) {
     paintOwners.delete(targetId);
+    pooled.webview.removeAttribute(PAGE_ON_SCREEN);
     releaseGuestFocus(targetId);
     applyPaintHost(pooled);
     leaveFullScreen(pooled);
@@ -1711,6 +1737,7 @@ function placeGuest(targetId: BrowserTargetId) {
     .split(/\s+/);
   const corners = `0 0 ${bottomRight} ${bottomLeft}`;
   paintOwners.set(targetId, owner);
+  pooled.webview.setAttribute(PAGE_ON_SCREEN, "");
   pooled.lastVisibleBounds = bounds;
   pooled.shownAbovePane = layer > 0;
   if (layer === 0) {

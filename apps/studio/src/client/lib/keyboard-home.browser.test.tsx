@@ -5,8 +5,15 @@ import { userEvent } from "vitest/browser";
 import {
   focusScreenHome,
   installKeyboardHome,
+  isKeyboardNowhere,
   keepCaretOnKeyboardSide,
+  leaveField,
+  notePersonInPage,
+  PAGE_ON_SCREEN,
   placeCaretAfterPress,
+  returnKeyboardFromAgent,
+  returnKeyboardToWindow,
+  setHomeFocus,
 } from "./keyboard-home";
 import { isPageOnSideWithoutKeyboard } from "./keyboard-place";
 
@@ -296,4 +303,209 @@ describe("the sides of a tab group", () => {
     );
     expect([onLeft, onRight]).toEqual([true, false]);
   });
+});
+
+describe("whether the keyboard is anywhere a person can see", () => {
+  /** Puts the keyboard in the element marked `data-here`, then does `after` to it. */
+  const keyboardIn = (html: string, after?: (here: HTMLElement) => void) => {
+    document.body.innerHTML = html;
+    const here = document.querySelector<HTMLElement>("[data-here]");
+    here?.focus();
+    if (here) {
+      after?.(here);
+    }
+    return isKeyboardNowhere();
+  };
+
+  it.each<[string, string, ((here: HTMLElement) => void) | undefined, boolean]>(
+    [
+      ["a field on show", "<input data-here>", undefined, false],
+      ["nothing", "<p>Words</p>", undefined, true],
+      [
+        "a field hidden with the view it is in",
+        "<div><input data-here></div>",
+        (here) => {
+          here.parentElement?.style.setProperty("visibility", "hidden");
+        },
+        true,
+      ],
+      [
+        "a field in a part put out of reach",
+        "<div><input data-here></div>",
+        (here) => {
+          here.parentElement?.setAttribute("inert", "");
+        },
+        true,
+      ],
+      [
+        "a field in a popover still fading in",
+        '<div style="opacity: 0"><input data-here></div>',
+        undefined,
+        false,
+      ],
+      [
+        "a page a slot shows",
+        `<webview tabindex="-1" ${PAGE_ON_SCREEN} data-here></webview>`,
+        undefined,
+        false,
+      ],
+      [
+        "a page put away, which stays drawn out of sight",
+        '<webview tabindex="-1" data-here></webview>',
+        undefined,
+        true,
+      ],
+    ],
+  )("in %s", (_case, html, after, expected) => {
+    expect(keyboardIn(html, after)).toBe(expected);
+  });
+});
+
+describe("the keyboard given back from a page", () => {
+  /**
+   * A tab group with the keyboard on the left, which shows a field, a
+   * composer and a page, and beside the page's guest the guest of a page an
+   * agent works in.
+   */
+  const windowWithPages = ({
+    composer = true,
+  }: { composer?: boolean } = {}) => {
+    document.body.innerHTML = `
+      <div data-app-tab-active>
+        <div data-group-sides>
+          <div data-group-side="0" data-keyboard data-tab-up="tab_up">
+            <input aria-label="Rename">
+            ${composer ? '<div data-keyboard-home="1"><div contenteditable="true" aria-label="Reply">Prompt</div></div>' : ""}
+            <div data-keyboard-home="2" data-page-home></div>
+          </div>
+          <div data-group-side="1"><input aria-label="Other side"></div>
+        </div>
+      </div>
+      <webview tabindex="-1" ${PAGE_ON_SCREEN} aria-label="Page"></webview>
+      <webview tabindex="-1" ${PAGE_ON_SCREEN} aria-label="Agent's page"></webview>
+    `;
+    const find = (selector: string) => {
+      const found = document.querySelector<HTMLElement>(selector);
+      if (!found) {
+        throw new Error(`fixture missing ${selector}`);
+      }
+      return found;
+    };
+    const page = find('[aria-label="Page"]');
+    setHomeFocus(find("[data-page-home]"), {
+      focus: () => {
+        page.focus();
+      },
+      holds: () => document.activeElement === page,
+    });
+    return {
+      agents: find('[aria-label="Agent\'s page"]'),
+      other: find('[aria-label="Other side"]'),
+      page,
+      rename: find('[aria-label="Rename"]'),
+    };
+  };
+  const at = () =>
+    document.activeElement?.getAttribute("aria-label") ?? "nothing";
+
+  it("goes to the field a person was in when an agent's page took it", () => {
+    const { agents, rename } = windowWithPages();
+    rename.focus();
+    agents.focus();
+    returnKeyboardFromAgent();
+    expect(at()).toBe("Rename");
+  });
+
+  it("goes back to the page a person was in", () => {
+    const { agents, page } = windowWithPages();
+    notePersonInPage(page);
+    page.focus();
+    agents.focus();
+    returnKeyboardFromAgent();
+    expect(at()).toBe("Page");
+  });
+
+  it("stays in a page the person put it in", () => {
+    const { page, rename } = windowWithPages();
+    rename.focus();
+    notePersonInPage(page);
+    page.focus();
+    returnKeyboardFromAgent();
+    expect(at()).toBe("Page");
+  });
+
+  it("stays on nothing, where a person let go of it", () => {
+    const { rename } = windowWithPages();
+    rename.focus();
+    rename.blur();
+    returnKeyboardFromAgent();
+    expect(at()).toBe("nothing");
+  });
+
+  it("goes to a home of the window's own when that field is gone or hidden", () => {
+    const gone = windowWithPages();
+    gone.rename.focus();
+    gone.agents.focus();
+    gone.rename.remove();
+    returnKeyboardFromAgent();
+    expect(at()).toBe("Reply");
+
+    const hidden = windowWithPages();
+    hidden.rename.focus();
+    hidden.agents.focus();
+    hidden.rename.style.visibility = "hidden";
+    returnKeyboardFromAgent();
+    expect(at()).toBe("Reply");
+  });
+
+  it("leaves a field on the side without the keyboard for the home of the side with it", async () => {
+    const { agents, other } = windowWithPages();
+    other.focus();
+    agents.focus();
+    returnKeyboardFromAgent();
+    await frames(2);
+    expect(at()).toBe("Reply");
+  });
+
+  it("goes into no page when the place it was in is gone, and lets go with no home to take it", () => {
+    const { agents, rename } = windowWithPages({ composer: false });
+    rename.focus();
+    agents.focus();
+    rename.remove();
+    returnKeyboardFromAgent();
+    expect(at()).toBe("nothing");
+  });
+
+  it("goes to the screen's home as the page that had it is put away, outside a tab group", () => {
+    document.body.innerHTML = `
+      <div data-app-tab-active>
+        <div data-keyboard-home><div role="option" aria-selected="true" tabindex="0" aria-label="Row">Row</div></div>
+      </div>
+      <webview tabindex="-1" aria-label="Page"></webview>
+    `;
+    const page = document.querySelector<HTMLElement>("webview");
+    if (!page) {
+      throw new Error("fixture missing");
+    }
+    notePersonInPage(page);
+    returnKeyboardToWindow();
+    expect(at()).toBe("Row");
+  });
+});
+
+it("sends the keyboard home from a field a person is done with", async () => {
+  document.body.innerHTML = `
+    <div data-app-tab-active>
+      <input aria-label="Address">
+      <div data-keyboard-home><div role="option" aria-selected="true" tabindex="0">Row</div></div>
+    </div>
+  `;
+  const address = document.querySelector<HTMLElement>("input");
+  address?.focus();
+  leaveField(address);
+  expect(document.activeElement).toBe(document.body);
+  await frames(2);
+  expect(document.activeElement).toBe(
+    document.querySelector('[role="option"]'),
+  );
 });

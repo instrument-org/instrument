@@ -233,6 +233,69 @@ function bashCalls(sessions: Session.WithMessagesAndParts[]): BashCall[] {
   );
 }
 
+/** A script's call to the browser, in either language. */
+const BROWSER_CALL =
+  /\binstrument\.browser\b|\bfrom instrument import[^\n]*\bbrowser\b/;
+
+const SCRIPT_FILE = /[\w./~-]+\.(?:py|[cm]?js|ts)\b/g;
+
+const baseName = (file: string) => file.split("/").at(-1) ?? file;
+
+/**
+ * The script files the run wrote that call the browser, by file name: one
+ * written with `write_file`, or by a bash command that holds the script (a
+ * heredoc into the file).
+ */
+function browserScripts(sessions: Session.WithMessagesAndParts[]): Set<string> {
+  const names = new Set<string>();
+  for (const part of sessions.flatMap((session) =>
+    session.messages.flatMap((message) => message.parts),
+  )) {
+    if (part.type === "tool-write_file" && part.input !== undefined) {
+      const { content, filePath } = part.input;
+      if (content !== undefined && filePath && BROWSER_CALL.test(content)) {
+        names.add(baseName(filePath));
+      }
+    }
+    if (part.type === "tool-bash" && part.input?.command !== undefined) {
+      const { command } = part.input;
+      if (BROWSER_CALL.test(command)) {
+        for (const file of command.match(SCRIPT_FILE) ?? []) {
+          names.add(baseName(file));
+        }
+      }
+    }
+  }
+  return names;
+}
+
+/**
+ * The bash calls that ran a script driving the browser, or tried to: one
+ * that recorded runs of `agent-browser` the shell itself did not start, and
+ * one that ran `python` or `node` over a script calling the browser, given
+ * inline or as a file the run wrote. The second kind counts a script that
+ * died before its first browser command, which records no run.
+ */
+function scriptAttempts(
+  calls: BashCall[],
+  scripts: ReadonlySet<string>,
+): BashCall[] {
+  return calls.filter((call) => {
+    if (call.ran > 0 && !call.typed) {
+      return true;
+    }
+    if (!/\b(?:python3?|node)\b/.test(call.command)) {
+      return false;
+    }
+    return (
+      BROWSER_CALL.test(call.command) ||
+      (call.command.match(SCRIPT_FILE) ?? []).some((file) =>
+        scripts.has(baseName(file)),
+      )
+    );
+  });
+}
+
 function replyText(sessions: Session.WithMessagesAndParts[]): string {
   return sessions
     .flatMap((session) => session.messages)
@@ -264,13 +327,13 @@ const MECHANISM = "records how the pages were gone through";
 
 /**
  * Always passes: the evidence is the record of the route, which is what
- * comparing runs reads. A call drove the browser from a script when it
- * recorded runs of `agent-browser` the shell itself did not start.
+ * comparing runs reads ({@link scriptAttempts}).
  */
 const mechanism: Assertion = {
   check: ({ sessions }) => {
     const calls = bashCalls(sessions);
-    const scripted = calls.filter((call) => call.ran > 0 && !call.typed);
+    const scripted = scriptAttempts(calls, browserScripts(sessions));
+    const failed = scripted.filter((call) => call.exitCode !== 0);
     const typed = calls.filter((call) => call.typed);
     const shellLoops = typed.filter((call) =>
       /\b(?:for|while)\b[\s\S]*\bagent-browser\b/.test(call.command),
@@ -290,8 +353,8 @@ const mechanism: Assertion = {
     return {
       evidence: [
         `bash calls ${calls.length}`,
-        `calls driving the browser from a script ${scripted.length} (${scripted.reduce((sum, call) => sum + call.ran, 0)} commands)`,
-        `first such call ${first === undefined ? "none" : first.exitCode === 0 ? "exited 0" : `exited ${first.exitCode ?? "unknown"}`}`,
+        `calls running a script that drives the browser ${scripted.length} (${scripted.reduce((sum, call) => sum + call.ran, 0)} commands, ${failed.length} exited non-zero)`,
+        `first such call ${first === undefined ? "none" : `exited ${first.exitCode ?? "unknown"} after ${first.ran} commands`}`,
         `calls with typed commands ${typed.length} (${shellLoops.length} with a shell loop, ${inPage.length} fetching inside the page)`,
         `calls starting agent-browser as a program ${asProgram.length}`,
         `order pages shown ${pages.size} of ${YEARS.length * PAGES_PER_YEAR} (${shown.filter((each) => each.navigation).length} navigations, ${shown.filter((each) => !each.navigation).length} requests from a page)`,

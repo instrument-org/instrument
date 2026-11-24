@@ -158,6 +158,10 @@ export async function sendCommand({
       requestGuestFocus,
       targetId,
     });
+  const refusal = isKnownCdpMethod(method) ? MAIN_REFUSALS[method] : undefined;
+  if (refusal !== undefined) {
+    throw new Error(refusal);
+  }
   const override = isKnownCdpMethod(method)
     ? MAIN_OVERRIDES[method]
     : undefined;
@@ -316,6 +320,22 @@ export const MAIN_OVERRIDES: {
     stopScreencast(entry);
     return {};
   },
+};
+
+/**
+ * The commands main refuses, for the page and for a frame alike, each with
+ * what the agent is told, as the table of CDP methods says; a test holds the
+ * two to the same list.
+ */
+export const MAIN_REFUSALS: { [M in CdpMethod]?: string } = {
+  // The manager keeps focus emulation on for the life of the debugger, and
+  // switching it off blurs the page.
+  "Emulation.setFocusEmulationEnabled":
+    "Every tab in this browser stays live while an agent works in it, so there is nothing to keep live or throttle.",
+
+  // The person uses the same tab, and a frozen page stays frozen for them.
+  "Page.setWebLifecycleState":
+    "A tab in this browser is shared with the person using the app, so it cannot be frozen.",
 };
 
 /** Commands already reported as missing from the table, so each is logged once. */

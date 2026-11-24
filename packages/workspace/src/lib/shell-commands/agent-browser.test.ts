@@ -306,6 +306,8 @@ describe("classifyInvocation", () => {
     [["open", "a.com"], { ...managed, hasNoWindow: true }, "headless"],
     [["open", "a.com"], managed, "tabs"],
     [["tab"], managed, "tabs"],
+    [["tab", "keep", "frozen", "tab_01"], managed, "refuse"],
+    [["--json", "tab", "--", "keep", "live"], managed, "refuse"],
   ])("%j with %j is %s", (args, config, kind) => {
     expect(classifyInvocation(args, config).kind).toBe(kind);
   });

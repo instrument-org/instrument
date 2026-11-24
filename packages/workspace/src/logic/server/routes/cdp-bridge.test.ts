@@ -639,7 +639,7 @@ describe("openTargetSession on a local page", () => {
     `);
   });
 
-  it("puts back the place, time, language, and browser it emulated, and ends its trace, when it leaves", async () => {
+  it("puts back the place, time, language, browser, and touch screen it emulated, and ends its trace, when it leaves", async () => {
     const { close, command, sendCommand } = connect();
     await command("Emulation.setGeolocationOverride", {
       latitude: 1,
@@ -650,13 +650,17 @@ describe("openTargetSession on a local page", () => {
     });
     await command("Emulation.setLocaleOverride", { locale: "ja-JP" });
     await command("Emulation.setUserAgentOverride", { userAgent: "bot" });
+    await command("Emulation.setTouchEmulationEnabled", {
+      enabled: true,
+      maxTouchPoints: 5,
+    });
     await command("Tracing.start", {});
     sendCommand.mockClear();
     close();
     const undone = sendCommand.mock.calls
       .map(([, method, params]) => [method, params])
       .filter(([method]) =>
-        /^(?:Emulation\.(?:clearGeolocation|setTimezone|setLocale|setUserAgent)|Tracing\.)/.test(
+        /^(?:Emulation\.(?:clearGeolocation|setTimezone|setLocale|setUserAgent|setTouchEmulation)|Tracing\.)/.test(
           String(method),
         ),
       );
@@ -680,6 +684,12 @@ describe("openTargetSession on a local page", () => {
           "Emulation.setUserAgentOverride",
           {
             "userAgent": "",
+          },
+        ],
+        [
+          "Emulation.setTouchEmulationEnabled",
+          {
+            "enabled": false,
           },
         ],
         [

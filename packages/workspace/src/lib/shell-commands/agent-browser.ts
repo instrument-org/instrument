@@ -745,6 +745,13 @@ export function classifyInvocation(
       stderr: `agent-browser: subcommand '${subcommand}' is not available in this environment.\n`,
     };
   }
+  if (isTabKeep(subcommand, subArgs)) {
+    return {
+      kind: "refuse",
+      stderr:
+        "agent-browser: `tab keep` is not available in this browser: every tab stays live while an agent works in it, and a tab the user shares cannot be frozen.\n",
+    };
+  }
   const isInfoOnly = args.some((a) => {
     const flagName = a.includes("=") ? a.slice(0, a.indexOf("=")) : a;
     return INFO_ONLY_FLAGS.has(flagName);
@@ -764,6 +771,21 @@ export function classifyInvocation(
     return { kind: "read" };
   }
   return hasNoWindow ? { kind: "headless" } : { kind: "tabs" };
+}
+
+/**
+ * Whether an invocation is `tab keep`, which sets how a background tab runs
+ * (live, throttled or frozen). The app keeps focus emulation on for every tab
+ * an agent drives and shares each tab with the person, so the mode is not the
+ * agent's to set. The CLI drops a `--` ahead of the word, so one is passed
+ * over here too.
+ */
+function isTabKeep(
+  subcommand: string | undefined,
+  subArgs: { value: string }[],
+): boolean {
+  const [first, second] = subArgs.slice(1).map(({ value }) => value);
+  return subcommand === "tab" && (first === "--" ? second : first) === "keep";
 }
 
 /**

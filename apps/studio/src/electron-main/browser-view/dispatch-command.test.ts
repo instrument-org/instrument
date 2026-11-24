@@ -13,7 +13,7 @@ import {
 import { noop } from "radashi";
 import { afterEach, describe, expect, it, type Mock, vi } from "vitest";
 
-import { MAIN_OVERRIDES, sendCommand } from "./dispatch-command";
+import { MAIN_OVERRIDES, MAIN_REFUSALS, sendCommand } from "./dispatch-command";
 import { type BrowserEntry, createEntry } from "./entry";
 import { noteFrameSession } from "./keyboard-without-focus";
 import {
@@ -1750,6 +1750,40 @@ describe("the table of CDP methods", () => {
       cdpMethodsHandled("main", "override").toSorted(),
     );
   });
+
+  it("lists exactly the commands main refuses", () => {
+    expect(Object.keys(MAIN_REFUSALS).toSorted()).toEqual(
+      cdpMethodsHandled("main", "refuse").toSorted(),
+    );
+  });
+
+  it.each([undefined, "frame-session-1"])(
+    "refuses the commands that would freeze or blur a tab, with frame session %s",
+    async (frameSession) => {
+      const wcSendCommand = vi.fn().mockResolvedValue({});
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
+
+      await expect(
+        dispatch({
+          entries,
+          frameSession,
+          method: "Page.setWebLifecycleState",
+          params: { state: "frozen" },
+        }),
+      ).rejects.toThrow(/cannot be frozen/);
+      await expect(
+        dispatch({
+          entries,
+          frameSession,
+          method: "Emulation.setFocusEmulationEnabled",
+          params: { enabled: false },
+        }),
+      ).rejects.toThrow(/stays live/);
+      expect(wcSendCommand).not.toHaveBeenCalled();
+    },
+  );
 
   it("warns once about a command it does not know, and still sends it on", async () => {
     const warn = vi.spyOn(log, "warn").mockImplementation(noop);

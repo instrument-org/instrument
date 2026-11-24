@@ -498,7 +498,7 @@ function openOrCloseCommandMenu() {
   }
 }
 
-/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file, files left unopened, a page or a link not opened said, a new chat's words, or a new chat. */
+/** Puts up what something outside the window asked for: a file, a screen by its route, a missing file, files left unopened, a page or a link not opened said, a new chat's words, a new chat, or Settings. */
 function answer(
   handlers: {
     linkNotOpened: () => void;
@@ -535,6 +535,10 @@ function answer(
     }
     case "openNewChat": {
       handlers.newChat();
+      break;
+    }
+    case "openSettings": {
+      openSettings({ tab: "General" });
       break;
     }
     case "openFile": {

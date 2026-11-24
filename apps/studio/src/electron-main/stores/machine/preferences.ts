@@ -39,6 +39,11 @@ export const MachinePreferencesSchema = z.object({
   // Whether the agent may offer, on a card in a chat, to send the team a
   // problem it found in the app. Turned off from that card or in Settings.
   offerFeedback: z.boolean().catch(true).default(true),
+  // Whether the app keeps running behind its icon in the menu bar (the tray
+  // off the Mac) once its windows are gone: Cmd+Q on a Mac, and closing the
+  // last window elsewhere, leave it running, and the icon's Quit stops it.
+  // Turned off in Settings › General.
+  keepRunningInMenuBar: z.boolean().catch(true).default(true),
   // Set in Settings › Permissions where no sandbox can hold the programs the
   // agent runs: they run anyway, reaching any file the person can. Off, they
   // don't run. A choice about this computer, so it never travels with a

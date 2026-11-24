@@ -5,6 +5,7 @@ import path from "node:path";
 
 import { createScopedLogger } from "./electron-logger";
 import { fileIcon } from "./mac-native";
+import { isInMacosAppContainer } from "@/shared/macos-guarded-folders";
 import { renderedKindOf } from "@/shared/rendered-kinds";
 import { renderPicture } from "./rendered-pictures";
 
@@ -104,6 +105,11 @@ export async function fileThumbnail(
   deps: Deps,
   theme: ThumbnailTheme = "light",
 ): Promise<null | Thumbnail> {
+  // A picture is not worth macOS's dialog about other apps' data, which the
+  // system's thumbnailer raises there and any other read of the file may.
+  if (process.platform === "darwin" && isInMacosAppContainer(hostPath)) {
+    return null;
+  }
   const stats = await fs.stat(hostPath);
   const isFolder = stats.isDirectory();
   if (!stats.isFile() && !isFolder) {

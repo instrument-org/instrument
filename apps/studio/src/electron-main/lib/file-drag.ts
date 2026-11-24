@@ -1,3 +1,4 @@
+import { isInMacosAppContainer } from "@/shared/macos-guarded-folders";
 import { START_FILE_DRAG_CHANNEL } from "@/shared/constants";
 import { app, ipcMain, type NativeImage, nativeImage } from "electron";
 import { existsSync } from "node:fs";
@@ -96,7 +97,9 @@ export function registerFileDragHandler() {
 async function buildDragImage(
   fullPath: string,
 ): Promise<NativeImage | undefined> {
-  if (hasLegibleThumbnail(fullPath)) {
+  const isAskedAbout =
+    process.platform === "darwin" && isInMacosAppContainer(fullPath);
+  if (!isAskedAbout && hasLegibleThumbnail(fullPath)) {
     // The preview Finder and Explorer show for the file itself. Unsupported on
     // Linux, and rejects for a type with no thumbnailer, so the type icon
     // below is the fallback rather than the exception.

@@ -11,6 +11,8 @@ export class ScriptStillRunningError extends Error {}
 export interface RunningScript {
   answer: Promise<unknown>;
   id: string;
+  /** How many checks of whether its page still runs scripts went unanswered in a row. */
+  missedChecks: number;
   startedAt: number;
 }
 
@@ -35,7 +37,7 @@ export function keepRunningScript(
   startedAt: number,
 ): RunningScript {
   const id = Math.random().toString(36).slice(2, 10).padEnd(8, "0");
-  const script = { answer, id, startedAt };
+  const script = { answer, id, missedChecks: 0, startedAt };
   running.set(id, script);
   for (const oldest of running.keys()) {
     if (running.size <= MAX_RUNNING_SCRIPTS) {

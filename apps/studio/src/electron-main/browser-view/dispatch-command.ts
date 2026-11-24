@@ -516,7 +516,12 @@ async function forwardToDebugger({
       if (
         method === "Runtime.evaluate" &&
         (kept !== null || awaitsPromise(delivered)) &&
-        (await pageAnswers(wc, session)) &&
+        // A kept script's page may miss one check: the check can land in a
+        // task of the page's own that takes longer than the check waits,
+        // and nothing was sent to the page for this command to have blocked.
+        ((await pageAnswers(wc, session))
+          ? noteCheckAnswered(kept)
+          : noteCheckMissed(kept)) &&
         !answered
       ) {
         const script = kept ?? keepRunningScript(sent, startedAt);
@@ -976,6 +981,29 @@ function keptScriptOf(params: unknown): null | RunningScript {
     );
   }
   return script;
+}
+
+/** How many checks in a row a kept script's page may leave unanswered. */
+const MISSED_CHECKS_ALLOWED = 1;
+
+/** Whether the script is still taken as awaiting after a check its page answered. */
+function noteCheckAnswered(kept: null | RunningScript): boolean {
+  if (kept) {
+    kept.missedChecks = 0;
+  }
+  return true;
+}
+
+/**
+ * Whether the script is still taken as awaiting after a check its page did
+ * not answer, which a script only now sent never is.
+ */
+function noteCheckMissed(kept: null | RunningScript): boolean {
+  if (!kept) {
+    return false;
+  }
+  kept.missedChecks += 1;
+  return kept.missedChecks <= MISSED_CHECKS_ALLOWED;
 }
 
 function awaitsPromise(params: unknown): boolean {

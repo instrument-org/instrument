@@ -292,6 +292,9 @@ describe("sendCommand", () => {
        * unless the page is `blocked`.
        */
       function scriptedGuest({ blocked = false } = {}) {
+        const block = (now: boolean) => {
+          blocked = now;
+        };
         let finish: (answer: unknown) => void = noop;
         const answer = new Promise((resolve) => {
           finish = resolve;
@@ -317,7 +320,7 @@ describe("sendCommand", () => {
           sent.catch(noop);
           return sent;
         };
-        return { evaluate, finish, wcSendCommand };
+        return { block, evaluate, finish, wcSendCommand };
       }
 
       const failureOf = (sent: Promise<unknown>) =>
@@ -371,6 +374,36 @@ describe("sendCommand", () => {
         await expect(
           evaluate(`__instrumentRunningScript("${id}")`),
         ).rejects.toThrow("That script's answer is no longer kept");
+      });
+
+      it("keeps waiting on a kept script whose page misses one check, and fails it after two in a row", async () => {
+        vi.useFakeTimers();
+        const guest = scriptedGuest();
+
+        const first = guest.evaluate(SCRIPT.expression);
+        await vi.advanceTimersByTimeAsync(20_000);
+        const id = /\[running script: (\w+)\]/.exec(
+          (await failureOf(first)).message,
+        )?.[1];
+        const ask = async () => {
+          const sent = guest.evaluate(`__instrumentRunningScript("${id}")`);
+          await vi.advanceTimersByTimeAsync(21_000);
+          return await failureOf(sent);
+        };
+
+        // The page is in a long task of its own when the check lands.
+        guest.block(true);
+        expect((await ask()).message).toContain("still running after 41s");
+
+        // Answering again clears the miss.
+        guest.block(false);
+        expect((await ask()).message).toContain("still running after 61s");
+        guest.block(true);
+        expect((await ask()).message).toContain("[running script:");
+
+        const failure = await ask();
+        expect(failure).toBeInstanceOf(CdpCommandTimeoutError);
+        expect(failure.message).toContain("The browser tab is not responding");
       });
 
       it("fails as a tab that is not responding when the page answers nothing", async () => {

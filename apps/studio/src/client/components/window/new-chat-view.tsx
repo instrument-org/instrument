@@ -631,6 +631,12 @@ export function NewChatView({
             !event.metaKey &&
             !event.ctrlKey &&
             !event.nativeEvent.isComposing;
+          // The one letter left of what was written in, typed: the box's
+          // words stay as they read, so they are taken as typed here.
+          if (letterTyped.current && ahead !== "" && event.key === ahead) {
+            setWords(`${words}${ahead}`);
+            setAhead("");
+          }
           if (
             !isOffering ||
             event.altKey ||

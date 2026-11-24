@@ -47,6 +47,7 @@ import {
   LIVE_REGION_SETTLE_MS,
   withBrowserFollowUp,
 } from "./agent-browser-follow-up";
+import { DOCUMENT_WAIT_ARGS, TASK_TURN_ARGS } from "./agent-browser-loading";
 import { NETWORK_IDLE_GAVE_UP, namedWaitGaveUp } from "./agent-browser-wait";
 
 vi.mock("execa");
@@ -76,6 +77,21 @@ const mockCtx = createCommandContext({
   fs: new InMemoryFs(),
   stdin: EMPTY_BYTES,
 });
+
+/**
+ * Whether a run is one the command adds around the agent's own: the wait for
+ * a loading document ahead of it, or the task turn after an action.
+ */
+function isAside(args: string[]) {
+  return [DOCUMENT_WAIT_ARGS, TASK_TURN_ARGS].some(
+    (aside) => args.slice(-aside.length).join("\0") === aside.join("\0"),
+  );
+}
+
+/** The runs of the CLI without the ones {@link isAside} names. */
+async function agentBrowserRunsOfItsOwn() {
+  return (await agentBrowserRuns()).filter((run) => !isAside(run.args));
+}
 
 /** What upstream prints for any error that mentions a timeout. */
 const upstreamTimeout = {
@@ -699,7 +715,7 @@ describe("agent-browser routing", () => {
       env: new Map(agentEnv),
     });
 
-    const [run] = await agentBrowserRuns();
+    const [run] = await agentBrowserRunsOfItsOwn();
     if (!run) {
       throw new Error("agent-browser was never spawned");
     }
@@ -920,7 +936,7 @@ describe("agent-browser routing", () => {
       'agent-browser click @e197 && agent-browser wait --url "**/wiki/MOSFET" && agent-browser get title',
     );
 
-    const spawned = (await agentBrowserRuns()).map((run) => run.args);
+    const spawned = (await agentBrowserRunsOfItsOwn()).map((run) => run.args);
     expect(spawned).toHaveLength(2);
     expect(spawned[1]?.slice(-5)).toEqual([
       "wait",
@@ -944,7 +960,7 @@ describe("agent-browser routing", () => {
       commandCtx,
     );
 
-    const runs = (await agentBrowserRuns()).map((run) =>
+    const runs = (await agentBrowserRunsOfItsOwn()).map((run) =>
       run.args.slice(run.args.indexOf(sessionId) + 1),
     );
     expect(runs).toStrictEqual([
@@ -968,7 +984,7 @@ describe("agent-browser routing", () => {
 
     const result = await command.execute(["type", "@e9", "a\nb"], commandCtx);
 
-    expect(await agentBrowserRuns()).toHaveLength(1);
+    expect(await agentBrowserRunsOfItsOwn()).toHaveLength(1);
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toBe("✗ Element not found\n");
   });
@@ -1056,7 +1072,7 @@ describe("agent-browser routing", () => {
       );
       const page = await followUp.take(new AbortController().signal);
 
-      const calls = (await agentBrowserRuns()).map((run) => run.args);
+      const calls = (await agentBrowserRunsOfItsOwn()).map((run) => run.args);
       if (snapshotArgs === undefined) {
         expect(page).toBeUndefined();
         expect(calls).toHaveLength(1);
@@ -1143,7 +1159,7 @@ describe("agent-browser routing", () => {
     // The reading before the click, the click, the model's snapshot, and the
     // messages after: no second snapshot.
     expect(
-      (await agentBrowserRuns()).map((run) =>
+      (await agentBrowserRunsOfItsOwn()).map((run) =>
         run.args.includes("eval") ? "eval" : run.args.at(-1),
       ),
     ).toEqual(["eval", "@e1", "-i", "eval"]);
@@ -1236,6 +1252,94 @@ describe("agent-browser routing", () => {
       failed: [{ command: "click @e621", error: "Element ref e621 is stale" }],
       more: 0,
     });
+  });
+
+  /** What each run was given after the session it is on. */
+  async function ranOnSession() {
+    return (await agentBrowserRuns()).map((run) =>
+      run.args.slice(run.args.indexOf(sessionId) + 1),
+    );
+  }
+
+  function chain(script: string) {
+    return sessionLayout({ chatId, sessionId }).then((layout) =>
+      new Bash({
+        customCommands: [
+          createAgentBrowserCommand({ chatId, layout, sessionId }),
+        ],
+        cwd: commandCtx.cwd,
+        fs: commandCtx.fs,
+      }).exec(script),
+    );
+  }
+
+  it("waits for a document the click before it left loading, and gives the page a turn after the click", async () => {
+    await answerAgentBrowser({ exitCode: 0, stderr: "", stdout: "✓ Done\n" });
+
+    await chain(
+      "agent-browser click @e1410 && agent-browser eval 'document.body.innerText.slice(-5000)'",
+    );
+
+    expect(await ranOnSession()).toStrictEqual([
+      DOCUMENT_WAIT_ARGS,
+      ["click", "@e1410"],
+      TASK_TURN_ARGS,
+      DOCUMENT_WAIT_ARGS,
+      ["eval", "document.body.innerText.slice(-5000)"],
+    ]);
+    expect(DOCUMENT_WAIT_ARGS).toStrictEqual([
+      "wait",
+      "--load",
+      "domcontentloaded",
+      "--timeout",
+      "5000",
+    ]);
+  });
+
+  it("runs the command whatever the wait for the document came to", async () => {
+    await answerAgentBrowser((given) =>
+      given.includes("wait")
+        ? upstreamTimeout
+        : { exitCode: 0, stderr: "", stdout: '"Orders placed in 2025"\n' },
+    );
+
+    const result = await command.execute(
+      ["eval", "document.body.innerText"],
+      commandCtx,
+    );
+
+    expect(result).toStrictEqual({
+      exitCode: 0,
+      stderr: "",
+      stdout: '"Orders placed in 2025"\n',
+    });
+  });
+
+  it("gives the page no turn after an action that failed", async () => {
+    await answerAgentBrowser((given) =>
+      given.includes("click")
+        ? { exitCode: 1, stderr: "✗ Element not found\n", stdout: "" }
+        : { exitCode: 0, stderr: "", stdout: "✓ Done\n" },
+    );
+
+    await command.execute(["click", "@e9"], commandCtx);
+
+    expect(await ranOnSession()).toStrictEqual([
+      DOCUMENT_WAIT_ARGS,
+      ["click", "@e9"],
+    ]);
+  });
+
+  it.each([
+    [["open", "https://example.com"]],
+    [["wait", "2000"]],
+    [["get", "url"]],
+  ])("adds no run of its own around %j", async (args) => {
+    await answerAgentBrowser({ exitCode: 0, stderr: "", stdout: "" });
+
+    await command.execute(args, commandCtx);
+
+    expect(await ranOnSession()).toStrictEqual([args]);
   });
 
   it("ignores connection env the agent exported into its shell", async () => {

@@ -62,6 +62,13 @@ import {
   readsLiveRegionsFirst,
   savedScreenshotPath,
 } from "./agent-browser-follow-up";
+import {
+  DOCUMENT_WAIT_ARGS,
+  DOCUMENT_WAIT_TIMEOUT_MS,
+  needsLoadedDocument,
+  TASK_TURN_ARGS,
+  TASK_TURN_TIMEOUT_MS,
+} from "./agent-browser-loading";
 import { typedTextRuns } from "./agent-browser-typed-text";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
 import {
@@ -761,6 +768,12 @@ const DAEMON_RACE_RETRY_DELAYS_MS = [250, 500, 1000, 2000];
  */
 const LIVE_REGION_READ_TIMEOUT_MS = 2000;
 
+/**
+ * How long past its own timeout the wait for a loading document may run
+ * before it is stopped, for the CLI to start and report.
+ */
+const DOCUMENT_WAIT_GRACE_MS = 1000;
+
 interface SpawnAgentBrowserOptions {
   args: string[];
   cancelSignal: AbortSignal | undefined;
@@ -989,6 +1002,25 @@ export function createAgentBrowserCommand({
         );
       }
     }
+    const drivesPage = !isInfoOnly && !browserFreeRead;
+    // A run of the CLI the command adds around the agent's own, bounded, and
+    // whose outcome the agent's command does not depend on.
+    const runAside = (asideArgs: string[], timeoutMs: number) =>
+      runAgentBrowser({
+        ...spawnOptions,
+        args: [...connectionArgs, ...asideArgs],
+        cancelSignal: AbortSignal.any([
+          ...(ctx.signal ? [ctx.signal] : []),
+          AbortSignal.timeout(timeoutMs),
+        ]),
+        input: undefined,
+      }).catch(() => undefined);
+    if (drivesPage && needsLoadedDocument(resolvedArgs)) {
+      await runAside(
+        DOCUMENT_WAIT_ARGS,
+        DOCUMENT_WAIT_TIMEOUT_MS + DOCUMENT_WAIT_GRACE_MS,
+      );
+    }
     const followUp =
       isInfoOnly || browserFreeRead ? undefined : currentBrowserFollowUp();
     // What the page's live regions say before an action, for the follow-up
@@ -1067,6 +1099,10 @@ export function createAgentBrowserCommand({
     const scrub = (text: string) => agentSpellingOfFileUrls(text, layout);
 
     const exitCode = result.exitCode ?? 1;
+
+    if (drivesPage && exitCode === 0 && readsLiveRegionsFirst(resolvedArgs)) {
+      await runAside(TASK_TURN_ARGS, TASK_TURN_TIMEOUT_MS);
+    }
 
     // A fetch or --help has no page.
     if (!isInfoOnly && !browserFreeRead) {

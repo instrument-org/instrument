@@ -12,12 +12,13 @@ import {
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { useStore } from "jotai";
 
+import { tabsOfHeldGroup } from "./drag/held-tabs";
 import { endFromElsewhere } from "./drag/session";
 import { settleTabMove } from "./move-tab";
 import { stripKeyOf } from "./pane-tabs";
 import { fillRoom } from "./sidebar-drop";
 import { showTabCarryView, tabCarryViewAtom } from "./tab-carry-view";
-import { tabsIn, type WindowTabs } from "./tab-model";
+import { groupLayoutOf, tabsIn, type WindowTabs } from "./tab-model";
 import { type TabGroup, useOpenGroups, useTabGroupActions } from "./tab-groups";
 import { windowTabGroupsAtom } from "./open-groups";
 import { groupHref } from "./window-href";
@@ -166,8 +167,40 @@ export function useGroupTabMoves() {
       groups.closeAll(others, group);
     }
   };
-  /** A whole group from another window: listed where it was let go, or at the top, and up. */
+  /**
+   * A whole group from another window: its tabs among a side's tabs of the
+   * group up, or on a side's page there, where it was let go on one, as a
+   * group of this window's let go there (`moveTo` in `use-drag-system.ts`);
+   * otherwise listed where it was let go, or at the top, and up.
+   */
   const receiveWhole = (group: string, landing: GroupTabLanding) => {
+    const groupUp = store.get(groupOnScreenAtom);
+    if (
+      (landing.kind === "tabs" || landing.kind === "side") &&
+      groupUp !== undefined &&
+      groupUp !== group
+    ) {
+      const state = store.get(windowTabsAtom);
+      const { front, ids } = tabsOfHeldGroup(
+        { group, height: 0, kind: "group" },
+        state,
+      );
+      const side = landing.side ?? 0;
+      const end = groupLayoutOf(state, groupUp).sides[side]?.tabs.length ?? 0;
+      ids.forEach((id, index) => {
+        groups.moveTab(
+          id,
+          groupUp,
+          landing.kind === "tabs"
+            ? { index: (landing.index ?? end) + index, side, split: false }
+            : { side: landing.side, split: landing.split && index === 0 },
+        );
+      });
+      if (front !== undefined) {
+        windowTabs.select(front);
+      }
+      return;
+    }
     groups.place(group, landing.kind === "new" && landing.at ? landing.at : {});
     // Let go in a window that was here, it is in the project listed there.
     if (!(landing.kind === "new" && landing.isWindowOfItsOwn === true)) {

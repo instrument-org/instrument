@@ -2,7 +2,7 @@ import { renderInBrowser } from "@/tests/render-browser";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { PIECE_EDGE_PX, REST_MS } from "./landing";
-import { currentDrag, pressToDrag, setLander } from "./session";
+import { currentDrag, followRemote, pressToDrag, setLander } from "./session";
 import { useSidePagesTarget, useStripTarget } from "./use-group-drag";
 import { useSidebarTarget } from "./use-sidebar-drag";
 
@@ -446,4 +446,44 @@ it("leaves the top row to the side's own only tab, which is on it already", asyn
   pointer("pointermove", 420, 118);
 
   expect(currentDrag()?.landing).toBeUndefined();
+});
+
+it("takes a whole group held over from another window among a strip's tabs, as it does one of this window's", async () => {
+  await renderInBrowser(<Strip group="up" />);
+  const landing = followRemote(
+    {
+      grab: { x: 0, y: 0 },
+      held: { group: "other", height: 40, kind: "group" },
+      point: { x: 150, y: STRIP_Y },
+    },
+    () => undefined,
+  );
+
+  expect(landing).toMatchObject({
+    group: "up",
+    index: 1,
+    kind: "strip",
+    side: 0,
+  });
+  followRemote(undefined, () => undefined);
+});
+
+it("takes one at a lone side's outer edge as a side of its own", async () => {
+  await renderInBrowser(<Pages sides={1} />);
+  const landing = followRemote(
+    {
+      grab: { x: 0, y: 0 },
+      held: { group: "other", height: 40, kind: "group" },
+      point: { x: PIECE_EDGE_PX - 10, y: 400 },
+    },
+    () => undefined,
+  );
+
+  expect(landing).toMatchObject({
+    group: "up",
+    kind: "side",
+    side: 0,
+    split: true,
+  });
+  followRemote(undefined, () => undefined);
 });

@@ -241,14 +241,11 @@ export function useStripTarget({
   useDropTarget(
     isOn
       ? {
-          landingAt: (point, { grab, held, input }) => {
+          landingAt: (point, { grab, held }) => {
             const root = strip();
-            // A group lands its tabs in another group's strip, and only from
-            // this window, as at a split target.
-            if (
-              held.kind === "group" &&
-              (held.group === group || input === "remote")
-            ) {
+            // A group lands its tabs in another group's strip, as at a
+            // split target, from this window or another.
+            if (held.kind === "group" && held.group === group) {
               return undefined;
             }
             if (!root) {
@@ -464,12 +461,9 @@ export function useSidePagesTarget({
     isOn
       ? {
           landingAt: (reached, { held, input }) => {
-            // A group lands on another group's pages, and only from this
-            // window.
-            if (
-              held.kind === "group" &&
-              (held.group === group || input === "remote")
-            ) {
+            // A group lands on another group's pages, from this window or
+            // another.
+            if (held.kind === "group" && held.group === group) {
               return undefined;
             }
             const sides = pages();

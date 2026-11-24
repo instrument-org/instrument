@@ -810,10 +810,15 @@ function groupTabLandingOf(
   if (!landing) {
     return undefined;
   }
-  if (held.kind === "group") {
-    return landing.kind === "sidebar" && landing.drop.kind === "between"
-      ? { at: landing.drop.place, kind: "new" }
-      : undefined;
+  // A whole group lands among a side's tabs or on a side's page as a tab
+  // does, all its tabs with it, and in the sidebar only as a group of its
+  // own: one group is never let go into another's row.
+  if (
+    held.kind === "group" &&
+    landing.kind === "sidebar" &&
+    landing.drop.kind !== "between"
+  ) {
+    return undefined;
   }
   switch (landing.kind) {
     case "strip": {

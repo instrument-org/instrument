@@ -238,6 +238,40 @@ describe("what the command menu lists first", () => {
   });
 });
 
+describe("one of the app's own pages", () => {
+  it.each([
+    ["chats", "Chats"],
+    ["files", "Files"],
+    ["browser", "Browser"],
+    ["settings", "Settings"],
+    ["history", "History"],
+    ["bookmarks", "Bookmarks"],
+    ["apps", "Apps"],
+    ["what's new", "What's new"],
+    ["extensions", "Extensions"],
+  ])("is the first row for its name, %s", async (words, title) => {
+    renderWithProviders(<MenuRows words={words} />);
+
+    // A part of Settings may go by the same name, among the commands.
+    await screen.findAllByRole("button", { name: title });
+    expect(listed()[0]).toBe(title);
+  });
+
+  it("is listed among the pages when the words are only inside its name", async () => {
+    shell.chats = [];
+    renderWithProviders(<MenuRows words="mark" />);
+
+    await screen.findByRole("button", { name: "Bookmarks" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "# Pages",
+        "Bookmarks",
+        "Search the web for “mark”",
+      ]
+    `);
+  });
+});
+
 describe("a name one wrong letter away", () => {
   it("is found when the words find nothing as typed", async () => {
     renderWithProviders(<MenuRows words="wirefarmes" />);

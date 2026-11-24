@@ -111,6 +111,9 @@ import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { FlaskIcon } from "@phosphor-icons/react/Flask";
 import { GearIcon } from "@phosphor-icons/react/Gear";
+import { ChatsCircleIcon } from "@phosphor-icons/react/ChatsCircle";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
+import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { MonitorIcon } from "@phosphor-icons/react/Monitor";
@@ -354,15 +357,6 @@ export function useCommandMenuRows({
       },
     },
     {
-      chord: SHORTCUTS.settings.accelerator,
-      icon: <GearIcon />,
-      id: "settings",
-      label: "Settings",
-      run: () => {
-        openSettings();
-      },
-    },
-    {
       chord: SHORTCUT_GUIDE.accelerator,
       icon: <KeyboardIcon />,
       id: "shortcuts",
@@ -441,6 +435,43 @@ export function useCommandMenuRows({
         }
       },
     },
+  ];
+  // The app's own pages, each found by its name among the pages.
+  const settingsPage: Omit<Item, "ranges" | "type"> = {
+    chord: SHORTCUTS.settings.accelerator,
+    icon: <GearIcon />,
+    id: "settings",
+    label: "Settings",
+    run: () => {
+      openSettings();
+    },
+  };
+  const ownPages: Omit<Item, "ranges" | "type">[] = [
+    {
+      icon: <ChatsCircleIcon />,
+      id: "chats",
+      label: SCREENS.chats.title,
+      run: () => {
+        openBuiltInPage(SCREENS.chats.href);
+      },
+    },
+    {
+      icon: <FolderSimpleIcon />,
+      id: "files",
+      label: SCREENS.files.title,
+      run: () => {
+        openBuiltInPage(SCREENS.files.href);
+      },
+    },
+    {
+      icon: <GlobeIcon />,
+      id: "browser",
+      label: SCREENS.browser.title,
+      run: () => {
+        openBuiltInPage(SCREENS.browser.href);
+      },
+    },
+    settingsPage,
     {
       chord: WINDOW_SHORTCUTS.showActivity.accelerator,
       icon: <ClockCounterClockwiseIcon />,
@@ -712,7 +743,19 @@ export function useCommandMenuRows({
         })),
       label: "Apps",
     },
-    { entries: thingsOf(sources.named.pages), label: "Pages" },
+    {
+      entries: [
+        ...ownPages.map(
+          (page): Named<ItemOf> => ({
+            id: page.id,
+            name: page.label,
+            value: (ranges) => ({ ...page, ranges, type: "item" }),
+          }),
+        ),
+        ...thingsOf(sources.named.pages),
+      ],
+      label: "Pages",
+    },
     // An action for the tab in front is found among the commands, and says
     // what it acts on. A command found by what it acts on, or a part of
     // Settings by that word, is one that only contains the words.
@@ -866,7 +909,7 @@ export function useCommandMenuRows({
             label: front?.heading ?? "",
           },
           {
-            items: commands
+            items: [...commands, settingsPage]
               .filter((command) => LISTED_COMMANDS.has(command.id))
               .map((command) => ({ ...command, ranges: null, type: "item" })),
             label: "Commands",

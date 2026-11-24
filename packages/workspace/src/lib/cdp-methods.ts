@@ -89,11 +89,11 @@ export const CDP_METHODS = {
   },
   "DOM.describeNode": {},
   "DOM.enable": {},
-  "DOM.getBoxModel": {
+  "DOM.getBoxModel": {},
+  "DOM.getContentQuads": {
     main: "wrapped",
     why: "the measurement is kept, so the press that follows can be refused if the element moved",
   },
-  "DOM.getContentQuads": {},
   "DOM.getDocument": {},
   "DOM.getFrameOwner": {},
   "DOM.getNodeForLocation": {},
@@ -259,14 +259,11 @@ export const CDP_METHODS = {
     session: "wrapped",
     why: "recorded, and taken back when the connection closes, so nothing the agent left runs on the person's later loads in the tab",
   },
-  "Runtime.callFunctionOn": {
-    main: "wrapped",
-    why: "agent-browser's scroll-and-measure script is run again until two runs agree",
-  },
+  "Runtime.callFunctionOn": {},
   "Runtime.enable": {},
   "Runtime.evaluate": {
     main: "wrapped",
-    why: "given 20s, since its promise runs the page's own code; the scroll-and-measure script is run again until two runs agree",
+    why: "given 20s, since its promise runs the page's own code; a script still awaiting then is kept, for a later command to ask for its answer",
   },
   "Runtime.getProperties": {},
   "Runtime.releaseObject": {},

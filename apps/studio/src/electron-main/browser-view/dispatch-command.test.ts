@@ -889,91 +889,20 @@ describe("sendCommand", () => {
     });
   });
 
-  // Pages reflow a frame or two after a scroll, so a point measured straight
-  // after one can be stale by the time the press lands.
-  describe("settling after a scroll", () => {
-    const box = (y: number) => ({
-      model: { content: [0, y, 10, y, 10, y + 10, 0, y + 10] },
+  // agent-browser measures an element's content quads, checks what their
+  // center would hit, and presses it several commands later. A page that
+  // moves in between would take the press on whatever is at the point by
+  // then.
+  describe("a press on an element that moved", () => {
+    const quads = (y: number) => ({
+      quads: [[0, y, 10, y, 10, y + 10, 0, y + 10]],
     });
+    const click = { button: "left", clickCount: 1, x: 5, y: 398 };
 
-    it("answers a scroll only once the element's box holds still", async () => {
-      const boxes = [box(393), box(356), box(356)];
-      const wcSendCommand = vi
-        .fn()
-        .mockImplementation((method: string) =>
-          Promise.resolve(method === "DOM.getBoxModel" ? boxes.shift() : {}),
-        );
-      const entry = makeEntry({ sendCommand: wcSendCommand });
-
-      await dispatch({
-        entries: new Map([[TARGET_ID, entry]]),
-        method: "DOM.scrollIntoViewIfNeeded",
-        params: { backendNodeId: 7 },
-      });
-
-      expect(
-        wcSendCommand.mock.calls.filter(([m]) => m === "DOM.getBoxModel"),
-      ).toHaveLength(3);
-    });
-
-    it("re-runs agent-browser's scroll-and-measure script until two runs agree", async () => {
-      const points = [
-        { x: 1, y: 427 },
-        { x: 1, y: 390 },
-        { x: 1, y: 390 },
-      ];
-      const wcSendCommand = vi
-        .fn()
-        .mockImplementation(() =>
-          Promise.resolve({ result: { value: points.shift() } }),
-        );
-      const entry = makeEntry({ sendCommand: wcSendCommand });
-
-      const result = await dispatch({
-        entries: new Map([[TARGET_ID, entry]]),
-        method: "Runtime.evaluate",
-        params: {
-          expression:
-            "(() => { el.scrollIntoView({ block: 'center' }); const blockerAt = 0; return { x, y }; })()",
-        },
-      });
-
-      expect(result).toEqual({ result: { value: { x: 1, y: 390 } } });
-      expect(wcSendCommand).toHaveBeenCalledTimes(3);
-    });
-
-    // The element was measured at box(393), whose center is 5,398; each case
-    // lists what the re-measures before the press answer.
-    it.each([
-      {
-        label: "sends an unmoved press as it came",
-        remeasures: [box(393)],
-        sentAt: { x: 5, y: 398 },
-      },
-      {
-        label: "sends a press and its release to where a moved element settled",
-        remeasures: [box(356), box(356)],
-        sentAt: { x: 5, y: 361 },
-      },
-      {
-        label: "refuses a press when the moved element is gone",
-        refusal: /can no longer be found.*Take a snapshot/,
-        remeasures: [box(356), "detached"],
-      },
-      {
-        label: "refuses a press when the element is gone straight away",
-        refusal: /can no longer be found.*Take a snapshot/,
-        remeasures: ["detached"],
-      },
-      {
-        label: "refuses a press when the element keeps moving",
-        refusal: /kept moving/,
-        remeasures: [box(356), box(320)],
-      },
-    ])("$label", async ({ refusal, remeasures, sentAt }) => {
-      const answers: unknown[] = [box(393), ...remeasures];
+    /** A guest that answers each `DOM.getContentQuads` with the next of `answers`. */
+    function guestMeasuring(answers: unknown[]) {
       const wcSendCommand = vi.fn().mockImplementation((method: string) => {
-        if (method !== "DOM.getBoxModel") {
+        if (method !== "DOM.getContentQuads") {
           return Promise.resolve({});
         }
         const answer = answers.shift();
@@ -981,17 +910,42 @@ describe("sendCommand", () => {
           ? Promise.reject(new Error("Node is detached from document"))
           : Promise.resolve(answer);
       });
-      const entry = makeEntry({ sendCommand: wcSendCommand });
-      const entries = new Map([[TARGET_ID, entry]]);
-      const send = (method: string, params: unknown) =>
-        dispatch({
-          entries,
-          method,
-          params,
-        });
-      const click = { button: "left", clickCount: 1, x: 5, y: 398 };
+      const entries = new Map([
+        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+      ]);
+      return {
+        presses: () =>
+          wcSendCommand.mock.calls.filter(
+            ([m]) => m === "Input.dispatchMouseEvent",
+          ),
+        send: (method: string, params: unknown) =>
+          dispatch({ entries, method, params }),
+      };
+    }
 
-      await send("DOM.getBoxModel", { backendNodeId: 7 });
+    // The element was measured at quads(393), whose center is 5,398; each
+    // case lists what measuring it again before the press answers.
+    it.each([
+      { label: "sends an unmoved press as it came", remeasure: quads(393) },
+      {
+        label: "refuses a press when the element moved",
+        refusal: /element moved after it was measured.*Click it again/,
+        remeasure: quads(356),
+      },
+      {
+        label: "refuses a press when the element is gone",
+        refusal: /can no longer be found.*Take a snapshot/,
+        remeasure: "detached",
+      },
+      {
+        label: "refuses a press when the element has no box left",
+        refusal: /can no longer be found.*Take a snapshot/,
+        remeasure: { quads: [] },
+      },
+    ])("$label", async ({ refusal, remeasure }) => {
+      const { presses, send } = guestMeasuring([quads(393), remeasure]);
+
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
       const press = send("Input.dispatchMouseEvent", {
         ...click,
         type: "mousePressed",
@@ -999,87 +953,106 @@ describe("sendCommand", () => {
 
       if (refusal) {
         await expect(press).rejects.toThrow(refusal);
-        expect(wcSendCommand).not.toHaveBeenCalledWith(
-          "Input.dispatchMouseEvent",
-          expect.anything(),
-        );
+        expect(presses()).toEqual([]);
         return;
       }
       await press;
-      await send("Input.dispatchMouseEvent", {
-        ...click,
-        type: "mouseReleased",
-      });
-      expect(answers).toHaveLength(0);
-      expect(
-        wcSendCommand.mock.calls.filter(
-          ([m]) => m === "Input.dispatchMouseEvent",
-        ),
-      ).toEqual(
-        ["mousePressed", "mouseReleased"].map((type) => [
-          "Input.dispatchMouseEvent",
-          { ...click, ...sentAt, type },
-        ]),
-      );
+      expect(presses()).toEqual([
+        ["Input.dispatchMouseEvent", { ...click, type: "mousePressed" }],
+      ]);
     });
 
-    it("sends a press and its release into the first line of a link that wraps", async () => {
-      // A link from 508 to 643 on one line and 264 to 339 on the next: its
-      // box's center, 453,264, is on the text between the two.
-      const wrapped = {
-        model: { content: [264, 242, 643, 242, 643, 287, 264, 287] },
-      };
-      const wcSendCommand = vi.fn().mockImplementation((method: string) =>
-        Promise.resolve(
-          method === "DOM.getBoxModel"
-            ? wrapped
-            : method === "DOM.getContentQuads"
-              ? {
-                  quads: [
-                    [508, 242, 643, 242, 643, 261, 508, 261],
-                    [264, 268, 339, 268, 339, 287, 264, 287],
-                  ],
-                }
-              : {},
-        ),
-      );
-      const entries = new Map([
-        [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
-      ]);
-      const send = (method: string, params: unknown) =>
-        dispatch({ entries, method, params });
-      const click = { button: "left", clickCount: 1, x: 453.5, y: 264.5 };
+    it("takes the largest piece of a link that wraps as the point measured", async () => {
+      // A link from 508 to 643 on one line and 264 to 339 on the next.
+      // agent-browser presses the center of the longer piece, rounded.
+      const wrapped = (dy: number) => ({
+        quads: [
+          [508, 242 + dy, 643, 242 + dy, 643, 261 + dy, 508, 261 + dy],
+          [264, 268 + dy, 339, 268 + dy, 339, 287 + dy, 264, 287 + dy],
+        ],
+      });
+      const { presses, send } = guestMeasuring([wrapped(0), wrapped(-36)]);
 
-      await send("DOM.getBoxModel", { backendNodeId: 7 });
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
+      await expect(
+        send("Input.dispatchMouseEvent", {
+          ...click,
+          type: "mousePressed",
+          x: 576,
+          y: 252,
+        }),
+      ).rejects.toThrow(/element moved after it was measured/);
+      expect(presses()).toEqual([]);
+    });
+
+    it("sends a press aimed somewhere else without measuring again", async () => {
+      const answers = [quads(393), quads(356)];
+      const { presses, send } = guestMeasuring(answers);
+
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
       await send("Input.dispatchMouseEvent", {
         ...click,
         type: "mousePressed",
-      });
-      await send("Input.dispatchMouseEvent", {
-        ...click,
-        type: "mouseReleased",
+        x: 200,
+        y: 40,
       });
 
-      expect(
-        wcSendCommand.mock.calls
-          .filter(([m]) => m === "Input.dispatchMouseEvent")
-          .map(([, p]) => p as { x: number; y: number }),
-      ).toMatchObject([
-        { type: "mousePressed", x: 575.5, y: 251.5 },
-        { type: "mouseReleased", x: 575.5, y: 251.5 },
-      ]);
+      expect(answers).toHaveLength(1);
+      expect(presses()).toHaveLength(1);
     });
 
-    it("runs any other evaluation once", async () => {
-      const wcSendCommand = vi.fn().mockResolvedValue({ result: {} });
+    it("checks only the first press of a double click", async () => {
+      const answers = [quads(393), quads(393), quads(356)];
+      const { presses, send } = guestMeasuring(answers);
+
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
+      for (const clickCount of [1, 2]) {
+        for (const type of ["mousePressed", "mouseReleased"]) {
+          await send("Input.dispatchMouseEvent", {
+            ...click,
+            clickCount,
+            type,
+          });
+        }
+      }
+
+      expect(answers).toHaveLength(1);
+      expect(presses()).toHaveLength(4);
+    });
+
+    // agent-browser's own click script waits in the page for the element to
+    // hold still, so running it a second time would wait twice and could
+    // scroll again.
+    it.each([
+      {
+        method: "Runtime.evaluate",
+        params: {
+          awaitPromise: true,
+          expression:
+            "(async () => { el.scrollIntoView({ block: 'center' }); const blockerAt = 0; return { x, y }; })()",
+        },
+      },
+      {
+        method: "Runtime.callFunctionOn",
+        params: {
+          awaitPromise: true,
+          functionDeclaration:
+            "async function() { this.scrollIntoViewIfNeeded(true); return { x, y }; }",
+          objectId: "1",
+        },
+      },
+    ])("runs agent-browser's click script once, as $method", async (script) => {
+      const wcSendCommand = vi
+        .fn()
+        .mockResolvedValue({ result: { value: { x: 1, y: 390 } } });
       const entry = makeEntry({ sendCommand: wcSendCommand });
 
-      await dispatch({
+      const result = await dispatch({
         entries: new Map([[TARGET_ID, entry]]),
-        method: "Runtime.evaluate",
-        params: { expression: "location.href" },
+        ...script,
       });
 
+      expect(result).toEqual({ result: { value: { x: 1, y: 390 } } });
       expect(wcSendCommand).toHaveBeenCalledTimes(1);
     });
   });
@@ -1638,8 +1611,8 @@ describe("typing without focus", () => {
 
 describe("a frame in a process of its own", () => {
   const FRAME = "frame-session-1";
-  const box = (y: number) => ({
-    model: { content: [0, y, 10, y, 10, y + 10, 0, y + 10] },
+  const quads = (y: number) => ({
+    quads: [[0, y, 10, y, 10, y + 10, 0, y + 10]],
   });
 
   it("sends the frame's command to the frame's session", async () => {
@@ -1682,21 +1655,23 @@ describe("a frame in a process of its own", () => {
   // the same frame, since each is in that frame's own coordinates.
   it.each([
     {
-      label: "re-aims a press in the frame that measured it, measuring there",
+      label: "refuses a moved element's press in the frame that measured it",
       measuredIn: FRAME,
-      sentAt: { x: 5, y: 361 },
+      refused: true,
     },
     {
       label: "sends a frame's press as it came after a measurement of the page",
       measuredIn: undefined,
-      sentAt: { x: 5, y: 398 },
+      refused: false,
     },
-  ])("$label", async ({ measuredIn, sentAt }) => {
-    const answers: unknown[] = [box(393), box(356), box(356)];
+  ])("$label", async ({ measuredIn, refused }) => {
+    const answers: unknown[] = [quads(393), quads(356)];
     const wcSendCommand = vi
       .fn()
       .mockImplementation((method: string) =>
-        Promise.resolve(method === "DOM.getBoxModel" ? answers.shift() : {}),
+        Promise.resolve(
+          method === "DOM.getContentQuads" ? answers.shift() : {},
+        ),
       );
     const entry = makeEntry({ sendCommand: wcSendCommand });
     const entries = new Map([[TARGET_ID, entry]]);
@@ -1709,37 +1684,43 @@ describe("a frame in a process of its own", () => {
       });
     const click = { button: "left", clickCount: 1, x: 5, y: 398 };
 
-    await send("DOM.getBoxModel", { backendNodeId: 7 }, measuredIn);
-    await send(
+    await send("DOM.getContentQuads", { backendNodeId: 7 }, measuredIn);
+    const press = send(
       "Input.dispatchMouseEvent",
       { ...click, type: "mousePressed" },
       FRAME,
     );
-    await send(
-      "Input.dispatchMouseEvent",
-      { ...click, type: "mouseReleased" },
-      FRAME,
-    );
+    if (refused) {
+      await expect(press).rejects.toThrow(/element moved/);
+    } else {
+      await press;
+    }
 
     expect(
-      wcSendCommand.mock.calls.filter(([m]) => m === "DOM.getBoxModel"),
+      wcSendCommand.mock.calls.filter(([m]) => m === "DOM.getContentQuads"),
     ).toEqual(
-      (measuredIn ? [0, 1, 2] : [0]).map(() =>
-        measuredIn
-          ? ["DOM.getBoxModel", { backendNodeId: 7 }, measuredIn]
-          : ["DOM.getBoxModel", { backendNodeId: 7 }],
-      ),
+      measuredIn
+        ? [0, 1].map(() => [
+            "DOM.getContentQuads",
+            { backendNodeId: 7 },
+            measuredIn,
+          ])
+        : [["DOM.getContentQuads", { backendNodeId: 7 }]],
     );
     expect(
       wcSendCommand.mock.calls.filter(
         ([m]) => m === "Input.dispatchMouseEvent",
       ),
     ).toEqual(
-      ["mousePressed", "mouseReleased"].map((type) => [
-        "Input.dispatchMouseEvent",
-        { ...click, ...sentAt, type },
-        FRAME,
-      ]),
+      refused
+        ? []
+        : [
+            [
+              "Input.dispatchMouseEvent",
+              { ...click, type: "mousePressed" },
+              FRAME,
+            ],
+          ],
     );
   });
 });

@@ -10,7 +10,7 @@ import {
   runningScriptAskedFor,
   scriptStillRunningMessage,
 } from "@instrument-org/workspace/electron";
-import { noop, sleep } from "radashi";
+import { sleep } from "radashi";
 
 import type { BrowserEntry } from "./entry";
 
@@ -77,16 +77,16 @@ const SCREENSHOT_NOT_DRAWN =
 // is blocked never runs it, so the wait is bounded here.
 const GUEST_PROBE_TIMEOUT_MS = 1000;
 
-// The measurement agent-browser took of the element it is about to click,
-// kept briefly so the press that follows can be checked against it.
+// Where agent-browser measured the element it is about to click, kept briefly
+// so the press that follows can be checked against it.
 const lastMeasurement = new WeakMap<
   BrowserEntry,
   {
     at: number;
     frameSession: string | undefined;
-    method: string;
+    /** The `DOM.getContentQuads` params that name the element. */
     params: unknown;
-    result: unknown;
+    point: Point;
   }
 >();
 const MEASUREMENT_FRESH_MS = 2000;
@@ -104,6 +104,7 @@ const NAVIGATION_RACE_ERRORS = [
   "Node is detached from document",
   "Could not find node with given id",
   "Could not compute box model",
+  "Could not compute content quads",
 ];
 
 function isNavigationRace(error: unknown): boolean {
@@ -398,26 +399,18 @@ async function forwardToDebugger({
 
   // The press goes where the element was measured. If the page has moved it
   // since, the press would land on whatever took its place and still report
-  // success, so measure once more and send the press, and the release that
-  // follows it, to where the element is now.
+  // success, so the element is measured once more and a press on one that
+  // moved is refused.
   // One line per press saying what was under the point and whether the user
   // could see the page, so a click that did nothing can be told apart from one
   // that landed somewhere else or on a page nobody was looking at.
   let press: null | { at: number; context: string } = null;
-  let delivered = params;
   if (method === "Input.dispatchMouseEvent" && isPress(params)) {
-    delivered = await aimPressAtElement(entry, params, frameSession);
+    await refusePressOnMovedElement(entry, params, frameSession);
     press = {
       at: Date.now(),
-      context: await describePress(
-        entry,
-        delivered,
-        frameSession,
-        describeHost,
-      ),
+      context: await describePress(entry, params, frameSession, describeHost),
     };
-  } else if (method === "Input.dispatchMouseEvent" && isRelease(params)) {
-    delivered = releaseWherePressed(entry, params, frameSession);
   }
 
   // Whether the agent's pointer has already been shown this command.
@@ -437,13 +430,13 @@ async function forwardToDebugger({
     // so the person keeps typing where they were. What that cannot carry (a
     // chord, IME, a field in a frame of its own) takes focus as below.
     if (byAgent) {
-      await showAgentCommand(entry, method, delivered, frameSession);
+      await showAgentCommand(entry, method, params, frameSession);
       pointerShown = true;
     }
     const typed =
       method === "Input.imeSetComposition"
         ? "no key translation"
-        : await typeWithoutFocus(entry, method, delivered);
+        : await typeWithoutFocus(entry, method, params);
     if (typed === true) {
       return {};
     }
@@ -511,22 +504,19 @@ async function forwardToDebugger({
     const timeoutMs = SLOW_COMMANDS.has(method) ? 20_000 : 5000;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     if (byAgent && !pointerShown) {
-      await showAgentCommand(entry, method, delivered, frameSession);
+      await showAgentCommand(entry, method, params, frameSession);
     }
     // A script an earlier command left running, when this command asks for
     // its answer: waited on here rather than sent to the page.
     const kept =
-      method === "Runtime.evaluate" ? keptScriptOf(delivered, targetId) : null;
+      method === "Runtime.evaluate" ? keptScriptOf(params, targetId) : null;
     const startedAt = Date.now();
     const sent =
       kept?.answer ??
       sendToDebugger(
         wc,
         method,
-        withMacEditingCommands(
-          method,
-          withoutMacNativeKeyCode(method, delivered),
-        ),
+        withMacEditingCommands(method, withoutMacNativeKeyCode(method, params)),
         session,
       );
     let answered = false;
@@ -536,7 +526,7 @@ async function forwardToDebugger({
     const whyUnanswered = async (): Promise<Error> => {
       if (
         method === "Runtime.evaluate" &&
-        (kept !== null || awaitsPromise(delivered)) &&
+        (kept !== null || awaitsPromise(params)) &&
         // A kept script's page may miss one check: the check can land in a
         // task of the page's own that takes longer than the check waits,
         // and nothing was sent to the page for this command to have blocked.
@@ -587,54 +577,20 @@ async function forwardToDebugger({
         `agent press targetId=${targetId} ${press.context} ack=${Date.now() - press.at}ms`,
       );
     }
-    // agent-browser measures an element straight after scrolling it into view
-    // and clicks the point it measured. Pages reflow in response to a scroll a
-    // frame or two later (a sticky header or a collapsing table of contents
-    // observing it), which moves the element before the press arrives and
-    // lands the click on whatever took its place. Answering the scroll only
-    // once the element's box has held still makes the measurement that follows
-    // see the settled layout.
-    if (method === "DOM.getBoxModel") {
-      lastMeasurement.set(entry, {
-        at: Date.now(),
-        frameSession,
-        method,
-        params,
-        result,
-      });
-    }
-    if (method === "DOM.scrollIntoViewIfNeeded") {
-      await remeasureUntilStable(
-        wc,
-        "DOM.getBoxModel",
-        params,
-        await sendToDebugger(wc, "DOM.getBoxModel", params, frameSession).catch(
-          noop,
-        ),
-        frameSession,
-      );
-    }
-    // Selector and `find` clicks scroll and measure inside one script, so the
-    // reflow cannot be waited out between the two; run it again until two runs
-    // agree and answer with that measurement. The script finds the same
-    // element and scrolls only when it is out of view, so a repeat moves
-    // nothing that has already settled.
-    if (measuresAfterScrolling(method, params)) {
-      const settled = await remeasureUntilStable(
-        wc,
-        method,
-        params,
-        result,
-        frameSession,
-      );
-      lastMeasurement.set(entry, {
-        at: Date.now(),
-        frameSession,
-        method,
-        params,
-        result: settled,
-      });
-      return settled;
+    // agent-browser presses the point it read from an element's content
+    // quads, after waiting in the page for the element to hold still and
+    // checking what that point would hit. The press arrives several commands
+    // later, so the measurement is kept for it to be checked against.
+    if (method === "DOM.getContentQuads") {
+      const point = clickPointOf(result);
+      if (point) {
+        lastMeasurement.set(entry, {
+          at: Date.now(),
+          frameSession,
+          params,
+          point,
+        });
+      }
     }
     return result;
   } catch (error) {
@@ -722,56 +678,46 @@ function isPress(params: unknown): boolean {
   return (params as undefined | { type?: unknown })?.type === "mousePressed";
 }
 
-function isRelease(params: unknown): boolean {
-  return (params as undefined | { type?: unknown })?.type === "mouseReleased";
-}
-
-// agent-browser's script that scrolls an element into view and returns the
-// point to click, recognized by the overlay check it carries. It measures in
-// the same task that scrolled, before the page has reacted to the scroll.
-function measuresAfterScrolling(method: string, params: unknown): boolean {
-  const p = (params ?? {}) as {
-    expression?: unknown;
-    functionDeclaration?: unknown;
-  };
-  const source =
-    method === "Runtime.evaluate"
-      ? p.expression
-      : method === "Runtime.callFunctionOn"
-        ? p.functionDeclaration
-        : undefined;
+function isQuad(value: unknown): value is number[] {
   return (
-    typeof source === "string" &&
-    source.includes("scrollIntoView") &&
-    source.includes("blockerAt")
+    Array.isArray(value) &&
+    value.length === 8 &&
+    value.every((n) => typeof n === "number")
   );
 }
 
-// The point a measurement says to click: the center of a box model's content
-// quad, or the point agent-browser's scroll-and-measure script returned.
-function pointOf(result: unknown): null | { x: number; y: number } {
-  const r = result as null | {
-    model?: { content?: number[] };
-    result?: { value?: { x?: unknown; y?: unknown } };
-  };
-  const [x1, y1, x2, y2, x3, y3, x4, y4] = r?.model?.content ?? [];
-  if (
-    x1 !== undefined &&
-    y1 !== undefined &&
-    x2 !== undefined &&
-    y2 !== undefined &&
-    x3 !== undefined &&
-    y3 !== undefined &&
-    x4 !== undefined &&
-    y4 !== undefined
-  ) {
-    return { x: (x1 + x2 + x3 + x4) / 4, y: (y1 + y2 + y3 + y4) / 4 };
+function quadArea(quad: number[]): number {
+  let sum = 0;
+  for (let corner = 0; corner < 4; corner++) {
+    const next = (corner + 1) % 4;
+    sum +=
+      (quad[corner * 2] ?? 0) * (quad[next * 2 + 1] ?? 0) -
+      (quad[next * 2] ?? 0) * (quad[corner * 2 + 1] ?? 0);
   }
-  const value = r?.result?.value;
-  if (typeof value?.x === "number" && typeof value.y === "number") {
-    return { x: value.x, y: value.y };
+  return Math.abs(sum / 2);
+}
+
+/**
+ * The point agent-browser presses for an element, from the element's
+ * `DOM.getContentQuads`: the center of its largest quad, the last of them
+ * when several are as large, rounded by agent-browser to a whole pixel
+ * before it presses (`click_point.rs` upstream). An inline element broken
+ * across lines has a quad per line, so the point is on one of its pieces.
+ */
+function clickPointOf(result: unknown): null | Point {
+  const quads: unknown = (result as null | { quads?: unknown })?.quads;
+  let largest: number[] | undefined;
+  for (const quad of Array.isArray(quads) ? quads : []) {
+    if (isQuad(quad) && (!largest || quadArea(quad) >= quadArea(largest))) {
+      largest = quad;
+    }
   }
-  return null;
+  if (!largest) {
+    return null;
+  }
+  const [x1 = 0, y1 = 0, x2 = 0, y2 = 0, x3 = 0, y3 = 0, x4 = 0, y4 = 0] =
+    largest;
+  return { x: (x1 + x2 + x3 + x4) / 4, y: (y1 + y2 + y3 + y4) / 4 };
 }
 
 type Point = { x: number; y: number };
@@ -783,27 +729,21 @@ function isNear(a: { x?: number; y?: number }, b: Point): boolean {
   );
 }
 
-// A press sent to an element's new point, kept until its release arrives.
-// Chromium sends the click to the nearest element under both the press and
-// the release, so a release left at the old point would click whatever
-// contains the two instead.
-const redirectedPress = new WeakMap<
-  BrowserEntry,
-  { frameSession: string | undefined; from: Point; to: Point }
->();
-
 /**
- * The press params to send: unchanged unless this press is aimed at an element
- * that has moved since it was measured, in which case they point at where the
- * element is now. Refuses when the element can no longer be measured, or is
- * still moving after one short settle.
+ * Refuses a press aimed at an element that has moved, or gone, since
+ * agent-browser measured it. agent-browser waits for the element to hold
+ * still and checks what its point would hit before it sends anything, but the
+ * press follows that check by several commands and a rendered frame, and a
+ * page that moves in between (an image arriving, a banner sliding in) would
+ * take the press on whatever is at the point by then. A second press of the
+ * same click, as a double click sends, finds no measurement and goes as it
+ * came.
  */
-async function aimPressAtElement(
+async function refusePressOnMovedElement(
   entry: BrowserEntry,
   params: unknown,
   frameSession: string | undefined,
-): Promise<unknown> {
-  redirectedPress.delete(entry);
+): Promise<void> {
   const wc = entry.webContents;
   const measured = lastMeasurement.get(entry);
   lastMeasurement.delete(entry);
@@ -815,135 +755,35 @@ async function aimPressAtElement(
     measured.frameSession !== frameSession ||
     Date.now() - measured.at > MEASUREMENT_FRESH_MS
   ) {
-    return params;
+    return;
   }
-  const then = pointOf(measured.result);
-  const press = params as { x?: number; y?: number };
+  const then = measured.point;
   // Only a press aimed at the measured point is a click on that element.
-  if (!then || !isNear(press, then)) {
-    return params;
+  if (!isNear(params as { x?: number; y?: number }, then)) {
+    return;
   }
   // `null` when the element no longer measures, `undefined` when the guest did
   // not answer in time and so says nothing either way.
-  const remeasure = () =>
-    withinGuestProbeTimeout<null | Point | undefined>(
-      sendToDebugger(wc, measured.method, measured.params, frameSession).then(
-        pointOf,
-        () => null,
-      ),
-      () => undefined,
-    );
-  const now = await remeasure();
-  if (now === undefined || (now && isNear(now, then))) {
-    return await aimIntoWrappedLine(
-      entry,
+  const now = await withinGuestProbeTimeout<null | Point | undefined>(
+    sendToDebugger(
       wc,
-      measured,
-      press,
-      params,
+      "DOM.getContentQuads",
+      measured.params,
       frameSession,
-    );
-  }
-  let settled = now;
-  if (now) {
-    await waitForTwoFrames(wc);
-    const again = await remeasure();
-    settled = again === undefined ? now : again;
-  }
-  const moved = `element moved from ${then.x},${then.y} to ${settled ? `${settled.x},${settled.y}` : "gone"}`;
-  if (!settled) {
-    log.warn(`refused press targetId=${entry.targetId}: ${moved}`);
-    throw new Error(
-      "The click was not sent: the element changed after it was measured and can no longer be found on the page. Take a snapshot to see the page as it is now, then click the element by its new ref.",
-    );
-  }
-  if (now && !isNear(settled, now)) {
-    log.warn(
-      `refused press targetId=${entry.targetId}: ${moved}, still moving`,
-    );
-    throw new Error(
-      "The click was not sent: the element kept moving after it was measured, so the press could have landed on whatever moved into its place. Take a snapshot once the page has settled, then click again.",
-    );
-  }
-  log.info(`re-aimed press targetId=${entry.targetId}: ${moved}`);
-  redirectedPress.set(entry, { frameSession, from: then, to: settled });
-  return { ...press, x: settled.x, y: settled.y };
-}
-
-/**
- * The press params to send for an element measured by its box: unchanged
- * unless the element is an inline one broken across lines (a link that wraps),
- * whose box's center can fall between its pieces, on the text around them, so
- * the click lands on the paragraph and reports success. Then the press, and
- * the release after it, go to the center of its first piece.
- */
-async function aimIntoWrappedLine(
-  entry: BrowserEntry,
-  wc: WebContents,
-  measured: { method: string; params: unknown },
-  press: { x?: number; y?: number },
-  params: unknown,
-  frameSession: string | undefined,
-): Promise<unknown> {
-  if (
-    measured.method !== "DOM.getBoxModel" ||
-    press.x === undefined ||
-    press.y === undefined
-  ) {
-    return params;
-  }
-  const quads = await withinGuestProbeTimeout<number[][] | undefined>(
-    sendToDebugger(wc, "DOM.getContentQuads", measured.params, frameSession)
-      .then((result) => (result as { quads?: number[][] }).quads)
-      .catch(() => undefined),
+    ).then(clickPointOf, () => null),
     () => undefined,
   );
-  const pieces = (quads ?? []).filter((quad) => quad.length === 8);
-  const at = { x: press.x, y: press.y };
-  if (pieces.length < 2 || pieces.some((quad) => isInQuad(at, quad))) {
-    return params;
+  if (now === undefined || (now && isNear(now, then))) {
+    return;
   }
-  const [x1 = 0, y1 = 0, x2 = 0, y2 = 0, x3 = 0, y3 = 0, x4 = 0, y4 = 0] =
-    pieces[0] ?? [];
-  const to = { x: (x1 + x2 + x3 + x4) / 4, y: (y1 + y2 + y3 + y4) / 4 };
-  log.info(
-    `aimed press into wrapped line targetId=${entry.targetId}: ${at.x},${at.y} to ${to.x},${to.y}`,
+  log.warn(
+    `refused press targetId=${entry.targetId}: element moved from ${then.x},${then.y} to ${now ? `${now.x},${now.y}` : "gone"}`,
   );
-  redirectedPress.set(entry, { frameSession, from: at, to });
-  return { ...press, x: to.x, y: to.y };
-}
-
-// Whether a point is within a quad's bounding box; a line's piece of an
-// element is an upright rectangle unless the page transforms it.
-function isInQuad(point: Point, quad: number[]): boolean {
-  const xs = quad.filter((_, i) => i % 2 === 0);
-  const ys = quad.filter((_, i) => i % 2 === 1);
-  return (
-    point.x >= Math.min(...xs) &&
-    point.x <= Math.max(...xs) &&
-    point.y >= Math.min(...ys) &&
-    point.y <= Math.max(...ys)
+  throw new Error(
+    now
+      ? "The click was not sent: the element moved after it was measured, so the press could have landed on whatever moved into its place. Click it again."
+      : "The click was not sent: the element changed after it was measured and can no longer be found on the page. Take a snapshot to see the page as it is now, then click the element by its new ref.",
   );
-}
-
-// The release of a press that was sent to an element's new point, sent there
-// too; any other release is sent as it came.
-function releaseWherePressed(
-  entry: BrowserEntry,
-  params: unknown,
-  frameSession: string | undefined,
-): unknown {
-  const redirect = redirectedPress.get(entry);
-  redirectedPress.delete(entry);
-  const release = params as { x?: number; y?: number };
-  if (
-    !redirect ||
-    redirect.frameSession !== frameSession ||
-    !isNear(release, redirect.from)
-  ) {
-    return params;
-  }
-  return { ...release, x: redirect.to.x, y: redirect.to.y };
 }
 
 // What the press is about to hit, as the guest's own hit test sees it: the
@@ -1071,49 +911,6 @@ function sendToDebugger(
   return frameSession === undefined
     ? wc.debugger.sendCommand(method, params)
     : wc.debugger.sendCommand(method, params, frameSession);
-}
-
-// Rounds of "wait two frames, measure again" before settling for the latest
-// answer, which an element that never stops moving gets, as before.
-const MAX_REMEASURES = 5;
-
-async function remeasureUntilStable(
-  wc: WebContents,
-  method: string,
-  params: unknown,
-  first: unknown,
-  frameSession: string | undefined,
-): Promise<unknown> {
-  let previous = first;
-  for (let round = 0; round < MAX_REMEASURES; round++) {
-    await waitForTwoFrames(wc);
-    const current: unknown = await withinGuestProbeTimeout(
-      sendToDebugger(wc, method, params, frameSession).catch(noop),
-      noop,
-    );
-    if (
-      current === undefined ||
-      JSON.stringify(current) === JSON.stringify(previous)
-    ) {
-      return current ?? previous;
-    }
-    previous = current;
-  }
-  return previous;
-}
-
-// Resolves after the guest has rendered two animation frames, which is when a
-// layout reacting to a scroll has landed. A page that is not rendering never
-// fires requestAnimationFrame, so a timer bounds the wait, and a failed probe
-// is no reason to fail the command it follows.
-const SETTLE_FRAMES_SCRIPT =
-  "new Promise((resolve) => { requestAnimationFrame(() => requestAnimationFrame(resolve)); setTimeout(resolve, 100); })";
-
-async function waitForTwoFrames(wc: WebContents): Promise<void> {
-  await withinGuestProbeTimeout(
-    wc.executeJavaScript(SETTLE_FRAMES_SCRIPT).catch(noop),
-    noop,
-  );
 }
 
 // Whether the guest is producing frames, which is what input acknowledgement

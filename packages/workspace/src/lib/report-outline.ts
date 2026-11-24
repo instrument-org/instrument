@@ -664,6 +664,7 @@ const NOTES_KEPT = new Set([
   "data-fromChat",
   "data-intent",
   "data-messageGap",
+  "data-modelAnswered",
   "data-modelChange",
   "data-outputFormat",
   "data-permissionAnswer",

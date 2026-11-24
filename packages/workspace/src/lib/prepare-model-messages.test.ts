@@ -1453,15 +1453,15 @@ describe("prepareModelMessages", () => {
         expect(parts).toHaveLength(1);
         expect(parts[0]?.data).toEqual({
           from: {
-            contextLength: undefined,
             modelId: "roomy-model-id",
-            name: undefined,
           },
           to: {
             contextLength: 1000,
+            maker: "test",
             modelId: "mock-model-id",
             name: "Mock Model",
             provider: "instrument",
+            providerId: "mock-provider-id",
             providerName: "Test Provider",
           },
         });
@@ -1478,6 +1478,33 @@ describe("prepareModelMessages", () => {
         expect(await storedModelChangeParts()).toHaveLength(1);
       });
 
+      it("records which model answered once, on the user's next turn", async () => {
+        const reply = assistantMessageWithUsage("answer", 100);
+        await save(userMessage("First question"));
+        await save({
+          ...reply,
+          metadata: {
+            ...reply.metadata,
+            aiGatewayModel: smallWindowModel,
+            modelId: smallWindowModel.canonicalId,
+            modelIdServed: "maker/served",
+          },
+        });
+        await save(userMessage("Next question"));
+        await prepare(smallWindowModel);
+        await prepare(smallWindowModel);
+
+        const result = await ChatReads.transcript({ sessionId, chatId });
+        expect(
+          result
+            ._unsafeUnwrap()
+            .flatMap((message) => message.parts)
+            .filter((part) => part.type === "data-modelAnswered")
+            .map((part) => part.data),
+        ).toEqual([{ modelId: "maker/served", providerName: "Test Provider" }]);
+        expect(await storedModelChangeParts()).toEqual([]);
+      });
+
       it("tells the model of the switch on the turn it starts answering", async () => {
         await save(userMessage("First question"));
         await save(fromAnotherModel(assistantMessageWithUsage("answer", 100)));
@@ -1488,13 +1515,13 @@ describe("prepareModelMessages", () => {
 
         expect(told(modelTexts(await prepare(smallWindowModel))))
           .toMatchInlineSnapshot(`
-          [
-            "
-          <instrument-system-note>
-          The user switched this chat's model from Roomy Model Id to Mock Model. From this turn on you run on Mock Model from Test Provider; this supersedes the model named above.
-          </instrument-system-note>",
-          ]
-        `);
+            [
+              "
+            <instrument-system-note>
+            The user switched this chat's model from Roomy Model Id to Mock Model, made by test, served through Test Provider (model id mock-provider-id). Replies before this came from the earlier model. From here you run on Mock Model. This replaces what you were told above about your model. You are still Instrument, the agent. Asked what model you are, name the model plainly.
+            </instrument-system-note>",
+            ]
+          `);
         // The same bytes on the next turn, so the cached prefix holds.
         expect(told(modelTexts(await prepare(smallWindowModel)))).toHaveLength(
           1,

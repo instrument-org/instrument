@@ -131,6 +131,7 @@ const MARK_OF_PART: Record<
   "data-maxSteps": "limit",
   "data-memory": "memory",
   "data-messageGap": "time",
+  "data-modelAnswered": "model",
   "data-modelChange": "model",
   "data-outputLimit": "limit",
   "data-pageTakeover": "tabs",
@@ -326,6 +327,9 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
     }
     case "data-messageGap": {
       return `Time away: ${awayFor(part.data.minutes)}`;
+    }
+    case "data-modelAnswered": {
+      return named("Answered by", part.data.modelId);
     }
     case "data-modelChange": {
       return named("Model", part.data.to.name ?? part.data.to.modelId);

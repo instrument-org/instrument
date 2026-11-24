@@ -50,7 +50,10 @@ import { outputLimitModelNote } from "../../model-text/notes/output-limit-model-
 import { memoryModelNote } from "../../model-text/notes/memory-model-text";
 import { setupNewsModelNote } from "../../model-text/notes/setup-news-model-text";
 import { messageGapModelNote } from "../../model-text/notes/message-gap-model-text";
-import { modelChangeModelNote } from "../../model-text/notes/model-change-model-text";
+import {
+  modelAnsweredModelNote,
+  modelChangeModelNote,
+} from "../../model-text/notes/model-change-model-text";
 import { skillChangesModelNote } from "../../model-text/notes/skill-changes-model-text";
 import { actionsModelNote } from "../../model-text/notes/actions-model-text";
 import { stateNotes } from "../../lib/state-notes";
@@ -861,6 +864,7 @@ const USER_TURN_NOTES = [
   noted("memory", ({ data }) => memoryModelNote(data)),
   noted("setupNews", ({ data }) => setupNewsModelNote(data)),
   noted("modelChange", ({ data }) => modelChangeModelNote(data)),
+  noted("modelAnswered", ({ data }) => modelAnsweredModelNote(data)),
   noted("branchedFrom", ({ data }, { shellPath }) =>
     branchedFromModelNote(data, shellPath),
   ),

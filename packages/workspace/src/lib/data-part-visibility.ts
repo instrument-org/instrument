@@ -83,6 +83,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // note telling the model how long the user was away, which the user knows
   // better than the model does.
   "data-messageGap": "dev",
+  // Which model wrote the last reply, which the reply's own footer shows.
+  "data-modelAnswered": "dev",
   // Shown to everyone, unlike the rollover above it. The model a task runs on
   // is the user's own choice, so naming the moment it changed describes
   // something they did rather than something our assembly did.

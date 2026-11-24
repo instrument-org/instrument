@@ -1,7 +1,7 @@
 import { type AIGatewayModel } from "@instrument-org/ai-gateway";
 import { type ModelMessage } from "ai";
 import { err, ok, type Result } from "neverthrow";
-import { alphabetical } from "radashi";
+import { alphabetical, sift } from "radashi";
 
 import { type AnyAgent } from "../agents/types";
 import { type Session } from "../schemas/session";
@@ -36,7 +36,11 @@ import { effectiveContextLength } from "./effective-context-length";
 import { filterUnsupportedMedia } from "./filter-unsupported-media";
 import { agentHandoffNotesPath, readHandoffNotes } from "./handoff-notes";
 import { contextRolloverNotice } from "../model-text/request/context-rollover-notice";
-import { modelChangeSincePreviousTurn } from "./model-change";
+import {
+  modelAnsweredSinceTold,
+  modelChangeSincePreviousTurn,
+  withSwitchesOnUserTurns,
+} from "./model-change";
 import { modelWindow } from "./model-window";
 import { limitModelImages } from "./limit-model-images";
 import { normalizeModelImages } from "./normalize-model-images";
@@ -447,12 +451,42 @@ export async function prepareModelMessages({
     await ChatWrites.savePart(modelChangePart, chatId);
   }
 
+  // Which model wrote the last reply, on the turn after it and never on the
+  // turn of a switch, where two notes about two models would be read as one.
+  const answered =
+    modelChange === undefined &&
+    newestMessage?.role === "user" &&
+    !newestMessage.parts.some(
+      (part) =>
+        part.type === "data-modelAnswered" || part.type === "data-modelChange",
+    )
+      ? modelAnsweredSinceTold({ messages: storedNonContextMessages, model })
+      : undefined;
+  let modelAnsweredPart: SessionMessagePart.DataPart | undefined;
+  if (answered && newestMessage) {
+    if (readOnly) {
+      return err(new Error("The request would record which model answered."));
+    }
+    modelAnsweredPart = {
+      data: answered,
+      metadata: {
+        createdAt: new Date(),
+        id: StoreId.newPartId(),
+        messageId: newestMessage.id,
+        sessionId,
+      },
+      type: "data-modelAnswered",
+    };
+    await ChatWrites.savePart(modelAnsweredPart, chatId);
+  }
+
+  const recorded = sift([modelChangePart, modelAnsweredPart]);
   const allNonContextMessages =
-    modelChangePart === undefined
+    recorded.length === 0
       ? storedNonContextMessages
       : storedNonContextMessages.map((message) =>
           message === newestMessage
-            ? { ...message, parts: [...message.parts, modelChangePart] }
+            ? { ...message, parts: [...message.parts, ...recorded] }
             : message,
         );
 
@@ -542,7 +576,9 @@ export async function prepareModelMessages({
       dropRepeatingReplies([
         // ulid sorts oldest to newest
         ...alphabetical(contextMessages, (message) => message.id),
-        ...alphabetical(nonContextMessages, (message) => message.id),
+        ...withSwitchesOnUserTurns(
+          alphabetical(nonContextMessages, (message) => message.id),
+        ),
       ]),
     ),
   );

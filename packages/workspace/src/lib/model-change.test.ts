@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
-import { modelChangeSincePreviousTurn } from "./model-change";
+import {
+  modelAnsweredSinceTold,
+  modelChangeSincePreviousTurn,
+  withSwitchesOnUserTurns,
+} from "./model-change";
 
 const model = createMockAIGatewayModel({
   canonicalId: "current-model",
@@ -69,9 +73,11 @@ describe("modelChangeSincePreviousTurn", () => {
       },
       to: {
         contextLength: 200_000,
+        maker: "test",
         modelId: "current-model",
         name: "Mock Model",
         provider: "instrument",
+        providerId: "mock-provider-id",
         providerName: "Test Provider",
       },
     });
@@ -190,5 +196,144 @@ describe("modelChangeSincePreviousTurn", () => {
         model,
       })?.to.modelId,
     ).toBe("current-model");
+  });
+});
+
+describe("modelAnsweredSinceTold", () => {
+  const reply = (modelIdServed?: string, asked = model) =>
+    ({
+      metadata: {
+        aiGatewayModel: asked,
+        modelId: asked.canonicalId,
+        modelIdServed,
+      },
+      parts: [],
+      role: "assistant",
+    }) as unknown as SessionMessage.WithParts;
+  const saying = (type: string, data: object) =>
+    ({
+      metadata: {},
+      parts: [{ data, type }],
+      role: "user",
+    }) as unknown as SessionMessage.WithParts;
+  const told = (modelId: string) => saying("data-modelAnswered", { modelId });
+  const since = (messages: SessionMessage.WithParts[]) =>
+    modelAnsweredSinceTold({ messages, model })?.modelId;
+
+  it("names the last reply's model, as its provider reported it", () => {
+    expect(
+      modelAnsweredSinceTold({
+        messages: [user(), reply("maker/one"), user()],
+        model,
+      }),
+    ).toEqual({ modelId: "maker/one", providerName: "Test Provider" });
+  });
+
+  it.each([
+    ["nothing has answered", [user()]],
+    ["the reply reported no other id", [user(), reply(), user()]],
+    [
+      "only an earlier reply reported one",
+      [user(), reply("maker/one"), user(), reply(), user()],
+    ],
+    [
+      "it was told, with replies since",
+      [
+        user(),
+        reply("maker/one"),
+        told("maker/one"),
+        reply("maker/one"),
+        user(),
+      ],
+    ],
+    [
+      "another model wrote it",
+      [
+        user(),
+        reply(
+          "maker/one",
+          createMockAIGatewayModel({ canonicalId: "other-model" }),
+        ),
+        user(),
+      ],
+    ],
+  ])("says nothing when %s", (_why, messages) => {
+    expect(since(messages)).toBeUndefined();
+  });
+
+  it("says so when a router's pick moves", () => {
+    expect(
+      since([
+        user(),
+        reply("maker/one"),
+        told("maker/one"),
+        reply("maker/two"),
+        user(),
+      ]),
+    ).toBe("maker/two");
+  });
+
+  it("tells it again after a switch away and back", () => {
+    expect(
+      since([
+        user(),
+        reply("maker/one"),
+        told("maker/one"),
+        saying("data-modelChange", {}),
+        reply("maker/one"),
+        user(),
+      ]),
+    ).toBe("maker/one");
+  });
+});
+
+describe("withSwitchesOnUserTurns", () => {
+  const side = (modelId: string, providerId?: string) => ({
+    modelId,
+    providerId,
+  });
+  const switching = (
+    role: "assistant" | "user",
+    from: ReturnType<typeof side>,
+    to: ReturnType<typeof side>,
+  ) =>
+    ({
+      id: "msg",
+      metadata: {},
+      parts: [{ data: { from, to }, metadata: {}, type: "data-modelChange" }],
+      role,
+    }) as unknown as SessionMessage.WithParts;
+  const a = side("a", "maker/a");
+  const b = side("b", "maker/b");
+  const c = side("c", "maker/c");
+  const onUser = (messages: SessionMessage.WithParts[]) =>
+    withSwitchesOnUserTurns(messages)[0]?.parts.map((part) =>
+      part.type === "data-modelChange"
+        ? `${part.data.from.modelId} to ${part.data.to.modelId}`
+        : part.type,
+    );
+
+  it("says a failed reply's switch on the turn it answered", () => {
+    expect(onUser([user(), switching("assistant", a, b)])).toEqual(["a to b"]);
+  });
+
+  it("reads several as the one move they come to", () => {
+    expect(
+      onUser([switching("user", a, b), switching("assistant", b, c)]),
+    ).toEqual(["a to c"]);
+    expect(
+      onUser([switching("user", a, b), switching("assistant", b, a)]),
+    ).toEqual([]);
+  });
+
+  it("leaves one recorded without the model's facts as it was sent", () => {
+    expect(
+      onUser([user(), switching("assistant", side("a"), side("b"))]),
+    ).toEqual([]);
+  });
+
+  it("leaves a reply with no turn before it alone", () => {
+    const messages = [switching("assistant", a, b)];
+    expect(withSwitchesOnUserTurns(messages)).toEqual(messages);
   });
 });

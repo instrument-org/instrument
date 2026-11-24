@@ -47,6 +47,7 @@ export namespace SessionMessageDataPart {
     "maxSteps",
     "memory",
     "messageGap",
+    "modelAnswered",
     "modelChange",
     "outputLimit",
     "taskEvent",
@@ -116,6 +117,7 @@ export namespace SessionMessageDataPart {
     maxSteps: "event",
     memory: "diff",
     messageGap: "event",
+    modelAnswered: "diff",
     modelChange: "diff",
     outputLimit: "event",
     pageTakeover: "event",
@@ -379,11 +381,16 @@ export namespace SessionMessageDataPart {
    */
   const ModelChangeSideSchema = z.object({
     contextLength: z.number().int().positive().optional(),
+    // The model line behind a name of ours, and who makes the model.
+    family: z.string().optional(),
+    maker: z.string().optional(),
     modelId: z.string(),
     name: z.string().optional(),
     // Who served it, so a move between two providers of one model reads as
     // a move at all, and the provider's mark it is drawn with.
     provider: AIProviderTypeSchema.optional(),
+    // The id the provider knows it by, which also says whether it is a router.
+    providerId: z.string().optional(),
     providerName: z.string().optional(),
   });
   const ModelChangeDataPartSchema = z.object({
@@ -392,6 +399,22 @@ export namespace SessionMessageDataPart {
   });
 
   export type ModelChangeDataPart = z.output<typeof ModelChangeDataPartSchema>;
+
+  /**
+   * The model that wrote the session's last reply, where its provider reported
+   * another id than the one asked: a router's pick, or the model behind one of
+   * our own names. Known only once a reply is in, so it is recorded on the
+   * message after, and only when it differs from the last one recorded since
+   * the model was switched.
+   */
+  const ModelAnsweredDataPartSchema = z.object({
+    modelId: z.string(),
+    providerName: z.string().optional(),
+  });
+
+  export type ModelAnsweredDataPart = z.output<
+    typeof ModelAnsweredDataPartSchema
+  >;
 
   // Attached to the synthetic assistant message written when a run stops after
   // reaching the max unattended step count. Hidden from the chat UI (the
@@ -1849,6 +1872,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,
     [NameSchema.enum.memory]: MemoryDataPartSchema,
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
+    [NameSchema.enum.modelAnswered]: ModelAnsweredDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.outputLimit]: OutputLimitDataPartSchema,
     [NameSchema.enum.settingChanges]: SettingChangesDataPartSchema,

@@ -197,6 +197,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-messageGap": {
       return `<data-messageGap minutes="${part.data.minutes}" />`;
     }
+    case "data-modelAnswered": {
+      return `<data-modelAnswered model="${part.data.modelId}" />`;
+    }
     case "data-modelChange": {
       return `<data-modelChange from="${part.data.from.modelId}" to="${part.data.to.modelId}" />`;
     }

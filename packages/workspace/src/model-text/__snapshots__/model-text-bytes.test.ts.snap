@@ -1582,7 +1582,7 @@ The user took over tab tab_1, at https://example.com, and that stopped your work
 <instrument-system-note>
 The user restored /Users/mac-user/Instrument/faq.md to v2. That is the file now, v6, kept at /Users/mac-user/.instrument/work/Instrument/chat/Versions/faq.md/v6.md.
 </instrument-system-note>",
-  "runningRouterModel": "Model: you run on Mock Model from Test Provider, the model the user picked for this chat. Asked what model you are, name it plainly; you are still Instrument.",
+  "runningRouterModel": "Model: you run on Mock Model, made by test. The user picked it, served through Test Provider (model id openrouter). You are still Instrument, the agent. Asked what model you are, name the model plainly.",
   "signInProgress": "connected: Notion (notion); skipped by the user: Figma (figma); did not connect: Slack (slack); not answered yet: Linear (linear).",
   "skillChanges": "
 <instrument-system-note>
@@ -1753,7 +1753,7 @@ Current date: Sunday, November 8, 2026 -- the day this session started. A sessio
 Time zone: Pacific Time, the computer's and so a fair guide to the region the user is in. This session started at 7:04 AM local time; \`date\` in your shell gives the time now.
 </system_info>
 
-Model: you run on Mock Model from Test Provider, the model the user picked for this chat. Asked what model you are, name it plainly; you are still Instrument.
+Model: you run on Mock Model, made by test. The user picked it, served through Test Provider (model id mock-provider-id). You are still Instrument, the agent. Asked what model you are, name the model plainly.
 
 The user's name is Mac User, signed in as mac-user@example.com.
 
@@ -1930,7 +1930,7 @@ Current date: Sunday, November 8, 2026 -- the day this session started. A sessio
 Time zone: Pacific Time, the computer's and so a fair guide to the region the user is in. This session started at 7:04 AM local time; \`date\` in your shell gives the time now.
 </system_info>
 
-Model: you run on Mock Model from Test Provider, the model the user picked for this chat. Asked what model you are, name it plainly; you are still Instrument.
+Model: you run on Mock Model, made by test. The user picked it, served through Test Provider (model id openrouter). You are still Instrument, the agent. Asked what model you are, name the model plainly.
 
 You reach none of the user's folders yet. Reaching for one shows the person a card; folders allowed later are announced on the message they arrive with.
 
@@ -2578,6 +2578,21 @@ exports[`the notes a stored data part renders > messageGap 1`] = `
     "
 <instrument-system-note>
 The user last wrote in this chat about 2 hours ago. Anything since was you and your tasks. Answer what they say now, and offer what you owed them from before in a sentence.
+</instrument-system-note>",
+  ],
+]
+`;
+
+exports[`the notes a stored data part renders > modelAnswered 1`] = `
+[
+  [
+    "<user_message>",
+    "First",
+    "data-modelAnswered",
+    "</user_message>",
+    "
+<instrument-system-note>
+About your model, for reference only, and not part of the user's message: the reply just before this message was written by Model (model id maker/model). Don't mention it unless asked what model you are.
 </instrument-system-note>",
   ],
 ]

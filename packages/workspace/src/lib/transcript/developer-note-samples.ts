@@ -77,6 +77,7 @@ export const DATA_PART_SAMPLES = {
     told: {},
   },
   messageGap: { minutes: 90 },
+  modelAnswered: { modelId: "maker/model" },
   modelChange: { from: { modelId: "a" }, to: { modelId: "b" } },
   outputLimit: { continuations: 2 },
   pageTakeover: {

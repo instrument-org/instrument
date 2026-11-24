@@ -62,20 +62,13 @@ export function modelChangeSincePreviousTurn({
     }
 
     return {
-      from: {
-        contextLength: message.metadata.aiGatewayModel?.contextLength,
-        modelId: message.metadata.modelId,
-        name: message.metadata.aiGatewayModel?.name,
-        provider: providerAsked(message.metadata),
-        providerName: message.metadata.aiGatewayModel?.providerName,
-      },
-      to: {
-        contextLength: model.contextLength,
-        modelId: model.canonicalId,
-        name: model.name,
-        provider: model.params.provider,
-        providerName: model.providerName,
-      },
+      from: asked
+        ? modelSide(asked)
+        : {
+            modelId: message.metadata.modelId,
+            provider: providerAsked(message.metadata),
+          },
+      to: modelSide(model),
     };
   }
 
@@ -121,4 +114,127 @@ export function providerAsked(
     metadata.aiGatewayModel?.params.provider ??
     AIProviderTypeSchema.safeParse(metadata.providerId).data
   );
+}
+
+/**
+ * The model that wrote the last reply, when the session has not been told of it
+ * since it last switched models. Only a reply to the model being asked counts:
+ * on the turn of a switch, what wrote the reply before it is another model's.
+ */
+export function modelAnsweredSinceTold({
+  messages,
+  model,
+}: {
+  messages: readonly SessionMessage.WithParts[];
+  model: AIGatewayModel.Type;
+}): SessionMessageDataPart.ModelAnsweredDataPart | undefined {
+  let answered: string | undefined;
+  for (const message of messages.toReversed()) {
+    if (message.role === "assistant" && !message.metadata.synthetic) {
+      const asked = message.metadata.aiGatewayModel;
+      if (!asked || !isSameModel(asked, model)) {
+        break;
+      }
+      // The last reply's own report alone: one that failed, or that reported
+      // nothing, leaves who answered it unsaid.
+      answered ??= message.metadata.modelIdServed;
+      if (answered === undefined) {
+        return;
+      }
+    }
+    let told: string | undefined;
+    let switched = false;
+    for (const part of message.parts) {
+      if (part.type === "data-modelAnswered") {
+        told = part.data.modelId;
+      }
+      switched ||= part.type === "data-modelChange";
+    }
+    if (told !== undefined) {
+      return answered === undefined || told === answered
+        ? undefined
+        : { modelId: answered, providerName: model.providerName };
+    }
+    if (switched) {
+      break;
+    }
+  }
+  return answered === undefined
+    ? undefined
+    : { modelId: answered, providerName: model.providerName };
+}
+
+/**
+ * The messages with each switch a run recorded on a failed reply said on the
+ * user's turn it answered, where notes go to the model: the failed reply is
+ * left out of what is sent, and a run again adds no turn of the user's. Several
+ * on one turn read as the one move they come to.
+ */
+export function withSwitchesOnUserTurns(
+  messages: SessionMessage.WithParts[],
+): SessionMessage.WithParts[] {
+  const result = [...messages];
+  let userAt: number | undefined;
+  for (const [index, message] of messages.entries()) {
+    if (message.role === "user") {
+      userAt = index;
+    }
+    if (message.role !== "assistant" || userAt === undefined) {
+      continue;
+    }
+    for (const part of message.parts) {
+      const user = result[userAt];
+      if (part.type !== "data-modelChange" || user?.role !== "user") {
+        continue;
+      }
+      // One recorded before a switch kept the model's facts was sent without
+      // this, and is sent as it was.
+      if (!isModelSwitch(part.data) || part.data.to.providerId === undefined) {
+        continue;
+      }
+      const before = user.parts.find(
+        (candidate) => candidate.type === "data-modelChange",
+      );
+      const from =
+        before?.type === "data-modelChange" ? before.data.from : part.data.from;
+      const { to } = part.data;
+      const rest = user.parts.filter((candidate) => candidate !== before);
+      const isBack =
+        from.modelId === to.modelId && from.provider === to.provider;
+      result[userAt] = {
+        ...user,
+        parts: isBack
+          ? rest
+          : [
+              ...rest,
+              {
+                ...part,
+                data: { from, to },
+                metadata: { ...part.metadata, messageId: user.id },
+              },
+            ],
+      };
+    }
+  }
+  return result;
+}
+
+/** A model's facts as a switch records them. */
+export function modelSide(
+  model: AIGatewayModel.Type,
+): SessionMessageDataPart.ModelChangeDataPart["from"] {
+  return {
+    contextLength: model.contextLength,
+    family: model.family,
+    // Our own models are authored by us and say who makes the model behind
+    // them; any other model's author is its maker.
+    maker:
+      model.maker ??
+      (model.author === model.params.provider ? undefined : model.author),
+    modelId: model.canonicalId,
+    name: model.name,
+    provider: model.params.provider,
+    providerId: model.providerId,
+    providerName: model.providerName,
+  };
 }

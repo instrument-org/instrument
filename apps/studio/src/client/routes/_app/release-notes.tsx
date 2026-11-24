@@ -70,7 +70,12 @@ function RouteComponent() {
   });
 
   return (
-    <div className="h-full overflow-y-auto scroll-fade-y select-text">
+    // The page is worked from its content, which the keys scroll.
+    <div
+      className="h-full overflow-y-auto scroll-fade-y outline-none select-text"
+      data-keyboard-home
+      tabIndex={-1}
+    >
       <div className="mx-auto w-full max-w-3xl px-4 pt-10 pb-8 @xl/app-content:px-6 @5xl/app-content:px-8 @5xl/app-content:pt-14">
         <div className="flex items-center justify-between gap-6 pb-10">
           <h1 className="font-serif text-3xl leading-10 font-normal">

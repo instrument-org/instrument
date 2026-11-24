@@ -6,16 +6,14 @@ import { ResizeHandle } from "@/client/components/resize-handle";
 import { CaptionRoom } from "@/client/components/window-controls";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import {
-  giveKeyboardTo,
   onPagePress,
   pageHoldingKeyboard,
+  takeKeyboardOnArrival,
 } from "@/client/lib/browser-pool";
 import {
   dropCaretOutside,
-  focusHomeIn,
   keepCaretOnKeyboardSide,
   placeCaretAfterPress,
-  focusOnceLayersClose,
   setHomeFocus,
 } from "@/client/lib/keyboard-home";
 import { SIDE_MOTION } from "@/client/lib/motion";
@@ -50,6 +48,7 @@ import {
 } from "./drag/use-group-drag";
 import { RecentlyClosedMenu } from "./recently-closed-menu";
 import { useShell } from "./shell-context";
+import { useSideCaret } from "./use-side-caret";
 import { useSideMotion } from "./side-motion";
 import { windowTabGroupsAtom } from "./open-groups";
 import { useTabGroupActions } from "./tab-groups";
@@ -572,20 +571,26 @@ function SideCard({
       return;
     }
     const target = browserTargetOf(pageUp);
-    return setHomeFocus(pageHost, () => {
-      giveKeyboardTo(target);
+    return setHomeFocus(pageHost, {
+      focus: () => {
+        takeKeyboardOnArrival(target);
+      },
+      holds: () => pageHoldingKeyboard() === target,
     });
   }, [pageHost, pageUp]);
 
   // The caret goes with the keyboard. A press on this side lets go of the
   // caret the other side has, for the press to place. A side taking the
-  // keyboard otherwise (a tab moved, opened or brought up here) takes that
-  // caret, or a caret on nothing, into its home: its page, a chat's
+  // keyboard otherwise (a tab moved, opened or brought up here, or another
+  // group shown) takes that caret, or a caret on nothing, into its home: its page, a chat's
   // composer, or a file. With a menu up, that waits for the caret the menu
   // hands back as it goes.
   const isPressed = useRef(false);
   const isCaretOnNothing = () =>
-    document.activeElement === null || document.activeElement === document.body;
+    document.activeElement === null ||
+    document.activeElement === document.body ||
+    (document.activeElement.tagName === "WEBVIEW" &&
+      pageHoldingKeyboard() === null);
   const isCaretOnOtherSide = () => {
     const card = cardRef.current;
     const now = document.activeElement;
@@ -608,30 +613,14 @@ function SideCard({
         card.closest("[data-group-sides]")
     );
   };
-  const takeCaret = useEffectEvent(() => {
-    const card = cardRef.current;
-    if (!card || !isActive) {
-      return;
-    }
-    if (document.querySelector("[data-radix-focus-guard]") !== null) {
-      focusOnceLayersClose({
-        focus: () => {
-          focusHomeIn(card);
-        },
-        holds: () => !isCaretOnOtherSide() && !isCaretOnNothing(),
-      });
-    } else if (
-      isCaretOnOtherSide() ||
-      (isCaretOnNothing() && !isPressed.current)
-    ) {
-      focusHomeIn(card);
-    }
+  useSideCaret({
+    cardRef,
+    hasKeyboard: hasKeyboard && isActive,
+    isCaretOnNothing,
+    isCaretOnOtherSide,
+    isPressed,
+    shown: up && `${group}/${up.id}`,
   });
-  useEffect(() => {
-    if (hasKeyboard) {
-      takeCaret();
-    }
-  }, [hasKeyboard]);
 
   // Which side has the keyboard is the group's state (`focusSide`), which
   // changes only on purpose: here, for every kind of tab rather than by each,
@@ -795,6 +784,7 @@ function SideCard({
       data-group-side={sideIndex}
       {...(hasKeyboard ? { "data-keyboard": "" } : {})}
       {...(up?.kind === "page" ? { "data-page-tab": up.id } : {})}
+      data-tab-up={up?.id}
       ref={cardRef}
       onPointerDownCapture={() => {
         isPressed.current = true;

@@ -360,7 +360,9 @@ function AppTabView({
       }
       if (kept?.isConnected) {
         kept.focus({ preventScroll: true });
-      } else {
+      }
+      // What is gone, or takes no keyboard any more, leaves it on nothing.
+      if (!kept || document.activeElement !== kept) {
         focusScreenHome({ leaving: false });
       }
     };

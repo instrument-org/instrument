@@ -22,7 +22,10 @@ import { COMPUTER_FILE_REFUSAL_HEADER } from "@/shared/computer-file-refusal";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { keptByTab } from "@/client/lib/kept-by-tab";
-import { giveKeyboardTo } from "@/client/lib/browser-pool";
+import {
+  pageHoldingKeyboard,
+  takeKeyboardOnArrival,
+} from "@/client/lib/browser-pool";
 import { setHomeFocus } from "@/client/lib/keyboard-home";
 import { togglePlayerIn } from "@/client/lib/media-players";
 import { cn } from "@/client/lib/utils";
@@ -525,8 +528,11 @@ export function FilesScreen({
       return;
     }
     const target = browserTargetOf(hostedTabId);
-    return setHomeFocus(pageSlot, () => {
-      giveKeyboardTo(target);
+    return setHomeFocus(pageSlot, {
+      focus: () => {
+        takeKeyboardOnArrival(target);
+      },
+      holds: () => pageHoldingKeyboard() === target,
     });
   }, [pageSlot, hostedTabId]);
   // A link the page follows moves the tab: to another file, which the tab

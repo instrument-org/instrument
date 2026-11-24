@@ -331,6 +331,9 @@ export function Omnibar({
       send({ type: "clear" });
     }
     input.current?.blur();
+    // What was asked for may be the tab up at another address, whose page
+    // then has the keyboard, as in a browser.
+    focusScreenHome({ leaving: false });
   };
 
   /**

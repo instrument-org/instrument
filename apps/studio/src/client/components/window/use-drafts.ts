@@ -104,15 +104,25 @@ export function useDrafts({
   );
   // The chats whose first messages are on their way, by chat, with the
   // words each sent: the chat shows them from the press, and keeps showing
-  // them until its own transcript has them, a moment past the call's answer.
-  const [sentWords, setSentWords] = useState<ReadonlyMap<ChatId, string>>(
+  // them until the send is answered and its own transcript has them.
+  const [sent, setSent] = useState<ReadonlyMap<ChatId, SentWords>>(
     () => new Map(),
   );
-  // The project each of those chats was sent under, by chat, which the
-  // chat's head wears until the chat's own record files it.
-  const [sentProjects, setSentProjects] = useState<ReadonlyMap<ChatId, string>>(
-    () => new Map(),
-  );
+  const settleSent = (
+    chatId: ChatId,
+    step: Partial<Omit<SentWords, "words">>,
+  ) => {
+    setSent((current) => {
+      const was = current.get(chatId);
+      if (was === undefined) {
+        return current;
+      }
+      const next = { ...was, ...step };
+      return next.isAnswered && next.isStored
+        ? withoutKey(current, chatId)
+        : new Map(current).set(chatId, next);
+    });
+  };
   const [startingIds, setStartingIds] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
@@ -133,8 +143,6 @@ export function useDrafts({
     }
     const timer = setTimeout(() => {
       setArrived(undefined);
-      setSentWords((current) => withoutKey(current, arrived.chatId));
-      setSentProjects((current) => withoutKey(current, arrived.chatId));
     }, CHAT_ARRIVAL_MS);
     return () => {
       clearTimeout(timer);
@@ -318,11 +326,13 @@ export function useDrafts({
       await claimDraft({ chatId, id, words: send.prompt }).catch(
         () => undefined,
       );
-      setSentWords((current) => new Map(current).set(chatId, send.prompt));
-      const { projectId } = draft;
-      if (projectId !== undefined) {
-        setSentProjects((current) => new Map(current).set(chatId, projectId));
-      }
+      setSent((current) =>
+        new Map(current).set(chatId, {
+          isAnswered: false,
+          isStored: false,
+          words: send.prompt,
+        }),
+      );
       // The tab the draft was written in is the chat from here, in place,
       // where back does not go to the draft it was. Each web page the draft
       // names by its address, and no tab of its group shows, opens right
@@ -364,8 +374,7 @@ export function useDrafts({
       if (failed) {
         releaseDraft(id);
         turnTab(sentFrom, newChatHref(id));
-        setSentWords((current) => withoutKey(current, chatId));
-        setSentProjects((current) => withoutKey(current, chatId));
+        setSent((current) => withoutKey(current, chatId));
         toast.error("Couldn't start the chat", { cause: failed.error });
       }
       opened();
@@ -380,6 +389,7 @@ export function useDrafts({
       draftSent(id);
       removeAsks(marked.map((ask) => ask.id));
       setArrived({ chatId, draftId: id });
+      settleSent(chatId, { isAnswered: true });
     })();
   };
   /** A tab sent to another address in place, its history's step replaced rather than added to. */
@@ -400,11 +410,23 @@ export function useDrafts({
     discardingIds,
     draftFromLink,
     draftWith,
-    sentProjects,
-    sentWords,
+    sent,
+    /** The chat's own transcript has the words it was started with. */
+    sentStored: (chatId: ChatId) => {
+      settleSent(chatId, { isStored: true });
+    },
     startChat,
     startingIds,
   };
+}
+
+/** What a chat being started sent, and what has come back of it. */
+interface SentWords {
+  /** The send was answered, so the chat's record files it. */
+  isAnswered: boolean;
+  /** The chat's own transcript has the message. */
+  isStored: boolean;
+  words: string;
 }
 
 function withoutId(ids: ReadonlySet<string>, id: string): ReadonlySet<string> {

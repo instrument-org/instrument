@@ -47,6 +47,8 @@ interface ChatScreenProps {
   layoutContext?: () => LayoutRead | undefined;
   /** Puts away a chat no record holds any more, the way deleting one does. */
   onGone: () => void;
+  /** Called once the chat's transcript has the words it opened with. */
+  onSentStored?: () => void;
   sendContext: () => Promise<
     SessionMessageDataPart.ViewContextDataPart | undefined
   >;
@@ -85,9 +87,7 @@ export function ChatScreen(props: ChatScreenProps) {
     }),
   );
   const sessionId = listedSessionId ?? chat.data?.sessionId;
-  const isGone = useStaysMissing(
-    chat.data !== undefined && !sessionId && props.sentPrompt === undefined,
-  );
+  const isGone = useStaysMissing(chat.data !== undefined && !sessionId);
   if (!sessionId) {
     return isGone ? (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
@@ -110,6 +110,7 @@ function ChatScreenOfRecord({
   composerLead,
   isUp,
   layoutContext,
+  onSentStored,
   sendContext,
   sentPrompt,
   sessionId,
@@ -274,6 +275,7 @@ function ChatScreenOfRecord({
                   selectedModelURI={modelURI}
                   selectedSessionId={sessionId}
                   {...(layoutContext ? { layoutContext } : {})}
+                  onSentStored={onSentStored}
                   sendContext={sendContext}
                   sentPrompt={sentPrompt}
                   takesCaret={takesCaret}

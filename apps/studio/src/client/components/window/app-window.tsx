@@ -1277,8 +1277,8 @@ function WindowShell({
     discardingIds,
     draftFromLink,
     draftWith,
-    sentProjects,
-    sentWords,
+    sent,
+    sentStored,
     startChat,
     startingIds,
   } = useDrafts({
@@ -1342,7 +1342,7 @@ function WindowShell({
     standingProject !== undefined &&
     chatUp !== undefined &&
     chatUp !== leavingChat &&
-    !sentWords.has(chatUp) &&
+    !sent.has(chatUp) &&
     chatUp !== arrivedId &&
     chatTitles.has(chatUp) &&
     chatUpProject !== standingProject;
@@ -1836,8 +1836,8 @@ function WindowShell({
     rowWidth,
     layoutContext: (tabId) => layoutContextRef.current(tabId),
     sendContext: (options) => sendContextRef.current(options),
-    sentProjects,
-    sentWords,
+    sentStored,
+    sentWords: (chatId) => sent.get(chatId)?.words,
     setChatProject,
     setDefaultModelURI,
     showDraft: (id, here) => {

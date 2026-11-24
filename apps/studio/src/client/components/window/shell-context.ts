@@ -54,10 +54,10 @@ export interface WindowShell {
   leaveProject: () => void;
   /** Opens a project's folder in Files. */
   openProjectInFiles: (project: Project) => void;
-  /** The project each chat being started from a draft was sent under, by the chat, worn by its head until its record files it. */
-  sentProjects: ReadonlyMap<ChatId, string>;
-  /** What each chat being started from a draft sent, by the chat, shown until its transcript has it. */
-  sentWords: ReadonlyMap<ChatId, string>;
+  /** Says a chat's transcript has what it was started with, so `sentWords` can let go of it. */
+  sentStored: (chatId: ChatId) => void;
+  /** What a chat being started from a draft sent, shown until its transcript has it. */
+  sentWords: (chatId: ChatId) => string | undefined;
   /**
    * Brings back one entry of the window's closed list, by its id, as
    * Shift+Cmd+T brings back the last. With `from`, the group the pick was

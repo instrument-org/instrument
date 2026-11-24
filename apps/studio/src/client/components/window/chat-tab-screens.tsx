@@ -47,7 +47,10 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
               ...(tabId === undefined ? {} : { tabId }),
             })
           }
-          sentPrompt={shell.sentWords.get(chatId)}
+          onSentStored={() => {
+            shell.sentStored(chatId);
+          }}
+          sentPrompt={shell.sentWords(chatId)}
           takesCaret={isActive && hasKeyboard}
         />
       </div>

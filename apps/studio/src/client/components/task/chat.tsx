@@ -132,6 +132,7 @@ export function ChatConversation({
   draftKey,
   layoutContext,
   selectedModelURI: initialSelectedModelURI,
+  onSentStored,
   selectedSessionId,
   sendContext,
   sentPrompt,
@@ -160,6 +161,8 @@ export function ChatConversation({
    */
   layoutContext?: () => LayoutRead | undefined;
   selectedModelURI?: AIGatewayModelURI.Type;
+  /** Called once the stored transcript has `sentPrompt`'s message. */
+  onSentStored?: () => void;
   selectedSessionId: StoreId.Session;
   /**
    * What the surface around this chat has on screen when a prompt is sent, so
@@ -321,6 +324,15 @@ export function ChatConversation({
       setPending((current) => current.filter((other) => other !== entry));
     };
   };
+  const isSentStored = sentPrompt !== undefined && messages.length > 0;
+  const noteSentStored = useEffectEvent(() => {
+    onSentStored?.();
+  });
+  useEffect(() => {
+    if (isSentStored) {
+      noteSentStored();
+    }
+  }, [isSentStored]);
   const messageError = messagesQuery.error;
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;

@@ -1,25 +1,36 @@
+import {
+  type ExtensionAccess,
+  extensionRecord,
+  forgetExtensionRecord,
+  updateExtensionRecord,
+} from "@/electron-main/stores/workspace/browser-extensions";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import {
   BROWSER_EXTENSIONS_SESSION,
   type BrowserExtension,
+  CHROME_WEB_STORE_URL,
 } from "@/shared/browser-extensions";
 import {
   type BaseWindow,
   BrowserWindow,
+  type Extension,
+  ipcMain,
+  type IpcMainInvokeEvent,
   type NativeImage,
   session,
   type Session,
   type WebContents,
+  webContents,
+  WebContentsView,
 } from "electron";
 import {
   ElectronChromeExtensions,
   setSessionPartitionResolver,
 } from "electron-chrome-extensions";
-import {
-  installChromeWebStore,
-  uninstallExtension,
-} from "electron-chrome-web-store";
+import { installChromeWebStore } from "electron-chrome-web-store";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { noop } from "radashi";
 import { z } from "zod";
 
@@ -29,16 +40,41 @@ import {
   type ExtensionConnection,
   openDesktopApp,
 } from "./extension-connection";
+import {
+  addVersion,
+  chooseVersion,
+  clearAside,
+  describeVersion,
+  type InstalledVersion,
+  readInstalls,
+  removeInstall,
+  removeLeftoverData,
+  removeOtherVersions,
+} from "./extension-installs";
 import { reloadOpenTabsFor } from "./extension-open-tabs";
 import {
-  type ExtensionManifest,
+  accessOf,
+  coversOrigins,
+  joinAccess,
+  newAccessLines,
   permissionLines,
 } from "./extension-permissions";
+import {
+  compareExtensionVersions,
+  downloadStorePackage,
+  fetchStorePackages,
+} from "./extension-store-updates";
 import { guests } from "./guest-registry";
 import { log } from "./log";
 
 /** How long a tab an extension asked for may take to mount before the ask fails. */
 const TAB_OPEN_TIMEOUT_MS = 10_000;
+
+/** How often the store is asked for newer versions, as often as Chrome asks. */
+const UPDATE_CHECK_MS = 5 * 60 * 60 * 1000;
+
+/** How long an extension's page gets to clear its storage as it is removed. */
+const CLEAR_STORAGE_MS = 5000;
 
 let extensions: ElectronChromeExtensions | null = null;
 
@@ -57,11 +93,33 @@ const tabsAsked: ((tab: WebContents, window: BaseWindow) => void)[] = [];
 /** What each extension's desktop app last said of this browser, by extension id. */
 const connections = new Map<string, ExtensionConnection | null>();
 
-/** Extensions the person let the store install, by id, until each loads. */
-const installsAllowed = new Set<string>();
+/** Extensions the person just added or turned on, by id, until each loads. */
+const justAllowed = new Set<string>();
 
-/** The store's install questions waiting on a window's answer, by ask id. */
+/** How long a question about an extension waits before it counts as refused. */
+const ASK_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** The last question put to the windows, which the next waits for. */
+let lastAsk: Promise<unknown> = Promise.resolve();
+
+/** The questions about an extension waiting on a window's answer, by ask id. */
 const installAsks = new Map<string, (allow: boolean) => void>();
+
+/** The versions that would not load since launch, by their folder, which are not tried again. */
+const failedPaths = new Set<string>();
+
+/** The extensions that ran since launch, whose stored data Chromium has open. */
+const ranSinceLaunch = new Set<string>();
+
+/** The last change to what is installed, which the next waits for. */
+let lastChange: Promise<unknown> = Promise.resolve();
+
+/** Runs one change to what is installed or running at a time. */
+function inTurn<T>(change: () => Promise<T>): Promise<T> {
+  const turn = lastChange.then(change);
+  lastChange = turn.catch(noop);
+  return turn;
+}
 
 const ManifestWordsSchema = z.object({
   description: z.string().catch(""),
@@ -74,9 +132,9 @@ const ManifestWordsSchema = z.object({
  * guest registered as a tab (`registerExtensionTab`) and the one a person
  * looks at as the active one (`selectExtensionTab`); the Chrome Web Store's
  * own install button, asking first (`confirmInstall`) and keeping what it
- * installs in `extensionsDir` beside the
- * profile and loading it on every boot; and what the extensions' workers
- * log, in the log. The action buttons' icons are served to the window by
+ * installs in `extensionsDir` beside the profile; loading what is installed
+ * and turned on, and keeping it current (`checkForExtensionUpdates`); and
+ * what the extensions' workers log, in the log. The action buttons' icons are served to the window by
  * the `crx:` handler the app session registers as it is made
  * (`lib/app-session.ts`), which finds this session by the name the buttons
  * give it.
@@ -96,13 +154,22 @@ export function enableBrowserExtensions(
   );
   extensions = new ElectronChromeExtensions({
     createTab: openTabAsked,
+    grantedPermissions: ({ id }) => extensionRecord(id)?.optional,
     removeTab: (tab) => {
       log.info(`an extension asked to close a tab guest=${tab.id}`);
     },
     selectTab: (tab) => {
       log.info(`an extension asked to select a tab guest=${tab.id}`);
     },
+    requestPermissions: confirmPermissions,
     session: guestSession,
+    takeInstalled: ({ id }) => {
+      const installed = extensionRecord(id)?.installed ?? null;
+      if (installed) {
+        updateExtensionRecord(id, { installed: null });
+      }
+      return installed;
+    },
   });
   guestSession.extensions.on("extension-loaded", (_event, extension) => {
     log.info(
@@ -110,9 +177,9 @@ export function enableBrowserExtensions(
     );
     publisher.publish("browser.extensions-changed", null);
     void recheckExtensionConnections();
-    // Just installed, so the tabs already open have none of its content
+    // Just added or turned on, so the tabs already open have none of its content
     // scripts; one loaded at launch comes before any tab.
-    if (installsAllowed.delete(extension.id)) {
+    if (justAllowed.delete(extension.id)) {
       reloadOpenTabsFor(extension).catch((error: unknown) => {
         log.error("open tabs could not be reloaded for an extension", error);
       });
@@ -130,70 +197,574 @@ export function enableBrowserExtensions(
       );
     }
   });
+  // A worker that stopped may leave its extension idle, which is when an
+  // update it was too busy for can load.
+  guestSession.serviceWorkers.on("running-status-changed", (details) => {
+    if (details.runningStatus === "stopped") {
+      applyReadyUpdates();
+    }
+  });
   installChromeWebStore({
+    autoUpdate: false,
     beforeInstall: confirmInstall,
     extensionsPath: extensionsDir,
+    loadExtensions: false,
     session: guestSession,
   }).catch((error: unknown) => {
     log.error("the Chrome Web Store could not be set up", error);
+  });
+  answerStorePage(guestSession);
+  inTurn(() => loadInstalled(guestSession, extensionsDir)).then(
+    () => {
+      checkForExtensionUpdates();
+      setInterval(checkForExtensionUpdates, UPDATE_CHECK_MS);
+    },
+    (error: unknown) => {
+      log.error("the installed extensions could not be loaded", error);
+    },
+  );
+}
+
+/**
+ * Answers the store page's own controls for an extension already installed
+ * (Remove, and turning it off and on) with what the Extensions page does,
+ * in place of the library's answers.
+ */
+function answerStorePage(guestSession: Session): void {
+  const answer = (
+    channel: string,
+    act: (event: IpcMainInvokeEvent, id: string, arg: unknown) => unknown,
+  ) => {
+    ipcMain.removeHandler(channel);
+    ipcMain.handle(channel, async (event, id: unknown, arg: unknown) => {
+      if (
+        event.sender.session !== guestSession ||
+        event.senderFrame?.origin !== new URL(CHROME_WEB_STORE_URL).origin ||
+        typeof id !== "string"
+      ) {
+        return undefined;
+      }
+      return await act(event, id, arg);
+    });
+  };
+  answer("chrome.management.setEnabled", async (_event, id, on) => {
+    await setBrowserExtensionEnabled(id, on === true);
+    return true;
+  });
+  answer("chrome.management.uninstall", async ({ sender }, id) => {
+    try {
+      await removeBrowserExtension(id);
+    } catch (error) {
+      log.error(`extension ${id} could not be removed`, error);
+      return "unknown_error";
+    }
+    queueMicrotask(() => {
+      if (!sender.isDestroyed()) {
+        sender.send("chrome.management.onUninstalled", id);
+      }
+    });
+    return "success";
+  });
+}
+
+/**
+ * Loads what is installed and turned on, each in the newest version the
+ * person has agreed to, after deleting the stored data of extensions since
+ * removed. An extension with no record yet was agreed to as it is.
+ */
+async function loadInstalled(
+  guestSession: Session,
+  extensionsDir: string,
+): Promise<void> {
+  const installs = await readInstalls(extensionsDir);
+  if (!installs) {
+    throw new Error(`the extensions at ${extensionsDir} cannot be read`);
+  }
+  for (const [id, versions] of installs) {
+    if (versions.length === 0) {
+      // Goes only when empty, as a removal cut short leaves it.
+      await fs
+        .rmdir(path.join(extensionsDir, id))
+        .then(() => installs.delete(id), noop);
+    }
+  }
+  await clearAside(extensionsDir).catch((error: unknown) => {
+    log.warn("removed extensions' files stay", error);
+  });
+  if (guestSession.storagePath) {
+    // A removal forgets the record, so one with a record and no folder was
+    // lost some other way, and its data stays.
+    const removed = await removeLeftoverData(
+      guestSession.storagePath,
+      (id) => installs.has(id) || extensionRecord(id) !== undefined,
+    );
+    if (removed.length > 0) {
+      log.info(`removed extensions' data deleted: ${removed.join(", ")}`);
+    }
+  }
+  for (const [id, versions] of installs) {
+    // The oldest, since a newer one may be waiting on the person.
+    const oldest = versions.at(-1);
+    if (!oldest) {
+      continue;
+    }
+    if (!extensionRecord(id)) {
+      updateExtensionRecord(id, {
+        required: accessOf(oldest.manifest),
+        version: oldest.version,
+      });
+    }
+    if (!extensionRecord(id)?.disabled) {
+      await loadExtension(guestSession, id, versions).catch(
+        (error: unknown) => {
+          log.error(`extension ${id} could not be loaded`, error);
+        },
+      );
+    }
+  }
+}
+
+/** What a person agreed to let an extension reach. */
+function requiredAccess(id: string): ExtensionAccess {
+  return extensionRecord(id)?.required ?? { origins: [], permissions: [] };
+}
+
+/**
+ * Loads an extension in the newest version the person has agreed to, or an
+ * older one still on disk when that one will not load, and deletes the
+ * versions nothing needs.
+ */
+async function loadExtension(
+  guestSession: Session,
+  id: string,
+  versions: readonly InstalledVersion[],
+): Promise<void> {
+  ranSinceLaunch.add(id);
+  let failure: unknown = new Error("no version of it can run");
+  const candidates = () =>
+    chooseVersion(
+      versions.filter((version) => !failedPaths.has(version.path)),
+      requiredAccess(id),
+    ).loadable;
+  for (let loadable = candidates(); loadable; loadable = candidates()) {
+    const before = extensionRecord(id);
+    const last = before?.version ?? null;
+    // Ahead of the load, which starts the worker that asks.
+    updateExtensionRecord(id, {
+      version: loadable.version,
+      ...(last !== null && last !== loadable.version && !before?.installed
+        ? { installed: { previousVersion: last, reason: "update" as const } }
+        : {}),
+    });
+    try {
+      await guestSession.extensions.loadExtension(loadable.path);
+      await removeOtherVersions(versions, [loadable, versions[0]]);
+      return;
+    } catch (error) {
+      failure = error;
+      log.error(`extension ${id} ${loadable.version} did not load`, error);
+      updateExtensionRecord(id, {
+        installed: before?.installed ?? null,
+        version: last,
+      });
+      failedPaths.add(loadable.path);
+    }
+  }
+  throw failure;
+}
+
+/**
+ * Whether an extension is doing nothing an update would interrupt: its
+ * worker is stopped and none of its pages, popups or frames is open.
+ */
+function isIdle(guestSession: Session, id: string): boolean {
+  const origin = `chrome-extension://${id}`;
+  const runs = Object.values(guestSession.serviceWorkers.getAllRunning()).some(
+    ({ scope }) => scope.startsWith(`${origin}/`),
+  );
+  return (
+    !runs &&
+    !webContents
+      .getAllWebContents()
+      .some(
+        (contents) =>
+          !contents.isDestroyed() &&
+          contents.session === guestSession &&
+          contents.mainFrame.framesInSubtree.some(({ url }) =>
+            url.startsWith(`${origin}/`),
+          ),
+      )
+  );
+}
+
+/** Whether a pass over the ready updates is waiting its turn. */
+let isApplying = false;
+
+/**
+ * Loads each downloaded update whose extension is idle. One that never is
+ * loads at the next launch.
+ */
+function applyReadyUpdates(): void {
+  if (isApplying) {
+    return;
+  }
+  isApplying = true;
+  inTurn(async () => {
+    isApplying = false;
+    if (!enabled) {
+      return;
+    }
+    const { extensionsDir, session: guestSession } = enabled;
+    const installs = await readInstalls(extensionsDir);
+    for (const { id, version } of guestSession.extensions.getAllExtensions()) {
+      const versions = installs?.get(id) ?? [];
+      const { loadable } = chooseVersion(versions, requiredAccess(id));
+      if (
+        loadable &&
+        !failedPaths.has(loadable.path) &&
+        compareExtensionVersions(loadable.version, version) > 0 &&
+        isIdle(guestSession, id)
+      ) {
+        log.info(`extension ${id} updating ${version} to ${loadable.version}`);
+        guestSession.extensions.removeExtension(id);
+        await loadExtension(guestSession, id, versions).catch(
+          (error: unknown) => {
+            log.error(`extension ${id} could not be updated`, error);
+          },
+        );
+      }
+    }
+  }).catch((error: unknown) => {
+    log.error("an extension's update could not be loaded", error);
+  });
+}
+
+/**
+ * Downloads each installed extension's newer version from the store. One
+ * that asks for nothing new loads once the extension is idle or at the next
+ * launch; one that asks for more waits on the person, with the version that
+ * runs left running (`acceptExtensionUpdate`).
+ */
+function checkForExtensionUpdates(): void {
+  if (!enabled) {
+    return;
+  }
+  const { extensionsDir } = enabled;
+  downloadUpdates(extensionsDir)
+    .then(applyReadyUpdates)
+    .catch((error: unknown) => {
+      log.warn("extension updates could not be checked", error);
+    });
+}
+
+async function downloadUpdates(extensionsDir: string): Promise<void> {
+  const installs = await readInstalls(extensionsDir);
+  for (const found of await fetchStorePackages([...(installs?.keys() ?? [])])) {
+    const isNewer = (newest: InstalledVersion | undefined) =>
+      newest !== undefined &&
+      compareExtensionVersions(found.version, newest.version) > 0;
+    if (!isNewer(installs?.get(found.id)?.[0])) {
+      continue;
+    }
+    try {
+      const verified = await downloadStorePackage(found);
+      await inTurn(async () => {
+        // The person may have removed it while it downloaded.
+        const now = await readInstalls(extensionsDir);
+        if (isNewer(now?.get(found.id)?.[0])) {
+          const added = await addVersion(extensionsDir, found.id, verified);
+          const kept = now?.get(found.id) ?? [];
+          const { loadable } = chooseVersion(kept, requiredAccess(found.id));
+          const runningPath = enabled?.session.extensions.getExtension(
+            found.id,
+          )?.path;
+          await removeOtherVersions(kept, [
+            added,
+            loadable ?? undefined,
+            kept.find((version) => version.path === runningPath),
+          ]);
+          log.info(`extension ${found.id} downloaded ${found.version}`);
+        }
+      });
+    } catch (error) {
+      log.error(
+        `extension ${found.id} could not be updated to ${found.version}`,
+        error,
+      );
+    }
+  }
+  publisher.publish("browser.extensions-changed", null);
+}
+
+/** Takes the update waiting on the person, when it is the version they were shown. */
+export function acceptExtensionUpdate(
+  id: string,
+  version: string,
+): Promise<void> {
+  return inTurn(async () => {
+    if (!enabled) {
+      return;
+    }
+    const { extensionsDir, session: guestSession } = enabled;
+    const versions = (await readInstalls(extensionsDir))?.get(id) ?? [];
+    const { awaiting } = chooseVersion(versions, requiredAccess(id));
+    if (awaiting?.version.version !== version) {
+      throw new Error("a different version is waiting");
+    }
+    updateExtensionRecord(id, {
+      required: joinAccess(
+        requiredAccess(id),
+        accessOf(awaiting.version.manifest),
+      ),
+    });
+    if (!extensionRecord(id)?.disabled) {
+      if (guestSession.extensions.getExtension(id)) {
+        guestSession.extensions.removeExtension(id);
+      }
+      justAllowed.add(id);
+      await loadExtension(guestSession, id, versions);
+    }
+    publisher.publish("browser.extensions-changed", null);
+  });
+}
+
+/** Turns an extension off, keeping it and its data, or on again. */
+export function setBrowserExtensionEnabled(
+  id: string,
+  on: boolean,
+): Promise<void> {
+  return inTurn(async () => {
+    if (!enabled) {
+      return;
+    }
+    const { extensionsDir, session: guestSession } = enabled;
+    const versions = (await readInstalls(extensionsDir))?.get(id);
+    if (!versions) {
+      return;
+    }
+    const isRunning = guestSession.extensions.getExtension(id) !== null;
+    if (on && !isRunning) {
+      for (const version of versions) {
+        failedPaths.delete(version.path);
+      }
+      justAllowed.add(id);
+      await loadExtension(guestSession, id, versions);
+    } else if (!on && isRunning) {
+      guestSession.extensions.removeExtension(id);
+    }
+    updateExtensionRecord(id, { disabled: !on });
+    publisher.publish("browser.extensions-changed", null);
   });
 }
 
 /**
  * The question the store's install button raises before anything is added,
  * as Chrome's own does: the extension by name and icon and what it will be
- * able to do in a person's words, put to the window as a dialog of the
- * app's (`extension-install-modal.tsx`), which answers through
- * `answerExtensionInstall`. Every window hears the ask; the first answer
- * settles it and the rest are told so.
+ * able to do in a person's words. Once allowed, the package is downloaded
+ * and checked here and loaded when it asks for nothing the question did not
+ * say; the library, finding it running, downloads nothing of its own.
  */
-function confirmInstall(details: {
+async function confirmInstall(details: {
   icon: NativeImage;
   id: string;
   localizedName: string;
-  manifest: ExtensionManifest;
+  manifest: unknown;
 }): Promise<{ action: "allow" | "deny" }> {
-  const askId = crypto.randomUUID();
-  return new Promise((resolve) => {
-    installAsks.set(askId, (allow) => {
-      installAsks.delete(askId);
-      if (allow) {
-        installsAllowed.add(details.id);
-      }
-      publisher.publish("browser.extension-install-answered", { askId });
-      resolve({ action: allow ? "allow" : "deny" });
-    });
-    publisher.publish("browser.extension-install-asked", {
-      askId,
-      icon: details.icon.toDataURL(),
-      lines: permissionLines(details.manifest),
-      name: details.localizedName,
-    });
+  const { id } = details;
+  const shown = accessOf(details.manifest);
+  const allowed = await askWindows({
+    icon: details.icon.toDataURL(),
+    kind: "add",
+    lines: permissionLines(shown),
+    name: details.localizedName,
   });
+  if (!allowed) {
+    return { action: "deny" };
+  }
+  const [found] = await fetchStorePackages([id]);
+  if (found?.id !== id) {
+    throw new Error("the store has no package for it");
+  }
+  const verified = await downloadStorePackage(found);
+  await inTurn(async () => {
+    if (!enabled) {
+      throw new Error("extensions are off");
+    }
+    const { extensionsDir } = enabled;
+    const before = (await readInstalls(extensionsDir))?.get(id) ?? [];
+    const added = await addVersion(extensionsDir, id, verified, (manifest) =>
+      newAccessLines(shown, accessOf(manifest)).length > 0
+        ? "the package asks for more than its store page said"
+        : undefined,
+    );
+    const access = accessOf(added.manifest);
+    await removeOtherVersions(before, [added]);
+    const last = extensionRecord(id)?.version ?? null;
+    updateExtensionRecord(id, {
+      disabled: false,
+      installed:
+        last === null
+          ? { reason: "install" }
+          : last === added.version
+            ? null
+            : { previousVersion: last, reason: "update" },
+      required: access,
+      version: added.version,
+    });
+    justAllowed.add(id);
+    failedPaths.delete(added.path);
+    // Loaded here, so the library, finding it running, installs nothing.
+    await loadExtension(enabled.session, id, [added]);
+  });
+  return { action: "allow" };
 }
 
-/** A window's answer to the store's question; a late one, after another window answered, changes nothing. */
+/**
+ * The question an extension raises by asking for more while it runs
+ * (`chrome.permissions.request`). It may ask only for what its manifest says
+ * it may, and is asked about only when a person would notice what is new.
+ */
+async function confirmPermissions(
+  { id, manifest, name, path: dir }: Extension,
+  asked: { origins?: string[]; permissions?: string[] },
+): Promise<boolean> {
+  const access: ExtensionAccess = {
+    origins: asked.origins ?? [],
+    permissions: asked.permissions ?? [],
+  };
+  const declared = accessOf(manifest);
+  const optional = OptionalManifestSchema.parse(manifest);
+  if (
+    !coversOrigins(
+      [...declared.origins, ...optional.optional_host_permissions],
+      access.origins,
+    ) ||
+    !access.permissions.every(
+      (permission) =>
+        declared.permissions.includes(permission) ||
+        optional.optional_permissions.includes(permission),
+    )
+  ) {
+    return false;
+  }
+  const held = joinAccess(
+    requiredAccess(id),
+    extensionRecord(id)?.optional ?? { origins: [], permissions: [] },
+  );
+  const lines = newAccessLines(held, access);
+  if (lines.length > 0) {
+    const versions = enabled && (await readInstalls(enabled.extensionsDir));
+    const running = versions?.get(id)?.find((version) => version.path === dir);
+    const allowed = await askWindows({
+      icon: running ? (await describeVersion(running)).icon : null,
+      kind: "allow-more",
+      lines,
+      name,
+    });
+    if (!allowed) {
+      return false;
+    }
+  }
+  const record = extensionRecord(id);
+  if (!record) {
+    return false;
+  }
+  updateExtensionRecord(id, { optional: joinAccess(record.optional, access) });
+  return true;
+}
+
+const OptionalManifestSchema = z.object({
+  optional_host_permissions: z.array(z.string()).catch([]),
+  optional_permissions: z.array(z.string()).catch([]),
+});
+
+/**
+ * Puts a question about an extension to the window as a dialog of the app's
+ * (`extension-install-modal.tsx`), which answers through
+ * `answerExtensionInstall`. Every window hears it, one question at a time;
+ * the first answer settles it and the rest are told so.
+ */
+function askWindows(question: {
+  icon: null | string;
+  kind: "add" | "allow-more";
+  lines: string[];
+  name: string;
+}): Promise<boolean> {
+  const turn = lastAsk.then(
+    () =>
+      new Promise<boolean>((resolve) => {
+        const askId = crypto.randomUUID();
+        const settle = (allow: boolean) => {
+          clearTimeout(timer);
+          installAsks.delete(askId);
+          publisher.publish("browser.extension-install-answered", { askId });
+          resolve(allow);
+        };
+        // A window can go away with the question unanswered.
+        const timer = setTimeout(() => {
+          settle(false);
+        }, ASK_TIMEOUT_MS);
+        installAsks.set(askId, settle);
+        publisher.publish("browser.extension-install-asked", {
+          askId,
+          ...question,
+        });
+      }),
+  );
+  lastAsk = turn;
+  return turn;
+}
+
+/** A window's answer to a question about an extension; a late one, after another window answered, changes nothing. */
 export function answerExtensionInstall(askId: string, allow: boolean): void {
   installAsks.get(askId)?.(allow);
 }
 
-/** The extensions the browser runs, for the window; none while they are off. */
-export function listBrowserExtensions(): BrowserExtension[] {
+/** The extensions installed, for the window, running or turned off; none while they are off. */
+export async function listBrowserExtensions(): Promise<BrowserExtension[]> {
   if (!enabled) {
     return [];
   }
+  const { extensionsDir, session: guestSession } = enabled;
   const unpinned = getWorkspacePreferences().get("unpinnedExtensions");
-  return enabled.session.extensions
-    .getAllExtensions()
-    .map(({ id, manifest, name, version }) => ({
-      connection: connections.get(id) ?? null,
-      description: ManifestWordsSchema.parse(manifest).description,
-      desktopApp: desktopAppOf(id),
-      id,
-      name,
-      pinned: !unpinned.includes(id),
-      version,
-    }));
+  const installs = await readInstalls(extensionsDir);
+  const running = new Map(
+    guestSession.extensions
+      .getAllExtensions()
+      .map((extension) => [extension.id, extension]),
+  );
+  const listed: BrowserExtension[] = [];
+  for (const id of new Set([...running.keys(), ...(installs?.keys() ?? [])])) {
+    const extension = running.get(id);
+    const { awaiting, loadable } = chooseVersion(
+      installs?.get(id) ?? [],
+      requiredAccess(id),
+    );
+    const shown = extension
+      ? {
+          description: ManifestWordsSchema.parse(extension.manifest)
+            .description,
+          icon: null,
+          name: extension.name,
+        }
+      : loadable && (await describeVersion(loadable));
+    if (shown) {
+      listed.push({
+        ...shown,
+        connection: connections.get(id) ?? null,
+        desktopApp: desktopAppOf(id),
+        enabled: extension !== undefined,
+        id,
+        pinned: !unpinned.includes(id),
+        update: awaiting && {
+          lines: awaiting.lines,
+          version: awaiting.version.version,
+        },
+        version: extension?.version ?? loadable?.version ?? "",
+      });
+    }
+  }
+  return listed;
 }
 
 /** Puts an extension's button in the browser's row, or takes it out; the extension runs either way. */
@@ -238,15 +809,72 @@ export function openExtensionDesktopApp(id: string): Promise<void> {
   return openDesktopApp(id);
 }
 
-/** Takes an extension out of the browser and off the disk. */
-export async function removeBrowserExtension(id: string): Promise<void> {
-  if (!enabled) {
-    return;
-  }
-  await uninstallExtension(id, {
-    extensionsPath: enabled.extensionsDir,
-    session: enabled.session,
+/**
+ * Takes an extension out of the browser and off the disk, with what it
+ * stored, so adding it again starts fresh. What its storage leaves in files
+ * Chromium has open goes at the next launch (`removeLeftoverData`).
+ */
+export function removeBrowserExtension(id: string): Promise<void> {
+  return inTurn(async () => {
+    if (!enabled) {
+      return;
+    }
+    const { extensionsDir, session: guestSession } = enabled;
+    const installs = await readInstalls(extensionsDir);
+    if (!installs?.has(id)) {
+      return;
+    }
+    if (guestSession.extensions.getExtension(id)) {
+      await clearExtensionStorage(guestSession, id).catch((error: unknown) => {
+        log.warn(
+          `extension ${id}'s storage stays until the next launch`,
+          error,
+        );
+      });
+      guestSession.extensions.removeExtension(id);
+    }
+    await removeInstall(extensionsDir, id);
+    forgetExtensionRecord(id);
+    await guestSession.clearStorageData({ origin: `chrome-extension://${id}` });
+    if (guestSession.storagePath && !ranSinceLaunch.has(id)) {
+      await removeLeftoverData(guestSession.storagePath, (one) => one !== id);
+    }
+    await clearAside(extensionsDir).catch(noop);
+    publisher.publish("browser.extensions-changed", null);
   });
+}
+
+/**
+ * Empties a running extension's `chrome.storage` from a page of its own,
+ * since Chromium keeps the files open and nothing of Electron's reaches them.
+ */
+async function clearExtensionStorage(
+  guestSession: Session,
+  id: string,
+): Promise<void> {
+  const view = new WebContentsView({
+    webPreferences: { session: guestSession },
+  });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    await Promise.race([
+      view.webContents
+        .loadURL(`chrome-extension://${id}/manifest.json`)
+        .then(() =>
+          view.webContents.executeJavaScript(
+            "chrome.storage?.local?.clear().then(() => chrome.storage.session?.clear()).then(() => true)",
+          ),
+        ),
+      new Promise((_resolve, reject) => {
+        timer = setTimeout(() => {
+          reject(new Error("the page did not answer"));
+        }, CLEAR_STORAGE_MS);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+    view.webContents.close();
+  }
 }
 
 /**

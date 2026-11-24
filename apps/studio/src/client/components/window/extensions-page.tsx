@@ -16,8 +16,8 @@ import {
 /**
  * The Extensions screen, a window tab of its own the way Chrome's page is:
  * every extension the in-app browser runs, with its words, what to do when
- * its desktop app does not take this browser yet, whether its button is in
- * the browser's row, and Remove; and the way to the Chrome Web Store.
+ * its desktop app does not take this browser yet or an update asks for more,
+ * whether it is on, whether its button is in the browser's row, and Remove; and the way to the Chrome Web Store.
  */
 export function ExtensionsPage() {
   const extensions = useBrowserExtensions();
@@ -84,6 +84,30 @@ function ExtensionRow({ extension }: { extension: BrowserExtension }) {
             {extension.description}
           </p>
         )}
+        {extension.update && (
+          <div className="mt-3 rounded-lg bg-warning-500/10 px-3 py-2.5 text-[13px] ring-1 ring-warning-500/30">
+            <p className="font-medium">
+              Version {extension.update.version} also wants to:
+            </p>
+            <ul className="mt-1 list-disc space-y-0.5 pl-5">
+              {extension.update.lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+            <Button
+              className="mt-2"
+              onClick={() => {
+                if (extension.update) {
+                  actions.acceptUpdate(extension, extension.update.version);
+                }
+              }}
+              size="xs"
+              variant="brand"
+            >
+              Allow and update
+            </Button>
+          </div>
+        )}
         {isRefused(extension) && (
           <div className="mt-3 rounded-lg bg-warning-500/10 px-3 py-2.5 ring-1 ring-warning-500/30">
             <div className="flex items-center gap-1.5 text-[13px] font-medium text-warning-700 dark:text-warning-300">
@@ -115,21 +139,35 @@ function ExtensionRow({ extension }: { extension: BrowserExtension }) {
             Remove
           </Button>
           <span className="flex-1" />
-          <label
-            className="flex items-center gap-2 text-[13px] text-muted-foreground"
-            htmlFor={switchId}
-          >
-            Show in the row
-            <Switch
-              checked={extension.pinned}
-              id={switchId}
-              onCheckedChange={(pinned) => {
-                actions.setPinned(extension, pinned);
-              }}
-            />
-          </label>
+          {extension.enabled && (
+            <label
+              className="flex items-center gap-2 text-[13px] text-muted-foreground"
+              htmlFor={switchId}
+            >
+              Show in the row
+              <Switch
+                checked={extension.pinned}
+                id={switchId}
+                onCheckedChange={(pinned) => {
+                  actions.setPinned(extension, pinned);
+                }}
+              />
+            </label>
+          )}
         </div>
       </div>
+      <Switch
+        aria-label={
+          extension.enabled
+            ? `Turn off ${extension.name}`
+            : `Turn on ${extension.name}`
+        }
+        checked={extension.enabled}
+        className="mt-1"
+        onCheckedChange={(enabled) => {
+          actions.setEnabled(extension, enabled);
+        }}
+      />
     </div>
   );
 }

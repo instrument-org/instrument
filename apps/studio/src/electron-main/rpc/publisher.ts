@@ -31,13 +31,15 @@ interface PublisherEvents {
   // A tab's page started or stopped using the microphone or camera, was
   // refused them, or left for another page.
   "browser.capture-changed": null;
-  // The browser's extensions changed: one was added or removed.
+  // The browser's extensions changed: one was added, removed, turned on or
+  // off, or has an update waiting on the person.
   "browser.extensions-changed": null;
-  // The Chrome Web Store's install button was pressed: the window asks
-  // whether to add the extension, and answers by the ask's id.
+  // The Chrome Web Store's install button was pressed, or an extension asked
+  // to be allowed more: the window asks, and answers by the ask's id.
   "browser.extension-install-asked": {
     askId: string;
-    icon: string;
+    icon: null | string;
+    kind: "add" | "allow-more";
     lines: string[];
     name: string;
   };

@@ -67,7 +67,11 @@ import {
   appIndexHref,
   appName,
   type BuiltInApp,
+  SiteAppChip,
 } from "./app-chip";
+import { appOfPage } from "./app-visits";
+import { useOwnApps } from "./use-own-apps";
+import { useShowAppPage } from "./use-show-app-page";
 import { BookmarkStar } from "./bookmark-star";
 import { ShellContext } from "./shell-context";
 import {
@@ -489,6 +493,7 @@ function Field({
     });
     return (
       <>
+        {isExtensionPage ? null : <PageAppChip url={location.url} />}
         {isExtensionPage ? (
           <ExtensionPageBadge url={location.url} />
         ) : (
@@ -614,6 +619,25 @@ function Field({
         separator={separator}
       />
     </>
+  );
+}
+
+/** The chip of the person's own app whose site a page is on, which goes to the app's page in Instrument. */
+function PageAppChip({ url }: { url: string }) {
+  const app = appOfPage(url, useOwnApps());
+  const showAppPage = useShowAppPage();
+  if (app === undefined) {
+    return null;
+  }
+  return (
+    <SiteAppChip
+      icon={app.icon}
+      name={app.name}
+      onPress={() => {
+        showAppPage(app.slug);
+      }}
+      site={app.site}
+    />
   );
 }
 

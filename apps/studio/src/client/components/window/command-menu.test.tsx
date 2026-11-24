@@ -295,7 +295,9 @@ describe("All chats in the empty command menu", () => {
     renderWithProviders(<MenuRows words="" />);
     fireEvent.click(await screen.findByRole("button", { name: "All chats" }));
 
-    expect(getDefaultStore().get(pageRequestAtom)).toEqual({ href: "/chat-list" });
+    expect(getDefaultStore().get(pageRequestAtom)).toEqual({
+      href: "/chat-list",
+    });
     getDefaultStore().set(pageRequestAtom, null);
   });
 });

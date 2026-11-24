@@ -22,6 +22,7 @@ import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClo
 import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { type ComponentType, type ReactNode } from "react";
 
+import { AppIcon } from "./app-icon";
 import { FileMark } from "./file-mark";
 import { FolderMark } from "./folder-mark";
 import { segmentsOf } from "./host-path";
@@ -152,10 +153,7 @@ export function AppChip({
       </span>
     </>
   );
-  const className = cn(
-    "-ml-1.5 flex h-6 shrink-0 cursor-default items-center gap-1.5 rounded-lg bg-card pr-2 pl-1.5 text-[13px] font-medium text-foreground shadow-xs ring-1 ring-foreground/8",
-    nameFolds && "@max-[18rem]/field:pr-1.5",
-  );
+  const className = cn(CHIP, nameFolds && "@max-[18rem]/field:pr-1.5");
   if (!onPress) {
     return (
       <span className={className} data-app-chip={app}>
@@ -174,6 +172,37 @@ export function AppChip({
     </button>
   );
 }
+
+/**
+ * The same chip ahead of the address of a page on an app's site: which of the
+ * person's apps the page is, and the way to the app's page in Instrument.
+ */
+export function SiteAppChip({
+  icon,
+  name,
+  onPress,
+  site,
+}: {
+  icon?: string | undefined;
+  name: string;
+  onPress: () => void;
+  site: string | undefined;
+}) {
+  return (
+    <button
+      className={cn(CHIP, "max-w-40 hover:bg-accent @max-[18rem]/field:pr-1.5")}
+      onClick={onPress}
+      type="button"
+    >
+      <AppIcon icon={icon} name={name} site={site} size="sm" />
+      <span className="truncate @max-[18rem]/field:sr-only">{name}</span>
+    </button>
+  );
+}
+
+/** A chip's card, at the start of the address field. */
+const CHIP =
+  "-ml-1.5 flex h-6 shrink-0 cursor-default items-center gap-1.5 rounded-lg bg-card pr-2 pl-1.5 text-[13px] font-medium text-foreground shadow-xs ring-1 ring-foreground/8";
 
 /**
  * The mark an address wears wherever it is kept, the mark its tab wears: a

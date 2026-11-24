@@ -575,6 +575,11 @@ export function useTabGroupActions() {
     if (empty === undefined) {
       make();
     } else if (empty === groupUp()) {
+      // The keyboard may be elsewhere on the group, on a row under its box,
+      // where the home would leave it.
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
       focusScreenHome({ leaving: false });
     } else {
       appTabs.navigate(groupHref(empty));

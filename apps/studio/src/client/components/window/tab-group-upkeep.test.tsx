@@ -202,6 +202,30 @@ describe("New", () => {
     expect(store.get(windowTabGroupsAtom)).toEqual([other, GROUP]);
   });
 
+  it("takes the keyboard off a row of the empty group already up, for its box", () => {
+    const { actions, history, store } = windowWithGroup();
+    act(() => {
+      history.replace(groupHref(GROUP));
+      store.set(appTabsAtom, {
+        recentlyClosed: [],
+        selectedId: WINDOW_TAB,
+        tabs: [{ id: WINDOW_TAB, pathname: groupHref(GROUP) }],
+      });
+    });
+    const row = document.createElement("button");
+    document.body.append(row);
+    onTestFinished(() => {
+      row.remove();
+    });
+    row.focus();
+    expect(document.activeElement).toBe(row);
+    act(() => {
+      actions().openNew();
+    });
+    expect(history.location.href).toBe(groupHref(GROUP));
+    expect(document.activeElement).toBe(document.body);
+  });
+
   it("makes a group where none is empty", () => {
     const { actions, history, store } = windowWithGroup();
     act(() => {

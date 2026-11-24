@@ -64,7 +64,7 @@ import {
   webSearchLabel,
   webSearchUrl,
 } from "@/client/lib/resolve-url-or-search";
-import { siteFromWords } from "@/client/lib/site-from-words";
+import { typedAddress } from "@/client/lib/typed-address";
 import { cn } from "@/client/lib/utils";
 import { computerFolderOptions } from "@/client/lib/live-computer-folder";
 import { rpcClient } from "@/client/rpc/client";
@@ -103,6 +103,13 @@ import {
 } from "react";
 
 import { AddressMark, AppChip, AppMark } from "./app-chip";
+import { useAppsBySlug } from "./apps-by-slug";
+import {
+  isKnownSite,
+  TypedAddressMark,
+  typedAddressLabel,
+  typedAddressName,
+} from "./typed-address-row";
 import {
   OmniList,
   type OmniRow,
@@ -722,6 +729,7 @@ function useOmnibarRows({
   const home = window.api.homeDir;
   const words = typed.trim();
   const shell = use(ShellContext);
+  const appsBySlug = useAppsBySlug();
   const isDeveloperMode = useDeveloperMode();
 
   // On the web: the pages the window knows, bookmarks ahead of history,
@@ -828,20 +836,31 @@ function useOmnibarRows({
     ? fieldTargetOf(words, isDeveloperMode)
     : undefined;
   if (target) {
+    // A debug page's address, which only the field takes, stays as written.
+    const isDebug =
+      target.kind === "screen" && matchScreen(target.href).kind === "debug";
     return {
       completion: "",
       rows: [
         {
-          icon:
-            target.kind === "screen" &&
-            matchScreen(target.href).kind === "debug" ? (
-              <CodeIcon className="size-4" />
-            ) : (
-              <AddressMark address={words} className="size-4" />
-            ),
+          icon: isDebug ? (
+            <CodeIcon className="size-4" />
+          ) : (
+            <AddressMark address={words} className="size-4" />
+          ),
           id: "address",
           leavesItself: true,
-          name: words,
+          name: isDebug
+            ? words
+            : typedAddressLabel(
+                typedAddressName(
+                  { address: words, kind: "app" },
+                  {
+                    appsBySlug,
+                    ...(shell ? { chatTitles: shell.chatTitles } : {}),
+                  },
+                ),
+              ),
           run: () => {
             openAddress(words);
           },
@@ -857,7 +876,8 @@ function useOmnibarRows({
         : "";
     const whole = `${typed}${completion}`.trim();
     const typedPath = typedPathHere(whole);
-    const site = typedPath ? undefined : siteFromWords(whole);
+    const address = typedPath ? undefined : typedAddress(whole);
+    const site = address?.kind === "page" ? address : undefined;
     const known = site
       ? pages.find((page) => bareAddress(page.url) === bareAddress(site.url))
       : undefined;
@@ -882,9 +902,15 @@ function useOmnibarRows({
         ? {
             detail: known?.title,
             fill: whole,
-            icon: siteIcon(site.url),
+            icon: (
+              <TypedAddressMark
+                address={site}
+                className="size-4"
+                isKnown={isKnownSite(site.url, pages)}
+              />
+            ),
             id: "site",
-            name: whole,
+            name: typedAddressLabel(site.shown),
             run: () => {
               // A page the window knows opens at the address it was at, the
               // one the field finished the words as.
@@ -914,7 +940,13 @@ function useOmnibarRows({
           )
           .slice(0, PER_KIND_SHOWN)
           .map((suggestion): OmniRow => {
-            const suggestedSite = siteFromWords(suggestion);
+            // What the engine suggests is a search unless it is plainly an
+            // address.
+            const suggested = typedAddress(suggestion);
+            const suggestedSite =
+              suggested?.kind === "page" && !suggested.doubt
+                ? suggested
+                : undefined;
             return {
               fill: suggestion,
               icon: suggestedSite ? (
@@ -956,7 +988,11 @@ function useOmnibarRows({
           ]
         : [
             first,
-            ...(typedPath?.alsoSearch ? [searchRow] : []),
+            // A path that may as well be a search, and a name whose ending
+            // no site has.
+            ...(typedPath?.alsoSearch || site?.doubt === "host"
+              ? [searchRow]
+              : []),
             ...placeRows,
             ...pageRows,
             ...suggestionRows,
@@ -968,8 +1004,9 @@ function useOmnibarRows({
   // A `file://` address to a place in a page (`?frame=2`) opens the page
   // there, the way a browser opens it; any other names a path, which opens
   // the file's own view like the path typed.
-  const filePage =
-    typedPathHere(words) === undefined ? siteFromWords(words) : undefined;
+  const fileAddress =
+    typedPathHere(words) === undefined ? typedAddress(words) : undefined;
+  const filePage = fileAddress?.kind === "page" ? fileAddress : undefined;
   const filePagePath = hostPathOfFileUrl(filePage?.url);
   if (filePage && filePagePath !== undefined) {
     return {

@@ -8,6 +8,7 @@ import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal"
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
 import { targetOfAddress } from "@/client/bookmarks/address";
+import { openAddressBy } from "@/client/bookmarks/open-address";
 import { PageFavicon } from "@/client/components/favicon";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import {
@@ -67,8 +68,7 @@ import {
   webSearchLabel,
   webSearchUrl,
 } from "@/client/lib/resolve-url-or-search";
-import { siteFromWords } from "@/client/lib/site-from-words";
-import { iconHostOf } from "@/client/lib/favicon-url";
+import { typedAddress } from "@/client/lib/typed-address";
 import { cn, osConventions } from "@/client/lib/utils";
 import {
   bareAddress,
@@ -76,6 +76,12 @@ import {
   isSearchWords,
 } from "@/client/components/window/omnibar-match";
 import { RowText, whereOfAddress } from "@/client/components/window/row-text";
+import {
+  isKnownSite,
+  TypedAddressMark,
+  typedAddressLabel,
+  typedAddressName,
+} from "@/client/components/window/typed-address-row";
 import {
   componentPages,
   debugNavigationRoutes,
@@ -110,7 +116,6 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StackIcon } from "@phosphor-icons/react/Stack";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
@@ -535,10 +540,7 @@ export function useCommandMenuRows({
   const isSearch = words !== "" && !isBang;
   const typedPath = isSearch ? typedPathHere(words) : undefined;
   const typedFile = typedPath && typedFileName(typedPath);
-  const site = isSearch && !typedPath ? siteFromWords(words) : undefined;
-  const isKnownSite =
-    site !== undefined &&
-    pages.some((page) => iconHostOf(page.url) === iconHostOf(site.url));
+  const address = isSearch && !typedPath ? typedAddress(words) : undefined;
   // A path pressed Return on that led nowhere, kept until the words change:
   // it answers that Return alone, so the same words typed again later are
   // looked for again.
@@ -782,7 +784,7 @@ export function useCommandMenuRows({
   const asksMeaning =
     active &&
     isSearch &&
-    site === undefined &&
+    address === undefined &&
     typedPath === undefined &&
     words.length >= MEANING_MIN_LENGTH &&
     !hasNameMatches;
@@ -827,27 +829,45 @@ export function useCommandMenuRows({
         ]
       : [
           ...pathSection,
-          ...(site
+          ...(address
             ? [
                 {
                   items: [
                     {
-                      detail: "Open in this tab",
-                      // An address being typed is no site anyone has been to
-                      // yet, and asking for its icon would send every host
-                      // the letters spell out along the way. A file's address
-                      // asks nobody, and shows the file's type.
-                      icon:
-                        isKnownSite || /^file:/i.test(site.url) ? (
-                          <PageFavicon url={site.url} />
-                        ) : (
-                          <GlobeIcon />
-                        ),
-                      id: `open:${site.url}`,
-                      label: words,
+                      icon: (
+                        <TypedAddressMark
+                          address={address}
+                          isKnown={
+                            address.kind === "page" &&
+                            isKnownSite(address.url, pages)
+                          }
+                        />
+                      ),
+                      id: `open:${address.kind === "page" ? address.url : address.address}`,
+                      label: typedAddressLabel(
+                        typedAddressName(address, {
+                          appsBySlug,
+                          chatTitles: new Map(
+                            chats.map((chat) => [chat.id, chat.title]),
+                          ),
+                        }),
+                      ),
                       ranges: null,
+                      // A page loads in a tab, and one of the app's own
+                      // opens the screen it names.
                       run: () => {
-                        openPage(site.url);
+                        openAddressBy(
+                          address.kind === "page"
+                            ? address.url
+                            : address.address,
+                          undefined,
+                          {
+                            openPage: (url) => {
+                              openPage(url);
+                            },
+                            openScreen,
+                          },
+                        );
                       },
                       type: "item" as const,
                     },
@@ -857,7 +877,11 @@ export function useCommandMenuRows({
               ]
             : []),
           ...named,
-          ...(site === undefined && isSearchWords(words)
+          // Words that are no address, or a name whose ending no site has,
+          // which may as well be a search.
+          ...((address === undefined ||
+            (address.kind === "page" && address.doubt === "host")) &&
+          isSearchWords(words)
             ? [{ items: [webSearchItem], label: "" }]
             : []),
           {

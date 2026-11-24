@@ -31,7 +31,6 @@ import {
 } from "@/client/drafts/store";
 import { type Draft } from "@/shared/drafts";
 import { cn, osConventions } from "@/client/lib/utils";
-import { addressInMessage } from "@/client/lib/address-in-message";
 import {
   locateTypedPath,
   missedPathNotice,
@@ -73,13 +72,14 @@ import { useGroupTab } from "./group-tab";
 import { useKnownPages } from "./known-pages";
 import { NewTabCompletionList } from "./new-tab-completion-list";
 import {
+  boxAddress,
   type BoxCompletion,
   boxCompletions,
   offersToOpen,
 } from "./new-tab-completions";
 import { RecentGroupRows } from "./recent-group-rows";
 import { type RecentGroup, recentGroupsOf } from "./recent-groups";
-import { screenPresentation, type ScreenNames } from "./screen-presentation";
+import { typedAddressName } from "./typed-address-row";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { IdeaRows } from "./idea-rows";
@@ -336,7 +336,7 @@ export function NewChatView({
   const known = useKnownPages({ enabled: groupTab !== undefined });
   const completions = offers
     ? boxCompletions({
-        address: typedPath ? undefined : addressInMessage(words),
+        address: typedPath ? undefined : boxAddress(words),
         bookmarkPages: known.bookmarkPages,
         path: typedPath,
         recentPages: known.recentPages,
@@ -657,12 +657,10 @@ export function NewChatView({
               isCentered ? "top-full mt-2" : "bottom-full mb-2",
             )}
             nameOfAddress={(row) =>
-              row.address.kind === "page"
-                ? row.address.shown
-                : appAddressName(row.address.address, {
-                    appsBySlug,
-                    chatTitles: shell.chatTitles,
-                  })
+              typedAddressName(row.address, {
+                appsBySlug,
+                chatTitles: shell.chatTitles,
+              })
             }
             onOpen={openCompletion}
             onPick={pick}
@@ -798,12 +796,4 @@ function ProjectSuggestion({ draft }: { draft: Draft }) {
     words: draft.words,
   });
   return null;
-}
-
-/** What an address of the app's own opens, named as its tab would be: a chat's title, a page's name. */
-function appAddressName(address: string, names: ScreenNames): string {
-  const target = targetOfAddress(address);
-  return target && target.kind !== "page"
-    ? screenPresentation(hrefOfTarget(target), names).title
-    : address;
 }

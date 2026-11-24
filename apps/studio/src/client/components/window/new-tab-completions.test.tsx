@@ -1,8 +1,11 @@
-import { addressInMessage } from "@/client/lib/address-in-message";
 import { typedPathOf } from "@/client/lib/typed-path";
 import { describe, expect, it } from "vitest";
 
-import { boxCompletions, offersToOpen } from "./new-tab-completions";
+import {
+  boxAddress,
+  boxCompletions,
+  offersToOpen,
+} from "./new-tab-completions";
 
 const recentPages = [
   {
@@ -23,7 +26,7 @@ const bookmarkPages = [
 function rowsFor(words: string) {
   const path = typedPathOf(words, "darwin");
   const { picked, rows } = boxCompletions({
-    address: path ? undefined : addressInMessage(words),
+    address: path ? undefined : boxAddress(words),
     bookmarkPages,
     path,
     recentPages,
@@ -49,7 +52,10 @@ describe("whether a new tab's box offers to open what is in it", () => {
     ["two words", false],
     ["two\nlines", false],
     ["", false],
+    ["/", false],
     ["/proj", false],
+    ["/tmp", true],
+    ["/Users", true],
     ["/Users/me/notes.md", true],
     ["/Users/me/My\\ Notes.md", true],
     ['"/Users/me/My Notes.md"', true],
@@ -75,7 +81,7 @@ describe("a new tab's completions", () => {
       {
         "picked": 0,
         "rows": [
-          "address https://github.co",
+          "address https://github.co/",
           "page https://github.com/",
           "page https://gist.github.com/",
           "page https://github.com/acme/app/pulls",

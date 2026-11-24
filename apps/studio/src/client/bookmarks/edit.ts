@@ -1,4 +1,4 @@
-import { siteFromWords } from "@/client/lib/site-from-words";
+import { typedAddress } from "@/client/lib/typed-address";
 import {
   applyBookmarkOps,
   type Bookmark,
@@ -24,7 +24,8 @@ export function addressOfTyped(typed: string): string | undefined {
   if (/^[a-z][a-z0-9+.-]*:/i.test(words) && URL.canParse(words)) {
     return words;
   }
-  return siteFromWords(words)?.url;
+  const address = typedAddress(words);
+  return address?.kind === "page" ? address.url : undefined;
 }
 
 /** What the editor's Save changes: the name, the address, the place, and the folders made in it. */

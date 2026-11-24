@@ -16,7 +16,7 @@ import { type BrowserConfig } from "../../types";
 import { WebSearch } from "../../tools/web-search";
 import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
-  AGENT_BROWSER_PATH,
+  agentBrowserPath,
   AGENT_BROWSER_SOCKET_DIR,
   readSessionName,
 } from "../agent-browser";
@@ -25,7 +25,11 @@ import {
   instrumentPluginRegistry,
   writeInstrumentProviderPlugin,
 } from "../agent-browser-plugin";
-import { agentBrowserGuide } from "../../model-text/guides/agent-browser-guide";
+import {
+  agentBrowserGuide,
+  agentBrowserReferences,
+} from "../../model-text/guides/agent-browser-guide";
+import { withTcpListenerClosed } from "../native-sandbox";
 import { recordVisitedHosts } from "../browser-state";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import {
@@ -50,6 +54,7 @@ import {
 } from "../workspace-fs-layout";
 import {
   agentBrowserFlagName,
+  END_OF_OPTIONS,
   parseAgentBrowserArgs,
 } from "./agent-browser-args";
 import { rewriteNavigationArgToFileUrl } from "./agent-browser-file-url";
@@ -114,13 +119,22 @@ export function agentBrowserCommandDescription() {
   ].join("\n");
 }
 
-// Flags rejected because the harness owns them: daemon session identity and
-// config/plugin-registry discovery. Connection targeting (--cdp,
+// Flags rejected because the harness owns what they set: daemon session
+// identity, config/plugin-registry discovery, and anything the CLI keeps for
+// the session beyond the command that passed it. Connection targeting (--cdp,
 // --auto-connect, --provider, --profile, --state, --restore*) is refused as a
 // reach for a browser outside the app (see isExternalBrowserInvocation).
 export const BLOCKED_FLAGS = new Set([
+  "--action-policy", // Kept in the session's settings file until `close`, like --allowed-domains; its path would also be read outside the folder rules.
+  "--allowed-domains", // Kept in the session's settings file until `close`, which only the workspace runs, so one command would narrow every later one.
+  "--ca-cert", // Trusts a certificate file for the CLI's own requests, read outside the folder rules.
+  "--capture", // Records the session as a flow file; `flow` is not available here.
+  "--cdp-headers", // Credentials for a --cdp endpoint, which is refused.
   "--config", // A managed empty config is injected so an agent-browser.json in the chat's folder (agent-writable, can register plugins) is never discovered.
+  "--confirm-actions", // Kept in the session's settings file until `close`, like --allowed-domains; `confirm` and `deny` are not available here.
   "--namespace", // Would move daemon/restore state outside the workspace-owned namespace.
+  "--pin-tab", // Sticky for the session: later commands fail once the person closes the tab, where the workspace picks the tab a session works in.
+  "--relaunch", // Drops the daemon's connection to the app's browser and makes another; lifecycle is the workspace's.
   "--session", // Harness injects this; derived from our session id.
   "--session-name", // Upstream's alias for --session.
 ]);
@@ -158,14 +172,20 @@ export const BLOCKED_SUBCOMMANDS = new Set([
   "batch", // Each line is parsed as a full command (quoted args or --json stdin), which would bypass this argv-level policy.
   "chat", // Built-in AI REPL; the agent is the AI.
   "close", // Lifecycle managed by the workspace.
+  "confirm", // Approves an action held by --confirm-actions, which is refused.
   "connect", // Sticky daemon connection state; per-invocation --cdp expresses the same thing without hidden routing state.
   "dashboard", // We have our own UI.
+  "deny", // Denies an action held by --confirm-actions, which is refused.
   "doctor", // Diagnoses real Chrome installs, not our Electron bridge.
+  "exit", // Upstream's alias for close.
+  "flow", // Replays a saved flow file, which can send its requests straight from the CLI, with no page and none of the app's rules.
   "inspect", // Opens Chrome DevTools, which doesn't work against our `<webview>` CDP bridge.
   "install", // Browser binary is bundled with the app.
   "launch", // Daemon pre-launch; a command that needs a page already launches on demand. (`read` never does, with or without this: it is skip-launch upstream.)
   "mcp", // MCP tool hosting is managed outside the in-app browser wrapper.
   "plugin", // Plugin capabilities would bypass workspace policy.
+  "plugins", // Upstream's alias for plugin.
+  "quit", // Upstream's alias for close.
   "session", // Session metadata is owned by the workspace.
   "state", // Persistence managed by the workspace.
   "stream", // Streaming managed by the workspace.
@@ -217,32 +237,68 @@ const SKILLS_SUBCOMMAND = "skills";
 /**
  * `agent-browser skills`: the CLI's own guide, answered here so it comes with
  * what differs in this app (`agent-browser-guide.ts`). Only the core guide is
- * offered; the others describe running agent-browser somewhere else.
+ * offered; the others describe running agent-browser somewhere else. Its
+ * words are read the way the CLI reads them: `--full` adds the references,
+ * and `--ref <name>` (or `--ref=<name>`, any number of times) prints
+ * references alone and goes with neither `--full` nor a second skill.
  */
-function skills(
-  operands: (string | undefined)[],
-  full: boolean,
-): { exitCode: number; stderr: string; stdout: string } {
-  const [action = "list", ...names] = operands.filter(
-    (operand) => operand !== undefined && !operand.startsWith("-"),
-  );
+function skills(words: string[]): {
+  exitCode: number;
+  stderr: string;
+  stdout: string;
+} {
+  const fail = (message: string) => ({
+    exitCode: 1,
+    stderr: `agent-browser: ${message}\n`,
+    stdout: "",
+  });
+  const operands: string[] = [];
+  const references: string[] = [];
+  let full = false;
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i] ?? "";
+    if (word === "--ref") {
+      const name = words[++i];
+      if (name === undefined) {
+        return fail(
+          "--ref needs a value. Usage: agent-browser skills get core --ref <ref>",
+        );
+      }
+      references.push(name);
+    } else if (word.startsWith("--ref=")) {
+      references.push(word.slice("--ref=".length));
+    } else if (word === "--full") {
+      full = true;
+    } else if (!word.startsWith("-")) {
+      operands.push(word);
+    }
+  }
+  const [action = "list", ...names] = operands;
   if (action === "list") {
     return {
       exitCode: 0,
       stderr: "",
       stdout:
-        "core  The guide to agent-browser in this app. Run `agent-browser skills get core`, with --full for its references.\n",
+        "core  The guide to agent-browser in this app. Run `agent-browser skills get core`, with --ref <name> for one of its references or --full for all of them.\n",
     };
   }
-  if (action === "get" && names.length === 1 && names[0] === "core") {
+  if (action !== "get" || names.length !== 1 || names[0] !== "core") {
+    return fail(
+      "only `skills get core` is available in this app; the other skills describe running agent-browser somewhere else.",
+    );
+  }
+  if (references.length === 0) {
     return { exitCode: 0, stderr: "", stdout: agentBrowserGuide({ full }) };
   }
-  return {
-    exitCode: 1,
-    stderr:
-      "agent-browser: only `skills get core` is available in this app; the other skills describe running agent-browser somewhere else.\n",
-    stdout: "",
-  };
+  if (full) {
+    return fail(
+      "--ref cannot be combined with --full. Usage: agent-browser skills get core --ref <ref>",
+    );
+  }
+  const found = agentBrowserReferences(references);
+  return "error" in found
+    ? fail(`${found.error}.`)
+    : { exitCode: 0, stderr: "", stdout: found.text };
 }
 
 /**
@@ -442,6 +498,10 @@ export function isDaemonConfigRace(output: string): boolean {
  * writes. Every other subcommand's operands are text the page receives as
  * typed (an `eval` script, a `fill` value, a `wait --fn` body), where a
  * leading `/` is a comment, a regex or a slash command, never a path.
+ *
+ * `cookies`, `wait` and `webmcp` name a file among such text (a cookie's
+ * value, a `--fn` body, a tool's JSON), so they are left out of this set:
+ * `fileOperandsOf` picks their one file and the rest stays as typed.
  */
 const FILE_OPERAND_SUBCOMMANDS = new Set([
   "diff",
@@ -464,6 +524,10 @@ type FileOperand = { index: number; op: "read" | "write"; prefix?: string };
  * browser process reads or writes it, picked out the way the CLI's own
  * parser picks them (`cli/src/commands.rs` upstream; keep in step when the
  * pinned version moves). `operands` are the subcommand's own, after it.
+ *
+ * A file is counted among the positionals `positionalsOf` gives, which
+ * passes over the `--` the CLI passes over, so the argument checked is the one
+ * the CLI opens. `diff` reads its flags wherever they are and takes no `--`.
  */
 function fileOperandsOf(
   subcommand: string | undefined,
@@ -471,8 +535,17 @@ function fileOperandsOf(
 ): FileOperand[] {
   const writes = (operand: Operand | undefined): FileOperand[] =>
     operand ? [{ index: operand.index, op: "write" }] : [];
-  const [first, second, third] = operands;
+  const [first, second] = operands;
   switch (subcommand) {
+    case "cookies": {
+      // `cookies set --curl <file>`: the CLI itself reads the word after the
+      // first `--curl`, wherever that is, a `--` ahead of it included.
+      const curl = operands.findIndex(({ value }) => value === "--curl");
+      const file = operands[curl + 1];
+      return first?.value === "set" && curl !== -1 && file
+        ? [{ index: file.index, op: "read" }]
+        : [];
+    }
     case "diff": {
       // `--baseline <file>` is read, `--output <file>` written.
       return operands.flatMap((operand, i): FileOperand[] => {
@@ -489,19 +562,21 @@ function fileOperandsOf(
       });
     }
     case "download": {
-      return writes(second);
+      return writes(positionalsOf(operands)[1]);
     }
     case "network": {
       return first?.value === "har" && second?.value === "stop"
-        ? writes(third)
+        ? writes(positionalsOf(operands.slice(2))[0])
         : [];
     }
     case "pdf": {
-      return writes(first);
+      return writes(positionalsOf(operands)[0]);
     }
     case "profiler":
     case "trace": {
-      return first?.value === "stop" ? writes(second) : [];
+      return first?.value === "stop"
+        ? writes(positionalsOf(operands.slice(1))[0])
+        : [];
     }
     case "record": {
       if (first?.value !== "start" && first?.value !== "restart") {
@@ -525,13 +600,94 @@ function fileOperandsOf(
       const [only] = positionals;
       return only && isScreenshotPath(only.value) ? writes(only) : [];
     }
+    case "wait": {
+      // `wait --download <path>` moves the finished download to the path.
+      // The CLI takes `--timeout` and `--state` out with their values, then
+      // answers the first of these it finds, and reads the download flag
+      // only when none is there.
+      const words = WAIT_VALUE_FLAGS.reduce((rest, flag) => {
+        const at = rest.findIndex(({ value }) => value === flag);
+        return at === -1 ? rest : rest.toSpliced(at, 2);
+      }, operands);
+      if (words.some(({ value }) => WAIT_FLAGS_AHEAD_OF_DOWNLOAD.has(value))) {
+        return [];
+      }
+      const download = words.findIndex(
+        ({ value }) => value === "--download" || value === "-d",
+      );
+      const saved = words[download + 1];
+      return download !== -1 && saved && !saved.value.startsWith("--")
+        ? writes(saved)
+        : [];
+    }
+    case "webmcp": {
+      return webmcpParamsFile(operands);
+    }
     case "upload": {
-      return operands.slice(1).map(({ index }) => ({ index, op: "read" }));
+      // The CLI drops a `--` ahead of the selector when something follows it,
+      // and sends every word after the selector as a file.
+      const words =
+        first?.value === END_OF_OPTIONS && operands.length > 1
+          ? operands.slice(1)
+          : operands;
+      return words.slice(1).map(({ index }) => ({ index, op: "read" }));
     }
     default: {
       return [];
     }
   }
+}
+
+/** What `wait` takes out of its words, each with its value, before reading the rest. */
+const WAIT_VALUE_FLAGS = ["--timeout", "--state"];
+
+/** The waits the CLI answers ahead of `--download` when a command names both. */
+const WAIT_FLAGS_AHEAD_OF_DOWNLOAD = new Set([
+  "--fn",
+  "--load",
+  "--text",
+  "--url",
+  "-f",
+  "-l",
+  "-t",
+  "-u",
+]);
+
+const WEBMCP_INVOKE_VALUE_FLAGS = new Set(["--frame", "--params", "--timeout"]);
+
+/**
+ * The file `webmcp invoke <tool>` reads its tool's input from: `@<file>` as
+ * the word after the tool or as the value of `--params`, read by the CLI
+ * itself. Only the first input counts, since the CLI refuses a second before
+ * it opens anything. The CLI drops a `--` after `invoke` when something
+ * follows it, and stops at any other word opening with `-` it does not know.
+ */
+function webmcpParamsFile(operands: Operand[]): FileOperand[] {
+  const words =
+    operands[1]?.value === END_OF_OPTIONS && operands.length > 2
+      ? operands.toSpliced(1, 1)
+      : operands;
+  if (words[0]?.value !== "invoke") {
+    return [];
+  }
+  for (let i = 2; i < words.length; i++) {
+    const word = words[i];
+    if (!word || word.value === "--detach") {
+      continue;
+    }
+    const takesValue = WEBMCP_INVOKE_VALUE_FLAGS.has(word.value);
+    const value = takesValue ? words[++i] : word;
+    if (!value || value.value.startsWith("-")) {
+      return [];
+    }
+    if (takesValue && word.value !== "--params") {
+      continue;
+    }
+    return value.value.startsWith("@")
+      ? [{ index: value.index, op: "read", prefix: "@" }]
+      : [];
+  }
+  return [];
 }
 
 /**
@@ -541,7 +697,13 @@ function fileOperandsOf(
  */
 function initScriptOperands(
   args: string[],
-  globalFlags: ReturnType<typeof parseAgentBrowserArgs>["globalFlags"],
+  {
+    endOfOptions,
+    globalFlags,
+  }: Pick<
+    ReturnType<typeof parseAgentBrowserArgs>,
+    "endOfOptions" | "globalFlags"
+  >,
 ): FileOperand[] {
   const prefix = `${INIT_SCRIPT_FLAG}=`;
   return [
@@ -550,27 +712,38 @@ function initScriptOperands(
         ? [{ index: valueIndex, op: "read" }]
         : [],
     ),
-    ...args.flatMap((arg, index): FileOperand[] =>
-      arg.startsWith(prefix) ? [{ index, op: "read", prefix }] : [],
-    ),
+    ...args
+      .slice(0, endOfOptions)
+      .flatMap((arg, index): FileOperand[] =>
+        arg.startsWith(prefix) ? [{ index, op: "read", prefix }] : [],
+      ),
   ];
 }
 
-/** The operands that are not a flag or a flag's value. */
+/**
+ * The operands that are not a flag or a flag's value, as the CLI's scanner
+ * (`ArgScanner`) counts them: the first `--` is not one, and every operand
+ * after it is, a flag's name included.
+ */
 function positionalsOf(
   operands: Operand[],
-  flags: { bool: string[]; valued: string[] },
+  flags: { bool: string[]; valued: string[] } = { bool: [], valued: [] },
 ): Operand[] {
   const positionals: Operand[] = [];
+  let optionsEnded = false;
   for (let i = 0; i < operands.length; i++) {
-    const value = operands[i]?.value ?? "";
-    if (flags.valued.includes(value)) {
+    const operand = operands[i];
+    if (!operand) {
+      continue;
+    }
+    if (optionsEnded) {
+      positionals.push(operand);
+    } else if (operand.value === END_OF_OPTIONS) {
+      optionsEnded = true;
+    } else if (flags.valued.includes(operand.value)) {
       i++;
-    } else if (!flags.bool.includes(value)) {
-      const operand = operands[i];
-      if (operand) {
-        positionals.push(operand);
-      }
+    } else if (!flags.bool.includes(operand.value)) {
+      positionals.push(operand);
     }
   }
   return positionals;
@@ -606,17 +779,16 @@ export async function resolveAgentBrowserPathArgs(
   },
   layout: WorkspaceFsLayout,
 ): Promise<{ args: string[] } | { error: string }> {
-  const { globalFlags, subArgs, subcommand } = parseAgentBrowserArgs(args);
+  const parsed = parseAgentBrowserArgs(args);
+  const { subArgs, subcommand } = parsed;
   const textOperands = new Set(
     subcommand !== undefined && !FILE_OPERAND_SUBCOMMANDS.has(subcommand)
       ? subArgs.slice(1).map(({ index }) => index)
       : [],
   );
-  const initScripts = initScriptOperands(args, globalFlags);
-  const fileOperands = [
-    ...fileOperandsOf(subcommand, subArgs.slice(1)),
-    ...initScripts,
-  ];
+  const initScripts = initScriptOperands(args, parsed);
+  const commandFiles = fileOperandsOf(subcommand, subArgs.slice(1));
+  const fileOperands = [...commandFiles, ...initScripts];
   const pathOf = ({ index, prefix = "" }: FileOperand) =>
     (args[index] ?? "").slice(prefix.length);
   const hostCwd = hostPathOf(ctx.fs.resolvePath(ctx.cwd, "."));
@@ -660,9 +832,10 @@ export async function resolveAgentBrowserPathArgs(
     return { args: resolved };
   }
 
-  for (const { value } of subArgs.slice(2)) {
-    if (!(await ctx.fs.exists(shellPathOf(value)))) {
-      return { error: `Upload file not found: "${value}".` };
+  for (const operand of commandFiles) {
+    const named = pathOf(operand);
+    if (!(await ctx.fs.exists(shellPathOf(named)))) {
+      return { error: `Upload file not found: "${named}".` };
     }
   }
   return { args: resolved };
@@ -702,18 +875,22 @@ export type Invocation =
   | { kind: "info" }
   | { kind: "read" }
   | { kind: "refuse"; stderr: string }
-  | { full: boolean; kind: "skills"; words: string[] }
+  | { kind: "skills"; words: string[] }
   | { kind: "tabs" };
 
 export function classifyInvocation(
   args: string[],
   { hasNoWindow }: { hasNoWindow: boolean },
 ): Invocation {
-  if (args.some((a) => a === "--help" || a === "-h")) {
+  const { endOfOptions, subArgs, subcommand } = parseAgentBrowserArgs(args);
+  // What follows the `--` is the subcommand's data, which the CLI reads no
+  // flag from: `type @e1 -- --session` types the words.
+  const options = args.slice(0, endOfOptions);
+  if (options.some((a) => a === "--help" || a === "-h")) {
     return { kind: "help" };
   }
   // Matches --flag, --flag=value, and short aliases (-p for --provider).
-  const blockedArg = args.find((a) =>
+  const blockedArg = options.find((a) =>
     BLOCKED_FLAGS.has(agentBrowserFlagName(a)),
   );
   if (blockedArg) {
@@ -722,22 +899,17 @@ export function classifyInvocation(
       stderr: `agent-browser: flag ${blockedArg} is not allowed. The browser session is managed automatically.\n`,
     };
   }
-  if (args.some((a) => agentBrowserFlagName(a) === EXTENSION_FLAG)) {
+  if (options.some((a) => agentBrowserFlagName(a) === EXTENSION_FLAG)) {
     return {
       kind: "refuse",
       stderr: `agent-browser: flag ${EXTENSION_FLAG} has no effect on ${APP_NAME}'s browser: an extension loads only into a browser agent-browser starts itself, and this one is already running.\n`,
     };
   }
-  const { subArgs, subcommand } = parseAgentBrowserArgs(args);
   if (subcommand === ADBLOCK_SUBCOMMAND) {
     return { kind: "adblock", mode: subArgs[1]?.value };
   }
   if (subcommand === SKILLS_SUBCOMMAND) {
-    return {
-      full: args.includes("--full"),
-      kind: "skills",
-      words: subArgs.slice(1).map((arg) => arg.value),
-    };
+    return { kind: "skills", words: subArgs.slice(1).map((arg) => arg.value) };
   }
   if (subcommand && BLOCKED_SUBCOMMANDS.has(subcommand)) {
     return {
@@ -745,7 +917,14 @@ export function classifyInvocation(
       stderr: `agent-browser: subcommand '${subcommand}' is not available in this environment.\n`,
     };
   }
-  const isInfoOnly = args.some((a) => {
+  if (isTabKeep(subcommand, subArgs)) {
+    return {
+      kind: "refuse",
+      stderr:
+        "agent-browser: `tab keep` is not available in this browser: every tab stays live while an agent works in it, and a tab the user shares cannot be frozen.\n",
+    };
+  }
+  const isInfoOnly = options.some((a) => {
     const flagName = a.includes("=") ? a.slice(0, a.indexOf("=")) : a;
     return INFO_ONLY_FLAGS.has(flagName);
   });
@@ -764,6 +943,21 @@ export function classifyInvocation(
     return { kind: "read" };
   }
   return hasNoWindow ? { kind: "headless" } : { kind: "tabs" };
+}
+
+/**
+ * Whether an invocation is `tab keep`, which sets how a background tab runs
+ * (live, throttled or frozen). The app keeps focus emulation on for every tab
+ * an agent drives and shares each tab with the person, so the mode is not the
+ * agent's to set. The CLI drops a `--` ahead of the word, so one is passed
+ * over here too.
+ */
+function isTabKeep(
+  subcommand: string | undefined,
+  subArgs: { value: string }[],
+): boolean {
+  const [first, second] = subArgs.slice(1).map(({ value }) => value);
+  return subcommand === "tab" && (first === "--" ? second : first) === "keep";
 }
 
 /**
@@ -829,7 +1023,7 @@ export function createAgentBrowserCommand({
         return { exitCode: 1, stderr: invocation.stderr, stdout: "" };
       }
       case "skills": {
-        return skills(invocation.words, invocation.full);
+        return skills(invocation.words);
       }
       default: {
         break;
@@ -931,18 +1125,30 @@ export function createAgentBrowserCommand({
       // Null out env-var equivalents of harness-owned and connection flags so
       // the user shell can't bypass flag policy. Connection targeting must
       // arrive as CLI flags, where they are refused.
+      AGENT_BROWSER_ACTION_POLICY: undefined,
+      AGENT_BROWSER_ALLOWED_DOMAINS: undefined,
       AGENT_BROWSER_AUTO_CONNECT: undefined,
+      AGENT_BROWSER_CA_CERT: undefined,
+      AGENT_BROWSER_CAPTURE: undefined,
       AGENT_BROWSER_CDP: undefined,
+      AGENT_BROWSER_CDP_HEADERS: undefined,
       AGENT_BROWSER_CONFIG: undefined,
+      AGENT_BROWSER_CONFIRM_ACTIONS: undefined,
       // Uncomment this to enable debug mode.
       // AGENT_BROWSER_DEBUG:
       //   process.env.NODE_ENV === "development" ? "1" : undefined,
       AGENT_BROWSER_EXECUTABLE_PATH: undefined,
       AGENT_BROWSER_EXTENSIONS: undefined,
+      AGENT_BROWSER_FLOWS_DIR: undefined,
       AGENT_BROWSER_DOWNLOAD_PATH: downloadPath, // Passed to Chrome via CDP setDownloadBehavior, which requires an absolute path.
       AGENT_BROWSER_IDLE_TIMEOUT_MS,
       AGENT_BROWSER_INIT_SCRIPTS: undefined,
       AGENT_BROWSER_NAMESPACE: undefined,
+      // With no window to drive the CLI starts a Chrome of its own, and would
+      // otherwise fetch Chrome's release feed to compare its version, then
+      // tell the agent to run `install`, which is refused.
+      AGENT_BROWSER_NO_VERSION_CHECK: "1",
+      AGENT_BROWSER_PIN_TAB: undefined,
       AGENT_BROWSER_PLUGINS: pluginRegistry,
       AGENT_BROWSER_PROFILE: undefined,
       AGENT_BROWSER_PROVIDER: pluginRegistry
@@ -1089,10 +1295,6 @@ export function createAgentBrowserCommand({
     // When the command began, which the follow-up reads the page's messages
     // from.
     const startedAtEpoch = Date.now();
-    // How long the command ran, which tells a capped wait that gave up from
-    // a failure that came back before the cap.
-    const startedAt = performance.now();
-    let elapsedMs: number;
     try {
       if (typedRuns === undefined) {
         result = await runAgentBrowser({
@@ -1133,7 +1335,6 @@ export function createAgentBrowserCommand({
           }
         }
       }
-      elapsedMs = performance.now() - startedAt;
     } finally {
       if (drivesChatTabs) {
         await recordDrivenTabHosts({
@@ -1267,9 +1468,7 @@ export function createAgentBrowserCommand({
       stderr: scrub(result.stderr),
       stdout: scrub(stdout),
     };
-    const answer = cappedWait
-      ? cappedWaitResult(cappedWait, output, elapsedMs)
-      : output;
+    const answer = cappedWait ? cappedWaitResult(cappedWait, output) : output;
     // For the end of the bash call to name, when the call's output does not
     // show it, as when the command's output went to /dev/null.
     if (answer.exitCode !== 0) {
@@ -1396,8 +1595,12 @@ async function spawnAgentBrowser({
   const managedArgs = managedConfigPath
     ? ["--config", managedConfigPath, ...args]
     : args;
-  // It drives the app's own browser, so no native sandbox wraps it.
-  recordProgramStart(AGENT_BROWSER_PATH, "skipped");
+  // It drives the app's own browser, so the folder rules do not wrap it. The
+  // one thing its profile closes is a listening port: the daemon it starts
+  // otherwise serves upstream's dashboard on loopback, which answers any
+  // process on the computer and relays commands to the browser, and which
+  // nothing here uses (`stream`, `dashboard` and `chat` are all refused).
+  recordProgramStart(agentBrowserPath(), "skipped");
 
   if (managedConfigPath) {
     await fs.mkdir(path.dirname(managedConfigPath), { recursive: true });
@@ -1407,7 +1610,8 @@ async function spawnAgentBrowser({
   const { subcommand } = parseAgentBrowserArgs(args);
 
   if (process.platform !== "win32") {
-    const subprocess = execa(AGENT_BROWSER_PATH, managedArgs, {
+    const held = withTcpListenerClosed(agentBrowserPath(), managedArgs);
+    const subprocess = execa(held.file, held.args, {
       cancelSignal,
       cwd,
       env,
@@ -1444,7 +1648,7 @@ async function spawnAgentBrowser({
     // detached daemon that can keep inherited stdout/stderr pipe handles alive;
     // waiting directly on the CLI process exit avoids treating pipe EOF as part
     // of command completion.
-    const child = spawn(AGENT_BROWSER_PATH, managedArgs, {
+    const child = spawn(agentBrowserPath(), managedArgs, {
       cwd,
       env,
       stdio: ["pipe", stdoutFd, stderrFd],
@@ -1493,8 +1697,9 @@ async function spawnAgentBrowser({
 }
 
 function stripHarnessControlledFlags(args: string[]): string[] {
+  const { endOfOptions } = parseAgentBrowserArgs(args);
   const out: string[] = [];
-  for (let i = 0; i < args.length; i++) {
+  for (let i = 0; i < endOfOptions; i++) {
     const arg = args[i];
     if (arg === undefined) {
       continue;
@@ -1509,5 +1714,5 @@ function stripHarnessControlledFlags(args: string[]): string[] {
     }
     out.push(arg);
   }
-  return out;
+  return [...out, ...args.slice(endOfOptions)];
 }

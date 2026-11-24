@@ -30,8 +30,8 @@ const workspacePkgRequire = createRequire(
 );
 
 const GLOBAL_DEFINES = {
-  __AGENT_BROWSER_BIN_DIR__: path.dirname(
-    workspacePkgRequire.resolve("agent-browser/bin/agent-browser.js"),
+  __AGENT_BROWSER_DIR__: path.dirname(
+    workspacePkgRequire.resolve("agent-browser/package.json"),
   ),
   __FFMPEG_DIR__: path.resolve(__dirname, "resources/ffmpeg"),
 } as const;

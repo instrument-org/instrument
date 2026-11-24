@@ -1,87 +1,60 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
+import { agentBrowserBinary } from "@instrument-org/shared/agent-browser-binary";
 import ms from "ms";
-import { execSync } from "node:child_process";
-import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { arch, platform } from "node:os";
 import path from "node:path";
 
 import { unpackAsarPath } from "./asar";
 
-// In dev, electron-vite bakes in the absolute resolved bin/ directory since
+// In dev, electron-vite bakes in agent-browser's absolute package folder since
 // node_modules isn't alongside the output. In prod, it is null and we resolve
 // at runtime via createRequire (node_modules is next to the bundle).
-declare const __AGENT_BROWSER_BIN_DIR__: null | string;
+declare const __AGENT_BROWSER_DIR__: null | string;
 
 const req = createRequire(import.meta.url);
 
-// Via agent-browser/bin/agent-browser.js wrapper
-function getBinaryName() {
-  const userPlatform = platform();
-  const cpuArch = arch();
-
-  let osKey: string;
-  switch (userPlatform) {
-    case "darwin": {
-      osKey = "darwin";
-      break;
-    }
-    case "linux": {
-      osKey = isMusl() ? "linux-musl" : "linux";
-      break;
-    }
-    case "win32": {
-      osKey = "win32";
-      break;
-    }
-    default: {
-      throw new Error(`Unsupported platform: ${userPlatform}`);
-    }
-  }
-
-  let archKey: string;
-  switch (cpuArch) {
-    case "arm64": {
-      archKey = userPlatform === "win32" ? "x64" : "arm64";
-      break;
-    }
-    case "x64": {
-      archKey = "x64";
-      break;
-    }
-    default: {
-      throw new Error(`Unsupported architecture: ${cpuArch}`);
-    }
-  }
-
-  const ext = userPlatform === "win32" ? ".exe" : "";
-  return `agent-browser-${osKey}-${archKey}${ext}`;
+// The platform package is one agent-browser depends on, so it is resolved from
+// agent-browser's own folder: pnpm links it only there.
+function resolveFromAgentBrowser(id: string) {
+  const packageDir =
+    __AGENT_BROWSER_DIR__ ??
+    path.dirname(req.resolve("agent-browser/package.json"));
+  return createRequire(path.join(packageDir, "package.json")).resolve(id);
 }
 
-function isMusl() {
-  if (platform() !== "linux") {
-    return false;
-  }
-  try {
-    const result = execSync("ldd --version 2>&1 || true", {
-      encoding: "utf8",
-    });
-    return result.toLowerCase().includes("musl");
-  } catch {
-    return (
-      existsSync("/lib/ld-musl-x86_64.so.1") ||
-      existsSync("/lib/ld-musl-aarch64.so.1")
+/**
+ * agent-browser's binary for a platform and architecture. `resolve` finds a
+ * file of the one platform package that pair names, and is asked for no other.
+ */
+export function agentBrowserBinaryPath(
+  platformName: string,
+  archName: string,
+  resolve: (id: string) => string,
+) {
+  const binary = agentBrowserBinary(platformName, archName);
+  if (!binary) {
+    throw new Error(
+      `agent-browser has no build for ${platformName}-${archName}`,
     );
   }
+  const manifest = resolve(`${binary.packageName}/package.json`);
+  return path.join(path.dirname(manifest), binary.path);
 }
 
-const binDir =
-  __AGENT_BROWSER_BIN_DIR__ ??
-  path.dirname(req.resolve("agent-browser/bin/agent-browser.js"));
+let binaryPath: string | undefined;
 
-export const AGENT_BROWSER_PATH = unpackAsarPath(
-  path.join(binDir, getBinaryName()),
-);
+/**
+ * The binary this computer runs. It is found when a caller first runs the
+ * program, so loading this module asks for no package: only the running
+ * platform's is installed, and a module that loads this one may never run it.
+ */
+export function agentBrowserPath() {
+  binaryPath ??= unpackAsarPath(
+    agentBrowserBinaryPath(platform(), arch(), resolveFromAgentBrowser),
+  );
+  return binaryPath;
+}
 
 // Idle ms after which the agent-browser daemon self-terminates. The CLI counts
 // this from the last command (each invocation re-arms the timer) and, on fire,

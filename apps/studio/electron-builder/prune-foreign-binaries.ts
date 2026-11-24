@@ -1,8 +1,8 @@
 // Trims per-platform/arch native binaries that ship for every OS/arch but are
 // only runnable on the build target. electron-builder copies the full
-// `node_modules` tree into `app.asar.unpacked`, so packages that vendor a
-// binary per platform (agent-browser, pnpm's reflink addon) bloat each build
-// with foreign binaries it can never execute. We prune them in `afterPack`,
+// `node_modules` tree into `app.asar.unpacked`, so a package that vendors a
+// binary per platform, as pnpm's reflink addon does, bloats each build with
+// foreign binaries it can never execute. We prune them in `afterPack`,
 // keying off the build's platform/arch so the kept binary always matches the
 // runtime resolver.
 //
@@ -34,18 +34,11 @@ export function pruneForeignBinaries({
     return [];
   }
 
-  return [
-    ...pruneAgentBrowser({
-      arch: resolvedArch,
-      platform: platformName,
-      unpackedDir,
-    }),
-    ...prunePnpmReflink({
-      arch: resolvedArch,
-      platform: platformName,
-      unpackedDir,
-    }),
-  ];
+  return prunePnpmReflink({
+    arch: resolvedArch,
+    platform: platformName,
+    unpackedDir,
+  });
 }
 
 function archName(arch: Arch): string | undefined {
@@ -63,48 +56,6 @@ function archName(arch: Arch): string | undefined {
       return;
     }
   }
-}
-
-// agent-browser vendors `bin/agent-browser-{os}-{arch}[-musl][.exe]`. Keep only
-// the binaries whose os+arch match this build; the runtime resolver in
-// packages/workspace/src/lib/agent-browser.ts picks `agent-browser-{os}-{arch}`.
-function pruneAgentBrowser({
-  arch,
-  platform,
-  unpackedDir,
-}: {
-  arch: string;
-  platform: ElectronPlatform;
-  unpackedDir: string;
-}) {
-  const binDir = path.join(unpackedDir, "node_modules", "agent-browser", "bin");
-  if (!existsSync(binDir)) {
-    return [];
-  }
-  const agentBrowserArch =
-    platform === "win32" && arch === "arm64" ? "x64" : arch;
-
-  const removed: string[] = [];
-  for (const entry of readdirSync(binDir)) {
-    if (!entry.startsWith("agent-browser-")) {
-      continue;
-    }
-    // Strip the `agent-browser-` prefix and any `.exe` suffix, leaving
-    // `{os}-{arch}` or `{os}-musl-{arch}`.
-    const descriptor = entry
-      .slice("agent-browser-".length)
-      .replace(/\.exe$/i, "");
-    const keep =
-      descriptor === `${platform}-${agentBrowserArch}` ||
-      // Linux musl variant for the same arch is still a valid linux target.
-      (platform === "linux" && descriptor === `linux-musl-${agentBrowserArch}`);
-    if (keep) {
-      continue;
-    }
-    rmSync(path.join(binDir, entry), { force: true });
-    removed.push(entry);
-  }
-  return removed;
 }
 
 // pnpm bundles the reflink addon as `@reflink/reflink-{platform}-{arch}`

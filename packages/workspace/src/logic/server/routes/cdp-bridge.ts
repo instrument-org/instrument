@@ -221,6 +221,10 @@ const UNDONE_ON_LEAVING: Record<string, [string, Record<string, unknown>]> = {
     "Emulation.setTimezoneOverride",
     { timezoneId: "" },
   ],
+  "Emulation.setTouchEmulationEnabled": [
+    "Emulation.setTouchEmulationEnabled",
+    { enabled: false },
+  ],
   "Emulation.setUserAgentOverride": [
     "Emulation.setUserAgentOverride",
     { userAgent: "" },

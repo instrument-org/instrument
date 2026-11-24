@@ -23,6 +23,7 @@ import {
   launchNative,
   seatbeltAvailable,
   seatbeltProfile,
+  withTcpListenerClosed,
   wrapNativeCommand,
   type WrappedCommand,
 } from "./index";
@@ -1116,3 +1117,58 @@ describe.runIf(seatbeltAvailable())("the Seatbelt launcher", () => {
     expect(argsOf(spawned)[0]).toBe("-p");
   });
 });
+
+describe.skipIf(onWindows || !seatbeltAvailable())(
+  "a program that may not listen on a port",
+  () => {
+    const dir = realpathSync(
+      mkdtempSync(path.join(os.tmpdir(), "no-tcp-listener-")),
+    );
+
+    afterAll(() => {
+      rmSync(dir, { force: true, recursive: true });
+    });
+
+    /** Exits 0 where the socket call worked and 3 where it was refused. */
+    function run(code: string) {
+      const held = withTcpListenerClosed(process.execPath, [
+        "-e",
+        `const net = require("node:net");
+         ${code}
+           .on("listening", () => process.exit(0))
+           .on("connect", () => process.exit(0))
+           .on("error", () => process.exit(3));`,
+      ]);
+      return execa(held.file, held.args, { reject: false });
+    }
+
+    it("refuses a listening port", async () => {
+      const listen = await run(`net.createServer().listen(0, "127.0.0.1")`);
+      expect(listen.exitCode).toBe(3);
+    });
+
+    it("binds a Unix socket, which is how the app reaches the program", async () => {
+      const socket = path.join(dir, "probe.sock");
+      const listen = await run(
+        `net.createServer().listen(${JSON.stringify(socket)})`,
+      );
+      expect(listen.exitCode).toBe(0);
+    });
+
+    it("connects out, so the program still reaches the app's own server", async () => {
+      const server = net.createServer((client) => client.end());
+      const port = await new Promise<number>((resolve) => {
+        server.listen(0, "127.0.0.1", () => {
+          const address = server.address();
+          resolve(typeof address === "object" && address ? address.port : 0);
+        });
+      });
+      try {
+        const connect = await run(`net.connect(${port}, "127.0.0.1")`);
+        expect(connect.exitCode).toBe(0);
+      } finally {
+        server.close();
+      }
+    });
+  },
+);

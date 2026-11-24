@@ -34,7 +34,13 @@ import {
   type WorkspaceFsLayout,
 } from "../workspace-fs-layout";
 import {
+  GLOBAL_BOOL_FLAGS,
+  GLOBAL_VALUE_FLAGS,
+  RESTORE_FLAG,
+} from "./agent-browser-args";
+import {
   agentBrowserCommandDescription,
+  BLOCKED_FLAGS,
   browserFreeReadEnv,
   classifyInvocation,
   createAgentBrowserCommand,
@@ -97,7 +103,7 @@ async function agentBrowserRunsOfItsOwn() {
   return (await agentBrowserRuns()).filter((run) => !isAside(run.args));
 }
 
-/** What upstream prints for any error that mentions a timeout. */
+/** What upstream prints for an error that mentions a timeout, a load-state wait's aside. */
 const upstreamTimeout = {
   exitCode: 1,
   stderr:
@@ -124,17 +130,15 @@ describe("createAgentBrowserCommand", () => {
     );
   });
 
-  it.each([
-    { flag: "--config" },
-    { flag: "--namespace" },
-    { flag: "--session" },
-    { flag: "--session-name" },
-  ])("blocks harness-owned flag $flag", async ({ flag }) => {
-    const result = await command.execute([flag, "value", "open"], mockCtx);
+  it.each([...BLOCKED_FLAGS].map((flag) => ({ flag })))(
+    "blocks harness-owned flag $flag",
+    async ({ flag }) => {
+      const result = await command.execute([flag, "value", "open"], mockCtx);
 
-    expect(result.exitCode).toBe(1);
-    expect(result.stderr).toContain(`flag ${flag} is not allowed`);
-  });
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain(`flag ${flag} is not allowed`);
+    },
+  );
 
   // Connected to the app's browser, which is already running, the CLI
   // drops an extension.
@@ -157,6 +161,47 @@ describe("createAgentBrowserCommand", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/^# agent-browser in Instrument\n/);
     expect(result.stdout).toContain("## The core loop");
+  });
+
+  it("prints one of the guide's references alone with --ref", async () => {
+    const result = await command.execute(
+      ["skills", "get", "core", "--ref", "snapshot-refs"],
+      mockCtx,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("# agent-browser in Instrument");
+    expect(result.stdout).toMatch(/^# /);
+    expect(
+      await command.execute(
+        ["skills", "get", "core", "--ref=references/snapshot-refs.md"],
+        mockCtx,
+      ),
+    ).toEqual(result);
+  });
+
+  it.each([
+    {
+      args: ["skills", "get", "core", "--ref", "authentication"],
+      stderr:
+        "agent-browser: Reference not found: authentication. Available here: references/instrument.md, references/commands.md, references/snapshot-refs.md, references/trust-boundaries.md.\n",
+    },
+    {
+      args: ["skills", "get", "core", "--ref"],
+      stderr:
+        "agent-browser: --ref needs a value. Usage: agent-browser skills get core --ref <ref>\n",
+    },
+    {
+      args: ["skills", "get", "core", "--full", "--ref", "commands"],
+      stderr:
+        "agent-browser: --ref cannot be combined with --full. Usage: agent-browser skills get core --ref <ref>\n",
+    },
+  ])("refuses $args", async ({ args, stderr }) => {
+    expect(await command.execute(args, mockCtx)).toEqual({
+      exitCode: 1,
+      stderr,
+      stdout: "",
+    });
   });
 
   it.each([
@@ -306,8 +351,127 @@ describe("classifyInvocation", () => {
     [["open", "a.com"], { ...managed, hasNoWindow: true }, "headless"],
     [["open", "a.com"], managed, "tabs"],
     [["tab"], managed, "tabs"],
+    [["tab", "keep", "frozen", "tab_01"], managed, "refuse"],
+    // Aliases of commands the app keeps to itself.
+    [["quit"], managed, "refuse"],
+    [["exit"], managed, "refuse"],
+    [["plugins", "list"], managed, "refuse"],
+    [["confirm", "c1"], managed, "refuse"],
+    [["deny", "c1"], managed, "refuse"],
+    [["flow", "run", "checkout"], managed, "refuse"],
+    // A global flag's value is not the command.
+    [["--input-mode", "human", "close"], managed, "refuse"],
+    [["--input-mode", "human", "click", "@e1"], managed, "tabs"],
+    [["--capture", "flow", "open", "a.com"], managed, "refuse"],
+    [["wait", "#spinner", "--state", "hidden"], managed, "tabs"],
+    [["--state", "auth.json", "wait", "#spinner"], managed, "refuse"],
+    [["--json", "tab", "--", "keep", "live"], managed, "refuse"],
+    // What follows the `--` is the command's data, as it is to the CLI.
+    [["type", "@e1", "--", "--allowed-domains"], managed, "tabs"],
+    [["fill", "@e1", "--", "--session", "x", "--help"], managed, "tabs"],
+    [["type", "@e1", "--", "--extension", "--version"], managed, "tabs"],
+    [
+      ["--allowed-domains", "a.com", "type", "@e1", "--", "x"],
+      managed,
+      "refuse",
+    ],
+    [
+      ["type", "@e1", "--allowed-domains", "a.com", "--", "x"],
+      managed,
+      "refuse",
+    ],
+    // A `--` a value flag takes is its value, and ends no options.
+    [["--user-agent", "--", "--session", "x", "open"], managed, "refuse"],
   ])("%j with %j is %s", (args, config, kind) => {
     expect(classifyInvocation(args, config).kind).toBe(kind);
+  });
+
+  // Every global flag the CLI takes, with what the app does with a command
+  // that carries it. A flag added to the tables shows up here undecided, as
+  // one that passes: refuse it where it selects another browser or
+  // connection, or keeps something for the session beyond its command.
+  // `--download-path` and `--screenshot-dir` pass with their value dropped.
+  it("decides what a command carrying each global flag is", () => {
+    const decisions = Object.fromEntries(
+      [...GLOBAL_VALUE_FLAGS, ...GLOBAL_BOOL_FLAGS, RESTORE_FLAG]
+        .toSorted()
+        .map((flag) => [
+          flag,
+          classifyInvocation(
+            GLOBAL_VALUE_FLAGS.has(flag)
+              ? [flag, "value", "snapshot"]
+              : [flag, "snapshot"],
+            managed,
+          ).kind,
+        ]),
+    );
+    expect(decisions).toMatchInlineSnapshot(`
+      {
+        "--action-policy": "refuse",
+        "--allow-file-access": "tabs",
+        "--allowed-domains": "refuse",
+        "--annotate": "tabs",
+        "--args": "tabs",
+        "--auto-connect": "refuse",
+        "--ca-cert": "refuse",
+        "--capture": "refuse",
+        "--cdp": "refuse",
+        "--cdp-headers": "refuse",
+        "--color-scheme": "tabs",
+        "--config": "refuse",
+        "--confirm-actions": "refuse",
+        "--confirm-interactive": "tabs",
+        "--content-boundaries": "tabs",
+        "--debug": "tabs",
+        "--device": "tabs",
+        "--download-path": "tabs",
+        "--enable": "tabs",
+        "--engine": "tabs",
+        "--executable-path": "refuse",
+        "--extension": "refuse",
+        "--fix": "tabs",
+        "--headed": "tabs",
+        "--headers": "tabs",
+        "--hide-scrollbars": "tabs",
+        "--idle-timeout": "tabs",
+        "--ignore-https-errors": "tabs",
+        "--init-script": "tabs",
+        "--input-mode": "tabs",
+        "--json": "tabs",
+        "--max-output": "tabs",
+        "--model": "tabs",
+        "--namespace": "refuse",
+        "--no-auto-connect": "tabs",
+        "--no-auto-dialog": "tabs",
+        "--no-ca-cert": "tabs",
+        "--no-pin-tab": "tabs",
+        "--no-webmcp": "tabs",
+        "--offline": "tabs",
+        "--pin-tab": "refuse",
+        "--profile": "refuse",
+        "--provider": "refuse",
+        "--proxy": "tabs",
+        "--proxy-bypass": "tabs",
+        "--quick": "tabs",
+        "--quiet": "tabs",
+        "--relaunch": "refuse",
+        "--restore": "refuse",
+        "--restore-check-fn": "refuse",
+        "--restore-check-text": "refuse",
+        "--restore-check-url": "refuse",
+        "--restore-save": "refuse",
+        "--screenshot-dir": "tabs",
+        "--screenshot-format": "tabs",
+        "--screenshot-quality": "tabs",
+        "--session": "refuse",
+        "--session-name": "refuse",
+        "--state": "refuse",
+        "--use-system-ca": "tabs",
+        "--user-agent": "tabs",
+        "--verbose": "tabs",
+        "--webgpu": "tabs",
+      }
+    `);
   });
 });
 
@@ -566,6 +730,10 @@ describe("agent-browser file operands and the folder rules", () => {
   it.each([
     { args: ["upload", "@e1", "../closed/secret.txt"], name: "an upload" },
     {
+      args: ["upload", "--", "@e1", "../closed/secret.txt"],
+      name: "an upload after --",
+    },
+    {
       args: ["upload", "@e1", "notes.txt"],
       name: "an upload through a link in the work folder",
     },
@@ -584,6 +752,34 @@ describe("agent-browser file operands and the folder rules", () => {
     {
       args: ["--init-script=../closed/hook.js", "open", "https://x.com"],
       name: "a page init script spelled with =",
+    },
+    {
+      args: ["cookies", "set", "--curl", "../closed/secret.txt"],
+      name: "a file of cookies",
+    },
+    {
+      args: [
+        "cookies",
+        "set",
+        "--domain",
+        "x.com",
+        "--",
+        "--curl",
+        "notes.txt",
+      ],
+      name: "a file of cookies after --, through a link in the work folder",
+    },
+    {
+      args: ["webmcp", "invoke", "echo", "--params", "@../closed/secret.txt"],
+      name: "a page tool's input file",
+    },
+    {
+      args: ["webmcp", "invoke", "echo", "@../closed/secret.txt"],
+      name: "a page tool's input file after the tool",
+    },
+    {
+      args: ["webmcp", "invoke", "--", "echo", "--frame", "F", "@notes.txt"],
+      name: "a page tool's input file past -- and another flag",
     },
   ])("refuses $name from a closed folder", async ({ args }) => {
     const result = await resolve(args);
@@ -624,6 +820,23 @@ describe("agent-browser file operands and the folder rules", () => {
         "../closed/d.png",
       ],
     },
+    // The CLI passes over a `--`, so the file is the word after it.
+    { args: ["screenshot", "--", "../closed/page.png"] },
+    { args: ["screenshot", "--", "body", "../closed/page.png"] },
+    { args: ["screenshot", "body", "--", "../closed/page.png"] },
+    { args: ["screenshot", "--full", "--", "body", "--closed/../../closed/p"] },
+    { args: ["pdf", "--", "../closed/page"] },
+    { args: ["download", "--", "@e1", "../closed/report.csv"] },
+    { args: ["download", "@e1", "--", "../closed/report.csv"] },
+    { args: ["record", "start", "--", "../closed/take.webm"] },
+    { args: ["record", "restart", "--cursor", "--", "../closed/take.webm"] },
+    { args: ["trace", "stop", "--", "../closed/trace.json"] },
+    { args: ["profiler", "stop", "--", "../closed/profile.json"] },
+    { args: ["network", "har", "stop", "--", "../closed/traffic.har"] },
+    { args: ["wait", "--download", "../closed/report.csv"] },
+    { args: ["wait", "-d", "../closed/report.csv"] },
+    // The CLI takes `--timeout` and its value out before it reads the path.
+    { args: ["wait", "--download", "--timeout", "5000", "../closed/r.csv"] },
   ])("refuses $args writing into a closed folder", async ({ args }) => {
     expect(await resolve(args)).toEqual({
       error: expect.stringContaining("Permission denied"),
@@ -675,6 +888,52 @@ describe("agent-browser file operands and the folder rules", () => {
       ["upload", "@e1", "photo.png"],
       ["upload", "@e1", "<root>/work/photo.png"],
     ],
+    // The `--` stays where it was, and the file after it is the one spelled out.
+    [
+      ["upload", "--", "@e1", "photo.png"],
+      ["upload", "--", "@e1", "<root>/work/photo.png"],
+    ],
+    [
+      ["pdf", "--", "page.pdf"],
+      ["pdf", "--", "<root>/work/page.pdf"],
+    ],
+    [
+      ["screenshot", "--", "body", "shot.png"],
+      ["screenshot", "--", "body", "<root>/work/shot.png"],
+    ],
+    [
+      ["record", "start", "--", "take.webm", "https://x.com"],
+      ["record", "start", "--", "<root>/work/take.webm", "https://x.com"],
+    ],
+    // Text after the `--` that spells a flag is the page's, not a file.
+    [
+      ["type", "@e1", "--", "--init-script=hook.js"],
+      ["type", "@e1", "--", "--init-script=hook.js"],
+    ],
+    [
+      ["wait", "--download", "report.csv", "--timeout", "5000"],
+      ["wait", "--download", "<root>/work/report.csv", "--timeout", "5000"],
+    ],
+    [
+      ["cookies", "set", "--curl", "hook.js", "--domain", "x.com"],
+      ["cookies", "set", "--curl", "<root>/work/hook.js", "--domain", "x.com"],
+    ],
+    [
+      ["webmcp", "invoke", "echo", "--params", "@hook.js"],
+      ["webmcp", "invoke", "echo", "--params", "@<root>/work/hook.js"],
+    ],
+    // Words of these commands the CLI opens no file for stay as typed: a
+    // wait it answers ahead of the download, a cookie's value and path, a
+    // tool's JSON, and a second input, which it refuses unread.
+    ...[
+      ["wait", "--download"],
+      ["wait", "--text", "Done", "--download", "../closed/report.csv"],
+      ["cookies", "set", "id", "../closed/secret.txt", "--path", "/api"],
+      ["cookies", "get", "--curl", "../closed/secret.txt"],
+      ["webmcp", "invoke", "echo", '{"from":"@../closed/secret.txt"}'],
+      ["webmcp", "invoke", "echo", "{}", "@../closed/secret.txt"],
+      ["webmcp", "list", "@../closed/secret.txt"],
+    ].map((args) => [args, args]),
   ])("lets %j work in the work folder", async (args, expected) => {
     expect(await resolve(args)).toEqual({ args: expected });
   });
@@ -835,26 +1094,21 @@ describe("agent-browser routing", () => {
       "5000",
     ]);
 
-    // The run takes the five seconds the cap gives it.
-    vi.useFakeTimers({ toFake: ["performance"] });
-    try {
-      await answerAgentBrowser(() => {
-        vi.advanceTimersByTime(5000);
-        return upstreamTimeout;
-      });
-      const result = await command.execute(
-        ["wait", "--load", "networkidle"],
-        commandCtx,
-      );
+    await answerAgentBrowser({
+      exitCode: 1,
+      stderr: "✗ Timed out after 5000ms waiting for load state 'networkidle'\n",
+      stdout: "",
+    });
+    const result = await command.execute(
+      ["wait", "--load", "networkidle"],
+      commandCtx,
+    );
 
-      expect(result).toEqual({
-        exitCode: 0,
-        stderr: "",
-        stdout: NETWORK_IDLE_GAVE_UP,
-      });
-    } finally {
-      vi.useRealTimers();
-    }
+    expect(result).toEqual({
+      exitCode: 0,
+      stderr: "",
+      stdout: NETWORK_IDLE_GAVE_UP,
+    });
   });
 
   it.each([
@@ -866,7 +1120,7 @@ describe("agent-browser routing", () => {
       stdout: "",
     },
   ])(
-    "shows a network-idle wait's failure that came back before the cap as it is: $stderr",
+    "shows a network-idle wait's other failures as they are: $stderr",
     async (answer) => {
       await answerAgentBrowser(answer);
       const result = await command.execute(
@@ -1340,7 +1594,12 @@ describe("agent-browser routing", () => {
   it("runs the command whatever the wait for the document came to", async () => {
     await answerAgentBrowser((given) =>
       given.includes("wait")
-        ? upstreamTimeout
+        ? {
+            exitCode: 1,
+            stderr:
+              "✗ Timed out after 5000ms waiting for load state 'domcontentloaded'\n",
+            stdout: "",
+          }
         : { exitCode: 0, stderr: "", stdout: '"Orders placed in 2025"\n' },
     );
 

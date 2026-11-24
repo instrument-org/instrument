@@ -9,8 +9,8 @@ const require = createRequire(import.meta.url);
 // (via vite `define`) and by run-workspace.ts (assigned to globalThis at
 // runtime since tsx doesn't process `define`).
 export const GLOBAL_DEFINES = {
-  __AGENT_BROWSER_BIN_DIR__: path.dirname(
-    require.resolve("agent-browser/bin/agent-browser.js"),
+  __AGENT_BROWSER_DIR__: path.dirname(
+    require.resolve("agent-browser/package.json"),
   ),
   __FFMPEG_DIR__: path.resolve(
     import.meta.dirname,

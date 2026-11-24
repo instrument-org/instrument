@@ -1,4 +1,5 @@
 import { APP_PRODUCT_NAME } from "@instrument-org/shared";
+import { agentBrowserBinary } from "@instrument-org/shared/agent-browser-binary";
 import { Arch } from "electron-builder";
 import { existsSync } from "node:fs";
 import path from "node:path";
@@ -46,6 +47,33 @@ export function resolvePackagedPnpm(
   );
 
   return existsSync(candidate) ? candidate : undefined;
+}
+
+/**
+ * The packaged agent-browser binary for the build's target within the unpacked
+ * tree, with the package it comes from. `path` is `undefined` when that
+ * package's binary is missing, as when the build ran on a host whose install
+ * fetched another platform's package.
+ */
+export function resolvePackagedAgentBrowser(
+  appOutDir: string,
+  platformName: ElectronPlatform,
+  arch: Arch,
+) {
+  const binary = agentBrowserBinary(platformName, Arch[arch]);
+  if (!binary) {
+    return { packageName: undefined, path: undefined };
+  }
+  const candidate = path.join(
+    resolveUnpackedDir(appOutDir, platformName),
+    "node_modules",
+    ...binary.packageName.split("/"),
+    ...binary.path.split("/"),
+  );
+  return {
+    packageName: binary.packageName,
+    path: existsSync(candidate) ? candidate : undefined,
+  };
 }
 
 /**

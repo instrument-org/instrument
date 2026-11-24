@@ -5,10 +5,9 @@ import { parseAgentBrowserArgs } from "./agent-browser-args";
  *
  * A page with nothing in flight goes quiet in about a second, and a page that
  * holds a beacon, a long poll or a stream open never does. Upstream then waits
- * out its 25-second default and reports `✓ Done` anyway, because the
- * load-state handler drops the inner wait's timeout error. Every Amazon search
- * and product page measured did that, as did most news and shop pages, so the
- * wait cost 25 seconds and told the agent nothing.
+ * out its 25-second default and fails. Every Amazon search and product page
+ * measured never went quiet, nor did most news and shop pages, and on none of
+ * them did the wait change what a read of the page found.
  */
 const NETWORK_IDLE_TIMEOUT_MS = 5000;
 
@@ -125,41 +124,23 @@ export function namedWaitGaveUp(
 }
 
 /**
- * What upstream prints for any error whose message mentions a timeout, the
- * capped network-idle wait's included. Its launch and connect failures can read
- * the same, so the line alone does not say the wait gave up.
- */
-const UPSTREAM_TIMEOUT_LINE =
-  "✗ Operation timed out. The page may still be loading or the element may not exist.";
-
-/**
- * How much earlier than the cap a network-idle timeout may come back and still
- * count as the wait giving up. The CLI's own startup runs before the wait's
- * timer starts, so a real give-up takes at least the cap.
- */
-const NETWORK_IDLE_ELAPSED_TOLERANCE_MS = 250;
-
-/**
- * The capped wait's result as the agent sees it, given how long the command
- * ran.
+ * The capped wait's result as the agent sees it.
  *
  * A network-idle timeout becomes a success that says the network stayed busy.
  * The page is as ready as a longer wait would make it (`open` already waited
  * for the load event), and a failure would end the `&&` chain the agent wrote
- * to read that page. It counts only when upstream's timeout line comes back
- * after the cap: the same line sooner is a launch or connect failure.
+ * to read that page.
  *
  * A named wait's timeout stays a failure, since the next step in the chain
  * would act on a page that is not the one the agent expected, and its message
- * says what to do next instead of upstream's bare `Wait timed out`. It counts
- * only when the timeout upstream names is the cap the harness added.
+ * says what to do next instead of upstream's bare `Wait timed out`.
  *
- * Anything else reaches the agent as upstream printed it.
+ * Either counts only when the timeout upstream names is the cap the harness
+ * added. Anything else reaches the agent as upstream printed it.
  */
 export function cappedWaitResult(
   wait: CappedWait,
   result: { exitCode: number; stderr: string; stdout: string },
-  elapsedMs: number,
 ) {
   if (result.exitCode === 0) {
     return result;
@@ -167,8 +148,8 @@ export function cappedWaitResult(
   const stderr = result.stderr.trim();
   if (wait.kind === "networkidle") {
     const gaveUp =
-      stderr === UPSTREAM_TIMEOUT_LINE &&
-      elapsedMs >= NETWORK_IDLE_TIMEOUT_MS - NETWORK_IDLE_ELAPSED_TOLERANCE_MS;
+      stderr ===
+      `✗ Timed out after ${NETWORK_IDLE_TIMEOUT_MS}ms waiting for load state 'networkidle'`;
     return gaveUp
       ? { exitCode: 0, stderr: "", stdout: NETWORK_IDLE_GAVE_UP }
       : result;

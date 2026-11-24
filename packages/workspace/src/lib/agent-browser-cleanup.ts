@@ -6,7 +6,7 @@ import path from "node:path";
 import { type StoreId } from "../schemas/store-id";
 import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
-  AGENT_BROWSER_PATH,
+  agentBrowserPath,
   AGENT_BROWSER_SOCKET_DIR,
   readSessionName,
 } from "./agent-browser";
@@ -30,7 +30,7 @@ export async function closeAgentBrowserSessionsForSessions(
       // With a daemon running, the invocation must present the configuration
       // the session was started with; otherwise the CLI restarts the daemon
       // and closes the replacement.
-      await execa(AGENT_BROWSER_PATH, ["close", "--session", sessionName], {
+      await execa(agentBrowserPath(), ["close", "--session", sessionName], {
         env: { AGENT_BROWSER_IDLE_TIMEOUT_MS, AGENT_BROWSER_SOCKET_DIR },
         reject: false,
       });
@@ -64,7 +64,7 @@ async function isDaemonRunning(sessionName: string) {
 }
 
 export async function closeAllAgentBrowserSessions() {
-  await execa(AGENT_BROWSER_PATH, ["close", "--all"], {
+  await execa(agentBrowserPath(), ["close", "--all"], {
     env: { AGENT_BROWSER_SOCKET_DIR },
     reject: false,
   });

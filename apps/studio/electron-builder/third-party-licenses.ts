@@ -202,12 +202,24 @@ export const THIRD_PARTY_COMPONENTS: ThirdPartyComponent[] = [
     version: packageVersion,
   },
   {
-    files: ["LICENSE"],
+    // The binary carries axe-core for its accessibility audit, whose texts
+    // the package ships beside the Rust source that embeds it.
+    files: [
+      "LICENSE",
+      {
+        from: "cli/src/native/a11y/LICENSE-axe-core.txt",
+        to: "LICENSE-axe-core.txt",
+      },
+      {
+        from: "cli/src/native/a11y/LICENSE-axe-core-THIRD-PARTY.txt",
+        to: "LICENSE-axe-core-THIRD-PARTY.txt",
+      },
+    ],
     id: "agent-browser",
-    license: () => "Apache-2.0",
+    license: () => "Apache-2.0 AND MPL-2.0",
     name: "agent-browser",
     origin: { from: "workspace", package: "agent-browser" },
-    ships: ["node_modules/agent-browser/"],
+    ships: ["node_modules/agent-browser/", "node_modules/@agent-browser/"],
     version: packageVersion,
   },
   {

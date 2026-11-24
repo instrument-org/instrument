@@ -7,7 +7,9 @@ import { FOLDER_VARIABLES } from "../../constants";
 import { canonicalizeThroughMissing, withoutDataVolume } from "../host-path";
 import {
   accountCanWrite,
+  isMacosPrivate,
   lockedNote,
+  macosPrivateNote,
   systemOwnedNote,
 } from "./account-can-write";
 import { askFirstNote, macosRefusalNote } from "../chat/asks";
@@ -76,6 +78,9 @@ export function ruleRefusal({
   const shown = (shownPath: string) => JSON.stringify(spell(shownPath));
   if (reach.level === "never") {
     return closedNote(reach, shown(hostPath));
+  }
+  if (isMacosPrivate(hostPath)) {
+    return macosPrivateNote(shown(hostPath));
   }
   if (op === "write" && !accountCanWrite(hostPath)) {
     return systemOwnedNote(shown(hostPath));
@@ -177,6 +182,12 @@ export function folderAsk({
     return {
       refusal: closedNote(reach, shown(hostPath)),
       why: closedWhy(reach),
+    };
+  }
+  if (isMacosPrivate(hostPath)) {
+    return {
+      refusal: macosPrivateNote(shown(hostPath)),
+      why: "macOS keeps that folder private to the app it belongs to.",
     };
   }
   if (!accountCanWrite(hostPath)) {

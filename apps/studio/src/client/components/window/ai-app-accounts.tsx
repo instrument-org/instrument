@@ -2,7 +2,6 @@ import {
   claudeWaitingLine,
   grokWaitingLine,
 } from "@/client/components/connect-button";
-import { openSettings } from "@/client/atoms/settings-modal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -441,20 +440,7 @@ function PlanRow({
           <Row
             buttons={
               <>
-                {account.isUsable ? (
-                  <Button
-                    className="text-foreground"
-                    onClick={() => {
-                      openSettings({ tab: "Providers" });
-                    }}
-                    size="sm"
-                    variant="outline"
-                  >
-                    Choose a model
-                  </Button>
-                ) : (
-                  pairFor(account)
-                )}
+                {account.isUsable ? null : pairFor(account)}
                 {isWaitingOn(account) ? null : disconnectButton(account)}
               </>
             }

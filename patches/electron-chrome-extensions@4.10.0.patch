@@ -1,8 +1,53 @@
 diff --git a/dist/chrome-extension-api.preload.js b/dist/chrome-extension-api.preload.js
-index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..93941b329cc2bbedb671d533d97fc479f4125e8c 100644
---- a/dist/chrome-extension-api.preload.js
+index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..bebb663332e79265ae1c5a95faf816ff481f735e 100644
+--- a/dist/chrome-extension-api.preload.js	
 +++ b/dist/chrome-extension-api.preload.js
-@@ -568,6 +568,14 @@
+@@ -114,6 +114,34 @@
+         ctx.putImageData(imageData, 0, 0);
+         return canvas.toDataURL();
+       }
++      const installedListeners = /* @__PURE__ */ new Set();
++      let askedInstalled = false;
++      const installedEvent = {
++        addListener(callback) {
++          installedListeners.add(callback);
++          if (askedInstalled) return;
++          askedInstalled = true;
++          invokeExtension2("runtime.takeInstalled")().then((details) => {
++            if (!details) return;
++            for (const listener of [...installedListeners]) {
++              try {
++                listener(details);
++              } catch (error) {
++                console.error(error);
++              }
++            }
++          });
++        },
++        removeListener(callback) {
++          installedListeners.delete(callback);
++        },
++        hasListener(callback) {
++          return installedListeners.has(callback);
++        },
++        hasListeners() {
++          return installedListeners.size > 0;
++        }
++      };
+       class ExtensionEvent {
+         constructor(name) {
+           this.name = name;
+@@ -442,6 +470,9 @@
+                 electron.connectNative(extensionId, application, receive, disconnect, callback);
+                 return port;
+               },
++              // Electron never dispatches onInstalled, so a worker asks what
++              // happened to it once its first listener is added.
++              ...typeof document === "undefined" ? { onInstalled: installedEvent } : {},
+               openOptionsPage: invokeExtension2("runtime.openOptionsPage"),
+               sendNativeMessage: invokeExtension2("runtime.sendNativeMessage")
+             };
+@@ -568,6 +599,14 @@
        });
        delete globalThis.electron;
        Object.freeze(chrome);
@@ -18,8 +63,8 @@ index 67d3be4b5026069ec4ae73c1fc6e661f8a19098e..93941b329cc2bbedb671d533d97fc479
      if (!process.contextIsolated) {
        console.warn(`injectExtensionAPIs: context isolation disabled in ${location.href}`);
 diff --git a/dist/cjs/index.js b/dist/cjs/index.js
-index a91ca8fd07194abb081e9bb35fad0060fefddf91..99b25ee61964bf759440caf3cfbef81aab23c112 100644
---- a/dist/cjs/index.js
+index a91ca8fd07194abb081e9bb35fad0060fefddf91..c71967202e38f8e7d0228900d1d4424d5583a26a 100644
+--- a/dist/cjs/index.js	
 +++ b/dist/cjs/index.js
 @@ -1850,13 +1850,25 @@ var NativeMessagingHost = class {
        this.send(message);
@@ -54,9 +99,30 @@ index a91ca8fd07194abb081e9bb35fad0060fefddf91..99b25ee61964bf759440caf3cfbef81a
        }
      };
      this.keepAlive = keepAlive;
+@@ -1993,6 +2005,7 @@ var RuntimeAPI = class extends import_node_events3.EventEmitter {
+     handle("runtime.connectNative", this.connectNative, { permission: "nativeMessaging" });
+     handle("runtime.disconnectNative", this.disconnectNative, { permission: "nativeMessaging" });
+     handle("runtime.openOptionsPage", this.openOptionsPage);
++    handle("runtime.takeInstalled", ({ extension }) => this.ctx.store.impl.takeInstalled?.(extension) ?? null);
+     handle("runtime.sendNativeMessage", this.sendNativeMessage, { permission: "nativeMessaging" });
+   }
+ };
+@@ -2629,9 +2642,10 @@ var PermissionsAPI = class {
+   }
+   processExtension(extension) {
+     const manifest = extension.manifest;
++    const granted = this.ctx.store.impl.grantedPermissions?.(extension);
+     this.permissionMap.set(extension.id, {
+-      permissions: manifest.permissions || [],
+-      origins: manifest.host_permissions || []
++      permissions: [...manifest.permissions || [], ...granted?.permissions || []],
++      origins: [...manifest.host_permissions || [], ...granted?.origins || []]
+     });
+   }
+ };
 diff --git a/dist/esm/index.mjs b/dist/esm/index.mjs
-index 43929222572e4d6875cc192aca0750da79d8ff14..6203dce0c3c85f9294da9e13498e512d685e3034 100644
---- a/dist/esm/index.mjs
+index 43929222572e4d6875cc192aca0750da79d8ff14..27b0b6687e7ab715345d555c4374f64c9585a4fe 100644
+--- a/dist/esm/index.mjs	
 +++ b/dist/esm/index.mjs
 @@ -1813,13 +1813,25 @@ var NativeMessagingHost = class {
        this.send(message);
@@ -91,3 +157,43 @@ index 43929222572e4d6875cc192aca0750da79d8ff14..6203dce0c3c85f9294da9e13498e512d
        }
      };
      this.keepAlive = keepAlive;
+@@ -1956,6 +1968,7 @@ var RuntimeAPI = class extends EventEmitter3 {
+     handle("runtime.connectNative", this.connectNative, { permission: "nativeMessaging" });
+     handle("runtime.disconnectNative", this.disconnectNative, { permission: "nativeMessaging" });
+     handle("runtime.openOptionsPage", this.openOptionsPage);
++    handle("runtime.takeInstalled", ({ extension }) => this.ctx.store.impl.takeInstalled?.(extension) ?? null);
+     handle("runtime.sendNativeMessage", this.sendNativeMessage, { permission: "nativeMessaging" });
+   }
+ };
+@@ -2592,9 +2605,10 @@ var PermissionsAPI = class {
+   }
+   processExtension(extension) {
+     const manifest = extension.manifest;
++    const granted = this.ctx.store.impl.grantedPermissions?.(extension);
+     this.permissionMap.set(extension.id, {
+-      permissions: manifest.permissions || [],
+-      origins: manifest.host_permissions || []
++      permissions: [...manifest.permissions || [], ...granted?.permissions || []],
++      origins: [...manifest.host_permissions || [], ...granted?.origins || []]
+     });
+   }
+ };
+diff --git a/dist/types/browser/impl.d.ts b/dist/types/browser/impl.d.ts
+index 28dcab4817e9a14057da54b4e37bd48878aa678c..949fb067ee4ab7614765489379095729510b24fd 100644
+--- a/dist/types/browser/impl.d.ts	
++++ b/dist/types/browser/impl.d.ts
+@@ -12,4 +12,14 @@ export interface ChromeExtensionImpl {
+     createWindow?(details: chrome.windows.CreateData): Promise<Electron.BaseWindow>;
+     removeWindow?(window: Electron.BaseWindow): void;
+     requestPermissions?(extension: Electron.Extension, permissions: chrome.permissions.Permissions): Promise<boolean>;
++    /** Optional permissions the extension was granted before, for when it loads. */
++    grantedPermissions?(extension: Electron.Extension): {
++        origins: string[];
++        permissions: string[];
++    } | undefined;
++    /** What happened to the extension that it has not been told, told once. */
++    takeInstalled?(extension: Electron.Extension): {
++        previousVersion?: string;
++        reason: "install" | "update";
++    } | null;
+ }

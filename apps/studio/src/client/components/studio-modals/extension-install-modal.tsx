@@ -16,9 +16,9 @@ import { useAtom } from "jotai";
 import { useEffect } from "react";
 
 /**
- * The Chrome Web Store's question before an extension is added, as Chrome's
- * own: the extension by icon and name, what it will be able to do in a
- * person's words, and Add or Cancel. Main asks every window; this one opens
+ * The question before an extension is added, or when one asks to be allowed
+ * more, as Chrome's own: the extension by icon and name, what it will be able
+ * to do in a person's words, and Add or Allow beside Cancel. Main asks every window; this one opens
  * on the ask, answers it, and closes when any window has.
  */
 export function ExtensionInstallModal() {
@@ -35,11 +35,25 @@ export function ExtensionInstallModal() {
       setState(asked);
     }
   }, [asked, setState]);
+  const askId = state?.askId;
   useEffect(() => {
-    if (answered) {
+    if (answered && answered.askId === askId) {
       setState(null);
     }
-  }, [answered, setState]);
+  }, [answered, askId, setState]);
+
+  // Another modal taking this one's place refuses the ask, as Cancel does.
+  // An answer already given is settled, so this changes nothing after one.
+  useEffect(() => {
+    if (askId === undefined) {
+      return;
+    }
+    return () => {
+      void rpcClient.browserExtensions.answerInstall
+        .call({ allow: false, askId })
+        .catch(() => {});
+    };
+  }, [askId]);
 
   const answer = (allow: boolean) => {
     if (state) {
@@ -67,10 +81,14 @@ export function ExtensionInstallModal() {
         >
           <DialogBody>
             <div className="flex items-start gap-3">
-              <img alt="" className="size-10 shrink-0" src={content.icon} />
+              {content.icon && (
+                <img alt="" className="size-10 shrink-0" src={content.icon} />
+              )}
               <div className="flex min-w-0 flex-col gap-2">
                 <DialogTitle>
-                  Add “{content.name}” to {APP_NAME}?
+                  {content.kind === "add"
+                    ? `Add “${content.name}” to ${APP_NAME}?`
+                    : `Allow “${content.name}” to do more?`}
                 </DialogTitle>
                 <DialogDescription>
                   {content.lines.length > 0
@@ -102,7 +120,7 @@ export function ExtensionInstallModal() {
               }}
               variant="brand"
             >
-              Add extension
+              {content.kind === "add" ? "Add extension" : "Allow"}
             </Button>
           </DialogFooter>
         </DialogContent>

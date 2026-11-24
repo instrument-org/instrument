@@ -60,6 +60,25 @@ export function useExtensionActions() {
       },
     }),
   );
+  const { mutate: setEnabled } = useMutation(
+    rpcClient.browserExtensions.setEnabled.mutationOptions({
+      onError: (error, { enabled }) => {
+        toast.error(
+          enabled
+            ? "Couldn't turn on the extension"
+            : "Couldn't turn off the extension",
+          { cause: error },
+        );
+      },
+    }),
+  );
+  const { mutate: acceptUpdate } = useMutation(
+    rpcClient.browserExtensions.acceptUpdate.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't update the extension", { cause: error });
+      },
+    }),
+  );
   const { mutate: setPinned } = useMutation(
     rpcClient.browserExtensions.setPinned.mutationOptions(),
   );
@@ -81,6 +100,9 @@ export function useExtensionActions() {
     }
   };
   return {
+    acceptUpdate: (extension: BrowserExtension, version: string) => {
+      acceptUpdate({ id: extension.id, version });
+    },
     manage: () => {
       if (appWindow) {
         appTabs.open(SCREEN_ROUTES.extensions, { newTab: "reuseBlank" });
@@ -96,13 +118,16 @@ export function useExtensionActions() {
     remove: (extension: BrowserExtension) => {
       remove({ id: extension.id });
     },
+    setEnabled: (extension: BrowserExtension, enabled: boolean) => {
+      setEnabled({ enabled, id: extension.id });
+    },
     setPinned: (extension: BrowserExtension, pinned: boolean) => {
       setPinned({ id: extension.id, pinned });
     },
   };
 }
 
-/** An extension's icon, served by the browser session's `crx:` handler. */
+/** An extension's icon, served by the browser session's `crx:` handler while it runs. */
 export function ExtensionIcon({
   className,
   extension,
@@ -110,11 +135,17 @@ export function ExtensionIcon({
   className: string;
   extension: BrowserExtension;
 }) {
+  if (!extension.enabled && !extension.icon) {
+    return <PuzzlePieceIcon className={className} />;
+  }
   return (
     <img
       alt=""
       className={className}
-      src={`crx://extension-icon/${extension.id}/32/1?partition=${BROWSER_EXTENSIONS_SESSION}`}
+      src={
+        extension.icon ??
+        `crx://extension-icon/${extension.id}/32/1?partition=${BROWSER_EXTENSIONS_SESSION}`
+      }
     />
   );
 }

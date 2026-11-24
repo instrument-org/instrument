@@ -1,9 +1,11 @@
 import {
+  acceptExtensionUpdate,
   answerExtensionInstall,
   listBrowserExtensions,
   openExtensionDesktopApp,
   recheckExtensionConnections,
   removeBrowserExtension,
+  setBrowserExtensionEnabled,
   setBrowserExtensionPinned,
 } from "@/electron-main/browser-view/extensions";
 import { BrowserExtensionSchema } from "@/shared/browser-extensions";
@@ -17,7 +19,8 @@ import { publisher } from "../publisher";
 /**
  * The extensions the in-app browser runs, for the window's row, its puzzle
  * menu and the Extensions page: what is installed, kept current as one is
- * added, removed, pinned or heard from its desktop app, and taking one out.
+ * added, removed, turned on or off, updated, pinned or heard from its desktop
+ * app, and taking one out.
  * Adding one goes through the Chrome Web Store's own button in a tab, whose
  * question the window answers here.
  */
@@ -76,6 +79,19 @@ const remove = base
     await removeBrowserExtension(input.id);
   });
 
+/** Takes an update that asks for more than the version that runs. */
+const acceptUpdate = base
+  .input(z.object({ id: z.string(), version: z.string() }))
+  .handler(async ({ input }) => {
+    await acceptExtensionUpdate(input.id, input.version);
+  });
+
+const setEnabled = base
+  .input(z.object({ enabled: z.boolean(), id: z.string() }))
+  .handler(async ({ input }) => {
+    await setBrowserExtensionEnabled(input.id, input.enabled);
+  });
+
 const setPinned = base
   .input(z.object({ id: z.string(), pinned: z.boolean() }))
   .handler(({ input }) => {
@@ -83,11 +99,13 @@ const setPinned = base
   });
 
 export const browserExtensions = {
+  acceptUpdate,
   answerInstall,
   events,
   live,
   openDesktopApp,
   recheck,
   remove,
+  setEnabled,
   setPinned,
 };

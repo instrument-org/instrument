@@ -27,6 +27,7 @@ import { APP_NAME } from "@instrument-org/shared";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { PushPinIcon } from "@phosphor-icons/react/PushPin";
 import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
+import { PowerIcon } from "@phosphor-icons/react/Power";
 import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
 import { SlidersHorizontalIcon } from "@phosphor-icons/react/SlidersHorizontal";
 import { StorefrontIcon } from "@phosphor-icons/react/Storefront";
@@ -56,7 +57,7 @@ const noticed = new Set<string>();
  * leads to the store is in sight.
  */
 export function BrowserExtensionButtons() {
-  const extensions = useBrowserExtensions();
+  const extensions = useBrowserExtensions().filter(({ enabled }) => enabled);
   const hasPinned = extensions.some((extension) => extension.pinned);
   const shown = useIsTaskPageVisible();
   const listRef = useRef<HTMLElement>(null);
@@ -313,7 +314,7 @@ function ExtensionRow({
 
 /**
  * What a right-click on an extension's button offers, as Chrome's does: its
- * name to its store page, pin or unpin, Remove, and Manage extensions.
+ * name to its store page, pin or unpin, turn off, Remove, and Manage extensions.
  */
 function ButtonMenuItems({ extension }: { extension: BrowserExtension }) {
   const actions = useExtensionActions();
@@ -339,6 +340,14 @@ function ButtonMenuItems({ extension }: { extension: BrowserExtension }) {
           <PushPinIcon className="size-4" />
         )}
         {extension.pinned ? "Unpin" : "Pin"}
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        onSelect={() => {
+          actions.setEnabled(extension, false);
+        }}
+      >
+        <PowerIcon className="size-4" />
+        Turn off
       </DropdownMenuItem>
       <DropdownMenuItem
         onSelect={() => {

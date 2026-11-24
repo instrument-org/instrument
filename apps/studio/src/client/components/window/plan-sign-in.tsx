@@ -115,14 +115,9 @@ function PlanSignInsProvider({ children }: { children: ReactNode }) {
   });
   useEffect(() => {
     const ending = new AbortController();
-    void (async () => {
-      const pages = await rpcClient.planSignIn.live.page.call(undefined, {
-        signal: ending.signal,
-      });
-      for await (const { provider, url } of pages) {
-        takePage(provider, url);
-      }
-    })().catch(() => undefined);
+    void readPages(ending.signal, (provider, url) => {
+      takePage(provider, url);
+    }).catch(() => undefined);
     return () => {
       ending.abort();
     };
@@ -139,6 +134,19 @@ function PlanSignInsProvider({ children }: { children: ReactNode }) {
       {children}
     </PlanSignInsContext>
   );
+}
+
+/** Hands over each page a sign-in opens, until the signal ends it. */
+async function readPages(
+  signal: AbortSignal,
+  onPage: (provider: PlanProvider, url: string) => void,
+) {
+  const pages = await rpcClient.planSignIn.live.page.call(undefined, {
+    signal,
+  });
+  for await (const { provider, url } of pages) {
+    onPage(provider, url);
+  }
 }
 
 function usePlanSignIn(

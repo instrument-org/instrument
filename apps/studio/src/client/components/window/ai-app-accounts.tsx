@@ -168,6 +168,10 @@ interface PlanAccount {
   line: string;
 }
 
+function joined(...parts: (string | false | undefined)[]) {
+  return parts.filter(Boolean).join(" · ");
+}
+
 /** The accounts of a plan on this computer, or undefined until they are read. */
 function usePlanAccounts(provider: PlanProvider): PlanAccount[] | undefined {
   const { data: chatgpt } = useQuery(
@@ -179,8 +183,6 @@ function usePlanAccounts(provider: PlanProvider): PlanAccount[] | undefined {
   const { data: grok } = useQuery(
     rpcClient.grokAccount.live.status.experimental_liveOptions(),
   );
-  const joined = (...parts: (string | false | undefined)[]) =>
-    parts.filter(Boolean).join(" · ");
   switch (provider) {
     case "chatgpt": {
       return chatgpt?.accounts.map((account) => ({

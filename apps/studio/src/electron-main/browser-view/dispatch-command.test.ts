@@ -899,9 +899,16 @@ describe("sendCommand", () => {
     });
     const click = { button: "left", clickCount: 1, x: 5, y: 398 };
 
-    /** A guest that answers each `DOM.getContentQuads` with the next of `answers`. */
-    function guestMeasuring(answers: unknown[]) {
+    /**
+     * A guest that answers each `DOM.getContentQuads` with the next of
+     * `answers`, and names `underPointer` as the element at any point asked
+     * about.
+     */
+    function guestMeasuring(answers: unknown[], underPointer?: string) {
       const wcSendCommand = vi.fn().mockImplementation((method: string) => {
+        if (method === "Runtime.evaluate") {
+          return Promise.resolve({ result: { objectId: underPointer } });
+        }
         if (method !== "DOM.getContentQuads") {
           return Promise.resolve({});
         }
@@ -913,13 +920,18 @@ describe("sendCommand", () => {
       const entries = new Map([
         [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
       ]);
+      const sent = (method: string) =>
+        wcSendCommand.mock.calls.filter(([m]) => m === method);
       return {
+        measurements: () => sent("DOM.getContentQuads"),
         presses: () =>
-          wcSendCommand.mock.calls.filter(
-            ([m]) => m === "Input.dispatchMouseEvent",
+          sent("Input.dispatchMouseEvent").filter(
+            ([, params]) =>
+              (params as { type: string }).type === "mousePressed",
           ),
-        send: (method: string, params: unknown) =>
-          dispatch({ entries, method, params }),
+        send: (method: string, params: unknown, frameSession?: string) =>
+          dispatch({ entries, frameSession, method, params }),
+        sent,
       };
     }
 
@@ -1017,7 +1029,153 @@ describe("sendCommand", () => {
       }
 
       expect(answers).toHaveLength(1);
-      expect(presses()).toHaveLength(4);
+      expect(presses()).toHaveLength(2);
+    });
+
+    // A click by selector or by `find` names no element to the debugger: the
+    // pointer arriving at 5,398 is the first the host sees of it, and the
+    // element there is the one measured.
+    describe("that agent-browser measured in a script of its own", () => {
+      const move = { type: "mouseMoved", x: 5, y: 398 };
+      const press = { ...click, type: "mousePressed" };
+
+      it.each([
+        { label: "sends a press on an unmoved element", then: quads(393) },
+        {
+          label: "refuses a press when the element moved",
+          refusal: /element moved after it was measured.*Click it again/,
+          then: quads(364),
+        },
+        {
+          label: "refuses a press when the element is gone",
+          refusal: /can no longer be found.*Take a snapshot/,
+          then: "detached",
+        },
+        {
+          // A hover style that grows the element, or lifts it a little.
+          label: "sends a press on an element that changed around the point",
+          then: { quads: [[-2, 389, 12, 389, 12, 403, -2, 403]] },
+        },
+      ])("$label", async ({ refusal, then }) => {
+        const { measurements, presses, send, sent } = guestMeasuring(
+          [quads(393), then],
+          "element-1",
+        );
+
+        await send("Input.dispatchMouseEvent", move);
+        const pressed = send("Input.dispatchMouseEvent", press);
+
+        if (refusal) {
+          await expect(pressed).rejects.toThrow(refusal);
+          expect(presses()).toEqual([]);
+        } else {
+          await pressed;
+          expect(presses()).toEqual([["Input.dispatchMouseEvent", press]]);
+        }
+        expect(sent("Runtime.evaluate")).toEqual([
+          [
+            "Runtime.evaluate",
+            expect.objectContaining({
+              expression: "document.elementFromPoint(5, 398)",
+            }),
+          ],
+        ]);
+        expect(measurements()).toEqual([
+          ["DOM.getContentQuads", { objectId: "element-1" }],
+          ["DOM.getContentQuads", { objectId: "element-1" }],
+        ]);
+      });
+
+      it("holds a press on an element's padding to the element staying where it was", async () => {
+        // The pointer is at 5,398 and the content box starts below it.
+        const { presses, send } = guestMeasuring(
+          [quads(400), quads(401)],
+          "element-1",
+        );
+
+        await send("Input.dispatchMouseEvent", move);
+        await expect(send("Input.dispatchMouseEvent", press)).rejects.toThrow(
+          /element moved after it was measured/,
+        );
+        expect(presses()).toEqual([]);
+      });
+
+      it("checks a click by ref against the element agent-browser named", async () => {
+        const { measurements, presses, send, sent } = guestMeasuring(
+          [quads(393), quads(356)],
+          "element-1",
+        );
+
+        await send("DOM.getContentQuads", { backendNodeId: 7 });
+        await send("Input.dispatchMouseEvent", move);
+        await expect(send("Input.dispatchMouseEvent", press)).rejects.toThrow(
+          /element moved after it was measured/,
+        );
+
+        expect(sent("Runtime.evaluate")).toEqual([]);
+        expect(measurements()).toEqual([
+          ["DOM.getContentQuads", { backendNodeId: 7 }],
+          ["DOM.getContentQuads", { backendNodeId: 7 }],
+        ]);
+        expect(presses()).toEqual([]);
+      });
+
+      it("checks a press in a frame of its own against the element in that frame", async () => {
+        const { presses, send, sent } = guestMeasuring(
+          [quads(393), quads(364)],
+          "element-1",
+        );
+
+        await send("Input.dispatchMouseEvent", move, "frame-session-1");
+        await expect(
+          send("Input.dispatchMouseEvent", press, "frame-session-1"),
+        ).rejects.toThrow(/element moved after it was measured/);
+
+        expect(
+          [...sent("Runtime.evaluate"), ...sent("DOM.getContentQuads")].map(
+            ([, , session]) => session as unknown,
+          ),
+        ).toEqual(["frame-session-1", "frame-session-1", "frame-session-1"]);
+        expect(presses()).toEqual([]);
+      });
+
+      it("sends a press in a frame of its own that stayed where it was", async () => {
+        const { presses, send } = guestMeasuring(
+          [quads(393), quads(393)],
+          "element-1",
+        );
+
+        await send("Input.dispatchMouseEvent", move, "frame-session-1");
+        await send("Input.dispatchMouseEvent", press, "frame-session-1");
+
+        expect(presses()).toEqual([
+          ["Input.dispatchMouseEvent", press, "frame-session-1"],
+        ]);
+      });
+
+      it("sends a press where the pointer found no element", async () => {
+        const answers = [quads(393)];
+        const { presses, send } = guestMeasuring(answers);
+
+        await send("Input.dispatchMouseEvent", move);
+        await send("Input.dispatchMouseEvent", press);
+
+        expect(answers).toHaveLength(1);
+        expect(presses()).toHaveLength(1);
+      });
+
+      it("measures nothing again for a pointer that moves on without pressing", async () => {
+        const answers = [quads(393), quads(100), quads(364)];
+        const { presses, send } = guestMeasuring(answers, "element-1");
+
+        // A hover at one point, the pointer sent to a second, a press at a third.
+        await send("Input.dispatchMouseEvent", move);
+        await send("Input.dispatchMouseEvent", { ...move, x: 60, y: 105 });
+        await send("Input.dispatchMouseEvent", { ...press, x: 200, y: 40 });
+
+        expect(answers).toHaveLength(1);
+        expect(presses()).toHaveLength(1);
+      });
     });
 
     // agent-browser's own click script waits in the page for the element to

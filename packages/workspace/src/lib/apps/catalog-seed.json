@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-11-24T16:21:32.088Z",
-  "entriesHash": "36b310f6e34787c9",
+  "revision": "2026-11-24T17:55:35.002Z",
+  "entriesHash": "538f5fbb7e496e4f",
   "entries": [
     {
       "slug": "ahrefs",
@@ -870,7 +870,7 @@
     {
       "slug": "chatgpt",
       "name": "ChatGPT",
-      "tagline": "Your ChatGPT chats and plan.",
+      "tagline": "Chats, projects, and memory.",
       "examples": [
         "Import what ChatGPT remembers about me",
         "Find an old ChatGPT chat",
@@ -890,7 +890,7 @@
     {
       "slug": "claude",
       "name": "Claude",
-      "tagline": "Your Claude chats and plan.",
+      "tagline": "Chats, projects, and artifacts.",
       "examples": [
         "Import what Claude remembers about me",
         "Find an old Claude chat",
@@ -1257,6 +1257,23 @@
         "Which partners overlap with us most?",
         "What new overlaps showed up this week?"
       ]
+    },
+    {
+      "slug": "deepseek",
+      "name": "DeepSeek",
+      "tagline": "Chats.",
+      "examples": [
+        "Find an old DeepSeek chat",
+        "Back up all my DeepSeek chats"
+      ],
+      "description": "Work in your DeepSeek account on DeepSeek's site: find and read past chats, and export them.",
+      "domain": "deepseek.com",
+      "authMethods": [],
+      "interfaces": [],
+      "home": "https://chat.deepseek.com",
+      "category": "ai",
+      "aliases": [],
+      "tier": "listed"
     },
     {
       "slug": "deepwiki",
@@ -1701,6 +1718,28 @@
         "Make a one-page guide to houseplant care",
         "Make a presentation about the solar system"
       ]
+    },
+    {
+      "slug": "gemini",
+      "name": "Gemini",
+      "tagline": "Chats and Gems.",
+      "examples": [
+        "Find an old Gemini chat",
+        "List my Gems",
+        "Back up all my Gemini chats"
+      ],
+      "description": "Work in your Gemini account on Google's site: find and read past chats, export them, and use your Gems.",
+      "domain": "gemini.google.com",
+      "authMethods": [],
+      "interfaces": [],
+      "home": "https://gemini.google.com",
+      "category": "ai",
+      "aliases": ["google gemini", "bard"],
+      "tier": "featured",
+      "rank": 5,
+      "signIn": "https://accounts.google.com/ServiceLogin?continue=https://gemini.google.com/app",
+      "addAccount": "https://accounts.google.com/AddSession?continue=https://gemini.google.com/app",
+      "accountHome": "https://gemini.google.com/app?authuser={account}"
     },
     {
       "slug": "github",
@@ -2215,7 +2254,7 @@
     {
       "slug": "grok",
       "name": "Grok",
-      "tagline": "Your Grok chats and plan.",
+      "tagline": "Chats and projects.",
       "examples": [
         "Import what Grok remembers about me",
         "Find an old Grok chat",
@@ -2913,6 +2952,43 @@
         "Draw a state diagram for a traffic light"
       ],
       "docsUrl": "https://mermaid.ai/docs/ai/mcp-server"
+    },
+    {
+      "slug": "meta-ai",
+      "name": "Meta AI",
+      "tagline": "Chats and images.",
+      "examples": [
+        "Find an old Meta AI chat",
+        "Save the images I made in Meta AI",
+        "Back up all my Meta AI chats"
+      ],
+      "description": "Work in your Meta AI account on Meta's site: find and read past chats, and save the images you made.",
+      "domain": "meta.ai",
+      "authMethods": [],
+      "interfaces": [],
+      "home": "https://www.meta.ai",
+      "category": "ai",
+      "aliases": ["llama"],
+      "tier": "listed"
+    },
+    {
+      "slug": "microsoft-copilot",
+      "name": "Microsoft Copilot",
+      "tagline": "Chats and pages.",
+      "examples": [
+        "Find an old Copilot chat",
+        "Open my Copilot pages",
+        "Back up all my Copilot chats"
+      ],
+      "description": "Work in your Microsoft Copilot account on Microsoft's site: find and read past chats and pages, and export them.",
+      "domain": "copilot.microsoft.com",
+      "authMethods": [],
+      "interfaces": [],
+      "home": "https://copilot.microsoft.com",
+      "category": "ai",
+      "aliases": ["copilot", "bing chat"],
+      "tier": "featured",
+      "rank": 40
     },
     {
       "slug": "microsoft-learn",
@@ -3615,6 +3691,24 @@
         "Build me a four-week strength plan",
         "What yoga classes are good for beginners?"
       ]
+    },
+    {
+      "slug": "perplexity",
+      "name": "Perplexity",
+      "tagline": "Searches and Spaces.",
+      "examples": [
+        "Find an old Perplexity search",
+        "What's in my Spaces?",
+        "Back up my Perplexity library"
+      ],
+      "description": "Work in your Perplexity account on Perplexity's site: find and read past searches, and work in your Spaces.",
+      "domain": "perplexity.ai",
+      "authMethods": [],
+      "interfaces": [],
+      "home": "https://www.perplexity.ai",
+      "category": "ai",
+      "aliases": ["pplx"],
+      "tier": "listed"
     },
     {
       "slug": "posthog",

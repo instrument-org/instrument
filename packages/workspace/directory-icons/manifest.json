@@ -190,6 +190,12 @@
     "url": "https://cdn.prod.website-files.com/66955639e4d4a6eebd7168b9/669c18d1da1ae90bdf183976_crossbeam_icon256.png",
     "license": "trademark"
   },
+  "deepseek": {
+    "source": "svgl",
+    "path": "deepseek.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
   "dovetail": {
     "source": "logos",
     "path": "dovetail-icon.svg",
@@ -272,6 +278,12 @@
     "source": "app-store",
     "id": 6768404578,
     "license": "trademark"
+  },
+  "gemini": {
+    "source": "svgl",
+    "path": "gemini.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
   },
   "github": {
     "source": "svgl",
@@ -472,6 +484,18 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "meta-ai": {
+    "source": "svgl",
+    "path": "meta.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
+  "microsoft-copilot": {
+    "source": "svgl",
+    "path": "microsoft-copilot.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
+  },
   "microsoft-learn": {
     "source": "svgl",
     "path": "microsoft.svg",
@@ -598,6 +622,12 @@
     "path": "icons/peloton/default.svg",
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
+  },
+  "perplexity": {
+    "source": "svgl",
+    "path": "perplexity.svg",
+    "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
+    "license": "MIT"
   },
   "posthog": {
     "source": "svgl",

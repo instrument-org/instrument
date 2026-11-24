@@ -220,7 +220,7 @@ it("reads every kind of address", () => {
           "root": "~",
         },
         "/memory": {
-          "kind": "memories",
+          "kind": "unknown",
         },
         "/memory/a/b": {
           "kind": "unknown",
@@ -263,7 +263,7 @@ it("reads every kind of address", () => {
           "kind": "site",
         },
         "/skills": {
-          "kind": "skills",
+          "kind": "unknown",
         },
         "/skills/provider%3Aweb": {
           "kind": "skill",

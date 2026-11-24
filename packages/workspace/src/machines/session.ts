@@ -20,6 +20,7 @@ import { MID_TURN_NOTE } from "../lib/chat/mid-turn";
 import { logUnhandledEvent } from "../lib/log-unhandled-event";
 import { sessionRole } from "../lib/chat/children";
 import { recordChanged } from "../lib/record-changes";
+import { isSameModel } from "../lib/model-change";
 import { isTypedByUser } from "../lib/typed-by-user";
 import { interruptWaits } from "../lib/wait-interrupts";
 import { getWorkspaceConfig } from "../lib/workspace-config";
@@ -347,17 +348,24 @@ export const sessionMachine = setup({
         // stays queued, so a turn that ends first runs it as a turn of its own.
         // A message the user typed into a chat's working turn joins it the
         // same way, with a note that it arrived mid-turn, and the turn decides
-        // what it is (lib/chat/mid-turn.ts). A sender that asks to interrupt,
+        // what it is (lib/chat/mid-turn.ts). One sent on another model than
+        // the turn's is for that model to answer, so it supersedes the turn:
+        // the person picked the model and then sent. A sender that asks to interrupt,
         // as the Stop button does, supersedes the turn.
         enqueueActions(({ context, enqueue, event }) => {
           const agentRef = context.agentRef;
-          if (agentRef?.getSnapshot().status !== "active") {
+          const agent = agentRef?.getSnapshot();
+          if (!agentRef || agent?.status !== "active") {
             return;
           }
           const typedIntoChat =
             sessionRole(context.chatId, context.sessionId) === "chat" &&
             isTypedByUser(event.value);
-          if (event.interrupt) {
+          // The session's own model is the message's by here, so the turn's is
+          // read from the agent running it.
+          const switchesModel =
+            typedIntoChat && !isSameModel(agent.context.model, event.model);
+          if (event.interrupt || switchesModel) {
             enqueue.raise({ reason: "superseded", type: "stop" });
             return;
           }

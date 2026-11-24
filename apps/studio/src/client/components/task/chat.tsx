@@ -308,14 +308,15 @@ export function ChatConversation({
   ];
   /** Draws the prompt at once, and hands back how to take it away again should the send fail. */
   const showPending = (prompt: string, modelURI: AIGatewayModelURI.Type) => {
-    // A message sent while the session is at work joins the turn going on,
-    // which finishes on the model it began with: only a message that starts a
-    // turn of its own is sure to switch, and any other's line waits for the
-    // turn that records it.
-    const model =
-      isAgentAlive || unsettled.length > 0
-        ? undefined
-        : reachModel(modelsData, modelURI).model;
+    // A message on another model runs as a turn of its own, stopping the one
+    // going on. With another message still waiting, the turn that one starts
+    // records the switch, so the line is left to it.
+    const isFirstWaiting =
+      unsettled.length === 0 &&
+      (!isAgentAlive || messages.at(-1)?.role === "assistant");
+    const model = isFirstWaiting
+      ? reachModel(modelsData, modelURI).model
+      : undefined;
     const entry = pendingPrompt({
       change: model && modelChangeSincePreviousTurn({ messages, model }),
       messages,

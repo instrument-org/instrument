@@ -56,8 +56,7 @@ export function modelChangeSincePreviousTurn({
     if (
       asked === undefined
         ? message.metadata.modelId === model.canonicalId
-        : asked.canonicalId === model.canonicalId &&
-          asked.params.provider === model.params.provider
+        : isSameModel(asked, model)
     ) {
       return undefined;
     }
@@ -83,6 +82,20 @@ export function modelChangeSincePreviousTurn({
   // Nothing has answered yet, so there is no model to have moved from. The
   // first turn of a session is not a change of anything.
   return undefined;
+}
+
+/**
+ * Whether two models are the one model to ask: the same model from another
+ * kind of provider is a different one, and the same one through another
+ * connection of that kind is not.
+ */
+export function isSameModel(
+  a: Pick<AIGatewayModel.Type, "canonicalId" | "params">,
+  b: Pick<AIGatewayModel.Type, "canonicalId" | "params">,
+): boolean {
+  return (
+    a.canonicalId === b.canonicalId && a.params.provider === b.params.provider
+  );
 }
 
 /**

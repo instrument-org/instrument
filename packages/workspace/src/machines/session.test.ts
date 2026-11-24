@@ -1499,6 +1499,50 @@ describe("sessionMachine", () => {
         },
       );
 
+      // The person picked another model and then sent, so that model answers.
+      it("stops the turn and runs the message on the model it was sent with", async () => {
+        answersAsChat();
+        const result = await startTurn([writeFileChunks, finishChunks]);
+        result.actor.send({
+          model: createMockAIGatewayModel({ canonicalId: "switched-model-id" }),
+          type: "addMessage",
+          value: userMessage("Make it about a submarine captain instead."),
+        });
+
+        const shorthand = sessionToShorthand(await runTestMachine(result));
+        expect(shorthand).toContain("interrupted by a newer message");
+        expect(shorthand).toContain(
+          '<data-modelChange from="mock-model-id" to="switched-model-id" />',
+        );
+        expect(shorthand).toContain('model="switched-model-id"');
+        expect(shorthand).not.toContain(
+          "The user sent this while you were working on their last message.",
+        );
+      });
+
+      // A wake carries the chat's model too, which nobody sent it to change.
+      it("keeps the turn for a message nobody typed, whatever its model", async () => {
+        answersAsChat();
+        const typed = userMessage("");
+        const wake = {
+          ...typed,
+          parts: typed.parts.map(({ metadata }) => ({
+            data: { kind: "message" as const, text: "Check the logs." },
+            metadata,
+            type: "data-fromChat" as const,
+          })),
+        };
+        const result = await startTurn([writeFileChunks, finishChunks]);
+        result.actor.send({
+          model: createMockAIGatewayModel({ canonicalId: "switched-model-id" }),
+          type: "addMessage",
+          value: wake,
+        });
+
+        const shorthand = sessionToShorthand(await runTestMachine(result));
+        expect(shorthand).not.toContain("interrupted by a newer message");
+      });
+
       // A foreground command would hold the message until it ended. It is
       // not cut either: it moves to the background, and the message is heard
       // at the step after.

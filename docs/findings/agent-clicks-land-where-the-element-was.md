@@ -1,6 +1,6 @@
 # Agent clicks land where the element was, not where it is
 
-**Status:** fixed in agent-browser, which from 0.44.0 waits in the page for an element to hold still, presses the center of its largest content quad, and refuses a press the browser says would land elsewhere. The gateway (`apps/studio/src/electron-main/browser-view/dispatch-command.ts`) no longer settles the layout itself. It keeps one check, on ref clicks: the element is measured once more as the press arrives, and a press on one that moved is refused.
+**Status:** fixed in agent-browser for the reflow, and for a wrapped link clicked by ref: from 0.44.0 it waits in the page for an element to hold still, and a ref click presses the center of the element's largest content quad and is refused when the browser says the press would land elsewhere. Still open upstream: a selector or `find` click on a link that wraps presses the text between its pieces and reports success. The gateway (`apps/studio/src/electron-main/browser-view/dispatch-command.ts`) no longer settles the layout itself. It keeps one check, on ref clicks: the element is measured once more as the press arrives, and a press on one that moved is refused.
 
 ## Symptom
 
@@ -28,7 +28,11 @@ Read from the 0.44.0 source (`cli/src/native/element.rs`, `click_point.rs`):
 
 - One script scrolls the element into view and, when the scroll moved it, measures again after two animation frames (or 100ms where none come) until two measurements agree, up to five rounds. Ref clicks run it with `Runtime.callFunctionOn`, selector and `find` clicks with `Runtime.evaluate`, both awaiting its promise. `DOM.scrollIntoViewIfNeeded` and `DOM.getBoxModel` are no longer part of a click.
 - A ref click then takes `DOM.getContentQuads` and presses the center of the largest quad, rounded to a whole pixel, so a wrapped link is pressed on one of its pieces. It asks `DOM.getNodeForLocation` what that point would hit, and refuses the click unless that is the element, something inside it, a label that activates it, or the frame it embeds.
-- A selector or `find` click presses the point the script measured, and the same script refuses when `elementFromPoint` there is an unrelated element.
+- A selector or `find` click presses the point the script measured, the center of the element's bounding box, and the same script refuses when `elementFromPoint` there is an unrelated element. An ancestor counts as related, so the paragraph around a link is not refused.
+
+## What is still open
+
+A selector or `find` click on an inline element broken across lines. Its bounding box spans both lines, and the center can fall between its pieces, on the paragraph's own text, which the script's check passes because the paragraph is the link's ancestor. Against the 0.44.0 binary with its own headless Chrome at 320px wide, a link whose pieces were 64px at the end of one line and 266px at the start of the next: `click @ref` navigated; `find text "…" click` printed `✓ Done` and did not, with `elementFromPoint` at the pressed point answering the `<p>`. The gateway never covered this path either: its aim into a wrapped link's first line applied to ref clicks alone. Clicking by ref avoids it.
 
 ## What the gateway still does
 

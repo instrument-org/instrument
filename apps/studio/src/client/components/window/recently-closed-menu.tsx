@@ -32,6 +32,9 @@ import { useShell } from "./shell-context";
 import { useTabTitle } from "./tab-title";
 import { useRecentlyClosed } from "./window-space-menu";
 
+/** How many closes a menu lists, newest first; History's page has every one. */
+const MOST_LISTED = 10;
+
 /** After a pick, the caret goes where the side with the keyboard puts it, as reopening from Activity does, and stays off what opened the list. */
 function focusHomeAfterPick(event: Event, hasPicked: { current: boolean }) {
   if (!hasPicked.current) {
@@ -55,7 +58,7 @@ function focusHomeAfterPick(event: Event, hasPicked: { current: boolean }) {
  */
 export function RecentlyClosedMenu() {
   const shell = useShell();
-  const closed = useRecentlyClosed();
+  const closed = useRecentlyClosed().slice(0, MOST_LISTED);
   const appsBySlug = useAppsBySlug();
   const titleOf = useTabTitle(shell.chatTitles);
   const hasPicked = useRef(false);
@@ -127,7 +130,10 @@ export function HistoryButton() {
   const shell = useShell();
   const [isOpen, setOpen] = useState(false);
   const hasPicked = useRef(false);
-  const closed = closedGroupsOf(useAtomValue(appTabsAtom).recentlyClosed);
+  const closed = closedGroupsOf(useAtomValue(appTabsAtom).recentlyClosed).slice(
+    0,
+    MOST_LISTED,
+  );
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
   const pick = (run: () => void) => {
     hasPicked.current = true;

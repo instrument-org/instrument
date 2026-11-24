@@ -3,6 +3,7 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
+import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { cn } from "@/client/lib/utils";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
@@ -186,6 +187,7 @@ export function SearchField<T extends string>({
                 onTokensChange?.([]);
               } else {
                 event.currentTarget.blur();
+                focusScreenHome({ leaving: false });
               }
             }}
             placeholder={tokens.length > 0 ? "" : placeholder}

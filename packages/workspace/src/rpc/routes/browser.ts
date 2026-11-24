@@ -71,6 +71,7 @@ const open = base
                 ...(take === undefined ? {} : { take }),
                 webContentsId: context.webContentsId,
               },
+          url === undefined ? restoreUrl : undefined,
         )
         .catch((error: unknown) => {
           throw errors.BROWSER_OPEN_FAILED({

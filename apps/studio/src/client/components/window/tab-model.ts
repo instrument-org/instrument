@@ -42,13 +42,15 @@ export interface WindowTabs {
   tabs: WindowTab[];
 }
 
-/** What a group keeps of its own: its pin, the project it was made in, and the left side's share of two. */
+/** What a group keeps of its own: its pin, the project it was made in, the left side's share of two, and when it last came up. */
 export interface GroupOwn {
   pinned?: true;
   /** The project whose set of groups it was made in, by its id. */
   project?: string;
   /** The left side's share of the row past the gutter; half where absent. */
   share?: number;
+  /** When a window last came to stand on it, in ms: what orders it among the groups closed since. */
+  shownAt?: number;
 }
 
 /** A group's own record with one field changed, a field left empty taken off. */
@@ -62,6 +64,7 @@ export function withGroupOwn(
     ...(merged.pinned ? { pinned: true } : {}),
     ...(merged.project === undefined ? {} : { project: merged.project }),
     ...(merged.share === undefined ? {} : { share: merged.share }),
+    ...(merged.shownAt === undefined ? {} : { shownAt: merged.shownAt }),
   };
   const { [group]: _was, ...others } = state.groups ?? {};
   return {
@@ -519,6 +522,26 @@ export function isHomeTab(tab: WindowTab): boolean {
   return screen.kind === "inbox" && screen.draft === undefined;
 }
 
+/**
+ * The blank new tab a group has up, which what is opened into the group
+ * takes the place of. None where the group is a split: a tab on a side of
+ * one keeps its place.
+ */
+export function blankUpIn(
+  state: WindowTabs,
+  group: string,
+): undefined | WindowTab {
+  const up = selectedTabIn(state, group);
+  return up && isHomeTab(up) && !isSplit(groupLayoutOf(state, group))
+    ? up
+    : undefined;
+}
+
+/** Whether a group is laid out on two sides. */
+export function isSplit(layout: GroupLayout): boolean {
+  return layout.sides.length === 2;
+}
+
 /** Whether a tab is a new chat, written in or not: the zero state, at `/chats`. */
 export function isNewChatTab(tab: WindowTab): boolean {
   return tab.kind === "screen" && matchScreen(tab.href).kind === "inbox";
@@ -934,8 +957,8 @@ export function openOrFocusScreen(
       state: select ? selectTab(state, existing.id) : state,
     };
   }
-  const up = isWaiting ? selectedTabIn(state, group) : undefined;
-  if (up && isHomeTab(up)) {
+  const up = isWaiting ? blankUpIn(state, group) : undefined;
+  if (up) {
     const told = mapTab(state, up.id, (tab) => {
       if (tab.kind !== "screen") {
         return tab;

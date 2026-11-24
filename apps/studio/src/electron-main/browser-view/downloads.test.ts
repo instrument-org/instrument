@@ -212,6 +212,7 @@ function recordOf(
     committed,
     contents,
     edit: null,
+    edited: false,
     entry,
     frames: new Map(),
     htmlFullScreen: false,

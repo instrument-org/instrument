@@ -53,6 +53,24 @@ const noticed = new Set<string>();
  */
 const drawnPins = { ids: new Set<string>(), isSeen: false };
 
+/** The pinned buttons that grow in on this draw: none before the first list. */
+function enteringPins(pinnedIds: string[]): string[] {
+  return drawnPins.isSeen
+    ? pinnedIds.filter((id) => !drawnPins.ids.has(id))
+    : [];
+}
+
+/** Notes the pinned buttons as drawn, once a list with any has arrived. */
+function markPinsDrawn(pinnedIds: string[]) {
+  if (pinnedIds.length === 0 && !drawnPins.isSeen) {
+    return;
+  }
+  drawnPins.isSeen = true;
+  for (const id of pinnedIds) {
+    drawnPins.ids.add(id);
+  }
+}
+
 /**
  * The browser extensions' buttons, framed as one control of the row's
  * family the way Chrome groups them, with the puzzle piece at its end:
@@ -88,17 +106,9 @@ export function BrowserExtensionButtons() {
   const pinnedIds = extensions
     .filter((extension) => extension.pinned)
     .map((extension) => extension.id);
-  const entering = drawnPins.isSeen
-    ? pinnedIds.filter((id) => !drawnPins.ids.has(id))
-    : [];
+  const entering = enteringPins(pinnedIds);
   useEffect(() => {
-    if (pinnedIds.length === 0 && !drawnPins.isSeen) {
-      return;
-    }
-    drawnPins.isSeen = true;
-    for (const id of pinnedIds) {
-      drawnPins.ids.add(id);
-    }
+    markPinsDrawn(pinnedIds);
   });
   const sheet = [
     ":host{gap:2px}",

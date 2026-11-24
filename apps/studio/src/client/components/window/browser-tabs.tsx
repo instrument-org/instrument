@@ -55,7 +55,7 @@ import { visitInTab } from "./tab-history";
 import {
   addPages,
   fileTabWalked,
-  isHomeTab,
+  blankUpIn,
   openPage as openPageIn,
   type PageTab,
   type Placing,
@@ -778,17 +778,16 @@ export function BrowserTabs({
         // A group waiting behind with its new tab up gets the page in that
         // tab, the way the group on screen does: the tab that was there to
         // be told where to go is told, rather than left beside the page.
-        const waitingUp =
+        const fresh =
           key === undefined || key === latest.current.group
             ? undefined
-            : selectedTabIn(
+            : blankUpIn(
                 {
                   activeByGroup: latest.current.activeByGroup,
                   tabs: latest.current.allTabs,
                 },
                 key,
               );
-        const fresh = waitingUp && isHomeTab(waitingUp) ? waitingUp : undefined;
         return openTab(
           change,
           url,

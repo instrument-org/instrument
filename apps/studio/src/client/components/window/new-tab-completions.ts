@@ -1,16 +1,17 @@
-import { type MessageAddress } from "@/client/lib/address-in-message";
+import { type TypedAddress, typedAddress } from "@/client/lib/typed-address";
 import { type TypedPath } from "@/client/lib/typed-path";
 
 import { type OfferedPage, matchKnownPages } from "./known-pages";
 import { addressCompletion, bareAddress } from "./omnibar-match";
+import { isKnownSite } from "./typed-address-row";
 
 /** How many pages from history and the bookmarks the list offers under what was typed. */
 const PAGES_SHOWN = 4;
 
 /** A row under a new tab's box: what the words open. */
 export type BoxCompletion =
-  /** The words themselves, when they are an address. */
-  | { address: MessageAddress; id: string; kind: "address" }
+  /** The words themselves, when they are an address, and whether the window has been to its site. */
+  | { address: TypedAddress; id: string; isKnown: boolean; kind: "address" }
   /** The words themselves, when they are a place on the computer. */
   | { id: string; kind: "path"; path: TypedPath }
   /** A page or a site from history, or a bookmark, the words find. */
@@ -18,7 +19,9 @@ export type BoxCompletion =
 
 /**
  * Whether a new tab's box is offering to open what is in it: while its words
- * are one line with no space in them, and are not a slash command. A path
+ * are one line with no space in them, and are not a slash command. A slash
+ * and one name is a command unless it is a folder at the computer's root
+ * that no search starts with (`/tmp`, `/Users`), which is a path. A path
  * may have spaces only where they are quoted or escaped, as a pasted one
  * has them; a space at the end always ends the offer, so a domain followed
  * by a space is sent as a message.
@@ -27,7 +30,10 @@ export function offersToOpen(words: string, path: TypedPath | undefined) {
   if (words === "" || words.includes("\n") || /\s$/.test(words)) {
     return false;
   }
-  if (/^\/[\w:-]*$/.test(words)) {
+  if (
+    /^\/[\w:-]*$/.test(words) &&
+    (words === "/" || path === undefined || path.alsoSearch)
+  ) {
     return false;
   }
   if (!/\s/.test(words)) {
@@ -37,6 +43,16 @@ export function offersToOpen(words: string, path: TypedPath | undefined) {
     path !== undefined &&
     (/^(["']).*\1$/.test(words) || !/(?<!\\)\s/.test(words))
   );
+}
+
+/**
+ * The address a new tab's box takes typed words for (`typedAddress`): one a
+ * browser would go to without asking, or one of the app's own. Words whose
+ * address is in doubt (`node.js`, `ftp://`) are a message here.
+ */
+export function boxAddress(words: string): TypedAddress | undefined {
+  const address = typedAddress(words);
+  return address?.kind === "page" && address.doubt ? undefined : address;
 }
 
 /**
@@ -54,7 +70,7 @@ export function boxCompletions({
   recentPages,
   words,
 }: {
-  address: MessageAddress | undefined;
+  address: TypedAddress | undefined;
   bookmarkPages: OfferedPage[];
   path: TypedPath | undefined;
   recentPages: OfferedPage[];
@@ -63,7 +79,16 @@ export function boxCompletions({
   const head: BoxCompletion[] = path
     ? [{ id: `path:${path.typed}`, kind: "path", path }]
     : address
-      ? [{ address, id: "address", kind: "address" }]
+      ? [
+          {
+            address,
+            id: "address",
+            isKnown:
+              address.kind === "page" &&
+              isKnownSite(address.url, [...bookmarkPages, ...recentPages]),
+            kind: "address",
+          },
+        ]
       : [];
   const taken = new Set(
     address?.kind === "page" ? [bareAddress(address.url)] : [],

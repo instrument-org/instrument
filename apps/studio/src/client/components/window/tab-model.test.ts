@@ -10,6 +10,7 @@ import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import {
+  blankUpIn,
   addScreen,
   agentCloseKeeps,
   besideOf,
@@ -287,6 +288,41 @@ describe("openOrFocusScreen", () => {
         kind: "screen",
       },
     ]);
+  });
+
+  it.each([
+    ["a group of one side", [], "home"],
+    [
+      "a split",
+      [{ ...screenTab("right", "/activity", DRAFT), side: 1 }],
+      undefined,
+    ],
+  ] as const)("finds the blank new tab up in %s", (_case, beside, found) => {
+    const state = windowOf([screenTab("home", NEW_TAB_HREF, DRAFT), ...beside]);
+    expect(blankUpIn(state, DRAFT)?.id).toBe(found);
+  });
+
+  it("finds none where the tab up has gone somewhere", () => {
+    const state = windowOf([screenTab("at", "/activity", DRAFT)]);
+    expect(blankUpIn(state, DRAFT)).toBeUndefined();
+  });
+
+  it("leaves a new tab on a side of a split waiting behind as it is", () => {
+    const state = windowOf([
+      screenTab("home", NEW_TAB_HREF, DRAFT),
+      { ...screenTab("right", "/activity", DRAFT), side: 1 },
+    ]);
+    const opened = openOrFocusScreen(state, {
+      group: DRAFT,
+      href: "/apps",
+      id: "new",
+      isWaiting: true,
+      select: true,
+    });
+    expect(opened.id).toBe("new");
+    expect(opened.state.tabs.find((tab) => tab.id === "home")).toEqual(
+      state.tabs[0],
+    );
   });
 });
 

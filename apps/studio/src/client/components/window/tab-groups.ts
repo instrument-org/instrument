@@ -2,6 +2,7 @@ import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
 import { draftsAtom, draftsLoadedAtom } from "@/client/drafts/store";
 import { keptInOtherWindows } from "@/client/lib/kept-state";
+import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { rpcClient } from "@/client/rpc/client";
 import { type Draft, holdsSomething } from "@/shared/drafts";
@@ -32,6 +33,7 @@ import {
   chatUpIn,
   draftOfTab,
   groupLayoutOf,
+  isBlankNewTab,
   isNewChatTab,
   selectedTabIn,
   tabShowingAmong,
@@ -327,6 +329,12 @@ export function upkeptList(
   return { kept, opening };
 }
 
+/** Whether a group is one new tab and nothing else: nothing written in it, and nowhere to go back to. */
+function isEmptyGroup(state: WindowTabs, group: string): boolean {
+  const [only, ...others] = tabsIn(state, group);
+  return only !== undefined && others.length === 0 && isBlankNewTab(only);
+}
+
 /**
  * A group's tabs as its copy starts with them, in their order and each
  * under a new id (`newId`), in `group`: a page at the address it shows,
@@ -548,6 +556,34 @@ export function useTabGroupActions() {
       });
     }
     return group;
+  };
+
+  /**
+   * New, as the person asks for it: the empty group this window already
+   * has in the project the sidebar stands in comes up, its box with the
+   * keyboard, and a group is made only when there is none, so the window
+   * never has two of them.
+   */
+  const openNew = () => {
+    const state = store.get(windowTabsAtom);
+    const project = store.get(sidebarProjectAtom);
+    const empty = (store.get(windowTabGroupsAtom) ?? []).find(
+      (group) =>
+        isEmptyGroup(state, group) &&
+        state.groups?.[group]?.project === project,
+    );
+    if (empty === undefined) {
+      make();
+    } else if (empty === groupUp()) {
+      // The keyboard may be elsewhere on the group, on a row under its box,
+      // where the home would leave it.
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+      focusScreenHome({ leaving: false });
+    } else {
+      appTabs.navigate(groupHref(empty));
+    }
   };
 
   /**
@@ -803,6 +839,7 @@ export function useTabGroupActions() {
     moveToNewWindow,
     newTab,
     openChat,
+    openNew,
     openDraft,
     pin,
     place,
@@ -899,6 +936,9 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
           return;
         }
         store.set(windowTabGroupsAtom, listedWith(kept, group));
+      }
+      if (lastUp.current !== group) {
+        windowTabs.setGroupOwn(group, { shownAt: Date.now() });
       }
       lastUp.current = group;
       return;

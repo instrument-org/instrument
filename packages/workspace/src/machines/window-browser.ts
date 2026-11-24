@@ -43,7 +43,10 @@ export interface TabLifetime {
   drawn: boolean;
   /** How long it has been off screen, or null while drawn. */
   hiddenForMs: null | number;
-  /** How long before its page is unloaded unless it is used, or null while drawn. */
+  /**
+   * How long before its page is unloaded unless it is used, or null while
+   * drawn and while it holds something a person entered.
+   */
   unloadsInMs: null | number;
 }
 
@@ -90,9 +93,10 @@ interface Guest {
  * for a clock, then the guest goes and the tab stays in the strip with its
  * address: the window opens a fresh guest there when the tab is shown again.
  * A tab is never discarded while it is drawn, while an agent sent it a
- * command in the last ten minutes, while a working agent drives it, or while
- * the guest is busy (playing sound, downloading, or open in DevTools); such a
- * tab waits for the next check.
+ * command in the last ten minutes, while a working agent drives it, while
+ * the guest is busy (playing sound, downloading, in a call, or open in
+ * DevTools), or while its page holds something a person entered
+ * (`isGuestEdited`); such a tab waits for the next check.
  *
  * Long before that, a tab sleeps (`BrowserConfig.sleepGuest`) once it has
  * been off screen, and an agent's last command to it past, for
@@ -229,6 +233,7 @@ export const windowBrowserLogic = fromCallback<
       if (
         (agentAt !== undefined && Date.now() - agentAt < AGENT_PROTECTION_MS) ||
         browser.isGuestBusy(targetId) ||
+        browser.isGuestEdited(targetId) ||
         // A tab whose drivers cannot be read is left for the next check.
         (await isDrivenByWorkingAgent(targetId).catch(() => true))
       ) {
@@ -239,7 +244,7 @@ export const windowBrowserLogic = fromCallback<
         continue;
       }
       guest.discarding = true;
-      void browser.closeTarget(targetId);
+      void browser.discardTarget(targetId);
     }
   };
 
@@ -268,7 +273,9 @@ export const windowBrowserLogic = fromCallback<
     return {
       drawn: false,
       hiddenForMs,
-      unloadsInMs: Math.max(0, clock - hiddenForMs, protectedFor),
+      unloadsInMs: browser.isGuestEdited(targetId)
+        ? null
+        : Math.max(0, clock - hiddenForMs, protectedFor),
     };
   };
   readLifetime = lifetime;

@@ -37,7 +37,7 @@ export interface WindowShell {
   drafts: Draft[];
   /** Takes the tab up to one of the rail's places, as a press on the rail does. */
   goToPlace: (place: AppPlace) => void;
-  /** Makes a new tab group, as Cmd+N does. */
+  /** Brings up the window's empty tab group, or makes one, as Cmd+N does. */
   newGroup: () => void;
   /** Opens a new tab in the tab group up, as Cmd+T does. */
   newTab: () => void;
@@ -58,10 +58,21 @@ export interface WindowShell {
   sentProjects: ReadonlyMap<ChatId, string>;
   /** What each chat being started from a draft sent, by the chat, shown until its transcript has it. */
   sentWords: ReadonlyMap<ChatId, string>;
-  /** Brings back one entry of the window's closed list, by its id, as Shift+Cmd+T brings back the last. */
-  reopenClosed: (id: TabId) => void;
+  /**
+   * Brings back one entry of the window's closed list, by its id, as
+   * Shift+Cmd+T brings back the last. With `from`, the group the pick was
+   * made in, what comes back takes that group's place when it is one new
+   * tab nobody wrote in, or the Chats page alone.
+   */
+  reopenClosed: (id: TabId, options?: { from?: string }) => void;
   /** What was closed last back, as Shift+Cmd+T does, a window closed since included. */
   reopenTab: () => void;
+  /**
+   * Brings a tab group up, in this window or the one that has it open. With
+   * `from`, the group the pick was made in, that group closes behind it when
+   * it is one new tab nobody wrote in, or the Chats page alone.
+   */
+  showGroup: (group: string, options?: { from?: string }) => void;
   /** Closes a tab, asking first when that stops its chat. */
   requestClose: (id: string) => void;
   /** The width of the card the tabs are drawn in, in layout px. */

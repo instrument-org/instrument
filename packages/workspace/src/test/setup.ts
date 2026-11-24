@@ -63,7 +63,9 @@ setWorkspaceConfig({
     isGuestAsleep: () => false,
     personInputAt: () => undefined,
     isGuestBusy: () => false,
+    isGuestEdited: () => false,
     createTarget: rejectBrowserTarget,
+    discardTarget: () => Promise.resolve(),
     contentBlocking: () => ({ task: true, workspace: true }),
     getTargetMeta: () => null,
     getTargetUrl: (): string | undefined => {

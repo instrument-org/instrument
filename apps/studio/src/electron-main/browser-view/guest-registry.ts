@@ -71,6 +71,11 @@ export interface GuestRecord {
    * new document (`did-frame-navigate`).
    */
   readonly frames: Map<string, FrameId & { url: string }>;
+  /**
+   * Whether a person entered something into the page since its document
+   * loaded (`page-edits.ts`), which unloading the page would lose.
+   */
+  edited: boolean;
   /** Whether the contents' page is in HTML full screen, from Electron's `enter-` and `leave-html-full-screen`. */
   htmlFullScreen: boolean;
   readonly id: number;
@@ -124,6 +129,7 @@ export function createGuestRegistry() {
       committed: false,
       contents,
       edit: null,
+      edited: false,
       entry: null,
       frames: new Map(),
       htmlFullScreen: false,
@@ -144,6 +150,7 @@ export function createGuestRegistry() {
       (_event, url, _code, _status, isMainFrame, processId, routingId) => {
         if (isMainFrame) {
           record.committed = true;
+          record.edited = false;
         }
         forgetGoneFrames(record.frames);
         record.frames.set(keyOf({ processId, routingId }), {
@@ -151,6 +158,17 @@ export function createGuestRegistry() {
           routingId,
           url,
         });
+      },
+    );
+    // A load that fails puts an error page in the document's place, which
+    // `did-frame-navigate` does not report. A load called off (-3) leaves
+    // the document where it was.
+    contents.on(
+      "did-fail-load",
+      (_event, errorCode, _description, _url, isMainFrame) => {
+        if (isMainFrame && errorCode !== -3) {
+          record.edited = false;
+        }
       },
     );
     contents.once("destroyed", () => {

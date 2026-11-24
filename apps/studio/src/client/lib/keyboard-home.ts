@@ -9,7 +9,9 @@
  *   page beside it. A part the window cannot focus itself (a page, drawn by
  *   a guest of its own) says how with `setHomeFocus`. In a tab group only
  *   the side with the keyboard (`data-keyboard`) counts, and the caret on
- *   the other side counts as on nothing.
+ *   the other side counts as on nothing. A tab come back to (`data-tab-up`)
+ *   is worked from the home it was last worked from, its page or the list
+ *   beside it.
  * - A press of the pointer on a button leaves the keyboard where it was, as
  *   a Mac's buttons do: the rail, a toolbar's toggle, a tab. Tab still
  *   reaches every one.
@@ -20,16 +22,35 @@
 /** How long a screen has to draw its home after it is asked for, in frames. */
 const HOME_WAIT_FRAMES = 30;
 
+/** How long a part of the screen has, whose code may still be loading, in frames. */
+const PART_WAIT_FRAMES = 300;
+
 const ACTIVE_TAB = "[data-app-tab-active]";
 
 /** Homes the window cannot put the keyboard in by focusing them, with how to. */
-const homeFocus = new WeakMap<Element, () => void>();
+const homeFocus = new WeakMap<
+  Element,
+  { focus: () => void; holds: () => boolean }
+>();
 
-/** How to put the keyboard in a home that is not focusable itself, such as the element a page is drawn into. */
-export function setHomeFocus(home: Element, focus: () => void) {
-  homeFocus.set(home, focus);
+/**
+ * The home each tab was last worked from, by its `data-keyboard-home`. The
+ * value rather than the element, since a tab is drawn afresh each time it
+ * comes up.
+ */
+const lastHomes = new Map<string, string>();
+
+/**
+ * How to put the keyboard in a home that is not focusable itself, such as
+ * the element a page is drawn into, and whether it is there.
+ */
+export function setHomeFocus(
+  home: Element,
+  way: { focus: () => void; holds: () => boolean },
+) {
+  homeFocus.set(home, way);
   return () => {
-    if (homeFocus.get(home) === focus) {
+    if (homeFocus.get(home) === way) {
       homeFocus.delete(home);
     }
   };
@@ -83,7 +104,8 @@ export function focusScreenHome({ leaving }: { leaving: boolean }) {
  * Puts the keyboard in the home of one part of the screen on show, such as
  * a side of a tab group, once it has drawn, unless it went into the part
  * first. It leaves where it was at once, so keys meanwhile, or in a part
- * with no home, go nowhere.
+ * with no home, go nowhere. The home the part's tab was last worked from is
+ * waited for a moment before another takes the keyboard.
  */
 export function focusHomeIn(part: HTMLElement) {
   const from = document.activeElement;
@@ -96,12 +118,19 @@ export function focusHomeIn(part: HTMLElement) {
     if (!part.isConnected || part.contains(document.activeElement)) {
       return;
     }
+    const now = document.activeElement;
+    if (frames > 0 && now !== null && now !== document.body && isShown(now)) {
+      return;
+    }
     const home = homeIn(part);
-    if (home && putKeyboardIn(home)) {
+    if (
+      (home && putKeyboardIn(home)) ||
+      (frames >= HOME_WAIT_FRAMES && homesIn(part).some(putKeyboardIn))
+    ) {
       return;
     }
     frames += 1;
-    if (frames < HOME_WAIT_FRAMES) {
+    if (frames <= PART_WAIT_FRAMES) {
       requestAnimationFrame(attempt);
     }
   };
@@ -110,19 +139,28 @@ export function focusHomeIn(part: HTMLElement) {
 
 /**
  * Puts the keyboard in a home, by its own way or at its target, and takes
- * any caret left elsewhere away. Whether the home had anything to take it.
+ * any caret left elsewhere away. Whether the home had anything to take it,
+ * and it was taken.
  */
 function putKeyboardIn(home: HTMLElement): boolean {
-  const focus = homeFocus.get(home);
-  const target = focus ? null : targetIn(home);
-  if (!focus && !target) {
+  const way = homeFocus.get(home);
+  const target = way ? null : targetIn(home);
+  if (!way && !target) {
     return false;
   }
   dropCaretOutside(home);
-  if (focus) {
-    focus();
+  if (way) {
+    // A page takes the keyboard once it has drawn, unless it is somewhere
+    // the person put it by then, which is nowhere yet.
+    if (!way.holds() && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+    way.focus();
   } else if (target) {
     focusQuietly(target);
+    if (document.activeElement !== target) {
+      return false;
+    }
     if (target === home) {
       passIntoWordsOnArrival(home);
     }
@@ -236,10 +274,10 @@ export function focusReplyBox(from: Element) {
     [...column.querySelectorAll<HTMLElement>("[data-keyboard-home]")].find(
       isShown,
     );
-  const focus = home && homeFocus.get(home);
+  const way = home && homeFocus.get(home);
   const target = home && targetIn(home);
-  if (focus) {
-    focus();
+  if (way) {
+    way.focus();
   } else if (target) {
     focusQuietly(target);
   } else {
@@ -285,26 +323,53 @@ function homeOnShow(): HTMLElement | null {
   if (side) {
     return homeIn(side);
   }
-  return firstHome(
-    document.querySelectorAll<HTMLElement>(
-      `${ACTIVE_TAB} [data-keyboard-home]`,
-    ),
+  return (
+    homesIn(document).find((home) => home.closest(ACTIVE_TAB) !== null) ?? null
   );
 }
 
-/** The part of `root` it is worked from, or null while it has none drawn. */
+/**
+ * The part of `root` it is worked from, or null while it has none drawn: the
+ * one its tab was last worked from, when that is drawn.
+ */
 function homeIn(root: HTMLElement): HTMLElement | null {
-  return firstHome(root.querySelectorAll<HTMLElement>("[data-keyboard-home]"));
+  const last = lastHomes.get(root.dataset.tabUp ?? "");
+  const homes = homesIn(root);
+  return (
+    homes.find((home) => home.dataset.keyboardHome === last) ?? homes[0] ?? null
+  );
 }
 
-/** The home that goes first of those drawn. */
-function firstHome(found: Iterable<HTMLElement>): HTMLElement | null {
-  const homes = [...found].filter(isShown);
-  homes.sort(
-    (a, b) =>
-      Number(a.dataset.keyboardHome || 1) - Number(b.dataset.keyboardHome || 1),
+/** Notes the home the keyboard went into, for when its tab is come back to. */
+function rememberHome() {
+  const side = document.querySelector<HTMLElement>(
+    `${ACTIVE_TAB} [data-group-side][data-keyboard]`,
   );
-  return homes[0] ?? null;
+  const tab = side?.dataset.tabUp;
+  if (!side || tab === undefined) {
+    return;
+  }
+  const home = [
+    ...side.querySelectorAll<HTMLElement>("[data-keyboard-home]"),
+  ].find(
+    (each) =>
+      each.contains(document.activeElement) ||
+      homeFocus.get(each)?.holds() === true,
+  );
+  if (home) {
+    lastHomes.set(tab, home.dataset.keyboardHome ?? "");
+  }
+}
+
+/** The homes drawn in `root`, the one that goes first first. */
+function homesIn(root: ParentNode): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>("[data-keyboard-home]")]
+    .filter(isShown)
+    .sort(
+      (a, b) =>
+        Number(a.dataset.keyboardHome || 1) -
+        Number(b.dataset.keyboardHome || 1),
+    );
 }
 
 /** Where in a home the keyboard goes. */
@@ -350,7 +415,7 @@ function first(root: HTMLElement, selector: string) {
  * Opacity does not count: a popover or menu fades in from zero, and the
  * keyboard its opening put in it is not gone.
  */
-function isShown(element: HTMLElement) {
+function isShown(element: Element) {
   return (
     element.closest("[inert]") === null &&
     element.checkVisibility({ visibilityProperty: true })
@@ -479,6 +544,21 @@ export function mayTakeKeyboard() {
 }
 
 /**
+ * The button a press is on, which may be a row that is one only by its role
+ * and takes no focus itself. A field or a focusable part inside such a row
+ * keeps its own press.
+ */
+function buttonPressed(target: Element) {
+  const button = target.closest('button, [role="button"]:not([tabindex])');
+  const focusable = target.closest(
+    'a[href], input, textarea, select, [contenteditable="true"], [tabindex]',
+  );
+  return button !== null && focusable !== button && button.contains(focusable)
+    ? null
+    : button;
+}
+
+/**
  * The window's side of the rules above, for the app window to install once:
  * a button pressed leaves the keyboard where it was, and a keyboard left on
  * nothing a person can see goes home.
@@ -500,7 +580,7 @@ export function installKeyboardHome() {
     (event) => {
       const button =
         event.button === 0 && event.target instanceof Element
-          ? event.target.closest("button")
+          ? buttonPressed(event.target)
           : null;
       // A button that drags, as a tab of the strip does, needs the press, and
       // so does a tab of a tab list, which is picked on it.
@@ -523,6 +603,10 @@ export function installKeyboardHome() {
     },
     { capture: true, signal },
   );
+  document.addEventListener("focusin", rememberHome, { signal });
+  // A page pressed takes the keyboard with no `focusin` here, only the
+  // document's own blur.
+  window.addEventListener("blur", rememberHome, { signal });
   // Only for a keyboard whose place went away. One let go onto nothing by a
   // press on the screen's own words (to select them) stays let go.
   const isGone = (element: EventTarget | null) =>

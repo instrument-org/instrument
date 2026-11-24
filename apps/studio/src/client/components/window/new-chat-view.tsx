@@ -31,7 +31,6 @@ import {
 } from "@/client/drafts/store";
 import { type Draft } from "@/shared/drafts";
 import { cn, osConventions } from "@/client/lib/utils";
-import { addressInMessage } from "@/client/lib/address-in-message";
 import {
   locateTypedPath,
   missedPathNotice,
@@ -44,6 +43,7 @@ import { toast } from "@/client/lib/toast";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { APP_NAME } from "@instrument-org/shared";
+import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import {
@@ -55,8 +55,12 @@ import {
   useState,
 } from "react";
 
+import { appTabsAtom } from "./app-tabs";
 import { AskPills } from "./ask-pills";
+import { chatListOptions } from "./chat-list-query";
 import { type Project } from "./chats";
+import { closedGroupsOf } from "./closed-groups";
+import { windowTabGroupsAtom } from "./open-groups";
 import { projectColor } from "./project-colors";
 import { NewChatProjectButton } from "./new-chat-project-button";
 import { ProjectMark } from "./project-mark";
@@ -68,11 +72,14 @@ import { useGroupTab } from "./group-tab";
 import { useKnownPages } from "./known-pages";
 import { NewTabCompletionList } from "./new-tab-completion-list";
 import {
+  boxAddress,
   type BoxCompletion,
   boxCompletions,
   offersToOpen,
 } from "./new-tab-completions";
-import { screenPresentation, type ScreenNames } from "./screen-presentation";
+import { RecentGroupRows } from "./recent-group-rows";
+import { type RecentGroup, recentGroupsOf } from "./recent-groups";
+import { typedAddressName } from "./typed-address-row";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import { IdeaRows } from "./idea-rows";
@@ -88,6 +95,7 @@ import {
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
+import { CHATS_INDEX_HREF } from "./window-href";
 
 /**
  * A new chat, written in its tab group: the room a chat would have, with the
@@ -98,7 +106,10 @@ import {
  * beside the group's tabs, the composer is at the foot. The draft its first words make is named in the tab's address, so a
  * draft opened from the Chats page's Drafts comes up here. What it carries besides its words
  * is what a chat's composer carries: its group's tabs and what the person
- * attached. Its title and menu are the chat's tab's.
+ * attached. Its title and menu are the chat's tab's. The only tab of its
+ * group, it lists the tab groups had most recently under its box
+ * (`RecentGroupRows`), which stays where it is whatever the list holds; a
+ * pick there takes the group's place.
  *
  * Its draft is its tab's, kept however empty it gets while the tab is open;
  * closing the tab, or its group, throws away one emptied of everything.
@@ -325,7 +336,7 @@ export function NewChatView({
   const known = useKnownPages({ enabled: groupTab !== undefined });
   const completions = offers
     ? boxCompletions({
-        address: typedPath ? undefined : addressInMessage(words),
+        address: typedPath ? undefined : boxAddress(words),
         bookmarkPages: known.bookmarkPages,
         path: typedPath,
         recentPages: known.recentPages,
@@ -395,6 +406,28 @@ export function NewChatView({
     tabs: ideaSources,
     trigger: "new-tab",
   });
+  // Alone in its group, the new tab is where the window's other groups are
+  // picked up again: the ones had most recently, and every chat past them.
+  const isAlone =
+    isCentered &&
+    ownGroup !== undefined &&
+    windowTabs.allTabs.filter((tab) => tab.group === ownGroup).length === 1;
+  const recentGroups = recentGroupsOf({
+    closed: closedGroupsOf(useAtomValue(appTabsAtom).recentlyClosed),
+    home: ownGroup,
+    listed: useAtomValue(windowTabGroupsAtom) ?? [],
+    state: useAtomValue(windowTabsAtom),
+  });
+  const hasChats = (useQuery(chatListOptions()).data?.length ?? 0) > 0;
+  const recentRows = useRef<HTMLDivElement>(null);
+  const pickGroup = ({ pick: picking }: RecentGroup) => {
+    const from = { from: ownGroup };
+    if (picking.kind === "open") {
+      shell.showGroup(picking.group, from);
+    } else {
+      shell.reopenClosed(picking.id, from);
+    }
+  };
   const sendIdea = (line: string) => {
     if (shell.defaultModelURI === undefined) {
       return;
@@ -466,7 +499,7 @@ export function NewChatView({
           open in it (`useSidePagesTarget`). */}
       <div
         className={cn(
-          "relative isolate mx-auto w-full shrink-0 px-3",
+          "relative isolate z-10 mx-auto w-full shrink-0 px-3",
           isCentered ? "max-w-2xl" : "max-w-3xl pb-3",
         )}
         onKeyDownCapture={(event) => {
@@ -485,6 +518,23 @@ export function NewChatView({
           ) {
             event.preventDefault();
             fileUnder(undefined);
+            return;
+          }
+          // Down from an empty box goes into the groups listed under it.
+          const firstRow = recentRows.current?.querySelector("button");
+          if (
+            firstRow &&
+            words === "" &&
+            event.key === "ArrowDown" &&
+            !event.shiftKey &&
+            !event.altKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.nativeEvent.isComposing
+          ) {
+            event.preventDefault();
+            event.stopPropagation();
+            firstRow.focus();
             return;
           }
           if (
@@ -607,12 +657,10 @@ export function NewChatView({
               isCentered ? "top-full mt-2" : "bottom-full mb-2",
             )}
             nameOfAddress={(row) =>
-              row.address.kind === "page"
-                ? row.address.shown
-                : appAddressName(row.address.address, {
-                    appsBySlug,
-                    chatTitles: shell.chatTitles,
-                  })
+              typedAddressName(row.address, {
+                appsBySlug,
+                chatTitles: shell.chatTitles,
+              })
             }
             onOpen={openCompletion}
             onPick={pick}
@@ -642,8 +690,26 @@ export function NewChatView({
         )}
       </div>
       {/* As much room under the composer as over it, so it stands at the
-          middle. */}
-      {isCentered && <div className="min-h-0 flex-1" />}
+          middle; what is listed there scrolls in that room. */}
+      {isCentered && (
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {isAlone && (
+            <RecentGroupRows
+              chatTitles={shell.chatTitles}
+              groups={recentGroups}
+              hasChats={hasChats}
+              onAllChats={() => {
+                windowTabs.visitHref(tabId, CHATS_INDEX_HREF);
+              }}
+              onLeave={() => {
+                inputRef.current?.focus();
+              }}
+              onPick={pickGroup}
+              ref={recentRows}
+            />
+          )}
+        </div>
+      )}
       {draft && <ProjectSuggestion draft={draft} />}
     </div>
   );
@@ -730,12 +796,4 @@ function ProjectSuggestion({ draft }: { draft: Draft }) {
     words: draft.words,
   });
   return null;
-}
-
-/** What an address of the app's own opens, named as its tab would be: a chat's title, a page's name. */
-function appAddressName(address: string, names: ScreenNames): string {
-  const target = targetOfAddress(address);
-  return target && target.kind !== "page"
-    ? screenPresentation(hrefOfTarget(target), names).title
-    : address;
 }

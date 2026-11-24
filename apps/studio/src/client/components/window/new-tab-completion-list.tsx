@@ -9,10 +9,10 @@ import { shownTypedPath } from "@/client/lib/locate-typed-path";
 import { typedFileName } from "@/client/lib/typed-path";
 import { cn } from "@/client/lib/utils";
 
-import { AddressMark } from "./app-chip";
 import { type BoxCompletion } from "./new-tab-completions";
 import { bareAddress } from "./omnibar-match";
 import { RowText, whereOfAddress } from "./row-text";
+import { TypedAddressMark } from "./typed-address-row";
 
 /**
  * The rows under a new tab's box (over it, for a box at the foot): what the
@@ -118,22 +118,11 @@ function CompletionMark({ row }: { row: BoxCompletion }) {
       <FileTypeIcon className="size-4" fileName={file} />
     );
   }
-  // A file's address shows the file's type, as a typed path does.
-  if (row.address.kind === "page" && /^file:/i.test(row.address.url)) {
-    return (
-      <PageFavicon
-        className="size-4"
-        hasTooltip={false}
-        url={row.address.url}
-      />
-    );
-  }
   return (
-    <AddressMark
-      address={
-        row.address.kind === "page" ? row.address.url : row.address.address
-      }
+    <TypedAddressMark
+      address={row.address}
       className="size-4"
+      isKnown={row.isKnown}
     />
   );
 }

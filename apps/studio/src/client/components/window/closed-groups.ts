@@ -1,10 +1,18 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { type TabId, type TabsModel } from "@/shared/tabs";
+import { type ChatId } from "@instrument-org/workspace/client";
 
-import { closedSideOf, closedSidesOf, closedTabGroupOf } from "./tab-model";
+import {
+  chatOfTab,
+  closedSideOf,
+  closedSidesOf,
+  closedTabGroupOf,
+} from "./tab-model";
 
 /** A closed tab group as its row shows it: its sides as they stood when it closed, the left first. */
-interface ClosedGroup {
+export interface ClosedGroup {
+  /** When it closed, in ms; none for one closed before closes were timed. */
+  closedAt: number | undefined;
   /** The closed list's entry that brings it back. */
   id: TabId;
   sides: readonly [ClosedSide, ...ClosedSide[]];
@@ -38,6 +46,20 @@ export function closedGroupsOf(
       return up ? [{ tabs: side.tabs, up }] : [];
     });
     const [lead, ...rest] = sides;
-    return lead ? [{ id: entry.id, sides: [lead, ...rest] }] : [];
+    return lead
+      ? [{ closedAt: entry.closedAt, id: entry.id, sides: [lead, ...rest] }]
+      : [];
   });
+}
+
+/** The tab group closed last with a tab on a chat, off the window's closed list. */
+export function closedGroupOfChat(
+  recentlyClosed: TabsModel["recentlyClosed"],
+  chat: ChatId,
+): ClosedGroup | undefined {
+  return closedGroupsOf(recentlyClosed).find((group) =>
+    group.sides.some((side) =>
+      side.tabs.some((tab) => chatOfTab(tab) === chat),
+    ),
+  );
 }

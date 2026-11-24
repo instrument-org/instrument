@@ -56,9 +56,10 @@ vi.mock("@/client/components/window/shell-context", () => ({
   }),
 }));
 
-vi.mock("@/client/bookmarks/store", async () => {
+vi.mock("@/client/bookmarks/store", async (importOriginal) => {
   const { atom } = await import("jotai");
   return {
+    ...(await importOriginal<typeof import("@/client/bookmarks/store")>()),
     bookmarksAtom: atom([
       { title: "Weather Radar", url: "https://radar.example.com/" },
     ]),
@@ -95,6 +96,7 @@ function SettingsTabRow({ words }: { words: string }) {
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
+    showTab: () => undefined,
     words,
   });
   return rows.map((row) =>
@@ -153,6 +155,7 @@ function MenuRows({ words }: { words: string }) {
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
+    showTab: () => undefined,
     words,
   });
   return (
@@ -242,7 +245,6 @@ describe("folders and bookmarks in the command menu", () => {
           "Pages",
           "Weather Radar",
           "Weather Today",
-          "",
           "Search the web for “weather”",
         ]
       `);
@@ -292,6 +294,7 @@ describe("built-in pages in the command menu", () => {
         done: (run) => run,
         openPage: () => undefined,
         openScreen,
+        showTab: () => undefined,
         words: label.toLowerCase(),
       });
       const row = rows.find(

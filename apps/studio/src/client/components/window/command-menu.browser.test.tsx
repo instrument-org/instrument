@@ -45,7 +45,11 @@ async function renderMenu() {
   const store = createStore();
   store.set(commandMenuOpenAtom, true);
   await renderInBrowser(
-    <CommandMenu openPage={opened.page} openScreen={() => undefined} />,
+    <CommandMenu
+      openPage={opened.page}
+      openScreen={() => undefined}
+      showTab={() => undefined}
+    />,
     { store },
   );
 }
@@ -141,5 +145,26 @@ describe("the menu's icons", () => {
       .toMatchTextContent("never-visited.org");
     watch.disconnect();
     expect(asked.filter((src) => src.includes("site-icon"))).toEqual([]);
+  });
+});
+
+// One height whatever it finds, so the menu never jumps under the caret.
+describe("the menu's list", () => {
+  it("is eight rows tall with nothing typed and with one match", async () => {
+    await renderMenu();
+    const list = page.getByRole("listbox");
+    await expect.element(page.getByText("Commands")).toBeVisible();
+    const heightOf = () => {
+      const element = list.element();
+      return element instanceof HTMLElement ? element.offsetHeight : 0;
+    };
+    expect(heightOf()).toBe(296);
+
+    await userEvent.fill(page.getByRole("combobox"), "keyboard shortcuts");
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toMatchTextContent("Keyboard shortcuts");
+    expect(heightOf()).toBe(296);
+    expect(list.element().querySelector("[class*='border-t']")).toBeNull();
   });
 });

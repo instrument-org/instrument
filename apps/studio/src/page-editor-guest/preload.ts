@@ -3,6 +3,7 @@ import {
   PAGE_CAPTURE_DEVICES_CHANNEL,
   PAGE_CAPTURE_PAUSE_CHANNEL,
   PAGE_CAPTURE_STOP_CHANNEL,
+  PAGE_EDIT_CHANNEL,
   PAGE_EDITOR_BOOT_CHANNEL,
   PAGE_EDGE_CHANNEL,
   PAGE_EDITOR_CHANNEL,
@@ -29,6 +30,7 @@ import { contextBridge, ipcRenderer, webFrame } from "electron";
 
 import { type PageEditorBoot, type PageEditorBridge } from "./bridge";
 import { installObserver } from "./editor/observer";
+import { watchEntries } from "./entries";
 
 /** The world this preload runs in, which Electron's context isolation keeps apart from the page's. */
 const ISOLATED_WORLD = 999;
@@ -566,7 +568,22 @@ function watchCaptureInPage(names: {
   });
 }
 
+/**
+ * Tells main that something was entered into the page (`watchEntries`). Main
+ * keeps such a page from being unloaded out of sight, since what was entered
+ * would be lost.
+ */
+function reportEdits() {
+  if (/^(?:about|chrome|devtools):$/.test(location.protocol)) {
+    return;
+  }
+  watchEntries(document, () => {
+    ipcRenderer.send(PAGE_EDIT_CHANNEL);
+  });
+}
+
 handThumbsToWindow();
 handKeysToWindow();
 reportCapture();
+reportEdits();
 boot();

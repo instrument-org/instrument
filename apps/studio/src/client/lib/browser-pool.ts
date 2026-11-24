@@ -497,6 +497,12 @@ function releaseGuestFocus(targetId: BrowserTargetId) {
       return;
     }
     pooled.webview.blur();
+    // What had the keyboard before the page may be in a tab no longer up, so
+    // in a tab group it goes to what the side with it shows.
+    if (side !== null) {
+      focusHomeIn(side);
+      return;
+    }
     restoreHostFocus();
   });
 }
@@ -1786,10 +1792,16 @@ function reconcile(targets: BrowserGuestTarget[]) {
     // single snapshot; dispose the stale guest first so ensureWebview mounts a
     // fresh one bound to the live entry instead of reusing the dead element.
     const pooled = pool.get(target.id);
-    if (pooled && pooled.generation !== target.generation) {
+    const isRemade =
+      pooled !== undefined && pooled.generation !== target.generation;
+    const hadKeyboard = isRemade && document.activeElement === pooled.webview;
+    if (isRemade) {
       disposeWebview(target.id);
     }
     const kept = ensureWebview(target.id, target.generation, target.src);
+    if (hadKeyboard) {
+      takeKeyboardOnArrival(target.id);
+    }
     if (kept.asleep !== target.asleep) {
       kept.asleep = target.asleep;
       if (!paintOwners.has(target.id)) {

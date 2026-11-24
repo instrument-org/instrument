@@ -15,9 +15,9 @@ import {
 const CHAT = ChatIdSchema.parse("2026-10-01-roofer");
 const OTHER = ChatIdSchema.parse("2026-10-02-trip");
 
-const OWN_PAGE = { isFresh: false, kind: "page" } as const;
-const SCREEN = { isFresh: false, kind: "screen" } as const;
-const FRESH = { isFresh: true, kind: "screen" } as const;
+const OWN_PAGE = { givesPlace: false, kind: "page" } as const;
+const SCREEN = { givesPlace: false, kind: "screen" } as const;
+const FRESH = { givesPlace: true, kind: "screen" } as const;
 
 const inChat = (
   up: PlacementContext["up"],
@@ -128,6 +128,13 @@ describe("where a screen opens", () => {
       {},
       inChat(SCREEN),
       { kind: "window-navigate" },
+    ],
+    [
+      "an app in place of a blank New Tab",
+      "/apps/linear",
+      {},
+      inChat(FRESH),
+      { kind: "group-navigate" },
     ],
     [
       "an app in a tab beside the one up, behind it, when asked",
@@ -345,6 +352,20 @@ describe("where a chat opened inside the window goes", () => {
       {},
       undefined,
       inChat(SCREEN),
+      { behind: false, kind: "group-new-tab" },
+    ],
+    [
+      "from a blank New Tab: in its place",
+      {},
+      undefined,
+      inChat(FRESH),
+      { kind: "in-place" },
+    ],
+    [
+      "from a blank New Tab, in a new tab when asked",
+      { newTab: true },
+      undefined,
+      inChat(FRESH),
       { behind: false, kind: "group-new-tab" },
     ],
     [

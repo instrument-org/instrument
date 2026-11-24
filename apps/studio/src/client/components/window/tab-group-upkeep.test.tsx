@@ -6,11 +6,15 @@ import { createMemoryHistory } from "@tanstack/react-router";
 import { act, renderHook } from "@testing-library/react";
 import { createStore, Provider, useAtomValue } from "jotai";
 import { type ReactNode, useSyncExternalStore } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { appTabsAtom } from "./app-tabs";
 import { windowTabGroupsAtom } from "./open-groups";
-import { type TabGroup, useTabGroupUpkeep } from "./tab-groups";
+import {
+  type TabGroup,
+  useTabGroupActions,
+  useTabGroupUpkeep,
+} from "./tab-groups";
 import { groupHref, matchScreen } from "./window-href";
 import { useWindowTabsChange, windowTabsAtom } from "./window-tabs";
 
@@ -72,7 +76,7 @@ function windowWithGroup() {
           }) satisfies TabGroup,
       );
       useTabGroupUpkeep(href, open);
-      return useWindowTabsChange();
+      return { change: useWindowTabsChange(), groups: useTabGroupActions() };
     },
     {
       wrapper: ({ children }: { children: ReactNode }) => (
@@ -89,7 +93,7 @@ function windowWithGroup() {
       tabs: [{ id: WINDOW_TAB, pathname: NOWHERE_YET }],
     });
     store.set(windowTabGroupsAtom, [GROUP]);
-    result.current(() => ({
+    result.current.change(() => ({
       activeByGroup: { [GROUP]: CHAT_TAB },
       groups: {},
       tabs: [{ group: GROUP, href: "/chats", id: CHAT_TAB, kind: "screen" }],
@@ -99,7 +103,7 @@ function windowWithGroup() {
     store
       .get(windowTabsAtom)
       .tabs.filter((tab) => tab.kind === "screen" && tab.href === href);
-  return { history, store, tabsAt };
+  return { actions: () => result.current.groups, history, store, tabsAt };
 }
 
 describe("the window's tab at an address no screen answers", () => {
@@ -149,5 +153,123 @@ describe("the window's tab at a link address", () => {
           tab.kind === "screen" ? matchScreen(tab.href).kind : tab.kind,
         ),
     ).toEqual(["inbox"]);
+  });
+});
+
+describe("a group the window comes to stand on", () => {
+  it("keeps when it came up, once per arrival", () => {
+    vi.useFakeTimers({ now: 1000 });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const { actions, history, store } = windowWithGroup();
+    const shownAt = (group: string) =>
+      store.get(windowTabsAtom).groups?.[group]?.shownAt;
+    act(() => {
+      history.replace(groupHref(GROUP));
+    });
+    expect(shownAt(GROUP)).toBe(1000);
+    vi.setSystemTime(2000);
+    let made = "";
+    act(() => {
+      made = actions().make({ href: "/files?path=/a" });
+    });
+    expect(shownAt(made)).toBe(2000);
+    expect(shownAt(GROUP)).toBe(1000);
+    vi.setSystemTime(3000);
+    act(() => {
+      actions().show(GROUP);
+    });
+    expect(shownAt(GROUP)).toBe(3000);
+  });
+});
+
+describe("New", () => {
+  it("comes back to the empty group the window has rather than making a second", () => {
+    const { actions, history, store } = windowWithGroup();
+    act(() => {
+      history.replace(groupHref(GROUP));
+    });
+    let other = "";
+    act(() => {
+      other = actions().make({ href: "/files?path=/a" });
+    });
+    expect(history.location.href).toBe(groupHref(other));
+    act(() => {
+      actions().openNew();
+    });
+    expect(history.location.href).toBe(groupHref(GROUP));
+    expect(store.get(windowTabGroupsAtom)).toEqual([other, GROUP]);
+  });
+
+  it("takes the keyboard off a row of the empty group already up, for its box", () => {
+    const { actions, history, store } = windowWithGroup();
+    act(() => {
+      history.replace(groupHref(GROUP));
+      store.set(appTabsAtom, {
+        recentlyClosed: [],
+        selectedId: WINDOW_TAB,
+        tabs: [{ id: WINDOW_TAB, pathname: groupHref(GROUP) }],
+      });
+    });
+    const row = document.createElement("button");
+    document.body.append(row);
+    onTestFinished(() => {
+      row.remove();
+    });
+    row.focus();
+    expect(document.activeElement).toBe(row);
+    act(() => {
+      actions().openNew();
+    });
+    expect(history.location.href).toBe(groupHref(GROUP));
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("makes a group where none is empty", () => {
+    const { actions, history, store } = windowWithGroup();
+    act(() => {
+      history.replace(groupHref(GROUP));
+    });
+    act(() => {
+      store.set(windowTabGroupsAtom, []);
+      actions().openNew();
+    });
+    const [made] = store.get(windowTabGroupsAtom) ?? [];
+    expect(made).not.toBe(GROUP);
+    expect(history.location.href).toBe(groupHref(made ?? ""));
+  });
+});
+
+describe("a group brought up in an empty one's place", () => {
+  it("stands where the empty one stood, which leaves the list, with no step back to it", () => {
+    const { actions, history, store } = windowWithGroup();
+    act(() => {
+      history.replace(groupHref(GROUP));
+    });
+    let above = "";
+    act(() => {
+      above = actions().make({ href: "/files?path=/a" });
+    });
+    act(() => {
+      actions().show(GROUP);
+    });
+    const steps = history.length;
+    let made = "";
+    act(() => {
+      made = actions().make({
+        href: "/files?path=/b",
+        place: { after: GROUP },
+        replace: true,
+      });
+      actions().closeAll([GROUP], made);
+    });
+    expect(store.get(windowTabGroupsAtom)).toEqual([above, made]);
+    expect(history.location.href).toBe(groupHref(made));
+    expect(history.length).toBe(steps);
+    expect(store.get(windowTabsAtom).tabs.map((tab) => tab.group)).toEqual([
+      above,
+      made,
+    ]);
   });
 });

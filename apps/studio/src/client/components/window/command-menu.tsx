@@ -5,9 +5,11 @@ import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { SCREENS } from "@/shared/instrument-screens";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
+import { type WindowTab } from "@/client/atoms/window";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
 import { targetOfAddress } from "@/client/bookmarks/address";
+import { openAddressBy } from "@/client/bookmarks/open-address";
 import { PageFavicon } from "@/client/components/favicon";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import {
@@ -42,6 +44,12 @@ import {
 } from "@/client/components/window/chats";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { useShell } from "@/client/components/window/shell-context";
+import { screenPresentation } from "@/client/components/window/screen-presentation";
+import { useFrontTabActions } from "@/client/components/window/tab-actions";
+import { useOpenGroups } from "@/client/components/window/tab-groups";
+import { isHomeTab } from "@/client/components/window/tab-model";
+import { useTabTitle } from "@/client/components/window/tab-title";
+import { useWindowTabs } from "@/client/components/window/window-tabs";
 import {
   matchKnownPages,
   useKnownPages,
@@ -67,8 +75,7 @@ import {
   webSearchLabel,
   webSearchUrl,
 } from "@/client/lib/resolve-url-or-search";
-import { siteFromWords } from "@/client/lib/site-from-words";
-import { iconHostOf } from "@/client/lib/favicon-url";
+import { typedAddress } from "@/client/lib/typed-address";
 import { cn, osConventions } from "@/client/lib/utils";
 import {
   bareAddress,
@@ -76,6 +83,12 @@ import {
   isSearchWords,
 } from "@/client/components/window/omnibar-match";
 import { RowText, whereOfAddress } from "@/client/components/window/row-text";
+import {
+  isKnownSite,
+  TypedAddressMark,
+  typedAddressLabel,
+  typedAddressName,
+} from "@/client/components/window/typed-address-row";
 import {
   componentPages,
   debugNavigationRoutes,
@@ -110,7 +123,6 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StackIcon } from "@phosphor-icons/react/Stack";
 import { SunIcon } from "@phosphor-icons/react/Sun";
 import { WrenchIcon } from "@phosphor-icons/react/Wrench";
-import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtom, useAtomValue } from "jotai";
@@ -145,6 +157,11 @@ const RECENTS_SHOWN = 4;
  * updates) are found by typing.
  */
 const LISTED_COMMANDS = new Set(["new-group", "new-tab", "settings"]);
+/**
+ * How many actions for the tab in front are listed before anything is
+ * typed. The rest are found by typing.
+ */
+const FRONT_ACTIONS_SHOWN = 5;
 
 /**
  * A search's matched ranges, as start and end pairs, within the piece of a
@@ -190,7 +207,7 @@ type Item = {
 };
 
 type Row =
-  /** A section's heading; an empty label is a rule that sets a row apart without naming it. */
+  /** A section's heading. */
   | { label: string; type: "header" }
   /** The decision model still reading the chats, in the place its rows will take. */
   | { type: "looking" }
@@ -198,12 +215,13 @@ type Row =
 
 /**
  * The menu's rows for the words typed: what
- * the words name (an address to open, commands, chats, the apps set up
- * here, pages, files), then a web search for words that are a search, then, when
+ * the words name (an address to open, the tabs open in this window,
+ * commands and the actions for the tab in front, chats, the apps set up here, pages, files), then a web search for words that are a search, then, when
  * nothing matched by name and the words are no address, the chats the
  * decision model says they mean, below the search so Return never changes
  * under the caret. Each kind lists three at most. Before anything is typed,
- * what was used last of every kind, and the commands worth reaching often.
+ * what was used last of every kind, what the tab in front offers (a chat, a
+ * page or a file), and the commands worth reaching often.
  * Words
  * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
  *
@@ -217,6 +235,7 @@ export function useCommandMenuRows({
   done,
   openPage,
   openScreen,
+  showTab,
   words: typed,
 }: {
   /** Whether the menu is on screen, for what it reads off the disk or asks the model. */
@@ -225,6 +244,8 @@ export function useCommandMenuRows({
   done: (run: () => void) => () => void;
   openPage: (url: string) => void;
   openScreen: (href: string) => void;
+  /** Brings a tab of this window up with the keyboard, its group on screen. */
+  showTab: (tab: WindowTab) => void;
   words: string;
 }): {
   isBang: boolean;
@@ -276,6 +297,29 @@ export function useCommandMenuRows({
     ...chatListOptions(),
     subscribed: active,
   });
+  const chatTitles = new Map(chats.map((chat) => [chat.id, chat.title]));
+  // What the tab up on the side with the keyboard offers, under what it is.
+  const { active: frontTab, allTabs } = useWindowTabs();
+  // This window's groups, each by the name its row in the sidebar has.
+  const groupNames = new Map(
+    useOpenGroups().open.map((entry) => [entry.group, entry.title]),
+  );
+  const titleOfTab = useTabTitle(chatTitles);
+  const front = useFrontTabActions({
+    chats,
+    tab: frontTab,
+    title: frontTab === undefined ? "" : titleOfTab(frontTab),
+  });
+  const frontActions: Omit<Item, "ranges" | "type">[] = (
+    front?.actions ?? []
+  ).map(({ chord, icon, id, label, run }) => ({
+    ...(chord === undefined ? {} : { chord }),
+    // A menu's action wears its icon at the size every row here does.
+    icon: <span className="contents [&_svg]:size-4">{icon}</span>,
+    id: `front:${id}`,
+    label,
+    run,
+  }));
   const commands: Omit<Item, "ranges" | "type">[] = [
     {
       chord: WINDOW_SHORTCUTS.newChat.accelerator,
@@ -535,10 +579,7 @@ export function useCommandMenuRows({
   const isSearch = words !== "" && !isBang;
   const typedPath = isSearch ? typedPathHere(words) : undefined;
   const typedFile = typedPath && typedFileName(typedPath);
-  const site = isSearch && !typedPath ? siteFromWords(words) : undefined;
-  const isKnownSite =
-    site !== undefined &&
-    pages.some((page) => iconHostOf(page.url) === iconHostOf(site.url));
+  const address = isSearch && !typedPath ? typedAddress(words) : undefined;
   // A path pressed Return on that led nowhere, kept until the words change:
   // it answers that Return alone, so the same words typed again later are
   // looked for again.
@@ -677,11 +718,42 @@ export function useCommandMenuRows({
       ? liveProjects.map((item) => ({ item, ranges: null }))
       : fuzzyMatch(liveProjects, (project) => [project.name], projectAsk.name);
 
+  // The tabs open in any group of this window, by their titles, but the
+  // tab in front and a new tab nobody has written in.
+  const tabMatches = isSearch
+    ? fuzzyMatch(
+        allTabs.filter(
+          (tab) =>
+            tab.group !== undefined &&
+            groupNames.has(tab.group) &&
+            tab.id !== frontTab?.id &&
+            !isHomeTab(tab),
+        ),
+        (tab) => [titleOfTab(tab)],
+        words,
+      ).slice(0, PER_KIND_SHOWN)
+    : [];
+
   const named: { items: Item[]; label: string }[] = isSearch
     ? [
         {
+          items: tabMatches.map(({ item: tab, ranges }) =>
+            tabItem(tab, ranges),
+          ),
+          label: "Open tabs",
+        },
+        {
+          // An action for the tab in front is found among the commands, and
+          // says what it acts on.
           items: fuzzyMatch(
-            [...commands, ...settingsRows],
+            [
+              ...frontActions.map((action) => ({
+                ...action,
+                detail: front?.heading,
+              })),
+              ...commands,
+              ...settingsRows,
+            ],
             (command) => [command.label, command.detail ?? ""],
             words,
           )
@@ -782,7 +854,7 @@ export function useCommandMenuRows({
   const asksMeaning =
     active &&
     isSearch &&
-    site === undefined &&
+    address === undefined &&
     typedPath === undefined &&
     words.length >= MEANING_MIN_LENGTH &&
     !hasNameMatches;
@@ -819,6 +891,12 @@ export function useCommandMenuRows({
             label: "Recent",
           },
           {
+            items: frontActions
+              .slice(0, FRONT_ACTIONS_SHOWN)
+              .map((action) => ({ ...action, ranges: null, type: "item" })),
+            label: front?.heading ?? "",
+          },
+          {
             items: commands
               .filter((command) => LISTED_COMMANDS.has(command.id))
               .map((command) => ({ ...command, ranges: null, type: "item" })),
@@ -827,27 +905,40 @@ export function useCommandMenuRows({
         ]
       : [
           ...pathSection,
-          ...(site
+          ...(address
             ? [
                 {
                   items: [
                     {
-                      detail: "Open in this tab",
-                      // An address being typed is no site anyone has been to
-                      // yet, and asking for its icon would send every host
-                      // the letters spell out along the way. A file's address
-                      // asks nobody, and shows the file's type.
-                      icon:
-                        isKnownSite || /^file:/i.test(site.url) ? (
-                          <PageFavicon url={site.url} />
-                        ) : (
-                          <GlobeIcon />
-                        ),
-                      id: `open:${site.url}`,
-                      label: words,
+                      icon: (
+                        <TypedAddressMark
+                          address={address}
+                          isKnown={
+                            address.kind === "page" &&
+                            isKnownSite(address.url, pages)
+                          }
+                        />
+                      ),
+                      id: `open:${address.kind === "page" ? address.url : address.address}`,
+                      label: typedAddressLabel(
+                        typedAddressName(address, { appsBySlug, chatTitles }),
+                      ),
                       ranges: null,
+                      // A page loads in a tab, and one of the app's own
+                      // opens the screen it names.
                       run: () => {
-                        openPage(site.url);
+                        openAddressBy(
+                          address.kind === "page"
+                            ? address.url
+                            : address.address,
+                          undefined,
+                          {
+                            openPage: (url) => {
+                              openPage(url);
+                            },
+                            openScreen,
+                          },
+                        );
                       },
                       type: "item" as const,
                     },
@@ -857,7 +948,11 @@ export function useCommandMenuRows({
               ]
             : []),
           ...named,
-          ...(site === undefined && isSearchWords(words)
+          // Words that are no address, or a name whose ending no site has,
+          // which may as well be a search.
+          ...((address === undefined ||
+            (address.kind === "page" && address.doubt === "host")) &&
+          isSearchWords(words)
             ? [{ items: [webSearchItem], label: "" }]
             : []),
           {
@@ -948,6 +1043,29 @@ export function useCommandMenuRows({
     };
   }
 
+  // An open tab's row: its mark and title, then the group it is in.
+  function tabItem(tab: WindowTab, ranges: null | number[]): Item {
+    return {
+      detail: tab.group === undefined ? undefined : groupNames.get(tab.group),
+      icon:
+        tab.kind === "page" ? (
+          <PageFavicon
+            favicon={tab.favicon}
+            url={tab.url ?? tab.openedUrl ?? ""}
+          />
+        ) : (
+          screenPresentation(tab.href, { appsBySlug, chatTitles }).icon
+        ),
+      id: `tab:${tab.id}`,
+      label: titleOfTab(tab),
+      ranges,
+      run: () => {
+        showTab(tab);
+      },
+      type: "item",
+    };
+  }
+
   function projectItem(project: Project, ranges: null | number[]): Item {
     return {
       icon: <ProjectMark project={project} />,
@@ -963,10 +1081,10 @@ export function useCommandMenuRows({
 
   const rows: Row[] = sections
     .filter((section) => section.items.length > 0 || section.looking)
-    .flatMap((section, index): Row[] => [
-      // A section with no name at the top needs no rule over it: its first
-      // row is plainly what Return runs.
-      ...(index === 0 && section.label === ""
+    .flatMap((section): Row[] => [
+      // A section with no name has no heading, and nothing else sets it
+      // apart from the rows over it.
+      ...(section.label === ""
         ? []
         : [{ label: section.label, type: "header" as const }]),
       ...section.items.map((item) => ({
@@ -1163,8 +1281,8 @@ function CommandMenuField({
 }
 
 /**
- * The menu's list, one height whatever the search finds, so it does not
- * grow and shrink under the caret as results come and go.
+ * The menu's list, one height whatever the search finds, eight rows tall,
+ * so it does not grow and shrink under the caret as results come and go.
  */
 function CommandMenuList({
   className,
@@ -1218,9 +1336,12 @@ function CommandMenuList({
 export function CommandMenu({
   openPage,
   openScreen,
+  showTab,
 }: {
   openPage: (url: string) => void;
   openScreen: (href: string) => void;
+  /** Brings a tab of this window up with the keyboard, its group on screen. */
+  showTab: (tab: WindowTab) => void;
 }) {
   const [open, setOpen] = useAtom(commandMenuOpenAtom);
   const [search, setSearch] = useState("");
@@ -1244,6 +1365,7 @@ export function CommandMenu({
     },
     openPage,
     openScreen,
+    showTab,
     words: search.trim(),
   });
 
@@ -1279,7 +1401,7 @@ export function CommandMenu({
             value={search}
           />
           <CommandMenuList
-            className="h-96"
+            className="h-74"
             isBang={isBang}
             itemClassName="py-2"
             listId={listId}
@@ -1314,7 +1436,7 @@ function ResultRows({
     count: rows.length,
     estimateSize: (i) => {
       const row = rows[i];
-      return row?.type === "header" ? (row.label === "" ? 9 : 28) : 36;
+      return row?.type === "header" ? 28 : 36;
     },
     getScrollElement: () => parentRef.current,
     // Rows on the first render, before the scroller is measured.
@@ -1356,13 +1478,9 @@ function ResultRows({
               style={{ transform: `translateY(${virtualItem.start}px)` }}
             >
               {row.type === "header" ? (
-                row.label === "" ? (
-                  <div className="mx-2 my-1 border-t border-border" />
-                ) : (
-                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                    {row.label}
-                  </div>
-                )
+                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                  {row.label}
+                </div>
               ) : row.type === "looking" ? (
                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
                   <Spinner className="size-4" />

@@ -6,13 +6,18 @@ import {
 import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
-import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { useMutation } from "@tanstack/react-query";
-import { type ComponentProps, type ReactNode, useRef, useState } from "react";
+import {
+  type ComponentProps,
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
 import { TaskBackgroundProcesses } from "../task/task-background-processes";
 import {
@@ -20,7 +25,12 @@ import {
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
 import { ChatCopyMenu } from "./chat-copy-menu";
-import { chatMenuGroups, useChatActions } from "./chat-actions";
+import {
+  chatHeadActions,
+  chatMenuGroups,
+  useChatActions,
+} from "./chat-actions";
+import { type ChatHeadAsk, listChatHead } from "./chat-head-requests";
 import { ProjectPill } from "./chat-row";
 import {
   CHAT_TITLE_GROUP,
@@ -30,6 +40,7 @@ import {
 } from "./chat-title";
 import { type Chat, type Project } from "./chats";
 import { DeleteChatDialog } from "./delete-chat-dialog";
+import { useGroupTab } from "./group-tab";
 import { type RowAction } from "./row-shell";
 import { ProjectMark } from "./project-mark";
 import { ProjectPicker } from "./project-picker";
@@ -181,6 +192,36 @@ function ChatHeading({
   const pickProject = (id: string) => {
     onSetProject(chat.project === id ? null : id);
   };
+  // The project picker, open from the project after the title or asked for
+  // from outside the head.
+  const [isPickingProject, setPickingProject] = useState(false);
+  // What the head does when asked from outside it, by the tab it is in
+  // (`askChatHead`): the command menu's actions for the chat in front.
+  const tabId = useGroupTab()?.id;
+  const answer = useEffectEvent((ask: ChatHeadAsk) => {
+    switch (ask) {
+      case "archived": {
+        menu.onArchived?.();
+        break;
+      }
+      case "delete": {
+        onDelete();
+        break;
+      }
+      case "project": {
+        setPickingProject(true);
+        break;
+      }
+      case "rename": {
+        rename.start();
+        break;
+      }
+    }
+  });
+  useEffect(
+    () => (tabId === undefined ? undefined : listChatHead(tabId, answer)),
+    [tabId],
+  );
   return (
     <div className="@container/chathead flex min-w-0 flex-1 items-center gap-x-2">
       <h2 className="flex min-w-0">
@@ -220,21 +261,28 @@ function ChatHeading({
       </h2>
       {/* Pressing it opens the project picker every filing shares. No
           dashed slot in the head: a chat with no project is filed from the
-          menu. */}
-      {filed && (
+          menu, and the picker asked for from outside the head opens after
+          the title. */}
+      {(filed || isPickingProject) && (
         <ProjectPicker
-          chosen={new Set([filed.id])}
+          chosen={new Set(filed ? [filed.id] : [])}
+          isOpen={isPickingProject}
           onNew={onNewProject}
+          onOpenChange={setPickingProject}
           onToggle={pickProject}
           projects={projects}
         >
-          <button
-            aria-label="Project"
-            className="flex shrink-0 items-center gap-1"
-            type="button"
-          >
-            <ProjectPill compact="narrow" project={filed} />
-          </button>
+          {filed ? (
+            <button
+              aria-label="Project"
+              className="flex shrink-0 items-center gap-1"
+              type="button"
+            >
+              <ProjectPill compact="narrow" project={filed} />
+            </button>
+          ) : (
+            <span aria-hidden className="h-4 w-0 shrink-0" />
+          )}
         </ProjectPicker>
       )}
       {children}
@@ -327,6 +375,7 @@ export function ChatMenuItems({
   projectMenu?: ChatProjectMenu | undefined;
 }) {
   const groups = chatMenuGroups(useChatActions(chat));
+  const [rename, remove] = chatHeadActions({ onDelete, onRename });
   const stop = useMutation(rpcClient.workspace.session.stop.mutationOptions());
   const item = (action: RowAction) => (
     <menu.Item
@@ -358,10 +407,7 @@ export function ChatMenuItems({
       )}
       {groups.marks.map(item)}
       <menu.Separator />
-      <menu.Item onSelect={onRename}>
-        <PencilSimpleIcon className="size-4" />
-        Rename
-      </menu.Item>
+      {rename && item(rename)}
       {projectMenu && (
         <ProjectMenuItems
           chosen={chat.project}
@@ -387,10 +433,16 @@ export function ChatMenuItems({
           : item(action),
       )}
       <menu.Separator />
-      <menu.Item onSelect={onDelete} variant="destructive">
-        <TrashIcon className="size-4" />
-        Delete Chat…
-      </menu.Item>
+      {remove && (
+        <menu.Item
+          className="[&_svg]:size-4"
+          onSelect={remove.run}
+          variant="destructive"
+        >
+          {remove.icon}
+          {remove.label}
+        </menu.Item>
+      )}
     </>
   );
 }

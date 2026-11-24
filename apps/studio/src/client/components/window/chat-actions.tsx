@@ -5,10 +5,13 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
 import { ArchiveIcon } from "@phosphor-icons/react/Archive";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
+import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { ChatTextIcon } from "@phosphor-icons/react/ChatText";
 import { FileArrowDownIcon } from "@phosphor-icons/react/FileArrowDown";
 import { NotificationIcon } from "@phosphor-icons/react/Notification";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { StarIcon } from "@phosphor-icons/react/Star";
+import { TrashIcon } from "@phosphor-icons/react/Trash";
 import {
   type QueryClient,
   useMutation,
@@ -40,6 +43,51 @@ export function chatMenuGroups(actions: RowAction[]) {
     marks: of(["read", "unread", "star", "unstar"]),
     put: of(["archive", "unarchive"]),
   };
+}
+
+/**
+ * What a chat's menus offer that only the place showing the chat can do,
+ * since each happens there: renaming it in its title's field, filing it
+ * from the project picker (left out where the menu files it from a submenu
+ * of its own), and asking before it is deleted. Every menu of a chat lists
+ * them from here, beside `useChatActionsFor`'s.
+ */
+export function chatHeadActions({
+  onDelete,
+  onProject,
+  onRename,
+}: {
+  onDelete: () => void;
+  onProject?: () => void;
+  onRename: () => void;
+}): RowAction[] {
+  return [
+    {
+      icon: <PencilSimpleIcon className="size-3.5" />,
+      id: "rename",
+      label: "Rename",
+      menuOnly: true,
+      run: onRename,
+    },
+    ...(onProject
+      ? [
+          {
+            icon: <CardsThreeIcon className="size-3.5" />,
+            id: "project",
+            label: "Move to Project…",
+            menuOnly: true,
+            run: onProject,
+          },
+        ]
+      : []),
+    {
+      icon: <TrashIcon className="size-3.5" />,
+      id: "delete",
+      label: "Delete Chat…",
+      menuOnly: true,
+      run: onDelete,
+    },
+  ];
 }
 
 /** The actions of one chat, where one chat is all there is: the head of its pane. */

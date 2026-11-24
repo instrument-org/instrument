@@ -227,7 +227,12 @@ export function AppFront({
   };
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-6">
+    // The page is worked from its content, which the keys scroll.
+    <div
+      className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-6 outline-none"
+      data-keyboard-home
+      tabIndex={-1}
+    >
       <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
         {/* No way back up to Apps here: the row above says where this is. */}
         <div className="flex items-center gap-3">

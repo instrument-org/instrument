@@ -1,3 +1,4 @@
+import { createDiscardedHistories } from "@/electron-main/browser-view/discarded-histories";
 import { historyToRestore } from "@/electron-main/browser-view/guest-history";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { keptOpenerOfTab } from "@/electron-main/stores/workspace/kept-state";
@@ -83,6 +84,12 @@ import { noteFrameSession } from "./keyboard-without-focus";
 import { mayPageNavigateTo } from "./local-file-policy";
 import { log } from "./log";
 import { isCapturing } from "./page-capture";
+import {
+  isEdited,
+  isTypedCharacter,
+  notePersonEdit,
+  typedIntoFrame,
+} from "./page-edits";
 import { createPutAwaySound } from "./put-away-sound";
 import { stopScreencast } from "./screencast";
 import {
@@ -265,9 +272,10 @@ function createBrowserViewManager(): BrowserViewManager {
     const guest = entries.get(targetId)?.webContents;
     return guest && !guest.isDestroyed() ? guest : null;
   };
+  const discardedHistories = createDiscardedHistories();
   const closeIfPlaying = createPutAwaySound({
     close: (targetId) => {
-      void browser.closeTarget(targetId);
+      void browser.discardTarget(targetId);
     },
     describe: (targetId) =>
       URL.parse(liveGuestOf(targetId)?.getURL() ?? "")?.host || "no site",
@@ -620,6 +628,20 @@ function createBrowserViewManager(): BrowserViewManager {
     guest.on("focus", () => {
       focusGuard.onGuestFocus(targetId);
     });
+    // A character typed while a frame below the main one has the keyboard.
+    // Heard before the key is dispatched, since a frame in a process of its
+    // own raises no `input-event` here.
+    guest.on("before-input-event", (_event, input) => {
+      const record = guests.get(guest.id);
+      if (
+        record &&
+        isTypedCharacter(input) &&
+        !focusGuard.isGuarded(targetId) &&
+        typedIntoFrame(guest)
+      ) {
+        notePersonEdit(record, "frame");
+      }
+    });
     guest.on("input-event", (_event, input) => {
       const record = guests.get(guest.id);
       if (record && input.type === "mouseWheel") {
@@ -742,8 +764,8 @@ function createBrowserViewManager(): BrowserViewManager {
       // view) flip this target from pending to live.
       notifyEntriesChanged();
     };
-    // A guest brought over from another window comes up on the page it stood
-    // on, which its element loads (`BrowserGuestTarget.src`), over the pages
+    // A guest brought over from another window, or back from being discarded,
+    // comes up on the page it stood on, which its element loads (`BrowserGuestTarget.src`), over the pages
     // behind it, which have to go in before that load lands. That page can be
     // slow to answer, and the guest is not held up for it.
     const { restoreHistory } = entry;
@@ -880,8 +902,8 @@ function createBrowserViewManager(): BrowserViewManager {
       if (isDrivenInstance()) {
         webPreferences.backgroundThrottling = false;
       }
-      // Inert on every page but a file being edited in place, where it hands
-      // the editor to the guest's isolated world; see page-editor/sessions.ts.
+      // Every guest's preload. On a file being edited in place it hands the
+      // editor to the guest's isolated world; see page-editor/sessions.ts.
       webPreferences.preload = pageEditorPreloadPath();
 
       pendingAttachQueue.push(entry);
@@ -976,6 +998,17 @@ function createBrowserViewManager(): BrowserViewManager {
     }
   }
 
+  /** Where a live guest stands and the pages behind it. */
+  function historyOfGuest(targetId: BrowserTargetId) {
+    const guest = liveGuestOf(targetId);
+    return guest
+      ? historyToRestore(
+          guest.navigationHistory.getAllEntries(),
+          guest.navigationHistory.getActiveIndex(),
+        )
+      : null;
+  }
+
   /**
    * A guest of another window's, brought to this one. A guest cannot change
    * the renderer it is attached to, so this is a fresh guest that reloads its
@@ -986,14 +1019,7 @@ function createBrowserViewManager(): BrowserViewManager {
     partitionDir: AbsolutePath,
     hostId: number,
   ) {
-    const guest = existing.webContents;
-    let restoreHistory: BrowserEntry["restoreHistory"] = null;
-    if (guest && !guest.isDestroyed()) {
-      restoreHistory = historyToRestore(
-        guest.navigationHistory.getAllEntries(),
-        guest.navigationHistory.getActiveIndex(),
-      );
-    }
+    const restoreHistory = historyOfGuest(existing.targetId);
     // The page goes on: what waits for it to go waits on, and its reload is no visit.
     const { destructionListeners } = existing;
     existing.destructionListeners = new Set();
@@ -1046,6 +1072,7 @@ function createBrowserViewManager(): BrowserViewManager {
     targetId: BrowserTargetId,
     partitionDir: AbsolutePath,
     host?: { take?: "always" | "parked"; webContentsId: number },
+    restoreUrl?: string,
   ): Promise<void> {
     const existing = entries.get(targetId);
     if (existing) {
@@ -1065,9 +1092,15 @@ function createBrowserViewManager(): BrowserViewManager {
       return waitForAttach(existing);
     }
 
+    const restoreHistory = discardedHistories.take(targetId, restoreUrl);
+    if (restoreHistory) {
+      noteRestored(targetId, restoreHistory.url);
+    }
     const entry = createEntry({
       hostId: host?.webContentsId ?? null,
       partitionDir,
+      restoreHistory,
+      ...(restoreHistory ? { src: restoreHistory.url } : {}),
       targetId,
     });
     entries.set(targetId, entry);
@@ -1201,6 +1234,7 @@ function createBrowserViewManager(): BrowserViewManager {
     hasNoWindow: false,
     closeTarget: (targetId) =>
       new Promise<void>((resolve) => {
+        discardedHistories.forget(targetId);
         // Resolve only after the destruction listener fires (which happens as
         // part of the disposer chain). If the entry is already gone,
         // onTargetDestroyed fires the listener synchronously.
@@ -1214,6 +1248,12 @@ function createBrowserViewManager(): BrowserViewManager {
         notifyEntriesChanged();
       }),
     createTarget,
+    discardTarget: async (targetId) => {
+      const history = historyOfGuest(targetId);
+      const closed = browser.closeTarget(targetId);
+      discardedHistories.keep(targetId, history);
+      await closed;
+    },
     getTargetMeta: (targetId) => {
       const entry = entries.get(targetId);
       if (!entry) {
@@ -1223,6 +1263,7 @@ function createBrowserViewManager(): BrowserViewManager {
     },
     guestCost: (targetId) => guestCost(entries, targetId),
     isGuestAsleep: (targetId) => entries.get(targetId)?.asleep ?? false,
+    isGuestEdited: (targetId) => isEdited(liveGuestOf(targetId)),
     personInputAt: (targetId) => {
       const guestId = entries.get(targetId)?.webContents?.id;
       const record = guestId === undefined ? undefined : guests.get(guestId);
@@ -1455,6 +1496,7 @@ function createBrowserViewManager(): BrowserViewManager {
         log.info(`quit: closing targetId=${targetId}`);
         destroyEntry(entries, targetId);
       }
+      discardedHistories.clear();
       notifyEntriesChanged();
     },
   };

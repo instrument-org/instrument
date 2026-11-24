@@ -61,6 +61,7 @@ import {
   resolveUrlOrSearch,
   webSearchUrl,
 } from "@/client/lib/resolve-url-or-search";
+import { focusScreenHome } from "@/client/lib/keyboard-home";
 import { showInFolder } from "@/client/lib/show-in-files";
 import {
   type FailedLoad,
@@ -875,6 +876,7 @@ export function BrowserPanel({
                 if (typedPath) {
                   void openTypedPath(typedPath);
                   inputRef.current?.blur();
+                  focusScreenHome({ leaving: false });
                   return;
                 }
                 const target = resolveUrlOrSearch(draftUrl);
@@ -884,6 +886,7 @@ export function BrowserPanel({
                   // (after normalization/redirects) syncs back into the bar once the
                   // navigation commits, instead of leaving what the user typed.
                   inputRef.current?.blur();
+                  focusScreenHome({ leaving: false });
                 }
               }}
             >

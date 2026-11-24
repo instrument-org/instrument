@@ -134,9 +134,10 @@ async function setMicrophone(value: string) {
     return;
   }
   const found = (await microphoneChoices()).find(({ name }) => name === value);
-  if (found) {
-    getMachinePreferences().set("dictationMicrophone", found.input);
+  if (!found) {
+    throw new Error(`"${value}" is not connected.`);
   }
+  getMachinePreferences().set("dictationMicrophone", found.input);
 }
 
 const ACCESS: Record<AgentSettingId, Access> = {

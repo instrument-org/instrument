@@ -24,11 +24,14 @@ import { WindowContext } from "./window/context";
 export function SettingChangesNote({
   card,
   changes,
+  device,
   undone: undoneBefore = false,
 }: {
   /** Where the card is, for its Undo to mark it undone on every device. */
   card?: ChangesCard;
   changes: SessionMessageDataPart.SettingChange[];
+  /** The computer whose settings these are. */
+  device?: SessionMessageDataPart.SettingChangesDataPart["device"];
   /** Undone already, by this device or another. */
   undone?: boolean;
 }) {
@@ -40,7 +43,8 @@ export function SettingChangesNote({
   );
   const { data: values } = useQuery(
     rpcClient.workspace.settings.values.queryOptions({
-      queryKey: ["setting-values", preferences, changes],
+      input: { device },
+      queryKey: ["setting-values", preferences, changes, device],
     }),
   );
   const { undo, undone, undoing } = useChangeCardUndo({
@@ -48,26 +52,28 @@ export function SettingChangesNote({
       rpcClient.workspace.settings.undoChanges.call({
         ...(card && { card }),
         changes,
+        device,
       }),
     said: {
       all: "Your settings are back the way they were.",
-      some: "Your settings are back the way they were, except the ones you changed since.",
+      some: "Your settings are back the way they were, except any that changed since.",
     },
     undoneBefore,
   });
   // Zoom is not among the preferences, so what stands may be stale for it;
   // the undo itself checks again.
   const standing =
-    values === undefined ||
+    !!values &&
     changes.some((change) => values[change.id] === change.after.value);
+  const elsewhere = values === null ? " on another computer" : "";
   const shown = expanded ? changes : changes.slice(0, SHOWN_ROWS);
 
   return (
     <ChangeCard
       heading={
         changes.length === 1
-          ? "Changed a setting"
-          : `Changed ${changes.length.toString()} settings`
+          ? `Changed a setting${elsewhere}`
+          : `Changed ${changes.length.toString()} settings${elsewhere}`
       }
       hidden={changes.length - shown.length}
       icon={GearSixIcon}
@@ -99,6 +105,7 @@ export function SettingChangesNote({
             ]}
             name={change.title}
             {...(appWindow &&
+              values !== null &&
               link !== undefined && {
                 onOpen: () => {
                   appWindow.openScreen(

@@ -1,6 +1,6 @@
 ---
 name: instrument-guide
-description: How Instrument itself works, what each part of the app is for, and how to link the user straight to a setting or screen. Read it when the user asks how to do something in Instrument, how to bring in what they had in another AI or app, where a setting is, or what a part of the app does.
+description: How Instrument itself works, what each part of the app is for, and how to link the user straight to a setting or screen. Read it when the user asks to change one of its settings, how to do something in Instrument, how to bring in what they had in another AI or app, where a setting is, or what a part of the app does.
 ---
 
 # Instrument guide
@@ -20,7 +20,7 @@ The label is the thing in the user's words, and the name in the address comes fr
 
 ## Changing a setting
 
-A setting the user asks to change is changed for them when `instrument settings` can: `instrument settings list` says what each one is, its value now and what it takes, and `instrument settings set <id> <value>` changes it at once. A card under the reply shows what changed, with Undo, so the reply says it in a few words. One the list marks as the user's, and every other row of Settings (permissions, sign-ins, keys, the plan, storage, clearing anything), is linked instead, with what to do there. The model a chat runs on is the user's to pick, at the bottom right of its reply box. Never click through Settings to change one.
+A setting the user asks to change is changed for them when `instrument settings` can: `instrument settings list` says what each one is, its value now and what it takes, and `instrument settings set <id> <value>` changes it at once. A card under the reply shows what changed, with Undo, so the reply says it in a few words. One the list marks as the user's, and every other row of Settings (permissions, sign-ins, keys, the plan, storage, clearing anything), is linked instead, with what to do there. A few it sets have no row of their own: ad blocking, the bookmarks bar and Ask for feedback. The model a chat runs on is the user's to pick, at the bottom right of its reply box. Never click through Settings to change one.
 
 ## The window
 
@@ -33,7 +33,7 @@ Instrument's window is a browser with chats in it. The sidebar down the left has
 - **⌘K** opens the command menu, to find a chat, a page or a command.
 - **Chats** (⇧⌘F) lists every chat, open or not, under Inbox, Drafts and Archived, with search, and the projects at the top of Inbox: [Chats](instrument://screen/chats). A chat picked there comes up in the tab group it is in, or opens in that tab, where Back returns to the list. Closed tabs come back with ⇧⌘T or from the History page (⌘Y).
 - **Files** shows the files on this computer. Results nobody put anywhere else land in the Files folder of the Instrument folder, in a folder named for the work.
-- **Web pages** open in Instrument's own browser. While Instrument works in a page, the page glows, and Take over stops it and hands the page to the user. Chrome extensions, 1Password among them, run in it, installed from the Chrome Web Store: [Extensions](instrument://screen/extensions). Clear Browsing Data…, in the History menu, clears whichever the user picks of its history, its cache, and cookies and site data (sign-ins included), for a time range.
+- **Web pages** open in Instrument's own browser. While Instrument works in a page, the page glows, and Take over stops it and hands the page to the user. Chrome extensions, 1Password among them, run in it, installed from the Chrome Web Store: [Extensions](instrument://screen/extensions). Clear Browsing Data…, in the History menu, clears whichever the user picks: the history of a time range, and the cache or the cookies and site data (which signs them out of sites), each all of it whatever the range.
 - **Apps** is where services like Gmail, Notion or Linear are connected, so Instrument can work in them: [Apps](instrument://screen/apps). Its search takes any service, listed or not. An app's menu tests the connection, names the account, connects another account to the same service, disconnects it, or removes it.
 
 ## Chats and tasks

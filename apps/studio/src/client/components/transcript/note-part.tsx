@@ -79,6 +79,7 @@ export function renderDataPart(
       return (
         <SettingChangesNote
           changes={part.data.changes}
+          device={part.data.device}
           key={part.metadata.id}
           {...(card && { card })}
           {...(part.data.undone && { undone: true })}

@@ -15,7 +15,8 @@ export function beginSettingChangeTracking(turn: TurnKey): void {
 /**
  * Records a setting the turn running now set. A second change to the same
  * setting keeps the value from before the first, so the card says what the
- * turn did as a whole and Undo goes back to before it.
+ * turn did as a whole and Undo goes back to before it, unless the person set
+ * it in between, whose value Undo goes back to.
  */
 export function recordSettingChange(change: SettingChange): void {
   const context = getTurnContext();
@@ -24,7 +25,9 @@ export function recordSettingChange(change: SettingChange): void {
     return;
   }
   const first = changes.get(change.id);
-  changes.set(change.id, { ...change, before: first?.before ?? change.before });
+  const before =
+    first?.after.value === change.before.value ? first.before : change.before;
+  changes.set(change.id, { ...change, before });
 }
 
 /** What the turn's commands set, less what ended where it began. Ends the tracking. */
@@ -66,9 +69,9 @@ export async function undoSettingChanges(
     try {
       await settings.set(change.id, change.before.value);
       undone += 1;
-    } catch (error) {
-      // A value that is gone, such as a microphone since unplugged.
-      getWorkspaceConfig().captureException(error);
+    } catch {
+      // A value that is gone, such as a microphone since unplugged. Not
+      // captured: the error names the computer's microphones.
     }
   }
   return { skipped: changes.length - undone, undone };

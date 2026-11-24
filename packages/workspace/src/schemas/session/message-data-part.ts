@@ -628,6 +628,8 @@ export namespace SessionMessageDataPart {
    */
   export const SettingChangesDataPartSchema = z.object({
     changes: z.array(SettingChangeSchema).min(1),
+    /** The computer whose settings these are, the only one that can undo them. */
+    device: DeviceIdSchema.optional(),
     /** Set once the person took the changes back with the card's Undo. */
     undone: CardUndoneSchema.optional(),
   });

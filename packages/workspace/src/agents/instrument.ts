@@ -1,3 +1,4 @@
+import { thisDevice } from "../lib/chat/asks";
 import { err, ok, safeTry } from "neverthrow";
 import { pick } from "radashi";
 
@@ -178,7 +179,7 @@ export const instrumentAgent = setupAgent({
       if (settingChanges.length > 0) {
         yield* ChatWrites.savePart(
           {
-            data: { changes: settingChanges },
+            data: { changes: settingChanges, device: thisDevice() },
             metadata: {
               createdAt: new Date(),
               id: StoreId.newPartId(),

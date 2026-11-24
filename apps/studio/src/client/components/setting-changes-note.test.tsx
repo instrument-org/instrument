@@ -6,7 +6,7 @@ import { SettingChangesNote } from "./setting-changes-note";
 
 const { undoChanges, values } = vi.hoisted(() => ({
   undoChanges: vi.fn(),
-  values: {} as Record<string, string>,
+  values: { here: true, now: {} as Record<string, string> },
 }));
 
 vi.mock("@/client/rpc/client", () => ({
@@ -26,7 +26,7 @@ vi.mock("@/client/rpc/client", () => ({
         undoChanges: { call: undoChanges },
         values: {
           queryOptions: (options: { queryKey: unknown[] }) => ({
-            queryFn: () => ({ ...values }),
+            queryFn: () => (values.here ? { ...values.now } : null),
             queryKey: options.queryKey,
           }),
         },
@@ -46,7 +46,8 @@ const changes = [
 ];
 
 beforeEach(() => {
-  values.theme = "dark";
+  values.here = true;
+  values.now.theme = "dark";
   undoChanges.mockReset();
 });
 
@@ -61,8 +62,17 @@ describe("SettingChangesNote", () => {
     expect(undoChanges).toHaveBeenCalledWith({ changes });
   });
 
+  it("says they are another computer's, with no Undo", async () => {
+    values.here = false;
+    renderWithProviders(<SettingChangesNote changes={changes} />);
+    expect(
+      await screen.findByText("Changed a setting on another computer"),
+    ).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+  });
+
   it("offers no Undo once the person changed it themselves", async () => {
-    values.theme = "light";
+    values.now.theme = "light";
     renderWithProviders(<SettingChangesNote changes={changes} />);
     await vi.waitFor(() => {
       expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();

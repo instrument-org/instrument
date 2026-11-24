@@ -61,6 +61,7 @@ const VISIBLE = new Set<string>([
   "data-modelChange",
   "data-permissionAnswer",
   "data-questionAnswer",
+  "data-settingChanges",
   "data-setupChanges",
   "data-taskEvent",
   "file",
@@ -318,6 +319,14 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
         ),
         ...(answer.note === undefined ? [] : [`You added: ${answer.note}`]),
       ].join("\n");
+    }
+    case "data-settingChanges": {
+      return part.data.changes
+        .map(
+          ({ after, before, title }) =>
+            `Changed ${title}: ${before.label} → ${after.label}`,
+        )
+        .join("\n");
     }
     case "data-setupChanges": {
       return part.data.changes

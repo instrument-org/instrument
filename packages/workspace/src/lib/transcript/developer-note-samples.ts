@@ -108,6 +108,7 @@ export const DATA_PART_SAMPLES = {
         title: "Theme",
       },
     ],
+    device: "dev_0123ABCD",
   },
   setupChanges: {
     changes: [{ change: "added", kind: "skill", name: "launch" }],

@@ -70,9 +70,8 @@ async function turn(work: () => Promise<unknown>) {
 
 describe("instrument settings", () => {
   it("lists what each setting is, its value and what it takes", async () => {
-    expect(
-      settingsList.text(await settingsList.run({}, ctx)),
-    ).toMatchInlineSnapshot(`
+    expect(settingsList.text(await settingsList.run({}, ctx)))
+      .toMatchInlineSnapshot(`
       "theme: Theme
         The app's color scheme.
         Now: system
@@ -118,6 +117,15 @@ describe("instrument settings", () => {
         await set("theme", "system");
       }),
     ).toEqual([]);
+  });
+
+  it("goes back to the value the person set between two changes", async () => {
+    const changes = await turn(async () => {
+      await set("theme", "dark");
+      theme = "light";
+      await set("theme", "dark");
+    });
+    expect(changes[0]?.before.value).toBe("light");
   });
 
   it("undoes what still stands and skips what changed since", async () => {

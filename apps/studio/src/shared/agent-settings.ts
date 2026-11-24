@@ -30,12 +30,13 @@ export const AGENT_SETTINGS = {
   "dictation-microphone": {
     changeable: true,
     detail:
-      "The microphone dictation records from. default is the computer's own input.",
+      "The microphone dictation records from. default is the computer's own input, and the only choice until the computer lets the app use a microphone.",
     title: "Dictation microphone",
   },
   "dictation-language": {
     changeable: true,
-    detail: "The language dictation listens for. auto detects it.",
+    detail:
+      "The language dictation listens for. auto detects it. Dictation also needs the computer to let the app use a microphone.",
     title: "Dictation language",
   },
   "dictation-sounds": {
@@ -51,14 +52,14 @@ export const AGENT_SETTINGS = {
   },
   "block-ads": {
     changeable: true,
-    detail: `Ads and trackers are blocked on every page in ${APP_NAME}'s browser. For your own tabs alone, use agent-browser adblock.`,
+    detail: `Ads and trackers are blocked on every page in ${APP_NAME}'s browser. A page already open follows once it is reloaded. For your own tabs alone, use agent-browser adblock.`,
     row: false,
     title: "Block ads",
   },
   "bookmarks-bar": {
     changeable: true,
     detail:
-      "The bookmarks bar shows on every tab. Off, it shows on a new tab alone.",
+      "The bookmarks bar shows on every tab but a chat's. Off, it shows on a new tab alone.",
     row: false,
     title: "Bookmarks bar",
   },

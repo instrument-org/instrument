@@ -141,13 +141,26 @@ function Menu({ words }: { words: string }) {
   );
 }
 
+/**
+ * What a surface shows once it has stopped changing: its rows follow the
+ * words, and history, a beat behind.
+ */
+async function settled(read: () => string) {
+  let last = read();
+  for (let quiet = 0; quiet < 3;) {
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const now = read();
+    quiet = now === last ? quiet + 1 : 0;
+    last = now;
+  }
+}
+
 /** The command menu's first row for the words, whether it also offers a web search, and what Return does. */
 async function menuFor(words: string) {
   const screen = await renderInBrowser(<Menu words={words} />);
   const list = page.getByRole("list", { name: `menu for ${words}` });
   await expect.element(list).toBeInTheDocument();
-  // The rows follow the words a beat behind.
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await settled(() => list.element().innerHTML);
   const rows = [...list.element().querySelectorAll("button")];
   const first = rows[0];
   const said =
@@ -182,7 +195,7 @@ async function fieldFor(words: string) {
   await userEvent.fill(page.getByRole("combobox"), words);
   const picked = page.getByRole("option", { selected: true });
   await expect.element(picked).toBeInTheDocument();
-  await new Promise((resolve) => setTimeout(resolve, 50));
+  await settled(() => picked.element().parentElement?.innerHTML ?? "");
   const row = picked.element();
   const said = `“${row.textContent}” (${asksForIcon(row)})`;
   const search =

@@ -753,6 +753,34 @@ describe("agent-browser file operands and the folder rules", () => {
       args: ["--init-script=../closed/hook.js", "open", "https://x.com"],
       name: "a page init script spelled with =",
     },
+    {
+      args: ["cookies", "set", "--curl", "../closed/secret.txt"],
+      name: "a file of cookies",
+    },
+    {
+      args: [
+        "cookies",
+        "set",
+        "--domain",
+        "x.com",
+        "--",
+        "--curl",
+        "notes.txt",
+      ],
+      name: "a file of cookies after --, through a link in the work folder",
+    },
+    {
+      args: ["webmcp", "invoke", "echo", "--params", "@../closed/secret.txt"],
+      name: "a page tool's input file",
+    },
+    {
+      args: ["webmcp", "invoke", "echo", "@../closed/secret.txt"],
+      name: "a page tool's input file after the tool",
+    },
+    {
+      args: ["webmcp", "invoke", "--", "echo", "--frame", "F", "@notes.txt"],
+      name: "a page tool's input file past -- and another flag",
+    },
   ])("refuses $name from a closed folder", async ({ args }) => {
     const result = await resolve(args);
 
@@ -805,6 +833,10 @@ describe("agent-browser file operands and the folder rules", () => {
     { args: ["trace", "stop", "--", "../closed/trace.json"] },
     { args: ["profiler", "stop", "--", "../closed/profile.json"] },
     { args: ["network", "har", "stop", "--", "../closed/traffic.har"] },
+    { args: ["wait", "--download", "../closed/report.csv"] },
+    { args: ["wait", "-d", "../closed/report.csv"] },
+    // The CLI takes `--timeout` and its value out before it reads the path.
+    { args: ["wait", "--download", "--timeout", "5000", "../closed/r.csv"] },
   ])("refuses $args writing into a closed folder", async ({ args }) => {
     expect(await resolve(args)).toEqual({
       error: expect.stringContaining("Permission denied"),
@@ -878,6 +910,30 @@ describe("agent-browser file operands and the folder rules", () => {
       ["type", "@e1", "--", "--init-script=hook.js"],
       ["type", "@e1", "--", "--init-script=hook.js"],
     ],
+    [
+      ["wait", "--download", "report.csv", "--timeout", "5000"],
+      ["wait", "--download", "<root>/work/report.csv", "--timeout", "5000"],
+    ],
+    [
+      ["cookies", "set", "--curl", "hook.js", "--domain", "x.com"],
+      ["cookies", "set", "--curl", "<root>/work/hook.js", "--domain", "x.com"],
+    ],
+    [
+      ["webmcp", "invoke", "echo", "--params", "@hook.js"],
+      ["webmcp", "invoke", "echo", "--params", "@<root>/work/hook.js"],
+    ],
+    // Words of these commands the CLI opens no file for stay as typed: a
+    // wait it answers ahead of the download, a cookie's value and path, a
+    // tool's JSON, and a second input, which it refuses unread.
+    ...[
+      ["wait", "--download"],
+      ["wait", "--text", "Done", "--download", "../closed/report.csv"],
+      ["cookies", "set", "id", "../closed/secret.txt", "--path", "/api"],
+      ["cookies", "get", "--curl", "../closed/secret.txt"],
+      ["webmcp", "invoke", "echo", '{"from":"@../closed/secret.txt"}'],
+      ["webmcp", "invoke", "echo", "{}", "@../closed/secret.txt"],
+      ["webmcp", "list", "@../closed/secret.txt"],
+    ].map((args) => [args, args]),
   ])("lets %j work in the work folder", async (args, expected) => {
     expect(await resolve(args)).toEqual({ args: expected });
   });

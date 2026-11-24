@@ -497,6 +497,10 @@ export function isDaemonConfigRace(output: string): boolean {
  * writes. Every other subcommand's operands are text the page receives as
  * typed (an `eval` script, a `fill` value, a `wait --fn` body), where a
  * leading `/` is a comment, a regex or a slash command, never a path.
+ *
+ * `cookies`, `wait` and `webmcp` name a file among such text (a cookie's
+ * value, a `--fn` body, a tool's JSON), so they are left out of this set:
+ * `fileOperandsOf` picks their one file and the rest stays as typed.
  */
 const FILE_OPERAND_SUBCOMMANDS = new Set([
   "diff",
@@ -532,6 +536,15 @@ function fileOperandsOf(
     operand ? [{ index: operand.index, op: "write" }] : [];
   const [first, second] = operands;
   switch (subcommand) {
+    case "cookies": {
+      // `cookies set --curl <file>`: the CLI itself reads the word after the
+      // first `--curl`, wherever that is, a `--` ahead of it included.
+      const curl = operands.findIndex(({ value }) => value === "--curl");
+      const file = operands[curl + 1];
+      return first?.value === "set" && curl !== -1 && file
+        ? [{ index: file.index, op: "read" }]
+        : [];
+    }
     case "diff": {
       // `--baseline <file>` is read, `--output <file>` written.
       return operands.flatMap((operand, i): FileOperand[] => {
@@ -586,6 +599,29 @@ function fileOperandsOf(
       const [only] = positionals;
       return only && isScreenshotPath(only.value) ? writes(only) : [];
     }
+    case "wait": {
+      // `wait --download <path>` moves the finished download to the path.
+      // The CLI takes `--timeout` and `--state` out with their values, then
+      // answers the first of these it finds, and reads the download flag
+      // only when none is there.
+      const words = WAIT_VALUE_FLAGS.reduce((rest, flag) => {
+        const at = rest.findIndex(({ value }) => value === flag);
+        return at === -1 ? rest : rest.toSpliced(at, 2);
+      }, operands);
+      if (words.some(({ value }) => WAIT_FLAGS_AHEAD_OF_DOWNLOAD.has(value))) {
+        return [];
+      }
+      const download = words.findIndex(
+        ({ value }) => value === "--download" || value === "-d",
+      );
+      const saved = words[download + 1];
+      return download !== -1 && saved && !saved.value.startsWith("--")
+        ? writes(saved)
+        : [];
+    }
+    case "webmcp": {
+      return webmcpParamsFile(operands);
+    }
     case "upload": {
       // The CLI drops a `--` ahead of the selector when something follows it,
       // and sends every word after the selector as a file.
@@ -599,6 +635,58 @@ function fileOperandsOf(
       return [];
     }
   }
+}
+
+/** What `wait` takes out of its words, each with its value, before reading the rest. */
+const WAIT_VALUE_FLAGS = ["--timeout", "--state"];
+
+/** The waits the CLI answers ahead of `--download` when a command names both. */
+const WAIT_FLAGS_AHEAD_OF_DOWNLOAD = new Set([
+  "--fn",
+  "--load",
+  "--text",
+  "--url",
+  "-f",
+  "-l",
+  "-t",
+  "-u",
+]);
+
+const WEBMCP_INVOKE_VALUE_FLAGS = new Set(["--frame", "--params", "--timeout"]);
+
+/**
+ * The file `webmcp invoke <tool>` reads its tool's input from: `@<file>` as
+ * the word after the tool or as the value of `--params`, read by the CLI
+ * itself. Only the first input counts, since the CLI refuses a second before
+ * it opens anything. The CLI drops a `--` after `invoke` when something
+ * follows it, and stops at any other word opening with `-` it does not know.
+ */
+function webmcpParamsFile(operands: Operand[]): FileOperand[] {
+  const words =
+    operands[1]?.value === END_OF_OPTIONS && operands.length > 2
+      ? operands.toSpliced(1, 1)
+      : operands;
+  if (words[0]?.value !== "invoke") {
+    return [];
+  }
+  for (let i = 2; i < words.length; i++) {
+    const word = words[i];
+    if (!word || word.value === "--detach") {
+      continue;
+    }
+    const takesValue = WEBMCP_INVOKE_VALUE_FLAGS.has(word.value);
+    const value = takesValue ? words[++i] : word;
+    if (!value || value.value.startsWith("-")) {
+      return [];
+    }
+    if (takesValue && word.value !== "--params") {
+      continue;
+    }
+    return value.value.startsWith("@")
+      ? [{ index: value.index, op: "read", prefix: "@" }]
+      : [];
+  }
+  return [];
 }
 
 /**

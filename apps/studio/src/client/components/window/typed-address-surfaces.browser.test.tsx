@@ -122,6 +122,7 @@ function Menu({ words }: { words: string }) {
     openScreen: (href) => {
       opened.push(`screen ${href}`);
     },
+    showTab: () => undefined,
     words,
   });
   return (

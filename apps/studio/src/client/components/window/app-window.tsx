@@ -1933,6 +1933,12 @@ function WindowShell({
                   openPage(url);
                 }}
                 openScreen={openScreen}
+                showTab={(tab) => {
+                  if (tab.group !== undefined) {
+                    groups.show(tab.group);
+                  }
+                  windowTabs.select(tab.id);
+                }}
               />
             </ShellContext>
             <DragLayer

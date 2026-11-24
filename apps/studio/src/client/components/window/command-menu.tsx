@@ -5,6 +5,7 @@ import { openBuiltInPage } from "@/client/atoms/page-requests";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { SCREENS } from "@/shared/instrument-screens";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
+import { type WindowTab } from "@/client/atoms/window";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
 import { targetOfAddress } from "@/client/bookmarks/address";
@@ -43,7 +44,10 @@ import {
 } from "@/client/components/window/chats";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { useShell } from "@/client/components/window/shell-context";
+import { screenPresentation } from "@/client/components/window/screen-presentation";
 import { useFrontTabActions } from "@/client/components/window/tab-actions";
+import { useOpenGroups } from "@/client/components/window/tab-groups";
+import { isHomeTab } from "@/client/components/window/tab-model";
 import { useTabTitle } from "@/client/components/window/tab-title";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import {
@@ -211,8 +215,8 @@ type Row =
 
 /**
  * The menu's rows for the words typed: what
- * the words name (an address to open, commands and the actions for the tab
- * in front, chats, the apps set up here, pages, files), then a web search for words that are a search, then, when
+ * the words name (an address to open, the tabs open in this window,
+ * commands and the actions for the tab in front, chats, the apps set up here, pages, files), then a web search for words that are a search, then, when
  * nothing matched by name and the words are no address, the chats the
  * decision model says they mean, below the search so Return never changes
  * under the caret. Each kind lists three at most. Before anything is typed,
@@ -231,6 +235,7 @@ export function useCommandMenuRows({
   done,
   openPage,
   openScreen,
+  showTab,
   words: typed,
 }: {
   /** Whether the menu is on screen, for what it reads off the disk or asks the model. */
@@ -239,6 +244,8 @@ export function useCommandMenuRows({
   done: (run: () => void) => () => void;
   openPage: (url: string) => void;
   openScreen: (href: string) => void;
+  /** Brings a tab of this window up with the keyboard, its group on screen. */
+  showTab: (tab: WindowTab) => void;
   words: string;
 }): {
   isBang: boolean;
@@ -292,7 +299,11 @@ export function useCommandMenuRows({
   });
   const chatTitles = new Map(chats.map((chat) => [chat.id, chat.title]));
   // What the tab up on the side with the keyboard offers, under what it is.
-  const frontTab = useWindowTabs().active;
+  const { active: frontTab, allTabs } = useWindowTabs();
+  // This window's groups, each by the name its row in the sidebar has.
+  const groupNames = new Map(
+    useOpenGroups().open.map((entry) => [entry.group, entry.title]),
+  );
   const titleOfTab = useTabTitle(chatTitles);
   const front = useFrontTabActions({
     chats,
@@ -707,8 +718,30 @@ export function useCommandMenuRows({
       ? liveProjects.map((item) => ({ item, ranges: null }))
       : fuzzyMatch(liveProjects, (project) => [project.name], projectAsk.name);
 
+  // The tabs open in any group of this window, by their titles, but the
+  // tab in front and a new tab nobody has written in.
+  const tabMatches = isSearch
+    ? fuzzyMatch(
+        allTabs.filter(
+          (tab) =>
+            tab.group !== undefined &&
+            groupNames.has(tab.group) &&
+            tab.id !== frontTab?.id &&
+            !isHomeTab(tab),
+        ),
+        (tab) => [titleOfTab(tab)],
+        words,
+      ).slice(0, PER_KIND_SHOWN)
+    : [];
+
   const named: { items: Item[]; label: string }[] = isSearch
     ? [
+        {
+          items: tabMatches.map(({ item: tab, ranges }) =>
+            tabItem(tab, ranges),
+          ),
+          label: "Open tabs",
+        },
         {
           // An action for the tab in front is found among the commands, and
           // says what it acts on.
@@ -1010,6 +1043,29 @@ export function useCommandMenuRows({
     };
   }
 
+  // An open tab's row: its mark and title, then the group it is in.
+  function tabItem(tab: WindowTab, ranges: null | number[]): Item {
+    return {
+      detail: tab.group === undefined ? undefined : groupNames.get(tab.group),
+      icon:
+        tab.kind === "page" ? (
+          <PageFavicon
+            favicon={tab.favicon}
+            url={tab.url ?? tab.openedUrl ?? ""}
+          />
+        ) : (
+          screenPresentation(tab.href, { appsBySlug, chatTitles }).icon
+        ),
+      id: `tab:${tab.id}`,
+      label: titleOfTab(tab),
+      ranges,
+      run: () => {
+        showTab(tab);
+      },
+      type: "item",
+    };
+  }
+
   function projectItem(project: Project, ranges: null | number[]): Item {
     return {
       icon: <ProjectMark project={project} />,
@@ -1280,9 +1336,12 @@ function CommandMenuList({
 export function CommandMenu({
   openPage,
   openScreen,
+  showTab,
 }: {
   openPage: (url: string) => void;
   openScreen: (href: string) => void;
+  /** Brings a tab of this window up with the keyboard, its group on screen. */
+  showTab: (tab: WindowTab) => void;
 }) {
   const [open, setOpen] = useAtom(commandMenuOpenAtom);
   const [search, setSearch] = useState("");
@@ -1306,6 +1365,7 @@ export function CommandMenu({
     },
     openPage,
     openScreen,
+    showTab,
     words: search.trim(),
   });
 

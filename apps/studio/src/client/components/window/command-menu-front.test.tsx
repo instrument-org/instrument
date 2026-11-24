@@ -10,12 +10,18 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { listChatHead } from "./chat-head-requests";
 import { type Chat } from "./chats";
 import { useCommandMenuRows } from "./command-menu";
-import { chatHref } from "./window-href";
+import { chatHref, newChatHref } from "./window-href";
 
-/** The tab up on the side with the keyboard. */
-const front = vi.hoisted((): { tab: undefined | WindowTab } => ({
-  tab: undefined,
-}));
+/** The tab up on the side with the keyboard, and every tab kept on this computer. */
+const front = vi.hoisted(
+  (): { all: WindowTab[]; tab: undefined | WindowTab } => ({
+    all: [],
+    tab: undefined,
+  }),
+);
+
+/** The tab the menu went to. */
+const shown = vi.hoisted(() => vi.fn());
 
 // Every query stays pending.
 vi.mock("@/client/rpc/client", () => {
@@ -53,7 +59,21 @@ vi.mock("@/client/components/window/window-tabs", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("@/client/components/window/window-tabs")
   >()),
-  useWindowTabs: () => ({ active: front.tab }),
+  useWindowTabs: () => ({ active: front.tab, allTabs: front.all }),
+}));
+
+// This window lists two groups; a third is another window's.
+vi.mock("@/client/components/window/tab-groups", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@/client/components/window/tab-groups")
+  >()),
+  useOpenGroups: () => ({
+    elsewhere: [],
+    open: [
+      { group: "roofer", kind: "tabs", pinned: false, title: "Roofer quotes" },
+      { group: "pricing", kind: "tabs", pinned: false, title: "Pricing" },
+    ],
+  }),
 }));
 
 const ROOFER = ChatIdSchema.parse("2026-11-14-roofer-quotes");
@@ -89,11 +109,13 @@ vi.mock(
 );
 
 const CHAT_TAB: WindowTab = {
+  group: "roofer",
   href: chatHref(ROOFER),
   id: "chat-tab",
   kind: "screen",
 };
 const PAGE_TAB: WindowTab = {
+  group: "pricing",
   id: "tab_01M7EKJA7JST69N0RVMKWTP7Q8",
   kind: "page",
   openedAt: 0,
@@ -101,6 +123,7 @@ const PAGE_TAB: WindowTab = {
   url: "https://www.zendesk.com/pricing/",
 };
 const FILE_TAB: WindowTab = {
+  group: "pricing",
   href: fileHref("/Users/sam/Instrument/quotes.csv"),
   id: "file-tab",
   kind: "screen",
@@ -113,6 +136,7 @@ function MenuRows({ words }: { words: string }) {
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
+    showTab: shown,
     words,
   });
   return (
@@ -137,6 +161,8 @@ const listed = () =>
 
 afterEach(() => {
   front.tab = undefined;
+  front.all = [];
+  shown.mockClear();
   installWindowStubs();
 });
 
@@ -265,5 +291,52 @@ describe("the command menu's actions for the tab in front", () => {
         "Settings",
       ]
     `);
+  });
+});
+
+describe("the command menu's open tabs", () => {
+  const ELSEWHERE_TAB: WindowTab = {
+    group: "another-window",
+    href: fileHref("/Users/sam/Instrument/plans-elsewhere.md"),
+    id: "elsewhere-tab",
+    kind: "screen",
+  };
+  const NEW_TAB: WindowTab = {
+    group: "pricing",
+    href: newChatHref(),
+    id: "new-tab",
+    kind: "screen",
+  };
+
+  it("finds a tab of another group by its title, named by its group, and goes to it", async () => {
+    front.tab = CHAT_TAB;
+    front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB, ELSEWHERE_TAB, NEW_TAB];
+    renderWithProviders(<MenuRows words="plans" />);
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Suite plans · Pricing" }),
+    );
+
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "# Open tabs",
+        "Suite plans · Pricing",
+        "Search the web for “plans”",
+      ]
+    `);
+    expect(shown.mock.calls).toEqual([[PAGE_TAB]]);
+  });
+
+  it("leaves out the tab in front and a new tab nobody has written in", async () => {
+    front.tab = CHAT_TAB;
+    front.all = [CHAT_TAB, NEW_TAB];
+    const { rerender } = renderWithProviders(<MenuRows words="roofer" />);
+
+    await screen.findByText("# Chats");
+    expect(screen.queryByText("# Open tabs")).toBeNull();
+
+    rerender(<MenuRows words="new" />);
+    await screen.findByText("# Commands");
+    expect(screen.queryByText("# Open tabs")).toBeNull();
   });
 });

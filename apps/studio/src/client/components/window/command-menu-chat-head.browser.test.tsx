@@ -123,7 +123,11 @@ async function renderChatWithMenu() {
         projects={[HOUSE]}
       />
       <input aria-label="Reply" />
-      <CommandMenu openPage={() => undefined} openScreen={() => undefined} />
+      <CommandMenu
+        openPage={() => undefined}
+        openScreen={() => undefined}
+        showTab={() => undefined}
+      />
     </GroupTabContext>,
     { store },
   );

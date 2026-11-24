@@ -45,7 +45,11 @@ async function renderMenu() {
   const store = createStore();
   store.set(commandMenuOpenAtom, true);
   await renderInBrowser(
-    <CommandMenu openPage={opened.page} openScreen={() => undefined} />,
+    <CommandMenu
+      openPage={opened.page}
+      openScreen={() => undefined}
+      showTab={() => undefined}
+    />,
     { store },
   );
 }

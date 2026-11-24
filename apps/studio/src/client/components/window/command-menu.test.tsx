@@ -96,6 +96,7 @@ function SettingsTabRow({ words }: { words: string }) {
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
+    showTab: () => undefined,
     words,
   });
   return rows.map((row) =>
@@ -154,6 +155,7 @@ function MenuRows({ words }: { words: string }) {
     done: (run) => run,
     openPage: () => undefined,
     openScreen: () => undefined,
+    showTab: () => undefined,
     words,
   });
   return (
@@ -292,6 +294,7 @@ describe("built-in pages in the command menu", () => {
         done: (run) => run,
         openPage: () => undefined,
         openScreen,
+        showTab: () => undefined,
         words: label.toLowerCase(),
       });
       const row = rows.find(

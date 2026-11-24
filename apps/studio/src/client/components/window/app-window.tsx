@@ -135,6 +135,7 @@ import {
   agentCloseKeeps,
   draftOfTab,
   isBlankNewTab,
+  isHomeTab,
   isNewChatTab,
   selectedTabIn,
   sideIndexOf,
@@ -1044,11 +1045,49 @@ function WindowShell({
   );
   useEffect(() => window.api.onCloseAsked?.(askToCloseWindow), []);
   /**
+   * Whether a group gives way to what is picked in it: unpinned, its one
+   * tab a new tab nobody wrote in or the Chats page, so nothing is lost as
+   * the pick takes its place.
+   */
+  const givesWay = (group: string | undefined): group is string => {
+    if (
+      group === undefined ||
+      !groupList.open.some((entry) => entry.group === group && !entry.pinned)
+    ) {
+      return false;
+    }
+    const [only, ...others] = windowTabs.allTabs.filter(
+      (tab) => tab.group === group,
+    );
+    const closedAs = others.length === 0 ? closingAsWritten(only) : undefined;
+    return (
+      closedAs?.kind === "screen" &&
+      (isHomeTab(closedAs) || matchScreen(closedAs.href).kind === "chats")
+    );
+  };
+  /**
+   * Brings a tab group up for a pick made in another (`from`): where that
+   * one gives way (`givesWay`) and both are this window's, it closes behind
+   * the pick, off the list with nothing kept to reopen.
+   */
+  const showGroup = (group: string, { from }: { from?: string } = {}) => {
+    if (
+      from !== group &&
+      givesWay(from) &&
+      groupList.open.some((entry) => entry.group === group)
+    ) {
+      groups.closeAll([from], group);
+    }
+    groups.show(group);
+  };
+  /**
    * One entry of the window's closed list back, by its id: a whole tab group
    * as a group again, its tabs on their sides; a tab into its group, up
-   * there, or as a group of its own when its group has closed.
+   * there, or as a group of its own when its group has closed. Picked in a
+   * group that gives way (`from`, `givesWay`), what comes back takes that
+   * group's place in the list.
    */
-  const reopenClosed = (id: TabId) => {
+  const reopenClosed = (id: TabId, { from }: { from?: string } = {}) => {
     const entry = store
       .get(appTabsAtom)
       .recentlyClosed.find((each) => each.id === id);
@@ -1069,7 +1108,7 @@ function WindowShell({
         ...side,
         tabs: side.tabs.map((each) => ({ ...each, id: newScreenId() })),
       });
-      groups.show(side.group);
+      showGroup(side.group, { from });
       return;
     }
     const tab = closedGroupTabOf(entry);
@@ -1081,7 +1120,7 @@ function WindowShell({
         { ...tab, id: newScreenId() },
         entry.index ?? Number.POSITIVE_INFINITY,
       );
-      groups.show(tab.group);
+      showGroup(tab.group, { from });
       return;
     }
     // A tab alone, or a side whose group has closed, stands on the one side
@@ -1089,7 +1128,8 @@ function WindowShell({
     const reopened = side
       ? side.tabs.map((each) => ({ ...each, side: undefined }))
       : (closedTabGroupOf(entry) ?? (tab ? [{ ...tab, side: undefined }] : []));
-    groups.make({
+    const leaving = givesWay(from) ? from : undefined;
+    const made = groups.make({
       fill: (group) => {
         windowTabs.restoreGroup(
           group,
@@ -1101,7 +1141,13 @@ function WindowShell({
       ...(closedTabGroupOf(entry) && !side
         ? { project: entry.project ?? null }
         : {}),
+      ...(leaving === undefined
+        ? {}
+        : { place: { after: leaving }, replace: true }),
     });
+    if (leaving !== undefined) {
+      groups.closeAll([leaving], made);
+    }
   };
   /**
    * What this window closed last back, unless a window closed since, which
@@ -1490,7 +1536,7 @@ function WindowShell({
         }
       },
       newChat: () => {
-        groups.make();
+        groups.openNew();
       },
       newChatFromLink: draftFromLink,
       newTab: () => {
@@ -1765,7 +1811,7 @@ function WindowShell({
     closeSide: askToCloseSide,
     goToPlace: choosePlace,
     newGroup: () => {
-      groups.make();
+      groups.openNew();
     },
     newTab: () => {
       groups.newTab();
@@ -1783,6 +1829,7 @@ function WindowShell({
     },
     reopenClosed,
     reopenTab,
+    showGroup,
     requestClose: askToCloseTab,
     rowWidth,
     layoutContext: (tabId) => layoutContextRef.current(tabId),
@@ -1836,7 +1883,7 @@ function WindowShell({
                       groups.duplicate(entry);
                     }}
                     onNew={() => {
-                      groups.make();
+                      groups.openNew();
                     }}
                     onNewProject={() => {
                       setNewProject({});

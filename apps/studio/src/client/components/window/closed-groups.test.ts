@@ -9,6 +9,7 @@ import { TabIdSchema, type TabsModel } from "@/shared/tabs";
 import { describe, expect, it } from "vitest";
 
 import { closedGroupsOf, closedText } from "./closed-groups";
+import { newTabHrefOf } from "@/client/atoms/window";
 
 const tab = (id: string, group: string, side?: 1): WindowTab => ({
   group,
@@ -81,6 +82,33 @@ describe("closedGroupsOf", () => {
     expect(shown(model)).toEqual([
       { id: "e1", sides: [{ tabs: ["file"], up: "file" }] },
     ]);
+  });
+
+  it("leaves out a group of only History and blank new tabs, and keeps one with anything more", () => {
+    const at = (id: string, group: string, href: string): WindowTab => ({
+      ...tab(id, group),
+      href,
+      kind: "screen",
+    });
+    const model = [
+      [at("history", "one", "/activity?show=files")],
+      [at("blank", "two", newTabHrefOf("two"))],
+      [
+        at("history2", "three", "/activity"),
+        at("blank2", "three", newTabHrefOf("three")),
+      ],
+      [at("history3", "four", "/activity"), tab("file", "four")],
+      [at("settings", "five", "/settings/general")],
+    ].reduce(
+      (current, tabs, index) =>
+        closeTabGroup(current, {
+          id: entryId(`e${index}`),
+          pathname: "/",
+          tabs,
+        }),
+      emptyTabsModel(),
+    );
+    expect(shown(model).map((group) => group.id)).toEqual(["e4", "e3"]);
   });
 
   it("leaves out a side closed on its own and a group already shown", () => {

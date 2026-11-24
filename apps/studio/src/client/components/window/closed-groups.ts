@@ -7,7 +7,22 @@ import {
   closedSideOf,
   closedSidesOf,
   closedTabGroupOf,
+  isFreshTab,
+  isHomeTab,
 } from "./tab-model";
+import { matchScreen, type Screen } from "./window-href";
+
+/** The screens a group of nothing else is not listed for, as each is one press away. */
+const NOT_LISTED: ReadonlySet<Screen["kind"]> = new Set(["activity"]);
+
+/** Whether a tab is worth its group's being listed: not a blank new tab, nor a screen that is only the way to something else. */
+function isWorthListing(tab: WindowTab) {
+  return !(
+    isFreshTab(tab) ||
+    isHomeTab(tab) ||
+    (tab.kind === "screen" && NOT_LISTED.has(matchScreen(tab.href).kind))
+  );
+}
 
 /** A closed tab group as its row shows it: its sides as they stood when it closed, the left first. */
 export interface ClosedGroup {
@@ -29,15 +44,22 @@ interface ClosedSide {
  * laid out as the group stood as it closed. A tab or a side closed on its own
  * stands for no group, so a group closed one tab at a time shows once, as the
  * entry its last tab's close made. A group on the list more than once shows
- * by its newest entry.
+ * by its newest entry. A group with no tab worth listing (`isWorthListing`)
+ * is left out, and comes back by Shift+Cmd+T alone.
  */
 export function closedGroupsOf(
   recentlyClosed: TabsModel["recentlyClosed"],
 ): ClosedGroup[] {
   const seen = new Set<string>();
   return recentlyClosed.flatMap((entry): ClosedGroup[] => {
-    const [first] = closedTabGroupOf(entry) ?? [];
-    if (!first || closedSideOf(entry) || seen.has(first.group)) {
+    const tabs = closedTabGroupOf(entry) ?? [];
+    const [first] = tabs;
+    if (
+      !first ||
+      closedSideOf(entry) ||
+      seen.has(first.group) ||
+      !tabs.some(isWorthListing)
+    ) {
       return [];
     }
     seen.add(first.group);

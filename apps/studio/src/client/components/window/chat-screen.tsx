@@ -15,7 +15,7 @@ import {
   type StoreId,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { type ReactNode, useContext, useEffect, useState } from "react";
+import { type ReactNode, useContext } from "react";
 
 import { AskPills } from "./ask-pills";
 import { useGroupTab } from "./group-tab";
@@ -28,13 +28,13 @@ import {
 } from "./context";
 import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { useReadOnView } from "./use-read-on-view";
+import { useStaysMissing } from "./use-stays-missing";
 
 /**
  * How long a chat with no session is waited for before it is called gone: a
  * chat is only believed missing once it has stayed missing, re-asked each
  * interval, with nothing on its way to make it.
  */
-const MISSING_GRACE_MS = 5000;
 const MISSING_RECHECK_MS = 1000;
 
 interface ChatScreenProps {
@@ -87,7 +87,10 @@ export function ChatScreen(props: ChatScreenProps) {
     }),
   );
   const sessionId = listedSessionId ?? chat.data?.sessionId;
-  const isGone = useStaysMissing(chat.data !== undefined && !sessionId);
+  const isGone = useStaysMissing({
+    isMissing: chat.data !== undefined && !sessionId,
+    isThere: Boolean(sessionId),
+  });
   if (!sessionId) {
     return isGone ? (
       <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
@@ -288,25 +291,4 @@ function ChatScreenOfRecord({
       </div>
     </div>
   );
-}
-
-/**
- * Whether a chat has had no record for the whole grace, with nothing on its
- * way to make one. A chat whose record was there and then went is gone at
- * once: the grace is for one still being made.
- */
-function useStaysMissing(missing: boolean): boolean {
-  const [isGone, setIsGone] = useState(false);
-  useEffect(() => {
-    if (!missing) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      setIsGone(true);
-    }, MISSING_GRACE_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [missing]);
-  return missing && isGone;
 }

@@ -92,7 +92,6 @@ const TabGroupMemberSchema = z.object({
   pinned: z.boolean().optional(),
   project: z.string().optional(),
   share: z.number().optional(),
-  shownAt: z.number().optional(),
   sides: z
     .array(
       z.object({
@@ -214,7 +213,6 @@ function joinTabGroups(members: Map<string, unknown>): WindowTabs {
       ...(member.pinned === true ? { pinned: true } : {}),
       ...(member.project === undefined ? {} : { project: member.project }),
       ...(member.share === undefined ? {} : { share: member.share }),
-      ...(member.shownAt === undefined ? {} : { shownAt: member.shownAt }),
     };
     if (Object.keys(own).length > 0) {
       groups[group] = own;

@@ -18,6 +18,10 @@ import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
+  beginSettingChangeTracking,
+  consumeSettingChanges,
+} from "../lib/setting-changes";
+import {
   beginChatChangeTracking,
   consumeChatChanges,
 } from "../lib/chat-changes";
@@ -130,8 +134,13 @@ export const instrumentAgent = setupAgent({
   },
   onFinish: async ({ parentMessageId, sessionId, chatId }) => {
     const chatChanges = consumeChatChanges({ id: chatId, sessionId });
+    const settingChanges = consumeSettingChanges({ id: chatId, sessionId });
     const changes = await consumeSetupChanges({ id: chatId, sessionId });
-    if (changes.length === 0 && chatChanges.length === 0) {
+    if (
+      changes.length === 0 &&
+      chatChanges.length === 0 &&
+      settingChanges.length === 0
+    ) {
       return;
     }
     const result = await safeTry(async function* () {
@@ -162,6 +171,21 @@ export const instrumentAgent = setupAgent({
               sessionId,
             },
             type: "data-chatChanges",
+          },
+          chatId,
+        );
+      }
+      if (settingChanges.length > 0) {
+        yield* ChatWrites.savePart(
+          {
+            data: { changes: settingChanges },
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: lastAssistantMessage.id,
+              sessionId,
+            },
+            type: "data-settingChanges",
           },
           chatId,
         );
@@ -214,6 +238,7 @@ export const instrumentAgent = setupAgent({
   onStart: async ({ sessionId, chatId }) => {
     beginSetupChangeTracking({ id: chatId, sessionId });
     beginChatChangeTracking({ id: chatId, sessionId });
+    beginSettingChangeTracking({ id: chatId, sessionId });
     beginTurnFileVersions(sessionId, keptReader(chatId));
   },
   // A reply whose links open nothing gets one step more to correct them. A

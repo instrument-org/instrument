@@ -32,6 +32,7 @@ export {
   getAppCatalog,
   searchAppCatalogByMeaning,
 } from "./lib/apps/catalog";
+export { type AppSetting, type AppSettings } from "./lib/app-settings";
 export { type AppEvent, appChanged } from "./lib/apps/changed";
 export { parseRecordFileName } from "./lib/records/file-names";
 export { accountSignedIn } from "./lib/chat/sign-in-wake";

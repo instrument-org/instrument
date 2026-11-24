@@ -4,22 +4,22 @@
 
 ## Settings
 
-Link a page or a row as `[Label](instrument://settings/<name>)`, with the name in backticks below. Settings opens at it, and a row is scrolled to and lit. Settings opens with ⌘, on a Mac (Ctrl+, elsewhere).
+Link a page or a row as `[Label](instrument://settings/<name>)`, with the name in backticks below. Settings opens at it, and a row is scrolled to and lit. A row marked "You can change it" is one `instrument settings set <name> <value>` changes; `instrument settings list` says what each takes. Settings opens with ⌘, on a Mac (Ctrl+, elsewhere).
 
 ### General (`general`)
 
 How Instrument looks, notifications, dictation, suggested messages, updates, and the diagnostic log.
 
-- **Theme** (`theme`): Choose your preferred color scheme.
-- **Zoom** (`zoom`): Make everything in the app larger or smaller.
-- **Notify when tasks finish** (`notifications`): Show a desktop notification when a task finishes. On it: Send a test notification (`test-notification`).
-- **Dictation microphone** (`dictation-microphone`): Pick the microphone you dictate into.
-- **Dictation language** (`dictation-language`): Pick the language you speak, or let dictation detect it.
-- **Dictation sounds** (`dictation-sounds`): A sound when dictation starts and stops.
+- **Theme** (`theme`): Choose your preferred color scheme. You can change it.
+- **Zoom** (`zoom`): Make everything in the app larger or smaller. You can change it.
+- **Notify when tasks finish** (`notifications`): Show a desktop notification when a task finishes. You can change it. On it: Send a test notification (`test-notification`).
+- **Dictation microphone** (`dictation-microphone`): Pick the microphone you dictate into. You can change it.
+- **Dictation language** (`dictation-language`): Pick the language you speak, or let dictation detect it. You can change it.
+- **Dictation sounds** (`dictation-sounds`): A sound when dictation starts and stops. You can change it.
 - **Microphone access** (`microphone-access`): Whether your computer lets Instrument use the microphone.
 - **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: What's new (`release-notes`), Check for updates (`check-for-updates`).
 - **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Send feedback (`send-feedback`), Third-party licenses (`third-party-licenses`).
-- **Suggest a next message** (`suggest-next-message`): After a reply, show a few things you might say next.
+- **Suggest a next message** (`suggest-next-message`): After a reply, show a few things you might say next. You can change it.
 - **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
 
 ### Account (`account`)

@@ -13,6 +13,7 @@ import { type CaptureExceptionFunction } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { type HistoryAction } from "./lib/actions/schema";
+import { type AppSettings } from "./lib/app-settings";
 import { type AppConnectionStore } from "./lib/apps/connection";
 import { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 import { type StoredAppKey } from "./lib/apps/origin-bound";
@@ -296,6 +297,8 @@ export interface WorkspaceConfig {
    * Absent or false, such a model searches through its provider.
    */
   isPlatformSearchForEveryModel?: () => boolean;
+  /** The app's own settings, which `instrument settings` reads and sets. Absent where no app is behind the workspace. */
+  appSettings?: AppSettings;
   /**
    * Whether the person lets the agent offer to send the team a problem it
    * found in the app (`offer_feedback`). Absent means it may.

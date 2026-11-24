@@ -4,6 +4,7 @@ import {
   type SettingsEntry,
   settingsTabTitle,
 } from "@/client/components/settings/settings-index";
+import { AGENT_SETTINGS } from "@/shared/agent-settings";
 import { formatAcceleratorFor } from "@/shared/format-accelerator";
 import { SCREENS } from "@/shared/instrument-screens";
 import {
@@ -44,7 +45,7 @@ function settingsSection() {
     "## Settings",
     "",
     // oxlint-disable-next-line studio/no-os-words -- tells the agent each system's key
-    `Link a page or a row as \`[Label](${APP_NAME_SLUG}://settings/<name>)\`, with the name in backticks below. Settings opens at it, and a row is scrolled to and lit. Settings opens with ⌘, on a Mac (Ctrl+, elsewhere).`,
+    `Link a page or a row as \`[Label](${APP_NAME_SLUG}://settings/<name>)\`, with the name in backticks below. Settings opens at it, and a row is scrolled to and lit. A row marked "You can change it" is one \`instrument settings set <name> <value>\` changes; \`instrument settings list\` says what each takes. Settings opens with ⌘, on a Mac (Ctrl+, elsewhere).`,
     "",
   ];
   for (const [tab, page] of Object.entries(SETTINGS_PAGES)) {
@@ -82,8 +83,8 @@ function rowLines(tab: string, bullet: string) {
       (entry) => "mark" in entry && entry.mark === row.id,
     ).map((entry) => `${entry.title} (\`${entry.id}\`)`);
     return `${bullet}**${row.title}** (\`${row.id}\`): ${sentence(row.detail)}${
-      labels.length > 0 ? ` On it: ${labels.join(", ")}.` : ""
-    }`;
+      isChangeable(row.id) ? " You can change it." : ""
+    }${labels.length > 0 ? ` On it: ${labels.join(", ")}.` : ""}`;
   });
 }
 
@@ -160,6 +161,13 @@ function shortcutsSection() {
     lines.push("");
   }
   return lines.join("\n");
+}
+
+/** Whether a chat can change the row's setting with `instrument settings`. */
+function isChangeable(id: string) {
+  return Object.entries(AGENT_SETTINGS).some(
+    ([setting, { changeable }]) => setting === id && changeable,
+  );
 }
 
 function isDeveloperOnly(entry: SettingsEntry) {

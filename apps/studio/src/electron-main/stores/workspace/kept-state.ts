@@ -413,6 +413,26 @@ export function setKeptState(file: KeptFile, key: string, value: unknown) {
   getStore().set(file, key, value);
 }
 
+/** Tells every open window a value was kept, but for the one that kept it. */
+function tellWindowsKept(
+  file: KeptFile,
+  key: string,
+  value: unknown,
+  except?: Electron.WebContents,
+) {
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (!window.isDestroyed() && window.webContents !== except) {
+      window.webContents.send(KEPT_STATE_CHANNEL.changed, file, key, value);
+    }
+  }
+}
+
+/** Keeps a value from the main process and has every open window take it. */
+export function changeKeptState(file: KeptFile, key: string, value: unknown) {
+  setKeptState(file, key, value);
+  tellWindowsKept(file, key, value);
+}
+
 /** A kept tab group's tabs, as much of them as main reads (`WINDOW_TABS_KEY`). */
 export const KeptTabGroupSchema = z.object({
   sides: z.array(
@@ -511,11 +531,7 @@ export function serveKeptState() {
       if (key.startsWith(`${WINDOW_TABS_KEY}/`)) {
         publisher.publish("window.tab-groups-changed", null);
       }
-      for (const window of BrowserWindow.getAllWindows()) {
-        if (!window.isDestroyed() && window.webContents !== event.sender) {
-          window.webContents.send(KEPT_STATE_CHANNEL.changed, file, key, value);
-        }
-      }
+      tellWindowsKept(file, key, value, event.sender);
     },
   );
 }

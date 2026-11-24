@@ -10,6 +10,7 @@ export { dataPartVisibility };
 
 import { FilePathsGrid } from "../agent-files-block";
 import { ChatChangesNote } from "../chat-changes-note";
+import { SettingChangesNote } from "../setting-changes-note";
 import { FolderChangesNote } from "../folder-changes-note";
 import { PermissionAnswerNote } from "../permission-asks";
 import { SetupChangesNote } from "../setup-changes-note";
@@ -67,6 +68,16 @@ export function renderDataPart(
     case "data-chatChanges": {
       return (
         <ChatChangesNote
+          changes={part.data.changes}
+          key={part.metadata.id}
+          {...(card && { card })}
+          {...(part.data.undone && { undone: true })}
+        />
+      );
+    }
+    case "data-settingChanges": {
+      return (
+        <SettingChangesNote
           changes={part.data.changes}
           key={part.metadata.id}
           {...(card && { card })}

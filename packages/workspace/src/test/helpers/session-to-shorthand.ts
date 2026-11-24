@@ -212,6 +212,12 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join(",");
       return `<chat-changes changes="${changes}" />`;
     }
+    case "data-settingChanges": {
+      const changes = part.data.changes
+        .map((item) => `${item.id}:${item.before.value}>${item.after.value}`)
+        .join(",");
+      return `<setting-changes changes="${changes}" />`;
+    }
     case "data-setupChanges": {
       const changes = part.data.changes
         .map((item) => `${item.change}:${item.kind}:${item.name}`)

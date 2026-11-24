@@ -9,6 +9,7 @@ import { message } from "./routes/message";
 import { permissions } from "./routes/permissions";
 
 import { session } from "./routes/session";
+import { settings } from "./routes/settings";
 import { skill } from "./routes/skill";
 import { storage } from "./routes/storage";
 import { projects } from "./routes/projects";
@@ -25,6 +26,7 @@ export const router = {
   message,
   permissions,
   session,
+  settings,
   skill,
   storage,
   projects,

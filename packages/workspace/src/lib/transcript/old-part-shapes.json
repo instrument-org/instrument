@@ -243,6 +243,22 @@
   },
   {
     "data": {
+      "changes": [
+        {
+          "after": { "label": "Dark", "value": "dark" },
+          "before": { "label": "System", "value": "system" },
+          "id": "theme",
+          "link": "instrument://settings/theme",
+          "title": "Theme"
+        }
+      ]
+    },
+    "note": "as written on 2026-11-24",
+    "reads": "data-settingChanges",
+    "type": "data-settingChanges"
+  },
+  {
+    "data": {
       "text": "Words from a sample."
     },
     "note": "as written on 2026-11-06",

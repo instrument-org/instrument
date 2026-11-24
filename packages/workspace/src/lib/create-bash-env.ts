@@ -37,6 +37,8 @@ import { MAC_APPS } from "./mac-apps/apps";
 import { APP_COMMAND, createAppCommand } from "./shell-commands/app";
 import { createXCommand, X_COMMAND } from "./shell-commands/x";
 import { BOOKMARKS_COMMAND } from "../model-text/commands/bookmarks-command";
+import { SETTINGS_COMMAND } from "../model-text/commands/settings-command";
+import { createSettingsCommand } from "./shell-commands/settings";
 import { createBookmarksCommand } from "./shell-commands/bookmarks";
 import { CHATS_COMMAND, createChatsCommand } from "./shell-commands/chats";
 import {
@@ -732,6 +734,7 @@ const CHAT_COMMAND_LINES = [
   `  ${CHATS_COMMAND.name} - ${CHATS_COMMAND.description}`,
   `  ${PROJECTS_COMMAND.name} - ${PROJECTS_COMMAND.description}`,
   `  ${BOOKMARKS_COMMAND.name} - ${BOOKMARKS_COMMAND.description}`,
+  `  ${SETTINGS_COMMAND.name} - ${SETTINGS_COMMAND.description}`,
 ];
 
 /**
@@ -975,6 +978,7 @@ export async function createLocalBashEnv({
       },
       { ...X_COMMAND, command: createXCommand(scope) },
       { ...BOOKMARKS_COMMAND, command: createBookmarksCommand(scope) },
+      { ...SETTINGS_COMMAND, command: createSettingsCommand(scope) },
       { ...CHATS_COMMAND, command: createChatsCommand(scope) },
       { ...PROJECTS_COMMAND, command: createProjectsCommand(scope) },
       {

@@ -2889,6 +2889,15 @@ exports[`the notes a stored data part renders > requestNote 1`] = `
 ]
 `;
 
+exports[`the notes a stored data part renders > settingChanges 1`] = `
+[
+  [
+    "First",
+    "data-settingChanges",
+  ],
+]
+`;
+
 exports[`the notes a stored data part renders > setupChanges 1`] = `
 [
   [

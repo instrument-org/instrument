@@ -1,4 +1,5 @@
-import { ZOOM_MAX, zoomAtom } from "@/client/atoms/zoom";
+import { zoomAtom } from "@/client/atoms/zoom";
+import { ZOOM_MAX } from "@/shared/zoom";
 import { renderInBrowser } from "@/tests/render-browser";
 import { createStore } from "jotai";
 import { describe, expect, it } from "vitest";

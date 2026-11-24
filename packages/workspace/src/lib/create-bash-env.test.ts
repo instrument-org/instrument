@@ -75,6 +75,7 @@ describe("createBashDescription", () => {
         "instrument chats",
         "instrument projects",
         "instrument bookmarks",
+        "instrument settings",
       ]
     `);
   });
@@ -152,6 +153,7 @@ describe("instrument", () => {
         chats      Organizing the user's chats: rename, archive, file and star them.
         memory     What you keep about the user for every chat.
         projects   The user's projects: list, create, rename, mark and delete them.
+        settings   Instrument's own settings: read them, and change them.
         task       Start, message, stop and read your tasks.
         window     What the user sees: list, show, read and close the tabs and tab groups in their windows, or ask for one of theirs.
         x          Search posts on X through the user's Grok account.
@@ -204,6 +206,7 @@ describe("instrument", () => {
         "bookmarks",
         "memory",
         "projects",
+        "settings",
         "window",
         "x",
       ]);
@@ -222,6 +225,7 @@ describe("instrument", () => {
         bookmarks  The user's bookmarks: list them, and add one.
         memory     What you keep about the user for every chat.
         projects   The user's projects: list, create, rename, mark and delete them.
+        settings   Instrument's own settings: read them, and change them.
         window     What the user sees: list, show, read and close the tabs and tab groups in their windows, or ask for one of theirs.
         x          Search posts on X through the user's Grok account.
 

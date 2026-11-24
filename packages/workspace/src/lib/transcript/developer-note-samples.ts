@@ -99,6 +99,16 @@ export const DATA_PART_SAMPLES = {
   ratingCard: {},
   requestFailure: { error: "It failed." },
   requestNote: { kind: "turn", text: "Sample words." },
+  settingChanges: {
+    changes: [
+      {
+        after: { label: "Dark", value: "dark" },
+        before: { label: "System", value: "system" },
+        id: "theme",
+        title: "Theme",
+      },
+    ],
+  },
   setupChanges: {
     changes: [{ change: "added", kind: "skill", name: "launch" }],
   },

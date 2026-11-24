@@ -37,3 +37,15 @@ export function steppedZoom({
   const bounded = next ?? (direction === "in" ? max * 100 : min * 100);
   return bounded / 100;
 }
+
+/** The furthest the app's own zoom goes, each way. */
+export const ZOOM_MAX = 2;
+export const ZOOM_MIN = 0.5;
+
+/** The kept `view` key the app's own zoom is under. */
+export const APP_ZOOM_KEY = "zoom.v1";
+
+/** A factor within what the app's own zoom allows, to a whole percent. */
+export function clampZoom(value: number) {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));
+}

@@ -67,7 +67,6 @@ vi.mock("@/client/rpc/client", () => ({
       },
       markWebSignedIn: mutation(mocks.markWebSignedIn),
       setCredential: mutation(() => Promise.resolve()),
-      signInOnWeb: mutation(() => Promise.resolve()),
       startOAuth: mutation(() =>
         Promise.resolve({ status: "started", url: "https://login.example" }),
       ),
@@ -159,23 +158,19 @@ describe.each([720, 380])("a web app's row in a %spx chat", (width) => {
 });
 
 describe.each([720, 380])("a sign-in's row in a %spx chat", (width) => {
-  it.each([
-    ["Sign in with Safari", "Sign in here"],
-    ["Sign in here", "Sign in with Safari"],
-  ])(
-    "keeps %s where it was pressed, off, and puts Cancel in the other's place",
-    async (pressed, other) => {
+  it.each(["Sign in with Safari", "Sign in here"])(
+    "keeps the button where it was, off, with Cancel before it, after %s",
+    async (way) => {
       await showCard(width, ["mail"]);
-      await expect.element(button(pressed)).toBeVisible();
-      const at = boxOf(pressed);
-      const otherAt = boxOf(other);
+      await expect.element(button("Sign in")).toBeVisible();
+      const at = boxOf("Sign in");
 
-      await button(pressed).click();
-      await expect
-        .element(page.getByRole("button", { name: "Cancel" }))
-        .toBeVisible();
-      expect(pressedAt(at)).toBeDisabled();
-      expect(pressedAt(otherAt)?.textContent).toContain("Cancel");
+      await button("Other ways to sign in").click();
+      await page.getByRole("menuitem", { name: way }).click();
+      await expect.element(button("Cancel")).toBeVisible();
+      expect(boxOf("Sign in")).toEqual(at);
+      expect(button("Sign in").element()).toBeDisabled();
+      expect(boxOf("Cancel").right).toBeLessThan(at.left);
     },
   );
 });

@@ -36,7 +36,6 @@ import {
   listApps,
   listMcpTools,
   loadApp,
-  moveAppToWeb,
   nameAppAccount,
   pendingMcpOAuthSlug,
   removeApp,
@@ -782,26 +781,6 @@ const cancelOAuth = base
     }
   });
 
-/**
- * "Sign in here" on a card whose sign-in did not connect: the app moves
- * to the service's site, to be signed in to in the window's browser, where
- * the site's cookies keep it. Answers the page to open; "Done signing in"
- * connects it as a web app, which wakes the chat.
- */
-const signInOnWeb = base
-  .input(z.object({ slug: AppSlugSchema }))
-  .output(z.object({ signIn: z.string() }))
-  .handler(async ({ errors, input }) => {
-    try {
-      const { signIn } = await moveAppToWeb(input.slug);
-      return { signIn };
-    } catch (error) {
-      throw errors.NOT_FOUND({
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  });
-
 /** A key as the user gives it, under its label where the app takes several. */
 const GivenKeySchema = z.object({
   label: z.string().optional(),
@@ -1099,7 +1078,6 @@ export const apps = {
   replaceCredential,
   setCredential,
   setUp,
-  signInOnWeb,
   startOAuth,
   test,
 };

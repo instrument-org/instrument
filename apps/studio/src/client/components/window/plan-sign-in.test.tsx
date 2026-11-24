@@ -1,5 +1,6 @@
 import { renderWithProviders } from "@/tests/render";
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { useSetAtom } from "jotai";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -75,7 +76,11 @@ import {
   PlanSignInsWindow,
   usePlanSignIns,
 } from "./plan-sign-in";
-import { useWindowTabsChange, windowTabsAtom } from "./window-tabs";
+import {
+  seedWindowTabsAtom,
+  useWindowTabsChange,
+  windowTabsAtom,
+} from "./window-tabs";
 
 const APP_TAB = {
   group: "g",
@@ -94,13 +99,10 @@ const PAGE_TAB = {
 function Surface({ where }: { where: "app" | "external" }) {
   const change = useWindowTabsChange();
   const { chatgpt } = usePlanSignIns();
+  const seed = useSetAtom(seedWindowTabsAtom);
   useEffect(() => {
-    change(() => ({
-      activeByGroup: { g: "app" },
-      groups: {},
-      tabs: [APP_TAB],
-    }));
-  }, [change]);
+    seed({ activeByGroup: { g: "app" }, groups: {}, tabs: [APP_TAB] });
+  }, [seed]);
   return (
     <>
       <button
@@ -108,10 +110,9 @@ function Surface({ where }: { where: "app" | "external" }) {
           chatgpt.start({
             accountId: undefined,
             openPage: () => {
-              change((state) => ({
-                ...state,
-                tabs: [...state.tabs, PAGE_TAB],
-              }));
+              change("addPages", [
+                { group: "g", id: PAGE_TAB.id, openedAt: 2 },
+              ]);
               return PAGE_TAB.id;
             },
             slug: "chatgpt",
@@ -124,7 +125,7 @@ function Surface({ where }: { where: "app" | "external" }) {
       </button>
       <button
         onClick={() => {
-          change((state) => ({ ...state, tabs: [APP_TAB] }));
+          change("closeTab", PAGE_TAB.id, {});
         }}
         type="button"
       >

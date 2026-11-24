@@ -13,11 +13,15 @@ const openReportDialog = vi.hoisted(() => vi.fn());
 vi.mock("../atoms/report-dialog", () => ({ openReportDialog }));
 
 const signInAgain = vi.hoisted(() => vi.fn());
-vi.mock("../hooks/use-sign-in-again", () => ({
-  useSignInAgain: () => ({
+const waitingIn = vi.hoisted(() => ({
+  current: undefined as "app" | "external" | undefined,
+}));
+vi.mock("./window/use-plan-connect", () => ({
+  usePlanConnect: () => ({
+    canSignInHere: false,
     cancel: vi.fn(),
-    signIn: signInAgain,
-    waiting: () => false,
+    start: signInAgain,
+    waitingIn: () => waitingIn.current,
   }),
 }));
 
@@ -76,6 +80,12 @@ vi.mock("@/client/rpc/client", () => ({
       },
     },
     utils: {
+      browserOpenTarget: {
+        queryOptions: () => ({
+          queryFn: () => Promise.resolve({ appName: "Safari" }),
+          queryKey: ["browser"],
+        }),
+      },
       openExternalLink: {
         mutationOptions: (options: object) => ({
           mutationFn: () => Promise.resolve(),
@@ -320,6 +330,30 @@ describe("MessageError", () => {
     expect(screen.queryByRole("button")).toBeNull();
   });
 
+  it("has only Cancel and the sign-in, off, while one waits", () => {
+    waitingIn.current = "external";
+    renderError({
+      error: {
+        classification: "auth",
+        kind: "api-call",
+        message: "refused",
+        name: "AI_APICallError",
+        statusCode: 401,
+        url: "http://localhost/ai-gateway/providers/grok-1/responses",
+      },
+      onChooseModel: vi.fn(),
+      provider: "grok-account",
+    });
+    waitingIn.current = undefined;
+
+    expect(screen.getByText(/^Finish signing in with/)).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Change model" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Cancel" })).not.toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Sign in" }).hasAttribute("disabled"),
+    ).toBe(true);
+  });
+
   it("starts the account's own sign-in from a signed-out turn", () => {
     renderError({
       error: {
@@ -336,7 +370,10 @@ describe("MessageError", () => {
     expect(screen.getByText("Signed out of Grok")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Send a report" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    expect(signInAgain).toHaveBeenCalledWith("grok-account", undefined);
+    expect(signInAgain).toHaveBeenCalledWith("grok", {
+      accountId: undefined,
+      where: "external",
+    });
   });
 
   it("never says signed out for a ChatGPT plan that can't be used here", () => {

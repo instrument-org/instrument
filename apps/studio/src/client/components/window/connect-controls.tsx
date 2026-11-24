@@ -1,28 +1,28 @@
 import { Button } from "@/client/components/ui/button";
 import { cn, osConventions } from "@/client/lib/utils";
-import { Destination } from "@/client/components/window/connect-destination";
 import { KeyForm } from "@/client/components/window/key-form";
 import { WindowContext } from "@/client/components/window/context";
 import {
   type SignInDestination,
   signInsWaitingAtom,
 } from "@/client/components/window/use-sign-in-landing";
-import {
-  SIGN_IN_HERE,
-  SignInPair,
-} from "@/client/components/window/sign-in-pair";
+import { FixWithInstrumentButton } from "@/client/components/window/fix-connection";
+import { SignInButton } from "@/client/components/window/sign-in-button";
 import { useSiteSignIn } from "@/client/components/window/site-sign-in";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { type ComponentProps, type ReactNode, useContext } from "react";
+import {
+  type ReactNode,
+  useContext,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "@/client/lib/toast";
-
-/** A card row's pair of buttons, ending where the row does; in a narrow chat they go under the name, half the row each. */
-const ROW_BUTTONS =
-  "flex shrink-0 items-center gap-1.5 @max-md/transcript:w-full @max-md/transcript:flex-wrap @max-md/transcript:*:flex-1";
 
 /**
  * A web app's row buttons. In a narrow chat they go under the name at the
@@ -40,12 +40,10 @@ const SITE_ROW_BUTTONS =
  * second trip through the agent. Plain buttons, not the mark: nothing here
  * sends the agent a word.
  *
- * A sign-in leads with the user's own browser, where they are most likely
- * already signed in and have their passkeys, saved passwords and extensions;
- * the window's own browser is offered beside it. Either one connects the app,
- * since the answer comes back to the same callback. While one waits, the
- * button pressed stays where it is, dimmed, and Cancel takes the other's
- * place, so a second press lands on nothing. A key
+ * A sign-in is one button, whose menu has the user's own browser and the
+ * window's. The browser leads, since it is where they are most likely already
+ * signed in and have their passkeys, saved passwords and extensions. Either
+ * one connects the app, since the answer comes back to the same callback. A key
  * goes straight to the encrypted store and is tested on arrival. A web app
  * signs in on its own site in the window's browser, and the user's word that
  * they did is what connects it: Done on the bar over the site
@@ -55,37 +53,35 @@ const SITE_ROW_BUTTONS =
 export function ConnectControls({
   alongside,
   askedIn,
-  compact = false,
-  describesDestination = true,
+  failure,
+  fix,
   kind,
   label,
   name,
+  primary = true,
+  onStarted,
   runs,
   slug,
+  startsIn,
 }: {
-  /** One more control at the end of the row: the app's page puts its way to ask the agent here. */
+  /** One more control at the end of a key's or a server's row. */
   alongside?: ReactNode;
   /** For a card in a chat, the chat, which hears what the user does here even after the card stopped waiting. */
   askedIn?: ChatId;
-  /**
-   * For a row of the card in a chat, the buttons that fit in the row: one
-   * for a web app until its site is open, two for a sign-in. `primary` lights
-   * the first as the one to press next. `failure` is how the app's last sign-in ended: another try
-   * is offered in the user's own browser beside the app's site, since the
-   * site is the one way in that is really different, and a refusal leaves only
-   * the site, since the same sign-in meets the same refusal. `hasSite` is
-   * whether there is one: an app on this machine has none, so its other way
-   * is the same sign-in here, and a refusal leaves nothing to press.
-   */
-  compact?:
-    | { failure?: "failed" | "refused"; hasSite: boolean; primary: boolean }
-    | false;
-  /** Whether a sign-in says where it signs in; off where a line above already explains the buttons. */
-  describesDestination?: boolean;
+  /** How the app's last sign-in ended. A refusal leaves only `fix`, since the same sign-in meets the same refusal. */
+  failure?: "failed" | "refused" | undefined;
+  /** Asks Instrument for another way, offered beside another try once a sign-in failed. */
+  fix?: () => void;
   kind: "key" | "run" | "sign-in" | "web";
   /** The button's words, where they differ from what it does by default. */
   label?: string;
   name: string;
+  /** Whether a sign-in's button is lit as the one to press next. */
+  primary?: boolean;
+  /** Called once `startsIn` has been acted on. */
+  onStarted?: () => void;
+  /** Where to start the sign-in as soon as the app is here to be signed in to, for a press that set the app up first. */
+  startsIn?: SignInDestination | undefined;
   /** For a local app, what would run on this machine, in words. */
   runs?: string;
   slug: string;
@@ -111,6 +107,8 @@ export function ConnectControls({
       return next;
     });
   };
+  const fixRef = useRef<HTMLButtonElement>(null);
+  const [fixInMenu, setFixInMenu] = useState(false);
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const listed = apps.data?.apps.find((app) => app.slug === slug);
   // Where a key or sign-in given here goes. It is shown, and sent back with
@@ -161,10 +159,10 @@ export function ConnectControls({
         toast.error(`Couldn't start ${name}`, { cause: error });
       },
       onSuccess: (report) => {
-        const failure = report.checks.find((check) => check.status === "fail");
+        const failed = report.checks.find((check) => check.status === "fail");
         // A missing key is asked for next, in the same place.
-        if (failure && failure.name !== "credential") {
-          toast.error(`Couldn't connect ${name}`, { cause: failure.detail });
+        if (failed && failed.name !== "credential") {
+          toast.error(`Couldn't connect ${name}`, { cause: failed.detail });
         }
       },
     }),
@@ -175,6 +173,28 @@ export function ConnectControls({
     startOAuth.isPending ||
     cancelOAuth.isPending ||
     site.isDonePending;
+
+  const canStart = kind === "web" ? site.canOpen : origin !== undefined;
+  const startDue =
+    startsIn !== undefined &&
+    canStart &&
+    (kind === "web" || kind === "sign-in");
+  const startNow = useEffectEvent(() => {
+    if (startsIn === undefined) {
+      return;
+    }
+    if (kind === "web") {
+      site.open();
+    } else {
+      signIn(startsIn);
+    }
+    onStarted?.();
+  });
+  useEffect(() => {
+    if (startDue) {
+      startNow();
+    }
+  }, [startDue]);
 
   // A server that runs here is the one thing the user is agreeing to rather
   // than supplying, so the words say what will run before the button does it.
@@ -209,61 +229,31 @@ export function ConnectControls({
   // nothing here can see the session, so once the site is open the user says
   // when they are done there.
   if (kind === "web") {
-    if (compact) {
-      return (
-        <div className={SITE_ROW_BUTTONS}>
-          {site.isWaiting ? (
-            <Button
-              className="text-foreground"
-              disabled={busy}
-              onClick={site.done}
-              size="sm"
-              variant="outline"
-            >
-              Done signing in
-            </Button>
-          ) : null}
-          <Button
-            className={cn(
-              "min-w-24",
-              (site.isWaiting || !compact.primary) && "text-foreground",
-            )}
-            disabled={!site.canOpen}
-            onClick={site.open}
-            size="sm"
-            variant={!site.isWaiting && compact.primary ? "brand" : "outline"}
-          >
-            {site.isWaiting ? "Show page" : "Sign in"}
-          </Button>
-        </div>
-      );
-    }
     return (
-      <div className="flex flex-col gap-2">
+      <div className={SITE_ROW_BUTTONS}>
         {site.isWaiting ? (
-          <p className="text-xs text-muted-foreground">
-            Sign in on the {name} page that opened, then press Done.
-          </p>
-        ) : (
-          <Destination origin={origin}>Signs in at</Destination>
-        )}
-        <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
           <Button
-            className={site.isWaiting ? "text-foreground" : undefined}
-            disabled={!site.canOpen}
-            onClick={site.open}
+            className="text-foreground"
+            disabled={busy}
+            onClick={site.done}
             size="sm"
-            variant={site.isWaiting ? "outline" : "default"}
+            variant="outline"
           >
-            {site.isWaiting ? "Show page" : (label ?? `Open ${name}`)}
+            Done signing in
           </Button>
-          {site.isWaiting ? (
-            <Button disabled={busy} onClick={site.done} size="sm">
-              Done signing in
-            </Button>
-          ) : null}
-          {alongside}
-        </div>
+        ) : null}
+        <Button
+          className={cn(
+            "min-w-24",
+            (site.isWaiting || !primary) && "text-foreground",
+          )}
+          disabled={!site.canOpen}
+          onClick={site.open}
+          size="sm"
+          variant={!site.isWaiting && primary ? "brand" : "outline"}
+        >
+          {site.isWaiting ? "Show page" : (label ?? "Sign in")}
+        </Button>
       </div>
     );
   }
@@ -272,50 +262,37 @@ export function ConnectControls({
     setWaiting(false);
     cancelOAuth.mutate({ slug });
   };
-  const pair = (
-    look: Pick<ComponentProps<typeof SignInPair>, "lit" | "other" | "verb">,
-  ) => (
-    <SignInPair
-      {...look}
-      busy={busy}
-      {...(label === undefined ? {} : { hereLabel: label })}
-      onCancel={cancelSignIn}
-      onStart={signIn}
-      waitingIn={waitingIn}
-    />
-  );
-
-  if (kind === "sign-in" && compact) {
-    const { failure, hasSite, primary } = compact;
-    const onSite = (lit: boolean) => (
-      <SignInOnSiteButton lit={lit} onOpened={site.opened} slug={slug} />
-    );
-    if (failure === "refused") {
-      return hasSite ? onSite(primary) : null;
-    }
-    return (
-      <div className={ROW_BUTTONS}>
-        {pair({
-          lit: primary,
-          ...(failure === "failed" && hasSite ? { other: onSite(false) } : {}),
-          verb: failure === "failed" ? "Try again" : "Sign in",
-        })}
-      </div>
-    );
-  }
-
   if (kind === "sign-in") {
+    if (failure === "refused") {
+      return fix ? <FixWithInstrumentButton onClick={fix} /> : null;
+    }
+    const offersFix = failure !== undefined && waitingIn === undefined;
     return (
-      <div className="flex flex-col gap-2">
-        {describesDestination ? (
-          <Destination origin={origin}>Signs in at</Destination>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {fix && offersFix ? (
+          <FixWithInstrumentButton
+            className="@max-md/transcript:hidden"
+            onClick={fix}
+            ref={fixRef}
+          />
         ) : null}
-        {/* In a column too narrow for three buttons in a row they stack, each
-          the column's width, rather than wrapping into a ragged pair. */}
-        <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
-          {pair({ lit: true, verb: "Sign in" })}
-          {alongside}
-        </div>
+        <SignInButton
+          busy={busy}
+          canSignInHere={Boolean(appWindow?.browser)}
+          {...(offersFix && fixInMenu ? { fix } : {})}
+          label={failure === undefined ? (label ?? "Sign in") : "Try again"}
+          onCancel={cancelSignIn}
+          onMenuOpen={() => {
+            // Hidden where the row has no room for it.
+            setFixInMenu(
+              fixRef.current !== null &&
+                fixRef.current.getClientRects().length === 0,
+            );
+          }}
+          onStart={signIn}
+          variant={primary ? "brand" : "outline"}
+          waiting={waitingIn !== undefined}
+        />
       </div>
     );
   }
@@ -354,45 +331,5 @@ export function ConnectControls({
         slug={slug}
       />
     </div>
-  );
-}
-
-/**
- * Moves the app to the service's site and opens it in the window's browser,
- * where the site's own sign-in works and its cookies keep it.
- */
-function SignInOnSiteButton({
-  lit,
-  onOpened,
-  slug,
-}: {
-  lit: boolean;
-  /** Takes the tab the site opened in. */
-  onOpened: (tab: string | undefined) => void;
-  slug: string;
-}) {
-  const appWindow = useContext(WindowContext);
-  const move = useMutation(
-    rpcClient.apps.signInOnWeb.mutationOptions({
-      onError: (error) => {
-        toast.error("Couldn't open the site", { cause: error });
-      },
-      onSuccess: ({ signIn }) => {
-        onOpened(appWindow?.openPage(signIn));
-      },
-    }),
-  );
-  return (
-    <Button
-      className={lit ? undefined : "text-foreground"}
-      disabled={move.isPending || !appWindow?.browser}
-      onClick={() => {
-        move.mutate({ slug });
-      }}
-      size="sm"
-      variant={lit ? "brand" : "outline"}
-    >
-      {SIGN_IN_HERE}
-    </Button>
   );
 }

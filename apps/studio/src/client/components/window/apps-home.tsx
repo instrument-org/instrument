@@ -1,19 +1,10 @@
 import { useDecisionModelAvailable } from "@/client/hooks/use-decision";
 import { Button } from "@/client/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { AppIcon } from "@/client/components/window/app-icon";
-import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import { useWindow } from "@/client/components/window/context";
-import { useAppTest } from "@/client/components/window/use-app-test";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
 import { AppContextMenu } from "@/client/components/window/app-menu";
-import { GlyphButton } from "@/client/components/window/glyph-button";
 import { PageSection } from "@/client/components/window/page-section";
 import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { useFindTarget } from "@/client/hooks/use-find-target";
@@ -22,14 +13,14 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   APP_CATEGORIES,
+  type AppCategory,
   directoryByUse,
   searchDirectory,
 } from "@instrument-org/shared/app-directory";
-import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { useQuery } from "@tanstack/react-query";
-import { type ReactNode, useDeferredValue, useRef, useState } from "react";
+import { type ComponentProps, useDeferredValue, useRef, useState } from "react";
 
 type App = RPCOutput["apps"]["list"]["apps"][number];
 type CatalogEntry = RPCOutput["apps"]["catalogByMeaning"][number];
@@ -40,19 +31,35 @@ type CatalogEntry = RPCOutput["apps"]["catalogByMeaning"][number];
  */
 const MEANING_MIN_LENGTH = 3;
 
+const TWO_COLUMNS = "grid grid-cols-1 gap-3 @xl/apps:grid-cols-2";
+const THREE_COLUMNS =
+  "grid grid-cols-1 gap-3 @lg/apps:grid-cols-2 @4xl/apps:grid-cols-3";
+
+/** Room left between the head and a section its chip goes to. */
+const SECTION_GAP = 12;
+
+/** The AIs at the top, in the order most people would look for them. */
+const AI_ORDER = ["chatgpt", "gemini", "claude", "grok", "microsoft-copilot"];
+function aiOrder(slug: string) {
+  const at = AI_ORDER.indexOf(slug);
+  return at === -1 ? AI_ORDER.length : at;
+}
+
+/** A category's heading; the AIs not at the top come under More AI. */
+function categoryLabel(id: AppCategory, label: string) {
+  return id === "ai" ? "More AI" : label;
+}
+
 /** How many tiles hold the directory's place while it is on its way. */
 const SKELETONS_SHOWN = 12;
 /** How many tiles hold the related services' place while the model is asked: one row. */
 const RELATED_SKELETONS = 2;
 
 /**
- * The Apps place's new tab: the apps this workspace reaches as marks, the
- * pages you were on lately across all of them, and the services still to
- * connect. Pressing an app shows its own front; pressing a page opens it in
- * this tab. Nothing here is written by the agent: the marks are the apps
- * and Recent is the window's own browsing, so the place is already yours the
- * first time you open it.
-
+ * The Apps place's new tab: the apps this workspace reaches, then the
+ * services still to connect, the AIs first, with a search and the categories
+ * kept at the top as it scrolls. A tile opens the app's page, which is where
+ * connecting happens.
  *
  * Opening an app is the host's to do: the tab moves to the app's front.
  */
@@ -71,6 +78,11 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
     ...apps.filter((app) => app.status === "connected"),
     ...apps.filter((app) => app.status !== "connected"),
   ];
+  // An app of the workspace's is this service when the directory says it
+  // is, whatever its slug, so a second account set up beside the first
+  // (gmail-2 beside gmail) is the same service.
+  const mineOf = (entry: CatalogEntry) =>
+    own.filter((app) => app.service === entry.slug);
   // Every service the directory lists stays in its place, the ones already
   // here included, so a search finds an app whoever forgot it was set up;
   // most used first, and the documentation servers and the like left out
@@ -81,14 +93,26 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
   // when a keystroke's render would hold the next one up.
   const typed = useDeferredValue(query.trim());
   const matches = typed === "" ? more : searchDirectory(listed, typed);
-  // Unsearched, the AIs lead, then the featured services as Popular, and
+  // Unsearched, the AIs not yet here lead, then the featured services as
+  // Popular, and
   // every other one follows under its category, so the whole directory is a scroll away.
-  const ais = more.filter((entry) => entry.category === "ai");
+  const ais = more
+    .filter(
+      (entry) =>
+        entry.tier === "featured" &&
+        entry.category === "ai" &&
+        mineOf(entry).length === 0,
+    )
+    .toSorted((a, b) => aiOrder(a.slug) - aiOrder(b.slug));
   const popular = more.filter(
-    (entry) => entry.tier === "featured" && entry.category !== "ai",
+    (entry) =>
+      entry.tier === "featured" &&
+      entry.category !== "ai" &&
+      mineOf(entry).length === 0,
   );
-  const rest = more.filter(
-    (entry) => entry.tier !== "featured" && entry.category !== "ai",
+  const rest = more.filter((entry) => entry.tier !== "featured");
+  const categories = APP_CATEGORIES.filter(({ id }) =>
+    rest.some((entry) => entry.category === id),
   );
   // A hundred and more tiles below the fold: the page comes up without them
   // and they follow, so pressing Apps answers at once.
@@ -121,32 +145,15 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
     ask(`Connect ${typed}`);
     setQuery("");
   };
-  const openApp = onOpenApp;
   const { connect } = useConnectFromDirectory();
-  // An app of the workspace's is this service when the directory says it
-  // is, whatever its slug, so a second account set up beside the first
-  // (gmail-2 beside gmail) is the same service.
-  const mineOf = (entry: CatalogEntry) =>
-    own.filter((app) => app.service === entry.slug);
-  const tileFor = (entry: CatalogEntry) => {
-    const mine = mineOf(entry);
-    return (
-      <CatalogTile
-        entry={entry}
-        key={entry.slug}
-        mine={mine}
-        onConnect={() => {
-          connect(entry);
-        }}
-        onConnectAnother={() => {
-          connect(entry, { another: true });
-        }}
-        onOpen={(slug) => {
-          openApp(slug);
-        }}
-      />
-    );
-  };
+  const tileFor = (entry: CatalogEntry) => (
+    <CatalogTile
+      entry={entry}
+      key={entry.slug}
+      mine={mineOf(entry)}
+      onOpen={onOpenApp}
+    />
+  );
   // A search lays a service already here out account by account.
   const searchTileFor = (entry: CatalogEntry) => {
     const mine = mineOf(entry);
@@ -160,9 +167,42 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
         onConnectAnother={() => {
           connect(entry, { another: true });
         }}
-        onOpen={openApp}
+        onOpen={onOpenApp}
       />
     );
+  };
+
+  const pageRef = useRef<HTMLDivElement>(null);
+  const headRef = useRef<HTMLDivElement>(null);
+  const sectionOf = (id: AppCategory) =>
+    pageRef.current?.querySelector<HTMLElement>(`[data-category="${id}"]`);
+  // The category whose section is under the head, which its chip says.
+  const [lit, setLit] = useState<AppCategory>();
+  const followScroll = () => {
+    const page = pageRef.current;
+    const head = headRef.current;
+    if (!page || !head) {
+      return;
+    }
+    const line = head.getBoundingClientRect().bottom + SECTION_GAP * 2;
+    const passed = categories.filter(({ id }) => {
+      const top = sectionOf(id)?.getBoundingClientRect().top;
+      return top !== undefined && top <= line;
+    });
+    setLit(passed.at(-1)?.id);
+  };
+  const goTo = (id: AppCategory) => {
+    const page = pageRef.current;
+    const head = headRef.current;
+    const section = sectionOf(id);
+    if (page && head && section) {
+      // Landed at once: a smooth scroll past a hundred tiles is a long blur.
+      page.scrollTop +=
+        section.getBoundingClientRect().top -
+        page.getBoundingClientRect().top -
+        head.offsetHeight -
+        SECTION_GAP;
+    }
   };
 
   const searchRef = useRef<HTMLInputElement>(null);
@@ -181,47 +221,28 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
       // The page itself takes the keyboard as the screen comes up, so the
       // arrow keys scroll it and no app looks chosen.
       data-keyboard-home
+      onScroll={followScroll}
+      ref={pageRef}
       tabIndex={-1}
     >
       {/* A centered column and head with room around it. */}
-      <div className="mx-auto w-full max-w-5xl space-y-12 px-10 pt-14 pb-20">
+      <div className="mx-auto w-full max-w-5xl px-10 pt-12 pb-20">
         <header className="max-w-xl">
           <h1 className="font-serif text-3xl leading-tight font-normal tracking-tight text-brand-600 dark:text-brand-300">
             Apps
           </h1>
-          <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-            Connect the services you already use. Instrument does the setup,
-            then works in them from your chats.
-          </p>
+          {list.data !== undefined && own.length === 0 ? (
+            <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
+              Connect the apps you use, and Instrument can work in them for you.
+            </p>
+          ) : null}
         </header>
-        {list.data === undefined ? (
-          <PageSection title="Your apps">
-            <MarkSkeletons />
-          </PageSection>
-        ) : own.length > 0 ? (
-          <PageSection title="Your apps">
-            {/* Pulled in by the gap between a mark's box and its icon, so
-                the icons line up under the heading. */}
-            <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-4">
-              {own.map((app) => (
-                <AppMark
-                  app={app}
-                  key={app.slug}
-                  onOpen={() => {
-                    openApp(app.slug);
-                  }}
-                />
-              ))}
-            </div>
-          </PageSection>
-        ) : null}
 
-        {/* The services still to connect, searchable: the popular ones and
-            then all the rest by category until something is typed, then
-            whatever matches, and for a name the directory does not have,
-            the way to ask for it anyway. Every Connect is a message to the
-            conversation, since Instrument does the connecting. */}
-        <div className="space-y-10">
+        {/* Stays at the top as the page scrolls, over the page's own surface. */}
+        <div
+          className="sticky top-0 z-10 -mx-3 mt-3 space-y-3 bg-background px-3 py-4"
+          ref={headRef}
+        >
           <form
             className="group/search relative"
             onSubmit={(event) => {
@@ -233,7 +254,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
           >
             <MagnifyingGlassIcon className="pointer-events-none absolute top-1/2 left-4 size-4 -translate-y-1/2 text-muted-foreground group-focus-within/search:text-foreground" />
             {/* The cards' surface and edge, a size up since it leads the
-                shelf, with the brand's green as its focus. */}
+                page, with the brand's green as its focus. */}
             <input
               aria-label="Search apps"
               ref={searchRef}
@@ -241,65 +262,114 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
               onChange={(event) => {
                 setQuery(event.target.value);
               }}
-              placeholder="Search apps, or name any service"
+              placeholder={
+                more.length > 0 ? `Search ${more.length} apps` : "Search apps"
+              }
               value={query}
             />
           </form>
+          {typed === "" && categories.length > 0 ? (
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map(({ id, label }) => (
+                <button
+                  aria-pressed={lit === id}
+                  className={cn(
+                    "h-7 rounded-full px-2.5 text-[12px]",
+                    lit === id
+                      ? "bg-foreground/10"
+                      : "bg-card shadow-xs hover:bg-accent",
+                  )}
+                  key={id}
+                  onClick={() => {
+                    goTo(id);
+                  }}
+                  type="button"
+                >
+                  {categoryLabel(id, label)}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-4 space-y-10">
+          {typed !== "" ? null : list.data === undefined ? (
+            <PageSection title="Your apps">
+              <TileSkeletons columns={3} count={3} />
+            </PageSection>
+          ) : own.length > 0 ? (
+            <PageSection title="Your apps">
+              <div className={THREE_COLUMNS}>
+                {ownTiles(own).map(({ app, count }) => (
+                  <OwnTile
+                    app={app}
+                    count={count}
+                    key={app.slug}
+                    onOpen={() => {
+                      onOpenApp(app.slug);
+                    }}
+                  />
+                ))}
+              </div>
+            </PageSection>
+          ) : null}
           {catalog.data === undefined ? (
             <TileSkeletons />
           ) : typed === "" ? (
             <>
               {ais.length > 0 ? (
                 <PageSection title="AI">
-                  <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                    {ais.map(tileFor)}
-                  </div>
+                  <div className={THREE_COLUMNS}>{ais.map(tileFor)}</div>
                 </PageSection>
               ) : null}
               {popular.length > 0 ? (
                 <PageSection title="Popular">
-                  <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                    {popular.map(tileFor)}
-                  </div>
+                  <div className={TWO_COLUMNS}>{popular.map(tileFor)}</div>
                 </PageSection>
               ) : null}
-              {isRestDue && rest.length > 0 ? (
-                <PageSection title="By category">
-                  <CategoryGroups entries={rest} renderTile={tileFor} />
-                </PageSection>
-              ) : null}
+              {isRestDue
+                ? categories.map(({ id, label }) => (
+                    <div data-category={id} key={id}>
+                      <PageSection title={categoryLabel(id, label)}>
+                        <div className={THREE_COLUMNS}>
+                          {rest
+                            .filter((entry) => entry.category === id)
+                            .map(tileFor)}
+                        </div>
+                      </PageSection>
+                    </div>
+                  ))
+                : null}
             </>
           ) : (
             <div className="space-y-6">
               {matches.length > 0 ? (
-                <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                  {matches.map(searchTileFor)}
-                </div>
+                <div className={TWO_COLUMNS}>{matches.map(searchTileFor)}</div>
               ) : null}
-              {/* A service the words name exactly, listed or already
-                    yours, is the one meant, so "connect it anyway" would
-                    only offer it a second time. */}
-              {namesOne(matches, typed) || namesOne(own, typed) ? null : (
-                <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-                  <UnlistedTile
-                    isOnlyOne={matches.length === 0}
-                    name={typed}
-                    onConnect={connectTyped}
-                  />
+              {asksMeaning && !(answered && meant.length === 0) ? (
+                answered ? (
+                  <div
+                    className={cn(
+                      TWO_COLUMNS,
+                      "animate-in duration-200 fade-in-0",
+                    )}
+                  >
+                    {meant.map(searchTileFor)}
+                  </div>
+                ) : (
+                  <TileSkeletons count={RELATED_SKELETONS} />
+                )
+              ) : // A service the words name exactly, listed or already
+              // yours, is the one meant, so the way to ask for one that isn't
+              // listed would only offer it a second time.
+              namesOne(matches, typed) || namesOne(own, typed) ? null : (
+                <div className={TWO_COLUMNS}>
+                  <UnlistedTile name={typed} onConnect={connectTyped} />
                 </div>
               )}
-              {asksMeaning && !(answered && meant.length === 0) ? (
-                <div>
-                  <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
-                    Related
-                  </h3>
-                  {answered ? (
-                    <div className="grid animate-in grid-cols-1 gap-3 duration-200 fade-in-0 @xl/apps:grid-cols-2">
-                      {meant.map(searchTileFor)}
-                    </div>
-                  ) : (
-                    <TileSkeletons count={RELATED_SKELETONS} />
-                  )}
+              {meant.length > 0 ? (
+                <div className={TWO_COLUMNS}>
+                  <UnlistedTile name={typed} onConnect={connectTyped} />
                 </div>
               ) : null}
             </div>
@@ -307,132 +377,131 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
         </div>
 
         {list.data && list.data.invalid.length > 0 ? (
-          <PageSection title="Broken">
-            <div className="divide-y divide-border rounded-xl bg-card shadow-xs">
-              {list.data.invalid.map((entry) => (
-                <div className="flex items-center gap-3 p-4" key={entry.slug}>
-                  <AppIcon />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
-                      {entry.slug}
+          <div className="mt-10">
+            <PageSection title="Broken">
+              <div className="divide-y divide-border rounded-xl bg-card shadow-xs">
+                {list.data.invalid.map((entry) => (
+                  <div className="flex items-center gap-3 p-4" key={entry.slug}>
+                    <AppIcon />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">
+                        {entry.slug}
+                      </span>
+                      <span className="block truncate text-xs text-muted-foreground">
+                        {entry.message}
+                      </span>
                     </span>
-                    <span className="block truncate text-xs text-muted-foreground">
-                      {entry.message}
-                    </span>
-                  </span>
-                  <GlyphButton
-                    onClick={() => {
-                      ask(`Fix the ${entry.slug} app; its manifest is broken`);
-                    }}
-                    size="sm"
-                  >
-                    Fix
-                  </GlyphButton>
-                </div>
-              ))}
-            </div>
-          </PageSection>
+                    <Button
+                      className="text-foreground"
+                      onClick={() => {
+                        ask(
+                          `Fix the ${entry.slug} app; its manifest is broken`,
+                        );
+                      }}
+                      size="sm"
+                      variant="outline"
+                    >
+                      Fix with Instrument
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </PageSection>
+          </div>
         ) : null}
       </div>
     </div>
   );
 }
 
+/** One tile per service of the workspace's own, on its first account, with how many it has. */
+function ownTiles(own: App[]) {
+  const tiles: { app: App; count: number }[] = [];
+  for (const app of own) {
+    const tile = tiles.find(
+      (each) => app.service !== undefined && each.app.service === app.service,
+    );
+    if (tile) {
+      tile.count += 1;
+    } else {
+      tiles.push({ app, count: 1 });
+    }
+  }
+  return tiles;
+}
+
 /**
- * One of the workspace's apps as a mark: its icon on a card with its name
- * under it, and under that, for one not yet connected, what it waits for.
- * Pressing it opens the app, and a right click raises the app's own menu,
- * the one by its name on its front.
+ * One of the workspace's apps: its icon, its name and where it stands.
+ * Pressing it opens the app, and a right click raises the app's own menu.
  */
-function AppMark({ app, onOpen }: { app: App; onOpen: () => void }) {
-  const href = `/apps/${app.slug}`;
-  const { destinations, opening } = useOpenGestures({
-    href,
+function OwnTile({
+  app,
+  count,
+  onOpen,
+}: {
+  app: App;
+  /** How many accounts of the service are here. */
+  count: number;
+  onOpen: () => void;
+}) {
+  const { destinations } = useOpenGestures({
+    href: `/apps/${app.slug}`,
     kind: "screen",
   });
-  const waiting = app.status === "connected" ? undefined : waitingLine(app);
   return (
     <AppContextMenu app={app} name={app.name} opens={destinations}>
-      <button
-        className="group flex w-24 flex-col items-center gap-1.5 rounded-xl py-2 text-center hover:bg-accent/50 data-[state=open]:bg-accent/50"
-        {...opening(onOpen)}
-        title={
-          waiting
-            ? `${app.name}: ${waiting}`
-            : app.account
-              ? `${app.name}: ${app.account}`
-              : app.name
+      <Tile
+        icon={app.icon}
+        line={
+          count > 1
+            ? `${count} accounts`
+            : app.status === "connected"
+              ? signedInLine(app)
+              : waitingLine(app)
         }
-        type="button"
-      >
-        <span className="relative">
-          <AppIcon
-            className={cn(waiting && "opacity-60")}
-            name={app.name}
-            icon={app.icon}
-            site={app.site}
-            size="xl"
-          />
-          {/* The dot the rail's Apps wore, on the app it was for. */}
-          {app.status === "needs-sign-in" && (
-            <ChatMarkDot className="ring-background" mark="waiting" />
-          )}
-        </span>
-        <span className="w-full truncate text-[13px] leading-4 font-medium">
-          {app.name}
-        </span>
-        {/* Under the name, what it waits for, or else which account it is,
-          so two of one service read apart. */}
-        {waiting || app.account ? (
-          <span className="-mt-1 w-full truncate text-[11px] leading-4 text-muted-foreground">
-            {waiting ?? app.account}
-          </span>
-        ) : null}
-      </button>
+        name={app.name}
+        onOpen={onOpen}
+        site={app.site}
+        target={app.slug}
+      />
     </AppContextMenu>
   );
 }
 
+function signedInLine(app: Pick<App, "type"> & { authKind?: string }) {
+  return app.type === "web" || app.authKind === "oauth"
+    ? "Signed in"
+    : "Connected";
+}
+
 /**
- * A service the directory knows, still to connect: its icon, its name and
- * tagline, and the one control that starts connecting it. The tile itself
- * opens the service's page, which says what connecting takes. One already
- * here opens its own page, with connecting another account under its menu;
- * one here that is not connected says what it waits for, and one whose
- * connection failed offers to try it again.
+ * A service the directory knows: its icon, its name and tagline. It opens
+ * the service's page, which is where it is connected; one already here says
+ * where it stands instead.
  */
 export function CatalogTile({
   entry,
   mine,
-  onConnect,
-  onConnectAnother,
   onOpen,
 }: {
   entry: CatalogEntry;
   /** The workspace's own apps that are this service, connected first, when it has any. */
-  mine: Pick<App, "name" | "slug" | "status">[];
-  onConnect: () => void;
-  onConnectAnother: () => void;
+  mine: (Pick<App, "slug" | "status" | "type"> & { authKind?: string })[];
   onOpen: (slug: string) => void;
 }) {
   const app = mine[0];
-  const first = app?.slug;
-  const test = useAppTest(app?.name ?? entry.name);
-  // A service already here opens its own page; one not yet here opens the
-  // directory's page for it, which says what connecting takes.
-  const target = first ?? entry.slug;
-  const failed = mine.length === 1 && app?.status === "failed";
+  const target = app?.slug ?? entry.slug;
   return (
     <Tile
       icon={entry.icon}
       line={
         app === undefined
           ? entry.tagline
-          : mine.length === 1
-            ? app.status === "connected"
-              ? "In your apps"
+          : mine.length > 1
+            ? `${mine.length} accounts`
+            : app.status === "connected"
+              ? signedInLine(app)
               : waitingLine(app)
-            : `${mine.length} accounts in your apps`
       }
       name={entry.name}
       onOpen={() => {
@@ -440,54 +509,7 @@ export function CatalogTile({
       }}
       site={`https://${entry.domain}`}
       target={target}
-    >
-      {first === undefined ? (
-        <GlyphButton onClick={onConnect} size="sm">
-          Connect
-        </GlyphButton>
-      ) : (
-        <div className="flex shrink-0 items-center gap-1">
-          {failed ? (
-            <Button
-              disabled={test.isPending}
-              onClick={() => {
-                test.mutate({ slug: first });
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {test.isPending ? "Trying…" : "Try again"}
-            </Button>
-          ) : (
-            <Button
-              onClick={() => {
-                onOpen(first);
-              }}
-              size="sm"
-              variant="outline"
-            >
-              Open
-            </Button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                aria-label={`More for ${entry.name}`}
-                size="icon-sm"
-                variant="ghost"
-              >
-                <DotsThreeIcon className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={onConnectAnother}>
-                Connect another account
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      )}
-    </Tile>
+    />
   );
 }
 
@@ -515,7 +537,7 @@ function AccountTiles({
           key={app.slug}
           line={
             app.status === "connected"
-              ? (app.account ?? "In your apps")
+              ? (app.account ?? signedInLine(app))
               : waitingLine(app)
           }
           name={app.name}
@@ -524,49 +546,35 @@ function AccountTiles({
           }}
           site={app.site ?? `https://${entry.domain}`}
           target={app.slug}
-        >
-          <Button
-            onClick={() => {
-              onOpen(app.slug);
-            }}
-            size="sm"
-            variant="outline"
-          >
-            Open
-          </Button>
-        </Tile>
+        />
       ))}
       <Tile
         icon={entry.icon}
         key={`${entry.slug}:another`}
-        line="Connect another account"
+        line="Add another account"
         name={entry.name}
         onOpen={onConnectAnother}
         site={`https://${entry.domain}`}
-      >
-        <GlyphButton onClick={onConnectAnother} size="sm">
-          Connect
-        </GlyphButton>
-      </Tile>
+      />
     </>
   );
 }
 
 /**
  * The card every directory tile is: the service's icon, a name and a line
- * under it, pressing it opens `target`'s page (or does `onOpen` where there
- * is no page to open), and the controls at its end.
+ * under it. Pressing it opens `target`'s page, or does `onOpen` where there
+ * is no page to open.
  */
 function Tile({
-  children,
   icon,
   line,
   name,
+  onContextMenu,
   onOpen,
   site,
   target,
+  ...rest
 }: {
-  children: ReactNode;
   icon: string | undefined;
   line: string;
   name: string;
@@ -574,64 +582,51 @@ function Tile({
   site: string | undefined;
   /** The app whose page the tile opens, when it opens one. */
   target?: string;
-}) {
-  const { onContextMenu, opening } = useOpenGestures({
+} & Omit<ComponentProps<"button">, "name">) {
+  const { onContextMenu: openMenu, opening } = useOpenGestures({
     href: `/apps/${target ?? ""}`,
     kind: "screen",
   });
   return (
     // A card, the shadow's hairline as its edge, lifting under the pointer.
-    // 72px tall around a 32px button, so the button sits 20px from the top,
-    // the bottom and the end, the inset the icon keeps at the start.
-    <div className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs transition-shadow duration-200 hover:shadow-md">
-      <button
-        className="flex min-w-0 flex-1 items-center gap-3 text-left"
-        {...(target === undefined ? { onClick: onOpen } : opening(onOpen))}
-        onContextMenu={target === undefined ? undefined : onContextMenu}
-        type="button"
-      >
-        {/* No inset: the mark fills its box, and the tile is its surface. */}
-        <AppIcon
-          className="size-9 rounded-lg p-0"
-          icon={icon}
-          name={name}
-          site={site}
-        />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[15px] leading-snug font-medium">
-            {name}
-          </span>
-          <span className="block truncate text-[13px] leading-snug text-muted-foreground">
-            {line}
-          </span>
+    <button
+      className="flex h-18 w-full min-w-0 items-center gap-3 rounded-2xl bg-card px-4 text-left shadow-xs transition-shadow duration-200 hover:shadow-md"
+      {...rest}
+      {...(target === undefined ? { onClick: onOpen } : opening(onOpen))}
+      onContextMenu={
+        onContextMenu ?? (target === undefined ? undefined : openMenu)
+      }
+      type="button"
+    >
+      {/* No inset: the mark fills its box, and the tile is its surface. */}
+      <AppIcon
+        className="size-9 rounded-lg p-0"
+        icon={icon}
+        name={name}
+        site={site}
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[15px] leading-snug font-medium">
+          {name}
         </span>
-      </button>
-      {children}
-    </div>
-  );
-}
-
-/** Marks holding the section's place while the apps are still on their way. */
-function MarkSkeletons() {
-  return (
-    <div className="flex flex-wrap gap-x-2 gap-y-4">
-      {Array.from({ length: 4 }, (_, index) => (
-        <div
-          className="flex w-24 flex-col items-center gap-1.5 py-2"
-          key={index}
-        >
-          <Skeleton className="size-16 rounded-2xl" />
-          <Skeleton className="h-3 w-12" />
-        </div>
-      ))}
-    </div>
+        <span className="block truncate text-[13px] leading-snug text-muted-foreground">
+          {line}
+        </span>
+      </span>
+    </button>
   );
 }
 
 /** Tiles holding the directory's place, or the related services', while they are still on their way. */
-function TileSkeletons({ count = SKELETONS_SHOWN }: { count?: number }) {
+function TileSkeletons({
+  columns = 2,
+  count = SKELETONS_SHOWN,
+}: {
+  columns?: 2 | 3;
+  count?: number;
+}) {
   return (
-    <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
+    <div className={columns === 3 ? THREE_COLUMNS : TWO_COLUMNS}>
       {Array.from({ length: count }, (_, index) => (
         <div
           className="flex h-18 items-center gap-3 rounded-2xl bg-card px-5 shadow-xs"
@@ -648,49 +643,39 @@ function TileSkeletons({ count = SKELETONS_SHOWN }: { count?: number }) {
   );
 }
 
-/** The directory with the services most people know brought to the front, the rest in its own order. */
-/**
- * A service the directory does not list, as a tile beside the ones it does:
- * what was typed, and the promise that Instrument finds it and connects it.
- * Alone when nothing matched; last among the matches otherwise, for the
- * name that was meant and not found.
- */
+/** A service the directory does not list, as a tile that asks Instrument for it in a chat. */
 function UnlistedTile({
-  isOnlyOne,
   name,
   onConnect,
 }: {
-  isOnlyOne: boolean;
   name: string;
   onConnect: () => void;
 }) {
   return (
-    <div
-      className={cn(
-        "flex h-18 items-center gap-3 rounded-2xl border border-dashed border-border px-5 hover:bg-accent/40",
-        isOnlyOne && "@lg/apps:col-span-2",
-      )}
+    <button
+      className="flex min-h-18 w-full items-center gap-3 rounded-2xl bg-card px-5 py-3 text-left shadow-xs transition-shadow duration-200 hover:shadow-md @xl/apps:col-span-2"
+      onClick={onConnect}
+      type="button"
     >
       <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
         <PlusIcon className="size-4" />
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[15px] leading-snug font-medium">
-          {isOnlyOne ? `“${name}” isn’t listed` : `Connect “${name}” anyway`}
+          Connect {name}
         </span>
-        <span className="block truncate text-[13px] leading-snug text-muted-foreground">
-          Instrument will figure out how to connect it for you.
+        <span className="block text-[13px] leading-snug text-muted-foreground">
+          It isn’t listed here, but Instrument can try to set it up with you.
         </span>
       </span>
-      <GlyphButton onClick={onConnect} size="sm">
-        Connect
-      </GlyphButton>
-    </div>
+    </button>
   );
 }
 
 /** What an app not yet connected is waiting for, in a few words under its name. */
-export function waitingLine(app: Pick<App, "status">): string {
+export function waitingLine(
+  app: Pick<App, "status"> & { connection?: { error?: string | undefined } },
+): string {
   switch (app.status) {
     case "declined": {
       return "Not connected";
@@ -709,7 +694,7 @@ export function waitingLine(app: Pick<App, "status">): string {
       return "Needs a key";
     }
     case "needs-sign-in": {
-      return "Needs a sign-in";
+      return app.connection?.error ? "Sign in again" : "Needs a sign-in";
     }
     case "stale": {
       return "Changed since tested";
@@ -718,39 +703,6 @@ export function waitingLine(app: Pick<App, "status">): string {
       return "Not tested yet";
     }
   }
-}
-
-/**
- * Every service still to connect, under its category, most used first in
- * each. Developer tools come last, where the categories' order puts them.
- */
-function CategoryGroups({
-  entries,
-  renderTile,
-}: {
-  entries: CatalogEntry[];
-  renderTile: (entry: CatalogEntry) => ReactNode;
-}) {
-  return (
-    <div className="space-y-8">
-      {APP_CATEGORIES.map(({ id, label }) => {
-        const inCategory = entries.filter((entry) => entry.category === id);
-        if (inCategory.length === 0) {
-          return null;
-        }
-        return (
-          <div key={id}>
-            <h3 className="mb-2.5 text-[12px] font-medium text-muted-foreground">
-              {label}
-            </h3>
-            <div className="grid grid-cols-1 gap-3 @xl/apps:grid-cols-2">
-              {inCategory.map(renderTile)}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
 }
 
 /** Whether the words are some app's own name, slug, or alias. */

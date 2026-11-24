@@ -3,27 +3,27 @@ import { CopyButton } from "@/client/components/copy-button";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/client/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/client/components/ui/dropdown-menu";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AiAppAccounts } from "@/client/components/window/ai-app-accounts";
 import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
+import {
+  AccountRow,
+  AccountsCard,
+  AddAccountRow,
+  AskCard,
+  ThingsToDo,
+} from "@/client/components/window/app-page-parts";
 import { AppMenuButton } from "@/client/components/window/app-menu";
 import { AppKeys } from "@/client/components/window/app-keys";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
-import { InstrumentGlyph } from "@/client/components/wordmark";
+import { waitingLine } from "@/client/components/window/apps-home";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
+import { useSetUpThenSignIn } from "@/client/components/window/use-set-up-then-sign-in";
 import {
   AppInspector,
   type InspectorReading,
@@ -31,9 +31,15 @@ import {
 import { visitsWithin } from "@/client/components/window/app-visits";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { useWindow } from "@/client/components/window/context";
-import { GlyphButton } from "@/client/components/window/glyph-button";
+import {
+  FixWithInstrumentButton,
+  useFixConnection,
+} from "@/client/components/window/fix-connection";
+import { SignInWaitingLine } from "@/client/components/window/sign-in-button";
+import { useSiteSignIn } from "@/client/components/window/site-sign-in";
 import { useTabSurface } from "@/client/components/window/tab-surface";
 import { PageSection } from "@/client/components/window/page-section";
+import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
@@ -41,10 +47,14 @@ import { planOfApp } from "@/client/lib/ai-apps";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { osConventions } from "@/client/lib/utils";
-import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
+import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { useQuery } from "@tanstack/react-query";
+import { useAtomValue } from "jotai";
 import { useState } from "react";
 import { useAppTest } from "@/client/components/window/use-app-test";
+
+type App = RPCOutput["apps"]["list"]["apps"][number];
+type CatalogEntry = RPCOutput["apps"]["catalogByMeaning"][number];
 
 /** How many of the pages visited in the app its front lists. */
 const VISITS_SHOWN = 12;
@@ -52,11 +62,9 @@ const VISITS_SHOWN = 12;
 /**
  * An app's page, which is its front: where you have been in it lately, out
  * of the window's own browsing held to the app's site, with the app itself
- * one labeled button away. Before it is connected, a listing: what the
- * directory says it is and what connecting takes, with the one control that
- * finishes that. Connected, it is a connection too: the way to ask about
- * it, whose it is and since when, what it can do, and a menu by its name
- * for taking it away.
+ * one labeled button away. Before it is connected, one card with the one
+ * control that connects it. Connected, its accounts, requests to make of it,
+ * and a menu for what it can do and for taking it away.
  */
 
 export function AppFront({
@@ -75,16 +83,6 @@ export function AppFront({
   const catalog = useQuery(
     rpcClient.apps.live.catalog.experimental_liveOptions(),
   );
-  // The default browser by name, as the sign-in button beside it says it.
-  const defaultBrowser = useQuery(
-    rpcClient.utils.browserOpenTarget.queryOptions({
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      refetchOnWindowFocus: false,
-      staleTime: Number.POSITIVE_INFINITY,
-    }),
-  );
-  const browserName = defaultBrowser.data?.appName ?? "your browser";
   const app = list.data?.apps.find((entry) => entry.slug === slug);
   // The directory's entry for the service, which a second account set up
   // beside the first (gmail-2) shares with it.
@@ -146,8 +144,6 @@ export function AppFront({
   const visited = useRecentPages();
   const visits = visitsWithin(visited, [{ name, site }]).slice(0, VISITS_SHOWN);
 
-  const test = useAppTest(name);
-
   if (list.isPending || catalog.isPending) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -167,94 +163,25 @@ export function AppFront({
   }
 
   const domain = home ? new URL(home).host : undefined;
-  const examples = isConnected ? (entry?.examples ?? []) : [];
-  const methods = (entry?.authMethods ?? []).map((method) => method.label);
-  // What setting up waits on, in one line, with at most one more under it;
-  // where the controls below say where a sign-in or key goes, they say it.
+  const examples = entry?.examples ?? [];
   // One of the Mac's own apps runs on a server the app ships, so connecting
   // it installs nothing; macOS asks the person itself on first use.
   const isBundled = app?.type === "mcp-local" && app.bundled;
-  const bundledToConnect = isBundled && app.status === "needs-approval";
-  // A test that failed with a key stored may be the key, which nobody but the
-  // person can replace, so it can be pasted again as well as tried again.
-  const rejectedKey =
-    app?.status === "failed" &&
-    app.type !== "web" &&
-    app.authKind !== "none" &&
-    app.authKind !== "oauth";
-  const several = (app?.keys.length ?? 0) > 1;
-  const keyRefused = rejectedKey && app.connection?.keyRefused === true;
-  const tryAgain = (
-    <Button
-      disabled={test.isPending}
-      onClick={() => {
-        test.mutate({ slug });
-      }}
-      size="sm"
-      variant={rejectedKey ? "outline" : "default"}
-    >
-      {test.isPending ? "Trying…" : "Try again"}
-    </Button>
-  );
-  const setupTitle =
-    !app || bundledToConnect
-      ? `Connect ${name}`
-      : isWeb
-        ? `Sign in to ${name} on the web`
-        : app.status === "needs-sign-in"
-          ? app.connection?.error
-            ? `Sign in to ${name} again`
-            : `Sign in to ${name}`
-          : app.status === "needs-key"
-            ? several
-              ? `Add keys from ${name}`
-              : `Add a key from ${name}`
-            : app.status === "needs-approval"
-              ? `Allow ${name} to run on ${osConventions().thisComputer}`
-              : keyRefused
-                ? `${name} didn’t accept the ${several ? "keys" : "key"}`
-                : app.status === "failed"
-                  ? `Couldn’t connect to ${name}`
-                  : app.status === "stale"
-                    ? `${name} changed since it last connected`
-                    : `Finish connecting ${name}`;
-  const setupDetail = !app
-    ? methods.length > 0
-      ? `Connects with ${methods.join(" or ")}.`
-      : undefined
-    : bundledToConnect
-      ? `macOS will ask you once before Instrument uses ${name}.`
-      : app.status === "needs-sign-in" && !isWeb
-        ? `Sign in with ${browserName} if you’re already signed in to ${name} there, or here in a tab.`
-        : app.status === "stale"
-          ? "Try again to connect it as it is now."
-          : keyRefused
-            ? several
-              ? "Copy the keys again and paste them here. If you’re sure they’re right, ask Instrument for help."
-              : "Copy the key again and paste it here. If you’re sure it’s right, ask Instrument for help."
-            : undefined;
-  // The way out when the buttons beside it are not getting there: last and
-  // quiet, so it reads as help rather than one more way to sign in.
-  const withInstrument = (
-    <Button
-      onClick={() => {
-        ask(
-          app
-            ? `Help me finish connecting ${appMentionToken({ name, slug })}`
-            : `Connect ${appMentionToken({ name, slug })}`,
-        );
-      }}
-      className="text-muted-foreground hover:text-foreground"
-      size="sm"
-      variant="ghost"
-    >
-      <InstrumentGlyph className="size-3.5 text-brand-600 dark:text-brand-400" />
-      Ask Instrument for help
-    </Button>
-  );
+
   // An AI signs in to its site and its plan in rows of their own.
   const plan = planOfApp({ service, slug });
   const isOnAiSite = plan !== undefined && (app === undefined || isWeb);
+  // Every account of the service is a row once one of them is connected.
+  const accounts = [...(app ? [app] : []), ...otherAccounts];
+  const hasRows = accounts.some((each) => each.status === "connected");
+  const rows = isOnAiSite
+    ? otherAccounts
+    : hasRows
+      ? accounts.filter(
+          (each) => each.slug !== slug || isConnected || asksForSignIn(each),
+        )
+      : otherAccounts;
+  const isRow = rows.some((each) => each.slug === slug);
   const openHome = () => {
     if (home && browser) {
       openPage(home);
@@ -264,84 +191,65 @@ export function AppFront({
   return (
     // The page is worked from its content, which the keys scroll.
     <div
-      className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-6 pb-6 outline-none"
+      className="flex h-full min-h-0 flex-col overflow-y-auto px-8 pt-8 pb-10 outline-none"
       data-keyboard-home
       tabIndex={-1}
     >
-      <div className="mx-auto flex min-h-0 w-full max-w-3xl flex-1 flex-col">
+      <div className="mx-auto w-full max-w-2xl">
         {/* No way back up to Apps here: the row above says where this is. */}
-        <div className="flex items-center gap-3">
-          <AppIcon icon={icon} name={name} site={site} size="lg" />
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-1">
-              <h1 className="text-lg leading-6 font-semibold">{name}</h1>
-              {app ? (
-                <AppMenuButton
-                  app={app}
-                  name={name}
-                  onInspect={() => {
-                    setIsInspecting(true);
-                  }}
-                  onRemoved={onToApps}
-                />
-              ) : null}
-            </div>
-            {/* Which account it is, when that is named, so two of one
-                service can be told apart; otherwise the directory's one line
-                about the app. */}
-            {app && entry && (app.account || otherAccounts.length > 0) ? (
-              <AccountSwitcher
-                account={app.account}
-                connecting={isConnecting}
-                onConnectAnother={() => {
-                  connect(entry, { another: true });
-                }}
-                onOpen={(other) => {
-                  openScreen(`/apps/${other}`);
-                }}
-                others={otherAccounts}
-              />
-            ) : entry?.tagline ? (
-              <p className="truncate text-xs leading-5 text-muted-foreground">
-                {entry.tagline}
-              </p>
-            ) : (
-              <p className="truncate text-xs leading-5 text-muted-foreground">
-                {domain ?? (app ? app.endpoint : "")}
-              </p>
-            )}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-3">
+          <AppIcon
+            className="-ml-2"
+            icon={icon}
+            name={name}
+            site={site}
+            size="xl"
+          />
+          <div className="min-w-40 flex-1">
+            <h1 className="truncate font-serif text-3xl leading-tight font-normal tracking-tight">
+              {name}
+            </h1>
+            <p className="truncate text-[13px] leading-5 text-muted-foreground">
+              {domain ?? (app ? app.endpoint : "")}
+            </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {/* The site is a site whether or not the app is connected, so the
-              way to it is always here, wearing the app's own mark;
-              connecting is what the agent needs, not what a person needs to
-              open a page. */}
-            {plan ? null : home && browser && isWeb && isConnected ? (
-              <Button onClick={openHome} size="sm">
-                <AppIcon icon={icon} name={name} site={site} size="sm" />
-                <span className="truncate">Open {name}</span>
-              </Button>
-            ) : home && browser ? (
-              <button
-                className="inline-flex h-8 shrink-0 items-center gap-2 rounded-lg border border-border bg-card px-2.5 text-xs font-medium text-foreground shadow-xs hover:bg-accent"
-                onClick={openHome}
-                type="button"
-              >
-                <AppIcon icon={icon} name={name} site={site} size="sm" />
-                <span className="truncate">Open {name}</span>
-              </button>
-            ) : null}
             {isConnected ? (
-              <GlyphButton
+              <Button
+                className="text-foreground"
                 onClick={() => {
                   ask(
                     `What can you do with ${appMentionToken({ name, slug })} for me?`,
                   );
                 }}
                 size="sm"
+                variant="outline"
               >
                 Ask about {name}
-              </GlyphButton>
+              </Button>
+            ) : null}
+            {/* The site is a site whether or not the app is connected, so
+              the way to it is always here, except for an AI, whose sign-in
+              is the way there. */}
+            {home && browser && (isConnected || !isOnAiSite) ? (
+              <Button
+                className="text-foreground"
+                onClick={openHome}
+                size="sm"
+                variant="outline"
+              >
+                Open {name}
+              </Button>
+            ) : null}
+            {app ? (
+              <AppMenuButton
+                app={app}
+                name={name}
+                onInspect={() => {
+                  setIsInspecting(true);
+                }}
+                onRemoved={onToApps}
+              />
             ) : null}
           </div>
         </div>
@@ -350,11 +258,58 @@ export function AppFront({
           <AiAppAccounts
             app={app}
             entrySlug={service}
-            home={home}
             name={name}
             provider={plan}
             slug={slug}
           />
+        ) : null}
+
+        {isConnected || isOnAiSite || isRow ? null : (
+          <AppSetUp app={app} entry={entry} name={name} slug={slug} />
+        )}
+
+        {rows.length > 0 ? (
+          <AccountsCard>
+            {rows.map((each) => (
+              <AppAccountRow
+                app={each}
+                isThisPage={each.slug === slug}
+                key={each.slug}
+                name={name}
+                onOpen={() => {
+                  openScreen(`/apps/${each.slug}`);
+                }}
+                onRemoved={each.slug === slug ? onToApps : undefined}
+              />
+            ))}
+            {entry && !isBundled ? (
+              <AddAccountRow
+                disabled={isConnecting}
+                onAdd={() => {
+                  connect(entry, { another: true });
+                }}
+              />
+            ) : null}
+          </AccountsCard>
+        ) : null}
+
+        <ThingsToDo
+          isConnected={isConnected}
+          lines={examples}
+          onAsk={(example) => {
+            ask(`${appMentionToken({ name, slug })}: ${example}`);
+          }}
+        />
+
+        {isConnected && app.keys.length > 0 ? (
+          <div className="mt-8">
+            <AppKeys
+              keys={app.keys}
+              name={name}
+              origin={app.credentialOrigin}
+              slug={slug}
+            />
+          </div>
         ) : null}
 
         {/* Where you have been in the app, laid out the way the browser's
@@ -368,250 +323,335 @@ export function AppFront({
           </div>
         ) : null}
 
-        {/* Requests a person might make of the app, each one press from
-          the conversation. */}
-        {examples.length > 0 ? (
-          <div className="mt-8">
-            <PageSection title="Try asking">
-              <div className="flex flex-wrap gap-2">
-                {examples.map((example) => (
-                  <button
-                    className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1.5 text-left text-[13px] leading-5 shadow-xs hover:bg-accent"
-                    key={example}
-                    onClick={() => {
-                      ask(`${appMentionToken({ name, slug })}: ${example}`);
-                    }}
-                    type="button"
-                  >
-                    {/* The glyph every button that opens a prefilled draft
-                      carries, so these read as asking Instrument. */}
-                    <InstrumentGlyph className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
-                    {example}
-                  </button>
-                ))}
-              </div>
-            </PageSection>
-          </div>
-        ) : null}
-
-        {isBrowsable ? (
-          <AppCapabilities
-            name={name}
-            onAsk={(action) => {
-              ask(`Use ${action} in ${appMentionToken({ name, slug })} to `);
-            }}
-            onInspect={(action) => {
-              setInspectingAction(action);
-              setIsInspecting(true);
-            }}
-            slug={slug}
-          />
-        ) : null}
-
         {isBrowsable ? (
           <Dialog
             onOpenChange={(isOpen) => {
               setIsInspecting(isOpen);
               if (!isOpen) {
                 setReading(undefined);
+                setInspectingAction(undefined);
               }
             }}
             open={isInspecting}
           >
             <DialogContent
               className="flex h-full flex-col"
-              maxHeight="46rem"
-              maxWidth="72rem"
+              maxHeight={inspectingAction === undefined ? "40rem" : "46rem"}
+              maxWidth={inspectingAction === undefined ? "48rem" : "72rem"}
             >
               <DialogHeader>
-                <DialogTitle>Every action in {name}</DialogTitle>
-                <DialogDescription>
-                  Open a view to see what Instrument can read from {name}.
-                </DialogDescription>
+                <DialogTitle>What Instrument can do in {name}</DialogTitle>
               </DialogHeader>
-              <AppInspector
-                initialAction={inspectingAction}
-                name={name}
-                onReading={setReading}
-                runsHere={runsHere}
-                slug={slug}
-              />
+              {inspectingAction === undefined ? (
+                <div className="min-h-0 flex-1 overflow-y-auto">
+                  <AppCapabilities
+                    name={name}
+                    onInspect={setInspectingAction}
+                    slug={slug}
+                  />
+                </div>
+              ) : (
+                <>
+                  <button
+                    className="inline-flex items-center gap-1 self-start text-[13px] text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setInspectingAction(undefined);
+                      setReading(undefined);
+                    }}
+                    type="button"
+                  >
+                    <CaretLeftIcon className="size-3" />
+                    Back
+                  </button>
+                  <AppInspector
+                    initialAction={inspectingAction}
+                    name={name}
+                    onReading={setReading}
+                    runsHere={runsHere}
+                    slug={slug}
+                  />
+                </>
+              )}
             </DialogContent>
           </Dialog>
         ) : null}
-
-        {isConnected && app.keys.length > 0 ? (
-          <div className="mt-8">
-            <AppKeys
-              keys={app.keys}
-              name={name}
-              origin={app.credentialOrigin}
-              slug={slug}
-            />
-          </div>
-        ) : null}
-
-        {/* While the app is still being set up, the one thing that
-          finishes it: a line saying what, the controls for it, what went
-          wrong last time (kept whole for copying), and the agent beside them
-          for when the controls alone are not getting there. Gone the moment
-          the connection lands. */}
-        {isConnected || isOnAiSite ? null : (
-          <div className="mt-8">
-            <PageSection title="Setting up">
-              <div className="space-y-3 rounded-xl border border-border bg-card p-4">
-                <div className="space-y-0.5">
-                  <p className="text-sm font-medium">{setupTitle}</p>
-                  {setupDetail ? (
-                    <p className="text-xs text-muted-foreground">
-                      {setupDetail}
-                    </p>
-                  ) : null}
-                </div>
-                {app?.status === "failed" &&
-                !keyRefused &&
-                app.connection?.error ? (
-                  <div className="group/detail relative rounded-lg bg-muted/60 px-3 py-2 select-text">
-                    <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
-                      {app.connection.error}
-                    </pre>
-                    {/* `focus-within` as well as hover: the button stays in
-                        the tab order while it is transparent. */}
-                    <div className="absolute top-2 right-2 opacity-0 group-hover/detail:opacity-100 focus-within:opacity-100">
-                      <CopyButton
-                        className={blockToolbarButtonClassName}
-                        iconSize={12}
-                        onCopy={async () => {
-                          await navigator.clipboard.writeText(
-                            app.connection?.error ?? "",
-                          );
-                        }}
-                        tooltip="Copy"
-                      />
-                    </div>
-                  </div>
-                ) : null}
-                {isWeb ? (
-                  <ConnectControls
-                    alongside={withInstrument}
-                    kind="web"
-                    name={name}
-                    slug={slug}
-                  />
-                ) : app?.status === "needs-sign-in" ? (
-                  <ConnectControls
-                    alongside={withInstrument}
-                    describesDestination={false}
-                    kind="sign-in"
-                    name={name}
-                    slug={slug}
-                  />
-                ) : app?.status === "needs-approval" ? (
-                  <ConnectControls
-                    alongside={withInstrument}
-                    kind="run"
-                    {...(isBundled && { label: "Connect" })}
-                    name={name}
-                    runs={
-                      app.type === "mcp-local" && !app.bundled
-                        ? app.runs
-                        : undefined
-                    }
-                    slug={slug}
-                  />
-                ) : app?.status === "needs-key" || rejectedKey ? (
-                  <ConnectControls
-                    alongside={
-                      rejectedKey ? (
-                        <>
-                          {tryAgain}
-                          {withInstrument}
-                        </>
-                      ) : (
-                        withInstrument
-                      )
-                    }
-                    kind="key"
-                    name={name}
-                    slug={slug}
-                  />
-                ) : (
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* A service the directory lists and nothing here yet
-                        is set up from the directory; one already here that
-                        failed or changed is tested again. */}
-                    {app ? (
-                      tryAgain
-                    ) : entry ? (
-                      <Button
-                        disabled={isConnecting}
-                        onClick={() => {
-                          connect(entry);
-                        }}
-                        size="sm"
-                      >
-                        Connect {name}
-                      </Button>
-                    ) : null}
-                    {withInstrument}
-                  </div>
-                )}
-              </div>
-            </PageSection>
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-/**
- * Which account the app is, as a menu of the service's other accounts here
- * and the way to connect one more, so every account of a service is reached
- * from any of them.
- */
-function AccountSwitcher({
-  account,
-  connecting,
-  onConnectAnother,
-  onOpen,
-  others,
-}: {
-  account: string | undefined;
-  connecting: boolean;
-  onConnectAnother: () => void;
-  onOpen: (slug: string) => void;
-  others: RPCOutput["apps"]["list"]["apps"];
-}) {
+/** Whether what an app waits for is a sign-in, which its row can offer. */
+function asksForSignIn(app: App): boolean {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <button
-          className="-mx-1 flex max-w-full items-center gap-0.5 rounded-sm px-1 text-xs leading-5 text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
-          type="button"
-        >
-          <span className="truncate">{account ?? "Account not named yet"}</span>
-          <CaretDownIcon className="size-3 shrink-0" />
-        </button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="start">
-        {others.map((other) => (
-          <DropdownMenuItem
-            key={other.slug}
-            onSelect={() => {
-              onOpen(other.slug);
+    app.status === "needs-sign-in" ||
+    (app.status === "declined" &&
+      (app.type === "web" || app.authKind === "oauth"))
+  );
+}
+
+/** One account of the app's service: whose it is, where it stands, and what to do about it. */
+function AppAccountRow({
+  app,
+  isThisPage,
+  name,
+  onOpen,
+  onRemoved,
+}: {
+  app: App;
+  isThisPage: boolean;
+  name: string;
+  onOpen: () => void;
+  onRemoved: (() => void) | undefined;
+}) {
+  const waitingIn = useAtomValue(signInsWaitingAtom).get(app.slug)?.where;
+  const isConnected = app.status === "connected";
+  const isSignedOut = asksForSignIn(app);
+  return (
+    <AccountRow
+      end={
+        <>
+          {isSignedOut ? (
+            <ConnectControls
+              kind={app.type === "web" ? "web" : "sign-in"}
+              label="Sign in again"
+              name={name}
+              primary={false}
+              slug={app.slug}
+            />
+          ) : null}
+          <AppMenuButton
+            app={app}
+            isAccount
+            name={app.account ?? name}
+            {...(onRemoved && { onRemoved })}
+          />
+        </>
+      }
+      isWarning={!isConnected && waitingIn === undefined}
+      line={
+        waitingIn !== undefined && !isConnected ? (
+          <SignInWaitingLine where={waitingIn} />
+        ) : isConnected ? (
+          "Connected"
+        ) : isSignedOut ? (
+          "Signed out"
+        ) : (
+          waitingLine(app)
+        )
+      }
+      {...(isThisPage ? {} : { onOpen })}
+      title={app.account ?? (app.slug === app.service ? app.name : app.slug)}
+    />
+  );
+}
+
+/**
+ * What connecting an app still takes: one card with the one thing to press,
+ * a key's field or a server's go-ahead under it where that is what it wants,
+ * and Instrument beside another try once one failed.
+ */
+function AppSetUp({
+  app,
+  entry,
+  name,
+  slug,
+}: {
+  app: App | undefined;
+  entry: CatalogEntry | undefined;
+  name: string;
+  slug: string;
+}) {
+  const { ask } = useWindow();
+  const { connect, isConnecting } = useConnectFromDirectory();
+  const test = useAppTest(name);
+  const { fix } = useFixConnection({
+    name,
+    slug,
+    updatedAt: app?.connection?.updatedAt,
+  });
+  const site = useSiteSignIn({ askedIn: undefined, name, slug });
+  const waitingIn = useAtomValue(signInsWaitingAtom).get(slug)?.where;
+  const isWeb = app?.type === "web";
+  const isBundled = app?.type === "mcp-local" && app.bundled;
+  const isFailed = app?.status === "failed";
+  const failure = isFailed
+    ? app.connection?.ended === "refused"
+      ? "refused"
+      : "failed"
+    : undefined;
+  const several = (app?.keys.length ?? 0) > 1;
+  // A test that failed with a key stored may be the key, which nobody but the
+  // person can replace, so it can be pasted again as well as tried again.
+  const rejectedKey =
+    isFailed && !isWeb && app.authKind !== "none" && app.authKind !== "oauth";
+  const keyRefused = rejectedKey && app.connection?.keyRefused === true;
+  const firstWay = entry?.interfaces[0];
+  const signInKind =
+    app === undefined
+      ? firstWay === undefined && entry?.home !== undefined
+        ? "web"
+        : firstWay?.format === "mcp" && firstWay.auth === "oauth"
+          ? "sign-in"
+          : undefined
+      : isWeb
+        ? "web"
+        : asksForSignIn(app) ||
+            (isFailed && app.authKind === "oauth" && !app.hasCredential)
+          ? "sign-in"
+          : undefined;
+  const { controls } = useSetUpThenSignIn({
+    app,
+    entrySlug: entry?.slug ?? slug,
+    failure,
+    fix,
+    kind: signInKind ?? "sign-in",
+    name,
+    onNeedsAgent: () => {
+      ask(`Connect ${appMentionToken({ name, slug })}`);
+    },
+    slug,
+  });
+  const isAi = entry?.category === "ai";
+  const asksForKey = app?.status === "needs-key" || rejectedKey;
+  const gets = isAi
+    ? `Instrument can then look through your chats and use ${name} for you.`
+    : `Instrument can then work in ${name} for you.`;
+
+  const title = !app
+    ? isAi
+      ? `Sign in to ${name}`
+      : `Connect ${name}`
+    : isFailed
+      ? keyRefused
+        ? `${name} didn’t accept the ${several ? "keys" : "key"}`
+        : `${name} didn’t connect`
+      : asksForKey
+        ? several
+          ? `Add keys from ${name}`
+          : `Add a key from ${name}`
+        : app.status === "needs-approval" && !isBundled
+          ? `Allow ${name} to run on ${osConventions().thisComputer}`
+          : app.status === "stale"
+            ? `${name} changed since it last connected`
+            : signInKind === "web" || app.connection?.error
+              ? `Sign in to ${name}`
+              : `Connect ${name}`;
+  const line =
+    waitingIn !== undefined ? (
+      <SignInWaitingLine where={waitingIn} />
+    ) : site.isWaiting ? (
+      `Sign in on the ${name} page that opened, then press Done.`
+    ) : keyRefused ? (
+      several ? (
+        "Copy the keys again and paste them here, or let Instrument take a look."
+      ) : (
+        "Copy the key again and paste it here, or let Instrument take a look."
+      )
+    ) : failure === "refused" ? (
+      `${name} won’t let this account connect directly, but Instrument can look for another way.`
+    ) : isFailed ? (
+      "Try again, or let Instrument look for another way."
+    ) : app?.status === "stale" ? (
+      "Try again to connect it as it is now."
+    ) : isBundled ? (
+      `macOS will ask you once before Instrument uses ${name}.`
+    ) : (
+      gets
+    );
+  const fixButton = <FixWithInstrumentButton onClick={fix} />;
+  const tryAgain = (
+    <Button
+      className={rejectedKey ? "text-foreground" : undefined}
+      disabled={test.isPending}
+      onClick={() => {
+        test.mutate({ slug });
+      }}
+      size="sm"
+      variant={rejectedKey ? "outline" : "brand"}
+    >
+      {test.isPending ? "Trying…" : "Try again"}
+    </Button>
+  );
+  const runs =
+    app?.status === "needs-approval" ? (
+      <ConnectControls
+        kind="run"
+        {...(isBundled && { label: "Connect" })}
+        name={name}
+        runs={app.type === "mcp-local" && !app.bundled ? app.runs : undefined}
+        slug={slug}
+      />
+    ) : undefined;
+  return (
+    <AskCard
+      end={
+        signInKind !== undefined ? (
+          controls
+        ) : asksForKey ? undefined : isBundled && runs ? (
+          runs
+        ) : runs ? undefined : app ? (
+          <div className="flex items-center gap-1.5">
+            {isFailed ? fixButton : null}
+            {tryAgain}
+          </div>
+        ) : entry ? (
+          <Button
+            disabled={isConnecting}
+            onClick={() => {
+              connect(entry);
             }}
+            size="sm"
+            variant="brand"
           >
-            <span className="truncate">
-              {other.account ?? `${other.name} (${other.slug})`}
-            </span>
-          </DropdownMenuItem>
-        ))}
-        {others.length > 0 ? <DropdownMenuSeparator /> : null}
-        <DropdownMenuItem disabled={connecting} onSelect={onConnectAnother}>
-          Connect another account
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+            Connect
+          </Button>
+        ) : undefined
+      }
+      line={line}
+      title={title}
+    >
+      {asksForKey ? (
+        <ConnectControls
+          alongside={
+            rejectedKey ? (
+              <>
+                {tryAgain}
+                {fixButton}
+              </>
+            ) : undefined
+          }
+          kind="key"
+          name={name}
+          slug={slug}
+        />
+      ) : runs && !isBundled ? (
+        runs
+      ) : isFailed && app.connection?.error ? (
+        <details className="text-xs text-muted-foreground">
+          <summary className="w-fit cursor-default hover:text-foreground">
+            Details
+          </summary>
+          <div className="group/detail relative mt-2 rounded-lg bg-muted/60 px-3 py-2 select-text">
+            <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
+              {app.connection.error}
+            </pre>
+            {/* `focus-within` as well as hover: the button stays in the tab
+              order while it is transparent. */}
+            <div className="absolute top-2 right-2 opacity-0 group-hover/detail:opacity-100 focus-within:opacity-100">
+              <CopyButton
+                className={blockToolbarButtonClassName}
+                iconSize={12}
+                onCopy={async () => {
+                  await navigator.clipboard.writeText(
+                    app.connection?.error ?? "",
+                  );
+                }}
+                tooltip="Copy"
+              />
+            </div>
+          </div>
+        </details>
+      ) : null}
+    </AskCard>
   );
 }

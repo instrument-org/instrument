@@ -380,14 +380,6 @@ describe("cancelOAuth", () => {
   });
 });
 
-describe("signInOnWeb", () => {
-  it("refuses an app that is not there", async () => {
-    await expect(
-      call(apps.signInOnWeb, { slug: "missing" }, options),
-    ).rejects.toMatchObject({ code: "NOT_FOUND" });
-  });
-});
-
 describe("markWebSignedIn", () => {
   it("records a web app as connected on its manifest and wakes the chat", async () => {
     await writeApp("Google Drive", "drive", {

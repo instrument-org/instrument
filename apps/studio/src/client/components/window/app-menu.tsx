@@ -29,7 +29,7 @@ import { type OpenDestination } from "@/client/hooks/use-open-target";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { toast } from "@/client/lib/toast";
-import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
+import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Fragment, type ReactElement, useRef, useState } from "react";
 
@@ -37,6 +37,8 @@ type App = RPCOutput["apps"]["list"]["apps"][number];
 
 type AppMenuProps = {
   app: App;
+  /** On one account's row, where it names the account and disconnects it; elsewhere on the app's page those are the row's. */
+  isAccount?: boolean;
   name: string;
   /** Opens the list of every action the app has, where the surface has one. */
   onInspect?: () => void;
@@ -45,20 +47,23 @@ type AppMenuProps = {
 
 /** The dots by an app's name on its front, opening the app's own menu. */
 export function AppMenuButton(props: AppMenuProps) {
-  const { dialog, items, onCloseAutoFocus } = useAppMenu(props);
+  const { dialog, items, onCloseAutoFocus } = useAppMenu({
+    ...props,
+    scope: props.isAccount ? "account" : "page",
+  });
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
             aria-label={`More for ${props.name}`}
-            className="grid size-6 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
+            className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground data-[state=open]:bg-accent data-[state=open]:text-foreground"
             type="button"
           >
-            <DotsThreeVerticalIcon className="size-4" weight="bold" />
+            <DotsThreeIcon className="size-4" weight="bold" />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" onCloseAutoFocus={onCloseAutoFocus}>
+        <DropdownMenuContent align="end" onCloseAutoFocus={onCloseAutoFocus}>
           {items(dropdownMenuComponents)}
         </DropdownMenuContent>
       </DropdownMenu>
@@ -111,7 +116,13 @@ export function AppContextMenu({
  * the rows under either, and `dialog` is the account-naming dialog they
  * open, mounted beside the menu so it outlives the menu closing.
  */
-function useAppMenu({ app, name, onInspect, onRemoved }: AppMenuProps) {
+function useAppMenu({
+  app,
+  name,
+  onInspect,
+  onRemoved,
+  scope = "all",
+}: AppMenuProps & { scope?: "account" | "all" | "page" }) {
   const { slug } = app;
   const catalog = useQuery(
     rpcClient.apps.live.catalog.experimental_liveOptions(),
@@ -180,36 +191,40 @@ function useAppMenu({ app, name, onInspect, onRemoved }: AppMenuProps) {
   const items = ({ Item, Separator }: MenuComponents) => (
     <>
       {isBrowsable && onInspect ? (
-        <Item onSelect={onInspect}>View Actions</Item>
+        <Item onSelect={onInspect}>See what Instrument can do</Item>
       ) : null}
-      <Item
-        disabled={test.isPending}
-        onSelect={() => {
-          test.mutate({ slug });
-        }}
-      >
-        Test Connection
-      </Item>
-      <Separator />
-      <Item
-        onSelect={() => {
-          wantsToName.current = true;
-        }}
-      >
-        {app.account ? "Rename Account…" : "Name Account…"}
-      </Item>
-      {entry ? (
+      {scope === "account" ? null : (
+        <Item
+          disabled={test.isPending}
+          onSelect={() => {
+            test.mutate({ slug });
+          }}
+        >
+          Check connection
+        </Item>
+      )}
+      {scope === "all" ? <Separator /> : null}
+      {scope === "page" ? null : (
+        <Item
+          onSelect={() => {
+            wantsToName.current = true;
+          }}
+        >
+          {app.account ? "Rename account…" : "Name account…"}
+        </Item>
+      )}
+      {entry && scope === "all" ? (
         <Item
           disabled={isConnecting}
           onSelect={() => {
             connect(entry, { another: true });
           }}
         >
-          Connect Another Account
+          Connect another account
         </Item>
       ) : null}
       <Separator />
-      {isConnected || app.hasCredential ? (
+      {scope !== "page" && (isConnected || app.hasCredential) ? (
         <Item
           disabled={disconnect.isPending}
           onSelect={() => {

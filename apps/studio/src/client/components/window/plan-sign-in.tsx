@@ -36,7 +36,8 @@ import { useWindowTabs } from "./window-tabs";
 interface Attempt {
   accountId: string | undefined;
   openPage: WindowContextValue["openPage"];
-  slug: string;
+  /** The app's page to bring up once it is done with; without one, its tab just closes. */
+  slug?: string;
   /** The tab its page is in, once it opened in one. */
   tab?: string;
   where: SignInDestination;
@@ -73,6 +74,11 @@ export function usePlanSignIns() {
     throw new Error("usePlanSignIns is only for surfaces of the app window");
   }
   return signIns;
+}
+
+/** The same, or null outside the app window. */
+export function useOptionalPlanSignIns() {
+  return useContext(PlanSignInsContext);
 }
 
 /** The window's context, with the plans' sign-ins it keeps. */
@@ -170,7 +176,9 @@ function usePlanSignIn(
       return;
     }
     const group = windowTabs.allTabs.find((each) => each.id === tab)?.group;
-    showAppPage(attempt.slug, group === undefined ? {} : { group });
+    if (attempt.slug !== undefined) {
+      showAppPage(attempt.slug, group === undefined ? {} : { group });
+    }
     if (tab !== undefined) {
       windowTabs.close(tab);
     }

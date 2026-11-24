@@ -1,6 +1,5 @@
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { settingAnchor } from "@/client/components/settings/settings-index";
-import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,8 +24,13 @@ import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
 import { AIProviderConfigIdSchema, APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useChatGPTConnect } from "@/client/hooks/use-connect";
-import { showConnectToast } from "@/client/lib/connect-toast";
+import {
+  SignInButton,
+  SignInWaitingLine,
+  WaitingLine,
+} from "@/client/components/window/sign-in-button";
+import { usePlanConnect } from "@/client/components/window/use-plan-connect";
+import { type SignInDestination } from "@/client/components/window/use-sign-in-landing";
 import { type ReactNode, useState } from "react";
 
 const USAGE_URL = "https://chatgpt.com/settings/usage";
@@ -52,10 +56,11 @@ export function ChatGPTAccountCard() {
     rpcClient.chatgptAccount.live.status.experimental_liveOptions(),
   );
   const openLink = useOpenExternalLink();
-  const flow = useChatGPTConnect();
+  const connect = usePlanConnect();
+  const waitingIn = connect.waitingIn("chatgpt");
   // Which button opened the browser, while the flow is under way.
   const [pressed, setPressed] = useState<string>(NEW_ACCOUNT);
-  const waiting = flow.waiting ? pressed : null;
+  const waiting = waitingIn === undefined ? null : pressed;
 
   const signOut = useMutation(
     rpcClient.chatgptAccount.signOut.mutationOptions(),
@@ -66,17 +71,19 @@ export function ChatGPTAccountCard() {
     null,
   );
 
-  const continueWithChatGPT = (accountId?: string) => {
+  const signIn = (where: SignInDestination, accountId?: string) => {
     setPressed(accountId ?? NEW_ACCOUNT);
-    void flow.start(accountId ? { accountId } : undefined).then((result) => {
-      if (result) {
-        showConnectToast(result, "chatgpt", () => {
-          continueWithChatGPT(accountId);
-        });
-      }
-    });
+    connect.start("chatgpt", { ...(accountId && { accountId }), where });
   };
-  const cancelSignIn = flow.cancel;
+  const cancelSignIn = () => {
+    connect.cancel("chatgpt");
+  };
+  const waitingLine =
+    connect.phase("chatgpt") === "checking" ? (
+      <WaitingLine>Checking your ChatGPT plan</WaitingLine>
+    ) : (
+      <SignInWaitingLine where={waitingIn ?? "external"} />
+    );
 
   const accounts = status?.accounts ?? [];
   const providerSwitch = useProviderSwitch();
@@ -94,8 +101,9 @@ export function ChatGPTAccountCard() {
         enabled,
       );
     },
-    onSignIn: () => {
-      continueWithChatGPT(account.id);
+    canSignInHere: connect.canSignInHere,
+    onSignIn: (where: SignInDestination) => {
+      signIn(where, account.id);
     },
     onSignOut: () => {
       setConfirmingSignOut(account);
@@ -105,7 +113,7 @@ export function ChatGPTAccountCard() {
   const addAnother = (
     <DropdownMenuItem
       onSelect={() => {
-        continueWithChatGPT();
+        signIn("external");
       }}
     >
       Add another account
@@ -147,14 +155,12 @@ export function ChatGPTAccountCard() {
                 ChatGPT account
               </h3>
               {waiting === NEW_ACCOUNT ? (
-                <p className="text-sm text-muted-foreground">
-                  {flow.phase === "checking"
-                    ? "Checking your ChatGPT plan."
-                    : "Finish signing in with ChatGPT in your browser."}
-                </p>
+                <p className="text-sm text-muted-foreground">{waitingLine}</p>
               ) : single ? (
                 <p className="truncate text-sm text-muted-foreground">
-                  {describe(single, waiting === single.id, isOff(single))}
+                  {waiting === single.id
+                    ? waitingLine
+                    : describe(single, isOff(single))}
                 </p>
               ) : (
                 accounts.length === 0 && (
@@ -167,17 +173,17 @@ export function ChatGPTAccountCard() {
           </div>
           <div className="flex shrink-0 items-center gap-2">
             {accounts.length === 0 || waiting === NEW_ACCOUNT ? (
-              <BrowserHandoffButton
+              <SignInButton
+                canSignInHere={connect.canSignInHere}
+                label={
+                  accounts.length === 0 ? "Sign in" : "Add another account"
+                }
                 onCancel={cancelSignIn}
-                onStart={() => {
-                  continueWithChatGPT();
-                }}
+                onStart={signIn}
+                size="default"
+                variant="default"
                 waiting={waiting === NEW_ACCOUNT}
-              >
-                {accounts.length === 0
-                  ? "Continue with ChatGPT"
-                  : "Add another account"}
-              </BrowserHandoffButton>
+              />
             ) : single ? (
               <AccountActions
                 account={single}
@@ -209,7 +215,9 @@ export function ChatGPTAccountCard() {
                     isOff(account) && "opacity-60",
                   )}
                 >
-                  {describe(account, waiting === account.id, isOff(account))}
+                  {waiting === account.id
+                    ? waitingLine
+                    : describe(account, isOff(account))}
                 </p>
                 <AccountActions
                   account={account}
@@ -258,17 +266,15 @@ export function ChatGPTAccountCard() {
 }
 
 /** An account's label, and where it stands when that needs saying. */
-function describe(account: Account, waiting: boolean, off: boolean) {
+function describe(account: Account, off: boolean) {
   return `${account.label}${
-    waiting
-      ? " · Finish in your browser"
-      : account.state === "plan-disabled"
-        ? ` · ${APP_NAME} isn't allowed to use this plan yet`
-        : account.state === "signed-out"
-          ? " · Signed out"
-          : off
-            ? ` · Disabled, so ${APP_NAME} won’t use it`
-            : ""
+    account.state === "plan-disabled"
+      ? ` · ${APP_NAME} isn't allowed to use this plan yet`
+      : account.state === "signed-out"
+        ? " · Signed out"
+        : off
+          ? ` · Disabled, so ${APP_NAME} won’t use it`
+          : ""
   }`;
 }
 
@@ -279,6 +285,7 @@ function describe(account: Account, waiting: boolean, off: boolean) {
  */
 function AccountActions({
   account,
+  canSignInHere,
   children,
   manageUsage,
   off,
@@ -290,12 +297,13 @@ function AccountActions({
   waiting,
 }: {
   account: Account;
+  canSignInHere: boolean;
   children?: ReactNode;
   manageUsage?: ReactNode;
   off: boolean;
   onCancelSignIn: () => void;
   onSetEnabled: (enabled: boolean) => void;
-  onSignIn: () => void;
+  onSignIn: (where: SignInDestination) => void;
   onSignOut: () => void;
   /** `sm` on an account's own line under the name. */
   size?: "sm";
@@ -304,16 +312,18 @@ function AccountActions({
   return (
     <div className="flex shrink-0 items-center gap-2">
       {account.state !== "signed-in" ? (
-        <BrowserHandoffButton
+        <SignInButton
+          canSignInHere={canSignInHere}
+          label={
+            account.state === "plan-disabled"
+              ? "Allow plan use"
+              : "Sign in again"
+          }
           onCancel={onCancelSignIn}
           onStart={onSignIn}
-          size={size}
+          size={size ?? "default"}
           waiting={waiting}
-        >
-          {account.state === "plan-disabled"
-            ? "Allow plan use"
-            : "Sign in again"}
-        </BrowserHandoffButton>
+        />
       ) : off ? (
         <Button
           onClick={() => {

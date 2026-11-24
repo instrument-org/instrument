@@ -97,7 +97,7 @@ export {
   readDirectoryIcons,
 } from "./lib/apps/directory-icon";
 export { findAppIcon } from "./lib/apps/icon";
-export { moveAppToWeb, setUpFromDirectory } from "./lib/apps/set-up";
+export { setUpFromDirectory } from "./lib/apps/set-up";
 export { listApps, loadApp, readAppGuide, removeApp } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
 export {

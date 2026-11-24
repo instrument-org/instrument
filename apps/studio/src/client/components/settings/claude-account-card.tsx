@@ -2,7 +2,6 @@ import { useSettingsAsk } from "@/client/components/settings/settings-ask";
 import { openLogin } from "@/client/atoms/login-modal";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
-import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { ClaudeSignInCode } from "@/client/components/claude-sign-in-code";
 import { Button } from "@/client/components/ui/button";
 import { Card } from "@/client/components/ui/card";
@@ -26,8 +25,12 @@ import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { format } from "date-fns/format";
 import { capitalize } from "radashi";
-import { useClaudeConnect } from "@/client/hooks/use-connect";
-import { showConnectToast } from "@/client/lib/connect-toast";
+import {
+  SignInButton,
+  SignInWaitingLine,
+  WaitingLine,
+} from "@/client/components/window/sign-in-button";
+import { usePlanConnect } from "@/client/components/window/use-plan-connect";
 import { useEffect, useState } from "react";
 
 const CLAUDE_ID = AIProviderConfigIdSchema.parse(
@@ -46,8 +49,10 @@ type Status = RPCOutput["claudeAccount"]["signIn"]["status"];
  * in the browser. Usage opens on request, since reading it starts Claude Code.
  */
 export function ClaudeAccountCard() {
-  const flow = useClaudeConnect();
-  const { status } = flow;
+  const connect = usePlanConnect();
+  const { data: status } = useQuery(
+    rpcClient.claudeAccount.live.status.experimental_liveOptions(),
+  );
   const signOut = useMutation(
     rpcClient.claudeAccount.signOut.mutationOptions(),
   );
@@ -63,15 +68,9 @@ export function ClaudeAccountCard() {
     return null;
   }
 
-  const continueWithClaude = () => {
-    void flow.start().then((result) => {
-      if (result) {
-        showConnectToast(result, "claude", continueWithClaude);
-      }
-    });
-  };
   const installing = status.install?.state === "downloading";
-  const waiting = status.signingIn || installing || flow.waiting;
+  const waitingIn = connect.waitingIn("claude");
+  const waiting = status.signingIn || installing || waitingIn !== undefined;
   const off = status.kind === "signed-in" && providerSwitch.isOff(CLAUDE_ID);
 
   return (
@@ -94,11 +93,15 @@ export function ClaudeAccountCard() {
               Claude account
             </h3>
             <p className="text-sm text-muted-foreground">
-              {off
-                ? DISABLED_LINE
-                : flow.phase === "checking"
-                  ? "Checking your Claude plan."
-                  : describe(status)}
+              {off ? (
+                DISABLED_LINE
+              ) : connect.phase("claude") === "checking" ? (
+                <WaitingLine>Checking your Claude plan</WaitingLine>
+              ) : status.signingIn && !installing && !status.finishing ? (
+                <SignInWaitingLine where={waitingIn ?? "external"} />
+              ) : (
+                describe(status)
+              )}
             </p>
           </div>
         </div>
@@ -149,20 +152,28 @@ export function ClaudeAccountCard() {
               </DropdownMenuItem>
             </ProviderMoreMenu>
           ) : (
-            <BrowserHandoffButton
+            <SignInButton
+              canSignInHere={connect.canSignInHere}
+              label={
+                status.kind === "signed-out" && status.expired
+                  ? "Sign in again"
+                  : "Sign in"
+              }
               onCancel={() => {
-                if (flow.waiting) {
-                  flow.cancel();
+                if (waitingIn !== undefined) {
+                  connect.cancel("claude");
                   return;
                 }
                 // A sign-in started somewhere else.
                 void rpcClient.claudeAccount.cancelSignIn.call({});
               }}
-              onStart={continueWithClaude}
+              onStart={(where) => {
+                connect.start("claude", { where });
+              }}
+              size="default"
+              variant="default"
               waiting={waiting}
-            >
-              Continue with Claude
-            </BrowserHandoffButton>
+            />
           )}
         </div>
       </div>
@@ -184,9 +195,6 @@ function describe(status: Status) {
   if (status.finishing) {
     return "Connecting your Claude account.";
   }
-  if (status.signingIn) {
-    return "Finish signing in to Claude in your browser.";
-  }
   if (status.install?.state === "failed") {
     return `Claude Code didn't install: ${status.install.failed}`;
   }
@@ -200,11 +208,11 @@ function describe(status: Status) {
     }
     case "signed-out": {
       return status.expired
-        ? "You're signed out. Continue with Claude to sign in again."
+        ? "You're signed out."
         : "Pay for a Claude plan? Use it here.";
     }
     case "not-a-plan": {
-      return "This sign-in uses an API key rather than a Claude subscription. Continue with Claude to sign in with your Claude account.";
+      return "This sign-in uses an API key rather than a Claude subscription. Sign in with your Claude account.";
     }
     case "not-installed": {
       return status.canInstall

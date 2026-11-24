@@ -1,6 +1,4 @@
 import { Skeleton } from "@/client/components/ui/skeleton";
-import { PageSection } from "@/client/components/window/page-section";
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import { rpcClient } from "@/client/rpc/client";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
@@ -20,15 +18,12 @@ const KEPT_MS = 30 * 60_000;
  */
 export function AppCapabilities({
   name,
-  onAsk,
   onInspect,
   slug,
 }: {
   name: string;
-  /** Opens a draft that starts the request, for the person to finish. */
-  onAsk: (action: string) => void;
-  /** Opens every action with what each one answers, on one when named. */
-  onInspect: (action?: string) => void;
+  /** Opens an action with what it answers. */
+  onInspect: (action: string) => void;
   slug: string;
 }) {
   const tools = useQuery({
@@ -39,7 +34,7 @@ export function AppCapabilities({
 
   if (tools.isError) {
     return (
-      <section className="mt-8">
+      <section>
         <p className="text-[13px] text-muted-foreground">
           Couldn’t load {name}’s actions.{" "}
           <button
@@ -60,40 +55,38 @@ export function AppCapabilities({
     capabilities.finds.length === 0 &&
     capabilities.does.length === 0
   ) {
-    return null;
+    return (
+      <p className="text-[13px] text-muted-foreground">
+        {name} doesn’t list any actions.
+      </p>
+    );
   }
 
   return (
-    <div className="mt-10">
-      <PageSection title={`${name} actions`}>
-        <div className="grid gap-x-10 gap-y-6 @2xl/app-content:grid-cols-2">
-          {capabilities ? (
-            <>
-              {capabilities.finds.length > 0 ? (
-                <Group
-                  items={capabilities.finds}
-                  label="Look up"
-                  onAsk={onAsk}
-                  onOpen={onInspect}
-                />
-              ) : null}
-              {capabilities.does.length > 0 ? (
-                <Group
-                  items={capabilities.does}
-                  label="Change"
-                  onAsk={onAsk}
-                  onOpen={onInspect}
-                />
-              ) : null}
-            </>
-          ) : (
-            <>
-              <SkeletonGroup />
-              <SkeletonGroup />
-            </>
-          )}
-        </div>
-      </PageSection>
+    <div className="grid gap-x-10 gap-y-6 sm:grid-cols-2">
+      {capabilities ? (
+        <>
+          {capabilities.finds.length > 0 ? (
+            <Group
+              items={capabilities.finds}
+              label="Look up"
+              onOpen={onInspect}
+            />
+          ) : null}
+          {capabilities.does.length > 0 ? (
+            <Group
+              items={capabilities.does}
+              label="Change"
+              onOpen={onInspect}
+            />
+          ) : null}
+        </>
+      ) : (
+        <>
+          <SkeletonGroup />
+          <SkeletonGroup />
+        </>
+      )}
     </div>
   );
 }
@@ -101,12 +94,10 @@ export function AppCapabilities({
 function Group({
   items,
   label,
-  onAsk,
   onOpen,
 }: {
   items: Capability[];
   label: string;
-  onAsk: (action: string) => void;
   onOpen: (action: string) => void;
 }) {
   const [isAll, setIsAll] = useState(false);
@@ -118,8 +109,7 @@ function Group({
     <div className="min-w-0">
       <p className="mb-1.5 text-xs font-medium text-foreground">{label}</p>
       {/* One quiet list per group: each row opens the action's details,
-          where a look-up that needs nothing filled in runs on the spot, and
-          Ask starts a request with it. */}
+          where a look-up that needs nothing filled in runs on the spot. */}
       <ul className="divide-y divide-border/60 overflow-hidden rounded-xl border border-border/60">
         {shown.map((item) => (
           <li className="group/row flex min-w-0 items-center" key={item.name}>
@@ -140,19 +130,6 @@ function Group({
                 </span>
               ) : null}
             </button>
-            <div className="flex shrink-0 items-center gap-0.5 pr-1.5">
-              <button
-                aria-label={`Ask Instrument to ${item.label.toLowerCase()}`}
-                className="inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground"
-                onClick={() => {
-                  onAsk(item.label);
-                }}
-                type="button"
-              >
-                <InstrumentGlyph className="size-3.5 text-brand-600 dark:text-brand-400" />
-                Ask
-              </button>
-            </div>
           </li>
         ))}
         {folds ? (

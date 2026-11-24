@@ -32,7 +32,9 @@ import {
   type OnlineRetry,
   useRetryWhenOnline,
 } from "../hooks/use-retry-when-online";
-import { useSignInAgain } from "../hooks/use-sign-in-again";
+import { type PlanProvider } from "../hooks/use-connected-plans";
+import { SignInButton, SignInWaitingLine } from "./window/sign-in-button";
+import { usePlanConnect } from "./window/use-plan-connect";
 import { stopLineText } from "../lib/billing";
 import {
   parsePlatformApiError,
@@ -93,6 +95,15 @@ function ErrorMark() {
   );
 }
 
+/** The action the sign-in's own button stands for. */
+const SIGN_IN = "sign-in";
+
+const PLAN_OF = {
+  "chatgpt-account": "chatgpt",
+  "claude-account": "claude",
+  "grok-account": "grok",
+} as const satisfies Record<SignInAccountType, PlanProvider>;
+
 /**
  * A turn that ended in an error, said in our words with the way forward
  * beside it.
@@ -128,7 +139,7 @@ export function MessageError({
   const [expandedPast, setExpandedPast] = useState(false);
   const [reportSent, setReportSent] = useState(false);
   const openSettings = useOpenSettings();
-  const signInAgain = useSignInAgain();
+  const planConnect = usePlanConnect();
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
   );
@@ -230,6 +241,7 @@ export function MessageError({
       ? providerSentence(error)
       : undefined;
 
+  const plan = isSignInAccount(provider) ? PLAN_OF[provider] : undefined;
   const actions = errorActions({
     switchTo: needsAutoRecovery
       ? recoveryFor(message.metadata.aiGatewayModel?.uri, modelsData?.models)
@@ -247,26 +259,34 @@ export function MessageError({
             openLogin({ instrumentOnly: true });
           }
         : undefined,
-    // While the sign-in it started waits on the browser, the action cancels it.
-    signIn: !isSignInAccount(provider)
-      ? undefined
-      : signInAgain.waiting(provider)
-        ? {
-            label: "Cancel",
-            onClick: () => {
-              signInAgain.cancel(provider);
-            },
-          }
-        : {
-            label: "Sign in",
-            onClick: () => {
-              signInAgain.signIn(
-                provider,
-                message.metadata.aiGatewayModel?.params.providerConfigId,
-              );
-            },
-          },
+    canSignIn: plan !== undefined,
   });
+  const signsIn = showActions && actions.includes(SIGN_IN);
+  const waitingIn =
+    plan === undefined || !signsIn ? undefined : planConnect.waitingIn(plan);
+  const signInButton = (size: "sm" | "xs") =>
+    plan === undefined ? null : (
+      <SignInButton
+        canSignInHere={planConnect.canSignInHere}
+        onCancel={() => {
+          planConnect.cancel(plan);
+        }}
+        onStart={(where) => {
+          planConnect.start(plan, {
+            accountId: message.metadata.aiGatewayModel?.params.providerConfigId,
+            where,
+          });
+        }}
+        size={size}
+        variant={size === "xs" ? "ghost" : "default"}
+        waiting={waitingIn !== undefined}
+      />
+    );
+  // While the sign-in waits, what does something else stands aside.
+  const offered =
+    showActions && waitingIn === undefined
+      ? actions.filter((action) => action !== SIGN_IN)
+      : [];
 
   // A sign-in or a limit of their own account has its fix on the card already;
   // anything else may be ours to fix.
@@ -350,18 +370,17 @@ export function MessageError({
         <div className="flex min-h-7 flex-wrap items-center gap-x-1 gap-y-1">
           <ErrorMark />
           <span className="mr-1 ml-1 text-sm text-foreground/80">{title}</span>
-          {showActions &&
-            actions.map((action) => (
-              <Button
-                className="-my-1 font-medium"
-                key={action.label}
-                onClick={action.onClick}
-                size="xs"
-                variant="ghost"
-              >
-                {action.label}
-              </Button>
-            ))}
+          {offered.map((action) => (
+            <Button
+              className="-my-1 font-medium"
+              key={action.label}
+              onClick={action.onClick}
+              size="xs"
+              variant="ghost"
+            >
+              {action.label}
+            </Button>
+          ))}
           <Button
             aria-expanded={showDetails}
             className="-my-1 text-muted-foreground"
@@ -377,6 +396,8 @@ export function MessageError({
             Details
           </Button>
           {reportable && reportButton("xs")}
+          {/* At the row's end, where Cancel coming up before it never moves it. */}
+          {signsIn && <div className="-my-1 ml-auto">{signInButton("xs")}</div>}
         </div>
         {showDetails && (
           <div className="flex flex-col gap-1 pl-7 text-muted-foreground">
@@ -402,17 +423,41 @@ export function MessageError({
         <WarningIcon className="mt-0.5 size-4 shrink-0 text-warning-700 dark:text-warning-300" />
         <div className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="font-medium text-foreground">{title}</span>
-          <p className="text-muted-foreground">{body}</p>
+          <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+            <p className="min-w-48 flex-1 text-muted-foreground">
+              {waitingIn === undefined ? (
+                body
+              ) : (
+                <SignInWaitingLine where={waitingIn} />
+              )}
+            </p>
+            {signsIn && (
+              <div className="flex shrink-0 items-center gap-1.5">
+                {offered.map((action) => (
+                  <Button
+                    className="text-foreground"
+                    key={action.label}
+                    onClick={action.onClick}
+                    size="sm"
+                    variant="outline"
+                  >
+                    {action.label}
+                  </Button>
+                ))}
+                {signInButton("sm")}
+              </div>
+            )}
+          </div>
           {providerLine && (
             <p className="text-muted-foreground/80">{providerLine}</p>
           )}
 
-          {(showActions && actions.length > 0) ||
+          {(!signsIn && offered.length > 0) ||
           canReadProviderText ||
           reportable ? (
             <div className="mt-2 flex flex-wrap items-center gap-2">
-              {showActions &&
-                actions.map((action, index) => (
+              {!signsIn &&
+                offered.map((action, index) => (
                   <Button
                     key={action.label}
                     onClick={action.onClick}
@@ -596,12 +641,12 @@ function errorActions({
   onRunAgain,
   openSettings,
   provider,
-  signIn,
+  canSignIn,
 }: {
   /** Opens the chat's model picker, where another model might get past it. */
   chooseModel: (() => void) | undefined;
-  /** Starts the account's own sign-in again. */
-  signIn: ErrorAction | undefined;
+  /** Whether the account's own sign-in can be started again. */
+  canSignIn: boolean;
   /** Logs in to Instrument, when its model was refused for being logged out. */
   logIn: (() => void) | undefined;
   switchTo: AIGatewayModel.Type | undefined;
@@ -611,7 +656,7 @@ function errorActions({
   onRunAgain: (() => void) | undefined;
   openSettings: ReturnType<typeof useOpenSettings>;
   provider: string | undefined;
-}): ErrorAction[] {
+}): (ErrorAction | typeof SIGN_IN)[] {
   const tryAgain = onRunAgain
     ? [
         {
@@ -658,8 +703,8 @@ function errorActions({
         ...changeModel,
       ];
     }
-    return isSignInAccount(provider) && signIn
-      ? [signIn, ...tryAgain, ...changeModel]
+    return canSignIn
+      ? [SIGN_IN, ...tryAgain, ...changeModel]
       : [providerSettings, ...tryAgain, ...changeModel];
   }
   return [...tryAgain, ...changeModel];

@@ -1,7 +1,6 @@
 import { GROK_CONNECT_COPY } from "@/client/lib/connect-copy";
 import { AIProviderIcon } from "@/client/components/ai-provider-icon";
 import { settingAnchor } from "@/client/components/settings/settings-index";
-import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,8 +22,13 @@ import {
 } from "@/client/components/settings/provider-switch";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput, rpcClient } from "@/client/rpc/client";
-import { useGrokConnect } from "@/client/hooks/use-connect";
-import { showConnectToast } from "@/client/lib/connect-toast";
+import {
+  SignInButton,
+  SignInWaitingLine,
+  WaitingLine,
+} from "@/client/components/window/sign-in-button";
+import { usePlanConnect } from "@/client/components/window/use-plan-connect";
+import { type SignInDestination } from "@/client/components/window/use-sign-in-landing";
 import { AIProviderConfigIdSchema, APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
@@ -32,6 +36,8 @@ import { type ReactNode, useState } from "react";
 type Account = NonNullable<
   Exclude<RPCOutput["grokAccount"]["signIn"], { outcome: "failed" }>["account"]
 >;
+
+const NEW_ACCOUNT = "new";
 
 /**
  * The Grok accounts as a row among the providers, laid out like the ChatGPT
@@ -43,8 +49,11 @@ export function GrokAccountCard() {
   const { data: status } = useQuery(
     rpcClient.grokAccount.live.status.experimental_liveOptions(),
   );
-  const flow = useGrokConnect();
-  const { waiting } = flow;
+  const connect = usePlanConnect();
+  const waitingIn = connect.waitingIn("grok");
+  // Which button started it, while a sign-in is under way.
+  const [pressed, setPressed] = useState<string>(NEW_ACCOUNT);
+  const waiting = waitingIn === undefined ? null : pressed;
   const [confirmingSignOut, setConfirmingSignOut] = useState<Account | null>(
     null,
   );
@@ -54,17 +63,31 @@ export function GrokAccountCard() {
   );
   const providerSwitch = useProviderSwitch();
 
-  const continueWithGrok = () => {
-    void flow.start().then((result) => {
-      if (result) {
-        showConnectToast(result, "grok", continueWithGrok);
-      }
-    });
+  // xAI's page signs in whichever account approves it there.
+  const signIn = (where: SignInDestination, accountId = NEW_ACCOUNT) => {
+    setPressed(accountId);
+    connect.start("grok", { where });
   };
-  const cancelSignIn = flow.cancel;
+  const cancelSignIn = () => {
+    connect.cancel("grok");
+  };
 
   const accounts = status?.accounts ?? [];
   const pending = status?.pending;
+  const waitingLine =
+    connect.phase("grok") === "checking" ? (
+      <WaitingLine>Checking your Grok plan</WaitingLine>
+    ) : waitingIn === "external" && pending ? (
+      <WaitingLine>
+        Enter{" "}
+        <span className="font-mono font-medium text-foreground select-all">
+          {pending.userCode}
+        </span>{" "}
+        on the page that opened in your browser.
+      </WaitingLine>
+    ) : (
+      <SignInWaitingLine where={waitingIn ?? "external"} />
+    );
   const single = accounts.length === 1 ? accounts[0] : undefined;
   const isOff = (account: Account) =>
     account.state === "signed-in" && providerSwitch.isOff(account.id);
@@ -80,13 +103,22 @@ export function GrokAccountCard() {
         enabled,
       );
     },
-    onSignIn: continueWithGrok,
+    canSignInHere: connect.canSignInHere,
+    onCancelSignIn: cancelSignIn,
+    onSignIn: (where: SignInDestination) => {
+      signIn(where, account.id);
+    },
+    waiting: waiting === account.id,
     onSignOut: () => {
       setConfirmingSignOut(account);
     },
   });
   const addAnother = (
-    <DropdownMenuItem onSelect={continueWithGrok}>
+    <DropdownMenuItem
+      onSelect={() => {
+        signIn("external");
+      }}
+    >
       Add another account
     </DropdownMenuItem>
   );
@@ -116,22 +148,8 @@ export function GrokAccountCard() {
               <h3 className="truncate font-medium text-foreground">
                 Grok account
               </h3>
-              {waiting ? (
-                <p className="text-sm text-muted-foreground">
-                  {flow.phase === "checking" ? (
-                    "Checking your Grok plan."
-                  ) : pending ? (
-                    <>
-                      Enter{" "}
-                      <span className="font-mono font-medium text-foreground select-all">
-                        {pending.userCode}
-                      </span>{" "}
-                      on the page that opened in your browser.
-                    </>
-                  ) : (
-                    "Finish signing in with Grok in your browser."
-                  )}
-                </p>
+              {waiting === NEW_ACCOUNT || (single && waiting === single.id) ? (
+                <p className="text-sm text-muted-foreground">{waitingLine}</p>
               ) : single ? (
                 <p className="text-sm text-muted-foreground">
                   <AccountLine account={single} off={isOff(single)} />
@@ -146,16 +164,18 @@ export function GrokAccountCard() {
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {accounts.length === 0 || waiting ? (
-              <BrowserHandoffButton
+            {accounts.length === 0 || waiting === NEW_ACCOUNT ? (
+              <SignInButton
+                canSignInHere={connect.canSignInHere}
+                label={
+                  accounts.length === 0 ? "Sign in" : "Add another account"
+                }
                 onCancel={cancelSignIn}
-                onStart={continueWithGrok}
-                waiting={waiting}
-              >
-                {accounts.length === 0
-                  ? "Continue with Grok"
-                  : "Add another account"}
-              </BrowserHandoffButton>
+                onStart={signIn}
+                size="default"
+                variant="default"
+                waiting={waiting !== null}
+              />
             ) : single ? (
               <AccountActions account={single} {...actionsFor(single)}>
                 {addAnother}
@@ -180,7 +200,11 @@ export function GrokAccountCard() {
                     isOff(account) && "opacity-60",
                   )}
                 >
-                  <AccountLine account={account} off={isOff(account)} />
+                  {waiting === account.id ? (
+                    waitingLine
+                  ) : (
+                    <AccountLine account={account} off={isOff(account)} />
+                  )}
                 </p>
                 <AccountActions
                   account={account}
@@ -263,22 +287,28 @@ function AccountLine({ account, off }: { account: Account; off: boolean }) {
  */
 function AccountActions({
   account,
+  canSignInHere,
   checking,
   children,
   off,
+  onCancelSignIn,
   onCheckAgain,
   onSetEnabled,
   onSignIn,
   onSignOut,
   size,
+  waiting,
 }: {
   account: Account;
+  canSignInHere: boolean;
   checking: boolean;
   children?: ReactNode;
   off: boolean;
   onCheckAgain: () => void;
   onSetEnabled: (enabled: boolean) => void;
-  onSignIn: () => void;
+  onCancelSignIn: () => void;
+  onSignIn: (where: SignInDestination) => void;
+  waiting: boolean;
   onSignOut: () => void;
   /** `sm` on an account's own line under the name. */
   size?: "sm";
@@ -286,9 +316,14 @@ function AccountActions({
   return (
     <div className="flex shrink-0 items-center gap-2">
       {account.state === "signed-out" ? (
-        <Button onClick={onSignIn} size={size} variant="outline">
-          Sign in again
-        </Button>
+        <SignInButton
+          canSignInHere={canSignInHere}
+          label="Sign in again"
+          onCancel={onCancelSignIn}
+          onStart={onSignIn}
+          size={size ?? "default"}
+          waiting={waiting}
+        />
       ) : account.state === "no-subscription" ? (
         <Button
           disabled={checking}

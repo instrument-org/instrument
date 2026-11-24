@@ -3,7 +3,14 @@ import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { WindowContext } from "@/client/components/window/context";
-import { useDefaultBrowser } from "@/client/components/window/sign-in-pair";
+import {
+  FixWithInstrumentButton,
+  useFixConnection,
+} from "@/client/components/window/fix-connection";
+import {
+  SignInWaitingLine,
+  WaitingLine,
+} from "@/client/components/window/sign-in-button";
 import { useSiteSignIns } from "@/client/components/window/site-sign-in";
 import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
 import { toast } from "@/client/lib/toast";
@@ -13,7 +20,7 @@ import { type ConnectAppResult } from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { useContext, useState } from "react";
+import { type ReactNode, useContext, useState } from "react";
 
 import { ToolCard } from "./tool-card";
 
@@ -55,7 +62,6 @@ export function ConnectAppCard({
   const drawn = useAppsBySlug();
   const signInsWaiting = useAtomValue(signInsWaitingAtom);
   const siteSignIns = useSiteSignIns();
-  const browser = useDefaultBrowser();
   // The row the user pressed, up for as long as it has anything to press.
   const [picked, setPicked] = useState<string>();
   const dismiss = useMutation(rpcClient.apps.dismiss.mutationOptions());
@@ -223,15 +229,19 @@ export function ConnectAppCard({
             <ConnectRow
               key={row.slug}
               line={
-                status === "waiting"
-                  ? signInsWaiting.get(row.slug)?.where === "external"
-                    ? `Finish signing in in ${browser.data?.appName ?? "your browser"}.`
-                    : "Finish signing in on the page that opened."
-                  : siteSignIns.has(row.slug) && !answered(status)
-                    ? row === up
-                      ? "Waiting for you"
-                      : "Still waiting for you to sign in"
-                    : rowLine(status, row, appOf)
+                status === "waiting" ? (
+                  <SignInWaitingLine
+                    where={signInsWaiting.get(row.slug)?.where ?? "external"}
+                  />
+                ) : siteSignIns.has(row.slug) && !answered(status) ? (
+                  row === up ? (
+                    "Waiting for you"
+                  ) : (
+                    "Still waiting for you to sign in"
+                  )
+                ) : (
+                  rowLine(status, row, appOf)
+                )
               }
               {...(asks(row) && row !== up
                 ? {
@@ -284,7 +294,7 @@ function rowLine(
     case "failed": {
       return connection?.keyRefused
         ? `${row.name} didn’t accept ${(appOf(row.slug)?.keys.length ?? 0) > 1 ? "these keys" : "this key"}.`
-        : `Instrument couldn’t connect to ${row.name}.`;
+        : `${row.name} didn’t connect.`;
     }
     case "refused": {
       return `${row.name} won’t let this account connect directly.`;
@@ -311,8 +321,8 @@ function rowLine(
 
 /**
  * One app's row, in a soft well: its mark, its name and where it stands. The
- * row that is up has what is left to press: a sign-in's buttons in the row,
- * dropping under the name in a narrow chat, and a key or a server to allow
+ * row that is up has what is left to press: a sign-in's button at the row's end,
+ * and a key or a server to allow
  * open under it. A row waiting its turn is one button, which brings it up.
  */
 function ConnectRow({
@@ -324,7 +334,7 @@ function ConnectRow({
   status,
   up,
 }: {
-  line: string | undefined;
+  line: ReactNode;
   /** Brings the row up, for one with something to press that is waiting its turn. */
   onPick?: () => void;
   primary?: boolean;
@@ -343,11 +353,17 @@ function ConnectRow({
     status === "waiting" ||
     status === "failed" ||
     status === "refused";
-  const actionable = up && (live || signInAgain);
   const failure =
     status === "failed" || status === "refused" ? status : undefined;
   const app = apps.data?.apps.find((entry) => entry.slug === row.slug);
   const kind = kindNow(row, app);
+  const { fix, isFixing } = useFixConnection({
+    name: row.name,
+    slug: row.slug,
+    updatedAt: app?.connection?.updatedAt,
+  });
+  const looksForAnother = failure !== undefined && isFixing;
+  const actionable = up && (live || signInAgain) && !looksForAnother;
   const opens = kind === "key" || kind === "run";
   const isQuiet =
     status === "declined" || status === "removed" || onPick !== undefined;
@@ -366,11 +382,15 @@ function ConnectRow({
         >
           {row.name}
         </span>
-        {line === undefined ? null : (
+        {looksForAnother || line !== undefined ? (
           <span className="text-xs leading-4 text-muted-foreground">
-            {line}
+            {looksForAnother ? (
+              <WaitingLine>Looking for another way to connect</WaitingLine>
+            ) : (
+              line
+            )}
           </span>
-        )}
+        ) : null}
       </div>
     </>
   );
@@ -395,7 +415,12 @@ function ConnectRow({
           : "bg-foreground/[0.04]",
       )}
     >
-      <div className="flex min-h-13 items-center gap-3 py-2 @max-md/transcript:flex-wrap">
+      <div
+        className={cn(
+          "flex min-h-13 items-center gap-3 py-2",
+          kind === "web" && "@max-md/transcript:flex-wrap",
+        )}
+      >
         {head}
         {status === "connected" || status === "stale" ? (
           <CheckIcon
@@ -408,13 +433,11 @@ function ConnectRow({
             (kind === "none" && failure !== undefined)) ? (
           <ConnectControls
             askedIn={askedIn}
-            compact={{
-              ...(failure && { failure }),
-              hasSite: app?.site !== undefined,
-              primary,
-            }}
+            failure={failure}
+            fix={fix}
             kind={kind === "none" ? "sign-in" : kind}
             name={row.name}
+            primary={primary}
             slug={row.slug}
           />
         ) : null}
@@ -422,6 +445,9 @@ function ConnectRow({
       {actionable && opens ? (
         <div className="pb-2.5">
           <ConnectControls
+            {...(failure && {
+              alongside: <FixWithInstrumentButton onClick={fix} />,
+            })}
             askedIn={askedIn}
             kind={kind}
             name={row.name}

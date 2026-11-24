@@ -10,13 +10,11 @@ import {
   guidePlaceholdersLeft,
   guideSkeleton,
   listApps,
-  loadApp,
   writeApp,
 } from "./store";
 import { runAppTest } from "./test-app";
 import { bundledMacAppHere } from "./mac-app";
 import { catalogWayIn, parseAuth } from "./way-in";
-import { webInsteadUrl } from "./site";
 
 const OPEN_TEST_TIMEOUT_MS = 30_000;
 
@@ -152,55 +150,6 @@ export async function setUpFromDirectory({
   }
   await appChanged(slug);
   return { kind: "set-up", slug };
-}
-
-/**
- * Moves an app set up another way over to signing in on the web: the same
- * app, its name and guide kept, now a web app at the service's site, whose
- * sign-in starts where the directory says. What `instrument app new <slug>
- * --web <url> --force` writes, for the card's "Sign in here" after its
- * own sign-in failed. The chats still waiting on the app stay waiting, and
- * hear of it once the user says they are signed in. Answers the page the
- * sign-in opens; an app that is already a web app is left as it is.
- */
-export async function moveAppToWeb(
-  slug: string,
-): Promise<{ name: string; signIn: string }> {
-  const loaded = await loadApp(slug);
-  if (loaded.isErr()) {
-    throw new Error(loaded.error.message);
-  }
-  const { manifest, name } = loaded.value;
-  if (manifest.type === "web") {
-    return { name, signIn: manifest.signIn ?? manifest.url };
-  }
-  const url = webInsteadUrl(slug, manifest);
-  if (url === undefined) {
-    throw new Error(`${name} has no site to sign in on.`);
-  }
-  const entry = catalogEntryForApp(slug, manifest);
-  const { apps: present } = await listApps();
-  const fields =
-    entry === undefined
-      ? {}
-      : serviceManifestFields(entry, {
-          anotherAccount: present.some(
-            (app) =>
-              app.slug !== slug &&
-              catalogEntryForApp(app.slug, app.manifest)?.slug === entry.slug,
-          ),
-          web: true,
-        });
-  const web = AppManifestSchema.parse({ ...fields, type: "web", url });
-  await writeApp({
-    guide: guideSkeleton(web, entry),
-    manifest: web,
-    name,
-    replacesGuide: true,
-    slug: AppSlugSchema.parse(slug),
-  });
-  await recordConnection(slug, { status: "needs-sign-in" });
-  return { name, signIn: web.type === "web" ? (web.signIn ?? web.url) : url };
 }
 
 /** The slug for one more app of a service: its own, then -2, -3, and on. */

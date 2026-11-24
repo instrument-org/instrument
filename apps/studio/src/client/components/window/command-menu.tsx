@@ -273,7 +273,7 @@ export function useCommandMenuRows({
     rpcClient.apps.live.list.experimental_liveOptions(),
   );
   // Read only while the menu is up, which is mounted in every window.
-  const sources = useSearchSources({ enabled: active });
+  const sources = useSearchSources({ enabled: active, words });
   const { bookmarkPages, chats, chatTitles, recentFiles, recentPages } =
     sources;
   const picks = useSearchPicks({ enabled: active });
@@ -689,7 +689,8 @@ export function useCommandMenuRows({
     words?: ReturnType<typeof foldWords>;
   }[] = [
     { entries: thingsOf(sources.named.tabs), label: "Open tabs" },
-    // The sidebar's folders and the files opened lately.
+    // The sidebar's folders, the files opened lately, and what the words find
+    // by name on the disk.
     {
       entries: thingsOf([...sources.named.folders, ...sources.named.files]),
       label: "Files",

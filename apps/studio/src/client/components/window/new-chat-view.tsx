@@ -344,7 +344,11 @@ export function NewChatView({
   const typedPath = groupTab ? typedPathHere(words) : undefined;
   const offers =
     groupTab !== undefined && !isOfferPutAway && offersToOpen(words, typedPath);
-  const sources = useSearchSources({ enabled: groupTab !== undefined });
+  const sources = useSearchSources({
+    enabled: groupTab !== undefined,
+    // The disk is asked only for words the list is offered for.
+    words: offers ? words : "",
+  });
   const picks = useSearchPicks({ enabled: groupTab !== undefined });
   /**
    * The box's words as they change. A letter typed onto the end of one word

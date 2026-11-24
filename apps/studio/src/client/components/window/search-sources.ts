@@ -1,6 +1,7 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { keptPathsAtom } from "@/client/bookmarks/store";
+import { useFileNames } from "@/client/hooks/use-file-names";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { rpcClient } from "@/client/rpc/client";
 import { NO_FAVORITE_CHANGES, favoritePlaces } from "@/shared/favorite-places";
@@ -22,16 +23,17 @@ import { useNow } from "./use-now";
 import { matchScreen } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
-/** A file the person opened, as `useRecentFiles` lists it. */
-type RecentFile = ReturnType<typeof useRecentFiles>["files"][number];
-
 /**
  * Something the command menu and a new tab's box both find by name, with
  * what its row says after the name (`where`).
  */
 export type SearchThing =
   | { chat: Chat; kind: "chat"; where: string | undefined }
-  | { file: RecentFile; kind: "file"; where: string | undefined }
+  | {
+      file: { name: string; path: string };
+      kind: "file";
+      where: string | undefined;
+    }
   | {
       folder: { name: string; path: string };
       kind: "folder";
@@ -50,18 +52,27 @@ type NamedOf<Kind extends SearchThing["kind"]> = Named<
  * for `findNamed`: the tabs open in this window's groups but the one in
  * front, a new tab nobody has written in and a chat's, which the chat's own
  * row goes to, the chats, the projects, the
- * Files sidebar's folders, the files opened lately, and the bookmarks and
- * pages visited. Pinned is what the person marked: a starred chat, a tab of
+ * Files sidebar's folders, the files opened lately, the files and folders
+ * under the workspace's folder and the sidebar's whose names `words` find
+ * (`useFileNames`), and the bookmarks and pages visited. Pinned is what the person marked: a starred chat, a tab of
  * a pinned group, a folder in the sidebar's Favorites, a bookmark. Use is how
  * lately and how often each was opened (`usageOf`). Read off the disk and
  * history only while `enabled`.
  */
-export function useSearchSources({ enabled }: { enabled: boolean }) {
+export function useSearchSources({
+  enabled,
+  words,
+}: {
+  enabled: boolean;
+  /** What is typed, which the names on the disk are asked for by. */
+  words: string;
+}) {
   const shell = useShell();
   const now = useNow().getTime();
   const { bookmarkPages, recentPages, visited } = useKnownPages({ enabled });
   // Described only while asked for: each file is looked at on the disk.
   const recentFiles = useRecentFiles({ enabled }).files;
+  const indexed = useFileNames({ enabled, words }).entries;
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -171,31 +182,63 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
   ];
   // Two folders of one name each say which folder they are in.
   const folderNames = listedFolders.map(({ place }) => place.name);
-  const folders: NamedOf<"folder">[] = listedFolders.map(
-    ({ isPinned, place }) => ({
-      id: `folder:${place.path}`,
-      name: place.name,
-      pinned: isPinned || keptPaths.has(place.path),
-      value: {
-        folder: { name: place.name, path: place.path },
-        kind: "folder",
-        where:
-          folderNames.indexOf(place.name) ===
-          folderNames.lastIndexOf(place.name)
-            ? undefined
-            : folderNameOf(place.path),
-      },
-    }),
-  );
+  // Then the folders found on the disk, each saying which folder it is in.
+  const listedPaths = new Set(listedFolders.map(({ place }) => place.path));
+  const folders: NamedOf<"folder">[] = [
+    ...listedFolders.map(
+      ({ isPinned, place }): NamedOf<"folder"> => ({
+        id: `folder:${place.path}`,
+        name: place.name,
+        pinned: isPinned || keptPaths.has(place.path),
+        value: {
+          folder: { name: place.name, path: place.path },
+          kind: "folder",
+          where:
+            folderNames.indexOf(place.name) ===
+            folderNames.lastIndexOf(place.name)
+              ? undefined
+              : folderNameOf(place.path),
+        },
+      }),
+    ),
+    ...indexed
+      .filter((entry) => entry.isFolder && !listedPaths.has(entry.path))
+      .map(
+        (entry): NamedOf<"folder"> => ({
+          id: `folder:${entry.path}`,
+          name: entry.name,
+          pinned: keptPaths.has(entry.path),
+          value: {
+            folder: { name: entry.name, path: entry.path },
+            kind: "folder",
+            where: folderNameOf(entry.path),
+          },
+        }),
+      ),
+  ];
 
-  const files: NamedOf<"file">[] = recentFiles
-    .filter((file) => !shownPaths.has(file.path))
-    .map((file) => ({
+  // The files opened lately, then the files found on the disk that are not
+  // among them.
+  const files: NamedOf<"file">[] = [
+    ...recentFiles.map((file) => ({
+      file,
+      use: usageOf({ at: file.openedAt, count: file.openCount }, now),
+    })),
+    ...indexed
+      .filter((entry) => !entry.isFolder && !filesByPath.has(entry.path))
+      .map((file) => ({ file, use: 0 })),
+  ]
+    .filter(({ file }) => !shownPaths.has(file.path))
+    .map(({ file, use }) => ({
       id: `file:${file.path}`,
       name: file.name,
       pinned: keptPaths.has(file.path),
-      use: usageOf({ at: file.openedAt, count: file.openCount }, now),
-      value: { file, kind: "file", where: folderNameOf(file.path) },
+      use,
+      value: {
+        file: { name: file.name, path: file.path },
+        kind: "file",
+        where: folderNameOf(file.path),
+      },
     }));
 
   // Bookmarks, then the pages visited. A file kept as a bookmark that the

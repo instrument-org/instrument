@@ -146,7 +146,7 @@ beforeEach(() => {
   shell.chats = [REVIEW, PHONE, FARMERS];
   // The person pinned a folder named wireframes; frames is a disk.
   answers.set("workspace.computer.places", {
-    pinned: [
+    favorites: [
       {
         kind: "folder",
         name: "wireframes",
@@ -181,6 +181,41 @@ describe("what the command menu lists first", () => {
         "wireframes",
         "# Files",
         "wireframe-notes.md",
+        "# Chats",
+        "Review the wireframes",
+        "New wireframes for the phone",
+        "Search the web for “wire”",
+      ]
+    `);
+  });
+
+  it("lists the files and folders found on the disk once each, with the files", async () => {
+    answers.set("files.findByName", [
+      {
+        isFolder: true,
+        name: "wireframes",
+        path: "/Users/mac-user/wireframes",
+      },
+      {
+        isFolder: false,
+        name: "wireframe-notes.md",
+        path: "/Users/mac-user/wireframe-notes.md",
+      },
+      {
+        isFolder: true,
+        name: "wire-gauges",
+        path: "/Users/mac-user/work/wire-gauges",
+      },
+    ]);
+    renderWithProviders(<MenuRows words="wire" />);
+
+    await screen.findByRole("button", { name: "wire-gauges" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "wireframes",
+        "# Files",
+        "wireframe-notes.md",
+        "wire-gauges",
         "# Chats",
         "Review the wireframes",
         "New wireframes for the phone",

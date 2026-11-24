@@ -38,8 +38,6 @@ import {
 } from "@/client/lib/locate-typed-path";
 import { type TypedPath } from "@/client/lib/typed-path";
 import { projectCommand } from "@/client/lib/app-commands";
-import { useSearchPicks } from "@/client/hooks/use-search-picks";
-import { rememberedPick } from "@/shared/remembered-picks";
 import { toast } from "@/client/lib/toast";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
@@ -63,19 +61,9 @@ import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
 import { includedItemsOf } from "./draft-context";
 import { useShell } from "./shell-context";
-import { useAppsBySlug } from "./apps-by-slug";
 import { useGroupTab } from "./group-tab";
-import { useShowChatGroup } from "./chat-group";
-import { NewTabCompletionList } from "./new-tab-completion-list";
-import {
-  boxAddress,
-  type BoxCompletion,
-  boxCompletions,
-  offersToOpen,
-  siteToComplete,
-} from "./new-tab-completions";
-import { type SearchThing, useSearchSources } from "./search-sources";
-import { typedAddressName } from "./typed-address-row";
+import { useKnownPages } from "./known-pages";
+import { boxOpens, type BoxOpens, siteToComplete } from "./new-tab-box";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import {
@@ -83,7 +71,6 @@ import {
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
-import { chatHref } from "./window-href";
 
 /**
  * A new chat, written in its tab group: the room a chat would have, with the
@@ -300,34 +287,22 @@ export function NewChatView({
     });
     onOpenBeside(opened);
   };
-  // A box of one line with no space in it offers what it would open: the
-  // words themselves, when they are an address or a place on the computer,
-  // the site they start, then what they find by name as the command menu
-  // finds it. Return opens the one picked, in this tab, where Back comes
-  // back to these words; with none picked, or once Shift-Return has put the
-  // offer away, it sends the words. The command key with Return (or Send)
-  // always sends them.
+  // A box holding one address or one place on the computer and nothing
+  // else opens it on Return, in this tab, where Back comes back to these
+  // words; anything else in it is a message, which Return sends. The
+  // command key with Return always sends.
   const groupTab = useGroupTab();
-  const appsBySlug = useAppsBySlug();
-  const showChatGroup = useShowChatGroup();
   const { keyJoiner, modifierKeys } = osConventions();
   const commandEnter = [modifierKeys.command, "↵"].join(keyJoiner);
   // The words the person typed, and after them the rest of a site's address
   // the box wrote in after the caret (`ahead`), which is in the box and is
   // not theirs.
   const [words, setWords] = useState("");
-  const [ahead, setAhead] = useState("");
+  const [ahead, setAhead] = useState<{ rest: string; url: string }>();
   // Whether the last key pressed in the box was a letter typed.
   const letterTyped = useRef(false);
-  const [isOfferPutAway, setOfferPutAway] = useState(false);
-  if (isOfferPutAway && words === "") {
-    setOfferPutAway(false);
-  }
   const typedPath = groupTab ? typedPathHere(words) : undefined;
-  const offers =
-    groupTab !== undefined && !isOfferPutAway && offersToOpen(words, typedPath);
-  const sources = useSearchSources({ enabled: groupTab !== undefined });
-  const picks = useSearchPicks({ enabled: groupTab !== undefined });
+  const { visited } = useKnownPages({ enabled: groupTab !== undefined });
   /**
    * The box's words as they change. A letter typed onto the end of one word
    * that starts a site the person goes to has the rest of the site's
@@ -336,7 +311,7 @@ export function NewChatView({
    * finishes an address.
    */
   const takeWords = (next: string) => {
-    if (ahead !== "" && next === `${words}${ahead}`) {
+    if (ahead !== undefined && next === `${words}${ahead.rest}`) {
       return;
     }
     const isTypedOn =
@@ -345,48 +320,20 @@ export function NewChatView({
       next.startsWith(words);
     letterTyped.current = false;
     setWords(next);
-    const rest =
-      isTypedOn &&
-      groupTab !== undefined &&
-      !isOfferPutAway &&
-      typedPathHere(next) === undefined &&
-      offersToOpen(next, undefined)
-        ? siteToComplete(next, sources.visited)
+    const site =
+      isTypedOn && groupTab !== undefined && typedPathHere(next) === undefined
+        ? siteToComplete(next, visited)
         : undefined;
     setAhead(
-      rest !== undefined && inputRef.current?.completeAhead(rest) ? rest : "",
+      site !== undefined && inputRef.current?.completeAhead(site.rest)
+        ? site
+        : undefined,
     );
   };
-  const completions = offers
-    ? boxCompletions({
-        address: typedPath ? undefined : boxAddress(words),
-        bookmarkPages: sources.bookmarkPages,
-        isCompleted: ahead !== "",
-        named: [
-          ...sources.named.tabs,
-          ...sources.named.chats,
-          ...sources.named.folders,
-          ...sources.named.files,
-          ...sources.named.projects,
-          ...sources.named.pages,
-        ],
-        path: typedPath,
-        recentPages: sources.recentPages,
-        remembered: rememberedPick(picks.log, words, sources.now),
-        words,
-      })
-    : { picked: -1, rows: [] };
-  const [pickedFor, setPickedFor] = useState<{
-    index: number;
-    words: string;
-  }>();
-  const picked =
-    pickedFor?.words === words && pickedFor.index < completions.rows.length
-      ? pickedFor.index
-      : completions.picked;
-  const pick = (index: number) => {
-    setPickedFor({ index, words });
-  };
+  const opens =
+    groupTab === undefined
+      ? undefined
+      : boxOpens({ completedSite: ahead?.url, path: typedPath, words });
   // In this tab whatever it opens, a chat included, as sending turns a new
   // tab into its chat in place.
   const openAddress = (address: string) => {
@@ -413,63 +360,17 @@ export function NewChatView({
         : folderHref(located.path),
     );
   };
-  // The new tab's own group, which gives way to a group picked from it
-  // while this tab is all it holds.
-  const ownGroup = windowTabs.allTabs.find((tab) => tab.id === tabId)?.group;
-  const isOnlyTab =
-    ownGroup !== undefined &&
-    windowTabs.allTabs.filter((tab) => tab.group === ownGroup).length === 1;
-  const givesWay = isOnlyTab ? { from: ownGroup } : undefined;
-  // What the words found by name: a tab or a chat's group comes up, and
-  // anything else opens in this tab.
-  const openThing = (thing: SearchThing) => {
-    switch (thing.kind) {
-      case "chat": {
-        if (!showChatGroup(thing.chat.id, givesWay)) {
-          windowTabs.visitHref(tabId, chatHref(thing.chat.id));
-        }
-        break;
-      }
-      case "file": {
-        windowTabs.visitHref(tabId, fileHref(thing.file.path));
-        break;
-      }
-      case "folder": {
-        windowTabs.visitHref(tabId, folderHref(thing.folder.path));
-        break;
-      }
-      case "page": {
-        openAddress(thing.page.url);
-        break;
-      }
-      case "project": {
-        shell.openProject(thing.project.id);
-        break;
-      }
-      case "tab": {
-        windowTabs.select(thing.tab.id);
-        if (thing.tab.group !== undefined) {
-          shell.showGroup(thing.tab.group, givesWay);
-        }
-        break;
-      }
-    }
-  };
-  const openCompletion = (row: BoxCompletion) => {
-    if (row.kind === "path") {
-      void openPath(row.path);
-    } else if (row.kind === "site") {
-      openAddress(row.page.url);
-    } else if (row.kind === "thing") {
-      picks.note(words, row.id);
-      openThing(row.thing);
+  const go = (to: BoxOpens) => {
+    if (to.kind === "path") {
+      void openPath(to.path);
+    } else if (to.kind === "site") {
+      openAddress(to.url);
     } else {
       openAddress(
-        row.address.kind === "page" ? row.address.url : row.address.address,
+        to.address.kind === "page" ? to.address.url : to.address.address,
       );
     }
   };
-  const isOffering = completions.rows.length > 0;
   const places = {
     computerName: osConventions().computer,
     onOpenApps: () => {
@@ -553,41 +454,26 @@ export function NewChatView({
             !event.nativeEvent.isComposing;
           // The one letter left of what was written in, typed: the box's
           // words stay as they read, so they are taken as typed here.
-          if (letterTyped.current && ahead !== "" && event.key === ahead) {
-            setWords(`${words}${ahead}`);
-            setAhead("");
+          if (
+            letterTyped.current &&
+            ahead !== undefined &&
+            event.key === ahead.rest
+          ) {
+            setWords(`${words}${ahead.rest}`);
+            setAhead(undefined);
           }
           if (
-            !isOffering ||
-            event.altKey ||
-            event.metaKey ||
-            event.ctrlKey ||
-            event.nativeEvent.isComposing
+            opens !== undefined &&
+            event.key === "Enter" &&
+            !event.shiftKey &&
+            !event.altKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.nativeEvent.isComposing
           ) {
-            return;
-          }
-          if (event.key === "Enter" && event.shiftKey) {
             event.preventDefault();
             event.stopPropagation();
-            setOfferPutAway(true);
-            return;
-          }
-          if (event.shiftKey) {
-            return;
-          }
-          const row = completions.rows[picked];
-          if (event.key === "Enter" && row) {
-            event.preventDefault();
-            event.stopPropagation();
-            openCompletion(row);
-          } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            event.preventDefault();
-            event.stopPropagation();
-            pick(
-              event.key === "ArrowDown"
-                ? Math.min(picked + 1, completions.rows.length - 1)
-                : Math.max(picked - 1, -1),
-            );
+            go(opens);
           }
         }}
       >
@@ -603,7 +489,7 @@ export function NewChatView({
           besidePlus={
             <>
               {projectButton}
-              {picked >= 0 && (
+              {opens !== undefined && (
                 <span className="text-xs whitespace-nowrap text-muted-foreground">
                   {commandEnter} sends to chat
                 </span>
@@ -611,6 +497,13 @@ export function NewChatView({
             </>
           }
           modelURI={shell.defaultModelURI}
+          onGo={
+            opens === undefined
+              ? undefined
+              : () => {
+                  go(opens);
+                }
+          }
           onFolders={(paths) => {
             for (const path of paths) {
               openBeside(folderHref(path));
@@ -661,26 +554,6 @@ export function NewChatView({
           places={places}
           ref={inputRef}
         />
-        {/* Under the box without moving it, so the box stays where it was
-            as the row comes and goes; over it for a box at the foot. */}
-        {isOffering && (
-          <NewTabCompletionList
-            className={cn(
-              "absolute inset-x-3",
-              isCentered ? "top-full mt-2" : "bottom-full mb-2",
-            )}
-            nameOfAddress={(row) =>
-              typedAddressName(row.address, {
-                appsBySlug,
-                chatTitles: shell.chatTitles,
-              })
-            }
-            onOpen={openCompletion}
-            onPick={pick}
-            picked={picked}
-            rows={completions.rows}
-          />
-        )}
       </div>
       {/* As much room under the composer as over it, so it stands at the
           middle. */}

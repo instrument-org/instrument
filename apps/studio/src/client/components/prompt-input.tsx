@@ -68,6 +68,7 @@ import {
   type ChatId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
+import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { StopIcon } from "@phosphor-icons/react/Stop";
 import { DesktopIcon } from "@phosphor-icons/react/Desktop";
@@ -223,6 +224,11 @@ interface PromptInputProps {
    * note that says it holds sends, holds a send and flashes the note.
    */
   note?: ChatNote;
+  /**
+   * Opens what the box holds, while Return opens it and sends nothing: Send
+   * then points right, is named Go, and does this.
+   */
+  onGo?: (() => void) | undefined;
   /** Stops the chat's work, offered in Send's place while the box is empty. */
   onStop?: () => void;
   /** Whether the box is dictating, from the press until the words land, each time that changes. */
@@ -288,6 +294,7 @@ export const PromptInput = ({
   lead,
   modelURI,
   note,
+  onGo,
   onStop,
   onDictatingChange,
   onFolders,
@@ -1188,14 +1195,16 @@ export const PromptInput = ({
                   )}
                   {!dictating && (!onStop || canSubmit || isLoading) && (
                     <Button
-                      aria-label="Send"
+                      aria-label={onGo ? "Go" : "Send"}
                       className="size-8 shrink-0 rounded-full p-0 disabled:opacity-100"
-                      disabled={!canSubmit}
-                      onClick={send}
+                      disabled={!canSubmit && !onGo}
+                      onClick={onGo ?? send}
                       variant="brand"
                     >
                       {isLoading ? (
                         <Spinner className="size-5" delay={0} />
+                      ) : onGo ? (
+                        <ArrowRightIcon className="size-5" />
                       ) : (
                         <ArrowUpIcon className="size-5" />
                       )}

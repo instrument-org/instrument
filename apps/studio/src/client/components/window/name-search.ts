@@ -164,22 +164,3 @@ export function orderSearch<T>({
     .map(({ label, rows }) => ({ label, rows }));
   return { promoted, sections };
 }
-
-/**
- * A new tab's box's results: every kind's matches in one list, best first,
- * with the remembered pick moved to the front, and `limit` at most.
- */
-export function flatSearch<T>({
-  found,
-  limit,
-  remembered,
-}: {
-  found: readonly Found<T>[];
-  limit: number;
-  remembered: string | undefined;
-}): Found<T>[] {
-  return found
-    .map((each) => ({ ...each, remembered: each.entry.id === remembered }))
-    .toSorted(compareMatches)
-    .slice(0, limit);
-}

@@ -146,7 +146,7 @@ beforeEach(() => {
   shell.chats = [REVIEW, PHONE, FARMERS];
   // The person pinned a folder named wireframes; frames is a disk.
   answers.set("workspace.computer.places", {
-    pinned: [
+    favorites: [
       {
         kind: "folder",
         name: "wireframes",

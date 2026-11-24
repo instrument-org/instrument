@@ -38,6 +38,9 @@ const KIND_OF: Record<StepShows["kind"], WorkCardKind> = {
  * 4. A file written whole shows once there is something to see
  *    (`writeShows`), so a card that comes for it opens on the file as it
  *    looks rather than on its source going by.
+ * 5. A browser command puts up a page card only where it changes what the
+ *    page shows (`changesPage`); one that only reads the page joins a page
+ *    card already up.
  */
 export function cardsOf({ steps }: Pick<ActivityRow, "steps">): WorkCard[] {
   const cards: WorkCard[] = [];
@@ -75,6 +78,13 @@ export function cardsOf({ steps }: Pick<ActivityRow, "steps">): WorkCard[] {
       continue;
     }
     const last = cards.at(-1);
+    if (
+      step.shows?.kind === "page" &&
+      !step.shows.changesPage &&
+      last?.kind !== "page"
+    ) {
+      continue;
+    }
     if (last?.kind === kind && kind !== "files") {
       last.steps.push(step);
     } else {

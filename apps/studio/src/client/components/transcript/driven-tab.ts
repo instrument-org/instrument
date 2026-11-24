@@ -31,30 +31,22 @@ export function drivenTabOf(
 
 /**
  * Whether a page card stays out of sight: the page it would picture is up
- * beside its transcript, or it is not yet known which page that is. Until a
- * browser call of the turn's has ended, a tab the session last drove before
- * its first may not be the one it is on, so the card waits rather than coming
- * up for a page about to appear beside it.
+ * beside its transcript, or no tab is known to be the one the session is on.
+ * A tab it last drove before the turn's first browser call may not be, nor is
+ * an earlier one once the tab it drove last has closed, so the card waits for
+ * its next command to reach a page.
  */
 export function isPageCardAway({
   beside,
   driven,
-  hasEndedCall,
-  isReading,
-  startedAt,
+  since,
 }: {
   /** The tab up on the other side of the group from the transcript. */
   beside: string | undefined;
-  /** The tab the session sent its latest command, and when. */
+  /** The tab the session sent its latest command, of those open, and when. */
   driven: { at: number; id: string } | undefined;
-  hasEndedCall: boolean;
-  /** Which tab it drove is still being read. */
-  isReading: boolean;
-  /** When the turn's first browser call came, in ms. */
-  startedAt: number;
+  /** The turn's first browser call, or the session's latest command in any tab, closed or not, whichever is later, in ms. */
+  since: number;
 }): boolean {
-  if (driven === undefined) {
-    return isReading || !hasEndedCall;
-  }
-  return driven.id === beside || (!hasEndedCall && driven.at < startedAt);
+  return driven === undefined || driven.id === beside || driven.at < since;
 }

@@ -49,43 +49,24 @@ describe("drivenTabOf", () => {
 });
 
 describe("isPageCardAway", () => {
-  const working = {
-    beside: "p1",
-    driven: { at: 5, id: "p1" },
-    hasEndedCall: true,
-    isReading: false,
-    startedAt: 3,
-  };
   it.each([
-    { away: true, facts: {}, name: "the page is up beside it" },
-    { away: false, facts: { beside: "p2" }, name: "another tab is up" },
-    { away: false, facts: { beside: undefined }, name: "nothing is beside it" },
+    { away: true, beside: "p1", name: "the page is up beside it" },
+    { away: false, beside: "p2", name: "another tab is up" },
+    { away: false, beside: undefined, name: "nothing is beside it" },
     {
       away: true,
-      facts: { beside: "p2", driven: { at: 1, id: "p1" }, hasEndedCall: false },
-      name: "the tab known is from before the turn's first call",
+      beside: "p2",
+      name: "a later command went to a tab since closed, or is on its way",
+      since: 6,
     },
-    {
-      away: false,
-      facts: { beside: "p2", driven: { at: 1, id: "p1" } },
-      name: "a call ended without moving to another tab",
-    },
-    {
-      away: true,
-      facts: { driven: undefined, hasEndedCall: false },
-      name: "the first call has reached no tab yet",
-    },
-    {
-      away: true,
-      facts: { driven: undefined, isReading: true },
-      name: "the tab is still being read",
-    },
-    {
-      away: false,
-      facts: { driven: undefined },
-      name: "a call ended and the window has no such tab",
-    },
-  ])("$away when $name", ({ away, facts }) => {
-    expect(isPageCardAway({ ...working, ...facts })).toBe(away);
+    { at: 0, away: true, beside: "p2", name: "no open tab was driven" },
+  ])("$away when $name", ({ at = 5, away, beside, since = 3 }) => {
+    expect(
+      isPageCardAway({
+        beside,
+        driven: at === 0 ? undefined : { at, id: "p1" },
+        since,
+      }),
+    ).toBe(away);
   });
 });

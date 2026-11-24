@@ -832,6 +832,38 @@ describe("the work card", () => {
     expect(turn && workCardOf(turn)?.kind).toBe("page");
   });
 
+  it("puts up a page card for a command that changes the page, which reads join", () => {
+    const browsing = (commands: string[]) =>
+      turnsOf(
+        [
+          typed("look"),
+          message("assistant", (id) =>
+            commands.map((command) =>
+              call(
+                id,
+                "bash",
+                { activity: "Browsing", command },
+                { exitCode: 0 },
+              ),
+            ),
+          ),
+        ],
+        { isRunning: true },
+      )[0];
+    expect(
+      cardKinds(browsing(["agent-browser snapshot -i", "agent-browser tab"])),
+    ).toEqual([]);
+    expect(
+      cardKinds(
+        browsing([
+          "agent-browser snapshot",
+          "agent-browser click @e1",
+          "agent-browser snapshot",
+        ]),
+      ),
+    ).toEqual(["page x2"]);
+  });
+
   it("keeps the words of a reply that was stopped", () => {
     const [turn] = turnsOf(
       [
@@ -2000,6 +2032,19 @@ describe("what a step carries", () => {
 
   it.each([
     ["agent-browser click @e1", { changesPage: true, kind: "page" }],
+    ["agent-browser tab new", { changesPage: true, kind: "page" }],
+    [
+      "agent-browser tab tab_01M8 && agent-browser snapshot",
+      { changesPage: false, kind: "page" },
+    ],
+    [
+      "agent-browser tab tab_01M8 && agent-browser scroll down",
+      { changesPage: true, kind: "page" },
+    ],
+    ["agent-browser tab", { changesPage: false, kind: "page" }],
+    ["agent-browser tab && ls", { changesPage: false, kind: "page" }],
+    ["agent-browser tab list", { changesPage: false, kind: "page" }],
+    ["agent-browser tab close t2", { changesPage: false, kind: "page" }],
     ["agent-browser get title", { changesPage: false, kind: "page" }],
     [
       "agent-browser open https://a.example",

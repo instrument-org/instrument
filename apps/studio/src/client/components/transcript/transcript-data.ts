@@ -19,7 +19,7 @@ import {
   workCardOf,
 } from "@instrument-org/workspace/client";
 import { skipToken, useQueries, useQuery } from "@tanstack/react-query";
-import { createContext, use } from "react";
+import { createContext, use, useState } from "react";
 
 import { useChatTasks } from "../window/child-tasks-query";
 import { useGroupTab } from "../window/group-tab";
@@ -180,10 +180,9 @@ export function useDrivenTab(
   return useDriving(sessionId).tab;
 }
 
-/** The tab a session drove last and when, and whether that is still being read. */
+/** The tab a session drove last, of those open, and when. */
 function useDriving(sessionId: StoreId.Session | undefined): {
   at: number;
-  isReading: boolean;
   tab: PageTab | undefined;
 } {
   const chat = useLiveChat();
@@ -191,10 +190,7 @@ function useDriving(sessionId: StoreId.Session | undefined): {
   const pages =
     sessionId === undefined || chat === undefined ? [] : pagesOf(allTabs);
   const driven = useQueries({
-    combine: (results) => ({
-      isReading: results.some((result) => result.isPending),
-      lastAt: results.map((result) => result.data?.lastAt ?? 0),
-    }),
+    combine: (results) => results.map((result) => result.data?.lastAt ?? 0),
     queries: pages.map((tab) =>
       rpcClient.workspace.browser.events.agentActivity.experimental_liveOptions(
         {
@@ -207,12 +203,11 @@ function useDriving(sessionId: StoreId.Session | undefined): {
     ),
   });
   const lastAt = new Map(
-    pages.map((tab, index) => [tab.id, driven.lastAt[index] ?? 0]),
+    pages.map((tab, index) => [tab.id, driven[index] ?? 0]),
   );
   const tab = drivenTabOf(pages, (each) => lastAt.get(each.id) ?? 0);
   return {
     at: tab ? (lastAt.get(tab.id) ?? 0) : 0,
-    isReading: driven.isReading,
     tab,
   };
 }
@@ -233,25 +228,24 @@ export function useIsCardAway(
     turn !== undefined &&
     groupTab !== null &&
     workCardOf(turn)?.kind === "page";
-  const { at, isReading, tab } = useDriving(isPage ? sessionId : undefined);
-  // The whole turn's, so the card stays up from one activity to the next.
-  const steps = isPage
-    ? turn.rows.flatMap((row) =>
-        row.kind === "activity"
-          ? row.steps.filter((step) => step.shows?.kind === "page")
-          : [],
-      )
-    : [];
-  const first = steps[0];
-  if (!isPage || chat === undefined || first === undefined) {
+  const { at, tab } = useDriving(isPage ? sessionId : undefined);
+  // Kept past the tab's close, so a tab driven before it is not taken for the
+  // one the session is on.
+  const [latest, setLatest] = useState({ at: 0, sessionId });
+  if (latest.sessionId !== sessionId || at > latest.at) {
+    setLatest({ at, sessionId });
+  }
+  if (!isPage || chat === undefined) {
     return false;
   }
+  // The whole turn's, so the card stays up from one activity to the next.
+  const first = turn.rows
+    .flatMap((row) => (row.kind === "activity" ? row.steps : []))
+    .find((step) => step.shows?.kind === "page");
   return isPageCardAway({
     beside: windowTabs.besideOf(groupTab.id)?.id,
     driven: tab && { at, id: tab.id },
-    hasEndedCall: steps.some((step) => step.status === "done"),
-    isReading,
-    startedAt: first.metadata.createdAt.getTime(),
+    since: Math.max(latest.at, first?.metadata.createdAt.getTime() ?? 0),
   });
 }
 

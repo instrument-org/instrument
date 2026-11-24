@@ -638,6 +638,13 @@ function taskCallOf(command: string): { name?: string } | undefined {
   return name ? { name } : {};
 }
 const URL_IN_COMMAND = /(?:https?|file):\/\/[^\s"')]+/;
+/**
+ * Opening a tab, which puts another page up. Going to one by its id does not
+ * count: an agent names the tab it is already in ahead of a command that only
+ * reads it.
+ */
+const OPENS_A_TAB =
+  /\bagent-browser\b(?:\s+--?[\w-]+(?:[= ]\S+)?)*\s+tab[ \t]+new\b/;
 /** The browser commands that change what a page shows, and so its picture. */
 const CHANGES_THE_PAGE = new Set([
   "back",
@@ -675,9 +682,11 @@ function commandShows(command: string): StepShows | undefined {
     return undefined;
   }
   const url = URL_IN_COMMAND.exec(words)?.[0];
-  const changesPage = [...words.matchAll(BROWSER_SUBCOMMAND)].some(
-    (match) => match[1] !== undefined && CHANGES_THE_PAGE.has(match[1]),
-  );
+  const changesPage =
+    OPENS_A_TAB.test(words) ||
+    [...words.matchAll(BROWSER_SUBCOMMAND)].some(
+      (match) => match[1] !== undefined && CHANGES_THE_PAGE.has(match[1]),
+    );
   return { changesPage, kind: "page", ...(url && { url }) };
 }
 

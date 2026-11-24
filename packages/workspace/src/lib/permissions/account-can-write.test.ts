@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { accountCanWrite } from "./account-can-write";
+import { accountCanWrite, isMacosPrivate } from "./account-can-write";
 
 describe.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
   "accountCanWrite",
@@ -25,6 +25,18 @@ describe.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
       ["a pseudo folder", "/proc/self/zz", false],
     ])("%s", (_name, target, expected) => {
       expect(accountCanWrite(target)).toBe(expected);
+    });
+
+    // Only macOS's own refusal (EPERM) counts, which no fixture can make.
+    it.each([
+      ["Apple storage the app can read", "Library/Messages", 0o755],
+      ["Apple storage its modes close", "Library/Mail", 0o000],
+    ])("is not macOS's doing: %s", (_name, target, mode) => {
+      const at = path.join(root, target);
+      mkdirSync(at, { recursive: true });
+      chmodSync(at, mode);
+      expect(isMacosPrivate(at)).toBe(false);
+      chmodSync(at, 0o755);
     });
   },
 );

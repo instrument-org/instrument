@@ -1199,16 +1199,10 @@ function useSelection({
     runWaiting();
   }, [words]);
 
-  const step = (event: KeyboardEvent<HTMLInputElement>) => {
-    const { ctrlKey, key } = event;
-    if (key === "ArrowDown" || (ctrlKey && (key === "n" || key === "j"))) {
-      return 1;
-    }
-    if (key === "ArrowUp" || (ctrlKey && (key === "p" || key === "k"))) {
-      return -1;
-    }
-    return 0;
-  };
+  // Only the arrows move the highlight: a Control letter is the field's own
+  // text editing (Control-K deletes to the end of the line on a Mac).
+  const step = ({ key }: KeyboardEvent<HTMLInputElement>) =>
+    key === "ArrowDown" ? 1 : key === "ArrowUp" ? -1 : 0;
 
   return {
     id,

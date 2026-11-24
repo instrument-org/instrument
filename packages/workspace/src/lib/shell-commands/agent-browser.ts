@@ -86,6 +86,7 @@ import {
   AFTER_ACTION_PAUSE_ARGS,
   AFTER_ACTION_PAUSE_TIMEOUT_MS,
 } from "./agent-browser-loading";
+import { cutScreenshotNote } from "./agent-browser-screenshot-cut";
 import { typedTextRuns } from "./agent-browser-typed-text";
 import { cappedWaitResult, capWait, uncappedWait } from "./agent-browser-wait";
 import {
@@ -1380,6 +1381,8 @@ export function createAgentBrowserCommand({
       await runAside(AFTER_ACTION_PAUSE_ARGS, AFTER_ACTION_PAUSE_TIMEOUT_MS);
     }
 
+    // What a screenshot as large as one gets leaves out.
+    let screenshotNote: string | undefined;
     // A fetch or --help has no page.
     if (!isInfoOnly && !browserFreeRead) {
       const screenshot =
@@ -1388,9 +1391,9 @@ export function createAgentBrowserCommand({
           ? savedScreenshotPath(result.stdout)
           : undefined;
       if (screenshot !== undefined) {
-        currentBrowserFollowUp()?.noteScreenshot(
-          path.resolve(hostCwd, screenshot),
-        );
+        const saved = path.resolve(hostCwd, screenshot);
+        currentBrowserFollowUp()?.noteScreenshot(saved);
+        screenshotNote = await cutScreenshotNote(saved);
       }
       followUp?.note({
         args: resolvedArgs,
@@ -1479,20 +1482,23 @@ export function createAgentBrowserCommand({
     // Who else acted in the tabs this command drove since this session's
     // last command there: every session of a chat drives every tab of it.
     // And the popups its pages opened, each a new tab of the chat.
-    if (drivesChatTabs) {
-      const notes = [
-        pageOpenedTabsNote(sessionId),
-        await tabNewsNote({ chatId, sessionId }),
-      ].filter((note) => note !== undefined);
-      for (const note of notes) {
-        // A script reads the command's own output; the note waits for the
-        // end of the bash call.
-        if (isScriptCall()) {
-          currentBrowserFollowUp()?.noteNews(note);
-          continue;
-        }
-        stdout = `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${note}`;
+    const notes = [
+      screenshotNote,
+      ...(drivesChatTabs
+        ? [
+            pageOpenedTabsNote(sessionId),
+            await tabNewsNote({ chatId, sessionId }),
+          ]
+        : []),
+    ].filter((note) => note !== undefined);
+    for (const note of notes) {
+      // A script reads the command's own output; the note waits for the
+      // end of the bash call.
+      if (isScriptCall()) {
+        currentBrowserFollowUp()?.noteNews(note);
+        continue;
       }
+      stdout = `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${note}`;
     }
 
     const output = {

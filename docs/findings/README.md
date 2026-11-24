@@ -63,7 +63,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [Haiku narrates between tool calls, and prompt wording does not move it](haiku-narrates-between-calls.md)
 - [HTML file artifacts: in-iframe link navigation can't be tracked or driven](html-artifact-iframe-navigation.md): moot: the sandboxed iframe was removed in 15dae28cb (checked 2026-10-02).
 - [In-app browser: device/viewport emulation isn't safe for agent-browser](in-app-browser-device-emulation.md): superseded: the request is honored again, by a different mechanism.
-- [In-app browser: full-page screenshots aren't supported](in-app-browser-full-page-screenshots.md): still open, workaround in place (PDF export), checked 2026-10-02.
+- [In-app browser: full-page screenshots tile unless taken a viewport at a time](in-app-browser-full-page-screenshots.md): resolved 2026-11-24: `agent-browser screenshot --full` is taken a viewport's worth at a time and joined.
 - [What the in-app browser reports about itself](in-app-browser-self-report.md): current, except that the identity the guest presents has changed since.
 - [Leaking z-index stacks in the renderer](leaking-z-index-stacks.md): resolved for the surfaces listed below;
 - [Local transcription: engine choice](local-transcription-engine.md): the engine comparison is deliberately left unresolved, because the measurement that would settle it has not been run.

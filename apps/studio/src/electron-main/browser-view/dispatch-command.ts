@@ -22,8 +22,8 @@ import {
 } from "./device-metrics";
 import { applyDownloadBehavior } from "./downloads";
 import {
-  captureElement,
-  coversDocument,
+  captureClip,
+  documentClip,
   type ImageCodec,
 } from "./element-screenshot";
 import { whileEmbedderComposites } from "./embedder-draw";
@@ -276,37 +276,40 @@ export const MAIN_OVERRIDES: {
     const p = (params ?? {}) as Protocol.Page.CaptureScreenshotRequest;
     // agent-browser asks for an element (a selector or a ref) and for the
     // whole page (`--full`) the same way: beyond the viewport, with a clip in
-    // document coordinates. Which one it is shows in the clip, an element's
-    // being less than the document the page's layout metrics report.
+    // document coordinates. Either is taken a viewport's worth at a time,
+    // since the `<webview>` guest's compositor surface is pinned to the
+    // viewport and Chromium fills a larger clip by repeating the first
+    // viewport's worth.
     if (p.captureBeyondViewport === true) {
-      const clip = p.clip;
       // The debugger's answer, typed by the protocol rather than checked.
-      const metrics = clip
-        ? ((await send(
-            "Page.getLayoutMetrics",
-            {},
-          )) as Partial<Protocol.Page.GetLayoutMetricsResponse>)
-        : undefined;
-      const viewport = metrics?.cssLayoutViewport;
-      const content = metrics?.cssContentSize;
-      // A whole-page capture is refused: the `<webview>` guest's compositor
-      // surface is pinned to the viewport, so Chromium fills a clip larger than
-      // it by repeating the first viewport's worth. The message points the
-      // agent at PDF capture, which renders the whole document via the print
-      // path.
-      if (!clip || !viewport || !content || coversDocument(clip, content)) {
+      const metrics = (await send(
+        "Page.getLayoutMetrics",
+        {},
+      )) as Partial<Protocol.Page.GetLayoutMetricsResponse>;
+      const viewport = metrics.cssLayoutViewport;
+      const clip =
+        p.clip ??
+        (metrics.cssContentSize && documentClip(metrics.cssContentSize));
+      if (!clip || !viewport) {
         throw new Error(
-          "Full-page screenshots are not supported in this browser. To capture the full height of the page, export it to PDF instead: `agent-browser pdf <path>`.",
+          "The page did not report its size, so nothing beyond the viewport could be captured. Capture the viewport with `agent-browser screenshot`, or export the page with `agent-browser pdf <path>`.",
         );
       }
-      return await withoutAgentPointer(entry, () =>
-        captureElement({
-          codec: nativeImageCodec,
-          request: { ...p, clip },
-          send: (request) => send("Page.captureScreenshot", request),
-          viewport,
-        }),
-      );
+      // A long page is many captures, each of which the guest has to draw:
+      // counted on the entry so it is not put to sleep between two of them.
+      entry.capturesRunning += 1;
+      try {
+        return await withoutAgentPointer(entry, () =>
+          captureClip({
+            codec: nativeImageCodec,
+            request: { ...p, clip },
+            send: (request) => send("Page.captureScreenshot", request),
+            viewport,
+          }),
+        );
+      } finally {
+        entry.capturesRunning -= 1;
+      }
     }
     // A clip within the viewport is the debugger's to take as asked.
     if (p.clip) {
@@ -717,7 +720,7 @@ async function captureViewportScreenshot(
   return { data };
 }
 
-/** Reads and writes the pieces of an element capture with Electron's own image type. */
+/** Reads and writes the pieces of a capture beyond the viewport with Electron's own image type. */
 const nativeImageCodec: ImageCodec = {
   decode: (png) => {
     const image = nativeImage.createFromBuffer(png);

@@ -97,6 +97,8 @@ export interface BrowserEntry {
   // any reason: explicit close, detach, renderer crash). Drained as part of
   // the disposer chain so they never fire more than once. Used to surface
   // "view destroyed" to higher layers (e.g. the window browser machine).
+  /** Captures of the guest in several pieces that have not finished, which keep it awake to draw each. */
+  capturesRunning: number;
   destructionListeners: Set<() => void>;
   detachListeners: Set<() => void>;
   // Disposers run once when the entry is torn down (either via explicit close
@@ -206,6 +208,7 @@ export function createEntry({
     closing: false,
     authorizedDownloadAt: 0,
     authorizedDownloadPath: null,
+    capturesRunning: 0,
     destructionListeners: new Set(),
     detachListeners: new Set(),
     disposers: new Set(),

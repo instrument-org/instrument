@@ -725,47 +725,87 @@ describe("sendCommand", () => {
     it.each([
       [
         "a clip of the whole document",
-        { height: 4836, scale: 1, width: 1280, x: 0, y: 0 },
-        METRICS,
-      ],
-      [
-        "a whole document no taller than the viewport",
         { height: 800, scale: 1, width: 1280, x: 0, y: 0 },
-        {
-          ...METRICS,
-          cssContentSize: { height: 800, width: 1280, x: 0, y: 0 },
-        },
       ],
-      ["no clip", undefined, METRICS],
-      [
-        "a page that reports no layout",
-        { height: 90, scale: 1, width: 240, x: 40, y: 120 },
-        {},
-      ],
-    ])(
-      "refuses %s and points the agent at PDF export",
-      async (_, clip, metrics) => {
-        const capturePage = vi.fn();
-        const wcSendCommand = debuggerWith(metrics);
-        const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
+      ["no clip, which is the whole document", undefined],
+    ])("captures a page one viewport tall from %s", async (_, clip) => {
+      const wcSendCommand = debuggerWith({
+        ...METRICS,
+        cssContentSize: { height: 800, width: 1280, x: 0, y: 0 },
+      });
+      const entry = makeEntry({ sendCommand: wcSendCommand });
 
-        await expect(
-          dispatch({
-            entries: new Map([[TARGET_ID, entry]]),
-            method: "Page.captureScreenshot",
-            params: { captureBeyondViewport: true, clip },
-          }),
-        ).rejects.toThrow(
-          "Full-page screenshots are not supported in this browser. To capture the full height of the page, export it to PDF instead: `agent-browser pdf <path>`.",
-        );
-        // No picture is taken either way.
-        expect(capturePage).not.toHaveBeenCalled();
-        expect(wcSendCommand).not.toHaveBeenCalledWith(
+      const result = await dispatch({
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Page.captureScreenshot",
+        params: { captureBeyondViewport: true, clip, format: "png" },
+      });
+
+      expect(result).toEqual({ data: "ELEMENT" });
+      expect(wcSendCommand.mock.calls).toEqual([
+        ["Page.getLayoutMetrics", {}],
+        [
           "Page.captureScreenshot",
-          expect.anything(),
-        );
-      },
-    );
+          {
+            captureBeyondViewport: true,
+            clip: { height: 800, scale: 1, width: 1280, x: 0, y: 0 },
+            format: "png",
+          },
+        ],
+      ]);
+    });
+
+    it("takes a whole page taller than the viewport a viewport at a time", async () => {
+      const wcSendCommand = debuggerWith(METRICS);
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+
+      // The pieces here are no images, so joining them fails; what is asked
+      // of the debugger before that is what this reads.
+      await dispatch({
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Page.captureScreenshot",
+        params: {
+          captureBeyondViewport: true,
+          clip: { height: 4836, scale: 1, width: 1280, x: 0, y: 0 },
+        },
+      }).catch(() => undefined);
+
+      expect(wcSendCommand.mock.calls.slice(0, 2)).toEqual([
+        ["Page.getLayoutMetrics", {}],
+        [
+          "Page.captureScreenshot",
+          {
+            captureBeyondViewport: true,
+            clip: { height: 800, scale: 1, width: 1280, x: 0, y: 0 },
+            format: "png",
+          },
+        ],
+      ]);
+    });
+
+    it("refuses when the page reports no layout", async () => {
+      const capturePage = vi.fn();
+      const wcSendCommand = debuggerWith({});
+      const entry = makeEntry({ capturePage, sendCommand: wcSendCommand });
+
+      await expect(
+        dispatch({
+          entries: new Map([[TARGET_ID, entry]]),
+          method: "Page.captureScreenshot",
+          params: {
+            captureBeyondViewport: true,
+            clip: { height: 90, scale: 1, width: 240, x: 40, y: 120 },
+          },
+        }),
+      ).rejects.toThrow(
+        "The page did not report its size, so nothing beyond the viewport could be captured. Capture the viewport with `agent-browser screenshot`, or export the page with `agent-browser pdf <path>`.",
+      );
+      expect(capturePage).not.toHaveBeenCalled();
+      expect(wcSendCommand).not.toHaveBeenCalledWith(
+        "Page.captureScreenshot",
+        expect.anything(),
+      );
+    });
   });
 
   describe("Browser.getWindowForTarget", () => {

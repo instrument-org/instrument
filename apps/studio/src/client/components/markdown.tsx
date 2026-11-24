@@ -529,10 +529,7 @@ const ChatFileLink = ({
       onAuxClick={(event) => {
         if (event.button === 1) {
           event.preventDefault();
-          showChatFile(
-            filePath,
-            hasTabs ? { behind: true, newTab: true } : {},
-          );
+          showChatFile(filePath, hasTabs ? { behind: true, newTab: true } : {});
         }
       }}
       title={filePath}

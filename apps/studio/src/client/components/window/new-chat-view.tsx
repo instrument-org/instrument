@@ -37,8 +37,9 @@ import {
   typedPathHere,
 } from "@/client/lib/locate-typed-path";
 import { type TypedPath } from "@/client/lib/typed-path";
-import { type ComposerCommand } from "@/client/lib/app-commands";
-import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { projectCommand } from "@/client/lib/app-commands";
+import { useSearchPicks } from "@/client/hooks/use-search-picks";
+import { rememberedPick } from "@/shared/remembered-picks";
 import { toast } from "@/client/lib/toast";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
@@ -69,14 +70,16 @@ import { includedItemsOf } from "./draft-context";
 import { useShell } from "./shell-context";
 import { useAppsBySlug } from "./apps-by-slug";
 import { useGroupTab } from "./group-tab";
-import { useKnownPages } from "./known-pages";
+import { useShowChatGroup } from "./chat-group";
 import { NewTabCompletionList } from "./new-tab-completion-list";
 import {
   boxAddress,
   type BoxCompletion,
   boxCompletions,
   offersToOpen,
+  siteToComplete,
 } from "./new-tab-completions";
+import { type SearchThing, useSearchSources } from "./search-sources";
 import { RecentGroupRows } from "./recent-group-rows";
 import { type RecentGroup, recentGroupsOf } from "./recent-groups";
 import { typedAddressName } from "./typed-address-row";
@@ -95,7 +98,7 @@ import {
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
-import { CHATS_INDEX_HREF } from "./window-href";
+import { chatHref, CHATS_INDEX_HREF } from "./window-href";
 
 /**
  * A new chat, written in its tab group: the room a chat would have, with the
@@ -315,17 +318,25 @@ export function NewChatView({
     });
     onOpenBeside(opened);
   };
-  // A box of one line with no space in it offers what it would open, as the
-  // command menu does: the words themselves, when they are an address or a
-  // place on the computer, then the pages they find. Return opens the one
-  // picked, in this tab, where Back comes back to these words; with none
-  // picked, or once Shift-Return has put the offer away, it sends the words.
-  // The command key with Return (or Send) always sends them.
+  // A box of one line with no space in it offers what it would open: the
+  // words themselves, when they are an address or a place on the computer,
+  // the site they start, then what they find by name as the command menu
+  // finds it. Return opens the one picked, in this tab, where Back comes
+  // back to these words; with none picked, or once Shift-Return has put the
+  // offer away, it sends the words. The command key with Return (or Send)
+  // always sends them.
   const groupTab = useGroupTab();
   const appsBySlug = useAppsBySlug();
+  const showChatGroup = useShowChatGroup();
   const { keyJoiner, modifierKeys } = osConventions();
   const commandEnter = [modifierKeys.command, "↵"].join(keyJoiner);
+  // The words the person typed, and after them the rest of a site's address
+  // the box wrote in after the caret (`ahead`), which is in the box and is
+  // not theirs.
   const [words, setWords] = useState("");
+  const [ahead, setAhead] = useState("");
+  // Whether the last key pressed in the box was a letter typed.
+  const letterTyped = useRef(false);
   const [isOfferPutAway, setOfferPutAway] = useState(false);
   if (isOfferPutAway && words === "") {
     setOfferPutAway(false);
@@ -333,13 +344,53 @@ export function NewChatView({
   const typedPath = groupTab ? typedPathHere(words) : undefined;
   const offers =
     groupTab !== undefined && !isOfferPutAway && offersToOpen(words, typedPath);
-  const known = useKnownPages({ enabled: groupTab !== undefined });
+  const sources = useSearchSources({ enabled: groupTab !== undefined });
+  const picks = useSearchPicks({ enabled: groupTab !== undefined });
+  /**
+   * The box's words as they change. A letter typed onto the end of one word
+   * that starts a site the person goes to has the rest of the site's
+   * address written in after the caret, selected, so the next letter
+   * replaces it and Backspace takes it away, the way an address field
+   * finishes an address.
+   */
+  const takeWords = (next: string) => {
+    if (ahead !== "" && next === `${words}${ahead}`) {
+      return;
+    }
+    const isTypedOn =
+      letterTyped.current &&
+      next.length > words.length &&
+      next.startsWith(words);
+    letterTyped.current = false;
+    setWords(next);
+    const rest =
+      isTypedOn &&
+      groupTab !== undefined &&
+      !isOfferPutAway &&
+      typedPathHere(next) === undefined &&
+      offersToOpen(next, undefined)
+        ? siteToComplete(next, sources.visited)
+        : undefined;
+    setAhead(
+      rest !== undefined && inputRef.current?.completeAhead(rest) ? rest : "",
+    );
+  };
   const completions = offers
     ? boxCompletions({
         address: typedPath ? undefined : boxAddress(words),
-        bookmarkPages: known.bookmarkPages,
+        bookmarkPages: sources.bookmarkPages,
+        isCompleted: ahead !== "",
+        named: [
+          ...sources.named.tabs,
+          ...sources.named.chats,
+          ...sources.named.folders,
+          ...sources.named.files,
+          ...sources.named.projects,
+          ...sources.named.pages,
+        ],
         path: typedPath,
-        recentPages: known.recentPages,
+        recentPages: sources.recentPages,
+        remembered: rememberedPick(picks.log, words, sources.now),
         words,
       })
     : { picked: -1, rows: [] };
@@ -380,11 +431,56 @@ export function NewChatView({
         : folderHref(located.path),
     );
   };
+  // The new tab's own group, which gives way to a group picked from it
+  // while this tab is all it holds.
+  const ownGroup = windowTabs.allTabs.find((tab) => tab.id === tabId)?.group;
+  const isOnlyTab =
+    ownGroup !== undefined &&
+    windowTabs.allTabs.filter((tab) => tab.group === ownGroup).length === 1;
+  const givesWay = isOnlyTab ? { from: ownGroup } : undefined;
+  // What the words found by name: a tab or a chat's group comes up, and
+  // anything else opens in this tab.
+  const openThing = (thing: SearchThing) => {
+    switch (thing.kind) {
+      case "chat": {
+        if (!showChatGroup(thing.chat.id, givesWay)) {
+          windowTabs.visitHref(tabId, chatHref(thing.chat.id));
+        }
+        break;
+      }
+      case "file": {
+        windowTabs.visitHref(tabId, fileHref(thing.file.path));
+        break;
+      }
+      case "folder": {
+        windowTabs.visitHref(tabId, folderHref(thing.folder.path));
+        break;
+      }
+      case "page": {
+        openAddress(thing.page.url);
+        break;
+      }
+      case "project": {
+        shell.openProject(thing.project.id);
+        break;
+      }
+      case "tab": {
+        windowTabs.select(thing.tab.id);
+        if (thing.tab.group !== undefined) {
+          shell.showGroup(thing.tab.group, givesWay);
+        }
+        break;
+      }
+    }
+  };
   const openCompletion = (row: BoxCompletion) => {
     if (row.kind === "path") {
       void openPath(row.path);
-    } else if (row.kind === "page") {
+    } else if (row.kind === "site") {
       openAddress(row.page.url);
+    } else if (row.kind === "thing") {
+      picks.note(words, row.id);
+      openThing(row.thing);
     } else {
       openAddress(
         row.address.kind === "page" ? row.address.url : row.address.address,
@@ -395,7 +491,6 @@ export function NewChatView({
   // Ideas for a new chat, made from the pages, files and folders beside it
   // in its group, as next-message rows under the centered box. A new chat
   // with nothing beside it has none.
-  const ownGroup = windowTabs.allTabs.find((tab) => tab.id === tabId)?.group;
   const ideaSources =
     ownGroup === undefined
       ? []
@@ -408,10 +503,7 @@ export function NewChatView({
   });
   // Alone in its group, the new tab is where the window's other groups are
   // picked up again: the ones had most recently, and every chat past them.
-  const isAlone =
-    isCentered &&
-    ownGroup !== undefined &&
-    windowTabs.allTabs.filter((tab) => tab.group === ownGroup).length === 1;
+  const isAlone = isCentered && isOnlyTab;
   const recentGroups = recentGroupsOf({
     closed: closedGroupsOf(useAtomValue(appTabsAtom).recentlyClosed),
     home: ownGroup,
@@ -455,15 +547,11 @@ export function NewChatView({
   };
   const [isProjectListOpen, setProjectListOpen] = useState(false);
   // `/project` opens the Project button's list, under the box, to type into.
-  const projectCommand: ComposerCommand = {
-    aliases: ["project"],
-    description: "File this chat under a project",
-    icon: CardsThreeIcon,
-    id: "project",
-    onSelect: () => {
+  const commands = [
+    projectCommand(() => {
       setProjectListOpen(true);
-    },
-  };
+    }),
+  ];
   const projectButton = (
     <NewChatProjectButton
       isOpen={isProjectListOpen}
@@ -537,6 +625,18 @@ export function NewChatView({
             firstRow.focus();
             return;
           }
+          letterTyped.current =
+            event.key.length === 1 &&
+            !event.altKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.nativeEvent.isComposing;
+          // The one letter left of what was written in, typed: the box's
+          // words stay as they read, so they are taken as typed here.
+          if (letterTyped.current && ahead !== "" && event.key === ahead) {
+            setWords(`${words}${ahead}`);
+            setAhead("");
+          }
           if (
             !isOffering ||
             event.altKey ||
@@ -576,7 +676,7 @@ export function NewChatView({
             draft ? <MarkedPills draftId={draft.id} /> : undefined
           }
           autoFocus={takesCaret}
-          commands={[projectCommand]}
+          commands={commands}
           draftKey={key}
           isLoading={false}
           keyboardHome
@@ -616,7 +716,7 @@ export function NewChatView({
                 }
           }
           onModelChange={shell.setDefaultModelURI}
-          onWordsChange={setWords}
+          onWordsChange={takeWords}
           // Once, as a new tab's composer first comes up: never as the tab
           // is shown again or its first words name a draft. Over the box
           // alone, so a note docked above it stays out of the ring.

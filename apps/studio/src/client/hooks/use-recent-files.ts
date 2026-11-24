@@ -44,12 +44,14 @@ export function useRecentFiles({
   // Derived after the last hook, where the compiler can keep the list the
   // same object from one render to the next: a value made before a hook and
   // read after it is made afresh every render.
-  const openedAt = new Map(
-    (opened.data ?? []).map((file) => [file.path, file.at]),
+  const openedByPath = new Map(
+    (opened.data ?? []).map((file) => [file.path, file]),
   );
   const files = (described.data ?? []).flatMap((entry) => {
-    const at = openedAt.get(entry.path);
-    return at === undefined ? [] : [{ ...entry, openedAt: at }];
+    const file = openedByPath.get(entry.path);
+    return file === undefined
+      ? []
+      : [{ ...entry, openCount: file.openCount, openedAt: file.at }];
   });
   return { files, isPending: opened.isPending || described.isPending };
 }

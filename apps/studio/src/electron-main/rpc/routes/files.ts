@@ -64,7 +64,7 @@ import {
   keptInPlaceReason,
   SYSTEM_FOLDER_REASON,
 } from "@/shared/instrument-folders";
-import { moveSidebarPlaces } from "@/shared/sidebar-places";
+import { moveFavorites } from "@/shared/favorite-places";
 import { StoryboardSchema } from "@/shared/video-storyboard";
 import { resolveThroughAliases } from "@instrument-org/workspace/electron";
 import { eventIterator, ORPCError } from "@orpc/server";
@@ -790,14 +790,14 @@ const trash = base
 
 /**
  * What the app keeps by path, carried along with a rename or its undo: the
- * recents, and the folders pinned to the sidebar.
+ * recents, and the sidebar's Favorites.
  */
 function followMove(from: string, to: string) {
   getHistoryStore().moveFiles(from, to);
   const preferences = getMachinePreferences();
   preferences.set(
-    "sidebarPlaces",
-    moveSidebarPlaces(preferences.get("sidebarPlaces"), from, to, path.sep),
+    "favoriteChanges",
+    moveFavorites(preferences.get("favoriteChanges"), from, to, path.sep),
   );
 }
 

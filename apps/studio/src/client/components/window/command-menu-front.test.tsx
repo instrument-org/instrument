@@ -197,7 +197,6 @@ describe("the command menu's actions for the tab in front", () => {
     await screen.findByRole("button", { name: /Export/ });
     expect(listed()).toMatchInlineSnapshot(`
       [
-        "# Commands",
         "Export as Markdown… · This chat",
         "Search the web for “export”",
       ]
@@ -327,12 +326,43 @@ describe("the command menu's open tabs", () => {
     expect(shown.mock.calls).toEqual([[PAGE_TAB]]);
   });
 
+  it("leaves a chat's tab to the chat's own row", async () => {
+    front.tab = PAGE_TAB;
+    front.all = [CHAT_TAB, PAGE_TAB];
+    renderWithProviders(<MenuRows words="roofer" />);
+
+    await screen.findByRole("button", { name: "Roofer quotes" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "Roofer quotes",
+        "Search the web for “roofer”",
+      ]
+    `);
+  });
+
+  it("lists a file once, as the tab showing it", async () => {
+    front.tab = CHAT_TAB;
+    front.all = [CHAT_TAB, FILE_TAB];
+    renderWithProviders(<MenuRows words="quotes" />);
+
+    await screen.findByRole("button", { name: "quotes.csv · Pricing" });
+    await screen.findByRole("button", { name: "Roofer quotes" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "quotes.csv · Pricing",
+        "# Chats",
+        "Roofer quotes",
+        "Search the web for “quotes”",
+      ]
+    `);
+  });
+
   it("leaves out the tab in front and a new tab nobody has written in", async () => {
     front.tab = CHAT_TAB;
     front.all = [CHAT_TAB, NEW_TAB];
     const { rerender } = renderWithProviders(<MenuRows words="roofer" />);
 
-    await screen.findByText("# Chats");
+    await screen.findByRole("button", { name: "Roofer quotes" });
     expect(screen.queryByText("# Open tabs")).toBeNull();
 
     rerender(<MenuRows words="new" />);

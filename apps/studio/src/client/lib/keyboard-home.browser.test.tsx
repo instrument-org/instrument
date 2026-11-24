@@ -287,9 +287,13 @@ describe("the sides of a tab group", () => {
 
   it("knows a page up on the side without the keyboard, which may not hold it", () => {
     groupSides("left");
-    const onLeft = isPageOnSideWithoutKeyboard(browserTargetOf("tab_01M7EKJA7JST69N0RVMKWTP7Q8"));
+    const onLeft = isPageOnSideWithoutKeyboard(
+      browserTargetOf("tab_01M7EKJA7JST69N0RVMKWTP7Q8"),
+    );
     groupSides("right");
-    const onRight = isPageOnSideWithoutKeyboard(browserTargetOf("tab_01M7EKJA7JST69N0RVMKWTP7Q8"));
+    const onRight = isPageOnSideWithoutKeyboard(
+      browserTargetOf("tab_01M7EKJA7JST69N0RVMKWTP7Q8"),
+    );
     expect([onLeft, onRight]).toEqual([true, false]);
   });
 });

@@ -198,7 +198,7 @@ describe("a path the command menu found nothing at", () => {
 describe("folders and bookmarks in the command menu", () => {
   it("finds the sidebar's folders by name", async () => {
     answers.set("workspace.computer.places", {
-      pinned: [
+      favorites: [
         {
           kind: "output",
           name: "Instrument",
@@ -219,11 +219,11 @@ describe("folders and bookmarks in the command menu", () => {
     expect(
       await screen.findByRole("button", { name: "Documents" }),
     ).toBeTruthy();
-    expect(screen.getByText("Files")).toBeTruthy();
+    expect(screen.getAllByRole("listitem")[0]?.textContent).toBe("Documents");
     expect(screen.queryByRole("button", { name: "Backup Disk" })).toBeNull();
   });
 
-  it("lists a bookmarked page once, ahead of the pages visited", async () => {
+  it("lists a bookmarked page once, over the pages visited", async () => {
     answers.set("history.live.recent", [
       {
         favicon: undefined,
@@ -242,8 +242,8 @@ describe("folders and bookmarks in the command menu", () => {
     expect(screen.getAllByRole("listitem").map((item) => item.textContent))
       .toMatchInlineSnapshot(`
         [
-          "Pages",
           "Weather Radar",
+          "Pages",
           "Weather Today",
           "Search the web for “weather”",
         ]

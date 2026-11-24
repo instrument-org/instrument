@@ -9,9 +9,7 @@ import { chatOfTab } from "./tab-model";
  * question or card waiting on the person. A chat that is only unread has
  * nothing to stop.
  */
-function isStoppedByClose(
-  chat: Pick<Chat, "status" | "working">,
-): boolean {
+function isStoppedByClose(chat: Pick<Chat, "status" | "working">): boolean {
   return chat.working || chat.status === "working" || chat.status === "waiting";
 }
 

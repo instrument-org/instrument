@@ -2,6 +2,11 @@ import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceMachineDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
+import {
+  addPick,
+  type PickLog,
+  pickLogSchema,
+} from "@/shared/remembered-picks";
 import { type SetupRecord, SetupRecordSchema } from "@/shared/setup";
 import { type ModelRoutes } from "@instrument-org/ai-gateway";
 import Store from "electron-store";
@@ -12,12 +17,17 @@ import { z } from "zod";
  * only with this computer's keys. Kept in the workspace's machine folder;
  * machine-wide state is in `machine/state.ts`.
  */
-const WorkspaceStateSchema = z.object({
+export const WorkspaceStateSchema = z.object({
   // The connection this computer settled on for each model a chat names
   // through another computer's connection (`routeModel`), so it always goes
   // through the same one here. This computer's alone, which is why it is
   // kept here rather than in the chat.
   modelRoutes: z.record(z.string(), z.string()).catch({}),
+  // What the person picked for what they typed in the command menu and a new
+  // tab's box (`remembered-picks.ts`), which a search puts first when the
+  // same letters are typed again. The habits of this computer's keyboard,
+  // so they stay here.
+  searchPicks: pickLogSchema.catch([]),
   /**
    * The steps of setup answered for this workspace, and when it finished
    * (`lib/setup-state.ts`). Here rather than in the workspace, so it is there
@@ -78,4 +88,17 @@ export function readSetupRecord(): SetupRecord {
 
 export function writeSetupRecord(record: SetupRecord): void {
   getWorkspaceState().set("setup", record);
+}
+
+/** What the person picked for what they typed in a search, oldest first. */
+export function readSearchPicks(): PickLog {
+  return getWorkspaceState().get("searchPicks");
+}
+
+/** Remembers what the person picked for what they typed, as of now. */
+export function noteSearchPick(pick: { picked: string; typed: string }): void {
+  getWorkspaceState().set(
+    "searchPicks",
+    addPick(readSearchPicks(), { ...pick, at: Date.now() }),
+  );
 }

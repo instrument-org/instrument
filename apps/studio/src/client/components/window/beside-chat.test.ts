@@ -227,10 +227,13 @@ describe("opening beside a chat", () => {
       { ...windowOf([chatTab], "chat"), groups: { [G]: { share: 0.5 } } },
       0.5,
     ],
-  ])("gives the chat its share of a new split for %s", (_, ask, from, share) => {
-    const { state } = openBesideChat(from, agentOpened, ask);
-    expect(state.groups?.[G]?.share).toBe(share);
-  });
+  ])(
+    "gives the chat its share of a new split for %s",
+    (_, ask, from, share) => {
+      const { state } = openBesideChat(from, agentOpened, ask);
+      expect(state.groups?.[G]?.share).toBe(share);
+    },
+  );
 
   it("leaves a split's share alone when the agent's page joins it", () => {
     const { state } = openBesideChat(

@@ -1,10 +1,7 @@
 import { bookmarksAtom } from "@/client/bookmarks/store";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
-import { fuzzyMatch } from "@/client/lib/fuzzy-match";
 import { useAtomValue } from "jotai";
 import { unique } from "radashi";
-
-import { bareAddress } from "./omnibar-match";
 
 /** A page a field can offer to open: a bookmark, or one the person visited. */
 export interface OfferedPage {
@@ -42,16 +39,4 @@ export function useKnownPages({ enabled }: { enabled: boolean }) {
     (page) => page.url,
   );
   return { bookmarkPages, recentPages, visited };
-}
-
-/** The pages the words find, best first, by the title a row shows or by the address. */
-export function matchKnownPages<T extends { title: string; url: string }>(
-  pages: T[],
-  words: string,
-): { item: T; ranges: null | number[] }[] {
-  return fuzzyMatch(
-    pages,
-    (page) => [page.title || bareAddress(page.url), page.url],
-    words,
-  );
 }

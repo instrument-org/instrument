@@ -503,7 +503,7 @@ function resultElementId(id: string) {
  * on has drawn it: a page reading its data draws the row a moment after it
  * opens, so the row is looked for each frame for a short while.
  */
-export function useFlashSetting(
+function useFlashSetting(
   contentRef: RefObject<HTMLElement | null>,
   mark: string | undefined,
   /** How many jumps there have been, so the same row asked for again lights again. */

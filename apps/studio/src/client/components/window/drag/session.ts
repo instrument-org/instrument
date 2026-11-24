@@ -230,7 +230,7 @@ const WINDOW_LANDING: Landing = { kind: "window" };
 
 /**
  * Where what is held lands let go where nothing takes it, in the window or
- * past its edge: a place of Pinned out of Pinned, as Finder's sidebar lets
+ * past its edge: a place of Favorites out of Favorites, as Finder's sidebar lets
  * go of one; past the edge, any other link in a window of its own. Any
  * other place, and anything over nothing in the window, lands nowhere.
  */
@@ -239,8 +239,8 @@ function landingOverNothing(held: Held, isPast: boolean): Landing | undefined {
     return undefined;
   }
   if (held.place) {
-    return held.place.pinned
-      ? { kind: "unpin", path: held.place.path }
+    return held.place.favorites
+      ? { kind: "unfavorite", path: held.place.path }
       : undefined;
   }
   return isPast ? WINDOW_LANDING : undefined;

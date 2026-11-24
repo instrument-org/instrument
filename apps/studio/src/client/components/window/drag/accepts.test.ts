@@ -38,7 +38,7 @@ const PINNED_PLACE: Held = {
   kind: "link",
   place: {
     path: "/Users/mac-user/Documents",
-    pinned: ["/Users/mac-user/Documents"],
+    favorites: ["/Users/mac-user/Documents"],
   },
   title: "Documents",
   url: "file:///Users/mac-user/Documents/",

@@ -5,17 +5,12 @@ import {
   chatForAgentText,
   chatPlaces,
   chatStartedWithApp,
+  osName,
   StoreId,
 } from "@instrument-org/workspace/electron";
 import { app, clipboard } from "electron";
 import os from "node:os";
 import { z } from "zod";
-
-const OS_NAMES: Partial<Record<NodeJS.Platform, string>> = {
-  darwin: "macOS",
-  linux: "Linux",
-  win32: "Windows",
-};
 
 /**
  * Copies what another agent needs to pick up from a chat: what the app is,
@@ -38,11 +33,10 @@ const developerDetails = devOnly
   .input(z.object({ id: ChatIdSchema, sessionId: StoreId.SessionSchema }))
   .handler(async ({ input }) => {
     const { id, sessionId } = input;
-    const platform = os.platform();
     await clipboard.writeText(
       chatDeveloperDetailsText(await chatPlaces(id), {
         app: `${app.getVersion()} (${app.isPackaged ? "packaged" : "development"})`,
-        computer: `${OS_NAMES[platform] ?? platform} ${os.release()} (${os.arch()}), named ${os.hostname()}`,
+        computer: `${await osName()} (${os.arch()}), named ${os.hostname()}`,
         mainThread: sessionId,
         startedWith: await chatStartedWithApp(id),
       }),

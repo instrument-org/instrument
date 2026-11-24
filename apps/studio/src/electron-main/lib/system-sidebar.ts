@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 
-import { adoptSystemSidebar } from "@/shared/sidebar-places";
+import { adoptSystemSidebar } from "@/shared/favorite-places";
 
 import { getMachinePreferences } from "../stores/machine/preferences";
 import { logger } from "@/electron-main/lib/electron-logger";
@@ -99,13 +99,13 @@ export async function adoptSystemSidebarOnce(): Promise<void> {
     if (system === undefined) {
       return;
     }
-    const { pinned } = await computerPlaces();
+    const { favorites } = await computerPlaces();
     // A GTK bookmarks file lists only the folders the person added, so a
-    // default it leaves out was not removed there, and none is unpinned.
+    // default it leaves out was not removed there, and none is removed.
     const defaults =
       process.platform === "linux"
         ? []
-        : pinned
+        : favorites
             .filter((place) => place.kind !== "output")
             .map((place) => place.path);
     const existing = await Promise.all(
@@ -116,9 +116,9 @@ export async function adoptSystemSidebarOnce(): Promise<void> {
       ),
     );
     preferences.set(
-      "sidebarPlaces",
+      "favoriteChanges",
       adoptSystemSidebar(
-        preferences.get("sidebarPlaces"),
+        preferences.get("favoriteChanges"),
         existing.filter((folder) => folder !== undefined),
         defaults,
       ),

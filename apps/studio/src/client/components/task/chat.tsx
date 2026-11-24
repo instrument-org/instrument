@@ -2,6 +2,7 @@ import {
   type PromptDraftKey,
   promptDraftRefAtom,
 } from "@/client/atoms/prompt-value";
+import { projectCommand } from "@/client/lib/app-commands";
 import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import {
   beginReplySendAtom,
@@ -94,7 +95,9 @@ import { UserMessage } from "../user-message";
 import { ChatSeparatorRow } from "../chat-separator";
 import { setArchived } from "../window/chat-actions";
 import { chatListed, chatListOptions } from "../window/chat-list-query";
+import { askChatHead } from "../window/chat-head-requests";
 import { WindowContext } from "../window/context";
+import { useGroupTab } from "../window/group-tab";
 import { chatHref } from "../window/window-href";
 import {
   type PendingPrompt,
@@ -178,6 +181,7 @@ export function ChatConversation({
   chatId: ChatId;
 }) {
   const appWindow = useContext(WindowContext);
+  const tabId = useGroupTab()?.id;
   const id = chatId;
 
   const promptInputRef = useRef<PromptInputRef>(null);
@@ -677,6 +681,16 @@ export function ChatConversation({
     <PromptInput
       attachmentsLead={asks?.pills}
       autoFocus={takesCaret}
+      // `/project` opens the project picker in the head over the chat.
+      commands={
+        tabId === undefined
+          ? undefined
+          : [
+              projectCommand(() => {
+                askChatHead(tabId, "project");
+              }),
+            ]
+      }
       // The box shares a column with the conversation, so it gives way to
       // it sooner than a box on a page of its own: a handful of lines, then
       // the words scroll.

@@ -247,7 +247,10 @@ describe("whatsNewOf", () => {
   it("leaves the section out of the notes shown under each version", () => {
     expect(
       detailOf(
-        release("2.0.10", NOTES(READY, { zoom: hidden(`![Zoom](${MEDIA}/zoom.jpg)`) })),
+        release(
+          "2.0.10",
+          NOTES(READY, { zoom: hidden(`![Zoom](${MEDIA}/zoom.jpg)`) }),
+        ),
       ),
     ).toBe("## Fixes and polish\n\n- Shortened dates show in full on hover.");
   });

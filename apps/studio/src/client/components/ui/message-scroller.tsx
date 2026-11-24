@@ -360,6 +360,11 @@ function MessageScrollerItem({
 // which is invisible where scrollbars are overlays and a permanent grey band
 // where they are not.
 //
+// The scrollbar's room is kept whether or not it shows. Where scrollbars take
+// room (Windows, Linux), a first message's rows end exactly at the pane's foot,
+// so a growing reply overflows until the scroll owner trims its spacer: the bar
+// would come and go and rewrap the rows inside the owner's resize callback.
+//
 // `isolate` keeps what a message raises (a file card's `z-10` text) under the
 // scroller's own overlays, the jump-to-end button and the fades, which follow
 // the viewport in the tree without a z-index of their own.
@@ -375,7 +380,7 @@ function MessageScrollerViewport({
     <div
       aria-label="Messages"
       className={cn(
-        "isolate size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-x-hidden overflow-y-auto overscroll-contain outline-none",
+        "isolate size-full min-h-0 min-w-0 scrollbar-thin scrollbar-color overflow-x-hidden overflow-y-auto overscroll-contain [scrollbar-gutter:stable] outline-none",
         className,
       )}
       data-slot="message-scroller-viewport"

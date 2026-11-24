@@ -31,7 +31,7 @@ export function BrowserStartControls({
  * menu with the rows that need a page disabled. Its zoom is the window's,
  * which is what a zoom chord there changes.
  */
-export function BrowserStartTail({
+function BrowserStartTail({
   onOpenPage,
 }: {
   onOpenPage: (url: string) => void;

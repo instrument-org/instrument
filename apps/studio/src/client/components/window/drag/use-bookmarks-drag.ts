@@ -5,10 +5,7 @@ import {
   sameAddress,
 } from "@/client/bookmarks/address";
 import { bookmarksAtom, bookmarksStateAtom } from "@/client/bookmarks/store";
-import {
-  type Bookmark,
-  siblingsIn,
-} from "@/shared/bookmarks";
+import { type Bookmark, siblingsIn } from "@/shared/bookmarks";
 import { useAtomValue } from "jotai";
 
 import { segmentsOf } from "../host-path";
@@ -163,10 +160,7 @@ export function marksBesides(row: HTMLElement, held: readonly string[]) {
     }));
 }
 
-function shownRect(
-  element: HTMLElement | null | undefined,
-  below = 0,
-) {
+function shownRect(element: HTMLElement | null | undefined, below = 0) {
   if (!element?.checkVisibility({ visibilityProperty: true })) {
     return undefined;
   }

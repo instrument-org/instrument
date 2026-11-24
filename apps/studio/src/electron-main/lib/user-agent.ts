@@ -1,3 +1,4 @@
+import { windowsBuild } from "@instrument-org/shared/windows-version";
 import { app, type Session, type WebContents } from "electron";
 
 // Present the identity of an ordinary Chromium-derived desktop browser for a
@@ -296,6 +297,45 @@ export function standardUserAgentHeaders({
   return headers;
 }
 
+// The UniversalApiContract each Windows build brought, newest first. Server 2022
+// (20348) has one of its own.
+const WINDOWS_API_CONTRACTS: readonly [build: number, contract: number][] = [
+  [26_100, 19],
+  [22_621, 15],
+  [22_000, 14],
+  [20_348, 12],
+  [19_041, 10],
+  [18_362, 8],
+  [17_763, 7],
+  [17_134, 6],
+  [16_299, 5],
+  [15_063, 4],
+  [14_393, 3],
+  [10_586, 2],
+  [10_240, 1],
+];
+
+// The platformVersion Blink reports (`GetPlatformVersion` in Chromium's
+// user_agent_utils.cc). On Windows that is not the system version, which reads
+// 10.0 on 10 and 11 alike, but the UniversalApiContract's, which sites read
+// Windows 11 from (13 and up). Chromium reads it from the registry; it goes with
+// the build, and a build newer than the table gets its newest, as Chromium falls
+// back to the newest it knows. On Linux it is empty.
+function platformVersionHint(
+  platform: NodeJS.Platform,
+  systemVersion: string,
+): string {
+  if (platform === "linux") {
+    return "";
+  }
+  if (platform !== "win32") {
+    return systemVersion;
+  }
+  const build = windowsBuild(systemVersion) ?? 0;
+  const contract = WINDOWS_API_CONTRACTS.find(([from]) => build >= from)?.[1];
+  return `${contract ?? 0}.0.0`;
+}
+
 // The `userAgentMetadata` for CDP's Emulation.setUserAgentOverride, which is how
 // navigator.userAgentData gets a value without writing to the page. Blink serves
 // the API from this, so the properties stay native and no descriptor or function
@@ -304,7 +344,7 @@ export function standardUserAgentHeaders({
 // Every field Blink derives itself is reproduced here rather than dropped,
 // because an omitted field comes back empty rather than falling back, and a
 // getHighEntropyValues() call that returns nothing is its own inconsistency.
-// The platform values are Node-derivable: process.getSystemVersion() equals the
+// The platform values are Node-derivable: `platformVersionHint` gives the
 // platformVersion Blink reports, and process.arch gives the rest.
 //
 // `chromeVersion` is process.versions.chrome, not the UA's version, because the
@@ -349,7 +389,7 @@ export function userAgentMetadata({
     mobile: false,
     model: "",
     platform: platformHint(platform).replaceAll('"', ""),
-    platformVersion: systemVersion,
+    platformVersion: platformVersionHint(platform, systemVersion),
     wow64: false,
   };
 }

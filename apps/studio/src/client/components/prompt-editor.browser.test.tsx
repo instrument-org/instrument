@@ -367,4 +367,45 @@ describe("PromptEditor in a browser", () => {
       "[$instrument:ffmpeg](skill:instrument:ffmpeg) is cool",
     );
   });
+
+  // An address finished ahead of the caret, as an address field finishes
+  // one: real words, selected, so the keys treat them as a selection.
+  it("writes the rest of a word in after the caret, selected", async () => {
+    const { onChange, ref } = renderEditor();
+
+    await userEvent.click(editor());
+    await userEvent.keyboard("git");
+    expect(ref.current?.completeAhead("hub.com")).toBe(true);
+
+    await expect.element(editor()).toHaveTextContent("github.com");
+    expect(onChange).toHaveBeenLastCalledWith("github.com");
+    expect(getSelection()?.toString()).toBe("hub.com");
+  });
+
+  it("replaces what it wrote in with the next letter, and loses it to Backspace", async () => {
+    const { ref } = renderEditor();
+
+    await userEvent.click(editor());
+    await userEvent.keyboard("git");
+    ref.current?.completeAhead("hub.com");
+    await userEvent.keyboard("l");
+    await expect.element(editor()).toHaveTextContent("gitl");
+
+    ref.current?.completeAhead("ab.com");
+    await userEvent.keyboard("{Backspace}");
+    await expect.element(editor()).toHaveTextContent("gitl");
+    expect(ref.current?.getValue()).toBe("gitl");
+  });
+
+  it("writes nothing in with the caret short of the end, or with words selected", async () => {
+    const { ref } = renderEditor();
+
+    await userEvent.click(editor());
+    await userEvent.keyboard("git{ArrowLeft}");
+    expect(ref.current?.completeAhead("hub.com")).toBe(false);
+
+    await userEvent.keyboard("{ArrowRight}{Shift>}{ArrowLeft}{/Shift}");
+    expect(ref.current?.completeAhead("hub.com")).toBe(false);
+    expect(ref.current?.getValue()).toBe("git");
+  });
 });

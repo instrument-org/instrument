@@ -39,6 +39,7 @@ import { IMAGE_BUDGET_EVALS } from "./image-budget";
 import { IMAGE_OPTIONS_EVALS } from "./image-options";
 import { FILE_VERSIONS_EVALS } from "./file-versions";
 import { IMAGE_REGION_EVALS } from "./image-region";
+import { IMAGE_TOOL_CHOICE_EVALS } from "./image-tool-choice";
 import { INTERRUPTION_EVALS } from "./interruptions";
 import { INSTRUMENT_GUIDE_EVALS } from "./instrument-guide";
 import { MEMORY_EVALS } from "./memory";
@@ -122,6 +123,7 @@ export const EVALS = [
   ...IMAGE_OPTIONS_EVALS,
   ...FILE_VERSIONS_EVALS,
   ...IMAGE_REGION_EVALS,
+  ...IMAGE_TOOL_CHOICE_EVALS,
   ...INTERRUPTION_EVALS,
   ...INSTRUMENT_GUIDE_EVALS,
   ...MEMORY_EVALS,

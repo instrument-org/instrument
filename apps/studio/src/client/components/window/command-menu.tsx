@@ -8,17 +8,15 @@ import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal"
 import { type WindowTab } from "@/client/atoms/window";
 import { openShortcutGuide } from "@/client/atoms/shortcut-guide-modal";
 import { APPS_HREF, CHATS_HREF } from "@/client/atoms/window";
-import { targetOfAddress } from "@/client/bookmarks/address";
 import { openAddressBy } from "@/client/bookmarks/open-address";
 import { PageFavicon } from "@/client/components/favicon";
-import { useRecentFiles } from "@/client/hooks/use-recent-files";
+import { useSearchPicks } from "@/client/hooks/use-search-picks";
 import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
 import { settingsTabTitle } from "@/client/components/settings/settings-index";
 import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
-import { displayPath } from "@/client/lib/path-utils";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { useTheme } from "@/client/components/theme-provider";
@@ -33,27 +31,29 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
-import { chatListOptions } from "@/client/components/window/chat-list-query";
+import { useShowChatGroup } from "@/client/components/window/chat-group";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import {
-  byLastUserMessage,
   type Chat,
   railMarkOf,
   type Project,
   projectSearch,
 } from "@/client/components/window/chats";
+import {
+  findNamed,
+  type Found,
+  type Named,
+  orderSearch,
+  rangesOf,
+} from "@/client/components/window/name-search";
+import {
+  type SearchThing,
+  useSearchSources,
+} from "@/client/components/window/search-sources";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { useShell } from "@/client/components/window/shell-context";
 import { screenPresentation } from "@/client/components/window/screen-presentation";
 import { useFrontTabActions } from "@/client/components/window/tab-actions";
-import { useOpenGroups } from "@/client/components/window/tab-groups";
-import { isHomeTab } from "@/client/components/window/tab-model";
-import { useTabTitle } from "@/client/components/window/tab-title";
-import { useWindowTabs } from "@/client/components/window/window-tabs";
-import {
-  matchKnownPages,
-  useKnownPages,
-} from "@/client/components/window/known-pages";
 import { ProjectMark } from "@/client/components/window/project-mark";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
 import { useModalBack } from "@/client/hooks/use-modal-back";
@@ -82,6 +82,8 @@ import {
   folderNameOf,
   isSearchWords,
 } from "@/client/components/window/omnibar-match";
+import { foldWords, MATCH_STEPS, NO_MATCH } from "@/shared/name-match";
+import { rememberedPick } from "@/shared/remembered-picks";
 import { RowText, whereOfAddress } from "@/client/components/window/row-text";
 import {
   isKnownSite,
@@ -101,7 +103,6 @@ import {
   WINDOW_MENU_SHORTCUTS,
   WINDOW_SHORTCUTS,
 } from "@/shared/window-shortcuts";
-import { fuzzyMatch } from "@/client/lib/fuzzy-match";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowsInIcon } from "@phosphor-icons/react/ArrowsIn";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
@@ -138,8 +139,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { displayHostPath, folderNameFromPath } from "@instrument-org/shared";
-import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
+import { displayHostPath } from "@instrument-org/shared";
 import { toast } from "@/client/lib/toast";
 
 /**
@@ -206,6 +206,9 @@ type Item = {
   type: "item";
 };
 
+/** A row made for what a search found, given what to draw as matched in its name. */
+type ItemOf = (ranges: null | number[]) => Item;
+
 type Row =
   /** A section's heading. */
   | { label: string; type: "header" }
@@ -214,12 +217,18 @@ type Row =
   | Item;
 
 /**
- * The menu's rows for the words typed: what
- * the words name (an address to open, the tabs open in this window,
- * commands and the actions for the tab in front, chats, the apps set up here, pages, files), then a web search for words that are a search, then, when
- * nothing matched by name and the words are no address, the chats the
- * decision model says they mean, below the search so Return never changes
- * under the caret. Each kind lists three at most. Before anything is typed,
+ * The menu's rows for the words typed: an address or a path the words are,
+ * then what they find by name (`name-match.ts`) among the tabs open in this
+ * window, files and folders, chats, projects, the apps set up here, pages,
+ * and commands with the actions for the tab in front. One row is promoted
+ * over the sections, with no heading: what the person picked the last time
+ * they typed these words, or else the best match of any kind when the words
+ * are its name or start it. The sections follow in the order of their best
+ * match, three rows each at most (`orderSearch`). A name one wrong letter
+ * away is found only when nothing else was. Then a web search for words
+ * that are a search, then, when nothing matched by name and the words are
+ * no address, the chats the decision model says they mean, below the search
+ * so Return never changes under the caret. Before anything is typed,
  * what was used last of every kind, what the tab in front offers (a chat, a
  * page or a file), and the commands worth reaching often.
  * Words
@@ -264,12 +273,11 @@ export function useCommandMenuRows({
     rpcClient.apps.live.list.experimental_liveOptions(),
   );
   // Read only while the menu is up, which is mounted in every window.
-  const { bookmarkPages, recentPages, visited } = useKnownPages({
-    enabled: active,
-  });
-  // Described only while the menu is up: each file is looked at on the disk.
-  const recentFiles = useRecentFiles({ enabled: active }).files;
-  const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
+  const sources = useSearchSources({ enabled: active });
+  const { bookmarkPages, chats, chatTitles, recentFiles, recentPages } =
+    sources;
+  const picks = useSearchPicks({ enabled: active });
+  const showChatGroup = useShowChatGroup();
 
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -292,19 +300,8 @@ export function useCommandMenuRows({
     rpcClient.debug.trigger.testNoUpdateNotification.mutationOptions(),
   );
 
-  // Followed only while the menu is up.
-  const { data: chats = [] } = useQuery({
-    ...chatListOptions(),
-    subscribed: active,
-  });
-  const chatTitles = new Map(chats.map((chat) => [chat.id, chat.title]));
   // What the tab up on the side with the keyboard offers, under what it is.
-  const { active: frontTab, allTabs } = useWindowTabs();
-  // This window's groups, each by the name its row in the sidebar has.
-  const groupNames = new Map(
-    useOpenGroups().open.map((entry) => [entry.group, entry.title]),
-  );
-  const titleOfTab = useTabTitle(chatTitles);
+  const { frontTab, titleOfTab } = sources;
   const front = useFrontTabActions({
     chats,
     tab: frontTab,
@@ -559,23 +556,6 @@ export function useCommandMenuRows({
 
   const pages = [...bookmarkPages, ...recentPages];
 
-  // The folders the Files sidebar lists, in its order: the Instrument
-  // folder, then Pinned as the person left it, then the disks and the cloud
-  // services' folders.
-  const sidebarPlaces = preferences.data?.sidebarPlaces ?? NO_SIDEBAR_CHANGES;
-  const instrumentPlace = places.data?.pinned.find(
-    (place) => place.kind === "output",
-  );
-  const folders = [
-    ...(instrumentPlace ? [instrumentPlace] : []),
-    ...pinnedPlaces(
-      (places.data?.pinned ?? []).filter((place) => place !== instrumentPlace),
-      sidebarPlaces,
-      (path) => ({ name: folderNameFromPath(path), path }),
-    ),
-    ...(places.data?.volumes ?? []),
-  ];
-
   const isSearch = words !== "" && !isBang;
   const typedPath = isSearch ? typedPathHere(words) : undefined;
   const typedFile = typedPath && typedFileName(typedPath);
@@ -693,164 +673,153 @@ export function useCommandMenuRows({
               label: "",
             },
           ];
-  const chatMatches = isSearch
-    ? nameMatch(byLastUserMessage(chats), (chat) => [chat.title], words)
-    : [];
-  const appMatches = isSearch
-    ? nameMatch(
-        [...appsBySlug].filter(([slug]) =>
-          installed.data?.apps.some((app) => app.slug === slug),
-        ),
-        ([, app]) => [app.name],
-        words,
-      ).slice(0, PER_KIND_SHOWN)
-    : [];
   // A project is found by its name, and by the word for one: "project" alone
   // lists them all, and beside a name it is left out of what the name is
   // matched by, so "project reading" and "reading project" both find Reading.
-  // Every word left has to be in the name, since a project that shared one
-  // word with a chat's title would otherwise sit over that chat.
   const projectAsk = projectSearch(words);
-  const liveProjects = shell.projects.filter((project) => !project.retired);
-  const projectMatches = !isSearch
-    ? []
-    : projectAsk.name === ""
-      ? liveProjects.map((item) => ({ item, ranges: null }))
-      : fuzzyMatch(liveProjects, (project) => [project.name], projectAsk.name);
-
-  // The tabs open in any group of this window, by their titles, but the
-  // tab in front and a new tab nobody has written in.
-  const tabMatches = isSearch
-    ? fuzzyMatch(
-        allTabs.filter(
-          (tab) =>
-            tab.group !== undefined &&
-            groupNames.has(tab.group) &&
-            tab.id !== frontTab?.id &&
-            !isHomeTab(tab),
-        ),
-        (tab) => [titleOfTab(tab)],
-        words,
-      ).slice(0, PER_KIND_SHOWN)
-    : [];
-
-  const named: { items: Item[]; label: string }[] = isSearch
-    ? [
-        {
-          items: tabMatches.map(({ item: tab, ranges }) =>
-            tabItem(tab, ranges),
-          ),
-          label: "Open tabs",
-        },
-        {
-          // An action for the tab in front is found among the commands, and
-          // says what it acts on.
-          items: fuzzyMatch(
-            [
-              ...frontActions.map((action) => ({
-                ...action,
-                detail: front?.heading,
-              })),
-              ...commands,
-              ...settingsRows,
-            ],
-            (command) => [command.label, command.detail ?? ""],
-            words,
-          )
-            .slice(0, PER_KIND_SHOWN)
-            .map(({ item, ranges }) => ({ ...item, ranges, type: "item" })),
-          label: "Commands",
-        },
-        // Over the chats rather than under them: there are only ever a few
-        // projects, and the chats are the one list here with no end, so under
-        // them a project would be out of sight exactly when its name is in
-        // many titles. Asked for by the word, they lead outright, since no
-        // command answers to it.
-        {
-          items: projectMatches
-            .slice(0, PER_KIND_SHOWN)
-            .map(({ item, ranges }) => projectItem(item, ranges)),
-          label: "Projects",
-        },
-        {
-          items: chatMatches
-            .slice(0, PER_KIND_SHOWN)
-            .map(({ item, ranges }) => chatItem(item, ranges)),
-          label: "Chats",
-        },
-        {
-          items: appMatches.map(({ item: [slug, app], ranges }) =>
-            appItem(slug, app, ranges),
-          ),
-          label: "Apps",
-        },
-        // The sidebar's folders the words name, then the files opened lately.
-        {
-          items: [
-            ...fuzzyMatch(folders, (folder) => [folder.name], words).map(
-              ({ item: folder, ranges }): Item => ({
-                icon: <FolderMark path={folder.path} />,
-                id: `folder:${folder.path}`,
-                label: folder.name,
-                ranges,
-                run: () => {
-                  openScreen(folderHref(folder.path));
-                },
-                type: "item",
-              }),
-            ),
-            ...fuzzyMatch(
-              recentFiles,
-              (file) => [file.name, displayPath(file.path)],
-              words,
-            ).map(({ item: file, ranges }) => fileItem(file, ranges)),
-          ].slice(0, PER_KIND_SHOWN),
-          label: "Files",
-        },
-        // Bookmarks first, then the pages visited. A file kept as a bookmark
-        // that Files already lists is left to that row.
-        {
-          items: [
-            ...pageItems(
-              bookmarkPages.filter((page) => {
-                const target = targetOfAddress(page.url);
-                return !(
-                  target?.kind === "path" &&
-                  recentFiles.some((file) => file.path === target.path)
-                );
-              }),
-            ),
-            ...pageItems(recentPages),
-          ].slice(0, PER_KIND_SHOWN),
-          label: "Pages",
-        },
-        {
-          items: fuzzyMatch(
-            debugItems,
-            (item) => [item.label, item.href],
-            words,
-          ).map(({ item, ranges }) => ({
-            icon: <CodeIcon />,
-            id: `debug:${item.href}`,
-            label: item.label,
-            ranges,
-            // The group's debug tab walks there, as a part of Settings
-            // does, or the page opens in a tab of its own.
-            run: () => {
-              openBuiltInPage(item.href);
+  const folded = foldWords(words);
+  const thingsOf = (things: Named<SearchThing>[]): Named<ItemOf>[] =>
+    things.map((entry) => ({
+      ...entry,
+      value: (ranges) => thingItem(entry.value, ranges),
+    }));
+  const searched: {
+    entries: Named<ItemOf>[];
+    label: string;
+    words?: ReturnType<typeof foldWords>;
+  }[] = [
+    { entries: thingsOf(sources.named.tabs), label: "Open tabs" },
+    // The sidebar's folders and the files opened lately.
+    {
+      entries: thingsOf([...sources.named.folders, ...sources.named.files]),
+      label: "Files",
+    },
+    { entries: thingsOf(sources.named.chats), label: "Chats" },
+    {
+      entries: thingsOf(sources.named.projects),
+      label: "Projects",
+      words: foldWords(projectAsk.name),
+    },
+    {
+      entries: [...appsBySlug]
+        .filter(([slug]) =>
+          installed.data?.apps.some((app) => app.slug === slug),
+        )
+        .map(([slug, app]) => ({
+          id: `app:${slug}`,
+          name: app.name,
+          value: (ranges) => appItem(slug, app, ranges),
+        })),
+      label: "Apps",
+    },
+    { entries: thingsOf(sources.named.pages), label: "Pages" },
+    // An action for the tab in front is found among the commands, and says
+    // what it acts on. A command found by what it acts on, or a part of
+    // Settings by that word, is one that only contains the words.
+    {
+      entries: [
+        ...frontActions.map((action) => ({
+          ...action,
+          detail: front?.heading,
+        })),
+        ...commands,
+        ...settingsRows,
+      ].map((command) => ({
+        ...(command.detail === undefined
+          ? {}
+          : { also: { atBest: MATCH_STEPS.inside, name: command.detail } }),
+        id: command.id,
+        name: command.label,
+        value: (ranges) => ({ ...command, ranges, type: "item" }),
+      })),
+      label: "Commands",
+    },
+    {
+      entries: debugItems.map((item) => ({
+        also: { name: item.href },
+        id: `debug:${item.href}`,
+        name: item.label,
+        value: (ranges) => ({
+          icon: <CodeIcon />,
+          id: `debug:${item.href}`,
+          label: item.label,
+          ranges,
+          // The group's debug tab walks there, as a part of Settings
+          // does, or the page opens in a tab of its own.
+          run: () => {
+            openBuiltInPage(item.href);
+          },
+          type: "item",
+        }),
+      })),
+      label: "Debug pages",
+    },
+  ];
+  // Each kind's matches, each ready to be made its row: one that notes the
+  // pick for these words as it runs.
+  const find = (wrongLetter: boolean) =>
+    searched.map((kind) => {
+      const kindWords = kind.words ?? folded;
+      const found: Found<ItemOf>[] =
+        kind.label === "Projects" && projectAsk.name === ""
+          ? kind.entries.map((entry) => ({
+              entry,
+              name: entry.name,
+              position: 0,
+              shownStep: NO_MATCH,
+              step: MATCH_STEPS.startsWords,
+            }))
+          : findNamed(kind.entries, kindWords, wrongLetter);
+      return {
+        found: found.map(
+          (each): Found<() => Item> => ({
+            ...each,
+            entry: {
+              ...each.entry,
+              value: () => {
+                const item = each.entry.value(rangesOf(each, kindWords));
+                return {
+                  ...item,
+                  run: () => {
+                    picks.note(words, item.id);
+                    item.run();
+                  },
+                };
+              },
             },
-            type: "item",
-          })),
-          label: "Debug pages",
-        },
-      ]
-    : [];
+          }),
+        ),
+        label: kind.label,
+      };
+    });
+  const exact = isSearch ? find(false) : [];
+  // One wrong letter is forgiven only when the words find nothing as typed.
+  const kinds =
+    isSearch && exact.every((kind) => kind.found.length === 0)
+      ? find(true)
+      : exact;
+  const ordered = orderSearch({
+    kinds,
+    perKind: PER_KIND_SHOWN,
+    remembered: isSearch
+      ? rememberedPick(picks.log, words, sources.now)
+      : undefined,
+  });
+  const named: { items: Item[]; label: string }[] = [
+    ...(ordered.promoted
+      ? [{ items: [ordered.promoted.entry.value()], label: "" }]
+      : []),
+    ...ordered.sections.map((section) => ({
+      items: section.rows.map((row) => row.entry.value()),
+      label: section.label,
+    })),
+  ];
 
   // Words that find nothing by name go to the decision model, so a search
   // like "taxes" finds the chat about 1099 forms. Only then, and never for
   // an address: the model is not asked about searches the names answer, or
   // about a site the person is on their way to.
-  const hasNameMatches = named.some((section) => section.items.length > 0);
+  const hasNameMatches = named.length > 0;
   const asksMeaning =
     active &&
     isSearch &&
@@ -880,7 +849,7 @@ export function useCommandMenuRows({
                 at: file.openedAt,
                 item: fileItem(file, null),
               })),
-              ...visited.map((page) => ({
+              ...sources.visited.map((page) => ({
                 at: page.at,
                 item: pageItem(page, null),
               })),
@@ -981,12 +950,37 @@ export function useCommandMenuRows({
     };
   }
 
-  function pageItems(
-    list: { favicon: string | undefined; title: string; url: string }[],
-  ): Item[] {
-    return matchKnownPages(list, words)
-      .slice(0, PER_KIND_SHOWN)
-      .map(({ item: page, ranges }) => pageItem(page, ranges));
+  function thingItem(thing: SearchThing, ranges: null | number[]): Item {
+    switch (thing.kind) {
+      case "chat": {
+        return chatItem(thing.chat, ranges);
+      }
+      case "file": {
+        return fileItem(thing.file, ranges);
+      }
+      case "folder": {
+        return {
+          detail: thing.where,
+          icon: <FolderMark path={thing.folder.path} />,
+          id: `folder:${thing.folder.path}`,
+          label: thing.folder.name,
+          ranges,
+          run: () => {
+            openScreen(folderHref(thing.folder.path));
+          },
+          type: "item",
+        };
+      }
+      case "page": {
+        return pageItem(thing.page, ranges);
+      }
+      case "project": {
+        return projectItem(thing.project, ranges);
+      }
+      case "tab": {
+        return tabItem(thing.tab, ranges, thing.where);
+      }
+    }
   }
 
   function pageItem(
@@ -1026,6 +1020,8 @@ export function useCommandMenuRows({
 
   // A chat's row is the address field's: the dot its tab would wear, its
   // title, then the project it is filed under, and nothing at its right.
+  // It brings up the tab group the chat is in, open or closed, and a chat in
+  // neither opens as a screen.
   function chatItem(chat: Chat, ranges: null | number[]): Item {
     const project = shell.projects.find((each) => each.id === chat.project);
     const mark = railMarkOf([chat]);
@@ -1037,16 +1033,22 @@ export function useCommandMenuRows({
       label: chat.title,
       ranges,
       run: () => {
-        openScreen(`${CHATS_HREF}/${chat.id}`);
+        if (!showChatGroup(chat.id)) {
+          openScreen(`${CHATS_HREF}/${chat.id}`);
+        }
       },
       type: "item",
     };
   }
 
   // An open tab's row: its mark and title, then the group it is in.
-  function tabItem(tab: WindowTab, ranges: null | number[]): Item {
+  function tabItem(
+    tab: WindowTab,
+    ranges: null | number[],
+    group: string | undefined,
+  ): Item {
     return {
-      detail: tab.group === undefined ? undefined : groupNames.get(tab.group),
+      detail: group,
       icon:
         tab.kind === "page" ? (
           <PageFavicon
@@ -1551,35 +1553,4 @@ function ResultRows({
       </div>
     </div>
   );
-}
-
-/**
- * The items the words match by name: every word, and when no item has every
- * word, any one of them, items with more of the words first. The second is
- * how "fart related" finds both "fart.com" and "farts" without asking the
- * decision model; words under three letters do not count on their own.
- */
-function nameMatch<T>(
-  items: T[],
-  fieldsOf: (item: T) => string[],
-  words: string,
-): { item: T; ranges: null | number[] }[] {
-  const all = fuzzyMatch(items, fieldsOf, words);
-  const terms = words.split(/\s+/).filter((term) => term.length >= 3);
-  if (all.length > 0 || terms.length < 2) {
-    return all;
-  }
-  const found = new Map<T, { count: number; ranges: null | number[] }>();
-  for (const term of terms) {
-    for (const { item, ranges } of fuzzyMatch(items, fieldsOf, term)) {
-      const seen = found.get(item);
-      found.set(item, {
-        count: (seen?.count ?? 0) + 1,
-        ranges: seen?.ranges ?? ranges,
-      });
-    }
-  }
-  return [...found]
-    .toSorted(([, a], [, b]) => b.count - a.count)
-    .map(([item, { ranges }]) => ({ item, ranges }));
 }

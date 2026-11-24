@@ -58,7 +58,7 @@ const filesRow = ({
   </div>`;
 
 /**
- * The 175px places (sidebar-places.ts): Recents and the Instrument folder in its teal,
+ * The 175px places (favorite-places.ts): Recents and the Instrument folder in its teal,
  * then Pinned (the home folder and the folders the person pinned, `places`), then
  * Locations (This Mac, iCloud Drive, the disks). `on` is the place shown; `starred` adds
  * a Starred place over Recents.

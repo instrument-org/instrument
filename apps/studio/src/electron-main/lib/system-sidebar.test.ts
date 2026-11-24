@@ -4,7 +4,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
+import { NO_FAVORITE_CHANGES, favoritePlaces } from "@/shared/favorite-places";
 
 import {
   adoptSystemSidebarOnce,
@@ -13,8 +13,8 @@ import {
 } from "./system-sidebar";
 
 const { computer, stored } = vi.hoisted(() => ({
-  /** The places the computer pins by default. */
-  computer: { pinned: [] as { kind: string; name: string; path: string }[] },
+  /** The places the computer lists under Favorites by default. */
+  computer: { favorites: [] as { kind: string; name: string; path: string }[] },
   /** The machine preferences, in memory. */
   stored: new Map<string, unknown>(),
 }));
@@ -66,11 +66,11 @@ describe("gtkBookmarkFolders", () => {
 describe("adoptSystemSidebarOnce on Linux", () => {
   const platform = process.platform;
   let home: string;
-  /** The Pinned section's rows, by name. */
+  /** The Favorites section's rows, by name. */
   const rows = () =>
-    pinnedPlaces(
-      computer.pinned.filter((place) => place.kind !== "output"),
-      stored.get("sidebarPlaces") as typeof NO_SIDEBAR_CHANGES,
+    favoritePlaces(
+      computer.favorites.filter((place) => place.kind !== "output"),
+      stored.get("favoriteChanges") as typeof NO_FAVORITE_CHANGES,
       (folder) => ({
         kind: "folder",
         name: path.basename(folder),
@@ -86,7 +86,7 @@ describe("adoptSystemSidebarOnce on Linux", () => {
         fs.mkdir(path.join(home, name)),
       ),
     );
-    computer.pinned = [
+    computer.favorites = [
       {
         kind: "output",
         name: "Instrument",
@@ -100,7 +100,7 @@ describe("adoptSystemSidebarOnce on Linux", () => {
       })),
     ];
     stored.clear();
-    stored.set("sidebarPlaces", NO_SIDEBAR_CHANGES);
+    stored.set("favoriteChanges", NO_FAVORITE_CHANGES);
     vi.spyOn(os, "homedir").mockReturnValue(home);
     Object.defineProperty(process, "platform", { value: "linux" });
   });
@@ -111,14 +111,14 @@ describe("adoptSystemSidebarOnce on Linux", () => {
     await fs.rm(home, { force: true, recursive: true });
   });
 
-  it("leaves the defaults pinned, and the system's pins to read at the next launch, with no bookmarks file", async () => {
+  it("leaves the defaults in Favorites, and the system's pins to read at the next launch, with no bookmarks file", async () => {
     await adoptSystemSidebarOnce();
 
     expect(rows()).toEqual(["Home", "Desktop", "Documents", "Downloads"]);
     expect(stored.get("systemSidebarAdopted")).toBeUndefined();
   });
 
-  it("pins the bookmarked folders and keeps every default", async () => {
+  it("adds the bookmarked folders and keeps every default", async () => {
     await fs.mkdir(path.join(home, ".config", "gtk-3.0"), { recursive: true });
     await fs.writeFile(
       path.join(home, ".config", "gtk-3.0", "bookmarks"),

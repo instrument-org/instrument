@@ -156,6 +156,13 @@ export interface PromptEditorRef {
   /** Put dictated words at the end, after a space on the last line. */
   appendDictation: (text: string) => void;
   clear: () => void;
+  /**
+   * Writes `rest` in after the caret and selects it, the way an address
+   * field finishes an address: the next letter typed replaces it and
+   * Backspace takes it away. Only with the caret at the end of the words and
+   * nothing selected, and answers whether it wrote.
+   */
+  completeAhead: (rest: string) => boolean;
   focus: () => void;
   getValue: () => string;
   /** Insert at the caret, spaced off from whatever it lands between. */
@@ -168,7 +175,8 @@ export interface PromptEditorRef {
 }
 
 // What a slash offers, in the order it offers it: the app's own commands
-// first, only for a slash that starts the box, then the things the composer
+// first (for a slash after other words, only those answering `anywhere`), then
+// the things the composer
 // can be given, then the apps that can be named, then the skills that can be
 // run.
 type MenuEntry =
@@ -204,7 +212,7 @@ const menuEntries = (
   },
   { atStart, query }: { atStart: boolean; query: string },
 ): MenuEntry[] => [
-  ...(atStart ? matchComposerCommands(commands, query) : []).map((match) => ({
+  ...matchComposerCommands(commands, { atStart, query }).map((match) => ({
     ...match,
     type: "command" as const,
   })),
@@ -292,7 +300,7 @@ export function PromptEditor({
   autoFocus: boolean;
   /** The composer box a typed slash opens its menu against. */
   bounds: HTMLElement | null;
-  /** What the app does when a slash naming it starts the box. */
+  /** What the app does when a slash names it. */
   commands?: ComposerCommand[];
   /** Read once, when the document is built. Later changes are ignored. */
   defaultValue: string;
@@ -451,7 +459,13 @@ export function PromptEditor({
           onChangeEvent(promptTextFromDoc(nextState.doc));
         }
         setSlashMenu(slashMenuOf(nextState));
-        showLink(view.hasFocus() ? linkAtCaret(nextState) : null);
+        // The bar comes up only for a caret moved into a link, by a click or
+        // an arrow key; a paste or typing that leaves it in one does not.
+        if (transaction.docChanged) {
+          showLink(null);
+        } else if (transaction.selectionSet) {
+          showLink(view.hasFocus() ? linkAtCaret(nextState) : null);
+        }
         setHasLinks(hasLinksIn(nextState));
       },
       handleDOMEvents: {
@@ -462,10 +476,6 @@ export function PromptEditor({
           if (!(to instanceof Node && linkBarRef.current?.contains(to))) {
             showLink(null);
           }
-          return false;
-        },
-        focus: (focused) => {
-          showLink(linkAtCaret(focused.state));
           return false;
         },
         paste: (_view, event) => onPasteEvent(event),
@@ -769,6 +779,22 @@ export function PromptEditor({
     },
     clear: () => {
       replaceDocument("");
+    },
+    completeAhead: (rest) => {
+      const view = viewRef.current;
+      if (!view || view.composing) {
+        return false;
+      }
+      const { doc, selection } = view.state;
+      const at = selection.to;
+      if (!selection.empty || at !== TextSelection.atEnd(doc).to) {
+        return false;
+      }
+      const tr = view.state.tr.insertText(rest, at);
+      tr.setSelection(TextSelection.create(tr.doc, at, at + rest.length));
+      // Undo goes back over what the person typed, never to these letters.
+      view.dispatch(tr.setMeta("addToHistory", false));
+      return true;
     },
     focus: () => viewRef.current?.focus(),
     getValue: () => {

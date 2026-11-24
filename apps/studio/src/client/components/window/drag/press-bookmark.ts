@@ -28,13 +28,13 @@ export function pressBookmark(
  * a link to Files at that folder, never the folder itself, so nothing is
  * handed out of the app to copy. It opens as a tab from a strip, goes on
  * the bookmarks bar, goes with a message from a composer's box, and moves
- * along Pinned or pins there; a row of Pinned (`pinned`, the rows' paths in
- * order) let go where nothing takes it leaves Pinned. A press that goes nowhere stays a click. `onHeld` is told as it
+ * along Favorites or is added there; a row of Favorites (`favorites`, the rows' paths in
+ * order) let go where nothing takes it leaves Favorites. A press that goes nowhere stays a click. `onHeld` is told as it
  * becomes a drag, for a menu it was in to get out of the way.
  */
 export function pressPlace(
   event: React.PointerEvent<HTMLElement>,
-  place: { name: string; path: string; pinned?: readonly string[] },
+  place: { name: string; path: string; favorites?: readonly string[] },
   onHeld?: () => void,
 ) {
   pressToHold(event, () => {
@@ -44,7 +44,7 @@ export function pressPlace(
       kind: "link",
       place: {
         path: place.path,
-        ...(place.pinned ? { pinned: place.pinned } : {}),
+        ...(place.favorites ? { favorites: place.favorites } : {}),
       },
       title: place.name,
       url: fileAddressOf(place.path, { isFolder: true }),

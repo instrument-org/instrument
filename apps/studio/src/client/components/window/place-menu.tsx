@@ -11,12 +11,12 @@ import { toast } from "@/client/lib/toast";
 import { isMacOS, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref, folderHref } from "@/shared/computer-href";
-import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
+import { NO_FAVORITE_CHANGES, favoritePlaces } from "@/shared/favorite-places";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { PushPinIcon } from "@phosphor-icons/react/PushPin";
-import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
+import { MinusCircleIcon } from "@phosphor-icons/react/MinusCircle";
+import { PlusCircleIcon } from "@phosphor-icons/react/PlusCircle";
 import { useQuery } from "@tanstack/react-query";
 
 import { useWindow } from "./context";
@@ -33,15 +33,15 @@ export function PlaceMenu({
   name,
   onOpenInNewTab,
   onOpenInNewWindow,
-  pin,
+  favorite,
 }: {
   hostPath: string;
   /** The name it goes by where it was pressed, for Copy Path to say whose path it copies. */
   name?: string;
   onOpenInNewTab: () => void;
   onOpenInNewWindow: () => void;
-  /** Pinning it to the sidebar, or unpinning it; left out where neither is offered. */
-  pin?: { isPinned: boolean; onToggle: () => void } | undefined;
+  /** Adding it to Favorites, or removing it; left out where neither is offered. */
+  favorite?: { isFavorite: boolean; onToggle: () => void } | undefined;
 }) {
   return (
     <ContextMenuContent className="min-w-48">
@@ -102,17 +102,19 @@ export function PlaceMenu({
         <ClipboardTextIcon className="size-4" />
         <span>{copyPathLabel(name)}</span>
       </ContextMenuItem>
-      {pin ? (
+      {favorite ? (
         <>
           <ContextMenuSeparator />
-          <ContextMenuItem onClick={pin.onToggle}>
-            {pin.isPinned ? (
-              <PushPinSlashIcon className="size-4" />
+          <ContextMenuItem onClick={favorite.onToggle}>
+            {favorite.isFavorite ? (
+              <MinusCircleIcon className="size-4" />
             ) : (
-              <PushPinIcon className="size-4" />
+              <PlusCircleIcon className="size-4" />
             )}
             <span>
-              {pin.isPinned ? "Unpin from Sidebar" : "Pin to Sidebar"}
+              {favorite.isFavorite
+                ? "Remove from Favorites"
+                : "Add to Favorites"}
             </span>
           </ContextMenuItem>
         </>
@@ -134,8 +136,8 @@ function placeActionFailed(title: string, error: unknown) {
  * What `PlaceMenu` offers for a file or folder of the computer named
  * anywhere outside the folder browser, a part of the address above all: a
  * tab of its own, and for a folder, whether the sidebar
- * lists it. Pinned is read the way the sidebar reads it, the system's own
- * places that are not unpinned and the ones the person pinned.
+ * lists it. Favorites is read the way the sidebar reads it, the system's own
+ * places that are not removed and the ones the person added.
  */
 export function usePlaceMenuProps() {
   const { openScreen } = useWindow();
@@ -143,14 +145,15 @@ export function usePlaceMenuProps() {
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
-  const sidebarPlaces = preferences.data?.sidebarPlaces ?? NO_SIDEBAR_CHANGES;
-  const pinned = pinnedPlaces(
-    (places.data?.pinned ?? []).filter((place) => place.kind !== "output"),
-    sidebarPlaces,
+  const favoriteChanges =
+    preferences.data?.favoriteChanges ?? NO_FAVORITE_CHANGES;
+  const favorites = favoritePlaces(
+    (places.data?.favorites ?? []).filter((place) => place.kind !== "output"),
+    favoriteChanges,
     (path) => ({ path }),
   );
   return (hostPath: string, kind: "file" | "folder") => {
-    const isPinned = pinned.some((place) => place.path === hostPath);
+    const isFavorite = favorites.some((place) => place.path === hostPath);
     return {
       hostPath,
       onOpenInNewTab: () => {
@@ -167,13 +170,13 @@ export function usePlaceMenuProps() {
       },
       ...(kind === "folder"
         ? {
-            pin: {
-              isPinned,
+            favorite: {
+              isFavorite,
               onToggle: () =>
                 void (
-                  isPinned
-                    ? rpcClient.preferences.unpinSidebarPlace
-                    : rpcClient.preferences.pinSidebarPlace
+                  isFavorite
+                    ? rpcClient.preferences.removeFavoritePlace
+                    : rpcClient.preferences.addFavoritePlace
                 )
                   .call({ path: hostPath })
                   .catch(() => {

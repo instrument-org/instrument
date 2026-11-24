@@ -94,14 +94,16 @@ export function PromptLinkBar({
   }
 
   return (
-    <div className="flex items-center gap-0.5 py-0.5 pr-0.5 pl-2.5">
-      {web && <SiteIcon className="mr-1.5" href={link.href} />}
-      <span className="max-w-56 truncate text-sm">{titled ?? address}</span>
-      {titled && (
-        <span className="ml-1.5 max-w-48 truncate text-xs text-muted-foreground">
-          {address}
-        </span>
-      )}
+    <div className="flex items-center gap-0.5 p-0.5">
+      <BarButton label="Open" onPress={onOpen}>
+        {web && <SiteIcon className="mr-0.5" href={link.href} />}
+        <span className="max-w-56 truncate">{titled ?? address}</span>
+        {titled && (
+          <span className="ml-0.5 max-w-48 truncate text-xs text-muted-foreground">
+            {address}
+          </span>
+        )}
+      </BarButton>
       <span className="mx-1.5 h-5 w-px shrink-0 bg-border" />
       <BarButton label="Open" onPress={onOpen}>
         <ArrowSquareOutIcon className="size-4 text-muted-foreground" />

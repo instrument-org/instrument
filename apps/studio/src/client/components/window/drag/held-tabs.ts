@@ -23,7 +23,9 @@ export function droppedFileHref({ hostPath, isFolder }: DroppedFile) {
 }
 
 /** What a tab opens as: a site's page, or a screen of the app's own. */
-export type Opens = { kind: "page"; url: string } | { href: string; kind: "screen" };
+export type Opens =
+  | { kind: "page"; url: string }
+  | { href: string; kind: "screen" };
 
 /**
  * What an address opens as: a site's page, or a screen of the app's own (a
@@ -77,17 +79,18 @@ export function heldTabsOf(
     const tab = allTabs.find((each) => each.id === held.id);
     return tab ? [tab] : [];
   }
-  return opensOf(held).map(({ id, opens }): WindowTab =>
-    opens.kind === "page"
-      ? {
-          id,
-          kind: "page",
-          openedAt: 0,
-          openedUrl: opens.url,
-          title: held.kind === "link" ? held.title : "",
-          url: opens.url,
-        }
-      : { href: opens.href, id, kind: "screen" },
+  return opensOf(held).map(
+    ({ id, opens }): WindowTab =>
+      opens.kind === "page"
+        ? {
+            id,
+            kind: "page",
+            openedAt: 0,
+            openedUrl: opens.url,
+            title: held.kind === "link" ? held.title : "",
+            url: opens.url,
+          }
+        : { href: opens.href, id, kind: "screen" },
   );
 }
 

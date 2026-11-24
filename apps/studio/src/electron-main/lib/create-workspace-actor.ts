@@ -59,6 +59,7 @@ import {
   loadChatIndex,
   prepareBundledSkills,
   setBashWorkerFactory,
+  setWorkspaceInFront,
   startRecordArrivals,
   stopRecordArrivals,
   chatRecords,
@@ -273,28 +274,26 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
   rememberAppsReady();
   recordInstalledUpdate();
   startAppSignInChecks();
-  // What another device writes into the chats folder reaches the app while
-  // it runs: the folder is watched, and looked at whenever the window comes
-  // forward and every minute while it is in front.
+  // What another device writes is looked for by the workspace whenever a
+  // window comes forward and every minute while one is in front.
+  setWorkspaceInFront(BrowserWindow.getFocusedWindow() !== null);
+  app.on("browser-window-focus", () => {
+    setWorkspaceInFront(true);
+  });
+  app.on("browser-window-blur", () => {
+    // After the focus moving to another of the app's windows lands.
+    setTimeout(() => {
+      if (BrowserWindow.getFocusedWindow() === null) {
+        setWorkspaceInFront(false);
+      }
+    });
+  });
   void startRecordArrivals({
     chatsDir: workspaceConfig.chatsDir,
     device: deviceId,
     onError: (error: unknown) => {
       logger.warn("Could not look at another device's chat records", error);
     },
-  }).then((arrivals) => {
-    arrivals.setForeground(BrowserWindow.getFocusedWindow() !== null);
-    app.on("browser-window-focus", () => {
-      arrivals.setForeground(true);
-    });
-    app.on("browser-window-blur", () => {
-      // After the focus moving to another of the app's windows lands.
-      setTimeout(() => {
-        if (BrowserWindow.getFocusedWindow() === null) {
-          arrivals.setForeground(false);
-        }
-      });
-    });
   });
   // In the background: a shell builds its mounts per command, so the bundled
   // skills appear in the shell for the first command after this lands. What

@@ -1,12 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import ms from "ms";
 import { isEqual } from "radashi";
 
 import { DEVICE_ID_PATTERN, type DeviceId } from "../records/device-id";
+import { type SyncedDomain } from "./domains";
 import { SyncedFold } from "./synced-fold";
 import {
-  checkDomain,
   isSyncedFileName,
   readSyncedLines,
   recordsFor,
@@ -14,7 +13,7 @@ import {
   type SyncedOp,
   syncedFileName,
 } from "./synced-record";
-import { watchDevices } from "./watch-devices";
+import { watchSynced } from "./watch-synced";
 
 /**
  * A synced store read and written straight from its files, synchronously and
@@ -29,12 +28,6 @@ import { watchDevices } from "./watch-devices";
  * not see these appends.
  */
 
-/** How long a burst of watch events is gathered before a look. */
-const SETTLE_MS = ms("250 milliseconds");
-
-/** How often the files are looked at whatever the watch said. */
-const LOOK_MS = ms("1 minute");
-
 const DEVICE_FOLDER = new RegExp(`^${DEVICE_ID_PATTERN}$`);
 
 /** Every device's file of the domain folded, as the files stand now. */
@@ -43,9 +36,8 @@ export function foldSyncedFiles({
   domain,
 }: {
   devicesDir: string;
-  domain: string;
+  domain: SyncedDomain;
 }): SyncedFold {
-  checkDomain(domain);
   const fold = new SyncedFold();
   for (const folder of namesIn(devicesDir)) {
     if (!DEVICE_FOLDER.test(folder)) {
@@ -81,7 +73,7 @@ export function applySyncedOps({
 }: {
   device: DeviceId;
   devicesDir: string;
-  domain: string;
+  domain: SyncedDomain;
   now?: number;
   ops: readonly SyncedOp[];
 }): string[] {
@@ -124,58 +116,33 @@ export function applySyncedOps({
 
 /**
  * Calls `onChange` when any device's file of the domain changes, this
- * device's included, until the stop it returns is called. The files are
- * looked at again every `lookMs`, so a change the watch missed is late
- * rather than lost.
+ * device's included, until the stop it answers is called (`watchSynced`).
  */
 export function watchSyncedFiles({
   devicesDir,
   domain,
-  lookMs = LOOK_MS,
   onChange,
-  onError = () => undefined,
-  platform = process.platform,
 }: {
   devicesDir: string;
-  domain: string;
-  lookMs?: number;
+  domain: SyncedDomain;
   onChange: () => void;
-  /** Told of a watch that failed, which leaves the regular look. */
-  onError?: (error: unknown) => void;
-  platform?: NodeJS.Platform;
 }): () => void {
-  checkDomain(domain);
   let last = stampOf(devicesDir, domain);
-  let settleTimer: NodeJS.Timeout | undefined;
-  const look = () => {
-    const now = stampOf(devicesDir, domain);
-    if (now !== last) {
-      last = now;
-      onChange();
-    }
-  };
-  const stopWatch = watchDevices({
+  return watchSynced({
     devicesDir,
-    isOurs: (name) => isSyncedFileName(name, domain),
-    onChange: () => {
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(look, SETTLE_MS);
+    domain,
+    look: () => {
+      const now = stampOf(devicesDir, domain);
+      if (now !== last) {
+        last = now;
+        onChange();
+      }
     },
-    onError,
-    persistent: false,
-    platform,
   });
-  const lookTimer = setInterval(look, lookMs);
-  lookTimer.unref();
-  return () => {
-    clearTimeout(settleTimer);
-    clearInterval(lookTimer);
-    stopWatch();
-  };
 }
 
 /** Every device's file of the domain by name, size and time, as one string. */
-function stampOf(devicesDir: string, domain: string): string {
+function stampOf(devicesDir: string, domain: SyncedDomain): string {
   return namesIn(devicesDir)
     .filter((folder) => DEVICE_FOLDER.test(folder))
     .flatMap((folder) =>

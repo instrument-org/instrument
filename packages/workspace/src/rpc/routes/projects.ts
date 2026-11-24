@@ -9,18 +9,14 @@ import {
   PROJECT_NAME_MAX,
   ProjectFolderSchema,
   ProjectNameError,
-  projectsDir,
   ProjectSchema,
   updateProject,
 } from "../../lib/chat/projects";
 import { ChangesCardSchema, markCardUndone } from "../../lib/chat/card-undone";
-import { watchProjectRecords } from "../../lib/chat/project-records";
 import { undoProjectChanges } from "../../lib/chat/undo-project-changes";
-import { watchFolder } from "../../lib/folder-watch";
+import { changesTo } from "../../lib/live-changes";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
-import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { base } from "../base";
-import { publisher } from "../publisher";
 
 /** What the user picks about a project: its mark, its tint. */
 const ProjectMarkSchema = z.object({
@@ -156,25 +152,12 @@ const retireProjectRoute = base
 const changedProjectsRoute = base
   .output(eventIterator(z.object({ revision: z.number() })))
   .handler(async function* ({ signal }) {
-    const changes = publisher.subscribe("project.changed", { signal });
-    const onChange = () => {
-      publisher.publish("project.changed", null);
-    };
-    const stopFolder = watchFolder(projectsDir(), { depth: 1, onChange });
-    const stopRecords = watchProjectRecords(
-      getWorkspaceConfig().rootDir,
-      onChange,
-    );
+    const changes = changesTo("project.changed", signal);
     let revision = 0;
-    try {
+    yield { revision };
+    for await (const _ of changes) {
+      revision += 1;
       yield { revision };
-      for await (const _ of changes) {
-        revision += 1;
-        yield { revision };
-      }
-    } finally {
-      stopFolder();
-      stopRecords();
     }
   });
 

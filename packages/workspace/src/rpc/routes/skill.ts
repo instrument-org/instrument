@@ -17,7 +17,7 @@ import {
   listSkillFiles,
   SKILL_SOURCE_KINDS,
 } from "../../lib/skills";
-import { startWatchingWorkspaceSkills } from "../../lib/workspace-skill-watcher";
+import { changesTo } from "../../lib/live-changes";
 import { base, toORPCError } from "../base";
 import { publisher } from "../publisher";
 
@@ -125,17 +125,12 @@ const remove = base
 const changed = base
   .output(eventIterator(z.object({ revision: z.number() })))
   .handler(async function* ({ signal }) {
-    const changes = publisher.subscribe("skill.changed", { signal });
-    const stopWatching = await startWatchingWorkspaceSkills();
+    const changes = changesTo("skill.changed", signal);
     let revision = 0;
-    try {
+    yield { revision };
+    for await (const _ of changes) {
+      revision += 1;
       yield { revision };
-      for await (const _ of changes) {
-        revision += 1;
-        yield { revision };
-      }
-    } finally {
-      await stopWatching();
     }
   });
 

@@ -156,17 +156,6 @@ describe("openSyncedStore", () => {
     expect(store.entries()).toEqual(new Map());
   });
 
-  it("refuses a domain whose file could read as another's copy", async () => {
-    await expect(
-      openSyncedStore({
-        device: DEVICE_A,
-        devicesDir: dir.path,
-        domain: "book-marks",
-        watch: false,
-      }),
-    ).rejects.toThrow(/lowercase letters and digits/);
-  });
-
   it("hears another device's file grow without being asked to look", async () => {
     const b = await open(DEVICE_B, { watch: true });
     const listener = vi.fn();

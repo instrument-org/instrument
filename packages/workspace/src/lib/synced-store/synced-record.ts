@@ -21,7 +21,6 @@ import { type RecordFormat, type Unsequenced } from "../records/record-writer";
  */
 
 /** What a domain is called: its file's name before `.jsonl`. */
-const DOMAIN = /^[a-z][a-z0-9]*$/;
 
 const DateSchema = z.iso
   .datetime({ offset: true })
@@ -89,15 +88,6 @@ export function readSyncedLines(
   bytes: Uint8Array,
 ): { line: string; record: SyncedRecord }[] {
   return readLines(bytes, { lastSeq: -1, offset: 0 }, parseSyncedLine).records;
-}
-
-/** Throws for a domain whose file name could be read as another's conflict copy. */
-export function checkDomain(domain: string): void {
-  if (!DOMAIN.test(domain)) {
-    throw new Error(
-      `A synced store's domain is lowercase letters and digits: ${domain}`,
-    );
-  }
 }
 
 /** The name of a device's file of a domain, in that device's folder. */

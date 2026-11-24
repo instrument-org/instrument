@@ -44,8 +44,7 @@ let running: RecordArrivals | undefined;
 
 /**
  * Starts noticing another device's files in the workspace's chats folder
- * (`RecordArrivals`), in place of any started before, and answers it for the
- * app to say when its window comes forward and goes behind.
+ * (`RecordArrivals`), in place of any started before, and answers it.
  */
 export async function startRecordArrivals({
   chatsDir,

@@ -12,6 +12,16 @@ import {
 } from "../schemas/window-tab";
 import { type BrowserTargetId } from "../types";
 
+/**
+ * The events a list on screen is read again on when what it is read from
+ * changes, by anyone (`changesTo` in `lib/live-changes.ts`).
+ */
+export type LiveEvent =
+  | "app.updated"
+  | "memory.changed"
+  | "project.changed"
+  | "skill.changed";
+
 export const publisher = new EventPublisher<{
   /**
    * The person signed in to Instrument. Published by `accountSignedIn`,
@@ -42,8 +52,8 @@ export const publisher = new EventPublisher<{
   };
   /**
    * An app's folder or connection record changed. Carries no payload because
-   * every listener re-reads the list. Published by `appChanged`, and by the
-   * apps folder's watch while a list of apps is open (`appListChanges`).
+   * every listener re-reads the list. Published by `appChanged`, and
+   * for a change to the apps store while anything listens (`changesTo`).
    */
   "app.updated": null;
   /**
@@ -133,8 +143,8 @@ export const publisher = new EventPublisher<{
    */
   "skill.changed": null;
   /**
-   * A project's folder changed on disk, by the app or anyone else. Carries no
-   * payload because every listener re-reads the list.
+   * A project's folder or record changed on disk, by the app or anyone else
+   * (`changesTo`). Carries no payload because every listener re-reads the list.
    */
   "project.changed": null;
   /**

@@ -211,8 +211,8 @@ export function useOpenGestures(target: OpenTarget, options?: OpenAsked) {
  * The clicks every openable row and card answers the same way: a plain click
  * opens it where the surface says, a Cmd-click (Ctrl off macOS) or a middle
  * click opens it in a tab of its own behind the one up, the way a browser
- * opens a link, and a Shift-click in a tab of its own in front
- * (`openInFront`, the background tab where none is given).
+ * opens a link, and a Shift-click, or either of those with Shift, in a tab of
+ * its own in front (`openInFront`, the background tab where none is given).
  */
 export function openClickGestures({
   open,
@@ -223,6 +223,7 @@ export function openClickGestures({
   openInFront?: () => void;
   openInNewTab: () => void;
 }) {
+  const inFront = openInFront ?? openInNewTab;
   return {
     onAuxClick: (event: React.MouseEvent) => {
       if (event.button !== MIDDLE_BUTTON) {
@@ -232,15 +233,15 @@ export function openClickGestures({
       // address to the window, whose open handler sends it out to the OS
       // browser -- the one destination the gesture cannot have meant.
       event.preventDefault();
-      openInNewTab();
+      (event.shiftKey ? inFront : openInNewTab)();
     },
     onClick: (event: React.MouseEvent) => {
       // Shift and a click, a browser's new window, is a new tab here: only
       // a menu's Open in New Tab Group makes a group.
       if (wantsNewWindow(event)) {
-        (openInFront ?? openInNewTab)();
+        inFront();
       } else if (wantsNewTab(event)) {
-        openInNewTab();
+        (event.shiftKey ? inFront : openInNewTab)();
       } else {
         open();
       }

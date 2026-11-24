@@ -71,9 +71,6 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the window showed this conversation, with nothing else in view beside it.
-      </instrument-system-note>
-      <instrument-system-note>
       Your card was up, on question 2 of 4, "Which team size should I compare prices at?" (1. 10 agents; 2. 25 agents; 3. 50 agents). A number or a choice's words in this message answer that question.
       </instrument-system-note>"
     `);

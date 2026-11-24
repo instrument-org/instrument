@@ -52,7 +52,42 @@ async function renderMenu() {
     />,
     { store },
   );
+  return store;
 }
+
+describe("the menu opened again", () => {
+  it.each([
+    ["while it is still closing", 50],
+    ["once it has closed", 500],
+  ])("is empty %s, and keeps what is typed", async (_case, wait) => {
+    const store = await renderMenu();
+    await userEvent.fill(page.getByRole("combobox"), "before");
+    // As the chord closes it and opens it again.
+    store.set(commandMenuOpenAtom, false);
+    await new Promise((resolve) => setTimeout(resolve, wait));
+    store.set(commandMenuOpenAtom, true);
+    const field = page.getByRole("combobox").last();
+    await expect.element(field).toHaveFocus();
+    await expect.element(field).toHaveValue("");
+    await userEvent.keyboard("after");
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await expect.element(field).toHaveValue("after");
+    await expect.element(field).toHaveFocus();
+    expect(page.getByRole("combobox").elements()).toHaveLength(1);
+  });
+
+  it("keeps what is typed after Escape closed it", async () => {
+    const store = await renderMenu();
+    await userEvent.fill(page.getByRole("combobox"), "before");
+    await userEvent.keyboard("{Escape}");
+    store.set(commandMenuOpenAtom, true);
+    const field = page.getByRole("combobox").last();
+    await expect.element(field).toHaveFocus();
+    await userEvent.keyboard("after");
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    await expect.element(field).toHaveValue("after");
+  });
+});
 
 // Words pasted in arrive in one change, from the list shown before anything
 // was typed straight to the rows for the whole of them. Return runs the row

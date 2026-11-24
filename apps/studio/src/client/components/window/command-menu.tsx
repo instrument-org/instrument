@@ -1377,12 +1377,18 @@ export function CommandMenu({
   const [search, setSearch] = useState("");
   const listId = useId();
 
+  // Each opening starts empty, however the last one closed, and even where it
+  // is still on its way out.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) {
+      setSearch("");
+    }
+  }
+
   const close = () => {
     setOpen(false);
-    // After the close animation, so the list does not visibly empty first.
-    setTimeout(() => {
-      setSearch("");
-    }, 200);
   };
   useModalBack(close, open);
 
@@ -1418,6 +1424,11 @@ export function CommandMenu({
       </DialogHeader>
       <DialogContent
         className="overflow-hidden rounded-2xl p-0"
+        // Once it is out of sight, so the list does not visibly empty first
+        // and the next opening does not start from the last one's rows.
+        onExitComplete={() => {
+          setSearch("");
+        }}
         showCloseButton={false}
       >
         <div className="flex size-full flex-col overflow-hidden rounded-md bg-popover text-popover-foreground">

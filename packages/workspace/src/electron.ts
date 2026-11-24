@@ -62,6 +62,7 @@ export {
   isMcpManifest,
 } from "./lib/apps/manifest";
 export { requireAppCredential } from "./lib/apps/credential-origin";
+export { unsendableCredential } from "./lib/apps/request";
 export {
   callMcpTool,
   listMcpTools,

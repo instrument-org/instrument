@@ -5,6 +5,7 @@ import { type InitialRPCContext } from "../context";
 import { apps } from "./apps";
 
 const mocks = vi.hoisted(() => ({
+  canSaveKeys: vi.fn(() => true),
   appChanged: vi.fn(() => Promise.resolve()),
   /** The apps store, by slug: what each app's setup says and what it is called. */
   apps: new Map<string, { manifest: Record<string, unknown>; name: string }>(),
@@ -22,6 +23,10 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock("@/electron-main/rpc/base", () => ({
   base: os.errors({ API_ERROR: {}, NOT_FOUND: {}, UNAUTHORIZED: {} }),
+}));
+vi.mock("@/electron-main/lib/key-file", () => ({
+  canSaveKeys: mocks.canSaveKeys,
+  KEYS_NOT_SAVABLE: "no keyring",
 }));
 vi.mock("@/electron-main/auth/server", () => ({
   startAuthCallbackServer: () => Promise.resolve(),
@@ -147,6 +152,28 @@ describe("setCredential", () => {
     expect(mocks.setAppCredential).not.toHaveBeenCalled();
     expect(mocks.runAppTest).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { canSave: true, value: "k3y\u200B", why: /can’t be sent/ },
+    { canSave: false, value: "k3y", why: /no keyring/ },
+  ])(
+    "stores nothing when refusing a key: $why",
+    async ({ canSave, value, why }) => {
+      mocks.canSaveKeys.mockReturnValueOnce(canSave);
+      await expect(
+        call(
+          apps.setCredential,
+          { origin: "https://api.example.com", slug: "keyed", value },
+          options,
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringMatching(why) as string,
+      });
+      expect(mocks.setAppCredential).not.toHaveBeenCalled();
+      mocks.canSaveKeys.mockReset().mockReturnValue(true);
+    },
+  );
 });
 
 describe("startOAuth", () => {

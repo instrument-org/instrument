@@ -9,6 +9,7 @@ import {
   getMacAppIconUrl,
 } from "@/electron-main/lib/file-open-target";
 import { directoryIconFor } from "@/electron-main/lib/directory-icons";
+import { canSaveKeys, KEYS_NOT_SAVABLE } from "@/electron-main/lib/key-file";
 import { base } from "@/electron-main/rpc/base";
 import { appConnectionStore } from "@/electron-main/stores/workspace/app-connections";
 import {
@@ -46,6 +47,7 @@ import {
   appCatalogChanges,
   appChanged,
   appListChanges,
+  unsendableCredential,
   ChatIdSchema,
   findAppIcon,
   type AppManifest,
@@ -768,6 +770,17 @@ const setCredential = base
       origin: input.origin,
       slug: input.slug,
     });
+    const loaded = await loadApp(input.slug);
+    if (loaded.isErr()) {
+      throw errors.NOT_FOUND({ message: loaded.error.message });
+    }
+    const unsendable = unsendableCredential(loaded.value.manifest, input.value);
+    if (unsendable !== undefined) {
+      throw new ORPCError("BAD_REQUEST", { message: unsendable });
+    }
+    if (!canSaveKeys()) {
+      throw new ORPCError("BAD_REQUEST", { message: KEYS_NOT_SAVABLE });
+    }
     if (input.chatId !== undefined) {
       await waitInChat(input.slug, input.chatId);
     }

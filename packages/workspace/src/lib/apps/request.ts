@@ -1,6 +1,10 @@
 import { err, ok, type Result } from "neverthrow";
 
-import { type ApiAppManifest, type AppAuth } from "./manifest";
+import {
+  type ApiAppManifest,
+  type AppAuth,
+  type AppManifest,
+} from "./manifest";
 import { checkAppUrl } from "./safe-url";
 
 const MAX_REDIRECTS = 5;
@@ -10,7 +14,12 @@ const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 export interface AppRequestError {
   message: string;
-  reason: "invalid-path" | "network" | "too-many-redirects" | "unsafe-url";
+  reason:
+    | "invalid-headers"
+    | "invalid-path"
+    | "network"
+    | "too-many-redirects"
+    | "unsafe-url";
 }
 
 export interface AppResponse {
@@ -146,10 +155,19 @@ export async function performAppRequest({
       // like the credential, they are dropped once a redirect leaves the
       // app's origin. The auth binding is applied last so a manifest
       // header can never shadow it.
-      for (const [name, value] of Object.entries(manifest.headers ?? {})) {
-        headers.set(name, value);
+      // What `Headers` throws quotes the value it refused, so it goes no further.
+      try {
+        for (const [name, value] of Object.entries(manifest.headers ?? {})) {
+          headers.set(name, value);
+        }
+        applyAuth({ auth: manifest.auth, credential, headers, url });
+      } catch {
+        return err({
+          message:
+            "The request's headers can't be sent: a header name or value in the app's setup, or its key, has a character HTTP does not allow.",
+          reason: "invalid-headers",
+        });
       }
-      applyAuth({ auth: manifest.auth, credential, headers, url });
     }
 
     let response: Response;
@@ -230,23 +248,67 @@ export async function performAppRequest({
 }
 
 /**
- * Replace every occurrence of the credential in agent-visible text -- both the
- * raw value and its percent-encoded form, since a credential that rode in a URL
- * comes back encoded (e.g. `+`/`/`/`=` in a base64-ish token).
+ * Replace every occurrence of the credential in agent-visible text, in each
+ * form a service can hand it back: as it is, percent-encoded as a URL carries
+ * it, escaped as JSON writes it, and the base64 a Basic header carries.
  */
 export function redactCredential(
   text: string,
   credential: null | string,
+  auth?: AppAuth,
 ): string {
   if (credential === null || credential.length === 0) {
     return text;
   }
-  let out = text.split(credential).join("[REDACTED]");
-  const encoded = encodeURIComponent(credential);
-  if (encoded !== credential) {
-    out = out.split(encoded).join("[REDACTED]");
+  const carried =
+    auth?.kind === "basic"
+      ? [credential, basicUserinfo(auth, credential)]
+      : [credential];
+  const forms = new Set(
+    carried.flatMap((value) => [
+      value,
+      encodeURIComponent(value),
+      JSON.stringify(value).slice(1, -1),
+    ]),
+  );
+  // Longest first, so a form that holds another is taken out whole.
+  return [...forms]
+    .sort((a, b) => b.length - a.length)
+    .reduce((out, form) => out.split(form).join("[REDACTED]"), text);
+}
+
+/** What a Basic header carries: the username, when there is one, and the key, in base64. */
+function basicUserinfo(
+  auth: Extract<AppAuth, { kind: "basic" }>,
+  credential: string,
+): string {
+  const userinfo =
+    auth.user === undefined ? credential : `${auth.user}:${credential}`;
+  return Buffer.from(userinfo, "utf8").toString("base64");
+}
+
+/**
+ * Why a key can't be sent the way its app sends it, for the person who pasted
+ * it, or undefined when it can. A header takes no character past Latin-1 and
+ * no control character; an environment variable takes no NUL.
+ */
+export function unsendableCredential(
+  manifest: AppManifest,
+  credential: string,
+): string | undefined {
+  if (manifest.type === "web") {
+    return undefined;
   }
-  return out;
+  const { kind } = manifest.auth;
+  const refused =
+    kind === "bearer" || kind === "header"
+      ? /[^\t\x20-\x7e\x80-\xff]/
+      : kind === "env"
+        ? /\0/
+        : undefined;
+  return refused?.test(credential)
+    ? "The key has a character in it that can’t be sent, often an invisible one picked up while copying. Copy the key again and paste it here."
+    : undefined;
 }
 
 function applyAuth({
@@ -265,12 +327,7 @@ function applyAuth({
   }
   switch (auth.kind) {
     case "basic": {
-      const userinfo =
-        auth.user === undefined ? credential : `${auth.user}:${credential}`;
-      headers.set(
-        "Authorization",
-        `Basic ${Buffer.from(userinfo, "utf8").toString("base64")}`,
-      );
+      headers.set("Authorization", `Basic ${basicUserinfo(auth, credential)}`);
       break;
     }
     case "bearer":

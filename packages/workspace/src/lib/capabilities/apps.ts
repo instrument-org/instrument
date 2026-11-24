@@ -908,19 +908,21 @@ export const appsRequest = defineCapability({
       credential = await credentialFor(app.slug, app.manifest, ctx.role);
       result = await performAppRequest({ ...request, credential });
     }
+    const { auth } = app.manifest;
+    const redact = (value: string) => redactCredential(value, credential, auth);
     if (result.isErr()) {
-      throw new CapabilityFailure(
-        redactCredential(result.error.message, credential),
-      );
+      throw new CapabilityFailure(redact(result.error.message));
     }
     const response = result.value;
-    const text = redactCredential(response.bodyText, credential);
+    const text = redact(response.bodyText);
     const output: Response = {
-      body: response.contentType.includes("json") ? jsonOrText(text) : text,
+      body: response.contentType.includes("json")
+        ? z.json().parse(redactValue(jsonOrText(text), redact))
+        : text,
       ...(response.contentType ? { content_type: response.contentType } : {}),
       status: response.status,
       truncated: response.truncated,
-      url: redactCredential(response.url, credential),
+      url: redact(response.url),
     };
     if (response.status >= 400) {
       throw new CapabilityFailure(

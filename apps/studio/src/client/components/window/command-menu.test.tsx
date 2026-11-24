@@ -56,9 +56,10 @@ vi.mock("@/client/components/window/shell-context", () => ({
   }),
 }));
 
-vi.mock("@/client/bookmarks/store", async () => {
+vi.mock("@/client/bookmarks/store", async (importOriginal) => {
   const { atom } = await import("jotai");
   return {
+    ...(await importOriginal<typeof import("@/client/bookmarks/store")>()),
     bookmarksAtom: atom([
       { title: "Weather Radar", url: "https://radar.example.com/" },
     ]),

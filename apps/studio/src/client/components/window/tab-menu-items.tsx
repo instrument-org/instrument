@@ -10,19 +10,18 @@ import { useWindowPointStyle } from "@/client/hooks/use-app-zoom";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
-import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { ArrowLineLeftIcon } from "@phosphor-icons/react/ArrowLineLeft";
 import { ArrowLineRightIcon } from "@phosphor-icons/react/ArrowLineRight";
 import { ArrowsLeftRightIcon } from "@phosphor-icons/react/ArrowsLeftRight";
-import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { RectangleIcon } from "@phosphor-icons/react/Rectangle";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
 import { StackIcon } from "@phosphor-icons/react/Stack";
-import { StarIcon } from "@phosphor-icons/react/Star";
 import { XIcon } from "@phosphor-icons/react/X";
 import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { type ReactNode } from "react";
+
+import { type TabAction } from "./tab-actions";
 
 /**
  * The menu a right click on a tab raises, anchored at the pointer, in the
@@ -99,7 +98,8 @@ function TabMenuContent({
  * the other side, or a copy opened there where nothing would be left to
  * move; a new tab there; the two sides joined; the tab to a group or a
  * window of its own), then
- * the tab copied, kept as a bookmark or reloaded, then closing it, the
+ * the tab copied and what it offers for its address (`useTabActionsFor`:
+ * kept as a bookmark, reloaded, its address copied), then closing it, the
  * tabs around it or its whole side,
  * and last what only this tab has, such as a chat's own items, under a
  * divider. Drawn with whichever menu's parts it is raised in, since a
@@ -107,7 +107,7 @@ function TabMenuContent({
  * action is.
  */
 export function TabMenuItems({
-  bookmark,
+  actions,
   components: { Item, Separator, Shortcut, Sub, SubContent, SubTrigger },
   isSelected,
   moveToWindow,
@@ -116,7 +116,6 @@ export function TabMenuItems({
   onCloseSplit,
   onCloseToLeft,
   onCloseToRight,
-  onCopyUrl,
   onDuplicate,
   onJoinSides,
   onMoveToNewGroup,
@@ -124,11 +123,10 @@ export function TabMenuItems({
   onMoveToOtherSide,
   onNewChatInSplit,
   onOpenInSplit,
-  onReload,
   own,
 }: {
-  /** Keeping the tab's address as a bookmark, or no longer; none for a tab with no address to keep. */
-  bookmark?: { isKept: boolean; onToggle: () => void } | undefined;
+  /** What the tab offers for its address (`useTabActionsFor`). */
+  actions: TabAction[];
   components: MenuComponents;
   /** The tab up on the side with the keyboard, whose chords the rows show. */
   isSelected: boolean;
@@ -145,7 +143,6 @@ export function TabMenuItems({
   onCloseSplit?: (() => void) | undefined;
   onCloseToLeft: (() => void) | undefined;
   onCloseToRight: (() => void) | undefined;
-  onCopyUrl: (() => void) | undefined;
   onDuplicate: () => void;
   /** The group's two sides made one; none for a group of one side. */
   onJoinSides: (() => void) | undefined;
@@ -156,7 +153,6 @@ export function TabMenuItems({
   onNewChatInSplit: (() => void) | undefined;
   /** A copy of the tab on the other side, for a tab with nothing beside it to leave behind. */
   onOpenInSplit: (() => void) | undefined;
-  onReload: (() => void) | undefined;
   /** What only this tab has, after the rest under a divider: a chat's own items. */
   own?: ReactNode;
 }) {
@@ -244,34 +240,15 @@ export function TabMenuItems({
         <NewTabIcon className="size-4" />
         <span>Duplicate</span>
       </Item>
-      {bookmark && (
-        <Item onClick={bookmark.onToggle}>
-          <StarIcon
-            className="size-4"
-            weight={bookmark.isKept ? "fill" : "regular"}
-          />
-          <span>
-            {bookmark.isKept ? "Remove from Bookmarks" : "Add to Bookmarks"}
-          </span>
-        </Item>
-      )}
-      {onReload && (
-        <Item onClick={onReload}>
-          <ArrowClockwiseIcon className="size-4" />
-          <span>Reload</span>
-          {isSelected ? (
-            <Shortcut>
-              {formatAcceleratorText(WINDOW_SHORTCUTS.reloadPage.accelerator)}
-            </Shortcut>
+      {actions.map((action) => (
+        <Item key={action.id} onClick={action.run}>
+          {action.icon}
+          <span>{action.label}</span>
+          {isSelected && action.chord !== undefined ? (
+            <Shortcut>{formatAcceleratorText(action.chord)}</Shortcut>
           ) : null}
         </Item>
-      )}
-      {onCopyUrl && (
-        <Item onClick={onCopyUrl}>
-          <CopyIcon className="size-4" />
-          <span>Copy URL</span>
-        </Item>
-      )}
+      ))}
       <Separator />
       <Item onClick={onClose}>
         <XIcon className="size-4" />

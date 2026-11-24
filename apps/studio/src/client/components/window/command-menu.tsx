@@ -43,6 +43,9 @@ import {
 } from "@/client/components/window/chats";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { useShell } from "@/client/components/window/shell-context";
+import { useFrontTabActions } from "@/client/components/window/tab-actions";
+import { useTabTitle } from "@/client/components/window/tab-title";
+import { useWindowTabs } from "@/client/components/window/window-tabs";
 import {
   matchKnownPages,
   useKnownPages,
@@ -150,6 +153,11 @@ const RECENTS_SHOWN = 4;
  * updates) are found by typing.
  */
 const LISTED_COMMANDS = new Set(["new-group", "new-tab", "settings"]);
+/**
+ * How many actions for the tab in front are listed before anything is
+ * typed. The rest are found by typing.
+ */
+const FRONT_ACTIONS_SHOWN = 5;
 
 /**
  * A search's matched ranges, as start and end pairs, within the piece of a
@@ -203,12 +211,13 @@ type Row =
 
 /**
  * The menu's rows for the words typed: what
- * the words name (an address to open, commands, chats, the apps set up
- * here, pages, files), then a web search for words that are a search, then, when
+ * the words name (an address to open, commands and the actions for the tab
+ * in front, chats, the apps set up here, pages, files), then a web search for words that are a search, then, when
  * nothing matched by name and the words are no address, the chats the
  * decision model says they mean, below the search so Return never changes
  * under the caret. Each kind lists three at most. Before anything is typed,
- * what was used last of every kind, and the commands worth reaching often.
+ * what was used last of every kind, what the tab in front offers (a chat, a
+ * page or a file), and the commands worth reaching often.
  * Words
  * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
  *
@@ -281,6 +290,25 @@ export function useCommandMenuRows({
     ...chatListOptions(),
     subscribed: active,
   });
+  const chatTitles = new Map(chats.map((chat) => [chat.id, chat.title]));
+  // What the tab up on the side with the keyboard offers, under what it is.
+  const frontTab = useWindowTabs().active;
+  const titleOfTab = useTabTitle(chatTitles);
+  const front = useFrontTabActions({
+    chats,
+    tab: frontTab,
+    title: frontTab === undefined ? "" : titleOfTab(frontTab),
+  });
+  const frontActions: Omit<Item, "ranges" | "type">[] = (
+    front?.actions ?? []
+  ).map(({ chord, icon, id, label, run }) => ({
+    ...(chord === undefined ? {} : { chord }),
+    // A menu's action wears its icon at the size every row here does.
+    icon: <span className="contents [&_svg]:size-4">{icon}</span>,
+    id: `front:${id}`,
+    label,
+    run,
+  }));
   const commands: Omit<Item, "ranges" | "type">[] = [
     {
       chord: WINDOW_SHORTCUTS.newChat.accelerator,
@@ -682,8 +710,17 @@ export function useCommandMenuRows({
   const named: { items: Item[]; label: string }[] = isSearch
     ? [
         {
+          // An action for the tab in front is found among the commands, and
+          // says what it acts on.
           items: fuzzyMatch(
-            [...commands, ...settingsRows],
+            [
+              ...frontActions.map((action) => ({
+                ...action,
+                detail: front?.heading,
+              })),
+              ...commands,
+              ...settingsRows,
+            ],
             (command) => [command.label, command.detail ?? ""],
             words,
           )
@@ -821,6 +858,12 @@ export function useCommandMenuRows({
             label: "Recent",
           },
           {
+            items: frontActions
+              .slice(0, FRONT_ACTIONS_SHOWN)
+              .map((action) => ({ ...action, ranges: null, type: "item" })),
+            label: front?.heading ?? "",
+          },
+          {
             items: commands
               .filter((command) => LISTED_COMMANDS.has(command.id))
               .map((command) => ({ ...command, ranges: null, type: "item" })),
@@ -845,12 +888,7 @@ export function useCommandMenuRows({
                       ),
                       id: `open:${address.kind === "page" ? address.url : address.address}`,
                       label: typedAddressLabel(
-                        typedAddressName(address, {
-                          appsBySlug,
-                          chatTitles: new Map(
-                            chats.map((chat) => [chat.id, chat.title]),
-                          ),
-                        }),
+                        typedAddressName(address, { appsBySlug, chatTitles }),
                       ),
                       ranges: null,
                       // A page loads in a tab, and one of the app's own

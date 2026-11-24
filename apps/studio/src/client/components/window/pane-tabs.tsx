@@ -1,9 +1,4 @@
 import { type WindowTab } from "@/client/atoms/window";
-import {
-  addressOfTab,
-  useAddBookmark,
-  useBookmarkActions,
-} from "@/client/bookmarks/actions";
 import { PageFavicon } from "@/client/components/favicon";
 import {
   FileSystemFolderGlyph,
@@ -12,7 +7,6 @@ import {
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
 import { draftsAtom } from "@/client/drafts/store";
 import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activity";
-import { getGuest } from "@/client/lib/browser-pool";
 import { cn } from "@/client/lib/utils";
 import {
   browserTargetOf,
@@ -44,10 +38,10 @@ import { isInVersionsFolder, VersionTabMark } from "./file-versions";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
 import { tasksOfHref } from "./tab-location";
+import { useTabActionsFor } from "./tab-actions";
 import { chatOfTab, draftOfTab } from "./tab-model";
 import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { type StripTab, TabStrip } from "./tab-strip";
-import { useBookmarkEdits } from "./web-start";
 import { useWindowTabs } from "./window-tabs";
 import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
 
@@ -264,7 +258,9 @@ export function PaneTabs({
             glintIcon: (
               <ScreenMark
                 appsBySlug={appsBySlug}
-                chatId={tab.group === undefined ? undefined : chatUpIn(tab.group)}
+                chatId={
+                  tab.group === undefined ? undefined : chatUpIn(tab.group)
+                }
                 chatTitles={chatTitles}
                 href={tab.href}
               />
@@ -472,13 +468,7 @@ function PaneTabMenu({
   /** What the tab is called, which a bookmark of it is named. */
   title: string;
 }) {
-  const bookmarks = useBookmarkActions();
-  const addBookmark = useAddBookmark();
-  const bookmarkEdits = useBookmarkEdits();
-  const address = addressOfTab(tab);
-  const kept =
-    address === undefined ? undefined : bookmarks.bookmarkOf(address);
-  const pageUrl = tab.kind === "page" ? (tab.url ?? tab.openedUrl) : undefined;
+  const actions = useTabActionsFor()(tab, title);
   const index = tabs.findIndex((each) => each.id === tab.id);
   const closing = (closed: readonly WindowTab[]) =>
     closed.length === 0
@@ -502,20 +492,7 @@ function PaneTabMenu({
   ).data;
   return (
     <TabMenuItems
-      bookmark={
-        address === undefined
-          ? undefined
-          : {
-              isKept: kept !== undefined,
-              onToggle: () => {
-                if (kept) {
-                  bookmarkEdits.remove(kept);
-                } else {
-                  addBookmark({ title, url: address });
-                }
-              },
-            }
-      }
+      actions={actions}
       components={dropdownMenuComponents}
       isSelected={isChosen}
       onClose={() => {
@@ -524,13 +501,6 @@ function PaneTabMenu({
       onCloseOthers={closing(tabs.filter((each) => each.id !== tab.id))}
       onCloseToLeft={closing(tabs.slice(0, Math.max(index, 0)))}
       onCloseToRight={closing(index === -1 ? [] : tabs.slice(index + 1))}
-      onCopyUrl={
-        pageUrl === undefined
-          ? undefined
-          : () => {
-              void navigator.clipboard.writeText(pageUrl);
-            }
-      }
       onDuplicate={() => {
         onDuplicate(tab);
       }}
@@ -572,13 +542,6 @@ function PaneTabMenu({
               split.onOpenInSplit(tab);
             }
           : undefined
-      }
-      onReload={
-        pageUrl === undefined
-          ? undefined
-          : () => {
-              getGuest(browserTargetOf(tab.id))?.reload();
-            }
       }
       own={
         chat !== undefined ? (

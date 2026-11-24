@@ -127,7 +127,7 @@ import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions, chromeOfChats } from "./chat-list-query";
 import { type ChatFilters, inPlace } from "./chats";
 import { useComputerVolumes } from "./computer-volumes";
-import { type WindowContextValue as Screens, WindowContext } from "./context";
+import { type WindowContextValue as Screens } from "./context";
 import {
   chatOfTab,
   closedGroupTabOf,
@@ -149,6 +149,7 @@ import {
   tabAtChord,
   useHeldChordHints,
 } from "./held-chord-hints";
+import { PlanSignInsWindow } from "./plan-sign-in";
 import { useSiteSignInsEnd } from "./site-sign-in";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { WindowLook } from "./look-panel";
@@ -1849,7 +1850,7 @@ function WindowShell({
   };
 
   return (
-    <WindowContext value={screens}>
+    <PlanSignInsWindow value={screens}>
       <FileOpenContext
         value={(filePath, options) => {
           openNamedPath(filePath, options);
@@ -2022,6 +2023,6 @@ function WindowShell({
           {stopping.dialog}
         </PageOpenContext>
       </FileOpenContext>
-    </WindowContext>
+    </PlanSignInsWindow>
   );
 }

@@ -8,6 +8,7 @@ import {
   submitClaudeSignInCode,
   refreshClaudeAccountStatus,
 } from "@/electron-main/lib/claude-account";
+import { PlanSignInOpensInSchema } from "@/electron-main/lib/plan-sign-in-page";
 import { base } from "@/electron-main/rpc/base";
 import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
 import {
@@ -33,7 +34,9 @@ const live = {
  * Connecting the account (the check and the default model) is
  * `accountCheck.connect`.
  */
-const signIn = base.handler(() => signInToClaude());
+const signIn = base
+  .input(z.object({ opensIn: PlanSignInOpensInSchema }))
+  .handler(({ input }) => signInToClaude(input));
 
 /**
  * Passes the waiting sign-in the code Anthropic's page showed on another

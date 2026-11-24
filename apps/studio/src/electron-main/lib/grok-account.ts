@@ -1,3 +1,7 @@
+import {
+  openPlanSignInPage,
+  type PlanSignInOpensIn,
+} from "@/electron-main/lib/plan-sign-in-page";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { noteSignedOut } from "@/electron-main/lib/notices";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
@@ -15,7 +19,6 @@ import {
   GROK_ACCOUNT_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
-import { shell } from "electron";
 import Store from "electron-store";
 import { ulid } from "ulid";
 import { type Actor, createActor, fromPromise, waitFor } from "xstate";
@@ -608,7 +611,9 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
  * account already signed in to is updated rather than listed twice. Asking
  * again while one waits replaces it.
  */
-export async function signInWithGrok(): Promise<GrokSignInResult> {
+export async function signInWithGrok({
+  opensIn = "external",
+}: { opensIn?: PlanSignInOpensIn } = {}): Promise<GrokSignInResult> {
   pending?.controller.abort();
   const controller = new AbortController();
   const { signal } = controller;
@@ -636,7 +641,11 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
       controller,
     };
     publisher.publish("grok-account.updated", null);
-    await shell.openExternal(verificationUri);
+    await openPlanSignInPage({
+      opensIn,
+      provider: "grok",
+      url: verificationUri,
+    });
 
     const deadline = Date.now() + (device.expires_in ?? 300) * 1000;
     let interval = Math.max(device.interval ?? 5, 1) * 1000;
@@ -703,8 +712,11 @@ export async function signInWithGrok(): Promise<GrokSignInResult> {
       saveUnlessReplaced(registrationById(registration.id), registration);
       grantOf(registration.id).send({ type: "signedIn" });
       await checkGrokSubscriptions({ accountId: registration.id });
-      // The person approved on xAI's page; bring them back to the app.
-      focusAppWindow();
+      // The person approved on xAI's page in their own browser; bring them
+      // back to the app.
+      if (opensIn === "external") {
+        focusAppWindow();
+      }
       const saved = registrationById(registration.id) ?? registration;
       return {
         account: accountStatus(saved, registrations()),

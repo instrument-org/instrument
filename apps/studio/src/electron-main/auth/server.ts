@@ -23,7 +23,10 @@ import {
 } from "@/electron-main/lib/apps";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { directoryIconDataUri } from "@/electron-main/lib/directory-icons";
-import { receiveChatGPTCallback } from "@/electron-main/lib/chatgpt-account";
+import {
+  chatGPTSignInOpensIn,
+  receiveChatGPTCallback,
+} from "@/electron-main/lib/chatgpt-account";
 import { receiveOpenRouterCallback } from "@/electron-main/lib/openrouter-connect";
 import { focusAppWindow } from "@/electron-main/windows/foreground";
 import { serve } from "@hono/node-server";
@@ -157,13 +160,17 @@ export function createAuthCallbackApp() {
 
   const googleService = { mark: GOOGLE_MARK, name: "Google" };
   // A failure the page offers a reference for, logged under that reference.
-  const failed = (error: Error, page: { connecting?: string } = {}) => {
+  const failed = (
+    error: Error,
+    page: { connecting?: string; inApp?: boolean } = {},
+  ) => {
     const reference = newAuthReference();
     captureServerException(error, {
       area: "auth",
       data: { authReference: reference },
     });
-    return renderAuthPage({ ...page, kind: "failed", reference });
+    const { inApp, ...outcome } = page;
+    return renderAuthPage({ ...outcome, kind: "failed", reference }, { inApp });
   };
 
   // The API's Google sign-in lands here with a single-use token, or with the
@@ -293,14 +300,19 @@ export function createAuthCallbackApp() {
       return c.html(renderAuthPage({ kind: "expired" }), 400);
     }
     const chatGPT = { mark: OPENAI_MARK, name: "ChatGPT" };
+    // In a tab of the app's own there is no window to come back to, and the
+    // bar over the tab has the way on.
+    const inApp = chatGPTSignInOpensIn() === "app";
     const failedPage = (error: Error) =>
-      failed(error, { connecting: chatGPT.name });
+      failed(error, { connecting: chatGPT.name, inApp });
     const status = await finished.then(
       (value) => ({ value }),
       (error: unknown) =>
         failedPage(new Error("ChatGPT sign-in failed", { cause: error })),
     );
-    focusAppWindow();
+    if (!inApp) {
+      focusAppWindow();
+    }
     if (!("value" in status)) {
       return c.html(status, 400);
     }
@@ -308,28 +320,36 @@ export function createAuthCallbackApp() {
     switch (outcome) {
       case "canceled": {
         // A newer sign-in took this one's place, or it was given up in the app.
-        return c.html(renderAuthPage({ kind: "expired" }), 400);
+        return c.html(renderAuthPage({ kind: "expired" }, { inApp }), 400);
       }
       case "declined": {
-        return c.html(renderAuthPage({ kind: "declined", service: chatGPT }));
+        return c.html(
+          renderAuthPage({ kind: "declined", service: chatGPT }, { inApp }),
+        );
       }
       case "plan-off": {
         // Signed in, with plan access left unchecked on OpenAI's page.
         return c.html(
-          renderAuthPage({
-            headline: "ChatGPT account access is off",
-            kind: "declined",
-            service: chatGPT,
-          }),
+          renderAuthPage(
+            {
+              headline: "ChatGPT account access is off",
+              kind: "declined",
+              service: chatGPT,
+            },
+            { inApp },
+          ),
         );
       }
       case "signed-in": {
         return c.html(
-          renderAuthPage({
-            email: account?.email,
-            kind: "connected",
-            service: chatGPT,
-          }),
+          renderAuthPage(
+            {
+              email: account?.email,
+              kind: "connected",
+              service: chatGPT,
+            },
+            { inApp },
+          ),
         );
       }
     }

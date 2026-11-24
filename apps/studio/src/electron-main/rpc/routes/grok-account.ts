@@ -8,6 +8,7 @@ import {
   signInWithGrok,
   signOutOfGrok,
 } from "@/electron-main/lib/grok-account";
+import { PlanSignInOpensInSchema } from "@/electron-main/lib/plan-sign-in-page";
 import { base } from "@/electron-main/rpc/base";
 import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
 import { AIProviderConfigIdSchema } from "@instrument-org/shared";
@@ -30,25 +31,27 @@ const live = {
  * adding it when it is new. Answers how it ended, with what went wrong when
  * it failed.
  */
-const signIn = base.handler(
-  async (): Promise<
-    GrokSignInResult | { error: string; outcome: "failed" }
-  > => {
-    try {
-      const result = await signInWithGrok();
-      return result;
-    } catch (error) {
-      captureServerException(
-        new Error("Grok sign-in failed", { cause: error }),
-        { area: "auth" },
-      );
-      return {
-        error: error instanceof Error ? error.message : "Sign-in failed",
-        outcome: "failed",
-      };
-    }
-  },
-);
+const signIn = base
+  .input(z.object({ opensIn: PlanSignInOpensInSchema }))
+  .handler(
+    async ({
+      input,
+    }): Promise<GrokSignInResult | { error: string; outcome: "failed" }> => {
+      try {
+        const result = await signInWithGrok(input);
+        return result;
+      } catch (error) {
+        captureServerException(
+          new Error("Grok sign-in failed", { cause: error }),
+          { area: "auth" },
+        );
+        return {
+          error: error instanceof Error ? error.message : "Sign-in failed",
+          outcome: "failed",
+        };
+      }
+    },
+  );
 
 const signOut = base
   .input(z.object({ accountId: z.string() }))

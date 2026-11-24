@@ -35,6 +35,7 @@ import {
   WindowContext,
 } from "./context";
 import { ScreenToolsRow, useRowSlots } from "./row-slots";
+import { PlanSignInBar } from "./plan-sign-in";
 import { SiteSignInBar } from "./site-sign-in";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { PageAgentOverlay } from "./page-agent-overlay";
@@ -388,6 +389,7 @@ export function GroupItem({
               onVisit={takeOver}
             />
             <SiteSignInBar tabId={up.id} />
+            <PlanSignInBar tabId={up.id} />
           </>
         }
       >

@@ -1,11 +1,9 @@
 import { Button } from "@/client/components/ui/button";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
-import {
-  ConnectControls,
-  useDefaultBrowser,
-} from "@/client/components/window/connect-controls";
+import { ConnectControls } from "@/client/components/window/connect-controls";
 import { WindowContext } from "@/client/components/window/context";
+import { useDefaultBrowser } from "@/client/components/window/sign-in-pair";
 import { useSiteSignIns } from "@/client/components/window/site-sign-in";
 import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
 import { toast } from "@/client/lib/toast";

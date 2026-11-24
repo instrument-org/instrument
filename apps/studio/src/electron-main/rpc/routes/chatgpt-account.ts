@@ -9,6 +9,7 @@ import {
   signOutOfChatGPT,
   verifyAccounts,
 } from "@/electron-main/lib/chatgpt-account";
+import { PlanSignInOpensInSchema } from "@/electron-main/lib/plan-sign-in-page";
 import { base } from "@/electron-main/rpc/base";
 import { setProviderConfigEnabled } from "@/electron-main/stores/workspace/provider-configs";
 import { AIProviderConfigIdSchema } from "@instrument-org/shared";
@@ -30,7 +31,12 @@ const live = {
  * ended, with what went wrong when it failed.
  */
 const signIn = base
-  .input(z.object({ accountId: z.string().optional() }))
+  .input(
+    z.object({
+      accountId: z.string().optional(),
+      opensIn: PlanSignInOpensInSchema,
+    }),
+  )
   .handler(
     async ({
       input,
@@ -43,6 +49,7 @@ const signIn = base
         const result = await signInWithChatGPT({
           accountId: input.accountId,
           callbackPort: server.port,
+          opensIn: input.opensIn,
         });
         return result;
       } catch (error) {

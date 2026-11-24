@@ -1,5 +1,4 @@
 import { Button } from "@/client/components/ui/button";
-import { Spinner } from "@/client/components/ui/spinner";
 import { cn, osConventions } from "@/client/lib/utils";
 import { Destination } from "@/client/components/window/connect-destination";
 import { KeyForm } from "@/client/components/window/key-form";
@@ -8,13 +7,17 @@ import {
   type SignInDestination,
   signInsWaitingAtom,
 } from "@/client/components/window/use-sign-in-landing";
+import {
+  SIGN_IN_HERE,
+  SignInPair,
+} from "@/client/components/window/sign-in-pair";
 import { useSiteSignIn } from "@/client/components/window/site-sign-in";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
-import { type ReactNode, useContext } from "react";
+import { type ComponentProps, type ReactNode, useContext } from "react";
 import { toast } from "@/client/lib/toast";
 
 /** A card row's pair of buttons, ending where the row does; in a narrow chat they go under the name, half the row each. */
@@ -28,21 +31,6 @@ const ROW_BUTTONS =
  */
 const SITE_ROW_BUTTONS =
   "flex shrink-0 items-center gap-1.5 @max-md/transcript:w-full @max-md/transcript:flex-col-reverse @max-md/transcript:items-stretch";
-
-/** What the button that signs in on the app's own site says. */
-const SIGN_IN_ON_SITE = "Sign in here";
-
-/** The computer's default browser, by name and icon where it can say. */
-export function useDefaultBrowser() {
-  return useQuery(
-    rpcClient.utils.browserOpenTarget.queryOptions({
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      refetchOnWindowFocus: false,
-      staleTime: Number.POSITIVE_INFINITY,
-    }),
-  );
-}
 
 /**
  * The one thing only the user can give an app, wherever it is asked for: a
@@ -106,8 +94,6 @@ export function ConnectControls({
   const inChat = askedIn === undefined ? {} : { chatId: askedIn };
   const openExternalLink = useOpenExternalLink();
   const site = useSiteSignIn({ askedIn, name, slug });
-  // The default browser, for the button that sends the sign-in there.
-  const browser = useDefaultBrowser();
   // Whether a sign-in started here is still waiting, kept by the window
   // so it outlives these controls (see `useSignInLanding`).
   const [signInsWaiting, setSignInsWaiting] = useAtom(signInsWaitingAtom);
@@ -286,95 +272,18 @@ export function ConnectControls({
     setWaiting(false);
     cancelOAuth.mutate({ slug });
   };
-  // The pair a sign-in offers: the user's own browser, then another way in.
-  // While one waits it stays in its place, dimmed, and the other's place is
-  // Cancel, at the width of the button it stands in for.
-  const pair = ({
-    lit,
-    other,
-    verb,
-  }: {
-    lit: boolean;
-    /** The second way in, where it is not the same sign-in here. */
-    other?: ReactNode;
-    verb: string;
-  }) => {
-    // Named only when the computer says which browser is the default, so the
-    // button never promises the wrong one.
-    const ownBrowser = browser.data?.appName
-      ? `${verb} with ${browser.data.appName}`
-      : `${verb} with your browser`;
-    const cancel = (standsFor: ReactNode) => (
-      <Button
-        className="relative text-foreground"
-        onClick={cancelSignIn}
-        size="sm"
-        variant="outline"
-      >
-        <span
-          aria-hidden
-          className="invisible inline-flex items-center gap-[inherit]"
-        >
-          {standsFor}
-        </span>
-        <span className="absolute inset-0 flex items-center justify-center">
-          Cancel
-        </span>
-      </Button>
-    );
-    const inBrowser = (
-      <>
-        {/* The spinner takes the icon's box, so the button keeps its width. */}
-        {!browser.data?.iconUrl ? null : waitingIn === "external" ? (
-          <span className="grid size-4 shrink-0 place-items-center">
-            <Spinner className="size-3.5" delay={0} />
-          </span>
-        ) : (
-          <img
-            alt=""
-            className="size-4 shrink-0"
-            draggable={false}
-            src={browser.data.iconUrl}
-          />
-        )}
-        {ownBrowser}
-      </>
-    );
-    return (
-      <>
-        {waitingIn === "app" ? (
-          cancel(inBrowser)
-        ) : (
-          <Button
-            className={lit ? undefined : "text-foreground"}
-            disabled={busy || waitingIn !== undefined}
-            onClick={() => {
-              signIn("external");
-            }}
-            size="sm"
-            variant={lit ? "brand" : "outline"}
-          >
-            {inBrowser}
-          </Button>
-        )}
-        {waitingIn === "external"
-          ? cancel(other === undefined ? "Sign in here" : SIGN_IN_ON_SITE)
-          : (other ?? (
-              <Button
-                className="text-foreground"
-                disabled={busy || waitingIn !== undefined}
-                onClick={() => {
-                  signIn("app");
-                }}
-                size="sm"
-                variant="outline"
-              >
-                {label ?? "Sign in here"}
-              </Button>
-            ))}
-      </>
-    );
-  };
+  const pair = (
+    look: Pick<ComponentProps<typeof SignInPair>, "lit" | "other" | "verb">,
+  ) => (
+    <SignInPair
+      {...look}
+      busy={busy}
+      {...(label === undefined ? {} : { hereLabel: label })}
+      onCancel={cancelSignIn}
+      onStart={signIn}
+      waitingIn={waitingIn}
+    />
+  );
 
   if (kind === "sign-in" && compact) {
     const { failure, hasSite, primary } = compact;
@@ -483,7 +392,7 @@ function SignInOnSiteButton({
       size="sm"
       variant={lit ? "brand" : "outline"}
     >
-      {SIGN_IN_ON_SITE}
+      {SIGN_IN_HERE}
     </Button>
   );
 }

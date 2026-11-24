@@ -1,6 +1,7 @@
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { type AppCommand } from "@/shared/app-command";
+import { type ConnectProvider } from "@/shared/connect-outcome";
 import {
   type GroupTabLanding,
   type Tab,
@@ -117,6 +118,12 @@ interface PublisherEvents {
   "grok-account.updated": null;
   // What the Claude Code CLI on this computer says about its sign-in changed.
   "claude-account.updated": null;
+  // A plan's sign-in page is ready for the window that started it to open in
+  // a tab.
+  "plan-sign-in.page": {
+    provider: Exclude<ConnectProvider, "instrument">;
+    url: string;
+  };
   "exceptions.updated": null;
   // The network status the window's corner shows changed.
   "network.status.updated": null;

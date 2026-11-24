@@ -1,4 +1,8 @@
 import {
+  openPlanSignInPage,
+  type PlanSignInOpensIn,
+} from "@/electron-main/lib/plan-sign-in-page";
+import {
   currentCopy,
   downloadClaudeCode,
   installedCopy,
@@ -28,7 +32,6 @@ import { execFile } from "node:child_process";
 import { mkdir, stat } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
-import { shell } from "electron";
 import { createActor, fromPromise, waitFor } from "xstate";
 import { z } from "zod";
 
@@ -103,6 +106,8 @@ let refreshing: Promise<ClaudeAccountStatus> | undefined;
 let finishing = false;
 /** The person's own sign-out is under way, so signed out is what they asked for. */
 let signingOut = false;
+/** Where the newest sign-in's page opened: only one outside the app brings the window forward as it lands. */
+let signInOpensIn: PlanSignInOpensIn = "external";
 
 const signIn = createActor(
   claudeSignInMachine.provide({
@@ -114,7 +119,7 @@ const signIn = createActor(
         void refreshClaudeAccountStatus({ force: true }).then((after) => {
           finishing = false;
           announce();
-          if (after.kind === "signed-in") {
+          if (after.kind === "signed-in" && signInOpensIn === "external") {
             focusAppWindow();
           }
         });
@@ -124,7 +129,9 @@ const signIn = createActor(
       // Authorize is looking at the browser until the app comes back.
       landed: () => {
         finishing = true;
-        focusAppWindow();
+        if (signInOpensIn === "external") {
+          focusAppWindow();
+        }
       },
     },
     actors: {
@@ -383,7 +390,7 @@ async function statusOutput(executablePath: string, args: string[]) {
  * notices it finish and brings the app back to the front. Answers why the
  * sign-in could not start, if it could not.
  */
-async function openClaudeSignIn(): Promise<{
+async function openClaudeSignIn(opensIn: PlanSignInOpensIn): Promise<{
   error: string | undefined;
 }> {
   let current = await refreshClaudeAccountStatus({ force: true });
@@ -407,8 +414,13 @@ async function openClaudeSignIn(): Promise<{
       configDir: accountDir(),
       executablePath,
     });
+    signInOpensIn = opensIn;
     signIn.send({ executablePath, signIn: started, type: "started" });
-    await shell.openExternal(started.url);
+    await openPlanSignInPage({
+      opensIn,
+      provider: "claude",
+      url: started.url,
+    });
     return { error: undefined };
   } catch (error) {
     log.warn("Couldn't start Claude sign-in", error);
@@ -425,7 +437,9 @@ async function openClaudeSignIn(): Promise<{
  * canceled or runs out, with the account read back from Claude Code. Answers
  * why the sign-in could not start, if it could not.
  */
-export async function signInToClaude(): Promise<{
+export async function signInToClaude({
+  opensIn = "external",
+}: { opensIn?: PlanSignInOpensIn } = {}): Promise<{
   error: string | undefined;
   status: ClaudeAccountStatus;
 }> {
@@ -433,7 +447,7 @@ export async function signInToClaude(): Promise<{
   if (before.kind === "signed-in") {
     return { error: undefined, status: before };
   }
-  const { error } = await openClaudeSignIn();
+  const { error } = await openClaudeSignIn(opensIn);
   const status = claudeAccountStatus();
   if (error !== undefined || status.kind === "not-installed") {
     return {

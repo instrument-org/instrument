@@ -16,6 +16,7 @@ import {
 } from "@/client/components/ui/dropdown-menu";
 import { Button } from "@/client/components/ui/button";
 import { Spinner } from "@/client/components/ui/spinner";
+import { AiAppAccounts } from "@/client/components/window/ai-app-accounts";
 import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { AppMenuButton } from "@/client/components/window/app-menu";
@@ -36,6 +37,7 @@ import { PageSection } from "@/client/components/window/page-section";
 import { VisitedPageRows } from "@/client/components/window/visited-page-rows";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
+import { planOfApp } from "@/client/lib/ai-apps";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { osConventions } from "@/client/lib/utils";
@@ -250,6 +252,9 @@ export function AppFront({
       Ask Instrument for help
     </Button>
   );
+  // An AI signs in to its site and its plan in rows of their own.
+  const plan = planOfApp({ service, slug });
+  const isOnAiSite = plan !== undefined && (app === undefined || isWeb);
   const openHome = () => {
     if (home && browser) {
       openPage(home);
@@ -311,7 +316,7 @@ export function AppFront({
               way to it is always here, wearing the app's own mark;
               connecting is what the agent needs, not what a person needs to
               open a page. */}
-            {home && browser && isWeb && isConnected ? (
+            {plan ? null : home && browser && isWeb && isConnected ? (
               <Button onClick={openHome} size="sm">
                 <AppIcon icon={icon} name={name} site={site} size="sm" />
                 <span className="truncate">Open {name}</span>
@@ -340,6 +345,17 @@ export function AppFront({
             ) : null}
           </div>
         </div>
+
+        {plan ? (
+          <AiAppAccounts
+            app={app}
+            entrySlug={service}
+            home={home}
+            name={name}
+            provider={plan}
+            slug={slug}
+          />
+        ) : null}
 
         {/* Where you have been in the app, laid out the way the browser's
           start page lays out its own: the quick way back into a service is
@@ -440,7 +456,7 @@ export function AppFront({
           wrong last time (kept whole for copying), and the agent beside them
           for when the controls alone are not getting there. Gone the moment
           the connection lands. */}
-        {isConnected ? null : (
+        {isConnected || isOnAiSite ? null : (
           <div className="mt-8">
             <PageSection title="Setting up">
               <div className="space-y-3 rounded-xl border border-border bg-card p-4">

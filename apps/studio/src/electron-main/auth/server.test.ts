@@ -28,6 +28,7 @@ vi.mock("../lib/apps", () => ({
   receiveAppCallback: mocks.app,
 }));
 vi.mock("../lib/chatgpt-account", () => ({
+  chatGPTSignInOpensIn: () => "external",
   receiveChatGPTCallback: mocks.chatgpt,
 }));
 vi.mock("../lib/openrouter-connect", () => ({

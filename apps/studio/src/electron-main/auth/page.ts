@@ -193,7 +193,10 @@ const supportFooter = (reference?: string) => html`<div
   }
 </div>`;
 
-function renderOutcome(outcome: AuthOutcome) {
+function renderOutcome(outcome: AuthOutcome, inApp: boolean) {
+  // The way back, left out in a tab of the app's own.
+  const back = inApp ? "" : openApp;
+  const backSpaced = inApp ? "" : openAppSpaced;
   switch (outcome.kind) {
     case "signed-in": {
       return {
@@ -203,7 +206,7 @@ function renderOutcome(outcome: AuthOutcome) {
           heading("You're signed in"),
           outcome.email ? accountChip(outcome.email, outcome.service) : "",
         )}
-        ${openAppSpaced}`,
+        ${backSpaced}`,
         title: "Signed in",
       };
     }
@@ -216,7 +219,7 @@ function renderOutcome(outcome: AuthOutcome) {
           heading(`${service.name} is connected`),
           email ? accountChip(email, service) : "",
         )}
-        ${openAppSpaced}`,
+        ${backSpaced}`,
         title: `${service.name} connected`,
       };
     }
@@ -232,7 +235,7 @@ function renderOutcome(outcome: AuthOutcome) {
               ? "There was a problem signing in"
               : `There was a problem connecting to ${service.name}`),
         )}
-        ${openApp}`,
+        ${back}`,
         title: signIn ? "Sign-in canceled" : "Not connected",
       };
     }
@@ -250,7 +253,7 @@ function renderOutcome(outcome: AuthOutcome) {
           CLOCK_COUNTDOWN,
           "size-12 text-stone-400 dark:text-white/40",
         )}
-        ${heading("This sign-in link expired")} ${openApp}`,
+        ${heading("This sign-in link expired")} ${back}`,
         title: "Link expired",
       };
     }
@@ -264,7 +267,7 @@ function renderOutcome(outcome: AuthOutcome) {
           `${APP_NAME} isn't open to new accounts yet`,
           "You can still use your own ChatGPT, Claude or Grok plan.",
         )}
-        ${openApp}`,
+        ${back}`,
         title: "Sign-up closed",
       };
     }
@@ -280,7 +283,7 @@ function renderOutcome(outcome: AuthOutcome) {
             ? `There was a problem connecting to ${connecting}`
             : "There was a problem signing in",
         )}
-        ${openApp}`,
+        ${back}`,
         reference,
         title: "Sign-in failed",
       };
@@ -354,6 +357,8 @@ function renderIndex(links: { href: string; label: string }[]) {
 
 export function renderAuthPage(
   page: AuthOutcome | { index: { href: string; label: string }[] },
+  /** `inApp`: shown in a tab of the app's own, which needs no way back to it. */
+  { inApp = false }: { inApp?: boolean | undefined } = {},
 ) {
   const {
     arrive,
@@ -361,7 +366,7 @@ export function renderAuthPage(
     reference,
     title,
   }: { arrive?: boolean; body: unknown; reference?: string; title: string } =
-    "index" in page ? renderIndex(page.index) : renderOutcome(page);
+    "index" in page ? renderIndex(page.index) : renderOutcome(page, inApp);
 
   return html`
     <!DOCTYPE html>

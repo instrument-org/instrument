@@ -23,4 +23,16 @@ describe("renderAuthPage", () => {
       "/auth/callback/instrument",
     );
   });
+
+  it("offers the way back to the app only outside it", async () => {
+    const outcome = {
+      kind: "connected",
+      service: { name: "ChatGPT" },
+    } as const;
+    const back = 'href="instrument';
+    expect(String(await renderAuthPage(outcome))).toContain(back);
+    expect(
+      String(await renderAuthPage(outcome, { inApp: true })),
+    ).not.toContain(back);
+  });
 });

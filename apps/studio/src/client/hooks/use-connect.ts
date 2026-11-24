@@ -17,6 +17,11 @@ import {
  * differ only in how they draw the answer (`lib/connect-copy.ts`).
  */
 
+/** Where a plan's sign-in page opens; the person's own browser unless said. */
+interface SignInPlace {
+  opensIn?: "app" | "external";
+}
+
 const failed = (error: unknown): ConnectResult => ({
   outcome: {
     kind: "failed",
@@ -87,11 +92,11 @@ export function useInstrumentConnect(): ConnectFlow<{
  * out, the next attempt after plan access was left unchecked asks the same
  * account again, with the consent screen.
  */
-export function useChatGPTConnect(): ConnectFlow<{
-  accountId?: string;
-} | void> {
+export function useChatGPTConnect(): ConnectFlow<
+  (SignInPlace & { accountId?: string }) | void
+> {
   const declinedAccount = useRef<string>(undefined);
-  return useConnectFlow<{ accountId?: string } | void>({
+  return useConnectFlow<(SignInPlace & { accountId?: string }) | void>({
     onCancel: (phase) => {
       void (phase === "checking"
         ? rpcClient.accountCheck.cancel.call({ provider: "chatgpt" })
@@ -100,7 +105,7 @@ export function useChatGPTConnect(): ConnectFlow<{
     run: async (input, { onPhase, signal }) => {
       const accountId = input?.accountId ?? declinedAccount.current;
       const result = await rpcClient.chatgptAccount.signIn
-        .call({ accountId }, { signal })
+        .call({ accountId, opensIn: input?.opensIn }, { signal })
         .catch((error: unknown) => ({
           error: error instanceof Error ? error.message : String(error),
           outcome: "failed" as const,
@@ -141,15 +146,15 @@ export function useClaudeConnect() {
   const { data: status } = useQuery(
     rpcClient.claudeAccount.live.status.experimental_liveOptions(),
   );
-  const flow = useConnectFlow<void>({
+  const flow = useConnectFlow<SignInPlace | void>({
     onCancel: (phase) => {
       void (phase === "checking"
         ? rpcClient.accountCheck.cancel.call({ provider: "claude" })
         : rpcClient.claudeAccount.cancelSignIn.call({}));
     },
-    run: async (_input, { onPhase, signal }) => {
+    run: async (input, { onPhase, signal }) => {
       const signedIn = await rpcClient.claudeAccount.signIn
-        .call({}, { signal })
+        .call({ opensIn: input?.opensIn }, { signal })
         .catch((error: unknown) => ({
           error: error instanceof Error ? error.message : String(error),
           status: undefined,
@@ -185,15 +190,15 @@ export function useClaudeConnect() {
  * account without an eligible paid plan answers at once.
  */
 export function useGrokConnect() {
-  const flow = useConnectFlow<void>({
+  const flow = useConnectFlow<SignInPlace | void>({
     onCancel: (phase) => {
       void (phase === "checking"
         ? rpcClient.accountCheck.cancel.call({ provider: "grok" })
         : rpcClient.grokAccount.cancelSignIn.call());
     },
-    run: async (_input, { onPhase, signal }) => {
+    run: async (input, { onPhase, signal }) => {
       const result = await rpcClient.grokAccount.signIn
-        .call({}, { signal })
+        .call({ opensIn: input?.opensIn }, { signal })
         .catch((error: unknown) => ({
           error: error instanceof Error ? error.message : String(error),
           outcome: "failed" as const,

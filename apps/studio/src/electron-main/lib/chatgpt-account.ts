@@ -1,3 +1,7 @@
+import {
+  openPlanSignInPage,
+  type PlanSignInOpensIn,
+} from "@/electron-main/lib/plan-sign-in-page";
 import { createLoopbackSignIn } from "@/electron-main/auth/loopback-sign-in";
 import { AUTH_CALLBACK_PATHS } from "@/electron-main/auth/routes";
 import { logger } from "@/electron-main/lib/electron-logger";
@@ -17,7 +21,6 @@ import {
   CHATGPT_ACCOUNT_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
-import { shell } from "electron";
 import Store from "electron-store";
 import {
   createHash,
@@ -113,6 +116,13 @@ const signIns = createLoopbackSignIn<ChatGPTSignInResult>({
   timedOut: () => new Error("ChatGPT sign-in timed out"),
   timeoutMs: SIGN_IN_TIMEOUT_MS,
 });
+
+/** Where the newest sign-in's page opened, which its callback page is written for. */
+let signInOpensIn: PlanSignInOpensIn = "external";
+
+export function chatGPTSignInOpensIn() {
+  return signInOpensIn;
+}
 
 const VERIFY_EVERY_MS = 30 * 1000;
 const lastVerifiedAt = new Map<string, number>();
@@ -494,15 +504,19 @@ export function receiveChatGPTCallback(
 export function signInWithChatGPT({
   accountId,
   callbackPort,
+  opensIn = "external",
 }: {
   accountId?: string;
   callbackPort: number;
+  opensIn?: PlanSignInOpensIn;
 }): Promise<ChatGPTSignInResult> {
   const target = accountId ? registrationById(accountId) : undefined;
   const grant = target ? grantOf(target.id) : undefined;
+  signInOpensIn = opensIn;
   const promise = signIns.start(({ received, state }) => {
     grant?.send({ type: "signInStarted" });
     return runSignIn({
+      opensIn,
       received,
       redirectURI: `http://127.0.0.1:${String(callbackPort)}${AUTH_CALLBACK_PATHS.chatgpt}`,
       state,
@@ -567,11 +581,13 @@ async function postToken(tokenUrl: string, form: Record<string, string>) {
 }
 
 async function runSignIn({
+  opensIn,
   received,
   redirectURI,
   state,
   target,
 }: {
+  opensIn: PlanSignInOpensIn;
   received: Promise<null | URLSearchParams>;
   redirectURI: string;
   state: string;
@@ -616,8 +632,11 @@ async function runSignIn({
     // Asked again after the plan was declined: show the consent screen.
     params.set("prompt", "consent");
   }
-  // Opened directly rather than through openExternal, which logs the URL.
-  await shell.openExternal(`${setup.authorizeUrl}?${params.toString()}`);
+  await openPlanSignInPage({
+    opensIn,
+    provider: "chatgpt",
+    url: `${setup.authorizeUrl}?${params.toString()}`,
+  });
 
   const callback = await received;
   if (!callback) {

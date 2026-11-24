@@ -25,6 +25,7 @@ import { mac } from "./mac";
 import { network } from "./network";
 import { notices } from "./notices";
 import { pageEditor } from "./page-editor";
+import { planSignIn } from "./plan-sign-in";
 import { preferences } from "./preferences";
 import { problems } from "./problems";
 import { providerConfig } from "./provider-config";
@@ -62,6 +63,7 @@ export const router = {
   network,
   notices,
   pageEditor,
+  planSignIn,
   preferences,
   problems,
   providerConfig,

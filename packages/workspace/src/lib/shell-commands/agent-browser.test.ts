@@ -23,6 +23,7 @@ import {
   answerAgentBrowser,
 } from "../../test/helpers/agent-browser-runs";
 import { browserTargetOf } from "../../types";
+import { agentBrowserSocketDir } from "../agent-browser";
 import { publisher } from "../../rpc/publisher";
 import { scriptStillRunningMessage } from "../running-page-script";
 import { sessionLayout } from "../session-layout";
@@ -517,9 +518,7 @@ describe("browserFreeReadEnv", () => {
 
     expect(result).toEqual({
       AGENT_BROWSER_IDLE_TIMEOUT_MS: "300000",
-      // On Windows the daemon listens on TCP, with no socket folder.
-      AGENT_BROWSER_SOCKET_DIR:
-        process.platform === "win32" ? undefined : "/tmp/.instrument-browser",
+      AGENT_BROWSER_SOCKET_DIR: agentBrowserSocketDir(process.pid),
       HOME: "/task/.instrument/agent-browser-home",
       PATH: "/usr/bin",
     });

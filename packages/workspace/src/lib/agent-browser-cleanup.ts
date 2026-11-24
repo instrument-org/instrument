@@ -1,6 +1,5 @@
 import { execa } from "execa";
 import fs from "node:fs/promises";
-import { homedir } from "node:os";
 import path from "node:path";
 
 import { type StoreId } from "../schemas/store-id";
@@ -8,6 +7,7 @@ import {
   AGENT_BROWSER_IDLE_TIMEOUT_MS,
   agentBrowserPath,
   AGENT_BROWSER_SOCKET_DIR,
+  AGENT_BROWSER_SOCKET_ROOT,
   readSessionName,
 } from "./agent-browser";
 
@@ -41,19 +41,17 @@ export async function closeAgentBrowserSessionsForSessions(
 /**
  * Whether a daemon for the session is alive, judged the way the CLI's own
  * session discovery judges it: a `<session>.pid` file in the socket dir naming
- * a live process. On Windows `AGENT_BROWSER_SOCKET_DIR` is unset and the CLI
- * falls back to `~/.agent-browser` (absent an `XDG_RUNTIME_DIR`).
+ * a live process.
  */
 async function isDaemonRunning(sessionName: string) {
-  const socketDir =
-    AGENT_BROWSER_SOCKET_DIR ?? path.join(homedir(), ".agent-browser");
   const pidFile = await fs
-    .readFile(path.join(socketDir, `${sessionName}.pid`), "utf8")
+    .readFile(path.join(AGENT_BROWSER_SOCKET_DIR, `${sessionName}.pid`), "utf8")
     .catch(() => null);
   const pid = Number.parseInt(pidFile ?? "", 10);
-  if (!Number.isInteger(pid) || pid <= 0) {
-    return false;
-  }
+  return Number.isInteger(pid) && pid > 0 && isProcessRunning(pid);
+}
+
+function isProcessRunning(pid: number) {
   try {
     process.kill(pid, 0);
     return true;
@@ -63,9 +61,41 @@ async function isDaemonRunning(sessionName: string) {
   }
 }
 
-export async function closeAllAgentBrowserSessions() {
+/** Closes every daemon in one app process's socket folder, then removes it. */
+async function closeSocketDir(socketDir: string) {
   await execa(agentBrowserPath(), ["close", "--all"], {
-    env: { AGENT_BROWSER_SOCKET_DIR },
+    env: { AGENT_BROWSER_SOCKET_DIR: socketDir },
     reject: false,
   });
+  await fs.rm(socketDir, { force: true, recursive: true });
+}
+
+/** Closes the daemons this process started, and no other app's. */
+export async function closeAllAgentBrowserSessions() {
+  await closeSocketDir(AGENT_BROWSER_SOCKET_DIR);
+}
+
+/**
+ * Closes the daemons an app process left behind when it ended without its quit
+ * teardown (a crash, a kill). A socket folder is named for its process's pid,
+ * and only a folder whose process is gone is touched, so a running app keeps
+ * its daemons whatever its age or build. A pid the system has since given to
+ * another process reads as running, which leaves the folder for a later launch.
+ */
+export async function closeAgentBrowserSessionsOfEndedApps() {
+  const entries = await fs
+    .readdir(AGENT_BROWSER_SOCKET_ROOT, { withFileTypes: true })
+    .catch(() => []);
+  await Promise.all(
+    entries.map(async (entry) => {
+      if (
+        !entry.isDirectory() ||
+        !/^[1-9]\d*$/.test(entry.name) ||
+        isProcessRunning(Number(entry.name))
+      ) {
+        return;
+      }
+      await closeSocketDir(path.join(AGENT_BROWSER_SOCKET_ROOT, entry.name));
+    }),
+  );
 }

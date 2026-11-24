@@ -2,7 +2,7 @@ import { APP_NAME_SLUG } from "@instrument-org/shared";
 import { agentBrowserBinary } from "@instrument-org/shared/agent-browser-binary";
 import ms from "ms";
 import { createRequire } from "node:module";
-import { arch, platform } from "node:os";
+import { arch, platform, tmpdir } from "node:os";
 import path from "node:path";
 
 import { unpackAsarPath } from "./asar";
@@ -76,16 +76,36 @@ export function agentBrowserPath() {
 // to stop, stranding the original.
 export const AGENT_BROWSER_IDLE_TIMEOUT_MS = String(ms("5 minutes"));
 
-// Use the literal "/tmp" (not os.tmpdir() which expands to a long
-// /var/folders/... path on macOS) so the socket path stays under the
-// 103-byte Unix limit regardless of the user's home directory length.
-// On Windows the daemon uses TCP, not Unix sockets, so there is no path
-// length constraint - leave the env var unset and let the library use its
-// own default.
-export const AGENT_BROWSER_SOCKET_DIR =
-  platform() === "win32"
-    ? undefined
-    : path.join("/tmp", `.${APP_NAME_SLUG}-browser`);
+/**
+ * The folder every running app's socket folder is in.
+ *
+ * The literal "/tmp" (not os.tmpdir(), which expands to a long
+ * /var/folders/... path on macOS) keeps a socket path under the 103-byte Unix
+ * limit regardless of the user's home directory length. On Windows the daemon
+ * listens on TCP and keeps only its pid, port and config files in the folder,
+ * so no length limit applies and the folder goes in the temp directory.
+ */
+export const AGENT_BROWSER_SOCKET_ROOT = path.join(
+  platform() === "win32" ? tmpdir() : "/tmp",
+  `.${APP_NAME_SLUG}-browser`,
+);
+
+/**
+ * The socket folder of the app process with this pid. A process's daemons are
+ * all in its own folder, so whatever closes a whole folder of them
+ * (`close --all` at quit, the launch sweep) reaches that process's daemons and
+ * none of another app's running on the same machine. The folder's name says
+ * whose it is: one whose pid is not running was left by a crash.
+ */
+export function agentBrowserSocketDir(pid: number) {
+  return path.join(AGENT_BROWSER_SOCKET_ROOT, String(pid));
+}
+
+/**
+ * This process's socket folder. Every CLI invocation for one of its sessions
+ * names it, since the CLI looks for a session's daemon only there.
+ */
+export const AGENT_BROWSER_SOCKET_DIR = agentBrowserSocketDir(process.pid);
 
 /** The daemon session a session's browser-free `read` runs under. */
 export function readSessionName(sessionId: string) {

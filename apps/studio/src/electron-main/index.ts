@@ -72,6 +72,7 @@ import {
   APP_FLAVOR,
   APP_PROTOCOL,
 } from "@instrument-org/shared";
+import { closeAgentBrowserSessionsOfEndedApps } from "@instrument-org/workspace/electron";
 import {
   BrowserWindow,
   app,
@@ -400,6 +401,9 @@ async function bootstrapPrimaryInstance() {
   // What a quit or crash left mid-placing in the Finder, finished before
   // anything is placed again.
   void finishPlacingLeftovers().catch(captureServerException);
+  // The browser daemons of an app that crashed or was killed, which its own
+  // quit never closed.
+  void closeAgentBrowserSessionsOfEndedApps().catch(captureServerException);
 
   // A workspace with a folder starts before any window, whose preload reads
   // its drafts and bookmarks as it loads. A first launch's starts once

@@ -19,7 +19,10 @@ export {
   countOwnActivity,
   removeOwnActivity,
 } from "./lib/activity/store";
-export { closeAllAgentBrowserSessions } from "./lib/agent-browser-cleanup";
+export {
+  closeAgentBrowserSessionsOfEndedApps,
+  closeAllAgentBrowserSessions,
+} from "./lib/agent-browser-cleanup";
 export {
   type AppCatalogEntry,
   catalogEntryMacApp,

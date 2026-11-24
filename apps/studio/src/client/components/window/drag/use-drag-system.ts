@@ -764,6 +764,10 @@ function useCarrier() {
         moving: wholeGroupStanding(store.get(windowTabsAtom), held.group),
         pointInTab: grab.x,
       });
+      // Pictured, the group is off with the pointer, and the window is back
+      // on what it showed at the press: a group it still has, which a side
+      // of takes the one held if it comes back over the window.
+      showBack();
       return true;
     };
     return carry;

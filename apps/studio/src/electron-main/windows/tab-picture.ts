@@ -43,6 +43,11 @@ export interface TabPicture {
   moveTo: (point: Point) => void;
   show: (point: Point) => void;
   /**
+   * Settles once the window it pictures has been read, with a picture or
+   * without one: from then the window may show something else.
+   */
+  taken: Promise<void>;
+  /**
    * A picture of a whole window puts on the tab bar of the window it is
    * growing into, once that window has drawn it, since the tabs it pictured
    * are not the tabs that window will have. A picture of a tab's page has no
@@ -99,7 +104,8 @@ export function openTabPicture(from: BrowserWindow, page?: Bounds): TabPicture {
   const loaded = window
     .loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(PAGE)}`)
     .catch(() => undefined);
-  void pictureOf(from, page).then((image) =>
+  const read = pictureOf(from, page).catch(() => null);
+  void read.then((image) =>
     image
       ? loaded.then(() =>
           say(
@@ -125,6 +131,7 @@ export function openTabPicture(from: BrowserWindow, page?: Bounds): TabPicture {
     }
   };
   return {
+    taken: read.then(() => undefined),
     close: () => {
       if (!window.isDestroyed()) {
         window.destroy();

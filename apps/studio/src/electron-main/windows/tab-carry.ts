@@ -319,6 +319,15 @@ export function startTabCarry(
   return { collapsesOffRow: canPlaceWindows() && started.spare !== null };
 }
 
+/**
+ * Settles once the window a carry began in has been read for the picture
+ * that goes with the pointer, or at once with none to take. Until then the
+ * window has to go on showing what is carried.
+ */
+export async function tabCarryPictured(): Promise<void> {
+  await carry?.picture?.taken;
+}
+
 /** Gives the spare window what it holds for this drag: the tabs left behind, or the tab. */
 function dressSpare(current: Carry) {
   const { fromId, goes, moving, spare } = current;

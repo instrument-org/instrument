@@ -21,6 +21,7 @@ import {
   placeGroupTabCarry as placeGroupCarry,
   placeTabCarry as placeCarry,
   startTabCarry as startCarry,
+  tabCarryPictured,
   tabCarryViewOf,
 } from "@/electron-main/windows/tab-carry";
 import {
@@ -222,9 +223,16 @@ const startTabCarry = base
       pointInTab: z.number(),
     }),
   )
-  .handler(({ context, input }) =>
-    startCarry({ ...input, webContentsId: context.webContentsId }),
-  );
+  // Answered once the window has been read for the picture that goes with
+  // the pointer, so what the window shows next is never what is pictured.
+  .handler(async ({ context, input }) => {
+    const started = startCarry({
+      ...input,
+      webContentsId: context.webContentsId,
+    });
+    await tabCarryPictured();
+    return started;
+  });
 
 const noteTabCarry = base
   .input(PointSchema.extend({ isOffRow: z.boolean() }))

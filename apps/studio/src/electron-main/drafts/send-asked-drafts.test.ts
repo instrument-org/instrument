@@ -38,6 +38,7 @@ function run(
     Promise.reject(new Error("No chat is started in this test")),
   carries: () => Promise<AskedDraftCarries | undefined> = () =>
     Promise.resolve({}),
+  showChat: (chatId: ChatId) => void = () => undefined,
 ) {
   const applied: DraftOp[] = [];
   let listener: ((snapshot: DraftsSnapshot) => void) | undefined;
@@ -70,6 +71,7 @@ function run(
     deviceId: THIS_DEVICE,
     now: () => NOW,
     send,
+    showChat,
     startChat,
     watch: (heard) => {
       listener = heard;
@@ -235,5 +237,66 @@ describe("startSendingAskedDrafts", () => {
       projectId: "top_weather",
       words: "Will it rain on Saturday?",
     });
+  });
+
+  const newChat = () => reply({ chatId: undefined });
+
+  it("shows a new chat once its message is written, before the draft goes", async () => {
+    const shown: ChatId[] = [];
+    const send = vi.fn(() => Promise.resolve());
+    const showChat = vi.fn((chatId: ChatId) => {
+      expect(send).toHaveBeenCalledOnce();
+      shown.push(chatId);
+    });
+    const applied = run(
+      [newChat()],
+      send,
+      () => Promise.resolve(CHAT),
+      undefined,
+      showChat,
+    );
+    await vi.waitFor(() => {
+      expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
+    });
+    expect(shown).toEqual([CHAT]);
+  });
+
+  it("marks a new chat's draft sent when the chat could not be shown", async () => {
+    const applied = run(
+      [newChat()],
+      () => Promise.resolve(),
+      () => Promise.resolve(CHAT),
+      undefined,
+      () => {
+        throw new Error("No window file");
+      },
+    );
+    await vi.waitFor(() => {
+      expect(applied.map((op) => op.type)).toEqual(["claim", "sent"]);
+    });
+  });
+
+  it.each([
+    ["a reply into a chat there is", reply(), () => Promise.resolve()],
+    [
+      "a new chat whose send failed",
+      newChat(),
+      () => Promise.reject(new Error("No model is chosen to send with")),
+    ],
+  ])("shows nothing for %s", async (_name, draft, send) => {
+    const showChat = vi.fn();
+    const applied = run(
+      [draft],
+      send,
+      () => Promise.resolve(CHAT),
+      undefined,
+      showChat,
+    );
+    await vi.waitFor(() => {
+      expect(
+        applied.some((op) => op.type === "sent" || op.type === "release"),
+      ).toBe(true);
+    });
+    expect(showChat).not.toHaveBeenCalled();
   });
 });

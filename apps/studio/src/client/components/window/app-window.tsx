@@ -1587,6 +1587,7 @@ function WindowShell({
       },
       // A group this window has open comes up, and so does a tab here
       // showing what the address shows.
+      listChat: groups.listChat,
       showTab: (href) => {
         const group = groupOfHref(href);
         if (

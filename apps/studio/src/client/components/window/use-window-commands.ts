@@ -1,3 +1,4 @@
+import { type ChatId } from "@instrument-org/workspace/client";
 import {
   commandMenuOpenAtom,
   toggleCommandMenu,
@@ -132,6 +133,8 @@ export function useWindowCommands(
     selectGroup: (index: number) => void;
     /** Brings up the tab here showing what another window asked for; false where none does. */
     showTab: (href: string) => boolean;
+    /** A chat a phone started here, into a tab group behind the one up. */
+    listChat: (chat: ChatId) => void;
     selectRelative: (direction: -1 | 1) => void;
     selectTab: (index: number) => void;
     /** The inbox column put away or brought back. */
@@ -267,6 +270,12 @@ export function useWindowCommands(
               latest.current.receiveTab(command.tab, command.index);
             } else if (command.type === "receiveGroupTab") {
               latest.current.receiveGroupTab(command.key, command.landing);
+            } else if (command.type === "listChat") {
+              latest.current.listChat(command.chat);
+              // Main keeps the chat until it hears this.
+              void safe(
+                rpcClient.window.phoneChatListed.call({ chat: command.chat }),
+              );
             } else if (command.type === "showTab") {
               // Said back either way: main brings this window forward only
               // on a yes, and the asking window opens it itself on a no.

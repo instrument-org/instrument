@@ -30,6 +30,9 @@ export interface AskedReply extends AskedDraftCarries {
  * A draft with a part this computer can't send for the person (`carries`)
  * is not sent in part: its ask is dropped, and it waits for them whole.
  *
+ * A new chat sent this way is shown on this computer (`showChat`) once its
+ * message is written, so the person finds it here when they come back.
+ *
  * An ask that is not fresh (`isFreshAsk`, a reply asked for longer ago
  * than `SEND_FRESH_MS`, which is left in its chat's box for the person to
  * send or not), or a send that fails, drops the ask and
@@ -42,6 +45,7 @@ export function startSendingAskedDrafts({
   deviceId,
   now = Date.now,
   send,
+  showChat,
   startChat,
   watch,
 }: {
@@ -53,6 +57,8 @@ export function startSendingAskedDrafts({
   now?: () => number;
   /** Writes the draft's message into its chat, which starts the agent's turn. */
   send: (reply: AskedReply) => Promise<void>;
+  /** Puts a chat a draft opened where the person will find it, taking nothing they are on away. */
+  showChat: (chatId: ChatId) => void;
   /** Makes the chat a draft of its own opens, from its first words. */
   startChat: (words: string) => Promise<ChatId>;
   /** Hears the drafts as they are and at each change; answers the stop. */
@@ -96,7 +102,6 @@ export function startSendingAskedDrafts({
           : {}),
         words: draft.words,
       });
-      apply([{ id: draft.id, type: "sent" }]);
     } catch (error) {
       log.warn(
         `Could not send the reply ${draft.id} asked of this computer`,
@@ -106,7 +111,16 @@ export function startSendingAskedDrafts({
         { id: draft.id, type: "release" },
         { id: draft.id, set: {}, type: "update", unset: ["sendOn"] },
       ]);
+      return;
     }
+    if (draft.chatId === undefined) {
+      try {
+        showChat(chatId);
+      } catch (error) {
+        log.warn(`Could not show the chat ${draft.id} opened`, error);
+      }
+    }
+    apply([{ id: draft.id, type: "sent" }]);
   };
 
   const dropAsk = async (draft: Draft) => {

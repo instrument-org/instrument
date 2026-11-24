@@ -1,3 +1,4 @@
+import { type ChatId } from "@instrument-org/workspace/electron";
 import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { type AppCommand } from "@/shared/app-command";
@@ -206,6 +207,8 @@ export type WindowCommand =
   | "newTabInSplit"
   | "closeSplit"
   | AppWindowAsk
+  /** A chat a phone started here: into a tab group behind the one up, and say so (`window.phoneChatListed`). */
+  | { chat: ChatId; type: "listChat" }
   | { index?: number; tab: Tab; type: "receiveTab" }
   /** A tab group's tab another window let go here, by its strip key, into one of this window's groups. */
   | { key: string; landing: GroupTabLanding; type: "receiveGroupTab" }

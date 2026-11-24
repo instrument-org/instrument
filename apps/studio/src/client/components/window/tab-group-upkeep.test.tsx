@@ -1,6 +1,7 @@
 import { type TabRouter } from "@/client/lib/tab-router";
 import { setTabRouter } from "@/client/lib/tab-router-registry";
 import { TabIdSchema } from "@/shared/tabs";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory } from "@tanstack/react-router";
 import { act, renderHook } from "@testing-library/react";
@@ -394,5 +395,50 @@ describe("the group that comes up as one closes", () => {
     arriveAt(window, between);
     arriveAt(window, made);
     expect(closed(window) === groupHref("group:b")).toBe(isBack);
+  });
+});
+
+describe("a chat a phone started on this computer", () => {
+  const CHAT = "2026-10-26-weather-in-nashville" as ChatId;
+
+  it("is listed once as a group at the top, with the group up left up", () => {
+    const { actions, history, store, tabsAt } = windowWithGroup();
+    act(() => {
+      history.replace(groupHref(GROUP));
+    });
+    act(() => {
+      actions().listChat(CHAT);
+    });
+    act(() => {
+      actions().listChat(CHAT);
+    });
+    const tabs = tabsAt(`/chats/${CHAT}`);
+    expect(tabs).toHaveLength(1);
+    expect(store.get(windowTabGroupsAtom)).toEqual([tabs[0]?.group, GROUP]);
+    expect(history.location.href).toBe(groupHref(GROUP));
+    expect(store.get(windowTabsAtom).activeByGroup[GROUP]).toBe(CHAT_TAB);
+  });
+
+  it("stays where it is when a group has a tab on it", () => {
+    const { actions, seed, store } = windowWithGroup();
+    act(() => {
+      seed({
+        activeByGroup: { [GROUP]: CHAT_TAB },
+        groups: {},
+        tabs: [
+          { group: GROUP, href: "/chats", id: CHAT_TAB, kind: "screen" },
+          {
+            group: "group:elsewhere",
+            href: `/chats/${CHAT}`,
+            id: "tab_elsewhere",
+            kind: "screen",
+          },
+        ],
+      });
+    });
+    act(() => {
+      actions().listChat(CHAT);
+    });
+    expect(store.get(windowTabGroupsAtom)).toEqual([GROUP]);
   });
 });

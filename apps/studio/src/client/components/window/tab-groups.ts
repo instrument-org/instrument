@@ -777,6 +777,27 @@ export function useTabGroupActions() {
   };
 
   /**
+   * Lists a chat nobody asked to look at (one a phone started on this
+   * computer) as a group of its own at the top of the list, outside any
+   * project, with the group up left up. Nothing for a chat with a tab in any
+   * group, here or in another window.
+   */
+  const listChat = (chat: ChatId) => {
+    const isOpen = store
+      .get(windowTabsAtom)
+      .tabs.some((tab) => tab.group !== undefined && chatOfTab(tab) === chat);
+    if (isOpen) {
+      return;
+    }
+    const group = make({
+      href: chatHref(chat),
+      isShownHere: false,
+      project: null,
+    });
+    setListed((list) => listedWith(list, group));
+  };
+
+  /**
    * Puts up one thing handed over from outside the app (a link, a file from
    * the Finder): a tab in one of this window's groups already showing
    * exactly it (`tabShowingAmong`) comes up in its group, walked to the part
@@ -884,6 +905,7 @@ export function useTabGroupActions() {
     groupUp,
     hasTabs,
     letGo,
+    listChat,
     make,
     moveOff,
     moveTab,

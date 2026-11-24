@@ -10,6 +10,7 @@ import {
   showInOtherWindow as showElsewhere,
   tabGroupsByWindow as groupsByWindow,
   tabGroupsInOtherWindows,
+  phoneChatListed as notePhoneChatListed,
   tabShown as noteTabShown,
   takeLaunchSweep as takeSweep,
   takePendingAppWindowAsks,
@@ -35,7 +36,7 @@ import {
   setKeptState,
 } from "@/electron-main/stores/workspace/kept-state";
 import { RECENT_CHATS_KEY } from "@/shared/kept-state";
-import { liveRead } from "@instrument-org/workspace/electron";
+import { ChatIdSchema, liveRead } from "@instrument-org/workspace/electron";
 import { Menu } from "electron";
 import { z } from "zod";
 
@@ -185,6 +186,13 @@ const tabShown = base
     noteTabShown(input.requestId, input.shown);
   });
 
+/** This window's answer to a `listChat` command: the chat is in a tab group. */
+const phoneChatListed = base
+  .input(z.object({ chat: ChatIdSchema }))
+  .handler(({ input }) => {
+    notePhoneChatListed(input.chat);
+  });
+
 /** Whether this window is the one to clear what the launch left over. */
 const takeLaunchSweep = base
   .output(z.boolean())
@@ -315,6 +323,7 @@ export const window = {
   showAppMenu,
   showInOtherWindow,
   startTabCarry,
+  phoneChatListed,
   tabShown,
   takeLaunchSweep,
   takePending,

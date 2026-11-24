@@ -15,7 +15,7 @@ import {
   watchDrafts,
 } from "../drafts/serve-drafts";
 import { getDefaultModelURI } from "../stores/workspace/preferences";
-import { getAppWindow } from "../windows/app-window";
+import { getAppWindow, listChatFromPhone } from "../windows/app-window";
 import { revealChat } from "../windows/reveal-chat";
 import { startAgentCompletionNotifications } from "./agent-completion-notifications";
 import { timeBootStep, timeBootStepSync } from "./boot-timing";
@@ -108,6 +108,7 @@ export function startWorkspace(): Promise<void> {
             { context },
           );
         },
+        showChat: listChatFromPhone,
         startChat: async (words) => {
           const { id } = await call(
             workspaceRouter.chats.ensure,

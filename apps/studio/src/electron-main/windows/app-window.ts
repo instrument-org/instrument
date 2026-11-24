@@ -28,6 +28,7 @@ import {
   keptGroupedTabs,
   keptLoneGroupOfTab,
   KeptTabGroupSchema,
+  setKeptState,
   setWindowKeptState,
   tellWindowKeptState,
   windowKeptKeys,
@@ -81,6 +82,10 @@ import {
   nameAppWindow,
 } from "@/electron-main/windows/app-window-ids";
 import { askBeforeClosing } from "@/electron-main/windows/ask-before-closing";
+import {
+  createPhoneChatGroups,
+  PHONE_CHATS_KEY,
+} from "@/electron-main/windows/phone-chat-groups";
 import { showWhenReady } from "@/electron-main/windows/show-when-ready";
 import { setTrafficLightForZoom } from "@/electron-main/windows/traffic-lights";
 import {
@@ -98,6 +103,7 @@ import { is } from "@electron-toolkit/utils";
 import {
   type BrowserTargetId,
   browserTargetOf,
+  type ChatId,
 } from "@instrument-org/workspace/electron";
 import { app, BrowserWindow, powerMonitor } from "electron";
 import { statSync } from "node:fs";
@@ -176,6 +182,7 @@ function stopListening(webContentsId: number) {
     spare.isUp = false;
   }
   listening.delete(webContentsId);
+  phoneChatGroups.stopped(webContentsId);
   if (listening.size === 0) {
     asks.stopTaking();
   }
@@ -223,6 +230,34 @@ export function otherAppWindows(webContentsId: number) {
 /** The tab groups a window has open, as it keeps them. */
 function keptTabGroupsOfWindow(id: string): string[] {
   return keptTabGroupsOf(getWindowKeptState(id, TAB_GROUPS_KEY)) ?? [];
+}
+
+/** The chats sent from a phone that wait for a window's sidebar; the window last in front that hears is asked. */
+const phoneChatGroups = createPhoneChatGroups({
+  ask: (chat) => {
+    const window = getAppWindows().find((each) =>
+      listening.has(each.webContents.id),
+    );
+    if (!window) {
+      return undefined;
+    }
+    commandWindow(window, { chat, type: "listChat" });
+    return window.webContents.id;
+  },
+  keep: (chats) => {
+    setKeptState("layout", PHONE_CHATS_KEY, chats);
+  },
+  kept: () => getKeptState("layout", PHONE_CHATS_KEY),
+});
+
+/** A window's answer to a `listChat` command: the chat is in a group. */
+export function phoneChatListed(chat: ChatId) {
+  phoneChatGroups.listed(chat);
+}
+
+/** Lists a chat sent from a phone in a window's sidebar (`createPhoneChatGroups`). */
+export function listChatFromPhone(chat: ChatId) {
+  phoneChatGroups.add(chat);
 }
 
 /** Whether a window lists a tab group, up or not. */
@@ -1395,6 +1430,7 @@ export function takePendingAppWindowAsks(
   }
   adoptedBeforeUp.delete(webContentsId);
   listening.add(webContentsId);
+  phoneChatGroups.offer();
   // What waited is for the window in front, which a launch restoring several
   // brings up last or first as their pages happen to load.
   const front = comingToFront ?? getAppWindow();

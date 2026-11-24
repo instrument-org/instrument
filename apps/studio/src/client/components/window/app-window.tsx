@@ -206,7 +206,6 @@ import {
 } from "./window-href";
 import {
   chatFiltersUpAtom,
-  groupOnScreenAtom,
   newScreenId,
   useWindowTabs,
   windowTabsAtom,
@@ -1495,7 +1494,7 @@ function WindowShell({
       // group's last tab closes the group with it, which Shift+Cmd+T and
       // Activity bring back.
       closeTab: () => {
-        const group = store.get(groupOnScreenAtom);
+        const group = groups.groupUp();
         if (group === undefined) {
           return;
         }

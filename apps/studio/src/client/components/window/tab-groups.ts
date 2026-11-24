@@ -4,11 +4,12 @@ import { draftsAtom, draftsLoadedAtom } from "@/client/drafts/store";
 import { keptInOtherWindows } from "@/client/lib/kept-state";
 import { leaveField } from "@/client/lib/keyboard-home";
 import { freshTabId } from "@/client/lib/tab-actions";
+import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { rpcClient } from "@/client/rpc/client";
 import { type Draft, holdsSomething } from "@/shared/drafts";
 import { keptTabGroupsOf, TAB_GROUPS_KEY } from "@/shared/kept-state";
 import { asksMoreThan } from "@/shared/tab-identity";
-import { type SidebarPlace } from "@/shared/tabs";
+import { neighborAt, type SidebarPlace } from "@/shared/tabs";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { unique } from "radashi";
@@ -26,6 +27,7 @@ import {
 import { chatListOptions } from "./chat-list-query";
 import { type Chat, draftTitle, type Project } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
+import { sidebarRowOrderAtom } from "./held-chord-hints";
 import { useTabGroupsElsewhere, windowTabGroupsAtom } from "./open-groups";
 import {
   besideOf,
@@ -285,6 +287,14 @@ export function chatsWithNoTab(
   return chats.filter((chat) => !withTabs.has(chat.id));
 }
 
+/** Groups in the order the sidebar lists them: pinned ones first, whatever their places in the window's own list. */
+export function inSidebarOrder(open: readonly TabGroup[]): TabGroup[] {
+  return [
+    ...open.filter((entry) => isPinnedGroup(entry)),
+    ...open.filter((entry) => !isPinnedGroup(entry)),
+  ];
+}
+
 /**
  * The group a step down (1) or up (-1) the sidebar lands on from `from`, in
  * the order the sidebar lists them, pinned ones first; from no group, the
@@ -295,10 +305,7 @@ export function groupAlong(
   from: string | undefined,
   direction: -1 | 1,
 ): string | undefined {
-  const listed = [
-    ...open.filter((entry) => isPinnedGroup(entry)),
-    ...open.filter((entry) => !isPinnedGroup(entry)),
-  ];
+  const listed = inSidebarOrder(open);
   const at = listed.findIndex((entry) => entry.group === from);
   if (at === -1) {
     return (direction === 1 ? listed[0] : listed.at(-1))?.group;
@@ -406,11 +413,18 @@ export function useTabGroupActions() {
   const appTabs = useAppTabs();
   const windowTabs = useWindowTabs();
 
-  /** The group the window shows now, read at the call. */
+  /**
+   * The group the window shows now, read at the call from the tab's own
+   * router, which has moved before the model hears of it: a second Cmd+W
+   * right after the first acts on the group that came up.
+   */
   const groupUp = () => {
     const model = store.get(appTabsAtom);
     const up = model.tabs.find((tab) => tab.id === model.selectedId);
-    return up === undefined ? undefined : groupOfHref(up.pathname);
+    return (
+      up &&
+      groupOfHref(getTabRouter(up.id)?.history.location.href ?? up.pathname)
+    );
   };
 
   /** Changes this window's list of groups, as it stands at the call. */
@@ -612,15 +626,26 @@ export function useTabGroupActions() {
     });
   };
 
-  /** The group to show once `group` is gone, in the project the sidebar stands in: the one after it in the list, else the one before, else a new one. */
+  /**
+   * The group to show once `group` is gone: the row under it in the sidebar,
+   * else the one above, else none. The rows are read as the sidebar shows
+   * them, or worked out from `list` where no row of it shows the group. A row
+   * can outlast its group until the next render, so only groups still on this
+   * window's list count.
+   */
   const neighborOf = (group: string, list: readonly TabGroup[]) => {
     const project = store.get(sidebarProjectAtom);
-    const set = list.filter(
-      (entry) => entry.group === group || entry.project === project,
-    );
-    const index = set.findIndex((entry) => entry.group === group);
-    const rest = set.filter((entry) => entry.group !== group);
-    return rest[Math.min(Math.max(index, 0), rest.length - 1)]?.group;
+    const rows = store.get(sidebarRowOrderAtom);
+    const order = rows?.includes(group)
+      ? rows
+      : inSidebarOrder(
+          list.filter(
+            (entry) => entry.group === group || entry.project === project,
+          ),
+        ).map((entry) => entry.group);
+    const left = order.filter((each) => each === group || isListedHere(each));
+    const at = left.indexOf(group);
+    return at === -1 ? left[0] : neighborAt(left, at);
   };
 
   /**

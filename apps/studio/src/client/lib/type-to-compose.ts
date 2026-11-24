@@ -34,12 +34,33 @@ export function setComposeFocus(editable: Element, take: () => void) {
 }
 
 /**
- * A letter typed while the keyboard is in nothing that takes one goes into
- * the composer on show: that of the side with the keyboard, so a side
- * showing a page or a file never types into the chat on the other. The
- * composer takes the keyboard as the key goes down and the key is left
- * alone, so the browser types it, and everything that reads typing (the
- * slash menu, undo) sees an ordinary press.
+ * The composer that what is typed or pasted at `target` belongs to: the one
+ * on show in the side with the keyboard, so a side showing a page or a file
+ * never sends either into the chat on the other. None when `target` takes
+ * typing or pasting for itself, or something lies over the side.
+ */
+function composerFor(target: EventTarget | null) {
+  if (
+    isTypingInto(target) ||
+    (target instanceof Element && target.closest(READS_LETTERS) !== null) ||
+    // A web page's keys and pastes are its own.
+    document.activeElement?.tagName === "WEBVIEW" ||
+    // A menu, popover or dialog is up, whatever has the keyboard.
+    document.querySelector("[data-radix-focus-guard]") !== null ||
+    getDefaultStore().get(windowHoldsAtom).length > 0
+  ) {
+    return null;
+  }
+  return composerWithKeyboard();
+}
+
+/**
+ * A letter typed, or a paste made, while the keyboard is in nothing that
+ * takes one goes into the composer (`composerFor`). The composer takes the
+ * keyboard as the key goes down and the key is left alone, so the browser
+ * types it, and everything that reads typing (the slash menu, undo) sees an
+ * ordinary press. A paste already has its target, so it is made again on the
+ * composer, which reads files, pictures and long text as it always does.
  *
  * Space stays a button's press and the transcript's scroll, and `?` the
  * shortcut guide's.
@@ -56,25 +77,39 @@ export function installTypeToCompose() {
         !event.getModifierState("AltGraph")) ||
       event.key.length !== 1 ||
       event.key === " " ||
-      event.key === SHORTCUT_GUIDE.accelerator ||
-      isTypingInto(event.target) ||
-      (event.target instanceof Element &&
-        event.target.closest(READS_LETTERS) !== null) ||
-      // A menu, popover or dialog is up, whatever has the keyboard.
-      document.querySelector("[data-radix-focus-guard]") !== null ||
-      getDefaultStore().get(windowHoldsAtom).length > 0
+      event.key === SHORTCUT_GUIDE.accelerator
     ) {
       return;
     }
-    const composer = composerWithKeyboard();
+    const composer = composerFor(event.target);
     if (composer) {
       takers.get(composer)?.();
     }
   };
-  // Bubbling, after whatever on the way up takes the letter for itself, as a
-  // list of files does to find a name.
+  const onPaste = (event: ClipboardEvent) => {
+    if (event.defaultPrevented || !event.clipboardData?.types.length) {
+      return;
+    }
+    const composer = composerFor(event.target);
+    const take = composer && takers.get(composer);
+    if (!take) {
+      return;
+    }
+    event.preventDefault();
+    take();
+    composer.dispatchEvent(
+      new ClipboardEvent("paste", {
+        cancelable: true,
+        clipboardData: event.clipboardData,
+      }),
+    );
+  };
+  // Bubbling, after whatever on the way up takes the letter or the paste for
+  // itself, as a list of files does to find a name.
   window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("paste", onPaste);
   return () => {
     window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("paste", onPaste);
   };
 }

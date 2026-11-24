@@ -32,8 +32,13 @@ afterEach(() => {
 
 async function draw({
   chatHasKeyboard = true,
+  onPaste = () => false,
   words = "",
-}: { chatHasKeyboard?: boolean; words?: string } = {}) {
+}: {
+  chatHasKeyboard?: boolean;
+  onPaste?: (event: ClipboardEvent) => boolean;
+  words?: string;
+} = {}) {
   const ref = createRef<PromptEditorRef>();
   await render(
     <div data-app-tab-active="">
@@ -60,7 +65,7 @@ async function draw({
               defaultValue={words}
               disabled={false}
               onChange={noop}
-              onPaste={() => false}
+              onPaste={onPaste}
               onSubmit={noop}
               placeholder=""
               ref={ref}
@@ -138,5 +143,65 @@ it("types nothing under something that holds the window", async () => {
   const { value } = await draw();
   getDefaultStore().set(windowHoldsAtom, [{}]);
   await userEvent.keyboard("h");
+  expect(value()).toBe("");
+});
+
+function paste(target: Element, text: string) {
+  const clipboardData = new DataTransfer();
+  clipboardData.setData("text/plain", text);
+  target.dispatchEvent(
+    new ClipboardEvent("paste", {
+      bubbles: true,
+      cancelable: true,
+      clipboardData,
+    }),
+  );
+}
+
+it("pastes into the composer when the keyboard is on nothing, and leaves the caret there", async () => {
+  const { value } = await draw({ words: "see " });
+  paste(document.body, "one\ntwo");
+  expect(value()).toBe("see one\ntwo");
+  await userEvent.keyboard("!");
+  expect(value()).toBe("see one\ntwo!");
+});
+
+it("offers a paste from elsewhere to the composer's own reading of one", async () => {
+  const pasted: string[] = [];
+  const { value } = await draw({
+    onPaste: (event) => {
+      pasted.push(event.clipboardData?.getData("text/plain") ?? "");
+      event.preventDefault();
+      return true;
+    },
+  });
+  paste(document.body, "a long report");
+  expect([pasted, value()]).toEqual([["a long report"], ""]);
+});
+
+it("leaves a paste in a field to the field, and takes it once", async () => {
+  const { focus, value } = await draw();
+  focus("field");
+  paste(document.querySelector('[data-testid="field"]') ?? document.body, "x");
+  expect(value()).toBe("");
+  const editor = document.querySelector('[contenteditable="true"]');
+  paste(editor ?? document.body, "once");
+  expect(value()).toBe("once");
+});
+
+it("pastes nothing while a web page has the keyboard", async () => {
+  const { value } = await draw();
+  const page = document.createElement("webview");
+  page.tabIndex = 0;
+  document.body.append(page);
+  page.focus();
+  paste(document.body, "x");
+  page.remove();
+  expect(value()).toBe("");
+});
+
+it("pastes nothing into a chat on the side without the keyboard", async () => {
+  const { value } = await draw({ chatHasKeyboard: false });
+  paste(document.body, "x");
   expect(value()).toBe("");
 });

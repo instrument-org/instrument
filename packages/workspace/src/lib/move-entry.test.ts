@@ -149,6 +149,7 @@ describe.runIf(process.platform === "darwin")(
       expect(fs.readlinkSync(path.join(to, "latest.md"))).toBe("report.md");
     });
 
+    // hdiutil takes a second on an idle Mac and several on a busy one.
     it("keeps them through a move to a second volume", () => {
       const image = path.join(dir.path, "volume.dmg");
       const volume = path.join(dir.path, "volume");
@@ -184,7 +185,7 @@ describe.runIf(process.platform === "darwin")(
       } finally {
         execFileSync("/usr/bin/hdiutil", ["detach", volume, "-quiet"]);
       }
-    });
+    }, 60_000);
   },
 );
 

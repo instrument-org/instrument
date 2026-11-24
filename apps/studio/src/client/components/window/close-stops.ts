@@ -1,4 +1,8 @@
-import { type ChatId } from "@instrument-org/workspace/client";
+import {
+  browserTargetOf,
+  type BrowserTargetId,
+  type ChatId,
+} from "@instrument-org/workspace/client";
 
 import { type Chat } from "./chats";
 import { type WindowTab } from "@/client/atoms/window";
@@ -38,6 +42,49 @@ export function chatsStoppedByClose(
   });
 }
 
+/** A chat a close stops since the page its agent is on closes, and that page. */
+export interface StoppedByPage {
+  chat: Chat;
+  page: { title: string; url: string };
+  tab: string;
+}
+
+/**
+ * The chats a close of these tabs stops since an agent of theirs is on a page
+ * among them (`inUse`), each once with the first such page in tab order. A
+ * chat the list does not have has nobody to ask about.
+ */
+export function chatsStoppedByPages(
+  tabs: readonly WindowTab[],
+  chats: readonly Chat[] | undefined,
+  inUse: readonly { chatId: ChatId; targetId: BrowserTargetId }[] | undefined,
+): StoppedByPage[] {
+  const seen = new Set<ChatId>();
+  return tabs.flatMap((tab) => {
+    if (tab.kind !== "page") {
+      return [];
+    }
+    const target = browserTargetOf(tab.id);
+    return (inUse ?? []).flatMap(({ chatId, targetId }) => {
+      const chat = chats?.find((each) => each.id === chatId);
+      if (targetId !== target || chat === undefined || seen.has(chatId)) {
+        return [];
+      }
+      seen.add(chatId);
+      return [
+        {
+          chat,
+          page: {
+            title: tab.title ?? "",
+            url: tab.url ?? tab.openedUrl ?? "",
+          },
+          tab: tab.id,
+        },
+      ];
+    });
+  });
+}
+
 /** What a close takes away, which the question names. */
 export type ClosingWhat = "group" | "split" | "tab" | "window";
 
@@ -48,11 +95,14 @@ export type ClosingWhat = "group" | "split" | "tab" | "window";
 export function stopQuestionCopy({
   chats,
   closes,
+  isUsingPage = false,
   what,
 }: {
   chats: readonly Pick<Chat, "title">[];
   /** How many tabs or groups the close takes away. */
   closes: number;
+  /** The one chat is stopped by the close of the page its agent is on. */
+  isUsingPage?: boolean;
   what: ClosingWhat;
 }): { description: string; title: string } {
   const closing =
@@ -70,8 +120,13 @@ export function stopQuestionCopy({
   const [only] = chats;
   if (chats.length === 1 && only) {
     const named = only.title.trim() === "" ? "this chat" : `“${only.title}”`;
+    const using = named === "this chat" ? "This chat" : named;
     return {
-      description: `Closing ${closing} stops what ${named} is working on.`,
+      description: isUsingPage
+        ? what === "tab" && closes === 1
+          ? `${using} is using this page. Closing this tab stops what it's working on.`
+          : `${using} is using a page in ${closing}. Closing it stops the chat's work.`
+        : `Closing ${closing} stops what ${named} is working on.`,
       title: "Stop this chat?",
     };
   }

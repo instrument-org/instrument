@@ -192,6 +192,17 @@ async function chatPage(id: ChatId, tab: string) {
 }
 
 /**
+ * Waits for the stopped turn's last message, which the stop writes as its
+ * turn winds down, so a note saved next reads after the work it stopped.
+ */
+async function stoppedTurnWritten(id: ChatId, sessionId: StoreId.Session) {
+  const until = Date.now() + STOP_SETTLE_MS;
+  while (isWorking(id, sessionId) && Date.now() < until) {
+    await sleep(50);
+  }
+}
+
+/**
  * Take over on a page the chat is working in: the chat stops as Stop stops
  * it, and a note that starts no turn says the person has the page, which the
  * chat reads with whatever starts its next turn. The transcript draws the
@@ -206,12 +217,7 @@ const takeOver = base
     if (sessionId === undefined || page === undefined) {
       return;
     }
-    // After the stopped turn's last message, which the stop writes as its
-    // turn winds down, so the note reads after the work it stopped.
-    const until = Date.now() + STOP_SETTLE_MS;
-    while (isWorking(input.id, sessionId) && Date.now() < until) {
-      await sleep(50);
-    }
+    await stoppedTurnWritten(input.id, sessionId);
     await saveNote(input.id, sessionId, {
       data: { page, stage: "taken", tab: input.tab },
       type: "data-pageTakeover",
@@ -234,6 +240,56 @@ const giveBack = base
       chatId: input.id,
       part: {
         data: { page, stage: "returned", tab: input.tab },
+        type: "data-pageTakeover",
+      },
+      sessionId,
+      workspaceRef: context.workspaceRef,
+    });
+  });
+
+/** A page of the chat's that closed, as the window last had it. */
+const ClosedPageSchema = z.object({
+  id: ChatIdSchema,
+  page: z.object({ title: z.string(), url: z.string() }),
+  tab: z.string(),
+});
+
+/**
+ * The person closed the page the chat was on: the chat stops as Stop stops
+ * it, and a note that starts no turn says which page, which the chat reads
+ * with whatever starts its next turn. The transcript draws the note as the
+ * stopped line with Continue. The window names the page, whose tab may be
+ * gone before this is read.
+ */
+const stopOnClose = base
+  .input(ClosedPageSchema)
+  .handler(async ({ context, input }) => {
+    const { id, page, tab } = input;
+    await call(stop, { id }, { context });
+    const sessionId = sessionOfChat(id);
+    if (sessionId === undefined) {
+      return;
+    }
+    await stoppedTurnWritten(id, sessionId);
+    await saveNote(id, sessionId, {
+      data: { page, stage: "closed", tab },
+      type: "data-pageTakeover",
+    });
+  });
+
+/** Continue after a close stopped the chat: the chat is woken and told which page closed. */
+const continueAfterClose = base
+  .input(ClosedPageSchema)
+  .handler(async ({ context, input }) => {
+    const { id, page, tab } = input;
+    const sessionId = sessionOfChat(id);
+    if (sessionId === undefined) {
+      return;
+    }
+    await enqueueWake({
+      chatId: id,
+      part: {
+        data: { page, stage: "continued", tab },
         type: "data-pageTakeover",
       },
       sessionId,
@@ -286,9 +342,11 @@ const live = {
 };
 
 export const session = {
+  continueAfterClose,
   giveBack,
   live,
   run,
   stop,
+  stopOnClose,
   takeOver,
 };

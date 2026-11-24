@@ -3,10 +3,18 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@/client/rpc/client", () => ({ rpcClient: {} }));
 
 import { type WindowTab } from "@/client/atoms/window";
-import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
+import {
+  browserTargetOf,
+  ChatIdSchema,
+  StoreId,
+} from "@instrument-org/workspace/client";
 
 import { type Chat } from "./chats";
-import { chatsStoppedByClose, stopQuestionCopy } from "./close-stops";
+import {
+  chatsStoppedByClose,
+  chatsStoppedByPages,
+  stopQuestionCopy,
+} from "./close-stops";
 import { chatHref } from "./window-href";
 
 const LISBON = ChatIdSchema.parse("2026-11-10-lisbon");
@@ -80,6 +88,30 @@ describe("the chats a close stops", () => {
   });
 });
 
+it("stops a chat whose agent is on a closing page, once, and no other", () => {
+  const page = (id: string): WindowTab => ({
+    group: "g",
+    id,
+    kind: "page",
+    openedAt: 0,
+    url: `https://${id}.example/`,
+  });
+  const ids = [StoreId.newTabId(), StoreId.newTabId(), StoreId.newTabId()];
+  const tabs = ids.map(page);
+  const inUse = ids
+    .slice(0, 2)
+    .map((id) => ({ chatId: LISBON, targetId: browserTargetOf(id) }));
+  const chats = [chat(LISBON)];
+  expect(
+    chatsStoppedByPages(tabs, chats, inUse).map(({ chat: { id }, tab }) => ({
+      id,
+      tab,
+    })),
+  ).toEqual([{ id: LISBON, tab: ids[0] }]);
+  expect(chatsStoppedByPages(tabs.slice(2), chats, inUse)).toEqual([]);
+  expect(chatsStoppedByPages(tabs, chats, undefined)).toEqual([]);
+});
+
 describe("the question's words", () => {
   it("names one chat, else counts them, and says what closes", () => {
     const cases = [
@@ -130,5 +162,19 @@ describe("the question's words", () => {
         },
       ]
     `);
+  });
+
+  it("says the chat is using the page that closes", () => {
+    const asked = (title: string, what: "group" | "tab") =>
+      stopQuestionCopy({
+        chats: [{ title }],
+        closes: 1,
+        isUsingPage: true,
+        what,
+      }).description;
+    expect([asked("Trip plan", "tab"), asked("", "group")]).toEqual([
+      "“Trip plan” is using this page. Closing this tab stops what it's working on.",
+      "This chat is using a page in this tab group. Closing it stops the chat's work.",
+    ]);
   });
 });

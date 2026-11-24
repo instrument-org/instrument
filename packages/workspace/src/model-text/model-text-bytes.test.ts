@@ -563,6 +563,16 @@ describe.skipIf(WINDOWS)("the builders called directly", () => {
           tool({ state: "input-available" }),
         ),
       ),
+      pageClosed: pageTakeover.pageTakeoverModelNote({
+        page: { title: "Sign in", url: "https://example.com" },
+        stage: "closed",
+        tab: "tab_1",
+      }),
+      pageContinued: pageTakeover.pageTakeoverModelNote({
+        page: { title: "Sign in", url: "https://example.com" },
+        stage: "continued",
+        tab: "tab_1",
+      }),
       pageReturned: pageTakeover.pageTakeoverModelNote({
         page: { title: "Sign in", url: "https://example.com" },
         stage: "returned",

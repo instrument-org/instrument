@@ -22,7 +22,7 @@ function siteOf(url: string): string {
 }
 
 /**
- * Take over, where it happened: while it is the last thing in the chat, the
+ * Take over, or a close that stopped the chat, where it happened: while it is the last thing in the chat, the
  * chat is paused on the person, with Continue to give the page back; once
  * anything follows (Continue, a message), a quiet line that they used the
  * page. Giving it back draws nothing, since the reply that follows says what
@@ -39,6 +39,13 @@ export function PageTakeoverNote({
   isNewest: boolean;
 }) {
   const { isRunning } = use(TranscriptActionsContext);
+  const continueAfterClose = useMutation(
+    rpcClient.workspace.session.continueAfterClose.mutationOptions({
+      onError: (error) => {
+        toast.error("Couldn't continue the chat", { cause: error });
+      },
+    }),
+  );
   const giveBack = useMutation(
     rpcClient.workspace.session.giveBack.mutationOptions({
       onError: (error) => {
@@ -46,9 +53,11 @@ export function PageTakeoverNote({
       },
     }),
   );
-  if (data.stage === "returned") {
+  if (data.stage === "returned" || data.stage === "continued") {
     return null;
   }
+  const isClosed = data.stage === "closed";
+  const resuming = isClosed ? continueAfterClose : giveBack;
   const site = siteOf(data.page.url);
   if (!isNewest || isRunning) {
     return (
@@ -58,7 +67,7 @@ export function PageTakeoverNote({
           hasTooltip={false}
           url={data.page.url}
         />
-        <span>{`You took over ${site}.`}</span>
+        <span>{`You ${isClosed ? "closed" : "took over"} ${site}.`}</span>
       </p>
     );
   }
@@ -67,12 +76,24 @@ export function PageTakeoverNote({
       <span className="flex size-5 items-center justify-center rounded-md bg-muted">
         <PauseIcon className="size-3" weight="fill" />
       </span>
-      <span>{`Paused while you use ${site}`}</span>
+      <span>
+        {isClosed
+          ? `Stopped when you closed ${site}`
+          : `Paused while you use ${site}`}
+      </span>
       <Button
         className="h-6 rounded-md px-2 text-xs"
-        disabled={giveBack.isPending || giveBack.isSuccess}
+        disabled={resuming.isPending || resuming.isSuccess}
         onClick={() => {
-          giveBack.mutate({ id: chatId, tab: data.tab });
+          if (isClosed) {
+            continueAfterClose.mutate({
+              id: chatId,
+              page: data.page,
+              tab: data.tab,
+            });
+          } else {
+            giveBack.mutate({ id: chatId, tab: data.tab });
+          }
         }}
         size="sm"
       >

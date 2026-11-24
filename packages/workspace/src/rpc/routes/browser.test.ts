@@ -104,3 +104,32 @@ describe("browser.events.agentActivity", () => {
     expect(await read(first)).toEqual({ chat: undefined, inUse: false });
   });
 });
+
+describe("browser.live.inUse", () => {
+  it("names only the tab each working session is on, until its turn ends", async () => {
+    const first = browserTargetOf(StoreId.newTabId());
+    const second = browserTargetOf(StoreId.newTabId());
+    const session = StoreId.newSessionId();
+    working.add(session);
+    const read = async () => {
+      const controller = new AbortController();
+      const events = await call(browser.live.inUse, undefined, {
+        context,
+        signal: controller.signal,
+      });
+      for await (const event of events) {
+        controller.abort();
+        return event;
+      }
+      return undefined;
+    };
+
+    noteTabCommand(first, { chatId: CHAT, sessionId: session }, 1000);
+    expect(await read()).toEqual([{ chatId: CHAT, targetId: first }]);
+    noteTabCommand(second, { chatId: CHAT, sessionId: session }, 2000);
+    expect(await read()).toEqual([{ chatId: CHAT, targetId: second }]);
+    publisher.publish("session.done", { id: CHAT, sessionId: session });
+    expect(await read()).toEqual([]);
+    working.delete(session);
+  });
+});

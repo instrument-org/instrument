@@ -1564,6 +1564,14 @@ The first time a chat uses Notes, macOS may ask the person. Exit code 2 means ma
 The first time a chat uses Reminders, macOS may ask the person. Exit code 2 means macOS keeps Instrument out of Reminders: the person now sees a card that lets them change it, and their answer wakes you, so stop there and say what you're waiting for.",
   ],
   "packageScope": "The sandbox refused Node's look for a package.json above the script (/Users/mac-user/package.json). \`node <script>\` from this shell reads past that; for a script another program starts, a package.json beside the script (\`{}\` is enough) ends the look there.",
+  "pageClosed": "
+<instrument-system-note>
+The user closed tab tab_1, at https://example.com ("Sign in"), and that stopped your work.
+</instrument-system-note>",
+  "pageContinued": "
+<instrument-system-note>
+The user pressed Continue after closing tab tab_1, at https://example.com ("Sign in"), which may still be closed. Carry on with what you were doing.
+</instrument-system-note>",
   "pageReturned": "
 <instrument-system-note>
 The user gave tab tab_1 back with Continue; it is now at https://example.com ("Sign in"). Look at the page before going on, since they may have changed it, then carry on with what you were doing.

@@ -1192,12 +1192,14 @@ export namespace SessionMessageDataPart {
   /**
    * The person took a page the chat was working in away from it with Take
    * over, which stopped the chat (`taken`, a note that starts no turn), or
-   * gave it back with Continue (`returned`, which wakes the chat). The page
+   * gave it back with Continue (`returned`, which wakes the chat), or closed
+   * the page (`closed`), which stopped the chat, and then pressed Continue
+   * (`continued`, which wakes it). The page
    * is as it stood at that moment.
    */
   export const PageTakeoverDataPartSchema = z.object({
     page: z.object({ title: z.string(), url: z.string() }),
-    stage: z.enum(["taken", "returned"]),
+    stage: z.enum(["taken", "returned", "closed", "continued"]),
     /** The chat's tab, by its id. */
     tab: z.string(),
   });

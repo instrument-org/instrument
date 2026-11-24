@@ -339,7 +339,12 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
     }
     case "data-pageTakeover": {
       return named(
-        part.data.stage === "taken" ? "Taken over" : "Given back",
+        {
+          closed: "Closed",
+          continued: "Continued",
+          returned: "Given back",
+          taken: "Taken over",
+        }[part.data.stage],
         part.data.page.url,
       );
     }

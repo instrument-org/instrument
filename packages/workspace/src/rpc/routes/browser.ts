@@ -10,7 +10,7 @@ import {
 } from "../../lib/browser-state";
 import { CdpCommandTimeoutError } from "../../lib/cdp-command-timeout-error";
 import { getBrowserSessionDir } from "../../lib/chat-dir-utils";
-import { chatWorkingIn } from "../../lib/chat/driven-tabs";
+import { chatWorkingIn, tabsInUse } from "../../lib/chat/driven-tabs";
 import { lastActOf } from "../../lib/tab-activity";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { StoreId } from "../../schemas/store-id";
@@ -223,6 +223,27 @@ const agentActivity = base
     }
   });
 
+/** The tabs agents are on now (`tabsInUse`), read again on every agent's command and as each session finishes. */
+const inUse = base
+  .output(
+    eventIterator(
+      z.array(
+        z.object({ chatId: ChatIdSchema, targetId: BrowserTargetIdSchema }),
+      ),
+    ),
+  )
+  .handler(async function* ({ signal }) {
+    yield* distinct(
+      liveRead({
+        changes: [
+          publisher.subscribe("browser.agentActivity", { signal }),
+          publisher.subscribe("session.done", { signal }),
+        ],
+        read: tabsInUse,
+      }),
+    );
+  });
+
 /**
  * Closes a window tab's guest for good: the guest goes, and a chat holding
  * the tab is told on its next turn that its page is gone. What closing one of
@@ -240,6 +261,7 @@ export const browser = {
     agentActivity,
   },
   live: {
+    inUse,
     presence,
   },
   open,

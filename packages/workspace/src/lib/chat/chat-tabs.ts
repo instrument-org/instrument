@@ -139,7 +139,7 @@ export async function tabHolders(
 }
 
 /** Whether a session is working, or false where no workspace is running to ask. */
-function isWorkingNow({
+export function isWorkingNow({
   chatId,
   sessionId,
 }: {

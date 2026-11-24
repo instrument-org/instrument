@@ -124,6 +124,19 @@ export function usedThisTurn(
   return turnTabs.get(sessionId)?.has(targetId) === true;
 }
 
+/** The tab each session with commands in its running turn sent its latest one, of the tabs that turn used. */
+export function latestTurnTabs(): (TabAct & { targetId: BrowserTargetId })[] {
+  return [...turnTabs].flatMap(([sessionId, tabs]) => {
+    const [latest] = [...tabs]
+      .flatMap((targetId) => {
+        const act = actsByTab.get(targetId)?.get(sessionId);
+        return act ? [{ ...act, targetId }] : [];
+      })
+      .toSorted((a, b) => b.at - a.at);
+    return latest ? [latest] : [];
+  });
+}
+
 /** What the session has not been told of the tabs it drove, taken: each piece is told once. */
 export function takeTabNews(sessionId: StoreId.Session): TabNews[] {
   const news = owed.get(sessionId);

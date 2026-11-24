@@ -53,6 +53,16 @@ async function renderEditor(defaultValue = "", width = 480) {
 
 const editor = () => page.getByLabelText("Prompt");
 
+function paste(text: string) {
+  const clipboardData = new DataTransfer();
+  clipboardData.setData("text/plain", text);
+  document
+    .querySelector<HTMLElement>('[aria-label="Prompt"]')
+    ?.dispatchEvent(
+      new ClipboardEvent("paste", { bubbles: true, clipboardData }),
+    );
+}
+
 describe("links in the reply box", () => {
   // A new anchor on every render has the bar's popper set state after each
   // keystroke, which leaves React a render owed at every commit; enough
@@ -88,6 +98,36 @@ describe("links in the reply box", () => {
       .toBeVisible();
     // An address written out has no words of its own to edit or unlink.
     expect(document.querySelector('[aria-label="Unlink"]')).toBeNull();
+  });
+
+  it("draws a pasted address alone as plain text, with no bar", async () => {
+    await renderEditor();
+    await userEvent.click(editor());
+    paste("https://claude.ai/magic-link#c774b2a4");
+    await expect
+      .element(page.getByText("https://claude.ai/magic-link#c774b2a4"))
+      .toBeVisible();
+    expect(document.querySelector(".prompt-editor .prompt-link")).toBeNull();
+    expect(document.querySelector('[aria-label="Copy link"]')).toBeNull();
+  });
+
+  it("offers the bar for a pasted link only once the caret is clicked into it", async () => {
+    await renderEditor();
+    await userEvent.click(editor());
+    await userEvent.keyboard("See ");
+    paste("https://zendesk.com/pricing");
+    const link = document.querySelector<HTMLElement>(
+      ".prompt-editor .prompt-link",
+    );
+    expect(link?.textContent).toBe("https://zendesk.com/pricing");
+    // The bar's popover mounts a frame after the paste, so give it one.
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    expect(document.querySelector('[aria-label="Copy link"]')).toBeNull();
+
+    await userEvent.click(page.getByText("https://zendesk.com/pricing"));
+    await expect
+      .element(page.getByRole("button", { name: "Copy link" }))
+      .toBeVisible();
   });
 
   it("unlinks linked words from the bar, keeping the words", async () => {

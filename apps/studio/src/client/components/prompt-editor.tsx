@@ -459,7 +459,13 @@ export function PromptEditor({
           onChangeEvent(promptTextFromDoc(nextState.doc));
         }
         setSlashMenu(slashMenuOf(nextState));
-        showLink(view.hasFocus() ? linkAtCaret(nextState) : null);
+        // The bar comes up only for a caret moved into a link, by a click or
+        // an arrow key; a paste or typing that leaves it in one does not.
+        if (transaction.docChanged) {
+          showLink(null);
+        } else if (transaction.selectionSet) {
+          showLink(view.hasFocus() ? linkAtCaret(nextState) : null);
+        }
         setHasLinks(hasLinksIn(nextState));
       },
       handleDOMEvents: {
@@ -470,10 +476,6 @@ export function PromptEditor({
           if (!(to instanceof Node && linkBarRef.current?.contains(to))) {
             showLink(null);
           }
-          return false;
-        },
-        focus: (focused) => {
-          showLink(linkAtCaret(focused.state));
           return false;
         },
         paste: (_view, event) => onPasteEvent(event),

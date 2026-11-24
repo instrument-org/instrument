@@ -93,6 +93,17 @@ function drawnLinks(state: EditorState): PromptLink[] {
     return [];
   }
   const { links, typingAt } = pluginState;
+  const [only] = links;
+  // An address alone in the box is drawn as the text it is, the way an
+  // address bar shows one; it becomes a link once words go around it.
+  if (
+    links.length === 1 &&
+    only &&
+    !only.labeled &&
+    state.doc.textContent.trim() === state.doc.textBetween(only.from, only.to)
+  ) {
+    return [];
+  }
   return links.filter((link) => link.labeled || link.to !== typingAt);
 }
 

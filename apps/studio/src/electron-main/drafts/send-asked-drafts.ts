@@ -3,13 +3,14 @@ import { type ChatId } from "@instrument-org/workspace/electron";
 
 import { type Draft, type DraftOp, type DraftsSnapshot } from "@/shared/drafts";
 
+import { type AskedDraftCarries } from "./asked-draft-carries";
 import { logger } from "../lib/electron-logger";
 
 /**
- * A draft to send: its chat, the draft it is, its words, and for a draft
+ * A draft to send, with what it carries besides its folder: its chat, the draft it is, its words, and for a draft
  * that opens a chat of its own, the project the new chat is filed under.
  */
-export interface AskedReply {
+export interface AskedReply extends AskedDraftCarries {
   chatId: ChatId;
   draftId: string;
   projectId?: string;
@@ -26,6 +27,9 @@ export interface AskedReply {
  * naming the draft, and the draft marked sent, so a send stopped partway is
  * finished or offered again exactly as a window's is (`lib/drafts/send.ts`).
  *
+ * A draft with a part this computer can't send for the person (`carries`)
+ * is not sent in part: its ask is dropped, and it waits for them whole.
+ *
  * An ask that is not fresh (`isFreshAsk`, a reply asked for longer ago
  * than `SEND_FRESH_MS`, which is left in its chat's box for the person to
  * send or not), or a send that fails, drops the ask and
@@ -34,6 +38,7 @@ export interface AskedReply {
  */
 export function startSendingAskedDrafts({
   apply,
+  carries,
   deviceId,
   now = Date.now,
   send,
@@ -42,6 +47,8 @@ export function startSendingAskedDrafts({
 }: {
   /** Changes the drafts, as a window's ops would. */
   apply: (ops: DraftOp[]) => void;
+  /** What the draft's message carries besides its words and folder; nothing where some of it can't go from here. */
+  carries: (draft: Draft) => Promise<AskedDraftCarries | undefined>;
   deviceId: string;
   now?: () => number;
   /** Writes the draft's message into its chat, which starts the agent's turn. */
@@ -57,6 +64,17 @@ export function startSendingAskedDrafts({
   const sendOne = async (draft: Draft) => {
     // Out of the store's own telling of a change, which this answers.
     await Promise.resolve();
+    let carried: AskedDraftCarries | undefined;
+    try {
+      carried = await carries(draft);
+    } catch (error) {
+      log.warn(`Could not read what ${draft.id} carries`, error);
+    }
+    if (carried === undefined) {
+      log.warn(`Left ${draft.id}, with something only the person can send`);
+      apply([{ id: draft.id, set: {}, type: "update", unset: ["sendOn"] }]);
+      return;
+    }
     let chatId: ChatId;
     try {
       chatId = draft.chatId ?? (await startChat(draft.words));
@@ -70,6 +88,7 @@ export function startSendingAskedDrafts({
     ]);
     try {
       await send({
+        ...carried,
         chatId,
         draftId: draft.id,
         ...(draft.chatId === undefined && draft.projectId
@@ -106,7 +125,10 @@ export function startSendingAskedDrafts({
       }
       inFlight.add(draft.id);
       const fresh = isFreshAsk(draft.updatedAt, now(), SEND_FRESH_MS);
-      const empty = draft.words.trim() === "" && !draft.inFolder?.length;
+      const empty =
+        draft.words.trim() === "" &&
+        !draft.inFolder?.length &&
+        !draft.asks?.length;
       void (fresh && !empty ? sendOne(draft) : dropAsk(draft)).finally(() => {
         inFlight.delete(draft.id);
       });

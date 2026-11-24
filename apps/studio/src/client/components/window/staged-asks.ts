@@ -2,10 +2,7 @@ import { promptDraftRefAtom } from "@/client/atoms/prompt-value";
 // Asks staged on files in this window: the places the person marked for
 // Instrument, held in memory until a composer sends them, with the hooks each
 // surface uses to stage, list, move and reveal them.
-import {
-  type ChatId,
-  type SessionMessageDataPart,
-} from "@instrument-org/workspace/client";
+import { type ChatId } from "@instrument-org/workspace/client";
 import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
 import { type Draft, type DraftAsk } from "@/shared/drafts";
 import {
@@ -20,7 +17,6 @@ import { useContext, useEffect, useRef } from "react";
 import { groupOnScreenAtom, windowTabsAtom } from "./window-tabs";
 
 import { WindowContext } from "./context";
-import { reachablePath } from "./file-tabs";
 import { segmentsOf } from "./host-path";
 import { chatUpIn } from "./tab-model";
 
@@ -96,32 +92,6 @@ function asksMovedInto(draft: Draft): StagedAsk[] {
 
 /** The file whose Ask has its list of waiting asks open, if any: a pin on a page opens it too. */
 export const askTrayAtom = atom<null | string>(null);
-
-/** Staged asks as the message carries them, each file with the path the agent reaches it by. */
-export function asksPart(
-  asks: readonly StagedAsk[],
-  folders: Record<string, { path: string }>,
-): SessionMessageDataPart.AsksDataPart | undefined {
-  if (asks.length === 0) {
-    return;
-  }
-  return {
-    asks: asks.map((ask) => {
-      const mount = reachablePath(ask.path, folders);
-      return {
-        ...(ask.context ? { context: ask.context } : {}),
-        ...(ask.excerpt ? { excerpt: ask.excerpt } : {}),
-        file: {
-          ...(mount === undefined ? {} : { mount }),
-          name: fileNameOf(ask.path),
-          path: ask.path,
-        },
-        instruction: ask.instruction.trim(),
-        target: ask.target,
-      };
-    }),
-  };
-}
 
 /** Staged asks as a person counts them: "1 comment", "3 comments". */
 export function commentCount(count: number) {

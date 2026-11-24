@@ -1415,6 +1415,13 @@ export namespace SessionMessageDataPart {
      * as the message is sent, as a file sent with it is.
      */
     groupFiles: z.array(z.string()).optional(),
+    /**
+     * Web pages, apps and other chats the person put on the message by their
+     * addresses: the record of what they named, opened in no tab.
+     */
+    links: z
+      .array(z.object({ title: z.string().optional(), url: z.string() }))
+      .optional(),
     /** A file open on This Mac, as the person writes its path. */
     file: z
       .object({

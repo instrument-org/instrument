@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ASK_FRESH_MS, SEND_FRESH_MS } from "@instrument-org/shared";
 
+import { type AskedDraftCarries } from "./asked-draft-carries";
 import { type AskedReply, startSendingAskedDrafts } from "./send-asked-drafts";
 
 vi.mock("../lib/electron-logger", () => ({
@@ -35,6 +36,8 @@ function run(
   send: (reply: AskedReply) => Promise<void>,
   startChat: (words: string) => Promise<ChatId> = () =>
     Promise.reject(new Error("No chat is started in this test")),
+  carries: () => Promise<AskedDraftCarries | undefined> = () =>
+    Promise.resolve({}),
 ) {
   const applied: DraftOp[] = [];
   let listener: ((snapshot: DraftsSnapshot) => void) | undefined;
@@ -63,6 +66,7 @@ function run(
       }
       listener?.({ acks: {}, drafts: held });
     },
+    carries,
     deviceId: THIS_DEVICE,
     now: () => NOW,
     send,
@@ -77,6 +81,62 @@ function run(
 }
 
 describe("startSendingAskedDrafts", () => {
+  it("sends what the draft carries with its words", async () => {
+    const viewing = {
+      links: [{ url: "https://weather.example/" }],
+      screen: "conversation" as const,
+    };
+    const send = vi.fn(() => Promise.resolve());
+    run([reply()], send, undefined, () => Promise.resolve({ viewing }));
+    await vi.waitFor(() => {
+      expect(send).toHaveBeenCalledWith(expect.objectContaining({ viewing }));
+    });
+  });
+
+  it.each([
+    ["can't all go from here", () => Promise.resolve(undefined)],
+    ["can't be read", () => Promise.reject(new Error("No chat list"))],
+  ])(
+    "leaves a draft whose parts %s, starting no chat",
+    async (_name, carries) => {
+      const send = vi.fn(() => Promise.resolve());
+      const startChat = vi.fn(() => Promise.resolve(CHAT));
+      const applied = run(
+        [reply({ chatId: undefined })],
+        send,
+        startChat,
+        carries,
+      );
+      await vi.waitFor(() => {
+        expect(applied).toEqual([
+          {
+            id: "01KFDRAFT0000000000000001",
+            set: {},
+            type: "update",
+            unset: ["sendOn"],
+          },
+        ]);
+      });
+      expect(send).not.toHaveBeenCalled();
+      expect(startChat).not.toHaveBeenCalled();
+    },
+  );
+
+  it("sends a draft of asks alone", async () => {
+    const send = vi.fn(() => Promise.resolve());
+    const ask = {
+      createdAt: NOW,
+      id: "a",
+      instruction: "Shorten",
+      path: "/w/plan.md",
+      target: "line 3",
+    };
+    run([reply({ asks: [ask], words: "" })], send);
+    await vi.waitFor(() => {
+      expect(send).toHaveBeenCalledOnce();
+    });
+  });
+
   it("sends a fresh reply asked of this computer once, claimed first and marked sent after", async () => {
     const send = vi.fn(() => Promise.resolve());
     const applied = run([reply()], send);

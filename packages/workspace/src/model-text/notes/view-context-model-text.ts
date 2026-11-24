@@ -20,7 +20,7 @@ export function viewContextModelNote(
   data: ViewContext,
   shellPath: ShellPath = (hostPath) => hostPath,
 ) {
-  return `${screenNote(data, shellPath)}${otherChatNote(data)}${chosenNote(data, shellPath)}${tabsNote(data)}${questionNote(data)}`;
+  return `${screenNote(data, shellPath)}${otherChatNote(data)}${chosenNote(data, shellPath)}${linksNote(data)}${tabsNote(data)}${questionNote(data)}`;
 }
 
 /** The question on show on the card, which a bare number or a choice's words in the message answer. */
@@ -68,6 +68,22 @@ function chosenNote(data: ViewContext, shellPath: ShellPath) {
     .join("; ");
   return systemNote`
     They chose to send ${chosen.length === 1 ? "this" : "these"} with the message: ${named}. "This", "these" and "it" refer to ${chosen.length === 1 ? "it" : "them"} first, then to what was on screen.
+  `;
+}
+
+/** What the person put on the message by its address, which no tab is open on. */
+function linksNote(data: ViewContext) {
+  const links = data.links ?? [];
+  if (links.length === 0) {
+    return "";
+  }
+  const named = links
+    .map(({ title, url }) =>
+      title === undefined ? url : `"${title}" at ${url}`,
+    )
+    .join("; ");
+  return systemNote`
+    They put ${links.length === 1 ? "this address" : "these addresses"} on the message: ${named}. None is open in a tab of theirs; "this" and "these" can refer to ${links.length === 1 ? "it" : "them"}.
   `;
 }
 

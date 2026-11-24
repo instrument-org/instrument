@@ -7,6 +7,7 @@ import {
 } from "@instrument-org/workspace/electron";
 
 import { startBrowserExtensions } from "../browser-view/guest-session";
+import { askedDraftCarries } from "../drafts/asked-draft-carries";
 import { startSendingAskedDrafts } from "../drafts/send-asked-drafts";
 import {
   applyDraftOpsInMain,
@@ -20,6 +21,7 @@ import { startAgentCompletionNotifications } from "./agent-completion-notificati
 import { timeBootStep, timeBootStepSync } from "./boot-timing";
 import { createWorkspaceActor } from "./create-workspace-actor";
 import { startDeviceStatus } from "./device-status";
+import { getWorkspaceFolder } from "./get-workspace-folder";
 import { chooseLaunchDeviceId, describeLaunchDevice } from "./launch-device-id";
 import { quitsWithLastWindow } from "./quit";
 import { adoptFinderViewOnce } from "./finder-view";
@@ -73,8 +75,21 @@ export function startWorkspace(): Promise<void> {
     timeBootStepSync("startSendingAskedDrafts", () =>
       startSendingAskedDrafts({
         apply: applyDraftOpsInMain,
+        carries: (draft) =>
+          askedDraftCarries(draft, {
+            chatTitle: async (id) =>
+              (await call(workspaceRouter.chats.byId, { id }, { context }))
+                ?.title,
+            folders: async () =>
+              (
+                await call(workspaceRouter.window.ensure, undefined, {
+                  context,
+                })
+              ).folders,
+            rootDir: getWorkspaceFolder(),
+          }),
         deviceId,
-        send: async ({ chatId, draftId, projectId, words }) => {
+        send: async ({ asks, chatId, draftId, projectId, viewing, words }) => {
           const modelURI = (await chatModelURI(chatId)) ?? getDefaultModelURI();
           if (!modelURI) {
             throw new Error("No model is chosen to send with");
@@ -82,11 +97,13 @@ export function startWorkspace(): Promise<void> {
           await call(
             workspaceRouter.message.create,
             {
+              ...(asks ? { asks } : {}),
               fromDraft: draftId,
               id: chatId,
               modelURI,
               prompt: words,
               ...(projectId ? { project: projectId } : {}),
+              ...(viewing ? { viewing } : {}),
             },
             { context },
           );

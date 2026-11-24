@@ -301,6 +301,7 @@ export {
   resolveThroughAliases,
 } from "./lib/chat/finder-entries";
 export { type ChatId, ChatIdSchema } from "./schemas/chat-id";
+export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
 export {
   type PlatformSearchRefusal,
   type WebSearchClient,

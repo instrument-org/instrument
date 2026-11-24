@@ -26,7 +26,8 @@ import {
   useWindow,
   WindowContext,
 } from "./context";
-import { asksPart, useComposerAsks, useStagedAskActions } from "./staged-asks";
+import { asksPart } from "./asks-part";
+import { useComposerAsks, useStagedAskActions } from "./staged-asks";
 import { useReadOnView } from "./use-read-on-view";
 import { useStaysMissing } from "./use-stays-missing";
 

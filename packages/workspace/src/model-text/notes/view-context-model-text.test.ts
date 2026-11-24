@@ -3,6 +3,25 @@ import { describe, expect, it } from "vitest";
 import { viewContextModelNote } from "./view-context-model-text";
 
 describe("viewContextModelNote", () => {
+  it("names every address put on the message, however many", () => {
+    const links = Array.from({ length: 12 }, (_, at) => ({
+      url: `https://shop.example/${at.toString()}`,
+    }));
+    const note = viewContextModelNote({
+      links: [
+        ...links,
+        { title: "Porto trip", url: "instrument://chat/2026-10-02-porto" },
+      ],
+      screen: "home",
+    });
+    for (const { url } of links) {
+      expect(note).toContain(url);
+    }
+    expect(note).toContain(
+      '"Porto trip" at instrument://chat/2026-10-02-porto',
+    );
+  });
+
   // What may be done with what is on screen is the permission rules' to say
   // when the agent tries, so the note names the thing and nothing more.
   it("names a file or folder on screen without saying what the agent may do with it", () => {

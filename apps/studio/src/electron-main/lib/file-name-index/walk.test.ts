@@ -250,4 +250,168 @@ describe("walkFileNames", () => {
       ]
     `);
   });
+
+  describe("with a repository lister", () => {
+    /** A lister that answers for the folders named, by path from `root`, and counts what it was asked. */
+    function lister(files: Record<string, string[] | undefined>) {
+      const asked: string[] = [];
+      return {
+        asked,
+        listRepository: (folder: string) => {
+          const from = path.relative(root, folder).split(path.sep).join("/");
+          asked.push(from);
+          return Promise.resolve(files[from]);
+        },
+      };
+    }
+
+    it("lists a folder with a .git entry by the lister, and other folders by reading", async () => {
+      await make(
+        "notes.txt",
+        "site/.git/HEAD",
+        "site/src/main.ts",
+        "site/dist/bundle.js",
+        "plain/dist/kept.js",
+      );
+      const { asked, listRepository } = lister({
+        site: ["src/main.ts", "README.md", "src/lib/deep/util.ts"],
+      });
+      const found = await walkFileNames({ listRepository, roots: [root] });
+      expect(listed(found)).toMatchInlineSnapshot(`
+        [
+          "notes.txt",
+          "plain/",
+          "site/",
+          "plain/dist/",
+          "site/README.md",
+          "site/src/",
+          "plain/dist/kept.js",
+          "site/src/lib/",
+          "site/src/main.ts",
+          "site/src/lib/deep/",
+          "site/src/lib/deep/util.ts",
+        ]
+      `);
+      expect(asked).toEqual(["site"]);
+    });
+
+    it("puts the lister's names through the walk's own rules", async () => {
+      await make("site/.git/HEAD");
+      const { listRepository } = lister({
+        site: [
+          "Tool.app/Contents/Info.plist",
+          "node_modules/left-pad/index.js",
+          "web/node_modules/left-pad/index.js",
+          "web/.cache/data.bin",
+          ".env",
+          "web/index.html",
+        ],
+      });
+      expect(listed(await walkFileNames({ listRepository, roots: [root] })))
+        .toMatchInlineSnapshot(`
+        [
+          "site/",
+          "site/Tool.app",
+          "site/web/",
+          "site/web/index.html",
+        ]
+      `);
+    });
+
+    it("keeps the names nearest the top of a repository under the cap", async () => {
+      await make("site/.git/HEAD", "other/a.txt", "other/b.txt");
+      const { listRepository } = lister({
+        site: ["a/b/c/deep.txt", "a/b/mid.txt", "top.txt", "z/low.txt"],
+      });
+      const found = await walkFileNames({
+        listRepository,
+        maxNamesPerRoot: 7,
+        roots: [root],
+      });
+      expect(listed(found)).toMatchInlineSnapshot(`
+        [
+          "other/",
+          "site/",
+          "other/a.txt",
+          "other/b.txt",
+          "site/a/",
+          "site/top.txt",
+          "site/z/",
+        ]
+      `);
+      expect(found.capped).toBe(true);
+    });
+
+    it("reads a repository folder by folder when the lister gives no answer or fails", async () => {
+      await make(
+        "gone/.git/HEAD",
+        "gone/a.txt",
+        "broken/.git/HEAD",
+        "broken/b.txt",
+      );
+      const found = await walkFileNames({
+        listRepository: (folder) =>
+          path.basename(folder) === "broken"
+            ? Promise.reject(new Error("spawn failed"))
+            : Promise.resolve(undefined),
+        roots: [root],
+      });
+      expect(listed(found)).toMatchInlineSnapshot(`
+        [
+          "broken/",
+          "gone/",
+          "broken/b.txt",
+          "gone/a.txt",
+        ]
+      `);
+    });
+
+    it("never runs the lister where a folder below may stay out, and stays out of it", async () => {
+      await make(
+        "home/.git/HEAD",
+        "home/open/file.txt",
+        "home/closed/file.txt",
+      );
+      const { asked, listRepository } = lister({
+        home: ["open/file.txt", "closed/file.txt"],
+      });
+      const closed = path.join(root, "home", "closed");
+      const found = await walkFileNames({
+        listRepository,
+        roots: [root],
+        staysOut: (folder) => folder === closed,
+        staysOutBelow: (folder) => closed.startsWith(`${folder}${path.sep}`),
+      });
+      expect(listed(found)).toMatchInlineSnapshot(`
+        [
+          "home/",
+          "home/closed/",
+          "home/open/",
+          "home/open/file.txt",
+        ]
+      `);
+      expect(asked).toEqual([]);
+    });
+
+    it("never runs the lister on a repository with another root inside it", async () => {
+      await make("site/.git/HEAD", "site/a.txt", "site/pinned/b.txt");
+      const { asked, listRepository } = lister({
+        site: ["a.txt", "pinned/b.txt"],
+        "site/pinned": [],
+      });
+      const found = await walkFileNames({
+        listRepository,
+        roots: [root, path.join(root, "site", "pinned")],
+      });
+      expect(listed(found)).toMatchInlineSnapshot(`
+        [
+          "site/",
+          "site/a.txt",
+          "site/pinned/",
+          "site/pinned/b.txt",
+        ]
+      `);
+      expect(asked).toEqual([]);
+    });
+  });
 });

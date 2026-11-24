@@ -136,8 +136,10 @@ export { appBundleId } from "./lib/permissions/apps";
 export {
   macosAnsweredFolders,
   macosMayAsk,
+  macosMayAskBelow,
   resolveWithoutAsking,
 } from "./lib/permissions/macos-folder-answers";
+export { RG_DISK_PATH } from "./lib/ripgrep";
 export {
   allowThroughProtection,
   confirmedBlock,

@@ -28,6 +28,29 @@ describe("stayOutRules", () => {
     expect(mac.staysOut(folder)).toBe(expected);
   });
 
+  it.each([
+    [home, true],
+    [`${home}/Projects/site`, false],
+    [`${home}/Documents/Code`, false],
+    [`${home}/Desktop/Instrument/Projects`, false],
+    [`${home}/Desktop`, true],
+  ])("on macOS, a folder below %s may stay out: %s", (folder, expected) => {
+    expect(mac.staysOutBelow(folder)).toBe(expected);
+  });
+
+  it.each([
+    [`${home}/Projects/site`, true],
+    [`${home}/Documents/Code/site`, true],
+    ["/Volumes/Work/site", true],
+    // Above the workspace is Desktop, which nobody answered for.
+    [`${home}/Desktop/Instrument`, false],
+    [`${home}/Desktop/Instrument/Projects/Site/repo`, false],
+    [`${home}/Pictures/Site`, false],
+    [`${home}/Library/Mobile Documents/com~apple~CloudDocs/site`, false],
+  ])("on macOS, reading above %s is %s", (folder, expected) => {
+    expect(mac.readsAbove(folder)).toBe(expected);
+  });
+
   it("leaves the workspace's exception out when its folder is not known", () => {
     const rules = stayOutRules({
       answered: new Set(),
@@ -46,13 +69,20 @@ describe("stayOutRules", () => {
   });
 
   it.each([
-    ["C:\\Users\\windows-user\\AppData", true],
-    ["c:\\users\\windows-user\\appdata\\Local\\Temp", true],
-    ["C:\\Users\\windows-user\\Documents", false],
-    ["C:\\Users\\windows-user\\AppData Notes", false],
-  ])("on Windows, staying out of %s is %s", (folder, expected) => {
-    expect(windows.staysOut(folder)).toBe(expected);
-  });
+    ["C:\\Users\\windows-user\\AppData", true, true],
+    ["c:\\users\\windows-user\\appdata\\Local\\Temp", true, false],
+    ["C:\\Users\\windows-user\\Documents", false, false],
+    ["C:\\Users\\windows-user\\AppData Notes", false, false],
+    ["C:\\Users\\windows-user", false, true],
+    ["C:\\", false, true],
+  ])(
+    "on Windows, %s stays out: %s, a folder below may: %s",
+    (folder, staysOut, below) => {
+      expect(windows.staysOut(folder)).toBe(staysOut);
+      expect(windows.staysOutBelow(folder)).toBe(below);
+      expect(windows.readsAbove(folder)).toBe(true);
+    },
+  );
 
   it("stays out of nothing on Linux", () => {
     const rules = stayOutRules({
@@ -62,5 +92,7 @@ describe("stayOutRules", () => {
       workspace: undefined,
     });
     expect(rules.staysOut("/home/linux-user/Documents")).toBe(false);
+    expect(rules.staysOutBelow("/home/linux-user")).toBe(false);
+    expect(rules.readsAbove("/home/linux-user/code/site")).toBe(true);
   });
 });

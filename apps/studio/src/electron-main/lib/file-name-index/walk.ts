@@ -104,25 +104,42 @@ type Listed = { kind: "file" | "folder"; name: string };
  * With `deviceOf`, a folder on another disk than its root is listed and
  * never read, so the walk stays off a disk mounted inside a root.
  *
+ * With `listRepository`, a folder that has a `.git` entry is listed by it
+ * rather than read folder by folder: it answers with the repository's files
+ * as paths from that folder, `/` between the names, leaving out what the
+ * repository ignores, or with undefined once `stallMs` has gone by. The names it gives go through the same rules and the
+ * same level-at-a-time order as a folder read here. It is never run on a
+ * folder that `staysOutBelow` says may have a folder below it the walk
+ * stays out of, nor on one with another root inside it, since it lists a
+ * whole folder at once: those are read folder by folder, as is a folder it
+ * gives no answer for.
+ *
  * Reads go through `fs.promises`, so the thread the caller is on only ever
  * handles one folder's entries between waits.
  */
 export async function walkFileNames({
   deviceOf,
+  listRepository,
   maxNames = MAX_NAMES,
   maxNamesPerRoot = MAX_NAMES_PER_ROOT,
   readFolder = (folder) => fs.readdir(folder, { withFileTypes: true }),
   roots,
   stallMs = STALL_MS,
   staysOut = () => false,
+  staysOutBelow = () => false,
 }: {
   deviceOf?: (folder: string) => Promise<number | undefined>;
+  listRepository?: (
+    folder: string,
+    timeoutMs: number,
+  ) => Promise<string[] | undefined>;
   maxNames?: number;
   maxNamesPerRoot?: number;
   readFolder?: (folder: string) => Promise<Dirent[]>;
   roots: readonly string[];
   stallMs?: number;
   staysOut?: (folder: string) => boolean;
+  staysOutBelow?: (folder: string) => boolean;
 }): Promise<FileNames> {
   const found: FileNames = {
     capped: false,
@@ -142,7 +159,27 @@ export async function walkFileNames({
     walked.add(key);
     const start = path.resolve(root);
     const device = await deviceOf?.(start);
+    // The folders of the repositories met so far that are still to be
+    // listed, each with its entries.
+    const listedByRepository = new Map<string, Map<string, Listed["kind"]>>();
+
+    const holdsARoot = (folder: string) => {
+      const inside = `${folderKey(folder)}${path.sep}`;
+      return [...rootKeys].some((other) => other.startsWith(inside));
+    };
+
+    /** A folder a repository listed, taken off the ones still to be listed. */
+    const takeListed = (folder: string): Listed[] | undefined => {
+      const listed = listedByRepository.get(folder);
+      listedByRepository.delete(folder);
+      return listed && [...listed].map(([name, kind]) => ({ kind, name }));
+    };
+
     const read = async (folder: string) => {
+      const listed = takeListed(folder);
+      if (listed) {
+        return listed;
+      }
       const entries = await withinStall(
         (async () =>
           deviceOf && folder !== start && (await deviceOf(folder)) !== device
@@ -152,6 +189,20 @@ export async function walkFileNames({
       );
       if (entries === STALLED || entries === null) {
         return entries;
+      }
+      if (
+        listRepository &&
+        entries.some((entry) => entry.name === ".git") &&
+        !staysOutBelow(folder) &&
+        !holdsARoot(folder)
+      ) {
+        const files = await listRepository(folder, stallMs).catch(
+          () => undefined,
+        );
+        if (files) {
+          addRepositoryFiles(listedByRepository, folder, files);
+          return takeListed(folder) ?? [];
+        }
       }
       return entries.flatMap((entry) => {
         const kind = kindOf(
@@ -205,6 +256,42 @@ export async function walkFileNames({
     }
   }
   return found;
+}
+
+/**
+ * Files a repository listed, as the entries of each folder they are in:
+ * every file under its name in its folder, and every folder on the way to
+ * it under its own. A path through a name the walk leaves out is dropped,
+ * and one into a package ends at the package.
+ */
+function addRepositoryFiles(
+  listed: Map<string, Map<string, Listed["kind"]>>,
+  repository: string,
+  files: readonly string[],
+): void {
+  for (const file of files) {
+    const names = file.split("/").filter((name) => name !== "");
+    const kinds = names.map((name, at) =>
+      kindOf(name, at === names.length - 1 ? "file" : "folder"),
+    );
+    if (kinds.includes(undefined)) {
+      continue;
+    }
+    let folder = repository;
+    for (const [at, name] of names.entries()) {
+      const kind = kinds[at];
+      if (kind === undefined) {
+        break;
+      }
+      const entries = listed.get(folder) ?? new Map<string, Listed["kind"]>();
+      listed.set(folder, entries);
+      entries.set(name, kind);
+      if (kind === "file") {
+        break;
+      }
+      folder = path.join(folder, name);
+    }
+  }
 }
 
 /** What an entry is listed as, or undefined for one that is left out. */

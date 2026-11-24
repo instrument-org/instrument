@@ -5,17 +5,24 @@ import {
   computerPlaces,
   macosAnsweredFolders,
   macosMayAsk,
+  macosMayAskBelow,
   resolveWithoutAsking,
 } from "@instrument-org/workspace/electron";
 import fs from "node:fs/promises";
 import os from "node:os";
+import path from "node:path";
 
 import { createFileNameIndex } from "./file-name-index";
+import { listRepositoryFiles } from "./list-repository";
 import { walkFileNames } from "./walk";
 
 /**
  * Where the walk does not read, decided from a path alone, so deciding
- * reads nothing.
+ * reads nothing: `staysOut` for a folder itself, `staysOutBelow` for
+ * whether any folder below one may stay out, and `readsAbove` for whether
+ * a file may be opened in every folder above one, which listing a
+ * repository does (`listRepositoryFiles`). The workspace's exception does
+ * not reach above the workspace.
  *
  * On macOS the walk stays out of every folder whose read could raise the
  * system's prompt: a folder macOS guards with no answer on record
@@ -38,22 +45,46 @@ export function stayOutRules({
   home: string;
   platform: NodeJS.Platform;
   workspace: string | undefined;
-}): { staysOut: (folder: string) => boolean } {
+}): {
+  readsAbove: (folder: string) => boolean;
+  staysOut: (folder: string) => boolean;
+  staysOutBelow: (folder: string) => boolean;
+} {
   if (platform === "win32") {
     const appData = `${home.toLowerCase()}\\appdata`;
     return {
+      readsAbove: () => true,
       staysOut: (folder) => isWithin(folder.toLowerCase(), appData, "\\"),
+      staysOutBelow: (folder) => isWithin(appData, folder.toLowerCase(), "\\"),
     };
   }
   if (platform !== "darwin") {
-    return { staysOut: () => false };
+    return {
+      readsAbove: () => true,
+      staysOut: () => false,
+      staysOutBelow: () => false,
+    };
   }
   const inWorkspace = (folder: string) =>
     workspace !== undefined &&
     isWithin(folder.toLowerCase(), workspace.toLowerCase(), "/");
   return {
+    readsAbove: (folder) => {
+      for (
+        let above = path.posix.dirname(folder), at = folder;
+        above !== at;
+        at = above, above = path.posix.dirname(above)
+      ) {
+        if (!inWorkspace(above) && macosMayAsk(above, { answered, home })) {
+          return false;
+        }
+      }
+      return true;
+    },
     staysOut: (folder) =>
       !inWorkspace(folder) && macosMayAsk(folder, { answered, home }),
+    staysOutBelow: (folder) =>
+      !inWorkspace(folder) && macosMayAskBelow(folder, { answered, home }),
   };
 }
 
@@ -122,8 +153,13 @@ async function fileNameWalk(): Promise<Parameters<typeof walkFileNames>[0]> {
   );
   return {
     ...(isMac ? { deviceOf } : {}),
+    listRepository: async (folder, timeoutMs) =>
+      rules.readsAbove(folder)
+        ? listRepositoryFiles(folder, { timeoutMs })
+        : undefined,
     roots: roots.filter((root) => root !== undefined),
     staysOut: rules.staysOut,
+    staysOutBelow: rules.staysOutBelow,
   };
 }
 

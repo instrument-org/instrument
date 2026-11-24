@@ -37,8 +37,7 @@ import {
   typedPathHere,
 } from "@/client/lib/locate-typed-path";
 import { type TypedPath } from "@/client/lib/typed-path";
-import { type ComposerCommand } from "@/client/lib/app-commands";
-import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
+import { projectCommand } from "@/client/lib/app-commands";
 import { toast } from "@/client/lib/toast";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
@@ -455,15 +454,11 @@ export function NewChatView({
   };
   const [isProjectListOpen, setProjectListOpen] = useState(false);
   // `/project` opens the Project button's list, under the box, to type into.
-  const projectCommand: ComposerCommand = {
-    aliases: ["project"],
-    description: "File this chat under a project",
-    icon: CardsThreeIcon,
-    id: "project",
-    onSelect: () => {
+  const commands = [
+    projectCommand(() => {
       setProjectListOpen(true);
-    },
-  };
+    }),
+  ];
   const projectButton = (
     <NewChatProjectButton
       isOpen={isProjectListOpen}
@@ -576,7 +571,7 @@ export function NewChatView({
             draft ? <MarkedPills draftId={draft.id} /> : undefined
           }
           autoFocus={takesCaret}
-          commands={[projectCommand]}
+          commands={commands}
           draftKey={key}
           isLoading={false}
           keyboardHome

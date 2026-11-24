@@ -168,7 +168,8 @@ export interface PromptEditorRef {
 }
 
 // What a slash offers, in the order it offers it: the app's own commands
-// first, only for a slash that starts the box, then the things the composer
+// first (for a slash after other words, only those answering `anywhere`), then
+// the things the composer
 // can be given, then the apps that can be named, then the skills that can be
 // run.
 type MenuEntry =
@@ -204,7 +205,7 @@ const menuEntries = (
   },
   { atStart, query }: { atStart: boolean; query: string },
 ): MenuEntry[] => [
-  ...(atStart ? matchComposerCommands(commands, query) : []).map((match) => ({
+  ...matchComposerCommands(commands, { atStart, query }).map((match) => ({
     ...match,
     type: "command" as const,
   })),
@@ -292,7 +293,7 @@ export function PromptEditor({
   autoFocus: boolean;
   /** The composer box a typed slash opens its menu against. */
   bounds: HTMLElement | null;
-  /** What the app does when a slash naming it starts the box. */
+  /** What the app does when a slash names it. */
   commands?: ComposerCommand[];
   /** Read once, when the document is built. Later changes are ignored. */
   defaultValue: string;

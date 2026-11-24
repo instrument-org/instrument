@@ -2,7 +2,7 @@ import { draftsAtom } from "@/client/drafts/store";
 import { projectFolderPath } from "@/client/lib/show-in-files";
 import { storageLocationQueryOptions } from "@/client/lib/output-folder";
 import { rpcClient } from "@/client/rpc/client";
-import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
+import { NO_FAVORITE_CHANGES, favoritePlaces } from "@/shared/favorite-places";
 import { folderNameFromPath } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
@@ -24,7 +24,7 @@ export interface Place {
 
 /**
  * The places the Files sidebar keeps, in its order: the workspace, then
- * Pinned as the person left it, each folder once, and apart from them the
+ * Favorites as the person left it, each folder once, and apart from them the
  * group's project folder when it is filed under one. Recents and the disks
  * stay in Files.
  */
@@ -52,17 +52,19 @@ export function useFilesPlaces(group: string): {
     (entry) => entry.id === (draftProject ?? chatProject),
   );
 
-  const instrumentPlace = computer.data?.pinned.find(
+  const instrumentPlace = computer.data?.favorites.find(
     (place) => place.kind === "output",
   );
-  const pinned = pinnedPlaces(
-    (computer.data?.pinned ?? []).filter((place) => place !== instrumentPlace),
-    preferences.data?.sidebarPlaces ?? NO_SIDEBAR_CHANGES,
+  const favorites = favoritePlaces(
+    (computer.data?.favorites ?? []).filter(
+      (place) => place !== instrumentPlace,
+    ),
+    preferences.data?.favoriteChanges ?? NO_FAVORITE_CHANGES,
     (path) => ({ name: folderNameFromPath(path), path }),
   );
   return {
     places: unique(
-      [...(instrumentPlace ? [instrumentPlace] : []), ...pinned],
+      [...(instrumentPlace ? [instrumentPlace] : []), ...favorites],
       (place) => place.path,
     ).map((place) => ({
       icon: <FolderMark path={place.path} size="large" />,

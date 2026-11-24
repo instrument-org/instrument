@@ -29,10 +29,10 @@ import {
   WorkspacePreferencesSchema,
 } from "@/electron-main/stores/workspace/preferences";
 import {
-  pinPlace,
-  type SidebarPlaces,
-  unpinPlace,
-} from "@/shared/sidebar-places";
+  addFavorite,
+  type FavoriteChanges,
+  removeFavorite,
+} from "@/shared/favorite-places";
 import {
   offersAnyPlatformApiServer,
   PlatformApiServerSchema,
@@ -91,28 +91,28 @@ const openNotificationSettings = base
   .output(z.object({ opened: z.boolean() }))
   .handler(async () => ({ opened: await openSystemNotificationSettings() }));
 
-/** The Files sidebar's Pinned section, changed by `change` and kept. */
-function changeSidebarPlaces(change: (places: SidebarPlaces) => SidebarPlaces) {
+/** The Files sidebar's Favorites section, changed by `change` and kept. */
+function changeFavorites(change: (places: FavoriteChanges) => FavoriteChanges) {
   const store = getMachinePreferences();
-  store.set("sidebarPlaces", change(store.get("sidebarPlaces")));
+  store.set("favoriteChanges", change(store.get("favoriteChanges")));
 }
 
 /**
- * Pins a folder to the Files sidebar, or puts back a default unpinned
- * before; with `order`, the Pinned rows' paths as they stand after it, which
- * also moves a row already pinned.
+ * Adds a folder to the Files sidebar's Favorites, or puts back a default
+ * removed before; with `order`, the Favorites rows' paths as they stand after it, which
+ * also moves a row already there.
  */
-const pinSidebarPlace = base
+const addFavoritePlace = base
   .input(z.object({ order: z.array(z.string()).optional(), path: z.string() }))
   .handler(({ input }) => {
-    changeSidebarPlaces((places) => pinPlace(places, input.path, input.order));
+    changeFavorites((places) => addFavorite(places, input.path, input.order));
   });
 
-/** Takes a place off the Files sidebar's Pinned section; a default is hidden until restored. */
-const unpinSidebarPlace = base
+/** Takes a place off the Files sidebar's Favorites section; a default is hidden until it is added again. */
+const removeFavoritePlace = base
   .input(z.object({ path: z.string() }))
   .handler(({ input }) => {
-    changeSidebarPlaces((places) => unpinPlace(places, input.path));
+    changeFavorites((places) => removeFavorite(places, input.path));
   });
 
 /**
@@ -291,7 +291,7 @@ export const preferences = {
   getAppVersion,
   live,
   openNotificationSettings,
-  pinSidebarPlace,
+  addFavoritePlace,
   platformApiServer,
   quitAndInstall,
   sendTestNotification,
@@ -308,5 +308,5 @@ export const preferences = {
   setShowIdeas,
   setSuggestNextMessage,
   setTheme,
-  unpinSidebarPlace,
+  removeFavoritePlace,
 };

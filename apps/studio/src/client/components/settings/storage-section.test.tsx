@@ -58,7 +58,7 @@ beforeEach(() => {
     suggested: "/Users/sam",
   });
   data.set("workspace.storage.invalidFolders.list", []);
-  data.set("workspace.computer.places", { pinned: [], volumes: [] });
+  data.set("workspace.computer.places", { favorites: [], volumes: [] });
   calls.set("utils.showFolderPicker", () => ({ path: NOTES }));
 });
 

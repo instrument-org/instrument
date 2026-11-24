@@ -59,11 +59,11 @@ export type Held =
       /**
        * A place of Files' sidebar or of the bar's Files menu, a link to
        * Files at a folder, held by the pointer so the folder itself never
-       * leaves the app: its path, and for a row of Pinned, the Pinned rows'
+       * leaves the app: its path, and for a row of Favorites, the Favorites rows'
        * paths in order at the press, since let go where nothing takes it
-       * it leaves Pinned, and Undo puts it back there.
+       * it leaves Favorites, and Undo puts it back there.
        */
-      place?: { path: string; pinned?: readonly string[] };
+      place?: { path: string; favorites?: readonly string[] };
       /** Its name, empty where the system's drag says it only at the release. */
       title: string;
       /** The address it names, empty where the system's drag says it only at the release. */
@@ -76,7 +76,7 @@ export type Held =
  * into a sidebar row's group, or be a group of its own in a room between
  * rows; turn a new tab into it, or open in a strip's tab in place of what it
  * shows; stand among the bookmarks on the bar; stand among the rows of
- * Files' Pinned, or go into the folder of one; leave Pinned, for one of
+ * Files' Favorites, or go into the folder of one; leave Favorites, for one of
  * its places let go where nothing takes it; go with a message, for a place
  * let go on the box of the composer `box` names; or go to a window of its
  * own: a whole group pulled free of the sidebar, or a link let go past the
@@ -103,12 +103,12 @@ export type Landing =
       split: boolean;
     }
   | {
-      /** Where among Pinned's rows it stands, from the top. */
+      /** Where among Favorites' rows it stands, from the top. */
       index: number;
-      kind: "pin";
+      kind: "favorite";
       /** The line between the rows, in the window's px. */
       line: Rect;
-      /** Whether it is a row of Pinned already, which moves there. */
+      /** Whether it is a row of Favorites already, which moves there. */
       moves: boolean;
     }
   | {
@@ -121,7 +121,7 @@ export type Landing =
       lit: Rect;
       name: string;
     }
-  | { kind: "unpin"; path: string }
+  | { kind: "unfavorite"; path: string }
   | { box: string; kind: "attach" }
   | { drop: SidebarDrop; kind: "sidebar" }
   | { group: string; kind: "newTab"; lit: Rect; tab: string }

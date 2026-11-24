@@ -64,7 +64,7 @@ Important means a concrete correctness, security, privacy, or data-preservation 
 
 - Status: fixed `c2d969a64`
 - Severity: Important. A missing file is read as "the system pins nothing" and the result is written and never retried, on upgrade as well as first launch.
-- Where: [system-sidebar.ts:32](/apps/studio/src/electron-main/lib/system-sidebar.ts#L32), [system-sidebar.ts:99](/apps/studio/src/electron-main/lib/system-sidebar.ts#L99), [sidebar-places.ts:109](/apps/studio/src/shared/sidebar-places.ts#L109).
+- Where: [system-sidebar.ts:32](/apps/studio/src/electron-main/lib/system-sidebar.ts#L32), [system-sidebar.ts:99](/apps/studio/src/electron-main/lib/system-sidebar.ts#L99), [favorite-places.ts:109](/apps/studio/src/shared/favorite-places.ts#L109).
 - What: `systemSidebarFolders` returns `undefined` for "could not read", which `adoptSystemSidebarOnce` leaves for the next launch. On Linux a failed read of `~/.config/gtk-3.0/bookmarks` returns `[]` instead. `adoptSystemSidebar` then unpins each default the system list leaves out, which is all of them, and `systemSidebarAdopted` is set. A KDE desktop, or any account that never added a bookmark in a GTK file manager, opens Files with only the output folder pinned. Nothing is lost and the defaults can be pinned again by hand.
 - Note: return `undefined` when the file is absent. The commit's `Not-tested:` line says Linux was never run on a real desktop.
 

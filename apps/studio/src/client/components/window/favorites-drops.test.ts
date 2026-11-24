@@ -1,13 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { type Held } from "./drag/types";
-import { pinnedLandingAt, pinnedOrder, type PinnedRow } from "./pinned-drops";
+import {
+  favoritesLandingAt,
+  favoritesOrder,
+  type FavoriteRow,
+} from "./favorites-drops";
 
 // The drag session reaches the window's RPC client, which node has no window for.
 vi.mock("./drag/session", () => ({ dragAtom: {}, useDropTarget: () => {} }));
 
 const HOME = "/Users/mac-user";
-const ROWS: PinnedRow[] = ["Desktop", "Documents", "Downloads"].map(
+const ROWS: FavoriteRow[] = ["Desktop", "Documents", "Downloads"].map(
   (name, index) => ({
     name,
     path: `${HOME}/${name}`,
@@ -30,21 +34,21 @@ const files = (...paths: [string, boolean][]): Held => ({
   kind: "files",
 });
 
-/** What letting go at a height over Pinned does, in a word. */
+/** What letting go at a height over Favorites does, in a word. */
 const at = (held: Held, y: number) => {
-  const found = pinnedLandingAt({ held, point: { x: 100, y }, rows: ROWS });
+  const found = favoritesLandingAt({ held, point: { x: 100, y }, rows: ROWS });
   if (found === undefined || found === "refused") {
     return found ?? "nothing";
   }
-  if (found.kind === "pin") {
-    return `${found.moves ? "move" : "pin"} at ${String(found.index)}`;
+  if (found.kind === "favorite") {
+    return `${found.moves ? "move" : "add"} at ${String(found.index)}`;
   }
   return found.kind === "into"
     ? `${found.copies ? "copy" : "move"} into ${found.name}`
     : found.kind;
 };
 
-describe("pinnedOrder", () => {
+describe("favoritesOrder", () => {
   it.each([
     [["Pictures"], 0, "Pictures Desktop Documents Downloads"],
     [["Pictures"], 3, "Desktop Documents Downloads Pictures"],
@@ -52,7 +56,7 @@ describe("pinnedOrder", () => {
     [["Desktop"], 3, "Documents Downloads Desktop"],
   ] as const)("puts %o at gap %i: %s", (moving, gap, expected) => {
     expect(
-      pinnedOrder(
+      favoritesOrder(
         ROWS.map((row) => row.name),
         moving,
         gap,
@@ -61,44 +65,44 @@ describe("pinnedOrder", () => {
   });
 });
 
-describe("pinnedLandingAt", () => {
+describe("favoritesLandingAt", () => {
   it.each([
-    // A place stands at the line nearest the pointer, pinning it there.
+    // A place stands at the line nearest the pointer, adding it there.
     [
-      "a place not pinned, above the first row",
+      "a place not in Favorites, above the first row",
       place("Pictures"),
       96,
-      "pin at 0",
+      "add at 0",
     ],
     [
-      "a place not pinned, on the second row",
+      "a place not in Favorites, on the second row",
       place("Pictures"),
       120,
-      "pin at 1",
+      "add at 1",
     ],
     [
-      "a place not pinned, below the last row",
+      "a place not in Favorites, below the last row",
       place("Pictures"),
       190,
-      "pin at 3",
+      "add at 3",
     ],
-    // A pinned row moves along the same line.
-    ["a pinned row, past the next", place("Desktop"), 160, "move at 2"],
+    // A Favorites row moves along the same line.
+    ["a Favorites row, past the next", place("Desktop"), 160, "move at 2"],
     // Where its row already stands, letting go does nothing.
-    ["a pinned row, at its own line", place("Desktop"), 104, "refused"],
-    ["a pinned row, just below itself", place("Desktop"), 120, "refused"],
-    // A folder pins at a line near a row's top or bottom.
+    ["a Favorites row, at its own line", place("Desktop"), 104, "refused"],
+    ["a Favorites row, just below itself", place("Desktop"), 120, "refused"],
+    // A folder is added at a line near a row's top or bottom.
     [
       "a folder at a row's top",
       files([`${HOME}/Pictures`, true]),
       130,
-      "pin at 1",
+      "add at 1",
     ],
     [
       "a folder below the rows",
       files([`${HOME}/Pictures`, true]),
       186,
-      "pin at 3",
+      "add at 3",
     ],
     // In a row's middle, files and folders go into its folder.
     [
@@ -127,7 +131,7 @@ describe("pinnedLandingAt", () => {
       "refused",
     ],
     ["a folder that holds the row's", files([HOME, true]), 170, "refused"],
-    // A file off the rows lands nowhere in Pinned.
+    // A file off the rows lands nowhere in Favorites.
     [
       "a file below the rows",
       files([`${HOME}/Desktop/a.png`, false]),
@@ -155,13 +159,15 @@ describe("pinnedLandingAt", () => {
     },
   );
 
-  it("draws the pin line between two rows, inset from their sides", () => {
-    const found = pinnedLandingAt({
+  it("draws the line between two rows, inset from their sides", () => {
+    const found = favoritesLandingAt({
       held: place("Pictures"),
       point: { x: 100, y: 124 },
       rows: ROWS,
     });
-    expect(found !== "refused" && found?.kind === "pin" && found.line).toEqual({
+    expect(
+      found !== "refused" && found?.kind === "favorite" && found.line,
+    ).toEqual({
       height: 2,
       left: 14,
       top: 127,

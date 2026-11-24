@@ -154,19 +154,19 @@ export function useDragSystem({
 }
 
 /**
- * Takes a place off Files' sidebar, as a place of Pinned let go where
+ * Takes a place off Files' sidebar, as a place of Favorites let go where
  * nothing takes it does in Finder, with an Undo that puts it back where it
- * stood among `pinned`, the rows as they were.
+ * stood among `favorites`, the rows as they were.
  */
-function unpinPlace(path: string, pinned: readonly string[]) {
-  rpcClient.preferences.unpinSidebarPlace.call({ path }).then(
+function removeFavorite(path: string, favorites: readonly string[]) {
+  rpcClient.preferences.removeFavoritePlace.call({ path }).then(
     () => {
       toast(`Removed ${segmentsOf(path).at(-1) ?? path} from Favorites`, {
         action: {
           label: "Undo",
           onClick: () => {
-            void rpcClient.preferences.pinSidebarPlace
-              .call({ order: [...pinned], path })
+            void rpcClient.preferences.addFavoritePlace
+              .call({ order: [...favorites], path })
               .catch(() => {
                 toast.error("Couldn't change the sidebar");
               });
@@ -185,7 +185,7 @@ function unpinPlace(path: string, pinned: readonly string[]) {
  * `outcomeOf` says: a tab or a whole group moves there; a link or files
  * open there as the tabs their addresses name, through the same openers as
  * every other tab (`opensOf`); anything let go on the bookmarks is kept
- * there; a place of Pinned let go where nothing takes it leaves Pinned,
+ * there; a place of Favorites let go where nothing takes it leaves Favorites,
  * with Undo; and a bookmark let go where nothing takes it is removed, with
  * Undo.
  */
@@ -474,18 +474,18 @@ function useLander(
         }
         return;
       }
-      case "unpin": {
+      case "unfavorite": {
         const place = placeOf(held);
-        if (place?.pinned) {
-          unpinPlace(place.path, place.pinned);
+        if (place?.favorites) {
+          removeFavorite(place.path, place.favorites);
         }
         return;
       }
-      // Pinned's own target lands a place or files it took, and a
+      // Favorites' own target lands a place or files it took, and a
       // composer's box a place.
       case "attach":
       case "into":
-      case "pin":
+      case "favorite":
       case "nothing": {
         return;
       }

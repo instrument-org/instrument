@@ -198,7 +198,7 @@ describe("a path the command menu found nothing at", () => {
 describe("folders and bookmarks in the command menu", () => {
   it("finds the sidebar's folders by name", async () => {
     answers.set("workspace.computer.places", {
-      pinned: [
+      favorites: [
         {
           kind: "output",
           name: "Instrument",

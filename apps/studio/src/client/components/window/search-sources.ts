@@ -3,7 +3,7 @@ import { targetOfAddress } from "@/client/bookmarks/address";
 import { keptPathsAtom } from "@/client/bookmarks/store";
 import { useRecentFiles } from "@/client/hooks/use-recent-files";
 import { rpcClient } from "@/client/rpc/client";
-import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
+import { NO_FAVORITE_CHANGES, favoritePlaces } from "@/shared/favorite-places";
 import { folderNameFromPath } from "@instrument-org/shared";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
@@ -52,7 +52,7 @@ type NamedOf<Kind extends SearchThing["kind"]> = Named<
  * row goes to, the chats, the projects, the
  * Files sidebar's folders, the files opened lately, and the bookmarks and
  * pages visited. Pinned is what the person marked: a starred chat, a tab of
- * a pinned group, a folder pinned in the sidebar, a bookmark. Use is how
+ * a pinned group, a folder in the sidebar's Favorites, a bookmark. Use is how
  * lately and how often each was opened (`usageOf`). Read off the disk and
  * history only while `enabled`.
  */
@@ -149,20 +149,21 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
     }));
 
   // The folders the Files sidebar lists, in its order: the Instrument
-  // folder, then Pinned as the person left it, then the disks and the cloud
+  // folder, then Favorites as the person left it, then the disks and the cloud
   // services' folders.
-  const sidebarPlaces = preferences.data?.sidebarPlaces ?? NO_SIDEBAR_CHANGES;
-  const instrumentPlace = places.data?.pinned.find(
+  const favoriteChanges =
+    preferences.data?.favoriteChanges ?? NO_FAVORITE_CHANGES;
+  const instrumentPlace = places.data?.favorites.find(
     (place) => place.kind === "output",
   );
-  const pinnedFolders = pinnedPlaces(
-    (places.data?.pinned ?? []).filter((place) => place !== instrumentPlace),
-    sidebarPlaces,
+  const favoriteFolders = favoritePlaces(
+    (places.data?.favorites ?? []).filter((place) => place !== instrumentPlace),
+    favoriteChanges,
     (path) => ({ name: folderNameFromPath(path), path }),
   );
   const listedFolders = [
     ...(instrumentPlace ? [{ isPinned: false, place: instrumentPlace }] : []),
-    ...pinnedFolders.map((place) => ({ isPinned: true, place })),
+    ...favoriteFolders.map((place) => ({ isPinned: true, place })),
     ...(places.data?.volumes ?? []).map((place) => ({
       isPinned: false,
       place,

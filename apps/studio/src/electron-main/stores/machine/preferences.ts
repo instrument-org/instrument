@@ -8,16 +8,17 @@ import {
   DictationMicrophoneSchema,
 } from "@/shared/dictation";
 import {
-  NO_SIDEBAR_CHANGES,
-  SidebarPlacesSchema,
-} from "@/shared/sidebar-places";
+  NO_FAVORITE_CHANGES,
+  FavoriteChangesSchema,
+  withFavoriteChanges,
+} from "@/shared/favorite-places";
 import Store from "electron-store";
 import { z } from "zod";
 
 /**
  * What a person chose for this computer, whichever workspace is open: which
  * builds it updates to, whether error reports are sent without asking, what
- * the Files sidebar pins, whose paths are this computer's, which platform API
+ * the Files sidebar lists under Favorites, whose paths are this computer's, which platform API
  * server it talks to, and the microphone, language and sounds dictation uses.
  * Per-workspace choices are in `workspace/preferences.ts`.
  */
@@ -44,7 +45,7 @@ export const MachinePreferencesSchema = z.object({
   // don't run. A choice about this computer, so it never travels with a
   // workspace.
   runProgramsWithoutSandbox: z.boolean().catch(false),
-  sidebarPlaces: SidebarPlacesSchema.catch(NO_SIDEBAR_CHANGES),
+  favoriteChanges: FavoriteChangesSchema.catch(NO_FAVORITE_CHANGES),
   // Set once the Files sidebar has taken the pins the system's own file
   // manager shows (`adoptSystemSidebarOnce`), so it happens one time only.
   systemSidebarAdopted: z.boolean().catch(false),
@@ -64,7 +65,9 @@ export const getMachinePreferences = (): Store<MachinePreferences> => {
     STORE = new Store<MachinePreferences>({
       defaults,
       deserialize: (value) => {
-        const parsed = MachinePreferencesSchema.safeParse(storeJson(value));
+        const parsed = MachinePreferencesSchema.safeParse(
+          withFavoriteChanges(storeJson(value)),
+        );
 
         if (parsed.success) {
           return parsed.data;

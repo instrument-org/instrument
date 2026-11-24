@@ -281,14 +281,14 @@ it("marks a refused spot with the not-allowed cursor and lands nothing there", a
   setLander(undefined);
 });
 
-/** A place of Files' sidebar, a row of Pinned when it has `pinned`. */
-const placeOf = (pinned?: readonly string[]) =>
+/** A place of Files' sidebar, a row of Favorites when it has `favorites`. */
+const placeOf = (favorites?: readonly string[]) =>
   ({
     id: "tab_p1",
     kind: "link",
     place: {
       path: "/Users/mac-user/Documents",
-      ...(pinned ? { pinned } : {}),
+      ...(favorites ? { favorites } : {}),
     },
     title: "Documents",
     url: "file:///Users/mac-user/Documents/",
@@ -305,7 +305,7 @@ it.each([
   { at: 200, where: "over nothing in the window" },
   { at: -100, where: "past the window" },
 ])(
-  "unpins a row of Pinned let go $where, and lands a place of the Files menu nowhere there",
+  "removes a row of Favorites let go $where, and lands a place of the Files menu nowhere there",
   async ({ at }) => {
     const landed = vi.fn();
     setLander(landed);
@@ -317,12 +317,15 @@ it.each([
         }}
       />,
     );
-    const pinned = placeOf(["/Users/mac-user/Documents"]);
-    pressPlace(pinned);
+    const favorites = placeOf(["/Users/mac-user/Documents"]);
+    pressPlace(favorites);
     drag();
     pointer("pointermove", at);
-    const unpin = { kind: "unpin", path: "/Users/mac-user/Documents" };
-    expect(currentDrag()?.landing).toEqual(unpin);
+    const unfavorite = {
+      kind: "unfavorite",
+      path: "/Users/mac-user/Documents",
+    };
+    expect(currentDrag()?.landing).toEqual(unfavorite);
     pointer("pointerup", at);
 
     const menu = placeOf();
@@ -333,14 +336,14 @@ it.each([
     pointer("pointerup", at);
 
     expect(landed.mock.calls).toEqual([
-      [pinned, unpin],
+      [favorites, unfavorite],
       [menu, undefined],
     ]);
     setLander(undefined);
   },
 );
 
-it("keeps a row of Pinned where a target refuses it", async () => {
+it("keeps a row of Favorites where a target refuses it", async () => {
   const landed = vi.fn();
   setLander(landed);
   await renderInBrowser(
@@ -365,9 +368,9 @@ it("lets a target that lands its own drops take them in place of the lander", as
   const landed = vi.fn();
   const own = vi.fn();
   setLander(landed);
-  const pin = {
+  const favorite = {
     index: 1,
-    kind: "pin",
+    kind: "favorite",
     line: { height: 2, left: 0, top: 40, width: 200 },
     moves: false,
   } as const;
@@ -375,7 +378,7 @@ it("lets a target that lands its own drops take them in place of the lander", as
     <Target
       target={{
         land: own,
-        landingAt: () => pin,
+        landingAt: () => favorite,
         rect: () => ({ height: 400, left: 0, top: 0, width: 400 }),
       }}
     />,
@@ -385,6 +388,6 @@ it("lets a target that lands its own drops take them in place of the lander", as
   pointer("pointermove", 200);
   pointer("pointerup", 200);
 
-  expect([own.mock.calls, landed.mock.calls]).toEqual([[[HELD, pin]], []]);
+  expect([own.mock.calls, landed.mock.calls]).toEqual([[[HELD, favorite]], []]);
   setLander(undefined);
 });

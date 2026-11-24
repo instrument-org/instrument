@@ -52,7 +52,7 @@ export function FolderMark({
     return <HouseIcon className={iconClassName} />;
   }
   const place = [
-    ...(places.data?.pinned ?? []),
+    ...(places.data?.favorites ?? []),
     ...(places.data?.volumes ?? []),
   ].find((each) => each.path === hostPath);
   if (place?.kind === "drive") {

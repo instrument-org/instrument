@@ -10,10 +10,10 @@ import { isBookmark, type Held, type Landing, placeOf } from "./types";
  * - `move`: a tab or a whole group goes there, as itself.
  * - `open`: a link or files open there as the tabs their addresses name.
  * - `keep`: kept on the bookmarks bar.
- * - `pin`: a folder or a place stands among Pinned's rows there.
- * - `into`: files go into the folder of a row of Pinned.
- * - `unpin`: a place of Pinned let go where nothing takes it, in the window
- *   or past it, leaves Pinned, as Finder's sidebar lets go of one.
+ * - `favorite`: a folder or a place stands among Favorites' rows there.
+ * - `into`: files go into the folder of a row of Favorites.
+ * - `unfavorite`: a place of Favorites let go where nothing takes it, in the window
+ *   or past it, leaves Favorites, as Finder's sidebar lets go of one.
  * - `attach`: a place goes with the message in a composer's box, as its
  *   folder dragged from Files' listing does.
  *
@@ -29,7 +29,14 @@ import { isBookmark, type Held, type Landing, placeOf } from "./types";
  */
 export type Outcome =
   | {
-      does: "attach" | "into" | "keep" | "move" | "open" | "pin" | "unpin";
+      does:
+        | "attach"
+        | "into"
+        | "keep"
+        | "move"
+        | "open"
+        | "favorite"
+        | "unfavorite";
       line: string | undefined;
     }
   | { does: "nothing"; line: undefined };
@@ -124,9 +131,9 @@ export function outcomeOf(
             : "Add to this group",
       );
     }
-    case "pin": {
+    case "favorite": {
       return {
-        does: "pin",
+        does: "favorite",
         line: landing.moves ? "Move here" : "Add to Favorites",
       };
     }
@@ -136,9 +143,9 @@ export function outcomeOf(
         line: `${landing.copies ? "Copy" : "Move"} into ${landing.name}`,
       };
     }
-    case "unpin": {
-      return placeOf(held)?.pinned
-        ? { does: "unpin", line: "Remove from Favorites" }
+    case "unfavorite": {
+      return placeOf(held)?.favorites
+        ? { does: "unfavorite", line: "Remove from Favorites" }
         : nothing;
     }
     case "attach": {

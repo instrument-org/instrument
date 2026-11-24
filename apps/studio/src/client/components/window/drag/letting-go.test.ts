@@ -45,12 +45,12 @@ const HELD: Record<string, Held> = {
     title: "Example",
     url: "https://example.com/",
   },
-  "place (Pinned)": {
+  "place (Favorites)": {
     id: "tab_p1",
     kind: "link",
     place: {
       path: "/Users/mac-user/Documents",
-      pinned: ["/Users/mac-user", "/Users/mac-user/Documents"],
+      favorites: ["/Users/mac-user", "/Users/mac-user/Documents"],
     },
     title: "Documents",
     url: "file:///Users/mac-user/Documents/",
@@ -124,16 +124,21 @@ const LANDINGS: Record<string, Landing | undefined> = {
     kind: "sidebar",
   },
   "bookmarks bar": { index: 0, kind: "bookmarks" },
-  "Pinned line": { index: 2, kind: "pin", line: LIT, moves: false },
-  "Pinned line, a row of it": { index: 2, kind: "pin", line: LIT, moves: true },
-  "Pinned row, own files": {
+  "Favorites line": { index: 2, kind: "favorite", line: LIT, moves: false },
+  "Favorites line, a row of it": {
+    index: 2,
+    kind: "favorite",
+    line: LIT,
+    moves: true,
+  },
+  "Favorites row, own files": {
     copies: false,
     folder: "/Users/mac-user/Downloads",
     kind: "into",
     lit: LIT,
     name: "Downloads",
   },
-  "Pinned row, from Finder": {
+  "Favorites row, from Finder": {
     copies: true,
     folder: "/Users/mac-user/Downloads",
     kind: "into",
@@ -141,8 +146,8 @@ const LANDINGS: Record<string, Landing | undefined> = {
     name: "Downloads",
   },
   "past the window": { kind: "window" },
-  "over nothing, a Pinned row": {
-    kind: "unpin",
+  "over nothing, a Favorites row": {
+    kind: "unfavorite",
     path: "/Users/mac-user/Documents",
   },
   "message box": { box: "c1", kind: "attach" },
@@ -177,12 +182,12 @@ describe("outcomeOf", () => {
         sidebar room → move · "New tab group"
         sidebar line → move · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
-        Pinned line → pin · "Add to Favorites"
-        Pinned line, a row of it → pin · "Move here"
-        Pinned row, own files → into · "Move into Downloads"
-        Pinned row, from Finder → into · "Copy into Downloads"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
         past the window → move · "Open in a new window"
-        over nothing, a Pinned row → nothing
+        over nothing, a Favorites row → nothing
         message box → nothing
         nowhere → nothing
       whole group (sidebar row):
@@ -199,12 +204,12 @@ describe("outcomeOf", () => {
         sidebar room → move
         sidebar line → move
         bookmarks bar → keep · "Add to bookmarks"
-        Pinned line → pin · "Add to Favorites"
-        Pinned line, a row of it → pin · "Move here"
-        Pinned row, own files → into · "Move into Downloads"
-        Pinned row, from Finder → into · "Copy into Downloads"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
         past the window → move · "Open in a new window"
-        over nothing, a Pinned row → nothing
+        over nothing, a Favorites row → nothing
         message box → nothing
         nowhere → nothing
       files (Files row, place, Finder):
@@ -221,12 +226,12 @@ describe("outcomeOf", () => {
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
-        Pinned line → pin · "Add to Favorites"
-        Pinned line, a row of it → pin · "Move here"
-        Pinned row, own files → into · "Move into Downloads"
-        Pinned row, from Finder → into · "Copy into Downloads"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        over nothing, a Pinned row → nothing
+        over nothing, a Favorites row → nothing
         message box → nothing
         nowhere → nothing
       link (page or reply):
@@ -243,12 +248,12 @@ describe("outcomeOf", () => {
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
-        Pinned line → pin · "Add to Favorites"
-        Pinned line, a row of it → pin · "Move here"
-        Pinned row, own files → into · "Move into Downloads"
-        Pinned row, from Finder → into · "Copy into Downloads"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        over nothing, a Pinned row → nothing
+        over nothing, a Favorites row → nothing
         message box → nothing
         nowhere → nothing
       chat chip or Chats row:
@@ -265,12 +270,12 @@ describe("outcomeOf", () => {
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
-        Pinned line → pin · "Add to Favorites"
-        Pinned line, a row of it → pin · "Move here"
-        Pinned row, own files → into · "Move into Downloads"
-        Pinned row, from Finder → into · "Copy into Downloads"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        over nothing, a Pinned row → nothing
+        over nothing, a Favorites row → nothing
         message box → nothing
         nowhere → nothing
       bookmark (bar):
@@ -287,15 +292,15 @@ describe("outcomeOf", () => {
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
         bookmarks bar → keep · "Move here"
-        Pinned line → pin · "Add to Favorites"
-        Pinned line, a row of it → pin · "Move here"
-        Pinned row, own files → into · "Move into Downloads"
-        Pinned row, from Finder → into · "Copy into Downloads"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        over nothing, a Pinned row → nothing
+        over nothing, a Favorites row → nothing
         message box → nothing
         nowhere → nothing
-      place (Pinned):
+      place (Favorites):
         own strip → open
         strip line → open · "Open in a new tab"
         strip tab → open · "Open in this tab"
@@ -309,12 +314,12 @@ describe("outcomeOf", () => {
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
-        Pinned line → pin · "Add to Favorites"
-        Pinned line, a row of it → pin · "Move here"
-        Pinned row, own files → into · "Move into Downloads"
-        Pinned row, from Finder → into · "Copy into Downloads"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        over nothing, a Pinned row → unpin · "Remove from Favorites"
+        over nothing, a Favorites row → unfavorite · "Remove from Favorites"
         message box → attach
         nowhere → nothing
       place (Files menu):
@@ -331,12 +336,12 @@ describe("outcomeOf", () => {
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
         bookmarks bar → keep · "Add to bookmarks"
-        Pinned line → pin · "Add to Favorites"
-        Pinned line, a row of it → pin · "Move here"
-        Pinned row, own files → into · "Move into Downloads"
-        Pinned row, from Finder → into · "Copy into Downloads"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
         past the window → open · "Open in a new window"
-        over nothing, a Pinned row → nothing
+        over nothing, a Favorites row → nothing
         message box → attach
         nowhere → nothing"
     `);

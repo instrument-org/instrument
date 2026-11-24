@@ -8,7 +8,7 @@ import { useAtomValue } from "jotai";
 import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
 
 import { useAppsBySlug } from "../apps-by-slug";
-import { springFlashAtom } from "../pinned-drops";
+import { springFlashAtom } from "../favorites-drops";
 import { GroupRow } from "../group-sidebar";
 import { TabMark } from "../row-half";
 import { useTabTitle } from "../tab-title";
@@ -44,8 +44,8 @@ const PULL_FREE_MS = 180;
  * What a drag draws over the window that nothing else draws, and only once
  * the pointer is where letting go would land: a side, the half a split
  * takes, or a new tab lit, with a line down the group's outer edge where
- * the pointer reached it; the line in a strip's gap, or in Pinned's, and
- * the tab or the row of Pinned what is held goes into, ringed; and at the
+ * the pointer reached it; the line in a strip's gap, or in Favorites', and
+ * the tab or the row of Favorites what is held goes into, ringed; and at the
  * pointer, what is held raised with a line under it saying what letting go
  * does. Only a tab's own strip, which stands the tab at the pointer among
  * its tabs, goes without it; under the system's own picture of its drag
@@ -86,7 +86,7 @@ export function DragLayer({
       ? landing.lit
       : undefined;
   const line =
-    landing?.kind === "strip" || landing?.kind === "pin"
+    landing?.kind === "strip" || landing?.kind === "favorite"
       ? landing.line
       : landing?.kind === "side"
         ? landing.edge
@@ -141,7 +141,7 @@ export function DragLayer({
 }
 
 /**
- * The one line a drop draws: in a strip's gap, between Pinned's rows, or
+ * The one line a drop draws: in a strip's gap, between Favorites' rows, or
  * down a group's outer edge, as the bookmarks bar draws its own
  * (`BarDropLine`), gliding from gap to gap in 90ms rather than jumping.
  */
@@ -203,7 +203,7 @@ function AtPointer({
     (landing?.kind === "strip" ||
       landing?.kind === "replace" ||
       landing?.kind === "sidebar" ||
-      landing?.kind === "pin" ||
+      landing?.kind === "favorite" ||
       landing?.kind === "into");
   // Stood again every frame from the pointer, never by drawing again.
   const stand = () => {

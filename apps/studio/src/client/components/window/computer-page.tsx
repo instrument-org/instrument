@@ -115,10 +115,10 @@ import {
 import { keptInPlaceReason } from "@/shared/instrument-folders";
 import { RENDERED_EXTENSIONS } from "@/shared/rendered-kinds";
 import {
-  NO_SIDEBAR_CHANGES,
-  pinnedPlaces,
-  type SidebarPlaces,
-} from "@/shared/sidebar-places";
+  NO_FAVORITE_CHANGES,
+  favoritePlaces,
+  type FavoriteChanges,
+} from "@/shared/favorite-places";
 import { expandHomePath, folderNameFromPath } from "@instrument-org/shared";
 import {
   type BrowserTargetId,
@@ -190,7 +190,7 @@ import { arrivalView } from "./files-step";
 import { useGroupTab } from "./group-tab";
 import { pressPlace } from "./drag/press-bookmark";
 import { dragAtom } from "./drag/session";
-import { usePinnedTarget } from "./pinned-drops";
+import { useFavoritesTarget } from "./favorites-drops";
 import { maySpring, SPRING_FLASH_MS, springTimer } from "./spring-loading";
 import { type GoFiles } from "./use-files-step";
 import { PlaceMenu } from "./place-menu";
@@ -453,19 +453,20 @@ export function ComputerPage({
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
-  const sidebarPlaces = preferences.data?.sidebarPlaces ?? NO_SIDEBAR_CHANGES;
+  const favoriteChanges =
+    preferences.data?.favoriteChanges ?? NO_FAVORITE_CHANGES;
   const sidebarChangeFailed = () => {
     toast.error("Couldn't change the sidebar");
   };
   // The Instrument folder stands with Recents, as the app's own, and the rest
-  // of the defaults under Pinned with whatever the person pinned.
-  const instrumentPlace = places.data?.pinned.find(
+  // of the defaults under Favorites with whatever the person added.
+  const instrumentPlace = places.data?.favorites.find(
     (place) => place.kind === "output",
   );
   const instrumentPath = instrumentPlace?.path;
-  const pinned = pinnedPlaces(
-    (places.data?.pinned ?? []).filter((place) => place !== instrumentPlace),
-    sidebarPlaces,
+  const favorites = favoritePlaces(
+    (places.data?.favorites ?? []).filter((place) => place !== instrumentPlace),
+    favoriteChanges,
     (place) => ({
       kind: "folder" as const,
       name: folderNameFromPath(place),
@@ -2081,8 +2082,8 @@ export function ComputerPage({
     rootTo: (folder: string) => {
       rootTo(folder);
     },
-    unpin: (place: string) => {
-      void rpcClient.preferences.unpinSidebarPlace
+    removeFavorite: (place: string) => {
+      void rpcClient.preferences.removeFavoritePlace
         .call({ path: place })
         .catch(sidebarChangeFailed);
     },
@@ -2097,10 +2098,10 @@ export function ComputerPage({
           : { hostPath: folder };
       void (copies ? copyInto([...files], into) : moveInto([...files], into));
     },
-    pinAt: (paths: readonly string[], order: readonly string[]) => {
+    favoriteAt: (paths: readonly string[], order: readonly string[]) => {
       void Promise.all(
         paths.map((each) =>
-          rpcClient.preferences.pinSidebarPlace.call({
+          rpcClient.preferences.addFavoritePlace.call({
             order: [...order],
             path: each,
           }),
@@ -2151,8 +2152,8 @@ export function ComputerPage({
     );
   }
 
-  const placeMenu = (place: string, { isPinned = false } = {}) =>
-    placeMenuOf(place, { actions: placeActions, isPinned });
+  const placeMenu = (place: string, { isFavorite = false } = {}) =>
+    placeMenuOf(place, { actions: placeActions, isFavorite });
   const afterMenuClosed = () => {
     afterMenu.current?.();
     afterMenu.current = null;
@@ -2198,7 +2199,7 @@ export function ComputerPage({
             onQuickLook: undefined,
             onRename: undefined,
             opensOutside: undefined,
-            pin: undefined,
+            favorite: undefined,
             group,
           }
         : {}),
@@ -2373,19 +2374,19 @@ export function ComputerPage({
         fileSystemRef.current?.startRename(renaming);
       };
     },
-    pin: (() => {
+    favorite: (() => {
       const folderPath = hostPathOfItem(item);
       if (item?.kind !== "folder" || !folderPath) {
         return undefined;
       }
-      const isPinned = pinned.some((place) => place.path === folderPath);
+      const isFavorite = favorites.some((place) => place.path === folderPath);
       return {
-        isPinned,
+        isFavorite,
         onToggle: () =>
           void (
-            isPinned
-              ? rpcClient.preferences.unpinSidebarPlace
-              : rpcClient.preferences.pinSidebarPlace
+            isFavorite
+              ? rpcClient.preferences.removeFavoritePlace
+              : rpcClient.preferences.addFavoritePlace
           )
             .call({ path: folderPath })
             .catch(sidebarChangeFailed),
@@ -2463,9 +2464,9 @@ export function ComputerPage({
     },
     {
       label: "Favorites",
-      places: pinned.map(({ name, path: pinnedPath }) => ({
+      places: favorites.map(({ name, path: favoritePath }) => ({
         name,
-        path: pinnedPath,
+        path: favoritePath,
       })),
     },
     {
@@ -2479,13 +2480,13 @@ export function ComputerPage({
   const placeLists = (
     <FinderPlaces
       actions={placeActions}
-      defaults={places.data.pinned}
+      defaults={places.data.favorites}
       folderHostPath={folderHostPath}
       homePath={homePath}
       instrumentPlace={instrumentPlace}
       isComputer={isComputer}
       isRecents={isRecents}
-      sidebarPlaces={sidebarPlaces}
+      favoriteChanges={favoriteChanges}
       volumes={places.data.volumes}
     />
   );
@@ -2640,8 +2641,8 @@ export function ComputerPage({
             (volume) => volume.kind === "cloud",
           )}
           // The system's own folders as it lists them, not the sidebar as
-          // the person has pinned it.
-          folders={places.data.pinned.filter(
+          // the person has added it.
+          folders={places.data.favorites.filter(
             (place) => place.kind === "home" || place.kind === "folder",
           )}
           home={homePath}
@@ -3112,8 +3113,8 @@ type FolderMenuActions = {
    * computer's own app for it opens. Left out for what opens here.
    */
   opensOutside?: "app" | "file" | undefined;
-  /** Pinning a folder to the sidebar, or unpinning it; left out for anything but one folder. */
-  pin?: { isPinned: boolean; onToggle: () => void } | undefined;
+  /** Adding a folder to Favorites, or removing it; left out for anything but one folder. */
+  favorite?: { isFavorite: boolean; onToggle: () => void } | undefined;
   /** Files on the clipboard, copied into the folder on screen, by its name; left out where there is no folder. */
   paste?: { into: string; onMove: () => void; onPaste: () => void } | undefined;
   /**
@@ -3272,7 +3273,7 @@ function FolderMenuItems({
   onTrash,
   opensOutside,
   paste,
-  pin,
+  favorite,
   group,
 }: FolderMenuActions & {
   /** What the menu adds on the folder's empty space, after New Folder. */
@@ -3467,15 +3468,15 @@ function FolderMenuItems({
                   <span>{osConventions().showInFileManager}</span>
                 </Item>
               )}
-              {pin ? (
-                <Item onClick={pin.onToggle}>
-                  {pin.isPinned ? (
+              {favorite ? (
+                <Item onClick={favorite.onToggle}>
+                  {favorite.isFavorite ? (
                     <MinusCircleIcon className="size-4" />
                   ) : (
                     <PlusCircleIcon className="size-4" />
                   )}
                   <span>
-                    {pin.isPinned
+                    {favorite.isFavorite
                       ? "Remove from Favorites"
                       : "Add to Favorites"}
                   </span>
@@ -3692,7 +3693,7 @@ function useListedItems({
 
 /** What a place's menu and the place lists do, steady for the life of the screen. */
 type PlaceActions = {
-  /** Files let go on a place of Pinned, moved or copied into its folder. */
+  /** Files let go on a place of Favorites, moved or copied into its folder. */
   dropInto: (
     files: readonly { hostPath: string; isFolder: boolean }[],
     folder: string,
@@ -3700,20 +3701,20 @@ type PlaceActions = {
   ) => void;
   openInNewTab: (place: string) => void;
   openInNewWindow: (place: string) => void;
-  /** Folders pinned, or rows moved, so Pinned's rows stand in `order`. */
-  pinAt: (paths: readonly string[], order: readonly string[]) => void;
+  /** Folders added, or rows moved, so Favorites' rows stand in `order`. */
+  favoriteAt: (paths: readonly string[], order: readonly string[]) => void;
   rootTo: (folder: string) => void;
   /** A place's folder opened under a drag resting on it, or (`undefined`) the view put back. */
   spring: (folder: string | undefined) => void;
   /** Whether a place's folder may open under a drag resting on it. */
   springs: (folder: string) => boolean;
-  unpin: (place: string) => void;
+  removeFavorite: (place: string) => void;
 };
 
 /** The menu on a place in the sidebar. */
 function placeMenuOf(
   place: string,
-  { actions, isPinned }: { actions: PlaceActions; isPinned: boolean },
+  { actions, isFavorite }: { actions: PlaceActions; isFavorite: boolean },
 ) {
   return (
     <PlaceMenu
@@ -3724,12 +3725,12 @@ function placeMenuOf(
       onOpenInNewWindow={() => {
         actions.openInNewWindow(place);
       }}
-      pin={
-        isPinned
+      favorite={
+        isFavorite
           ? {
-              isPinned,
+              isFavorite,
               onToggle: () => {
-                actions.unpin(place);
+                actions.removeFavorite(place);
               },
             }
           : undefined
@@ -3739,7 +3740,7 @@ function placeMenuOf(
 }
 
 /**
- * The places beside the folder: the app's own, the pinned ones, and the
+ * The places beside the folder: the app's own, the favorites, and the
  * computer's disks. A component of its own, handed only what it shows and
  * steady actions, so moving the selection in the folder leaves it alone.
  */
@@ -3751,45 +3752,45 @@ function FinderPlaces({
   instrumentPlace,
   isComputer,
   isRecents,
-  sidebarPlaces,
+  favoriteChanges,
   volumes,
 }: {
   actions: PlaceActions;
   /** The system's places as the computer lists them, the Instrument folder among them. */
-  defaults: RPCOutput["workspace"]["computer"]["places"]["pinned"];
+  defaults: RPCOutput["workspace"]["computer"]["places"]["favorites"];
   /** The folder on screen, the one place marked. */
   folderHostPath: string | undefined;
   homePath: string;
   instrumentPlace:
-    | RPCOutput["workspace"]["computer"]["places"]["pinned"][number]
+    | RPCOutput["workspace"]["computer"]["places"]["favorites"][number]
     | undefined;
   isComputer: boolean;
   isRecents: boolean;
-  sidebarPlaces: SidebarPlaces;
+  favoriteChanges: FavoriteChanges;
   volumes: RPCOutput["workspace"]["computer"]["places"]["volumes"];
 }) {
-  const pinned = pinnedPlaces(
+  const favorites = favoritePlaces(
     defaults.filter((place) => place !== instrumentPlace),
-    sidebarPlaces,
+    favoriteChanges,
     (place) => ({
       kind: "folder" as const,
       name: folderNameFromPath(place),
       path: place,
     }),
   );
-  const placeMenu = (place: string, { isPinned = false } = {}) =>
-    placeMenuOf(place, { actions, isPinned });
-  const pinnedList = useRef<HTMLUListElement>(null);
-  usePinnedTarget({
-    list: () => pinnedList.current,
+  const placeMenu = (place: string, { isFavorite = false } = {}) =>
+    placeMenuOf(place, { actions, isFavorite });
+  const favoritesList = useRef<HTMLUListElement>(null);
+  useFavoritesTarget({
+    list: () => favoritesList.current,
     onInto: actions.dropInto,
-    onPin: actions.pinAt,
+    onFavorite: actions.favoriteAt,
     onSpring: actions.spring,
     springs: actions.springs,
   });
   return (
     <>
-      {/* The app's own places, which nobody unpins: what the person opened,
+      {/* The app's own places, which nobody removes: what the person opened,
           and the folder Instrument keeps what it makes in. */}
       <PlaceList
         menu={(place) =>
@@ -3821,15 +3822,15 @@ function FinderPlaces({
       />
       <PlaceList
         label="Favorites"
-        listRef={pinnedList}
-        menu={(place) => placeMenu(place, { isPinned: true })}
+        listRef={favoritesList}
+        menu={(place) => placeMenu(place, { isFavorite: true })}
         onOpenInNewTab={actions.openInNewTab}
         onOpenInNewWindow={actions.openInNewWindow}
         onOpen={(folder) => {
           actions.rootTo(folder === homePath ? "~" : folder);
         }}
-        pinned={pinned.map((place) => place.path)}
-        places={pinned.map((place) => ({
+        favorites={favorites.map((place) => place.path)}
+        places={favorites.map((place) => ({
           // The home folder wears the house it wears in the Finder, which
           // is what says the account-named folder is home.
           icon: <FolderMark size="large" path={place.path} />,
@@ -4682,11 +4683,11 @@ function PlaceList({
   onOpenInNewTab,
   onOpenInNewWindow,
   places,
-  pinned,
+  favorites,
 }: {
   /** Left out for the app's own places, which need no heading. */
   label?: string;
-  /** The list of rows, for Pinned, which takes drops (`usePinnedTarget`). */
+  /** The list of rows, for Favorites, which takes drops (`useFavoritesTarget`). */
   listRef?: React.Ref<HTMLUListElement>;
   /** What a right-click on a place offers; nothing where a place is not a folder. */
   menu?: (path: string) => ReactNode;
@@ -4701,8 +4702,8 @@ function PlaceList({
     name: string;
     path: string;
   }[];
-  /** For Pinned, its rows' paths in order, which a row dragged out of the window leaves. */
-  pinned?: readonly string[];
+  /** For Favorites, its rows' paths in order, which a row dragged out of the window leaves. */
+  favorites?: readonly string[];
 }) {
   return (
     <div>
@@ -4720,7 +4721,7 @@ function PlaceList({
             onOpenInNewTab={onOpenInNewTab}
             onOpenInNewWindow={onOpenInNewWindow}
             place={place}
-            pinned={pinned}
+            favorites={favorites}
           />
         ))}
       </ul>
@@ -4732,8 +4733,8 @@ function PlaceList({
  * A place in the sidebar, which drags as a place, held by the pointer: a
  * link to Files at its folder, never the folder itself, so nothing is
  * handed out of the app to copy (`pressPlace`). It joins a strip as a tab,
- * goes on the bookmarks bar, moves along Pinned, or goes into a message as
- * its folder; a row of Pinned let go where nothing takes it leaves Pinned,
+ * goes on the bookmarks bar, moves along Favorites, or goes into a message as
+ * its folder; a row of Favorites let go where nothing takes it leaves Favorites,
  * as in Finder's sidebar. The recents and the computer are no folder, and
  * stay put.
  */
@@ -4743,7 +4744,7 @@ function PlaceRow({
   onOpenInNewTab,
   onOpenInNewWindow,
   place,
-  pinned,
+  favorites,
 }: {
   menu: ReactNode;
   onOpen: (path: string) => void;
@@ -4755,13 +4756,16 @@ function PlaceRow({
     name: string;
     path: string;
   };
-  pinned: readonly string[] | undefined;
+  favorites: readonly string[] | undefined;
 }) {
   const isFolder = place.path !== RECENTS_ROOT && place.path !== COMPUTER_ROOT;
   return (
     <li
-      {...(pinned
-        ? { "data-pinned-name": place.name, "data-pinned-place": place.path }
+      {...(favorites
+        ? {
+            "data-favorite-name": place.name,
+            "data-favorite-place": place.path,
+          }
         : {})}
     >
       <ContextMenu>
@@ -4776,7 +4780,7 @@ function PlaceRow({
                 pressPlace(event, {
                   name: place.name,
                   path: place.path,
-                  ...(pinned ? { pinned } : {}),
+                  ...(favorites ? { favorites } : {}),
                 });
               }
             }}

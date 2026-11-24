@@ -27,6 +27,13 @@ export interface DeviceEmulation {
 // immediately -- no reload needed -- because it changes the CDP-reported
 // layout viewport directly rather than waiting on Electron's guest-resize
 // propagation, which does not reliably re-layout an already-rendered page.
+const emulationScales = new WeakMap<BrowserEntry, number>();
+
+/** The scale a guest's page is drawn at for its device preview; 1 with none. */
+export function emulationScaleOf(entry: BrowserEntry): number {
+  return emulationScales.get(entry) ?? 1;
+}
+
 export function setDeviceEmulation({
   device,
   ensureDebuggerAttached,
@@ -40,6 +47,12 @@ export function setDeviceEmulation({
   const wc = entry.webContents;
   if (!wc || wc.isDestroyed()) {
     return;
+  }
+
+  if (device) {
+    emulationScales.set(entry, device.scale);
+  } else {
+    emulationScales.delete(entry);
   }
 
   const targetId: BrowserTargetId = entry.targetId;

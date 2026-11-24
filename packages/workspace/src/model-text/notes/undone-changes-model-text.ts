@@ -99,6 +99,25 @@ export function undoneChatsModelNote(
 }
 
 /**
+ * Tells the agent the person took back a turn's `instrument settings`
+ * changes with the card's Undo, so it does not set them again. Nothing for a
+ * card not undone.
+ */
+export function undoneSettingsModelNote(
+  data: SessionMessageDataPart.SettingChangesDataPart,
+): string | undefined {
+  if (!data.undone) {
+    return undefined;
+  }
+  const said = data.changes.map(
+    (change) => `${change.title} is ${change.before.label} again`,
+  );
+  return systemNote`
+    The user clicked Undo on your earlier settings changes: ${said.join("; ")}${except(data.undone.skipped)}. Do not redo them unless asked.
+  `;
+}
+
+/**
  * Tells the agent the person took back a turn's `instrument memory` changes
  * with the card's Undo, so it does not save them again. Nothing for a card
  * not undone.

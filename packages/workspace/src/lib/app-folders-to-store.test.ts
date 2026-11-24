@@ -11,7 +11,6 @@ import { findAppIcon } from "./apps/icon";
 import { AppSlugSchema, manifestHash } from "./apps/manifest";
 import { createMemoryAppsConfig } from "./apps/memory-config";
 import {
-  closeAppStores,
   listApps,
   loadApp,
   readAppGuide,
@@ -21,6 +20,7 @@ import {
 import { type DeviceId, newDeviceId } from "./records/device-id";
 import { WorkspaceDirSchema } from "../schemas/paths";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { closeHeldStores } from "./synced-store/held-stores";
 import { workspaceLayout } from "./workspace-layout";
 
 /** The manifest an earlier build wrote: a name of its own, and `baseUrl`. */
@@ -53,7 +53,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   setWorkspaceConfig(previous);
-  await closeAppStores();
+  await closeHeldStores();
   await fs.rm(root, { force: true, recursive: true });
 });
 

@@ -4,9 +4,8 @@ import { useImageArrival } from "@/client/hooks/use-image-arrival";
 import { getComputerFileUrl } from "@/client/lib/computer-file-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import {
-  getFaviconUrl,
   markIconlessThisSession,
-  useFaviconRetry,
+  useFaviconUrl,
   useIsIconlessThisSession,
 } from "@/client/lib/favicon-url";
 import { cn } from "@/client/lib/utils";
@@ -34,6 +33,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
  */
 export const FAVICON_SURFACE_CLASS_NAME = "dark:bg-white/10";
 
+/** The theme an SVG icon draws itself for, where it carries one of each. */
+export const FAVICON_SCHEME_CLASS_NAME = "scheme-light dark:scheme-dark";
+
 export function Favicon({
   className,
   fallback,
@@ -52,8 +54,7 @@ export function Favicon({
   // one already found to have none this session draws it at once. Given an
   // icon later, it asks again.
   const isIconless = useIsIconlessThisSession(url);
-  const retry = useFaviconRetry(url);
-  const faviconUrl = getFaviconUrl(url, retry);
+  const faviconUrl = useFaviconUrl(url);
   // Taken apart here: what goes to the element's ref is a ref to the lint,
   // and the class beside it is read in render.
   const {
@@ -71,6 +72,7 @@ export function Favicon({
         // A rounded rectangle, the way a browser tab softens a site's
         // own square mark, and what tells a site from an app's circle.
         "size-4 shrink-0 rounded-sm border border-border/50",
+        FAVICON_SCHEME_CLASS_NAME,
         FAVICON_SURFACE_CLASS_NAME,
         arrivalClassName,
         className,

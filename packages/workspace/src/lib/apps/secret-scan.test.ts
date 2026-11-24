@@ -4,7 +4,7 @@ import { scanAppRecord } from "./secret-scan";
 
 it("names each kind of secret an app's setup and guide hold, and passes placeholders", () => {
   const findings = scanAppRecord({
-    credential: null,
+    keys: [],
     guide: [
       "Send `Authorization: Bearer $LINEAR_API_KEY` with every request.",
       `Example: LINEAR_API_KEY=lin_api_${"aB3dE5gH7j".repeat(4)}`,
@@ -28,7 +28,7 @@ it("names each kind of secret an app's setup and guide hold, and passes placehol
 it("finds the stored credential written into the guide", () => {
   expect(
     scanAppRecord({
-      credential: "s3cr3t-value",
+      keys: ["s3cr3t-value"],
       guide: "Use s3cr3t-value as the key.",
       setup: { type: "api" },
     }).map(({ file }) => file),

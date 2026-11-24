@@ -134,7 +134,7 @@ async function signInStillHolds({
       return true;
     }
     const result = await withAppMcpClient({
-      credential: null,
+      keys: [],
       manifest,
       manifestHash,
       run: (client) => listMcpTools(client),

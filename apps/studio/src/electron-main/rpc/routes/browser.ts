@@ -48,7 +48,7 @@ import {
   BrowserTargetIdSchema,
   getBrowserSessionDir,
 } from "@instrument-org/workspace/electron";
-import { app } from "electron";
+import { app, nativeTheme } from "electron";
 import { z } from "zod";
 
 // Every recorded target and whether its guest has attached yet. The renderer
@@ -327,14 +327,18 @@ const setEmulatedDevice = base
   });
 
 /**
- * A browser tab's page named its own icon: kept for its site when the favicon
- * proxy has none, so a site the person opened draws its real mark everywhere.
+ * A browser tab's page named its own icons: an SVG is kept for its site over
+ * the favicon proxy's, and any other when the proxy has none, so a site the
+ * person opened draws its real mark everywhere.
  */
 const rememberPageIcon = base
-  .input(z.object({ iconUrl: z.string(), pageUrl: z.string() }))
+  .input(z.object({ iconUrls: z.array(z.string()), pageUrl: z.string() }))
   .output(z.object({ stored: z.boolean() }))
   .handler(async ({ input }) => ({
-    stored: await keepPageIcon(input, siteIconDeps()),
+    stored: await keepPageIcon(
+      { ...input, theme: nativeTheme.shouldUseDarkColors ? "dark" : "light" },
+      siteIconDeps(),
+    ),
   }));
 
 /**

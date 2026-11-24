@@ -1,6 +1,7 @@
 import { err, ok, type Result } from "neverthrow";
 
-import { type ApiAppManifest, type AppAuth } from "./manifest";
+import { appKeySlots, type KeyPlacement, type PlacedKey } from "./keys";
+import { type ApiAppManifest } from "./manifest";
 import { checkAppUrl } from "./safe-url";
 
 const MAX_REDIRECTS = 5;
@@ -10,7 +11,12 @@ const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 
 export interface AppRequestError {
   message: string;
-  reason: "invalid-path" | "network" | "too-many-redirects" | "unsafe-url";
+  reason:
+    | "invalid-headers"
+    | "invalid-path"
+    | "network"
+    | "too-many-redirects"
+    | "unsafe-url";
 }
 
 export interface AppResponse {
@@ -92,15 +98,15 @@ export function buildAppUrl({
 }
 
 /**
- * Perform one app request: inject the credential per the manifest's auth
- * binding, follow redirects manually (each hop re-validated, credentials
+ * Perform one app request: inject each key where the manifest places
+ * it, follow redirects manually (each hop re-validated, credentials
  * dropped when a redirect leaves the app's origin), and read the body
  * with a size cap. The credential value never appears in the returned data;
  * callers additionally redact it from the body before showing the agent.
  */
 export async function performAppRequest({
   body: requestBody,
-  credential,
+  keys,
   manifest,
   method: requestMethod,
   params,
@@ -108,7 +114,7 @@ export async function performAppRequest({
   signal,
 }: {
   body: string | undefined;
-  credential: null | string;
+  keys: PlacedKey[];
   manifest: ApiAppManifest;
   method: string;
   params: Record<string, string>;
@@ -125,6 +131,9 @@ export async function performAppRequest({
   }
 
   const origin = new URL(manifest.url).origin;
+  const queryParams = appKeySlots(manifest).flatMap(({ placement }) =>
+    placement.kind === "query" ? [placement.param] : [],
+  );
 
   let url = urlResult.value;
   let authenticated = true;
@@ -146,10 +155,21 @@ export async function performAppRequest({
       // like the credential, they are dropped once a redirect leaves the
       // app's origin. The auth binding is applied last so a manifest
       // header can never shadow it.
-      for (const [name, value] of Object.entries(manifest.headers ?? {})) {
-        headers.set(name, value);
+      // What `Headers` throws quotes the value it refused, so it goes no further.
+      try {
+        for (const [name, value] of Object.entries(manifest.headers ?? {})) {
+          headers.set(name, value);
+        }
+        for (const key of keys) {
+          applyKey(key, { headers, url });
+        }
+      } catch {
+        return err({
+          message:
+            "The request's headers can't be sent: a header name or value in the app's setup, or its key, has a character HTTP does not allow.",
+          reason: "invalid-headers",
+        });
       }
-      applyAuth({ auth: manifest.auth, credential, headers, url });
     }
 
     let response: Response;
@@ -184,8 +204,8 @@ export async function performAppRequest({
       // (whether we injected it or the upstream reflected it into Location).
       if (next.origin !== origin) {
         authenticated = false;
-        if (manifest.auth.kind === "query") {
-          next.searchParams.delete(manifest.auth.param);
+        for (const param of queryParams) {
+          next.searchParams.delete(param);
         }
       }
       // Fetch's rules: a 303 asks for the result with GET (HEAD stays HEAD),
@@ -213,7 +233,7 @@ export async function performAppRequest({
         // Strip the query-auth credential from the display URL at the source;
         // url.toString() percent-encodes it, which plain string redaction on the
         // raw credential would miss.
-        url: displayUrl(url, manifest.auth),
+        url: displayUrl(url, queryParams),
       });
     } catch (error) {
       return err({
@@ -230,63 +250,105 @@ export async function performAppRequest({
 }
 
 /**
- * Replace every occurrence of the credential in agent-visible text -- both the
- * raw value and its percent-encoded form, since a credential that rode in a URL
- * comes back encoded (e.g. `+`/`/`/`=` in a base64-ish token).
+ * Replace every occurrence of the credential in agent-visible text, in each
+ * form a service can hand it back: as it is, percent-encoded as a URL carries
+ * it, escaped as JSON writes it, and the base64 a Basic header carries.
  */
 export function redactCredential(
   text: string,
   credential: null | string,
+  placement?: KeyPlacement,
 ): string {
-  if (credential === null || credential.length === 0) {
-    return text;
-  }
-  let out = text.split(credential).join("[REDACTED]");
-  const encoded = encodeURIComponent(credential);
-  if (encoded !== credential) {
-    out = out.split(encoded).join("[REDACTED]");
-  }
-  return out;
+  return credential === null
+    ? text
+    : redactForms(text, echoedForms(credential, placement));
 }
 
-function applyAuth({
-  auth,
-  credential,
-  headers,
-  url,
-}: {
-  auth: AppAuth;
-  credential: null | string;
-  headers: Headers;
-  url: URL;
-}) {
-  if (credential === null) {
-    return;
+/** `redactCredential` for every key an app sends, whichever of them a service echoes. */
+export function redactKeys(text: string, keys: PlacedKey[]): string {
+  return redactForms(
+    text,
+    keys.flatMap(({ placement, value }) => echoedForms(value, placement)),
+  );
+}
+
+function echoedForms(credential: string, placement?: KeyPlacement): string[] {
+  if (credential.length === 0) {
+    return [];
   }
-  switch (auth.kind) {
+  const carried =
+    placement?.kind === "basic"
+      ? [credential, basicUserinfo(placement, credential)]
+      : [credential];
+  return carried.flatMap((value) => [
+    value,
+    encodeURIComponent(value),
+    JSON.stringify(value).slice(1, -1),
+  ]);
+}
+
+function redactForms(text: string, forms: string[]): string {
+  // Longest first, so a form that holds another is taken out whole.
+  return [...new Set(forms)]
+    .sort((a, b) => b.length - a.length)
+    .reduce((out, form) => out.split(form).join("[REDACTED]"), text);
+}
+
+/** What a Basic header carries: the username, when there is one, and the key, in base64. */
+function basicUserinfo(
+  placement: Extract<KeyPlacement, { kind: "basic" }>,
+  credential: string,
+): string {
+  const userinfo =
+    placement.user === undefined
+      ? credential
+      : `${placement.user}:${credential}`;
+  return Buffer.from(userinfo, "utf8").toString("base64");
+}
+
+/**
+ * Why a key can't be sent the way its app sends it, for the person who pasted
+ * it, or undefined when it can. A header takes no character past Latin-1 and
+ * no control character; an environment variable takes no NUL.
+ */
+export function unsendableKey(
+  { kind }: KeyPlacement,
+  credential: string,
+): string | undefined {
+  const refused =
+    kind === "bearer" || kind === "header"
+      ? /[^\t\x20-\x7e\x80-\xff]/
+      : kind === "env"
+        ? /\0/
+        : undefined;
+  return refused?.test(credential)
+    ? "The key has a character in it that can’t be sent, often an invisible one picked up while copying. Copy the key again and paste it here."
+    : undefined;
+}
+
+function applyKey(
+  { placement, value }: PlacedKey,
+  { headers, url }: { headers: Headers; url: URL },
+) {
+  switch (placement.kind) {
     case "basic": {
-      const userinfo =
-        auth.user === undefined ? credential : `${auth.user}:${credential}`;
-      headers.set(
-        "Authorization",
-        `Basic ${Buffer.from(userinfo, "utf8").toString("base64")}`,
-      );
+      headers.set("Authorization", `Basic ${basicUserinfo(placement, value)}`);
       break;
     }
-    case "bearer":
-    case "oauth": {
-      headers.set("Authorization", `Bearer ${credential}`);
+    case "bearer": {
+      headers.set("Authorization", `Bearer ${value}`);
+      break;
+    }
+    case "env": {
+      // A local server's alone: no request carries one.
       break;
     }
     case "header": {
-      headers.set(auth.header, credential);
-      break;
-    }
-    case "none": {
+      headers.set(placement.header, value);
       break;
     }
     case "query": {
-      url.searchParams.set(auth.param, credential);
+      url.searchParams.set(placement.param, value);
       break;
     }
   }
@@ -296,12 +358,15 @@ function applyAuth({
  * The request URL as shown to the agent, with a query-auth credential removed
  * at the source (never rely on string redaction alone for URL-borne secrets).
  */
-function displayUrl(url: URL, auth: AppAuth): string {
-  if (auth.kind !== "query" || !url.searchParams.has(auth.param)) {
+function displayUrl(url: URL, queryParams: string[]): string {
+  const present = queryParams.filter((param) => url.searchParams.has(param));
+  if (present.length === 0) {
     return url.toString();
   }
   const copy = new URL(url.toString());
-  copy.searchParams.set(auth.param, "[REDACTED]");
+  for (const param of present) {
+    copy.searchParams.set(param, "[REDACTED]");
+  }
   return copy.toString();
 }
 

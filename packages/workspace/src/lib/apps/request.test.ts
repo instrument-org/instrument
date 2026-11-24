@@ -1,7 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { type ApiAppManifest, AppManifestSchema } from "./manifest";
-import { buildAppUrl, performAppRequest, redactCredential } from "./request";
+import {
+  type ApiAppManifest,
+  type AppManifest,
+  AppManifestSchema,
+} from "./manifest";
+import { appKeySlots } from "./keys";
+import {
+  buildAppUrl,
+  performAppRequest,
+  redactCredential,
+  unsendableKey,
+} from "./request";
 
 // The hop check resolves every hostname, so the suite owns what DNS answers
 // rather than depending on the machine's resolver (and on the network at all).
@@ -199,7 +209,82 @@ describe("redactCredential", () => {
   });
 });
 
+describe("redactCredential in the forms a service hands back", () => {
+  const key = 'pa"ss\\word';
+
+  it.each([
+    {
+      form: `Basic ${Buffer.from(`sam:${key}`).toString("base64")}`,
+      user: "sam",
+    },
+    { form: `Basic ${Buffer.from(key).toString("base64")}`, user: undefined },
+  ])("takes out what a Basic header carries for $user", ({ form, user }) => {
+    expect(
+      redactCredential(form, key, {
+        kind: "basic",
+        ...(user === undefined ? {} : { user }),
+      }),
+    ).toBe("Basic [REDACTED]");
+  });
+
+  it("takes out a key as JSON writes it", () => {
+    expect(redactCredential(JSON.stringify({ key }), key)).toBe(
+      '{"key":"[REDACTED]"}',
+    );
+  });
+});
+
+describe("unsendableKey", () => {
+  const local: AppManifest = {
+    auth: { envVar: "TOKEN", kind: "env" },
+    package: "service-mcp",
+    runtime: "node",
+    type: "mcp-local",
+  };
+  const bearer: AppManifest = { ...publicManifest(), auth: { kind: "bearer" } };
+
+  it.each([
+    { manifest: bearer, sendable: true, value: "plain-key_123" },
+    { manifest: bearer, sendable: false, value: "key\u200B123" },
+    { manifest: bearer, sendable: false, value: "key\n123" },
+    {
+      manifest: { ...publicManifest(), auth: { kind: "basic" } } as const,
+      sendable: true,
+      value: "pässwörd…",
+    },
+    { manifest: local, sendable: false, value: "key\0" },
+    { manifest: local, sendable: true, value: "key…" },
+  ])(
+    "$manifest.auth.kind $value -> $sendable",
+    ({ manifest, sendable, value }) => {
+      const [slot] = appKeySlots(manifest);
+      expect(slot && unsendableKey(slot.placement, value) === undefined).toBe(
+        sendable,
+      );
+    },
+  );
+});
+
 describe("performAppRequest", () => {
+  it("answers a key no header takes without quoting it", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const result = await performAppRequest({
+      body: undefined,
+      keys: [{ placement: { kind: "bearer" }, value: "sekret\nkey" }],
+      manifest: { ...publicManifest(), auth: { kind: "bearer" } },
+      method: "GET",
+      params: {},
+      path: "/items",
+      signal: AbortSignal.timeout(1000),
+    });
+
+    const error = result._unsafeUnwrapErr();
+    expect(error.reason).toBe("invalid-headers");
+    expect(error.message).not.toContain("sekret");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("returns a network error when the response stream fails", async () => {
     const body = new ReadableStream({
       start(controller) {
@@ -224,7 +309,7 @@ describe("performAppRequest", () => {
 
     const result = await performAppRequest({
       body: undefined,
-      credential: null,
+      keys: [],
       manifest,
       method: "GET",
       params: {},
@@ -252,7 +337,7 @@ describe("performAppRequest", () => {
 
     const result = await performAppRequest({
       body: undefined,
-      credential: null,
+      keys: [],
       manifest: publicManifest(),
       method: "GET",
       params: {},
@@ -290,7 +375,7 @@ describe("performAppRequest", () => {
 
     await performAppRequest({
       body: undefined,
-      credential: "k3y",
+      keys: [{ placement: auth, value: "k3y" }],
       manifest: { ...publicManifest(), auth },
       method: "GET",
       params: {},
@@ -327,7 +412,7 @@ describe("performAppRequest", () => {
 
       await performAppRequest({
         body: '{"a":1}',
-        credential: null,
+        keys: [],
         manifest: publicManifest(),
         method,
         params: {},
@@ -345,15 +430,30 @@ describe("performAppRequest", () => {
 
   // The credential is the user's, approved for the manifest's origin only:
   // a redirect elsewhere must arrive without it, wherever the auth put it.
-  it.each([
+  it.each<{
+    auth: ApiAppManifest["auth"];
+    label: string;
+    location?: string;
+  }>([
     {
-      auth: { kind: "bearer" } as const,
+      auth: { kind: "bearer" },
       label: "a bearer header",
     },
     {
-      auth: { kind: "query", param: "api_key" } as const,
+      auth: { kind: "query", param: "api_key" },
       label: "a query param, the upstream reflecting it into Location",
       location: "https://cdn.example.net/file?api_key=s3cret&x=1",
+    },
+    {
+      auth: {
+        keys: [
+          { header: "X-Api-Key", kind: "header", label: "API key" },
+          { kind: "query", label: "Token", param: "token" },
+        ],
+        kind: "keys",
+      },
+      label: "every one of several keys",
+      location: "https://cdn.example.net/file?token=s3cret&x=1",
     },
   ])(
     "drops $label on a redirect to another origin",
@@ -371,10 +471,18 @@ describe("performAppRequest", () => {
         .mockResolvedValueOnce(Response.json({ ok: true }));
       vi.stubGlobal("fetch", fetchMock);
 
+      const manifest: ApiAppManifest = {
+        ...publicManifest(),
+        auth,
+        headers: { "X-Static": "1" },
+      };
       await performAppRequest({
         body: undefined,
-        credential: "s3cret",
-        manifest: { ...publicManifest(), auth, headers: { "X-Static": "1" } },
+        keys: appKeySlots(manifest).map(({ placement }) => ({
+          placement,
+          value: "s3cret",
+        })),
+        manifest,
         method: "GET",
         params: {},
         path: "/items",
@@ -402,7 +510,7 @@ describe("performAppRequest", () => {
 
     const result = await performAppRequest({
       body: undefined,
-      credential: "s3cret",
+      keys: [{ placement: { kind: "bearer" }, value: "s3cret" }],
       manifest: { ...publicManifest(), auth: { kind: "bearer" } },
       method: "GET",
       params: {},
@@ -423,7 +531,7 @@ describe("performAppRequest", () => {
 
     const result = await performAppRequest({
       body: undefined,
-      credential: null,
+      keys: [],
       manifest: publicManifest(),
       method: "GET",
       params: {},
@@ -448,7 +556,7 @@ describe("performAppRequest", () => {
 
     const result = await performAppRequest({
       body: undefined,
-      credential: null,
+      keys: [],
       manifest: publicManifest(),
       method: "GET",
       params: {},

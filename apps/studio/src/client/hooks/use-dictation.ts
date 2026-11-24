@@ -11,7 +11,7 @@ import { MicCapture, MicrophoneError } from "@/client/lib/dictation-capture";
 import {
   microphoneName,
   resolveMicrophone,
-} from "@/client/lib/dictation-microphone";
+} from "@/shared/dictation-microphone";
 import {
   describeDictationProblem,
   type DictationBilling,

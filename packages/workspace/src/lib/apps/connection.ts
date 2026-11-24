@@ -49,6 +49,8 @@ export const AppConnectionSchema = z.object({
   ended: SignInEndSchema.optional(),
   /** Why the last test failed, for the card and the page. */
   error: z.string().optional(),
+  /** Whether the last test failed because the service refused the stored key. */
+  keyRefused: z.boolean().optional(),
   /**
    * The manifest that passed. A manifest edited since is not the one that was
    * tested, and a call refuses until it is tested again: this is what keeps
@@ -186,6 +188,7 @@ export async function recordConnection(
       ? {}
       : { error: patch.error, manifestHash: undefined }),
     ended: patch.ended,
+    keyRefused: patch.keyRefused,
     status: patch.status,
     updatedAt: Date.now(),
   };

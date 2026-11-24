@@ -1,4 +1,5 @@
 import { PACKAGED_RESOURCES } from "@instrument-org/shared";
+import { agentSettings } from "@/electron-main/lib/agent-settings";
 import {
   appWindowForChat,
   getAppWindows,
@@ -159,6 +160,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     input: {
       aiGatewayApp,
       apps: createAppsConfig(),
+      appSettings: agentSettings,
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
       windowForChat: appWindowForChat,

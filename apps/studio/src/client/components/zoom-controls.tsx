@@ -1,10 +1,10 @@
-import { ZOOM_MAX, ZOOM_MIN, zoomAtom } from "@/client/atoms/zoom";
+import { zoomAtom } from "@/client/atoms/zoom";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { cn } from "@/client/lib/utils";
 import { ZOOM_LEVELS } from "@/client/lib/zoom-levels";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
-import { steppedZoom } from "@/shared/zoom";
+import { steppedZoom, ZOOM_MAX, ZOOM_MIN } from "@/shared/zoom";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
 import { MinusIcon } from "@phosphor-icons/react/Minus";
 import { PlusIcon } from "@phosphor-icons/react/Plus";

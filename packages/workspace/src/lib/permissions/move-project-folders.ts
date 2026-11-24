@@ -1,11 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { type DeviceId } from "../../schemas/device-id";
+import { runningPlace, type WorkspacePlace } from "../synced-store/held-stores";
+import { readText } from "../workspace-files";
 import {
   PROJECT_FILE_NAME,
   PROJECTS_FOLDER_NAME,
-  readProjectsSync,
+  readProjects,
 } from "../chat/projects";
 import {
   listedFolderPaths,
@@ -51,16 +52,13 @@ const MOVED_MARK = "topicFoldersMoved";
  * and asks again before opening any of them, which is the right answer for
  * folders granted on a different computer.
  */
-export function moveProjectFolders({
-  device,
+export async function moveProjectFolders({
   machineDir,
-  rootDir,
+  place = runningPlace(),
 }: {
-  /** The device a project's record is written as; the running workspace's when left out. */
-  device?: DeviceId;
   machineDir: string;
-  rootDir: string;
-}): { moved: number } {
+  place?: WorkspacePlace;
+}): Promise<{ moved: number }> {
   const file = permissionsFileIn(machineDir);
   if (markedWhereNoSettings(machineDir)) {
     return { moved: 0 };
@@ -69,7 +67,7 @@ export function moveProjectFolders({
   if (read.kind === "read" && read.record[MOVED_MARK] === true) {
     return { moved: 0 };
   }
-  const listing = readProjectsSync(rootDir, { device }).flatMap((project) => {
+  const listing = (await readProjects(place)).flatMap((project) => {
     if (project.others === undefined || !("folders" in project.others)) {
       return [];
     }
@@ -83,8 +81,13 @@ export function moveProjectFolders({
     return { [MOVED_MARK]: true, projects };
   });
   for (const { project } of listing) {
-    stripKeySync(
-      path.join(rootDir, PROJECTS_FOLDER_NAME, project.name, PROJECT_FILE_NAME),
+    await stripKey(
+      path.join(
+        place.rootDir,
+        PROJECTS_FOLDER_NAME,
+        project.name,
+        PROJECT_FILE_NAME,
+      ),
     );
   }
   return {
@@ -121,11 +124,10 @@ const FOLDERS_KEY: ReadonlySet<string> = new Set(["folders"]);
  * Takes the `folders:` key out of a project's file, keeping the rest of it,
  * and the file itself where nothing else is in it.
  */
-function stripKeySync(file: string): void {
+async function stripKey(file: string): Promise<void> {
   let held: string;
   try {
-    // oxlint-disable-next-line studio/no-sync-content-read -- a launch step, synchronous like the settings write before it.
-    held = fs.readFileSync(file, "utf8");
+    held = await readText(file);
   } catch {
     return;
   }
@@ -134,7 +136,7 @@ function stripKeySync(file: string): void {
     return;
   }
   if (next === "") {
-    fs.rmSync(file, { force: true });
+    await fs.promises.rm(file, { force: true });
     return;
   }
   rewriteFileSync(

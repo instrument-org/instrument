@@ -3,15 +3,9 @@ import { z } from "zod";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type DeviceId } from "../../schemas/device-id";
-import { writingChatRecords } from "../records/installed-records";
-import {
-  applySyncedOps,
-  foldSyncedFiles,
-  watchSyncedFiles,
-} from "../synced-store/synced-files";
+import { heldStore } from "../synced-store/held-stores";
 import { type SyncedOp } from "../synced-store/synced-record";
 import { getWorkspaceConfig } from "../workspace-config";
-import { workspaceLayout } from "../workspace-layout";
 
 /**
  * What the app keeps about each memory apart from its words: the chat it was
@@ -26,8 +20,6 @@ import { workspaceLayout } from "../workspace-layout";
  * left would also match a memory written by hand to one deleted by hand.
  */
 
-const MEMORY_DOMAIN = "memory";
-
 const MemoryRecordSchema = z.object({
   /** The chat it was learned in, when a chat saved it. */
   chat: ChatIdSchema.optional(),
@@ -37,19 +29,18 @@ const MemoryRecordSchema = z.object({
 
 export type MemoryRecord = z.output<typeof MemoryRecordSchema>;
 
-/** Where a memory folder's store is: in the devices folder of the workspace it is at the top of. */
-function devicesDirOf(dir: string): string {
-  return workspaceLayout(path.dirname(dir)).devicesDir;
+/** The memory store of the workspace a memory folder is at the top of. */
+function memoryStore(dir: string, device = getWorkspaceConfig().deviceId) {
+  return heldStore("memory", { device, rootDir: path.dirname(dir) });
 }
 
 /** Every memory's record, by its file's name, for the memory folder `dir`. */
-export function readMemoryRecords(dir: string): Map<string, MemoryRecord> {
-  const fold = foldSyncedFiles({
-    devicesDir: devicesDirOf(dir),
-    domain: MEMORY_DOMAIN,
-  });
+export async function readMemoryRecords(
+  dir: string,
+): Promise<Map<string, MemoryRecord>> {
+  const store = await memoryStore(dir);
   const records = new Map<string, MemoryRecord>();
-  for (const [fileName, value] of fold.entries()) {
+  for (const [fileName, value] of store.entries()) {
     const parsed = MemoryRecordSchema.safeParse(value);
     if (parsed.success) {
       records.set(fileName, parsed.data);
@@ -67,41 +58,25 @@ export type MemoryRecordOp =
  * Writes the changes as `device`, the running workspace's when none is given.
  * One that would change nothing writes nothing.
  */
-export function writeMemoryRecords(
+export async function writeMemoryRecords(
   dir: string,
   ops: readonly MemoryRecordOp[],
   device?: DeviceId,
-): void {
-  if (ops.length === 0) {
-    return;
-  }
-  applySyncedOps({
-    device:
-      device ?? writingChatRecords()?.device ?? getWorkspaceConfig().deviceId,
-    devicesDir: devicesDirOf(dir),
-    domain: MEMORY_DOMAIN,
-    ops: ops.map(
-      (op): SyncedOp =>
-        "gone" in op
-          ? { key: op.fileName, t: "del" }
-          : {
-              ...(op.at === undefined ? {} : { at: op.at }),
-              key: op.fileName,
-              t: "set",
-              value: MemoryRecordSchema.parse(op.record),
-            },
+): Promise<void> {
+  const store = await memoryStore(dir, device);
+  await store.exclusive(() =>
+    store.apply(
+      ops.map(
+        (op): SyncedOp =>
+          "gone" in op
+            ? { key: op.fileName, t: "del" }
+            : {
+                ...(op.at === undefined ? {} : { at: op.at }),
+                key: op.fileName,
+                t: "set",
+                value: MemoryRecordSchema.parse(op.record),
+              },
+      ),
     ),
-  });
-}
-
-/** Calls `onChange` when any device changes a memory's record, until stopped. */
-export function watchMemoryRecords(
-  dir: string,
-  onChange: () => void,
-): () => void {
-  return watchSyncedFiles({
-    devicesDir: devicesDirOf(dir),
-    domain: MEMORY_DOMAIN,
-    onChange,
-  });
+  );
 }

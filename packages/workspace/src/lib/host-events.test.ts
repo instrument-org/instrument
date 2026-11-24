@@ -1,19 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
-
-/** The apps store's subscriptions: what each would call on a change, and how many stopped. */
-const watches = vi.hoisted(() => {
-  const onChanges: (() => void)[] = [];
-  return { onChanges, stopped: 0 };
-});
-vi.mock("./apps/store", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("./apps/store")>()),
-  subscribeApps: (onChange: () => void) => {
-    watches.onChanges.push(onChange);
-    return Promise.resolve(() => {
-      watches.stopped += 1;
-    });
-  },
-}));
+import { describe, expect, it } from "vitest";
 
 import { publisher } from "../rpc/publisher";
 import { StoreId } from "../schemas/store-id";
@@ -42,27 +27,5 @@ describe("host events", () => {
     await appChanged("drafts");
     expect((await next).done).toBe(false);
     controller.abort();
-  });
-
-  it("says one change to the apps store once, however many listen", async () => {
-    watches.onChanges.length = 0;
-    watches.stopped = 0;
-    const heard: null[] = [];
-    const unsubscribe = publisher.subscribe("app.updated", (change) => {
-      heard.push(change);
-    });
-    const first = new AbortController();
-    const second = new AbortController();
-    appListChanges(first.signal);
-    appListChanges(second.signal);
-    expect(watches.onChanges).toHaveLength(1);
-    watches.onChanges[0]?.();
-    expect(heard).toEqual([null]);
-    first.abort();
-    expect(watches.stopped).toBe(0);
-    second.abort();
-    await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(watches.stopped).toBe(1);
-    unsubscribe();
   });
 });

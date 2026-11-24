@@ -525,6 +525,7 @@ describe("the registry", () => {
         "projects.retire": "only the chat changes the user's projects. Say in your report what the chat should create, rename, mark or delete.",
         "projects.set": "only the chat changes the user's projects. Say in your report what the chat should create, rename, mark or delete.",
         "projects.unretire": "only the chat changes the user's projects. Say in your report what the chat should create, rename, mark or delete.",
+        "settings.set": "only the chat changes the user's settings. Say in your report what the chat should change.",
         "task.list": "you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.",
         "task.log": "you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.",
         "task.new": "you are a task the chat started, and the chat alone starts and steers tasks. Do your assignment here, and say in your report what is left.",

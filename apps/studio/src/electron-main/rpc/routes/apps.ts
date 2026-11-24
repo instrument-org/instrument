@@ -9,20 +9,23 @@ import {
   getMacAppIconUrl,
 } from "@/electron-main/lib/file-open-target";
 import { directoryIconFor } from "@/electron-main/lib/directory-icons";
+import { canSaveKeys, KEYS_NOT_SAVABLE } from "@/electron-main/lib/key-file";
 import { base } from "@/electron-main/rpc/base";
 import { appConnectionStore } from "@/electron-main/stores/workspace/app-connections";
 import {
-  hasAppCredential,
-  setAppCredential,
+  getAppCredentials,
+  setAppCredentials,
 } from "@/electron-main/stores/workspace/app-credentials";
 import { appOAuthStore } from "@/electron-main/stores/workspace/app-oauth";
 import {
   AppConnectionSchema,
   appHomeFor,
+  appKeySlots,
   credentialOrigin,
   appSiteFor,
   AppSlugSchema,
   beginMcpOAuth,
+  boundTo,
   cancelMcpOAuth,
   describeLocalLaunch,
   catalogEntryMacApp,
@@ -39,13 +42,14 @@ import {
   removeApp,
   removeLocalServer,
   setUpFromDirectory,
-  requireAppCredential,
+  requireAppKeys,
   runAppTest,
   searchAppCatalogByMeaning,
   withAppMcpClient,
   appCatalogChanges,
   appChanged,
   appListChanges,
+  unsendableKey,
   ChatIdSchema,
   findAppIcon,
   type AppManifest,
@@ -74,6 +78,49 @@ import {
   settleSignIn,
 } from "@/electron-main/browser-view/history-intents";
 
+/**
+ * A saved key shows the day it was saved, and its last four characters where
+ * it is long enough that four give little of it away. Never more of it.
+ */
+const AppKeySchema = z.object({
+  endsIn: z.string().optional(),
+  isSaved: z.boolean(),
+  label: z.string().optional(),
+  savedAt: z.number().optional(),
+});
+
+const SHOWN_OF_KEY = 4;
+const SHORTEST_KEY_SHOWN = 16;
+
+/** An app's keys as they may be shown; one saved for another address counts as none. */
+function shownKeys(
+  slug: string,
+  manifest: AppManifest,
+): z.output<typeof AppKeySchema>[] {
+  const slots = appKeySlots(manifest);
+  if (slots.length === 0) {
+    return [];
+  }
+  const stored = getAppCredentials(slug);
+  const origin = credentialOrigin(manifest);
+  return slots.map(({ label }) => {
+    const named = label === undefined ? {} : { label };
+    const key = stored.find((entry) => entry.label === label);
+    const value = boundTo(key, origin);
+    if (key === undefined || value === undefined) {
+      return { ...named, isSaved: false };
+    }
+    return {
+      ...named,
+      ...(value.length < SHORTEST_KEY_SHOWN
+        ? {}
+        : { endsIn: value.slice(-SHOWN_OF_KEY) }),
+      isSaved: true,
+      ...(key.savedAt === undefined ? {} : { savedAt: key.savedAt }),
+    };
+  });
+}
+
 const AppListItemBaseSchema = z.object({
   /** Which account of the service the app is signed in as, when the agent or the user named it. */
   account: z.string().optional(),
@@ -86,6 +133,8 @@ const AppListItemBaseSchema = z.object({
   /** API base URL, MCP server URL, or the package a local server runs from. */
   endpoint: z.string(),
   hasCredential: z.boolean(),
+  /** The keys its setup asks for, in its order, with what may be shown of the one saved. */
+  keys: z.array(AppKeySchema),
   /** The signed-in web app, for the page's primary action. */
   home: z.string().optional(),
   /** The app's own icon, else its Mac app's for a local server that drives one, else the directory's; drawn in place of the site's. */
@@ -106,17 +155,25 @@ const KeyHelpSchema = z
 
 const AppListItemSchema = z.discriminatedUnion("type", [
   AppListItemBaseSchema.extend({
-    authKind: z.enum(["basic", "bearer", "header", "none", "oauth", "query"]),
+    authKind: z.enum([
+      "basic",
+      "bearer",
+      "header",
+      "keys",
+      "none",
+      "oauth",
+      "query",
+    ]),
     keyHelp: KeyHelpSchema,
     type: z.literal("api"),
   }),
   AppListItemBaseSchema.extend({
-    authKind: z.enum(["bearer", "header", "none", "oauth"]),
+    authKind: z.enum(["bearer", "header", "keys", "none", "oauth"]),
     keyHelp: KeyHelpSchema,
     type: z.literal("mcp"),
   }),
   AppListItemBaseSchema.extend({
-    authKind: z.enum(["env", "none"]),
+    authKind: z.enum(["env", "keys", "none"]),
     /** One of the Mac's own apps, on the server the app ships for it: nothing to install. */
     bundled: z.boolean(),
     keyHelp: KeyHelpSchema,
@@ -237,7 +294,8 @@ const list = base.output(AppListSchema).handler(async () => {
           ...(app.manifest.account ? { account: app.manifest.account } : {}),
           connection,
           credentialOrigin: credentialOrigin(app.manifest),
-          hasCredential: hasAppCredential(app.slug),
+          hasCredential: getAppCredentials(app.slug).length > 0,
+          keys: shownKeys(app.slug, app.manifest),
           home: appHomeFor(app.slug, app.manifest),
           ...(await iconFor(app)),
           name: app.name,
@@ -539,9 +597,9 @@ async function withInspectorClient<T>({
   if (!isMcpManifest(manifest)) {
     throw errors.NOT_FOUND({ message: `${slug} is not an MCP app.` });
   }
-  let credential: null | string;
+  let keys: Awaited<ReturnType<typeof requireAppKeys>>;
   try {
-    credential = await requireAppCredential(slug, manifest);
+    keys = await requireAppKeys(slug, manifest);
   } catch (error) {
     // A key that is gone from the store, or held for another address than
     // the manifest names now, leaves the app needing a key: the page asks
@@ -554,7 +612,7 @@ async function withInspectorClient<T>({
     throw errors.UNAUTHORIZED({ message });
   }
   const result = await withAppMcpClient({
-    credential,
+    keys,
     manifest,
     manifestHash,
     run,
@@ -744,34 +802,78 @@ const signInOnWeb = base
     }
   });
 
+/** A key as the user gives it, under its label where the app takes several. */
+const GivenKeySchema = z.object({
+  label: z.string().optional(),
+  value: z.string().min(1),
+});
+
+/** Refuses keys the app does not take, that cannot be sent, or that cannot be kept. */
+function requireKeepable(
+  manifest: AppManifest,
+  given: z.output<typeof GivenKeySchema>[],
+) {
+  const slots = appKeySlots(manifest);
+  for (const { label, value } of given) {
+    const slot = slots.find((entry) => entry.label === label);
+    if (slot === undefined) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          "The app asks for different keys than it did. Check which ones before going on.",
+      });
+    }
+    const unsendable = unsendableKey(slot.placement, value);
+    if (unsendable !== undefined) {
+      throw new ORPCError("BAD_REQUEST", { message: unsendable });
+    }
+  }
+  if (!canSaveKeys()) {
+    throw new ORPCError("BAD_REQUEST", { message: KEYS_NOT_SAVABLE });
+  }
+}
+
+function keptKeys(
+  given: z.output<typeof GivenKeySchema>[],
+  origin: string,
+): Parameters<typeof setAppCredentials>[1] {
+  const savedAt = Date.now();
+  return given.map((key) => ({ ...key, origin, savedAt }));
+}
+
 /**
- * A key, straight into the encrypted store, then the test: the agent wrote
- * the manifest and asked, and a green test is what turns the key into a
- * connection. The agent hears the outcome, never the key.
+ * An app's keys, straight into the encrypted store, then the test: the agent
+ * wrote the manifest and asked, and a green test is what turns the keys into
+ * a connection. The agent hears the outcome, never a key. A key left out
+ * stays the one already saved.
  */
 const setCredential = base
   .input(
     z.object({
       /** The chat whose card this was answered on, which hears the answer. */
       chatId: ChatIdSchema.optional(),
-      /** Where the card told the user the key would go. */
+      keys: z.array(GivenKeySchema).min(1),
+      /** Where the card told the user the keys would go. */
       origin: z.string().min(1),
       slug: AppSlugSchema,
-      value: z.string().min(1),
     }),
   )
   .handler(async ({ errors, input, signal }) => {
-    // The key is approved for the origin the card showed, and goes nowhere
+    // A key is approved for the origin the card showed, and goes nowhere
     // else: a manifest pointed elsewhere later asks again.
     await requireShownOrigin({
       errors,
       origin: input.origin,
       slug: input.slug,
     });
+    const loaded = await loadApp(input.slug);
+    if (loaded.isErr()) {
+      throw errors.NOT_FOUND({ message: loaded.error.message });
+    }
+    requireKeepable(loaded.value.manifest, input.keys);
     if (input.chatId !== undefined) {
       await waitInChat(input.slug, input.chatId);
     }
-    setAppCredential(input.slug, { origin: input.origin, value: input.value });
+    setAppCredentials(input.slug, keptKeys(input.keys, input.origin));
     const report = await runAppTest({
       signal: signal ?? AbortSignal.timeout(60_000),
       slug: input.slug,
@@ -788,6 +890,52 @@ const setCredential = base
       detail: failure?.detail.split("\n")[0],
       event: "failed",
     });
+  });
+
+/**
+ * A new key for a connected app, kept only once it passes the app's test:
+ * until then the app goes on using the old one, so a bad paste disconnects
+ * nothing. No chat hears of it, since nothing it uses has changed.
+ */
+const replaceCredential = base
+  .input(
+    z.object({
+      key: GivenKeySchema,
+      /** Where the page told the user the key would go. */
+      origin: z.string().min(1),
+      slug: AppSlugSchema,
+    }),
+  )
+  .output(
+    z.object({
+      outcome: z.enum(["failed", "refused", "replaced"]),
+    }),
+  )
+  .handler(async ({ errors, input, signal }) => {
+    const { key, origin, slug } = input;
+    await requireShownOrigin({ errors, origin, slug });
+    const loaded = await loadApp(slug);
+    if (loaded.isErr()) {
+      throw errors.NOT_FOUND({ message: loaded.error.message });
+    }
+    const { manifestHash, manifest } = loaded.value;
+    requireKeepable(manifest, [key]);
+    const report = await runAppTest({
+      signal: signal ?? AbortSignal.timeout(60_000),
+      slug,
+      trying: [key],
+    });
+    if (!report.passed) {
+      return { outcome: report.keyRefused ? "refused" : "failed" } as const;
+    }
+    // The test took a moment, and the manifest is the agent's to rewrite.
+    const now = await loadApp(slug);
+    if (now.isErr() || now.value.manifestHash !== manifestHash) {
+      return { outcome: "failed" } as const;
+    }
+    setAppCredentials(slug, keptKeys([key], origin));
+    await appChanged(slug);
+    return { outcome: "replaced" } as const;
   });
 
 /**
@@ -816,6 +964,11 @@ const allow = base
       slug: input.slug,
     });
     const failure = report.checks.find((check) => check.status === "fail");
+    // Allowed, and the server reads a key the user has yet to give: the same
+    // card asks for it, so there is nothing to tell the chat yet.
+    if (failure?.name === "credential") {
+      return report;
+    }
     await appChanged(input.slug, {
       detail: report.passed
         ? "its server was installed and started"
@@ -943,6 +1096,7 @@ export const apps = {
   read,
   remove,
   setAccount,
+  replaceCredential,
   setCredential,
   setUp,
   signInOnWeb,

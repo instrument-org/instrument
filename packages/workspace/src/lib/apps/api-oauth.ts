@@ -10,6 +10,7 @@ import { type Result } from "neverthrow";
 
 import { getWorkspaceConfig } from "../workspace-config";
 import { type ApiSignInClient, catalogApiSignInClient } from "./catalog";
+import { bearerKey } from "./keys";
 import { type ApiAppManifest } from "./manifest";
 import { describeMcpFailure } from "./mcp/client";
 import { fetchForMcp } from "./mcp/fetch";
@@ -302,7 +303,7 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
 export async function performSignedInRequest({
   slug,
   ...request
-}: Omit<Parameters<typeof performAppRequest>[0], "credential"> & {
+}: Omit<Parameters<typeof performAppRequest>[0], "keys"> & {
   slug: string;
 }): Promise<{
   result: Result<AppResponse, AppRequestError>;
@@ -312,13 +313,16 @@ export async function performSignedInRequest({
     fresh: false,
     signal: request.signal,
   });
-  let result = await performAppRequest({ ...request, credential: token });
+  let result = await performAppRequest({
+    ...request,
+    keys: [bearerKey(token)],
+  });
   if (result.isOk() && result.value.status === 401) {
     token = await apiAccessToken(slug, request.manifest, {
       fresh: true,
       signal: request.signal,
     });
-    result = await performAppRequest({ ...request, credential: token });
+    result = await performAppRequest({ ...request, keys: [bearerKey(token)] });
   }
   return { result, token };
 }

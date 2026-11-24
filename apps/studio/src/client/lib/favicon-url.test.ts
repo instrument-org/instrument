@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 
 import { getFaviconUrl } from "./favicon-url";
@@ -20,6 +21,15 @@ describe("getFaviconUrl", () => {
     expect(getFaviconUrl("https://example.com/one")).toBe(
       getFaviconUrl("http://example.com:8080/two"),
     );
+  });
+
+  it("asks for the icon of the theme on screen", () => {
+    const root = document.documentElement;
+    root.classList.add("dark");
+    const dark = getFaviconUrl("https://example.com");
+    root.classList.remove("dark");
+    expect(dark).toContain("?theme=dark");
+    expect(getFaviconUrl("https://example.com")).toContain("?theme=light");
   });
 
   it("passes a source that is not a URL through as written", () => {

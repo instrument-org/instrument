@@ -11,6 +11,7 @@ import { MEMORY_FOLDER_NAME } from "../../constants";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type DeviceId } from "../../schemas/device-id";
 import { rewriteFileSync } from "../rewrite-file";
+import { readText } from "../workspace-files";
 import { utcStamp } from "../utc-stamp";
 import { chatIdNamedBy, splitFrontMatter } from "@instrument-org/shared";
 
@@ -90,7 +91,7 @@ export async function forgetMemories(
   await Promise.all(
     memories.map((memory) => fs.rm(memory.path, { force: true })),
   );
-  writeMemoryRecords(
+  await writeMemoryRecords(
     dir,
     memories.map((memory) => ({
       fileName: `${memory.name}${FILE_EXTENSION}`,
@@ -121,7 +122,7 @@ export async function listMemories(dir: AbsolutePath): Promise<Memory[]> {
   } catch {
     return [];
   }
-  const records = readMemoryRecords(dir);
+  const records = await readMemoryRecords(dir);
   const memories = await Promise.all(
     entries
       .filter((entry) => entry.isFile() && isMemoryFileName(entry.name))
@@ -175,7 +176,7 @@ export async function readMemory(
   return readMemoryFile(
     dir,
     `${name}${FILE_EXTENSION}`,
-    readMemoryRecords(dir),
+    await readMemoryRecords(dir),
   );
 }
 
@@ -207,11 +208,14 @@ export async function saveMemory(
   // Built from the file as it is when written: front matter in it that this
   // build does not know, left by the person or another program, stays.
   let replaced = false;
+  // A cloud service may keep the file by name only: downloaded here, off the
+  // main thread, so the write below does not wait on it.
+  await readText(filePath).catch(() => undefined);
   rewriteFileSync(filePath, (held) => {
     replaced = held !== undefined;
     return memoryFile({ body, others: othersIn(held) });
   });
-  writeMemoryRecords(dir, [
+  await writeMemoryRecords(dir, [
     {
       fileName,
       record: { ...(chat ? { chat } : {}), updated: utcStamp(new Date(at)) },
@@ -462,7 +466,7 @@ export async function moveMemoryFrontMatterToStore(
         ) ?? {
           updated: utcStamp(stat.mtime),
         };
-      writeMemoryRecords(
+      await writeMemoryRecords(
         dir,
         [{ at: stat.mtime.getTime(), fileName, record }],
         device,

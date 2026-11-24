@@ -224,6 +224,6 @@ describe("app setup from the chat", () => {
     });
 
     expect(written.stderr).toBe("");
-    expect((await apps.getCredential(slug)) !== null).toBe(kept);
+    expect((await apps.getCredentials(slug)).length > 0).toBe(kept);
   });
 });

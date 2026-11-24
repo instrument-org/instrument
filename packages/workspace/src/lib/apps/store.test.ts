@@ -183,7 +183,7 @@ describe("writing an app", () => {
     const { rootDir } = getWorkspaceConfig();
     const other = {
       device: newDeviceId(),
-      devicesDir: workspaceLayout(rootDir).devicesDir,
+      rootDir,
     };
     await (
       await appsStore(other)

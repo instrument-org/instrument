@@ -34,7 +34,8 @@ vi.mock("electron", () => ({
   },
 }));
 
-const { keyFileDeserializer, keyFileSerializer } = await import("./key-file");
+const { keyFileDeserializer, keyFileSerializer, requireSavableKeys } =
+  await import("./key-file");
 
 type Shape = { token?: string };
 
@@ -134,6 +135,21 @@ describe("an unreadable key file", () => {
     expect(fs.readFileSync(file(), "utf8")).toBe(encrypted);
     encryption.available = true;
     expect(store.get("token")).toBe("kept");
+  });
+
+  it("refuses a save with no keyring, and a removal only where there is something to remove", () => {
+    const at = { dir: () => dir, name: "keys" };
+    encryption.available = false;
+    expect(() => requireSavableKeys(at)).toThrow(/keyring/);
+    expect(() => requireSavableKeys({ ...at, removes: true })).not.toThrow();
+
+    encryption.available = true;
+    open().set("token", "kept");
+    expect(() => requireSavableKeys(at)).not.toThrow();
+    encryption.available = false;
+    expect(() => requireSavableKeys({ ...at, removes: true })).toThrow(
+      /keyring/,
+    );
   });
 
   it("writes an empty file where there is none and no keyring", () => {

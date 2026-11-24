@@ -36,9 +36,9 @@ const madeByCommand: Assertion = {
       /\binstrument projects create\b(?![^;&|]*--help)/.test(command),
     );
     const evidence = made
-      ? `${made.name}: icon ${made.icon ?? "-"}, ${made.unsaved ? "no record" : "record written"}, unknown keys ${Object.keys(made.others ?? {}).join(", ") || "none"}; create ran: ${String(ran)}`
+      ? `${made.name}: icon ${made.icon ?? "-"}, unknown keys ${Object.keys(made.others ?? {}).join(", ") || "none"}; create ran: ${String(ran)}`
       : "no project named for the garden";
-    return made && ran && !made.unsaved && made.others === undefined
+    return made && ran && made.others === undefined
       ? pass(text, evidence)
       : fail(text, evidence);
   },

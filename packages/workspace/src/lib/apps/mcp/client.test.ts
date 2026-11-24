@@ -113,7 +113,7 @@ afterEach(async () => {
 describe("withMcpClient", () => {
   it("connects, lists tools, and calls a tool with token auth", async () => {
     const result = await withMcpClient({
-      config: { auth: { kind: "bearer", value: "good-token" }, url: baseUrl },
+      config: { headers: { Authorization: "Bearer good-token" }, url: baseUrl },
       run: async (client) => {
         const tools = await listMcpTools(client);
         const call = await callMcpTool(client, {
@@ -133,7 +133,7 @@ describe("withMcpClient", () => {
 
   it("reports unauthorized when the token is wrong", async () => {
     const result = await withMcpClient({
-      config: { auth: { kind: "bearer", value: "bad-token" }, url: baseUrl },
+      config: { headers: { Authorization: "Bearer bad-token" }, url: baseUrl },
       run: (client) => listMcpTools(client),
     });
 
@@ -150,7 +150,7 @@ describe("withMcpClient", () => {
   it("reports forbidden, with what the server said, on a 403", async () => {
     refusal = { body: "This workspace has no API access.", status: 403 };
     const result = await withMcpClient({
-      config: { auth: { kind: "bearer", value: "good-token" }, url: baseUrl },
+      config: { headers: { Authorization: "Bearer good-token" }, url: baseUrl },
       run: (client) => listMcpTools(client),
     });
 
@@ -171,7 +171,7 @@ describe("withMcpClient", () => {
       status: 502,
     };
     const result = await withMcpClient({
-      config: { auth: { kind: "bearer", value: "good-token" }, url: baseUrl },
+      config: { headers: { Authorization: "Bearer good-token" }, url: baseUrl },
       run: (client) => listMcpTools(client),
     });
 
@@ -187,7 +187,7 @@ describe("withMcpClient", () => {
   it("classifies a refusal after the connect the same way", async () => {
     refusal = { body: "token expired", method: "tools/list", status: 401 };
     const result = await withMcpClient({
-      config: { auth: { kind: "bearer", value: "good-token" }, url: baseUrl },
+      config: { headers: { Authorization: "Bearer good-token" }, url: baseUrl },
       run: (client) => listMcpTools(client),
     });
 
@@ -212,7 +212,7 @@ describe("withMcpClient", () => {
     await new Promise((resolve) => closed.close(resolve));
 
     const result = await withMcpClient({
-      config: { auth: { kind: "none" }, url: `http://127.0.0.1:${port}/mcp` },
+      config: { headers: {}, url: `http://127.0.0.1:${port}/mcp` },
       run: (client) => listMcpTools(client),
     });
 
@@ -223,7 +223,7 @@ describe("withMcpClient", () => {
 
   it("rejects non-https, non-loopback URLs before connecting", async () => {
     const result = await withMcpClient({
-      config: { auth: { kind: "none" }, url: "http://example.com/mcp" },
+      config: { headers: {}, url: "http://example.com/mcp" },
       run: (client) => listMcpTools(client),
     });
 

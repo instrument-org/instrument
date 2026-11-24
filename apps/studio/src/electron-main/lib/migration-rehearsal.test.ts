@@ -319,7 +319,9 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
  */
 async function runLaunchMigrations(): Promise<void> {
   renameChatDatabases(clone);
-  migrateWorkspaceLayout({
+  const deviceId = newDeviceId();
+  await migrateWorkspaceLayout({
+    device: deviceId,
     filesDir: path.join(machineDir, "Files"),
     machineDir,
     marks: workspaceLayoutMarks(clone),
@@ -327,7 +329,6 @@ async function runLaunchMigrations(): Promise<void> {
     workFoldersDir: path.join(machineDir, "work"),
   });
   settleWorkspaceDb({ machineDir, rootDir: clone });
-  const deviceId = newDeviceId();
   await convertChatRecords({
     appVersion: "0.0.0-rehearsal",
     deviceId,
@@ -342,7 +343,7 @@ async function runLaunchMigrations(): Promise<void> {
   await moveMemoriesToFolder(clone);
   await moveSkillsToFolder(clone);
   await moveProjectsToFolder(clone);
-  await convertProjectsToProjectFiles(clone);
+  await convertProjectsToProjectFiles({ device: deviceId, rootDir: clone });
   // The clone is a copy, so sending an app folder "to the Trash" deletes it.
   await moveAppFoldersToStore(clone, {
     connections: forgottenConnections(),

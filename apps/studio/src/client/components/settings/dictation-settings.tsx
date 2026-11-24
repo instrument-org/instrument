@@ -15,7 +15,7 @@ import {
   microphoneNames,
   pickableInputs,
   resolveMicrophone,
-} from "@/client/lib/dictation-microphone";
+} from "@/shared/dictation-microphone";
 import { toast } from "@/client/lib/toast";
 import { isMacOS, osConventions } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";

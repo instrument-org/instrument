@@ -19,6 +19,7 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { AppCapabilities } from "@/client/components/window/app-capabilities";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { AppMenuButton } from "@/client/components/window/app-menu";
+import { AppKeys } from "@/client/components/window/app-keys";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
@@ -172,6 +173,27 @@ export function AppFront({
   // it installs nothing; macOS asks the person itself on first use.
   const isBundled = app?.type === "mcp-local" && app.bundled;
   const bundledToConnect = isBundled && app.status === "needs-approval";
+  // A test that failed with a key stored may be the key, which nobody but the
+  // person can replace, so it can be pasted again as well as tried again.
+  const rejectedKey =
+    app?.status === "failed" &&
+    app.type !== "web" &&
+    app.authKind !== "none" &&
+    app.authKind !== "oauth";
+  const several = (app?.keys.length ?? 0) > 1;
+  const keyRefused = rejectedKey && app.connection?.keyRefused === true;
+  const tryAgain = (
+    <Button
+      disabled={test.isPending}
+      onClick={() => {
+        test.mutate({ slug });
+      }}
+      size="sm"
+      variant={rejectedKey ? "outline" : "default"}
+    >
+      {test.isPending ? "Trying…" : "Try again"}
+    </Button>
+  );
   const setupTitle =
     !app || bundledToConnect
       ? `Connect ${name}`
@@ -182,14 +204,18 @@ export function AppFront({
             ? `Sign in to ${name} again`
             : `Sign in to ${name}`
           : app.status === "needs-key"
-            ? `Add a key from ${name}`
+            ? several
+              ? `Add keys from ${name}`
+              : `Add a key from ${name}`
             : app.status === "needs-approval"
               ? `Allow ${name} to run on ${osConventions().thisComputer}`
-              : app.status === "failed"
-                ? `Couldn’t connect to ${name}`
-                : app.status === "stale"
-                  ? `${name} changed since it last connected`
-                  : `Finish connecting ${name}`;
+              : keyRefused
+                ? `${name} didn’t accept the ${several ? "keys" : "key"}`
+                : app.status === "failed"
+                  ? `Couldn’t connect to ${name}`
+                  : app.status === "stale"
+                    ? `${name} changed since it last connected`
+                    : `Finish connecting ${name}`;
   const setupDetail = !app
     ? methods.length > 0
       ? `Connects with ${methods.join(" or ")}.`
@@ -200,7 +226,11 @@ export function AppFront({
         ? `Sign in with ${browserName} if you’re already signed in to ${name} there, or here in a tab.`
         : app.status === "stale"
           ? "Try again to connect it as it is now."
-          : undefined;
+          : keyRefused
+            ? several
+              ? "Copy the keys again and paste them here. If you’re sure they’re right, ask Instrument for help."
+              : "Copy the key again and paste it here. If you’re sure it’s right, ask Instrument for help."
+            : undefined;
   // The way out when the buttons beside it are not getting there: last and
   // quiet, so it reads as help rather than one more way to sign in.
   const withInstrument = (
@@ -394,6 +424,17 @@ export function AppFront({
           </Dialog>
         ) : null}
 
+        {isConnected && app.keys.length > 0 ? (
+          <div className="mt-8">
+            <AppKeys
+              keys={app.keys}
+              name={name}
+              origin={app.credentialOrigin}
+              slug={slug}
+            />
+          </div>
+        ) : null}
+
         {/* While the app is still being set up, the one thing that
           finishes it: a line saying what, the controls for it, what went
           wrong last time (kept whole for copying), and the agent beside them
@@ -411,7 +452,9 @@ export function AppFront({
                     </p>
                   ) : null}
                 </div>
-                {app?.status === "failed" && app.connection?.error ? (
+                {app?.status === "failed" &&
+                !keyRefused &&
+                app.connection?.error ? (
                   <div className="group/detail relative rounded-lg bg-muted/60 px-3 py-2 select-text">
                     <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
                       {app.connection.error}
@@ -460,9 +503,18 @@ export function AppFront({
                     }
                     slug={slug}
                   />
-                ) : app?.status === "needs-key" ? (
+                ) : app?.status === "needs-key" || rejectedKey ? (
                   <ConnectControls
-                    alongside={withInstrument}
+                    alongside={
+                      rejectedKey ? (
+                        <>
+                          {tryAgain}
+                          {withInstrument}
+                        </>
+                      ) : (
+                        withInstrument
+                      )
+                    }
                     kind="key"
                     name={name}
                     slug={slug}
@@ -473,15 +525,7 @@ export function AppFront({
                         is set up from the directory; one already here that
                         failed or changed is tested again. */}
                     {app ? (
-                      <Button
-                        disabled={test.isPending}
-                        onClick={() => {
-                          test.mutate({ slug });
-                        }}
-                        size="sm"
-                      >
-                        {test.isPending ? "Trying…" : "Try again"}
-                      </Button>
+                      tryAgain
                     ) : entry ? (
                       <Button
                         disabled={isConnecting}

@@ -24,7 +24,7 @@ import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { chatFor } from "../../test/helpers/chat-record";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
-import { closeAppStores } from "../apps/store";
+import { closeHeldStores } from "../synced-store/held-stores";
 import { seedApp } from "../../test/helpers/seed-app";
 import { chatRecords } from "../records/chat-records";
 import { type WorkspaceActorRef } from "../../machines/workspace";
@@ -161,7 +161,7 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  await closeAppStores();
+  await closeHeldStores();
   for (const root of roots.splice(0)) {
     fs.rmSync(root, { force: true, recursive: true });
   }

@@ -1,35 +1,54 @@
 import { type LiveEvent, publisher } from "../rpc/publisher";
-import { subscribeApps } from "./apps/store";
 import { projectsDir } from "./chat/projects";
-import { watchProjectRecords } from "./chat/project-records";
 import { watchFolder } from "./folder-watch";
-import { watchMemoryRecords } from "./memory/memory-records";
 import { memoryDir } from "./memory/store";
-import { getWorkspaceConfig } from "./workspace-config";
+import { SYNCED_DOMAINS, type SyncedDomain } from "./synced-store/domains";
+import { heldStore } from "./synced-store/held-stores";
 import { getWorkspaceSkillsDir } from "./workspace-skills-dir";
 
 /**
- * Where each list the workspace shows is read from on disk, so a change made
- * there by anyone (the app, the agent, the person in their files, another
- * device) is said as that list's event. A list kept in both a folder and a
- * synced store names both.
+ * The folders of the person's each list is read from. A list kept in a synced
+ * store is read from that too, by the store's own entry in `SYNCED_DOMAINS`.
  */
-const SOURCES = {
-  "app.updated": (say) => [untilStopped(subscribeApps(say))],
+const FOLDERS: Record<LiveEvent, (say: () => void) => (() => void)[]> = {
+  "app.updated": () => [],
   "memory.changed": (say) => [
     watchFolder(memoryDir(), { depth: 0, onChange: say }),
-    watchMemoryRecords(memoryDir(), say),
   ],
   "project.changed": (say) => [
     watchFolder(projectsDir(), { depth: 1, onChange: say }),
-    watchProjectRecords(getWorkspaceConfig().rootDir, say),
   ],
   // Each skill's folder is watched, so a `SKILL.md` saved is heard at once;
   // deeper files are found by the folder's regular read.
   "skill.changed": (say) => [
     watchFolder(getWorkspaceSkillsDir(), { depth: 1, onChange: say }),
   ],
-} satisfies Record<LiveEvent, (say: () => void) => (() => void)[]>;
+};
+
+/**
+ * Follows everything a list is read from, so a change made there by anyone
+ * (the app, the agent, the person in their files, another device) is said as
+ * the list's event.
+ */
+function follow(event: LiveEvent): (() => void)[] {
+  const say = () => {
+    publisher.publish(event, null);
+  };
+  const stores = Object.entries(SYNCED_DOMAINS).flatMap(([domain, how]) =>
+    "event" in how && how.event === event
+      ? // Object.entries widens the keys of a const object to string.
+        [untilStopped(subscribeStore(domain as SyncedDomain, say))]
+      : [],
+  );
+  return [...FOLDERS[event](say), ...stores];
+}
+
+async function subscribeStore(
+  domain: SyncedDomain,
+  say: () => void,
+): Promise<() => void> {
+  return (await heldStore(domain)).subscribe(say);
+}
 
 /** The sources being watched, by event, and how many listen. */
 const watched = new Map<
@@ -65,9 +84,7 @@ export function changesTo(event: LiveEvent, signal: AbortSignal | undefined) {
 function watchSources(event: LiveEvent): () => void {
   const held = watched.get(event) ?? {
     listening: 0,
-    stops: SOURCES[event](() => {
-      publisher.publish(event, null);
-    }),
+    stops: follow(event),
   };
   watched.set(event, held);
   held.listening += 1;

@@ -40,6 +40,7 @@ import {
   projectsSet,
   projectsUnretire,
 } from "./projects";
+import { settingsGet, settingsList, settingsSet } from "./settings";
 import { taskNew } from "./task/fork";
 import { taskList } from "./task/list";
 import { taskLog } from "./task/log";
@@ -102,6 +103,9 @@ export const CAPABILITIES: readonly Capability[] = [
   projectsIcons,
   projectsRetire,
   projectsUnretire,
+  settingsList,
+  settingsGet,
+  settingsSet,
   taskNew,
   taskSend,
   taskStop,

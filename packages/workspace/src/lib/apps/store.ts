@@ -1,18 +1,12 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { err, ok, type Result } from "neverthrow";
 import { createHash } from "node:crypto";
-import path from "node:path";
 import { omit } from "radashi";
 import { z } from "zod";
 
-import { type DeviceId } from "../records/device-id";
-import {
-  openSyncedStore,
-  type SyncedStore,
-} from "../synced-store/synced-store";
+import { heldStore, type WorkspacePlace } from "../synced-store/held-stores";
+import { type SyncedStore } from "../synced-store/synced-store";
 import { type SyncedOp } from "../synced-store/synced-record";
-import { getWorkspaceConfig } from "../workspace-config";
-import { workspaceLayout } from "../workspace-layout";
 import { macAppNamed } from "../mac-apps/apps";
 import { APP_COMMAND } from "../../model-text/commands/app-command";
 import { macAppGuide } from "../../model-text/guides/mac-app-guide";
@@ -86,70 +80,9 @@ interface AppLoadError {
   reason: "invalid-manifest" | "invalid-slug" | "not-found";
 }
 
-/** One store per workspace and device in this process, opened on first use. */
-const stores = new Map<string, Promise<SyncedStore>>();
-
-/** Each store's writes, one at a time, so a read-then-write never loses another's change. */
-const writing = new Map<string, Promise<unknown>>();
-
-function storeKey({
-  device,
-  devicesDir,
-}: {
-  device: DeviceId;
-  devicesDir: string;
-}) {
-  return `${path.resolve(devicesDir)}\0${device}`;
-}
-
-function currentPlace() {
-  const config = getWorkspaceConfig();
-  return {
-    device: config.deviceId,
-    devicesDir: workspaceLayout(config.rootDir).devicesDir,
-  };
-}
-
-/**
- * The apps store of the workspace this process runs, or of the one `place`
- * names (a launch step that runs before the workspace's config is set).
- */
-export function appsStore(
-  place: { device: DeviceId; devicesDir: string } = currentPlace(),
-): Promise<SyncedStore> {
-  const key = storeKey(place);
-  let store = stores.get(key);
-  if (!store) {
-    store = openSyncedStore({
-      ...place,
-      domain: APPS_DOMAIN,
-      onError: (error) => {
-        if (process.env.NODE_ENV !== "test") {
-          console.warn("Apps: could not read another device's changes", error);
-        }
-      },
-    });
-    stores.set(key, store);
-    // A store that failed to open is opened again by the next caller.
-    store.catch(() => {
-      if (stores.get(key) === store) {
-        stores.delete(key);
-      }
-    });
-  }
-  return store;
-}
-
-/** Stops every store's watch and forgets it; for tests that start a workspace over. */
-export async function closeAppStores(): Promise<void> {
-  const open = [...stores.values()];
-  stores.clear();
-  writing.clear();
-  for (const store of await Promise.allSettled(open)) {
-    if (store.status === "fulfilled") {
-      store.value.close();
-    }
-  }
+/** The apps store of the workspace this process runs, or of the one `place` names. */
+export function appsStore(place?: WorkspacePlace): Promise<SyncedStore> {
+  return heldStore(APPS_DOMAIN, place);
 }
 
 /**
@@ -157,23 +90,21 @@ export async function closeAppStores(): Promise<void> {
  * asked for before it has landed.
  */
 async function writeApps<T>(
-  make: (
-    store: SyncedStore,
-  ) => Promise<{ ops: SyncedOp[]; result: T }> | { ops: SyncedOp[]; result: T },
-  place: { device: DeviceId; devicesDir: string } = currentPlace(),
+  make: (store: SyncedStore) => { ops: SyncedOp[]; result: T },
 ): Promise<T> {
-  const key = storeKey(place);
-  const store = await appsStore(place);
-  const before = writing.get(key) ?? Promise.resolve();
-  const run = before
-    .catch(() => undefined)
-    .then(async () => {
-      const { ops, result } = await make(store);
-      await store.apply(ops);
-      return result;
-    });
-  writing.set(key, run);
-  return run;
+  const store = await appsStore();
+  return store.exclusive(async () => {
+    await store.caughtUp();
+    const { ops, result } = make(store);
+    await store.apply(ops);
+    return result;
+  });
+}
+
+/** Makes changes that do not depend on what the store has. */
+async function setKeys(ops: SyncedOp[]): Promise<void> {
+  const store = await appsStore();
+  await store.exclusive(() => store.apply(ops));
 }
 
 function appValueOf(value: unknown): AppValue | undefined {
@@ -519,13 +450,10 @@ export async function writeApp({
 
 /** Takes the app and its icon out of the store. */
 export async function removeApp(slug: AppSlug): Promise<void> {
-  await writeApps(() => ({
-    ops: [
-      { key: appKey(slug), t: "del" },
-      { key: appIconKey(slug), t: "del" },
-    ],
-    result: undefined,
-  }));
+  await setKeys([
+    { key: appKey(slug), t: "del" },
+    { key: appIconKey(slug), t: "del" },
+  ]);
 }
 
 /** The app's own icon, when it has one. */
@@ -543,10 +471,7 @@ export async function writeAppIcon(
   slug: AppSlug,
   icon: AppIconValue,
 ): Promise<void> {
-  await writeApps(() => ({
-    ops: [{ key: appIconKey(slug), t: "set", value: icon }],
-    result: undefined,
-  }));
+  await setKeys([{ key: appIconKey(slug), t: "set", value: icon }]);
 }
 
 /**
@@ -563,14 +488,6 @@ export async function appFingerprint(slug: AppSlug): Promise<string> {
       ]),
     )
     .digest("base64url");
-}
-
-/**
- * Hears of each change to the apps, made here or arriving from another
- * device; answers the stop.
- */
-export async function subscribeApps(listener: () => void): Promise<() => void> {
-  return (await appsStore()).subscribe(listener);
 }
 
 function appInfoOf(name: string, app: AppFile): AppInfo {

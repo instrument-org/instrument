@@ -34,6 +34,15 @@
   text-underline-offset: 3px;
 }
 
+.prompt-site-icon,
+.md-site-icon {
+  color-scheme: light;
+
+  .dark & {
+    color-scheme: dark;
+  }
+}
+
 .prompt-editor .prompt-site-icon:not([hidden]) {
   display: inline-block;
   width: 14px;

@@ -32,6 +32,7 @@ export {
   getAppCatalog,
   searchAppCatalogByMeaning,
 } from "./lib/apps/catalog";
+export { type AppSetting, type AppSettings } from "./lib/app-settings";
 export { type AppEvent, appChanged } from "./lib/apps/changed";
 export { parseRecordFileName } from "./lib/records/file-names";
 export { accountSignedIn } from "./lib/chat/sign-in-wake";
@@ -58,7 +59,9 @@ export {
   AppSlugSchema,
   isMcpManifest,
 } from "./lib/apps/manifest";
-export { requireAppCredential } from "./lib/apps/credential-origin";
+export { requireAppKeys } from "./lib/apps/credential-origin";
+export { appKeySlots, type GivenKey } from "./lib/apps/keys";
+export { unsendableKey } from "./lib/apps/request";
 export {
   callMcpTool,
   listMcpTools,
@@ -82,7 +85,9 @@ export { mcpAuthProviderForCommand } from "./lib/apps/mcp/tool-auth";
 export {
   credentialOrigin,
   type OriginBound,
+  boundTo,
   type StoredAppCredential,
+  type StoredAppKey,
 } from "./lib/apps/origin-bound";
 export { checkAppSignIns } from "./lib/apps/sign-in-lost";
 export { appHomeFor, appSiteFor } from "./lib/apps/site";

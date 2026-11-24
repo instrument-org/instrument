@@ -5,7 +5,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEVICE_A, DEVICE_B } from "../records/test-records";
 import { withTempDir } from "../../test/helpers/temp-dir";
 import { readBytes } from "../workspace-files";
-import { openSyncedStore, type SyncedStore } from "./synced-store";
+import {
+  openSyncedStore,
+  type SyncedStore,
+  SyncedStoreBehindError,
+} from "./synced-store";
 
 vi.mock(import("../workspace-files"), async (importOriginal) => {
   const actual = await importOriginal();
@@ -133,6 +137,50 @@ describe("openSyncedStore", () => {
     expect(b.get("bookmark/x")).toBeUndefined();
     await b.look();
     expect(b.get("bookmark/x")).toEqual({ title: "From A" });
+  });
+
+  it("is caught up only once every other device's file is read", async () => {
+    const other = await open(DEVICE_B);
+    await other.apply([{ key: "bookmark/a", t: "set", value: 1 }]);
+    const store = await open();
+    await store.caughtUp();
+
+    await other.apply([{ key: "bookmark/a", t: "set", value: 2 }]);
+    vi.mocked(readBytes).mockRejectedValue(new Error("still downloading"));
+    await expect(store.caughtUp()).rejects.toThrow(SyncedStoreBehindError);
+    expect(store.get("bookmark/a")).toBe(1);
+
+    vi.mocked(readBytes).mockReset();
+    vi.mocked(readBytes).mockImplementation((file) =>
+      fs.promises.readFile(file),
+    );
+    await store.caughtUp();
+    expect(store.get("bookmark/a")).toBe(2);
+  });
+
+  it("runs exclusive work one at a time, in order, past one that failed", async () => {
+    const store = await open();
+    const steps: string[] = [];
+    const run = (name: string, fails = false) =>
+      store.exclusive(async () => {
+        steps.push(`${name} starts`);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        steps.push(`${name} ends`);
+        if (fails) {
+          throw new Error(name);
+        }
+      });
+    const results = await Promise.allSettled([run("a", true), run("b")]);
+    expect(steps).toEqual(["a starts", "a ends", "b starts", "b ends"]);
+    expect(results.map((result) => result.status)).toEqual([
+      "rejected",
+      "fulfilled",
+    ]);
+  });
+
+  it("does not open over a file of its own it cannot read", async () => {
+    vi.mocked(readBytes).mockRejectedValueOnce(new Error("held"));
+    await expect(open()).rejects.toThrow("held");
   });
 
   it("leaves other files in the devices folder alone", async () => {

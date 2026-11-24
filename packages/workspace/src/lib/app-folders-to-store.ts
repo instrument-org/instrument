@@ -74,7 +74,7 @@ export async function moveAppFoldersToStore(
 ): Promise<AppFoldersMovedToStore> {
   const taken: AppFoldersMovedToStore = { done: [], left: [] };
   const layout = workspaceLayout(rootDir);
-  const store = await appsStore({ device, devicesDir: layout.devicesDir });
+  const store = await appsStore({ device, rootDir });
   const topLevel = path.join(rootDir, APPS_FOLDER_NAME);
   for (const dir of [
     path.join(layout.dataDir, WORKSPACE_DATA_ENTRIES.apps),

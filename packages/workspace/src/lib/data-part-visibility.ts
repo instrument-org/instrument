@@ -38,6 +38,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   "data-browserStatus": "dev",
   // What the turn's `chats` commands did to the person's chats, with Undo.
   "data-chatChanges": "always",
+  // What the turn's `settings` commands set in the app, with Undo.
+  "data-settingChanges": "always",
   // Developer-mode only, deliberately. What happens here is a rollover, not a
   // compaction: assembly stops sending the model's own earlier turns and
   // carries the user's across verbatim, with nothing summarized. Any wording

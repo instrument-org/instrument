@@ -33,8 +33,9 @@ import {
 } from "../apps/manifest";
 import {
   credentialMovedMessage,
-  lookupAppCredential,
+  lookupAppKeys,
 } from "../apps/credential-origin";
+import { appKeySlots } from "../apps/keys";
 import { credentialOrigin } from "../apps/origin-bound";
 import {
   guidePlaceholdersLeft,
@@ -49,7 +50,7 @@ import {
 } from "../apps/store";
 import { checkAppIcon, setAppIcon } from "../apps/icon";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
-import { catalogWayIn, parseAuth } from "../apps/way-in";
+import { catalogWayIn, parseAuths } from "../apps/way-in";
 import { macAppNamed } from "../mac-apps/apps";
 import { bundledMacAppHere } from "../apps/mac-app";
 import { formatAppTestReport, runAppTest } from "../apps/test-app";
@@ -390,12 +391,12 @@ async function signOutWhereReachChanged(
     return "";
   }
   const { apps } = getWorkspaceConfig();
-  const [credential, connection, tokens] = await Promise.all([
-    apps.getCredential(slug),
+  const [keys, connection, tokens] = await Promise.all([
+    apps.getCredentials(slug),
     apps.connections.get(slug),
     apps.oauth?.store.getTokens(slug),
   ]);
-  if (credential === null && connection === undefined && tokens === undefined) {
+  if (keys.length === 0 && connection === undefined && tokens === undefined) {
     return "";
   }
   await apps.disconnect(slug);
@@ -581,7 +582,7 @@ async function runNew(input: z.output<typeof NewInput>) {
       "--sign-in goes with --web: only a web app signs in on a page of its own.",
     );
   }
-  if (web && input.auth !== undefined) {
+  if (web && input.auth.length > 0) {
     throw new Error(
       "a web app takes no --auth: the user signs in on the site itself.",
     );
@@ -595,9 +596,9 @@ async function runNew(input: z.output<typeof NewInput>) {
       : undefined;
   const auth = web
     ? undefined
-    : mcp !== undefined && input.auth === undefined && signInSupport === "open"
+    : mcp !== undefined && input.auth.length === 0 && signInSupport === "open"
       ? { kind: "none" as const }
-      : parseAuth(input.auth, local ? "mcp-local" : mcp ? "mcp" : "api");
+      : parseAuths(input.auth, local ? "mcp-local" : mcp ? "mcp" : "api");
   const headers = Object.fromEntries(
     input.header.map((header) => {
       const [key, ...valueParts] = header.split(":");
@@ -712,11 +713,9 @@ async function runNew(input: z.output<typeof NewInput>) {
   // bound to the origin it was saved for, so only a manifest that still sends
   // requests there reuses it; one pointed elsewhere asks the user again.
   const stored =
-    manifest.type === "web" ||
-    manifest.auth.kind === "none" ||
-    manifest.auth.kind === "oauth"
+    appKeySlots(manifest).length === 0
       ? undefined
-      : await lookupAppCredential(slug, manifest);
+      : await lookupAppKeys(slug, manifest);
   const next =
     manifest.type === "web"
       ? `Ask the user to sign in with ${TOOL_NAMES.connectApp}: the card opens ${manifest.signIn ?? manifest.url} in ${APP_NAME}'s browser, and the app connects when they say they are signed in.`
@@ -725,10 +724,10 @@ async function runNew(input: z.output<typeof NewInput>) {
         : manifest.auth.kind === "oauth"
           ? `Ask the user to sign in with ${TOOL_NAMES.connectApp}; the app connects on its own when they do.`
           : stored?.kind === "ok"
-            ? `A key for this app is already stored for ${credentialOrigin(manifest)}: run \`${APP_COMMAND.name} test ${slug}\` to try it against this manifest, without asking the user again. Ask for it with ${TOOL_NAMES.connectApp} only once every placement has been refused.`
+            ? `${appKeySlots(manifest).length > 1 ? "Keys for this app are" : "A key for this app is"} already stored for ${credentialOrigin(manifest)}: run \`${APP_COMMAND.name} test ${slug}\` to try this setup with what is stored, without asking the user again. Ask for it again with ${TOOL_NAMES.connectApp} only once every placement has been refused.`
             : stored?.kind === "moved"
               ? credentialMovedMessage({ noun: "key", ...stored })
-              : `Ask the user for the key with ${TOOL_NAMES.connectApp}, then \`${APP_COMMAND.name} test ${slug}\` after the note.`;
+              : `Ask the user for the ${appKeySlots(manifest).length > 1 ? `${appKeySlots(manifest).length} keys, on one card,` : "key"} with ${TOOL_NAMES.connectApp}, then \`${APP_COMMAND.name} test ${slug}\` after the note.`;
   const another =
     siblings.length > 0
       ? ` It is another ${name} account beside ${siblings.map((app) => (app.manifest.account ? `${app.slug} (${app.manifest.account})` : app.slug)).join(", ")}, so it keeps the name ${name}${givenName === name ? "" : ` rather than "${givenName}"`}: its account is what tells them apart, named when the user has signed in.`
@@ -896,9 +895,9 @@ const NewInput = z.object({
   sign_in: z.string().optional().meta({
     description: "With --web, where its sign-in starts, when not at the url.",
   }),
-  auth: z.string().optional().meta({
+  auth: z.array(z.string()).default([]).meta({
     description:
-      "oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, env:<VAR> or none.",
+      "oauth, bearer, basic, basic:<user>, header:<Name>, query:<param>, env:<VAR> or none. Once per key for a service that takes several, each '<Label>=<placement>'.",
   }),
   header: z.array(z.string()).default([]).meta({
     description: "'<Name>: <value>', a header every request sends.",
@@ -945,6 +944,11 @@ A key the service documents as HTTP Basic credentials takes basic (the key
 alone) or basic:<user> (the key as the password behind a fixed username);
 the base64 happens here, so the user pastes the key exactly as the service
 gave it to them and is never asked to encode or prefix anything.
+A service that wants several keys with every request takes --auth once for
+each, labeled with the service's own name for that key, which is what the
+user reads beside its field, and a --test that needs all of them:
+--auth 'API key=header:DD-API-KEY'
+--auth 'Application key=header:DD-APPLICATION-KEY'. One card asks for them all.
 --local names an MCP server that runs on this machine, installed from npm
 (--runtime node, the default) or PyPI (--runtime python), or one of the
 Mac's own apps' servers ${APP_NAME} ships (--runtime bundled, the line

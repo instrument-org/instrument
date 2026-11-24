@@ -140,6 +140,7 @@ const MARK_OF_PART: Record<
   "data-ratingCard": "note",
   "data-requestFailure": "error",
   "data-requestNote": "once",
+  "data-settingChanges": "computer",
   "data-setupChanges": "skill",
   "data-setupNews": "skill",
   "data-signedIn": "apps",
@@ -363,6 +364,12 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
       return named(
         "Chats changed",
         chatsChanged(part.data.changes).length.toString(),
+      );
+    }
+    case "data-settingChanges": {
+      return named(
+        "Settings changed",
+        someOf(part.data.changes.map((one) => one.title)),
       );
     }
     case "data-setupChanges":

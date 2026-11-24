@@ -3,6 +3,7 @@ import { type Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { err, type Result } from "neverthrow";
 
 import { readConnection } from "../connection";
+import { type PlacedKey } from "../keys";
 import { type LocalMcpAppManifest, type McpAppManifest } from "../manifest";
 import {
   type McpConnectionError,
@@ -23,14 +24,14 @@ import { mcpAuthProviderForCommand } from "./tool-auth";
  * user agreed to run, so they are asked again rather than silently obeyed.
  */
 export async function withAppMcpClient<T>({
-  credential,
+  keys,
   manifest,
   manifestHash,
   run,
   signal,
   slug,
 }: {
-  credential: null | string;
+  keys: PlacedKey[];
   manifest: LocalMcpAppManifest | McpAppManifest;
   manifestHash: string;
   run: (client: Client) => Promise<T>;
@@ -40,7 +41,7 @@ export async function withAppMcpClient<T>({
   if (manifest.type === "mcp") {
     return withMcpClient({
       authProvider: mcpAuthProviderForCommand(slug, manifest),
-      config: mcpConnectionConfig(manifest, credential),
+      config: mcpConnectionConfig(manifest, keys),
       run,
       signal,
     });
@@ -62,7 +63,7 @@ export async function withAppMcpClient<T>({
     return err({ message: prepared.error, reason: "connect" });
   }
   return withLocalMcpClient({
-    launch: localLaunchConfig(prepared.value, manifest, credential),
+    launch: localLaunchConfig(prepared.value, keys),
     run,
   });
 }

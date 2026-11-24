@@ -3,6 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { AGENT_SETTINGS } from "@/shared/agent-settings";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -200,4 +201,22 @@ describe("settingsTargetOf", () => {
       }
     `);
   });
+});
+
+describe("the settings a chat can read", () => {
+  it.each(Object.entries(AGENT_SETTINGS))(
+    "%s links to a row",
+    (id, setting) => {
+      const { title } = setting;
+      const row = "row" in setting ? setting.row : undefined;
+      if (row === false) {
+        return;
+      }
+      const entry = SETTINGS_INDEX.find((each) => each.id === (row ?? id));
+      expect(entry).toBeDefined();
+      if (row === undefined) {
+        expect(entry?.title).toBe(title);
+      }
+    },
+  );
 });

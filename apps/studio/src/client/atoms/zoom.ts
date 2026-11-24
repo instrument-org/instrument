@@ -1,13 +1,12 @@
 import { type AppCommand } from "@/shared/app-command";
-import { steppedZoom } from "@/shared/zoom";
+import {
+  APP_ZOOM_KEY,
+  clampZoom,
+  steppedZoom,
+  ZOOM_MAX,
+  ZOOM_MIN,
+} from "@/shared/zoom";
 import { keptAtom } from "@/client/lib/kept-state";
-
-export const ZOOM_MAX = 2;
-export const ZOOM_MIN = 0.5;
-
-function clampZoom(value: number) {
-  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));
-}
 
 /**
  * The UI zoom, applied as the CSS `zoom` property on each window's root.
@@ -21,7 +20,7 @@ function clampZoom(value: number) {
  */
 export const zoomAtom = keptAtom<number>(
   "view",
-  "zoom.v1",
+  APP_ZOOM_KEY,
   1,
   (value, initial) =>
     typeof value === "number" && Number.isFinite(value)

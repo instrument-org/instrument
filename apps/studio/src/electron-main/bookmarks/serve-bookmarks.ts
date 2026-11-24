@@ -15,6 +15,9 @@ import path from "node:path";
 import { logger } from "../lib/electron-logger";
 import { createBookmarkStore, importBookmarksFile } from "./bookmark-store";
 
+/** How long until bookmarks that could not be opened are tried again. */
+const RETRY_MS = 60_000;
+
 let store: null | ReturnType<typeof createBookmarkStore> = null;
 
 /** What a window loading before the workspace opens reads. */
@@ -52,6 +55,17 @@ export function serveBookmarks(): void {
  * taken in first.
  */
 export async function openBookmarks(device: DeviceId): Promise<void> {
+  try {
+    await open(device);
+  } catch (error) {
+    // This device's own file could not be read. The windows have no bookmarks
+    // and take no change to them until it can.
+    logger.error("Bookmarks: could not open them, and will try again", error);
+    setTimeout(() => void openBookmarks(device), RETRY_MS).unref();
+  }
+}
+
+async function open(device: DeviceId): Promise<void> {
   const layout = workspaceLayout(getWorkspaceFolder());
   const synced = await openSyncedStore({
     device,

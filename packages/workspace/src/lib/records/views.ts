@@ -50,6 +50,7 @@ const CONVERSATION_PARTS = new Set<string>([
   "data-modelChange",
   "data-permissionAnswer",
   "data-ratingCard",
+  "data-settingChanges",
   "data-setupChanges",
   "data-viewContext",
   "text",

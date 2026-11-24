@@ -6,16 +6,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type LiveEvent } from "../rpc/publisher";
 import { WorkspaceDirSchema } from "../schemas/paths";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { closeAppStores } from "./apps/store";
+import * as folderWatch from "./folder-watch";
 import { setWorkspaceInFront } from "./in-front";
 import { changesTo } from "./live-changes";
 import { memoryDir } from "./memory/store";
 import { DEVICE_B } from "./records/test-records";
 import { SYNCED_DOMAINS, type SyncedDomain } from "./synced-store/domains";
-import { applySyncedOps } from "./synced-store/synced-files";
+import { closeHeldStores, heldStore } from "./synced-store/held-stores";
 import * as devices from "./synced-store/watch-devices";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
-import { workspaceLayout } from "./workspace-layout";
 
 let root: string;
 let controller: AbortController;
@@ -34,7 +33,7 @@ afterEach(async () => {
   controller.abort();
   setWorkspaceInFront(false);
   vi.restoreAllMocks();
-  await closeAppStores();
+  await closeHeldStores();
   await fs.rm(root, { force: true, recursive: true });
 });
 
@@ -53,23 +52,19 @@ function heardOf(event: LiveEvent) {
  * Makes a change again until one is heard: one made while a store is still
  * opening is part of its first read, which a live route reads from anyway.
  */
-async function untilHeard(heard: () => void, change: () => void) {
+async function untilHeard(heard: () => void, change: () => Promise<void>) {
   await vi.waitFor(
-    () => {
-      change();
+    async () => {
+      await change();
       expect(heard).toHaveBeenCalled();
     },
     { interval: 600, timeout: 10_000 },
   );
 }
 
-function writeAsAnotherDevice(domain: SyncedDomain) {
-  applySyncedOps({
-    device: DEVICE_B,
-    devicesDir: workspaceLayout(root).devicesDir,
-    domain,
-    ops: [{ key: crypto.randomUUID(), t: "set", value: {} }],
-  });
+async function writeAsAnotherDevice(domain: SyncedDomain) {
+  const store = await heldStore(domain, { device: DEVICE_B, rootDir: root });
+  await store.apply([{ key: crypto.randomUUID(), t: "set", value: {} }]);
 }
 
 const shown = Object.entries(SYNCED_DOMAINS).flatMap(([domain, how]) =>
@@ -95,8 +90,8 @@ describe("every synced store shown through an event", () => {
     async ({ domain, event }) => {
       vi.spyOn(devices, "watchDevices").mockReturnValue(() => undefined);
       const heard = heardOf(event);
-      await untilHeard(heard, () => {
-        writeAsAnotherDevice(domain);
+      await untilHeard(heard, async () => {
+        await writeAsAnotherDevice(domain);
         setWorkspaceInFront(true);
       });
       expect(heard).toHaveBeenCalled();
@@ -113,7 +108,7 @@ it("names every store so no file reads as another's conflict copy", () => {
 
 it("watches once however many listen, until the last stops", () => {
   const stop = vi.fn();
-  const watch = vi.spyOn(devices, "watchDevices").mockReturnValue(stop);
+  const watch = vi.spyOn(folderWatch, "watchFolder").mockReturnValue(stop);
   const first = new AbortController();
   const second = new AbortController();
   changesTo("project.changed", first.signal);

@@ -10,10 +10,8 @@ const SETTLE_MS = ms("250 milliseconds");
 /**
  * Calls `look` whenever any device's file of the domain may have changed,
  * until the stop it answers is called: after a burst of watch events, and by
- * the rule of `in-front.ts` for a change the watch missed. The one way a
- * synced store is watched, whether it is held open (`openSyncedStore`) or
- * read from its files (`watchSyncedFiles`); `look` finds out what changed,
- * if anything did.
+ * the rule of `in-front.ts` for a change the watch missed. `look` finds out what
+ * changed, if anything did.
  */
 export function watchSynced({
   devicesDir,

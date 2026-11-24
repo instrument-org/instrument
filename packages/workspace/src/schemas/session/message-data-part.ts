@@ -38,6 +38,7 @@ export namespace SessionMessageDataPart {
     "intent",
     "jobEvent",
     "layoutChanges",
+    "settingChanges",
     "setupChanges",
     "setupNews",
     "signedIn",
@@ -120,6 +121,7 @@ export namespace SessionMessageDataPart {
     pageTakeover: "event",
     permissionAnswer: "event",
     questionAnswer: "event",
+    settingChanges: "event",
     setupChanges: "event",
     setupNews: "diff",
     signedIn: "event",
@@ -605,6 +607,34 @@ export namespace SessionMessageDataPart {
   });
 
   export type ChatChangesDataPart = z.output<typeof ChatChangesDataPartSchema>;
+
+  const SettingValueSchema = z.object({ label: z.string(), value: z.string() });
+
+  /** One of the app's settings a turn set, with its value on either side of the turn. */
+  export const SettingChangeSchema = z.object({
+    after: SettingValueSchema,
+    before: SettingValueSchema,
+    id: z.string(),
+    /** The setting's address in the app, where it has a row in Settings. */
+    link: z.string().optional(),
+    title: z.string(),
+  });
+
+  export type SettingChange = z.output<typeof SettingChangeSchema>;
+
+  /**
+   * What a turn set in the app through the `settings` command, each with the
+   * value from before, shown as a card that offers to undo it.
+   */
+  export const SettingChangesDataPartSchema = z.object({
+    changes: z.array(SettingChangeSchema).min(1),
+    /** Set once the person took the changes back with the card's Undo. */
+    undone: CardUndoneSchema.optional(),
+  });
+
+  export type SettingChangesDataPart = z.output<
+    typeof SettingChangesDataPartSchema
+  >;
 
   /**
    * The workspace's skills that changed since this session last heard, by
@@ -1810,6 +1840,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.messageGap]: MessageGapDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.outputLimit]: OutputLimitDataPartSchema,
+    [NameSchema.enum.settingChanges]: SettingChangesDataPartSchema,
     [NameSchema.enum.setupChanges]: SetupChangesDataPartSchema,
     [NameSchema.enum.setupNews]: SetupNewsDataPartSchema,
     [NameSchema.enum.signedIn]: SignedInDataPartSchema,

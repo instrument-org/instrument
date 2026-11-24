@@ -9,14 +9,14 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { WorkspaceDirSchema } from "../schemas/paths";
-import { readProjectRecords } from "./chat/project-records";
+import { projectRecords, projectsStore } from "./chat/project-records";
 import {
   folderProjectId,
-  readProjectsSync,
+  readProjects,
   PROJECT_FILE_NAME,
   PROJECT_ID_FILE_NAME,
   PROJECTS_FOLDER_NAME,
-  writeProjectSync,
+  writeProject,
 } from "./chat/projects";
 import {
   convertProjectsToProjectFiles,
@@ -25,6 +25,7 @@ import {
   moveProjectFrontMatterToStore,
 } from "./projects-move";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
+import { runningPlace } from "./synced-store/held-stores";
 import { workspaceLayout } from "./workspace-layout";
 
 let root: string;
@@ -133,7 +134,7 @@ describe("convertProjectsToProjectFiles", () => {
       projectId: "prj_01KXB5K5ZSQNZ8NQJPQRYRAAS1",
     });
 
-    const converted = await convertProjectsToProjectFiles(root);
+    const converted = await convertProjectsToProjectFiles();
 
     expect(converted).toEqual({
       done: ["converted Kitchen to its record"],
@@ -148,7 +149,7 @@ describe("convertProjectsToProjectFiles", () => {
       The standing instructions.
       "
     `);
-    expect(readProjectRecords(root).get("top_Kitchen")).toEqual({
+    expect(projectRecords(await projectsStore()).get("top_Kitchen")).toEqual({
       about: "Kitchen plans and appliances",
       color: "amber",
       created: "2026-09-02T14:14:00Z",
@@ -162,7 +163,7 @@ describe("convertProjectsToProjectFiles", () => {
     // And the project reads back as the one the two files held, its folders a
     // key this build carries for the launch that grants them on this
     // computer (`moveProjectFolders`) and otherwise does not read.
-    expect(readProjectsSync(root)).toEqual([
+    expect(await readProjects()).toEqual([
       {
         about: "Kitchen plans and appliances",
         color: "amber",
@@ -183,9 +184,11 @@ describe("convertProjectsToProjectFiles", () => {
       sortsAfter: "Kitchen",
     });
 
-    await convertProjectsToProjectFiles(root);
+    await convertProjectsToProjectFiles();
 
-    expect(readProjectRecords(root).get("top_Trips")?.retired).toBe(true);
+    expect(
+      projectRecords(await projectsStore()).get("top_Trips")?.retired,
+    ).toBe(true);
     expect(await projectFile("Trips")).toBe("---\nsortsAfter: Kitchen\n---\n");
   });
 
@@ -193,7 +196,7 @@ describe("convertProjectsToProjectFiles", () => {
     await writeOldProject(folder(), "Kitchen", {
       instructions: "The old ones.",
     });
-    await convertProjectsToProjectFiles(root);
+    await convertProjectsToProjectFiles();
     const written = await projectFile("Kitchen");
     // The person edits the file the conversion wrote.
     await fs.writeFile(
@@ -205,20 +208,20 @@ describe("convertProjectsToProjectFiles", () => {
       instructions: "The old ones.",
     });
 
-    const converted = await convertProjectsToProjectFiles(root);
+    const converted = await convertProjectsToProjectFiles();
 
     expect(converted).toEqual({ done: [], left: [] });
     expect(await projectFile("Kitchen")).toContain("What I actually want.");
-    expect(readProjectsSync(root)[0]?.instructions).toBe(
+    expect((await readProjects())[0]?.instructions).toBe(
       "What I actually want.",
     );
   });
 
   it("finds nothing to convert on a second launch", async () => {
     await writeOldProject(folder(), "Kitchen");
-    expect((await convertProjectsToProjectFiles(root)).done).toHaveLength(1);
+    expect((await convertProjectsToProjectFiles()).done).toHaveLength(1);
 
-    expect(await convertProjectsToProjectFiles(root)).toEqual({
+    expect(await convertProjectsToProjectFiles()).toEqual({
       done: [],
       left: [],
     });
@@ -228,7 +231,7 @@ describe("convertProjectsToProjectFiles", () => {
     await fs.mkdir(path.join(folder(), "Scratch"), { recursive: true });
     await fs.writeFile(path.join(folder(), "Scratch", "notes.md"), "mine");
 
-    expect(await convertProjectsToProjectFiles(root)).toEqual({
+    expect(await convertProjectsToProjectFiles()).toEqual({
       done: [],
       left: [],
     });
@@ -240,7 +243,7 @@ describe("convertProjectsToProjectFiles", () => {
   it("leaves the old files where they are when the settings name no project", async () => {
     await writeOldProject(folder(), "Kitchen", { id: 7 });
 
-    const converted = await convertProjectsToProjectFiles(root);
+    const converted = await convertProjectsToProjectFiles();
 
     expect(converted.done).toEqual([]);
     expect(converted.left).toEqual([
@@ -261,7 +264,7 @@ describe("convertProjectsToProjectFiles", () => {
     // Reading a folder fails as a file that will not read does.
     await fs.mkdir(path.join(folder(), "Kitchen", "instructions.md"));
 
-    const converted = await convertProjectsToProjectFiles(root);
+    const converted = await convertProjectsToProjectFiles();
 
     expect(converted.done).toEqual([]);
     expect(converted.left).toMatchObject([
@@ -273,7 +276,7 @@ describe("convertProjectsToProjectFiles", () => {
   });
 
   it("does nothing for a workspace with no Projects folder", async () => {
-    expect(await convertProjectsToProjectFiles(root)).toEqual({
+    expect(await convertProjectsToProjectFiles()).toEqual({
       done: [],
       left: [],
     });
@@ -320,7 +323,7 @@ describe("moveTopicsToProjects", () => {
     expect(
       (await fs.readdir(path.join(folder(), "Kitchen"))).toSorted(),
     ).toEqual([PROJECT_FILE_NAME, "plan.pdf"]);
-    expect(readProjectsSync(root)).toMatchObject([
+    expect(await readProjects()).toMatchObject([
       { id: "top_1", instructions: "Induction only.", name: "Kitchen" },
     ]);
     expect(await moveTopicsToProjects(root)).toEqual({ done: [], left: [] });
@@ -372,8 +375,6 @@ describe("moveTopicsToProjects", () => {
 });
 
 describe("moveProjectFrontMatterToStore", () => {
-  const device = () => getWorkspaceConfig().deviceId;
-
   async function writeFile(name: string, text: string, at?: Date) {
     await fs.mkdir(path.join(folder(), name), { recursive: true });
     const file = path.join(folder(), name, PROJECT_FILE_NAME);
@@ -394,7 +395,7 @@ describe("moveProjectFrontMatterToStore", () => {
     );
     await writeFile("Garden", "Water on Sundays.\n");
 
-    const settled = moveProjectFrontMatterToStore(root, device());
+    const settled = await moveProjectFrontMatterToStore(runningPlace());
 
     expect(settled).toMatchInlineSnapshot(`
       {
@@ -417,7 +418,7 @@ describe("moveProjectFrontMatterToStore", () => {
     expect(await fs.readdir(path.join(folder(), "Trips"))).toEqual([
       PROJECT_ID_FILE_NAME,
     ]);
-    const records = Object.fromEntries(readProjectRecords(root));
+    const records = Object.fromEntries(projectRecords(await projectsStore()));
     expect(records).toHaveProperty(folderProjectId("Garden"));
     expect({
       prj_kitchen: records.prj_kitchen,
@@ -437,7 +438,7 @@ describe("moveProjectFrontMatterToStore", () => {
         },
       }
     `);
-    expect(moveProjectFrontMatterToStore(root, device())).toEqual({
+    expect(await moveProjectFrontMatterToStore(runningPlace())).toEqual({
       done: [],
       left: [],
     });
@@ -451,20 +452,22 @@ describe("moveProjectFrontMatterToStore", () => {
       "Kitchen",
       "---\nid: prj_kitchen\ncreated: 2026-09-02T09:14:00Z\n---\n\nInduction only.\n",
     );
-    moveProjectFrontMatterToStore(root, device());
+    await moveProjectFrontMatterToStore(runningPlace());
 
     await writeFile(
       "Kitchen",
       "---\nid: prj_drawnfromname\nemoji: 🔪\ncreated: 2026-11-01T00:00:00Z\n---\n\nInduction only.\n",
       new Date(Date.now() + 60_000),
     );
-    moveProjectFrontMatterToStore(root, device());
+    await moveProjectFrontMatterToStore(runningPlace());
 
-    expect(readProjectRecords(root).get("prj_kitchen")).toEqual({
+    expect(projectRecords(await projectsStore()).get("prj_kitchen")).toEqual({
       created: "2026-09-02T09:14:00Z",
       emoji: "🔪",
     });
-    expect(readProjectRecords(root).has("prj_drawnfromname")).toBe(false);
+    expect(projectRecords(await projectsStore()).has("prj_drawnfromname")).toBe(
+      false,
+    );
     expect(await projectFile("Kitchen")).toBe("Induction only.\n");
   });
 
@@ -473,11 +476,11 @@ describe("moveProjectFrontMatterToStore", () => {
       "Kitchen",
       "---\nid: prj_kitchen\ncreated: 2026-09-02T09:14:00Z\n---\n",
     );
-    moveProjectFrontMatterToStore(root, device());
-    const [kitchen] = readProjectsSync(root);
+    await moveProjectFrontMatterToStore(runningPlace());
+    const [kitchen] = await readProjects();
     expect(kitchen).toBeDefined();
     if (kitchen) {
-      writeProjectSync(root, { ...kitchen, emoji: "🍳" });
+      await writeProject({ ...kitchen, emoji: "🍳" });
     }
 
     await writeFile(
@@ -485,9 +488,11 @@ describe("moveProjectFrontMatterToStore", () => {
       "---\nemoji: 🔪\n---\n",
       new Date(Date.now() - 60 * 60_000),
     );
-    moveProjectFrontMatterToStore(root, device());
+    await moveProjectFrontMatterToStore(runningPlace());
 
-    expect(readProjectRecords(root).get("prj_kitchen")?.emoji).toBe("🍳");
+    expect(
+      projectRecords(await projectsStore()).get("prj_kitchen")?.emoji,
+    ).toBe("🍳");
     await expect(projectFile("Kitchen")).rejects.toThrow();
   });
 
@@ -496,15 +501,15 @@ describe("moveProjectFrontMatterToStore", () => {
       "Kitchen",
       "---\nid: prj_kitchen\ncreated: 2026-09-02T09:14:00Z\n---\n\nInduction only.\n",
     );
-    moveProjectFrontMatterToStore(root, device());
+    await moveProjectFrontMatterToStore(runningPlace());
 
     await fs.rename(
       path.join(folder(), "Kitchen"),
       path.join(folder(), "Cooking"),
     );
-    moveProjectFrontMatterToStore(root, device());
+    await moveProjectFrontMatterToStore(runningPlace());
 
-    expect(readProjectsSync(root)).toMatchObject([
+    expect(await readProjects()).toMatchObject([
       { id: "prj_kitchen", instructions: "Induction only.", name: "Cooking" },
     ]);
     expect(

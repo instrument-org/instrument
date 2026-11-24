@@ -5,6 +5,7 @@ import { type InitialRPCContext } from "../context";
 import { apps } from "./apps";
 
 const mocks = vi.hoisted(() => ({
+  canSaveKeys: vi.fn(() => true),
   appChanged: vi.fn(() => Promise.resolve()),
   /** The apps store, by slug: what each app's setup says and what it is called. */
   apps: new Map<string, { manifest: Record<string, unknown>; name: string }>(),
@@ -14,14 +15,19 @@ const mocks = vi.hoisted(() => ({
   oauthState: undefined as string | undefined,
   pending: new Map<string, string>(),
   recordConnection: vi.fn(),
-  requireAppCredential: vi.fn(() => Promise.resolve(null)),
+  requireAppKeys: vi.fn(() => Promise.resolve([])),
   runAppTest: vi.fn(),
-  setAppCredential: vi.fn(),
+  getAppCredentials: vi.fn((): object[] => []),
+  setAppCredentials: vi.fn(),
   withAppMcpClient: vi.fn(),
 }));
 
 vi.mock("@/electron-main/rpc/base", () => ({
   base: os.errors({ API_ERROR: {}, NOT_FOUND: {}, UNAUTHORIZED: {} }),
+}));
+vi.mock("@/electron-main/lib/key-file", () => ({
+  canSaveKeys: mocks.canSaveKeys,
+  KEYS_NOT_SAVABLE: "no keyring",
 }));
 vi.mock("@/electron-main/auth/server", () => ({
   startAuthCallbackServer: () => Promise.resolve(),
@@ -30,8 +36,8 @@ vi.mock("@/electron-main/stores/workspace/app-connections", () => ({
   appConnectionStore: {},
 }));
 vi.mock("@/electron-main/stores/workspace/app-credentials", () => ({
-  hasAppCredential: () => false,
-  setAppCredential: mocks.setAppCredential,
+  getAppCredentials: mocks.getAppCredentials,
+  setAppCredentials: mocks.setAppCredentials,
 }));
 vi.mock("@/electron-main/stores/workspace/app-oauth", () => ({
   appOAuthStore: {
@@ -61,7 +67,7 @@ vi.mock(
     cancelMcpOAuth: mocks.cancelMcpOAuth,
     pendingMcpOAuthSlug: (state: string) => mocks.pending.get(state),
     recordConnection: mocks.recordConnection,
-    requireAppCredential: mocks.requireAppCredential,
+    requireAppKeys: mocks.requireAppKeys,
     runAppTest: mocks.runAppTest,
     withAppMcpClient: mocks.withAppMcpClient,
   }),
@@ -122,21 +128,32 @@ describe("setCredential", () => {
   it("stores the key against the origin the card showed", async () => {
     await call(
       apps.setCredential,
-      { origin: "https://api.example.com", slug: "keyed", value: "k3y" },
+      {
+        origin: "https://api.example.com",
+        keys: [{ value: "k3y" }],
+        slug: "keyed",
+      },
       options,
     );
 
-    expect(mocks.setAppCredential).toHaveBeenCalledWith("keyed", {
-      origin: "https://api.example.com",
-      value: "k3y",
-    });
+    expect(mocks.setAppCredentials).toHaveBeenCalledWith("keyed", [
+      {
+        origin: "https://api.example.com",
+        savedAt: expect.any(Number) as number,
+        value: "k3y",
+      },
+    ]);
   });
 
   it("refuses the key when the manifest points elsewhere than the card showed", async () => {
     await expect(
       call(
         apps.setCredential,
-        { origin: "https://collector.example", slug: "keyed", value: "k3y" },
+        {
+          origin: "https://collector.example",
+          keys: [{ value: "k3y" }],
+          slug: "keyed",
+        },
         options,
       ),
     ).rejects.toMatchObject({
@@ -144,8 +161,97 @@ describe("setCredential", () => {
       message:
         "The app now points at https://api.example.com instead of https://collector.example. Check the new address before going on.",
     });
-    expect(mocks.setAppCredential).not.toHaveBeenCalled();
+    expect(mocks.setAppCredentials).not.toHaveBeenCalled();
     expect(mocks.runAppTest).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { canSave: true, value: "k3y\u200B", why: /can’t be sent/ },
+    { canSave: false, value: "k3y", why: /no keyring/ },
+  ])(
+    "stores nothing when refusing a key: $why",
+    async ({ canSave, value, why }) => {
+      mocks.canSaveKeys.mockReturnValueOnce(canSave);
+      await expect(
+        call(
+          apps.setCredential,
+          {
+            origin: "https://api.example.com",
+            keys: [{ value }],
+            slug: "keyed",
+          },
+          options,
+        ),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringMatching(why) as string,
+      });
+      expect(mocks.setAppCredentials).not.toHaveBeenCalled();
+      mocks.canSaveKeys.mockReset().mockReturnValue(true);
+    },
+  );
+
+  it("refuses a key under a label the setup does not name", async () => {
+    await expect(
+      call(
+        apps.setCredential,
+        {
+          keys: [{ label: "Other", value: "k3y" }],
+          origin: "https://api.example.com",
+          slug: "keyed",
+        },
+        options,
+      ),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mocks.setAppCredentials).not.toHaveBeenCalled();
+  });
+});
+
+describe("replaceCredential", () => {
+  const replace = () =>
+    call(
+      apps.replaceCredential,
+      {
+        key: { value: "n3w" },
+        origin: "https://api.example.com",
+        slug: "keyed",
+      },
+      options,
+    );
+
+  beforeEach(async () => {
+    await writeApp("Keyed", "keyed", {
+      auth: { kind: "bearer" },
+      url: "https://api.example.com/v1",
+      test: { path: "/me" },
+      type: "api",
+    });
+  });
+
+  it.each([
+    { keyRefused: true, outcome: "refused" },
+    { keyRefused: false, outcome: "failed" },
+  ])("keeps the old key when the test has $outcome", async (test) => {
+    mocks.runAppTest.mockResolvedValueOnce({
+      checks: [],
+      keyRefused: test.keyRefused,
+      passed: false,
+      slug: "keyed",
+    });
+    await expect(replace()).resolves.toEqual({ outcome: test.outcome });
+    expect(mocks.setAppCredentials).not.toHaveBeenCalled();
+  });
+
+  it("keeps the new key once it has passed, tried before it is stored", async () => {
+    mocks.runAppTest.mockImplementationOnce(() => {
+      expect(mocks.setAppCredentials).not.toHaveBeenCalled();
+      return Promise.resolve({ checks: [], passed: true, slug: "keyed" });
+    });
+    await expect(replace()).resolves.toEqual({ outcome: "replaced" });
+    expect(mocks.runAppTest).toHaveBeenCalledWith(
+      expect.objectContaining({ trying: [{ value: "n3w" }] }),
+    );
+    expect(mocks.setAppCredentials).toHaveBeenCalledOnce();
   });
 });
 
@@ -210,7 +316,7 @@ describe("inspect", () => {
   });
 
   it("asks for a key when the stored one is gone, without reading as a fault", async () => {
-    mocks.requireAppCredential.mockRejectedValueOnce(new Error("no key"));
+    mocks.requireAppKeys.mockRejectedValueOnce(new Error("no key"));
 
     await expect(
       call(apps.inspect, { slug: "keyed-mcp" }, options),

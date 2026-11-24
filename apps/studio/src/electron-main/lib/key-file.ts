@@ -13,6 +13,8 @@ export const KEY_FILE_EXTENSION = is.dev ? "json" : "json.enc";
 
 /** Each key store's name, and so its file's in the keys folder. */
 export const KEY_STORE_NAMES = {
+  appCredentials: "app-credentials",
+  appOAuth: "app-oauth",
   chatgptAccount: "chatgpt-account",
   grokAccount: "grok-account",
   providerConfigs: "providers",
@@ -33,6 +35,43 @@ export function decodeKeyFile(value: string): string {
     throw new Error("Encryption is not available");
   }
   return safeStorage.decryptString(Buffer.from(value, "base64"));
+}
+
+/** What the person is told when a key or sign-in can't be kept. */
+export const KEYS_NOT_SAVABLE =
+  "Your computer’s keyring isn’t available, so Instrument can’t save this. Unlock it, then try again.";
+
+/** Whether there is a keyring to encrypt a key file with. */
+export function canSaveKeys(): boolean {
+  return is.dev || safeStorage.isEncryptionAvailable();
+}
+
+/**
+ * Throws when a change to the key store `name` in `dir` would be lost, for a
+ * store that says so rather than keep the change until the app quits. A
+ * removal (`removes`) is lost only where a file holds something to remove.
+ */
+export function requireSavableKeys({
+  dir,
+  name,
+  removes = false,
+}: {
+  dir: () => string;
+  name: string;
+  removes?: boolean;
+}): void {
+  if (canSaveKeys()) {
+    return;
+  }
+  if (removes) {
+    const file = fs.statSync(path.join(dir(), keyFileName(name)), {
+      throwIfNoEntry: false,
+    });
+    if (file === undefined || file.size === 0) {
+      return;
+    }
+  }
+  throw new Error(KEYS_NOT_SAVABLE);
 }
 
 /**

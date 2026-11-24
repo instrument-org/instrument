@@ -11,7 +11,7 @@ import {
   SelectTrigger,
 } from "@/client/components/ui/select";
 import { useCloseOnWindowBlur } from "@/client/hooks/use-close-on-window-blur";
-import { microphoneNames } from "@/client/lib/dictation-microphone";
+import { microphoneNames } from "@/shared/dictation-microphone";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {

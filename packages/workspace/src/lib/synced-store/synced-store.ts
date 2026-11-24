@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import ms from "ms";
 import { isEqual } from "radashi";
 
 import { DEVICE_ID_PATTERN, type DeviceId } from "../records/device-id";
@@ -38,10 +39,23 @@ export interface SyncedStore {
    * are on disk. A listener hears of the keys that changed before it answers.
    */
   apply(ops: readonly SyncedOp[]): Promise<void>;
+  /**
+   * Reads what other devices' files have gained and answers once every one
+   * is read as it stands, or throws a {@link SyncedStoreBehindError}. For a
+   * write that builds a value on the one the store has: built on an older
+   * one, it would take back what another device changed.
+   */
+  caughtUp(): Promise<void>;
   /** Stops watching. Writes already asked for still land. */
   close(): void;
   /** Every key that has a value, under `prefix` when one is given. */
   entries(prefix?: string): Map<string, unknown>;
+  /**
+   * Runs a read and the write built on it after every one asked for before
+   * has finished, so neither sees the other half done. One run never asks
+   * for another, which would wait for itself.
+   */
+  exclusive<T>(run: () => Promise<T>): Promise<T>;
   get(key: string): unknown;
   /**
    * Reads every other device's file for what it gained since it was last
@@ -51,6 +65,15 @@ export interface SyncedStore {
   look(): Promise<void>;
   /** Hears of the keys each change made here or arriving from elsewhere changed; answers the stop. */
   subscribe(listener: (keys: ReadonlySet<string>) => void): () => void;
+}
+
+/** A file another device wrote could not be read in time, so nothing was written over what it may say. */
+export class SyncedStoreBehindError extends Error {
+  constructor() {
+    super(
+      "Changes from another computer are still arriving. Try again in a moment.",
+    );
+  }
 }
 
 export interface SyncedStoreOptions {
@@ -69,11 +92,18 @@ export interface SyncedStoreOptions {
   watch?: boolean;
 }
 
+/** How long opening, or a write, waits on other devices' files, which a cloud service may be downloading. */
+const WAIT_MS = ms("10 seconds");
+
+/** How many looks a write takes at files that keep changing as they are read. */
+const LOOKS = 3;
+
 const DEVICE_FOLDER = new RegExp(`^${DEVICE_ID_PATTERN}$`);
 
 /**
  * Opens a store, reading every device's file of it as it stands, downloading
- * any a cloud service keeps by name only.
+ * any a cloud service keeps by name only. One still downloading after a
+ * while is taken in when it arrives.
  */
 export async function openSyncedStore({
   device,
@@ -108,7 +138,7 @@ export async function openSyncedStore({
 
   // This device's file is folded from what its writer writes, as it writes
   // it, and from its bytes on disk as the store opens.
-  let ownBytes = await readIfThere(ownFile).catch(() => Buffer.alloc(0));
+  let ownBytes = await readIfThere(ownFile);
   fold.add(ownFile, ownBytes);
   let written = new Set<string>();
   const writer = new RecordWriter<SyncedRecord>(
@@ -129,13 +159,13 @@ export async function openSyncedStore({
   );
 
   /** Every file of the store in the devices folder but this device's own. */
-  const otherFiles = (): string[] => {
+  const otherFiles = async (): Promise<string[]> => {
     const files: string[] = [];
-    for (const folder of namesIn(devicesDir)) {
+    for (const folder of await namesIn(devicesDir)) {
       if (!DEVICE_FOLDER.test(folder)) {
         continue;
       }
-      for (const name of namesIn(path.join(devicesDir, folder))) {
+      for (const name of await namesIn(path.join(devicesDir, folder))) {
         const file = path.join(devicesDir, folder, name);
         if (file !== ownFile && isSyncedFileName(name, domain)) {
           files.push(file);
@@ -145,22 +175,25 @@ export async function openSyncedStore({
     return files;
   };
 
+  /** Each other device's file that is not as the last read of it left it. */
+  const unreadFiles = async () => {
+    const unread: { file: string; stat: fs.Stats }[] = [];
+    for (const file of await otherFiles()) {
+      const stat = await fs.promises.stat(file).catch(() => undefined);
+      const last = seen.get(file);
+      if (stat && (last?.size !== stat.size || last.mtimeMs !== stat.mtimeMs)) {
+        unread.push({ file, stat });
+      }
+    }
+    return unread;
+  };
+
   const lookOnce = async () => {
     if (closed) {
       return;
     }
     const changed = new Set<string>();
-    for (const file of otherFiles()) {
-      let stat: fs.Stats;
-      try {
-        stat = fs.statSync(file);
-      } catch {
-        continue;
-      }
-      const last = seen.get(file);
-      if (last?.size === stat.size && last.mtimeMs === stat.mtimeMs) {
-        continue;
-      }
+    for (const { file, stat } of await unreadFiles()) {
       // Seen only once read, so a read that failed (a cloud file that would
       // not download, one another program holds) is tried again next look.
       const bytes = await readIfThere(file).catch(() => undefined);
@@ -198,7 +231,9 @@ export async function openSyncedStore({
     });
   }
 
-  await look();
+  await inTime(look(), WAIT_MS);
+
+  let running: Promise<unknown> = Promise.resolve();
 
   return {
     apply: async (ops) => {
@@ -223,12 +258,30 @@ export async function openSyncedStore({
         tell(keys);
       }
     },
+    caughtUp: async () => {
+      const until = Date.now() + WAIT_MS;
+      for (let n = 0; n < LOOKS; n += 1) {
+        const isLooked = await inTime(look(), until - Date.now());
+        if (!isLooked) {
+          break;
+        }
+        if ((await unreadFiles()).length === 0) {
+          return;
+        }
+      }
+      throw new SyncedStoreBehindError();
+    },
     close: () => {
       closed = true;
       stopWatch?.();
       listeners.clear();
     },
     entries: (prefix) => fold.entries(prefix),
+    exclusive: (run) => {
+      const result = running.then(run);
+      running = result.catch(() => undefined);
+      return result;
+    },
     get: (key) => {
       const record = fold.newest(key);
       return record?.t === "set" ? record.value : undefined;
@@ -255,10 +308,19 @@ async function readIfThere(file: string): Promise<Buffer> {
   }
 }
 
-function namesIn(dir: string): string[] {
+/** Whether the work ended within `forMs`; what has not goes on. */
+async function inTime(work: Promise<void>, forMs: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const late = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), Math.max(0, forMs));
+  });
   try {
-    return fs.readdirSync(dir);
-  } catch {
-    return [];
+    return await Promise.race([work.then(() => true as const), late]);
+  } finally {
+    clearTimeout(timer);
   }
+}
+
+async function namesIn(dir: string): Promise<string[]> {
+  return fs.promises.readdir(dir).catch(() => []);
 }

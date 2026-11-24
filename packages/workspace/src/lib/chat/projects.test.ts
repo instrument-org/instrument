@@ -6,9 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
 import { utcStamp } from "../utc-stamp";
+import { SyncedStoreBehindError } from "../synced-store/synced-store";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { DeviceIdSchema } from "../../schemas/device-id";
-import { readProjectRecords, writeProjectRecords } from "./project-records";
+import {
+  projectRecords,
+  projectsStore,
+  writeProjectRecords,
+} from "./project-records";
 import {
   createProject,
   folderProjectId,
@@ -19,7 +24,7 @@ import {
   projectName,
   ProjectNameError,
   projectsDir,
-  readProjectsSync,
+  readProjects,
   saveProjectId,
   updateProject,
 } from "./projects";
@@ -152,7 +157,7 @@ describe("project folders", () => {
       "I have the Prime card.
       "
     `);
-    expect(storeOf(made.id)).toEqual({
+    expect(await storeOf(made.id)).toEqual({
       about: "What to buy and where",
       color: "amber",
       created: utcStamp(made.created),
@@ -191,7 +196,7 @@ describe("project folders", () => {
     await retireProject(made.id);
 
     expect(await fs.readFile(file, "utf8")).toBe("Aisle seats, always.\n");
-    expect(storeOf(made.id)).toMatchObject({
+    expect(await storeOf(made.id)).toMatchObject({
       color: "amber",
       emoji: "✈️",
       retired: true,
@@ -201,10 +206,10 @@ describe("project folders", () => {
   it("keeps the created stamp in the store as ISO 8601 in UTC, to the second", async () => {
     const made = await createProject({ name: "Shopping" });
 
-    expect(storeOf(made.id)?.created).toMatch(
+    expect((await storeOf(made.id))?.created).toMatch(
       /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/,
     );
-    expect(storeOf(made.id)?.created).toBe(utcStamp(made.created));
+    expect((await storeOf(made.id))?.created).toBe(utcStamp(made.created));
     // What is in hand and what is read back are the same project, to the second.
     expect((await listProjects())[0]?.created).toEqual(made.created);
   });
@@ -272,7 +277,7 @@ describe("project folders", () => {
       ["Garden", folderProjectId("Garden")],
     ]);
     expect(idFileOf("Trips")).toBe(made.id);
-    expect(storeOf(made.id)).toBeDefined();
+    expect(await storeOf(made.id)).toBeDefined();
   });
 
   it("makes a folder made where a deleted one was a project of its own", async () => {
@@ -330,17 +335,14 @@ describe("project folders", () => {
     expect(await listProjects()).toMatchObject([{ id, name: "Trips" }]);
 
     // Then its record, written there before this computer read the folder.
-    writeProjectRecords(
-      getWorkspaceConfig().rootDir,
-      DeviceIdSchema.parse("dev_Z9Y8X7W6"),
-      [
-        {
-          at: Date.UTC(2026, 0, 1),
-          id,
-          record: { color: "blue", created: "2026-01-01T00:00:00Z", emoji: "🧳" },
-        },
-      ],
-    );
+    await writeProjectRecords(await otherDevice(), [
+      {
+        at: Date.UTC(2026, 0, 1),
+        id,
+        record: { color: "blue", created: "2026-01-01T00:00:00Z", emoji: "🧳" },
+      },
+    ]);
+    await (await projectsStore()).look();
 
     expect(await listProjects()).toMatchObject([
       { color: "blue", emoji: "🧳", id, name: "Trips" },
@@ -353,9 +355,7 @@ describe("project folders", () => {
     // A folder in the id file's place reads as an error that is not "missing".
     await fs.mkdir(path.join(trips, PROJECT_ID_FILE_NAME), { recursive: true });
 
-    expect(readProjectsSync(getWorkspaceConfig().rootDir)).toMatchObject([
-      { id: home.id },
-    ]);
+    expect(await readProjects()).toMatchObject([{ id: home.id }]);
     expect(await listProjects()).toMatchObject([{ id: home.id }]);
     expect(
       fsSync.statSync(path.join(trips, PROJECT_ID_FILE_NAME)).isDirectory(),
@@ -403,17 +403,12 @@ describe("project folders", () => {
     const listed = await listProjects();
 
     expect(
-      listed.map(({ instructions, name, unsaved }) => ({
-        instructions,
-        name,
-        unsaved,
-      })),
+      listed.map(({ instructions, name }) => ({ instructions, name })),
     ).toEqual([
-      { instructions: undefined, name: "Garden", unsaved: undefined },
+      { instructions: undefined, name: "Garden" },
       {
         instructions: "# Repo\n\nRun the tests first.",
         name: "Repo",
-        unsaved: undefined,
       },
     ]);
     // Each goes by an id drawn from its folder's name, the same on every
@@ -422,7 +417,7 @@ describe("project folders", () => {
       folderProjectId("Garden"),
       folderProjectId("Repo"),
     ]);
-    expect(storeOf(folderProjectId("Garden"))).toBeDefined();
+    expect(await storeOf(folderProjectId("Garden"))).toBeDefined();
     expect(idFileOf("Garden")).toBe(folderProjectId("Garden"));
     expect((await listProjects()).map((project) => project.id)).toEqual(
       listed.map((project) => project.id),
@@ -430,17 +425,14 @@ describe("project folders", () => {
     expect(tree(projectsDir())).toEqual(["Repo/AGENTS.md", "notes.txt"]);
   });
 
-  it("writes nothing down where it reads with no device, and the id waits for saveProjectId", async () => {
+  it("keeps a folder's id through a rename once something names it", async () => {
     await fs.mkdir(path.join(projectsDir(), "Repo"), { recursive: true });
     await fs.writeFile(
       path.join(projectsDir(), "Repo", PROJECT_FILE_NAME),
       "# Repo\n\nRun the tests first.\n",
     );
     const id = folderProjectId("Repo");
-    expect(
-      readProjectsSync(getWorkspaceConfig().rootDir, { device: null }),
-    ).toMatchObject([{ id, unsaved: true }]);
-    expect(storeOf(id)).toBeUndefined();
+    expect(await storeOf(id)).toBeUndefined();
 
     expect(await saveProjectId(id)).toBe(true);
     expect(await saveProjectId("prj_nothing")).toBe(false);
@@ -452,7 +444,6 @@ describe("project folders", () => {
     );
     const [code] = await listProjects();
     expect(code).toMatchObject({ id, name: "Code" });
-    expect(code).not.toHaveProperty("unsaved");
   });
 
   it.each([
@@ -546,8 +537,8 @@ function idFileOf(folder: string): string | undefined {
   }
 }
 
-function storeOf(id: string) {
-  return readProjectRecords(getWorkspaceConfig().rootDir).get(id);
+async function storeOf(id: string) {
+  return projectRecords(await projectsStore()).get(id);
 }
 
 function tree(dir: string): string[] {
@@ -564,3 +555,66 @@ function tree(dir: string): string[] {
       .sort()
   );
 }
+
+/** The projects store as another computer sharing the workspace has it. */
+function otherDevice() {
+  return projectsStore({
+    device: DeviceIdSchema.parse("dev_Z9Y8X7W6"),
+    rootDir: getWorkspaceConfig().rootDir,
+  });
+}
+
+describe("a change made while another device's cannot be read", () => {
+  it.runIf(process.platform !== "win32")(
+    "is refused, and keeps what that device changed",
+    async () => {
+      const made = await createProject({ name: "Trips" });
+      const other = await otherDevice();
+      await other.caughtUp();
+      await writeProjectRecords(other, [
+        {
+          id: made.id,
+          record: { created: "2026-01-01T00:00:00Z", retired: true },
+        },
+      ]);
+      const file = path.join(
+        getWorkspaceConfig().rootDir,
+        ".instrument/devices/dev_Z9Y8X7W6/projects.jsonl",
+      );
+      await fs.chmod(file, 0o000);
+
+      await expect(
+        updateProject(made.id, { color: "#ff0000" }),
+      ).rejects.toThrow(SyncedStoreBehindError);
+
+      await fs.chmod(file, 0o644);
+      await updateProject(made.id, { color: "#ff0000" });
+      expect(await storeOf(made.id)).toMatchObject({
+        color: "#ff0000",
+        retired: true,
+      });
+    },
+  );
+});
+
+describe("changes asked for at once", () => {
+  it("keep both, and make one project of one name", async () => {
+    const [a, b] = await Promise.all([
+      createProject({ name: "Trips" }),
+      createProject({ name: "trips" }),
+      listProjects(),
+    ]);
+    expect(a.id).toBe(b.id);
+    await Promise.all([
+      updateProject(a.id, { color: "#ff0000" }),
+      updateProject(a.id, { about: "Where to go." }),
+      updateProject(a.id, { name: "Travel" }),
+      listProjects(),
+    ]);
+    expect(await listProjects()).toMatchObject([
+      { about: "Where to go.", color: "#ff0000", id: a.id, name: "Travel" },
+    ]);
+    expect(idFileOf("Travel")).toBe(a.id);
+    expect(fsSync.readdirSync(projectsDir())).toEqual(["Travel"]);
+  });
+});

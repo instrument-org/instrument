@@ -118,7 +118,7 @@ describe("a project's folders", () => {
   it("are never widened by a `folders:` key written into the project's file", async () => {
     const project = await createProject({ name: "Taxes" });
     filed.project = project.id;
-    moveProjectFolders({ machineDir, rootDir: root });
+    await moveProjectFolders({ machineDir });
 
     listInProjectFile("Taxes", outside);
 
@@ -127,7 +127,7 @@ describe("a project's folders", () => {
       write: "ask",
     });
     // Nor by the launch after, which has moved what the file listed once.
-    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
+    expect(await moveProjectFolders({ machineDir })).toEqual({
       moved: 0,
     });
     expect(await reachOfChat(outside)).toEqual({
@@ -147,7 +147,7 @@ describe("a project's folders", () => {
     );
     listInProjectFile("Taxes", outside);
 
-    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
+    expect(await moveProjectFolders({ machineDir })).toEqual({
       moved: 0,
     });
     expect(await reachOfChat(outside)).toEqual({
@@ -167,7 +167,7 @@ describe("a project's folders", () => {
     expect(markedWhereNoSettings(machineDir)).toBe(true);
     updateJsonRecordSync(permissionsFileIn(machineDir), () => ({ chats: {} }));
 
-    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
+    expect(await moveProjectFolders({ machineDir })).toEqual({
       moved: 0,
     });
     expect(await reachOfChat(outside)).toEqual({
@@ -184,7 +184,7 @@ describe("moveProjectFolders", () => {
     listInProjectFile("Taxes", outside);
     ranHereBefore();
 
-    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
+    expect(await moveProjectFolders({ machineDir })).toEqual({
       moved: 1,
     });
 
@@ -209,7 +209,7 @@ describe("moveProjectFolders", () => {
     await updateProject(project.id, { folders: [{ path: held }] });
     listInProjectFile("Taxes", outside);
 
-    moveProjectFolders({ machineDir, rootDir: root });
+    await moveProjectFolders({ machineDir });
 
     expect((await listProjects())[0]?.folders).toEqual([
       { path: held },
@@ -222,7 +222,7 @@ describe("moveProjectFolders", () => {
     filed.project = project.id;
     listInProjectFile("Taxes", outside);
 
-    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
+    expect(await moveProjectFolders({ machineDir })).toEqual({
       moved: 0,
     });
 
@@ -234,7 +234,7 @@ describe("moveProjectFolders", () => {
     // The file is left for the computer that granted it, and no launch of
     // this one reads it after.
     expect(projectFileText("Taxes")).toContain(outside);
-    expect(moveProjectFolders({ machineDir, rootDir: root })).toEqual({
+    expect(await moveProjectFolders({ machineDir })).toEqual({
       moved: 0,
     });
     expect(await reachOfChat(outside)).toEqual({

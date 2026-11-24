@@ -21,6 +21,7 @@ const { mocks, mutation, query } = vi.hoisted(() => ({
     dismiss: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
     markWebSignedIn:
       vi.fn<(input: { chatId?: string; slug: string }) => Promise<unknown>>(),
+    setCredential: vi.fn<(input: object) => Promise<unknown>>(),
     signInOnWeb: vi.fn<(input: { slug: string }) => Promise<unknown>>(),
     startOAuth:
       vi.fn<
@@ -56,7 +57,12 @@ vi.mock("@/client/rpc/client", () => ({
           mutationFn: mocks.markWebSignedIn,
         }),
       },
-      setCredential: mutation(),
+      setCredential: {
+        mutationOptions: (options: object) => ({
+          ...options,
+          mutationFn: mocks.setCredential,
+        }),
+      },
       signInOnWeb: {
         mutationOptions: (options: object) => ({
           ...options,
@@ -114,6 +120,7 @@ function outlook(
         credentialOrigin: "https://graph.microsoft.com",
         endpoint: "https://graph.microsoft.com/v1.0",
         hasCredential: false,
+        keys: [{ isSaved: false }],
         name: "Outlook",
         site: "https://outlook.office.com",
         ...(type === "web"
@@ -208,9 +215,146 @@ beforeEach(() => {
   mocks.markWebSignedIn.mockReset();
   mocks.signInOnWeb.mockReset();
   mocks.startOAuth.mockReset();
+  mocks.setCredential.mockReset();
   openPage.mockReset();
   showTab.mockReset();
   showTab.mockReturnValue(true);
+});
+
+describe("the card for a local server that reads a key", () => {
+  it.each([
+    { asks: "[Allow and connect]", status: "needs-approval" },
+    { asks: "[Save]", status: "needs-key" },
+  ])("asks $asks when the app $status", async ({ asks, status }) => {
+    mocks.apps.mockResolvedValue({
+      apps: [
+        {
+          authKind: "env",
+          bundled: false,
+          connection: { status, updatedAt: 1 },
+          credentialOrigin: "node-package:service-mcp",
+          endpoint: "service-mcp",
+          hasCredential: false,
+          keys: [{ isSaved: false }],
+          name: "Local",
+          runs: "the npm package service-mcp",
+          slug: "outlook",
+          status,
+          type: "mcp-local",
+        },
+      ],
+    });
+    renderCard(undefined, {
+      kind: "run",
+      name: "Local",
+      runs: "the npm package service-mcp",
+      slug: "outlook",
+      state: "asked",
+    });
+
+    await waitFor(() => {
+      expect(reads()).toContain(asks);
+    });
+    if (status === "needs-key") {
+      expect(reads()).toContain(
+        "Instrument sends this key to the npm package service-mcp.",
+      );
+    }
+  });
+});
+
+describe("the card for an app that takes several keys", () => {
+  const datadog = (
+    keys: { endsIn?: string; isSaved: boolean; label: string }[],
+    connection: { keyRefused?: boolean; status: "failed" | "needs-key" },
+  ) => ({
+    apps: [
+      {
+        authKind: "keys",
+        connection: { ...connection, updatedAt: 1 },
+        credentialOrigin: "https://api.datadoghq.com",
+        endpoint: "https://api.datadoghq.com/api",
+        hasCredential: keys.some((key) => key.isSaved),
+        keys,
+        name: "Datadog",
+        slug: "outlook",
+        status: connection.status,
+        type: "api",
+      },
+    ],
+  });
+  const show = () => {
+    renderCard(undefined, {
+      kind: "key",
+      name: "Datadog",
+      slug: "outlook",
+      state: "asked",
+    });
+  };
+  const saveButton = () => screen.getByRole("button", { name: "Save" });
+
+  it("asks for each by the service's name for it, and saves them together", async () => {
+    mocks.setCredential.mockResolvedValue(undefined);
+    mocks.apps.mockResolvedValue(
+      datadog(
+        [
+          { isSaved: false, label: "API key" },
+          { isSaved: false, label: "Application key" },
+        ],
+        { status: "needs-key" },
+      ),
+    );
+    show();
+
+    const first = await screen.findByPlaceholderText("Paste the API key");
+    const second = screen.getByPlaceholderText("Paste the application key");
+    expect(screen.getByText(/Instrument sends these keys to/)).toBeTruthy();
+    fireEvent.change(first, { target: { value: "one" } });
+    expect(saveButton()).toHaveProperty("disabled", true);
+    fireEvent.keyDown(first, { key: "Enter" });
+    expect(document.activeElement).toBe(second);
+    fireEvent.change(second, { target: { value: "two" } });
+    fireEvent.keyDown(second, { key: "Enter" });
+
+    await waitFor(() => {
+      expect(mocks.setCredential.mock.calls[0]?.[0]).toMatchObject({
+        keys: [
+          { label: "API key", value: "one" },
+          { label: "Application key", value: "two" },
+        ],
+        origin: "https://api.datadoghq.com",
+      });
+    });
+  });
+
+  it("opens both again once refused, and sends only the one pasted", async () => {
+    mocks.setCredential.mockResolvedValue(undefined);
+    mocks.apps.mockResolvedValue(
+      datadog(
+        [
+          { endsIn: "4f2a", isSaved: true, label: "API key" },
+          { endsIn: "91cd", isSaved: true, label: "Application key" },
+        ],
+        { keyRefused: true, status: "failed" },
+      ),
+    );
+    show();
+
+    expect(
+      await screen.findByText("Datadog didn’t accept these keys."),
+    ).toBeTruthy();
+    expect(saveButton()).toHaveProperty("disabled", true);
+    fireEvent.change(screen.getByPlaceholderText("Saved key ends in 91cd"), {
+      target: { value: "two" },
+    });
+    fireEvent.click(saveButton());
+
+    await waitFor(() => {
+      expect(mocks.setCredential.mock.calls[0]?.[0]).toMatchObject({
+        keys: [{ label: "Application key", value: "two" }],
+      });
+    });
+  });
 });
 
 describe("the card for one app", () => {
@@ -516,6 +660,7 @@ function google(statuses: Record<string, string>) {
         credentialOrigin: `https://${slug}.example.com`,
         endpoint: `https://${slug}.example.com/mcp`,
         hasCredential: false,
+        keys: [{ isSaved: false }],
         name,
         slug,
         status,

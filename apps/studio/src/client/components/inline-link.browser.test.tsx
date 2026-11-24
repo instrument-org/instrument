@@ -12,7 +12,7 @@ import { UserMessage } from "./user-message";
 // answers, so here every site has a one-pixel icon.
 vi.mock("@/client/lib/favicon-url", async (importOriginal) => ({
   ...(await importOriginal<typeof FaviconUrl>()),
-  getFaviconUrl: () =>
+  useFaviconUrl: () =>
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
 }));
 

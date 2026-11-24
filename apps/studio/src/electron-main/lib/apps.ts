@@ -7,8 +7,8 @@ import {
 } from "@/electron-main/lib/directory-icons";
 import { appConnectionStore } from "@/electron-main/stores/workspace/app-connections";
 import {
-  getAppCredential,
-  removeAppCredential,
+  getAppCredentials,
+  removeAppCredentials,
 } from "@/electron-main/stores/workspace/app-credentials";
 import {
   appOAuthStore,
@@ -125,7 +125,7 @@ export function createAppsConfig(): WorkspaceConfig["apps"] {
   return {
     connections: appConnectionStore,
     disconnect: disconnectApp,
-    getCredential: (slug) => Promise.resolve(getAppCredential(slug)),
+    getCredentials: (slug) => Promise.resolve(getAppCredentials(slug)),
     oauth: {
       redirectUrl: appOAuthRedirectUrl,
       relayRedirectUrl: appOAuthRelayUrl,
@@ -148,7 +148,7 @@ export async function disconnectApp(
     event?: "disconnected" | "removed";
   } = {},
 ): Promise<void> {
-  removeAppCredential(slug);
+  removeAppCredentials(slug);
   clearAppOAuth(slug);
   await appConnectionStore.remove(slug);
   await appChanged(slug, { event });

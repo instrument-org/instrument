@@ -1,13 +1,8 @@
 import { z } from "zod";
 
-import { type DeviceId } from "../records/device-id";
-import {
-  applySyncedOps,
-  foldSyncedFiles,
-  watchSyncedFiles,
-} from "../synced-store/synced-files";
+import { heldStore, type WorkspacePlace } from "../synced-store/held-stores";
+import { type SyncedStore } from "../synced-store/synced-store";
 import { type SyncedOp } from "../synced-store/synced-record";
-import { workspaceLayout } from "../workspace-layout";
 
 /**
  * What the app keeps about each project, apart from the person's own words:
@@ -24,8 +19,6 @@ import { workspaceLayout } from "../workspace-layout";
  * `.instrument-project` names (`PROJECT_ID_FILE_NAME`), which goes with the
  * folder when it is renamed or synced, so a record never names its folder.
  */
-
-export const PROJECTS_DOMAIN = "projects";
 
 const ProjectRecordSchema = z.object({
   /** The agent's line about what goes here, for later. */
@@ -46,16 +39,15 @@ const ProjectRecordSchema = z.object({
 
 export type ProjectRecord = z.output<typeof ProjectRecordSchema>;
 
-/** Every project's record, by its id, as every device's file has it now. */
-export function readProjectRecords(
-  rootDir: string,
-): Map<string, ProjectRecord> {
-  const fold = foldSyncedFiles({
-    devicesDir: workspaceLayout(rootDir).devicesDir,
-    domain: PROJECTS_DOMAIN,
-  });
+/** The projects store of the workspace this process runs, or of the one `place` names. */
+export function projectsStore(place?: WorkspacePlace): Promise<SyncedStore> {
+  return heldStore("projects", place);
+}
+
+/** Every project's record, by its id. */
+export function projectRecords(store: SyncedStore): Map<string, ProjectRecord> {
   const records = new Map<string, ProjectRecord>();
-  for (const [id, value] of fold.entries()) {
+  for (const [id, value] of store.entries()) {
     const parsed = ProjectRecordSchema.safeParse(value);
     if (parsed.success) {
       records.set(id, parsed.data);
@@ -65,23 +57,16 @@ export function readProjectRecords(
 }
 
 /**
- * Writes each record whole under its id, as this device. A record that
- * already says the same writes nothing; one stamped `at` older than what the
- * store has is not written.
+ * Writes each record whole under its id. A record that already says the same
+ * writes nothing; one stamped `at` older than what the store has is not
+ * written.
  */
 export function writeProjectRecords(
-  rootDir: string,
-  device: DeviceId,
+  store: SyncedStore,
   records: readonly { at?: number; id: string; record: ProjectRecord }[],
-): void {
-  if (records.length === 0) {
-    return;
-  }
-  applySyncedOps({
-    device,
-    devicesDir: workspaceLayout(rootDir).devicesDir,
-    domain: PROJECTS_DOMAIN,
-    ops: records.map(
+): Promise<void> {
+  return store.apply(
+    records.map(
       ({ at, id, record }): SyncedOp => ({
         ...(at === undefined ? {} : { at }),
         key: id,
@@ -89,17 +74,5 @@ export function writeProjectRecords(
         value: ProjectRecordSchema.parse(record),
       }),
     ),
-  });
-}
-
-/** Calls `onChange` when any device changes a project's record, until stopped. */
-export function watchProjectRecords(
-  rootDir: string,
-  onChange: () => void,
-): () => void {
-  return watchSyncedFiles({
-    devicesDir: workspaceLayout(rootDir).devicesDir,
-    domain: PROJECTS_DOMAIN,
-    onChange,
-  });
+  );
 }

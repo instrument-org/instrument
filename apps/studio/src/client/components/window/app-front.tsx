@@ -172,6 +172,25 @@ export function AppFront({
   // it installs nothing; macOS asks the person itself on first use.
   const isBundled = app?.type === "mcp-local" && app.bundled;
   const bundledToConnect = isBundled && app.status === "needs-approval";
+  // A test that failed with a key stored may be the key, which nobody but the
+  // person can replace, so it can be pasted again as well as tried again.
+  const rejectedKey =
+    app?.status === "failed" &&
+    app.type !== "web" &&
+    app.authKind !== "none" &&
+    app.authKind !== "oauth";
+  const tryAgain = (
+    <Button
+      disabled={test.isPending}
+      onClick={() => {
+        test.mutate({ slug });
+      }}
+      size="sm"
+      variant={rejectedKey ? "outline" : "default"}
+    >
+      {test.isPending ? "Trying…" : "Try again"}
+    </Button>
+  );
   const setupTitle =
     !app || bundledToConnect
       ? `Connect ${name}`
@@ -460,9 +479,18 @@ export function AppFront({
                     }
                     slug={slug}
                   />
-                ) : app?.status === "needs-key" ? (
+                ) : app?.status === "needs-key" || rejectedKey ? (
                   <ConnectControls
-                    alongside={withInstrument}
+                    alongside={
+                      rejectedKey ? (
+                        <>
+                          {tryAgain}
+                          {withInstrument}
+                        </>
+                      ) : (
+                        withInstrument
+                      )
+                    }
                     kind="key"
                     name={name}
                     slug={slug}
@@ -473,15 +501,7 @@ export function AppFront({
                         is set up from the directory; one already here that
                         failed or changed is tested again. */}
                     {app ? (
-                      <Button
-                        disabled={test.isPending}
-                        onClick={() => {
-                          test.mutate({ slug });
-                        }}
-                        size="sm"
-                      >
-                        {test.isPending ? "Trying…" : "Try again"}
-                      </Button>
+                      tryAgain
                     ) : entry ? (
                       <Button
                         disabled={isConnecting}

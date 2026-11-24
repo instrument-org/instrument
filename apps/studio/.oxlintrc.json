@@ -103,7 +103,68 @@
       }
     },
     {
+      // The code that runs in the window. An import only for its types is erased.
       "files": ["src/client/**", "src/shared/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "message": "@instrument-org/merge-generators cannot run on the client",
+                "name": "@instrument-org/merge-generators"
+              },
+              {
+                "message": "@instrument-org/workspace/electron cannot run on the client",
+                "name": "@instrument-org/workspace/electron"
+              },
+              {
+                "message": "@instrument-org/workspace/for-shim is not intended for the Studio",
+                "name": "@instrument-org/workspace/for-shim"
+              },
+              {
+                "message": "@instrument-org/ai-gateway cannot run on the client",
+                "name": "@instrument-org/ai-gateway"
+              }
+            ],
+            "patterns": [
+              {
+                "allowTypeImports": true,
+                "message": "Node's modules do not run in the window: the build makes each an empty object, which throws where it is used. Do it in the main process, behind an RPC route.",
+                "regex": "^(node:.+|(assert|async_hooks|buffer|child_process|cluster|crypto|dgram|dns|events|fs|http|http2|https|inspector|module|net|os|path|perf_hooks|process|readline|stream|string_decoder|timers|tls|tty|url|util|v8|vm|worker_threads|zlib)(/.+)?)$"
+              },
+              {
+                "allowTypeImports": true,
+                "message": "Electron and the main process do not run in the window. Reach them through an RPC route, and put what both sides use in src/shared.",
+                "regex": "^(electron(/.+)?|(@|\\.\\.?(/\\.\\.)*)/electron-(main|preload)(/.+)?)$"
+              },
+              {
+                "allowTypeImports": true,
+                "group": [
+                  "@instrument-org/workspace/*",
+                  "!@instrument-org/workspace/client",
+                  "!@instrument-org/workspace/report-outline"
+                ],
+                "message": "This entry of @instrument-org/workspace is not meant for the window. Use @instrument-org/workspace/client; to allow another that imports no Node module, list it beside report-outline."
+              },
+              {
+                "allowTypeImports": true,
+                "message": "Import the icon from its own module -- `@phosphor-icons/react/Check`, not the package root. The root pulls in every icon there is.",
+                "regex": "^@phosphor-icons/react$"
+              },
+              {
+                "message": "Import the function from its own module -- `date-fns/format`, not the package root. The root evaluates every function there is.",
+                "regex": "^date-fns$"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      // Tests run in Node, so they may import it and the main process. The rest
+      // repeats the override above, whose options this replaces.
+      "files": ["src/client/**/*.test.*", "src/shared/**/*.test.*"],
       "rules": {
         "no-restricted-imports": [
           "error",

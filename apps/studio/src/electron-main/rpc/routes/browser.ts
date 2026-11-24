@@ -267,6 +267,17 @@ const syncHostFocus = base.handler(() => {
   getBrowserViewManager().setHostFocus();
 });
 
+// Whether a guest that took the keyboard from its window gives it back: an
+// agent's command put it there. The window holds off hearing it lost the
+// keyboard while one does.
+const returnsKeyboard = base
+  .input(z.object({ targetId: BrowserTargetIdSchema }))
+  .handler(
+    ({ context, input }) =>
+      isForHost(context.webContentsId, input.targetId) &&
+      getBrowserViewManager().returnsKeyboard(input.targetId),
+  );
+
 // The size the pool actually applied to a parked guest. Reported whenever it
 // changes, so main can answer a window-dimension probe with what the guest has
 // rather than what was last asked for -- the two diverge when the window shrinks
@@ -594,6 +605,7 @@ export const browser = {
   zoomGuestAlone,
   syncGuestsPutAway,
   syncGuestSurface,
+  returnsKeyboard,
   syncHostFocus,
   syncRasterBudget,
   thumbnails,

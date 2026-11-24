@@ -3,6 +3,7 @@ import {
   afterAll,
   afterEach,
   beforeAll,
+  beforeEach,
   describe,
   expect,
   it,
@@ -19,6 +20,7 @@ import {
   setPaintHost,
   showOverSlot,
 } from "./browser-pool";
+import { installKeyboardLoan } from "./keyboard-loan";
 
 const target = browserTargetOf(StoreId.newTabId());
 // A tab opened behind the one on screen, which no slot has shown.
@@ -54,7 +56,13 @@ const asks = vi.hoisted(() => {
         ),
     };
   };
-  return { pressed: feed<{ targetId: string }>(), restore: feed<null>() };
+  return {
+    hostFocus: { synced: 0 },
+    pressed: feed<{ targetId: string }>(),
+    restore: feed<null>(),
+    // Whether main says a page holding the keyboard gives it back.
+    returns: { value: false },
+  };
 });
 
 // What main says next about the target, which a test sends when it needs to.
@@ -126,7 +134,13 @@ vi.mock("@/client/rpc/client", () => {
         syncFocus: done,
         syncGuestShown: done,
         syncGuestSurface: done,
-        syncHostFocus: done,
+        returnsKeyboard: { call: () => Promise.resolve(asks.returns.value) },
+        syncHostFocus: {
+          call: () => {
+            asks.hostFocus.synced += 1;
+            return Promise.resolve();
+          },
+        },
         syncRasterBudget: done,
       },
     },
@@ -234,6 +248,80 @@ describe("the keyboard after an agent's command", () => {
     await settled();
     expect(document.activeElement).toBe(guest);
     guest.blur();
+  });
+});
+
+describe("a page found holding a keyboard it took from a field", () => {
+  let endLoans: () => void;
+  let field: HTMLInputElement;
+  let left: number;
+  const guest = () => {
+    const found = [...document.querySelectorAll<HTMLElement>("webview")].find(
+      // The tab no test before these pressed in.
+      (each) => each.getAttribute("partition")?.includes(behind) === true,
+    );
+    if (!found) {
+      throw new Error("no guest");
+    }
+    // jsdom focuses only what has a tab index; Electron's guest takes focus itself.
+    found.tabIndex = -1;
+    return found;
+  };
+  const taken = async () => {
+    field.focus();
+    left = 0;
+    guest().focus();
+    window.dispatchEvent(new Event("blur"));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 20);
+    });
+  };
+  const waited = () =>
+    new Promise((resolve) => {
+      setTimeout(resolve, 200);
+    });
+  beforeEach(() => {
+    endLoans = installKeyboardLoan({
+      isPersonsPage: () => false,
+      isShown: () => true,
+    });
+    field = document.createElement("input");
+    field.addEventListener("blur", () => {
+      left += 1;
+    });
+    document.body.append(field);
+    asks.hostFocus.synced = 0;
+  });
+  afterEach(() => {
+    endLoans();
+    field.remove();
+    guest().blur();
+  });
+
+  it("is left alone while main says an agent's command gives it back", async () => {
+    asks.returns.value = true;
+    await taken();
+    await waited();
+    expect(document.activeElement).toBe(guest());
+    expect(left).toBe(0);
+  });
+
+  it("gives it back to the field with no press of the person's, and tells main the window has it", async () => {
+    asks.returns.value = false;
+    await taken();
+    await waited();
+    expect(document.activeElement).toBe(field);
+    expect(left).toBe(0);
+    expect(asks.hostFocus.synced).toBeGreaterThan(0);
+  });
+
+  it("keeps it after a press of the person's, and the field hears", async () => {
+    asks.returns.value = false;
+    await taken();
+    asks.pressed.send({ targetId: behind });
+    await waited();
+    expect(document.activeElement).toBe(guest());
+    expect(left).toBe(1);
   });
 });
 

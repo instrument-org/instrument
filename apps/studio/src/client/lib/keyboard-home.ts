@@ -22,7 +22,15 @@
  * - A page gives the keyboard back in one place, to where a person last
  *   had it (`returnKeyboardToWindow`), and a field a person is done with
  *   lets go of it in one (`leaveField`).
+ * - A page that only borrows the keyboard, as one an agent presses in does,
+ *   is not heard taking it (`keyboard-loan.ts`).
  */
+
+import {
+  installKeyboardLoan,
+  returnLentKeyboard,
+  tellWindowKeyboardLeft,
+} from "@/client/lib/keyboard-loan";
 
 /** How long a screen has to draw its home after it is asked for, in frames. */
 const HOME_WAIT_FRAMES = 30;
@@ -194,17 +202,26 @@ function putKeyboardIn(home: HTMLElement): boolean {
  */
 export function notePersonInPage(guest: HTMLElement) {
   lastPlace = guest;
+  if (document.activeElement === guest) {
+    tellWindowKeyboardLeft();
+  }
 }
 
 /**
  * Gives the keyboard back from a page an agent's command put it in. Main
  * asks after every command of an agent's, whatever the keyboard did
  * meanwhile, so nothing moves unless a page has it, and a page the person
- * put it in keeps it.
+ * put it in keeps it. It goes back where the page borrowed it from, the
+ * element or nothing, which the window never heard it leave; with no loan
+ * out, to where a person last had it.
  */
 export function returnKeyboardFromAgent() {
   const held = document.activeElement;
-  if (held?.tagName === "WEBVIEW" && held !== lastPlace) {
+  if (
+    held?.tagName === "WEBVIEW" &&
+    held !== lastPlace &&
+    !returnLentKeyboard()
+  ) {
     returnKeyboardToWindow();
   }
 }
@@ -673,6 +690,10 @@ function buttonPressed(target: Element) {
 export function installKeyboardHome() {
   const controller = new AbortController();
   const { signal } = controller;
+  const endLoans = installKeyboardLoan({
+    isPersonsPage: (guest) => guest === lastPlace,
+    isShown,
+  });
   // Whether the press now ending was on a button or a tab, which leaves the
   // keyboard where it was; a page beside the screen loses it all the same,
   // since its guest gives the keyboard up to any press in the window.
@@ -775,6 +796,7 @@ export function installKeyboardHome() {
   );
   return () => {
     controller.abort();
+    endLoans();
     lastPlace = null;
   };
 }

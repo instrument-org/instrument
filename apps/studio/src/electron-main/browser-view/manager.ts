@@ -209,6 +209,10 @@ export interface BrowserViewManager {
   lastLoadOf: (targetId: BrowserTargetId) => GuestLastLoad | null;
   // Record focus returning to any element in the host renderer.
   setHostFocus: () => void;
+  // Whether a guest that took the keyboard from its window holds it for an
+  // agent's command, which hands it back. False for one a person took, or
+  // that took it itself.
+  returnsKeyboard: (targetId: BrowserTargetId) => boolean;
   teardown: () => void;
 }
 
@@ -1385,6 +1389,10 @@ function createBrowserViewManager(): BrowserViewManager {
     focusGuard.claimHost();
   }
 
+  function returnsKeyboard(targetId: BrowserTargetId) {
+    return focusGuard.returnsKeyboard(targetId);
+  }
+
   function continueDespiteCertificate(targetId: BrowserTargetId, url: string) {
     const guest = entries.get(targetId)?.webContents;
     if (
@@ -1487,6 +1495,7 @@ function createBrowserViewManager(): BrowserViewManager {
         }
       }
     },
+    returnsKeyboard,
     setHostFocus,
     teardown: () => {
       // A copy: a tab destroyed and made again under its id while the loop

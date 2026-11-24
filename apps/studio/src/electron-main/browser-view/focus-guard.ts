@@ -177,6 +177,12 @@ export function createFocusGuard({
     releaseHost() {
       hostFocusClaimed = false;
     },
+    // Whether a guest holding the keyboard has it for an agent's command, to
+    // be handed back to the host: every path that restores host focus needs
+    // the host's claim and a guard on the target.
+    returnsKeyboard(targetId: BrowserTargetId): boolean {
+      return hostFocusClaimed && isGuarded(targetId);
+    },
   };
 }
 

@@ -1032,6 +1032,72 @@ describe("sendCommand", () => {
       expect(presses()).toHaveLength(2);
     });
 
+    it("measures after the agent's pointer has shown the press, with nothing asked of the page between that and the press", async () => {
+      // The page moves the element while it draws the pointer's press.
+      let y = 393;
+      let movesAt: number | undefined = 356;
+      const asked: string[] = [];
+      const wcSendCommand = vi.fn().mockImplementation((method: string) => {
+        asked.push(method);
+        return Promise.resolve(
+          method === "DOM.getContentQuads" ? quads(y) : {},
+        );
+      });
+      const entry = makeEntry({ sendCommand: wcSendCommand });
+      const entries = new Map([[TARGET_ID, entry]]);
+      const send = (method: string, params: unknown) =>
+        dispatch({ byAgent: true, entries, method, params });
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
+      asked.length = 0;
+      const page = entry.webContents;
+      if (!page) {
+        throw new Error("the entry has no page");
+      }
+      vi.spyOn(page, "executeJavaScriptInIsolatedWorld").mockImplementation(
+        () => {
+          asked.push("pointer");
+          y = movesAt ?? y;
+          return Promise.resolve(undefined);
+        },
+      );
+
+      await expect(
+        send("Input.dispatchMouseEvent", { ...click, type: "mousePressed" }),
+      ).rejects.toThrow(/element moved after it was measured/);
+      expect(asked).toEqual(["pointer", "DOM.getContentQuads"]);
+
+      y = 393;
+      movesAt = undefined;
+      asked.length = 0;
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
+      await send("Input.dispatchMouseEvent", {
+        ...click,
+        type: "mousePressed",
+      });
+      expect(asked).toEqual([
+        "DOM.getContentQuads",
+        "pointer",
+        "DOM.getContentQuads",
+        "Input.dispatchMouseEvent",
+      ]);
+    });
+
+    it("holds the point pressed, which agent-browser rounds, to the element rather than the point measured", async () => {
+      // Measured from 0.4 to 10.4 across, so its center is 5.4 and the press
+      // comes at 5. Moved to start at 5.2, the element still has 5.4 on it
+      // and no longer has 5.
+      const across = (x: number) => ({
+        quads: [[x, 393, x + 10, 393, x + 10, 403, x, 403]],
+      });
+      const { presses, send } = guestMeasuring([across(0.4), across(5.2)]);
+
+      await send("DOM.getContentQuads", { backendNodeId: 7 });
+      await expect(
+        send("Input.dispatchMouseEvent", { ...click, type: "mousePressed" }),
+      ).rejects.toThrow(/element moved after it was measured/);
+      expect(presses()).toEqual([]);
+    });
+
     // A click by selector or by `find` names no element to the debugger: the
     // pointer arriving at 5,398 is the first the host sees of it, and the
     // element there is the one measured.
@@ -1098,6 +1164,60 @@ describe("sendCommand", () => {
           /element moved after it was measured/,
         );
         expect(presses()).toEqual([]);
+      });
+
+      it("refuses a press on an element's content once the content has left the point, however little it moved", async () => {
+        // The pointer is at 5,398, just inside content that starts at 397.8.
+        const { presses, send } = guestMeasuring(
+          [quads(397.8), quads(398.2)],
+          "element-1",
+        );
+
+        await send("Input.dispatchMouseEvent", move);
+        await expect(send("Input.dispatchMouseEvent", press)).rejects.toThrow(
+          /element moved after it was measured/,
+        );
+        expect(presses()).toEqual([]);
+      });
+
+      it("takes the element under the pointer afresh each time the pointer arrives", async () => {
+        // The page puts another button where the first was between two
+        // arrivals at the same point, as a hover that swaps one for the
+        // other does.
+        const under = ["element-1", "element-2"];
+        const wcSendCommand = vi
+          .fn()
+          .mockImplementation((method: string, params: unknown) => {
+            if (method === "Runtime.evaluate") {
+              return Promise.resolve({ result: { objectId: under.shift() } });
+            }
+            if (method !== "DOM.getContentQuads") {
+              return Promise.resolve({});
+            }
+            return under.length === 0 &&
+              (params as { objectId: string }).objectId === "element-1"
+              ? Promise.reject(new Error("Node is detached from document"))
+              : Promise.resolve(quads(393));
+          });
+        const entries = new Map([
+          [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+        ]);
+        const send = (params: unknown) =>
+          dispatch({ entries, method: "Input.dispatchMouseEvent", params });
+
+        await send(move);
+        await send(move);
+        await send(press);
+
+        expect(
+          wcSendCommand.mock.calls.filter(
+            ([method]) => method === "DOM.getContentQuads",
+          ),
+        ).toEqual([
+          ["DOM.getContentQuads", { objectId: "element-1" }],
+          ["DOM.getContentQuads", { objectId: "element-2" }],
+          ["DOM.getContentQuads", { objectId: "element-2" }],
+        ]);
       });
 
       it("checks a click by ref against the element agent-browser named", async () => {

@@ -85,6 +85,12 @@ const aimedElement = new WeakMap<
   BrowserEntry,
   {
     at: number;
+    /**
+     * Who named the element: agent-browser, in a `DOM.getContentQuads` of its
+     * own, or the pointer arriving over it. The pointer's next arrival takes
+     * the element under it afresh.
+     */
+    by: "agent-browser" | "pointer";
     frameSession: string | undefined;
     /** The `DOM.getContentQuads` params that name the element. */
     node: unknown;
@@ -418,8 +424,11 @@ async function forwardToDebugger({
   // since, the press would land on whatever took its place and still report
   // success, so the element is measured once more and a press on one that
   // moved is refused. That is the last thing asked of the page before the
-  // press, so the page has the least time to move between the two.
+  // press, so the page has the least time to move between the two: the
+  // agent's pointer, which asks the page to draw the press, is shown first.
   let press: null | { at: number; context: string } = null;
+  // Whether the agent's pointer has already been shown this command.
+  let pointerShown = false;
   if (method === "Input.dispatchMouseEvent" && isPress(params)) {
     const context = await describePress(
       entry,
@@ -427,12 +436,14 @@ async function forwardToDebugger({
       frameSession,
       describeHost,
     );
+    if (byAgent) {
+      await showAgentCommand(entry, method, params, frameSession);
+      pointerShown = true;
+    }
     await refusePressOnMovedElement(entry, params, frameSession);
     press = { at: Date.now(), context };
   }
 
-  // Whether the agent's pointer has already been shown this command.
-  let pointerShown = false;
   // The session the command goes out on: a frame's own when typing is aimed
   // at a field in a frame of its own process.
   let session = frameSession;
@@ -605,6 +616,7 @@ async function forwardToDebugger({
       if (point) {
         aimedElement.set(entry, {
           at: Date.now(),
+          by: "agent-browser",
           frameSession,
           node: params,
           point,
@@ -694,12 +706,33 @@ function getWindowForTargetStub(
   };
 }
 
+/** The `type` of a mouse command, whose params agent-browser sends untyped. */
+function mouseEventOf(params: unknown): unknown {
+  return typeof params === "object" && params !== null && "type" in params
+    ? params.type
+    : undefined;
+}
+
+/** The point a mouse command names, when its untyped params carry one. */
+function pointOf(params: unknown): Point | undefined {
+  if (
+    typeof params !== "object" ||
+    params === null ||
+    !("x" in params) ||
+    !("y" in params)
+  ) {
+    return undefined;
+  }
+  const { x, y } = params;
+  return typeof x === "number" && typeof y === "number" ? { x, y } : undefined;
+}
+
 function isPress(params: unknown): boolean {
-  return (params as undefined | { type?: unknown })?.type === "mousePressed";
+  return mouseEventOf(params) === "mousePressed";
 }
 
 function isMove(params: unknown): boolean {
-  return (params as undefined | { type?: unknown })?.type === "mouseMoved";
+  return mouseEventOf(params) === "mouseMoved";
 }
 
 function isQuad(value: unknown): value is number[] {
@@ -723,7 +756,10 @@ function quadArea(quad: number[]): number {
 
 /** The quads of a `DOM.getContentQuads` answer, none when it is not one. */
 function quadsOf(result: unknown): number[][] {
-  const quads: unknown = (result as null | { quads?: unknown })?.quads;
+  const quads: unknown =
+    typeof result === "object" && result !== null && "quads" in result
+      ? result.quads
+      : undefined;
   return Array.isArray(quads) ? quads.filter(isQuad) : [];
 }
 
@@ -751,11 +787,8 @@ function clickPointOf(quads: number[][]): null | Point {
 
 type Point = { x: number; y: number };
 
-function isNear(a: { x?: number; y?: number }, b: Point): boolean {
-  return (
-    Math.abs((a.x ?? Number.NaN) - b.x) <= MOVED_PX &&
-    Math.abs((a.y ?? Number.NaN) - b.y) <= MOVED_PX
-  );
+function isNear(a: Point, b: Point): boolean {
+  return Math.abs(a.x - b.x) <= MOVED_PX && Math.abs(a.y - b.y) <= MOVED_PX;
 }
 
 function sameQuads(a: number[][], b: number[][]): boolean {
@@ -817,7 +850,9 @@ function measureElement(
  * it is, unless agent-browser measured an element for that point itself. A
  * click by selector or by `find` measures in a script of agent-browser's own
  * and names no element to the debugger, so the first the host knows of the
- * click is the pointer arriving at its point.
+ * click is the pointer arriving at its point. An element an earlier arrival
+ * found there is not kept for this one: the page may have put another in its
+ * place since.
  */
 async function noteElementUnderPointer(
   entry: BrowserEntry,
@@ -825,14 +860,15 @@ async function noteElementUnderPointer(
   frameSession: string | undefined,
 ): Promise<void> {
   const wc = entry.webContents;
-  const { x, y } = params as { x?: unknown; y?: unknown };
-  if (!wc || typeof x !== "number" || typeof y !== "number") {
+  const point = pointOf(params);
+  if (!wc || !point) {
     return;
   }
-  const point = { x, y };
+  const { x, y } = point;
   const known = aimedElement.get(entry);
   if (
     known &&
+    known.by === "agent-browser" &&
     known.frameSession === frameSession &&
     Date.now() - known.at <= MEASUREMENT_FRESH_MS &&
     isNear(point, known.point)
@@ -873,6 +909,7 @@ async function noteElementUnderPointer(
   if (quads) {
     aimedElement.set(entry, {
       at: Date.now(),
+      by: "pointer",
       frameSession,
       node,
       point,
@@ -891,6 +928,9 @@ async function noteElementUnderPointer(
  * around the point, as one whose hover style grows or lifts it does, is still
  * what the press lands on, and the press goes. A second press of the same
  * click, as a double click sends, finds no measurement and goes as it came.
+ *
+ * What is held to the element is the point the press names, which
+ * agent-browser rounds to a whole pixel, rather than the point measured.
  */
 async function refusePressOnMovedElement(
   entry: BrowserEntry,
@@ -910,24 +950,26 @@ async function refusePressOnMovedElement(
   ) {
     return;
   }
-  const { point } = aimed;
+  const pressed = pointOf(params);
   // Only a press aimed at the measured point is a click on that element.
-  if (!isNear(params as { x?: number; y?: number }, point)) {
+  if (!pressed || !isNear(pressed, aimed.point)) {
     return;
   }
   const now = await measureElement(wc, aimed.node, frameSession);
   if (
     now === undefined ||
     (now &&
-      (sameQuads(aimed.quads, now) ||
-        // A point on the element's padding or border is on none of its
-        // content quads, so only a point that was on them is held to these.
-        (isOnQuads(point, aimed.quads) && isOnQuads(point, now))))
+      // A press on the element's content has to stay on it. One on its
+      // padding or border is on none of its content quads, before or after,
+      // so it is held to the element being where it was.
+      (isOnQuads(pressed, aimed.quads)
+        ? isOnQuads(pressed, now)
+        : sameQuads(aimed.quads, now)))
   ) {
     return;
   }
   log.warn(
-    `refused press targetId=${entry.targetId}: the element measured at ${point.x},${point.y} ${now ? "moved" : "is gone"}`,
+    `refused press targetId=${entry.targetId}: the element pressed at ${pressed.x},${pressed.y} ${now ? "moved" : "is gone"}`,
   );
   throw new Error(
     now
@@ -952,10 +994,11 @@ async function describePress(
   frameSession: string | undefined,
   describeHost: (targetId: BrowserTargetId) => Promise<string>,
 ): Promise<string> {
-  const { x, y } = params as { x?: number; y?: number };
-  if (typeof x !== "number" || typeof y !== "number") {
+  const point = pointOf(params);
+  if (!point) {
     return "at=unknown";
   }
+  const { x, y } = point;
   const wc = entry.webContents;
   // A press to a frame is in the frame's coordinates, which the page's own
   // hit test cannot place.

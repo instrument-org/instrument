@@ -1,6 +1,6 @@
 # agent-browser's `type` presses Enter for every line break
 
-**Status:** worked around in the wrapper (`agent-browser-typed-text.ts`), which types text with a line break inside it as one insertion; checked 2026-11-12 against agent-browser 0.39.4 and the `browser-typing-paragraphs` eval case.
+**Status:** worked around in the wrapper (`agent-browser-typed-text.ts`), which types text with a line break inside it as one insertion; checked 2026-11-12 against agent-browser 0.39.4 and the `browser-typing-paragraphs` eval case, and again 2026-11-23 against the 0.44.0 binary, where `type` of three lines still pressed Enter twice and `keyboard inserttext` of two pressed it not at all.
 
 ## Symptom
 

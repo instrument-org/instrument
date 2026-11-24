@@ -44,7 +44,7 @@ import {
   FINISH_BEFORE_LEAVING_MS,
   finishBeforeLeaving,
 } from "@/electron-main/windows/finish-before-leaving";
-import { getPromptWindow } from "@/electron-main/windows/foreground";
+import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { is } from "@electron-toolkit/utils";
 import { aiGatewayApp } from "@instrument-org/ai-gateway";
 import createBashWorker from "@instrument-org/workspace/bash-worker?nodeWorker";
@@ -338,7 +338,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       noLink: true,
       type: "warning",
     };
-    const parentWindow = getPromptWindow();
+    const parentWindow = getForegroundWindow();
     const { response } = await (parentWindow
       ? dialog.showMessageBox(parentWindow, options)
       : dialog.showMessageBox(options));
@@ -391,7 +391,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
     // Parent the dialog on the window that is being closed so it is
     // window-modal, rather than a detached app-modal box that can end up behind
     // the window it is asking about.
-    const parentWindow = getPromptWindow();
+    const parentWindow = getForegroundWindow();
     const { response } = await (parentWindow
       ? dialog.showMessageBox(parentWindow, options)
       : dialog.showMessageBox(options));

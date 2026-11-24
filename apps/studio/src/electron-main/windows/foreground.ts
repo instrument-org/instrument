@@ -1,8 +1,5 @@
 import { getAppWindow } from "@/electron-main/windows/app-window";
-import {
-  isHeldOffScreen,
-  showPutAwayWindows,
-} from "@/electron-main/windows/on-screen";
+import { isHeldOffScreen } from "@/electron-main/windows/on-screen";
 import { type BrowserWindow } from "electron";
 
 /**
@@ -20,20 +17,10 @@ export function getForegroundWindow(): BrowserWindow | null {
 }
 
 /**
- * The window a prompt about the whole app hangs from: the one last in front,
- * unless it waits off screen, where a prompt hung from it would not be seen.
- */
-export function getPromptWindow(): BrowserWindow | null {
-  const window = getForegroundWindow();
-  return window && !isHeldOffScreen(window) ? window : null;
-}
-
-/**
  * Bring the foreground window to the front, as a sign-in that finished in the
  * browser does, so the person lands back where they started.
  */
 export function focusAppWindow() {
-  showPutAwayWindows();
   const target = getForegroundWindow();
   // An agent's instance waiting off screen stays there; the person at the
   // machine did not ask for it.

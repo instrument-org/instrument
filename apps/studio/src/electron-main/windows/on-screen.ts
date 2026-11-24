@@ -132,47 +132,6 @@ export function isHeldOffScreen(window: ScreenWindow) {
   return held.has(window);
 }
 
-/** The held windows a person closed (`holdPutAway`), which anything they ask of the app brings back. */
-const putAway = new WeakSet<ScreenWindow>();
-
-/**
- * Holds a window a person closed, already hidden, where the app goes on
- * without one on screen (macOS): the last window is put away rather than
- * closed, so its chats keep working in it, pages and all, and it comes back
- * as it was. It waits until the Dock icon is clicked or the person asks
- * something of the app (`showPutAwayWindows`). In a run that keeps its
- * windows off screen it waits as they all do, for the Dock icon alone.
- */
-export function holdPutAway(
-  window: ScreenWindow,
-  { maximized }: { maximized: boolean },
-) {
-  if (!keepsOffScreen()) {
-    putAway.add(window);
-  }
-  held.set(window, { maximized });
-}
-
-/**
- * Put back up the windows a person closed, for one who asks something of the
- * app: a window, a link, a notification's chat. Whether there were any. So
- * a window is put away only while none is on screen.
- */
-export function showPutAwayWindows() {
-  const windows = [...held].filter(
-    ([window]) => putAway.has(window) && !window.isDestroyed(),
-  );
-  for (const [window, { maximized }] of windows) {
-    held.delete(window);
-    putAway.delete(window);
-    if (maximized) {
-      window.maximize();
-    }
-    window.show();
-  }
-  return windows.length > 0;
-}
-
 /**
  * Put up every window held off screen, for a person who asked for the app by
  * clicking its Dock icon. Whether there were any.

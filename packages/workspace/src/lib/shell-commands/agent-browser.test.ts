@@ -163,6 +163,47 @@ describe("createAgentBrowserCommand", () => {
     expect(result.stdout).toContain("## The core loop");
   });
 
+  it("prints one of the guide's references alone with --ref", async () => {
+    const result = await command.execute(
+      ["skills", "get", "core", "--ref", "snapshot-refs"],
+      mockCtx,
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).not.toContain("# agent-browser in Instrument");
+    expect(result.stdout).toMatch(/^# /);
+    expect(
+      await command.execute(
+        ["skills", "get", "core", "--ref=references/snapshot-refs.md"],
+        mockCtx,
+      ),
+    ).toEqual(result);
+  });
+
+  it.each([
+    {
+      args: ["skills", "get", "core", "--ref", "authentication"],
+      stderr:
+        "agent-browser: Reference not found: authentication. Available here: references/commands.md, references/snapshot-refs.md, references/trust-boundaries.md.\n",
+    },
+    {
+      args: ["skills", "get", "core", "--ref"],
+      stderr:
+        "agent-browser: --ref needs a value. Usage: agent-browser skills get core --ref <ref>\n",
+    },
+    {
+      args: ["skills", "get", "core", "--full", "--ref", "commands"],
+      stderr:
+        "agent-browser: --ref cannot be combined with --full. Usage: agent-browser skills get core --ref <ref>\n",
+    },
+  ])("refuses $args", async ({ args, stderr }) => {
+    expect(await command.execute(args, mockCtx)).toEqual({
+      exitCode: 1,
+      stderr,
+      stdout: "",
+    });
+  });
+
   it.each([
     ["skills", "get", "electron"],
     ["skills", "path", "core"],

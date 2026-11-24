@@ -25,7 +25,10 @@ import {
   instrumentPluginRegistry,
   writeInstrumentProviderPlugin,
 } from "../agent-browser-plugin";
-import { agentBrowserGuide } from "../../model-text/guides/agent-browser-guide";
+import {
+  agentBrowserGuide,
+  agentBrowserReferences,
+} from "../../model-text/guides/agent-browser-guide";
 import { recordVisitedHosts } from "../browser-state";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import {
@@ -232,32 +235,68 @@ const SKILLS_SUBCOMMAND = "skills";
 /**
  * `agent-browser skills`: the CLI's own guide, answered here so it comes with
  * what differs in this app (`agent-browser-guide.ts`). Only the core guide is
- * offered; the others describe running agent-browser somewhere else.
+ * offered; the others describe running agent-browser somewhere else. Its
+ * words are read the way the CLI reads them: `--full` adds the references,
+ * and `--ref <name>` (or `--ref=<name>`, any number of times) prints
+ * references alone and goes with neither `--full` nor a second skill.
  */
-function skills(
-  operands: (string | undefined)[],
-  full: boolean,
-): { exitCode: number; stderr: string; stdout: string } {
-  const [action = "list", ...names] = operands.filter(
-    (operand) => operand !== undefined && !operand.startsWith("-"),
-  );
+function skills(words: string[]): {
+  exitCode: number;
+  stderr: string;
+  stdout: string;
+} {
+  const fail = (message: string) => ({
+    exitCode: 1,
+    stderr: `agent-browser: ${message}\n`,
+    stdout: "",
+  });
+  const operands: string[] = [];
+  const references: string[] = [];
+  let full = false;
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i] ?? "";
+    if (word === "--ref") {
+      const name = words[++i];
+      if (name === undefined) {
+        return fail(
+          "--ref needs a value. Usage: agent-browser skills get core --ref <ref>",
+        );
+      }
+      references.push(name);
+    } else if (word.startsWith("--ref=")) {
+      references.push(word.slice("--ref=".length));
+    } else if (word === "--full") {
+      full = true;
+    } else if (!word.startsWith("-")) {
+      operands.push(word);
+    }
+  }
+  const [action = "list", ...names] = operands;
   if (action === "list") {
     return {
       exitCode: 0,
       stderr: "",
       stdout:
-        "core  The guide to agent-browser in this app. Run `agent-browser skills get core`, with --full for its references.\n",
+        "core  The guide to agent-browser in this app. Run `agent-browser skills get core`, with --ref <name> for one of its references or --full for all of them.\n",
     };
   }
-  if (action === "get" && names.length === 1 && names[0] === "core") {
+  if (action !== "get" || names.length !== 1 || names[0] !== "core") {
+    return fail(
+      "only `skills get core` is available in this app; the other skills describe running agent-browser somewhere else.",
+    );
+  }
+  if (references.length === 0) {
     return { exitCode: 0, stderr: "", stdout: agentBrowserGuide({ full }) };
   }
-  return {
-    exitCode: 1,
-    stderr:
-      "agent-browser: only `skills get core` is available in this app; the other skills describe running agent-browser somewhere else.\n",
-    stdout: "",
-  };
+  if (full) {
+    return fail(
+      "--ref cannot be combined with --full. Usage: agent-browser skills get core --ref <ref>",
+    );
+  }
+  const found = agentBrowserReferences(references);
+  return "error" in found
+    ? fail(`${found.error}.`)
+    : { exitCode: 0, stderr: "", stdout: found.text };
 }
 
 /**
@@ -717,7 +756,7 @@ export type Invocation =
   | { kind: "info" }
   | { kind: "read" }
   | { kind: "refuse"; stderr: string }
-  | { full: boolean; kind: "skills"; words: string[] }
+  | { kind: "skills"; words: string[] }
   | { kind: "tabs" };
 
 export function classifyInvocation(
@@ -748,11 +787,7 @@ export function classifyInvocation(
     return { kind: "adblock", mode: subArgs[1]?.value };
   }
   if (subcommand === SKILLS_SUBCOMMAND) {
-    return {
-      full: args.includes("--full"),
-      kind: "skills",
-      words: subArgs.slice(1).map((arg) => arg.value),
-    };
+    return { kind: "skills", words: subArgs.slice(1).map((arg) => arg.value) };
   }
   if (subcommand && BLOCKED_SUBCOMMANDS.has(subcommand)) {
     return {
@@ -866,7 +901,7 @@ export function createAgentBrowserCommand({
         return { exitCode: 1, stderr: invocation.stderr, stdout: "" };
       }
       case "skills": {
-        return skills(invocation.words, invocation.full);
+        return skills(invocation.words);
       }
       default: {
         break;

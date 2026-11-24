@@ -27,7 +27,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 ## The browser you drive
 
 - Commands drive the app's in-app browser, the one the user watches. Its connection, profile, and lifecycle are managed for you, so never name a session: \`--session\`, \`--session-name\`, and \`--namespace\` are refused. Cookies and sign-ins last for the whole task.
-- Every tab of the user's chat is yours to drive, and the chat's and each of its tasks' too. \`tab list\` shows them, each by its tab_ id, the one id a tab has here: \`agent-browser tab <id>\` and \`instrument window\` take it, where the guide below says \`t1\`, \`t2\`. agent-browser has no \`--tab\` flag. You start in the tab you last worked in, or in a blank tab of your own when you have none or someone else has used it since. \`tab new <url>\` opens another behind whatever the user has up and prints its id; \`tab <id>\` switches, and refs do not carry across, so snapshot again; \`tab close <id>\` closes a tab an agent opened and only lets go of one of the user's. A result ends with a line when the chat, a task or the user used one of its tabs since your last command there: look at the page again before going on. Going to another page in a tab someone else is working in undoes their work on it, and work on another copy of the page never reaches theirs. So work that needs that page itself, such as a form being filled in, stays in its tab and waits, coordinates (the chat steers a task with \`instrument task send\`) or asks (a task ends with what it needs); work that needs only the site, such as going through a catalog or looking something up, goes in a tab of your own (\`tab new <url>\`). Close scratch tabs once you are done with them and leave result pages open. A tab you leave open stays until someone closes it. A popup a page opens (\`window.open\`) arrives as a new tab of the chat, and the result names it. A sign-in popup such as "Continue with Google" cannot finish in a tab, so leave that step to the user, whose own click opens it as a real popup.
+- Every tab of the user's chat is yours to drive, and the chat's and each of its tasks' too. \`tab list\` shows them, each by its tab_ id, the one id a tab has here: \`agent-browser tab <id>\` and \`instrument window\` take it, in place of agent-browser's own \`t1\`, \`t2\`. agent-browser has no \`--tab\` flag. You start in the tab you last worked in, or in a blank tab of your own when you have none or someone else has used it since. \`tab new <url>\` opens another behind whatever the user has up and prints its id; \`tab <id>\` switches, and refs do not carry across, so snapshot again; \`tab close <id>\` closes a tab an agent opened and only lets go of one of the user's. A result ends with a line when the chat, a task or the user used one of its tabs since your last command there: look at the page again before going on. Going to another page in a tab someone else is working in undoes their work on it, and work on another copy of the page never reaches theirs. So work that needs that page itself, such as a form being filled in, stays in its tab and waits, coordinates (the chat steers a task with \`instrument task send\`) or asks (a task ends with what it needs); work that needs only the site, such as going through a catalog or looking something up, goes in a tab of your own (\`tab new <url>\`). Close scratch tabs once you are done with them and leave result pages open. A tab you leave open stays until someone closes it. A popup a page opens (\`window.open\`) arrives as a new tab of the chat, and the result names it. A sign-in popup such as "Continue with Google" cannot finish in a tab, so leave that step to the user, whose own click opens it as a real popup.
 - A call that ends on a page-changing command (\`open\`, \`click\`, \`press\`, \`select\`, \`check\`, a tab switch) comes back with the page's snapshot attached under \`Page after\`. Act on those refs instead of running \`snapshot -i\` again. After a \`click\`, \`press\`, \`select\` or \`check\` that stays on the same page, what the page announced in response (its alert or status text) comes attached too, also when you took the snapshot yourself. A step that loads another page attaches no message; read that page's text yourself when you need it.
 - Refs last for one page only: after a navigation, \`back\`, or a reload, an earlier ref is gone or can name a different element, so act on the refs under \`Page after\` or snapshot again.
 - Ads and trackers are blocked. When a page looks broken (a missing button, an empty embed, a sign-in that never loads), run \`agent-browser adblock off\`, reload, and retry; \`adblock on\` restores it.
@@ -61,12 +61,57 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 ## Not available here
 
-The app manages these, so they are refused: \`auth\` (the credential vault), \`state\`, \`session\`, \`close\`, \`connect\`, \`batch\`, \`plugin\`, \`mcp\`, \`chat\`, \`dashboard\`, \`stream\`, \`doctor\`, \`inspect\`, \`install\`, \`upgrade\`, \`launch\`, \`--config\`, and \`--executable-path\`. Run each command on its own instead of batching, and diagnose with \`console\`, \`errors\`, \`network\`, and \`screenshot\`. Of \`skills\`, only \`agent-browser skills get core\` (add \`--full\` for its references) works, and prints this guide.`;
+The app manages these, so they are refused: \`auth\` (the credential vault), \`state\`, \`session\`, \`close\`, \`connect\`, \`batch\`, \`plugin\`, \`mcp\`, \`chat\`, \`dashboard\`, \`stream\`, \`doctor\`, \`inspect\`, \`install\`, \`upgrade\`, \`launch\`, \`--config\`, and \`--executable-path\`. Run each command on its own instead of batching, and diagnose with \`console\`, \`errors\`, \`network\`, and \`screenshot\`. Of \`skills\`, only \`agent-browser skills get core\` works, and prints this guide. Add \`--ref commands\` for every command and flag, \`--ref snapshot-refs\` for how refs are assigned and kept, or \`--ref trust-boundaries\` for the rules on untrusted page content; each prints that reference alone, and \`--full\` the guide with all three.`;
 
 /**
  * The guide the agent reads: the addendum, then the upstream core guide, and
- * with `full` the references it links to that apply here.
+ * with `full` the references that apply here.
  */
 export function agentBrowserGuide({ full = false } = {}): string {
-  return `${INSTRUMENT_ADDENDUM}\n\n---\n\n${AGENT_BROWSER_CORE_GUIDE}${full ? AGENT_BROWSER_CORE_REFERENCES : ""}`;
+  const references = full
+    ? AGENT_BROWSER_CORE_REFERENCES.map(
+        ({ path, text }) => `\n---\n\n<!-- ${path} -->\n\n${text}\n`,
+      ).join("")
+    : "";
+  return `${INSTRUMENT_ADDENDUM}\n\n---\n\n${AGENT_BROWSER_CORE_GUIDE}${references}`;
+}
+
+/**
+ * The references named, as `agent-browser skills get core --ref <name>`
+ * prints them: each by its path in the guide (`references/commands.md`), its
+ * file name or its name alone, one after another under its path when there
+ * is more than one. An error names the ones there are.
+ */
+export function agentBrowserReferences(
+  names: string[],
+): { error: string } | { text: string } {
+  const selected: (typeof AGENT_BROWSER_CORE_REFERENCES)[number][] = [];
+  for (const name of names) {
+    const wanted = name.replace(/^\.\//, "");
+    const reference = AGENT_BROWSER_CORE_REFERENCES.find(({ path }) => {
+      const fileName = path.slice(path.lastIndexOf("/") + 1);
+      return (
+        path === wanted ||
+        fileName === wanted ||
+        fileName.slice(0, fileName.indexOf(".")) === wanted
+      );
+    });
+    if (!reference) {
+      return {
+        error: `Reference not found: ${wanted}. Available here: ${AGENT_BROWSER_CORE_REFERENCES.map(({ path }) => path).join(", ")}`,
+      };
+    }
+    if (!selected.includes(reference)) {
+      selected.push(reference);
+    }
+  }
+  const [only] = selected;
+  return {
+    text:
+      selected.length === 1 && only
+        ? `${only.text}\n`
+        : selected
+            .map(({ path, text }) => `--- ${path} ---\n\n${text}\n`)
+            .join("\n"),
+  };
 }

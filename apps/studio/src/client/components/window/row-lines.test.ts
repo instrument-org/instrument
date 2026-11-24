@@ -147,6 +147,11 @@ describe("newTabLines", () => {
     [undefined, "", "quiet"],
     ["  ", "", "quiet"],
     ["Line up Intercom's seats", "Line up Intercom's seats", "draft"],
+    [
+      "[Notion](instrument://app/notion) didn't connect.",
+      "Notion didn't connect.",
+      "draft",
+    ],
   ])("says what is typed in %j", (words, expectedLine, tone) => {
     expect(newTabLines(words)).toMatchObject({
       line: expectedLine,

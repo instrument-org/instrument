@@ -187,7 +187,7 @@ export function UpdateStatusIndicator() {
       void restart();
       return;
     }
-    openSettings({ tab: "General" });
+    openSettings({ tab: "About" });
   };
 
   // Hidden when: no badge for this status; a silent background poll of a
@@ -476,7 +476,7 @@ function toastInstallFailure(cause: unknown) {
     action: {
       label: "Open Settings",
       onClick: () => {
-        openSettings({ tab: "General" });
+        openSettings({ tab: "About" });
       },
     },
     cause,

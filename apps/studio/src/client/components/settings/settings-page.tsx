@@ -3,6 +3,9 @@ import { AccountSection } from "@/client/components/settings/account-section";
 import { ActivitySection } from "@/client/components/settings/activity-section";
 import { AppsSection } from "@/client/components/settings/apps-section";
 import { DeveloperSection } from "@/client/components/settings/developer-section";
+import { AboutSection } from "@/client/components/settings/about-section";
+import { DictationSection } from "@/client/components/settings/dictation-section";
+import { SupportSection } from "@/client/components/settings/support-section";
 import { GeneralSection } from "@/client/components/settings/general-section";
 import { MemorySection } from "@/client/components/settings/memory-section";
 import { PermissionsSection } from "@/client/components/settings/permissions-section";
@@ -18,7 +21,7 @@ import {
 } from "@/client/components/settings/settings-index";
 import { type SettingsAsk } from "@/client/components/settings/settings-ask";
 import { useSettingsSearch } from "@/client/components/settings/use-settings-search";
-import { useSettingsTabs } from "@/client/components/settings/use-settings-tabs";
+import { useSettingsTabGroups } from "@/client/components/settings/use-settings-tabs";
 import { Input } from "@/client/components/ui/input";
 import {
   Tooltip,
@@ -34,8 +37,11 @@ import { CubeIcon } from "@phosphor-icons/react/Cube";
 import { FadersHorizontalIcon } from "@phosphor-icons/react/FadersHorizontal";
 import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { HardDrivesIcon } from "@phosphor-icons/react/HardDrives";
+import { InfoIcon } from "@phosphor-icons/react/Info";
 import { LockKeyIcon } from "@phosphor-icons/react/LockKey";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
+import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 import { UserCircleIcon } from "@phosphor-icons/react/UserCircle";
@@ -43,6 +49,7 @@ import { WrenchIcon } from "@phosphor-icons/react/Wrench";
 import { XIcon } from "@phosphor-icons/react/X";
 import {
   type ElementType,
+  Fragment,
   type RefObject,
   useEffect,
   useRef,
@@ -88,7 +95,8 @@ export function SettingsPage({
   q: string;
   section: SettingsTab;
 }) {
-  const navItems = useNavItems();
+  const navGroups = useNavGroups();
+  const navItems = navGroups.flat();
   const [frame, setFrame] = useState<HTMLElement | null>(null);
   const isNarrow = useIsNarrower(frame, PAGE_FOLD_PX);
   const isSearching = q.trim().length > 0;
@@ -250,17 +258,24 @@ export function SettingsPage({
             onClick={openSearch}
           />
           <div className="my-1 h-px w-6 shrink-0 bg-border" />
-          {navItems.map((item) => (
-            <RailButton
-              icon={item.icon}
-              isActive={item.tab === section}
-              isDeveloperMode={item.isDeveloperMode}
-              key={item.tab}
-              label={item.title}
-              onClick={() => {
-                onSection(item.tab);
-              }}
-            />
+          {navGroups.map((group, index) => (
+            <Fragment key={group[0]?.tab}>
+              {index > 0 && (
+                <div className="my-1 h-px w-6 shrink-0 bg-border" />
+              )}
+              {group.map((item) => (
+                <RailButton
+                  icon={item.icon}
+                  isActive={item.tab === section}
+                  isDeveloperMode={item.isDeveloperMode}
+                  key={item.tab}
+                  label={item.title}
+                  onClick={() => {
+                    onSection(item.tab);
+                  }}
+                />
+              ))}
+            </Fragment>
           ))}
         </nav>
       ) : (
@@ -273,16 +288,26 @@ export function SettingsPage({
             results
           ) : (
             <ul className="flex flex-col gap-0.5">
-              {navItems.map((item) => (
-                <li key={item.tab}>
-                  <SectionButton
-                    item={item}
-                    isActive={item.tab === section}
-                    onClick={() => {
-                      onSection(item.tab);
-                    }}
-                  />
-                </li>
+              {navGroups.map((group, index) => (
+                <Fragment key={group[0]?.tab}>
+                  {index > 0 && (
+                    <li
+                      className="mx-2 my-1.5 h-px bg-border"
+                      role="separator"
+                    />
+                  )}
+                  {group.map((item) => (
+                    <li key={item.tab}>
+                      <SectionButton
+                        item={item}
+                        isActive={item.tab === section}
+                        onClick={() => {
+                          onSection(item.tab);
+                        }}
+                      />
+                    </li>
+                  ))}
+                </Fragment>
               ))}
             </ul>
           )}
@@ -535,8 +560,17 @@ function useFlashSetting(
 
 function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
   switch (tab) {
+    case "About": {
+      return <AboutSection />;
+    }
     case "Account": {
       return <AccountSection />;
+    }
+    case "Dictation": {
+      return <DictationSection />;
+    }
+    case "Support": {
+      return <SupportSection />;
     }
     case "Activity": {
       return <ActivitySection />;
@@ -574,7 +608,10 @@ function SettingsSectionBody({ tab }: { tab: SettingsTab }) {
 
 /** Each tab's mark in the sidebar. */
 const NAV_ICONS: Record<SettingsTab, ElementType> = {
+  About: InfoIcon,
   Apps: ShapesIcon,
+  Dictation: MicrophoneIcon,
+  Support: QuestionIcon,
   Developer: WrenchIcon,
   General: FadersHorizontalIcon,
   Memory: FingerprintIcon,
@@ -586,11 +623,14 @@ const NAV_ICONS: Record<SettingsTab, ElementType> = {
   Activity: ClockCounterClockwiseIcon,
 };
 
-function useNavItems(): NavItem[] {
-  return useSettingsTabs().map((tab) => ({
-    icon: NAV_ICONS[tab],
-    isDeveloperMode: SETTINGS_PAGES[tab].developerOnly === true,
-    tab,
-    title: settingsTabTitle(tab),
-  }));
+/** The sidebar's pages in its groups, which a rule sets apart. */
+function useNavGroups(): NavItem[][] {
+  return useSettingsTabGroups().map((group) =>
+    group.map((tab) => ({
+      icon: NAV_ICONS[tab],
+      isDeveloperMode: SETTINGS_PAGES[tab].developerOnly === true,
+      tab,
+      title: settingsTabTitle(tab),
+    })),
+  );
 }

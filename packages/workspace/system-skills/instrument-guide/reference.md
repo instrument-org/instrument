@@ -8,19 +8,21 @@ Link a page or a row as `[Label](instrument://settings/<name>)`, with the name i
 
 ### General (`general`)
 
-How Instrument looks, notifications, dictation, suggested messages, updates, and the diagnostic log.
+How Instrument looks, notifications, and suggested messages.
 
 - **Theme** (`theme`): Choose your preferred color scheme. You can change it.
 - **Zoom** (`zoom`): Make everything in the app larger or smaller. You can change it.
 - **Notify when tasks finish** (`notifications`): Show a desktop notification when a task finishes. You can change it. On it: Send a test notification (`test-notification`).
+- **Suggest a next message** (`suggest-next-message`): After a reply, show a few things you might say next. You can change it.
+
+### Dictation (`dictation`)
+
+The microphone you dictate into, the language you speak, and dictation's sounds.
+
 - **Dictation microphone** (`dictation-microphone`): Pick the microphone you dictate into. You can change it.
 - **Dictation language** (`dictation-language`): Pick the language you speak, or let dictation detect it. You can change it.
 - **Dictation sounds** (`dictation-sounds`): A sound when dictation starts and stops. You can change it.
 - **Microphone access** (`microphone-access`): Whether your computer lets Instrument use the microphone.
-- **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: What's new (`release-notes`), Check for updates (`check-for-updates`).
-- **Open source** (`open-source`): View the source, or tell us about something that isn't working. On it: View source on GitHub (`view-source`), Send feedback (`send-feedback`), Third-party licenses (`third-party-licenses`).
-- **Suggest a next message** (`suggest-next-message`): After a reply, show a few things you might say next. You can change it.
-- **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
 
 ### Account (`account`)
 
@@ -52,6 +54,12 @@ What Instrument remembers about you, one file per memory, which you can search, 
 - **Import from another AI** (`memory-import`): Bring in what another AI knows about you.
 - **Memory folder** (`memory-folder`): Open the folder of your memories, where each one is a file you can read or change.
 
+### Skills (`skills`)
+
+The skills Instrument's tasks can use, and making a new one.
+
+- **New skill** (`new-skill`): Ask for a skill that teaches a new way of working.
+
 ### Permissions (`permissions`)
 
 Which folders and places on this computer Instrument may use.
@@ -59,20 +67,6 @@ Which folders and places on this computer Instrument may use.
 - **Use folders without asking** (`use-folders-without-asking`): Use any folder that isn't marked Not allowed, without asking.
 - **Folders every chat can use** (`always-open`): Your Instrument folder, each chat's files, past chats and caches, which every chat can use because Instrument needs them.
 - **Reset permissions** (`reset-permissions`): Put every folder and app back the way they were when you installed Instrument.
-
-### Skills (`skills`)
-
-The skills Instrument's tasks can use, and making a new one.
-
-- **New skill** (`new-skill`): Ask for a skill that teaches a new way of working.
-
-### Storage (`storage`)
-
-Where your Instrument folder is, and chats in it that can’t be opened.
-
-- **Instrument folder** (`instrument-folder`): Where your chats, projects, and memories are kept, and moving them.
-- **LibreOffice** (`libreoffice`): The LibreOffice downloaded for Word, PowerPoint and Excel files, and removing it.
-- **Chats that can’t be opened** (`broken-folders`): Chats in your Instrument folder that can’t be opened.
 
 ### History (`activity`)
 
@@ -82,6 +76,28 @@ Whether Instrument keeps a history of what you do in it, whether chats can use i
 - **Chats can see this** (`share-activity`): Whether chats see what you just did in Instrument, like a folder you opened or files you moved, so they can tell what you mean.
 - **Your history** (`activity-history`): The history of what you did in Instrument and when, with the AI requests your chats made, which you can search, export, or clear.
 - **Clear history** (`clear-activity`): Delete what you did in Instrument, its AI requests, or both, from a time range.
+
+### Storage (`storage`)
+
+Where your Instrument folder is, and chats in it that can’t be opened.
+
+- **Instrument folder** (`instrument-folder`): Where your chats, projects, and memories are kept, and moving them.
+- **LibreOffice** (`libreoffice`): The LibreOffice downloaded for Word, PowerPoint and Excel files, and removing it.
+- **Chats that can’t be opened** (`broken-folders`): Chats in your Instrument folder that can’t be opened.
+
+### Support (`support`)
+
+Sending feedback, what Instrument sends when something goes wrong, and the diagnostic log.
+
+- **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
+- **Send feedback** (`send-feedback`): Tell us about something that isn't working.
+
+### About (`about`)
+
+Which version of Instrument you have, updates, the source, and third-party licenses.
+
+- **Version and updates** (`version`): Which version of Instrument you have, and updates. On it: What's new (`release-notes`), Check for updates (`check-for-updates`).
+- **Open source** (`open-source`): View the source, and the licenses of what it ships with. On it: View source on GitHub (`view-source`), Third-party licenses (`third-party-licenses`).
 
 ## Screens
 

@@ -3,7 +3,7 @@ import { type ChildTask } from "@instrument-org/workspace/client";
 
 import { type ScreenName } from "@/shared/instrument-screens";
 
-import { type Chat } from "./chats";
+import { type Chat, draftTitle } from "./chats";
 
 /**
  * The ink of a row's second line: `quiet` for where a tab is, `work` for a
@@ -104,10 +104,15 @@ export function pageLines(
 
 /** A new tab's two lines: New Tab, over the words typed in it so far. */
 export function newTabLines(words: string | undefined): RowLines {
-  const typed = words?.trim() ?? "";
-  return typed === ""
-    ? quiet("New Tab", "")
-    : { line: typed, strong: false, title: "New Tab", tone: "draft" };
+  if (words === undefined || words.trim() === "") {
+    return quiet("New Tab", "");
+  }
+  return {
+    line: draftTitle(words),
+    strong: false,
+    title: "New Tab",
+    tone: "draft",
+  };
 }
 
 /**

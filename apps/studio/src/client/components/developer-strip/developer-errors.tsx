@@ -88,7 +88,7 @@ export function DeveloperErrors() {
               ? undefined
               : () => {
                   setOpen(false);
-                  openSettings({ diagnosticLog: true, tab: "General" });
+                  openSettings({ diagnosticLog: true, tab: "Support" });
                 }
           }
         />

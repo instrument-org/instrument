@@ -26,7 +26,7 @@ import {
   isFolderPath,
   type SessionMessageDataPart,
 } from "@instrument-org/workspace/client";
-import { chatAddressOf } from "@instrument-org/shared";
+import { chatAddressOf, expandHomePath } from "@instrument-org/shared";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { XIcon } from "@phosphor-icons/react/X";
 import { VersionTag } from "@/client/components/version-tag";
@@ -86,12 +86,16 @@ export function heldChipOf(
  */
 export function SentChips({
   chatId,
-  chips,
+  chips: sent,
+  isSeen = false,
 }: {
   /** The chat the message is in, whose versions of a file a chip may name. */
   chatId?: ChatId;
   chips: SentChip[];
+  /** What was beside the chat rather than put on the message, whose tooltip says only what and where it is. */
+  isSeen?: boolean;
 }) {
+  const chips = sent.map(atHostPaths);
   const appsBySlug = useAppsBySlug();
   const appWindow = useContext(WindowContext);
   const openFile = useContext(FileOpenContext);
@@ -142,7 +146,7 @@ export function SentChips({
                     ? [chip.url]
                     : []
               }
-              said={SENT_WITH_THIS_MESSAGE}
+              said={isSeen ? nameOfChip(chip) : SENT_WITH_THIS_MESSAGE}
             />
           }
           mark={
@@ -178,6 +182,19 @@ export function SentChips({
       ))}
     </div>
   );
+}
+
+/** A chip with a path the person would write from `~` as this computer's own. */
+function atHostPaths(chip: SentChip): SentChip {
+  return chip.kind === "paths"
+    ? {
+        ...chip,
+        items: chip.items.map((item) => ({
+          ...item,
+          path: expandHomePath(item.path, window.api.homeDir),
+        })),
+      }
+    : chip;
 }
 
 /** The address a file or folder chosen for a draft is kept and opened under. */

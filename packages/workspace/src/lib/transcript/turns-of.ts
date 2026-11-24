@@ -7,6 +7,7 @@ import { chooseAnswer, chooseInReply } from "../choose-call";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
 import { dataPartVisibility } from "../data-part-visibility";
 import { type ErrorOutcome, errorOutcomeOf } from "./error-outcome";
+import { isSameChip, seenChipOf } from "./seen-with-message";
 import {
   isStepPart,
   type StepPart,
@@ -92,6 +93,12 @@ export interface TurnOpener {
   joinedMidTurn: boolean;
   message: TranscriptMessage;
   notes: SessionMessagePart.DataPart[];
+  /**
+   * What was beside the chat as it was sent, when that is not what was there
+   * at the last message that had something: named over the first message
+   * sent beside it, and not again until it is something else.
+   */
+  seen?: SessionMessageDataPart.SentChip;
   text?: SessionMessagePart.TextPart;
 }
 
@@ -175,6 +182,8 @@ export type TurnsCache = Map<
     /** No message the person typed comes after it, which its open questions read. */
     holdsLast: boolean;
     isLive: boolean;
+    /** What was beside the chat before it, which its own is told apart from. */
+    seenBefore: SessionMessageDataPart.SentChip | undefined;
     slice: TranscriptMessage[];
     turn: Turn;
   }
@@ -200,11 +209,14 @@ export function turnsOf(
   const lastTyped = slices.findLastIndex(
     ([first]) => first !== undefined && opensTurn(first),
   );
+  let seen: SessionMessageDataPart.SentChip | undefined;
   return slices.flatMap((slice, index) => {
     const [first] = slice;
     if (!first) {
       return [];
     }
+    const seenBefore = seen;
+    seen = seenAt(first) ?? seen;
     const next = slices[index + 1]?.[0];
     const cutAcross = next !== undefined && joinedMidTurn(next);
     // A message sent during a step opens the next turn before the agent has
@@ -222,6 +234,7 @@ export function turnsOf(
       kept &&
       kept.isLive === isLive &&
       kept.cutAcross === cutAcross &&
+      isSameSeen(kept.seenBefore, seenBefore) &&
       // Any message after it, a wake's included, tells an error it is not the
       // last message.
       (kept.endsSession === endsSession || !slice.some(hasError)) &&
@@ -237,6 +250,7 @@ export function turnsOf(
       cutAcross,
       isLive,
       lastMessage,
+      seenBefore,
       sessionId,
       writtenPast: !holdsLast,
     });
@@ -245,6 +259,7 @@ export function turnsOf(
       endsSession,
       holdsLast,
       isLive,
+      seenBefore,
       slice,
       turn,
     });
@@ -465,6 +480,7 @@ interface BuildOptions {
   writtenPast: boolean;
   isLive: boolean;
   lastMessage: TranscriptMessage | undefined;
+  seenBefore: SessionMessageDataPart.SentChip | undefined;
   sessionId: StoreId.Session | undefined;
 }
 
@@ -474,7 +490,9 @@ function buildTurn(
   options: BuildOptions,
 ): Turn {
   const { cutAcross, isLive, sessionId } = options;
-  const opener = opensTurn(first) ? openerOf(first) : undefined;
+  const opener = opensTurn(first)
+    ? openerOf(first, options.seenBefore)
+    : undefined;
   const body = opener ? slice.slice(1) : slice;
   const rows = rowsOf(body, options);
   const replies = body.filter(
@@ -533,7 +551,25 @@ function buildTurn(
   };
 }
 
-function openerOf(message: TranscriptMessage): TurnOpener {
+/** What was beside the chat when a message was sent; nothing when it went with nothing beside it. */
+function seenAt(
+  message: TranscriptMessage,
+): SessionMessageDataPart.SentChip | undefined {
+  const view = message.parts.find((part) => part.type === "data-viewContext");
+  return view && seenChipOf(view.data);
+}
+
+function isSameSeen(
+  a: SessionMessageDataPart.SentChip | undefined,
+  b: SessionMessageDataPart.SentChip | undefined,
+): boolean {
+  return a === b || (a !== undefined && b !== undefined && isSameChip(a, b));
+}
+
+function openerOf(
+  message: TranscriptMessage,
+  seenBefore: SessionMessageDataPart.SentChip | undefined,
+): TurnOpener {
   const opener: TurnOpener = {
     chips: [],
     files: [],
@@ -569,6 +605,14 @@ function openerOf(message: TranscriptMessage): TurnOpener {
         }
       }
     }
+  }
+  const seen = seenAt(message);
+  if (
+    seen &&
+    !isSameSeen(seen, seenBefore) &&
+    !opener.chips.some((chip) => isSameChip(chip, seen))
+  ) {
+    opener.seen = seen;
   }
   return opener;
 }

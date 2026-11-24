@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-11-10T22:25:29.693Z",
-  "entriesHash": "045c91d1e7dc02cd",
+  "revision": "2026-11-24T14:09:34.064Z",
+  "entriesHash": "cbce527dbcd93a38",
   "entries": [
     {
       "slug": "ahrefs",
@@ -338,7 +338,7 @@
           "format": "mac-app",
           "name": "Messages",
           "bundleId": "com.apple.MobileSMS",
-          "limits": "Sending works once the person connects Messages. Reading past messages does not: Messages' scripting cannot read its history, and the only ways to are Full Disk Access for Instrument (to read the Messages database, and with it every file) or Accessibility (to drive its window). Tell the user that before trying, and let them decide; never reach for either on your own."
+          "limits": "Sending works once the person connects Messages. Reading past messages does not: Messages' scripting cannot read its history. On macOS 27.3 or later the person can let Instrument into the Messages folder alone (~/Library/Messages, whose chat.db is the history): in System Settings, Privacy & Security, Files & Folders, Instrument, they press + and pick that folder, and macOS asks for their password. Before 27.3 the only ways are Full Disk Access for Instrument (to read the Messages database, and with it every file) or Accessibility (to drive its window). Tell the user which applies before trying, and let them decide; never reach for any of them on your own."
         }
       ],
       "category": "mail",

@@ -204,6 +204,7 @@ describe("app catalog", () => {
     [
       "google",
       [
+        "gemini",
         "gmail",
         "google-calendar",
         "google-docs",
@@ -212,7 +213,7 @@ describe("app catalog", () => {
         "google-slides",
       ],
     ],
-    ["microsoft", ["onedrive", "outlook", "teams"]],
+    ["microsoft", ["microsoft-copilot", "onedrive", "outlook", "teams"]],
   ])("answers %s with its products first", (query, slugs) => {
     expect(
       searchAppCatalog(query)

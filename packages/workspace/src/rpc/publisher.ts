@@ -91,6 +91,10 @@ export const publisher = new EventPublisher<{
     /** The chat's own session. */
     sessionId: StoreId.Session;
   };
+  /** A chat was marked read on this computer. */
+  "chat.read": {
+    id: ChatId;
+  };
   /**
    * This computer has a suggestion for the chat's person's next message
    * (`startNextMessageSuggestions`). Kept in memory, so no record changes.

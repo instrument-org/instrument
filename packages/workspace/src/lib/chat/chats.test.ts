@@ -607,7 +607,15 @@ describe("listChats", () => {
     const [marked] = await listChats();
     expect(marked).toMatchObject({ unread: true, unreadByUser: true });
 
+    const reads: string[] = [];
+    const unsubscribe = publisher.subscribe("chat.read", ({ id }) => {
+      reads.push(id);
+    });
     await markChatRead(await chatFor(sessionId));
+    await vi.waitFor(() => {
+      expect(reads).toEqual([marked?.id]);
+    });
+    unsubscribe();
     const [read] = await listChats();
     expect(read).toMatchObject({ unread: false, unreadByUser: false });
   });

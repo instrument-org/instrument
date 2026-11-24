@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { z } from "zod";
 
 import { parseAgentBrowserArgs } from "./agent-browser-args";
+import { foldSnapshotText } from "./agent-browser-snapshot-fold";
 
 /**
  * The page snapshot a bash call ends with when its agent-browser commands left
@@ -810,7 +811,9 @@ const DeltaSchema = z.object({
  * (once as a ref operation, once as a tree line). Only the tree lines and the
  * removed refs are kept, the removed refs first, since they are ours to state
  * and the element names in the tree lines are the page's text. Anything that
- * does not parse as a delta is read as a full snapshot rather than dropped.
+ * does not parse as a delta is read as a full snapshot rather than dropped,
+ * with the options of each closed select folded into a line
+ * ({@link foldSnapshotText}).
  */
 export function parseFollowUpSnapshot(
   output: string,
@@ -873,8 +876,11 @@ export function parseFollowUpSnapshot(
       };
     }
   }
-  const kept = withinBudget(body, FULL_SNAPSHOT_CHAR_BUDGET);
-  const omittedLines = body.length - kept.length;
+  // Folded ahead of the cut, so the lines a closed select's options took go
+  // to the controls after it.
+  const lines = foldSnapshotText(body.join("\n")).split("\n");
+  const kept = withinBudget(lines, FULL_SNAPSHOT_CHAR_BUDGET);
+  const omittedLines = lines.length - kept.length;
   return {
     after,
     kind: "full",

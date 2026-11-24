@@ -460,6 +460,31 @@ describe("parseFollowUpSnapshot", () => {
     expect(parsed?.text.length).toBeLessThan(10_000);
   });
 
+  it("folds a closed select's options before it cuts", () => {
+    const options = Array.from(
+      { length: 400 },
+      (_, index) => `  - option "Item ${index}" [ref=e${index + 10}]`,
+    );
+    const parsed = parseFollowUpSnapshot(
+      [
+        '- combobox "Item" [expanded=false, ref=e1]',
+        ...options,
+        '- button "Add" [ref=e2]',
+      ].join("\n"),
+      "open",
+    );
+    expect(parsed?.omittedLines).toBeUndefined();
+    expect(
+      parsed?.text.split("\n").map((line) => line.slice(0, 80)),
+    ).toMatchInlineSnapshot(`
+      [
+        "- combobox "Item" [expanded=false, ref=e1]",
+        "  - 400 options, chosen with \`select @e1 <name>\`: "Item 0", "Item 1", "Item 2", ",
+        "- button "Add" [ref=e2]",
+      ]
+    `);
+  });
+
   it("attaches nothing for a page with no controls", () => {
     expect(
       parseFollowUpSnapshot("(no interactive elements)\n", "click"),

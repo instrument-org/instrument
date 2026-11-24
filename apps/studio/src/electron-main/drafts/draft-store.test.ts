@@ -307,17 +307,50 @@ describe("a window's ops", () => {
     };
     expect(reopened).toEqual(
       draft("a", {
-        attached: [image],
+        attached: [image, { kind: "folder", path: plans }],
         folder: path.dirname(pasted.path),
         inFolder: [image],
         context: [
           { chat: CHAT, kind: "chat" },
-          { kind: "folder", path: plans },
           { kind: "link", url: "https://example.com/" },
         ],
         words: "Plan",
       }),
     );
+  });
+
+  it("take a file given from elsewhere back out once the person does, after a relaunch", async () => {
+    const { apply } = await open();
+    const notes = path.join(root, "notes.md");
+    fs.writeFileSync(notes, "hi");
+    apply({
+      draft: draft("a", {
+        attached: [
+          {
+            kind: "file",
+            mediaType: "text/markdown",
+            name: "notes.md",
+            path: notes,
+            size: 2,
+          },
+        ],
+        words: "Read",
+      }),
+      type: "create",
+    });
+
+    const again = await open();
+    expect(again.store.snapshot().drafts[0]?.attached).toEqual([
+      expect.objectContaining({ kind: "file", path: notes, size: 2 }),
+    ]);
+    again.apply({
+      at: DAY,
+      id: "a",
+      set: {},
+      type: "update",
+      unset: ["attached"],
+    });
+    expect(read()).not.toContain("notes.md");
   });
 
   it("point a draft being sent at its chat on disk, with the words it is sent with, before they answer", async () => {

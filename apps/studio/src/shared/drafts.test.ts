@@ -122,6 +122,11 @@ describe("a chat's replies", () => {
       { attached: [{ kind: "folder" as const, path: "/a" }] },
       true,
     ],
+    [
+      "something named",
+      { context: [{ kind: "link" as const, url: "https://example.com/" }] },
+      true,
+    ],
   ])("hold something with %s: %s", (_case, more, holds) => {
     expect(holdsSomething(draft("a", more))).toBe(holds);
   });

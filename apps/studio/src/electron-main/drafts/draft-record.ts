@@ -26,8 +26,9 @@ import { unique } from "radashi";
  * in it goes with the message, so nothing in the folder is written as a line.
  * The file's `context` is everything else that goes with it, one line each:
  * what the composer was given from elsewhere and every chip the draft
- * carries. Read back, the folder is the composer's again and every line is a
- * chip. What the window keeps only while the app runs (the chips of the
+ * carries. Read back, the folder is the composer's again, and so is every
+ * file and folder a line names, shown in the box and sent or taken out as
+ * what was given to it there; a line with an address is a chip. What the window keeps only while the app runs (the chips of the
  * draft's own tabs taken off, a project the model suggested) is not written.
  *
  * In a folder another draft shares, the folder cannot say whose a file is,
@@ -95,20 +96,24 @@ export function draftFileOf(draft: Draft, folders: Folders): DraftFile {
 export function draftOf({ dir, draft }: DraftOnDisk, rootDir: string): Draft {
   const chat = ChatIdSchema.safeParse(draft.chat);
   const sending = ChatIdSchema.safeParse(draft.sending);
-  const attached = folderAttachmentsOf({ dir, draft });
+  const inFolder = folderAttachmentsOf({ dir, draft });
+  const elsewhere: DraftAttachment[] = [];
   const context: DraftContextItem[] = [];
   for (const line of draft.context ?? []) {
     const item = itemOf(contextEntryOf(line, { dir, rootDir }));
-    if (
-      item !== undefined &&
-      !(
-        (item.kind === "file" || item.kind === "folder") &&
-        isInside(dir, item.path)
-      )
-    ) {
+    if (item?.kind === "file" || item?.kind === "folder") {
+      if (!isInside(dir, item.path)) {
+        elsewhere.push(
+          item.kind === "folder"
+            ? { kind: "folder", path: item.path }
+            : { kind: "file", ...pastedFileOf(item.path) },
+        );
+      }
+    } else if (item !== undefined) {
       context.push(item);
     }
   }
+  const attached = unique([...inFolder, ...elsewhere], (item) => item.path);
   const created = draft.created.getTime();
   // Named by their place in the file, which is all a file says of them.
   const asks = (draft.asks ?? []).flatMap((ask, at): DraftAsk[] => {
@@ -129,7 +134,8 @@ export function draftOf({ dir, draft }: DraftOnDisk, rootDir: string): Draft {
   });
   return {
     ...(asks.length > 0 ? { asks } : {}),
-    ...(attached.length > 0 ? { attached, inFolder: attached } : {}),
+    ...(attached.length > 0 ? { attached } : {}),
+    ...(inFolder.length > 0 ? { inFolder } : {}),
     ...(chat.success ? { chatId: chat.data } : {}),
     ...(context.length > 0 ? { context } : {}),
     createdAt: created,

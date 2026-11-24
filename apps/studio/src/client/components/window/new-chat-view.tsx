@@ -62,6 +62,8 @@ import { NewChatProjectButton } from "./new-chat-project-button";
 import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
 import { includedItemsOf } from "./draft-context";
+import { DraftLinkChips } from "./draft-link-chips";
+import { draftLinksOf } from "./draft-links";
 import { useShell } from "./shell-context";
 import { useGroupTab } from "./group-tab";
 import { useKnownPages } from "./known-pages";
@@ -589,11 +591,17 @@ export function NewChatView({
       >
         <PromptInput
           attachmentsLead={
-            draft ? <MarkedPills draftId={draft.id} /> : undefined
+            draft ? (
+              <>
+                <MarkedPills draftId={draft.id} />
+                <DraftLinkChips draft={draft} />
+              </>
+            ) : undefined
           }
           autoFocus={takesCaret}
           commands={commands}
           draftKey={key}
+          hasAttachmentsLead={draftLinksOf(draft).length > 0}
           isLoading={false}
           keyboardHome
           besidePlus={

@@ -2,6 +2,12 @@ import {
   type PromptDraftKey,
   promptDraftRefAtom,
 } from "@/client/atoms/prompt-value";
+import { DraftLinkChips } from "@/client/components/window/draft-link-chips";
+import {
+  draftLinksOf,
+  withDraftLinks,
+} from "@/client/components/window/draft-links";
+import { ShellContext } from "@/client/components/window/shell-context";
 import { projectCommand } from "@/client/lib/app-commands";
 import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import {
@@ -184,6 +190,7 @@ export function ChatConversation({
   chatId: ChatId;
 }) {
   const appWindow = useContext(WindowContext);
+  const shell = useContext(ShellContext);
   const tabId = useGroupTab()?.id;
   const id = chatId;
 
@@ -691,7 +698,12 @@ export function ChatConversation({
 
   const promptInput = (
     <PromptInput
-      attachmentsLead={asks?.pills}
+      attachmentsLead={
+        <>
+          {asks?.pills}
+          {replyDraft && <DraftLinkChips draft={replyDraft} />}
+        </>
+      }
       autoFocus={takesCaret}
       // `/project` opens the project picker in the head over the chat.
       commands={
@@ -710,7 +722,9 @@ export function ChatConversation({
       keyboardHome
       className="relative z-10"
       draftKey={draftKey}
-      hasAttachmentsLead={asks?.pills != null}
+      hasAttachmentsLead={
+        asks?.pills != null || draftLinksOf(replyDraft).length > 0
+      }
       id={id}
       isLoading={createMessage.isPending}
       lead={composerLead}
@@ -759,6 +773,7 @@ export function ChatConversation({
         setIsFollowingSubmit(true);
         slideToSentRef.current();
         const taken = asks?.take();
+        const links = outgoing === undefined ? [] : draftLinksOf(replyDraft);
         // Drawn before what goes with it is read: reading a page can take a
         // moment, and the send is only stored once that is in.
         const dropPending = showPending(prompt);
@@ -779,7 +794,10 @@ export function ChatConversation({
                 modelURI,
                 prompt,
                 sessionId: selectedSessionId,
-                viewing: withQuestionOnScreen(viewing),
+                viewing: withDraftLinks(withQuestionOnScreen(viewing), links, {
+                  chatTitle: (chat) => shell?.chatTitles.get(chat),
+                  screen: "conversation",
+                }),
               },
               {
                 onError: () => {

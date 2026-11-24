@@ -1,5 +1,6 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { makeNewChatDraftAtom } from "@/client/drafts/new-chat-box";
+import { updateDraftAtom } from "@/client/drafts/store";
 import { renderWithProviders } from "@/tests/render";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway/schemas";
 import { type ChatId, ChatIdSchema } from "@instrument-org/workspace/client";
@@ -11,7 +12,7 @@ import { chatHref, newChatHref } from "./window-href";
 
 const calls = vi.hoisted(() => ({
   chat: "2026-11-13-sent-at-once",
-  create: vi.fn(() => Promise.resolve({})),
+  create: vi.fn((_message: unknown) => Promise.resolve({})),
   turn: vi.fn<(href: string) => void>(),
 }));
 
@@ -53,6 +54,7 @@ function Drafts({
   onDrafts(
     useDrafts({
       browser: null,
+      chatTitles: new Map(),
       draftContext: () => Promise.resolve(undefined),
       folders: {},
       isChat: false,
@@ -90,6 +92,36 @@ describe("starting a chat from a new chat's tab", () => {
     expect(calls.turn).toHaveBeenCalledWith(
       chatHref(ChatIdSchema.parse(calls.chat)),
     );
+  });
+});
+
+describe("starting a chat from a draft read back with what it names", () => {
+  it("sends its links with the message", async () => {
+    let drafts: ReturnType<typeof useDrafts> | undefined;
+    const { store } = renderWithProviders(
+      <Drafts
+        onDrafts={(current) => {
+          drafts = current;
+        }}
+      />,
+    );
+    const id = store.set(makeNewChatDraftAtom, { tabId: TAB.id, words: "Go" });
+    store.set(updateDraftAtom, {
+      id,
+      update: (draft) => ({
+        ...draft,
+        context: [{ kind: "link", url: "instrument://app/notion" }],
+      }),
+    });
+    calls.create.mockClear();
+    drafts?.startChat(id, { modelURI: MODEL, prompt: "Go" }, TAB.id);
+
+    await waitFor(() => {
+      expect(calls.create).toHaveBeenCalled();
+    });
+    expect(calls.create.mock.calls[0]?.[0]).toMatchObject({
+      viewing: { links: [{ url: "instrument://app/notion" }] },
+    });
   });
 });
 

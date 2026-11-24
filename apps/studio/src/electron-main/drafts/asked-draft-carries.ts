@@ -1,8 +1,8 @@
 import { asksPart } from "@/client/components/window/asks-part";
+import { sentLinkOf } from "@/client/components/window/draft-links";
 import { reachablePath } from "@/client/components/window/file-tabs";
 import { nameOf } from "@/client/components/window/host-path";
 import { type Draft, type DraftContextItem } from "@/shared/drafts";
-import { chatAddressOf, instrumentLinkOf } from "@instrument-org/shared";
 import {
   type ChatId,
   type SessionMessageDataPart,
@@ -81,8 +81,9 @@ export async function askedDraftCarries(
         if (title === undefined) {
           return undefined;
         }
-        links.push({ title, url: chatAddressOf(item.chat) });
-        attached.push({ id: item.chat, kind: "chat", title });
+        const { chip, link } = sentLinkOf(item, () => title);
+        links.push(link);
+        attached.push(chip);
         break;
       }
       case "file":
@@ -106,12 +107,9 @@ export async function askedDraftCarries(
         if (item.url.toLowerCase().startsWith("file:")) {
           return undefined;
         }
-        links.push({ url: item.url });
-        attached.push({
-          kind: instrumentLinkOf(item.url) === undefined ? "page" : "screen",
-          title: item.url,
-          url: item.url,
-        });
+        const { chip, link } = sentLinkOf(item, () => undefined);
+        links.push(link);
+        attached.push(chip);
         break;
       }
     }

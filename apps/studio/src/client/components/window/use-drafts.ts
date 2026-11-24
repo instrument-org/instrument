@@ -31,6 +31,7 @@ import { ulid } from "ulid";
 import { type Project } from "./chats";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { pageToChat, pagesForChat } from "./draft-band";
+import { draftLinksOf, withDraftLinks } from "./draft-links";
 import { asksPart } from "./asks-part";
 import { stagedAsksAtom, useStagedAskActions } from "./staged-asks";
 import { chatFiltersUpAtom, type useWindowTabs } from "./window-tabs";
@@ -55,6 +56,7 @@ export interface DraftSend {
  */
 export function useDrafts({
   browser,
+  chatTitles,
   folders,
   draftContext,
   isChat,
@@ -67,6 +69,8 @@ export function useDrafts({
 }: {
   /** The window's browser, which opens the pages a draft names right after its chat's tab at the send. */
   browser: BrowserTabsHandle | null;
+  /** Each chat's title, for a chat a draft names. */
+  chatTitles: ReadonlyMap<ChatId, string>;
   /** The folders the window reaches, for how the agent reaches a file an ask is on. */
   folders: Record<string, { path: string }>;
   /** What a draft has up beside it, read as its chat starts, with the tab it was written in. */
@@ -339,11 +343,19 @@ export function useDrafts({
       // names by its address, and no tab of its group shows, opens right
       // after it (`pageToChat`).
       turnTab(sentFrom, chatHref(chatId));
+      const openTabs: string[] = [];
       const chatTab = windowTabs.allTabs.find((tab) => tab.id === sentFrom);
       if (chatTab?.group !== undefined) {
         const { group } = chatTab;
         const own = windowTabs.allTabs.filter((tab) => tab.group === group);
-        for (const url of pagesForChat(draft, own).toReversed()) {
+        const pages = pagesForChat(draft, own);
+        openTabs.push(
+          ...own.flatMap((tab) =>
+            tab.kind === "page" && tab.url ? [tab.url] : [],
+          ),
+          ...(browser === null ? [] : pages),
+        );
+        for (const url of pages.toReversed()) {
           pageToChat({ browser, chatTab: { group, id: sentFrom }, url });
         }
       }
@@ -367,7 +379,11 @@ export function useDrafts({
           ...message,
           // A context that cannot be gathered is a chat told less, not a
           // chat that never starts: the send goes on without it.
-          viewing: await viewing,
+          viewing: withDraftLinks(await viewing, draftLinksOf(draft), {
+            chatTitle: (chat) => chatTitles.get(chat),
+            opened: openTabs,
+            screen: "home",
+          }),
         });
       } catch (error) {
         failed = { error };

@@ -1253,6 +1253,7 @@ function WindowShell({
     startingIds,
   } = useDrafts({
     browser,
+    chatTitles,
     folders: opened?.folders ?? {},
     draftContext,
     isOpen: opened !== undefined,

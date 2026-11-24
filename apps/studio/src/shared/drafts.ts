@@ -360,12 +360,13 @@ function isOptionalField(key: keyof DraftFields): key is OptionalField {
   return key !== "words";
 }
 
-/** Whether a draft has anything in it worth keeping: words, something attached or in its folder, or an ask. */
+/** Whether a draft has anything in it worth keeping: words, something attached, in its folder or named in `context`, or an ask. */
 export function holdsSomething(draft: Draft): boolean {
   return (
     draft.words.trim() !== "" ||
     (draft.attached ?? []).length > 0 ||
     (draft.inFolder ?? []).length > 0 ||
+    (draft.context ?? []).length > 0 ||
     (draft.asks ?? []).length > 0
   );
 }
@@ -384,7 +385,6 @@ export function isLeftEmpty(
   return (
     words.trim() === "" &&
     !holdsSomething({ ...draft, words: "" }) &&
-    (draft.context ?? []).length === 0 &&
     !(draft.projectId !== undefined && draft.projectSource === "chosen") &&
     !hasTabs
   );

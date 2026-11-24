@@ -1387,6 +1387,7 @@ export class ChatRecords {
               metadata: {
                 ...message.metadata,
                 error: {
+                  appClosed: true,
                   kind: "aborted",
                   message: "Aborted",
                   reason: "unknown",

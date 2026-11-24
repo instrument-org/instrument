@@ -336,7 +336,7 @@ describe("ChatRecords", () => {
     stopListening();
 
     expect(reply?.role === "assistant" && reply.metadata).toMatchObject({
-      error: { kind: "aborted", reason: "unknown" },
+      error: { appClosed: true, kind: "aborted", reason: "unknown" },
       finishedAt: NOW,
       finishReason: "aborted",
     });

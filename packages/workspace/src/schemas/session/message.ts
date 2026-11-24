@@ -110,6 +110,11 @@ export namespace SessionMessage {
     z.object({
       kind: z.literal("aborted"),
       message: z.string(),
+      /**
+       * The app closed on the reply, by a quit or a crash: written by the
+       * next launch, with the reason `unknown`, which every build reads.
+       */
+      appClosed: z.literal(true).optional(),
       /** Absent on a reply cut off before the reason was kept. */
       reason: AbortReasonSchema.optional(),
     }),

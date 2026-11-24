@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { INTERRUPTED_TOOL_CALL_ERROR_TEXT } from "../../constants";
+import { isInterruptedByClosing } from "../../constants";
 import { type SessionMessage } from "../../schemas/session/message";
 import { asClause } from "../as-clause";
 import { describeMessageError } from "../describe-message-error";
@@ -245,9 +245,7 @@ function endedByAppClosing(messages: SessionMessage.WithParts[]): boolean {
   const last = messages.findLast((message) => message.role === "assistant");
   return (
     last?.parts.some(
-      (part) =>
-        "errorText" in part &&
-        part.errorText === INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+      (part) => "errorText" in part && isInterruptedByClosing(part.errorText),
     ) ?? false
   );
 }

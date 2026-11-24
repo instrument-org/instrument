@@ -180,7 +180,19 @@ export const TOOL_EXPLANATION_PARAM_NAME = "explanation";
  * failed.
  */
 export const INTERRUPTED_TOOL_CALL_ERROR_TEXT =
-  "This action was interrupted when the app closed.";
+  "This action was interrupted when the app closed. It may have finished anyway, so check before doing it again.";
+
+/**
+ * Whether a call's error says the app closed on it, in these words or in the
+ * first sentence alone, which is all an earlier build wrote.
+ */
+export function isInterruptedByClosing(errorText: string | undefined) {
+  return (
+    errorText?.startsWith(
+      "This action was interrupted when the app closed.",
+    ) === true
+  );
+}
 
 /**
  * What a tool call reads when the reply it belonged to ended before its

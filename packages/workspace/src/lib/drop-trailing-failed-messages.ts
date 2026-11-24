@@ -1,3 +1,4 @@
+import { isToolPart } from "./is-tool-part";
 import { type SessionMessage } from "../schemas/session/message";
 
 /**
@@ -24,6 +25,19 @@ export function dropTrailingFailedMessages(
   while (end > 0) {
     const message = messages[end - 1];
     if (message?.role !== "assistant" || !message.metadata.error) {
+      break;
+    }
+    // What a call did before the app closed stands, so the model has to see
+    // it was done rather than do it again.
+    if (
+      message.metadata.error.kind === "aborted" &&
+      message.metadata.error.appClosed &&
+      message.parts.some(
+        (part) =>
+          isToolPart(part) &&
+          (part.state === "output-available" || part.state === "output-error"),
+      )
+    ) {
       break;
     }
     end--;

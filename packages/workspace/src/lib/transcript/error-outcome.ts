@@ -10,12 +10,13 @@ export interface ErrorOutcome {
   cause: string;
   /**
    * - `card`: its row, saying what happened.
+   * - `cut-off`: a line saying the app closed on the reply, with Continue.
    * - `online-retry`: a row that draws only the notice of a retry waiting on the
    *   computer coming back, and nothing once there isn't one.
    * - `nothing`: a row that draws nothing, keeping the turn's shape.
    * - `none`: no row.
    */
-  draws: "card" | "none" | "nothing" | "online-retry";
+  draws: "card" | "cut-off" | "none" | "nothing" | "online-retry";
 }
 
 type StoredError = NonNullable<SessionMessage.Assistant["metadata"]["error"]>;
@@ -70,7 +71,7 @@ function isConcurrencyRefusal(
  *
  * A stop has no row: the person asked for it, or the app or a newer message did.
  * A timeout is the exception once the turn ended on it, since nothing else says
- * why the reply never came. A failure the turn went on past (a throttle, a
+ * why the reply never came, and so is the app closing on the chat's last reply. A failure the turn went on past (a throttle, a
  * provider's passing problem, or media the retry left out) has no row either,
  * since the retry says it whole, and a run of one refusal reads as its latest.
  */
@@ -97,6 +98,12 @@ export function errorOutcomeOf(
   const name = spelled(classification ?? error.kind);
 
   if (error.kind === "aborted") {
+    if (error.appClosed) {
+      return {
+        cause: "The app closed",
+        draws: isLastMessage && !isLive ? "cut-off" : "none",
+      };
+    }
     const cause = ABORT_CAUSES[error.reason ?? "unknown"];
     return {
       cause,

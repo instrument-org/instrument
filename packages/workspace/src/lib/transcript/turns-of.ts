@@ -782,7 +782,37 @@ function rowsOf(
       }
     }
   }
+  const cutOff = lastMessage && body.at(-1);
+  if (
+    !isLive &&
+    cutOff?.id === lastMessage?.id &&
+    endedOnClosedCall(cutOff) &&
+    !rows.some((row) => row.kind === "ask" && row.isOpen)
+  ) {
+    rows.push({
+      draws: "cut-off",
+      id: `error-${cutOff.id}`,
+      isLastMessage: true,
+      isLatestAttempt: true,
+      kind: "error",
+      message: cutOff,
+    });
+  }
   return rows;
+}
+
+/**
+ * Whether a reply asked for a call the app closed on. The reply itself was
+ * finished by then, so it has no error to say so.
+ */
+function endedOnClosedCall(
+  message: TranscriptMessage | undefined,
+): message is TranscriptMessage & { role: "assistant" } {
+  return (
+    message?.role === "assistant" &&
+    message.metadata.error === undefined &&
+    message.parts.some((part) => part.type === "step" && part.appClosed)
+  );
 }
 
 /**
@@ -1009,7 +1039,11 @@ function wasInterrupted(
 ): boolean {
   return (
     replies.at(-1)?.metadata.error !== undefined ||
-    rows.some((row) => row.kind === "activity" && isRunningRow(row))
+    rows.some(
+      (row) =>
+        (row.kind === "activity" && isRunningRow(row)) ||
+        (row.kind === "error" && row.draws === "cut-off"),
+    )
   );
 }
 

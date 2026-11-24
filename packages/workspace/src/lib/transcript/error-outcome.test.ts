@@ -65,6 +65,22 @@ describe("errorOutcomeOf", () => {
     ).toEqual({ cause, draws: "none" });
   });
 
+  it("offers to carry on the chat's last reply when the app closed on it", () => {
+    const closed = reply({
+      appClosed: true,
+      kind: "aborted",
+      message: "A",
+      reason: "unknown",
+    });
+    const at = { isLive: false, lastMessageId: closed.id, next: undefined };
+    expect(errorOutcomeOf(closed, at)?.draws).toBe("cut-off");
+    expect(errorOutcomeOf(closed, { ...at, isLive: true })?.draws).toBe("none");
+    const later = reply(undefined, {}, [said]);
+    expect(
+      errorOutcomeOf(closed, { ...at, lastMessageId: later.id })?.draws,
+    ).toBe("none");
+  });
+
   it("says so when a turn ended on a timeout, and not while it may retry", () => {
     const timedOut = reply({
       kind: "aborted",

@@ -17,8 +17,8 @@ import { useWindowTabs } from "./window-tabs";
  * A chat in a tab of a group, as its route draws it: the conversation, with
  * its head over it.
  * Every tab in the group goes with each message, so none of them is a chip
- * to leave out. It marks itself read and takes the caret only on the side
- * with the keyboard.
+ * to leave out. It marks itself read whenever it is on screen, on either
+ * side of a split, and takes the caret only on the side with the keyboard.
  */
 export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
   const groupTab = useGroupTab();
@@ -26,13 +26,14 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
   const isActive = useIsActiveTab();
   const tabId = groupTab?.id;
   const hasKeyboard = groupTab?.hasKeyboard ?? true;
+  const isShown = groupTab?.isShown ?? true;
   return (
     <div className="absolute inset-0 flex flex-col">
       <ChatTabHead chatId={chatId} />
       <div className="relative min-h-0 flex-1">
         <ChatScreen
           chatId={chatId}
-          isUp={isActive && hasKeyboard}
+          isUp={isActive && isShown}
           key={chatId}
           {...(tabId === undefined
             ? {}

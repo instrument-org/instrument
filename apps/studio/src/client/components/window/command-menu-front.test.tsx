@@ -197,7 +197,6 @@ describe("the command menu's actions for the tab in front", () => {
     await screen.findByRole("button", { name: /Export/ });
     expect(listed()).toMatchInlineSnapshot(`
       [
-        "# Commands",
         "Export as Markdown… · This chat",
         "Search the web for “export”",
       ]
@@ -332,7 +331,7 @@ describe("the command menu's open tabs", () => {
     front.all = [CHAT_TAB, NEW_TAB];
     const { rerender } = renderWithProviders(<MenuRows words="roofer" />);
 
-    await screen.findByText("# Chats");
+    await screen.findByRole("button", { name: "Roofer quotes" });
     expect(screen.queryByText("# Open tabs")).toBeNull();
 
     rerender(<MenuRows words="new" />);

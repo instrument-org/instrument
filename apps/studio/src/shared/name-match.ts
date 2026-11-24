@@ -28,7 +28,7 @@
  * once per search (`foldWords`); `matchRank` then allocates nothing.
  */
 
-const MATCH_STEPS = {
+export const MATCH_STEPS = {
   exact: 0,
   startsName: 1,
   startsWords: 2,
@@ -365,7 +365,7 @@ export function stepOf(rank: number): number {
 }
 
 /** Where in the folded name the match of a rank starts. */
-function positionOf(rank: number): number {
+export function positionOf(rank: number): number {
   return rank % RANK_PER_STEP;
 }
 
@@ -678,7 +678,7 @@ function nearStart(name: FoldedName, word: string): number {
  * end pairs in the name as written, in order, the shape `FuzzyHighlight`
  * takes.
  */
-function matchRanges(
+export function matchRanges(
   name: FoldedName,
   words: FoldedWords,
   step: number,

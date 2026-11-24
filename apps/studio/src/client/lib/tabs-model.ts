@@ -16,7 +16,8 @@ import {
  */
 export type { TabsModel };
 
-const MAX_RECENTLY_CLOSED = 10;
+/** How many closes the closed list keeps: enough that closing tabs one at a time does not push a closed tab group off it. */
+export const MAX_RECENTLY_CLOSED = 100;
 
 export function addTab(
   model: TabsModel,

@@ -9,6 +9,7 @@ import {
   duplicateTab,
   emptyTabsModel,
   insertTab,
+  MAX_RECENTLY_CLOSED,
   removeTab,
   reopenClosed,
   reorderTabs,
@@ -241,6 +242,22 @@ describe("reopenClosed", () => {
   it("no-ops with empty history", () => {
     const start = model([tab({ id: id("a") })], id("a"));
     expect(reopenClosed(start, { id: id("x") })).toBe(start);
+  });
+});
+
+describe("the closed list", () => {
+  it("keeps the newest closes up to its cap and lets the oldest go", () => {
+    let next = model([tab({ id: id("kept") })], id("kept"));
+    for (let index = 0; index <= MAX_RECENTLY_CLOSED; index++) {
+      next = addTab(next, { id: id(`t${index}`), pathname: "/chats" });
+      next = closeTab(next, {
+        id: id(`t${index}`),
+        newTab: { id: id("new"), pathname: "/chats" },
+      });
+    }
+    expect(next.recentlyClosed).toHaveLength(MAX_RECENTLY_CLOSED);
+    expect(next.recentlyClosed[0]?.id).toBe(`t${MAX_RECENTLY_CLOSED}`);
+    expect(next.recentlyClosed.at(-1)?.id).toBe("t1");
   });
 });
 

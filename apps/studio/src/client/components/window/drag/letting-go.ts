@@ -127,7 +127,7 @@ export function outcomeOf(
     case "pin": {
       return {
         does: "pin",
-        line: landing.moves ? "Move here" : "Pin to sidebar",
+        line: landing.moves ? "Move here" : "Add to Favorites",
       };
     }
     case "into": {
@@ -137,7 +137,9 @@ export function outcomeOf(
       };
     }
     case "unpin": {
-      return placeOf(held)?.pinned ? { does: "unpin", line: "Unpin" } : nothing;
+      return placeOf(held)?.pinned
+        ? { does: "unpin", line: "Remove from Favorites" }
+        : nothing;
     }
     case "attach": {
       // The box says it in its own outline.

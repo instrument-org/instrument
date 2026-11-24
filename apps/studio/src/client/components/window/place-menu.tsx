@@ -15,8 +15,8 @@ import { NO_SIDEBAR_CHANGES, pinnedPlaces } from "@/shared/sidebar-places";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ClipboardTextIcon } from "@phosphor-icons/react/ClipboardText";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
-import { PushPinIcon } from "@phosphor-icons/react/PushPin";
-import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
+import { MinusCircleIcon } from "@phosphor-icons/react/MinusCircle";
+import { PlusCircleIcon } from "@phosphor-icons/react/PlusCircle";
 import { useQuery } from "@tanstack/react-query";
 
 import { useWindow } from "./context";
@@ -107,12 +107,12 @@ export function PlaceMenu({
           <ContextMenuSeparator />
           <ContextMenuItem onClick={pin.onToggle}>
             {pin.isPinned ? (
-              <PushPinSlashIcon className="size-4" />
+              <MinusCircleIcon className="size-4" />
             ) : (
-              <PushPinIcon className="size-4" />
+              <PlusCircleIcon className="size-4" />
             )}
             <span>
-              {pin.isPinned ? "Unpin from Sidebar" : "Pin to Sidebar"}
+              {pin.isPinned ? "Remove from Favorites" : "Add to Favorites"}
             </span>
           </ContextMenuItem>
         </>

@@ -140,8 +140,8 @@ import { FolderOpenIcon } from "@phosphor-icons/react/FolderOpen";
 import { FolderPlusIcon } from "@phosphor-icons/react/FolderPlus";
 import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
-import { PushPinIcon } from "@phosphor-icons/react/PushPin";
-import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
+import { MinusCircleIcon } from "@phosphor-icons/react/MinusCircle";
+import { PlusCircleIcon } from "@phosphor-icons/react/PlusCircle";
 import { ScissorsIcon } from "@phosphor-icons/react/Scissors";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { SortAscendingIcon } from "@phosphor-icons/react/SortAscending";
@@ -2462,7 +2462,7 @@ export function ComputerPage({
       ],
     },
     {
-      label: "Pinned",
+      label: "Favorites",
       places: pinned.map(({ name, path: pinnedPath }) => ({
         name,
         path: pinnedPath,
@@ -3470,12 +3470,14 @@ function FolderMenuItems({
               {pin ? (
                 <Item onClick={pin.onToggle}>
                   {pin.isPinned ? (
-                    <PushPinSlashIcon className="size-4" />
+                    <MinusCircleIcon className="size-4" />
                   ) : (
-                    <PushPinIcon className="size-4" />
+                    <PlusCircleIcon className="size-4" />
                   )}
                   <span>
-                    {pin.isPinned ? "Unpin from Sidebar" : "Pin to Sidebar"}
+                    {pin.isPinned
+                      ? "Remove from Favorites"
+                      : "Add to Favorites"}
                   </span>
                 </Item>
               ) : null}
@@ -3818,7 +3820,7 @@ function FinderPlaces({
         ]}
       />
       <PlaceList
-        label="Pinned"
+        label="Favorites"
         listRef={pinnedList}
         menu={(place) => placeMenu(place, { isPinned: true })}
         onOpenInNewTab={actions.openInNewTab}

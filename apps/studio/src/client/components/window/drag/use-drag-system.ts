@@ -161,7 +161,7 @@ export function useDragSystem({
 function unpinPlace(path: string, pinned: readonly string[]) {
   rpcClient.preferences.unpinSidebarPlace.call({ path }).then(
     () => {
-      toast(`Unpinned ${segmentsOf(path).at(-1) ?? path}`, {
+      toast(`Removed ${segmentsOf(path).at(-1) ?? path} from Favorites`, {
         action: {
           label: "Undo",
           onClick: () => {

@@ -103,7 +103,9 @@ export function ChatRow({
   density = "three",
   isArriving = false,
   isOpen,
+  isPlain = false,
   isProjectShown = true,
+  mark,
   now,
   onDelete,
   onNewProject,
@@ -122,8 +124,18 @@ export function ChatRow({
   isArriving?: boolean;
   /** Whether this chat is the one open beside the list. */
   isOpen: boolean;
+  /**
+   * A row of the bookmarks bar's Chats menu: no controls under the pointer
+   * and no hairlines, on rounded rows.
+   */
+  isPlain?: boolean;
   /** Whether the row names the project the chat is filed under: not in the list of that project, which already says it. */
   isProjectShown?: boolean;
+  /**
+   * The chat's mark ahead of its title, which wears the row's dot
+   * (`ChatMarkIcon`) in place of the gutter's.
+   */
+  mark?: ReactNode;
   /** The moment the row's time is read against. */
   now: Date;
   /** Asks before the chat goes to the trash, through the caller's dialog. */
@@ -292,7 +304,9 @@ export function ChatRow({
       <ContextMenuTrigger asChild>
         <div
           className={cn(
-            rowClassName(isOpen),
+            isPlain
+              ? "group/row relative flex cursor-default items-start gap-1.5 rounded-lg px-2.5 py-1.5 select-none hover:bg-foreground/[0.04] focus-visible:outline-hidden data-[state=open]:bg-foreground/[0.04]"
+              : rowClassName(isOpen),
             // The chat just started from a draft slides into its place;
             // nothing else that lands in the list does this.
             isArriving && "chat-arrive",
@@ -310,6 +324,9 @@ export function ChatRow({
         >
           <div className="min-w-0 flex-1">
             <div className="flex h-5 items-center gap-1.5">
+              {mark && (
+                <span className="flex shrink-0 text-foreground/65">{mark}</span>
+              )}
               {title}
               {/* At one line the project stands just before the time, so
                   every title starts at the same edge. */}
@@ -320,17 +337,24 @@ export function ChatRow({
               )}
               {/* The time and the star step aside for the row's controls
                   while the pointer is on it. */}
-              <RowActionBar
-                actions={actions}
-                isHeld={isPickerLeaving}
-                leading={tagControl}
-                resting={
-                  <>
-                    {time}
-                    {starMark}
-                  </>
-                }
-              />
+              {isPlain ? (
+                <span className="ml-auto flex shrink-0 items-center gap-1">
+                  {time}
+                  {starMark}
+                </span>
+              ) : (
+                <RowActionBar
+                  actions={actions}
+                  isHeld={isPickerLeaving}
+                  leading={tagControl}
+                  resting={
+                    <>
+                      {time}
+                      {starMark}
+                    </>
+                  }
+                />
+              )}
             </div>
             {density === "three" && (
               <>
@@ -388,7 +412,7 @@ export function ChatRow({
               </div>
             )}
           </div>
-          <RowDot chat={chat} density={density} />
+          {!mark && <RowDot chat={chat} density={density} />}
         </div>
       </ContextMenuTrigger>
       <ContextMenuContent

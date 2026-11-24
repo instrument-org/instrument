@@ -195,7 +195,7 @@ type Item = {
 };
 
 type Row =
-  /** A section's heading; an empty label is a rule that sets a row apart without naming it. */
+  /** A section's heading. */
   | { label: string; type: "header" }
   /** The decision model still reading the chats, in the place its rows will take. */
   | { type: "looking" }
@@ -987,10 +987,10 @@ export function useCommandMenuRows({
 
   const rows: Row[] = sections
     .filter((section) => section.items.length > 0 || section.looking)
-    .flatMap((section, index): Row[] => [
-      // A section with no name at the top needs no rule over it: its first
-      // row is plainly what Return runs.
-      ...(index === 0 && section.label === ""
+    .flatMap((section): Row[] => [
+      // A section with no name has no heading, and nothing else sets it
+      // apart from the rows over it.
+      ...(section.label === ""
         ? []
         : [{ label: section.label, type: "header" as const }]),
       ...section.items.map((item) => ({
@@ -1187,8 +1187,8 @@ function CommandMenuField({
 }
 
 /**
- * The menu's list, one height whatever the search finds, so it does not
- * grow and shrink under the caret as results come and go.
+ * The menu's list, one height whatever the search finds, eight rows tall,
+ * so it does not grow and shrink under the caret as results come and go.
  */
 function CommandMenuList({
   className,
@@ -1303,7 +1303,7 @@ export function CommandMenu({
             value={search}
           />
           <CommandMenuList
-            className="h-96"
+            className="h-74"
             isBang={isBang}
             itemClassName="py-2"
             listId={listId}
@@ -1338,7 +1338,7 @@ function ResultRows({
     count: rows.length,
     estimateSize: (i) => {
       const row = rows[i];
-      return row?.type === "header" ? (row.label === "" ? 9 : 28) : 36;
+      return row?.type === "header" ? 28 : 36;
     },
     getScrollElement: () => parentRef.current,
     // Rows on the first render, before the scroller is measured.
@@ -1380,13 +1380,9 @@ function ResultRows({
               style={{ transform: `translateY(${virtualItem.start}px)` }}
             >
               {row.type === "header" ? (
-                row.label === "" ? (
-                  <div className="mx-2 my-1 border-t border-border" />
-                ) : (
-                  <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
-                    {row.label}
-                  </div>
-                )
+                <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                  {row.label}
+                </div>
               ) : row.type === "looking" ? (
                 <div className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground">
                   <Spinner className="size-4" />

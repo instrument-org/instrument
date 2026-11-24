@@ -242,7 +242,6 @@ describe("folders and bookmarks in the command menu", () => {
           "Pages",
           "Weather Radar",
           "Weather Today",
-          "",
           "Search the web for “weather”",
         ]
       `);

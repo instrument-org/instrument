@@ -30,6 +30,12 @@ export interface CapabilityContext {
   /** Who a card the call raises is from: the bash call's chat, session and part. */
   asker: Asker;
   /**
+   * One `agent-browser` command, run by a shell of the bash call's own as it
+   * runs one typed there, from the folder the script was started in; absent
+   * where no shell is behind the call.
+   */
+  browser?: (args: string[], stdin?: string) => Promise<CommandEnd>;
+  /**
    * The model the chat's sessions run on, in full, for work that calls a
    * model on its behalf (a search, an image): read once per bash call, at
    * the first call that asks.
@@ -78,6 +84,13 @@ export interface ShellPath {
   path: string;
 }
 
+/** How a command the shell ran for a call ended. */
+export interface CommandEnd {
+  exitCode: number;
+  stderr: string;
+  stdout: string;
+}
+
 /** What a gate decides before the work runs: the same answer on every surface. */
 export type Gate =
   | { kind: "allowed" }
@@ -105,6 +118,8 @@ export type CapabilityErrorKind =
 /** An error reply, the same shape on the channel and inside the dispatcher. */
 export interface CapabilityErrorReply {
   ask?: { kind: "app" | "folder"; target: string };
+  /** For a call whose work was a command that failed, how it ended. */
+  command?: CommandEnd;
   kind: CapabilityErrorKind;
   message: string;
 }
@@ -122,6 +137,17 @@ export class CapabilityFailure extends Error {
   ) {
     super(message);
     this.name = "CapabilityFailure";
+  }
+}
+
+/** The failure of a call whose work was a command: how it ended goes with the error. */
+export class CommandFailure extends CapabilityFailure {
+  constructor(
+    message: string,
+    readonly command: CommandEnd,
+  ) {
+    super(message);
+    this.name = "CommandFailure";
   }
 }
 

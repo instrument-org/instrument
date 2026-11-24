@@ -30,7 +30,7 @@ The owner's direction: define each capability once, in a structured way, and gen
 | Window | `window list`, `show`, `read`, `close`, `request` | no | `instrument.window.list()`, `.read(tab)` | the same | `list` and `read` both; `show`, `close` and `request` chat only | `window request` raises a card |
 | Tasks | `task new`, `send`, `stop`, `list`, `log` | no | no | no | chat only | none |
 | X posts | `x search`, `x thread [--json]` | no | no | no | both | Grok account |
-| Browser | `agent-browser` (wraps a real program) | no | no | no | both, own tabs | browser allowlist |
+| Browser | `agent-browser` (wraps a real program) | no | `instrument.browser("open", url)`, which runs the shell's command ([decision](../decisions/2026-11-23-scripts-drive-the-browser.md)) | the same | both, own tabs | browser allowlist |
 | Background jobs | `jobs`, `fg`, `kill` | no | no | no | both | own jobs only |
 | Web | `curl` | `web_fetch`, `web_search` | no | no | both | none |
 | Files | builtins and native programs | `read_file`, `write_file`, `edit_file` | (the script's own fs) | (same) | both | Permissions rules; `ask_permission` for a folder |

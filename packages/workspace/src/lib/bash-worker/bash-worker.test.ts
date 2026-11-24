@@ -230,6 +230,23 @@ describe("bash worker", { timeout: WORKER_TIMEOUT_MS }, () => {
     `);
   });
 
+  // Neither command starts the CLI: the shell's own command answers both.
+  it("runs a script's browser command in the main thread's shell, as it runs the worker's own", async () => {
+    const bashOptions = options();
+    const bash = createRemoteBash(bashOptions, () =>
+      createLocalBashEnv(bashOptions),
+    );
+    const typed = await bash.exec("agent-browser close; agent-browser --help");
+    const result = await bash.exec(
+      `node --input-type=module -e 'try { await instrument.browser("close"); } catch (error) { process.stderr.write(error.stderr); } process.stdout.write(await instrument.browser("--help"));'`,
+    );
+    expect(result.stderr).toBe(typed.stderr);
+    expect(result.stderr).toBe(
+      "agent-browser: subcommand 'close' is not available in this environment.\n",
+    );
+    expect(result.stdout).toBe(typed.stdout);
+  });
+
   it("credits a skill written from the shell to the turn that wrote it", async () => {
     const bashOptions = options();
     const turn = { id: chatId, sessionId: bashOptions.sessionId };

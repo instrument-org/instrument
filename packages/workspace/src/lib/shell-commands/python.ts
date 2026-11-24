@@ -4,7 +4,11 @@ import path from "node:path";
 
 import { FOLDER_VARIABLES } from "../../constants";
 import { type ChatId } from "../../schemas/chat-id";
-import { type ChannelAnswer, openScriptChannel } from "../capabilities/channel";
+import {
+  answerFrom,
+  type ChannelAnswer,
+  openScriptChannel,
+} from "../capabilities/channel";
 import {
   ensurePythonRuntime,
   linkPythonRuntime,
@@ -76,7 +80,13 @@ function createPythonCommandNamed(
 ) {
   return {
     ...defineCommand(name, (args, ctx) =>
-      runNativePython(chatId, name, args, ctx, answerScript),
+      runNativePython(
+        chatId,
+        name,
+        args,
+        ctx,
+        answerScript && answerFrom(answerScript, ctx),
+      ),
     ),
     acceptsPipeHandoff: true,
   };

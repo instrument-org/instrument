@@ -152,6 +152,31 @@ describe("BashTool toModelOutput", () => {
     );
   });
 
+  it("says after a script's output what its browser commands had to say past their own", () => {
+    expect(
+      renderedText({
+        browserNews: [
+          "The page in tab tab_1 opened https://example.com/receipt as a popup, which is a new tab of this chat, tab_2: `agent-browser tab tab_2` switches to it.",
+        ],
+        commands: ["node"],
+        output: "3 pages\n",
+        pageAfter: { after: "open", kind: "unchanged", text: "" },
+      }),
+    ).toMatchInlineSnapshot(`
+      "Exit code: 0
+
+      Command output:
+
+      3 pages
+
+      The page in tab tab_1 opened https://example.com/receipt as a popup, which is a new tab of this chat, tab_2: \`agent-browser tab tab_2\` switches to it.
+
+      Duration: 0 ms
+
+      Page after \`open\` (\`agent-browser snapshot -i --delta\`, run for you): no interactive element changed since the page's last snapshot. Text outside the controls is compared only where the page announces it (below, when it did); read the rest with \`get text\` if the action should have changed it."
+    `);
+  });
+
   it("names browser commands that failed where the output does not show it", () => {
     expect({
       quiet: renderedText({

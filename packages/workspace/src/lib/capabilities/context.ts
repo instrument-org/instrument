@@ -17,6 +17,7 @@ import {
 import {
   type CapabilityContext,
   CapabilityFailure,
+  type CommandEnd,
   type Role,
   type ShellPath,
 } from "./define";
@@ -35,7 +36,30 @@ export interface CapabilityScope {
   /** What is left of the bash call's yield window, read when a wait starts. */
   remainingYieldMs?: () => number;
   role: Role;
+  /**
+   * Runs one `agent-browser` command in a shell of the bash call's own, the
+   * way that shell runs one typed in it; without it no call drives the
+   * browser.
+   */
+  runBrowser?: (call: BrowserCall) => Promise<CommandEnd>;
   sessionId: StoreId.Session;
+}
+
+/**
+ * The shell a script was started from, as the command that started it had
+ * it: its folder, in the shell's spelling, and its environment.
+ */
+export interface ScriptShell {
+  cwd: string;
+  env: Record<string, string>;
+}
+
+/** One `agent-browser` command a script asks for, and the shell it was started from. */
+interface BrowserCall {
+  args: string[];
+  from?: ScriptShell;
+  signal?: AbortSignal;
+  stdin?: string;
 }
 
 /** The ways a file is looked at: the shell's, from its folder, or a script's, by its full path. */
@@ -144,11 +168,16 @@ export function capabilityContexts(
     partId,
     remainingYieldMs = () => Number.POSITIVE_INFINITY,
     role,
+    runBrowser,
     sessionId,
   }: CapabilityScope,
   surface: CapabilityContext["surface"],
   readShellFile?: CapabilityContext["readShellFile"],
-): (signal?: AbortSignal, shell?: FileLook) => CapabilityContext {
+): (
+  signal?: AbortSignal,
+  shell?: FileLook,
+  from?: ScriptShell,
+) => CapabilityContext {
   let window: ReturnType<CapabilityContext["modelWindow"]> | undefined;
   let calling: ReturnType<CapabilityContext["callingModel"]> | undefined;
   const modelWindow = () =>
@@ -158,8 +187,19 @@ export function capabilityContexts(
       calling = undefined;
       throw error;
     }));
-  return (signal, shell) => ({
+  return (signal, shell, from) => ({
     asker: { chatId, ...(partId === undefined ? {} : { partId }), sessionId },
+    ...(runBrowser === undefined
+      ? {}
+      : {
+          browser: (args: string[], stdin?: string) =>
+            runBrowser({
+              args,
+              ...(from === undefined ? {} : { from }),
+              ...(signal === undefined ? {} : { signal }),
+              ...(stdin === undefined ? {} : { stdin }),
+            }),
+        }),
     callingModel,
     chatId,
     ...(layout === undefined ? {} : { layout }),

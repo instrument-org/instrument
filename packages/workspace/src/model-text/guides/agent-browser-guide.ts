@@ -1,4 +1,5 @@
 import { CHAT_FOLDER_NAMES } from "../../constants";
+import { scriptSurfaceOpen } from "../../lib/capabilities/script-surface";
 import { TOOL_NAMES } from "../../tools/name";
 import {
   AGENT_BROWSER_CORE_GUIDE,
@@ -103,6 +104,11 @@ export function agentBrowserReferencePaths(): string[] {
   return AGENT_BROWSER_REFERENCES.map(({ path }) => path);
 }
 
+/** How a script runs these commands, where scripts reach `instrument`. */
+export const FROM_A_SCRIPT = `## From a script
+
+A \`python\` or \`node\` script runs these commands with \`instrument.browser("eval", js)\` (\`import instrument\` in Python, awaited in Node): the words of the command line as arguments, and \`stdin=js\` in Python or a last \`{ stdin: js }\` in Node for \`--stdin\`. It returns what the command printed. A command that fails raises \`instrument.Error\` with its \`stderr\`, \`stdout\` and \`exit_code\` (\`exitCode\` in Node). The page as the script left it comes under \`Page after\` once, when the call ends. One script that loops goes through many pages in a single call: \`for url in urls: instrument.browser("open", url); rows += json.loads(instrument.browser("eval", js))\`.`;
+
 /**
  * The guide the agent reads: the addendum, then the upstream core guide, and
  * with `full` the references that apply here.
@@ -113,7 +119,10 @@ export function agentBrowserGuide({ full = false } = {}): string {
         ({ path, text }) => `\n---\n\n<!-- ${path} -->\n\n${text}\n`,
       ).join("")
     : "";
-  return `${INSTRUMENT_ADDENDUM}\n\n---\n\n${AGENT_BROWSER_CORE_GUIDE}${references}`;
+  const here = scriptSurfaceOpen()
+    ? `${INSTRUMENT_ADDENDUM}\n\n${FROM_A_SCRIPT}`
+    : INSTRUMENT_ADDENDUM;
+  return `${here}\n\n---\n\n${AGENT_BROWSER_CORE_GUIDE}${references}`;
 }
 
 /**

@@ -495,6 +495,9 @@ export type BrowserFailure = z.output<typeof BrowserFailureSchema>;
 /** The most failures a call names, the earliest first; past that it counts them. */
 const MAX_BROWSER_FAILURES = 3;
 
+/** The most lines a call keeps of what its script's commands had to say; a looping script's further ones are dropped. */
+const MAX_BROWSER_NEWS = 8;
+
 /** Longest a failed command is quoted, so a `fill` with a page of text stays a line. */
 const FAILED_COMMAND_CHARS = 80;
 
@@ -518,6 +521,30 @@ export class BrowserFollowUp {
 
   /** How many commands failed past the ones kept. */
   #moreFailures = 0;
+
+  /** What a script's commands would have ended their output with, in order. */
+  #news: string[] = [];
+
+  /** Whether a script of the call ran a command, which no command list shows. */
+  scripted = false;
+
+  /**
+   * Keeps a line a command ends its output with (who else used the tab, a
+   * popup the page opened) for the end of the call, where the command's
+   * output went to a script.
+   */
+  noteNews(line: string) {
+    if (this.#news.length < MAX_BROWSER_NEWS) {
+      this.#news.push(line.trimEnd());
+    }
+  }
+
+  /** The kept lines, once. */
+  takeNews(): string[] {
+    const news = this.#news;
+    this.#news = [];
+    return news;
+  }
 
   /** The last change since the page was last read, which the snapshot is after. */
   #pending: { after: string; read: ReadPage } | undefined;
@@ -729,6 +756,26 @@ export function withBrowserFollowUp<T>(
 
 export function currentBrowserFollowUp(): BrowserFollowUp | undefined {
   return storage.getStore();
+}
+
+const scriptCalls = new AsyncLocalStorage<true>();
+
+/**
+ * Runs one command a script asked for. The script reads the command's own
+ * output, so what the command would add for the model is kept for the end
+ * of the bash call instead ({@link BrowserFollowUp.noteNews}).
+ */
+export function asScriptCall<T>(run: () => Promise<T>): Promise<T> {
+  const followUp = currentBrowserFollowUp();
+  if (followUp) {
+    followUp.scripted = true;
+  }
+  return scriptCalls.run(true, run);
+}
+
+/** Whether the command running was asked for by a script. */
+export function isScriptCall(): boolean {
+  return scriptCalls.getStore() === true;
 }
 
 const UNCHANGED = /^unchanged \(revision \d+\)$/;

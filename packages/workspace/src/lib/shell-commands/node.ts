@@ -3,7 +3,11 @@ import { defineCommand, latin1FromBytes } from "just-bash";
 import { type AbsolutePath } from "../../schemas/paths";
 import { type ChatId } from "../../schemas/chat-id";
 import { filterShellOutput } from "../filter-shell-output";
-import { type ChannelAnswer, openScriptChannel } from "../capabilities/channel";
+import {
+  answerFrom,
+  type ChannelAnswer,
+  openScriptChannel,
+} from "../capabilities/channel";
 import { scriptSurfaceOpen } from "../capabilities/script-surface";
 import {
   ensureAgentBrowserStub,
@@ -120,17 +124,15 @@ export const NODE_COMMAND = {
 } as const;
 
 /**
- * `node` as a real process. With `answerScript`, the script gets the
+ * `node` as a real process. With `answer`, the script gets the
  * `instrument` global (`capabilities/node-runtime.ts`), and this command
  * answers each call it makes over a loopback channel opened for that one
  * process.
  */
-export function createNodeCommand(
-  chatId: ChatId,
-  answerScript?: ChannelAnswer,
-) {
+export function createNodeCommand(chatId: ChatId, answer?: ChannelAnswer) {
   const command = defineCommand(NODE_COMMAND.name, async (args, ctx) => {
     const { env, hostCwd } = resolveCommandContext(chatId, ctx);
+    const answerScript = answer && answerFrom(answer, ctx);
     const stdinProgram = latin1FromBytes(ctx.stdin);
 
     if (args.length === 0 && !stdinProgram && ctx.stdinHandoff === undefined) {

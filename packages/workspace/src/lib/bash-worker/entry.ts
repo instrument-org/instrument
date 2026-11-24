@@ -14,6 +14,7 @@ import {
   type ChannelReply,
   type ChannelRequest,
 } from "../capabilities/channel";
+import { type ScriptShell } from "../capabilities/context";
 import { createLocalBashEnv } from "../create-bash-env";
 import { setVenvCreator, type VenvError } from "../venv";
 import { setOriginalForwarder } from "../chat/turn-originals";
@@ -245,7 +246,8 @@ async function runExec({
   try {
     const bash = await createLocalBashEnv({
       ...bashEnv,
-      answerScript: (request, signal) => answerOnMain({ id, request, signal }),
+      answerScript: (request, signal, from) =>
+        answerOnMain({ from, id, request, signal }),
       standIn: (name) => standIn(id, name),
     });
     const run = () =>
@@ -279,10 +281,12 @@ function sendChunk(id: number, text: string) {
  * of the command's signal stops the call there, as it does a proxied command.
  */
 function answerOnMain({
+  from,
   id,
   request,
   signal,
 }: {
+  from: ScriptShell | undefined;
   id: number;
   request: ChannelRequest;
   signal: AbortSignal | undefined;
@@ -297,7 +301,13 @@ function answerOnMain({
       resolve(reply);
     });
     signal?.addEventListener("abort", onAbort, { once: true });
-    post({ callId, id, request, type: "capability" });
+    post({
+      callId,
+      ...(from === undefined ? {} : { from }),
+      id,
+      request,
+      type: "capability",
+    });
   });
 }
 

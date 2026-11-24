@@ -41,6 +41,7 @@ import {
   createProjectsCommand,
   PROJECTS_COMMAND,
 } from "./shell-commands/projects";
+import { browserThrough } from "./capabilities/browser";
 import { answerChannel, type ChannelAnswer } from "./capabilities/channel";
 import { commandRefusal } from "./capabilities/cli";
 import { type CapabilityScope } from "./capabilities/context";
@@ -947,6 +948,10 @@ export async function createLocalBashEnv({
   // `window` only read, and its `task` has nothing. Putting a thing on the
   // user's screen is the chat's `window`: a task's reply is read by the chat,
   // and a pane of the task's own has nobody looking.
+  // A script's `agent-browser` runs in a second shell of the same options,
+  // built at the first one, as the bash worker's commands of the main thread
+  // do: this one is in the middle of the script's own command.
+  let browserShell: Promise<BashRunner> | undefined;
   const scope: CapabilityScope = {
     chatId,
     layout,
@@ -954,6 +959,19 @@ export async function createLocalBashEnv({
     ...(callPartId === undefined ? {} : { partId: callPartId }),
     remainingYieldMs,
     role,
+    runBrowser: browserThrough(
+      () =>
+        (browserShell ??= createLocalBashEnv({
+          callPartId,
+          chatId,
+          folders,
+          loadedSkillDir,
+          model,
+          remainingYieldMs,
+          role,
+          sessionId,
+        })),
+    ),
     sessionId,
   };
   const nativeCommands = customCommandDefs().map((cmd) =>

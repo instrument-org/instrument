@@ -250,6 +250,12 @@ const bashOutputSchema = z.object({
     })
     .optional(),
   /**
+   * What the agent-browser commands a script of the call ran had to say
+   * past their own output, which the script read: who else used a tab, a
+   * popup a page opened.
+   */
+  browserNews: z.array(z.string()).optional(),
+  /**
    * The page after the call's agent-browser commands changed it, when
    * nothing in the call read it afterwards.
    */
@@ -576,18 +582,22 @@ const bashCapability = defineCapability({
                 signal,
               })
             : undefined;
-        const browserSkill = commands.includes(AGENT_BROWSER_COMMAND.name)
-          ? await browserSkillToDeliver({
-              sessionId,
-              chatId,
-              model: model.canonicalId,
-            })
-          : undefined;
+        const browserNews = browserFollowUp.takeNews();
+        const browserSkill =
+          commands.includes(AGENT_BROWSER_COMMAND.name) ||
+          browserFollowUp.scripted
+            ? await browserSkillToDeliver({
+                sessionId,
+                chatId,
+                model: model.canonicalId,
+              })
+            : undefined;
         const guidesShown = appGuidesShown(appGuides, outcome.output);
 
         return ok({
           ...(guidesShown.length > 0 ? { appGuides: guidesShown } : {}),
           ...(browserFailures.failed.length > 0 ? { browserFailures } : {}),
+          ...(browserNews.length > 0 ? { browserNews } : {}),
           ...(browserSkill ? { browserSkill } : {}),
           command: input.command,
           commands,
@@ -719,17 +729,20 @@ function bashOutputText(output: z.output<typeof bashOutputSchema>): {
     const hasErrors = output.exitCode !== 0;
     const exitLine = `Exit code: ${output.exitCode ?? "unknown"}`;
     const failures = output.browserFailures;
-    const failuresSection = failures
-      ? [
-          "",
-          ...failures.failed.map(
-            ({ command, error }) => `\`${command}\` failed: ${error}`,
-          ),
-          ...(failures.more > 0
-            ? [`${failures.more} more agent-browser commands failed.`]
-            : []),
-        ]
-      : [];
+    const failuresSection = [
+      ...(failures
+        ? [
+            "",
+            ...failures.failed.map(
+              ({ command, error }) => `\`${command}\` failed: ${error}`,
+            ),
+            ...(failures.more > 0
+              ? [`${failures.more} more agent-browser commands failed.`]
+              : []),
+          ]
+        : []),
+      ...(output.browserNews ? ["", ...output.browserNews] : []),
+    ];
     const pageAfterSection = output.pageAfter
       ? ["", pageAfterText(output.pageAfter)]
       : [];

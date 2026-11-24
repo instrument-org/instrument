@@ -118,6 +118,9 @@ instrument.images.generate(prompt, file_path=...) saves the image.
 instrument.memory.list() and instrument.memory.show(name) read what is
 remembered; instrument.window.list() and instrument.window.read(tab) what is
 in front of the user.
+instrument.browser("open", url) runs one agent-browser command in this chat's
+tabs and returns what it printed; one that fails raises Error with exit_code,
+stderr and stdout.
 help(instrument.apps.request) and describe() show what this shell can call.
 
 Calls block and are safe from threads, so a ThreadPoolExecutor fans out. One
@@ -148,13 +151,22 @@ __all__ = [
     "ReadGuideFirst",
     "app",
     "apps",
+    "browser",
     "call",
     "describe",
 ]
 
 
 class Error(Exception):
-    """A call that failed or was refused; kind says which."""
+    """A call that failed or was refused; kind says which.
+
+    A command that failed (instrument.browser) also has exit_code, stderr
+    and stdout, as subprocess.CalledProcessError names them.
+    """
+
+    exit_code = None
+    stderr = None
+    stdout = None
 
     def __init__(self, message, kind="failed"):
         super().__init__(message)
@@ -192,7 +204,13 @@ def _error(reply):
         return CardShown(message)
     if kind == "read-first":
         return ReadGuideFirst(message)
-    return Error(message, kind)
+    error = Error(message, kind)
+    command = reply.get("command")
+    if command:
+        error.exit_code = command.get("exitCode")
+        error.stderr = command.get("stderr")
+        error.stdout = command.get("stdout")
+    return error
 
 
 def _send(request):
@@ -371,6 +389,22 @@ class App:
 def app(slug):
     """The connected app with this slug."""
     return App(slug)
+
+
+def browser(*args, stdin=None):
+    """One agent-browser command in this chat's tabs, as the shell runs it: what it printed.
+
+    The command's words as arguments or as one list: browser("open", url),
+    browser(["eval", js]). stdin is what the command reads there, as
+    browser("eval", "--stdin", stdin=js). One that fails raises Error with
+    exit_code, stderr and stdout.
+    """
+    if len(args) == 1 and isinstance(args[0], (list, tuple)):
+        args = args[0]
+    request = {"args": [str(each) for each in args]}
+    if stdin is not None:
+        request["stdin"] = stdin
+    return call("browser.run", request)
 
 
 def __getattr__(name):

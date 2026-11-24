@@ -71,6 +71,7 @@ import {
   FOLLOW_UP_SNAPSHOT_ARGS,
   FOLLOW_UP_TABS_ARGS,
   FOLLOW_UP_WAIT_ARGS,
+  isScriptCall,
   liveRegionDocument,
   liveRegionsArgs,
   liveRegionText,
@@ -1459,6 +1460,12 @@ export function createAgentBrowserCommand({
         await tabNewsNote({ chatId, sessionId }),
       ].filter((note) => note !== undefined);
       for (const note of notes) {
+        // A script reads the command's own output; the note waits for the
+        // end of the bash call.
+        if (isScriptCall()) {
+          currentBrowserFollowUp()?.noteNews(note);
+          continue;
+        }
         stdout = `${stdout}${stdout === "" || stdout.endsWith("\n") ? "" : "\n"}${note}`;
       }
     }

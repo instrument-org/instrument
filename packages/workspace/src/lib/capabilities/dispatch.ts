@@ -11,6 +11,7 @@ import {
   type CapabilityContext,
   type CapabilityErrorReply,
   CapabilityFailure,
+  CommandFailure,
   type Gate,
 } from "./define";
 import { CAPABILITIES } from "./registry";
@@ -227,6 +228,7 @@ export async function dispatch(
     }
     return {
       error: {
+        ...(error instanceof CommandFailure ? { command: error.command } : {}),
         kind: error instanceof CapabilityFailure ? error.kind : "failed",
         message: error instanceof Error ? error.message : String(error),
       },

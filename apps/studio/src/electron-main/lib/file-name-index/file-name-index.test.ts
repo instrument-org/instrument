@@ -88,19 +88,12 @@ describe("searchFileNames", () => {
       typed: "bf",
       why: "the words' first letters",
     },
-    { finds: ["Notes.md"], typed: "notse", why: "one wrong letter" },
+    { finds: [], typed: "notse", why: "one wrong letter" },
     { finds: [], typed: "bdgt", why: "scattered letters" },
   ])("finds $finds for $typed: $why", ({ finds, typed }) => {
     expect(searchFileNames(names, typed, 1).map((entry) => entry.name)).toEqual(
       finds,
     );
-  });
-
-  it("forgives a wrong letter only when the words find no name as typed", () => {
-    const close = namesOf("Budgte.md", "Budget.md");
-    expect(
-      searchFileNames(close, "budget", 10).map((entry) => entry.name),
-    ).toEqual(["Budget.md"]);
   });
 
   it("reports a walk's cost", async () => {

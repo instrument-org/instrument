@@ -1,9 +1,4 @@
-import {
-  canForgiveWrongLetter,
-  foldWords,
-  matchRank,
-  NO_MATCH,
-} from "@/shared/name-match";
+import { foldWords, matchRank, NO_MATCH } from "@/shared/name-match";
 import path from "node:path";
 import { z } from "zod";
 
@@ -38,8 +33,8 @@ const SLOW_SEARCH_MS = 30;
  * The entries of `names` the typed words find, best first and at most
  * `limit`: by how well the name matches (`matchRank`), then the shorter
  * name, then by name and by folder so the order is the same every time. A
- * name one wrong letter away is found only when the words find no name as
- * typed.
+ * name one wrong letter away is never found: that would read every name a
+ * second time on the main thread whenever the words find nothing.
  */
 export function searchFileNames(
   names: FileNames,
@@ -57,37 +52,27 @@ export function searchFileNames(
     nameOf(a.at).length - nameOf(b.at).length ||
     order(nameOf(a.at), nameOf(b.at)) ||
     order(folderOf(a.at), folderOf(b.at));
-  const bestOf = (wrongLetter: boolean) => {
-    // The best `limit` so far, in order. Most names that match are worse than
-    // the last one kept, which is one comparison each, so a single letter that
-    // matches nearly every name costs no sort of them all.
-    const best: Found[] = [];
-    for (const [at, name] of names.folded.entries()) {
-      const rank = matchRank(name, words, wrongLetter);
-      if (rank === NO_MATCH) {
-        continue;
-      }
-      const found = { at, rank };
-      const last = best.at(-1);
-      if (best.length === limit && last && compare(found, last) >= 0) {
-        continue;
-      }
-      const before = best.findIndex((kept) => compare(found, kept) < 0);
-      best.splice(before === -1 ? best.length : before, 0, found);
-      if (best.length > limit) {
-        best.pop();
-      }
+  // The best `limit` so far, in order. Most names that match are worse than
+  // the last one kept, which is one comparison each, so a single letter that
+  // matches nearly every name costs no sort of them all.
+  const best: Found[] = [];
+  for (const [at, name] of names.folded.entries()) {
+    const rank = matchRank(name, words, false);
+    if (rank === NO_MATCH) {
+      continue;
     }
-    return best;
-  };
-  const asTyped = bestOf(false);
-  // The second read of every name is skipped when no word is long enough for
-  // it to find anything.
-  const found =
-    asTyped.length > 0 || !canForgiveWrongLetter(words)
-      ? asTyped
-      : bestOf(true);
-  return found.map(({ at }) => {
+    const found = { at, rank };
+    const last = best.at(-1);
+    if (best.length === limit && last && compare(found, last) >= 0) {
+      continue;
+    }
+    const before = best.findIndex((kept) => compare(found, kept) < 0);
+    best.splice(before === -1 ? best.length : before, 0, found);
+    if (best.length > limit) {
+      best.pop();
+    }
+  }
+  return best.map(({ at }) => {
     const name = names.names[at] ?? "";
     return {
       isFolder: names.isFolder[at] ?? false,

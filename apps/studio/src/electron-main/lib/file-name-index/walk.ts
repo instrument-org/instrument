@@ -30,9 +30,8 @@ const MAX_NAMES_PER_ROOT = 50_000;
 /**
  * The most names the index keeps over all roots, however many folders are
  * pinned: about 31 MB in the main process, and a search, which reads every
- * name on the main thread, done in about 10 ms on a recent Mac when the
- * words find names and about 30 ms when they find none, since every name is
- * then read a second time for one wrong letter.
+ * name on the main thread, done in about 10 ms on a recent Mac and about
+ * 20 ms on a 2019 Windows desktop.
  */
 const MAX_NAMES = 200_000;
 

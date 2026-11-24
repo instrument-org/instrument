@@ -100,7 +100,9 @@ function SettingsTabRow({ words }: { words: string }) {
     words,
   });
   return rows.map((row) =>
-    row.type === "item" && row.detail === "Settings" && row.label === words ? (
+    row.type === "item" &&
+    row.detail === "Settings" &&
+    (row.label === words || row.label === `${words} settings`) ? (
       <li key={row.id}>{row.label}</li>
     ) : null,
   );
@@ -137,7 +139,7 @@ describe("Settings tabs in the command menu in developer mode", () => {
     expect(listed()).toEqual(
       [
         "Account",
-        "Apps",
+        "Apps settings",
         "History",
         "Developer",
         "Permissions",
@@ -174,6 +176,21 @@ function MenuRows({ words }: { words: string }) {
     </ul>
   );
 }
+
+describe("the debug pages in the command menu in developer mode", () => {
+  it("are one row among the pages, for their index", async () => {
+    renderWithProviders(<MenuRows words="debug" />);
+
+    await screen.findByRole("button", { name: "Debug pages" });
+    expect(screen.getAllByRole("listitem").map((item) => item.textContent))
+      .toMatchInlineSnapshot(`
+      [
+        "Debug pages",
+        "Search the web for “debug”",
+      ]
+    `);
+  });
+});
 
 // What a Return on a path found is the answer to that Return alone: the
 // same words typed again later are a new ask, not the old answer.

@@ -252,7 +252,6 @@ describe("one of the app's own pages", () => {
   ])("is the first row for its name, %s", async (words, title) => {
     renderWithProviders(<MenuRows words={words} />);
 
-    // A part of Settings may go by the same name, among the commands.
     await screen.findAllByRole("button", { name: title });
     expect(listed()[0]).toBe(title);
   });
@@ -267,6 +266,66 @@ describe("one of the app's own pages", () => {
         "# Pages",
         "Bookmarks",
         "Search the web for “mark”",
+      ]
+    `);
+  });
+});
+
+describe("a part of Settings", () => {
+  it("is listed among the pages by its name", async () => {
+    shell.chats = [];
+    renderWithProviders(<MenuRows words="providers" />);
+
+    await screen.findByRole("button", { name: "Providers" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "Providers",
+        "Search the web for “providers”",
+      ]
+    `);
+  });
+
+  it("goes by Apps settings beside the Apps page", async () => {
+    shell.chats = [];
+    renderWithProviders(<MenuRows words="apps" />);
+
+    await screen.findByRole("button", { name: "Apps settings" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "Apps",
+        "# Pages",
+        "Apps settings",
+        "Search the web for “apps”",
+      ]
+    `);
+  });
+});
+
+describe("sending feedback", () => {
+  it("is a command found by its name", async () => {
+    shell.chats = [];
+    renderWithProviders(<MenuRows words="feedback" />);
+
+    await screen.findByRole("button", { name: "Send feedback" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "# Commands",
+        "Send feedback",
+        "Search the web for “feedback”",
+      ]
+    `);
+  });
+});
+
+describe("the debug pages", () => {
+  it("are not listed outside developer mode", async () => {
+    shell.chats = [];
+    renderWithProviders(<MenuRows words="debug" />);
+
+    await screen.findByRole("button", { name: "Search the web for “debug”" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "Search the web for “debug”",
       ]
     `);
   });

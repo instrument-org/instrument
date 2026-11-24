@@ -208,6 +208,35 @@ describe("an API app's key", () => {
     expect(approved.authorizations).toEqual([`Bearer ${KEY}`]);
   });
 
+  it("is recorded as refused until a test passes", async () => {
+    const credentials = {
+      [slug]: { origin: approved.origin, value: "wrong-key" },
+    };
+    useApps(createMemoryAppsConfig({ credentials }));
+    await putApp(slug, "Keyed", manifestAt(approved.origin));
+    const { connections } = getWorkspaceConfig().apps;
+
+    const refused = await testApp(slug);
+
+    expect(refused.passed).toBe(false);
+    expect(await connections.get(slug)).toMatchObject({
+      keyRefused: true,
+      status: "failed",
+    });
+
+    useApps({
+      ...createMemoryAppsConfig({
+        credentials: { [slug]: { origin: approved.origin, value: KEY } },
+      }),
+      connections,
+    });
+    await testApp(slug);
+
+    const connected = await connections.get(slug);
+    expect(connected?.status).toBe("connected");
+    expect(connected?.keyRefused).toBeUndefined();
+  });
+
   it("is not sent once the manifest points at another origin", async () => {
     await putApp(slug, "Keyed", manifestAt(elsewhere.origin));
 

@@ -179,6 +179,7 @@ export function AppFront({
     app.type !== "web" &&
     app.authKind !== "none" &&
     app.authKind !== "oauth";
+  const keyRefused = rejectedKey && app.connection?.keyRefused === true;
   const tryAgain = (
     <Button
       disabled={test.isPending}
@@ -204,11 +205,13 @@ export function AppFront({
             ? `Add a key from ${name}`
             : app.status === "needs-approval"
               ? `Allow ${name} to run on ${osConventions().thisComputer}`
-              : app.status === "failed"
-                ? `Couldn’t connect to ${name}`
-                : app.status === "stale"
-                  ? `${name} changed since it last connected`
-                  : `Finish connecting ${name}`;
+              : keyRefused
+                ? `${name} didn’t accept the key`
+                : app.status === "failed"
+                  ? `Couldn’t connect to ${name}`
+                  : app.status === "stale"
+                    ? `${name} changed since it last connected`
+                    : `Finish connecting ${name}`;
   const setupDetail = !app
     ? methods.length > 0
       ? `Connects with ${methods.join(" or ")}.`
@@ -219,7 +222,9 @@ export function AppFront({
         ? `Sign in with ${browserName} if you’re already signed in to ${name} there, or here in a tab.`
         : app.status === "stale"
           ? "Try again to connect it as it is now."
-          : undefined;
+          : keyRefused
+            ? "Copy the key again and paste it here. If you’re sure it’s right, ask Instrument for help."
+            : undefined;
   // The way out when the buttons beside it are not getting there: last and
   // quiet, so it reads as help rather than one more way to sign in.
   const withInstrument = (
@@ -430,7 +435,9 @@ export function AppFront({
                     </p>
                   ) : null}
                 </div>
-                {app?.status === "failed" && app.connection?.error ? (
+                {app?.status === "failed" &&
+                !keyRefused &&
+                app.connection?.error ? (
                   <div className="group/detail relative rounded-lg bg-muted/60 px-3 py-2 select-text">
                     <pre className="max-h-32 scrollbar-thin scrollbar-color overflow-auto pr-7 font-mono text-xs leading-5 wrap-break-word whitespace-pre-wrap text-foreground/80">
                       {app.connection.error}

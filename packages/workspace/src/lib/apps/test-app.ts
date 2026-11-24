@@ -168,6 +168,7 @@ export async function runAppTest({
   const lookup = await lookupAppCredential(slug, app.manifest);
   const credential = lookup.kind === "ok" ? lookup.value : null;
   let missing: "approval" | "key" | "sign-in" | undefined;
+  let keyRefused = false;
   if (app.manifest.auth.kind === "none") {
     checks.push({
       detail: "No credential required (auth kind is none).",
@@ -305,6 +306,11 @@ export async function runAppTest({
         mcpResult.error.reason === "unauthorized"
       ) {
         missing = "sign-in";
+      } else if (
+        credential !== null &&
+        mcpResult.error.reason === "unauthorized"
+      ) {
+        keyRefused = true;
       }
       // A server that refuses the sign-in client itself refuses every new
       // sign-in the same way, so the web is the way on.
@@ -381,6 +387,7 @@ export async function runAppTest({
     if (signedIn && canary.value.status === 401) {
       missing = "sign-in";
     }
+    keyRefused = credential !== null && rejected;
     checks.push({
       name: "canary",
       ...failure(
@@ -433,6 +440,7 @@ export async function runAppTest({
     const firstFailure = result.checks.find((check) => check.status === "fail");
     await recordConnection(slug, {
       error: firstFailure?.detail.split("\n")[0]?.slice(0, 300),
+      ...(keyRefused && { keyRefused }),
       status:
         missing === "key"
           ? "needs-key"

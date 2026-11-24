@@ -161,7 +161,6 @@ describe("screenLocation", () => {
       {
         kind: "builtin",
         part: "Files",
-        partHref: "/activity?show=files",
         screen: "activity",
       },
     ],

@@ -900,8 +900,7 @@ function locationMark(location: TabLocation): ReactNode {
  * What the field holds when it is edited: an address a person can type and
  * read, the place's own. A file's and a folder's path and a page's URL are
  * that; the app's own places have none (their `instrument://` addresses are
- * for bookmarks and links), so their field opens empty, searching the app
- * the chip names (`FieldScope`).
+ * for bookmarks and links), so their field opens empty.
  */
 function locationText(location: TabLocation) {
   switch (location.kind) {

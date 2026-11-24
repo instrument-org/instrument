@@ -205,10 +205,7 @@ export function useRowLines(
       return quiet(title, folderLine(location.path));
     }
     case "builtin": {
-      const open = location.item ?? location.part;
-      return open === undefined
-        ? quiet(title, PAGE_START_LINES[location.screen])
-        : quiet(title, open);
+      return quiet(title, location.part ?? PAGE_START_LINES[location.screen]);
     }
     case "chats":
     case "debug": {

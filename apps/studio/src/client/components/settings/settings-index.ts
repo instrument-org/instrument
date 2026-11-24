@@ -265,16 +265,16 @@ export const SETTINGS_INDEX = [
     title: "Chats can see this",
   },
   {
-    detail: `The history of what you did in ${APP_NAME} and when, with the AI requests your chats made, which you can search, export, or clear.`,
+    detail: `The history of what you did in ${APP_NAME} and when, with the AI your chats used, which you can search, export, or clear.`,
     id: "activity-history",
     tab: "Activity",
     title: "Your history",
   },
   {
-    detail: `Delete what you did in ${APP_NAME}, its AI requests, or both, from a time range.`,
+    detail: `Delete the files and chats you opened, the changes you made, or your AI usage in ${APP_NAME}, from a time range.`,
     id: "clear-activity",
     tab: "Activity",
-    title: "Clear history",
+    title: `Clear ${APP_NAME} history`,
   },
   {
     id: "release-notes",

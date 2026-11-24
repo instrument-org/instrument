@@ -23,7 +23,6 @@ import {
 } from "@/client/lib/browsing-data";
 import {
   activityClearedMessage,
-  requestsDetail,
   thingsDetail,
 } from "@/client/lib/clear-activity";
 import { toast } from "@/client/lib/toast";
@@ -33,11 +32,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useId, useState } from "react";
 
 /**
- * Clears the person's activity the way Clear browsing data clears history:
- * a time range, then what to clear, each with how much there is in it.
- * What they did in the app goes from the action log and the app's history,
- * which takes the recent files and the address field's suggestions with it;
- * the AI requests go from this computer's own log.
+ * Clears the record of what the person did in the app the way Clear browsing
+ * data clears the browser's: a time range, then what to clear, each with how
+ * much there is in it. The pages they visited are the browser's, so they are
+ * not among these.
  */
 export function ClearActivityDialog({
   onCleared,
@@ -80,7 +78,11 @@ function ClearActivityContent({
   // Ranges count back from when the dialog opened, so the summary asks the
   // same thing until the range changes.
   const [openedAt] = useState(() => Date.now());
-  const [picked, setPicked] = useState({ actions: true, requests: false });
+  const [picked, setPicked] = useState({
+    changes: true,
+    opened: true,
+    requests: false,
+  });
   const { data: summary } = useQuery({
     ...rpcClient.activity.summary.queryOptions({
       input: { since: sinceOf(range, openedAt) },
@@ -106,9 +108,10 @@ function ClearActivityContent({
   return (
     <DialogContent maxWidth="28rem" onExitComplete={onExitComplete}>
       <div className="flex flex-col gap-2">
-        <DialogTitle>Clear history</DialogTitle>
+        <DialogTitle>{`Clear ${APP_NAME} history`}</DialogTitle>
         <DialogDescription>
-          Your chats and files stay as they are.
+          This clears the record of what you did. Your chats and files stay as
+          they are.
         </DialogDescription>
       </div>
 
@@ -141,28 +144,44 @@ function ClearActivityContent({
 
         <div className="flex flex-col gap-1">
           <BoxRow
-            checked={picked.actions}
-            detail={summary && thingsDetail(summary.actions)}
-            label={`What you did in ${APP_NAME}`}
-            onCheckedChange={(actions) => {
-              setPicked((current) => ({ ...current, actions }));
+            checked={picked.opened}
+            detail={summary && thingsDetail(summary.opened)}
+            label="Files and chats you opened"
+            onCheckedChange={(opened) => {
+              setPicked((current) => ({ ...current, opened }));
+            }}
+          />
+          <BoxRow
+            checked={picked.changes}
+            detail={
+              summary &&
+              (summary.changes === 0
+                ? thingsDetail(0)
+                : "Edits, moves, sign-ins and settings")
+            }
+            label="Changes you made"
+            onCheckedChange={(changes) => {
+              setPicked((current) => ({ ...current, changes }));
             }}
           />
           <BoxRow
             checked={picked.requests}
-            detail={summary && requestsDetail(summary.requests)}
-            label="AI requests"
+            detail={
+              summary &&
+              (summary.requests === 0
+                ? thingsDetail(0)
+                : "Which models your chats used, and when")
+            }
+            label="AI usage"
             onCheckedChange={(requests) => {
               setPicked((current) => ({ ...current, requests }));
             }}
           />
         </div>
 
-        {picked.actions && (
+        {picked.opened && (
           <p className="text-sm text-muted-foreground">
-            {
-              "This also clears recent files and the address bar's suggestions from that time."
-            }
+            This also clears your recent files from that time.
           </p>
         )}
       </DialogBody>
@@ -172,7 +191,10 @@ function ClearActivityContent({
           Cancel
         </Button>
         <Button
-          disabled={(!picked.actions && !picked.requests) || clear.isPending}
+          disabled={
+            !(picked.changes || picked.opened || picked.requests) ||
+            clear.isPending
+          }
           onClick={() => {
             clear.mutate();
           }}

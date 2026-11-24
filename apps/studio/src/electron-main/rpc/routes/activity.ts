@@ -8,6 +8,7 @@ import { base } from "@/electron-main/rpc/base";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
 import { APP_NAME } from "@instrument-org/shared";
 import {
+  type Action,
   ActionSchema,
   actionLog,
   activityCsv,
@@ -71,43 +72,91 @@ const SinceSchema = z.object({
 });
 
 /**
- * What clearing from `since` would take, for the Clear activity dialog: how
- * many things the person did in that time, from the action log and the
- * app's history together, and how many AI requests this computer made.
+ * Which box of the Clear dialog takes an action: what the person opened, what
+ * they changed, or neither. The pages they visited are the browser's history,
+ * which Clear browsing data takes, and a permission answered is a rule of its
+ * chat's, which stays. A line saying where the log stopped goes with the kind
+ * it left out.
+ */
+function boxOf(action: Action): "changes" | "opened" | undefined {
+  const kind: string = action.kind === "capped" ? action.of : action.kind;
+  switch (kind) {
+    case "page":
+    case "permission": {
+      return undefined;
+    }
+    case "chat":
+    case "download":
+    case "file":
+    case "folder":
+    case "open-with":
+    case "screen": {
+      return "opened";
+    }
+    default: {
+      return "changes";
+    }
+  }
+}
+
+/** Whether an action is one History lists: not where the log stopped, nor a visit to one of the app's screens. */
+function isListed(action: Action) {
+  return action.kind !== "capped" && action.kind !== "screen";
+}
+
+/**
+ * What clearing from `since` would take, for the Clear dialog: how many
+ * things the person opened and how many they changed in that time, and how
+ * many AI requests this computer made.
  */
 const summary = base
   .input(SinceSchema)
-  .output(z.object({ actions: z.number(), requests: z.number() }))
+  .output(
+    z.object({
+      changes: z.number(),
+      opened: z.number(),
+      requests: z.number(),
+    }),
+  )
   .handler(async ({ input }) => {
     const [actions, requests] = await Promise.all([
       readActions({ since: input.since ?? 0 }),
       countOwnActivity(input.since),
     ]);
+    const listed = actions.filter(isListed).map(boxOf);
     return {
-      // A permission answered is a rule of the chat's, which clearing
-      // leaves as it is.
-      actions: actions.filter(
-        (action) => action.kind !== "capped" && action.kind !== "permission",
-      ).length,
+      changes: listed.filter((box) => box === "changes").length,
+      opened: listed.filter((box) => box === "opened").length,
       requests,
     };
   });
 
 /**
- * Clears from `since` (all time when absent) what the person picked. Their
- * activity is the action log, the history's visits, which takes the
- * address field's suggestions with it, the history's file opens, which
- * takes the recent files, and the finished downloads on the download list. The AI requests are this computer's alone, since
- * another device's are its own to write.
+ * Clears from `since` (all time when absent) what the person picked. What
+ * they opened is the action log's folders and chats, the history's file
+ * opens, which takes the recent files, and the finished downloads on the
+ * download list; what they changed is the rest of the action log. The AI
+ * requests are this computer's alone, since another device's are its own to
+ * write.
  */
 const clear = base
-  .input(SinceSchema.extend({ actions: z.boolean(), requests: z.boolean() }))
+  .input(
+    SinceSchema.extend({
+      changes: z.boolean(),
+      opened: z.boolean(),
+      requests: z.boolean(),
+    }),
+  )
   .handler(async ({ input }) => {
-    if (input.actions) {
+    const { changes, opened } = input;
+    if (changes && opened) {
       actionLog().clear(input.since);
-      const history = getHistoryStore();
-      history.clear(input.since);
-      history.clearFileOpens(input.since);
+    } else if (changes || opened) {
+      const box = changes ? "changes" : "opened";
+      actionLog().clear(input.since, (action) => boxOf(action) === box);
+    }
+    if (opened) {
+      getHistoryStore().clearFileOpens(input.since);
       clearDownloads(input.since);
     }
     if (input.requests) {

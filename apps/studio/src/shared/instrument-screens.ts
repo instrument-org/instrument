@@ -13,7 +13,7 @@ import { APP_NAME_SLUG, instrumentUrlOf } from "@instrument-org/shared";
 export const SCREENS = {
   activity: {
     detail:
-      "What you did in Instrument, with the AI requests your chats made, to search and clear.",
+      "What you did in Instrument, with the AI your chats used, to search and clear.",
     href: "/activity",
     title: "History",
   },

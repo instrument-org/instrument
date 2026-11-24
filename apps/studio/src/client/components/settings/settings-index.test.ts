@@ -87,12 +87,12 @@ describe("matchSettings", () => {
           "Chats that can’t be opened",
         ],
         "clear": [
-          "Clear history",
+          "Clear Instrument history",
         ],
         "history": [
           "Your history",
-          "Clear history",
           "Keep a history",
+          "Clear Instrument history",
           "Chats can see this",
         ],
       }

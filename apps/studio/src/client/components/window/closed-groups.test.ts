@@ -8,7 +8,7 @@ import {
 import { TabIdSchema, type TabsModel } from "@/shared/tabs";
 import { describe, expect, it } from "vitest";
 
-import { closedGroupsOf } from "./closed-groups";
+import { closedGroupsOf, closedText } from "./closed-groups";
 
 const tab = (id: string, group: string, side?: 1): WindowTab => ({
   group,
@@ -104,6 +104,23 @@ describe("closedGroupsOf", () => {
     });
     expect(shown(model)).toEqual([
       { id: "new", sides: [{ tabs: ["folder"], up: "folder" }] },
+    ]);
+  });
+});
+
+describe("closedText", () => {
+  it("names a tab by its title, a group by its first tab and how many it had, and a side by how many", () => {
+    const pages = ["Example Domain", "Wikipedia", "Files"];
+    expect([
+      closedText({ kind: "group", titles: pages }),
+      closedText({ kind: "tab", titles: ["Example Domain"] }),
+      closedText({ kind: "side", titles: ["Example Domain", "Wikipedia"] }),
+      closedText({ kind: "side", titles: ["Example Domain"] }),
+    ]).toEqual([
+      { context: "Closed tab group · 3 tabs", title: "Example Domain" },
+      { context: "Closed tab", title: "Example Domain" },
+      { context: "", title: "Closed 2 tabs" },
+      { context: "", title: "Closed Example Domain" },
     ]);
   });
 });

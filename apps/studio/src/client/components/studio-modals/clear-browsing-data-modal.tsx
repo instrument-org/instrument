@@ -1,4 +1,5 @@
 import { clearBrowsingDataModalAtom } from "@/client/atoms/clear-browsing-data-modal";
+import { ACTIONS_KEY } from "@/client/components/activity/activity-keys";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
 import {
@@ -16,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/client/components/ui/select";
+import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { useModalBack } from "@/client/hooks/use-modal-back";
 import { useDeferredModalState } from "@/client/hooks/use-deferred-modal-state";
 import {
@@ -28,10 +30,11 @@ import {
   TIME_RANGES,
   type TimeRangeId,
 } from "@/client/lib/browsing-data";
+import { forgetClosedSince } from "@/client/lib/tabs-model";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { useAtom } from "jotai";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAtom, useStore } from "jotai";
 import { useId, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -102,22 +105,37 @@ function ClearBrowsingDataContent({
     // What is there changes with every page; each opening asks again.
     gcTime: 0,
   });
+  const store = useStore();
+  const queryClient = useQueryClient();
+  const closedCount = store
+    .get(appTabsAtom)
+    .recentlyClosed.filter(
+      ({ closedAt }) =>
+        range === "all" ||
+        (closedAt !== undefined &&
+          closedAt >= (sinceOf(range, openedAt) ?? -Infinity)),
+    ).length;
   const clear = useMutation({
     mutationFn: async () => {
+      const since = sinceOf(range, Date.now());
       await Promise.all([
-        picked.history &&
-          rpcClient.history.clear.call({ since: sinceOf(range, Date.now()) }),
+        picked.history && rpcClient.history.clear.call({ since }),
         (picked.cache || picked.siteData) &&
           rpcClient.browsingData.clear.call({
             cache: picked.cache,
             siteData: picked.siteData,
           }),
       ]);
+      // The closed tabs are the browser's history too, and go with it.
+      if (picked.history) {
+        store.set(appTabsAtom, (current) => forgetClosedSince(current, since));
+      }
     },
     onError: (error) => {
       toast.error("Couldn't clear your browsing data", { cause: error });
     },
     onSuccess: () => {
+      void queryClient.resetQueries({ queryKey: ACTIONS_KEY });
       toast.success(clearedMessage({ ...picked, range }));
       onClose();
     },
@@ -165,7 +183,7 @@ function ClearBrowsingDataContent({
         <div className="flex flex-col gap-1">
           <BucketRow
             checked={picked.history}
-            detail={history && historyDetail(history)}
+            detail={history && historyDetail({ ...history, closedCount })}
             label="Browsing history"
             onCheckedChange={(checked) => {
               setPicked((current) => ({ ...current, history: checked }));

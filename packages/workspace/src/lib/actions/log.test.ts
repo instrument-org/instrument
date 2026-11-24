@@ -180,4 +180,31 @@ describe("ActionLog", () => {
     log.clear(new Date(2026, 10, 4).getTime());
     expect(fs.readdirSync(dir)).toEqual(["2026-11-03.jsonl"]);
   });
+
+  it("clears only the actions picked, from a time, and writes the rest again", async () => {
+    for (const [day, hour] of [
+      [4, 9],
+      [5, 9],
+      [5, 13],
+    ] as const) {
+      now = new Date(2026, 10, day, hour).getTime();
+      log.record({ kind: "edit", path: `/${day}-${hour}.md` });
+      log.record({ kind: "folder", path: `/${day}-${hour}` });
+    }
+    log.clear(
+      new Date(2026, 10, 5, 12).getTime(),
+      (action) => action.kind === "folder",
+    );
+    const left = async () =>
+      (await log.read({ since: 0 })).map((each) => "path" in each && each.path);
+    expect(await left()).toEqual([
+      "/4-9.md",
+      "/4-9",
+      "/5-9.md",
+      "/5-9",
+      "/5-13.md",
+    ]);
+    log.clear(undefined, (action) => action.kind === "folder");
+    expect(await left()).toEqual(["/4-9.md", "/5-9.md", "/5-13.md"]);
+  });
 });

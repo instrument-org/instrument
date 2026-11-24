@@ -1,12 +1,18 @@
+import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { ActivityDetails } from "@/client/components/activity/activity-details";
 import {
   EntryIcon,
   MakerMark,
 } from "@/client/components/activity/activity-icons";
+import {
+  ACTIONS_KEY,
+  REQUESTS_KEY,
+} from "@/client/components/activity/activity-keys";
 import { useModelName } from "@/client/components/activity/activity-requests";
 import {
   acrossSeam,
+  dayLabel,
   type ActivityRequest,
   type ActivityView,
   entriesShown,
@@ -14,8 +20,6 @@ import {
   moreFromOf,
   placeOf,
   type Show,
-  SHOW_LABELS,
-  SHOWS,
   timelineOf,
   type TimelineEntry,
   type TimelineItem,
@@ -26,10 +30,11 @@ import {
   withDayHeads,
 } from "@/client/components/activity/activity-timeline";
 import { ClearActivityDialog } from "@/client/components/activity/clear-activity-dialog";
+import { HistoryPlaces } from "@/client/components/activity/history-places";
 import {
-  useClosedTabs,
-  useForgetClosed,
-  useRestoreClosed,
+  ClosedGroupDays,
+  RecentlyClosedCards,
+  useClosedGroups,
 } from "@/client/components/activity/recently-closed";
 import { Button } from "@/client/components/ui/button";
 import { Checkbox } from "@/client/components/ui/checkbox";
@@ -42,6 +47,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import {
@@ -50,7 +56,6 @@ import {
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
 import { SearchField } from "@/client/components/window/search-field";
-import { useTabSurface } from "@/client/components/window/tab-surface";
 import {
   refreshWhileShown,
   useIsActiveTab,
@@ -63,6 +68,7 @@ import { toast } from "@/client/lib/toast";
 import { cn, commandKeyHeld, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
+import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
 import { DownloadSimpleIcon } from "@phosphor-icons/react/DownloadSimple";
@@ -94,16 +100,27 @@ const LIVE_MS = 5000;
  */
 const LIVE_LIMIT = 200;
 
-/** The query keys of the person's actions and the AI requests, which a removal or a Clear starts over. */
-export const ACTIONS_KEY = ["actions", "list"];
-export const REQUESTS_KEY = ["activity", "timeline"];
-
-const EMPTY: Record<Show, string> = {
-  ai: "No AI requests yet.",
-  chats: "No chats yet.",
-  files: "No files yet.",
-  pages: "No pages yet.",
-  tabs: "No closed tabs yet.",
+/** What each filter says with nothing in it yet. */
+const EMPTY: Record<"all" | Show, { line: string; title: string }> = {
+  ai: {
+    line: "When a chat uses AI, the model it used shows up here.",
+    title: "No AI usage yet",
+  },
+  all: {
+    line: `What you do in ${APP_NAME} shows up here.`,
+    title: "No history yet",
+  },
+  changes: {
+    line: "Files you edit or move and settings you change show up here.",
+    title: "No changes yet",
+  },
+  chats: { line: "Chats you open show up here.", title: "No chats yet" },
+  closed: {
+    line: "Tab groups you close show up here.",
+    title: "No closed tab groups",
+  },
+  files: { line: "Files you open show up here.", title: "No files yet" },
+  pages: { line: "Websites you visit show up here.", title: "No websites yet" },
 };
 
 const timeFormat = new Intl.DateTimeFormat(displayLocale, {
@@ -145,17 +162,18 @@ function removalOf(entries: readonly TimelineEntry[]) {
   };
 }
 
-/** Whether a row can come out of Activity: a permission answered is its chat's rule, which stays. */
+/** Whether a row can come out of History: a permission answered is its chat's rule, which stays. */
 function isRemovable(entry: TimelineEntry) {
   return entry.kind !== "action" || entry.action.kind !== "permission";
 }
 
 /**
- * Activity: what the person did in the app and the AI requests its chats
- * made, newest first, a card per day and a line per thing, the way a
- * browser's history reads. A search and a filter narrow it; a row picked
- * shows its details in a card beside the list, so the list keeps its place,
- * or under the row when the page is too narrow for both, as beside a chat.
+ * History: what the person did in the app and the AI its chats used, newest
+ * first, a card per day and a line per thing, the way a browser's history
+ * reads. A search and a list of kinds narrow it, and over everything are the
+ * tab groups closed last, which the list's last place has all of. A row
+ * picked shows its details over the list, so the rows keep their width and
+ * their place.
  *
  * Both logs stay on this computer: the person's in the workspace's machine
  * folder (`docs/architecture/action-log.md`), the requests in the
@@ -282,8 +300,7 @@ export function ActivityPage({
     setLiveSince(until);
   }
 
-  const closed = useClosedTabs();
-  const forgetClosed = useForgetClosed();
+  const closed = useClosedGroups();
   const { entries, waitingOn } = timelineOf({
     actions: {
       complete: isComplete(actions),
@@ -304,7 +321,6 @@ export function ActivityPage({
         timeOf: (request) => request.startedAt,
       }),
     },
-    closed,
     view,
   });
   const shown = entriesShown(entries, { modelName, q, show, words });
@@ -326,9 +342,6 @@ export function ActivityPage({
   };
 
   const picked = shown.find((entry) => entry.id === item);
-  // The row open, which the address field names after Activity's chip.
-  const pickedText = picked ? entryText(picked, { modelName, words }) : null;
-  useTabSurface("item", pickedText && (pickedText.title || pickedText.context));
   const pick = (id: string | undefined) => {
     onSearch({ item: id });
   };
@@ -362,16 +375,10 @@ export function ActivityPage({
       },
     }),
   );
-  // A closed tab or group comes off the window's closed list at once; the
-  // rest come out of the logs.
   const removeEntries = (removed: readonly TimelineEntry[]) => {
     const taken = removed.filter(isRemovable);
-    forgetClosed(
-      taken.flatMap((entry) => (entry.kind === "closed" ? [entry.closed] : [])),
-    );
-    const logged = taken.filter((entry) => entry.kind !== "closed");
-    if (logged.length > 0) {
-      remove.mutate(removalOf(logged));
+    if (taken.length > 0) {
+      remove.mutate(removalOf(taken));
     } else {
       setChecked(new Set());
       pick(undefined);
@@ -391,10 +398,22 @@ export function ActivityPage({
   );
 
   const empty = shown.length === 0 && !isLoading;
-  // Narrower than a page keeps things beside its list, as beside a chat, the
-  // details open under the row picked rather than beside the list.
+  const isMixed = show === undefined;
+  const terms = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const closedGroups = closed
+    .filter(({ words: found }) => terms.every((term) => found.includes(term)))
+    .map(({ group }) => group);
+  // A search is of the rows, so the groups stand aside for it.
+  const cards =
+    isMixed && terms.length === 0 && closedGroups.length > 0 ? (
+      <RecentlyClosedCards groups={closedGroups} />
+    ) : null;
+  // The list of kinds folds to pills over the rows, and the details come up
+  // from the bottom, by the room each has.
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
   const isNarrow = useIsNarrower(frame, PAGE_FOLD_PX);
+  const [listFrame, setListFrame] = useState<HTMLDivElement | null>(null);
+  const isListNarrow = useIsNarrower(listFrame, PAGE_FOLD_PX);
   const details = picked ? (
     <ActivityDetails
       entry={picked}
@@ -474,33 +493,6 @@ export function ActivityPage({
                 value={q}
               />
             </div>
-            <div
-              className="flex flex-wrap items-center gap-1"
-              role="radiogroup"
-            >
-              {[undefined, ...SHOWS].map((each) => (
-                <button
-                  aria-checked={show === each}
-                  className={cn(
-                    "h-7 rounded-full px-3 text-[13px]",
-                    show === each
-                      ? "bg-foreground text-background"
-                      : "text-muted-foreground ring-1 ring-border hover:bg-foreground/5 hover:text-foreground",
-                  )}
-                  key={each ?? "all"}
-                  onClick={() => {
-                    onSearch({ item: undefined, show: each });
-                  }}
-                  role="radio"
-                  title={
-                    each === undefined ? undefined : SHOW_LABELS[each].title
-                  }
-                  type="button"
-                >
-                  {each === undefined ? "All" : SHOW_LABELS[each].label}
-                </button>
-              ))}
-            </div>
           </div>
         )}
         <span className="flex-1" />
@@ -511,7 +503,7 @@ export function ActivityPage({
           }}
           onExport={() => {
             void rpcClient.activity.saveCsv
-              .call({ view })
+              .call({ view: show === "closed" ? "all" : view })
               .then(({ status }) => {
                 if (status === "failed") {
                   toast.error("The file couldn't be saved.");
@@ -538,50 +530,82 @@ export function ActivityPage({
           </Button>
         </div>
       )}
-      <div className="flex min-h-0 flex-1">
-        {empty ? (
-          <div className="grid flex-1 place-items-center p-6 text-sm text-muted-foreground">
-            {q
-              ? `Nothing matches “${q}”.`
-              : show
-                ? EMPTY[show]
-                : "What you do in Instrument shows up here."}
-          </div>
-        ) : (
-          <ActivityList
-            checked={checked}
-            detailsUnder={isNarrow ? details : null}
-            hasMore={isLoading}
-            // Days are named from the latest read, which the live reads keep
-            // within `LIVE_MS` of the clock while the tab is up.
-            items={withDayHeads(shown, new Date(today), displayLocale)}
-            loadMore={loadMore}
-            onCheck={(entry, on) => {
-              setChecked((current) => {
-                const next = new Set(current);
-                if (on) {
-                  next.add(entry.id);
-                } else {
-                  next.delete(entry.id);
-                }
-                return next;
-              });
-            }}
-            onMoreFrom={(found) => {
-              onSearch({ item: undefined, q: found });
-            }}
-            onPick={(entry) => {
-              pick(entry?.id);
-            }}
-            onRemove={(entry) => {
-              removeEntries([entry]);
-            }}
-            picked={picked?.id ?? null}
-          />
+      <div
+        className={cn(
+          "flex min-h-0 flex-1",
+          isNarrow ? "flex-col" : "flex-row",
         )}
-        {details && !isNarrow ? (
-          <div className="flex w-106 shrink-0 py-4 pr-6">{details}</div>
-        ) : null}
+      >
+        <HistoryPlaces
+          closedCount={closed.length}
+          isNarrow={isNarrow}
+          onShow={(next) => {
+            onSearch({ item: undefined, show: next });
+          }}
+          show={show}
+        />
+        <div
+          className="@container/list relative flex min-h-0 min-w-0 flex-1"
+          ref={setListFrame}
+        >
+          {show === "closed" ? (
+            closedGroups.length === 0 ? (
+              <Empty q={q} show={show} />
+            ) : (
+              <div className={cn(LIST_PANE, "py-4")}>
+                <ClosedGroupDays
+                  dayOf={(at) => dayLabel(at, new Date(today), displayLocale)}
+                  groups={closedGroups}
+                />
+              </div>
+            )
+          ) : empty ? (
+            cards ? (
+              <div className={cn(LIST_PANE, "flex flex-col py-4")}>
+                {cards}
+                <Empty q={q} show={show} />
+              </div>
+            ) : (
+              <Empty q={q} show={show} />
+            )
+          ) : (
+            <ActivityList
+              cards={cards}
+              checked={checked}
+              hasMore={isLoading}
+              isBottomCovered={isListNarrow && details !== null}
+              isMixed={isMixed}
+              // Days are named from the latest read, which the live reads keep
+              // within `LIVE_MS` of the clock while the tab is up.
+              items={withDayHeads(shown, new Date(today), displayLocale)}
+              loadMore={loadMore}
+              onCheck={(entry, on) => {
+                setChecked((current) => {
+                  const next = new Set(current);
+                  if (on) {
+                    next.add(entry.id);
+                  } else {
+                    next.delete(entry.id);
+                  }
+                  return next;
+                });
+              }}
+              onMoreFrom={(found) => {
+                onSearch({ item: undefined, q: found });
+              }}
+              onPick={(entry) => {
+                pick(entry?.id);
+              }}
+              onRemove={(entry) => {
+                removeEntries([entry]);
+              }}
+              picked={picked?.id ?? null}
+            />
+          )}
+          {details ? (
+            <FloatingDetails isSheet={isListNarrow}>{details}</FloatingDetails>
+          ) : null}
+        </div>
       </div>
       <ClearActivityDialog
         onCleared={startOver}
@@ -592,8 +616,82 @@ export function ActivityPage({
   );
 }
 
+/** What each thing in the list is taken to be tall until it is measured. */
+const ESTIMATED_HEIGHT = { action: 40, cards: 110, day: 44, turn: 40 };
+
+/** The rows' own scrollport. */
+const LIST_PANE =
+  "min-h-0 min-w-0 flex-1 overflow-y-auto px-4 @min-[640px]/activity:px-6";
+
+/** The part of the list's height its details take where they come up from the bottom. */
+const SHEET_HEIGHT = 0.55;
+
+/** How long the details let the pointer through after they come up. */
+const DOUBLE_CLICK_MS = 500;
+
 /**
- * Where the bar's search and filters, or what is selected, go on a page too
+ * The details over the list, at its right end, or along its bottom where it
+ * is too narrow for that. They come up under the pointer that picked the row,
+ * so at first a press goes through them: a double click's second press lands
+ * on the row it began on.
+ */
+function FloatingDetails({
+  children,
+  isSheet,
+}: {
+  children: React.ReactNode;
+  isSheet: boolean;
+}) {
+  const [isPressable, setPressable] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setPressable(true);
+    }, DOUBLE_CLICK_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, []);
+  return (
+    <div
+      className={cn(
+        "pointer-events-none absolute z-10 flex animate-in duration-150 ease-out fade-in-0 motion-reduce:animate-none",
+        isSheet
+          ? "inset-x-0 bottom-0 p-3 slide-in-from-bottom-2"
+          : "inset-y-0 right-0 w-106 py-4 pr-6 slide-in-from-right-2",
+      )}
+      style={isSheet ? { height: `${SHEET_HEIGHT * 100}%` } : undefined}
+    >
+      <div
+        className={cn(
+          "flex min-h-0 w-full rounded-xl shadow-float-lg",
+          isPressable && "pointer-events-auto",
+        )}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** What a list with nothing in it says, in its middle. */
+function Empty({ q, show }: { q: string; show: Show | undefined }) {
+  const { line, title } = EMPTY[show ?? "all"];
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-1 p-6 text-center">
+      {q ? (
+        <p className="text-sm text-muted-foreground">{`Nothing matches “${q}”.`}</p>
+      ) : (
+        <>
+          <p className="text-sm font-medium">{title}</p>
+          <p className="text-[13px] text-muted-foreground">{line}</p>
+        </>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Where the bar's search, or what is selected, go on a page too
  * narrow for one line: under the title and the page's ⋯, a line of their own.
  */
 const UNDER_TITLE_WHEN_NARROW =
@@ -614,11 +712,7 @@ function PageMenu({
           <DotsThreeIcon className="size-4.5" weight="bold" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuItem onSelect={onClear}>
-          <TrashIcon className="size-4" />
-          Clear history…
-        </DropdownMenuItem>
+      <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuItem onSelect={onExport}>
           <DownloadSimpleIcon className="size-4" />
           Export CSV
@@ -629,18 +723,24 @@ function PageMenu({
           }}
         >
           <GearSixIcon className="size-4" />
-          History settings
+          History Settings
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={openClearBrowsingData}>
+          <BroomIcon className="size-4" />
+          Clear Browsing Data
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onClear}>
+          <TrashIcon className="size-4" />
+          {`Clear ${APP_NAME} History`}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
 }
 
-/** Where a row opens, if anywhere; a closed tab is restored rather than opened. */
+/** Where a row opens, if anywhere. */
 function targetOf(entry: TimelineEntry): OpenTarget | undefined {
-  if (entry.kind === "closed") {
-    return undefined;
-  }
   return entry.kind === "turn"
     ? turnPlaceOf(entry.turn)
     : placeOf(entry.action);
@@ -653,8 +753,10 @@ function targetOf(entry: TimelineEntry): OpenTarget | undefined {
  */
 function ActivityList({
   checked,
-  detailsUnder,
+  cards,
   hasMore,
+  isBottomCovered,
+  isMixed,
   items: listed,
   loadMore,
   onCheck,
@@ -664,9 +766,13 @@ function ActivityList({
   picked,
 }: {
   checked: ReadonlySet<string>;
-  /** The picked row's details, drawn under it when there is no room beside the list. */
-  detailsUnder: React.ReactNode;
+  /** The closed groups over the rows, which scroll with them. */
+  cards: React.ReactNode;
   hasMore: boolean;
+  /** Whether the details cover the list's lower part, which the rows then clear. */
+  isBottomCovered: boolean;
+  /** Whether the rows are of every kind. */
+  isMixed: boolean;
   items: TimelineItem[];
   loadMore: () => void;
   onCheck: (entry: TimelineEntry, on: boolean) => void;
@@ -676,18 +782,25 @@ function ActivityList({
   picked: null | string;
 }) {
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
-  const items = listed;
+  const items: ({ id: string; kind: "cards" } | TimelineItem)[] = cards
+    ? [{ id: "cards", kind: "cards" }, ...listed]
+    : listed;
   const modelName = useModelName();
   const gesturesFor = useGesturesFor();
-  const restore = useRestoreClosed();
   const words = { trash: osConventions().trash };
+
+  // Room for the rows to scroll clear of the details over them.
+  const bottomRoom =
+    isBottomCovered && scroller
+      ? scroller.offsetHeight * SHEET_HEIGHT + 16
+      : 16;
 
   // Measured in layout px: inside the window's CSS `zoom` the default reads
   // the on-screen rect.
   // oxlint-disable-next-line react/incompatible-library
   const virtualizer = useVirtualizer({
     count: items.length,
-    estimateSize: (index) => (items[index]?.kind === "day" ? 44 : 40),
+    estimateSize: (index) => ESTIMATED_HEIGHT[items[index]?.kind ?? "action"],
     getItemKey: (index) => items[index]?.id ?? index,
     getScrollElement: () => scroller,
     measureElement: (element) =>
@@ -708,8 +821,9 @@ function ActivityList({
       };
     },
     overscan: 12,
-    paddingEnd: 16,
+    paddingEnd: bottomRoom,
     paddingStart: 16,
+    scrollPaddingEnd: bottomRoom,
   });
   const virtualItems = virtualizer.getVirtualItems();
   const last = virtualItems.at(-1);
@@ -748,10 +862,7 @@ function ActivityList({
     } else if (event.key === "Enter" && at !== -1) {
       const entry = entries[at];
       const target = entry ? targetOf(entry) : undefined;
-      if (entry?.kind === "closed") {
-        event.preventDefault();
-        restore(entry.closed);
-      } else if (target) {
+      if (target) {
         event.preventDefault();
         gesturesFor(target).primary?.run();
       }
@@ -773,16 +884,6 @@ function ActivityList({
     );
     const more = moreFromOf(entry);
     return [
-      ...(entry.kind === "closed"
-        ? [
-            {
-              label: "Restore",
-              run: () => {
-                restore(entry.closed);
-              },
-            },
-          ]
-        : []),
       ...opens.map((destination) => ({
         label: destination.label,
         run: destination.run,
@@ -824,7 +925,7 @@ function ActivityList({
 
   return (
     <div
-      className="min-h-0 flex-1 overflow-y-auto px-4 outline-none @min-[640px]/activity:px-6"
+      className={cn(LIST_PANE, "outline-none")}
       data-keyboard-home
       onKeyDown={onKeyDown}
       ref={setScroller}
@@ -843,12 +944,25 @@ function ActivityList({
             ref: virtualizer.measureElement,
             style: { transform: `translateY(${virtual.start}px)` },
           };
+          if (item.kind === "cards") {
+            return (
+              <div
+                className="absolute inset-x-0 top-0"
+                key={item.id}
+                {...placed}
+              >
+                {cards}
+              </div>
+            );
+          }
           if (item.kind === "day") {
             return (
               <div
                 className={cn(
                   "absolute inset-x-0 top-0",
-                  virtual.index > 0 && "pt-3",
+                  items[virtual.index - 1] !== undefined &&
+                    items[virtual.index - 1]?.kind !== "cards" &&
+                    "pt-3",
                 )}
                 key={item.id}
                 {...placed}
@@ -859,9 +973,9 @@ function ActivityList({
               </div>
             );
           }
-          const text = entryText(item, { modelName, words });
+          const text = entryText(item, { isMixed, modelName, words });
           const context =
-            item.kind === "turn" ? (
+            item.kind === "turn" && !isMixed ? (
               <TurnContext parts={turnParts(item.turn, modelName)} />
             ) : (
               text.context
@@ -879,18 +993,13 @@ function ActivityList({
                   at={item.at}
                   checked={checked.has(item.id)}
                   context={context}
-                  icon={<EntryIcon entry={item} />}
+                  icon={<EntryIcon entry={item} isMixed={isMixed} />}
                   isPicked={picked === item.id}
-                  keepContext={item.kind === "closed"}
                   onCheck={(on) => {
                     onCheck(item, on);
                   }}
                   menu={menuOf(item)}
                   onOpen={({ newTab }) => {
-                    if (item.kind === "closed") {
-                      restore(item.closed);
-                      return;
-                    }
                     if (!target) {
                       return;
                     }
@@ -906,11 +1015,6 @@ function ActivityList({
                   }}
                   title={text.title}
                 />
-                {picked === item.id && detailsUnder ? (
-                  <div className="flex max-h-112 flex-col px-1 pt-1 pb-2">
-                    {detailsUnder}
-                  </div>
-                ) : null}
               </div>
             </div>
           );
@@ -931,7 +1035,6 @@ function ActivityRow({
   context,
   icon,
   isPicked,
-  keepContext,
   menu,
   onCheck,
   onOpen,
@@ -943,8 +1046,6 @@ function ActivityRow({
   context: React.ReactNode;
   icon: React.ReactNode;
   isPicked: boolean;
-  /** Whether what was done is never cut short, as a closed tab group's count. */
-  keepContext: boolean;
   /** What its ⋮ and a right click offer. */
   menu: RowMenuItem[];
   onCheck: (on: boolean) => void;
@@ -971,7 +1072,8 @@ function ActivityRow({
           onClick={(event) => {
             if (commandKeyHeld(event)) {
               onOpen({ newTab: true });
-            } else {
+            } else if (event.detail <= 1) {
+              // A second press is a double click's, which opens the row.
               onPick();
             }
           }}
@@ -1013,12 +1115,7 @@ function ActivityRow({
           <span className="grid size-5 shrink-0 place-items-center">
             {icon}
           </span>
-          <EntryWords
-            at={at}
-            context={context}
-            keepContext={keepContext}
-            title={title}
-          />
+          <EntryWords at={at} context={context} title={title} />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
@@ -1069,20 +1166,15 @@ const TIME_COLUMN = "@max-[30rem]/entry:hidden";
 /**
  * What a row names and what was done with it, and when on a narrow row: on
  * one line where there is room, the name cut short first, and on two where
- * there is not. A closed tab or tab group's own words are never cut short,
- * so the row always says what it is: on two lines they take the time's
- * place, which its details still show, and wrap where even that is too
- * narrow.
+ * there is not.
  */
 function EntryWords({
   at,
   context,
-  keepContext,
   title,
 }: {
   at: number;
   context: React.ReactNode;
-  keepContext: boolean;
   title: string;
 }) {
   return (
@@ -1090,23 +1182,9 @@ function EntryWords({
       {title ? (
         <span className="min-w-0 shrink truncate text-sm">{title}</span>
       ) : null}
-      <span
-        className={cn(
-          "flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 text-[13px] text-muted-foreground",
-          keepContext && "@min-[30rem]/entry:flex-none",
-        )}
-      >
-        {context ? (
-          <span className={keepContext ? "min-w-0" : "min-w-0 truncate"}>
-            {context}
-          </span>
-        ) : null}
-        <span
-          className={cn(
-            "flex shrink-0 gap-x-1.5 whitespace-nowrap tabular-nums @min-[30rem]/entry:hidden",
-            keepContext && Boolean(context) && "hidden",
-          )}
-        >
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-1.5 text-[13px] text-muted-foreground">
+        {context ? <span className="min-w-0 truncate">{context}</span> : null}
+        <span className="flex shrink-0 gap-x-1.5 whitespace-nowrap tabular-nums @min-[30rem]/entry:hidden">
           {context ? <span aria-hidden>·</span> : null}
           {timeFormat.format(at)}
         </span>

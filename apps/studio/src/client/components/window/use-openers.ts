@@ -66,7 +66,6 @@ import {
 import { type AppsBySlug } from "./apps-by-slug";
 import {
   bringsBack,
-  type ClosedTabs,
   entryText,
   placeOf as placeOfAction,
   timelineOf,
@@ -78,12 +77,8 @@ import { instrumentUrlOf } from "@instrument-org/shared";
 import { appTabsAtom } from "./app-tabs";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
-import {
-  closedGroupTabOf,
-  closedSideOf,
-  closedSidesOf,
-  closedTabGroupOf,
-} from "./tab-model";
+import { closedText } from "./closed-groups";
+import { closedGroupTabOf, closedSideOf, closedTabGroupOf } from "./tab-model";
 import { groupLayoutFor, groupReadOf } from "./group-awareness";
 import { windowTabGroupsAtom } from "./open-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
@@ -912,21 +907,27 @@ export function useOpeners({
     const closed = store.get(appTabsAtom).recentlyClosed.flatMap((entry) => {
       const whole = closedTabGroupOf(entry);
       const tabs = whole ?? [closedGroupTabOf(entry)].filter((tab) => !!tab);
-      const sides = closedSidesOf(entry);
-      if (entry.closedAt === undefined || tabs.length === 0 || !sides) {
+      if (entry.closedAt === undefined || tabs.length === 0) {
         return [];
       }
-      const kind: ClosedTabs["kind"] =
-        whole === undefined ? "tab" : closedSideOf(entry) ? "side" : "group";
+      const kind =
+        whole === undefined
+          ? ("tab" as const)
+          : closedSideOf(entry)
+            ? ("side" as const)
+            : ("group" as const);
       return [
         {
           at: entry.closedAt,
-          closed: {
-            id: entry.id,
-            kind,
-            sides,
-            tabs: tabs.map((tab) => ({ tab, title: titleOf(tab) })),
-          },
+          ...closedText({ kind, titles: tabs.map(titleOf) }),
+          id: entry.id,
+          kind: (
+            {
+              group: "closedGroup",
+              side: "closedSide",
+              tab: "closedTab",
+            } as const
+          )[kind],
         },
       ];
     });
@@ -935,42 +936,38 @@ export function useOpeners({
       : await safe(
           rpcClient.actions.list.call({ limit: Math.max(limit, 50), since: 0 }),
         );
+    const isComplete = closedOnly || read?.next === null;
+    const actions = read?.actions ?? [];
     const { entries } = timelineOf({
-      actions: {
-        complete: read?.next === null,
-        items: read?.actions ?? [],
-      },
-      closed,
+      actions: { complete: isComplete, items: actions },
       requests: { complete: true, items: [] },
       view: "yours",
     });
     const words = { trash: osConventions().trash };
-    return entries
-      .filter(bringsBack)
-      .slice(0, limit)
-      .map((entry) => {
-        const text = entryText(entry, { modelName: () => "", words });
-        if (entry.kind === "closed") {
-          const kind = (
-            {
-              group: "closedGroup",
-              side: "closedSide",
-              tab: "closedTab",
-            } as const
-          )[entry.closed.kind];
-          return { at: entry.at, ...text, id: entry.closed.id, kind };
-        }
-        const target =
-          entry.kind === "action" ? placeOfAction(entry.action) : undefined;
-        const address = target === undefined ? undefined : addressOf(target);
-        return {
-          ...(address === undefined ? {} : { address }),
-          at: entry.at,
-          ...text,
-          id: entry.id,
-          kind: "visit" as const,
-        };
-      });
+    const visits = entries.filter(bringsBack).map((entry) => {
+      const target =
+        entry.kind === "action" ? placeOfAction(entry.action) : undefined;
+      const address = target === undefined ? undefined : addressOf(target);
+      return {
+        ...(address === undefined ? {} : { address }),
+        at: entry.at,
+        ...entryText(entry, {
+          isMixed: false,
+          modelName: () => "",
+          words,
+        }),
+        id: entry.id,
+        kind: "visit" as const,
+      };
+    });
+    // Past the oldest action read there may be others not read yet, so no
+    // close from before it is listed.
+    const readFrom = isComplete
+      ? -Infinity
+      : Math.min(...actions.map((action) => Date.parse(action.at)));
+    return [...closed.filter(({ at }) => at >= readFrom), ...visits]
+      .toSorted((a, b) => b.at - a.at)
+      .slice(0, limit);
   };
   /**
    * Every open window's tab groups as a chat reads them, the one in front

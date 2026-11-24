@@ -49,23 +49,32 @@ function moreSites(count: number) {
 
 /**
  * Where the history in range came from, the way a browser says it: the
- * first site by name and how many more there are.
+ * first site by name and how many more there are, then whether tabs the
+ * person closed go with it.
  */
 export function historyDetail({
+  closedCount,
   count,
   hosts,
 }: {
+  /** How many of the tabs and tab groups closed in range can be reopened. */
+  closedCount: number;
   count: number;
   hosts: string[];
 }): string {
   const [first] = hosts;
   if (count === 0 || first === undefined) {
-    return "There’s no history from this time.";
+    return closedCount > 0
+      ? "Tabs you closed will no longer reopen."
+      : "There’s no history from this time.";
   }
-  if (hosts.length === 1) {
-    return `You visited ${first}.`;
-  }
-  return `You visited ${first} and ${moreSites(hosts.length - 1)}.`;
+  const visited =
+    hosts.length === 1
+      ? `You visited ${first}`
+      : `You visited ${first} and ${moreSites(hosts.length - 1)}`;
+  return closedCount > 0
+    ? `${visited}. Tabs you closed will no longer reopen.`
+    : `${visited}.`;
 }
 
 export function cookiesDetail(cookieSites: string[]): string {
@@ -133,7 +142,9 @@ export function clearedMessage({
 }): string {
   const { phrase } = timeRangeOf(range);
   const parts = [
-    ...(history ? [phrase ? `your history ${phrase}` : "your history"] : []),
+    ...(history
+      ? [phrase ? `your browsing history ${phrase}` : "your browsing history"]
+      : []),
     ...(siteData ? ["cookies", "site data"] : []),
     ...(cache ? ["cached files"] : []),
   ];

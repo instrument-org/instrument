@@ -63,3 +63,36 @@ export function closedGroupOfChat(
     ),
   );
 }
+
+/**
+ * What a closed entry says by name: a tab or a whole tab group by its first
+ * tab's title and what closed; one side of a group as "Closed 2 tabs", or
+ * "Closed" and the title of a side of one.
+ */
+export function closedText({
+  kind,
+  titles,
+}: {
+  kind: "group" | "side" | "tab";
+  titles: readonly string[];
+}): { context: string; title: string } {
+  const count = titles.length;
+  const first = titles[0] ?? "";
+  switch (kind) {
+    case "group": {
+      return {
+        context: `Closed tab group · ${count} ${count === 1 ? "tab" : "tabs"}`,
+        title: first,
+      };
+    }
+    case "side": {
+      return {
+        context: "",
+        title: count === 1 ? `Closed ${first}` : `Closed ${count} tabs`,
+      };
+    }
+    case "tab": {
+      return { context: "Closed tab", title: first };
+    }
+  }
+}

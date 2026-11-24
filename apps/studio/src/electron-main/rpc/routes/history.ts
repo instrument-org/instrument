@@ -70,7 +70,7 @@ const noteTypedPage = base
 
 /**
  * The person opened a file in one of the app's tabs. Every way in lands on
- * the file screen, which says so once each time a file comes up in a tab
+ * the file screen, which says so once each time they stay on a file in a tab
  * they are looking at.
  */
 const noteFileOpened = base

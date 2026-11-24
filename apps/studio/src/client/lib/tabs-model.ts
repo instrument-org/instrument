@@ -193,6 +193,22 @@ export function forgetClosed(model: TabsModel, { id }: { id: TabId }) {
   };
 }
 
+/** The closed list without what closed at or after `since`, or with nothing on it for all time. */
+export function forgetClosedSince(
+  model: TabsModel,
+  since: number | undefined,
+): TabsModel {
+  return {
+    ...model,
+    recentlyClosed:
+      since === undefined
+        ? []
+        : model.recentlyClosed.filter(
+            ({ closedAt }) => closedAt === undefined || closedAt < since,
+          ),
+  };
+}
+
 /**
  * A tab gone to another window: out of the strip as a close would take it, and
  * not one this window can reopen.

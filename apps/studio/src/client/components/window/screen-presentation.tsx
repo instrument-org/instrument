@@ -114,18 +114,12 @@ export function screenLocation(
     case "chats": {
       return { kind: "chats" };
     }
-    // What Activity shows, when it is one kind of row, is the part it is at,
-    // and the row open inside it says itself (`TabSurface.item`).
+    // What History shows, when it is one kind of row, is the part it is at.
     case "activity": {
       const show = activityShowOf(href);
       return {
         kind: "builtin",
-        ...(show
-          ? {
-              part: SHOW_LABELS[show].label,
-              partHref: `${SCREENS.activity.href}?show=${show}`,
-            }
-          : {}),
+        ...(show ? { part: SHOW_LABELS[show] } : {}),
         screen: "activity",
       };
     }

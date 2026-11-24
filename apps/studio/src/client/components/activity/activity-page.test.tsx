@@ -179,7 +179,7 @@ describe("ActivityPage", () => {
   });
 
   it("shows only the rows a filter or a search leaves", async () => {
-    page({ show: "files" });
+    page({ show: "changes" });
     expect(await screen.findByText("notes.md")).toBeTruthy();
     expect(screen.queryByText("Where's My Refund?")).toBeNull();
   });
@@ -187,11 +187,11 @@ describe("ActivityPage", () => {
   it("asks for a filter by changing the address", async () => {
     const { onSearch } = page();
     await screen.findByText("notes.md");
-    fireEvent.click(screen.getByRole("radio", { name: "Pages" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Websites" }));
     expect(onSearch).toHaveBeenCalledWith({ item: undefined, show: "pages" });
   });
 
-  it("shows a row's details beside the list, and removes it from there", async () => {
+  it("shows a row's details over the list, and removes it from there", async () => {
     const remove = vi.fn(() => ({ requestsKept: 0 }));
     calls.set("activity.remove", remove);
     page();
@@ -242,6 +242,23 @@ describe("ActivityPage", () => {
         requests: [],
       });
     });
+  });
+
+  it("says what each filter would have, where it has nothing yet", async () => {
+    page({ show: "ai" });
+    expect(await screen.findByText("No AI usage yet")).toBeTruthy();
+    expect(
+      screen.getByText("When a chat uses AI, the model it used shows up here."),
+    ).toBeTruthy();
+  });
+
+  it("keeps the details up through a double click, which opens the row", async () => {
+    page();
+    const row = await screen.findByText("notes.md");
+    fireEvent.click(row, { detail: 1 });
+    await screen.findByRole("complementary", { name: "Details" });
+    fireEvent.click(screen.getAllByText("notes.md")[0] ?? row, { detail: 2 });
+    expect(screen.getByRole("complementary", { name: "Details" })).toBeTruthy();
   });
 
   it("says the history is off", async () => {

@@ -74,8 +74,8 @@ Whether Instrument keeps a history of what you do in it, whether chats can use i
 
 - **Keep a history** (`keep-history`): Whether Instrument keeps the pages, files and chats you open, so you can find them again and a chat can tell which file you mean.
 - **Chats can see this** (`share-activity`): Whether chats see what you just did in Instrument, like a folder you opened or files you moved, so they can tell what you mean.
-- **Your history** (`activity-history`): The history of what you did in Instrument and when, with the AI requests your chats made, which you can search, export, or clear.
-- **Clear history** (`clear-activity`): Delete what you did in Instrument, its AI requests, or both, from a time range.
+- **Your history** (`activity-history`): The history of what you did in Instrument and when, with the AI your chats used, which you can search, export, or clear.
+- **Clear Instrument history** (`clear-activity`): Delete the files and chats you opened, the changes you made, or your AI usage in Instrument, from a time range.
 
 ### Storage (`storage`)
 
@@ -103,7 +103,7 @@ Which version of Instrument you have, updates, the source, and third-party licen
 
 Link one as `[Label](instrument://screen/<name>)`. A row listed under one is linked as a setting is, `[Label](instrument://settings/<name>)`.
 
-- **History** (`activity`): What you did in Instrument, with the AI requests your chats made, to search and clear.
+- **History** (`activity`): What you did in Instrument, with the AI your chats used, to search and clear.
 - **Apps** (`apps`): The services Instrument can work in for you, and connecting one.
 - **Bookmarks** (`bookmarks`): Every bookmark, in the bookmarks bar's order with its folders, to search, edit, sort and tidy.
 - **Browser** (`browser`): The web's start page, with the sites you kept and lately saw.

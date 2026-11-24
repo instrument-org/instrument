@@ -79,13 +79,13 @@ function timeOf(line: string): number | undefined {
   }
 }
 
-/** Writes a day's file again with only the lines recorded before `since`, through a copy renamed over it. */
-function keepLinesBefore(file: string, since: number) {
+/** Writes a day's file again with only the lines `keeps` says, through a copy renamed over it. */
+function keepLines(file: string, keeps: (line: string) => boolean) {
   // oxlint-disable-next-line studio/no-sync-content-read -- a day file in the machine folder, which is never synced, read whole while nothing appends to it
   const kept = fs
     .readFileSync(file, "utf8")
     .split("\n")
-    .filter((line) => (timeOf(line) ?? Number.POSITIVE_INFINITY) < since);
+    .filter((line) => line.trim() !== "" && keeps(line));
   const copy = `${file}.clearing`;
   fs.writeFileSync(copy, kept.map((line) => `${line}\n`).join(""));
   fs.renameSync(copy, file);
@@ -262,18 +262,28 @@ export class ActionLog {
   /**
    * Deletes what was recorded at or after `since`, or everything without
    * it: a day wholly in that time goes, and the day it starts in is written
-   * again with only its earlier lines. Synchronous, so no action recorded
-   * meanwhile lands in a file being taken away. The log goes on with the
-   * next action.
+   * again with only its earlier lines. With `which`, only the actions it
+   * picks go, so every day in that time is written again without them.
+   * Synchronous, so no action recorded meanwhile lands in a file being taken
+   * away. The log goes on with the next action.
    */
-  clear(since?: number): void {
+  clear(since?: number, which?: (action: LoggedAction) => boolean): void {
     this.close();
     for (const { file, start } of dayFiles(this.#dir)) {
-      if (since === undefined || start >= since) {
-        fs.rmSync(file, { force: true });
-      } else if (nextDayStart(start) > since) {
-        keepLinesBefore(file, since);
+      if (since !== undefined && nextDayStart(start) <= since) {
+        continue;
       }
+      if (!which && (since === undefined || start >= since)) {
+        fs.rmSync(file, { force: true });
+        continue;
+      }
+      keepLines(file, (line) => {
+        if ((timeOf(line) ?? Number.POSITIVE_INFINITY) < (since ?? -Infinity)) {
+          return true;
+        }
+        const action = which && actionOf(line);
+        return action !== undefined && !which?.(action);
+      });
     }
     this.#last = undefined;
   }

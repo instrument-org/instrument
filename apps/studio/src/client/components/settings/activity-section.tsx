@@ -1,7 +1,7 @@
 import {
   ACTIONS_KEY,
   REQUESTS_KEY,
-} from "@/client/components/activity/activity-page";
+} from "@/client/components/activity/activity-keys";
 import { ClearActivityDialog } from "@/client/components/activity/clear-activity-dialog";
 import { settingAnchor } from "@/client/components/settings/settings-index";
 import { Button } from "@/client/components/ui/button";
@@ -15,14 +15,17 @@ import {
   DialogTitle,
 } from "@/client/components/ui/dialog";
 import { Switch } from "@/client/components/ui/switch";
+import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { useOpenGestures } from "@/client/hooks/use-open-target";
+import { forgetClosedSince } from "@/client/lib/tabs-model";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { LockSimpleIcon } from "@phosphor-icons/react/LockSimple";
 import { PauseCircleIcon } from "@phosphor-icons/react/PauseCircle";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useStore } from "jotai";
 import { type ReactNode, useId, useState } from "react";
 
 /**
@@ -32,6 +35,7 @@ import { type ReactNode, useId, useState } from "react";
  */
 export function ActivitySection() {
   const queryClient = useQueryClient();
+  const store = useStore();
   // A built-in page: a click walks this tab there, as a browser's settings
   // open its history.
   const history = useOpenGestures(
@@ -137,7 +141,7 @@ export function ActivitySection() {
               Show history
             </Button>
           }
-          line="Search what you did and the AI requests your chats made."
+          line="Search what you did and the AI your chats used."
           title="Your history"
         />
         <Row
@@ -150,11 +154,11 @@ export function ActivitySection() {
               size="sm"
               variant="outline"
             >
-              Clear history…
+              Clear…
             </Button>
           }
-          line="Remove what you did, your AI requests, or both, from a time range."
-          title="Clear history"
+          line="Clear the files and chats you opened, the changes you made, or your AI usage."
+          title={`Clear ${APP_NAME} history`}
         />
       </Card>
       <StopKeepingDialog
@@ -162,10 +166,17 @@ export function ActivitySection() {
         onStop={async (clear) => {
           await setKeep.mutateAsync({ enabled: false });
           if (clear) {
-            await rpcClient.activity.clear.call({
-              actions: true,
-              requests: true,
-            });
+            await Promise.all([
+              rpcClient.activity.clear.call({
+                changes: true,
+                opened: true,
+                requests: true,
+              }),
+              rpcClient.history.clear.call({}),
+            ]);
+            store.set(appTabsAtom, (current) =>
+              forgetClosedSince(current, undefined),
+            );
             startOver();
           }
         }}
@@ -232,7 +243,7 @@ function StopKeepingDialog({
       <DialogContent maxWidth="28rem">
         <DialogTitle>Stop keeping a history?</DialogTitle>
         <DialogDescription>
-          {`${APP_NAME} will stop keeping the pages, files and chats you open, and the AI requests your chats make. Chats won't be able to tell which file you mean, and the address bar won't suggest pages you've been to.`}
+          {`${APP_NAME} will stop keeping the pages, files and chats you open, and the AI your chats use. Chats won't be able to tell which file you mean, and the address bar won't suggest pages you've been to.`}
         </DialogDescription>
         <label className="flex items-center gap-2.5 text-sm" htmlFor={boxId}>
           <Checkbox

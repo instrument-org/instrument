@@ -58,7 +58,7 @@ export function useRecentFiles({
 
 /**
  * Tells history the person opened a file in one of the app's tabs. Said each
- * time a file comes up in the tab they are looking at.
+ * time they stay on a file in the tab they are looking at.
  */
 export function noteFileOpened(path: string) {
   void rpcClient.history.noteFileOpened.call({ path }).catch(() => null);

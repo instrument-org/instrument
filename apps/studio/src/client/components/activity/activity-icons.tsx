@@ -1,4 +1,5 @@
 import {
+  makerOfTurn,
   type ShownAction,
   type TimelineEntry,
 } from "@/client/components/activity/activity-timeline";
@@ -6,7 +7,6 @@ import {
   FileSystemFolderGlyph,
   FileTypeIcon,
 } from "@/client/components/extend/file-system";
-import { ClosedMark } from "@/client/components/activity/recently-closed";
 import { PageFavicon } from "@/client/components/favicon";
 import { ModelMakerIcon } from "@/client/components/model-maker-icon";
 import { ScreenMark } from "@/client/components/window/app-chip";
@@ -33,24 +33,27 @@ const GLYPH = "size-4 text-foreground/60";
 
 /**
  * The mark a row wears: a page's icon, a file's by its kind, a folder's,
- * the chat's for an AI row, a closed tab's own or a tab group's stack,
- * and a plain glyph for the rest. Several
- * files moved or thrown away together wear the move's or the bin's.
+ * the chat's for an AI row, and a plain glyph for the rest. Among every other
+ * kind of row (`isMixed`), an AI row wears its model's maker's mark, so it
+ * does not read as its chat listed again. Several files moved or thrown away
+ * together wear the move's or the bin's.
  */
 export function EntryIcon({
   className,
   entry,
+  isMixed = false,
 }: {
   className?: string;
   entry: TimelineEntry;
+  isMixed?: boolean;
 }) {
-  // A turn is a chat's, so it wears the chat's mark; its model's maker
-  // stands beside the model's name.
   if (entry.kind === "turn") {
-    return <PlaceIcon className={cn(GLYPH, className)} place="chat" />;
-  }
-  if (entry.kind === "closed") {
-    return <ClosedMark className={className} closed={entry.closed} />;
+    const maker = isMixed ? makerOfTurn(entry.turn) : undefined;
+    return maker === undefined ? (
+      <PlaceIcon className={cn(GLYPH, className)} place="chat" />
+    ) : (
+      <MakerMark className={cn("size-4", className)} maker={maker} />
+    );
   }
   return <ActionIcon action={entry.action} className={className} />;
 }

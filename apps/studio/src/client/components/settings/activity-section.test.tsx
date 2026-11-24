@@ -75,6 +75,8 @@ describe("ActivitySection", () => {
     const setKeep = vi.fn(() => null);
     const clear = vi.fn(() => null);
     calls.set("preferences.setKeepHistory", setKeep);
+    const clearPages = vi.fn(() => null);
+    calls.set("history.clear", clearPages);
     calls.set("activity.clear", clear);
     renderWithProviders(<ActivitySection />);
     const toggle = await screen.findByRole("switch", {
@@ -91,7 +93,12 @@ describe("ActivitySection", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: "Stop" }));
     await waitFor(() => {
-      expect(clear).toHaveBeenCalledWith({ actions: true, requests: true });
+      expect(clear).toHaveBeenCalledWith({
+        changes: true,
+        opened: true,
+        requests: true,
+      });
+      expect(clearPages).toHaveBeenCalledWith({});
     });
     expect(setKeep).toHaveBeenCalledWith({ enabled: false });
   });
@@ -113,18 +120,17 @@ describe("ActivitySection", () => {
   it("clears what the person picks from the last hour, saying how much is there", async () => {
     const clear = vi.fn(() => null);
     calls.set("activity.clear", clear);
-    data.set("activity.summary", { actions: 14, requests: 1 });
+    data.set("activity.summary", { changes: 3, opened: 14, requests: 1 });
     renderWithProviders(<ActivitySection />);
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Clear history…" }),
-    );
+    fireEvent.click(await screen.findByRole("button", { name: "Clear…" }));
     expect(await screen.findByText("14 things")).toBeTruthy();
-    expect(screen.getByText("1 request made on this computer")).toBeTruthy();
-    fireEvent.click(screen.getByRole("checkbox", { name: "AI requests" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "AI usage" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Changes you made" }));
     fireEvent.click(screen.getByRole("button", { name: "Clear" }));
     await waitFor(() => {
       expect(clear).toHaveBeenCalledWith({
-        actions: true,
+        changes: false,
+        opened: true,
         requests: true,
         since: expect.any(Number),
       });

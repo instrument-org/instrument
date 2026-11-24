@@ -84,7 +84,7 @@ describe("ClearBrowsingDataModal", () => {
 
     await waitFor(() => {
       expect(toast.success).toHaveBeenCalledWith(
-        "Cleared your history from the last hour, cookies, site data, and cached files.",
+        "Cleared your browsing history from the last hour, cookies, site data, and cached files.",
       );
     });
     expect(clearSiteData).toHaveBeenCalledWith({ cache: true, siteData: true });

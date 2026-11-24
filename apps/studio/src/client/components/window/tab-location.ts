@@ -80,16 +80,12 @@ export type TabLocation =
   /**
    * A built-in page of the app, by its name in `SCREENS` (Settings,
    * Memory, Skills, Chats, Activity, the browser's extensions): the part
-   * of it shown where it has parts (a part of Settings, what Activity is
-   * showing), and the one thing open inside it (an Activity row's
-   * details), each by the name the field reads it by. A part with something
-   * open inside it is somewhere to step back out to, at `partHref`.
+   * of it shown where it has parts (a part of Settings, what History is
+   * showing), by the name the field reads it by.
    */
   | {
-      item?: string;
       kind: "builtin";
       part?: string;
-      partHref?: string;
       screen: ScreenName;
     }
   | { kind: "chat"; title: string }
@@ -139,23 +135,8 @@ export function locationCrumbs(
     case "apps": {
       return [];
     }
-    // A part is a place to step back out to while something inside it is
-    // open, the way a folder is above its file.
     case "builtin": {
-      const { item, part, partHref } = location;
-      return [
-        ...(part === undefined
-          ? []
-          : [
-              {
-                label: part,
-                ...(item !== undefined && partHref !== undefined
-                  ? { to: { href: partHref, kind: "screen" as const } }
-                  : {}),
-              },
-            ]),
-        ...(item === undefined ? [] : [{ label: item }]),
-      ];
+      return location.part === undefined ? [] : [{ label: location.part }];
     }
     // A chat hangs from the chat beside the tabs rather than from a screen
     // under one, so there is nothing above it the field could go to.
@@ -242,47 +223,6 @@ export function locationChip(location: TabLocation): BuiltInApp | undefined {
     case "newChat":
     case "newTab":
     case "page": {
-      return undefined;
-    }
-  }
-}
-
-/**
- * The built-in app the field searches in while it has the caret, named as
- * its chip names it: the app the tab is in, as a browser's address bar
- * searches a site once its keyword is typed. Files is left out, since a
- * file's and a folder's field keeps their real path.
- */
-export type FieldScope =
-  | "activity"
-  | "apps"
-  | "chat"
-  | "memory"
-  | "settings"
-  | "skills";
-
-/** The built-in pages whose field searches in them. */
-const PAGE_SCOPES: Partial<Record<ScreenName, FieldScope>> = {
-  activity: "activity",
-  settings: "settings",
-};
-
-/** The app a tab's field searches in, from where the tab is; none for a page, a file or a new tab. */
-export function fieldScopeOf(location: TabLocation): FieldScope | undefined {
-  switch (location.kind) {
-    case "app":
-    case "apps": {
-      return "apps";
-    }
-    case "builtin": {
-      return PAGE_SCOPES[location.screen];
-    }
-    case "chat":
-    case "chats":
-    case "task": {
-      return "chat";
-    }
-    default: {
       return undefined;
     }
   }

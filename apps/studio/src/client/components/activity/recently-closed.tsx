@@ -1,127 +1,155 @@
-import { type ClosedTabs } from "@/client/components/activity/activity-timeline";
-import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
-import { appTabsAtom } from "@/client/components/window/app-tabs";
-import { TabMark } from "@/client/components/window/row-half";
-import { ShellContext } from "@/client/components/window/shell-context";
 import {
-  closedGroupTabOf,
-  closedSideOf,
-  closedSidesOf,
-  closedTabGroupOf,
-} from "@/client/components/window/tab-model";
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/client/components/ui/context-menu";
+import { appTabsAtom } from "@/client/components/window/app-tabs";
+import {
+  type ClosedGroup,
+  closedGroupsOf,
+} from "@/client/components/window/closed-groups";
+import { GroupRowLines } from "@/client/components/window/group-row-lines";
+import { ShellContext } from "@/client/components/window/shell-context";
 import { useTabTitle } from "@/client/components/window/tab-title";
 import { forgetClosed } from "@/client/lib/tabs-model";
 import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { StackIcon } from "@phosphor-icons/react/Stack";
 import { useAtomValue, useStore } from "jotai";
 import { useContext } from "react";
 
 const NO_TITLES = new Map<ChatId, string>();
 
-/**
- * The tabs, sides and tab groups this window closed, from the list Shift+Cmd+T
- * reopens, each with when it closed, for Activity to list among the rest.
- * An entry from before closes were timed has no place in time, so it stays
- * off the list, as does a tab of the window's own strip rather than a group.
- */
-export function useClosedTabs(): { at: number; closed: ClosedTabs }[] {
+/** How many closed groups All shows over its rows. */
+const CARDS_IN_ALL = 3;
+
+/** The tab groups this window closed, newest first, from the list Shift+Cmd+T reopens, and the words a search finds each by. */
+export function useClosedGroups(): { group: ClosedGroup; words: string }[] {
   const shell = useContext(ShellContext);
   const list = useAtomValue(appTabsAtom).recentlyClosed;
   const titleOf = useTabTitle(shell?.chatTitles ?? NO_TITLES);
-  if (!shell) {
-    return [];
+  return closedGroupsOf(list).map((group) => ({
+    group,
+    words: group.sides
+      .flatMap((side) =>
+        side.tabs.map(
+          (tab) =>
+            `${titleOf(tab)}\n${tab.kind === "page" ? (tab.url ?? "") : ""}`,
+        ),
+      )
+      .join("\n")
+      .toLowerCase(),
+  }));
+}
+
+/** The newest closed groups over All's rows, in one line of cards; nothing when none has closed. */
+export function RecentlyClosedCards({
+  groups,
+}: {
+  groups: readonly ClosedGroup[];
+}) {
+  return (
+    <section className="pb-5">
+      <h2 className="pb-2 text-[13px] font-medium">Recently closed</h2>
+      <CardGrid groups={groups.slice(0, CARDS_IN_ALL)} isOneLine />
+    </section>
+  );
+}
+
+/** Every closed group as a card, a grid per day, under the day's head. */
+export function ClosedGroupDays({
+  dayOf,
+  groups,
+}: {
+  /** The head of the day a time falls on. */
+  dayOf: (at: number) => string;
+  groups: readonly ClosedGroup[];
+}) {
+  const days = new Map<string, ClosedGroup[]>();
+  for (const group of groups) {
+    // One closed before closes were timed is older than any that is.
+    const day =
+      group.closedAt === undefined ? "Earlier" : dayOf(group.closedAt);
+    days.set(day, [...(days.get(day) ?? []), group]);
   }
-  return list.flatMap((entry) => {
-    const group = closedTabGroupOf(entry);
-    const tabs = group ?? [closedGroupTabOf(entry)].filter((tab) => !!tab);
-    const sides = closedSidesOf(entry);
-    if (entry.closedAt === undefined || tabs.length === 0 || !sides) {
-      return [];
-    }
-    return [
-      {
-        at: entry.closedAt,
-        closed: {
-          id: entry.id,
-          kind:
-            group === undefined
-              ? "tab"
-              : closedSideOf(entry)
-                ? "side"
-                : "group",
-          sides,
-          tabs: tabs.map((tab) => ({ tab, title: titleOf(tab) })),
-        },
-      },
-    ];
-  });
+  return [...days].map(([day, closed]) => (
+    <section className="pb-5" key={day}>
+      <h2 className="pb-2 text-[13px] font-medium">{day}</h2>
+      <CardGrid groups={closed} />
+    </section>
+  ));
 }
 
-/** Brings one closed entry back as it was, the way Shift+Cmd+T would. */
-export function useRestoreClosed() {
-  const shell = useContext(ShellContext);
-  return (closed: ClosedTabs) => {
-    shell?.reopenClosed(closed.id);
-  };
+function CardGrid({
+  groups,
+  isOneLine = false,
+}: {
+  groups: readonly ClosedGroup[];
+  /** Whether a narrow page leaves out the cards past its first line. */
+  isOneLine?: boolean;
+}) {
+  // As many columns whatever there is to fill them, so one card alone keeps
+  // a card's width.
+  return (
+    <div className="grid grid-cols-3 gap-2 @max-[560px]/list:grid-cols-2">
+      {groups.map((group, index) => (
+        <ClosedGroupCard
+          className={cn(isOneLine && index >= 2 && "@max-[560px]/list:hidden")}
+          group={group}
+          key={group.id}
+        />
+      ))}
+    </div>
+  );
 }
 
-/** A closed row's mark: its tab's own, or a stack for a whole tab group or a side of several. */
-export function ClosedMark({
+/** A closed tab group, as the sidebar's row showed it as it closed; a press brings it back. */
+function ClosedGroupCard({
   className,
-  closed,
+  group,
 }: {
   className?: string;
-  closed: ClosedTabs;
+  group: ClosedGroup;
 }) {
-  const [first] = closed.tabs;
-  if (
-    !first ||
-    closed.kind === "group" ||
-    (closed.kind === "side" && closed.tabs.length > 1)
-  ) {
-    return <StackIcon className={cn("size-4 text-foreground/60", className)} />;
-  }
-  return <ClosedTabMark tab={first.tab} />;
-}
-
-function ClosedTabMark({ tab }: { tab: ClosedTabs["tabs"][number]["tab"] }) {
   const shell = useContext(ShellContext);
-  const appsBySlug = useAppsBySlug();
-  return (
-    <TabMark
-      appsBySlug={appsBySlug}
-      chatTitles={shell?.chatTitles ?? NO_TITLES}
-      tab={tab}
-    />
-  );
-}
-
-/** The tabs a closed entry had, a line each with its mark and title, in their order. */
-export function ClosedTabRows({ closed }: { closed: ClosedTabs }) {
-  return (
-    <ul className="flex flex-col">
-      {closed.tabs.map(({ tab, title }) => (
-        <li
-          className="flex h-8 min-w-0 items-center gap-2.5 px-1 text-sm"
-          key={tab.id}
-        >
-          <span className="grid size-4 shrink-0 place-items-center">
-            <ClosedTabMark tab={tab} />
-          </span>
-          <span className="min-w-0 truncate">{title}</span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-/** Takes closed entries off the list, so neither Activity nor Shift+Cmd+T brings them back. */
-export function useForgetClosed() {
   const store = useStore();
-  return (closed: readonly ClosedTabs[]) => {
-    for (const { id } of closed) {
-      store.set(appTabsAtom, (current) => forgetClosed(current, { id }));
-    }
+  const reopen = () => {
+    shell?.reopenClosed(group.id);
   };
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          className={cn(
+            "flex min-w-0 rounded-xl border border-border bg-card px-3 py-2 text-left hover:bg-accent",
+            className,
+          )}
+          onClick={reopen}
+          type="button"
+        >
+          <GroupRowLines
+            chatTitles={shell?.chatTitles ?? NO_TITLES}
+            isCloseShown={false}
+            isOnScreen={false}
+            sides={group.sides}
+          />
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent className="w-56">
+        <ContextMenuItem onSelect={reopen}>Reopen</ContextMenuItem>
+        <ContextMenuSeparator />
+        <ContextMenuItem
+          onSelect={() => {
+            store.set(appTabsAtom, (current) =>
+              forgetClosed(current, { id: group.id }),
+            );
+          }}
+          variant="destructive"
+        >
+          Remove from History
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
 }

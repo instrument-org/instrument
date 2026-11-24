@@ -1,6 +1,6 @@
 import { TIME_RANGES, type TimeRangeId } from "./browsing-data";
 
-/** The detail line under "What you did in Instrument": how many things in the range. */
+/** The detail line under what can be cleared: how many things in the range. */
 export function thingsDetail(count: number): string {
   if (count === 0) {
     return "Nothing";
@@ -8,31 +8,24 @@ export function thingsDetail(count: number): string {
   return `${count} ${count === 1 ? "thing" : "things"}`;
 }
 
-/** The detail line under "AI requests": how many this computer made in the range. */
-export function requestsDetail(count: number): string {
-  if (count === 0) {
-    return "Nothing";
-  }
-  return `${count} ${count === 1 ? "request" : "requests"} made on this computer`;
-}
-
 /** The toast after clearing, by what was picked and from when. */
 export function activityClearedMessage({
-  actions,
+  changes,
+  opened,
   range,
   requests,
 }: {
-  actions: boolean;
+  changes: boolean;
+  opened: boolean;
   range: TimeRangeId;
   requests: boolean;
 }): string {
-  const what =
-    actions && requests
-      ? "your history and AI requests"
-      : actions
-        ? "your history"
-        : "your AI requests";
+  const what = new Intl.ListFormat("en", { type: "conjunction" }).format([
+    ...(opened ? ["files and chats you opened"] : []),
+    ...(changes ? ["changes you made"] : []),
+    ...(requests ? ["AI usage"] : []),
+  ]);
   const phrase =
     TIME_RANGES.find((option) => option.id === range)?.phrase ?? null;
-  return phrase ? `Cleared ${what} ${phrase}.` : `Cleared all ${what}.`;
+  return `Cleared ${what}${phrase ? ` ${phrase}` : ""}.`;
 }

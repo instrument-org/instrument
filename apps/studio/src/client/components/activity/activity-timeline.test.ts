@@ -1,5 +1,3 @@
-import { type WindowTab } from "@/client/atoms/window";
-import { TabIdSchema } from "@/shared/tabs";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -8,14 +6,14 @@ import {
   bringsBack,
   actionText,
   type ActivityView,
-  type ClosedTabs,
-  closedText,
   dayLabel,
   entriesShown,
+  entryText,
   makerOfModel,
   moreFromOf,
   type PersonAction,
   placeOf,
+  type Show,
   timelineOf,
   type TimelineEntry,
   turnText,
@@ -69,29 +67,6 @@ function request(
   };
 }
 
-/** A closed tab, or a tab group of several, by the closed list's id and its tabs' titles. */
-function closedTabs(
-  id: string,
-  titles: string[],
-  kind: ClosedTabs["kind"] = titles.length > 1 ? "group" : "tab",
-): ClosedTabs {
-  const tabs = titles.map((title, n) => ({
-    tab: {
-      group: "g1",
-      href: "/settings",
-      id: `tab-${id}-${n}`,
-      kind: "screen",
-    } satisfies WindowTab,
-    title,
-  }));
-  return {
-    id: TabIdSchema.parse(id),
-    kind,
-    sides: [{ tabs: tabs.map(({ tab }) => tab), up: tabs[0]?.tab.id }],
-    tabs,
-  };
-}
-
 function action(time: number): PersonAction {
   return {
     at: new Date(time).toISOString(),
@@ -102,14 +77,11 @@ function action(time: number): PersonAction {
 
 const done = <T>(items: T[]) => ({ complete: true, items });
 
-/** The list as rows: an action by its time, a closed tab by its id, a turn by its requests' ids. */
+/** The list as rows: an action by its time, a turn by its requests' ids. */
 function rows(entries: TimelineEntry[]) {
   return entries.map((entry) => {
     if (entry.kind === "action") {
       return `action ${new Date(entry.at).toTimeString().slice(0, 5)}`;
-    }
-    if (entry.kind === "closed") {
-      return `closed ${entry.closed.id}`;
     }
     return `turn ${entry.turn.requests.map((each) => each.id).join(",")}`;
   });
@@ -224,44 +196,14 @@ describe("timelineOf", () => {
     expect(waitingOn).toEqual([]);
   });
 
-  it("weaves closed tabs and tab groups in by when they closed, as far back as the logs have read, and none among AI requests", () => {
-    ids = 0;
-    const closed = [
-      { at: at(14, 45), closed: closedTabs("t1", ["Example Domain"]) },
-      { at: at(14, 10), closed: closedTabs("t2", ["Old"]) },
-    ];
-    const read = (view: ActivityView, complete: boolean) => {
-      ids = 0;
-      return rows(
-        timelineOf({
-          actions: {
-            complete,
-            items: [action(at(14, 50)), action(at(14, 30))],
-          },
-          closed,
-          requests: done([request(at(14, 40))]),
-          view,
-        }).entries,
-      );
-    };
-    expect(read("all", false)).toEqual([
-      "action 14:50",
-      "closed t1",
-      "turn req_1",
-      "action 14:30",
-    ]);
-    expect(read("yours", true)).toEqual([
-      "action 14:50",
-      "closed t1",
-      "action 14:30",
-      "closed t2",
-    ]);
-    expect(read("ai", true)).toEqual(["turn req_1"]);
-  });
-
-  it("leaves out where the log stopped writing", () => {
+  it("leaves out where the log stopped writing and visits to the app's own screens", () => {
     const { entries } = timelineOf({
       actions: done([
+        {
+          at: new Date(at(14, 1)).toISOString(),
+          kind: "screen",
+          name: "Settings › Models",
+        },
         {
           at: new Date(at(14, 0)).toISOString(),
           dropped: 4,
@@ -624,7 +566,7 @@ describe("entriesShown", () => {
       turn: { id: "req_turn", requests: [request(at(14, 5))] },
     },
   ];
-  const shown = (q: string, show?: "ai" | "chats" | "files" | "pages") =>
+  const shown = (q: string, show?: Show) =>
     entriesShown(entries, {
       modelName: (id) => (id === null ? "" : "Claude Haiku 5.5"),
       q,
@@ -636,6 +578,7 @@ describe("entriesShown", () => {
     ["pages", ["1"]],
     ["files", ["2"]],
     ["chats", ["3"]],
+    ["changes", ["4"]],
     ["ai", ["req_turn"]],
   ] as const)("shows only %s under its filter", (show, expected) => {
     expect(shown("", show)).toEqual(expected);
@@ -647,10 +590,11 @@ describe("entriesShown", () => {
     expect(shown("/users/sam/taxes")).toEqual(["2"]);
     expect(shown("kitchen")).toEqual(["3", "req_turn"]);
     expect(shown("kitchen haiku")).toEqual(["req_turn"]);
+    expect(shown("answered by claude")).toEqual(["req_turn"]);
     expect(shown("kitchen", "chats")).toEqual(["3"]);
   });
 
-  it("lists in the sidebar's History the places visited, never a setting or an AI turn", () => {
+  it("lists for an agent the places visited, never a setting or an AI turn", () => {
     expect(entries.filter(bringsBack).map((each) => each.id)).toEqual([
       "1",
       "2",
@@ -669,58 +613,46 @@ describe("entriesShown", () => {
   });
 });
 
-describe("closed tabs", () => {
-  const group: TimelineEntry = {
-    at: at(14, 1),
-    closed: closedTabs("t1", ["Example Domain", "Wikipedia", "Files"]),
-    id: "closed:t1",
-    kind: "closed",
-  };
-  const tab: TimelineEntry = {
-    at: at(14, 2),
-    closed: closedTabs("t2", ["Example Domain"]),
-    id: "closed:t2",
-    kind: "closed",
-  };
-
-  it("names a closed tab by its title and a group by its first tab, with how many it had", () => {
-    expect(
-      [group, tab].map(
-        (each) => each.kind === "closed" && closedText(each.closed),
-      ),
-    ).toEqual([
-      { context: "Closed tab group · 3 tabs", title: "Example Domain" },
-      { context: "Closed tab", title: "Example Domain" },
-    ]);
-  });
-
-  it("names a closed side by how many tabs it had, never as a tab group", () => {
-    expect([
-      closedText(closedTabs("t3", ["Example Domain", "Wikipedia"], "side")),
-      closedText(closedTabs("t4", ["Example Domain"], "side")),
-    ]).toEqual([
-      { context: "", title: "Closed 2 tabs" },
-      { context: "", title: "Closed Example Domain" },
-    ]);
-  });
-
-  it("shows them under Tabs alone and finds a group by any of its tabs", () => {
-    const shown = (q: string, show?: "files" | "tabs") =>
-      entriesShown([group, tab], {
-        modelName: () => "",
-        q,
-        show,
+describe("entryText", () => {
+  const text = (requests: ActivityRequest[]) =>
+    entryText(
+      {
+        at: at(14, 5),
+        id: "turn",
+        kind: "turn",
+        turn: { id: "turn", requests },
+      },
+      {
+        isMixed: true,
+        modelName: (id) => (id === null ? "" : "Claude Haiku 5.5"),
         words: { trash: "Trash" },
-      }).map((each) => each.id);
-    expect(shown("", "tabs")).toEqual(["closed:t1", "closed:t2"]);
-    expect(shown("", "files")).toEqual([]);
-    expect(shown("wikipedia")).toEqual(["closed:t1"]);
-    expect(shown("tab group")).toEqual(["closed:t1"]);
-    expect(moreFromOf(group)).toBeUndefined();
-  });
+      },
+    );
 
-  it("lists them in the sidebar's History", () => {
-    expect([group, tab].every(bringsBack)).toBe(true);
+  it("says which model did what for an AI row among other kinds", () => {
+    expect([
+      text([request(at(14, 5))]),
+      text([request(at(14, 5), { purpose: "web-search" })]),
+      text([request(at(14, 5), { chatTitle: null })]),
+      text([
+        request(at(14, 5), {
+          chatId: null,
+          chatTitle: null,
+          purpose: "settings-search",
+        }),
+      ]),
+    ]).toEqual([
+      {
+        context: "Answered by Claude Haiku 5.5",
+        title: "Kitchen remodel quotes",
+      },
+      {
+        context: "Searched the web with Claude Haiku 5.5",
+        title: "Kitchen remodel quotes",
+      },
+      { context: "Answered by Claude Haiku 5.5", title: "Deleted chat" },
+      { context: "With Claude Haiku 5.5", title: "Searched Settings" },
+    ]);
   });
 });
 

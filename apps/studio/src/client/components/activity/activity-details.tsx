@@ -9,13 +9,7 @@ import {
   useModelName,
 } from "@/client/components/activity/activity-requests";
 import {
-  ClosedTabRows,
-  useRestoreClosed,
-} from "@/client/components/activity/recently-closed";
-import {
   actionText,
-  type ClosedTabs,
-  closedText,
   placeOf,
   type ShownAction,
   type TimelineEntry,
@@ -111,14 +105,13 @@ function fileOf(action: ShownAction): string | undefined {
 }
 
 /**
- * The details of the row picked, beside the list, drawn the way Files' Info
+ * The details of the row picked, over the list, drawn the way Files' Info
  * card is: a file's picture large, a header with its mark, name and kind,
  * then a row per fact. A file or folder shows Files' own Info about it;
  * everything else shows what Activity knows, and what was done with it
  * and when is one more row. Its bar puts the way to open it first, and
  * Remove and Close at its end. An AI row lists its requests, each opening what was recorded
- * about it, rather than what was said, which is the chat's to show. A
- * closed tab or tab group lists the tabs it had, and Restore brings it back.
+ * about it, rather than what was said, which is the chat's to show.
  */
 export function ActivityDetails({
   entry,
@@ -131,7 +124,6 @@ export function ActivityDetails({
   onRemove?: () => void;
 }) {
   const [request, setRequest] = useState<null | string>(null);
-  const restore = useRestoreClosed();
   const action = entry.kind === "action" ? entry.action : undefined;
   const target =
     entry.kind === "turn"
@@ -148,19 +140,7 @@ export function ActivityDetails({
       <div className="flex shrink-0 items-center gap-1.5 border-b border-border p-2">
         {request === null ? (
           <>
-            {entry.kind === "closed" ? (
-              <Button
-                onClick={() => {
-                  restore(entry.closed);
-                }}
-                size="sm"
-                variant="default"
-              >
-                Restore
-              </Button>
-            ) : (
-              <OpenButton label={openLabel(action)} target={target} />
-            )}
+            <OpenButton label={openLabel(action)} target={target} />
             {filePath ? (
               <Button
                 onClick={() => {
@@ -219,8 +199,6 @@ export function ActivityDetails({
           </div>
         ) : entry.kind === "turn" ? (
           <TurnDetails entry={entry} onOpenRequest={setRequest} />
-        ) : entry.kind === "closed" ? (
-          <ClosedDetails entry={entry} />
         ) : (
           <ActionDetails action={entry.action} at={entry.at} />
         )}
@@ -494,11 +472,7 @@ function TurnDetails({
   const took = turnDuration(turn);
   return (
     <>
-      <OwnInfo
-        entry={entry}
-        sub={parts.did ?? "AI requests"}
-        title={parts.title}
-      >
+      <OwnInfo entry={entry} sub={parts.did ?? "AI usage"} title={parts.title}>
         {parts.model ? (
           <InfoRow label="Model">
             <span className="flex min-w-0 items-center gap-1.5">
@@ -513,33 +487,6 @@ function TurnDetails({
       </OwnInfo>
       <Section title="Requests">
         <RequestRows onOpen={onOpenRequest} turn={turn} />
-      </Section>
-    </>
-  );
-}
-
-/** What closed, under a closed row's title in its details. */
-const CLOSED_KINDS: Record<ClosedTabs["kind"], string> = {
-  group: "Tab group",
-  side: "Side of a tab group",
-  tab: "Tab",
-};
-
-/** What a closed tab or tab group had: its tabs, a line each, and when it closed. */
-function ClosedDetails({
-  entry,
-}: {
-  entry: Extract<TimelineEntry, { kind: "closed" }>;
-}) {
-  const { closed } = entry;
-  const { title } = closedText(closed);
-  return (
-    <>
-      <OwnInfo entry={entry} sub={CLOSED_KINDS[closed.kind]} title={title}>
-        <WhenRow at={entry.at} did="Closed" />
-      </OwnInfo>
-      <Section title={closed.tabs.length === 1 ? "Tab" : "Tabs"}>
-        <ClosedTabRows closed={closed} />
       </Section>
     </>
   );

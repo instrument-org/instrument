@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   chatOfTaskAddress,
-  fieldScopeOf,
   locationCrumbs,
   locationChip,
   type TabLocation,
@@ -260,46 +259,6 @@ describe("locationCrumbs", () => {
     `);
   });
 
-  it("makes what Activity shows a place to step back out to while one of its rows is open", () => {
-    expect(
-      readable({
-        item: "Read report.pdf",
-        kind: "builtin",
-        part: "Files",
-        partHref: "/activity?show=files",
-        screen: "activity",
-      }),
-    ).toMatchInlineSnapshot(`
-      [
-        "Files -> /activity?show=files",
-        "Read report.pdf",
-      ]
-    `);
-    expect(
-      readable({
-        item: "Read report.pdf",
-        kind: "builtin",
-        screen: "activity",
-      }),
-    ).toMatchInlineSnapshot(`
-      [
-        "Read report.pdf",
-      ]
-    `);
-    expect(
-      readable({
-        kind: "builtin",
-        part: "Files",
-        partHref: "/activity?show=files",
-        screen: "activity",
-      }),
-    ).toMatchInlineSnapshot(`
-      [
-        "Files",
-      ]
-    `);
-  });
-
   it("gives every chat none past the chip", () => {
     expect(readable({ kind: "chats" })).toMatchInlineSnapshot(`[]`);
   });
@@ -352,41 +311,6 @@ describe("locationChip", () => {
     ],
   ])("%s", (_, location, chip) => {
     expect(locationChip(location)).toBe(chip);
-  });
-});
-
-describe("fieldScopeOf", () => {
-  it.each<[string, TabLocation, string | undefined]>([
-    ["a chat", { kind: "chat", title: "Caffeine mixes" }, "chat"],
-    ["every chat", { kind: "chats" }, "chat"],
-    ["a task", { kind: "task", title: "Book the hotel" }, "chat"],
-    [
-      "a part of Settings",
-      { kind: "builtin", part: "Providers", screen: "settings" },
-      "settings",
-    ],
-    [
-      "an Activity row",
-      { item: "Read report.pdf", kind: "builtin", screen: "activity" },
-      "activity",
-    ],
-    ["an app page", { kind: "app", name: "Gmail" }, "apps"],
-    ["Apps", { kind: "apps" }, "apps"],
-    // A path and an address are typed and edited where they are.
-    [
-      "a file",
-      { kind: "file", name: "a.md", path: "~/Documents/a.md" },
-      undefined,
-    ],
-    ["a folder", { kind: "folder", path: "~" }, undefined],
-    ["a page", { kind: "page", url: "https://example.com/" }, undefined],
-    // A page with nothing of its own to search, and a new tab, search
-    // everything.
-    ["Extensions", { kind: "builtin", screen: "extensions" }, undefined],
-    ["a new tab", { kind: "newTab" }, undefined],
-    ["a new chat, which is a new tab", { kind: "newChat" }, undefined],
-  ])("%s", (_, location, scope) => {
-    expect(fieldScopeOf(location)).toBe(scope);
   });
 });
 

@@ -30,19 +30,25 @@ describe("browsing data", () => {
     `);
   });
 
-  it("names the first site of the history in range and counts the rest", () => {
+  it("names the first site of the history in range, counts the rest, and says when closed tabs go too", () => {
     expect(
       [
-        { count: 0, hosts: [] },
-        { count: 3, hosts: ["google.com"] },
-        { count: 9, hosts: ["google.com", "github.com"] },
-        { count: 40, hosts: ["google.com", "github.com", "nytimes.com"] },
+        { closedCount: 0, count: 0, hosts: [] },
+        { closedCount: 2, count: 0, hosts: [] },
+        { closedCount: 0, count: 3, hosts: ["google.com"] },
+        { closedCount: 2, count: 9, hosts: ["google.com", "github.com"] },
+        {
+          closedCount: 0,
+          count: 40,
+          hosts: ["google.com", "github.com", "nytimes.com"],
+        },
       ].map(historyDetail),
     ).toMatchInlineSnapshot(`
       [
         "There’s no history from this time.",
+        "Tabs you closed will no longer reopen.",
         "You visited google.com.",
-        "You visited google.com and 1 other site.",
+        "You visited google.com and 1 other site. Tabs you closed will no longer reopen.",
         "You visited google.com and 2 other sites.",
       ]
     `);
@@ -109,10 +115,10 @@ describe("browsing data", () => {
       ).map(clearedMessage),
     ).toMatchInlineSnapshot(`
       [
-        "Cleared your history from the last hour.",
-        "Cleared your history from the last 7 days, cookies, site data, and cached files.",
+        "Cleared your browsing history from the last hour.",
+        "Cleared your browsing history from the last 7 days, cookies, site data, and cached files.",
         "Cleared cookies, site data, and cached files.",
-        "Cleared your history and cached files.",
+        "Cleared your browsing history and cached files.",
       ]
     `);
   });

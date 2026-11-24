@@ -6,6 +6,7 @@ import {
   useDefaultBrowser,
 } from "@/client/components/window/connect-controls";
 import { WindowContext } from "@/client/components/window/context";
+import { siteSignInsAtom } from "@/client/components/window/site-sign-in";
 import { signInsWaitingAtom } from "@/client/components/window/use-sign-in-landing";
 import { toast } from "@/client/lib/toast";
 import { cn } from "@/client/lib/utils";
@@ -35,7 +36,9 @@ const LIST = new Intl.ListFormat("en", { type: "conjunction" });
 
 /**
  * The card for a call that asked the user for apps, however many: a row for
- * each, and one way to pass on whatever is left, beside the title. Each row's
+ * each, and one way to pass on whatever is left, beside the title. One row is
+ * up at a time and only it has anything to press: the first that needs the
+ * user, or the one they pressed. Each row's
  * state is its app's connection record, live, so it says what happened wherever
  * it is seen and long after the call returned. Once no row is left to answer
  * the card folds to a line naming what was connected, with a row for each app
@@ -51,7 +54,10 @@ export function ConnectAppCard({
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const drawn = useAppsBySlug();
   const signInsWaiting = useAtomValue(signInsWaitingAtom);
+  const siteSignIns = useAtomValue(siteSignInsAtom);
   const browser = useDefaultBrowser();
+  // The row the user pressed, up for as long as it has anything to press.
+  const [picked, setPicked] = useState<string>();
   const dismiss = useMutation(rpcClient.apps.dismiss.mutationOptions());
 
   const appOf = (slug: string) =>
@@ -96,14 +102,27 @@ export function ConnectAppCard({
     const status = statuses[index];
     return status !== undefined && !answered(status);
   });
-  // The row lit as the one to press next: the first with anything to press,
-  // and none while the user is off signing in to another.
-  const next = statuses.includes("waiting")
-    ? undefined
-    : rows.find((_, index) => {
-        const status = statuses[index];
-        return status === "open" || status === "failed" || status === "refused";
-      });
+  // An app moved to its site since the card asked signs in there.
+  const kindOf = (row: Row) =>
+    appOf(row.slug)?.type === "web" ? "web" : row.kind;
+  // Whether a row has anything to press: not until each app's status is
+  // read, not once it is answered, and not an app that wants no sign-in while
+  // its connection is being tested.
+  const asks = (row: Row) => {
+    const status = statuses[rows.indexOf(row)];
+    return (
+      apps.data !== undefined &&
+      status !== undefined &&
+      !answered(status) &&
+      !(kindOf(row) === "none" && status === "open")
+    );
+  };
+  // The row that is up: the one pressed, else one off signing in in a
+  // browser, else the first with anything to press.
+  const up =
+    rows.find((row) => row.slug === picked && asks(row)) ??
+    rows.find((row) => statuses[rows.indexOf(row)] === "waiting") ??
+    rows.find(asks);
 
   const skipTheRest = () => {
     Promise.all(
@@ -162,10 +181,11 @@ export function ConnectAppCard({
             {skipped.map((row) => (
               <ConnectRow
                 key={row.slug}
-                line={undefined}
+                line={siteSignIns.has(row.slug) ? "Waiting for you" : undefined}
                 row={row}
                 signInAgain
                 status="declined"
+                up
               />
             ))}
           </div>
@@ -203,18 +223,29 @@ export function ConnectAppCard({
           const status = statuses[index] ?? "open";
           return (
             <ConnectRow
-              alone={rows.length === 1}
               key={row.slug}
               line={
                 status === "waiting"
                   ? signInsWaiting.get(row.slug)?.where === "external"
                     ? `Finish signing in in ${browser.data?.appName ?? "your browser"}.`
                     : "Finish signing in on the page that opened."
-                  : rowLine(status, row, appOf)
+                  : siteSignIns.has(row.slug) && !answered(status)
+                    ? row === up
+                      ? "Waiting for you"
+                      : "Still waiting for you to sign in"
+                    : rowLine(status, row, appOf)
               }
-              primary={row === next}
+              {...(asks(row) && row !== up
+                ? {
+                    onPick: () => {
+                      setPicked(row.slug);
+                    },
+                  }
+                : {})}
+              primary
               row={row}
               status={status}
+              up={row === up}
             />
           );
         })}
@@ -268,82 +299,103 @@ function rowLine(
 }
 
 /**
- * One app's row, in a soft well: its mark, its name and where it stands, and
- * what is left to press. A sign-in fits in the row, its buttons dropping under
- * the name in a narrow chat; a key or a server to allow opens under it, by
- * itself when it is all the card asks for, and so does the word that a sign-in
- * on the app's site is done.
+ * One app's row, in a soft well: its mark, its name and where it stands. The
+ * row that is up has what is left to press: a sign-in's buttons in the row,
+ * dropping under the name in a narrow chat, and a key or a server to allow
+ * open under it. A row waiting its turn is one button, which brings it up.
  */
 function ConnectRow({
-  alone = false,
   line,
+  onPick,
   primary = false,
   row,
   signInAgain = false,
   status,
+  up,
 }: {
-  /** The only app on its card, so what it asks for needs no press to open. */
-  alone?: boolean;
   line: string | undefined;
+  /** Brings the row up, for one with something to press that is waiting its turn. */
+  onPick?: () => void;
   primary?: boolean;
   row: Row;
   /** For a skipped app on the folded card: the sign-in, offered again. */
   signInAgain?: boolean;
   status: RowStatus;
+  /** Whether this is the row with its controls out. */
+  up: boolean;
 }) {
   const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const drawn = useAppsBySlug().get(row.slug);
   const askedIn = useContext(WindowContext)?.chatId;
-  const [expanded, setExpanded] = useState(alone);
-  // The app's site was opened from this row, so the row asks for the word
-  // that the sign-in there is done.
-  const [openedSite, setOpenedSite] = useState(false);
   const live =
     status === "open" ||
     status === "waiting" ||
     status === "failed" ||
     status === "refused";
-  const actionable = live || signInAgain;
+  const actionable = up && (live || signInAgain);
   const failure =
     status === "failed" || status === "refused" ? status : undefined;
   const app = apps.data?.apps.find((entry) => entry.slug === row.slug);
   // An app moved to its site since the card asked signs in there.
   const kind = app?.type === "web" ? "web" : row.kind;
   const opens = kind === "key" || kind === "run";
+  const isQuiet =
+    status === "declined" || status === "removed" || onPick !== undefined;
 
-  return (
-    <div className="rounded-xl bg-foreground/[0.04] px-2.5">
-      <div className="flex min-h-13 items-center gap-3 py-2 @max-md/transcript:flex-wrap">
-        <AppIcon
-          icon={drawn?.icon}
-          name={row.name}
-          site={drawn?.site ?? row.site}
-          size="md"
-        />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <span
-            className={cn(
-              "truncate text-sm",
-              (status === "declined" || status === "removed") &&
-                "text-muted-foreground",
-            )}
-          >
-            {row.name}
+  const head = (
+    <>
+      <AppIcon
+        icon={drawn?.icon}
+        name={row.name}
+        site={drawn?.site ?? row.site}
+        size="md"
+      />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span
+          className={cn("truncate text-sm", isQuiet && "text-muted-foreground")}
+        >
+          {row.name}
+        </span>
+        {line === undefined ? null : (
+          <span className="text-xs leading-4 text-muted-foreground">
+            {line}
           </span>
-          {line === undefined ? null : (
-            <span className="text-xs leading-4 text-muted-foreground">
-              {line}
-            </span>
-          )}
-        </div>
+        )}
+      </div>
+    </>
+  );
+  if (onPick !== undefined) {
+    return (
+      <button
+        aria-label={row.name}
+        className="flex min-h-13 w-full items-center gap-3 rounded-xl bg-foreground/[0.04] px-2.5 py-2 text-left outline-none hover:bg-foreground/[0.07] focus-visible:ring-2 focus-visible:ring-ring/50"
+        onClick={onPick}
+        type="button"
+      >
+        {head}
+      </button>
+    );
+  }
+  return (
+    <div
+      className={cn(
+        "rounded-xl px-2.5",
+        actionable && !signInAgain
+          ? "bg-foreground/[0.06] ring-1 ring-foreground/10"
+          : "bg-foreground/[0.04]",
+      )}
+    >
+      <div className="flex min-h-13 items-center gap-3 py-2 @max-md/transcript:flex-wrap">
+        {head}
         {status === "connected" || status === "stale" ? (
           <CheckIcon
             className="size-4 shrink-0 text-brand-600 dark:text-brand-400"
             weight="bold"
           />
-        ) : !actionable || openedSite ? null : kind === "sign-in" ||
-          kind === "web" ||
-          (kind === "none" && failure !== undefined) ? (
+        ) : actionable &&
+          (kind === "sign-in" ||
+            kind === "web" ||
+            (kind === "none" && failure !== undefined)) ? (
           <ConnectControls
             askedIn={askedIn}
             compact={{
@@ -353,42 +405,17 @@ function ConnectRow({
             }}
             kind={kind === "none" ? "sign-in" : kind}
             name={row.name}
-            onOpened={() => {
-              setOpenedSite(true);
-            }}
             slug={row.slug}
           />
-        ) : opens && !expanded ? (
-          <Button
-            className={primary ? undefined : "text-foreground"}
-            onClick={() => {
-              setExpanded(true);
-            }}
-            size="sm"
-            variant={primary ? "brand" : "outline"}
-          >
-            {kind === "key" ? "Add key" : "Allow"}
-          </Button>
         ) : null}
       </div>
-      {actionable && opens && expanded ? (
+      {actionable && opens ? (
         <div className="pb-2.5">
           <ConnectControls
             askedIn={askedIn}
             kind={kind}
             name={row.name}
             runs={row.runs}
-            slug={row.slug}
-          />
-        </div>
-      ) : null}
-      {actionable && openedSite ? (
-        <div className="pb-2.5">
-          <ConnectControls
-            askedIn={askedIn}
-            kind="web"
-            name={row.name}
-            opened
             slug={row.slug}
           />
         </div>

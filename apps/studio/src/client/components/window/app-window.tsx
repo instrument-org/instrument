@@ -149,6 +149,7 @@ import {
   tabAtChord,
   useHeldChordHints,
 } from "./held-chord-hints";
+import { useSiteSignInsEnd } from "./site-sign-in";
 import { useSignInLanding } from "./use-sign-in-landing";
 import { WindowLook } from "./look-panel";
 import { ProjectDialog } from "./project-dialog";
@@ -1158,6 +1159,7 @@ function WindowShell({
 
   usePageThumbnailHousekeeping();
   useSignInLanding(openScreen);
+  useSiteSignInsEnd();
 
   const projectsQuery = useQuery(
     rpcClient.workspace.projects.list.queryOptions(),
@@ -1749,6 +1751,17 @@ function WindowShell({
         openPage,
         openPath: openNamedPath,
         openScreen,
+        showTab: (id) => {
+          const tab = windowTabs.allTabs.find((entry) => entry.id === id);
+          if (tab === undefined) {
+            return false;
+          }
+          if (tab.group !== undefined) {
+            groups.show(tab.group);
+          }
+          windowTabs.select(tab.id);
+          return true;
+        },
       }
     : null;
 

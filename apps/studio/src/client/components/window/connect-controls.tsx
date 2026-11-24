@@ -1,12 +1,13 @@
-import { BrowserHandoffButton } from "@/client/components/browser-handoff-button";
 import { Button } from "@/client/components/ui/button";
 import { Input } from "@/client/components/ui/input";
-import { osConventions } from "@/client/lib/utils";
+import { Spinner } from "@/client/components/ui/spinner";
+import { cn, osConventions } from "@/client/lib/utils";
 import { WindowContext } from "@/client/components/window/context";
 import {
   type SignInDestination,
   signInsWaitingAtom,
 } from "@/client/components/window/use-sign-in-landing";
+import { useSiteSignIn } from "@/client/components/window/site-sign-in";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
 import { type ChatId } from "@instrument-org/workspace/client";
@@ -14,6 +15,21 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { type ReactNode, useContext, useState } from "react";
 import { toast } from "@/client/lib/toast";
+
+/** A card row's pair of buttons, ending where the row does; in a narrow chat they go under the name, half the row each. */
+const ROW_BUTTONS =
+  "flex shrink-0 items-center gap-1.5 @max-md/transcript:w-full @max-md/transcript:flex-wrap @max-md/transcript:*:flex-1";
+
+/**
+ * A web app's row buttons. In a narrow chat they go under the name at the
+ * row's width, the last first, so the button that shows the site stays
+ * where the one that opened it was pressed.
+ */
+const SITE_ROW_BUTTONS =
+  "flex shrink-0 items-center gap-1.5 @max-md/transcript:w-full @max-md/transcript:flex-col-reverse @max-md/transcript:items-stretch";
+
+/** What the button that signs in on the app's own site says. */
+const SIGN_IN_ON_SITE = "Sign in here";
 
 /** The computer's default browser, by name and icon where it can say. */
 export function useDefaultBrowser() {
@@ -38,10 +54,14 @@ export function useDefaultBrowser() {
  * A sign-in leads with the user's own browser, where they are most likely
  * already signed in and have their passkeys, saved passwords and extensions;
  * the window's own browser is offered beside it. Either one connects the app,
- * since the answer comes back to the same callback. A key
+ * since the answer comes back to the same callback. While one waits, the
+ * button pressed stays where it is, dimmed, and Cancel takes the other's
+ * place, so a second press lands on nothing. A key
  * goes straight to the encrypted store and is tested on arrival. A web app
  * signs in on its own site in the window's browser, and the user's word that
- * they did is what connects it.
+ * they did is what connects it: Done on the bar over the site
+ * (`SiteSignInBar`), or here. The button that shows the site again stands
+ * where the one that opened it stood.
  */
 export function ConnectControls({
   alongside,
@@ -51,8 +71,6 @@ export function ConnectControls({
   kind,
   label,
   name,
-  onOpened,
-  opened = false,
   runs,
   slug,
 }: {
@@ -61,9 +79,9 @@ export function ConnectControls({
   /** For a card in a chat, the chat, which hears what the user does here even after the card stopped waiting. */
   askedIn?: ChatId;
   /**
-   * For a row of the card in a chat, the buttons that fit in the row, two
-   * for a sign-in or a web app. `primary` lights the first as the one
-   * to press next. `failure` is how the app's last sign-in ended: another try
+   * For a row of the card in a chat, the buttons that fit in the row: one
+   * for a web app until its site is open, two for a sign-in. `primary` lights
+   * the first as the one to press next. `failure` is how the app's last sign-in ended: another try
    * is offered in the user's own browser beside the app's site, since the
    * site is the one way in that is really different, and a refusal leaves only
    * the site, since the same sign-in meets the same refusal. `hasSite` is
@@ -79,10 +97,6 @@ export function ConnectControls({
   /** The button's words, where they differ from what it does by default. */
   label?: string;
   name: string;
-  /** For a compact row, that it sent the user to the app's site, so its next step is the word that the sign-in there is done. */
-  onOpened?: () => void;
-  /** For a web app, whether its site was already opened, so the controls ask for the word that the sign-in is done. */
-  opened?: boolean;
   /** For a local app, what would run on this machine, in words. */
   runs?: string;
   slug: string;
@@ -91,15 +105,13 @@ export function ConnectControls({
   const inChat = askedIn === undefined ? {} : { chatId: askedIn };
   const openExternalLink = useOpenExternalLink();
   const [value, setValue] = useState("");
-  // Whether a web app's site has been opened from here, after which the
-  // controls ask for the word that the sign-in there is done.
-  const [openedSite, setOpenedSite] = useState(opened);
+  const site = useSiteSignIn({ askedIn, name, slug });
   // The default browser, for the button that sends the sign-in there.
   const browser = useDefaultBrowser();
   // Whether a sign-in started here is still waiting, kept by the window
   // so it outlives these controls (see `useSignInLanding`).
   const [signInsWaiting, setSignInsWaiting] = useAtom(signInsWaitingAtom);
-  const waiting = signInsWaiting.has(slug);
+  const waitingIn = signInsWaiting.get(slug)?.where;
   const setWaiting = (
     started: { from: number | undefined; where: SignInDestination } | false,
   ) => {
@@ -157,13 +169,6 @@ export function ConnectControls({
     );
   };
   const cancelOAuth = useMutation(rpcClient.apps.cancelOAuth.mutationOptions());
-  const markWebSignedIn = useMutation(
-    rpcClient.apps.markWebSignedIn.mutationOptions({
-      onError: (error) => {
-        toast.error(`Couldn't connect ${name}`, { cause: error });
-      },
-    }),
-  );
   const allow = useMutation(
     rpcClient.apps.allow.mutationOptions({
       onError: (error) => {
@@ -193,7 +198,7 @@ export function ConnectControls({
     allow.isPending ||
     startOAuth.isPending ||
     cancelOAuth.isPending ||
-    markWebSignedIn.isPending ||
+    site.isDonePending ||
     setCredential.isPending;
 
   // A server that runs here is the one thing the user is agreeing to rather
@@ -229,48 +234,38 @@ export function ConnectControls({
   // nothing here can see the session, so once the site is open the user says
   // when they are done there.
   if (kind === "web") {
-    const signInPage = listed?.type === "web" ? listed.signIn : undefined;
-    const openSite = () => {
-      if (signInPage !== undefined) {
-        appWindow?.openPage(signInPage);
-        setOpenedSite(true);
-      }
-    };
-    // A row offers the word that the sign-in is done from the start, since
-    // the user may already be signed in, or signed in through a tab the
-    // agent opened, and the row forgets a press of its own when it redraws.
     if (compact) {
       return (
-        <div className="flex shrink-0 items-center gap-1.5 @max-md/transcript:w-full @max-md/transcript:flex-wrap @max-md/transcript:*:flex-1">
+        <div className={SITE_ROW_BUTTONS}>
+          {site.isWaiting ? (
+            <Button
+              className="text-foreground"
+              disabled={busy}
+              onClick={site.done}
+              size="sm"
+              variant="outline"
+            >
+              Done signing in
+            </Button>
+          ) : null}
           <Button
-            className={compact.primary ? undefined : "text-foreground"}
-            disabled={busy || !appWindow?.browser || signInPage === undefined}
-            onClick={() => {
-              openSite();
-              onOpened?.();
-            }}
+            className={cn(
+              "min-w-24",
+              (site.isWaiting || !compact.primary) && "text-foreground",
+            )}
+            disabled={!site.canOpen}
+            onClick={site.open}
             size="sm"
-            variant={compact.primary ? "brand" : "outline"}
+            variant={!site.isWaiting && compact.primary ? "brand" : "outline"}
           >
-            Sign in here
-          </Button>
-          <Button
-            className="text-foreground"
-            disabled={busy}
-            onClick={() => {
-              markWebSignedIn.mutate({ ...inChat, slug });
-            }}
-            size="sm"
-            variant="outline"
-          >
-            Done signing in
+            {site.isWaiting ? "Show page" : "Sign in"}
           </Button>
         </div>
       );
     }
     return (
       <div className="flex flex-col gap-2">
-        {openedSite ? (
+        {site.isWaiting ? (
           <p className="text-xs text-muted-foreground">
             Sign in on the {name} page that opened, then press Done.
           </p>
@@ -278,102 +273,135 @@ export function ConnectControls({
           <Destination origin={origin}>Signs in at</Destination>
         )}
         <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
-          {openedSite ? (
-            <>
-              <Button
-                disabled={busy}
-                onClick={() => {
-                  markWebSignedIn.mutate({ ...inChat, slug });
-                }}
-                size="sm"
-              >
-                Done signing in
-              </Button>
-              <Button
-                disabled={busy || !appWindow?.browser}
-                onClick={openSite}
-                size="sm"
-                variant="outline"
-              >
-                {`Open ${name} again`}
-              </Button>
-            </>
-          ) : (
-            <Button
-              disabled={busy || !appWindow?.browser || signInPage === undefined}
-              onClick={openSite}
-              size="sm"
-            >
-              {label ?? `Open ${name}`}
+          <Button
+            className={site.isWaiting ? "text-foreground" : undefined}
+            disabled={!site.canOpen}
+            onClick={site.open}
+            size="sm"
+            variant={site.isWaiting ? "outline" : "default"}
+          >
+            {site.isWaiting ? "Show page" : (label ?? `Open ${name}`)}
+          </Button>
+          {site.isWaiting ? (
+            <Button disabled={busy} onClick={site.done} size="sm">
+              Done signing in
             </Button>
-          )}
+          ) : null}
           {alongside}
         </div>
       </div>
     );
   }
 
-  // Named only when the computer says which browser is the default, so the
-  // button never promises the wrong one.
-  const ownBrowser = (verb: string) =>
-    browser.data?.appName ? (
+  const cancelSignIn = () => {
+    setWaiting(false);
+    cancelOAuth.mutate({ slug });
+  };
+  // The pair a sign-in offers: the user's own browser, then another way in.
+  // While one waits it stays in its place, dimmed, and the other's place is
+  // Cancel, at the width of the button it stands in for.
+  const pair = ({
+    lit,
+    other,
+    verb,
+  }: {
+    lit: boolean;
+    /** The second way in, where it is not the same sign-in here. */
+    other?: ReactNode;
+    verb: string;
+  }) => {
+    // Named only when the computer says which browser is the default, so the
+    // button never promises the wrong one.
+    const ownBrowser = browser.data?.appName
+      ? `${verb} with ${browser.data.appName}`
+      : `${verb} with your browser`;
+    const cancel = (standsFor: ReactNode) => (
+      <Button
+        className="relative text-foreground"
+        onClick={cancelSignIn}
+        size="sm"
+        variant="outline"
+      >
+        <span
+          aria-hidden
+          className="invisible inline-flex items-center gap-[inherit]"
+        >
+          {standsFor}
+        </span>
+        <span className="absolute inset-0 flex items-center justify-center">
+          Cancel
+        </span>
+      </Button>
+    );
+    const inBrowser = (
       <>
-        {browser.data.iconUrl ? (
+        {/* The spinner takes the icon's box, so the button keeps its width. */}
+        {!browser.data?.iconUrl ? null : waitingIn === "external" ? (
+          <span className="grid size-4 shrink-0 place-items-center">
+            <Spinner className="size-3.5" delay={0} />
+          </span>
+        ) : (
           <img
             alt=""
             className="size-4 shrink-0"
             draggable={false}
             src={browser.data.iconUrl}
           />
-        ) : null}
-        {`${verb} with ${browser.data.appName}`}
+        )}
+        {ownBrowser}
       </>
-    ) : (
-      `${verb} with your browser`
     );
-  const cancelSignIn = () => {
-    setWaiting(false);
-    cancelOAuth.mutate({ slug });
+    return (
+      <>
+        {waitingIn === "app" ? (
+          cancel(inBrowser)
+        ) : (
+          <Button
+            className={lit ? undefined : "text-foreground"}
+            disabled={busy || waitingIn !== undefined}
+            onClick={() => {
+              signIn("external");
+            }}
+            size="sm"
+            variant={lit ? "brand" : "outline"}
+          >
+            {inBrowser}
+          </Button>
+        )}
+        {waitingIn === "external"
+          ? cancel(other === undefined ? "Sign in here" : SIGN_IN_ON_SITE)
+          : (other ?? (
+              <Button
+                className="text-foreground"
+                disabled={busy || waitingIn !== undefined}
+                onClick={() => {
+                  signIn("app");
+                }}
+                size="sm"
+                variant="outline"
+              >
+                {label ?? "Sign in here"}
+              </Button>
+            ))}
+      </>
+    );
   };
 
   if (kind === "sign-in" && compact) {
     const { failure, hasSite, primary } = compact;
     const onSite = (lit: boolean) => (
-      <SignInOnSiteButton lit={lit} onOpened={onOpened} slug={slug} />
+      <SignInOnSiteButton lit={lit} onOpened={site.opened} slug={slug} />
     );
     if (failure === "refused") {
       return hasSite ? onSite(primary) : null;
     }
     return (
-      <div className="flex shrink-0 items-center gap-1.5 @max-md/transcript:w-full @max-md/transcript:flex-wrap @max-md/transcript:*:flex-1">
-        <BrowserHandoffButton
-          className={primary ? undefined : "text-foreground"}
-          disabled={busy}
-          onCancel={cancelSignIn}
-          onStart={() => {
-            signIn("external");
-          }}
-          size="sm"
-          variant={primary ? "brand" : "outline"}
-          waiting={waiting}
-        >
-          {ownBrowser(failure === "failed" ? "Try again" : "Sign in")}
-        </BrowserHandoffButton>
-        {waiting ? null : failure === "failed" && hasSite ? (
-          onSite(false)
-        ) : (
-          <Button
-            className="text-foreground"
-            disabled={busy}
-            onClick={() => {
-              signIn("app");
-            }}
-            size="sm"
-            variant="outline"
-          >
-            Sign in here
-          </Button>
-        )}
+      <div className={ROW_BUTTONS}>
+        {pair({
+          lit: primary,
+          ...(failure === "failed" && hasSite ? { other: onSite(false) } : {}),
+          verb: failure === "failed" ? "Try again" : "Sign in",
+        })}
       </div>
     );
   }
@@ -387,31 +415,7 @@ export function ConnectControls({
         {/* In a column too narrow for three buttons in a row they stack, each
           the column's width, rather than wrapping into a ragged pair. */}
         <div className="flex flex-wrap items-center gap-2 @max-md/transcript:flex-col @max-md/transcript:items-stretch">
-          <BrowserHandoffButton
-            disabled={busy}
-            onCancel={cancelSignIn}
-            onStart={() => {
-              signIn("external");
-            }}
-            size="sm"
-            variant="brand"
-            waiting={waiting}
-          >
-            {ownBrowser("Sign in")}
-          </BrowserHandoffButton>
-          {waiting ? null : (
-            <Button
-              className="text-foreground"
-              disabled={busy}
-              onClick={() => {
-                signIn("app");
-              }}
-              size="sm"
-              variant="outline"
-            >
-              {label ?? "Sign in here"}
-            </Button>
-          )}
+          {pair({ lit: true, verb: "Sign in" })}
           {alongside}
         </div>
       </div>
@@ -448,7 +452,7 @@ export function ConnectControls({
           </Button>
         </div>
       ) : null}
-      <Destination origin={origin}>The key goes only to</Destination>
+      <Destination origin={origin}>Instrument sends this key to</Destination>
       <div className="flex items-center gap-2">
         <Input
           autoFocus
@@ -486,7 +490,8 @@ function SignInOnSiteButton({
   slug,
 }: {
   lit: boolean;
-  onOpened: (() => void) | undefined;
+  /** Takes the tab the site opened in. */
+  onOpened: (tab: string | undefined) => void;
   slug: string;
 }) {
   const appWindow = useContext(WindowContext);
@@ -496,8 +501,7 @@ function SignInOnSiteButton({
         toast.error("Couldn't open the site", { cause: error });
       },
       onSuccess: ({ signIn }) => {
-        appWindow?.openPage(signIn);
-        onOpened?.();
+        onOpened(appWindow?.openPage(signIn));
       },
     }),
   );
@@ -511,7 +515,7 @@ function SignInOnSiteButton({
       size="sm"
       variant={lit ? "brand" : "outline"}
     >
-      Sign in here
+      {SIGN_IN_ON_SITE}
     </Button>
   );
 }

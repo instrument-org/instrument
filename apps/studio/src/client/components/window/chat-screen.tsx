@@ -227,9 +227,8 @@ function ChatScreenOfRecord({
                 sessionId,
               });
             },
-            openPage: (url, options) => {
-              appWindow.openPage(url, intoOr(options));
-            },
+            openPage: (url, options) =>
+              appWindow.openPage(url, intoOr(options)),
             openScreen: (href, options) => {
               appWindow.openScreen(href, intoOr(options));
             },

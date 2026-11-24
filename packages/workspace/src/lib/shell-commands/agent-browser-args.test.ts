@@ -2,6 +2,7 @@ import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
 import { agentBrowserPath } from "../agent-browser";
+import { classifyInvocation } from "./agent-browser";
 import {
   agentBrowserFlagName,
   GLOBAL_BOOL_FLAGS,
@@ -180,22 +181,19 @@ describe("parseAgentBrowserArgs", () => {
   });
 });
 
+const help = execFileSync(agentBrowserPath(), ["--help"], { encoding: "utf8" });
+
 // A global flag the model does not know is read as the command, or lets its
 // value be, so a blocked command passes as an allowed one. The installed CLI
-// lists its global flags under two headings of `--help`; one it gains fails
-// here until it is in the tables, and the wrapper's own test of what it does
-// with each flag then asks for a decision.
+// lists its global flags in `--help`, under every heading but the one for
+// `snapshot`'s own; one it gains fails here until it is in the tables, and the
+// wrapper's own test of what it does with each flag then asks for a decision.
 describe("the tables of global flags", () => {
-  const help = execFileSync(agentBrowserPath(), ["--help"], {
-    encoding: "utf8",
+  const listed = [...flagLinesOf(help, ["Snapshot Options:"])].map((line) => {
+    const [, flag = "", operand] =
+      /^ {2}(?:-\w, )?(--[a-z-]+)(?:, -\w)?(?: ([<[]))?/.exec(line) ?? [];
+    return { flag, operand };
   });
-  const listed = [...sectionsOf(help, ["Authentication:", "Options:"])].map(
-    (line) => {
-      const [, flag = "", operand] =
-        /^ {2}(?:-\w, )?(--[a-z-]+)(?:, -\w)?(?: ([<[]))?/.exec(line) ?? [];
-      return { flag, operand };
-    },
-  );
 
   it("reads flags out of the CLI's help", () => {
     expect(listed.length).toBeGreaterThan(40);
@@ -224,14 +222,205 @@ describe("the tables of global flags", () => {
   });
 });
 
-/** The option lines under the named headings of the CLI's help. */
-function* sectionsOf(help: string, headings: string[]) {
+// A command is allowed unless the wrapper refuses it, so one the CLI gains
+// arrives allowed. Every command the installed CLI's `--help` names is decided
+// here: a new one changes the snapshot, and is refused in BLOCKED_SUBCOMMANDS
+// where it manages the browser itself, sessions, saved state, credentials,
+// installs, plugins or a connection outside the app. The decision is the one
+// for the bare command, so `tab` passes though `tab keep` is refused.
+describe("the commands the CLI takes", () => {
+  // The help names no alias and leaves some commands out. These are the rest
+  // of `is_top_level_command` in the CLI's source (cli/src/commands.rs) at
+  // 0.44.0, which no test can read from the binary: one added there and left
+  // out of the help is not seen here.
+  const unlisted = [
+    "dialog",
+    "exit",
+    "frame",
+    "goto",
+    "key",
+    "keydown",
+    "keyup",
+    "navigate",
+    "plugins",
+    "quit",
+    "scrollinto",
+    "web-vitals",
+    "window",
+  ];
+  const listed = commandsListedIn(help);
+
+  it("reads commands out of the CLI's help", () => {
+    expect(listed.size).toBeGreaterThan(60);
+    expect(unlisted.filter((name) => listed.has(name))).toEqual([]);
+  });
+
+  it("decides what each command is", () => {
+    const decisions = Object.fromEntries(
+      [...listed, ...unlisted]
+        .toSorted()
+        .map((name) => [
+          name,
+          classifyInvocation([name], { hasNoWindow: false }).kind,
+        ]),
+    );
+    expect(decisions).toMatchInlineSnapshot(`
+      {
+        "a11y": "tabs",
+        "auth": "refuse",
+        "back": "tabs",
+        "batch": "refuse",
+        "chat": "refuse",
+        "check": "tabs",
+        "click": "tabs",
+        "clipboard": "tabs",
+        "close": "refuse",
+        "confirm": "refuse",
+        "connect": "refuse",
+        "console": "tabs",
+        "cookies": "tabs",
+        "dashboard": "refuse",
+        "dblclick": "tabs",
+        "deny": "refuse",
+        "device": "tabs",
+        "dialog": "tabs",
+        "diff": "tabs",
+        "doctor": "refuse",
+        "download": "tabs",
+        "drag": "tabs",
+        "errors": "tabs",
+        "eval": "tabs",
+        "exit": "refuse",
+        "fill": "tabs",
+        "find": "tabs",
+        "flow": "refuse",
+        "focus": "tabs",
+        "forward": "tabs",
+        "frame": "tabs",
+        "get": "tabs",
+        "goto": "tabs",
+        "highlight": "tabs",
+        "hover": "tabs",
+        "inspect": "refuse",
+        "install": "refuse",
+        "is": "tabs",
+        "key": "tabs",
+        "keyboard": "tabs",
+        "keydown": "tabs",
+        "keyup": "tabs",
+        "mcp": "refuse",
+        "mouse": "tabs",
+        "navigate": "tabs",
+        "network": "tabs",
+        "open": "tabs",
+        "pdf": "tabs",
+        "plugin": "refuse",
+        "plugins": "refuse",
+        "press": "tabs",
+        "profiler": "tabs",
+        "profiles": "refuse",
+        "pushstate": "tabs",
+        "quit": "refuse",
+        "react": "tabs",
+        "read": "tabs",
+        "record": "tabs",
+        "reload": "tabs",
+        "removeinitscript": "tabs",
+        "screenshot": "tabs",
+        "scroll": "tabs",
+        "scrollinto": "tabs",
+        "scrollintoview": "tabs",
+        "select": "tabs",
+        "session": "refuse",
+        "set": "tabs",
+        "skills": "skills",
+        "snapshot": "tabs",
+        "state": "refuse",
+        "storage": "tabs",
+        "stream": "refuse",
+        "swipe": "tabs",
+        "tab": "tabs",
+        "tap": "tabs",
+        "trace": "tabs",
+        "type": "tabs",
+        "uncheck": "tabs",
+        "upgrade": "refuse",
+        "upload": "tabs",
+        "vitals": "tabs",
+        "wait": "tabs",
+        "web-vitals": "tabs",
+        "webmcp": "tabs",
+        "window": "tabs",
+      }
+    `);
+  });
+});
+
+/** The global flag lines of the CLI's help, under every heading but `skipped`. */
+function* flagLinesOf(text: string, skipped: string[]) {
   let inSection = false;
-  for (const line of help.split("\n")) {
+  for (const line of text.split("\n")) {
     if (/^\S/.test(line)) {
-      inSection = headings.includes(line.trim());
+      inSection = !skipped.includes(line.trim());
     } else if (inSection && /^ {2}-/.test(line)) {
       yield line;
     }
   }
+}
+
+/**
+ * The commands the CLI's help names, in the three ways it names one: a heading
+ * that carries the command (`Get Info:  agent-browser get <what>`, whose lines
+ * are that command's own words), a line that lists it with its operands, and a
+ * call written out in an example.
+ */
+function commandsListedIn(text: string) {
+  const names = new Set<string>();
+  let headingNamesCommand = false;
+  for (const line of text.split("\n")) {
+    if (/^\S/.test(line)) {
+      const [, named] = /:\s+agent-browser ([a-z][\w-]*)/.exec(line) ?? [];
+      headingNamesCommand = named !== undefined;
+      if (named) {
+        names.add(named);
+      }
+      continue;
+    }
+    const [, calls] = /^(?:\w+: )?agent-browser (.*)$/.exec(line.trim()) ?? [];
+    if (calls !== undefined) {
+      for (const call of (calls.split(" #")[0] ?? "").split("&&")) {
+        // A bare `--restore` takes the command after it as its key in the
+        // wrapper's reading, which the CLI's does not.
+        const words = (call.match(/"[^"]*"|\S+/g) ?? []).filter(
+          (word) => word !== RESTORE_FLAG,
+        );
+        const { subcommand } = parseAgentBrowserArgs(
+          words[0] === "agent-browser" ? words.slice(1) : words,
+        );
+        if (subcommand) {
+          names.add(subcommand);
+        }
+      }
+      continue;
+    }
+    if (headingNamesCommand) {
+      continue;
+    }
+    // Prose is indented like a listing: a listing is the command alone, or
+    // sets its description off in a column, or follows the command with an
+    // operand (`<sel>`, `[url]`, `start|stop`).
+    const [, name, rest = ""] =
+      /^ {2}([a-z][\w-]*)(?: (.*))?$/.exec(line) ?? [];
+    const [usage = "", description] = rest.split(/ {2,}/);
+    if (
+      name &&
+      !description?.startsWith("#") &&
+      (rest === "" ||
+        description !== undefined ||
+        /^[<["]|\|/.test(usage.split(" ")[0] ?? ""))
+    ) {
+      names.add(name);
+    }
+  }
+  return names;
 }

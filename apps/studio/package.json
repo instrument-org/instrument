@@ -74,7 +74,7 @@
     "@tanstack/query-core": "^5.104.5",
     "@vscode/ripgrep": "^1.18.0",
     "@zkochan/cmd-shim": "^7.0.0",
-    "agent-browser": "^0.39.4",
+    "agent-browser": "^0.44.0",
     "better-auth": "catalog:",
     "dugite": "3.3.2",
     "electron-chrome-extensions": "4.10.0",

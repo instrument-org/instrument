@@ -174,7 +174,7 @@ describe("writeThirdPartyLicenses", () => {
           "git: GPL-2.0-only",
           "ripgrep: MIT OR Unlicense",
           "pnpm: MIT",
-          "agent-browser: Apache-2.0",
+          "agent-browser: Apache-2.0 AND MPL-2.0",
           "pdfium: MIT AND BSD-3-Clause",
           "react-docx: MIT",
           "react-pptx: MIT",

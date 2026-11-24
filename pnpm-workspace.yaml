@@ -5,7 +5,7 @@ packages:
 allowBuilds:
   "@swc/core": true
   "@vscode/ripgrep": true
-  agent-browser: true
+  agent-browser: false
   better-sqlite3: false
   dugite: true
   electron: true
@@ -53,6 +53,8 @@ ignoredOptionalDependencies:
 minimumReleaseAge: 10080
 minimumReleaseAgeExclude:
   - agent-browser
+  # agent-browser's native binary, one package per platform, published with it.
+  - "@agent-browser/cli-*"
   # Document-viewer libraries pinned to exact pre-1.0 versions. The viewers are
   # written against these exact releases, so a newer publish is a deliberate
   # upgrade rather than something to float onto.

@@ -12,6 +12,7 @@ import { documentTypesWearingAppIcon } from "./file-associations";
 import {
   type ElectronPlatform,
   isElectronPlatform,
+  resolvePackagedAgentBrowser,
   resolvePackagedFfmpegDir,
   resolvePackagedPnpm,
   resolvePackagedRipgrep,
@@ -30,6 +31,7 @@ import {
   THIRD_PARTY_COMPONENTS,
   writeThirdPartyLicenses,
 } from "./third-party-licenses";
+import { verifyAgentBrowserBinary } from "./verify-agent-browser";
 import { verifyFfmpegBinary, verifyFfmpegTree } from "./verify-ffmpeg";
 import { writeThirdPartyNotices } from "./third-party-notices";
 import {
@@ -44,6 +46,7 @@ import { verifyUvBinary } from "./verify-uv";
 export function runAfterPack(context: AfterPackContext) {
   pruneForeignPackagedBinaries(context);
   pruneUnreachableGitTooling(context);
+  verifyPackagedAgentBrowser(context);
   verifyPackagedRipgrep(context);
   verifyPackagedUv(context);
   verifyPackagedUutils(context);
@@ -313,6 +316,31 @@ function verifyPackagedPnpm(context: AfterPackContext) {
   }
 
   console.log(`afterPack: verified pnpm at ${binaryPath}`);
+}
+
+function verifyPackagedAgentBrowser(context: AfterPackContext) {
+  const platformName = context.electronPlatformName;
+  if (!isElectronPlatform(platformName)) {
+    throw new Error(`Unsupported electron platform: ${platformName}`);
+  }
+
+  const binary = resolvePackagedAgentBrowser(
+    context.appOutDir,
+    platformName,
+    context.arch,
+  );
+  if (!binary.path) {
+    throw new Error(
+      `Could not locate the packaged agent-browser binary (${binary.packageName ?? "no package"}) under ${context.appOutDir} for ${platformName} ${Arch[context.arch]}. pnpm installs only the host's platform package, so build each target on a host of its platform and arch.`,
+    );
+  }
+
+  const { size, version } = verifyAgentBrowserBinary(binary.path, {
+    execute: canExecuteForTarget({ arch: context.arch, platformName }),
+  });
+  console.log(
+    `afterPack: verified agent-browser at ${binary.path} (${size} bytes, ${version ?? "size-only"})`,
+  );
 }
 
 function verifyPackagedRipgrep(context: AfterPackContext) {

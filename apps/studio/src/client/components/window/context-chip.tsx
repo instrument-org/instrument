@@ -32,7 +32,7 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { VersionTag } from "@/client/components/version-tag";
 import { type ReactNode, useContext } from "react";
 
-import { type AppsBySlug, useAppsBySlug } from "./apps-by-slug";
+import { useAppsBySlug } from "./apps-by-slug";
 import { TabIcon } from "./browser-tabs";
 import { type OpenOptions, WindowContext } from "./context";
 import { contentOfAddress, useContentDrag } from "./drag/content-drag";
@@ -219,20 +219,6 @@ function addressOfSent(chip: SentChip): string | undefined {
       return chip.items.length === 1 && one ? addressOfItem(one) : undefined;
     }
   }
-}
-
-/** One thing a group holds, as its mark: a page's icon, or a screen's. */
-export function HeldMark({
-  appsBySlug,
-  tab,
-}: {
-  appsBySlug: AppsBySlug;
-  tab: WindowTab;
-}) {
-  if (tab.kind === "page") {
-    return <TabIcon favicon={tab.favicon} url={tab.url} />;
-  }
-  return screenPresentation(tab.href, { appsBySlug }).icon;
 }
 
 /** A chip's tooltip: what the chip means, then where the things it names are. */

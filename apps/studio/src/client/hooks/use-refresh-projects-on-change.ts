@@ -3,9 +3,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 /**
- * Keeps every surface that lists projects current when a project's folder
- * changes on disk: one renamed or retired in the person's files, its
- * instructions edited there or by the agent. Mount once per window: the
+ * Keeps every surface that lists projects current when a project's folder or
+ * record changes on disk: one renamed in the person's files, its instructions
+ * edited there or by the agent, one retired on another device. Mount once per window: the
  * cached reads are shared, so one invalidation refreshes the inbox, the
  * chat heads and a project's details together. Like the skills' hook, the
  * subscription's opening revision is acted on too, which re-reads after a

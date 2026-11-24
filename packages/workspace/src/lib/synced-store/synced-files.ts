@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import ms from "ms";
 import { isEqual } from "radashi";
 
 import { DEVICE_ID_PATTERN, type DeviceId } from "../records/device-id";
@@ -13,6 +14,7 @@ import {
   type SyncedOp,
   syncedFileName,
 } from "./synced-record";
+import { watchDevices } from "./watch-devices";
 
 /**
  * A synced store read and written straight from its files, synchronously and
@@ -26,6 +28,12 @@ import {
  * not also hold the domain open with `openSyncedStore`, whose writer would
  * not see these appends.
  */
+
+/** How long a burst of watch events is gathered before a look. */
+const SETTLE_MS = ms("250 milliseconds");
+
+/** How often the files are looked at whatever the watch said. */
+const LOOK_MS = ms("1 minute");
 
 const DEVICE_FOLDER = new RegExp(`^${DEVICE_ID_PATTERN}$`);
 
@@ -112,6 +120,80 @@ export function applySyncedOps({
   // oxlint-disable-next-line studio/no-sync-content-read -- an append to this device's own file, which it alone writes, in the same run as the read above.
   fs.appendFileSync(file, lead + lines.join(""), { flush: true });
   return records.map((record) => record.key);
+}
+
+/**
+ * Calls `onChange` when any device's file of the domain changes, this
+ * device's included, until the stop it returns is called. The files are
+ * looked at again every `lookMs`, so a change the watch missed is late
+ * rather than lost.
+ */
+export function watchSyncedFiles({
+  devicesDir,
+  domain,
+  lookMs = LOOK_MS,
+  onChange,
+  onError = () => undefined,
+  platform = process.platform,
+}: {
+  devicesDir: string;
+  domain: string;
+  lookMs?: number;
+  onChange: () => void;
+  /** Told of a watch that failed, which leaves the regular look. */
+  onError?: (error: unknown) => void;
+  platform?: NodeJS.Platform;
+}): () => void {
+  checkDomain(domain);
+  let last = stampOf(devicesDir, domain);
+  let settleTimer: NodeJS.Timeout | undefined;
+  const look = () => {
+    const now = stampOf(devicesDir, domain);
+    if (now !== last) {
+      last = now;
+      onChange();
+    }
+  };
+  const stopWatch = watchDevices({
+    devicesDir,
+    isOurs: (name) => isSyncedFileName(name, domain),
+    onChange: () => {
+      clearTimeout(settleTimer);
+      settleTimer = setTimeout(look, SETTLE_MS);
+    },
+    onError,
+    persistent: false,
+    platform,
+  });
+  const lookTimer = setInterval(look, lookMs);
+  lookTimer.unref();
+  return () => {
+    clearTimeout(settleTimer);
+    clearInterval(lookTimer);
+    stopWatch();
+  };
+}
+
+/** Every device's file of the domain by name, size and time, as one string. */
+function stampOf(devicesDir: string, domain: string): string {
+  return namesIn(devicesDir)
+    .filter((folder) => DEVICE_FOLDER.test(folder))
+    .flatMap((folder) =>
+      namesIn(path.join(devicesDir, folder))
+        .filter((name) => isSyncedFileName(name, domain))
+        .map((name) => path.join(folder, name)),
+    )
+    .toSorted()
+    .map((file) => {
+      try {
+        const stat = fs.statSync(path.join(devicesDir, file));
+        return `${file}\0${stat.size}:${stat.mtimeMs}`;
+      } catch {
+        // Gone since it was listed, or not readable now.
+        return file;
+      }
+    })
+    .join("\n");
 }
 
 function namesIn(dir: string): string[] {

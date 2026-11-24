@@ -4,6 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+import { PROJECTS_DOMAIN } from "../../lib/chat/project-records";
+import { applySyncedOps } from "../../lib/synced-store/synced-files";
+import { DeviceIdSchema } from "../../schemas/device-id";
+import { workspaceLayout } from "../../lib/workspace-layout";
 import { readPermissionSettings } from "../../lib/permissions/rules";
 import {
   PROJECT_FILE_NAME,
@@ -217,3 +221,31 @@ it("refuses a name in use given instructions or folders, leaving that project al
   expect(kept?.instructions).toBe("Keep these");
   expect(kept?.folders).toBeUndefined();
 });
+
+it("says projects changed when another device changes only a record", async () => {
+  const controller = new AbortController();
+  const events = await call(projects.events.changed, undefined, {
+    context: createContext(),
+    signal: controller.signal,
+  });
+  try {
+    expect((await events.next()).value).toEqual({ revision: 0 });
+    const next = events.next();
+    applySyncedOps({
+      device: DeviceIdSchema.parse("dev_RB788FND"),
+      devicesDir: workspaceLayout(root).devicesDir,
+      domain: PROJECTS_DOMAIN,
+      ops: [
+        {
+          key: "top_01M0TK69A9VD590XJ9GK153X5J",
+          t: "set",
+          value: { created: "2026-01-01T00:00:00Z", retired: true },
+        },
+      ],
+    });
+    expect((await next).value).toEqual({ revision: 1 });
+  } finally {
+    controller.abort();
+    await events.return?.(undefined);
+  }
+}, 15_000);

@@ -14,9 +14,11 @@ import {
   updateProject,
 } from "../../lib/chat/projects";
 import { ChangesCardSchema, markCardUndone } from "../../lib/chat/card-undone";
+import { watchProjectRecords } from "../../lib/chat/project-records";
 import { undoProjectChanges } from "../../lib/chat/undo-project-changes";
 import { watchFolder } from "../../lib/folder-watch";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { getWorkspaceConfig } from "../../lib/workspace-config";
 import { base } from "../base";
 import { publisher } from "../publisher";
 
@@ -146,20 +148,23 @@ const retireProjectRoute = base
   });
 
 /**
- * A revision that moves whenever a project's folder changes on disk, whoever
- * changed it: the app, the agent, the person in their files. Opens with
+ * A revision that moves whenever a project's folder or its record changes on
+ * disk, whoever changed it: the app, the agent, the person in their files,
+ * another device. Opens with
  * revision 0, a point to re-read from, as `skill.events.changed` does.
  */
 const changedProjectsRoute = base
   .output(eventIterator(z.object({ revision: z.number() })))
   .handler(async function* ({ signal }) {
     const changes = publisher.subscribe("project.changed", { signal });
-    const stop = watchFolder(projectsDir(), {
-      depth: 1,
-      onChange: () => {
-        publisher.publish("project.changed", null);
-      },
-    });
+    const onChange = () => {
+      publisher.publish("project.changed", null);
+    };
+    const stopFolder = watchFolder(projectsDir(), { depth: 1, onChange });
+    const stopRecords = watchProjectRecords(
+      getWorkspaceConfig().rootDir,
+      onChange,
+    );
     let revision = 0;
     try {
       yield { revision };
@@ -168,7 +173,8 @@ const changedProjectsRoute = base
         yield { revision };
       }
     } finally {
-      stop();
+      stopFolder();
+      stopRecords();
     }
   });
 

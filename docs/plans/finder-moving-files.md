@@ -1,6 +1,6 @@
 # Moving files in the Finder
 
-Status: open. Accepted, 2026-10-02: undo-backed drag-to-move. Phases 1, 2 and 4 and most of 3 are built: several selected, the journal with ⌘Z, copy and move into a folder as one undoable action (`files.copyInto` and `files.moveInto` rather than one `files.transfer`, `ae30be17d`), the clash sheet (`9129c453a`), drops from outside onto a folder (`bf279a54e`), the Finder's own rows moved by a drop and copied onto another disk (`1ca8ac4e5`, `0a3375c59`), ⌘C and ⌘V with files on the system clipboard (`be186efa8`), ⇧⌘N, ⌘D and ⌘↑ in the listing's keys, and spring-loaded folders in every layout (`spring-loading.ts`; the folders a drag opens stand in place of the step on screen until it ends, and a drop leaves one step behind it). Overtaken: a file dropped where nothing takes it opens in a tab of its own rather than showing no-drop (`use-window-drop-fallback.ts`). Of 5a, Recents and Instrument at the top, Pinned with Pin to Sidebar, Unpin and Restore Default Places, and each place's own folder mark are built; ⌃⌘T, the `+` on the heading and dimming a pinned folder that is gone are not. Not started: sidebar rows as drop targets and 5b (pin by dropping between rows, reorder), the drag record in main, and the composed multi-file drag image.
+Status: open. Accepted, 2026-10-02: undo-backed drag-to-move. Phases 1, 2 and 4 and most of 3 are built: several selected, the journal with ⌘Z, copy and move into a folder as one undoable action (`files.copyInto` and `files.moveInto` rather than one `files.transfer`, `ae30be17d`), the clash sheet (`9129c453a`), drops from outside onto a folder (`bf279a54e`), the Finder's own rows moved by a drop and copied onto another disk (`1ca8ac4e5`, `0a3375c59`), ⌘C and ⌘V with files on the system clipboard (`be186efa8`), ⇧⌘N, ⌘D and ⌘↑ in the listing's keys, and spring-loaded folders in every layout (`spring-loading.ts`; the folders a drag opens stand in place of the step on screen until it ends, and a drop leaves one step behind it). Overtaken: a file dropped where nothing takes it opens in a tab of its own rather than showing no-drop (`use-window-drop-fallback.ts`). Of 5a, Recents and Instrument at the top, Pinned with Pin to Sidebar and Unpin, and each place's own folder mark are built; ⌃⌘T, the `+` on the heading and dimming a pinned folder that is gone are not. Not started: sidebar rows as drop targets and 5b (pin by dropping between rows, reorder), the drag record in main, and the composed multi-file drag image.
 
 ## Thesis
 
@@ -218,7 +218,7 @@ Left out on purpose: Applications (nothing to do with an app here that the Mac's
 
 **Keeping, ordering, removing.**
 
-- **Unpin from Sidebar** on every pinned place's context menu, defaults included. Unpinning a default hides it rather than deleting a record, and **Restore Default Places** on the heading's context menu brings the defaults back and keeps what the person pinned. No drag-out-to-remove: the Finder's "drag off until the remove sign shows" is exactly the accident this plan is trying not to have.
+- **Unpin from Sidebar** on every pinned place's context menu, defaults included. Unpinning a default hides it rather than deleting a record, and pinning the folder again brings it back. No drag-out-to-remove: the Finder's "drag off until the remove sign shows" is exactly the accident this plan is trying not to have.
 - **Reorder** by dragging a row within Pinned. Locations keep the system's order.
 - Dragging a sidebar row never moves the folder on disk, wherever it is dropped. It is a reference. Dropping one onto another app gives that app the folder, as a copy, which the native drag already guarantees.
 - **Stored** in main's preferences (`sidebarPlaces`: the folders pinned and the defaults unpinned, `shared/sidebar-places.ts`), per machine rather than per workspace: paths are machine-local, and two workspaces on one Mac should not have two sidebars. A pinned folder that is gone shows dimmed with Unpin from Sidebar. A move or rename made through the app updates any pin it carries along, since the journal knows both paths. Moves made outside the app are not followed (the Finder uses file bookmarks for that, which is not worth adopting yet).
@@ -282,7 +282,7 @@ What this means for the plan: moves are exactly as cheap and reversible as the s
 
 | Phase | Ships | Rough size |
 | --- | --- | --- |
-| 5a. Sidebar, menu half | New layout and glyphs, stored pins, Pin to Sidebar / ⌃⌘T / `+`, unpin and restore | Small |
+| 5a. Sidebar, menu half | New layout and glyphs, stored pins, Pin to Sidebar / ⌃⌘T / `+`, unpin | Small |
 | 1. Multi-select | ⌘/⇧-click, ⌘A, rubber band, menus act on the set, multi-file drag out | Large: touches every view in `file-system.tsx` |
 | 2. Transfer and undo | `files.transfer` (same volume only), conflicts sheet, refusals, the journal, `files.undo`, ⌘Z | Medium |
 | 3. Drops | Folder and sidebar targets, files in from the computer, the window-level no-drop handler, rest-before-arm, spring-loading, the drag record in main, the Undo toast, composer attach from the Finder, composed drag image | Medium |

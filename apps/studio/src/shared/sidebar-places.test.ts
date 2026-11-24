@@ -7,7 +7,6 @@ import {
   NO_SIDEBAR_CHANGES,
   pinnedPlaces,
   pinPlace,
-  restoreDefaultPlaces,
   unpinPlace,
 } from "./sidebar-places";
 
@@ -39,15 +38,10 @@ describe("sidebar places", () => {
     expect(rows(places)).toEqual(["casey", "Work", "Desktop"]);
   });
 
-  it("hides an unpinned default until it is restored, keeping what was pinned", () => {
+  it("hides an unpinned default, keeping what was pinned", () => {
     let places = pinPlace(NO_SIDEBAR_CHANGES, "/Users/casey/Work");
     places = unpinPlace(places, "/Users/casey");
     expect(rows(places)).toEqual(["Desktop", "Work"]);
-    expect(rows(restoreDefaultPlaces(places))).toEqual([
-      "casey",
-      "Desktop",
-      "Work",
-    ]);
   });
 
   it("puts a default pinned again back in its own place, once", () => {

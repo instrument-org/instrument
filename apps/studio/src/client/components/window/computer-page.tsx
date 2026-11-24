@@ -50,7 +50,6 @@ import { toolbarClassName } from "@/client/components/ui/toggle";
 import {
   ContextMenu,
   ContextMenuContent,
-  ContextMenuItem,
   ContextMenuRadioGroup,
   ContextMenuRadioItem,
   ContextMenuSub,
@@ -2079,11 +2078,6 @@ export function ComputerPage({
     openInNewWindow: (place: string) => {
       openScreen(folderHref(place), { into: "window" });
     },
-    restoreDefaults: () => {
-      void rpcClient.preferences.restoreDefaultSidebarPlaces
-        .call()
-        .catch(sidebarChangeFailed);
-    },
     rootTo: (folder: string) => {
       rootTo(folder);
     },
@@ -3706,7 +3700,6 @@ type PlaceActions = {
   openInNewWindow: (place: string) => void;
   /** Folders pinned, or rows moved, so Pinned's rows stand in `order`. */
   pinAt: (paths: readonly string[], order: readonly string[]) => void;
-  restoreDefaults: () => void;
   rootTo: (folder: string) => void;
   /** A place's folder opened under a drag resting on it, or (`undefined`) the view put back. */
   spring: (folder: string | undefined) => void;
@@ -3826,16 +3819,6 @@ function FinderPlaces({
       />
       <PlaceList
         label="Pinned"
-        labelMenu={
-          sidebarPlaces.unpinned.length === 0 ? undefined : (
-            <ContextMenuContent className="min-w-48">
-              <ContextMenuItem onClick={actions.restoreDefaults}>
-                <PushPinIcon className="size-4" />
-                <span>Restore Default Places</span>
-              </ContextMenuItem>
-            </ContextMenuContent>
-          )
-        }
         listRef={pinnedList}
         menu={(place) => placeMenu(place, { isPinned: true })}
         onOpenInNewTab={actions.openInNewTab}
@@ -4691,7 +4674,6 @@ function isTextLike(file: FileSystemFileItem) {
 
 function PlaceList({
   label,
-  labelMenu,
   listRef,
   menu,
   onOpen,
@@ -4702,8 +4684,6 @@ function PlaceList({
 }: {
   /** Left out for the app's own places, which need no heading. */
   label?: string;
-  /** What a right-click on the heading offers. */
-  labelMenu?: ReactNode;
   /** The list of rows, for Pinned, which takes drops (`usePinnedTarget`). */
   listRef?: React.Ref<HTMLUListElement>;
   /** What a right-click on a place offers; nothing where a place is not a folder. */
@@ -4725,14 +4705,9 @@ function PlaceList({
   return (
     <div>
       {label === undefined ? null : (
-        <ContextMenu>
-          <ContextMenuTrigger asChild disabled={labelMenu === undefined}>
-            <p className="px-2 pb-1 text-xs font-medium text-muted-foreground/70">
-              {label}
-            </p>
-          </ContextMenuTrigger>
-          {labelMenu}
-        </ContextMenu>
+        <p className="px-2 pb-1 text-xs font-medium text-muted-foreground/70">
+          {label}
+        </p>
       )}
       <ul className="flex flex-col gap-px" ref={listRef}>
         {places.map((place) => (

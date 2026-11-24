@@ -51,11 +51,6 @@ export function unpinPlace(places: SidebarPlaces, path: string): SidebarPlaces {
   };
 }
 
-/** The defaults back where they were; the folders the person pinned stay. */
-export function restoreDefaultPlaces(places: SidebarPlaces): SidebarPlaces {
-  return { ...places, unpinned: [] };
-}
-
 /**
  * A folder the app renamed or moved from `from` to `to`: a pin on it, or on
  * a folder inside it, follows it. `separator` is the host's.

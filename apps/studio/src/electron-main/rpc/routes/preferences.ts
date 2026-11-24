@@ -30,7 +30,6 @@ import {
 } from "@/electron-main/stores/workspace/preferences";
 import {
   pinPlace,
-  restoreDefaultPlaces,
   type SidebarPlaces,
   unpinPlace,
 } from "@/shared/sidebar-places";
@@ -115,11 +114,6 @@ const unpinSidebarPlace = base
   .handler(({ input }) => {
     changeSidebarPlaces((places) => unpinPlace(places, input.path));
   });
-
-/** Brings back every default place unpinned, and keeps what the person pinned. */
-const restoreDefaultSidebarPlaces = base.handler(() => {
-  changeSidebarPlaces(restoreDefaultPlaces);
-});
 
 /**
  * Lets the programs the agent runs go ahead with no sandbox on this
@@ -300,7 +294,6 @@ export const preferences = {
   pinSidebarPlace,
   platformApiServer,
   quitAndInstall,
-  restoreDefaultSidebarPlaces,
   sendTestNotification,
   setAgentCompletionNotifications,
   setBlockAds,

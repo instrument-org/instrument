@@ -81,6 +81,10 @@ describe("isBorrowedPath", () => {
       "/Users/mac-user/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/items/36B34172/IMG_0151.jpeg",
       true,
     ],
+    [
+      "/Users/mac-user/Library/Containers/com.example.shots/Data/tmp/com.example.shots/shot.png",
+      true,
+    ],
     ["/Users/mac-user/Library/Messages/Attachments/a/01/IMG_1.heic", true],
     [
       "/Users/mac-user/Pictures/Photos Library.photoslibrary/originals/1/a.jpeg",

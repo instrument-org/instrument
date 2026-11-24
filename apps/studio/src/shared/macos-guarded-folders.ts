@@ -36,3 +36,12 @@ export function macosAsksBeforeReading(
       /^\/Volumes\/[^/]+$/.test(hostPath))
   );
 }
+
+/**
+ * Whether a file is in another app's container, where macOS may ask the person
+ * to let this app into other apps' data before the system draws a thumbnail of
+ * it, even of a file they dropped in, which plain reads may open.
+ */
+export function isInMacosAppContainer(hostPath: string): boolean {
+  return /\/Library\/(?:Group )?Containers\//.test(hostPath);
+}

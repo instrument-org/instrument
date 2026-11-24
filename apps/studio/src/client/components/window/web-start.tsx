@@ -1,3 +1,4 @@
+import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
 import {
   applyBookmarkOpsAtom,
   bookmarksStateAtom,
@@ -69,19 +70,6 @@ export function WebStart({
       })
       .catch((error: unknown) => {
         toast.error("Couldn't remove the site", { cause: error });
-      });
-  };
-  // Every page the person has seen, not only the dozen shown, since what
-  // the rest feed is the address field's completions, and a person clearing
-  // their recent pages means those too.
-  const clearRecent = () => {
-    void rpcClient.history.clear
-      .call({})
-      .then(() => {
-        toast("Removed all Recent Pages");
-      })
-      .catch((error: unknown) => {
-        toast.error("Couldn't clear Recent Pages", { cause: error });
       });
   };
   // A shortcut is an address the person chose, so opening one counts the
@@ -206,8 +194,8 @@ export function WebStart({
           <PageSection
             action={{
               icon: <BroomIcon className="size-3.5" />,
-              label: "Remove all",
-              onPress: clearRecent,
+              label: "Clear Browsing Data",
+              onPress: openClearBrowsingData,
             }}
             title="Recent pages"
           >

@@ -88,16 +88,23 @@ export function recordEffectiveGuestSurface({
  * while the page keeps reporting the size it was asked for, so silently clamping
  * would hand the model a viewport number that its own screenshots disagree with.
  * Refusing with the maximum lets it ask again for something real.
+ *
+ * A page zoomed out draws each of its pixels smaller, so it fits the budget
+ * at its size times its zoom: a shown page at 54% can lay out taller than the
+ * window, and the most it can ask for is the budget over its zoom.
  */
 export function requestGuestSurface({
   hostId,
   size,
   targetId,
+  zoom = 1,
 }: {
   /** The window whose renderer mounts the guest, and whose budget it has. */
   hostId: null | number;
   size: GuestSurfaceSize;
   targetId: BrowserTargetId;
+  /** The page's zoom while a slot shows it; 1 for a parked guest, which lays out unzoomed. */
+  zoom?: number;
 }): { error: string; ok: false } | { ok: true } {
   if (!Number.isFinite(size.width) || !Number.isFinite(size.height)) {
     return { error: "Viewport width and height must be numbers.", ok: false };
@@ -118,9 +125,13 @@ export function requestGuestSurface({
     };
   }
 
-  if (size.width > budget.width || size.height > budget.height) {
+  const most = {
+    height: Math.floor(budget.height / zoom),
+    width: Math.floor(budget.width / zoom),
+  };
+  if (size.width > most.width || size.height > most.height) {
     return {
-      error: `A ${size.width}x${size.height} viewport is larger than this window can render. The most it can render right now is ${budget.width}x${budget.height}, and a larger app window raises that. Ask for that size or smaller; to capture more than a viewport, export the page to PDF instead: \`agent-browser pdf <path>\`.`,
+      error: `A ${size.width}x${size.height} viewport is larger than this window can render. The most it can render right now is ${most.width}x${most.height}, and a larger app window raises that. Ask for that size or smaller; to capture more than a viewport, export the page to PDF instead: \`agent-browser pdf <path>\`.`,
       ok: false,
     };
   }

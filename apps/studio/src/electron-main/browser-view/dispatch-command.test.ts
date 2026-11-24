@@ -965,6 +965,52 @@ describe("sendCommand", () => {
       expect(wcSendCommand).not.toHaveBeenCalled();
     });
 
+    it.each([
+      { expected: "accepts", shown: true },
+      { expected: "refuses", shown: false },
+    ])(
+      "$expected a height past the budget at 54% zoom when shown is $shown",
+      async ({ shown }) => {
+        setBudget();
+        const entry = makeEntry({ pageZoom: 0.54 });
+        entry.shown = shown;
+        const asked = dispatch({
+          entries: new Map([[TARGET_ID, entry]]),
+          method: "Emulation.setDeviceMetricsOverride",
+          // 1700 tall is past 1644 at full size, and 918 drawn at 54%.
+          params: {
+            deviceScaleFactor: 0,
+            height: 1700,
+            mobile: false,
+            width: 1024,
+          },
+        });
+        if (shown) {
+          await expect(asked).resolves.toEqual({});
+        } else {
+          await expect(asked).rejects.toThrow(/1872x1644/);
+        }
+      },
+    );
+
+    it("names the most a shown page can ask for at its zoom", async () => {
+      setBudget();
+      const entry = makeEntry({ pageZoom: 0.5 });
+      entry.shown = true;
+      await expect(
+        dispatch({
+          entries: new Map([[TARGET_ID, entry]]),
+          method: "Emulation.setDeviceMetricsOverride",
+          params: {
+            deviceScaleFactor: 0,
+            height: 4000,
+            mobile: false,
+            width: 1024,
+          },
+        }),
+      ).rejects.toThrow(/3744x3288/);
+    });
+
     it("clears the recorded size without touching the debugger", async () => {
       setBudget();
       const wcSendCommand = vi.fn();

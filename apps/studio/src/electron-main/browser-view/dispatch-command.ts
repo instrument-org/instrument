@@ -259,6 +259,7 @@ export const MAIN_OVERRIDES: {
       hostId: entry.hostId,
       size: { height: p.height, width: p.width },
       targetId,
+      ...(entry.shown && { zoom: entry.webContents?.getZoomFactor() ?? 1 }),
     });
     if (!requested.ok) {
       throw new Error(requested.error);

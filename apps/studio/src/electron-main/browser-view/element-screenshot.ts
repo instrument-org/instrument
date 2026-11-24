@@ -36,6 +36,23 @@ export function documentClip({ height, width, x, y }: Protocol.DOM.Rect): Clip {
 }
 
 /**
+ * A clip measured in the page's own px, in the px a capture reads its clip
+ * in. The guest's debugger reads a clip as the px of an unzoomed page while
+ * the page is laid out, and measures its elements and itself, in px its zoom
+ * has scaled, so a clip the page's measurements gave is that many times off
+ * in place and in size on a zoomed page.
+ */
+export function clipAtZoom(clip: Clip, pageZoom: number): Clip {
+  return {
+    ...clip,
+    height: clip.height * pageZoom,
+    width: clip.width * pageZoom,
+    x: clip.x * pageZoom,
+    y: clip.y * pageZoom,
+  };
+}
+
+/**
  * A clip cut down, on a side that would come out larger than `maxPixels`, to
  * just over what fills them, keeping its top left corner; the image is then
  * cut to `maxPixels` exactly. `pixelsPerUnit` is how many pixels of the image
@@ -149,17 +166,25 @@ export function drawPiece(
 export async function captureClip({
   codec,
   maxPixels = MAX_SCREENSHOT_PIXELS,
-  request,
+  pageZoom = 1,
+  request: asked,
   send,
-  viewport,
+  viewport: laidOut,
 }: {
   codec: ImageCodec;
   maxPixels?: number;
+  /** The page's zoom, which the clip and the viewport are measured under. */
+  pageZoom?: number;
   request: Protocol.Page.CaptureScreenshotRequest & { clip: Clip };
   /** Sends one capture to the guest's debugger. */
   send: (request: Protocol.Page.CaptureScreenshotRequest) => Promise<unknown>;
   viewport: Pick<Protocol.Page.LayoutViewport, "clientHeight" | "clientWidth">;
 }): Promise<unknown> {
+  const request = { ...asked, clip: clipAtZoom(asked.clip, pageZoom) };
+  const viewport = {
+    clientHeight: laidOut.clientHeight * pageZoom,
+    clientWidth: laidOut.clientWidth * pageZoom,
+  };
   const whole = viewportPiecesOf(request.clip, viewport);
   const firstClip = whole[0]?.[0]?.clip;
   if (!firstClip || (whole.length === 1 && whole[0]?.length === 1)) {

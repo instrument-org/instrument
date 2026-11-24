@@ -67,6 +67,7 @@ function makeEntry({
   // own cases below.
   hasFocus = true,
   hostCapturePage,
+  pageZoom = 1,
   printToPDF,
   rendering = true,
   sendCommand: wcSendCommand = vi.fn(),
@@ -78,6 +79,7 @@ function makeEntry({
   destroyed?: boolean;
   hasFocus?: boolean | Promise<unknown>;
   hostCapturePage?: ReturnType<typeof vi.fn>;
+  pageZoom?: number;
   printToPDF?: ReturnType<typeof vi.fn>;
   rendering?: boolean | Promise<unknown>;
   sendCommand?: ReturnType<typeof vi.fn>;
@@ -97,7 +99,7 @@ function makeEntry({
         }),
         // Nothing in the isolated world (the agent's pointer) answers.
         executeJavaScriptInIsolatedWorld: vi.fn().mockResolvedValue(undefined),
-        getZoomFactor: () => 1,
+        getZoomFactor: () => pageZoom,
         // The window's renderer, which answers whether the guest holds the
         // keyboard.
         hostWebContents: {
@@ -787,6 +789,35 @@ describe("sendCommand", () => {
             format: "png",
           },
         ],
+      ]);
+    });
+
+    it("sends an element of a zoomed page where its zoom draws it", async () => {
+      // A page at half zoom measures itself and its elements at twice the
+      // px the debugger captures in.
+      const wcSendCommand = debuggerWith({
+        ...METRICS,
+        cssLayoutViewport: { clientHeight: 1600, clientWidth: 2560 },
+      });
+      const entry = makeEntry({ pageZoom: 0.5, sendCommand: wcSendCommand });
+
+      await dispatch({
+        entries: new Map([[TARGET_ID, entry]]),
+        method: "Page.captureScreenshot",
+        params: {
+          captureBeyondViewport: true,
+          clip: { height: 300, scale: 1, width: 500, x: 100, y: 1900 },
+          format: "png",
+        },
+      });
+
+      expect(wcSendCommand.mock.calls[1]).toEqual([
+        "Page.captureScreenshot",
+        {
+          captureBeyondViewport: true,
+          clip: { height: 150, scale: 1, width: 250, x: 50, y: 950 },
+          format: "png",
+        },
       ]);
     });
 

@@ -6,6 +6,7 @@ import {
   type Bitmap,
   cappedClip,
   captureClip,
+  clipAtZoom,
   documentClip,
   drawPiece,
   type ImageCodec,
@@ -58,6 +59,21 @@ describe("documentClip", () => {
       x: 0,
       y: 0,
     });
+  });
+});
+
+describe("clipAtZoom", () => {
+  it.each([
+    [1, { height: 300, scale: 1, width: 500, x: 100, y: 1900 }],
+    [0.5, { height: 150, scale: 1, width: 250, x: 50, y: 950 }],
+    [2, { height: 600, scale: 1, width: 1000, x: 200, y: 3800 }],
+  ])("places and sizes a clip by a page zoom of %s", (pageZoom, clip) => {
+    expect(
+      clipAtZoom(
+        { height: 300, scale: 1, width: 500, x: 100, y: 1900 },
+        pageZoom,
+      ),
+    ).toEqual(clip);
   });
 });
 
@@ -309,6 +325,44 @@ describe("captureClip", () => {
       grid: ["5", "6", "7", "8", "9", "10", "11", "12", "13", "14"],
       quality: 60,
     });
+  });
+
+  it("takes a zoomed page's clip in pieces the size its zoom draws the viewport", async () => {
+    const send = guest(200);
+
+    // At half zoom the page measures an 800 tall viewport as 1600 and this
+    // clip as twice what the guest captures it as.
+    const result = await gridOf(
+      captureClip({
+        codec,
+        pageZoom: 0.5,
+        request: {
+          captureBeyondViewport: true,
+          clip: { height: 4000, scale: 1, width: 1024, x: 40, y: 2000 },
+          format: "png",
+        },
+        send,
+        viewport: { clientHeight: 1600, clientWidth: 2560 },
+      }),
+    );
+
+    expect(send.mock.calls.map(([request]) => request.clip)).toEqual([
+      { height: 800, scale: 1, width: 512, x: 20, y: 1000 },
+      { height: 800, scale: 1, width: 512, x: 20, y: 1800 },
+      { height: 800, scale: 1, width: 512, x: 20, y: 2200 },
+    ]);
+    expect(result.grid).toEqual([
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+      "11",
+      "12",
+      "13",
+      "14",
+    ]);
   });
 
   it("cuts a capture that would come out larger than the cap to the cap exactly", async () => {

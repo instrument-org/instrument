@@ -302,6 +302,7 @@ export const MAIN_OVERRIDES: {
         return await withoutAgentPointer(entry, () =>
           captureClip({
             codec: nativeImageCodec,
+            pageZoom: entry.webContents?.getZoomFactor(),
             request: { ...p, clip },
             send: (request) => send("Page.captureScreenshot", request),
             viewport,

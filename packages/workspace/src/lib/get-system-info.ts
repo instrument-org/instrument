@@ -1,10 +1,11 @@
+import {
+  windowsBuild,
+  windowsName,
+} from "@instrument-org/shared/windows-version";
 import { readFile } from "node:fs/promises";
 import os from "node:os";
 
 import { readComputerName } from "./records/device-file";
-
-/** Windows 11 kept the 10.0 release; its builds start here. */
-const FIRST_WINDOWS_11_BUILD = 22_000;
 
 /**
  * The OS as its own settings name it: "macOS 27.0.1", "Windows 11 (build
@@ -27,12 +28,10 @@ export async function osName(
         : `macOS ${version}`;
     }
     case "win32": {
-      const build = Number(release.split(".")[2]);
-      if (!Number.isInteger(build)) {
-        return `Windows ${release}`;
-      }
-      const major = build >= FIRST_WINDOWS_11_BUILD ? "11" : "10";
-      return `Windows ${major} (build ${build})`;
+      const build = windowsBuild(release);
+      return build === undefined
+        ? windowsName(release)
+        : `${windowsName(release)} (build ${build})`;
     }
     case "linux": {
       const distro = await readOsReleaseName();

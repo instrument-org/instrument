@@ -57,7 +57,7 @@ import { displayPath, folderLabel } from "@/client/lib/path-utils";
 import { SKILL_LIST_STALE_TIME_MS } from "@/client/lib/skill-query";
 import { captureException } from "@/client/lib/capture-exception";
 import {
-  isMacosThumbnailDrop,
+  isBorrowedPath,
   splitTransferItems,
 } from "@/client/lib/transfer-items";
 import { cn } from "@/client/lib/utils";
@@ -563,7 +563,7 @@ export const PromptInput = ({
         file.size <= MAX_FILE_PREVIEW_SIZE && file.type.startsWith("image/");
       const filePath = window.api.getFilePath(file);
       const shouldUsePath =
-        filePath.trim().length > 0 && !isMacosThumbnailDrop(filePath);
+        filePath.trim().length > 0 && !isBorrowedPath(filePath);
 
       if (shouldUsePath && !shouldCreatePreview) {
         setAttachedItems((prev) => [
@@ -606,6 +606,9 @@ export const PromptInput = ({
                 url: shouldCreatePreview ? dataUrl : undefined,
               },
         ]);
+      });
+      reader.addEventListener("error", () => {
+        toast.error(`Couldn't attach “${file.name}”`, { cause: reader.error });
       });
       reader.readAsDataURL(file);
     }

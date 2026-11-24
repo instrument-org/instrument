@@ -59,12 +59,14 @@ import {
 } from "@/electron-main/stores/workspace/window-state";
 import {
   expectRestoredWindows,
+  holdPutAway,
   isComingBackAsLeft,
   isDrivenInstance,
   isHeldOffScreen,
   keepsOffScreen,
   putOnScreen,
   showHeldWindows,
+  showPutAwayWindows,
 } from "@/electron-main/windows/on-screen";
 import {
   type AppWindowAsk,
@@ -498,8 +500,29 @@ function windowHolding(ask: AppWindowAsk) {
   );
 }
 
+/**
+ * Takes the last window a person can see off the screen without closing it,
+ * out of full screen first, which a hidden window would leave an empty Space
+ * for.
+ */
+function putAwayWindow(window: BrowserWindow) {
+  const hide = () => {
+    if (!window.isDestroyed()) {
+      holdPutAway(window, { maximized: window.isMaximized() });
+      window.hide();
+    }
+  };
+  if (window.isFullScreen()) {
+    window.once("leave-full-screen", hide);
+    window.setFullScreen(false);
+  } else {
+    hide();
+  }
+}
+
 /** A window to the front, the person having asked for something it shows. */
 function bringForward(window: BrowserWindow) {
+  showPutAwayWindows();
   // Held after a restart, the person who followed a link has to be shown it.
   if (isHeldOffScreen(window) && !keepsOffScreen()) {
     showHeldWindows();
@@ -573,6 +596,7 @@ export function tabShown(requestId: string, shown: boolean) {
  * back as it was. A launch brings back every window (`restoreAppWindows`).
  */
 export function openAppWindow(): BrowserWindow {
+  showPutAwayWindows();
   const front = getAppWindow();
   if (front) {
     if (!isHeldOffScreen(front)) {
@@ -655,6 +679,7 @@ export function openNewAppWindow(
   if (!windowsMayOpen()) {
     return null;
   }
+  showPutAwayWindows();
   const id = newWindowId();
   const [first] = tabs;
   if (first) {
@@ -1126,11 +1151,32 @@ function createAppWindow(
       }
     });
   });
+  // Where the app goes on without a window on screen, the last one a person
+  // can see is put away rather than closed: its chats keep working in it,
+  // and it comes back as it was (`holdPutAway`). So nothing is asked, since
+  // nothing stops.
+  window.on("close", (event) => {
+    if (
+      quitsWithLastWindow ||
+      isQuitApproved() ||
+      spareOf(webContentsId) ||
+      emptied.has(window) ||
+      hasVisibleWindowOtherThan(window)
+    ) {
+      return;
+    }
+    event.preventDefault();
+    putAwayWindow(window);
+  });
   // A close that leaves the app running asks the window first, since it
   // stops the chats at work in its tab groups. A quit's close has asked
   // already, a spare has no chats, and a window whose tabs all went
   // elsewhere took its chats with them.
   window.on("close", (event) => {
+    // Put away above, it is not closing.
+    if (event.defaultPrevented) {
+      return;
+    }
     if (
       isQuitApproved() ||
       (quitsWithLastWindow && !hasVisibleWindowOtherThan(window)) ||
@@ -1401,6 +1447,7 @@ export function updateAppWindowBackgroundColor() {
  * or the one this opens, once it can show it.
  */
 function askAppWindow(ask: AppWindowAsk) {
+  showPutAwayWindows();
   const window = getAppWindow();
   if (window) {
     if (!isHeldOffScreen(window)) {
@@ -1419,6 +1466,7 @@ function askAppWindow(ask: AppWindowAsk) {
 
 /** Puts up what was asked in one window, or in the one in front while that one's page cannot hear it. */
 export function askWindow(window: BrowserWindow, ask: AppWindowAsk) {
+  showPutAwayWindows();
   if (listening.has(window.webContents.id) && !isSetupUp()) {
     commandWindow(window, ask);
     return;

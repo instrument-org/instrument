@@ -165,3 +165,58 @@ describe("putting a window on screen", () => {
     expect(calls).toEqual(["show"]);
   });
 });
+
+describe("a window a person closed where the app goes on without one", () => {
+  it("waits off screen until the person asks something of the app, then comes back as it was", async () => {
+    const { holdPutAway, isHeldOffScreen, showPutAwayWindows } = await load({
+      dev: false,
+    });
+    const { calls, window } = fakeWindow();
+    holdPutAway(window, { maximized: true });
+
+    expect(isHeldOffScreen(window)).toBe(true);
+    expect(calls).toEqual([]);
+
+    expect(showPutAwayWindows()).toBe(true);
+    expect(calls).toEqual(["maximize", "show"]);
+    expect(isHeldOffScreen(window)).toBe(false);
+    expect(showPutAwayWindows()).toBe(false);
+  });
+
+  it("comes back for the Dock icon too", async () => {
+    const { holdPutAway, isHeldOffScreen, showHeldWindows } = await load({
+      dev: false,
+    });
+    const { calls, window } = fakeWindow();
+    holdPutAway(window, { maximized: false });
+
+    expect(showHeldWindows()).toBe(true);
+    expect(calls).toEqual(["show"]);
+    expect(isHeldOffScreen(window)).toBe(false);
+  });
+
+  it("leaves a window off screen that a restart left hidden, which no one closed", async () => {
+    const { comeBackAsLeft, isHeldOffScreen, putOnScreen, showPutAwayWindows } =
+      await load({ dev: false });
+    const { calls, window } = fakeWindow();
+    comeBackAsLeft("hidden");
+    putOnScreen(window);
+
+    expect(showPutAwayWindows()).toBe(false);
+    expect(isHeldOffScreen(window)).toBe(true);
+    expect(calls).toEqual([]);
+  });
+
+  it("stays off screen in an agent's instance for all but the Dock icon", async () => {
+    const { holdPutAway, isHeldOffScreen, showPutAwayWindows } = await load({
+      dev: true,
+      env: { STUDIO_DRIVE_PURPOSE: "hotkeys" },
+    });
+    const { calls, window } = fakeWindow();
+    holdPutAway(window, { maximized: false });
+
+    expect(showPutAwayWindows()).toBe(false);
+    expect(isHeldOffScreen(window)).toBe(true);
+    expect(calls).toEqual([]);
+  });
+});

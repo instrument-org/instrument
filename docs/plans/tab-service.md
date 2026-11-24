@@ -1,6 +1,6 @@
 # One owner for every tab
 
-Status: open. The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done. Step B is done: every change to the tabs is a named command with plain data ([`tab-ops.ts`](../../apps/studio/src/client/components/window/tab-ops.ts)) that the main process applies in the order asks arrive ([`tab-service.ts`](../../apps/studio/src/electron-main/stores/workspace/tab-service.ts)), and a window mirrors it. Steps C, D and E are not built: main does not yet make or end pages, answer an agent with no window, or keep one budget.
+Status: open. The back history of a discarded page, the table of where opens land, and keeping a page a person entered something into are done. Step B is done: every change to the tabs is a named command with plain data ([`tab-ops.ts`](../../apps/studio/src/client/components/window/tab-ops.ts)) that the main process applies in the order asks arrive ([`tab-service.ts`](../../apps/studio/src/electron-main/stores/workspace/tab-service.ts)), and a window mirrors it. Of step C, an agent goes on working once the last window is closed on macOS, because that window is put away rather than closed ([`windows.md`](../architecture/windows.md)); main still does not make or end pages or answer an agent itself. Steps D and E are not built.
 
 ## Problem
 
@@ -71,7 +71,7 @@ Each lands by itself and leaves the app working.
 
 - **A. Pin what it does.** The table of gestures by kind in `use-openers.test.tsx`, beside the reducer tests there are. Done. A plain click on a page or a screen goes to the tab up, a blank New Tab like any other. An app, a chat, and a built-in page opened from a blank New Tab take its place where its group has one side; on a side of a split they open beside it, and a New Tab with a draft in it keeps its place everywhere.
 - **B. The service.** Done. Every change is a named command with plain data, the ids and times in it made by whoever asks. The main process loads the tab model as it is, owns the tabs, and applies each ask to the kept files; the windows mirror it. Main tells the windows what changed rather than which command ran, so a window never has to compute the same result main did. The shape of the files is unchanged, so an earlier build still reads them. This ends the overwrite.
-- **C. Pages follow the tabs.** Main makes and ends guests from the tabs' Life. Unlisted tabs replace hidden groups, and a `page:<id>` group found in a file becomes one. An agent's asks are answered in main, with or without a window.
+- **C. Pages follow the tabs.** Main makes and ends guests from the tabs' Life. Unlisted tabs replace hidden groups, and a `page:<id>` group found in a file becomes one. An agent's asks are answered in main, with or without a window. Until then the last window closed on macOS is put away, hidden with its page running, and answers them as it did on screen.
 - **D. One budget.** The list and the budget above replace the separate limits on guests and on kept screens (`KEPT_SCREENS`).
 - **E. One open.** One call takes what to open, the gesture and where it was asked from, and one table answers. `OpenOptions` goes. A closed tab, side or group becomes one kind of record.
 

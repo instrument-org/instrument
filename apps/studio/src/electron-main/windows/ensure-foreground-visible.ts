@@ -1,6 +1,7 @@
 import { openAppWindow } from "@/electron-main/windows/app-window";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
 import { windowsMayOpen } from "@/electron-main/windows/launch";
+import { showPutAwayWindows } from "@/electron-main/windows/on-screen";
 
 /**
  * Put the foreground window ({@link getForegroundWindow}) on screen, making one
@@ -11,6 +12,7 @@ import { windowsMayOpen } from "@/electron-main/windows/launch";
  * is none to show, and boot puts them up itself.
  */
 export function ensureForegroundWindowVisible() {
+  showPutAwayWindows();
   const target = getForegroundWindow();
   if (!target) {
     if (windowsMayOpen()) {

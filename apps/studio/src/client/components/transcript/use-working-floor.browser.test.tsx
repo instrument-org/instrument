@@ -5,9 +5,15 @@ import { expect, it } from "vitest";
 import { useWorkingFloor } from "./use-working-floor";
 
 /** A working turn in a column that is watched, as the transcript's content is. */
-function WatchedTurn({ height }: { height: string }) {
+function WatchedTurn({
+  height,
+  isCardAway = false,
+}: {
+  height: string;
+  isCardAway?: boolean;
+}) {
   const columnRef = useRef<HTMLDivElement>(null);
-  const floorRef = useWorkingFloor(true);
+  const floorRef = useWorkingFloor(true, isCardAway);
   useEffect(() => {
     const column = columnRef.current;
     if (!column) {
@@ -73,3 +79,25 @@ it.each(["100.6px", "100.25px", "100px"])(
     }
   },
 );
+
+it("gives up the room it held as the card goes out of sight, then holds again", async () => {
+  const { container, rerender } = await renderInBrowser(
+    <WatchedTurn height="240px" />,
+  );
+  const turnHeight = () =>
+    container
+      .querySelector<HTMLElement>("div > div:has([data-testid=body])")
+      ?.getBoundingClientRect().height;
+  await frames(3);
+  await rerender(<WatchedTurn height="40px" />);
+  await frames(3);
+  expect(turnHeight()).toBe(240);
+  await rerender(<WatchedTurn height="40px" isCardAway />);
+  await expect.poll(turnHeight).toBe(40);
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  await rerender(<WatchedTurn height="80px" isCardAway />);
+  await frames(3);
+  await rerender(<WatchedTurn height="40px" isCardAway />);
+  await frames(3);
+  expect(turnHeight()).toBe(80);
+});

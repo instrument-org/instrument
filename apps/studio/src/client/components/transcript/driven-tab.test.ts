@@ -1,7 +1,7 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { describe, expect, it } from "vitest";
 
-import { drivenTabOf } from "./driven-tab";
+import { drivenTabOf, isPageCardAway } from "./driven-tab";
 
 const page = (id: string, group: string): WindowTab => ({
   group,
@@ -45,5 +45,47 @@ describe("drivenTabOf", () => {
 
   it("finds none before the session has acted in a page", () => {
     expect(drivenTabOf([page("p1", "group:a")], () => 0)).toBeUndefined();
+  });
+});
+
+describe("isPageCardAway", () => {
+  const working = {
+    beside: "p1",
+    driven: { at: 5, id: "p1" },
+    hasEndedCall: true,
+    isReading: false,
+    startedAt: 3,
+  };
+  it.each([
+    { away: true, facts: {}, name: "the page is up beside it" },
+    { away: false, facts: { beside: "p2" }, name: "another tab is up" },
+    { away: false, facts: { beside: undefined }, name: "nothing is beside it" },
+    {
+      away: true,
+      facts: { beside: "p2", driven: { at: 1, id: "p1" }, hasEndedCall: false },
+      name: "the tab known is from before the turn's first call",
+    },
+    {
+      away: false,
+      facts: { beside: "p2", driven: { at: 1, id: "p1" } },
+      name: "a call ended without moving to another tab",
+    },
+    {
+      away: true,
+      facts: { driven: undefined, hasEndedCall: false },
+      name: "the first call has reached no tab yet",
+    },
+    {
+      away: true,
+      facts: { driven: undefined, isReading: true },
+      name: "the tab is still being read",
+    },
+    {
+      away: false,
+      facts: { driven: undefined },
+      name: "a call ended and the window has no such tab",
+    },
+  ])("$away when $name", ({ away, facts }) => {
+    expect(isPageCardAway({ ...working, ...facts })).toBe(away);
   });
 });

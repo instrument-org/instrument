@@ -68,26 +68,38 @@ export function useCardOpens(isShown: boolean): boolean {
 export function CardPresence({
   children,
   className,
+  isAway,
   opens,
 }: {
   children: ReactNode;
   className?: string;
+  /** Closed in place, for as long as what it shows is in sight elsewhere. */
+  isAway: boolean;
   /** Whether it opens into place when it comes, read when it mounts. */
   opens: boolean;
 }) {
   const isPresent = useIsPresent();
   const closes: unknown = usePresenceData();
   const isReduced = useReducedMotion();
+  // Drawn while it closes, and then not at all, so it takes no pictures.
+  const [isClosed, setIsClosed] = useState(isAway);
+  if (!isAway && isClosed) {
+    setIsClosed(false);
+  }
   if (!isPresent && closes !== true) {
     return null;
   }
   const transition = isReduced ? { duration: 0 } : FOLD_TRANSITION;
   return (
     <motion.div
-      animate="open"
+      animate={isAway ? "closed" : "open"}
       className={className}
       exit="closed"
-      initial={opens ? "closed" : false}
+      inert={isAway}
+      initial={opens || isAway ? "closed" : false}
+      onAnimationComplete={(reached) => {
+        setIsClosed(reached === "closed" && isAway);
+      }}
       variants={{
         closed: {
           height: 0,
@@ -106,7 +118,7 @@ export function CardPresence({
         },
       }}
     >
-      {children}
+      {isAway && isClosed ? null : children}
     </motion.div>
   );
 }

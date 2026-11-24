@@ -161,6 +161,7 @@ export const TurnView = memo(function TurnView({
   chatId,
   changes,
   hasCard,
+  isCardAway,
   isLast,
   replyEnd,
   separator,
@@ -175,6 +176,8 @@ export const TurnView = memo(function TurnView({
   changes: readonly InstructionsChange[] | undefined;
   /** Its card is the one up in the transcript (`workCardTurnOf`). */
   hasCard: boolean;
+  /** That card is out of sight (`useIsCardAway`). */
+  isCardAway: boolean;
   isLast: boolean;
   /** Its footer and card, when it is the last turn of its reply (`repliesOf`). */
   replyEnd: ReplyEnd | undefined;
@@ -184,7 +187,7 @@ export const TurnView = memo(function TurnView({
   /** Its message is waiting on a step still going in the turn above it. */
   waitsForStep: boolean;
 }) {
-  const floorRef = useWorkingFloor(turn.phase === "working");
+  const floorRef = useWorkingFloor(turn.phase === "working", isCardAway);
   return (
     <>
       {turn.opener && (
@@ -208,6 +211,7 @@ export const TurnView = memo(function TurnView({
         <TurnBody
           chatId={chatId}
           hasCard={hasCard}
+          isCardAway={isCardAway}
           isLast={isLast}
           replyEnd={replyEnd}
           sessionId={sessionId}
@@ -303,6 +307,7 @@ function ReplyFoot({
 function TurnBody({
   chatId,
   hasCard,
+  isCardAway,
   isLast,
   replyEnd,
   sessionId,
@@ -311,6 +316,7 @@ function TurnBody({
 }: {
   chatId: ChatId;
   hasCard: boolean;
+  isCardAway: boolean;
   isLast: boolean;
   replyEnd: ReplyEnd | undefined;
   sessionId: StoreId.Session;
@@ -338,7 +344,7 @@ function TurnBody({
     .some((row) => row.kind === "text");
   const card =
     isFolded || !hasCard || isUnderWords ? undefined : workCardOf(turn);
-  const cardOpens = useCardOpens(card !== undefined);
+  const cardOpens = useCardOpens(card !== undefined && !isCardAway);
   const pinnedRow = usePinnedRow(turn, isFolded);
   const rows = shown.flatMap((row, index) => {
     const out = [];
@@ -385,7 +391,12 @@ function TurnBody({
           // the next keeps it mounted, with its picture and its sweep going,
           // and moves it there in the frame the new activity arrives. It goes
           // at once as words end it, so they never start below it.
-          <CardPresence className="ml-7" key="work-card" opens={cardOpens}>
+          <CardPresence
+            className="ml-7"
+            isAway={isCardAway}
+            key="work-card"
+            opens={cardOpens}
+          >
             <WorkCardView
               card={card}
               isCurrent={turn.phase === "working"}

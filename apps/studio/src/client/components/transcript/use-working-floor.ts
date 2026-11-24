@@ -9,7 +9,9 @@ import { FOLD_TRANSITION } from "./card-motion";
  * activity puts them back a moment later: holding the turn at the tallest it
  * has been leaves their room in place, so the end of the transcript does not
  * rise and fall at every narrated step. Once the turn stops working the room
- * it held closes on the fold's curve.
+ * it held closes on the fold's curve, and so it does as the card goes out of
+ * sight (`isCardAway`), which closes on its own: what is left is held again
+ * once it has.
  *
  * The floor is set on the element as it is measured, before the frame paints,
  * so a turn never draws a frame shorter than it was. It is the observer's own
@@ -17,7 +19,7 @@ import { FOLD_TRANSITION } from "./card-motion";
  * fractional, since a floor rounded up to `offsetHeight` would grow the turn
  * inside the observer's callback, a resize the frame cannot deliver.
  */
-export function useWorkingFloor(isWorking: boolean) {
+export function useWorkingFloor(isWorking: boolean, isCardAway = false) {
   const ref = useRef<HTMLDivElement>(null);
   const isReduced = useReducedMotion();
   useLayoutEffect(() => {
@@ -25,17 +27,20 @@ export function useWorkingFloor(isWorking: boolean) {
     if (!element) {
       return;
     }
+    const releases =
+      element.style.minHeight !== "" &&
+      element.style.minHeight !== "0px" &&
+      (!isWorking || isCardAway);
+    if (releases) {
+      element.style.transition = isReduced
+        ? ""
+        : `min-height ${(FOLD_TRANSITION.duration * 1000).toString()}ms cubic-bezier(${FOLD_TRANSITION.ease.join(", ")})`;
+      // To a length rather than unset, since a transition has no way to `auto`.
+      element.style.minHeight = "0px";
+    }
     if (!isWorking) {
-      if (element.style.minHeight) {
-        element.style.transition = isReduced
-          ? ""
-          : `min-height ${(FOLD_TRANSITION.duration * 1000).toString()}ms cubic-bezier(${FOLD_TRANSITION.ease.join(", ")})`;
-        // To a length rather than unset, since a transition has no way to `auto`.
-        element.style.minHeight = "0px";
-      }
       return;
     }
-    element.style.transition = "";
     let tallest = 0;
     const observer = new ResizeObserver(([entry]) => {
       const height = entry?.borderBoxSize[0]?.blockSize ?? 0;
@@ -44,10 +49,21 @@ export function useWorkingFloor(isWorking: boolean) {
         element.style.minHeight = `${tallest.toString()}px`;
       }
     });
-    observer.observe(element);
+    const hold = () => {
+      element.style.transition = "";
+      observer.observe(element);
+    };
+    const closing =
+      releases && !isReduced
+        ? setTimeout(hold, FOLD_TRANSITION.duration * 1000)
+        : undefined;
+    if (closing === undefined) {
+      hold();
+    }
     return () => {
+      clearTimeout(closing);
       observer.disconnect();
     };
-  }, [isWorking, isReduced]);
+  }, [isCardAway, isReduced, isWorking]);
   return ref;
 }

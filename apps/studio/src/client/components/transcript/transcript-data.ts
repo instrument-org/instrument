@@ -15,14 +15,17 @@ import {
   type StepPart,
   type StoreId,
   type TranscriptMessage,
+  type Turn,
+  workCardOf,
 } from "@instrument-org/workspace/client";
 import { skipToken, useQueries, useQuery } from "@tanstack/react-query";
 import { createContext, use } from "react";
 
 import { useChatTasks } from "../window/child-tasks-query";
+import { useGroupTab } from "../window/group-tab";
 import { useWindowTabs } from "../window/window-tabs";
 import { type CommandFacts, type TaskCardFacts } from "./surface";
-import { drivenTabOf, pagesOf } from "./driven-tab";
+import { drivenTabOf, isPageCardAway, pagesOf } from "./driven-tab";
 import { taskCardFacts } from "./task-card-facts";
 import { transcriptFeedOptions } from "./use-transcript-feed";
 
@@ -174,12 +177,24 @@ type PageTab = Extract<WindowTab, { kind: "page" }>;
 export function useDrivenTab(
   sessionId: StoreId.Session | undefined,
 ): PageTab | undefined {
+  return useDriving(sessionId).tab;
+}
+
+/** The tab a session drove last and when, and whether that is still being read. */
+function useDriving(sessionId: StoreId.Session | undefined): {
+  at: number;
+  isReading: boolean;
+  tab: PageTab | undefined;
+} {
   const chat = useLiveChat();
   const { allTabs } = useWindowTabs();
   const pages =
     sessionId === undefined || chat === undefined ? [] : pagesOf(allTabs);
   const driven = useQueries({
-    combine: (results) => results.map((result) => result.data?.lastAt ?? 0),
+    combine: (results) => ({
+      isReading: results.some((result) => result.isPending),
+      lastAt: results.map((result) => result.data?.lastAt ?? 0),
+    }),
     queries: pages.map((tab) =>
       rpcClient.workspace.browser.events.agentActivity.experimental_liveOptions(
         {
@@ -192,9 +207,52 @@ export function useDrivenTab(
     ),
   });
   const lastAt = new Map(
-    pages.map((tab, index) => [tab.id, driven[index] ?? 0]),
+    pages.map((tab, index) => [tab.id, driven.lastAt[index] ?? 0]),
   );
-  return drivenTabOf(pages, (tab) => lastAt.get(tab.id) ?? 0);
+  const tab = drivenTabOf(pages, (each) => lastAt.get(each.id) ?? 0);
+  return {
+    at: tab ? (lastAt.get(tab.id) ?? 0) : 0,
+    isReading: driven.isReading,
+    tab,
+  };
+}
+
+/**
+ * Whether a turn's card stays out of sight since the page it would picture
+ * is up beside the transcript (`isPageCardAway`). Only a page card in a tab
+ * of a group ever does.
+ */
+export function useIsCardAway(
+  turn: Turn | undefined,
+  sessionId: StoreId.Session,
+): boolean {
+  const chat = useLiveChat();
+  const groupTab = useGroupTab();
+  const windowTabs = useWindowTabs();
+  const isPage =
+    turn !== undefined &&
+    groupTab !== null &&
+    workCardOf(turn)?.kind === "page";
+  const { at, isReading, tab } = useDriving(isPage ? sessionId : undefined);
+  // The whole turn's, so the card stays up from one activity to the next.
+  const steps = isPage
+    ? turn.rows.flatMap((row) =>
+        row.kind === "activity"
+          ? row.steps.filter((step) => step.shows?.kind === "page")
+          : [],
+      )
+    : [];
+  const first = steps[0];
+  if (!isPage || chat === undefined || first === undefined) {
+    return false;
+  }
+  return isPageCardAway({
+    beside: windowTabs.besideOf(groupTab.id)?.id,
+    driven: tab && { at, id: tab.id },
+    hasEndedCall: steps.some((step) => step.status === "done"),
+    isReading,
+    startedAt: first.metadata.createdAt.getTime(),
+  });
 }
 
 /**

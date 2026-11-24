@@ -37,6 +37,7 @@ import {
   TranscriptActionsContext,
 } from "./transcript-actions";
 import { CardFileVersionsContext } from "./card-file-versions-context";
+import { useIsCardAway } from "./transcript-data";
 import { TurnView } from "./turn-view";
 
 /** What only a developer reads, loaded only for a developer. */
@@ -103,6 +104,10 @@ export function Transcript({
   const own = turns.filter((turn) => !turn.inherited);
   const last = turns.at(-1);
   const cardTurn = workCardTurnOf(turns);
+  const isCardAway = useIsCardAway(
+    turns.find((turn) => turn.id === cardTurn),
+    sessionId,
+  );
   const replies = repliesOf(turns);
   const pausedAtMaxSteps =
     !isRunning && last?.replies.at(-1)?.metadata.finishReason === "max-steps";
@@ -112,6 +117,7 @@ export function Transcript({
         chatId={chatId}
         changes={turn.opener && changes.get(turn.opener.message.id)}
         hasCard={turn.id === cardTurn}
+        isCardAway={turn.id === cardTurn && isCardAway}
         isLast={turn === last}
 
         carriesOn={replies.carriedOn.has(turn.id)}

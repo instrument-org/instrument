@@ -17,7 +17,11 @@ import { CardPresence, useCardOpens } from "./card-motion";
 import { RollingText } from "./rolling-text";
 import { WorkCardView } from "./work-card";
 import { TranscriptSurfaceContext } from "./surface";
-import { useTaskFacts, useTaskMessages } from "./transcript-data";
+import {
+  useIsCardAway,
+  useTaskFacts,
+  useTaskMessages,
+} from "./transcript-data";
 import { formatRoughSpan, useTicking } from "./time";
 
 /** The dots after a working task's step. */
@@ -115,7 +119,8 @@ function LiveTaskCard({
     ? turnsOf(messages, { isRunning: true, sessionId }).at(-1)
     : undefined;
   const card = showsWork && turn ? workCardOf(turn) : undefined;
-  const cardOpens = useCardOpens(card !== undefined);
+  const isCardAway = useIsCardAway(card && turn, sessionId);
+  const cardOpens = useCardOpens(card !== undefined && !isCardAway);
   const title = facts?.title ?? "Task";
   const firstLine = isWorking
     ? (facts?.step ?? "Starting")
@@ -153,7 +158,7 @@ function LiveTaskCard({
           rather than going at once. */}
       <AnimatePresence custom initial={false}>
         {card && turn && (
-          <CardPresence key="work-card" opens={cardOpens}>
+          <CardPresence isAway={isCardAway} key="work-card" opens={cardOpens}>
             <WorkCardView
               card={card}
               isCurrent={turn.phase === "working"}

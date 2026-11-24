@@ -122,6 +122,9 @@ const BESIDE_BOUNDS: RailBounds = {
 const FILE_ROOM = 420;
 /** How long a held arrow rests on a file before it shows, as the chat list does. */
 const HELD_SHOW_REST_MS = 150;
+
+/** How long a file is up before it is one the person opened. */
+const OPENED_AFTER_MS = 3000;
 /**
  * How long a version stays under the next one opened over the file, past the
  * half second after which the next one shows its spinner over it anyway.
@@ -462,13 +465,20 @@ export function FilesScreen({
     ? { hostPath: file, name: segmentsOf(file).at(-1) ?? file }
     : undefined;
   // Every way into a file lands on this screen: a folder, a link in a reply,
-  // a file card, the Finder handing one over. A file coming up in the tab the
-  // person is looking at is a file they opened, so it is told to history here
-  // and nowhere else.
+  // a file card, the Finder handing one over. A file the person stays on in
+  // the tab they are looking at is a file they opened, so it is told to
+  // history here and nowhere else; one they step past on the way to another
+  // is not.
   useEffect(() => {
-    if (file !== undefined && isActiveTab) {
-      noteFileOpened(file);
+    if (file === undefined || !isActiveTab) {
+      return;
     }
+    const timer = setTimeout(() => {
+      noteFileOpened(file);
+    }, OPENED_AFTER_MS);
+    return () => {
+      clearTimeout(timer);
+    };
   }, [file, isActiveTab]);
   const isPageFile =
     activeFile !== undefined &&

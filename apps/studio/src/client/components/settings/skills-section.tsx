@@ -19,7 +19,6 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { WindowContext } from "@/client/components/window/context";
-import { GlyphButton } from "@/client/components/window/glyph-button";
 import { showInFolder } from "@/client/lib/show-in-files";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -54,14 +53,16 @@ export function SkillsSection() {
           </p>
         </div>
         {ask ? (
-          <GlyphButton
+          <Button
+            className="text-foreground"
             onClick={() => {
               ask(`Use ${SKILL_CREATOR} to make a skill that `);
             }}
             size="sm"
+            variant="outline"
           >
             New skill
-          </GlyphButton>
+          </Button>
         ) : null}
       </div>
       <SkippedSkillFolders />

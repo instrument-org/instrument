@@ -1,4 +1,3 @@
-import { InstrumentGlyph } from "@/client/components/wordmark";
 import {
   autoUpdate,
   computePosition,
@@ -54,10 +53,6 @@ export function AskPopover({
       ref={floating}
     >
       <div className="flex items-center gap-1.5 px-1 pb-1.5 text-xs">
-        <InstrumentGlyph
-          className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
-          size={14}
-        />
         <span className="font-medium text-foreground">Ask</span>
         <span className="min-w-0 truncate text-muted-foreground">{target}</span>
       </div>

@@ -17,7 +17,6 @@ import { Checkbox } from "@/client/components/ui/checkbox";
 import { Input } from "@/client/components/ui/input";
 import { Textarea } from "@/client/components/ui/textarea";
 import { WindowContext } from "@/client/components/window/context";
-import { GlyphButton } from "@/client/components/window/glyph-button";
 import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { chatHref } from "@/client/components/window/window-href";
 import { useModalBack } from "@/client/hooks/use-modal-back";
@@ -303,9 +302,14 @@ function AnySourceTile({ onStart }: { onStart: (entry: string) => void }) {
         placeholder="Tool name or website"
         value={entry}
       />
-      <GlyphButton size="sm" type="submit">
+      <Button
+        className="text-foreground"
+        size="sm"
+        type="submit"
+        variant="outline"
+      >
         Import
-      </GlyphButton>
+      </Button>
     </form>
   );
 }
@@ -479,7 +483,8 @@ function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
             value={answer}
           />
           <div className="flex justify-end">
-            <GlyphButton
+            <Button
+              className="text-foreground"
               onClick={() => {
                 if (!trimmed) {
                   toast("Paste the answer first");
@@ -488,9 +493,11 @@ function PasteImport({ onStart }: { onStart: (answer: string) => void }) {
                 onStart(trimmed);
               }}
               size="sm"
+              type="button"
+              variant="outline"
             >
               Import
-            </GlyphButton>
+            </Button>
           </div>
         </div>
       </li>

@@ -19,7 +19,6 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 
-import { InstrumentGlyph } from "../wordmark";
 import { AskSelectionContext, type AskTarget } from "./ask-selection-context";
 
 /** How long after a drag ends a viewer dropping its selection is undone. */
@@ -82,7 +81,7 @@ export function AskButton({
       ref={floating}
     >
       <button
-        className="flex h-7 items-center gap-1.5 rounded-lg pr-2.5 pl-2 text-[13px] leading-none font-medium whitespace-nowrap text-foreground hover:bg-muted active:bg-accent"
+        className="flex h-7 items-center rounded-lg px-2.5 text-[13px] leading-none font-medium whitespace-nowrap text-foreground hover:bg-muted active:bg-accent"
         onClick={onAsk}
         // Kept from taking focus, which would clear the selection it asks about.
         onMouseDown={(event) => {
@@ -93,10 +92,6 @@ export function AskButton({
         }}
         type="button"
       >
-        <InstrumentGlyph
-          className="size-3.5 text-brand-600 dark:text-brand-400"
-          size={14}
-        />
         Ask
       </button>
     </div>,

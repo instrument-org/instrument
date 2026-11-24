@@ -57,11 +57,25 @@ export function splitTransferItems({
 }
 
 /**
- * Whether `path` is a file macOS dropped from its screenshot or recording
- * thumbnail: a copy in a temporary folder that only the app receiving the
- * drop may read, which no folder grant opens and macOS deletes later. Such a
- * file is kept by its bytes, read at the drop, rather than by its path.
+ * Places an app or the system puts a file only to hand it over: the Mac's
+ * temporary folder (a screenshot thumbnail), an app's containers (what another
+ * device copied, in useractivityd's), caches, Mail and Messages storage, a
+ * Photos library, and Windows' temporary folder and Outlook's cache. iCloud
+ * Drive and `Library/CloudStorage` are the person's own files.
  */
-export function isMacosThumbnailDrop(path: string): boolean {
-  return /\/TemporaryItems\/NSIRD_[^/]+\/[^/]+$/.test(path);
+const BORROWED_PLACES = [
+  /^(?:\/private)?\/var\/folders\//,
+  /\/Library\/(?:Caches|Containers|Group Containers|Mail|Messages)\//,
+  /\.photoslibrary\//,
+  /[\\/]AppData[\\/]Local[\\/](?:Microsoft[\\/]Windows[\\/]INetCache|Temp)[\\/]/i,
+];
+
+/**
+ * Whether the file at `path` is only lent by a drop or a paste. Its owner may
+ * delete it, as macOS does a picture copied on an iPhone, and other reads of
+ * it may be refused, so it is kept by its bytes, read as it arrives. A file
+ * anywhere else is the person's own and is kept by its path.
+ */
+export function isBorrowedPath(path: string): boolean {
+  return BORROWED_PLACES.some((place) => place.test(path));
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isMacosThumbnailDrop, splitTransferItems } from "./transfer-items";
+import { isBorrowedPath, splitTransferItems } from "./transfer-items";
 
 function item({
   isDirectory = false,
@@ -65,7 +65,7 @@ describe("splitTransferItems", () => {
   });
 });
 
-describe("isMacosThumbnailDrop", () => {
+describe("isBorrowedPath", () => {
   it.each([
     [
       "/var/folders/ab/cd/T/TemporaryItems/NSIRD_screencaptureui_12Wc6X/Screenshot 2026-11-12 at 4.58.13\u202fPM.png",
@@ -76,10 +76,27 @@ describe("isMacosThumbnailDrop", () => {
       true,
     ],
     ["/Users/mac-user/Desktop/Screenshot.png", false],
-    ["/var/folders/ab/cd/T/TemporaryItems/NSIRD_screencaptureui_12Wc6X", false],
-    ["/var/folders/ab/cd/T/Screenshot.png", false],
+    ["/private/var/folders/ab/cd/T/Screenshot.png", true],
+    [
+      "/Users/mac-user/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/items/36B34172/IMG_0151.jpeg",
+      true,
+    ],
+    ["/Users/mac-user/Library/Messages/Attachments/a/01/IMG_1.heic", true],
+    [
+      "/Users/mac-user/Pictures/Photos Library.photoslibrary/originals/1/a.jpeg",
+      true,
+    ],
+    [String.raw`C:\Users\windows-user\AppData\Local\Temp\report.pdf`, true],
+    [String.raw`C:\Users\windows-user\Documents\report.pdf`, false],
+    [
+      "/Users/mac-user/Library/Mobile Documents/com~apple~CloudDocs/a.pdf",
+      false,
+    ],
+    ["/Users/mac-user/Library/CloudStorage/Dropbox/a.pdf", false],
+    ["/Users/mac-user/Library/Application Support/Code/settings.json", false],
+    ["/tmp/notes.md", false],
     ["", false],
   ])("%s → %s", (path, expected) => {
-    expect(isMacosThumbnailDrop(path)).toBe(expected);
+    expect(isBorrowedPath(path)).toBe(expected);
   });
 });

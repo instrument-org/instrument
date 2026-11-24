@@ -235,89 +235,41 @@ describe("a page's file pressed into", () => {
   });
 });
 
-// In a chat and in the app's own pages, the field searches the app its chip
-// names, the way a browser's address bar searches a site once its keyword
-// is in; the place has no address to edit.
-describe("a field searching the app its chip names", () => {
+// A chat and the app's own pages have no address to edit, so their field
+// opens empty and reads what is typed as a new tab's does.
+describe("the field of a place with no address", () => {
   const chat = { kind: "chat", title: "Trip to Lisbon" } as const;
 
-  it("opens empty with the chip still there, and Backspace puts the chip away", async () => {
-    await renderInBrowser(
-      <Omnibar location={chat} resting={<span>Trip to Lisbon</span>} />,
-    );
-    const field = page.getByRole("combobox");
-    const box = field.element();
-    if (box instanceof HTMLInputElement) {
-      editField(box);
-    }
+  it.each([
+    ["a chat", chat],
+    ["History", { kind: "builtin", part: "Files", screen: "activity" }],
+    ["Settings", { kind: "builtin", part: "Providers", screen: "settings" }],
+    ["Apps", { kind: "apps" }],
+  ] as const)(
+    "opens empty in %s, lists nothing, and opens an address typed",
+    async (_, location) => {
+      await renderInBrowser(
+        <Omnibar location={location} resting={<span>The place</span>} />,
+      );
+      const field = page.getByRole("combobox");
+      const box = field.element();
+      if (box instanceof HTMLInputElement) {
+        editField(box);
+      }
 
-    await expect.element(field).toHaveValue("");
-    await expect.element(field).toHaveAttribute("placeholder", "Search chats");
-    await expect
-      .element(page.getByText("Trip to Lisbon"))
-      .not.toBeInTheDocument();
-    await expect.element(page.getByText("Chats")).toBeVisible();
+      await expect.element(field).toHaveValue("");
+      await expect
+        .element(field)
+        .toHaveAttribute("placeholder", "Search or enter address");
+      await expect.element(field).toHaveAttribute("aria-expanded", "false");
+      await expect.element(page.getByText("The place")).not.toBeInTheDocument();
 
-    await userEvent.keyboard("{Backspace}");
-    await expect
-      .element(field)
-      .toHaveAttribute("placeholder", "Search or enter address");
-    await expect.element(page.getByText("Chats")).not.toBeInTheDocument();
-  });
-
-  it("offers the app's own entries for the words typed, best first, then its search", async () => {
-    await renderInBrowser(
-      <Omnibar
-        location={{ kind: "builtin", part: "Providers", screen: "settings" }}
-        resting={<span>Providers</span>}
-      />,
-    );
-    const field = page.getByRole("combobox");
-    const box = field.element();
-    if (box instanceof HTMLInputElement) {
-      editField(box);
-    }
-    await userEvent.keyboard("theme");
-
-    await expect
-      .element(page.getByRole("option", { selected: true }))
-      .toMatchTextContent(/^Theme/);
-    await expect
-      .element(
-        page.getByRole("option", { name: "Search settings for “theme”" }),
-      )
-      .toBeVisible();
-  });
-
-  it("searches for an address typed in, and opens one only once Backspace puts the chip away", async () => {
-    await renderInBrowser(
-      <Omnibar location={chat} resting={<span>Trip to Lisbon</span>} />,
-    );
-    const field = page.getByRole("combobox");
-    const box = field.element();
-    if (box instanceof HTMLInputElement) {
-      editField(box);
-    }
-    await userEvent.keyboard("https://example.org");
-
-    await expect.element(field).toHaveAttribute("placeholder", "Search chats");
-    await expect
-      .element(page.getByText("Chats", { exact: true }))
-      .toBeVisible();
-    await expect
-      .element(page.getByRole("option", { selected: true }))
-      .toMatchTextContent("Search chats for “https://example.org”");
-
-    await userEvent.clear(field);
-    await userEvent.keyboard("{Backspace}");
-    await userEvent.keyboard("https://example.org");
-    await expect
-      .element(field)
-      .toHaveAttribute("placeholder", "Search or enter address");
-    await expect
-      .element(page.getByRole("option", { selected: true }))
-      .toMatchTextContent(/example\.org/);
-  });
+      await userEvent.keyboard("https://example.org");
+      await expect
+        .element(page.getByRole("option", { selected: true }))
+        .toMatchTextContent(/example\.org/);
+    },
+  );
 
   it("keeps the place on show for a caret the keyboard brought, until a letter is typed", async () => {
     await renderInBrowser(

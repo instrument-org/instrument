@@ -39,10 +39,7 @@ import { debugHrefOf } from "@/client/components/window/debug-address";
 import { isGroupScreenHref } from "@/client/components/window/group-screen";
 import { ShellContext } from "@/client/components/window/shell-context";
 import { matchScreen } from "@/client/components/window/window-href";
-import {
-  fieldScopeOf,
-  type TabLocation,
-} from "@/client/components/window/tab-location";
+import { type TabLocation } from "@/client/components/window/tab-location";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { iconHostOf } from "@/client/lib/favicon-url";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
@@ -102,7 +99,7 @@ import {
   useState,
 } from "react";
 
-import { AddressMark, AppChip, AppMark } from "./app-chip";
+import { AddressMark, AppMark } from "./app-chip";
 import { useAppsBySlug } from "./apps-by-slug";
 import {
   isKnownSite,
@@ -110,13 +107,7 @@ import {
   typedAddressLabel,
   typedAddressName,
 } from "./typed-address-row";
-import {
-  OmniList,
-  type OmniRow,
-  SCOPE_PROMPTS,
-  ScopeList,
-  type ScopeListHandle,
-} from "./omnibar-scope";
+import { OmniList, type OmniRow } from "./omnibar-list";
 import { whereOfAddress } from "./row-text";
 import { chatListOptions } from "./chat-list-query";
 import { bookmarkName } from "./web-start";
@@ -127,9 +118,8 @@ const PER_KIND_SHOWN = 3;
 const ENTRIES_SHOWN = 8;
 
 /**
- * What a tab's field reaches once it searches no one app (`FieldScope`):
- * the computer from a folder or a file, and the web, with the app's own
- * pages and chats, from anything else.
+ * What a tab's field reaches: the computer from a folder or a file, and the
+ * web, with the app's own pages and chats, from anything else.
  */
 type OmnibarMode = "files" | "web";
 
@@ -174,15 +164,9 @@ const PROMPTS: Record<OmnibarMode, string> = {
  * A tab's address field, which reads what is typed in the terms of what the
  * tab holds (see `OmnibarMode`).
  *
- * In the app's own pages and in a chat, the field searches the app the
- * tab's chip names (`FieldScope`): the chip stays at the field's start as
- * the caret goes in, the way a browser's keyword does once Tab takes it,
- * and the box is empty, since the place has no address a person types.
- * Whatever is typed or pasted there is words to search that app for, an
- * address or a path included, so a link pasted in a chat's field searches
- * the chats for it and opens nothing. Backspace in the empty box puts the
- * chip away, and the field is the general one: the web, the app's pages,
- * chats and bookmarks, where an address opens.
+ * The app's own pages and a chat have no address a person types, so the
+ * field opens empty there and searches what it does on a new tab; each page
+ * has its own search for what is in it.
  *
  * The first row is always what Enter does with the words in the field, and it
  * is what the field says: an address a browser would open, a search, a path,
@@ -234,23 +218,17 @@ export function Omnibar({
   takesCaret?: boolean;
 }) {
   const mode = omnibarModeOf(location);
-  // The app the field searches while the caret is in it, from where the tab
-  // is whenever the caret goes in, until Backspace puts it away.
-  const [scope, setScope] = useState(() => fieldScopeOf(location));
-  const scopeList = useRef<ScopeListHandle>(null);
   const { openPage, openScreen } = useWindow();
   const isDeveloperMode = useDeveloperMode();
   const router = useRouter();
   const routerLocation = useRouterState({
     select: (routerState) => routerState.location,
   });
-  const [
-    { canComplete, highlight, isAsked, isEditing, isFocused, place, query },
-    send,
-  ] = useReducer(
-    omnibarField,
-    initialOmnibarField(initial, resting === undefined),
-  );
+  const [{ canComplete, highlight, isEditing, isFocused, place, query }, send] =
+    useReducer(
+      omnibarField,
+      initialOmnibarField(initial, resting === undefined),
+    );
   const input = useRef<HTMLInputElement>(null);
   const listId = useId();
   // What was typed over the place, which is what the rows answer to; the
@@ -428,20 +406,13 @@ export function Omnibar({
     }
   };
 
-  // A chat's field, pressed with nothing typed, lists the newest chats. Any
-  // other lists nothing until something is typed: a new tab's page already
-  // shows the bookmarks and recent pages, and a page's field holds its
-  // address.
-  const listsRecents =
-    isEditing && isFocused && isAsked && scope === "chat" && query === "";
   const found = useOmnibarRows({
     canComplete,
-    // A field searching one app reads none of the general rows.
-    isEditing: isEditing && scope === undefined,
+    isEditing,
     location,
     mode,
     open: { openAddress, openFolder, openPath, openSite, visit },
-    typed: scope === undefined ? typed : "",
+    typed,
   });
   // Steady, as the rows a missed path offers are built while rendering and
   // these reach the field itself.
@@ -458,16 +429,16 @@ export function Omnibar({
           row.id === "path" ? { ...row, detail: "Looking…" } : row,
         )
       : shownRows.rows;
-  /** The rows the keys go by: a scoped list's as it stands, or the general ones. */
-  const rowsNow = () =>
-    scope === undefined ? rows : (scopeList.current?.rows() ?? []);
   const current = Math.min(highlight, Math.max(0, rows.length - 1));
-  const isListShown = isEditing && (typed.trim() !== "" || listsRecents);
-  const picked = scope === undefined && current > 0 ? rows[current] : undefined;
+  // Nothing is listed until something is typed: a new tab's page already
+  // shows the bookmarks and recent pages, and a page's field holds its
+  // address.
+  const isListShown = isEditing && typed.trim() !== "";
+  const picked = current > 0 ? rows[current] : undefined;
   // The field says what Enter will do: the words with the rest of an address
   // written in ahead of the caret, or the row the arrows are on.
   const shown = picked?.fill ?? `${query}${completion}`;
-  const prompt = scope === undefined ? PROMPTS[mode] : SCOPE_PROMPTS[scope];
+  const prompt = PROMPTS[mode];
 
   // The part the field wrote in is selected, so the next letter typed
   // replaces it and Backspace takes it away, the way a browser's does.
@@ -495,14 +466,9 @@ export function Omnibar({
   return (
     <>
       {!isEditing && resting !== undefined && resting}
-      {/* The app searched, where the place's chip was, while the caret is
-          in the box. */}
-      {isEditing && scope !== undefined && <AppChip app={scope} nameFolds />}
       <input
         aria-activedescendant={
-          isListShown && (scope !== undefined || rows.length > 0)
-            ? `${listId}-${scope === undefined ? current : highlight}`
-            : undefined
+          isListShown && rows.length > 0 ? `${listId}-${highlight}` : undefined
         }
         aria-autocomplete="both"
         aria-controls={isListShown ? listId : undefined}
@@ -524,7 +490,6 @@ export function Omnibar({
             "pointer-events-none absolute inset-0 opacity-0",
         )}
         onBlur={() => {
-          setScope(fieldScopeOf(location));
           send({
             place: resting === undefined ? undefined : initial,
             type: "blur",
@@ -543,7 +508,6 @@ export function Omnibar({
           });
         }}
         onFocus={(event) => {
-          setScope(fieldScopeOf(location));
           const live = resting === undefined ? undefined : liveAddress?.();
           // In the box before the selection below, which a render would
           // otherwise move to the end when it wrote the address in.
@@ -560,13 +524,11 @@ export function Omnibar({
           send({ type: "edit" });
         }}
         onKeyDown={(event) => {
-          const now = rowsNow();
-          const at = Math.min(highlight, Math.max(0, now.length - 1));
           switch (event.key) {
             case "ArrowDown": {
               event.preventDefault();
               send({
-                index: Math.max(0, Math.min(now.length - 1, at + 1)),
+                index: Math.max(0, Math.min(rows.length - 1, current + 1)),
                 type: "highlight",
               });
               break;
@@ -581,42 +543,22 @@ export function Omnibar({
             }
             case "ArrowUp": {
               event.preventDefault();
-              send({ index: Math.max(0, at - 1), type: "highlight" });
-              break;
-            }
-            case "Backspace": {
-              // In the empty box, the chip goes, and the field is the general
-              // one, as a browser's keyword goes.
-              const box = event.currentTarget;
-              if (
-                isEditing &&
-                scope !== undefined &&
-                box.value === "" &&
-                box.selectionStart === 0
-              ) {
-                event.preventDefault();
-                setScope(undefined);
-              }
+              send({ index: Math.max(0, current - 1), type: "highlight" });
               break;
             }
             case "Enter": {
               event.preventDefault();
-              if (listsRecents) {
-                run(now[at]);
-                break;
-              }
               if (typed.trim() !== "") {
                 // A path with no row for it (a hidden name, a folder past the
                 // listing's cut or refused to it, a listing still on its way)
                 // is still opened as typed.
-                const typedPath =
-                  scope !== undefined || now[at]
-                    ? undefined
-                    : typedPathHere(typed);
+                const typedPath = rows[current]
+                  ? undefined
+                  : typedPathHere(typed);
                 if (typedPath) {
                   void openPath(typedPath);
                 } else {
-                  run(now[at]);
+                  run(rows[current]);
                 }
                 break;
               }
@@ -656,7 +598,7 @@ export function Omnibar({
             case "Tab": {
               // Takes what the field shows, to go on typing from it: a
               // folder's path, ready for a name in it.
-              const fill = now[at]?.fill;
+              const fill = rows[current]?.fill;
               if (isListShown && !event.shiftKey && fill && fill !== query) {
                 event.preventDefault();
                 takeShown(fill);
@@ -674,19 +616,7 @@ export function Omnibar({
         value={shown}
       />
       {hint !== undefined && query === "" && !isFocused && hint}
-      {isListShown && scope !== undefined ? (
-        <ScopeList
-          current={highlight}
-          id={listId}
-          location={location}
-          onRun={run}
-          open={{ openScreen, visit }}
-          ref={scopeList}
-          scope={scope}
-          words={typed}
-        />
-      ) : null}
-      {isListShown && scope === undefined ? (
+      {isListShown ? (
         <OmniList
           current={current}
           empty={empty}

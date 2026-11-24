@@ -231,7 +231,7 @@ function matchesPlace(chat: Filterable, filters: ChatFilters) {
  * whatever its case: in the title, the ask, the latest line, a project's name,
  * a file's name, a site, or an app. Nothing searched for matches everything.
  */
-export function matchesSearch(
+function matchesSearch(
   chat: Filterable,
   search: string,
   projectNames: ReadonlyMap<string, string>,

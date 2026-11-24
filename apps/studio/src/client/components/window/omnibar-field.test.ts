@@ -11,7 +11,6 @@ import {
 const editing: OmnibarField = {
   canComplete: true,
   highlight: 2,
-  isAsked: true,
   isEditing: true,
   isFocused: true,
   place: "",
@@ -69,7 +68,6 @@ describe("omnibarField", () => {
         "clear": {
           "canComplete": true,
           "highlight": 2,
-          "isAsked": true,
           "isEditing": true,
           "isFocused": true,
           "place": "",
@@ -78,7 +76,6 @@ describe("omnibarField", () => {
         "edit": {
           "canComplete": false,
           "highlight": 0,
-          "isAsked": true,
           "isEditing": true,
           "isFocused": true,
           "place": "~/code",
@@ -87,7 +84,6 @@ describe("omnibarField", () => {
         "focus": {
           "canComplete": false,
           "highlight": 0,
-          "isAsked": false,
           "isEditing": true,
           "isFocused": true,
           "place": "~/code",
@@ -96,7 +92,6 @@ describe("omnibarField", () => {
         "focus, from the keyboard": {
           "canComplete": false,
           "highlight": 0,
-          "isAsked": false,
           "isEditing": false,
           "isFocused": true,
           "place": "~/code",
@@ -105,7 +100,6 @@ describe("omnibarField", () => {
         "focus, on a page gone on in itself": {
           "canComplete": false,
           "highlight": 0,
-          "isAsked": false,
           "isEditing": true,
           "isFocused": true,
           "place": "file:///Users/casey/w.html?frame=2",
@@ -114,7 +108,6 @@ describe("omnibarField", () => {
         "highlight": {
           "canComplete": true,
           "highlight": 3,
-          "isAsked": true,
           "isEditing": true,
           "isFocused": true,
           "place": "",
@@ -123,7 +116,6 @@ describe("omnibarField", () => {
         "input, a letter at the end": {
           "canComplete": true,
           "highlight": 0,
-          "isAsked": true,
           "isEditing": true,
           "isFocused": true,
           "place": "",
@@ -132,7 +124,6 @@ describe("omnibarField", () => {
         "input, a letter taken away": {
           "canComplete": false,
           "highlight": 0,
-          "isAsked": true,
           "isEditing": true,
           "isFocused": true,
           "place": "",
@@ -141,7 +132,6 @@ describe("omnibarField", () => {
         "revert": {
           "canComplete": false,
           "highlight": 0,
-          "isAsked": true,
           "isEditing": true,
           "isFocused": true,
           "place": "",
@@ -150,7 +140,6 @@ describe("omnibarField", () => {
         "take": {
           "canComplete": false,
           "highlight": 0,
-          "isAsked": true,
           "isEditing": true,
           "isFocused": true,
           "place": "",
@@ -166,7 +155,6 @@ describe("omnibarField", () => {
         {
           "canComplete": false,
           "highlight": 0,
-          "isAsked": false,
           "isEditing": false,
           "isFocused": false,
           "place": "~/code",
@@ -180,7 +168,6 @@ describe("omnibarField", () => {
       {
         "canComplete": false,
         "highlight": 0,
-        "isAsked": false,
         "isEditing": false,
         "isFocused": false,
         "place": "",
@@ -210,7 +197,6 @@ describe("omnibarField", () => {
       {
         "canComplete": false,
         "highlight": 0,
-        "isAsked": false,
         "isEditing": true,
         "isFocused": false,
         "place": "",

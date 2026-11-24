@@ -118,7 +118,7 @@ it("puts the site's icon in front of a web link, and none in front of a file's",
   const [site, file] = view.dom.querySelectorAll("a");
 
   expect(site?.querySelector("img.md-site-icon")?.getAttribute("src")).toMatch(
-    /site-icon\/example\.com$/,
+    /site-icon\/example\.com\?theme=light$/,
   );
   expect(file?.querySelector("img")).toBeNull();
   expect(view.state.doc.textContent).toBe("a site and a file");

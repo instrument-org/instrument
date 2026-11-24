@@ -13,7 +13,7 @@ import {
   type GuestHandle,
   takeGuestTraversal,
 } from "@/client/lib/browser-pool";
-import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
+import { siteIconChanged } from "@/client/lib/favicon-url";
 import { flushFileWrites } from "@/client/lib/file-flush";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
@@ -527,15 +527,15 @@ export function BrowserTabs({
           guest.url() ||
           latest.current.tabs.find((entry) => entry.id === id)?.url;
         if (originOf(url)) {
-          // The site's own icon, kept for it where the favicon proxy has
-          // none; only for a page opened here, never one merely named.
+          // The site's own icon, kept for it (see `site-icons.ts`); only for
+          // a page opened here, never one merely named.
           const pageUrl = url;
           if (pageUrl !== undefined) {
             void rpcClient.browser.rememberPageIcon
-              .call({ iconUrl: favicon, pageUrl })
+              .call({ iconUrls: favicons, pageUrl })
               .then(({ stored }) => {
                 if (stored) {
-                  forgetIconlessThisSession(pageUrl);
+                  siteIconChanged(pageUrl);
                 }
               })
               .catch(() => null);

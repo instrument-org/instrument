@@ -1,7 +1,7 @@
 import type * as FaviconUrl from "@/client/lib/favicon-url";
 
 import { resetDrafts } from "@/client/drafts/store";
-import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
+import { siteIconChanged } from "@/client/lib/favicon-url";
 import { isMacOS } from "@/client/lib/utils";
 import { renderInBrowser } from "@/tests/render-browser";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
@@ -57,9 +57,9 @@ vi.mock("@/client/lib/favicon-url", async (importOriginal) => {
   const actual = await importOriginal<typeof FaviconUrl>();
   return {
     ...actual,
-    getFaviconUrl: (url: string) =>
+    useFaviconUrl: (url: string) =>
       url.includes(".invalid") && !givenIcon.has(url)
-        ? actual.getFaviconUrl(url)
+        ? actual.useFaviconUrl(url)
         : "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
   };
 });
@@ -960,7 +960,7 @@ describe("ChatRow", () => {
     );
     // ...and back in the same row, with no remount, once it has an icon.
     givenIcon.add(`https://${site}`);
-    forgetIconlessThisSession(site);
+    siteIconChanged(site);
     await vi.waitFor(() => {
       expect(marksOf(row)).toHaveLength(1);
     });

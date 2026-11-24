@@ -1,4 +1,4 @@
-import { forgetIconlessThisSession } from "@/client/lib/favicon-url";
+import { siteIconChanged } from "@/client/lib/favicon-url";
 import { TooltipProvider } from "@radix-ui/react-tooltip";
 import { act, fireEvent, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -43,7 +43,7 @@ describe("Favicon", () => {
   // stand-in, and the site itself is asked next.
   it("asks the app's own icon store, by host", () => {
     const image = renderFavicon("https://example.com/some/page?q=1");
-    expect(image.src).toMatch(/:\/\/site-icon\/example\.com$/);
+    expect(image.src).toMatch(/:\/\/site-icon\/example\.com\?theme=light$/);
   });
 
   it("draws a globe of its own when the icon does not load, and at once on the next render", () => {
@@ -76,7 +76,7 @@ describe("Favicon", () => {
     ).toEqual(["svg", "svg"]);
 
     act(() => {
-      forgetIconlessThisSession(`https://${host}/third`);
+      siteIconChanged(`https://${host}/third`);
     });
 
     const recovered = screen.getAllByRole("img", {
@@ -84,8 +84,8 @@ describe("Favicon", () => {
     });
     expect(recovered.map((icon) => icon.tagName)).toEqual(["IMG", "IMG"]);
     expect(recovered.map((icon) => icon.getAttribute("src"))).toEqual([
-      `${first.src}?retry=1`,
-      `${first.src}?retry=1`,
+      `${first.src}&retry=1`,
+      `${first.src}&retry=1`,
     ]);
   });
 });

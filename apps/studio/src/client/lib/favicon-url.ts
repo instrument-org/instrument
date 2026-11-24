@@ -17,10 +17,20 @@ import { useSyncExternalStore } from "react";
  * the caller's own handling of a malformed href is what decides.
  */
 export function getFaviconUrl(url: string, retry = 0): string {
-  const src = `${APP_PROTOCOL}://site-icon/${encodeURIComponent(hostOf(url))}`;
-  // The main process reads the host alone, so the count only changes the
-  // address the page sees, not what it is answered with.
-  return retry > 0 ? `${src}?retry=${retry}` : src;
+  const src = `${APP_PROTOCOL}://site-icon/${encodeURIComponent(hostOf(url))}?theme=${themeNow()}`;
+  // The main process reads the host and theme alone, so the count only changes
+  // the address the page sees, not what it is answered with.
+  return retry > 0 ? `${src}&retry=${retry}` : src;
+}
+
+/**
+ * The address to draw a site's icon from, redrawing its reader when the theme
+ * changes or the site is given another icon.
+ */
+export function useFaviconUrl(url: string): string {
+  return useSyncExternalStore(subscribeToAddress, () =>
+    getFaviconUrl(url, retries.get(hostOf(url)) ?? 0),
+  );
 }
 
 /**
@@ -37,17 +47,14 @@ export function getFaviconUrl(url: string, retry = 0): string {
  */
 let iconlessThisSession: ReadonlySet<string> = new Set<string>();
 
-/** How many times each host has been given an icon after failing, so the address asked for next is one the page has not already seen fail. */
+/** How many times each host has been given another icon, so the address asked for next is one the page has not already drawn or seen fail. */
 const retries = new Map<string, number>();
 
 const listeners = new Set<() => void>();
 
-/** A site just given an icon, so every row drawing it asks again. */
-export function forgetIconlessThisSession(url: string) {
+/** A site given another icon, or one after failing, so every row drawing it asks again. */
+export function siteIconChanged(url: string) {
   const host = hostOf(url);
-  if (!iconlessThisSession.has(host)) {
-    return;
-  }
   retries.set(host, (retries.get(host) ?? 0) + 1);
   iconlessThisSession = new Set(
     [...iconlessThisSession].filter((entry) => entry !== host),
@@ -67,11 +74,6 @@ export function markIconlessThisSession(url: string) {
   }
   iconlessThisSession = new Set([...iconlessThisSession, host]);
   notify();
-}
-
-/** How many times the site was given an icon after failing, for `getFaviconUrl`, redrawing its reader as that changes. */
-export function useFaviconRetry(url: string): number {
-  return useSyncExternalStore(subscribe, () => retries.get(hostOf(url)) ?? 0);
 }
 
 /** Every host found iconless this session, redrawing its reader as the set changes. */
@@ -100,5 +102,36 @@ function subscribe(listener: () => void) {
   listeners.add(listener);
   return () => {
     listeners.delete(listener);
+  };
+}
+
+/** The theme on screen, as the class the app sets on the page's root. */
+function themeNow() {
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
+}
+
+const themeListeners = new Set<() => void>();
+let themeObserver: MutationObserver | undefined;
+
+function subscribeToAddress(listener: () => void) {
+  const unsubscribe = subscribe(listener);
+  themeListeners.add(listener);
+  if (!themeObserver) {
+    themeObserver = new MutationObserver(() => {
+      for (const changed of themeListeners) {
+        changed();
+      }
+    });
+    themeObserver.observe(document.documentElement, {
+      attributeFilter: ["class"],
+    });
+  }
+  return () => {
+    unsubscribe();
+    themeListeners.delete(listener);
+    if (themeListeners.size === 0) {
+      themeObserver?.disconnect();
+      themeObserver = undefined;
+    }
   };
 }

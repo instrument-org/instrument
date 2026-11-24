@@ -44,6 +44,7 @@ import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { APP_NAME } from "@instrument-org/shared";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
+import { unique } from "radashi";
 import {
   type ReactNode,
   useEffect,
@@ -63,7 +64,15 @@ import { includedItemsOf } from "./draft-context";
 import { useShell } from "./shell-context";
 import { useGroupTab } from "./group-tab";
 import { useKnownPages } from "./known-pages";
-import { boxOpens, type BoxOpens, siteToComplete } from "./new-tab-box";
+import { useCompletionPages } from "@/client/hooks/use-browser-history";
+import {
+  boxOpens,
+  type BoxOpens,
+  boxPageRows,
+  type BoxPageRow,
+  siteToComplete,
+} from "./new-tab-box";
+import { NewTabPageList } from "./new-tab-page-list";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import {
@@ -302,7 +311,21 @@ export function NewChatView({
   // Whether the last key pressed in the box was a letter typed.
   const letterTyped = useRef(false);
   const typedPath = groupTab ? typedPathHere(words) : undefined;
-  const { visited } = useKnownPages({ enabled: groupTab !== undefined });
+  const { bookmarkPages, recentPages } = useKnownPages({
+    enabled: groupTab !== undefined,
+  });
+  // The web's pages among the bookmarks: the app's own places kept as
+  // bookmarks are not pages a word finishes to.
+  const bookmarkedPages = bookmarkPages.filter(
+    (page) => targetOfAddress(page.url)?.kind === "page",
+  );
+  // What the box finishes a word to, which is what the address field does:
+  // the bookmarks, then the pages history counts as significant.
+  const significant = useCompletionPages({ enabled: groupTab !== undefined });
+  const completable = unique(
+    [...bookmarkedPages, ...significant],
+    (page) => page.url,
+  );
   /**
    * The box's words as they change. A letter typed onto the end of one word
    * that starts a site the person goes to has the rest of the site's
@@ -322,7 +345,7 @@ export function NewChatView({
     setWords(next);
     const site =
       isTypedOn && groupTab !== undefined && typedPathHere(next) === undefined
-        ? siteToComplete(next, visited)
+        ? siteToComplete(next, completable)
         : undefined;
     setAhead(
       site !== undefined && inputRef.current?.completeAhead(site.rest)
@@ -334,6 +357,36 @@ export function NewChatView({
     groupTab === undefined
       ? undefined
       : boxOpens({ completedSite: ahead?.url, path: typedPath, words });
+  // The pages under the box while it holds one word, until Escape puts them
+  // away for these words or the box is emptied.
+  const [isListPutAway, setListPutAway] = useState(false);
+  if (isListPutAway && words === "") {
+    setListPutAway(false);
+  }
+  const pageRows =
+    groupTab === undefined || isListPutAway
+      ? []
+      : boxPageRows({
+          completedSite: ahead?.url,
+          pages: unique(
+            [...bookmarkedPages, ...recentPages],
+            (page) => page.url,
+          ),
+          path: typedPath,
+          words,
+        });
+  // The row Return opens: the one the arrows moved to for these words, or
+  // the finished site's own row while its rest is in the box; -1 is the box.
+  const [litFor, setLitFor] = useState<{ index: number; words: string }>();
+  const lowest = ahead === undefined ? -1 : 0;
+  const lit =
+    litFor?.words === words && litFor.index < pageRows.length
+      ? Math.max(litFor.index, lowest)
+      : lowest;
+  const light = (index: number) => {
+    setLitFor({ index, words });
+  };
+  const litRow = pageRows[lit];
   // In this tab whatever it opens, a chat included, as sending turns a new
   // tab into its chat in place.
   const openAddress = (address: string) => {
@@ -370,6 +423,9 @@ export function NewChatView({
         to.address.kind === "page" ? to.address.url : to.address.address,
       );
     }
+  };
+  const openRow = (row: BoxPageRow) => {
+    openAddress(row.page.url);
   };
   const places = {
     computerName: osConventions().computer,
@@ -462,6 +518,36 @@ export function NewChatView({
             setWords(`${words}${ahead.rest}`);
             setAhead(undefined);
           }
+          const isPlain =
+            !event.altKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.shiftKey &&
+            !event.nativeEvent.isComposing;
+          if (pageRows.length > 0 && isPlain) {
+            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+              event.preventDefault();
+              event.stopPropagation();
+              light(
+                event.key === "ArrowDown"
+                  ? Math.min(lit + 1, pageRows.length - 1)
+                  : Math.max(lit - 1, lowest),
+              );
+              return;
+            }
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              setListPutAway(true);
+              return;
+            }
+            if (event.key === "Enter" && litRow) {
+              event.preventDefault();
+              event.stopPropagation();
+              openRow(litRow);
+              return;
+            }
+          }
           if (
             opens !== undefined &&
             event.key === "Enter" &&
@@ -489,7 +575,7 @@ export function NewChatView({
           besidePlus={
             <>
               {projectButton}
-              {opens !== undefined && (
+              {(opens !== undefined || litRow !== undefined) && (
                 <span className="text-xs whitespace-nowrap text-muted-foreground">
                   {commandEnter} sends to chat
                 </span>
@@ -498,11 +584,15 @@ export function NewChatView({
           }
           modelURI={shell.defaultModelURI}
           onGo={
-            opens === undefined
-              ? undefined
-              : () => {
-                  go(opens);
+            litRow !== undefined
+              ? () => {
+                  openRow(litRow);
                 }
+              : opens === undefined
+                ? undefined
+                : () => {
+                    go(opens);
+                  }
           }
           onFolders={(paths) => {
             for (const path of paths) {
@@ -554,6 +644,20 @@ export function NewChatView({
           places={places}
           ref={inputRef}
         />
+        {/* Under the box without moving it, so the box stays where it was
+            as the list comes and goes; over it for a box at the foot. */}
+        {pageRows.length > 0 && (
+          <NewTabPageList
+            className={cn(
+              "absolute inset-x-3",
+              isCentered ? "top-full mt-2" : "bottom-full mb-2",
+            )}
+            lit={lit}
+            onLight={light}
+            onOpen={openRow}
+            rows={pageRows}
+          />
+        )}
       </div>
       {/* As much room under the composer as over it, so it stands at the
           middle. */}

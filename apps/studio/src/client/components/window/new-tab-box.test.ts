@@ -1,7 +1,7 @@
 import { typedPathOf } from "@/client/lib/typed-path";
 import { describe, expect, it } from "vitest";
 
-import { boxOpens, siteToComplete } from "./new-tab-box";
+import { boxOpens, boxPageRows, siteToComplete } from "./new-tab-box";
 
 const visited = [
   {
@@ -82,25 +82,100 @@ describe("what Return does in a new tab's box", () => {
 });
 
 describe("the rest of a site's address a new tab's box writes in", () => {
-  it("is for a site visited more than once", () => {
-    expect(siteToComplete("git", visited)).toEqual({
-      rest: "hub.com",
-      url: "https://github.com/",
-    });
-    expect(siteToComplete("github.c", visited)?.rest).toBe("om");
+  // Newest first, as history and the bookmarks give them.
+  const pages = [
+    { title: "Examples", url: "https://examples.org/" },
+    { title: "Pull requests", url: "https://github.com/acme/app/pulls" },
+    { title: "Example Domain", url: "https://www.example.com/" },
+    { title: "Old wiki", url: "http://wiki.acme.test/" },
+  ];
+
+  it.each([
+    [
+      "the newest site the word starts",
+      "examp",
+      "les.org",
+      "https://examples.org/",
+    ],
+    [
+      "a site past where two sites part",
+      "example.",
+      "com",
+      "https://www.example.com/",
+    ],
+    ["a site visited by a page on it", "git", "hub.com", "https://github.com/"],
+    ["a site typed with www.", "www.exa", "mples.org", "https://examples.org/"],
+    ["a site on http", "wik", "i.acme.test", "http://wiki.acme.test/"],
+    ["words in another case", "GIT", "hub.com", "https://github.com/"],
+  ])("finishes %s: %j", (_what, words, rest, url) => {
+    expect(siteToComplete(words, pages)).toEqual({ rest, url });
   });
 
-  it("is nothing for a site visited once, or for words that start none", () => {
-    expect(siteToComplete("news", visited)).toBeUndefined();
-    expect(siteToComplete("hack", visited)).toBeUndefined();
-    expect(siteToComplete("zzz", visited)).toBeUndefined();
+  it.each([
+    ["words that start no site", "zzz"],
+    ["words that reach past the site into a page on it", "github.com/acme"],
+    ["words with a space", "git hub"],
+    ["a slash command", "/git"],
+    ["a site written out whole", "github.com"],
+  ])("is nothing for %s: %j", (_what, words) => {
+    expect(siteToComplete(words, pages)).toBeUndefined();
+  });
+});
+
+describe("the pages under a new tab's box", () => {
+  const pages = visited.map(({ title, url }) => ({
+    favicon: undefined,
+    title,
+    url,
+  }));
+  const rowsFor = (words: string, completedSite?: string) =>
+    boxPageRows({
+      completedSite,
+      pages,
+      path: typedPathOf(words, "darwin"),
+      words,
+    }).map((row) => `${row.kind} ${row.page.url}`);
+
+  it.each([
+    [
+      "the finished site, then the pages its address starts",
+      "git",
+      "https://github.com/",
+      [
+        "site https://github.com/",
+        "page https://github.com/acme/app/pulls",
+        "page https://github.com/acme/app/issues",
+      ],
+    ],
+    [
+      "a page whose title has a word the word starts",
+      "hack",
+      undefined,
+      ["page https://news.ycombinator.com/"],
+    ],
+    [
+      "a page whose address has a word the word starts",
+      "ycomb",
+      undefined,
+      ["page https://news.ycombinator.com/"],
+    ],
+    ["nothing for letters inside a word", "acker", undefined, []],
+    ["nothing for words with a space", "git hub", undefined, []],
+    ["nothing for a slash command", "/proj", undefined, []],
+    ["nothing for a path", "/Users/mac-user/notes.md", undefined, []],
+    ["nothing for an empty box", "", undefined, []],
+  ])("%s: %j", (_what, words, completedSite, rows) => {
+    expect(rowsFor(words, completedSite)).toEqual(rows);
   });
 
-  it("is nothing for words that reach past the site into a page on it", () => {
-    expect(siteToComplete("github.com/acme", visited)).toBeUndefined();
-  });
-
-  it("is nothing once the words have a space", () => {
-    expect(siteToComplete("git hub", visited)).toBeUndefined();
+  it("lists at most four", () => {
+    const many = Array.from({ length: 6 }, (_, at) => ({
+      favicon: undefined,
+      title: `Docs ${at}`,
+      url: `https://docs${at}.test/`,
+    }));
+    expect(
+      boxPageRows({ pages: many, path: undefined, words: "docs" }),
+    ).toHaveLength(4);
   });
 });

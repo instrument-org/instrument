@@ -1,13 +1,23 @@
 import { type TypedAddress, typedAddress } from "@/client/lib/typed-address";
 import { type TypedPath } from "@/client/lib/typed-path";
 
-import { addressCompletion, bareAddress, siteOf } from "./omnibar-match";
+import {
+  addressCompletion,
+  bareAddress,
+  type KnownPage,
+} from "./omnibar-match";
 
-/** How many visits make a site one the box completes the words to. */
-const VISITS_TO_COMPLETE = 2;
+/** How many pages the list under a new tab's box shows. */
+const MOST_PAGES_LISTED = 4;
 
-/** A page as history or the bookmarks list it. */
-type VisitedPage = { title: string; url: string };
+/** A page the box may offer, with the icon it last announced. */
+type OfferedPage = KnownPage & { favicon: string | undefined };
+
+/**
+ * A row of the list under a new tab's box: the site the box finished the
+ * words to, or a page the words find.
+ */
+export type BoxPageRow = { kind: "page" | "site"; page: OfferedPage };
 
 /** What Return opens from a new tab's box, in place of sending its words. */
 export type BoxOpens =
@@ -88,39 +98,87 @@ export function boxOpens({
 
 /**
  * The rest of a site's address for a new tab's box to write in after the
- * caret, and the address it then opens: the site history completes the
- * words to (`siteCompletion`), when the person has been to it more than
- * once, and only while the words could be an address at all. `visited` is history as it came,
- * each page with how often it was visited.
+ * caret, and the address it then opens: the site the words start, among
+ * `pages`, while the words could be an address at all. `pages` are what the
+ * address field completes to, the bookmarks and then the pages history
+ * counts as significant (typed once, visited often or lately), newest
+ * first, so the box and the address field finish the same words the same
+ * way.
  */
 export function siteToComplete(
   words: string,
-  visited: (VisitedPage & { visitCount: number })[],
+  pages: KnownPage[],
 ): undefined | { rest: string; url: string } {
-  const completion = offersToOpen(words, undefined)
-    ? siteCompletion(words, visited)
-    : undefined;
-  if (!completion) {
-    return undefined;
-  }
-  const site = siteOf(completion.url).toLowerCase();
-  const visits = visited
-    .filter((page) => siteOf(page.url).toLowerCase() === site)
-    .reduce((count, page) => count + page.visitCount, 0);
-  return visits >= VISITS_TO_COMPLETE
-    ? { rest: completion.rest, url: completion.url }
+  return offersToOpen(words, undefined)
+    ? siteCompletion(words, pages)
     : undefined;
 }
 
 /**
- * The site history completes the words to, as the address field completes
+ * The rows under a new tab's box while it holds one word with no space: the
+ * site the box finished the words to first, then the pages whose address
+ * the words start, then those with a word in their title or address the
+ * words start, each in `pages`' order, at most four. Nothing for a place on
+ * the computer, words with a space, or a slash command.
+ */
+export function boxPageRows({
+  completedSite,
+  pages,
+  path,
+  words,
+}: {
+  /** The address of the site the box finished the words to, while its rest is in the box. */
+  completedSite?: string | undefined;
+  pages: OfferedPage[];
+  path: TypedPath | undefined;
+  words: string;
+}): BoxPageRow[] {
+  if (path !== undefined || /\s/.test(words) || !offersToOpen(words, path)) {
+    return [];
+  }
+  const typed = words.toLowerCase().replace(/^www\./, "");
+  const startsAWord = (text: string) =>
+    text
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u)
+      .some((word) => word !== "" && word.startsWith(typed));
+  const leading = pages.filter((page) =>
+    bareAddress(page.url).toLowerCase().startsWith(typed),
+  );
+  const wordStarts = pages.filter(
+    (page) =>
+      !leading.includes(page) &&
+      (startsAWord(page.title) || startsAWord(bareAddress(page.url))),
+  );
+  const siteAddress =
+    completedSite === undefined ? undefined : bareAddress(completedSite);
+  const isSite = (page: OfferedPage) => bareAddress(page.url) === siteAddress;
+  const site =
+    completedSite === undefined
+      ? undefined
+      : {
+          favicon: pages.find(isSite)?.favicon,
+          title: "",
+          url: completedSite,
+        };
+  const rows: BoxPageRow[] = [
+    ...(site ? [{ kind: "site" as const, page: site }] : []),
+    ...[...leading, ...wordStarts]
+      .filter((page) => !isSite(page))
+      .map((page) => ({ kind: "page" as const, page })),
+  ];
+  return rows.slice(0, MOST_PAGES_LISTED);
+}
+
+/**
+ * The site the pages complete the words to, as the address field completes
  * them (`addressCompletion`): "git" to github.com, with the rest of its
  * address after the words. Only a site, never a page on it, and at the
  * address the person visited it by.
  */
 function siteCompletion(
   words: string,
-  pages: VisitedPage[],
+  pages: KnownPage[],
 ): undefined | { rest: string; url: string } {
   const rest = addressCompletion(words, pages);
   if (rest === "") {

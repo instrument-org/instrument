@@ -155,9 +155,9 @@ export interface WorkspaceLayoutMigration {
 //    is written only after one completes with nothing left over, so a sweep a
 //    crash cut short retries on the next boot. It also runs whenever pass 1
 //    did, since the tasks that pass moves in are legacy-shaped.
-// Synchronous, and renames rather than copies except for the browser-profile
+// Renames rather than copies except for the browser-profile
 // clones it deletes outright; no db handle open.
-export function migrateWorkspaceLayout({
+export async function migrateWorkspaceLayout({
   device,
   filesDir,
   machineDir,
@@ -175,7 +175,7 @@ export function migrateWorkspaceLayout({
   rootDir: string;
   /** Where each chat's work goes, a folder per chat. */
   workFoldersDir: string;
-}): WorkspaceLayoutMigration {
+}): Promise<WorkspaceLayoutMigration> {
   let migration: Omit<
     WorkspaceLayoutMigration,
     "appFolders" | "chatRecords" | "legacyTasks"
@@ -217,7 +217,7 @@ export function migrateWorkspaceLayout({
   const removedBrowserProfileCloneCount = normalizeTasks(rootDir, normalized);
   // After the task sweep, so each task an earlier version ran is in its
   // current shape when it is made into a chat.
-  const legacyTasks = migrateLegacyTasks(rootDir, machineDir, device);
+  const legacyTasks = await migrateLegacyTasks(rootDir, machineDir, device);
   // After the 1.x migration, which turns the projects in `projects/` into
   // projects first.
   const projectsLeft = setAsideLegacyProjectsDir({ machineDir, rootDir });

@@ -11,7 +11,7 @@ import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
 import { markCardUndone } from "../chat/card-undone";
-import { readProjectRecords } from "../chat/project-records";
+import { projectRecords, projectsStore } from "../chat/project-records";
 import {
   createProject,
   listProjects,
@@ -222,8 +222,7 @@ describe("instrument projects create", () => {
       ),
     ).toEqual([PROJECT_ID_FILE_NAME]);
     const { created: _created, ...record } =
-      readProjectRecords(getWorkspaceConfig().rootDir).get(kitchen?.id ?? "") ??
-      {};
+      projectRecords(await projectsStore()).get(kitchen?.id ?? "") ?? {};
     expect(record).toMatchInlineSnapshot(`
       {
         "about": "Recipes and meal plans",

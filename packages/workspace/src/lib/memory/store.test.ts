@@ -67,7 +67,7 @@ describe("saveMemory", () => {
     expect(await fs.readFile(saved.memory.path, "utf8")).toBe(
       "You are on Pacific time and mornings are best for calls.\n",
     );
-    expect(readMemoryRecords(dir).get("pacific-time.md")).toEqual({
+    expect((await readMemoryRecords(dir)).get("pacific-time.md")).toEqual({
       chat: "2026-10-21-roofer-call",
       updated: new Date(saved.memory.at).toISOString().replace(".000Z", "Z"),
     });
@@ -198,7 +198,7 @@ describe("forgetMemory", () => {
 
     expect(forgotten?.text).toBe("Your roofer is Dave.");
     expect(await listMemories(dir)).toEqual([]);
-    expect(readMemoryRecords(dir).has("roofer.md")).toBe(false);
+    expect((await readMemoryRecords(dir)).has("roofer.md")).toBe(false);
     expect(await forgetMemory(dir, "roofer")).toBeUndefined();
   });
 });
@@ -298,7 +298,8 @@ describe("moveMemoryFrontMatterToStore", () => {
     expect(await fs.readFile(path.join(dir, "roofer.md"), "utf8")).toBe(
       "Your roofer is Dave.\n",
     );
-    expect(Object.fromEntries(readMemoryRecords(dir))).toMatchInlineSnapshot(`
+    expect(Object.fromEntries(await readMemoryRecords(dir)))
+      .toMatchInlineSnapshot(`
       {
         "roofer.md": {
           "updated": "2026-10-22T09:00:00Z",
@@ -348,7 +349,8 @@ describe("moveMemoryFrontMatterToStore", () => {
     expect(await fs.readFile(path.join(dir, "mine.md"), "utf8")).toBe(
       "---\nat: home\n---\nKeys by the door.\n",
     );
-    expect(Object.fromEntries(readMemoryRecords(dir))).toMatchInlineSnapshot(`
+    expect(Object.fromEntries(await readMemoryRecords(dir)))
+      .toMatchInlineSnapshot(`
       {
         "gone.md": {
           "updated": "2026-09-20T10:00:00Z",

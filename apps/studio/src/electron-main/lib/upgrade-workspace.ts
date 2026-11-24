@@ -96,7 +96,7 @@ export async function upgradeWorkspace({
   markProjectFoldersSeen();
   let layoutSettled = true;
   if (inAppData) {
-    layoutSettled = upgradeAppDataLayout(deviceId, rootDir);
+    layoutSettled = await upgradeAppDataLayout(deviceId, rootDir);
   } else {
     logger.info(
       "Workspace layout migration: none for a folder the person picked",
@@ -150,13 +150,13 @@ export async function upgradeWorkspace({
   // Then every project has its record, and its `AGENTS.md` is its
   // instructions alone: what an earlier build, here or on another computer,
   // wrote over them goes into the projects store.
-  await timeBootStep("upgrade.moveProjectFrontMatterToStore", () => {
-    moveProjectFrontMatter(deviceId, rootDir);
-  });
+  await timeBootStep("upgrade.moveProjectFrontMatterToStore", () =>
+    moveProjectFrontMatter(deviceId, rootDir),
+  );
   // The folders an earlier build granted in a project's file come onto this
   // computer's permission settings, before the moves below rewrite the paths
   // those settings hold.
-  moveProjectFolderGrants(deviceId, rootDir);
+  await moveProjectFolderGrants(deviceId, rootDir);
   await timeBootStep("upgrade.moveAppFoldersToStore", () =>
     moveAppsToStore(deviceId, rootDir),
   );
@@ -263,12 +263,11 @@ function markProjectFoldersSeen() {
   }
 }
 
-function moveProjectFolderGrants(deviceId: DeviceId, rootDir: string) {
+async function moveProjectFolderGrants(deviceId: DeviceId, rootDir: string) {
   try {
-    const { moved } = moveProjectFolders({
-      device: deviceId,
+    const { moved } = await moveProjectFolders({
       machineDir: workspaceMachineDir(),
-      rootDir,
+      place: { device: deviceId, rootDir },
     });
     if (moved > 0) {
       logger.info(
@@ -472,7 +471,9 @@ async function moveFolderOut(what: string, move: () => Promise<FolderMoved>) {
  */
 async function convertProjectFiles(deviceId: DeviceId, rootDir: string) {
   try {
-    logProjectSteps(await convertProjectsToProjectFiles(rootDir, deviceId));
+    logProjectSteps(
+      await convertProjectsToProjectFiles({ device: deviceId, rootDir }),
+    );
   } catch (error) {
     captureServerException(error);
   }
@@ -484,9 +485,11 @@ async function convertProjectFiles(deviceId: DeviceId, rootDir: string) {
  * every workspace, since an earlier build on another computer writes it
  * back; a failure must not block boot, and the next launch tries again.
  */
-function moveProjectFrontMatter(deviceId: DeviceId, rootDir: string) {
+async function moveProjectFrontMatter(deviceId: DeviceId, rootDir: string) {
   try {
-    logProjectSteps(moveProjectFrontMatterToStore(rootDir, deviceId));
+    logProjectSteps(
+      await moveProjectFrontMatterToStore({ device: deviceId, rootDir }),
+    );
   } catch (error) {
     captureServerException(error);
   }
@@ -577,10 +580,13 @@ async function moveAppsToStore(deviceId: DeviceId, rootDir: string) {
  * block boot. Says whether every app folder is where this build reads it,
  * which is false when a move was left for the next boot or the upgrade threw.
  */
-function upgradeAppDataLayout(deviceId: DeviceId, rootDir: string): boolean {
+async function upgradeAppDataLayout(
+  deviceId: DeviceId,
+  rootDir: string,
+): Promise<boolean> {
   try {
     const migrationStartedAt = performance.now();
-    const migration = migrateWorkspaceLayout({
+    const migration = await migrateWorkspaceLayout({
       device: deviceId,
       machineDir: workspaceMachineDir(),
       filesDir: path.join(

@@ -14,6 +14,7 @@ import {
 } from "../../lib/chat/projects";
 import { ChangesCardSchema, markCardUndone } from "../../lib/chat/card-undone";
 import { undoProjectChanges } from "../../lib/chat/undo-project-changes";
+import { SyncedStoreBehindError } from "../../lib/synced-store/synced-store";
 import { changesTo } from "../../lib/live-changes";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { base } from "../base";
@@ -45,7 +46,6 @@ const ProjectSummarySchema = ListedProjectSchema.pick({
   id: true,
   name: true,
   retired: true,
-  unsaved: true,
 });
 
 /**
@@ -65,12 +65,15 @@ const getProjectRoute = base
     return projects.find((project) => project.id === input.projectId) ?? null;
   });
 
-/** A name a project's folder cannot take, said back as a bad request. */
-async function sayingNameErrors<T>(run: () => Promise<T>): Promise<T> {
+/** A name a project's folder cannot take, or a change to one another device may have changed, said back as a bad request. */
+async function sayingRefusals<T>(run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
-    if (error instanceof ProjectNameError) {
+    if (
+      error instanceof ProjectNameError ||
+      error instanceof SyncedStoreBehindError
+    ) {
       throw new ORPCError("BAD_REQUEST", { message: error.message });
     }
     throw error;
@@ -95,7 +98,7 @@ const createProjectRoute = base
   )
   .output(ProjectSchema)
   .handler(({ input }) =>
-    sayingNameErrors(() =>
+    sayingRefusals(() =>
       createProject({
         ...(input.color ? { color: input.color } : {}),
         ...(input.emoji ? { emoji: input.emoji } : {}),
@@ -122,7 +125,7 @@ const updateProjectRoute = base
     }),
   )
   .handler(async ({ input }) => {
-    await sayingNameErrors(() =>
+    await sayingRefusals(() =>
       updateProject(input.projectId, {
         ...(input.color === undefined ? {} : { color: input.color }),
         ...(input.emoji === undefined ? {} : { emoji: input.emoji }),
@@ -140,7 +143,7 @@ const updateProjectRoute = base
 const retireProjectRoute = base
   .input(z.object({ projectId: z.string() }))
   .handler(async ({ input }) => {
-    await retireProject(input.projectId);
+    await sayingRefusals(() => retireProject(input.projectId));
   });
 
 /**

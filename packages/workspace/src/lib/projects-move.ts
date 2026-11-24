@@ -2,11 +2,11 @@ import {
   PRIVATE_FOLDER_NAME,
   SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
-import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { type DeviceId } from "../schemas/device-id";
+import { runningPlace, type WorkspacePlace } from "./synced-store/held-stores";
+import { readText } from "./workspace-files";
 import {
   parseProjectFile,
   PROJECT_FILE_NAME,
@@ -19,10 +19,11 @@ import {
 } from "./chat/project-file";
 import {
   type ProjectRecord,
-  readProjectRecords,
+  projectRecords,
+  projectsStore,
   writeProjectRecords,
 } from "./chat/project-records";
-import { readProjectsSync, writeProjectSync } from "./chat/projects";
+import { readProjects, writeProject } from "./chat/projects";
 import { type FolderMoved, moveOutOfDataDir } from "./move-out-of-data-dir";
 import { readOldFile } from "./read-old-file";
 import { rewriteFileSync } from "./rewrite-file";
@@ -74,10 +75,9 @@ export interface ProjectFilesConverted {
  * behind either way.
  */
 export async function convertProjectsToProjectFiles(
-  rootDir: string,
-  /** The device the records are written as; the running workspace's when left out. */
-  device?: DeviceId,
+  place: WorkspacePlace = runningPlace(),
 ): Promise<ProjectFilesConverted> {
+  const { rootDir } = place;
   const converted: ProjectFilesConverted = { done: [], left: [] };
   const dir = path.join(rootDir, PROJECTS_FOLDER_NAME);
   let names: string[];
@@ -91,7 +91,7 @@ export async function convertProjectsToProjectFiles(
   for (const name of names.toSorted()) {
     const folder = path.join(dir, name);
     try {
-      const line = await convertProjectFolder(rootDir, folder, device);
+      const line = await convertProjectFolder(place, folder);
       if (line) {
         converted.done.push(line);
       }
@@ -107,9 +107,8 @@ export async function convertProjectsToProjectFiles(
  * folder there was nothing to do to.
  */
 async function convertProjectFolder(
-  rootDir: string,
+  place: WorkspacePlace,
   folder: string,
-  device: DeviceId | undefined,
 ): Promise<string | undefined> {
   const file = path.join(folder, PROJECT_FILE_NAME);
   const already = await fs
@@ -131,8 +130,8 @@ async function convertProjectFolder(
     throw new Error(`${SETTINGS_FILE_NAME} names no project`);
   }
   const name = path.basename(folder);
-  writeProjectSync(rootDir, { ...project, name }, { device, keepWords: true });
-  if (!readProjectRecords(rootDir).has(project.id)) {
+  await writeProject({ ...project, name }, { keepWords: true, place });
+  if (!projectRecords(await projectsStore(place)).has(project.id)) {
     throw new Error("its record did not read back as the project");
   }
   // The instructions, under the settings keys this build does not know: the
@@ -289,13 +288,13 @@ export async function moveTopicsToProjects(
  * `.instrument-project` before the front matter comes out, as any read in a
  * running workspace does.
  */
-export function moveProjectFrontMatterToStore(
-  rootDir: string,
-  device: DeviceId,
-): ProjectFilesConverted {
+export async function moveProjectFrontMatterToStore(
+  place: WorkspacePlace,
+): Promise<ProjectFilesConverted> {
+  const { rootDir } = place;
   const settled: ProjectFilesConverted = { done: [], left: [] };
-  const projects = readProjectsSync(rootDir, { device });
-  const records = readProjectRecords(rootDir);
+  const projects = await readProjects(place);
+  const store = await projectsStore(place);
   for (const project of projects) {
     const file = path.join(
       rootDir,
@@ -307,9 +306,8 @@ export function moveProjectFrontMatterToStore(
       let text: string;
       let at: Date;
       try {
-        // oxlint-disable-next-line studio/no-sync-content-read -- a launch step before the workspace is up, synchronous like the projects' own reads.
-        text = fsSync.readFileSync(file, "utf8");
-        at = fsSync.statSync(file).mtime;
+        text = await readText(file);
+        at = (await fs.stat(file)).mtime;
       } catch {
         continue;
       }
@@ -317,9 +315,12 @@ export function moveProjectFrontMatterToStore(
       if (stripped === undefined) {
         continue;
       }
-      const record = records.get(project.id);
+      // What the file says goes over the record as every device has it, or
+      // waits for the next launch.
+      await store.caughtUp();
+      const record = projectRecords(store).get(project.id);
       if (record) {
-        writeProjectRecords(rootDir, device, [
+        await writeProjectRecords(store, [
           {
             at: at.getTime(),
             id: project.id,
@@ -327,11 +328,11 @@ export function moveProjectFrontMatterToStore(
           },
         ]);
       }
-      if (!readProjectRecords(rootDir).has(project.id)) {
+      if (!projectRecords(store).has(project.id)) {
         throw new Error("its record is not in the projects store");
       }
       if (stripped === "") {
-        fsSync.rmSync(file, { force: true });
+        await fs.rm(file, { force: true });
       } else {
         rewriteFileSync(
           file,

@@ -27,9 +27,9 @@ import {
   type Project,
   type ProjectFolder,
   projectName,
-  readProjectsSync,
+  readProjects,
   unusedProjectName,
-  writeProjectSync,
+  writeProject,
 } from "./chat/projects";
 import { addProjectFoldersSync } from "./permissions/project-folders";
 import { readStoreCopy } from "./read-store-copy";
@@ -37,6 +37,8 @@ import { forgetChatFolders } from "./record-folders";
 import { isRecord } from "./skills";
 import { STORE_TABLE, writeStoreRowsSync } from "./store-table";
 import { StorageKey } from "./storage-key";
+import { projectsStore } from "./chat/project-records";
+import { runningPlace, type WorkspacePlace } from "./synced-store/held-stores";
 import { legacyProjectsDir, workspaceLayout } from "./workspace-layout";
 
 // What the move leaves behind is kept in the workspace's set-aside folder, so a
@@ -129,7 +131,7 @@ interface StoreRow {
  * version, and decides from the data: a task under `tasks/` that no chat
  * started is one to adopt, and 1.x's `projects/` holding a project is one
  * to turn into a project.
- * Synchronous and file-level, with no store open and no workspace config.
+ * File-level, with no chat store open and no workspace config.
  * A 1.x project's folders are granted under its project in this computer's
  * permission settings, in `machineDir`, since each names a path here.
  *
@@ -139,12 +141,13 @@ interface StoreRow {
  * chat is listed half made, and a boot cut short part way finishes the chat
  * it left.
  */
-export function migrateLegacyTasks(
+export async function migrateLegacyTasks(
   rootDir: string,
   machineDir: string,
   /** The device the projects it makes are written as; the running workspace's when left out. */
-  device?: DeviceId,
-): LegacyTasksMigration {
+  device: DeviceId = runningPlace().device,
+): Promise<LegacyTasksMigration> {
+  const place = { device, rootDir };
   const migration: LegacyTasksMigration = {
     adoptedCount: 0,
     emptyCount: 0,
@@ -173,16 +176,15 @@ export function migrateLegacyTasks(
 
   const legacyProjects = readLegacyProjects(rootDir);
   const projectOf = new Map<string, string>();
-  const projects = readProjectsSync(rootDir, { device });
+  const projects = await readProjects(place);
   const legacyIds = new Set(legacyProjects.map((each) => each.id));
   for (const legacyProject of legacyProjects) {
     try {
-      const project = projectForLegacy({
-        device,
+      const project = await projectForLegacy({
         legacy: legacyProject,
         legacyIds,
+        place,
         projects,
-        rootDir,
       });
       addProjectFoldersSync({
         machineDir,
@@ -906,20 +908,18 @@ function storedValue(blob: null | Uint8Array): unknown {
  * project's id. Asking again for the same 1.x project changes nothing, since
  * what it would add is already there.
  */
-function projectForLegacy({
-  device,
+async function projectForLegacy({
   legacy,
   legacyIds,
+  place,
   projects,
-  rootDir,
 }: {
-  device: DeviceId | undefined;
   legacy: LegacyProject;
   /** Every 1.x project's id, each of which names a project made from it. */
   legacyIds: Set<string>;
+  place: WorkspacePlace;
   projects: Project[];
-  rootDir: string;
-}): { id: string; made: boolean } {
+}): Promise<{ id: string; made: boolean }> {
   // Its own project first, from an earlier boot: one made under its id, or
   // one a build that called projects topics made from it or joined to it,
   // naming it in `projectId`. Otherwise one of the user's of the same name,
@@ -957,7 +957,9 @@ function projectForLegacy({
             }
           : {}),
       };
-      writeProjectSync(rootDir, next, { device });
+      // Over the record as every device has it, or at a later boot.
+      await (await projectsStore(place)).caughtUp();
+      await writeProject(next, { place });
       projects[index] = next;
     }
     return { id: existing.id, made: false };
@@ -972,7 +974,7 @@ function projectForLegacy({
       projects.map((known) => known.name),
     ),
   };
-  writeProjectSync(rootDir, project, { device });
+  await writeProject(project, { place });
   projects.push(project);
   return { id: project.id, made: true };
 }

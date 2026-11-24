@@ -20,6 +20,11 @@ import {
 } from "@/client/hooks/use-open-target";
 import { rpcClient } from "@/client/rpc/client";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
+import {
+  bookmarksToOpen,
+  useOpenAllBookmarks,
+} from "@/client/bookmarks/open-address";
+import { commandKeyHeld } from "@/client/lib/utils";
 import { bookmarksStateAtom } from "@/client/bookmarks/store";
 import {
   type Bookmark,
@@ -254,4 +259,73 @@ export function NewFolderItem({ onSelect }: { onSelect: () => void }) {
       <span>New Folder…</span>
     </ContextMenuItem>
   );
+}
+
+/**
+ * A folder's Open All (N) and Open All in New Window, by the folder's id or
+ * All Bookmarks' (`bookmarksToOpen`): its bookmarks as one new tab group,
+ * up here or as a window of its own. Both are off for a folder with no
+ * bookmark directly in it.
+ */
+export function OpenAllItems({ of }: { of: string }) {
+  const state = useAtomValue(bookmarksStateAtom);
+  const openAll = useOpenAllBookmarks();
+  const bookmarks = bookmarksToOpen(state, of);
+  const count = bookmarks.length;
+  return (
+    <>
+      <ContextMenuItem
+        disabled={count === 0}
+        onClick={() => {
+          openAll(bookmarks, "group");
+        }}
+      >
+        <span className="size-4" />
+        <span>
+          {count === 0 ? "Open All" : `Open All (${count.toString()})`}
+        </span>
+      </ContextMenuItem>
+      <ContextMenuItem
+        disabled={count === 0}
+        onClick={() => {
+          openAll(bookmarks, "window");
+        }}
+      >
+        <span className="size-4" />
+        <span>Open All in New Window</span>
+      </ContextMenuItem>
+    </>
+  );
+}
+
+const MIDDLE_BUTTON = 1;
+
+/**
+ * What a press on a folder of the bar does beyond opening its menu, as in
+ * Chrome: a middle click or a Cmd-click opens every bookmark directly in it
+ * (`openAll`). The folder keeps its menu shut on a Cmd-press itself, where
+ * the menu opens on the pointer going down.
+ */
+export function folderClicks(openAll: () => void) {
+  return {
+    onAuxClick: (event: React.MouseEvent) => {
+      if (event.button !== MIDDLE_BUTTON) {
+        return;
+      }
+      event.preventDefault();
+      openAll();
+    },
+    onClick: (event: React.MouseEvent) => {
+      if (commandKeyHeld(event)) {
+        event.preventDefault();
+        openAll();
+      }
+    },
+    /** The middle button's own answer, scrolling, kept from starting. */
+    onMouseDown: (event: React.MouseEvent) => {
+      if (event.button === MIDDLE_BUTTON) {
+        event.preventDefault();
+      }
+    },
+  };
 }

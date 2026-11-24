@@ -1,10 +1,19 @@
 import {
+  type OpenAllTab,
   type OpenOptions,
   useWindow,
+  WindowContext,
 } from "@/client/components/window/context";
 import { isGroupScreenHref } from "@/client/components/window/group-screen";
 import { matchScreen } from "@/client/components/window/window-href";
+import {
+  type Bookmark,
+  type Bookmarks,
+  OTHER_ROOT,
+  rootItems,
+} from "@/shared/bookmarks";
 import { isScreenName, SCREENS } from "@/shared/instrument-screens";
+import { useContext } from "react";
 
 import { type AddressTarget, hrefOfPath, targetOfAddress } from "./address";
 
@@ -91,5 +100,49 @@ export function useOpenAddress(
         appWindow.openScreen(href, options);
       },
     });
+  };
+}
+
+/**
+ * What a folder's Open All opens, by the folder's id or All Bookmarks'
+ * (`OTHER_ROOT`): the bookmarks directly in it, in order, and none in a
+ * folder inside it, as Chrome opens a folder's.
+ */
+export function bookmarksToOpen(state: Bookmarks, of: string): Bookmark[] {
+  if (of === OTHER_ROOT) {
+    return rootItems(state, OTHER_ROOT).flatMap((item) =>
+      item.kind === "bookmark" ? [item.bookmark] : [],
+    );
+  }
+  for (const root of [undefined, OTHER_ROOT] as const) {
+    const found = rootItems(state, root).find(
+      (item) => item.kind === "folder" && item.folder.id === of,
+    );
+    if (found?.kind === "folder") {
+      return found.items;
+    }
+  }
+  return [];
+}
+
+/** The tab an address is among several opened together (`openAll`): a site's page, or the screen of the app's own it names. */
+export function openAllTabOf(address: string): OpenAllTab | undefined {
+  const target = targetOfAddress(address);
+  if (!target) {
+    return undefined;
+  }
+  return target.kind === "page"
+    ? { kind: "page", url: target.url }
+    : { href: hrefOfTarget(target), kind: "screen" };
+}
+
+/** Opens bookmarks as one new tab group, up in this window or as a window of its own: a folder's Open All. Nothing outside a window. */
+export function useOpenAllBookmarks() {
+  const appWindow = useContext(WindowContext);
+  return (bookmarks: readonly Bookmark[], into: "group" | "window") => {
+    appWindow?.openAll?.(
+      bookmarks.flatMap((bookmark) => openAllTabOf(bookmark.url) ?? []),
+      into,
+    );
   };
 }

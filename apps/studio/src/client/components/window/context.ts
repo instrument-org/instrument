@@ -84,6 +84,11 @@ export function asksOwnPlace(options?: OpenOptions): boolean {
   return ownPlaceOf(options) !== undefined;
 }
 
+/** One tab of several opened together (`WindowContextValue.openAll`): a site, or a screen of the app's own. */
+export type OpenAllTab =
+  | { kind: "page"; url: string }
+  | { href: string; kind: "screen" };
+
 /** What every screen of the window shares. */
 export interface WindowContextValue {
   /** Opens a draft of a new chat with the line already in it, to be read and sent by the person; inside a chat, sends the line there. */
@@ -95,6 +100,12 @@ export interface WindowContextValue {
    * file with no chat beside it; inside a draft, moves them into that one.
    */
   moveAsksToDraft?: (ids: string[]) => void;
+  /**
+   * Opens several things as one new tab group, up in this window or as a
+   * window of its own: a tab each, in the order given, the first up. What a
+   * bookmark folder's Open All asks.
+   */
+  openAll?: (tabs: readonly OpenAllTab[], into: "group" | "window") => void;
   /** Navigates this surface's tab, and a conversation opens a tab of its own beside it; `newTab` asks for a tab of the window's own from either. */
   openPage: (url: string, options?: OpenOptions) => void;
   /** Opens a path the conversation named: a file in its viewer, a folder as the folder view standing in it. */

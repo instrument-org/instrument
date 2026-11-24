@@ -806,7 +806,7 @@ function WindowShell({
 
   const appsBySlug = useAppsBySlug();
   const tabTitle = useTabTitle(chatTitles);
-  const { openNamedPath, openPage, openScreen } = useOpeners({
+  const { openAll, openNamedPath, openPage, openScreen } = useOpeners({
     appsBySlug,
     appTabs,
     browser,
@@ -1709,6 +1709,7 @@ function WindowShell({
         moveAsksToDraft: (askIds) => {
           moveAsks(askIds, { draftId: draftWith(), kind: "draft" });
         },
+        openAll,
         openPage,
         openPath: openNamedPath,
         openScreen,

@@ -1,6 +1,10 @@
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
-import { useOpenAddress } from "@/client/bookmarks/open-address";
+import {
+  bookmarksToOpen,
+  useOpenAddress,
+  useOpenAllBookmarks,
+} from "@/client/bookmarks/open-address";
 import {
   type ClipItem,
   clipOf,
@@ -114,6 +118,7 @@ export function BookmarksPage({
   const picked = rows.filter((row) => selection.ids.has(row.id));
   const openAddress = useOpenAddress();
   const placesOf = useWindowPlaces();
+  const openAll = useOpenAllBookmarks();
   const list = useRef<HTMLDivElement>(null);
 
   const select = (next: Selection) => {
@@ -246,6 +251,28 @@ export function BookmarksPage({
     setSelection({ anchor: row.id, ids: new Set([row.id]) });
   };
 
+  /** A folder's or All Bookmarks' Open All (N) and Open All in New Window, off where nothing is directly in it (`bookmarksToOpen`). */
+  const openAllItems = (of: string): RowMenuItem[] => {
+    const bookmarks = bookmarksToOpen(state, of);
+    const count = bookmarks.length;
+    return [
+      {
+        disabled: count === 0,
+        label: count === 0 ? "Open All" : `Open All (${count.toString()})`,
+        run: () => {
+          openAll(bookmarks, "group");
+        },
+      },
+      {
+        disabled: count === 0,
+        label: "Open All in New Window",
+        run: () => {
+          openAll(bookmarks, "window");
+        },
+      },
+    ];
+  };
+
   const menuOf = (row: OutlineRow): RowMenuItem[] => {
     if (row.kind === "root") {
       return [
@@ -260,12 +287,7 @@ export function BookmarksPage({
               "separator" as const,
             ]
           : []),
-        {
-          label: "Open All in New Tabs",
-          run: () => {
-            openInNewTabs([row]);
-          },
-        },
+        ...openAllItems(OTHER_ROOT),
       ];
     }
     const targets = actingOn(row);
@@ -335,17 +357,19 @@ export function BookmarksPage({
       "separator",
       ...(opens.length > 0
         ? opens.map((place) => ({ label: place.label, run: place.run }))
-        : [
-            {
-              label:
-                pages.length === targets.length && targets.length > 1
-                  ? `Open All (${targets.length.toString()}) in New Tabs`
-                  : "Open All in New Tabs",
-              run: () => {
-                openInNewTabs(targets);
+        : isOne && row.kind === "folder"
+          ? openAllItems(row.folder.id)
+          : [
+              {
+                label:
+                  pages.length === targets.length && targets.length > 1
+                    ? `Open All (${targets.length.toString()}) in New Tabs`
+                    : "Open All in New Tabs",
+                run: () => {
+                  openInNewTabs(targets);
+                },
               },
-            },
-          ]),
+            ]),
     ];
   };
 
@@ -840,7 +864,12 @@ function OutlineRowView({
 /** One line of a row's menu, or a rule between groups of them. */
 type RowMenuItem =
   | "separator"
-  | { destructive?: boolean; label: string; run: () => void };
+  | {
+      destructive?: boolean;
+      disabled?: boolean;
+      label: string;
+      run: () => void;
+    };
 
 /** A row's menu, written once for its ⋮ and its right click. */
 function RowMenu({
@@ -856,6 +885,7 @@ function RowMenu({
       <Separator key={`rule-${index.toString()}`} />
     ) : (
       <Item
+        disabled={item.disabled}
         key={item.label}
         onSelect={item.run}
         variant={item.destructive ? "destructive" : "default"}

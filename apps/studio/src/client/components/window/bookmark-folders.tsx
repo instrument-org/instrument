@@ -1,4 +1,9 @@
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
+import {
+  bookmarksToOpen,
+  useOpenAllBookmarks,
+} from "@/client/bookmarks/open-address";
+import { bookmarksStateAtom } from "@/client/bookmarks/store";
 import { Button } from "@/client/components/ui/button";
 import {
   ContextMenu,
@@ -23,16 +28,18 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { Input } from "@/client/components/ui/input";
-import { cn } from "@/client/lib/utils";
+import { cn, commandKeyHeld } from "@/client/lib/utils";
 import {
   type BarItem,
   type Bookmark,
   type BookmarkFolder,
+  OTHER_ROOT,
   OTHER_ROOT_TITLE,
 } from "@/shared/bookmarks";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { XCircleIcon } from "@phosphor-icons/react/XCircle";
+import { useStore } from "jotai";
 import { useRef, useState } from "react";
 
 import { AddressMark } from "./app-chip";
@@ -43,6 +50,8 @@ import {
   type OpenAddress,
   ShowBookmarksBarItem,
   bookmarkClicks,
+  folderClicks,
+  OpenAllItems,
 } from "./bookmark-menu";
 import { DROP_TONE } from "./drag/tone";
 import { pressBookmark, pressFolder } from "./drag/press-bookmark";
@@ -55,10 +64,11 @@ import { bookmarkName } from "./web-start";
 /**
  * A folder on the bookmarks bar, as a browser's bar has them: a press opens
  * a menu of the bookmarks in it, and while one folder's menu is open,
- * moving onto another folder opens that one's instead (`onHover`). A right
- * click offers to rename it, delete it, or make another folder. While
- * something is held over its middle it is lit, and letting go there files
- * it in the folder (`useBookmarksTarget`).
+ * moving onto another folder opens that one's instead (`onHover`). A middle
+ * click or a Cmd-click opens every bookmark in it (`folderClicks`). A right
+ * click offers to open them all, rename it, delete it, or make another
+ * folder. While something is held over its middle it is lit, and letting
+ * go there files it in the folder (`useBookmarksTarget`).
  */
 export function FolderChip({
   folder,
@@ -89,6 +99,8 @@ export function FolderChip({
 }) {
   const edits = useBookmarkFolders();
   const renaming = useRef(false);
+  const store = useStore();
+  const openAll = useOpenAllBookmarks();
   return (
     <DropdownMenu modal={false} onOpenChange={onOpenChange} open={isOpen}>
       <ContextMenu>
@@ -102,7 +114,18 @@ export function FolderChip({
             )}
             data-bookmark-folder={folder.id}
             data-bookmark-id={folder.id}
+            {...folderClicks(() => {
+              openAll(
+                bookmarksToOpen(store.get(bookmarksStateAtom), folder.id),
+                "group",
+              );
+            })}
             onPointerDown={(event) => {
+              // A Cmd-press opens the bookmarks, and the menu, which opens
+              // as the pointer goes down, stays shut.
+              if (commandKeyHeld(event)) {
+                event.preventDefault();
+              }
               pressFolder(event, folder);
             }}
             onPointerEnter={onHover}
@@ -122,6 +145,8 @@ export function FolderChip({
             }
           }}
         >
+          <OpenAllItems of={folder.id} />
+          <ContextMenuSeparator />
           <ContextMenuItem
             onClick={() => {
               renaming.current = true;
@@ -296,7 +321,11 @@ export function BookmarkNameDialog({
   );
 }
 
-/** A folder past the bar's end, in the menu under the chevron: a submenu of the bookmarks in it. */
+/**
+ * A folder in a menu of the bar's, past the bar's end under the chevron or
+ * in All Bookmarks: a submenu of the bookmarks in it, with Open All on a
+ * right click.
+ */
 export function OverflowFolder({
   folder,
   items,
@@ -308,10 +337,17 @@ export function OverflowFolder({
 }) {
   return (
     <DropdownMenuSub>
-      <DropdownMenuSubTrigger>
-        <FolderSimpleIcon className="size-4" />
-        <span className="min-w-0 truncate">{folder.title}</span>
-      </DropdownMenuSubTrigger>
+      <ContextMenu>
+        <ContextMenuTrigger asChild>
+          <DropdownMenuSubTrigger>
+            <FolderSimpleIcon className="size-4" />
+            <span className="min-w-0 truncate">{folder.title}</span>
+          </DropdownMenuSubTrigger>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="min-w-52">
+          <OpenAllItems of={folder.id} />
+        </ContextMenuContent>
+      </ContextMenu>
       <DropdownMenuSubContent className="max-w-72 min-w-48">
         {items.length === 0 ? (
           <DropdownMenuItem disabled>
@@ -340,8 +376,9 @@ export function OverflowFolder({
  * bookmarks filed in it and a bookmark opening as one on the bar does
  * (`bookmarkClicks`) with the bar's menu for a bookmark on a right click.
  * While a folder's menu is open, moving onto it opens this one instead
- * (`onHover`). A right click on it offers the Bookmarks page and the bar's
- * switch.
+ * (`onHover`). A middle click or a Cmd-click opens the bookmarks directly
+ * in it (`folderClicks`), and a right click offers that too, the Bookmarks
+ * page and the bar's switch.
  */
 export function OtherBookmarksChip({
   isOpen,
@@ -357,6 +394,8 @@ export function OtherBookmarksChip({
   onOpenChange: (open: boolean) => void;
   open: OpenAddress;
 }) {
+  const store = useStore();
+  const openAll = useOpenAllBookmarks();
   return (
     <DropdownMenu modal={false} onOpenChange={onOpenChange} open={isOpen}>
       <ContextMenu>
@@ -364,6 +403,17 @@ export function OtherBookmarksChip({
           <DropdownMenuTrigger
             className="flex h-6 max-w-40 shrink-0 cursor-default items-center gap-1.5 rounded-md px-1.5 text-xs text-foreground/80 hover:bg-foreground/8 hover:text-foreground data-[state=open]:bg-foreground/8"
             data-other-bookmarks=""
+            {...folderClicks(() => {
+              openAll(
+                bookmarksToOpen(store.get(bookmarksStateAtom), OTHER_ROOT),
+                "group",
+              );
+            })}
+            onPointerDown={(event) => {
+              if (commandKeyHeld(event)) {
+                event.preventDefault();
+              }
+            }}
             onPointerEnter={onHover}
             title={OTHER_ROOT_TITLE}
           >
@@ -372,6 +422,8 @@ export function OtherBookmarksChip({
           </DropdownMenuTrigger>
         </ContextMenuTrigger>
         <ContextMenuContent className="min-w-52">
+          <OpenAllItems of={OTHER_ROOT} />
+          <ContextMenuSeparator />
           <ManageBookmarksItem />
           <ContextMenuSeparator />
           <ShowBookmarksBarItem />

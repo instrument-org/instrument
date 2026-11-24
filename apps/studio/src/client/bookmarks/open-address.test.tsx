@@ -1,13 +1,14 @@
 import { bookmarkClicks } from "@/client/components/window/bookmark-menu";
 import { type OpenOptions } from "@/client/components/window/context";
 import { useWindowPlaces } from "@/client/hooks/use-open-target";
+import { type Bookmarks, OTHER_ROOT } from "@/shared/bookmarks";
 import { fileHref, folderHref } from "@/shared/computer-href";
 import { renderHook } from "@testing-library/react";
 import { type MouseEvent } from "react";
 import { describe, expect, it } from "vitest";
 
 import { fileAddressOf } from "./address";
-import { openAddressBy } from "./open-address";
+import { bookmarksToOpen, openAddressBy, openAllTabOf } from "./open-address";
 
 /** One bookmark of each kind, and where a tab showing it stands. */
 const BOOKMARKS = [
@@ -144,4 +145,64 @@ it("opens a page to a place in a file's page as that page", () => {
   expect(calls).toEqual([
     ["load here", "file:///Users/mac-user/Site/index.html#intro"],
   ]);
+});
+
+describe("openAllTabOf", () => {
+  it.each(BOOKMARKS)("opens a $kind at the tab that shows it", (bookmark) => {
+    const tab = openAllTabOf(bookmark.address);
+    expect(tab?.kind === "page" ? tab.url : tab?.href).toBe(bookmark.lands);
+  });
+});
+
+describe("bookmarksToOpen", () => {
+  const STATE: Bookmarks = {
+    bookmarks: [
+      {
+        folder: "work",
+        id: "b",
+        order: 1,
+        title: "B",
+        url: "https://b.example/",
+      },
+      {
+        folder: "work",
+        id: "a",
+        order: 0,
+        title: "A",
+        url: "https://a.example/",
+      },
+      { id: "bar", order: 0, title: "Bar", url: "https://bar.example/" },
+      {
+        id: "loose",
+        order: 0,
+        root: OTHER_ROOT,
+        title: "Loose",
+        url: "https://loose.example/",
+      },
+      {
+        folder: "trips",
+        id: "t",
+        order: 0,
+        title: "T",
+        url: "https://t.example/",
+      },
+    ],
+    folders: [
+      { id: "work", order: 1, title: "Work" },
+      { id: "trips", order: 1, root: OTHER_ROOT, title: "Trips" },
+      { id: "empty", order: 2, title: "Empty" },
+    ],
+  };
+  const ids = (of: string) => bookmarksToOpen(STATE, of).map((each) => each.id);
+
+  it.each([
+    { has: ["a", "b"], of: "work" },
+    { has: ["t"], of: "trips" },
+    { has: [], of: "empty" },
+    { has: [], of: "gone" },
+    // A folder inside All Bookmarks keeps its own, as Chrome opens a folder's.
+    { has: ["loose"], of: OTHER_ROOT },
+  ])("opens $has from $of", ({ has, of }) => {
+    expect(ids(of)).toEqual(has);
+  });
 });

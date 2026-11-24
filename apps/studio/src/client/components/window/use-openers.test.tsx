@@ -1,5 +1,8 @@
 import { TabIdSchema } from "@/shared/tabs";
-import { type WindowTabRequest } from "@instrument-org/workspace/client";
+import {
+  StoreId,
+  type WindowTabRequest,
+} from "@instrument-org/workspace/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { createStore, Provider } from "jotai";
@@ -9,6 +12,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { closeTabGroup } from "@/client/lib/tabs-model";
 
 import { appTabsAtom, useAppTabs } from "./app-tabs";
+import { type BrowserTabsHandle } from "./browser-tabs";
 import { windowTabGroupsAtom } from "./open-groups";
 import { openLinkAddress } from "./open-link-address";
 import { useOpeners } from "./use-openers";
@@ -133,7 +137,12 @@ const OTHER_BEHIND = "tab_b_behind";
  * A window on a group of two sides: the person in the chat on the left, a
  * page up on the right with another waiting behind it.
  */
-function windowOnTwoSides() {
+function windowOnTwoSides({
+  browser = null,
+  newGroup = () => GROUP,
+}: Partial<
+  Pick<Parameters<typeof useOpeners>[0], "browser" | "newGroup">
+> = {}) {
   const store = createStore();
   const queryClient = new QueryClient();
   const { result } = renderHook(
@@ -143,7 +152,7 @@ function windowOnTwoSides() {
       const openers = useOpeners({
         appsBySlug: new Map(),
         appTabs,
-        browser: null,
+        browser,
         chatTitles: new Map(),
         closedEntryOf: () => spies.closedEntry.current,
         closeGroup: spies.closeGroup,
@@ -151,7 +160,7 @@ function windowOnTwoSides() {
         groupTabs: spies.groupTabs,
         isOpen: true,
         moveTabs: spies.moveTabs,
-        newGroup: () => GROUP,
+        newGroup,
         openChat: () => {},
         reopenClosed: spies.reopenClosed,
         showGroup: spies.showGroup,
@@ -554,5 +563,108 @@ describe("an agent tidying tabs and reading History", () => {
     expect((refused as { error?: string }).error).toContain(
       "nothing in History is closed_nope",
     );
+  });
+});
+
+describe("opening a bookmark folder's bookmarks together", () => {
+  const NEW_GROUP = "group_new";
+  /** A window whose new groups are filled at once, and whose browser says each page it opens. */
+  function windowOpeningAll() {
+    const opened: string[] = [];
+    const made: ({ isShownHere?: boolean } | undefined)[] = [];
+    // Each page's tab by its address, which the next one is said to follow.
+    const pages = new Map<string, string>();
+    const open: BrowserTabsHandle["open"] = (url = "", options) => {
+      const id = StoreId.newTabId();
+      const after =
+        options?.after === undefined
+          ? "nothing"
+          : (pages.get(options.after) ?? options.after);
+      opened.push(
+        `page ${url} in ${options?.group ?? "?"} after ${after}${options?.show === true ? ", up" : ""}`,
+      );
+      pages.set(id, url);
+      return id;
+    };
+    const { result, store } = windowOnTwoSides({
+      // Only `open` is reached by what these open; the rest of the handle
+      // is the mounted browser's, which no test here draws.
+      browser: { open } as unknown as BrowserTabsHandle,
+      newGroup: (fill, options) => {
+        made.push(options);
+        fill(NEW_GROUP);
+        return NEW_GROUP;
+      },
+    });
+    return { made, opened, result, store };
+  }
+
+  it("opens each right after the one before, in one new group, the first up", () => {
+    const { made, opened, result, store } = windowOpeningAll();
+    act(() => {
+      result.current.openers.openAll(
+        [
+          { kind: "page", url: "https://a.example/" },
+          { href: "/apps/github", kind: "screen" },
+          // A group is no tab's, so it is left out.
+          { href: groupHref(OTHER_GROUP), kind: "screen" },
+          { kind: "page", url: "https://b.example/" },
+        ],
+        "group",
+      );
+    });
+    const app = store
+      .get(windowTabsAtom)
+      .tabs.find((tab) => tab.group === NEW_GROUP);
+    const { id, ...rest } = app ?? { id: "none" };
+    expect({
+      app: rest,
+      made,
+      opened: opened.map((line) => line.replace(id, "the app's tab")),
+    }).toMatchInlineSnapshot(`
+      {
+        "app": {
+          "group": "group_new",
+          "href": "/apps/github",
+          "isOpened": true,
+          "kind": "screen",
+        },
+        "made": [
+          undefined,
+        ],
+        "opened": [
+          "page https://a.example/ in group_new after nothing, up",
+          "page https://b.example/ in group_new after the app's tab",
+        ],
+      }
+    `);
+    expect(spies.showGroup).not.toHaveBeenCalledWith(NEW_GROUP, {
+      newWindow: true,
+    });
+  });
+
+  it("makes the group for a window of its own in New Window", () => {
+    const { made, result } = windowOpeningAll();
+    act(() => {
+      result.current.openers.openAll(
+        [{ kind: "page", url: "https://a.example/" }],
+        "window",
+      );
+    });
+    expect(made).toEqual([{ isShownHere: false }]);
+    expect(spies.showGroup).toHaveBeenCalledWith(NEW_GROUP, {
+      newWindow: true,
+    });
+  });
+
+  it("makes no group where nothing can stand in one", () => {
+    const { made, result } = windowOpeningAll();
+    act(() => {
+      result.current.openers.openAll(
+        [{ href: groupHref(OTHER_GROUP), kind: "screen" }],
+        "group",
+      );
+    });
+    expect(made).toEqual([]);
   });
 });

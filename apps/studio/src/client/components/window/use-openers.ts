@@ -28,7 +28,7 @@ import { toast } from "@/client/lib/toast";
 import { isSiteGroup, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
-import { type OpenOptions } from "./context";
+import { type OpenAllTab, type OpenOptions } from "./context";
 import { opensBeside } from "./beside-chat";
 import { bringForwardShowing } from "./built-in-pages";
 import { isInVersionsFolder, versionHref } from "./file-versions";
@@ -233,6 +233,41 @@ export function useOpeners({
     const there = here === 1 ? 0 : 1;
     const up = layout.sides.length === 2 ? layout.sides[there]?.up : undefined;
     put({ ...(up === undefined ? {} : { after: up }), group, side: there });
+  };
+  /**
+   * Opens several things as one new tab group (`openInto`), up here or as a
+   * window of its own: each right after the one before, the first up. A
+   * screen no group's tab can stand at, nor a chat, is left out.
+   */
+  const openAll = (tabs: readonly OpenAllTab[], into: "group" | "window") => {
+    const standing = tabs.filter(
+      (tab) =>
+        tab.kind === "page" ||
+        isGroupScreenHref(tab.href) ||
+        matchScreen(tab.href).kind === "chat",
+    );
+    if (standing.length === 0) {
+      return;
+    }
+    openInto({ into }, ({ group }) => {
+      let after: string | undefined;
+      for (const [index, tab] of standing.entries()) {
+        const place = { ...(after === undefined ? {} : { after }), group };
+        const isFirst = index === 0;
+        after =
+          tab.kind === "page"
+            ? (browser?.open(tab.url, {
+                ...place,
+                behind: !isFirst,
+                show: isFirst,
+              }) ?? after)
+            : (windowTabs.openScreen(tab.href, {
+                ...place,
+                isOpened: true,
+                select: isFirst,
+              }) ?? after);
+      }
+    });
   };
   /** Brings a group on screen for something shown into it from outside it. */
   const bringUp = (group: string) => {
@@ -1381,6 +1416,7 @@ export function useOpeners({
   // Steady, so what they are handed to (the command menu, every screen's
   // window context) is not drawn again each time the window is.
   return useSteadyCallbacks({
+    openAll,
     openNamedPath,
     openPage,
     openScreen: (href: string, options?: OpenOptions) => {

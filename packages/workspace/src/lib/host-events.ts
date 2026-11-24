@@ -1,5 +1,5 @@
 import { publisher } from "../rpc/publisher";
-import { subscribeApps } from "./apps/store";
+import { changesTo } from "./live-changes";
 
 /**
  * What the host app hears from the workspace, without reaching its event
@@ -9,42 +9,6 @@ import { subscribeApps } from "./apps/store";
  * (`appChanged`).
  */
 
-/** The subscription to the apps store that says its changes, and how many listen to it. */
-let storeChanges: { listening: number; stop: Promise<() => void> } | undefined;
-
-/**
- * Says each change to the apps store, made here or arriving from another
- * device, as one app change, however many listen: every listener hears the
- * bus, so a subscription each would say one change once per listener.
- * Returns the stop, which may be called more than once.
- */
-function sayAppStoreChanges(): () => void {
-  storeChanges ??= {
-    listening: 0,
-    stop: subscribeApps(() => {
-      publisher.publish("app.updated", null);
-    }).catch(() => () => undefined),
-  };
-  const held = storeChanges;
-  held.listening += 1;
-  let isStopped = false;
-  return () => {
-    if (isStopped) {
-      return;
-    }
-    isStopped = true;
-    held.listening -= 1;
-    if (held.listening === 0) {
-      void held.stop.then((stop) => {
-        stop();
-      });
-      if (storeChanges === held) {
-        storeChanges = undefined;
-      }
-    }
-  };
-}
-
 /**
  * Fires each time the workspace's apps change, until `signal` aborts: what
  * the app did to one, and while anyone listens, any change to the apps store,
@@ -52,16 +16,7 @@ function sayAppStoreChanges(): () => void {
  * needs.
  */
 export function appListChanges(signal: AbortSignal | undefined) {
-  const changes = publisher.subscribe("app.updated", { signal });
-  const stop = sayAppStoreChanges();
-  signal?.addEventListener("abort", stop, { once: true });
-  return (async function* () {
-    try {
-      yield* changes;
-    } finally {
-      stop();
-    }
-  })();
+  return changesTo("app.updated", signal);
 }
 
 /** Fires each time the app directory changes, until `signal` aborts. */

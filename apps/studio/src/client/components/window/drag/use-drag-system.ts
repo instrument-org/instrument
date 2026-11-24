@@ -25,7 +25,6 @@ import {
   type GroupTabLanding,
   groupOfWholeKey,
   type IncomingTab,
-  neighborAt,
 } from "@/shared/tabs";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import { useEffect, useLayoutEffect, useRef } from "react";
@@ -34,6 +33,7 @@ import { type BrowserTabsHandle } from "../browser-tabs";
 import { segmentsOf } from "../host-path";
 import { settleTabMove } from "../move-tab";
 import { stripKeyOf } from "../pane-tabs";
+import { nextUpAfter, NO_OPENERS } from "../tab-openers";
 import { useTabTitle } from "../tab-title";
 import { fillRoom, ROW_GAP_PX } from "../sidebar-drop";
 import {
@@ -559,15 +559,12 @@ function useCarrier() {
   ): Carry => {
     const state = store.get(windowTabsAtom);
     const isOnlyTab = holdsOnly(held.group, tabsIn(state, held.group), open);
-    const order = (
-      groupLayoutOf(state, held.group).sides[held.side]?.tabs ?? []
-    ).map(stripKeyOf);
     const select = (key: string) => {
       const id = store
         .get(windowTabsAtom)
         .tabs.find((each) => stripKeyOf(each) === key)?.id;
       if (id !== undefined) {
-        windowTabs.select(id);
+        windowTabs.bringUp(id);
       }
     };
     let collapses = false;
@@ -584,10 +581,15 @@ function useCarrier() {
     const showWhereItIs = (isOff: boolean) => {
       const isGone = isOff && collapses && !isEnded;
       if (isGone && !isNeighborUp) {
-        const neighbor = neighborAt(order, order.indexOf(held.key));
-        if (neighbor !== undefined) {
+        const now = store.get(windowTabsAtom);
+        const side =
+          groupLayoutOf(now, held.group).sides[held.side]?.tabs ?? [];
+        const tab = side.find((each) => stripKeyOf(each) === held.key);
+        const neighbor =
+          tab && nextUpAfter(side, tab.id, now.openers ?? NO_OPENERS);
+        if (neighbor) {
           isNeighborUp = true;
-          select(neighbor);
+          windowTabs.bringUp(neighbor.id);
         }
       } else if (!isGone && isNeighborUp) {
         isNeighborUp = false;
@@ -598,7 +600,9 @@ function useCarrier() {
     const starting = afterNextPaint().then(async () => {
       const moving = groupTabStanding(store.get(windowTabsAtom), held.key);
       const strip = document
-        .querySelector(`[data-group-side="${held.side}"] [role=tablist]`)
+        .querySelector(
+          `[data-group-up] [data-group-side="${held.side}"] [role=tablist]`,
+        )
         ?.getBoundingClientRect();
       if (isEnded || !moving || !strip) {
         return false;
@@ -608,7 +612,9 @@ function useCarrier() {
       const page = isOnlyTab
         ? undefined
         : document
-            .querySelector(`[data-group-side="${held.side}"] [data-side-page]`)
+            .querySelector(
+              `[data-group-up] [data-group-side="${held.side}"] [data-side-page]`,
+            )
             ?.getBoundingClientRect();
       const started = await rpcClient.window.startTabCarry.call({
         // In a window of its own the tab stands first in the strip, so the

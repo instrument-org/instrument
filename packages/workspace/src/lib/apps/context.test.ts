@@ -77,7 +77,7 @@ describe("the apps a session starts with", () => {
     });
 
     expect(await buildAppsContextText()).toContain(
-      "- shopify (Shopify, web at https://admin.shopify.com): not marked signed in. Open its site in a tab first: if it loads signed in, ask the user to press Done signing in on a connect_app card (call it if none is open) rather than sign in again; otherwise connect_app",
+      "- shopify (Shopify, web at https://admin.shopify.com): not marked signed in. Open its site in a tab first: if it loads signed in, call connect_app (unless its card is open) and tell the user they are already signed in, so they only press Sign in on the card, then Done on the page it opens; otherwise connect_app",
     );
   });
 

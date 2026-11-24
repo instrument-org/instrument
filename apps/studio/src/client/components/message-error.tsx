@@ -27,7 +27,7 @@ import {
 
 import { openReportDialog } from "../atoms/report-dialog";
 import { openLogin } from "@/client/atoms/login-modal";
-import { openSettings } from "../atoms/settings-modal";
+import { useOpenSettings } from "./window/use-open-settings";
 import {
   type OnlineRetry,
   useRetryWhenOnline,
@@ -127,6 +127,7 @@ export function MessageError({
   const [showDetails, setShowDetails] = useState(false);
   const [expandedPast, setExpandedPast] = useState(false);
   const [reportSent, setReportSent] = useState(false);
+  const openSettings = useOpenSettings();
   const signInAgain = useSignInAgain();
   const { data: hasToken } = useQuery(
     rpcClient.auth.live.hasToken.experimental_liveOptions(),
@@ -238,6 +239,7 @@ export function MessageError({
     kind: error.kind,
     onModelChange,
     onRunAgain,
+    openSettings,
     provider,
     logIn:
       provider === OUR_MODELS.providerType && hasToken === false
@@ -592,6 +594,7 @@ function errorActions({
   logIn,
   onModelChange,
   onRunAgain,
+  openSettings,
   provider,
   signIn,
 }: {
@@ -606,6 +609,7 @@ function errorActions({
   kind: MessageErrorData["kind"];
   onModelChange: ((modelURI: AIGatewayModelURI.Type) => void) | undefined;
   onRunAgain: (() => void) | undefined;
+  openSettings: ReturnType<typeof useOpenSettings>;
   provider: string | undefined;
 }): ErrorAction[] {
   const tryAgain = onRunAgain

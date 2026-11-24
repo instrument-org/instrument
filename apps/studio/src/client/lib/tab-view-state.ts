@@ -1,7 +1,7 @@
 import { type TabView } from "@/shared/tabs";
 
 /** How long a view is waited for: what the tab loads comes in behind its route. */
-const RESTORE_LIMIT_MS = 1200;
+export const RESTORE_LIMIT_MS = 1200;
 const RESTORE_EVERY_MS = 50;
 
 /** What a tab draws into, in the window that holds it. */

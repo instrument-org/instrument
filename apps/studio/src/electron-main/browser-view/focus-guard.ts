@@ -39,8 +39,8 @@ export function bouncesGuestFocus(method: string): boolean {
  * Tracks when agent CDP activity, rather than the user, is driving a guest so
  * guest focus gained during that window can be bounced back to the host
  * renderer. Pure state machine: the caller supplies `restoreHostFocus` (which
- * applies its own window-focus check before publishing to the renderer) and
- * reports command/navigation/focus events into it.
+ * asks the window hosting the guest, focused or not) and reports
+ * command/navigation/focus events into it.
  */
 export function createFocusGuard({
   restoreHostFocus,

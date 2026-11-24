@@ -14,6 +14,7 @@ import {
   NO_GROUP_MEMBER,
   WINDOW_TABS_KEY,
 } from "@/shared/kept-state";
+import { screenOfHref } from "@/shared/instrument-screens";
 import { workingTabOf } from "@/shared/working-tab";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 
@@ -28,6 +29,7 @@ import {
 import {
   addPages,
   addScreen,
+  backToOpenerOf,
   besideOf,
   chatUpIn,
   groupLayoutOf,
@@ -42,6 +44,7 @@ import {
   type GroupOwn,
   markOpenedBy,
   markPrompted,
+  markSignIn,
   moveTabTo,
   moveToGroup,
   navigateScreen,
@@ -51,7 +54,9 @@ import {
   pageBecameDownload,
   pageNavigated,
   pageTakesOver,
+  openingFrom,
   patchPage,
+  pickTab,
   type Placing,
   raiseTab,
   reopenSide,
@@ -61,6 +66,7 @@ import {
   restoreGroup,
   screenMoved,
   selectTab,
+  startedOver,
   stepTrail,
   stepVisit,
   tabsIn,
@@ -70,10 +76,16 @@ import {
   type WindowTabs,
   withGroupOwn,
 } from "./tab-model";
+import {
+  NO_OPENERS,
+  type Opening,
+  prunedOpeners,
+  type TabOpeners,
+} from "./tab-openers";
 import { useIsGroupOpen } from "./open-groups";
 import { openLinkAddress } from "./open-link-address";
 import { standInTabsAtom } from "./stand-in-tabs";
-import { sameHref } from "./window-href";
+import { asksPartOf, sameHref } from "./window-href";
 
 /** A kept group's shape; its tabs' own fields are this module's to write and read. */
 const TabGroupMemberSchema = z.object({
@@ -81,7 +93,6 @@ const TabGroupMemberSchema = z.object({
   pinned: z.boolean().optional(),
   project: z.string().optional(),
   share: z.number().optional(),
-  shownAt: z.number().optional(),
   sides: z
     .array(
       z.object({
@@ -100,7 +111,7 @@ const TabGroupMemberSchema = z.object({
  * project, share and when it last came up. A tab keeps neither its group nor its side, which the member says.
  * Written only here, through the functions of `tab-model.ts`.
  */
-const storedTabsAtom = keptMembersAtom<WindowTabs>(
+const keptTabsAtom = keptMembersAtom<WindowTabs>(
   fileOfTabGroup,
   WINDOW_TABS_KEY,
   {
@@ -108,6 +119,15 @@ const storedTabsAtom = keptMembersAtom<WindowTabs>(
     split: splitTabGroups,
   },
 );
+
+/** Which tab each was opened from, as this window saw it, until it loads again. */
+const openersAtom = atom<TabOpeners>(NO_OPENERS);
+
+/** The kept tabs with this window's own links between them. */
+const storedTabsAtom = atom<WindowTabs>((get) => ({
+  ...get(keptTabsAtom),
+  openers: get(openersAtom),
+}));
 
 /** A tab as a member keeps it, without its group or side. */
 type KeptTab = Omit<WindowTab, "group" | "side">;
@@ -194,7 +214,6 @@ function joinTabGroups(members: Map<string, unknown>): WindowTabs {
       ...(member.pinned === true ? { pinned: true } : {}),
       ...(member.project === undefined ? {} : { project: member.project }),
       ...(member.share === undefined ? {} : { share: member.share }),
-      ...(member.shownAt === undefined ? {} : { shownAt: member.shownAt }),
     };
     if (Object.keys(own).length > 0) {
       groups[group] = own;
@@ -246,7 +265,7 @@ export const chatFiltersUpAtom = atom(
 );
 
 /** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
-export const everyTabIdAtom = atom((get) => everyTabId(get(storedTabsAtom)));
+export const everyTabIdAtom = atom((get) => everyTabId(get(keptTabsAtom)));
 
 /** No tabs, one set for every reader. */
 const NO_TAB_IDS: ReadonlySet<string> = new Set();
@@ -279,7 +298,16 @@ const applyAtom = atom(
     if (next === current) {
       return;
     }
-    set(storedTabsAtom, next);
+    const { openers = NO_OPENERS, ...kept } = next;
+    set(openersAtom, prunedOpeners(openers, next.tabs));
+    if (
+      kept.tabs !== current.tabs ||
+      kept.activeByGroup !== current.activeByGroup ||
+      kept.besideByGroup !== current.besideByGroup ||
+      kept.groups !== current.groups
+    ) {
+      set(keptTabsAtom, kept);
+    }
     const before = new Set(current.tabs.map((tab) => tab.id));
     const arriving = next.tabs.filter(
       (tab) =>
@@ -359,6 +387,12 @@ export function useWindowTabs() {
       );
     } else if (!sameHref(router.history.location.href, href)) {
       router.history.push(href);
+      // A router hears its history only while its screen is drawn, and
+      // drawn again it stays where it last loaded, so one out of sight loads
+      // here.
+      if (!sameHref(router.latestLocation.href, href)) {
+        void router.load();
+      }
     }
   };
 
@@ -377,12 +411,13 @@ export function useWindowTabs() {
     /** Page tabs a group gains behind whatever it has up, at its end or right after a tab. */
     addPages: (
       pages: (BrowserTab & { group: string | undefined })[],
-      placing: { after?: string } = {},
+      placing: { after?: string; from?: Opening } = {},
     ) => {
       apply((current) => addPages(current, pages, placing));
     },
-    close: (id: string) => {
-      apply((current) => closeTab(current, id));
+    /** Closes a tab; `up` comes up in its place where a step back named it (`closeTab`). */
+    close: (id: string, options: { up?: string } = {}) => {
+      apply((current) => closeTab(current, id, options));
     },
     /** One side of a group of two closed whole (`closeSide`). */
     closeSide: (group: string, side: 0 | 1) => {
@@ -413,6 +448,10 @@ export function useWindowTabs() {
     markPrompted: (id: string) => {
       apply((current) => markPrompted(current, id, Date.now()));
     },
+    /** A tab marked as the page an app's sign-in waits on, or unmarked (`markSignIn`). */
+    markSignIn: (id: string, signIn: WindowTab["signIn"]) => {
+      apply((current) => markSignIn(current, id, signIn));
+    },
     /** A group's two sides made one (`joinSides`). */
     joinSides: (group: string) => {
       apply((current) => joinSides(current, group));
@@ -440,7 +479,10 @@ export function useWindowTabs() {
      * A tab opened in a group as every open places one: on a side, right
      * after a tab, up with the keyboard when asked (`openInGroup`).
      */
-    openIn: (tab: WindowTab, placing: Placing & { select?: boolean }) => {
+    openIn: (
+      tab: WindowTab,
+      placing: Placing & { from?: Opening; select?: boolean },
+    ) => {
       apply((current) => openInGroup(current, tab, placing));
     },
     /**
@@ -479,13 +521,14 @@ export function useWindowTabs() {
       {
         after,
         group,
-        isOpened = false,
+        from,
         select = false,
       }: {
         /** The tab a new one opens right after, on that tab's side. */
         after?: string;
         group?: string;
-        isOpened?: boolean;
+        /** Why it opens (`Opening`). */
+        from?: Opening;
         select?: boolean;
       } = {},
     ): string | undefined => {
@@ -503,7 +546,7 @@ export function useWindowTabs() {
           group: key,
           href,
           id: newScreenId(),
-          isOpened,
+          ...(from === undefined ? {} : { from }),
           isWaiting: key !== onScreen,
           select: select || key === onScreen,
         });
@@ -521,7 +564,7 @@ export function useWindowTabs() {
             ? undefined
             : tabShowingIn(current, onScreen, href);
         return tab
-          ? { state: selectTab(current, tab.id), value: true }
+          ? { state: pickTab(current, tab.id), value: true }
           : { state: current, value: false };
       }, false),
     /**
@@ -535,7 +578,7 @@ export function useWindowTabs() {
         after,
         group,
         id: given,
-        isOpened = false,
+        from,
         select = false,
         side,
       }: {
@@ -544,7 +587,8 @@ export function useWindowTabs() {
         group?: string;
         /** The tab's id, for one the strip already draws by it: a file held over it. */
         id?: string;
-        isOpened?: boolean;
+        /** Why it opens (`Opening`). */
+        from?: Opening;
         select?: boolean;
         side?: Placing["side"];
       } = {},
@@ -565,7 +609,7 @@ export function useWindowTabs() {
             group: key,
             href,
             id,
-            isOpened,
+            ...(from === undefined ? {} : { from }),
             select: select || key === onScreen,
             ...(side === undefined ? {} : { side }),
           }),
@@ -576,7 +620,8 @@ export function useWindowTabs() {
     /**
      * A screen opened from a chat's tab (`openBesideChat`). Answers the tab
      * that shows it, and whether it is up on its side; nothing for a chat's
-     * tab no group has.
+     * tab no group has. A built-in page already there walks to the part
+     * asked for.
      */
     openScreenBeside: (
       to: string,
@@ -592,7 +637,9 @@ export function useWindowTabs() {
       if (href === undefined) {
         return undefined;
       }
-      return answer<undefined | { front: boolean; id: string }>((current) => {
+      const shown = answer<
+        undefined | { front: boolean; id: string; was: string | undefined }
+      >((current) => {
         const group = current.tabs.find((tab) => tab.id === ask.chatTab)?.group;
         if (group === undefined) {
           return { state: current, value: undefined };
@@ -608,17 +655,32 @@ export function useWindowTabs() {
             group,
             href,
             id,
-            isOpened: true,
             kind: "screen",
             ...(openedBy === undefined ? {} : { openedBy }),
           },
           { ...ask, ...(previous === undefined ? {} : { previous }) },
         );
+        const there = current.tabs.find((tab) => tab.id === placed.id);
         return {
           state: placed.state,
-          value: { front: placed.front, id: placed.id },
+          value: {
+            front: placed.front,
+            id: placed.id,
+            was: there?.kind === "screen" ? there.href : undefined,
+          },
         };
       }, undefined);
+      if (shown === undefined) {
+        return undefined;
+      }
+      if (
+        shown.was !== undefined &&
+        screenOfHref(href) !== undefined &&
+        asksPartOf(href, shown.was)
+      ) {
+        visitHref(shown.id, href);
+      }
+      return { front: shown.front, id: shown.id };
     },
     /**
      * A file a chat's reply handed over, beside the chat's tab
@@ -659,7 +721,17 @@ export function useWindowTabs() {
      */
     openBeside: (
       to: string,
-      { behind = false }: { behind?: boolean } = {},
+      {
+        atEnd = false,
+        behind = false,
+        from,
+      }: {
+        /** At the end of the side with the keyboard, opened from no tab (`OpenOptions.atEnd`). */
+        atEnd?: boolean;
+        behind?: boolean;
+        /** The tab it was asked from, which it opens right after; left out, it was asked of the window, and opens after the tab up. */
+        from?: string;
+      } = {},
     ): string | undefined => {
       const href = openLinkAddress(to);
       if (href === undefined) {
@@ -670,13 +742,16 @@ export function useWindowTabs() {
           return { state: current, value: undefined };
         }
         const id = newScreenId();
+        const opening = atEnd
+          ? undefined
+          : openingFrom(current, onScreen, from);
         return {
           state: addScreen(current, {
-            after: selectedTabIn(current, onScreen)?.id,
+            ...(opening?.tab === undefined ? {} : { after: opening.tab }),
+            ...(opening === undefined ? {} : { from: opening }),
             group: onScreen,
             href,
             id,
-            isOpened: true,
             select: !behind,
           }),
           value: id,
@@ -690,6 +765,7 @@ export function useWindowTabs() {
      */
     openPage: ({
       after,
+      from,
       group,
       page,
       replacing,
@@ -697,6 +773,7 @@ export function useWindowTabs() {
       side,
     }: {
       after?: string;
+      from?: Opening;
       group?: string;
       page: BrowserTab;
       replacing?: WindowTab;
@@ -707,6 +784,7 @@ export function useWindowTabs() {
         const key = group ?? onScreen;
         return openPage(current, {
           ...(after === undefined ? {} : { after }),
+          ...(from === undefined ? {} : { from }),
           ...(side === undefined ? {} : { side }),
           group: key,
           page,
@@ -725,6 +803,8 @@ export function useWindowTabs() {
     patchPage: (id: string, changes: Parameters<typeof patchPage>[2]) => {
       apply((current) => patchPage(current, id, changes));
     },
+    /** The tab Back returns to from the start of a tab a link opened (`backToOpenerOf`). */
+    backToOpenerOf: (id: string) => backToOpenerOf(state, id),
     /** A group's tabs in a new order, by their strip keys. */
     reorder: (keys: string[], group: string) => {
       apply((current) => reorderGroup(current, group, keys));
@@ -743,13 +823,21 @@ export function useWindowTabs() {
     reopen: (tab: WindowTab, index: number) => {
       apply((current) => reopenTab(current, { index, tab }));
     },
+    /** The person sent a tab to an address of their own (`startedOver`). */
+    startedOver: (id: string) => {
+      apply((current) => startedOver(current, id));
+    },
     /** One tab up on its side, the keyboard staying where it is (`raiseTab`). */
     raise: (id: string) => {
       apply((current) => raiseTab(current, id));
     },
-    /** One tab up in its group, with the keyboard: on screen when the group is. */
-    select: (id: string) => {
+    /** One tab up in its group, with the keyboard, where it was not the person's pick of it (`selectTab`). */
+    bringUp: (id: string) => {
       apply((current) => selectTab(current, id));
+    },
+    /** The tab the person picked, up in its group, with the keyboard: on screen when the group is (`pickTab`). */
+    select: (id: string) => {
+      apply((current) => pickTab(current, id));
     },
     /**
      * A step along a screen tab's own trail: the address it steps to, which

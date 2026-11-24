@@ -34,11 +34,13 @@ import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { useShowChatGroup } from "@/client/components/window/chat-group";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import {
+  byLastUserMessage,
   type Chat,
   railMarkOf,
   type Project,
   projectSearch,
 } from "@/client/components/window/chats";
+import { chatOfTab } from "@/client/components/window/tab-model";
 import {
   findNamed,
   type Found,
@@ -53,6 +55,10 @@ import {
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { useShell } from "@/client/components/window/shell-context";
 import { screenPresentation } from "@/client/components/window/screen-presentation";
+import { ScreenMark } from "@/client/components/window/app-chip";
+import { RailMegaphoneIcon } from "@/client/components/icons/rail-megaphone-icon";
+import { openReportDialog } from "@/client/atoms/report-dialog";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import { useFrontTabActions } from "@/client/components/window/tab-actions";
 import { ProjectMark } from "@/client/components/window/project-mark";
 import { useChatSearchFallback } from "@/client/components/window/use-chat-search-fallback";
@@ -91,11 +97,6 @@ import {
   typedAddressLabel,
   typedAddressName,
 } from "@/client/components/window/typed-address-row";
-import {
-  componentPages,
-  debugNavigationRoutes,
-} from "@/client/routes/debug/-debug-routes";
-import { scenarios } from "@/client/routes/debug/-transcript/scenarios";
 import { rpcClient } from "@/client/rpc/client";
 import { SHORTCUT_GUIDE } from "@/shared/shortcut-guide";
 import { SHORTCUTS, type ShortcutAccelerator } from "@/shared/shortcuts";
@@ -106,20 +107,14 @@ import {
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ArrowsInIcon } from "@phosphor-icons/react/ArrowsIn";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
+import { CodeIcon } from "@phosphor-icons/react/Code";
 import { ArrowsClockwiseIcon } from "@phosphor-icons/react/ArrowsClockwise";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { CodeIcon } from "@phosphor-icons/react/Code";
 import { FlaskIcon } from "@phosphor-icons/react/Flask";
-import { GearIcon } from "@phosphor-icons/react/Gear";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { MonitorIcon } from "@phosphor-icons/react/Monitor";
 import { MoonIcon } from "@phosphor-icons/react/Moon";
-import { NewspaperIcon } from "@phosphor-icons/react/Newspaper";
-import { PuzzlePieceIcon } from "@phosphor-icons/react/PuzzlePiece";
-import { BookmarksIcon } from "@phosphor-icons/react/Bookmarks";
-import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
-import { ShapesIcon } from "@phosphor-icons/react/Shapes";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StackIcon } from "@phosphor-icons/react/Stack";
 import { SunIcon } from "@phosphor-icons/react/Sun";
@@ -149,13 +144,16 @@ import { toast } from "@/client/lib/toast";
 const PER_KIND_SHOWN = 3;
 /** How long a search has to be before the decision model is asked what it means. */
 const MEANING_MIN_LENGTH = 3;
-/** What was used last, of every kind, listed before anything is typed. */
-const RECENTS_SHOWN = 4;
+/** The chats talked to last, listed before anything is typed. */
+const RECENT_CHATS_SHOWN = 4;
 /**
  * The commands listed before anything is typed: the ones worth reaching
  * often, each with its chord. The rest (the theme, clearing browsing data,
  * updates) are found by typing.
  */
+/** Where the debug pages are listed, each picked from there. */
+const DEBUG_INDEX_HREF = "/debug";
+
 const LISTED_COMMANDS = new Set(["new-group", "new-tab", "settings"]);
 /**
  * How many actions for the tab in front are listed before anything is
@@ -274,8 +272,7 @@ export function useCommandMenuRows({
   );
   // Read only while the menu is up, which is mounted in every window.
   const sources = useSearchSources({ enabled: active, words });
-  const { bookmarkPages, chats, chatTitles, recentFiles, recentPages } =
-    sources;
+  const { bookmarkPages, chats, chatTitles, recentPages } = sources;
   const picks = useSearchPicks({ enabled: active });
   const showChatGroup = useShowChatGroup();
 
@@ -302,6 +299,7 @@ export function useCommandMenuRows({
 
   // What the tab up on the side with the keyboard offers, under what it is.
   const { frontTab, titleOfTab } = sources;
+  const frontChat = frontTab === undefined ? undefined : chatOfTab(frontTab);
   const front = useFrontTabActions({
     chats,
     tab: frontTab,
@@ -354,15 +352,6 @@ export function useCommandMenuRows({
       },
     },
     {
-      chord: SHORTCUTS.settings.accelerator,
-      icon: <GearIcon />,
-      id: "settings",
-      label: "Settings",
-      run: () => {
-        openSettings();
-      },
-    },
-    {
       chord: SHORTCUT_GUIDE.accelerator,
       icon: <KeyboardIcon />,
       id: "shortcuts",
@@ -407,6 +396,14 @@ export function useCommandMenuRows({
         ]
       : []),
     {
+      icon: <RailMegaphoneIcon />,
+      id: "send-feedback",
+      label: "Send feedback",
+      run: () => {
+        openReportDialog(feedbackReport({ surface: "command-menu" }));
+      },
+    },
+    {
       icon: <BroomIcon />,
       id: "clear-browsing-data",
       label: "Clear browsing data",
@@ -441,9 +438,46 @@ export function useCommandMenuRows({
         }
       },
     },
+  ];
+  // The app's own pages, each found by its name among the pages.
+  const settingsPage: Omit<Item, "ranges" | "type"> = {
+    chord: SHORTCUTS.settings.accelerator,
+    icon: <ScreenMark name="settings" />,
+    id: "settings",
+    label: "Settings",
+    run: () => {
+      openSettings();
+    },
+  };
+  const ownPages: Omit<Item, "ranges" | "type">[] = [
+    {
+      icon: <ScreenMark name="chats" />,
+      id: "chats",
+      label: SCREENS.chats.title,
+      run: () => {
+        openBuiltInPage(SCREENS.chats.href);
+      },
+    },
+    {
+      icon: <ScreenMark name="files" />,
+      id: "files",
+      label: SCREENS.files.title,
+      run: () => {
+        openBuiltInPage(SCREENS.files.href);
+      },
+    },
+    {
+      icon: <ScreenMark name="browser" />,
+      id: "browser",
+      label: SCREENS.browser.title,
+      run: () => {
+        openBuiltInPage(SCREENS.browser.href);
+      },
+    },
+    settingsPage,
     {
       chord: WINDOW_SHORTCUTS.showActivity.accelerator,
-      icon: <ClockCounterClockwiseIcon />,
+      icon: <ScreenMark name="activity" />,
       id: "activity",
       label: "History",
       run: () => {
@@ -452,7 +486,7 @@ export function useCommandMenuRows({
     },
     {
       chord: WINDOW_SHORTCUTS.showBookmarks.accelerator,
-      icon: <BookmarksIcon />,
+      icon: <ScreenMark name="bookmarks" />,
       id: "bookmarks",
       label: "Bookmarks",
       run: () => {
@@ -460,7 +494,7 @@ export function useCommandMenuRows({
       },
     },
     {
-      icon: <ShapesIcon />,
+      icon: <ScreenMark name="apps" />,
       id: "apps",
       label: "Apps",
       run: () => {
@@ -468,7 +502,7 @@ export function useCommandMenuRows({
       },
     },
     {
-      icon: <NewspaperIcon />,
+      icon: <ScreenMark name="release-notes" />,
       id: "release-notes",
       label: "What's new",
       run: () => {
@@ -476,7 +510,7 @@ export function useCommandMenuRows({
       },
     },
     {
-      icon: <PuzzlePieceIcon />,
+      icon: <ScreenMark name="extensions" />,
       id: "extensions",
       label: "Extensions",
       run: () => {
@@ -523,34 +557,32 @@ export function useCommandMenuRows({
     }
   }
 
-  // Each tab of Settings by name, found by typing it and never listed
-  // before, so the empty menu stays short: the tabs the Settings sidebar
-  // lists, but General, which is the Settings row itself.
+  // Each part of Settings by name, found among the pages by typing it and
+  // never listed before, so the empty menu stays short: the tabs the
+  // Settings sidebar lists, but General, which is the Settings row itself.
+  // The part for apps says so, since Apps alone is the Apps page.
   const settingsTabs = useSettingsTabs().filter((tab) => tab !== "General");
   const settingsRows = settingsTabs.map((tab) => ({
     detail: "Settings",
-    icon: <GearIcon />,
+    icon: <ScreenMark name="settings" />,
     id: `settings-${tab}`,
-    label: settingsTabTitle(tab),
+    label: tab === "Apps" ? "Apps settings" : settingsTabTitle(tab),
     run: () => {
       openSettings({ tab });
     },
   }));
 
-  const debugItems = developerMode
+  // The debug pages' index, for a developer: each page is picked there.
+  const debugIndex: Omit<Item, "ranges" | "type">[] = developerMode
     ? [
-        ...debugNavigationRoutes.map((route) => ({
-          href: route.to,
-          label: route.label,
-        })),
-        ...componentPages.map((page) => ({
-          href: page.to,
-          label: `Component: ${page.label}`,
-        })),
-        ...scenarios.map((scenario) => ({
-          href: `/debug/components/transcript?scenario=${encodeURIComponent(scenario.id)}`,
-          label: `Transcript: ${scenario.name}`,
-        })),
+        {
+          icon: <CodeIcon />,
+          id: "debug-pages",
+          label: "Debug pages",
+          run: () => {
+            openBuiltInPage(DEBUG_INDEX_HREF);
+          },
+        },
       ]
     : [];
 
@@ -713,10 +745,32 @@ export function useCommandMenuRows({
         })),
       label: "Apps",
     },
-    { entries: thingsOf(sources.named.pages), label: "Pages" },
+    {
+      entries: [
+        ...[...ownPages, ...debugIndex].map(
+          (page): Named<ItemOf> => ({
+            id: page.id,
+            name: page.label,
+            value: (ranges) => ({ ...page, ranges, type: "item" }),
+          }),
+        ),
+        // A part of Settings found by the word Settings is one that only
+        // contains the words.
+        ...settingsRows.map(
+          (part): Named<ItemOf> => ({
+            also: { atBest: MATCH_STEPS.inside, name: part.detail },
+            id: part.id,
+            name: part.label,
+            value: (ranges) => ({ ...part, ranges, type: "item" }),
+          }),
+        ),
+        ...thingsOf(sources.named.pages),
+      ],
+      label: "Pages",
+    },
     // An action for the tab in front is found among the commands, and says
-    // what it acts on. A command found by what it acts on, or a part of
-    // Settings by that word, is one that only contains the words.
+    // what it acts on. A command found by what it acts on is one that only
+    // contains the words.
     {
       entries: [
         ...frontActions.map((action) => ({
@@ -724,7 +778,6 @@ export function useCommandMenuRows({
           detail: front?.heading,
         })),
         ...commands,
-        ...settingsRows,
       ].map((command) => ({
         ...(command.detail === undefined
           ? {}
@@ -734,26 +787,6 @@ export function useCommandMenuRows({
         value: (ranges) => ({ ...command, ranges, type: "item" }),
       })),
       label: "Commands",
-    },
-    {
-      entries: debugItems.map((item) => ({
-        also: { name: item.href },
-        id: `debug:${item.href}`,
-        name: item.label,
-        value: (ranges) => ({
-          icon: <CodeIcon />,
-          id: `debug:${item.href}`,
-          label: item.label,
-          ranges,
-          // The group's debug tab walks there, as a part of Settings
-          // does, or the page opens in a tab of its own.
-          run: () => {
-            openBuiltInPage(item.href);
-          },
-          type: "item",
-        }),
-      })),
-      label: "Debug pages",
     },
   ];
   // Each kind's matches, each ready to be made its row: one that notes the
@@ -839,26 +872,27 @@ export function useCommandMenuRows({
     : words === ""
       ? [
           {
+            // In the Chats page's order, open and closed alike, less the
+            // chat in front, which is where the person already is. All
+            // chats under them is the way to the rest.
             items: [
-              ...chats
-                .filter((chat) => !chat.archived)
-                .map((chat) => ({
-                  at: chat.lastUserMessageAt,
-                  item: chatItem(chat, null),
-                })),
-              ...recentFiles.map((file) => ({
-                at: file.openedAt,
-                item: fileItem(file, null),
-              })),
-              ...sources.visited.map((page) => ({
-                at: page.at,
-                item: pageItem(page, null),
-              })),
-            ]
-              .toSorted((a, b) => b.at - a.at)
-              .slice(0, RECENTS_SHOWN)
-              .map(({ item }) => item),
-            label: "Recent",
+              ...byLastUserMessage(
+                chats.filter((chat) => !chat.archived && chat.id !== frontChat),
+              )
+                .slice(0, RECENT_CHATS_SHOWN)
+                .map((chat) => chatItem(chat, null)),
+              {
+                icon: <ScreenMark name="chats" />,
+                id: "all-chats",
+                label: "All chats",
+                ranges: null,
+                run: () => {
+                  openBuiltInPage(SCREENS.chats.href);
+                },
+                type: "item" as const,
+              },
+            ],
+            label: "Recent chats",
           },
           {
             items: frontActions
@@ -867,7 +901,7 @@ export function useCommandMenuRows({
             label: front?.heading ?? "",
           },
           {
-            items: commands
+            items: [...commands, settingsPage]
               .filter((command) => LISTED_COMMANDS.has(command.id))
               .map((command) => ({ ...command, ranges: null, type: "item" })),
             label: "Commands",

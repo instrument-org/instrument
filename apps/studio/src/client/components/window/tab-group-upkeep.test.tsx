@@ -9,6 +9,7 @@ import { type ReactNode, useSyncExternalStore } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { appTabsAtom } from "./app-tabs";
+import { sidebarRowOrderAtom } from "./held-chord-hints";
 import { windowTabGroupsAtom } from "./open-groups";
 import {
   type TabGroup,
@@ -71,7 +72,7 @@ function windowWithGroup() {
           ({
             group,
             kind: "tabs",
-            pinned: false,
+            pinned: store.get(windowTabsAtom).groups?.[group]?.pinned === true,
             title: "",
           }) satisfies TabGroup,
       );
@@ -103,7 +104,13 @@ function windowWithGroup() {
     store
       .get(windowTabsAtom)
       .tabs.filter((tab) => tab.kind === "screen" && tab.href === href);
-  return { actions: () => result.current.groups, history, store, tabsAt };
+  return {
+    actions: () => result.current.groups,
+    change: result.current.change,
+    history,
+    store,
+    tabsAt,
+  };
 }
 
 describe("the window's tab at an address no screen answers", () => {
@@ -153,34 +160,6 @@ describe("the window's tab at a link address", () => {
           tab.kind === "screen" ? matchScreen(tab.href).kind : tab.kind,
         ),
     ).toEqual(["inbox"]);
-  });
-});
-
-describe("a group the window comes to stand on", () => {
-  it("keeps when it came up, once per arrival", () => {
-    vi.useFakeTimers({ now: 1000 });
-    onTestFinished(() => {
-      vi.useRealTimers();
-    });
-    const { actions, history, store } = windowWithGroup();
-    const shownAt = (group: string) =>
-      store.get(windowTabsAtom).groups?.[group]?.shownAt;
-    act(() => {
-      history.replace(groupHref(GROUP));
-    });
-    expect(shownAt(GROUP)).toBe(1000);
-    vi.setSystemTime(2000);
-    let made = "";
-    act(() => {
-      made = actions().make({ href: "/files?path=/a" });
-    });
-    expect(shownAt(made)).toBe(2000);
-    expect(shownAt(GROUP)).toBe(1000);
-    vi.setSystemTime(3000);
-    act(() => {
-      actions().show(GROUP);
-    });
-    expect(shownAt(GROUP)).toBe(3000);
   });
 });
 
@@ -271,5 +250,146 @@ describe("a group brought up in an empty one's place", () => {
       above,
       made,
     ]);
+  });
+});
+
+describe("the group that comes up as one closes", () => {
+  // The window's own list, where a pinned group keeps the place it had.
+  const LISTED = ["group:a", "group:pin1", "group:b", "group:pin2", "group:c"];
+  const PINNED = ["group:pin1", "group:pin2"];
+  const entries = (listed: readonly string[]) =>
+    listed.map(
+      (group) =>
+        ({
+          group,
+          kind: "tabs",
+          pinned: PINNED.includes(group),
+          title: "",
+        }) satisfies TabGroup,
+    );
+  const windowOnGroups = (up: string) => {
+    const window = windowWithGroup();
+    act(() => {
+      window.change(() => ({
+        activeByGroup: {},
+        groups: Object.fromEntries(
+          PINNED.map((group) => [group, { pinned: true }]),
+        ),
+        tabs: LISTED.map((group) => ({
+          group,
+          href: "/apps",
+          id: `tab:${group}`,
+          kind: "screen",
+        })),
+      }));
+      window.store.set(windowTabGroupsAtom, LISTED);
+    });
+    act(() => {
+      window.history.replace(groupHref(up));
+      // What the router's own tab writes once a step resolves, which a close
+      // reads before the next one has.
+      window.store.set(appTabsAtom, {
+        recentlyClosed: [],
+        selectedId: WINDOW_TAB,
+        tabs: [{ id: WINDOW_TAB, pathname: groupHref(up) }],
+      });
+    });
+    return window;
+  };
+
+  it.each([
+    ["the row under it, past a pinned group listed between", "a", "b"],
+    ["the row under it", "b", "c"],
+    ["the row above, for the last row", "c", "b"],
+    ["the next pinned row", "pin1", "pin2"],
+    ["the first row under the line, for the last pinned row", "pin2", "a"],
+  ])("is %s", (_case, closing, next) => {
+    const { actions, history } = windowOnGroups(`group:${closing}`);
+    act(() => {
+      actions().close(`group:${closing}`, entries(LISTED));
+    });
+    expect(history.location.href).toBe(groupHref(`group:${next}`));
+  });
+
+  it("is the row under it as the sidebar shows them", () => {
+    const { actions, history, store } = windowOnGroups("group:a");
+    act(() => {
+      store.set(sidebarRowOrderAtom, ["group:pin1", "group:a", "group:c"]);
+      actions().close("group:a", entries(LISTED));
+    });
+    expect(history.location.href).toBe(groupHref("group:c"));
+  });
+
+  it("goes on down the rows over two closes before a render, the model still on the first", () => {
+    const { actions, history, store } = windowOnGroups("group:a");
+    act(() => {
+      const { close, groupUp } = actions();
+      close(groupUp() ?? "", entries(LISTED));
+      close(groupUp() ?? "", entries(LISTED));
+    });
+    expect(history.location.href).toBe(groupHref("group:c"));
+    expect(store.get(windowTabGroupsAtom)).toEqual([
+      "group:pin1",
+      "group:pin2",
+      "group:c",
+    ]);
+  });
+
+  const closed = (window: ReturnType<typeof windowOnGroups>) => {
+    const { groupUp } = window.actions();
+    act(() => {
+      window.actions().close(groupUp() ?? "", entries(LISTED));
+    });
+    return window.history.location.href;
+  };
+  const arriveAt = (
+    { history, store }: ReturnType<typeof windowOnGroups>,
+    group: string,
+  ) => {
+    act(() => {
+      history.push(groupHref(group));
+      store.set(appTabsAtom, (model) => ({
+        ...model,
+        tabs: [{ id: WINDOW_TAB, pathname: groupHref(group) }],
+      }));
+    });
+  };
+
+  it("is the one a new group was made in", () => {
+    const window = windowOnGroups("group:b");
+    act(() => {
+      window.actions().openNew();
+    });
+    expect(closed(window)).toBe(groupHref("group:b"));
+  });
+
+  it("is a neighbor of a new group once switched away from", () => {
+    const window = windowOnGroups("group:b");
+    act(() => {
+      window.actions().openNew();
+    });
+    const { groupUp } = window.actions();
+    const made = groupUp() ?? "";
+    arriveAt(window, "group:b");
+    arriveAt(window, made);
+    expect(closed(window)).not.toBe(groupHref("group:b"));
+  });
+
+  it.each([
+    ["the one it was opened from, looked at in between", "group:b", true],
+    ["a neighbor, once another was looked at", "group:c", false],
+  ])("for a group opened from another is %s", (_case, between, isBack) => {
+    const window = windowOnGroups("group:b");
+    act(() => {
+      window.actions().make({
+        href: "/apps",
+        returns: "untilUnrelated",
+      });
+    });
+    const { groupUp } = window.actions();
+    const made = groupUp() ?? "";
+    arriveAt(window, between);
+    arriveAt(window, made);
+    expect(closed(window) === groupHref("group:b")).toBe(isBack);
   });
 });

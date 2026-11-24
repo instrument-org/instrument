@@ -8,10 +8,18 @@ export const BrowserExtensionSchema = z.object({
   description: z.string(),
   /** The app on this computer it talks to, when it has one, with that app's page on adding a browser. */
   desktopApp: z.object({ help: z.string(), name: z.string() }).nullable(),
+  /** Whether it runs; one a person turned off stays installed. */
+  enabled: z.boolean(),
+  /** Its icon as a data URL, for one that does not run, whose `crx:` icon nothing serves. */
+  icon: z.string().nullable(),
   id: z.string(),
   name: z.string(),
   /** Whether its button is in the browser's row. */
   pinned: z.boolean(),
+  /** A newer version that asks for more than the person agreed to, in lines of what is new. */
+  update: z
+    .object({ lines: z.array(z.string()), version: z.string() })
+    .nullable(),
   version: z.string(),
 });
 export type BrowserExtension = z.output<typeof BrowserExtensionSchema>;

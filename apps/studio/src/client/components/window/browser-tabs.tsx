@@ -52,8 +52,10 @@ import {
 } from "./reconcile-guests";
 import { undrawnHostedStep } from "./hosted-page";
 import { visitInTab } from "./tab-history";
+import { type Opening } from "./tab-openers";
 import {
   addPages,
+  openingFrom,
   fileTabWalked,
   blankUpIn,
   openPage as openPageIn,
@@ -80,6 +82,8 @@ import {
 /** Where a page opened behind goes: a group, right after `after` on its side, under `id` when given, marked as the page of the chat whose agent opened it. */
 interface BehindPlace {
   after?: string;
+  /** Why it opens, for what the person opened. */
+  from?: Opening;
   group: string;
   id?: StoreId.Tab;
   openedBy?: ChatId;
@@ -242,6 +246,8 @@ interface OpenOptions {
   after?: string;
   /** With `newTab`, the page waits behind the tab up. */
   behind?: boolean;
+  /** Why it opens, for what the person opened; one asked for with `newTab` is linked to the tab up where none is named. */
+  from?: Opening;
   /** The group the page belongs to; the group on screen when left out. */
   group?: string;
   /** A tab of its own right after the one its group has up, as a link opened in a new tab lands. */
@@ -260,6 +266,7 @@ function openTab(
   {
     after,
     behind = false,
+    from,
     group: into,
     newTab = false,
     replacing,
@@ -280,17 +287,19 @@ function openTab(
   // after the tab up, and waits behind it when asked to.
   change((current, onScreen) => {
     const group = into ?? onScreen;
-    const beside =
-      after ?? (newTab ? selectedTabIn(current, group)?.id : undefined);
+    const opening =
+      from ?? (newTab ? openingFrom(current, group, undefined) : undefined);
+    const beside = after ?? (newTab ? opening?.tab : undefined);
     return openPageIn(current, {
       ...(beside === undefined ? {} : { after: beside }),
+      ...(opening === undefined ? {} : { from: opening }),
       group,
       page,
       ...(replacing ? { replacing } : {}),
       select:
         newTab || after !== undefined
           ? !behind
-          : show || into === undefined || into === onScreen,
+          : !behind && (show || into === undefined || into === onScreen),
       ...(side === undefined ? {} : { side }),
     });
   });
@@ -667,7 +676,7 @@ export function BrowserTabs({
         });
       },
       open: (url, options) => openTab(change, url, options),
-      openBehind: (url, { after, group, id: given, openedBy }) => {
+      openBehind: (url, { after, from, group, id: given, openedBy }) => {
         const id = given ?? StoreId.newTabId();
         change((current) =>
           addPages(
@@ -681,7 +690,10 @@ export function BrowserTabs({
                 ...(url ? { openedUrl: url, url } : {}),
               },
             ],
-            after === undefined ? {} : { after },
+            {
+              ...(after === undefined ? {} : { after }),
+              ...(from === undefined ? {} : { from }),
+            },
           ),
         );
         void rpcClient.workspace.browser.open.call({

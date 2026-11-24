@@ -9,7 +9,7 @@ import {
   openSyncedStore,
 } from "@instrument-org/workspace/electron";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
-import { app, BrowserWindow, ipcMain } from "electron";
+import { BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 
 import { logger } from "../lib/electron-logger";
@@ -75,10 +75,6 @@ export async function openBookmarks(device: DeviceId): Promise<void> {
   } catch (error) {
     logger.error("Bookmarks: could not take in bookmarks.json", error);
   }
-  // A change a watch missed shows once the person comes back to a window.
-  app.on("browser-window-focus", () => {
-    void synced.look();
-  });
   store = opened;
   // A window that loaded before the workspace opened read none.
   tellWindows(opened.snapshot());

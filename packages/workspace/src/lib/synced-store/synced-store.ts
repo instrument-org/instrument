@@ -5,10 +5,10 @@ import { isEqual } from "radashi";
 import { DEVICE_ID_PATTERN, type DeviceId } from "../records/device-id";
 import { RecordWriter } from "../records/record-writer";
 import { readBytes } from "../workspace-files";
-import { watchDevices } from "./watch-devices";
+import { type SyncedDomain } from "./domains";
+import { watchSynced } from "./watch-synced";
 import { SyncedFold } from "./synced-fold";
 import {
-  checkDomain,
   isSyncedFileName,
   readSyncedLines,
   recordsFor,
@@ -28,8 +28,7 @@ import {
  *
  * The store reads every device's file as it opens, appends this device's
  * changes to its own through a `RecordWriter`, and takes in what another
- * device's file gains: a watch on the devices folder notices, and `look()`
- * reads again for a change a watch missed. It holds the whole store in
+ * device's file gains (`watchSynced`). It holds the whole store in
  * memory, which suits a store of a few hundred keys; one that outgrows that
  * would index its files in `workspace.db`, as the activity log does.
  */
@@ -59,8 +58,8 @@ export interface SyncedStoreOptions {
   device: DeviceId;
   /** The workspace's devices folder (`workspaceLayout(…).devicesDir`). */
   devicesDir: string;
-  /** What the store is, and its file's name: lowercase letters and digits. */
-  domain: string;
+  /** What the store is, and its file's name. */
+  domain: SyncedDomain;
   now?: () => number;
   onError?: (error: unknown) => void;
   platform?: NodeJS.Platform;
@@ -70,7 +69,6 @@ export interface SyncedStoreOptions {
   watch?: boolean;
 }
 
-const SETTLE_MS = 250;
 const DEVICE_FOLDER = new RegExp(`^${DEVICE_ID_PATTERN}$`);
 
 /**
@@ -84,10 +82,9 @@ export async function openSyncedStore({
   now = Date.now,
   onError = () => undefined,
   platform = process.platform,
-  settleMs = SETTLE_MS,
+  settleMs,
   watch = true,
 }: SyncedStoreOptions): Promise<SyncedStore> {
-  checkDomain(domain);
   const fold = new SyncedFold();
   const listeners = new Set<(keys: ReadonlySet<string>) => void>();
   const ownDir = path.join(devicesDir, device);
@@ -190,18 +187,14 @@ export async function openSyncedStore({
   // Watching from before the first look, so a change that lands while it
   // reads is looked at again.
   let stopWatch: (() => void) | undefined;
-  let settleTimer: ReturnType<typeof setTimeout> | undefined;
   if (watch) {
-    const settle = () => {
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(() => void look(), settleMs);
-    };
-    stopWatch = watchDevices({
+    stopWatch = watchSynced({
       devicesDir,
-      isOurs: (name) => isSyncedFileName(name, domain),
-      onChange: settle,
+      domain,
+      look: () => void look(),
       onError,
       platform,
+      settleMs,
     });
   }
 
@@ -232,7 +225,6 @@ export async function openSyncedStore({
     },
     close: () => {
       closed = true;
-      clearTimeout(settleTimer);
       stopWatch?.();
       listeners.clear();
     },

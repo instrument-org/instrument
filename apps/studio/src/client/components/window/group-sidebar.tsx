@@ -57,6 +57,7 @@ import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
+import { SidebarSearch, SoftKey } from "./sidebar-search";
 import { GroupRowLines } from "./group-row-lines";
 import { RowLinesView } from "./row-half";
 import { quiet } from "./row-lines";
@@ -79,15 +80,6 @@ import { groupsInProject, isPinnedGroup, type TabGroup } from "./tab-groups";
 import { useWindowTabs } from "./window-tabs";
 import { TabMenuAtPoint } from "./tab-menu-items";
 import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
-
-/** A key printed beside the control it works, in a light keycap. */
-function SoftKey({ children }: { children: ReactNode }) {
-  return (
-    <span className="inline-flex h-4.5 shrink-0 items-center rounded-[4px] bg-foreground/[0.04] px-1 font-sans text-[11px] font-medium text-muted-foreground/70 ring-1 ring-foreground/[0.06]">
-      {children}
-    </span>
-  );
-}
 
 /** Dragged narrower than this, the sidebar slides shut rather than stopping at its floor. */
 const SIDEBAR_COLLAPSE_THRESHOLD = 140;
@@ -281,6 +273,7 @@ export function GroupSidebar({
   );
   const body = (
     <>
+      <SidebarSearch />
       {project ? (
         <>
           <BackRow

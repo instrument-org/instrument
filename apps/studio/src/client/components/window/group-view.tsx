@@ -4,7 +4,10 @@ import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHori
 import { XIcon } from "@phosphor-icons/react/X";
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { CaptionRoom } from "@/client/components/window-controls";
-import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import {
+  ActiveTabProvider,
+  useIsActiveTab,
+} from "@/client/hooks/use-active-tab";
 import {
   onPagePress,
   pageHoldingKeyboard,
@@ -20,7 +23,8 @@ import { SIDE_MOTION } from "@/client/lib/motion";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
 import { cn } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
-import { useAtomValue } from "jotai";
+import { noop } from "radashi";
+import { useAtom, useAtomValue } from "jotai";
 import { motion, useReducedMotion } from "motion/react";
 import {
   type CSSProperties,
@@ -35,6 +39,7 @@ import {
 import { type PageChromeSlots } from "./browser-tabs";
 import { useWindow } from "./context";
 import { GroupItem } from "./group-item";
+import { isKeptScreen, keptScreensAtom, withoutClosed } from "./kept-screens";
 import { SidebarToggle } from "./inbox-toggle";
 import { usePageHost } from "./page-hosts";
 import { PaneTabs, type SplitMenuActions, stripKeyOf } from "./pane-tabs";
@@ -86,16 +91,67 @@ import {
  */
 export function GroupView({ group }: { group: string | undefined }) {
   const isActive = useIsActiveTab();
-  if (group === undefined) {
-    return <div className="relative flex min-h-0 min-w-0 flex-1" />;
+  const { allTabs } = useWindowTabs();
+  const [kept, setKept] = useAtom(keptScreensAtom);
+  useEffect(() => {
+    const open = new Set(allTabs.map((tab) => tab.id));
+    setKept((current) => withoutClosed(current, open));
+  }, [allTabs, setKept]);
+  // The groups with a screen kept stay drawn behind the one up, each where
+  // it was first drawn: a group moved among them would be taken out of the
+  // document and put back, and lose where its screens were scrolled.
+  const keptGroups = new Set(
+    allTabs.flatMap((tab) =>
+      tab.group !== undefined && kept.includes(tab.id) && isKeptScreen(tab)
+        ? [tab.group]
+        : [],
+    ),
+  );
+  const [drawn, setDrawn] = useState<readonly string[]>([]);
+  const wanted = [
+    ...drawn.filter((each) => each === group || keptGroups.has(each)),
+    ...[...(group === undefined ? [] : [group]), ...keptGroups].filter(
+      (each, index, all) =>
+        !drawn.includes(each) && all.indexOf(each) === index,
+    ),
+  ];
+  if (
+    wanted.length !== drawn.length ||
+    wanted.some((each, index) => each !== drawn[index])
+  ) {
+    setDrawn(wanted);
   }
   return (
     <div
-      className={GROUP_GROUNDS}
+      className={
+        group === undefined
+          ? "relative flex min-h-0 min-w-0 flex-1"
+          : GROUP_GROUNDS
+      }
       // The group draws its own cards, so the window's card stands back.
-      {...(isActive ? { "data-own-cards": "" } : {})}
+      {...(isActive && group !== undefined ? { "data-own-cards": "" } : {})}
     >
-      <GroupSides group={group} />
+      {wanted.map((each) => {
+        const isUp = each === group;
+        return (
+          <div
+            // Invisible and transparent, as a window tab behind the one up
+            // is, and never taken out of the layout: a screen out of sight
+            // keeps its size, and with it where it was scrolled.
+            className={cn(
+              "absolute inset-0 flex min-h-0 min-w-0",
+              !isUp && "invisible opacity-0",
+            )}
+            inert={!isUp}
+            key={each}
+            {...(isUp ? { "data-group-up": "" } : {})}
+          >
+            <ActiveTabProvider isActive={isActive && isUp}>
+              <GroupSides group={each} isUp={isUp} />
+            </ActiveTabProvider>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -117,7 +173,14 @@ function showSideWithKeyboard(scroller: HTMLElement) {
 }
 
 /** The sides of a group in their row, the gutter between, scrolling sideways below their narrowest. */
-function GroupSides({ group }: { group: string }) {
+function GroupSides({
+  group,
+  isUp,
+}: {
+  group: string;
+  /** Whether the group is the one on screen, rather than kept drawn behind it. */
+  isUp: boolean;
+}) {
   const windowTabs = useWindowTabs();
   const layout = windowTabs.layoutOf(group);
   const [dragged, setDragged] = useState<number>();
@@ -342,8 +405,9 @@ function GroupSides({ group }: { group: string }) {
               ) : (
                 <SideCard
                   group={group}
-                  hasKeyboard={layout.focused === each.at}
+                  hasKeyboard={isUp && layout.focused === each.at}
                   isFirst={each.at === 0}
+                  isUp={isUp}
                   isLast={each.at === layout.sides.length - 1}
                   layout={layout}
                   place={`${group}:${each.at}:${isTwo ? growOf(each.at) : 1}`}
@@ -486,6 +550,7 @@ function SideCard({
   hasKeyboard,
   isFirst,
   isLast,
+  isUp,
   layout,
   place,
   side,
@@ -496,6 +561,8 @@ function SideCard({
   hasKeyboard: boolean;
   isFirst: boolean;
   isLast: boolean;
+  /** Whether the side's group is the one on screen. */
+  isUp: boolean;
   layout: GroupLayout;
   /** Where the side stands, which changes as its page's host moves. */
   place: string;
@@ -539,6 +606,18 @@ function SideCard({
   // What is held over the strip stands among its tabs where it would land.
   const drawn = useSideStrip({ group, side: sideIndex, tabs });
 
+  // What the side draws: its tab up while its group is on screen, and the
+  // screens kept behind it. In the order of their ids, which no move among
+  // the tabs changes, so none is taken out of the document and put back.
+  const kept = useAtomValue(keptScreensAtom);
+  const screens = tabs
+    .filter(
+      (tab) =>
+        (isUp && tab.id === up?.id) ||
+        (kept.includes(tab.id) && isKeptScreen(tab)),
+    )
+    .toSorted((a, b) => (a.id < b.id ? -1 : 1));
+
   const [pageHost, setPageHost] = useState<HTMLDivElement | null>(null);
   const [pageChrome, setPageChrome] = useState<PageChromeSlots>();
   const isPage = up?.kind === "page" && pageHost !== null;
@@ -550,7 +629,7 @@ function SideCard({
   );
   usePageHost(
     `side:${group}`,
-    !hasKeyboard && isPage && up
+    isUp && !hasKeyboard && isPage && up
       ? {
           chrome: pageChrome ?? false,
           into: pageHost,
@@ -649,10 +728,12 @@ function SideCard({
     tab: WindowTab,
     placing: { after?: string; side: 0 | 1 | "same" },
   ) => {
+    const from = { reason: "asked", tab: tab.id } as const;
     if (tab.kind === "page") {
       const url = tab.url ?? tab.openedUrl;
       if (url !== undefined) {
         appWindow.browser?.open(url, {
+          from,
           group,
           ...placing,
         });
@@ -661,6 +742,7 @@ function SideCard({
     }
     windowTabs.openScreen(tab.href, {
       ...(placing.after === undefined ? {} : { after: placing.after }),
+      from,
       group,
       select: true,
       side: placing.side,
@@ -694,7 +776,12 @@ function SideCard({
     onMoveToNewGroup:
       groupTabCount > 1
         ? (tab) => {
-            groups.make({ moving: tab.id });
+            groups.make({
+              moving: tab.id,
+              ...(windowTabs.groupOwn[group]?.pinned
+                ? {}
+                : { place: { after: group } }),
+            });
           }
         : undefined,
     onMoveToNewWindow: isWindowsOnlyTab
@@ -714,6 +801,7 @@ function SideCard({
       windowTabs.openIn(
         { group, href: NEW_TAB_HREF, id: newScreenId(), kind: "screen" },
         {
+          from: { reason: "newTab" },
           group,
           select: true,
           side: otherSide,
@@ -735,6 +823,7 @@ function SideCard({
     drawn.carriedKey !== undefined;
   const newTabHere = () => {
     windowTabs.openScreen(NEW_TAB_HREF, {
+      from: { reason: "newTab" },
       group,
       select: true,
       side: sideIndex,
@@ -777,7 +866,7 @@ function SideCard({
       )}
       data-group-side={sideIndex}
       {...(hasKeyboard ? { "data-keyboard": "" } : {})}
-      {...(up?.kind === "page" ? { "data-page-tab": up.id } : {})}
+      {...(isUp && up?.kind === "page" ? { "data-page-tab": up.id } : {})}
       data-tab-up={up?.id}
       ref={cardRef}
       onPointerDownCapture={() => {
@@ -828,12 +917,15 @@ function SideCard({
           className={SIDE_TABS}
           heldAt={drawn.heldAt}
           lead={isFirst ? <SidebarToggle /> : undefined}
-          onClose={shell.requestClose}
+          onClose={(id) => {
+            shell.requestClose(id);
+          }}
           onDuplicate={(tab) => {
             copyOf(tab, { after: tab.id, side: "same" });
           }}
           onNew={() => {
             windowTabs.openScreen(NEW_TAB_HREF, {
+              from: { reason: "newTab" },
               group,
               select: true,
               side: sideIndex,
@@ -863,41 +955,54 @@ function SideCard({
         />
       )}
       <div className="relative min-h-0 flex-1" data-side-page={sideIndex}>
-        {up && (
-          <PaneTopContext
-            value={
-              hasStrip
-                ? null
-                : {
-                    corner: (
-                      <div className="flex shrink-0 items-center gap-0.5">
-                        <TabRowControl
-                          chord="newTab"
-                          disabled={false}
-                          icon={<PlusIcon className="size-4" />}
-                          label="New Tab"
-                          onClick={newTabHere}
-                        />
-                        {splitControl}
-                        {windowEnd}
-                      </div>
-                    ),
-                    lead: isFirst ? <SidebarToggle /> : undefined,
-                  }
-            }
-          >
-            <GroupItem
-              closeTab={shell.requestClose}
-              group={group}
-              hasKeyboard={hasKeyboard}
-              isShown
-              key={up.id}
-              onPageChrome={setPageChrome}
-              onPageHost={setPageHost}
-              up={up}
-            />
-          </PaneTopContext>
-        )}
+        {screens.map((tab) => {
+          const isTabUp = isUp && tab.id === up?.id;
+          return (
+            <div
+              // The tab up, and behind it the screens kept drawn: out of
+              // sight as a group behind the one up is (`GroupView`).
+              className={cn(
+                "absolute inset-0",
+                !isTabUp && "invisible opacity-0",
+              )}
+              inert={!isTabUp}
+              key={tab.id}
+            >
+              <PaneTopContext
+                value={
+                  hasStrip || !isTabUp
+                    ? null
+                    : {
+                        corner: (
+                          <div className="flex shrink-0 items-center gap-0.5">
+                            <TabRowControl
+                              chord="newTab"
+                              disabled={false}
+                              icon={<PlusIcon className="size-4" />}
+                              label="New Tab"
+                              onClick={newTabHere}
+                            />
+                            {splitControl}
+                            {windowEnd}
+                          </div>
+                        ),
+                        lead: isFirst ? <SidebarToggle /> : undefined,
+                      }
+                }
+              >
+                <GroupItem
+                  closeTab={shell.requestClose}
+                  group={group}
+                  hasKeyboard={hasKeyboard && isTabUp}
+                  isShown={isTabUp}
+                  onPageChrome={isTabUp ? setPageChrome : noop}
+                  onPageHost={isTabUp ? setPageHost : noop}
+                  up={tab}
+                />
+              </PaneTopContext>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

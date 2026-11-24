@@ -14,10 +14,9 @@ import {
 } from "../../lib/memory/store";
 import { ChangesCardSchema, markCardUndone } from "../../lib/chat/card-undone";
 import { undoMemoryChanges } from "../../lib/memory/undo-memory-changes";
-import { startWatchingMemory } from "../../lib/memory/watch";
+import { changesTo } from "../../lib/live-changes";
 import { base } from "../base";
 import { liveRead } from "../live-read";
-import { publisher } from "../publisher";
 
 const MemoryFolderSchema = z.object({
   /** Where the files are, for a viewer that opens the folder. */
@@ -35,15 +34,10 @@ async function readMemoryFolder() {
 const liveListMemoryRoute = base
   .output(eventIterator(MemoryFolderSchema))
   .handler(async function* ({ signal }) {
-    const changes = publisher.subscribe("memory.changed", { signal });
-    // Held for the life of the subscription, so a file edited in the folder
-    // reaches the screen listing it.
-    const stopWatching = await startWatchingMemory();
-    try {
-      yield* liveRead({ changes: [changes], read: readMemoryFolder });
-    } finally {
-      stopWatching();
-    }
+    yield* liveRead({
+      changes: [changesTo("memory.changed", signal)],
+      read: readMemoryFolder,
+    });
   });
 
 /** The coding agents on this computer whose memory is there to import. */

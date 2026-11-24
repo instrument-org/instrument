@@ -421,3 +421,42 @@ describe("a link's menu in a window with tabs", () => {
     ]);
   });
 });
+
+describe("a click with Shift and a key that opens a new tab", () => {
+  it.each([
+    ["Cmd", "onClick", { button: 0, metaKey: true, shiftKey: false }, "behind"],
+    [
+      "Cmd Shift",
+      "onClick",
+      { button: 0, metaKey: true, shiftKey: true },
+      "front",
+    ],
+    [
+      "middle",
+      "onAuxClick",
+      { button: 1, metaKey: false, shiftKey: false },
+      "behind",
+    ],
+    [
+      "Shift middle",
+      "onAuxClick",
+      { button: 1, metaKey: false, shiftKey: true },
+      "front",
+    ],
+  ] as const)("%s opens it where a browser does", (_name, on, event, where) => {
+    const opened: string[] = [];
+    const clicks = openClickGestures({
+      open: () => opened.push("here"),
+      openInFront: () => opened.push("front"),
+      openInNewTab: () => opened.push("behind"),
+    });
+    clicks[on]({
+      ...event,
+      // The other command key, whichever system the test runs on.
+      ctrlKey: event.metaKey,
+      preventDefault: () => {},
+      // Only these are read; the rest of a React event is the DOM's.
+    } as unknown as React.MouseEvent);
+    expect(opened).toEqual([where]);
+  });
+});

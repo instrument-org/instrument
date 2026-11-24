@@ -11,7 +11,11 @@ import { ArrowClockwiseIcon } from "@phosphor-icons/react/ArrowClockwise";
 import { useQueryClient } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { noop } from "radashi";
-import { useAtomValue } from "jotai";
+import {
+  ActiveTabProvider,
+  useIsActiveTab,
+} from "@/client/hooks/use-active-tab";
+import { useAtomValue, useSetAtom } from "jotai";
 import {
   type ReactNode,
   type Ref,
@@ -24,8 +28,14 @@ import {
 import { useAppsBySlug } from "./apps-by-slug";
 import { BookmarksBar } from "./bookmarks-bar";
 import { type PageChromeSlots } from "./browser-tabs";
-import { asksOwnPlace, useWindow, WindowContext } from "./context";
+import {
+  asksOwnPlace,
+  type OpenOptions,
+  useWindow,
+  WindowContext,
+} from "./context";
 import { ScreenToolsRow, useRowSlots } from "./row-slots";
+import { SiteSignInBar } from "./site-sign-in";
 import { BrowserExtensionButtons } from "./browser-extension-buttons";
 import { PageAgentOverlay } from "./page-agent-overlay";
 import { computerTabOf } from "./file-tabs";
@@ -37,6 +47,7 @@ import {
 import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { KeptScrolls } from "./kept-scrolls";
+import { isKeptScreen, keptScreensAtom, withScreenUp } from "./kept-screens";
 import { segmentsOf } from "./host-path";
 import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
@@ -69,7 +80,7 @@ export function GroupItem({
 }: {
   /** Where back goes from the start of the tab: the window's own tab history, for a site standing at the window's level. */
   before?: { back: () => void; canGoBack: boolean };
-  closeTab: (id: string) => void;
+  closeTab: (id: string, options?: { up?: string }) => void;
   group: string;
   /** Whether its side of the group has the keyboard: a chat or a new chat on the other side leaves the caret alone. */
   hasKeyboard?: boolean;
@@ -142,6 +153,7 @@ export function GroupItem({
    * browser's bookmark takes over the tab it is clicked in, and Back returns.
    */
   const takeOver = (href: string) => {
+    windowTabs.startedOver(up.id);
     if (before) {
       appWindow.openScreen(href);
     } else {
@@ -170,8 +182,12 @@ export function GroupItem({
       windowTabs.visitHref(up.id, href);
     }
   };
+  /** An open from the screen in this tab, which says so; a chat's names its own. */
+  const openedHere = (options: OpenOptions = {}): OpenOptions =>
+    options.chat === undefined ? { from: up.id, ...options } : options;
   /** A site in this tab: the page's own next stop, or a page in place of the screen up. */
   const openHere = (url: string) => {
+    windowTabs.startedOver(up.id);
     if (up.kind === "page" && page) {
       void page.load(url).catch(noop);
     } else {
@@ -183,7 +199,10 @@ export function GroupItem({
   // the window's own, where the window's tab was before the site. The row's
   // arrows and every step asked of the page take these; a site's are the
   // window's own arrows, which read the same steps.
-  const steps = useTabSteps(up, before ? { outer: before } : {});
+  const steps = useTabSteps(up, {
+    closeTab,
+    ...(before ? { outer: before } : {}),
+  });
   const { canGoBack, canGoForward } = steps;
   const goBack = () => {
     steps.go("back");
@@ -205,16 +224,17 @@ export function GroupItem({
   // With the keyboard in what is up here, back and forward are its steps
   // rather than the window's, the way they are for a page holding it.
   const anchorRef = useRef<HTMLDivElement>(null);
-  useEffect(
-    () =>
-      registerHistorySurface({
-        anchor: () => anchorRef.current,
-        step: (direction) => {
-          stepPage(direction);
-        },
-      }),
-    [],
-  );
+  useEffect(() => {
+    if (!isShown) {
+      return;
+    }
+    return registerHistorySurface({
+      anchor: () => anchorRef.current,
+      step: (direction) => {
+        stepPage(direction);
+      },
+    });
+  }, [isShown]);
 
   // The router of a screen that is up; read before the early returns, as a hook.
   const router = useGroupTabRouter(up.id);
@@ -235,7 +255,7 @@ export function GroupItem({
   };
   const reloadFromWindow = useEffectEvent(reloadScreen);
   useEffect(() => {
-    if (!isReloaded) {
+    if (!isReloaded || !isShown) {
       return;
     }
     return offerScreenReload({
@@ -244,7 +264,18 @@ export function GroupItem({
         reloadFromWindow();
       },
     });
-  }, [isReloaded]);
+  }, [isReloaded, isShown]);
+
+  // A screen up is kept drawn once another tab or group takes its place
+  // (`kept-screens.ts`), the one longest out of sight let go first.
+  const setKeptScreens = useSetAtom(keptScreensAtom);
+  const isKept = isKeptScreen(up);
+  useEffect(() => {
+    if (isShown && isKept) {
+      setKeptScreens((kept) => withScreenUp(kept, up.id));
+    }
+  }, [isKept, isShown, setKeptScreens, up.id]);
+  const isActive = useIsActiveTab();
 
   /** Where the page on a file up here stands now: the page tab's own, or the one a file's viewer draws. */
   const liveAddressOf = (path: string) =>
@@ -356,6 +387,7 @@ export function GroupItem({
               onOpen={openHere}
               onVisit={takeOver}
             />
+            <SiteSignInBar tabId={up.id} />
           </>
         }
       >
@@ -377,7 +409,7 @@ export function GroupItem({
   // A new tab hints at a browser with bare, quiet controls and no field,
   // since its own box takes an address; a chat is the app's own page and
   // has no row over it at all.
-  const head = isNewChat ? (
+  const head = !isShown ? null : isNewChat ? (
     <TabLocationRow
       canGoBack={canGoBack}
       canGoForward={canGoForward}
@@ -411,33 +443,37 @@ export function GroupItem({
     <Bare
       anchorRef={anchorRef}
       head={
-        <>
-          {head}
-          {/* A chat is the app's own page, which the bar never sits over. */}
-          {chatOfTab(up) === undefined && (
-            <BookmarksBar
-              bleeds={isNewChat}
-              files={{ group }}
-              isAlwaysShown={isNewChat}
-              onOpen={openHere}
-              onVisit={takeOver}
-            />
-          )}
-          {/* Files' own row: the folder's controls over the folder, the
+        // A screen kept drawn out of sight has no rows over it: they are
+        // the tab up's.
+        isShown && (
+          <>
+            {head}
+            {/* A chat is the app's own page, which the bar never sits over. */}
+            {chatOfTab(up) === undefined && (
+              <BookmarksBar
+                bleeds={isNewChat}
+                files={{ group }}
+                isAlwaysShown={isNewChat}
+                onOpen={openHere}
+                onVisit={takeOver}
+              />
+            )}
+            {/* Files' own row: the folder's controls over the folder, the
               file's (its versions, then what it draws into `viewEnd`) over
               the file beside it. */}
-          {!isFileAlone && (isFiles || versions) && (
-            <ScreenToolsRow
-              end={
-                <>
-                  {versions && <FileVersionsButton {...versions} />}
-                  {viewEnd}
-                </>
-              }
-              {...(isFiles ? { lead: rowProps.leading } : {})}
-            />
-          )}
-        </>
+            {!isFileAlone && (isFiles || versions) && (
+              <ScreenToolsRow
+                end={
+                  <>
+                    {versions && <FileVersionsButton {...versions} />}
+                    {viewEnd}
+                  </>
+                }
+                {...(isFiles ? { lead: rowProps.leading } : {})}
+              />
+            )}
+          </>
+        )
       }
     >
       <GroupTabContext
@@ -459,6 +495,8 @@ export function GroupItem({
         <WindowContext
           value={{
             ...appWindow,
+            openPage: (url, options) =>
+              appWindow.openPage(url, openedHere(options)),
             // A chat's tasks and each task's page walk this tab in place,
             // unless it is the chat's own, which stays on the chat.
             openScreen: (href, options) => {
@@ -471,7 +509,7 @@ export function GroupItem({
                 router.history.push(href);
                 return;
               }
-              appWindow.openScreen(href, options);
+              appWindow.openScreen(href, openedHere(options));
             },
             rowField: slots.field,
             rowLead: slots.lead,
@@ -488,12 +526,17 @@ export function GroupItem({
           <KeptScrolls
             href={up.href}
             isKept={!isChat && !isNewChat}
+            isShown={isShown}
             tabId={up.id}
           >
             <div
               className={isChat || isNewChat ? "relative h-full" : "contents"}
             >
-              {content}
+              {/* Out of sight, it waits as a window tab behind the one up
+                  does: what it reads on a clock, it reads when it is back. */}
+              <ActiveTabProvider isActive={isActive && isShown}>
+                {content}
+              </ActiveTabProvider>
             </div>
           </KeptScrolls>
         </WindowContext>

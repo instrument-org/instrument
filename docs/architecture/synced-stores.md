@@ -24,7 +24,15 @@ A change made on a device is stamped no earlier than one past the record it repl
 
 ## The store
 
-`openSyncedStore` (`synced-store/synced-store.ts`, exported from `@instrument-org/workspace/electron`) is the one door: `get`, `entries(prefix)`, `apply(ops)` (answered once the lines are on disk) and `subscribe`. It reads every device's file as it opens, appends this device's through a `RecordWriter` (`records/record-writer.ts`, with the store's `RecordFormat`), and takes in what another device's file gains: one recursive watch on the devices folder on macOS and Windows, a watch per device folder on Linux, and `look()` for a change a watch missed. It holds the whole store in memory. A store too big for that would index its files in `workspace.db`, as the activity log in the same folders is.
+`openSyncedStore` (`synced-store/synced-store.ts`, exported from `@instrument-org/workspace/electron`) is the one door: `get`, `entries(prefix)`, `apply(ops)` (answered once the lines are on disk) and `subscribe`. It reads every device's file as it opens, appends this device's through a `RecordWriter` (`records/record-writer.ts`, with the store's `RecordFormat`), and takes in what another device's file gains (below). It holds the whole store in memory. A store too big for that would index its files in `workspace.db`, as the activity log in the same folders is.
+
+## How a change is noticed and shown
+
+Every store is watched by `watchSynced` (`synced-store/watch-synced.ts`), whether it is held open or read from its files: one recursive watch on the devices folder on macOS and Windows, a watch per device folder on Linux, and a look when a window comes forward and every minute while one is in front, for a change a watch missed. That look is one rule (`lib/in-front.ts`), shared with the chats' records; the host says only when a window comes forward and when the last goes behind (`setWorkspaceInFront`).
+
+`SYNCED_DOMAINS` (`synced-store/domains.ts`) lists every store and how a change to it reaches the screen: an event the workspace says, the host's own windows, or nothing shown. A domain not in it does not compile. `changesTo(event)` (`lib/live-changes.ts`) is what a live route listens to, and has the watches behind each event: the store, the folder of the person's beside it where there is one, or both, held once while anything listens. `live-changes.test.ts` writes to each listed store as another device and expects its event, with the watch and without it.
+
+To add a store: list it in `SYNCED_DOMAINS`, and where it names an event, add its watch to that event's sources.
 
 ## Bookmarks
 
@@ -34,7 +42,7 @@ At launch, a `bookmarks.json` an earlier build kept in `.instrument/` is taken i
 
 ## Projects and memories
 
-A project's folder and a memory's file have only the person's words in them; what the app knows about each is a synced store beside them. Their readers are synchronous and also run in launch migrations before the workspace is up, so they read and append through `synced-store/synced-files.ts` (`foldSyncedFiles`, `applySyncedOps`), the same lines and fold without a watch or a writer held open.
+A project's folder and a memory's file have only the person's words in them; what the app knows about each is a synced store beside them. Their readers are synchronous and also run in launch migrations before the workspace is up, so they read and append through `synced-store/synced-files.ts` (`foldSyncedFiles`, `applySyncedOps`), the same lines and fold without a writer held open.
 
 - **`projects`** (`chat/project-records.ts`): a key per project by its id, whose value is its `created`, and its `emoji` or `icon`, `color`, `about` and `retired`. The record never names its folder: a folder finds its record by the id its hidden `.instrument-project` names, which moves and syncs with the folder, so a rename by hand or a folder that syncs ahead of the store keeps its project. A folder with no id file goes by the id an earlier build wrote into its `AGENTS.md`, or else one drawn from its name; where two folders name one id, the older keeps it and the copy gets its own. Any read in a running workspace writes down a missing record or id file.
 - **`memory`** (`memory/memory-records.ts`): a key per memory by its file's name in `Memory/`, whose value is the chat it was learned in and when it was saved. A file renamed by hand loses its record and shows its last change as when it was saved; nothing matches renames here, since a memory written by hand would take the record of one deleted by hand.

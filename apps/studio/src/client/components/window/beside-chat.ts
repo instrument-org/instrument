@@ -285,7 +285,11 @@ export function openBesideChat(
   } else {
     next = openInGroup(state, placed, {
       ...(placement.after === undefined ? {} : { after: placement.after }),
+      ...(ask.gesture === undefined
+        ? {}
+        : { from: { reason: "link", tab: ask.chatTab } }),
       group,
+      isFront: placement.front,
       side: placement.side,
     });
     if (placement.front) {
@@ -343,7 +347,7 @@ export function handOverBesideChat(
   const previous = previousOpenedIn(state, group, openedBy);
   const placed = openBesideChat(
     state,
-    { group, href, id, isOpened: true, kind: "screen", openedBy },
+    { group, href, id, kind: "screen", openedBy },
     {
       chatTab,
       isShown: true,

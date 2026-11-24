@@ -4,7 +4,6 @@ import { chats } from "./routes/chats";
 import { computer } from "./routes/computer";
 import { debug } from "./routes/debug";
 import { decision } from "./routes/decision";
-import { ideas } from "./routes/ideas";
 import { memory } from "./routes/memory";
 import { message } from "./routes/message";
 import { permissions } from "./routes/permissions";
@@ -22,7 +21,6 @@ export const router = {
   computer,
   debug,
   decision,
-  ideas,
   memory,
   message,
   permissions,

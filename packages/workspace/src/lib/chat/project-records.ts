@@ -1,7 +1,11 @@
 import { z } from "zod";
 
 import { type DeviceId } from "../records/device-id";
-import { applySyncedOps, foldSyncedFiles } from "../synced-store/synced-files";
+import {
+  applySyncedOps,
+  foldSyncedFiles,
+  watchSyncedFiles,
+} from "../synced-store/synced-files";
 import { type SyncedOp } from "../synced-store/synced-record";
 import { workspaceLayout } from "../workspace-layout";
 
@@ -85,5 +89,17 @@ export function writeProjectRecords(
         value: ProjectRecordSchema.parse(record),
       }),
     ),
+  });
+}
+
+/** Calls `onChange` when any device changes a project's record, until stopped. */
+export function watchProjectRecords(
+  rootDir: string,
+  onChange: () => void,
+): () => void {
+  return watchSyncedFiles({
+    devicesDir: workspaceLayout(rootDir).devicesDir,
+    domain: PROJECTS_DOMAIN,
+    onChange,
   });
 }

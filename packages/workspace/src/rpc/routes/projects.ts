@@ -9,16 +9,14 @@ import {
   PROJECT_NAME_MAX,
   ProjectFolderSchema,
   ProjectNameError,
-  projectsDir,
   ProjectSchema,
   updateProject,
 } from "../../lib/chat/projects";
 import { ChangesCardSchema, markCardUndone } from "../../lib/chat/card-undone";
 import { undoProjectChanges } from "../../lib/chat/undo-project-changes";
-import { watchFolder } from "../../lib/folder-watch";
+import { changesTo } from "../../lib/live-changes";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { base } from "../base";
-import { publisher } from "../publisher";
 
 /** What the user picks about a project: its mark, its tint. */
 const ProjectMarkSchema = z.object({
@@ -146,29 +144,20 @@ const retireProjectRoute = base
   });
 
 /**
- * A revision that moves whenever a project's folder changes on disk, whoever
- * changed it: the app, the agent, the person in their files. Opens with
+ * A revision that moves whenever a project's folder or its record changes on
+ * disk, whoever changed it: the app, the agent, the person in their files,
+ * another device. Opens with
  * revision 0, a point to re-read from, as `skill.events.changed` does.
  */
 const changedProjectsRoute = base
   .output(eventIterator(z.object({ revision: z.number() })))
   .handler(async function* ({ signal }) {
-    const changes = publisher.subscribe("project.changed", { signal });
-    const stop = watchFolder(projectsDir(), {
-      depth: 1,
-      onChange: () => {
-        publisher.publish("project.changed", null);
-      },
-    });
+    const changes = changesTo("project.changed", signal);
     let revision = 0;
-    try {
+    yield { revision };
+    for await (const _ of changes) {
+      revision += 1;
       yield { revision };
-      for await (const _ of changes) {
-        revision += 1;
-        yield { revision };
-      }
-    } finally {
-      stop();
     }
   });
 

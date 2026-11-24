@@ -4,7 +4,6 @@ import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import {
   type GroupTabLanding,
   groupOfWholeKey,
-  neighborAt,
   TabIdSchema,
   type TabMoveDestination,
   type TabStanding,
@@ -198,14 +197,7 @@ export function useGroupTabMoves() {
       if (!tab) {
         return;
       }
-      // The group it leaves has the tab beside it up, as a strip does when
-      // its tab up goes.
       const from = tab.group;
-      const left = tabsIn(state, from);
-      const neighbor =
-        from !== undefined && state.activeByGroup[from] === tab.id
-          ? neighborAt(left, left.indexOf(tab))
-          : undefined;
       const groupUp = store.get(groupOnScreenAtom);
       const isOwnWindow =
         landing.kind === "new" && landing.isWindowOfItsOwn === true;
@@ -266,9 +258,6 @@ export function useGroupTabMoves() {
                   : { index: landing.index }),
               }),
         });
-      }
-      if (neighbor) {
-        windowTabs.select(neighbor.id);
       }
     },
     toNewWindow: (id: string) => {

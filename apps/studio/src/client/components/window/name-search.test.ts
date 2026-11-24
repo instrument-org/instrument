@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   findNamed,
-  flatSearch,
   type Named,
   orderSearch,
   rangesOf,
@@ -222,25 +221,5 @@ describe("one wrong letter", () => {
         (found) => `${found.entry.id} ${found.step}`,
       ),
     ).toEqual([`folder:wireframes ${MATCH_STEPS.wrongLetter}`]);
-  });
-});
-
-describe("a new tab's box's results", () => {
-  const found = findNamed([...FOLDERS, ...CHATS], foldWords("wire"));
-
-  it("lists every kind together, best first", () => {
-    expect(
-      flatSearch({ found, limit: 6, remembered: undefined }).map(
-        (each) => each.entry.id,
-      ),
-    ).toEqual(["folder:wireframes", "chat:kit", "chat:review", "chat:new"]);
-  });
-
-  it("moves the remembered pick to the front, and stops at its limit", () => {
-    expect(
-      flatSearch({ found, limit: 2, remembered: "chat:new" }).map(
-        (each) => each.entry.id,
-      ),
-    ).toEqual(["chat:new", "folder:wireframes"]);
   });
 });

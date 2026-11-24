@@ -53,7 +53,7 @@ vi.mock("@/electron-main/stores/machine/state", () => {
 });
 vi.mock("@/electron-main/stores/machine/preferences", () => ({
   getMachinePreferences: () => ({
-    get: () => ({ pinned: [], unpinned: [], order: [] }),
+    get: () => ({ added: [], removed: [], order: [] }),
     set: () => undefined,
   }),
 }));

@@ -206,6 +206,7 @@ export {
   writeDeviceStatusFileSync,
 } from "./lib/records/device-status-file";
 export { readMachineId } from "./lib/records/machine-id";
+export { setWorkspaceInFront } from "./lib/in-front";
 export {
   startRecordArrivals,
   stopRecordArrivals,

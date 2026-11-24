@@ -1,5 +1,5 @@
 import { openReportDialog } from "@/client/atoms/report-dialog";
-import { openSettings } from "@/client/atoms/settings-modal";
+import { useOpenSettings } from "@/client/components/window/use-open-settings";
 import { ReplyNote, ReplyNoteButton } from "@/client/components/reply-note";
 import { useBillingStatus } from "@/client/hooks/use-billing-status";
 import {
@@ -619,6 +619,7 @@ function PlanAccountNote({
   onDismiss: () => void;
   stop: PlanAccountStop;
 }) {
+  const openSettings = useOpenSettings();
   const text = planAccountNoteText(stop, now);
   if (isReady) {
     return (

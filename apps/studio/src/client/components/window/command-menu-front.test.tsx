@@ -174,8 +174,8 @@ describe("the command menu's actions for the tab in front", () => {
     await screen.findByText("# This chat");
     expect(listed()).toMatchInlineSnapshot(`
       [
-        "# Recent",
-        "Roofer quotes",
+        "# Recent chats",
+        "All chats",
         "# This chat",
         "Rename",
         "Star",
@@ -239,6 +239,8 @@ describe("the command menu's actions for the tab in front", () => {
     await screen.findByText("# This page");
     expect(listed()).toMatchInlineSnapshot(`
       [
+        "# Recent chats",
+        "All chats",
         "# This page",
         "Add to Bookmarks",
         "Copy URL",
@@ -265,6 +267,8 @@ describe("the command menu's actions for the tab in front", () => {
     await screen.findByText("# This file");
     expect(listed()).toMatchInlineSnapshot(`
       [
+        "# Recent chats",
+        "All chats",
         "# This file",
         "Add to Bookmarks",
         "Open in default app",
@@ -284,6 +288,8 @@ describe("the command menu's actions for the tab in front", () => {
 
     expect(listed()).toMatchInlineSnapshot(`
       [
+        "# Recent chats",
+        "All chats",
         "# Commands",
         "New tab group",
         "New tab",

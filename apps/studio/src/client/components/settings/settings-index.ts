@@ -126,13 +126,6 @@ export const SETTINGS_INDEX = [
     title: "Suggest a next message",
   },
   {
-    detail:
-      "Show ideas for what to ask about the pages and files you have open.",
-    id: "show-ideas",
-    tab: "General",
-    title: "Show ideas",
-  },
-  {
     detail: "A local record to send with a problem report",
     id: "diagnostic-log",
     tab: "General",

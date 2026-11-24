@@ -179,16 +179,6 @@ export function debugPageAt(pathname: string): ListedPage | undefined {
   return debugPages.find((page): page is ListedPage => page.to === path);
 }
 
-/** The pages about the app as a whole, which the command menu lists by name. */
-export const debugNavigationRoutes = debugPages
-  .filter((page) => page.group === "state")
-  .map(({ id, label, to }) => ({ id, label, to }));
-
-/** The pages of the app's pieces, which the command menu lists as components. */
-export const componentPages = debugPages
-  .filter((page) => page.group !== "state")
-  .map(({ id, label, to }) => ({ id, label, to }));
-
 /**
  * What a tab standing on a debug page is called, read off its path alone so
  * every place that names a tab from its address names this one too. The index

@@ -483,7 +483,7 @@ async function testWebApp({
           ...failure(
             connection?.status === "connected"
               ? `The manifest changed since the user said they were signed in, so the sign-in may be for another site. Ask them again with ${TOOL_NAMES.connectApp}.`
-              : `The user has not said they are signed in to ${name}. Open ${manifest.signIn ?? manifest.url} in a tab first: if it loads signed in, ask them to press Done signing in on a ${TOOL_NAMES.connectApp} card; otherwise ask them with ${TOOL_NAMES.connectApp}, whose card opens that page in ${APP_NAME}'s browser.`,
+              : `The user has not said they are signed in to ${name}. Open ${manifest.signIn ?? manifest.url} in a tab first: if it loads signed in, call ${TOOL_NAMES.connectApp} and tell them they are already signed in, so they only press Sign in on the card, then Done on the page it opens; otherwise ask them with ${TOOL_NAMES.connectApp}, whose card opens that page in ${APP_NAME}'s browser.`,
           ),
         },
   );

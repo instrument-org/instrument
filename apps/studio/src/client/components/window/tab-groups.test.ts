@@ -240,7 +240,6 @@ describe("a tab group's tabs, copied", () => {
       future: [{ href: "/files", id: "f", kind: "screen" }],
       group: "chat",
       id: "p1",
-      isOpened: true,
       kind: "page",
       openedAt: 1,
       openedUrl: "https://example.com",

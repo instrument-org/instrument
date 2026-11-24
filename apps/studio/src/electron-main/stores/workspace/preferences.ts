@@ -87,8 +87,6 @@ export const WorkspacePreferencesSchema = z.object({
   // window, brought out and put away from the View menu or the bar's own
   // menu. Off, it shows on a new tab alone.
   showBookmarksBar: z.boolean().catch(false),
-  // Ideas under a new tab's box; see ask-ideas.ts in the workspace package.
-  showIdeas: z.boolean().catch(true),
   // A next message offered in a chat's empty box once it settles; see
   // next-message.ts in the workspace package.
   suggestNextMessage: z.boolean().catch(true),

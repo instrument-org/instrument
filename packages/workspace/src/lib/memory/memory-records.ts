@@ -4,7 +4,11 @@ import { z } from "zod";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type DeviceId } from "../../schemas/device-id";
 import { writingChatRecords } from "../records/installed-records";
-import { applySyncedOps, foldSyncedFiles } from "../synced-store/synced-files";
+import {
+  applySyncedOps,
+  foldSyncedFiles,
+  watchSyncedFiles,
+} from "../synced-store/synced-files";
 import { type SyncedOp } from "../synced-store/synced-record";
 import { getWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
@@ -87,5 +91,17 @@ export function writeMemoryRecords(
               value: MemoryRecordSchema.parse(op.record),
             },
     ),
+  });
+}
+
+/** Calls `onChange` when any device changes a memory's record, until stopped. */
+export function watchMemoryRecords(
+  dir: string,
+  onChange: () => void,
+): () => void {
+  return watchSyncedFiles({
+    devicesDir: devicesDirOf(dir),
+    domain: MEMORY_DOMAIN,
+    onChange,
   });
 }

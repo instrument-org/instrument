@@ -51,7 +51,14 @@ describe("a page the draft names, at the send", () => {
       });
     }
     expect(openBehind.mock.calls).toEqual([
-      [theirs.url, { after: "chat", group: "group:1" }],
+      [
+        theirs.url,
+        {
+          after: "chat",
+          from: { reason: "link", tab: "chat" },
+          group: "group:1",
+        },
+      ],
     ]);
   });
 });

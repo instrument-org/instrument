@@ -1,8 +1,6 @@
-import {
-  isScreenName,
-  isSettingsSection,
-  SCREENS,
-} from "@/shared/instrument-screens";
+import { settingsHrefOf } from "@/client/components/settings/settings-href";
+import { settingsTargetOf } from "@/client/components/settings/settings-index";
+import { isScreenName, SCREENS } from "@/shared/instrument-screens";
 import { instrumentLinkOf } from "@instrument-org/shared";
 
 /**
@@ -57,9 +55,9 @@ export function pageOpenPlaceOf(
 
 /**
  * The tab address an agent's `instrument://` address opens at: a chat, an
- * app, a task, a built-in page or a part of Settings, as `window list` names
- * them. Undefined for one that names no tab: a memory, a skill or a project
- * opens outside the tabs, and a single setting inside Settings.
+ * app, a task, a built-in page, a part of Settings or a single setting,
+ * which is its part with the row to light. Undefined for one that names no
+ * tab: a memory, a skill or a project opens outside the tabs.
  */
 export function tabHrefOfAppAddress(address: string): string | undefined {
   const link = instrumentLinkOf(address);
@@ -77,9 +75,11 @@ export function tabHrefOfAppAddress(address: string): string | undefined {
       return "href" in screen ? screen.href : undefined;
     }
     case "settings": {
-      return isSettingsSection(link.name)
-        ? `/settings/${link.name}`
-        : undefined;
+      // A name Settings has no row or part for is words to search for, which
+      // is no tab to open.
+      return settingsTargetOf(link.name).kind === "search"
+        ? undefined
+        : settingsHrefOf({ setting: link.name });
     }
     default: {
       return undefined;
@@ -89,5 +89,5 @@ export function tabHrefOfAppAddress(address: string): string | undefined {
 
 /** Why an `instrument://` address opened no tab. */
 export function noTabAt(address: string): string {
-  return `${address} names no tab: a chat, an app, a task, a built-in page or a part of Settings opens as one, by the address \`instrument window list\` prints.`;
+  return `${address} names no tab: a chat, an app, a task, a built-in page, a part of Settings or a setting opens as one, by the address \`instrument window list\` prints.`;
 }

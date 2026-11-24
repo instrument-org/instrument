@@ -12,7 +12,7 @@ import {
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useState } from "react";
 
-import { openSettings } from "@/client/atoms/settings-modal";
+import { useOpenSettings } from "@/client/components/window/use-open-settings";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { privacyPaneForApp } from "@/client/lib/privacy-pane";
@@ -701,6 +701,7 @@ export function PermissionAnswerNote({
 }: {
   data: SessionMessageDataPart.PermissionAnswerDataPart;
 }) {
+  const openSettings = useOpenSettings();
   if (data.kind === "page") {
     const site = hostOf(data.page?.url) || "the page";
     return (

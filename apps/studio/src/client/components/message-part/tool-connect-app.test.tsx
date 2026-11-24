@@ -5,7 +5,9 @@ import {
 } from "@/client/components/window/context";
 import { renderWithProviders } from "@/tests/render";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
+import { useWindowTabsChange } from "@/client/components/window/window-tabs";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ToolConnectApp } from "./tool-connect-app";
@@ -92,7 +94,8 @@ vi.mock("@/client/rpc/client", () => ({
   },
 }));
 
-const openPage = vi.fn();
+const openPage = vi.fn<(url: string) => string | undefined>();
+const showTab = vi.fn<(id: string) => boolean>();
 
 /** Outlook as the Apps list draws it, its sign-in having ended this way. */
 function outlook(
@@ -138,9 +141,11 @@ function renderCard(
     openPage,
     openPath: vi.fn(),
     openScreen: vi.fn(),
+    showTab,
   } satisfies WindowContextValue;
   return renderWithProviders(
     <WindowContext.Provider value={window}>
+      <OpenTab />
       <ToolConnectApp
         part={{
           input: { reason: "So I can read your mail.", slugs: ["outlook"] },
@@ -169,6 +174,19 @@ function renderCard(
 
 const PART_ID = StoreId.newPartId();
 
+/** The tab the window's open answers ("tab-1"), which a site's sign-in is marked on. */
+function OpenTab() {
+  const change = useWindowTabsChange();
+  useEffect(() => {
+    change(() => ({
+      activeByGroup: { g: "tab-1" },
+      groups: {},
+      tabs: [{ group: "g", id: "tab-1", kind: "page", openedAt: 1 }],
+    }));
+  }, [change]);
+  return null;
+}
+
 /** The card's lines and buttons, lines first. */
 function reads(): string[] {
   return [
@@ -191,6 +209,8 @@ beforeEach(() => {
   mocks.signInOnWeb.mockReset();
   mocks.startOAuth.mockReset();
   openPage.mockReset();
+  showTab.mockReset();
+  showTab.mockReturnValue(true);
 });
 
 describe("the card for one app", () => {
@@ -227,7 +247,9 @@ describe("the card for one app", () => {
       await screen.findByPlaceholderText("Paste the Outlook key"),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Add key" })).toBeNull();
-    expect(await screen.findByText(/The key goes only to/)).toBeTruthy();
+    expect(
+      await screen.findByText(/Instrument sends this key to/),
+    ).toBeTruthy();
   });
 
   it("says an app with no sign-in is being tested, and offers nothing to press", async () => {
@@ -266,9 +288,10 @@ describe("the card for one app", () => {
 });
 
 describe("a web app's row", () => {
-  it("offers Done signing in from the start, for someone already signed in", async () => {
+  it("has one button until its site is open, then Done and a way back to the page where that button was", async () => {
     mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }, "web"));
     mocks.markWebSignedIn.mockResolvedValue(undefined);
+    openPage.mockReturnValue("tab-1");
     renderCard("chat-1", {
       kind: "sign-in",
       name: "Outlook",
@@ -276,17 +299,34 @@ describe("a web app's row", () => {
       state: "asked",
     });
 
-    await screen.findByRole("button", { name: "Done signing in" });
+    await screen.findByRole("button", { name: "Sign in" });
     expect(reads()).toMatchInlineSnapshot(`
       [
         "Connect Outlook",
         "So I can read your mail.",
         "Outlook",
         "[Not now]",
-        "[Sign in here]",
-        "[Done signing in]",
+        "[Sign in]",
       ]
     `);
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(openPage).toHaveBeenCalledWith("https://outlook.office.com");
+    await screen.findByRole("button", { name: "Done signing in" });
+    expect(reads()).toMatchInlineSnapshot(`
+      [
+        "Connect Outlook",
+        "So I can read your mail.",
+        "Outlook",
+        "Waiting for you",
+        "[Not now]",
+        "[Done signing in]",
+        "[Show page]",
+      ]
+    `);
+    // A second press shows the page that is open rather than opening another.
+    fireEvent.click(screen.getByRole("button", { name: "Show page" }));
+    expect(showTab).toHaveBeenCalledWith("tab-1");
+    expect(openPage).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole("button", { name: "Done signing in" }));
     await waitFor(
       () => {
@@ -297,7 +337,6 @@ describe("a web app's row", () => {
       },
       { interval: 1 },
     );
-    expect(openPage).not.toHaveBeenCalled();
   });
 });
 
@@ -404,6 +443,7 @@ describe("how a sign-in ended", () => {
       mocks.apps.mockResolvedValue(outlook({ status: "needs-sign-in" }, "web"));
       return Promise.resolve({ signIn: "https://outlook.office.com" });
     });
+    openPage.mockReturnValue("tab-1");
     const { queryClient } = renderCard();
 
     await screen.findByText("Outlook won’t let this account connect directly.");
@@ -493,6 +533,7 @@ function renderGroupCard() {
     openPage,
     openPath: vi.fn(),
     openScreen: vi.fn(),
+    showTab,
   } satisfies WindowContextValue;
   return renderWithProviders(
     <WindowContext.Provider value={window}>
@@ -543,6 +584,26 @@ describe("the card asking for several apps", () => {
         "[Skip the rest]",
         "[Sign in with Safari]",
         "[Sign in here]",
+        "[GGmail]",
+      ]
+    `);
+  });
+
+  it("brings a waiting row up when it is pressed, and puts the first one back to waiting", async () => {
+    mocks.apps.mockResolvedValue(google({}));
+    renderGroupCard();
+
+    fireEvent.click(await screen.findByRole("button", { name: "Gmail" }));
+    expect(reads()).toMatchInlineSnapshot(`
+      [
+        "Connect 3 apps",
+        "So I can read your files and email.",
+        "Google Drive",
+        "Google Docs",
+        "Gmail",
+        "[Not now]",
+        "[GGoogle Drive]",
+        "[GGoogle Docs]",
         "[Sign in with Safari]",
         "[Sign in here]",
       ]
@@ -564,10 +625,8 @@ describe("the card asking for several apps", () => {
         "[Not now]",
         "[Sign in with Safari]",
         "[Sign in here]",
-        "[Sign in with Safari]",
-        "[Sign in here]",
-        "[Sign in with Safari]",
-        "[Sign in here]",
+        "[GGoogle Docs]",
+        "[GGmail]",
       ]
     `);
   });

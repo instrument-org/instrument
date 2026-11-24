@@ -156,7 +156,7 @@ export function cellsOf(xml: string): CellElement[] {
 }
 
 /** The shared strings, by index. */
-export function sharedStrings(zip: ZipPackage, workbook: string): string[] {
+function sharedStrings(zip: ZipPackage, workbook: string): string[] {
   const xml =
     zip.text(
       path.posix.join(path.posix.dirname(workbook), "sharedStrings.xml"),

@@ -3,9 +3,9 @@ import path from "node:path";
 import { isEqual } from "radashi";
 
 import { DEVICE_ID_PATTERN, type DeviceId } from "../records/device-id";
+import { type SyncedDomain } from "./domains";
 import { SyncedFold } from "./synced-fold";
 import {
-  checkDomain,
   isSyncedFileName,
   readSyncedLines,
   recordsFor,
@@ -13,6 +13,7 @@ import {
   type SyncedOp,
   syncedFileName,
 } from "./synced-record";
+import { watchSynced } from "./watch-synced";
 
 /**
  * A synced store read and written straight from its files, synchronously and
@@ -35,9 +36,8 @@ export function foldSyncedFiles({
   domain,
 }: {
   devicesDir: string;
-  domain: string;
+  domain: SyncedDomain;
 }): SyncedFold {
-  checkDomain(domain);
   const fold = new SyncedFold();
   for (const folder of namesIn(devicesDir)) {
     if (!DEVICE_FOLDER.test(folder)) {
@@ -73,7 +73,7 @@ export function applySyncedOps({
 }: {
   device: DeviceId;
   devicesDir: string;
-  domain: string;
+  domain: SyncedDomain;
   now?: number;
   ops: readonly SyncedOp[];
 }): string[] {
@@ -112,6 +112,55 @@ export function applySyncedOps({
   // oxlint-disable-next-line studio/no-sync-content-read -- an append to this device's own file, which it alone writes, in the same run as the read above.
   fs.appendFileSync(file, lead + lines.join(""), { flush: true });
   return records.map((record) => record.key);
+}
+
+/**
+ * Calls `onChange` when any device's file of the domain changes, this
+ * device's included, until the stop it answers is called (`watchSynced`).
+ */
+export function watchSyncedFiles({
+  devicesDir,
+  domain,
+  onChange,
+}: {
+  devicesDir: string;
+  domain: SyncedDomain;
+  onChange: () => void;
+}): () => void {
+  let last = stampOf(devicesDir, domain);
+  return watchSynced({
+    devicesDir,
+    domain,
+    look: () => {
+      const now = stampOf(devicesDir, domain);
+      if (now !== last) {
+        last = now;
+        onChange();
+      }
+    },
+  });
+}
+
+/** Every device's file of the domain by name, size and time, as one string. */
+function stampOf(devicesDir: string, domain: SyncedDomain): string {
+  return namesIn(devicesDir)
+    .filter((folder) => DEVICE_FOLDER.test(folder))
+    .flatMap((folder) =>
+      namesIn(path.join(devicesDir, folder))
+        .filter((name) => isSyncedFileName(name, domain))
+        .map((name) => path.join(folder, name)),
+    )
+    .toSorted()
+    .map((file) => {
+      try {
+        const stat = fs.statSync(path.join(devicesDir, file));
+        return `${file}\0${stat.size}:${stat.mtimeMs}`;
+      } catch {
+        // Gone since it was listed, or not readable now.
+        return file;
+      }
+    })
+    .join("\n");
 }
 
 function namesIn(dir: string): string[] {

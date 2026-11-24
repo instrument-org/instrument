@@ -226,16 +226,18 @@ function OpenerView({
   chatId: ChatId;
   opener: TurnOpener;
 }) {
-  const { chips, files, folders, fromChat, notes, text } = opener;
+  const { chips, files, folders, fromChat, notes, seen, text } = opener;
   return (
     <div className="flex flex-col gap-1">
       {/* What went with the message, one row of the composer's own chips:
-          what was on screen, then the folders and files attached. */}
-      {chips.length + folders.length + files.length > 0 && (
+          what was beside the chat, then what was attached. */}
+      {(seen !== undefined ||
+        chips.length + folders.length + files.length > 0) && (
         <div
           className="flex w-full flex-wrap justify-end gap-1.5"
           data-slot="sent-with-message"
         >
+          {seen && <SentChips chatId={chatId} chips={[seen]} isSeen />}
           <SentChips chatId={chatId} chips={chips} />
           <SentFolderChips folders={folders} />
           <SentFileChips chatId={chatId} files={files} />

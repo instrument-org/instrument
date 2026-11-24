@@ -19,6 +19,7 @@ import {
   type WindowTabAnswer,
   type WindowTabRequest,
 } from "@instrument-org/workspace/client";
+import { type SidebarPlace } from "@/shared/tabs";
 import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "jotai";
@@ -28,7 +29,8 @@ import { toast } from "@/client/lib/toast";
 import { isSiteGroup, type useAppTabs } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions } from "./chat-list-query";
-import { type OpenAllTab, type OpenOptions } from "./context";
+import { asksOwnPlace, type OpenAllTab, type OpenOptions } from "./context";
+import { settingsHrefOf } from "@/client/components/settings/settings-href";
 import { opensBeside } from "./beside-chat";
 import { bringForwardShowing } from "./built-in-pages";
 import { isInVersionsFolder, versionHref } from "./file-versions";
@@ -133,13 +135,17 @@ export function useOpeners({
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
   /**
-   * Makes a new tab group at the top of the list, filled by what is given,
+   * Makes a new tab group at the top of the list or the place named, filled by what is given,
    * and brings it up; or, not shown here, only makes it, for a window of its
    * own to open on. Answers the group.
    */
   newGroup: (
     fill: (group: string) => void,
-    options?: { isShownHere?: boolean },
+    options?: {
+      isShownHere?: boolean;
+      place?: SidebarPlace;
+      returns?: "untilUnrelated";
+    },
   ) => string;
   /** Opens a chat as a new tab group of its own (`useTabGroupActions().openChat`). */
   openChat: (chat: ChatId) => void;
@@ -206,9 +212,20 @@ export function useOpeners({
     put: (place: { after?: string; group: string; side?: 0 | 1 }) => void,
   ) => {
     if (into === "group") {
-      newGroup((group) => {
-        put({ group });
-      });
+      // Under the group it was asked from; from a pinned one, or from no
+      // group's tab, at the top, which is under the line.
+      const source = windowTabs.allTabs.find((tab) => tab.id === from)?.group;
+      newGroup(
+        (group) => {
+          put({ group });
+        },
+        {
+          returns: "untilUnrelated",
+          ...(source === undefined || windowTabs.groupOwn[source]?.pinned
+            ? {}
+            : { place: { after: source } }),
+        },
+      );
       return;
     }
     if (into === "window") {
@@ -266,11 +283,19 @@ export function useOpeners({
               }) ?? after)
             : (windowTabs.openScreen(tab.href, {
                 ...place,
-                isOpened: true,
                 select: isFirst,
               }) ?? after);
       }
     });
+  };
+  /**
+   * The tab up is about to go somewhere asked of the window: one walked by
+   * something in it (`from`), or by nobody (`here`), goes on as it was.
+   */
+  const startOver = ({ from, here }: OpenOptions) => {
+    if (from === undefined && !here && active) {
+      windowTabs.startedOver(active.id);
+    }
   };
   /** Brings a group on screen for something shown into it from outside it. */
   const bringUp = (group: string) => {
@@ -315,6 +340,7 @@ export function useOpeners({
       return browser?.openOrFocus(url, {
         after: place.after,
         behind: !isUp,
+        from: { reason: "link", tab: place.after },
         group: place.group,
         show: isUp,
       });
@@ -333,13 +359,27 @@ export function useOpeners({
         return id;
       }
       case "group-new-tab": {
-        return browser?.open(url, { behind: placement.behind, newTab: true });
+        if (asked.atEnd) {
+          return browser?.open(url, {
+            behind: placement.behind,
+            group: windowTabs.groupOnScreen,
+          });
+        }
+        return browser?.open(url, {
+          behind: placement.behind,
+          newTab: true,
+          ...(asked.from === undefined
+            ? {}
+            : { from: { reason: "link", tab: asked.from } }),
+        });
       }
       case "navigate-up": {
+        startOver(asked);
         browser?.navigate(url);
         return active?.id;
       }
       case "new-page": {
+        startOver(asked);
         const replacing =
           placement.replacesUp && active ? { replacing: active } : undefined;
         const id = browser?.open(url, replacing);
@@ -388,17 +428,22 @@ export function useOpeners({
       case "after": {
         windowTabs.openScreen(href, {
           after: placement.after,
+          from: { reason: "link", tab: placement.after },
           group: placement.group,
-          isOpened: true,
           select: !placement.behind,
         });
         return;
       }
       case "group-new-tab": {
-        windowTabs.openBeside(href, { behind: placement.behind });
+        windowTabs.openBeside(href, {
+          behind: placement.behind,
+          ...(asked.atEnd ? { atEnd: true } : {}),
+          ...(asked.from === undefined ? {} : { from: asked.from }),
+        });
         return;
       }
       case "in-place": {
+        startOver(asked);
         windowTabs.navigateScreen(href);
         return;
       }
@@ -454,7 +499,14 @@ export function useOpeners({
         rpcClient.workspace.memory.locate.call({ name: screen.name }),
       ).then(([error, hostPath]) => {
         if (error || hostPath === null) {
-          openLinkAddress(href);
+          if (placeOf(asked) === undefined) {
+            openLinkAddress(href);
+          } else {
+            openScreen(
+              settingsHrefOf({ memory: screen.name, tab: "Memory" }),
+              asked,
+            );
+          }
         } else {
           openScreen(fileHref(hostPath), asked);
         }
@@ -469,6 +521,16 @@ export function useOpeners({
       // A chat's address that names none of the chats here: a screen
       // at it would be a chat with nothing in it.
       sayNoChat();
+      return;
+    }
+    // A setting clicked in a chat, or asked for in a place of its own, is
+    // its part of Settings with its row to light, placed as any other screen
+    // is. Anywhere else it opens as Settings does (`openLinkAddress`).
+    if (
+      screen.kind === "setting" &&
+      (placeOf(asked) !== undefined || asksOwnPlace(asked))
+    ) {
+      openScreen(settingsHrefOf({ setting: screen.name }), asked);
       return;
     }
     // A skill, a setting or a named screen opens where it lives,
@@ -508,8 +570,10 @@ export function useOpeners({
       // tab up, as anything else would.
       if (into === undefined) {
         if (
-          windowTabs.openBeside(at, { behind: options.behind === true }) ===
-          undefined
+          windowTabs.openBeside(at, {
+            behind: options.behind === true,
+            ...(asked.from === undefined ? {} : { from: asked.from }),
+          }) === undefined
         ) {
           openChat(owner);
         }
@@ -538,8 +602,8 @@ export function useOpeners({
       } else if (!isShowing) {
         windowTabs.openOrFocusScreen(at, {
           after: into.after,
+          from: { reason: "link", tab: into.after },
           group: into.group,
-          isOpened: true,
           select: true,
         });
       }
@@ -576,8 +640,8 @@ export function useOpeners({
           place.group === windowTabs.groupOnScreen);
       windowTabs.openOrFocusScreen(href, {
         after: place.after,
+        from: { reason: "link", tab: place.after },
         group: place.group,
-        isOpened: true,
         select: isUp,
       });
       return;
@@ -589,11 +653,15 @@ export function useOpeners({
         if (show) {
           bringUp(group);
         }
-        windowTabs.openOrFocusScreen(href, { group, isOpened: true, select });
+        windowTabs.openOrFocusScreen(href, { group, select });
         return;
       }
       case "group-new-tab": {
-        windowTabs.openBeside(href, { behind: placement.behind });
+        windowTabs.openBeside(href, {
+          behind: placement.behind,
+          ...(asked.atEnd ? { atEnd: true } : {}),
+          ...(asked.from === undefined ? {} : { from: asked.from }),
+        });
         return;
       }
       case "group-navigate": {
@@ -602,6 +670,7 @@ export function useOpeners({
         // another tab of the group already shows it. A built-in page already
         // open comes forward at the part asked for.
         if (options.here || !bringForwardShowing(windowTabs, href)) {
+          startOver(asked);
           windowTabs.navigateScreen(href);
         }
         return;
@@ -626,7 +695,6 @@ export function useOpeners({
         } else {
           windowTabs.openOrFocusScreen(href, {
             group: groupOnScreen,
-            isOpened: true,
             select: placement.kind === "window-navigate" || !placement.behind,
           });
         }
@@ -1281,11 +1349,15 @@ export function useOpeners({
     url: string;
   }) => {
     // A place the page's menu picked, the split across from the page's tab.
+    const asking = windowTabs.allTabs.find((tab) => tab.id === targetId);
     if (into) {
-      openPage(url, { from: targetId, into });
+      const from = pageOpenPlaceOf(asking, { isAgent: false });
+      openPage(url, {
+        from: from.kind === "after" ? from.after : targetId,
+        into,
+      });
       return;
     }
-    const asking = windowTabs.allTabs.find((tab) => tab.id === targetId);
     // Only an agent's popup is named a tab by the workspace, and it never
     // makes a group: from a page with no tab it opens nothing.
     const place = pageOpenPlaceOf(asking, { isAgent: tabId !== undefined });
@@ -1296,14 +1368,23 @@ export function useOpeners({
       // page, so the tab opens under that id.
       browser?.openBehind(url, {
         after: place.after,
+        // An agent's own popup is linked to nothing (`Opening`).
+        ...(tabId === undefined
+          ? { from: { reason: "link", tab: place.after } }
+          : { id: tabId }),
         group: place.group,
-        ...(tabId === undefined ? {} : { id: tabId }),
         ...(asking?.openedBy === undefined
           ? {}
           : { openedBy: asking.openedBy }),
       });
     } else if (place.kind === "after") {
-      browser?.open(url, { after: place.after, group: place.group });
+      browser?.open(url, {
+        after: place.after,
+        ...(tabId === undefined
+          ? { from: { reason: "link", tab: place.after } }
+          : {}),
+        group: place.group,
+      });
     }
   };
 

@@ -3,6 +3,7 @@ import path from "node:path";
 import { unique } from "radashi";
 
 import { type StoreId } from "../../schemas/store-id";
+import { lookWhileInFront } from "../in-front";
 import { type DeviceId } from "./device-id";
 import { parseRecordFileName } from "./file-names";
 import { readLog, readSettings } from "./read-records";
@@ -22,9 +23,8 @@ import { readLog, readSettings } from "./read-records";
  *   watch costs a handle per folder, the chats folder itself is watched for
  *   chats coming and going, and a chat's folder only while something shows
  *   it (`attend`).
- * - A look at every chat when the window comes forward, and every minute
- *   while it is in front (`setForeground`), so a change a watch missed is
- *   late rather than lost.
+ * - A look at every chat by the rule of `in-front.ts`, so a change a watch
+ *   missed is late rather than lost.
  * - Each look stats a chat's files against what the last one saw and reads
  *   only the bytes a file gained, for which messages they name.
  *
@@ -66,8 +66,6 @@ interface RecordArrivalsOptions {
   platform?: NodeJS.Platform;
   /** How long a burst of watch events is gathered before a look. */
   settleMs?: number;
-  /** How often every chat is looked at while the window is in front. */
-  sweepMs?: number;
   /** Whether to watch at all; off in tests that drive `look` themselves. */
   watch?: boolean;
   /** Starts a folder's watch: `fs.watch`, or a test's own to fire events by hand. */
@@ -93,7 +91,6 @@ interface Seen {
 }
 
 const SETTLE_MS = 250;
-const SWEEP_MS = 60_000;
 
 export class RecordArrivals {
   readonly #attended = new Map<string, { count: number; stop: () => void }>();
@@ -111,8 +108,7 @@ export class RecordArrivals {
   readonly #settleMs: number;
   #settleTimer: ReturnType<typeof setTimeout> | undefined;
   #stopped = false;
-  #sweepTimer: ReturnType<typeof setInterval> | undefined;
-  readonly #sweepMs: number;
+  #stopLooking: (() => void) | undefined;
   readonly #watch: boolean;
   readonly #watchFs: WatchFs;
   #stopWatch: (() => void) | undefined;
@@ -125,7 +121,6 @@ export class RecordArrivals {
     onGone = () => undefined,
     platform = process.platform,
     settleMs = SETTLE_MS,
-    sweepMs = SWEEP_MS,
     watch = true,
     watchFs = fs.watch,
   }: RecordArrivalsOptions) {
@@ -136,7 +131,6 @@ export class RecordArrivals {
     this.#onGone = onGone;
     this.#platform = platform;
     this.#settleMs = settleMs;
-    this.#sweepMs = sweepMs;
     this.#watch = watch;
     this.#watchFs = watchFs;
   }
@@ -159,6 +153,7 @@ export class RecordArrivals {
     }
     if (this.#watch && !this.#stopped) {
       this.#startWatch();
+      this.#stopLooking = lookWhileInFront(() => void this.look());
     }
   }
 
@@ -166,26 +161,12 @@ export class RecordArrivals {
   stop(): void {
     this.#stopped = true;
     clearTimeout(this.#settleTimer);
-    clearInterval(this.#sweepTimer);
+    this.#stopLooking?.();
     this.#stopWatch?.();
     for (const { stop } of this.#attended.values()) {
       stop();
     }
     this.#attended.clear();
-  }
-
-  /**
-   * Looks at every chat now and every `sweepMs` while the window is in
-   * front, and stops the timer when it goes behind.
-   */
-  setForeground(foreground: boolean): void {
-    clearInterval(this.#sweepTimer);
-    this.#sweepTimer = undefined;
-    if (!foreground || this.#stopped) {
-      return;
-    }
-    void this.look();
-    this.#sweepTimer = setInterval(() => void this.look(), this.#sweepMs);
   }
 
   /**

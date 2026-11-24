@@ -1,5 +1,8 @@
 import { targetOfAddress } from "@/client/bookmarks/address";
-import { useOpenAddress } from "@/client/bookmarks/open-address";
+import {
+  askedOfBookmark,
+  useOpenAddress,
+} from "@/client/bookmarks/open-address";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
 import { bookmarksStateAtom } from "@/client/bookmarks/store";
 import {
@@ -59,6 +62,7 @@ import {
   marksBesides,
   useBarDropLine,
 } from "./drag/use-bookmarks-drag";
+import { ChatsMark } from "./chats-mark";
 import { type Place, useFilesPlaces } from "./files-places";
 import { BookmarkNameField, bookmarkName } from "./web-start";
 
@@ -66,14 +70,14 @@ import { BookmarkNameField, bookmarkName } from "./web-start";
 /**
  * The bookmarks kept on the bar, in a row under a tab's toolbar, each the
  * mark its tab wears and a short name, the way a browser's bookmarks bar
- * keeps them, after Files where the row is given it (`files`). Those past
+ * keeps them, after Chats and Files where the row is given it (`files`). Those past
  * the row's end are under a chevron at its right, and All Bookmarks, where
  * it has any, is one chip at the bar's right end. A click opens one in this
  * tab whatever it names (a site by `onOpen`, a place of the app's own, a
  * chat's included, by `onVisit`), a Cmd-click or a middle click in a new tab
  * behind this one, a Shift-click in a new tab in front, and a right click
- * offers the rest (`BookmarkContextMenu`). Files and its places open the
- * same way.
+ * offers the rest (`BookmarkContextMenu`). Chats, Files and its places
+ * open the same way.
  * A bookmark or a folder dragged along the bar moves there, and a tab
  * dragged onto it is kept there. What is held stays in its place until it
  * lands, a copy on the pointer and a line where it would go
@@ -110,7 +114,7 @@ export function BookmarksBar({
 type BarProps = {
   /** Drawn on the page's own ground with no line under it, where the page carries on from it: a new tab's. */
   bleeds?: boolean;
-  /** Files at the bar's start, with the places of this group's Files sidebar. */
+  /** Chats and Files at the bar's start, Files with the places of this group's Files sidebar. */
   files?: { group: string };
   onOpen: (url: string) => void;
   /** A place of the app's own in this tab, where a tab can stand at it; the window opens it otherwise. */
@@ -171,12 +175,12 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
     openAddress(address, asked);
   };
   const appWindow = useWindow();
-  /** Files at a place: in this tab with no options, else where they place it. */
+  /** Files at a place, or Chats: in this tab with no options, else where they place it. */
   const openFilesAt = (href: string, asked?: OpenOptions) => {
     if (asked === undefined && onVisit) {
       onVisit(href);
     } else {
-      appWindow.openScreen(href, asked);
+      appWindow.openScreen(href, asked && askedOfBookmark(asked));
     }
   };
   const overflow = items.slice(fitting);
@@ -203,6 +207,7 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
           >
             {files && (
               <>
+                <ChatsMark open={openFilesAt} />
                 <FilesMark group={files.group} open={openFilesAt} />
                 <span
                   aria-hidden

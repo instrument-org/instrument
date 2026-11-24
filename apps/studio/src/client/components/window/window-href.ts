@@ -436,3 +436,24 @@ function homeDirOfWindow() {
 function searchEntries(search: URLSearchParams) {
   return [...search.entries()].sort().join("&");
 }
+
+/**
+ * Whether an address of a built-in page asks for more than a tab of it
+ * shows: a part the tab is not at (`/settings/providers` of a tab at
+ * `/settings/general`), or anything in its search the tab's address does
+ * not have as asked. The page's bare address (`/settings`) asks for nothing.
+ */
+export function asksPartOf(asked: string, shown: string): boolean {
+  const want = new URL(asked, "http://tabs");
+  const have = new URL(shown, "http://tabs");
+  const path = (url: URL) => url.pathname.replace(/\/$/, "");
+  if (
+    path(want) !== path(have) &&
+    path(want).split("/").filter(Boolean).length > 1
+  ) {
+    return true;
+  }
+  return [...want.searchParams].some(
+    ([key, value]) => have.searchParams.get(key) !== value,
+  );
+}

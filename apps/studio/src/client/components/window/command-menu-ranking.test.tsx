@@ -273,6 +273,99 @@ describe("what the command menu lists first", () => {
   });
 });
 
+describe("one of the app's own pages", () => {
+  it.each([
+    ["chats", "Chats"],
+    ["files", "Files"],
+    ["browser", "Browser"],
+    ["settings", "Settings"],
+    ["history", "History"],
+    ["bookmarks", "Bookmarks"],
+    ["apps", "Apps"],
+    ["what's new", "What's new"],
+    ["extensions", "Extensions"],
+  ])("is the first row for its name, %s", async (words, title) => {
+    renderWithProviders(<MenuRows words={words} />);
+
+    await screen.findAllByRole("button", { name: title });
+    expect(listed()[0]).toBe(title);
+  });
+
+  it("is listed among the pages when the words are only inside its name", async () => {
+    shell.chats = [];
+    renderWithProviders(<MenuRows words="mark" />);
+
+    await screen.findByRole("button", { name: "Bookmarks" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "# Pages",
+        "Bookmarks",
+        "Search the web for “mark”",
+      ]
+    `);
+  });
+});
+
+describe("a part of Settings", () => {
+  it("is listed among the pages by its name", async () => {
+    shell.chats = [];
+    renderWithProviders(<MenuRows words="providers" />);
+
+    await screen.findByRole("button", { name: "Providers" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "Providers",
+        "Search the web for “providers”",
+      ]
+    `);
+  });
+
+  it("goes by Apps settings beside the Apps page", async () => {
+    shell.chats = [];
+    renderWithProviders(<MenuRows words="apps" />);
+
+    await screen.findByRole("button", { name: "Apps settings" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "Apps",
+        "# Pages",
+        "Apps settings",
+        "Search the web for “apps”",
+      ]
+    `);
+  });
+});
+
+describe("sending feedback", () => {
+  it("is a command found by its name", async () => {
+    shell.chats = [];
+    renderWithProviders(<MenuRows words="feedback" />);
+
+    await screen.findByRole("button", { name: "Send feedback" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "# Commands",
+        "Send feedback",
+        "Search the web for “feedback”",
+      ]
+    `);
+  });
+});
+
+describe("the debug pages", () => {
+  it("are not listed outside developer mode", async () => {
+    shell.chats = [];
+    renderWithProviders(<MenuRows words="debug" />);
+
+    await screen.findByRole("button", { name: "Search the web for “debug”" });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "Search the web for “debug”",
+      ]
+    `);
+  });
+});
+
 describe("a name one wrong letter away", () => {
   it("is found when the words find nothing as typed", async () => {
     renderWithProviders(<MenuRows words="wirefarmes" />);
@@ -303,6 +396,27 @@ describe("a name one wrong letter away", () => {
   });
 });
 
+describe("the command menu with nothing typed", () => {
+  it("lists the chats talked to last, newest first, then All chats and a few commands", async () => {
+    renderWithProviders(<MenuRows words="" />);
+
+    await screen.findByRole("button", { name: FARMERS.title });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "# Recent chats",
+        "Review the wireframes",
+        "New wireframes for the phone",
+        "Farmers market plan",
+        "All chats",
+        "# Commands",
+        "New tab group",
+        "New tab",
+        "Settings",
+      ]
+    `);
+  });
+});
+
 describe("a chat's row in the command menu", () => {
   it("brings up the open group the chat is in", async () => {
     shell.chatTab = { group: "roofer", id: "chat-tab" };
@@ -310,7 +424,7 @@ describe("a chat's row in the command menu", () => {
     fireEvent.click(await screen.findByRole("button", { name: FARMERS.title }));
 
     expect(shell.select.mock.calls).toEqual([["chat-tab"]]);
-    expect(shell.showGroup.mock.calls).toEqual([["roofer", undefined]]);
+    expect(shell.showGroup.mock.calls).toEqual([["roofer", {}]]);
     expect(openScreen).not.toHaveBeenCalled();
   });
 

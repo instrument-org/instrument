@@ -74,7 +74,7 @@ export interface WindowShell {
    */
   showGroup: (group: string, options?: { from?: string }) => void;
   /** Closes a tab, asking first when that stops its chat. */
-  requestClose: (id: string) => void;
+  requestClose: (id: string, options?: { up?: string }) => void;
   /** The width of the card the tabs are drawn in, in layout px. */
   rowWidth: number;
   /**

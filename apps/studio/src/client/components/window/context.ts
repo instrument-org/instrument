@@ -10,6 +10,8 @@ import { type BrowserTabsHandle } from "./browser-tabs";
  * name rather than what an agent opened behind.
  */
 export interface OpenOptions {
+  /** With `newTab`, the tab goes to the end of its side, opened from no tab: a bookmark's, as a browser opens one. */
+  atEnd?: boolean;
   /** Puts the thing in front of its group without bringing the group on screen: for a group drawn by a window of its own. */
   activate?: boolean;
   /** With `newTab` or `chat`, the tab waits behind, as a browser's does for a middle click, a Cmd-click or Open in New Tab. */
@@ -106,12 +108,14 @@ export interface WindowContextValue {
    * bookmark folder's Open All asks.
    */
   openAll?: (tabs: readonly OpenAllTab[], into: "group" | "window") => void;
-  /** Navigates this surface's tab, and a conversation opens a tab of its own beside it; `newTab` asks for a tab of the window's own from either. */
-  openPage: (url: string, options?: OpenOptions) => void;
+  /** Navigates this surface's tab, and a conversation opens a tab of its own beside it; `newTab` asks for a tab of the window's own from either. Answers the tab the page is in, by its id, where it opened in one. */
+  openPage: (url: string, options?: OpenOptions) => string | undefined;
   /** Opens a path the conversation named: a file in its viewer, a folder as the folder view standing in it. */
   openPath: (path: string, options?: OpenOptions) => void;
   /** As `openPage`, for a screen of the app. */
   openScreen: (href: string, options?: OpenOptions) => void;
+  /** Brings a tab the window has up in its group, and its group on screen; false when no such tab is open. */
+  showTab?: (id: string) => boolean;
   /** The head of the tab's row, ahead of back and forward, where a screen draws the toggle for a panel along its left edge; null until the row is up. */
   rowLead?: HTMLElement | null;
   /** The end of the field in the tab's row, where a screen says something about what it shows in passing; null until the row is up. */

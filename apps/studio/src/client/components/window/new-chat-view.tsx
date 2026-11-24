@@ -38,13 +38,10 @@ import {
 } from "@/client/lib/locate-typed-path";
 import { type TypedPath } from "@/client/lib/typed-path";
 import { projectCommand } from "@/client/lib/app-commands";
-import { useSearchPicks } from "@/client/hooks/use-search-picks";
-import { rememberedPick } from "@/shared/remembered-picks";
 import { toast } from "@/client/lib/toast";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { APP_NAME } from "@instrument-org/shared";
-import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 import {
@@ -56,49 +53,24 @@ import {
   useState,
 } from "react";
 
-import { appTabsAtom } from "./app-tabs";
 import { AskPills } from "./ask-pills";
-import { chatListOptions } from "./chat-list-query";
 import { type Project } from "./chats";
-import { closedGroupsOf } from "./closed-groups";
-import { windowTabGroupsAtom } from "./open-groups";
 import { projectColor } from "./project-colors";
 import { NewChatProjectButton } from "./new-chat-project-button";
 import { ProjectMark } from "./project-mark";
 import { projectTint } from "./project-tint";
 import { includedItemsOf } from "./draft-context";
 import { useShell } from "./shell-context";
-import { useAppsBySlug } from "./apps-by-slug";
 import { useGroupTab } from "./group-tab";
-import { useShowChatGroup } from "./chat-group";
-import { NewTabCompletionList } from "./new-tab-completion-list";
-import {
-  boxAddress,
-  type BoxCompletion,
-  boxCompletions,
-  offersToOpen,
-  siteToComplete,
-} from "./new-tab-completions";
-import { type SearchThing, useSearchSources } from "./search-sources";
-import { RecentGroupRows } from "./recent-group-rows";
-import { type RecentGroup, recentGroupsOf } from "./recent-groups";
-import { typedAddressName } from "./typed-address-row";
+import { useKnownPages } from "./known-pages";
+import { boxOpens, type BoxOpens, siteToComplete } from "./new-tab-box";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
-import { IdeaRows } from "./idea-rows";
-import { openSettings } from "@/client/atoms/settings-modal";
-import {
-  ideaSourcesOf,
-  noteIdeaTaken,
-  useIdeasAvailable,
-  useTabIdeas,
-} from "./use-tab-ideas";
 import {
   arrivingNewChatTabsAtom,
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
-import { chatHref, CHATS_INDEX_HREF } from "./window-href";
 
 /**
  * A new chat, written in its tab group: the room a chat would have, with the
@@ -109,10 +81,7 @@ import { chatHref, CHATS_INDEX_HREF } from "./window-href";
  * beside the group's tabs, the composer is at the foot. The draft its first words make is named in the tab's address, so a
  * draft opened from the Chats page's Drafts comes up here. What it carries besides its words
  * is what a chat's composer carries: its group's tabs and what the person
- * attached. Its title and menu are the chat's tab's. The only tab of its
- * group, it lists the tab groups had most recently under its box
- * (`RecentGroupRows`), which stays where it is whatever the list holds; a
- * pick there takes the group's place.
+ * attached. Its title and menu are the chat's tab's.
  *
  * Its draft is its tab's, kept however empty it gets while the tab is open;
  * closing the tab, or its group, throws away one emptied of everything.
@@ -313,43 +282,27 @@ export function NewChatView({
     windowTabs.openScreen(href, {
       after: tabId,
       group: opened,
-      isOpened: true,
+      from: { reason: "link", tab: tabId },
       select: true,
     });
     onOpenBeside(opened);
   };
-  // A box of one line with no space in it offers what it would open: the
-  // words themselves, when they are an address or a place on the computer,
-  // the site they start, then what they find by name as the command menu
-  // finds it. Return opens the one picked, in this tab, where Back comes
-  // back to these words; with none picked, or once Shift-Return has put the
-  // offer away, it sends the words. The command key with Return (or Send)
-  // always sends them.
+  // A box holding one address or one place on the computer and nothing
+  // else opens it on Return, in this tab, where Back comes back to these
+  // words; anything else in it is a message, which Return sends. The
+  // command key with Return always sends.
   const groupTab = useGroupTab();
-  const appsBySlug = useAppsBySlug();
-  const showChatGroup = useShowChatGroup();
   const { keyJoiner, modifierKeys } = osConventions();
   const commandEnter = [modifierKeys.command, "↵"].join(keyJoiner);
   // The words the person typed, and after them the rest of a site's address
   // the box wrote in after the caret (`ahead`), which is in the box and is
   // not theirs.
   const [words, setWords] = useState("");
-  const [ahead, setAhead] = useState("");
+  const [ahead, setAhead] = useState<{ rest: string; url: string }>();
   // Whether the last key pressed in the box was a letter typed.
   const letterTyped = useRef(false);
-  const [isOfferPutAway, setOfferPutAway] = useState(false);
-  if (isOfferPutAway && words === "") {
-    setOfferPutAway(false);
-  }
   const typedPath = groupTab ? typedPathHere(words) : undefined;
-  const offers =
-    groupTab !== undefined && !isOfferPutAway && offersToOpen(words, typedPath);
-  const sources = useSearchSources({
-    enabled: groupTab !== undefined,
-    // The disk is asked only for words the list is offered for.
-    words: offers ? words : "",
-  });
-  const picks = useSearchPicks({ enabled: groupTab !== undefined });
+  const { visited } = useKnownPages({ enabled: groupTab !== undefined });
   /**
    * The box's words as they change. A letter typed onto the end of one word
    * that starts a site the person goes to has the rest of the site's
@@ -358,7 +311,7 @@ export function NewChatView({
    * finishes an address.
    */
   const takeWords = (next: string) => {
-    if (ahead !== "" && next === `${words}${ahead}`) {
+    if (ahead !== undefined && next === `${words}${ahead.rest}`) {
       return;
     }
     const isTypedOn =
@@ -367,48 +320,20 @@ export function NewChatView({
       next.startsWith(words);
     letterTyped.current = false;
     setWords(next);
-    const rest =
-      isTypedOn &&
-      groupTab !== undefined &&
-      !isOfferPutAway &&
-      typedPathHere(next) === undefined &&
-      offersToOpen(next, undefined)
-        ? siteToComplete(next, sources.visited)
+    const site =
+      isTypedOn && groupTab !== undefined && typedPathHere(next) === undefined
+        ? siteToComplete(next, visited)
         : undefined;
     setAhead(
-      rest !== undefined && inputRef.current?.completeAhead(rest) ? rest : "",
+      site !== undefined && inputRef.current?.completeAhead(site.rest)
+        ? site
+        : undefined,
     );
   };
-  const completions = offers
-    ? boxCompletions({
-        address: typedPath ? undefined : boxAddress(words),
-        bookmarkPages: sources.bookmarkPages,
-        isCompleted: ahead !== "",
-        named: [
-          ...sources.named.tabs,
-          ...sources.named.chats,
-          ...sources.named.folders,
-          ...sources.named.files,
-          ...sources.named.projects,
-          ...sources.named.pages,
-        ],
-        path: typedPath,
-        recentPages: sources.recentPages,
-        remembered: rememberedPick(picks.log, words, sources.now),
-        words,
-      })
-    : { picked: -1, rows: [] };
-  const [pickedFor, setPickedFor] = useState<{
-    index: number;
-    words: string;
-  }>();
-  const picked =
-    pickedFor?.words === words && pickedFor.index < completions.rows.length
-      ? pickedFor.index
-      : completions.picked;
-  const pick = (index: number) => {
-    setPickedFor({ index, words });
-  };
+  const opens =
+    groupTab === undefined
+      ? undefined
+      : boxOpens({ completedSite: ahead?.url, path: typedPath, words });
   // In this tab whatever it opens, a chat included, as sending turns a new
   // tab into its chat in place.
   const openAddress = (address: string) => {
@@ -435,107 +360,16 @@ export function NewChatView({
         : folderHref(located.path),
     );
   };
-  // The new tab's own group, which gives way to a group picked from it
-  // while this tab is all it holds.
-  const ownGroup = windowTabs.allTabs.find((tab) => tab.id === tabId)?.group;
-  const isOnlyTab =
-    ownGroup !== undefined &&
-    windowTabs.allTabs.filter((tab) => tab.group === ownGroup).length === 1;
-  const givesWay = isOnlyTab ? { from: ownGroup } : undefined;
-  // What the words found by name: a tab or a chat's group comes up, and
-  // anything else opens in this tab.
-  const openThing = (thing: SearchThing) => {
-    switch (thing.kind) {
-      case "chat": {
-        if (!showChatGroup(thing.chat.id, givesWay)) {
-          windowTabs.visitHref(tabId, chatHref(thing.chat.id));
-        }
-        break;
-      }
-      case "file": {
-        windowTabs.visitHref(tabId, fileHref(thing.file.path));
-        break;
-      }
-      case "folder": {
-        windowTabs.visitHref(tabId, folderHref(thing.folder.path));
-        break;
-      }
-      case "page": {
-        openAddress(thing.page.url);
-        break;
-      }
-      case "project": {
-        shell.openProject(thing.project.id);
-        break;
-      }
-      case "tab": {
-        windowTabs.select(thing.tab.id);
-        if (thing.tab.group !== undefined) {
-          shell.showGroup(thing.tab.group, givesWay);
-        }
-        break;
-      }
-    }
-  };
-  const openCompletion = (row: BoxCompletion) => {
-    if (row.kind === "path") {
-      void openPath(row.path);
-    } else if (row.kind === "site") {
-      openAddress(row.page.url);
-    } else if (row.kind === "thing") {
-      picks.note(words, row.id);
-      openThing(row.thing);
+  const go = (to: BoxOpens) => {
+    if (to.kind === "path") {
+      void openPath(to.path);
+    } else if (to.kind === "site") {
+      openAddress(to.url);
     } else {
       openAddress(
-        row.address.kind === "page" ? row.address.url : row.address.address,
+        to.address.kind === "page" ? to.address.url : to.address.address,
       );
     }
-  };
-  const isOffering = completions.rows.length > 0;
-  // Ideas for a new chat, made from the pages, files and folders beside it
-  // in its group, as next-message rows under the centered box. A new chat
-  // with nothing beside it has none.
-  const ideaSources =
-    ownGroup === undefined
-      ? []
-      : ideaSourcesOf(windowTabs.layoutOf(ownGroup), tabId);
-  const ideasOn = useIdeasAvailable() && isCentered && ideaSources.length > 0;
-  const ideas = useTabIdeas({
-    isOn: ideasOn,
-    tabs: ideaSources,
-    trigger: "new-tab",
-  });
-  // Alone in its group, the new tab is where the window's other groups are
-  // picked up again: the ones had most recently, and every chat past them.
-  const isAlone = isCentered && isOnlyTab;
-  const recentGroups = recentGroupsOf({
-    closed: closedGroupsOf(useAtomValue(appTabsAtom).recentlyClosed),
-    home: ownGroup,
-    listed: useAtomValue(windowTabGroupsAtom) ?? [],
-    state: useAtomValue(windowTabsAtom),
-  });
-  const hasChats = (useQuery(chatListOptions()).data?.length ?? 0) > 0;
-  const recentRows = useRef<HTMLDivElement>(null);
-  const pickGroup = ({ pick: picking }: RecentGroup) => {
-    const from = { from: ownGroup };
-    if (picking.kind === "open") {
-      shell.showGroup(picking.group, from);
-    } else {
-      shell.reopenClosed(picking.id, from);
-    }
-  };
-  const sendIdea = (line: string) => {
-    if (shell.defaultModelURI === undefined) {
-      return;
-    }
-    noteIdeaTaken();
-    cancelWords(newChatWordsKey(tabId));
-    const id = draft?.id ?? makeDraft({ tabId, words: line });
-    shell.startChat(
-      id,
-      { modelURI: shell.defaultModelURI, prompt: line },
-      tabId,
-    );
   };
   const places = {
     computerName: osConventions().computer,
@@ -612,23 +446,6 @@ export function NewChatView({
             fileUnder(undefined);
             return;
           }
-          // Down from an empty box goes into the groups listed under it.
-          const firstRow = recentRows.current?.querySelector("button");
-          if (
-            firstRow &&
-            words === "" &&
-            event.key === "ArrowDown" &&
-            !event.shiftKey &&
-            !event.altKey &&
-            !event.metaKey &&
-            !event.ctrlKey &&
-            !event.nativeEvent.isComposing
-          ) {
-            event.preventDefault();
-            event.stopPropagation();
-            firstRow.focus();
-            return;
-          }
           letterTyped.current =
             event.key.length === 1 &&
             !event.altKey &&
@@ -637,41 +454,26 @@ export function NewChatView({
             !event.nativeEvent.isComposing;
           // The one letter left of what was written in, typed: the box's
           // words stay as they read, so they are taken as typed here.
-          if (letterTyped.current && ahead !== "" && event.key === ahead) {
-            setWords(`${words}${ahead}`);
-            setAhead("");
+          if (
+            letterTyped.current &&
+            ahead !== undefined &&
+            event.key === ahead.rest
+          ) {
+            setWords(`${words}${ahead.rest}`);
+            setAhead(undefined);
           }
           if (
-            !isOffering ||
-            event.altKey ||
-            event.metaKey ||
-            event.ctrlKey ||
-            event.nativeEvent.isComposing
+            opens !== undefined &&
+            event.key === "Enter" &&
+            !event.shiftKey &&
+            !event.altKey &&
+            !event.metaKey &&
+            !event.ctrlKey &&
+            !event.nativeEvent.isComposing
           ) {
-            return;
-          }
-          if (event.key === "Enter" && event.shiftKey) {
             event.preventDefault();
             event.stopPropagation();
-            setOfferPutAway(true);
-            return;
-          }
-          if (event.shiftKey) {
-            return;
-          }
-          const row = completions.rows[picked];
-          if (event.key === "Enter" && row) {
-            event.preventDefault();
-            event.stopPropagation();
-            openCompletion(row);
-          } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            event.preventDefault();
-            event.stopPropagation();
-            pick(
-              event.key === "ArrowDown"
-                ? Math.min(picked + 1, completions.rows.length - 1)
-                : Math.max(picked - 1, -1),
-            );
+            go(opens);
           }
         }}
       >
@@ -687,7 +489,7 @@ export function NewChatView({
           besidePlus={
             <>
               {projectButton}
-              {picked >= 0 && (
+              {opens !== undefined && (
                 <span className="text-xs whitespace-nowrap text-muted-foreground">
                   {commandEnter} sends to chat
                 </span>
@@ -695,6 +497,13 @@ export function NewChatView({
             </>
           }
           modelURI={shell.defaultModelURI}
+          onGo={
+            opens === undefined
+              ? undefined
+              : () => {
+                  go(opens);
+                }
+          }
           onFolders={(paths) => {
             for (const path of paths) {
               openBeside(folderHref(path));
@@ -712,13 +521,6 @@ export function NewChatView({
             }
           }}
           shownPath={shownPath}
-          onCommandEnterWhenEmpty={
-            ideas.lines[0] === undefined
-              ? undefined
-              : () => {
-                  sendIdea(ideas.lines[0] ?? "");
-                }
-          }
           onModelChange={shell.setDefaultModelURI}
           onWordsChange={takeWords}
           // Once, as a new tab's composer first comes up: never as the tab
@@ -752,68 +554,10 @@ export function NewChatView({
           places={places}
           ref={inputRef}
         />
-        {/* Under the box without moving it, so the box stays where it was
-            as the row comes and goes; over it for a box at the foot. */}
-        {isOffering && (
-          <NewTabCompletionList
-            className={cn(
-              "absolute inset-x-3",
-              isCentered ? "top-full mt-2" : "bottom-full mb-2",
-            )}
-            nameOfAddress={(row) =>
-              typedAddressName(row.address, {
-                appsBySlug,
-                chatTitles: shell.chatTitles,
-              })
-            }
-            onOpen={openCompletion}
-            onPick={pick}
-            picked={picked}
-            rows={completions.rows}
-          />
-        )}
-        {!isOffering && ideasOn && (
-          <IdeaRows
-            className="absolute inset-x-6 top-full mt-3"
-            isBoxEmpty={words.trim() === ""}
-            isMaking={ideas.isMaking}
-            lines={ideas.lines}
-            onSend={sendIdea}
-            trailing={
-              <button
-                className="px-1 text-[11px] text-muted-foreground/60 hover:text-muted-foreground"
-                onClick={() => {
-                  openSettings({ setting: "show-ideas" });
-                }}
-                type="button"
-              >
-                Turn off ideas
-              </button>
-            }
-          />
-        )}
       </div>
       {/* As much room under the composer as over it, so it stands at the
-          middle; what is listed there scrolls in that room. */}
-      {isCentered && (
-        <div className="min-h-0 flex-1 overflow-y-auto">
-          {isAlone && (
-            <RecentGroupRows
-              chatTitles={shell.chatTitles}
-              groups={recentGroups}
-              hasChats={hasChats}
-              onAllChats={() => {
-                windowTabs.visitHref(tabId, CHATS_INDEX_HREF);
-              }}
-              onLeave={() => {
-                inputRef.current?.focus();
-              }}
-              onPick={pickGroup}
-              ref={recentRows}
-            />
-          )}
-        </div>
-      )}
+          middle. */}
+      {isCentered && <div className="min-h-0 flex-1" />}
       {draft && <ProjectSuggestion draft={draft} />}
     </div>
   );

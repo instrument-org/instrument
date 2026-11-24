@@ -100,7 +100,9 @@ function SettingsTabRow({ words }: { words: string }) {
     words,
   });
   return rows.map((row) =>
-    row.type === "item" && row.detail === "Settings" && row.label === words ? (
+    row.type === "item" &&
+    row.detail === "Settings" &&
+    (row.label === words || row.label === `${words} settings`) ? (
       <li key={row.id}>{row.label}</li>
     ) : null,
   );
@@ -137,7 +139,7 @@ describe("Settings tabs in the command menu in developer mode", () => {
     expect(listed()).toEqual(
       [
         "Account",
-        "Apps",
+        "Apps settings",
         "History",
         "Developer",
         "Permissions",
@@ -174,6 +176,21 @@ function MenuRows({ words }: { words: string }) {
     </ul>
   );
 }
+
+describe("the debug pages in the command menu in developer mode", () => {
+  it("are one row among the pages, for their index", async () => {
+    renderWithProviders(<MenuRows words="debug" />);
+
+    await screen.findByRole("button", { name: "Debug pages" });
+    expect(screen.getAllByRole("listitem").map((item) => item.textContent))
+      .toMatchInlineSnapshot(`
+      [
+        "Debug pages",
+        "Search the web for “debug”",
+      ]
+    `);
+  });
+});
 
 // What a Return on a path found is the answer to that Return alone: the
 // same words typed again later are a new ask, not the old answer.
@@ -252,35 +269,37 @@ describe("folders and bookmarks in the command menu", () => {
 });
 
 describe("the command menu with nothing typed", () => {
-  it("lists what was used last, then a few commands", async () => {
-    answers.set("history.live.recent", [
-      {
-        at: 1,
-        favicon: undefined,
-        title: "Weather Today",
-        url: "https://today.example.com/",
-      },
-    ]);
+  it("lists All chats under Recent chats, then a few commands", async () => {
     renderWithProviders(<MenuRows words="" />);
 
-    await screen.findByRole("button", { name: "Weather Today" });
+    await screen.findByRole("button", { name: "All chats" });
     expect(screen.getAllByRole("listitem").map((item) => item.textContent))
       .toMatchInlineSnapshot(`
-      [
-        "Recent",
-        "Weather Today",
-        "Commands",
-        "New tab group",
-        "New tab",
-        "Settings",
-      ]
-    `);
+        [
+          "Recent chats",
+          "All chats",
+          "Commands",
+          "New tab group",
+          "New tab",
+          "Settings",
+        ]
+      `);
   });
 });
 
 // A built-in page the menu lists opens as every command opens one
 // (`BuiltInPageOpener`): a new tab after the tab up, or the tab already
 // showing it brought forward, never in place of the tab up.
+describe("All chats in the empty command menu", () => {
+  it("asks for the Chats page as a built-in page", async () => {
+    renderWithProviders(<MenuRows words="" />);
+    fireEvent.click(await screen.findByRole("button", { name: "All chats" }));
+
+    expect(getDefaultStore().get(pageRequestAtom)).toEqual({ href: "/chat-list" });
+    getDefaultStore().set(pageRequestAtom, null);
+  });
+});
+
 describe("built-in pages in the command menu", () => {
   it.each([
     ["History", "/activity"],

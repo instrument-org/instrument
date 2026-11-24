@@ -11,7 +11,10 @@ import { useWindowTabs } from "./window-tabs";
  * with what sat beside it: the open group with a tab on it, that tab up, in
  * this window or the one that has it; or else the group this window closed
  * with it, back as it closed. `from` is the group the pick was made in,
- * which gives way when it holds nothing else (`WindowShell.showGroup`).
+ * which gives way when it holds nothing else (`WindowShell.showGroup`): the
+ * group on screen unless the caller names another, so a pick from the
+ * command menu or the bookmarks bar over an empty new tab leaves no empty
+ * group behind.
  * Answers false for a chat in neither, with nothing done, for the caller to
  * open it as it would.
  */
@@ -23,10 +26,12 @@ export function useShowChatGroup(): (
   const store = useStore();
   const windowTabs = useWindowTabs();
   return (chat, options) => {
+    const from = options?.from ?? windowTabs.active?.group;
+    const leaving = from === undefined ? {} : { from };
     const tab = windowTabs.chatTab(chat);
     if (tab?.group !== undefined) {
       windowTabs.select(tab.id);
-      shell.showGroup(tab.group, options);
+      shell.showGroup(tab.group, leaving);
       return true;
     }
     const closed = closedGroupOfChat(
@@ -36,7 +41,7 @@ export function useShowChatGroup(): (
     if (closed === undefined) {
       return false;
     }
-    shell.reopenClosed(closed.id, options);
+    shell.reopenClosed(closed.id, leaving);
     return true;
   };
 }

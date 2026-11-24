@@ -1,5 +1,9 @@
 import { keptByTab } from "@/client/lib/kept-by-tab";
-import { restoreTabView, scrollsOf } from "@/client/lib/tab-view-state";
+import {
+  RESTORE_LIMIT_MS,
+  restoreTabView,
+  scrollsOf,
+} from "@/client/lib/tab-view-state";
 import { type TabView } from "@/shared/tabs";
 import { type ReactNode, useLayoutEffect, useRef } from "react";
 
@@ -11,17 +15,23 @@ const TAKEOVER_EVENTS = ["keydown", "pointerdown", "wheel"] as const;
 
 /**
  * A group tab's screen, scrolled back to where it was left as the tab comes
- * back up: a group draws only its tab up, so the screen is drawn afresh each
- * time. Whatever was scrolled in it (a document, a folder's list, the
+ * back up, for one drawn afresh: a screen let go from behind the tab up, or
+ * come back to after a launch. Whatever was scrolled in it (a document, a folder's list, the
  * columns) goes back as its content comes in, if the tab is still at the
  * address it was left at, until the person scrolls, clicks or types in it.
  * The offsets are the ones its elements reported as they scrolled, so the
  * screen going reads nothing off the page.
+ *
+ * A screen kept drawn out of sight (`kept-screens.ts`) never lost where it
+ * was scrolled, but the keyboard coming back to it can move it: an editor
+ * given the caret scrolls to it. So for the same moment after it is shown
+ * again, anything that scrolls it without the person is put back.
  */
 export function KeptScrolls({
   children,
   href,
   isKept = true,
+  isShown = true,
   tabId,
 }: {
   children: ReactNode;
@@ -29,9 +39,21 @@ export function KeptScrolls({
   href: string;
   /** Whether the screen at this address goes back to where it was left; one that opens at its end keeps nothing. */
   isKept?: boolean;
+  /** Whether the screen is on screen, rather than kept drawn behind another. */
+  isShown?: boolean;
   tabId: string;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  // Until when a screen shown again holds its offsets against whatever
+  // scrolls it, in the clock `performance.now()` reads.
+  const heldUntil = useRef(0);
+  const wasShown = useRef(isShown);
+  useLayoutEffect(() => {
+    if (isShown && !wasShown.current && isKept) {
+      heldUntil.current = performance.now() + RESTORE_LIMIT_MS;
+    }
+    wasShown.current = isShown;
+  }, [isKept, isShown]);
   const hrefNow = useRef(href);
   const isKeptNow = useRef(isKept);
   useLayoutEffect(() => {
@@ -46,9 +68,19 @@ export function KeptScrolls({
     const offsets = new Map<Element, { left: number; top: number }>();
     const onScroll = (event: Event) => {
       const { target } = event;
-      if (target instanceof Element) {
-        offsets.set(target, { left: target.scrollLeft, top: target.scrollTop });
+      if (!(target instanceof Element)) {
+        return;
       }
+      const left = offsets.get(target);
+      if (
+        left !== undefined &&
+        performance.now() < heldUntil.current &&
+        (target.scrollTop !== left.top || target.scrollLeft !== left.left)
+      ) {
+        target.scrollTo({ behavior: "instant", ...left });
+        return;
+      }
+      offsets.set(target, { left: target.scrollLeft, top: target.scrollTop });
     };
     root.addEventListener("scroll", onScroll, { capture: true, passive: true });
 
@@ -77,6 +109,7 @@ export function KeptScrolls({
       laidOut.observe(root.parentElement ?? root);
     }
     const takeOver = () => {
+      heldUntil.current = 0;
       laidOut?.disconnect();
       stopRestoring?.();
       isRestoring = false;

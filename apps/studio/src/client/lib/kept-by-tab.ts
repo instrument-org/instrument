@@ -1,7 +1,8 @@
 /**
- * What a group's tabs keep of their screens while another tab is up. A group
- * draws only its tab up, so a screen is drawn afresh each time its tab comes
- * back up, and whatever it held in its own state alone would start over. Each
+ * What a group's tabs keep of their screens once they are no longer drawn. A
+ * screen stays drawn behind the tab up only so long (`kept-screens.ts`), and
+ * a chat not at all, so one drawn afresh as its tab comes back up would
+ * start over in whatever it held in its own state alone. Each
  * kind of thing kept is a store of its own, by tab id (`keptByTab`), and every
  * store lets go of a tab once the tab is closed (`forgetTab`).
  *

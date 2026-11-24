@@ -56,6 +56,7 @@ import {
   upTabsIn,
   upsAmong,
   type WindowTabs,
+  markSignIn,
 } from "./tab-model";
 import { stepOf, stepStackOf } from "./tab-steps";
 
@@ -284,7 +285,6 @@ describe("openOrFocusScreen", () => {
         group: DRAFT,
         href: "/apps",
         id: "home",
-        isOpened: false,
         kind: "screen",
       },
     ]);
@@ -1016,7 +1016,7 @@ describe("pageBecameDownload", () => {
     const state = selectTab(
       windowOf([
         pageTab("opener", "https://example.com", CHAT),
-        { ...pageTab("dl", "https://example.com/a.zip", CHAT), isOpened: true },
+        pageTab("dl", "https://example.com/a.zip", CHAT),
       ]),
       "dl",
     );
@@ -1199,5 +1199,44 @@ describe("fileTabWalked", () => {
       replace,
     });
     expect(next.tabs[0]).toMatchObject({ history, href: B });
+  });
+});
+
+describe("a tab marked as an app's sign-in page", () => {
+  const pages = (...ids: string[]) => ({
+    activeByGroup: {},
+    groups: {},
+    tabs: ids.map((id) => ({
+      group: "g",
+      id,
+      kind: "page" as const,
+      openedAt: 1,
+    })),
+  });
+  const marks = (state: ReturnType<typeof markSignIn>) =>
+    state.tabs.map((tab) => tab.signIn?.slug ?? null);
+
+  it("is the one page for its app: marking another takes the first one's mark", () => {
+    const first = markSignIn(pages("a", "b"), "a", { slug: "notes" });
+    expect(marks(first)).toEqual(["notes", null]);
+    expect(marks(markSignIn(first, "b", { slug: "notes" }))).toEqual([
+      null,
+      "notes",
+    ]);
+  });
+
+  it("leaves another app's page marked, and comes off by itself", () => {
+    const both = markSignIn(
+      markSignIn(pages("a", "b"), "a", { slug: "notes" }),
+      "b",
+      { slug: "mail" },
+    );
+    expect(marks(both)).toEqual(["notes", "mail"]);
+    expect(marks(markSignIn(both, "a", undefined))).toEqual([null, "mail"]);
+  });
+
+  it("changes nothing for a tab that is not open", () => {
+    const state = pages("a");
+    expect(markSignIn(state, "gone", { slug: "notes" })).toBe(state);
   });
 });

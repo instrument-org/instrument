@@ -577,6 +577,17 @@ textarea.md-input {
   margin-top: 0;
 }
 
+/* The virtual cursor has no class of its own until the editor's first update,
+   which can be its ResizeObserver callback. Left in the flow until then, it
+   holds the first block's margin open, and the callback giving it its class
+   shrinks the editor, which Chromium reports as a ResizeObserver loop. */
+.md-editor
+  .milkdown
+  .ProseMirror
+  > div[class="ProseMirror-widget"]:first-child {
+  position: absolute;
+}
+
 .md-editor .milkdown .ProseMirror :is(strong, b) {
   color: var(--prose-bold);
   font-weight: 600;

@@ -34,11 +34,13 @@ import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { useShowChatGroup } from "@/client/components/window/chat-group";
 import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import {
+  byLastUserMessage,
   type Chat,
   railMarkOf,
   type Project,
   projectSearch,
 } from "@/client/components/window/chats";
+import { chatOfTab } from "@/client/components/window/tab-model";
 import {
   findNamed,
   type Found,
@@ -142,8 +144,8 @@ import { toast } from "@/client/lib/toast";
 const PER_KIND_SHOWN = 3;
 /** How long a search has to be before the decision model is asked what it means. */
 const MEANING_MIN_LENGTH = 3;
-/** What was used last, of every kind, listed before anything is typed. */
-const RECENTS_SHOWN = 4;
+/** The chats talked to last, listed before anything is typed. */
+const RECENT_CHATS_SHOWN = 4;
 /**
  * The commands listed before anything is typed: the ones worth reaching
  * often, each with its chord. The rest (the theme, clearing browsing data,
@@ -270,8 +272,7 @@ export function useCommandMenuRows({
   );
   // Read only while the menu is up, which is mounted in every window.
   const sources = useSearchSources({ enabled: active });
-  const { bookmarkPages, chats, chatTitles, recentFiles, recentPages } =
-    sources;
+  const { bookmarkPages, chats, chatTitles, recentPages } = sources;
   const picks = useSearchPicks({ enabled: active });
   const showChatGroup = useShowChatGroup();
 
@@ -298,6 +299,7 @@ export function useCommandMenuRows({
 
   // What the tab up on the side with the keyboard offers, under what it is.
   const { frontTab, titleOfTab } = sources;
+  const frontChat = frontTab === undefined ? undefined : chatOfTab(frontTab);
   const front = useFrontTabActions({
     chats,
     tab: frontTab,
@@ -869,26 +871,27 @@ export function useCommandMenuRows({
     : words === ""
       ? [
           {
+            // In the Chats page's order, open and closed alike, less the
+            // chat in front, which is where the person already is. All
+            // chats under them is the way to the rest.
             items: [
-              ...chats
-                .filter((chat) => !chat.archived)
-                .map((chat) => ({
-                  at: chat.lastUserMessageAt,
-                  item: chatItem(chat, null),
-                })),
-              ...recentFiles.map((file) => ({
-                at: file.openedAt,
-                item: fileItem(file, null),
-              })),
-              ...sources.visited.map((page) => ({
-                at: page.at,
-                item: pageItem(page, null),
-              })),
-            ]
-              .toSorted((a, b) => b.at - a.at)
-              .slice(0, RECENTS_SHOWN)
-              .map(({ item }) => item),
-            label: "Recent",
+              ...byLastUserMessage(
+                chats.filter((chat) => !chat.archived && chat.id !== frontChat),
+              )
+                .slice(0, RECENT_CHATS_SHOWN)
+                .map((chat) => chatItem(chat, null)),
+              {
+                icon: <ScreenMark name="chats" />,
+                id: "all-chats",
+                label: "All chats",
+                ranges: null,
+                run: () => {
+                  openBuiltInPage(SCREENS.chats.href);
+                },
+                type: "item" as const,
+              },
+            ],
+            label: "Recent chats",
           },
           {
             items: frontActions

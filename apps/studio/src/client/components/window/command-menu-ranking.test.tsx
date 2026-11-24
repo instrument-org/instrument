@@ -361,6 +361,27 @@ describe("a name one wrong letter away", () => {
   });
 });
 
+describe("the command menu with nothing typed", () => {
+  it("lists the chats talked to last, newest first, then All chats and a few commands", async () => {
+    renderWithProviders(<MenuRows words="" />);
+
+    await screen.findByRole("button", { name: FARMERS.title });
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "# Recent chats",
+        "Review the wireframes",
+        "New wireframes for the phone",
+        "Farmers market plan",
+        "All chats",
+        "# Commands",
+        "New tab group",
+        "New tab",
+        "Settings",
+      ]
+    `);
+  });
+});
+
 describe("a chat's row in the command menu", () => {
   it("brings up the open group the chat is in", async () => {
     shell.chatTab = { group: "roofer", id: "chat-tab" };

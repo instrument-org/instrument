@@ -11,7 +11,8 @@ import { cn } from "@/client/lib/utils";
 
 import { type BoxCompletion } from "./new-tab-completions";
 import { bareAddress } from "./omnibar-match";
-import { RowText, whereOfAddress } from "./row-text";
+import { RowText } from "./row-text";
+import { SearchThingMark } from "./search-thing-mark";
 import { TypedAddressMark } from "./typed-address-row";
 
 /**
@@ -70,16 +71,13 @@ export function NewTabCompletionList({
           <span className="grid size-4 shrink-0 place-items-center">
             <CompletionMark row={row} />
           </span>
-          {row.kind === "page" ? (
+          {row.kind === "thing" ? (
             <RowText
-              name={
-                <FuzzyHighlight
-                  ranges={row.ranges}
-                  text={row.page.title || bareAddress(row.page.url)}
-                />
-              }
-              where={row.page.title ? whereOfAddress(row.page.url) : undefined}
+              name={<FuzzyHighlight ranges={row.ranges} text={row.name} />}
+              where={row.thing.where}
             />
+          ) : row.kind === "site" ? (
+            <RowText name={bareAddress(row.page.url)} where={undefined} />
           ) : (
             <span className="min-w-0 flex-1 truncate">
               {row.kind === "path" ? (
@@ -100,7 +98,10 @@ export function NewTabCompletionList({
 }
 
 function CompletionMark({ row }: { row: BoxCompletion }) {
-  if (row.kind === "page") {
+  if (row.kind === "thing") {
+    return <SearchThingMark thing={row.thing} />;
+  }
+  if (row.kind === "site") {
     return (
       <PageFavicon
         className="size-4"

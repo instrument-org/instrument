@@ -248,11 +248,13 @@ async function boxFor(words: string) {
       ? "sends a message"
       : row.kind === "path"
         ? `path ${row.path.shown}`
-        : row.kind === "page"
+        : row.kind === "site"
           ? `page ${row.page.url}`
-          : row.address.kind === "page"
-            ? `page ${row.address.url}`
-            : `app ${row.address.address}`;
+          : row.kind === "thing"
+            ? `opens ${row.id}`
+            : row.address.kind === "page"
+              ? `page ${row.address.url}`
+              : `app ${row.address.address}`;
   await screen.unmount();
   return `${said}; Return: ${did}`;
 }

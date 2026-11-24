@@ -31,9 +31,13 @@ type RecentFile = ReturnType<typeof useRecentFiles>["files"][number];
 export type SearchThing =
   | { chat: Chat; kind: "chat"; where: string | undefined }
   | { file: RecentFile; kind: "file"; where: string | undefined }
-  | { folder: { name: string; path: string }; kind: "folder" }
+  | {
+      folder: { name: string; path: string };
+      kind: "folder";
+      where: undefined;
+    }
   | { kind: "page"; page: OfferedPage; where: string | undefined }
-  | { kind: "project"; project: Project }
+  | { kind: "project"; project: Project; where: undefined }
   | { kind: "tab"; tab: WindowTab; where: string | undefined };
 
 type NamedOf<Kind extends SearchThing["kind"]> = Named<
@@ -106,7 +110,7 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
     .map((project) => ({
       id: `project:${project.id}`,
       name: project.name,
-      value: { kind: "project", project },
+      value: { kind: "project", project, where: undefined },
     }));
 
   // The folders the Files sidebar lists, in its order: the Instrument
@@ -132,7 +136,11 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
     id: `folder:${place.path}`,
     name: place.name,
     pinned: isPinned || keptPaths.has(place.path),
-    value: { folder: { name: place.name, path: place.path }, kind: "folder" },
+    value: {
+      folder: { name: place.name, path: place.path },
+      kind: "folder",
+      where: undefined,
+    },
   }));
 
   const files: NamedOf<"file">[] = recentFiles.map((file) => ({

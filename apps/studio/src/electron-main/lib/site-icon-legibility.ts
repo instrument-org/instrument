@@ -1,9 +1,10 @@
 import { BrowserWindow, nativeTheme, session } from "electron";
+import { createHash } from "node:crypto";
 
 import { type Theme } from "./site-icons";
 
 /** How long one icon has to load and be measured. */
-const MEASURE_TIMEOUT_MS = 5000;
+const MEASURE_TIMEOUT_MS = 1500;
 /** How long the measuring window stays open for the next icon. */
 const IDLE_CLOSE_MS = 10_000;
 
@@ -53,6 +54,8 @@ const MIN_DISTINCT_SHARE = 0.05;
 
 let open: BrowserWindow | undefined;
 let idleClose: ReturnType<typeof setTimeout> | undefined;
+/** Icons that took too long this session, which are not waited for again. */
+const tooSlow = new Set<string>();
 let queue: Promise<unknown> = Promise.resolve();
 
 /**
@@ -60,7 +63,8 @@ let queue: Promise<unknown> = Promise.resolve();
  * icon that is dark ink on nothing and has no dark version. Measured as drawn,
  * since what an SVG paints cannot be read off its source, and only in the
  * theme the app is in, which is the one an adapting SVG draws itself for.
- * Undefined when it could not be measured.
+ * One that does not load cannot be. Undefined when it could not be measured
+ * just now.
  */
 export function isSvgLegible(
   svg: Buffer,
@@ -75,32 +79,49 @@ async function measure(svg: Buffer, theme: Theme) {
   if (nativeTheme.shouldUseDarkColors !== (theme === "dark")) {
     return undefined;
   }
+  const key = `${theme} ${createHash("sha256").update(svg).digest("hex")}`;
+  if (tooSlow.has(key)) {
+    return undefined;
+  }
   clearTimeout(idleClose);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<"late">((resolve) => {
+    timer = setTimeout(() => {
+      resolve("late");
+    }, MEASURE_TIMEOUT_MS);
+  });
   try {
-    const window = await measuringWindow();
+    const window = await Promise.race([measuringWindow(), late]);
+    if (window === "late") {
+      close();
+      return undefined;
+    }
     const src = `data:image/svg+xml;base64,${svg.toString("base64")}`;
     const share: unknown = await Promise.race([
       window.webContents.executeJavaScript(
-        `(${MEASURE})(${JSON.stringify(src)}, ${JSON.stringify(GROUNDS[theme])})`,
+        `(${MEASURE})(${JSON.stringify(src)}, ${JSON.stringify(GROUNDS[theme])}).catch(() => 0)`,
       ),
-      new Promise((_resolve, reject) => {
-        setTimeout(() => {
-          reject(new Error("Measuring a site icon timed out"));
-        }, MEASURE_TIMEOUT_MS);
-      }),
+      late,
     ]);
-    return typeof share === "number" ? share >= MIN_DISTINCT_SHARE : undefined;
+    if (share === "late") {
+      // A page stuck on one icon is not handed the next.
+      close();
+      tooSlow.add(key);
+      return undefined;
+    }
+    return typeof share === "number" && share >= MIN_DISTINCT_SHARE;
   } catch (error) {
-    // A page stuck on one icon is not handed the next.
-    open?.destroy();
-    open = undefined;
+    close();
     throw error;
   } finally {
-    idleClose = setTimeout(() => {
-      open?.destroy();
-      open = undefined;
-    }, IDLE_CLOSE_MS);
+    clearTimeout(timer);
+    idleClose = setTimeout(close, IDLE_CLOSE_MS);
   }
+}
+
+function close() {
+  open?.destroy();
+  open = undefined;
 }
 
 async function measuringWindow() {

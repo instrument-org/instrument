@@ -1,14 +1,18 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
-import { keyFileDeserializer } from "@/electron-main/lib/key-file";
-import { is } from "@electron-toolkit/utils";
+import {
+  KEY_FILE_EXTENSION,
+  KEY_STORE_NAMES,
+  keyFileDeserializer,
+  keyFileSerializer,
+  requireSavableKeys,
+} from "@/electron-main/lib/key-file";
 import {
   type McpOAuthStore,
   type OAuthClientInformationFull,
   type OAuthTokens,
   type OriginBound,
 } from "@instrument-org/workspace/electron";
-import { safeStorage } from "electron";
 import Store from "electron-store";
 
 interface AppOAuthStoreShape {
@@ -28,6 +32,8 @@ interface OAuthFlowRecord {
 // Encrypted at rest through safeStorage (plaintext only in dev), like the
 // credentials store. Tokens and client secrets live only here, never in an
 // app's folder or the model's context.
+const FILE = { dir: workspaceKeysDir, name: KEY_STORE_NAMES.appOAuth };
+
 let STORE: null | Store<AppOAuthStoreShape> = null;
 
 function getFlow(slug: string): OAuthFlowRecord {
@@ -61,20 +67,13 @@ function getStore(): Store<AppOAuthStoreShape> {
         // What this store wrote, so read back as its own shape.
         parse: (json) => json as AppOAuthStoreShape,
       }),
-      fileExtension: is.dev ? "json" : "json.enc",
-      name: "app-oauth",
-      serialize: (value) => {
-        if (is.dev) {
-          return JSON.stringify(value);
-        }
-        if (!safeStorage.isEncryptionAvailable()) {
-          logger.error("Encryption is not available");
-          throw new Error("Encryption is not available");
-        }
-        return safeStorage
-          .encryptString(JSON.stringify(value))
-          .toString("base64");
-      },
+      fileExtension: KEY_FILE_EXTENSION,
+      name: KEY_STORE_NAMES.appOAuth,
+      serialize: keyFileSerializer({
+        dir: workspaceKeysDir,
+        log: logger,
+        name: KEY_STORE_NAMES.appOAuth,
+      }),
     });
   }
   return STORE;
@@ -88,6 +87,7 @@ function omitFlowKeys(slug: string, keys: (keyof OAuthFlowRecord)[]): void {
   if (!current) {
     return;
   }
+  requireSavableKeys({ ...FILE, removes: true });
   const drop = new Set<string>(keys);
   const next: OAuthFlowRecord = {};
   for (const [key, value] of Object.entries(current)) {
@@ -99,6 +99,7 @@ function omitFlowKeys(slug: string, keys: (keyof OAuthFlowRecord)[]): void {
 }
 
 function setFlow(slug: string, patch: Partial<OAuthFlowRecord>): void {
+  requireSavableKeys(FILE);
   const flows = getStore().get("flows");
   getStore().set("flows", {
     ...flows,
@@ -145,6 +146,7 @@ export const appOAuthStore: McpOAuthStore = {
 
 /** Drop every stored OAuth artifact for an app (used on disconnect). */
 export function clearAppOAuth(slug: string): void {
+  requireSavableKeys({ ...FILE, removes: true });
   const { [slug]: _dropped, ...rest } = getStore().get("flows");
   getStore().set("flows", rest);
 }

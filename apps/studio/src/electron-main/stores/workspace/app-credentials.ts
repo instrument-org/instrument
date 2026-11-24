@@ -1,9 +1,13 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceKeysDir } from "@/electron-main/lib/get-workspace-folder";
-import { keyFileDeserializer } from "@/electron-main/lib/key-file";
-import { is } from "@electron-toolkit/utils";
+import {
+  KEY_FILE_EXTENSION,
+  KEY_STORE_NAMES,
+  keyFileDeserializer,
+  keyFileSerializer,
+  requireSavableKeys,
+} from "@/electron-main/lib/key-file";
 import { type StoredAppCredential } from "@instrument-org/workspace/electron";
-import { safeStorage } from "electron";
 import Store from "electron-store";
 import { z } from "zod";
 
@@ -25,6 +29,8 @@ const AppCredentialsStoreSchema = z
 
 type AppCredentialsStore = z.output<typeof AppCredentialsStoreSchema>;
 
+const FILE = { dir: workspaceKeysDir, name: KEY_STORE_NAMES.appCredentials };
+
 let APP_CREDENTIALS_STORE: null | Store<AppCredentialsStore> = null;
 
 const getAppCredentialsStore = (): Store<AppCredentialsStore> => {
@@ -41,21 +47,13 @@ const getAppCredentialsStore = (): Store<AppCredentialsStore> => {
         name: "the app credential store",
         parse: (json) => AppCredentialsStoreSchema.parse(json),
       }),
-      fileExtension: is.dev ? "json" : "json.enc",
-      name: "app-credentials",
-      serialize: (value) => {
-        if (is.dev) {
-          return JSON.stringify(value);
-        }
-
-        if (!safeStorage.isEncryptionAvailable()) {
-          logger.error("Encryption is not available");
-          throw new Error("Encryption is not available");
-        }
-
-        const json = JSON.stringify(value);
-        return safeStorage.encryptString(json).toString("base64");
-      },
+      fileExtension: KEY_FILE_EXTENSION,
+      name: KEY_STORE_NAMES.appCredentials,
+      serialize: keyFileSerializer({
+        dir: workspaceKeysDir,
+        log: logger,
+        name: KEY_STORE_NAMES.appCredentials,
+      }),
     });
   }
 
@@ -71,6 +69,7 @@ export function hasAppCredential(slug: string): boolean {
 }
 
 export function removeAppCredential(slug: string): void {
+  requireSavableKeys({ ...FILE, removes: true });
   const store = getAppCredentialsStore();
   const { [slug]: _removed, ...rest } = store.get("credentials");
   store.set("credentials", rest);
@@ -80,6 +79,7 @@ export function setAppCredential(
   slug: string,
   credential: StoredAppCredential,
 ): void {
+  requireSavableKeys(FILE);
   const store = getAppCredentialsStore();
   store.set("credentials", { ...store.get("credentials"), [slug]: credential });
 }

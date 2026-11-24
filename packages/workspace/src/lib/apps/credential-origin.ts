@@ -88,7 +88,11 @@ export async function redactorFor(
       ? (await getWorkspaceConfig().apps.oauth?.store.getTokens(slug))?.value
       : undefined;
   return (text: string) => {
-    let out = redactCredential(text, credential);
+    let out = redactCredential(
+      text,
+      credential,
+      manifest.type === "api" ? manifest.auth : undefined,
+    );
     out = redactCredential(out, oauthTokens?.access_token ?? null);
     return redactCredential(out, oauthTokens?.refresh_token ?? null);
   };

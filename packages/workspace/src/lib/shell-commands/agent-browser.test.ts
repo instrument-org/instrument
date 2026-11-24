@@ -1012,7 +1012,7 @@ describe("agent-browser routing", () => {
       commandCtx,
     );
 
-    const runs = (await agentBrowserRuns()).map((run) =>
+    const runs = (await agentBrowserRunsOfItsOwn()).map((run) =>
       run.args.slice(run.args.indexOf(sessionId) + 1),
     );
     expect(runs).toStrictEqual([

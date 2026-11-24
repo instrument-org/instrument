@@ -523,12 +523,18 @@ export function isHomeTab(tab: WindowTab): boolean {
 }
 
 /**
- * Whether a blank new tab up in a group is told where to go rather than kept
- * beside what was asked for. Only where the group has one side: a tab on a
- * side of a split keeps its place.
+ * The blank new tab a group has up, which what is opened into the group
+ * takes the place of. None where the group is a split: a tab on a side of
+ * one keeps its place.
  */
-export function canReuseBlankIn(state: WindowTabs, group: string): boolean {
-  return !isSplit(groupLayoutOf(state, group));
+export function blankUpIn(
+  state: WindowTabs,
+  group: string,
+): undefined | WindowTab {
+  const up = selectedTabIn(state, group);
+  return up && isHomeTab(up) && !isSplit(groupLayoutOf(state, group))
+    ? up
+    : undefined;
 }
 
 /** Whether a group is laid out on two sides. */
@@ -951,8 +957,8 @@ export function openOrFocusScreen(
       state: select ? selectTab(state, existing.id) : state,
     };
   }
-  const up = isWaiting ? selectedTabIn(state, group) : undefined;
-  if (up && isHomeTab(up) && canReuseBlankIn(state, group)) {
+  const up = isWaiting ? blankUpIn(state, group) : undefined;
+  if (up) {
     const told = mapTab(state, up.id, (tab) => {
       if (tab.kind !== "screen") {
         return tab;

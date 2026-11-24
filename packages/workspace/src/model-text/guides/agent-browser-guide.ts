@@ -74,7 +74,7 @@ const INSTRUMENT_REFERENCE = {
 
 ## A signed-in app's data
 
-To work with a signed-in app's data (messages, rows, orders, history), use the requests the app itself makes instead of scrolling and scraping. \`network requests --type xhr,fetch\` starts recording the requests the page makes; reload or repeat the step, run it again to list them, and \`network request <id>\` shows one with its response. Then \`eval\` can repeat it with \`fetch(url, { credentials: "include" })\` from the page, signed in as the user, paging through what the app pages through and writing the result to a file (\`agent-browser eval --stdin > rows.json\`). \`curl\` and \`read <url>\` have none of the sign-in.
+To work with a signed-in app's data (messages, rows, orders, history), use the requests the app itself makes instead of scrolling and scraping. \`network requests --type xhr,fetch\` starts recording the requests the page makes; reload or repeat the step, run it again to list them, and \`network request <id>\` shows one with its response. Then \`eval\` can repeat it with \`fetch(url, { credentials: "include" })\` from the page, signed in as the user, paging through what the app pages through and writing the result to a file (\`agent-browser eval --stdin > rows.json\`). \`eval\` prints the value its script ends with as JSON, so end with the rows themselves and the file is the rows. \`curl\` and \`read <url>\` have none of the sign-in.
 
 ## A web app's guide
 
@@ -107,7 +107,7 @@ export function agentBrowserReferencePaths(): string[] {
 /** How a script runs these commands, where scripts reach `instrument`. */
 export const FROM_A_SCRIPT = `## From a script
 
-A \`python\` or \`node\` script runs these commands with \`instrument.browser("eval", js)\` (\`import instrument\` in Python, awaited in Node): the words of the command line as arguments, and \`stdin=js\` in Python or a last \`{ stdin: js }\` in Node for \`--stdin\`. It returns what the command printed. A command that fails raises \`instrument.Error\` with its \`stderr\`, \`stdout\` and \`exit_code\` (\`exitCode\` in Node). The page as the script left it comes under \`Page after\` once, when the call ends. One script that loops goes through many pages in a single call: \`for url in urls: instrument.browser("open", url); rows += json.loads(instrument.browser("eval", js))\`.`;
+A \`python\` or \`node\` script runs these commands with \`instrument.browser("eval", js)\` (\`import instrument\` in Python, awaited in Node): the words of the command line as arguments, and \`stdin=js\` in Python or a last \`{ stdin: js }\` in Node for \`--stdin\`. It returns what the command printed, which for \`eval\` is the value its JS ends with as JSON: JS that ends with the object itself reads back with one \`json.loads\`. A command that fails raises \`instrument.Error\` with its \`stderr\`, \`stdout\` and \`exit_code\` (\`exitCode\` in Node). The page as the script left it comes under \`Page after\` once, when the call ends. One script that loops goes through many pages in a single call: \`for url in urls: instrument.browser("open", url); rows += json.loads(instrument.browser("eval", js))\`.`;
 
 /**
  * The guide the agent reads: the addendum, then the upstream core guide, and

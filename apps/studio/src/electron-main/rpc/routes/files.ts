@@ -47,6 +47,8 @@ import {
   videoStoryboard,
   videoStoryboardDeps,
 } from "@/electron-main/lib/video-storyboard";
+import { FileNameEntrySchema } from "@/electron-main/lib/file-name-index/file-name-index";
+import { fileNameIndex } from "@/electron-main/lib/file-name-index/roots";
 import { folderSize } from "@/electron-main/lib/folder-size";
 import { probeMedia } from "@/electron-main/lib/media-probe";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
@@ -1145,6 +1147,25 @@ const folderSizeRoute = base
     return folderSize(folderPath, { signal });
   });
 
+/** The most names one search answers with. */
+const FILE_NAMES_MAX = 100;
+
+/**
+ * The files and folders whose names the typed words find, best first, among
+ * the workspace's folder and the sidebar's folders (`fileNameIndex`). Where
+ * to look is main's alone to say, so a caller can never widen it. No words
+ * finds nothing, and readies the names for the search that follows.
+ */
+const findByName = base
+  .input(
+    z.object({
+      limit: z.number().int().min(1).max(FILE_NAMES_MAX),
+      words: z.string(),
+    }),
+  )
+  .output(FileNameEntrySchema.array())
+  .handler(({ input }) => fileNameIndex.search(input.words, input.limit));
+
 /**
  * Whether a file is the app's own data, which the person's views keep closed:
  * the editors read and write through here what the viewers read through the
@@ -1212,6 +1233,7 @@ export const files = {
   copyToClipboard,
   dragged,
   duplicate,
+  findByName,
   live,
   missing,
   moveInto,

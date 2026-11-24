@@ -495,7 +495,8 @@ async function forwardToDebugger({
     }
     // A script an earlier command left running, when this command asks for
     // its answer: waited on here rather than sent to the page.
-    const kept = method === "Runtime.evaluate" ? keptScriptOf(delivered) : null;
+    const kept =
+      method === "Runtime.evaluate" ? keptScriptOf(delivered, targetId) : null;
     const startedAt = Date.now();
     const sent =
       kept?.answer ??
@@ -524,7 +525,8 @@ async function forwardToDebugger({
           : noteCheckMissed(kept)) &&
         !answered
       ) {
-        const script = kept ?? keepRunningScript(sent, startedAt);
+        const script =
+          kept ?? keepRunningScript({ answer: sent, startedAt, targetId });
         return new ScriptStillRunningError(
           scriptStillRunningMessage({
             id: script.id,
@@ -964,20 +966,24 @@ async function describePress(
 
 /**
  * The running script a command asks for the answer of, or null when the
- * command is a script of its own. Refuses one that is no longer kept, since
- * the expression that asks is not a script a page could run.
+ * command is a script of its own. Refuses one that is no longer kept, or that
+ * another tab runs, since the expression that asks is not a script a page
+ * could run.
  */
-function keptScriptOf(params: unknown): null | RunningScript {
+function keptScriptOf(
+  params: unknown,
+  targetId: BrowserTargetId,
+): null | RunningScript {
   const id = runningScriptAskedFor(
     (params as undefined | { expression?: unknown })?.expression,
   );
   if (id === undefined) {
     return null;
   }
-  const script = runningScript(id);
+  const script = runningScript(id, targetId);
   if (!script) {
     throw new Error(
-      "That script's answer is no longer kept: it finished more than a minute ago, or other scripts were left running after it.",
+      "That script's answer is no longer kept: it finished more than a minute ago, other scripts were left running after it, or it runs in another tab.",
     );
   }
   return script;

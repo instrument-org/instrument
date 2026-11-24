@@ -25,6 +25,7 @@ import {
 import { log } from "./log";
 
 const TARGET_ID = browserTargetOf(StoreId.newTabId());
+const OTHER_TARGET_ID = browserTargetOf(StoreId.newTabId());
 const HOST_ID = 7;
 
 interface FakeDebugger {
@@ -309,12 +310,14 @@ describe("sendCommand", () => {
         );
         const entries = new Map([
           [TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
+          [OTHER_TARGET_ID, makeEntry({ sendCommand: wcSendCommand })],
         ]);
-        const evaluate = (expression: string) => {
+        const evaluate = (expression: string, targetId = TARGET_ID) => {
           const sent = dispatch({
             entries,
             method: "Runtime.evaluate",
             params: { ...SCRIPT, expression },
+            targetId,
           });
           // Read later; a rejection in between is not unhandled.
           sent.catch(noop);
@@ -441,6 +444,26 @@ describe("sendCommand", () => {
 
         await vi.advanceTimersByTimeAsync(20_000);
         expect(await failureOf(sent)).toBeInstanceOf(CdpCommandTimeoutError);
+      });
+
+      it("refuses to wait on a script another tab runs", async () => {
+        vi.useFakeTimers();
+        const { evaluate, finish } = scriptedGuest();
+
+        const first = evaluate(SCRIPT.expression);
+        await vi.advanceTimersByTimeAsync(20_000);
+        const id = /\[running script: (\w+)\]/.exec(
+          (await failureOf(first)).message,
+        )?.[1];
+
+        await expect(
+          evaluate(`__instrumentRunningScript("${id}")`, OTHER_TARGET_ID),
+        ).rejects.toThrow("it runs in another tab");
+
+        // Its own tab still gets the answer.
+        const asked = evaluate(`__instrumentRunningScript("${id}")`);
+        finish("done");
+        await expect(asked).resolves.toBe("done");
       });
 
       it("refuses to wait on a script it does not keep", async () => {

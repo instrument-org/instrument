@@ -29,6 +29,7 @@ import {
   agentBrowserGuide,
   agentBrowserReferences,
 } from "../../model-text/guides/agent-browser-guide";
+import { withTcpListenerClosed } from "../native-sandbox";
 import { recordVisitedHosts } from "../browser-state";
 import { agentSpellingOfFileUrls } from "../local-page-address";
 import {
@@ -1594,7 +1595,11 @@ async function spawnAgentBrowser({
   const managedArgs = managedConfigPath
     ? ["--config", managedConfigPath, ...args]
     : args;
-  // It drives the app's own browser, so no native sandbox wraps it.
+  // It drives the app's own browser, so the folder rules do not wrap it. The
+  // one thing its profile closes is a listening port: the daemon it starts
+  // otherwise serves upstream's dashboard on loopback, which answers any
+  // process on the computer and relays commands to the browser, and which
+  // nothing here uses (`stream`, `dashboard` and `chat` are all refused).
   recordProgramStart(agentBrowserPath(), "skipped");
 
   if (managedConfigPath) {
@@ -1605,7 +1610,8 @@ async function spawnAgentBrowser({
   const { subcommand } = parseAgentBrowserArgs(args);
 
   if (process.platform !== "win32") {
-    const subprocess = execa(agentBrowserPath(), managedArgs, {
+    const held = withTcpListenerClosed(agentBrowserPath(), managedArgs);
+    const subprocess = execa(held.file, held.args, {
       cancelSignal,
       cwd,
       env,

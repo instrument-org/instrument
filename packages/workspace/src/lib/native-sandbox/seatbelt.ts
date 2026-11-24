@@ -414,19 +414,53 @@ function compiledProfile(helper: string, profile: string): string | undefined {
 }
 
 /**
- * `file` run under the reach's profile: through the app's launcher with the
- * profile compiled, or through sandbox-exec where the launcher is missing or
- * cannot compile it.
+ * `file` run under a profile: through the app's launcher with the profile
+ * compiled, or through sandbox-exec where the launcher is missing or cannot
+ * compile it.
  */
-export function seatbeltCommand(
-  reach: NativeReach,
+function underProfile(
+  profile: string,
   file: string,
   args: readonly string[],
 ): { args: string[]; file: string } {
-  const profile = profileOf(reach);
   const helper = getWorkspaceConfig().seatbeltHelperPath;
   const bytecode = helper ? compiledProfile(helper, profile) : undefined;
   return helper && bytecode
     ? { args: ["run", bytecode, file, ...args], file: helper }
     : { args: ["-p", profile, file, ...args], file: SANDBOX_EXEC };
+}
+
+/** `file` run under the reach's profile. */
+export function seatbeltCommand(
+  reach: NativeReach,
+  file: string,
+  args: readonly string[],
+): { args: string[]; file: string } {
+  return underProfile(profileOf(reach), file, args);
+}
+
+/**
+ * Everything but a listening IP socket, which the rules say nothing about:
+ * `network-bind` is scoped to `ip` so a Unix socket, how the app reaches the
+ * program it wraps, is still bound.
+ */
+const NO_TCP_LISTENER = `(version 1)(allow default)(deny network-bind (local ip "*:*"))`;
+
+/**
+ * A program the app runs for itself, outside the rules, that may not listen
+ * on a port, nor anything it starts. Unwrapped where Seatbelt cannot be
+ * applied. Not for a program that sandboxes itself (Chromium), since Seatbelt
+ * does not nest.
+ *
+ * It goes through the launcher like a native command rather than taking
+ * `withInstallerClosed`'s sandbox-exec, which compiles the profile for every
+ * process: this wraps a program run once per command rather than a rare one.
+ */
+export function withTcpListenerClosed(
+  file: string,
+  args: readonly string[],
+): { args: string[]; file: string } {
+  return seatbeltAvailable()
+    ? underProfile(NO_TCP_LISTENER, file, args)
+    : { args: [...args], file };
 }

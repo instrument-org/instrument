@@ -36,6 +36,7 @@ export {
   seatbeltAvailable,
   seatbeltProfile,
   withInstallerClosed,
+  withTcpListenerClosed,
 } from "./seatbelt";
 
 /**

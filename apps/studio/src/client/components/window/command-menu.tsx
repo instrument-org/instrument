@@ -960,6 +960,7 @@ export function useCommandMenuRows({
       }
       case "folder": {
         return {
+          detail: thing.where,
           icon: <FolderMark path={thing.folder.path} />,
           id: `folder:${thing.folder.path}`,
           label: thing.folder.name,

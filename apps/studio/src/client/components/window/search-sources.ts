@@ -35,7 +35,7 @@ export type SearchThing =
   | {
       folder: { name: string; path: string };
       kind: "folder";
-      where: undefined;
+      where: string | undefined;
     }
   | { kind: "page"; page: OfferedPage; where: string | undefined }
   | { kind: "project"; project: Project; where: undefined }
@@ -160,23 +160,32 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
     sidebarPlaces,
     (path) => ({ name: folderNameFromPath(path), path }),
   );
-  const folders: NamedOf<"folder">[] = [
+  const listedFolders = [
     ...(instrumentPlace ? [{ isPinned: false, place: instrumentPlace }] : []),
     ...pinnedFolders.map((place) => ({ isPinned: true, place })),
     ...(places.data?.volumes ?? []).map((place) => ({
       isPinned: false,
       place,
     })),
-  ].map(({ isPinned, place }) => ({
-    id: `folder:${place.path}`,
-    name: place.name,
-    pinned: isPinned || keptPaths.has(place.path),
-    value: {
-      folder: { name: place.name, path: place.path },
-      kind: "folder",
-      where: undefined,
-    },
-  }));
+  ];
+  // Two folders of one name each say which folder they are in.
+  const folderNames = listedFolders.map(({ place }) => place.name);
+  const folders: NamedOf<"folder">[] = listedFolders.map(
+    ({ isPinned, place }) => ({
+      id: `folder:${place.path}`,
+      name: place.name,
+      pinned: isPinned || keptPaths.has(place.path),
+      value: {
+        folder: { name: place.name, path: place.path },
+        kind: "folder",
+        where:
+          folderNames.indexOf(place.name) ===
+          folderNames.lastIndexOf(place.name)
+            ? undefined
+            : folderNameOf(place.path),
+      },
+    }),
+  );
 
   const files: NamedOf<"file">[] = recentFiles
     .filter((file) => !shownPaths.has(file.path))

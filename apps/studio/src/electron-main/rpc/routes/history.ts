@@ -4,6 +4,11 @@ import {
   recordFileOpen,
   touchesPage,
 } from "@/electron-main/browser-view/history-store";
+import {
+  noteSearchPick,
+  readSearchPicks,
+} from "@/electron-main/stores/workspace/state";
+import { pickLogSchema } from "@/shared/remembered-picks";
 import { distinct, liveRead, where } from "@instrument-org/workspace/electron";
 import { eventIterator } from "@orpc/server";
 import { z } from "zod";
@@ -90,6 +95,19 @@ const setFrequentHidden = base
   .input(z.object({ isHidden: z.boolean(), url: z.string() }))
   .handler(({ input }) => {
     getHistoryStore().setFrequentHidden(input.url, input.isHidden, Date.now());
+  });
+
+/**
+ * What the person picked for what they typed in the command menu and a new
+ * tab's box, oldest first, for a search to put first again.
+ */
+const searchPicks = base.output(pickLogSchema).handler(() => readSearchPicks());
+
+/** The person ran a search's row after typing words: `picked` is the row's id. */
+const noteSearchPicked = base
+  .input(z.object({ picked: z.string(), typed: z.string() }))
+  .handler(({ input }) => {
+    noteSearchPick(input);
   });
 
 const OpenedFileSchema = z.object({
@@ -193,8 +211,10 @@ export const history = {
   clear,
   live,
   noteFileOpened,
+  noteSearchPicked,
   noteTypedPage,
   remove,
+  searchPicks,
   setFrequentHidden,
   summary,
 };

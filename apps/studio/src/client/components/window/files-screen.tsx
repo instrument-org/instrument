@@ -21,7 +21,7 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { COMPUTER_FILE_REFUSAL_HEADER } from "@/shared/computer-file-refusal";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { keptByTab } from "@/client/lib/kept-by-tab";
+import { folderFoldByTab } from "./folder-fold";
 import {
   pageHoldingKeyboard,
   takeKeyboardOnArrival,
@@ -61,7 +61,7 @@ import {
   foldToWidth,
   hidePanel,
   KEPT_PANEL,
-  type PanelFold,
+  showPanel,
   showsPanel,
   togglePanel,
 } from "@/client/lib/panel-fold";
@@ -135,12 +135,6 @@ const BESIDE_EXIT_TRANSITION = {
   duration: 0.38,
   ease: [0.2, 0, 0, 1],
 } as const;
-/**
- * The folder beside a file by tab, whether the person kept it or hid it and
- * whether the tab last had room for it, with the file it was beside, for
- * the screen drawn again as its tab comes back up.
- */
-const folderFoldByTab = keptByTab<{ file: string; fold: PanelFold }>();
 /** The pile several picked make beside the folder, the way the columns draw one. */
 const PILE_POSES = [
   { rotate: 9, x: 24, y: -12 },
@@ -181,7 +175,8 @@ export function FilesScreen({
   const { arrivals, go, step: here } = useFilesStep(routed);
   const { file, path, query, root, select, tree, version, view } = here;
   const source = here.source ?? false;
-  const { openScreen, rowField, rowReload, rowTail, rowView } = useWindow();
+  const { openScreen, rowField, rowReload, rowTail, rowView, takeFolderPress } =
+    useWindow();
   const { moveToGroup, pageTakesOver, stepVisitOf } = useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
@@ -388,6 +383,43 @@ export function FilesScreen({
   const closeBeside = () => {
     go({ type: "closeFile" });
   };
+  // A press on the file's own folder in the address shows the folder beside
+  // the file, the file kept open, and pressed again puts it away.
+  const pressFolder = useEffectEvent(() => {
+    if (file === undefined) {
+      return;
+    }
+    const parent = folderOf(file);
+    if (!isBesideLayout) {
+      setFold(showPanel);
+      router.history.push(
+        fileHref(file, {
+          source,
+          tree: parent,
+          ...(version === undefined ? {} : { version }),
+        }),
+      );
+    } else if (folder?.hostPath === parent) {
+      setFold(togglePanel);
+    } else {
+      // Walked to another folder, or folded away in one: the file's own comes up.
+      setFold(showPanel);
+      go({
+        path: "",
+        root: parent === window.api.homeDir ? "~" : parent,
+        select: relativeHostPath(parent, file) ?? undefined,
+        type: "walk",
+      });
+    }
+  });
+  useEffect(() => {
+    takeFolderPress?.(() => {
+      pressFolder();
+    });
+    return () => {
+      takeFolderPress?.(undefined);
+    };
+  }, [takeFolderPress]);
   const onFolderChange = (next: FolderOnScreen | null) => {
     setFolder((current) =>
       JSON.stringify(current) === JSON.stringify(next) ? current : next,

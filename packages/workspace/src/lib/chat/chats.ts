@@ -1230,15 +1230,21 @@ function hasOwnTurn(chatId: ChatId): boolean {
 /**
  * Whether a message started a turn of the chat's own: one the user sent, or
  * a wake's. One that joined a turn already under way started none, and nor
- * did a note a stop left, which wakes nothing, or the note a branch is
- * copied with, which ends the copy.
+ * did a note a stop left, which wakes nothing: a task's, or a page's that
+ * the person took over or closed. Nor did the note a branch is copied with,
+ * which ends the copy.
  */
 function startsTurn(message: SessionMessage.WithParts): boolean {
   return (
     message.role === "user" &&
     !isStopNote(message) &&
     !joinedMidTurn(message) &&
-    !message.parts.some((part) => part.type === "data-branchedFrom")
+    !message.parts.some(
+      (part) =>
+        part.type === "data-branchedFrom" ||
+        (part.type === "data-pageTakeover" &&
+          (part.data.stage === "taken" || part.data.stage === "closed")),
+    )
   );
 }
 

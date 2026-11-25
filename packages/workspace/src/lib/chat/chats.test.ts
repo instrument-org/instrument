@@ -1548,6 +1548,22 @@ describe("listChats", () => {
     const [pastNote] = await listChats();
     expect(pastNote?.status).toBe("stopped");
 
+    // Take over stops the chat and leaves a note that starts no turn, and so
+    // does closing the page it was on.
+    for (const stage of ["taken", "closed"] as const) {
+      await noteSays(sessionId, 3, (metadata) => ({
+        data: {
+          page: { title: "Shop", url: "https://shop.example" },
+          stage,
+          tab: "tab-1",
+        },
+        metadata,
+        type: "data-pageTakeover",
+      }));
+      const [pastTakeover] = await listChats();
+      expect(pastTakeover?.status).toBe("stopped");
+    }
+
     // The next turn starting is what ends it.
     await userSays(chatId, sessionId, "try Desktop instead", 4);
     alive.value = new Set([sessionId]);

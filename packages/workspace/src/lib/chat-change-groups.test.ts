@@ -30,6 +30,13 @@ describe("chatChangesHeading", () => {
       [{ after: true, before: false, chat: chat("a"), field: "starred" }],
     ],
     [
+      "two marked read",
+      [
+        { after: false, before: true, chat: chat("a"), field: "unread" },
+        { after: false, before: true, chat: chat("b"), field: "unread" },
+      ],
+    ],
+    [
       "one renamed",
       [{ after: "Lisbon", before: "Trip", chat: chat("a"), field: "title" }],
     ],
@@ -77,6 +84,7 @@ describe("chatChangesHeading", () => {
         "one unarchived": "Unarchived a chat",
         "two archived": "Archived 2 chats",
         "two filed": "Moved 2 chats",
+        "two marked read": "Marked 2 chats as read",
       }
     `);
   });

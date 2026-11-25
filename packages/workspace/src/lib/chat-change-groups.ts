@@ -5,6 +5,8 @@ type ChatChange = SessionMessageDataPart.ChatChange;
 
 /** The changes of a turn that did one thing, to however many chats. */
 interface ChatChangeGroup {
+  /** For chats marked, what as: the words after them. */
+  as?: string;
   changes: ChatChange[];
   /** Tells groups apart: the field and what it was set to. */
   key: string;
@@ -28,6 +30,11 @@ function groupOf(change: ChatChange): Omit<ChatChangeGroup, "changes"> {
       return change.after
         ? { key: "starred", verb: "Starred" }
         : { key: "unstarred", verb: "Unstarred" };
+    }
+    case "unread": {
+      return change.after
+        ? { key: "unread", verb: "Marked", as: "unread" }
+        : { key: "read", verb: "Marked", as: "read" };
     }
     case "project": {
       return change.after === null
@@ -72,7 +79,7 @@ export function chatChangesHeading(changes: readonly ChatChange[]): string {
   if (only.project === null) {
     return `Removed ${chats} from ${count === 1 ? "its project" : "their projects"}`;
   }
-  return `${only.verb} ${chats}`;
+  return `${only.verb} ${chats}${only.as === undefined ? "" : ` as ${only.as}`}`;
 }
 
 /** A turn's changes to each chat, the chats in the order first changed. */

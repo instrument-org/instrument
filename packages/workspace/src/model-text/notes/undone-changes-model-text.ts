@@ -19,6 +19,7 @@ const CHAT_FIELD_WORDS: Record<ChatChange["field"], string> = {
   project: "project",
   starred: "star",
   title: "title",
+  unread: "unread mark",
 };
 
 function listed(words: readonly string[]): string {

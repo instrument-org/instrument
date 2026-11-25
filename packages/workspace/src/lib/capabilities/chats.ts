@@ -12,6 +12,8 @@ import {
   chatById,
   chatRecordTitle,
   listChats,
+  markChatRead,
+  markChatUnread,
   renameChat,
   setChatProject,
   setChatStarred,
@@ -66,10 +68,13 @@ function renderOutcomes(outcomes: readonly Outcome[]) {
   return {
     exitCode: failed.length > 0 ? 1 : 0,
     stderr: failed.map((each) => `${NAME}: ${each.said}\n`).join(""),
-    stdout: outcomes
-      .filter((each) => !each.failed)
-      .map((each) => `${each.said}\n`)
-      .join(""),
+    stdout:
+      outcomes.length === 0
+        ? "No chat to change.\n"
+        : outcomes
+            .filter((each) => !each.failed)
+            .map((each) => `${each.said}\n`)
+            .join(""),
   };
 }
 
@@ -91,9 +96,9 @@ function projectNamed(projects: readonly Project[], word: string) {
   );
 }
 
-const ids = z
-  .array(z.string(), { error: `which chats? ${NAME} list names them.` })
-  .min(1, `which chats? ${NAME} list names them.`);
+const WHICH_CHATS = `which chats? ${NAME} list names them.`;
+
+const ids = z.array(z.string(), { error: WHICH_CHATS }).min(1, WHICH_CHATS);
 
 /**
  * Runs one change over each chat named, in order: a chat that is not there,
@@ -264,8 +269,26 @@ export const chatsRename = defineCapability({
   where: CHATS,
 });
 
+/** The chats a command's words name: their ids, or with `--all` every chat it would change. */
+async function namedOf(
+  { all = false, ids: named }: { all?: boolean; ids: readonly string[] },
+  changes: (chat: Chat) => boolean,
+): Promise<readonly string[]> {
+  if (all) {
+    if (named.length > 0) {
+      throw new Error("--all takes every chat, so give no ids with it.");
+    }
+    return (await listChats()).filter(changes).map((chat) => chat.id);
+  }
+  if (named.length === 0) {
+    throw new Error(WHICH_CHATS);
+  }
+  return named;
+}
+
 /** A command that sets one yes-or-no mark on each chat named. */
 function markCapability({
+  all,
   already,
   did,
   field,
@@ -274,32 +297,43 @@ function markCapability({
   to,
   word,
 }: {
+  /** What `--all` takes in place of ids, for a mark set on every chat at once. */
+  all?: string;
   /** What a chat with nothing to change is said to be: "already archived". */
   already: string;
   /** What a line says was done: "Archived". */
   did: string;
-  field: "archived" | "starred";
+  field: "archived" | "starred" | "unread";
   mark: (chatId: ChatId) => Promise<boolean>;
   summary: string;
   to: boolean;
   word: string;
 }) {
   return defineCapability({
-    input: z.object({ ids }),
-    name: `chats.${word}`,
+    input:
+      all === undefined
+        ? z.object({ ids })
+        : z.object({
+            all: z.boolean().default(false).describe(all),
+            ids: z.array(z.string()).default([]),
+          }),
+    name: `chats.${word.replace("-", "_")}`,
     output: Outcomes,
     render: renderOutcomes,
-    run: ({ ids: named }) =>
-      eachChat(named, async (chat) => {
-        if (chat[field] === to) {
-          return `${chat.id} was ${already}: ${chat.title}`;
-        }
-        if (!(await mark(chat.id))) {
-          return { couldNot: `${word}: ${chat.id} could not be changed.` };
-        }
-        recordChatChange({ after: to, before: !to, chat: chat.id, field });
-        return `${did} ${chat.id}: ${chat.title}`;
-      }),
+    run: async (input) =>
+      eachChat(
+        await namedOf(input, (chat) => chat[field] !== to),
+        async (chat) => {
+          if (chat[field] === to) {
+            return `${chat.id} was ${already}: ${chat.title}`;
+          }
+          if (!(await mark(chat.id))) {
+            return { couldNot: `${word}: ${chat.id} could not be changed.` };
+          }
+          recordChatChange({ after: to, before: !to, chat: chat.id, field });
+          return `${did} ${chat.id}: ${chat.title}`;
+        },
+      ),
     summary,
     surfaces: {
       cli: { help: "", positional: ["ids"], words: ["chats", word] },
@@ -347,6 +381,28 @@ export const chatsUnstar = markCapability({
   summary: "Take the star off chats.",
   to: false,
   word: "unstar",
+});
+
+export const chatsMarkRead = markCapability({
+  all: "every unread chat",
+  already: "already read",
+  did: "Marked as read",
+  field: "unread",
+  mark: markChatRead,
+  summary: "Mark chats as read, by id, or every unread chat with --all.",
+  to: false,
+  word: "mark-read",
+});
+
+export const chatsMarkUnread = markCapability({
+  already: "already unread",
+  did: "Marked as unread",
+  field: "unread",
+  mark: (chatId) => markChatUnread(chatId, { byUser: true }),
+  summary:
+    "Mark chats as unread, as the user's own Mark as Unread does: it holds until they come back to the chat.",
+  to: true,
+  word: "mark-unread",
 });
 
 export const chatsProject = defineCapability({

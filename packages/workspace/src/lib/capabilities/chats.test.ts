@@ -512,6 +512,75 @@ describe("instrument chats star and unstar", () => {
   });
 });
 
+describe("instrument chats mark-read and mark-unread", () => {
+  it("marks every unread chat as read in one call, and the ones named as unread", async () => {
+    const lisbon = ChatIdSchema.parse("lisbon");
+    const porto = ChatIdSchema.parse("porto");
+    await markChatUnread(lisbon, { byUser: false });
+    await markChatUnread(porto, { byUser: true });
+    const { changes, results } = await turn(
+      "instrument chats mark-read --all",
+      "instrument chats mark-unread groceries",
+    );
+    expect(results.map((result) => result.stdout).join(""))
+      .toMatchInlineSnapshot(`
+        "Marked as read lisbon: Trip to Lisbon
+        Marked as read porto: about porto
+        Marked as unread groceries: Groceries for the week
+        "
+      `);
+    expect(changes).toMatchInlineSnapshot(`
+      [
+        {
+          "after": false,
+          "before": true,
+          "chat": "lisbon",
+          "field": "unread",
+        },
+        {
+          "after": false,
+          "before": true,
+          "chat": "porto",
+          "field": "unread",
+        },
+        {
+          "after": true,
+          "before": false,
+          "chat": "groceries",
+          "field": "unread",
+        },
+      ]
+    `);
+    expect((await chatById(lisbon))?.unread).toBe(false);
+    const groceries = await chatById(ChatIdSchema.parse("groceries"));
+    expect(groceries?.unread).toBe(true);
+    expect(groceries?.unreadByUser).toBe(true);
+    expect((await one("instrument chats mark-read --all")).stdout).toContain(
+      "groceries",
+    );
+    expect(await undoChatChanges(changes)).toEqual({ skipped: 1, undone: 2 });
+    expect((await chatById(lisbon))?.unread).toBe(true);
+  });
+
+  it("asks which chats, and takes no ids with --all", async () => {
+    expect((await one("instrument chats mark-read")).stderr)
+      .toMatchInlineSnapshot(`
+        "instrument chats: which chats? instrument chats list names them.
+        "
+      `);
+    expect((await one("instrument chats mark-read --all lisbon")).stderr)
+      .toMatchInlineSnapshot(`
+        "instrument chats: --all takes every chat, so give no ids with it.
+        "
+      `);
+    expect((await one("instrument chats mark-read --all")).stdout)
+      .toMatchInlineSnapshot(`
+        "No chat to change.
+        "
+      `);
+  });
+});
+
 describe("instrument chats project", () => {
   it("files chats under a project by name, and under none", async () => {
     const travel = await createProject({ name: "Travel" });
@@ -563,7 +632,7 @@ describe("a task's instrument chats", () => {
     const refused = await bash.exec("instrument chats archive lisbon");
     expect(refused.exitCode).toBe(1);
     expect(refused.stderr).toMatchInlineSnapshot(`
-      "instrument chats: only the chat organizes the user's chats. Say in your report what the chat should rename, archive, file or star.
+      "instrument chats: only the chat organizes the user's chats. Say in your report what the chat should rename, archive, file, star or mark read.
       "
     `);
     expect((await chatById(ChatIdSchema.parse("lisbon")))?.archived).toBe(

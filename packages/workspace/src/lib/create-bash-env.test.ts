@@ -150,7 +150,7 @@ describe("instrument", () => {
         activity   What the user did in this app lately, with names and paths.
         app        Connect services and call their tools.
         bookmarks  The user's bookmarks: list them, and add one.
-        chats      Organizing the user's chats: rename, archive, file and star them.
+        chats      Organizing the user's chats: which need them, and rename, archive, file, star or mark them read.
         memory     What you keep about the user for every chat.
         projects   The user's projects: list, create, rename, mark and delete them.
         settings   Instrument's own settings: read them, and change them.

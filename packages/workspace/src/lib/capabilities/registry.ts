@@ -25,6 +25,8 @@ import { browserRun } from "./browser";
 import {
   chatsArchive,
   chatsList,
+  chatsMarkRead,
+  chatsMarkUnread,
   chatsProject,
   chatsRename,
   chatsStar,
@@ -97,6 +99,8 @@ export const CAPABILITIES: readonly Capability[] = [
   chatsProject,
   chatsStar,
   chatsUnstar,
+  chatsMarkRead,
+  chatsMarkUnread,
   generateImageCapability,
   memoryList,
   memorySave,

@@ -723,7 +723,7 @@ export namespace SessionMessageDataPart {
       after: z.boolean(),
       before: z.boolean(),
       chat: ChatIdSchema,
-      field: z.enum(["archived", "starred"]),
+      field: z.enum(["archived", "starred", "unread"]),
     }),
     z.object({
       after: z.string().nullable(),
@@ -737,7 +737,7 @@ export namespace SessionMessageDataPart {
 
   /**
    * What a turn did to the person's chats through the `chats` command: the
-   * titles, archive marks, stars and projects it set, each with the value
+   * titles, archive and unread marks, stars and projects it set, each with the value
    * from before. Attached to the turn's last assistant message, where the
    * chat tells the person and offers to undo it.
    */

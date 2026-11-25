@@ -119,6 +119,9 @@ function stillStands(change: ChatChange, row: Chat) {
     case "starred": {
       return row.starred === change.after;
     }
+    case "unread": {
+      return row.unread === change.after;
+    }
     case "project": {
       return (row.project ?? null) === change.after;
     }
@@ -222,6 +225,9 @@ function changeWords(
     }
     case "starred": {
       return change.after ? "Starred" : "Unstarred";
+    }
+    case "unread": {
+      return change.after ? "Marked as unread" : "Marked as read";
     }
     case "project": {
       return change.after === null ? (

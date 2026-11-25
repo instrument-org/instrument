@@ -5,6 +5,8 @@ import {
   archiveChat,
   chatById,
   chatRecordTitle,
+  markChatRead,
+  markChatUnread,
   renameChat,
   setChatProject,
   setChatStarred,
@@ -65,6 +67,16 @@ async function undoChatChange(change: ChatChange): Promise<boolean> {
         return false;
       }
       return setChatStarred(chatId, change.before);
+    }
+    case "unread": {
+      if ((await chatById(chatId))?.unread !== change.after) {
+        return false;
+      }
+      // The person's own press puts the mark back, so it holds as one they
+      // set does.
+      return change.before
+        ? markChatUnread(chatId, { byUser: true })
+        : markChatRead(chatId);
     }
     case "project": {
       if (((await chatById(chatId))?.project ?? null) !== change.after) {

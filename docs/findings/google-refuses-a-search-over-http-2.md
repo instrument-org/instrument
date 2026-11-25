@@ -19,14 +19,27 @@ A throwaway Electron main process, a fresh in-memory session per row, loading `h
 | The same, then every connection closed | passes |
 | A suggestion request, with or without cookies | passes |
 | `generate_204` with `--disable-quic` | refused |
+| Nothing, with DNS over HTTPS set to `dns.google` | passes, three of three |
 
-The row that sets no cookie rules cookies out; the closed-connections row rules out a warm socket; `--disable-quic` names what is left. `nextHopProtocol` reads `h3` on every accepted page and `h2` on every refused one with QUIC off. What carries over between requests is Chromium's memory of the `Alt-Svc` header Google answers with, which a preconnect never receives, since it sends no request.
+The row that sets no cookie rules cookies out; the closed-connections row rules out a warm socket; `--disable-quic` names what is left.
+
+A network log of cold and warmed searches shows the results page requested twice in one navigation: a first answer that runs in the page, then the same address again. The refused searches sent both over HTTP/2. The accepted ones sent the second over HTTP/3, and most of them sent the first over HTTP/2. `nextHopProtocol` cannot tell them apart, since on a refused search it describes the `/sorry/` page, which comes over HTTP/3.
+
+Chromium learns a host speaks HTTP/3 from the `Alt-Svc` header of an earlier answer, which a preconnect never receives since it sends no request, or from the host's DNS `HTTPS` record. Google publishes that record (`alpn=h2,h3`), and Chromium read it over DNS over HTTPS here and not through this network's plain DNS, although `enableAdditionalDnsQueryTypes` is on by default.
+
+HTTP/3 is necessary here and not sufficient: a second harness, with a stock user agent and a hidden window that did not paint, was refused in every row, warmed or not, once with every request over HTTP/3. Which of its differences did it was not isolated.
 
 Why Google scores the two differently was not established; only the outcome was.
 
 ## What the app does
 
 `contactSearchEngine` (`apps/studio/src/electron-main/browser-view/search-engine.ts`) asks google.com for an empty answer when the browser's session opens, with no cookies and no words. Suggestions go out through the same session, also without cookies. Nothing about the browser's identity changes.
+
+## What other browsers do
+
+Chrome connects to the default search engine's origin about five seconds after launch and every minute while it is in front (`chrome/browser/navigation_predictor/search_engine_preconnector.cc`). Brave has had this refusal open since 2025 for the first search of a new profile or private window (brave/brave-browser#50100); people there report that opening google.com first clears it, and it has no settled fix. Ardia moved its suggestion requests onto the browser's own network stack for it (ardia-browser/ardia#1281), which the suggestions here already use.
+
+Setting DNS over HTTPS for the app would clear it with no contact, and is not done: it overrides the DNS the person's network or VPN chose, and sends every host they visit to one resolver.
 
 ## What it does not settle
 

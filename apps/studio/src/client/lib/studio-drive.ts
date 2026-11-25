@@ -59,6 +59,8 @@ interface StudioDrive {
   look: () => StudioDriveLook;
   modals: () => StudioModalName[];
   openModal: (name: StudioModalName) => void;
+  /** The web contents of the page a tab shows, by the tab's id; null for a screen or a page not loaded yet. */
+  pageOf: (tabId: string) => null | number;
   /** The tab closed last, back with its history, as Shift+Cmd+T brings it. */
   reopen: () => void;
   /** Resolves once the window has been still for a moment, with what it was still doing when the time ran out. */
@@ -323,6 +325,8 @@ export function initStudioDrive() {
     openModal: (name) => {
       MODAL_OPENERS[name]();
     },
+    pageOf: (tabId) =>
+      getGuest(browserTargetOf(tabId))?.webContentsId ?? null,
     reopen: () => {
       store.set(appTabsAtom, (model) =>
         reopenClosed(model, { id: freshTabId() }),

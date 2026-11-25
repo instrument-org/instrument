@@ -128,6 +128,13 @@ const menuKey = driven
     item: pressMenuKey(context.window, input.guestId, input) ?? null,
   }));
 
+/** Sizes the window's content, which stays wherever it is off screen. */
+const resize = driven
+  .input(z.object({ height: z.number().int().min(200), width: z.number().int().min(300) }))
+  .handler(({ context, input }) => {
+    context.window.setContentSize(input.width, input.height);
+  });
+
 export const drive = {
   answerDialog,
   dismissMenu,
@@ -136,4 +143,5 @@ export const drive = {
   menuKey,
   pressKey,
   pressMenu,
+  resize,
 };

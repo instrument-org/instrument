@@ -146,7 +146,7 @@ import {
 import { createRequire } from "node:module";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { DEV_INSTANCE_COLORS } from "../../../../apps/studio/src/shared/dev-instance-colors.ts";
 import { SETUP_STEPS } from "../../../../apps/studio/src/shared/setup.ts";
@@ -169,6 +169,8 @@ import {
   waitForDriveHandle,
   writeSession,
 } from "./studio-app.mjs";
+import { vocabulary, WORD_NAMES } from "./drive/vocabulary.mjs";
+import { createWords } from "./drive/words.mjs";
 
 const COMMANDS = new Set([
   "bash",
@@ -1707,6 +1709,10 @@ async function cmdBoot(
         const cdp = await openCdp(`http://127.0.0.1:${port}`);
         try {
           await waitForDriveHandle(cdp);
+          // The handle comes before the screen: the restored tabs, their first
+          // reads and the dev server's first transforms are still under way.
+          // Ready is once the window has settled, as each word waits for.
+          await evaluate(cdp, "window.__studioDrive.settled({ capMs: 60000 })").catch(() => {});
           // Seeded here so the first command after a boot compares against this
           // load rather than reporting it as a reload.
           const load = await evaluate(
@@ -1813,30 +1819,48 @@ async function cmdStop() {
  * got from whatever the last command happened to print.
  */
 async function cmdRun(file, rawArgs) {
-  let source = file;
-  if (file === "-" || file === undefined) {
+  const inline = flag(argv, "-e");
+  let source = inline === undefined ? file : undefined;
+  let body = inline;
+  const scene = source && !/[/.]/.test(source) ? path.join(SCENES_DIR, `${source}.js`) : undefined;
+  if (scene) {
+    if (!existsSync(scene)) {
+      fail(`No scene named ${JSON.stringify(source)}. Scenes: ${listScenes().join(", ") || "none"}.`);
+    }
+    body = readFileSync(scene, "utf8");
+    source = undefined;
+  }
+  if (body === undefined && (source === "-" || source === undefined)) {
     const stdin = await readStdin();
     if (!stdin.trim()) {
       fail(
-        `Usage: run <script.mjs> [--args '<json>'], or run - with the script on stdin.\n\n` +
-          `  export default async (app, args) => {\n` +
-          `    await app.goto("/skills");\n` +
-          `    await app.click("New skill");\n` +
-          `    await app.waitFor('document.querySelector("[role=dialog]")');\n` +
-          `    return app.state();\n` +
-          `  };`,
+        `Usage: run -e '<words>', run <scene>, run <file>, or run - with the words on stdin.\n\n` +
+          `  run -e 'await tab("New Tab").click(); await composer.send("hi"); return state()'\n\n` +
+          "`words` lists the vocabulary.",
       );
     }
-    // Node cannot import a module from a stream, and a data: URL cannot resolve
-    // a relative import back to this directory. A file next to the script it
-    // came from keeps `import "./studio-app.mjs"` working inside it.
-    source = path.join(
-      tmpdir(),
-      "instrument-studio-drive",
-      `sequence-${process.pid}.mjs`,
-    );
+    body = stdin;
+  }
+  if (body === undefined && source !== undefined) {
+    const text = readFileSync(source, "utf8");
+    if (!/^\s*export\s+default\b/m.test(text)) {
+      body = text;
+    }
+  }
+
+  // Words written as statements (`-e`, a scene, or a file with no default
+  // export) run inside a function with every word in scope. A module that
+  // default-exports a function is run as before, taking (app, args), with the
+  // words on app.words.
+  if (body !== undefined) {
+    source = path.join(tmpdir(), "instrument-studio-drive", `words-${process.pid}.mjs`);
     mkdirSync(path.dirname(source), { recursive: true });
-    writeFileSync(source, stdin);
+    writeFileSync(
+      source,
+      `export const isWords = true;\nexport default async function (__words, args) {\nconst { ${WORD_NAMES.join(", ")} } = __words;\n${body}\n}\n`,
+    );
+  } else if (file === "-" || file === undefined) {
+    fail("Nothing to run.");
   }
 
   // An empty object rather than undefined, so a script reading args.x without
@@ -1864,6 +1888,21 @@ async function cmdRun(file, rawArgs) {
     );
   }
 
+  // `--purpose` on a run boots the instance first when none is running, so
+  // a check is one command from nothing.
+  const purpose = flag(argv, "--purpose");
+  if (purpose) {
+    const existing = readSession(INSTANCE);
+    if (!existing || !(await isPortLive(existing.port))) {
+      const booted = await cmdBoot(flag(argv, "--port"), {
+        fresh: argv.includes("--fresh"),
+        keepTabs: argv.includes("--keep-tabs"),
+        purpose,
+      });
+      console.error(`studio-drive: booted ${booted.flags || "the instance"} on port ${booted.port}`);
+    }
+  }
+
   // --quiet drops the per-step trace from a run that succeeds, for a script
   // whose own return value already says what happened: each step records the
   // value it returned, and a few RPC reads make that hundreds of kilobytes.
@@ -1874,9 +1913,24 @@ async function cmdRun(file, rawArgs) {
     port: flag(process.argv, "--port"),
     workspace: INSTANCE,
   });
+  const { begin, end, words } = createWords(app, {
+    allowReload: process.argv.includes("--allow-reload"),
+    workspaceDir: FIXTURE_DIR
+      ? path.join(fixtureDirs(FIXTURE_DIR).userDataDir, "workspace")
+      : undefined,
+  });
+  await begin();
+  app.words = words;
+  for (const [name, word] of Object.entries(words)) {
+    app[name] ??= word;
+  }
 
+  const startedAt = Date.now();
   try {
-    const value = await run(app, args);
+    const value = module.isWords ? await run(words, args) : await run(app, args);
+    if (module.isWords) {
+      return { lines: traceLines(app.trace, Date.now() - startedAt), value };
+    }
     return {
       ok: true,
       steps: app.trace.length,
@@ -1887,6 +1941,9 @@ async function cmdRun(file, rawArgs) {
     // Reported as the command's result rather than thrown, so the trace of what
     // did happen survives. The non-zero exit still marks it as a failure.
     process.exitCode = 1;
+    if (module.isWords) {
+      return { error: error.message, lines: traceLines(app.trace, Date.now() - startedAt) };
+    }
     return {
       error: error.message,
       ok: false,
@@ -1899,8 +1956,53 @@ async function cmdRun(file, rawArgs) {
         : app.trace,
     };
   } finally {
+    await end();
     app.close();
   }
+}
+
+/** A words run's steps, one line each: what it did and how long it took. */
+function traceLines(trace, totalMs) {
+  return [
+    ...trace.map(
+      (entry) =>
+        `${entry.ok === false ? "✗" : "✓"} ${entry.label}  ${entry.ms ?? "?"} ms`,
+    ),
+    `${trace.length} steps in ${(totalMs / 1000).toFixed(1)} s`,
+  ];
+}
+
+/** Prints a words run: its steps, then what it returned or why it stopped. */
+function reportWords({ error, lines, value }) {
+  console.log(lines.join("\n"));
+  if (error !== undefined) {
+    console.log(`\n${error}`);
+    return;
+  }
+  if (value === undefined) {
+    return;
+  }
+  // Text the words return (state(), an outline) reads as text, not as one
+  // JSON line of escapes, also when it is a field of what was returned.
+  if (typeof value === "string") {
+    console.log(`\n${value}`);
+  } else if (value && typeof value === "object" && !Array.isArray(value) && Object.values(value).some((each) => typeof each === "string" && each.includes("\n"))) {
+    for (const [key, each] of Object.entries(value)) {
+      console.log(typeof each === "string" && each.includes("\n") ? `\n${key}:\n${each}` : `\n${key}: ${JSON.stringify(each, undefined, 2)}`);
+    }
+  } else {
+    console.log(`\n${JSON.stringify(value, undefined, 2)}`);
+  }
+}
+
+const SCENES_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), "drive", "scenes");
+
+function listScenes() {
+  return existsSync(SCENES_DIR)
+    ? readdirSync(SCENES_DIR)
+        .filter((name) => name.endsWith(".js"))
+        .map((name) => name.slice(0, -3))
+    : [];
 }
 
 function readStdin() {
@@ -2036,6 +2138,10 @@ try {
     console.log(USAGE);
     process.exit(0);
   }
+  if (command === "words") {
+    console.log(vocabulary());
+    process.exit(0);
+  }
   if (command === "status") {
     report(await cmdStatus());
     process.exit(0);
@@ -2091,7 +2197,15 @@ try {
       break;
     }
     case "run": {
-      report(await cmdRun(positional[0], flag(argv, "--args")));
+      const result = await cmdRun(
+        argv.includes("-e") ? undefined : positional[0],
+        flag(argv, "--args"),
+      );
+      if (result.lines) {
+        reportWords(result);
+      } else {
+        report(result);
+      }
 
       break;
     }

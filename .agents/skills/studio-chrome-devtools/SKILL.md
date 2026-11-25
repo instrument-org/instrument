@@ -19,6 +19,77 @@ node $DRIVE stop                              # once
 
 `boot` and `stop` bracket the work and [`run`](#a-sequence-run) is the work. One `studio-drive` invocation is one process and one connection, which is right for a single question and wrong for anything else: a primitive costs milliseconds over a held connection while deciding the next command costs seconds, so twelve steps measure at 1.2s as one `run` against roughly two minutes as twelve commands. Write the sequence first, and drop to single commands only when you have exactly one thing to ask. The per-command reference comes first below because `boot` lives in it, not because it is the default.
 
+## Words
+
+`run` takes a script written in the product's words: tabs, groups, sides, the composer, the omnibar, menus by item name, dialogs. Every word finds its target by role and accessible name, acts with real input, and resolves once the app has settled, so a script never sleeps; a miss says what is on screen instead, with the nearest names and a picture.
+
+```bash
+node $DRIVE run -e 'await press("Meta+t"); await composer.send("hello"); return state()'
+```
+
+<!-- words:start -->
+- `thing.nth(i)`: the i-th of several things with one name (0 first, -1 last)
+- `thing.button(name) / .field / .toggle / .tab / .row / .item / .link / .find(role, name)`: one inside this one
+- `thing.text()`: the words it shows; thing.see(text) waits for text inside it
+- `thing.click({ button, count, modifiers, at })`: a real click at its middle (or at [fx, fy] of its box)
+- `thing.dblclick() / thing.rightClick()`
+- `thing.menu(...items)`: right-clicks it and picks the item (a path for a submenu); with no items, returns what the menu offers
+- `thing.hover()`: the pointer rests on it until the app settles
+- `thing.focus()`: puts the keyboard on it
+- `thing.type(text)`: clicks into it and types, as keys would
+- `thing.fill(text)`: replaces what it has with text
+- `thing.value()`: what a field holds; thing.isOn(): a toggle's state
+- `thing.exists()`: whether it is on screen now, without waiting
+- `thing.wait({ timeout }) / thing.gone({ timeout })`: until it shows, or until it is no longer on screen
+- `thing.box()`: its place and size in the window, in CSS px
+- `thing.shot(file?)`: a picture of just it
+- `thing.measure(...properties)`: its box and computed styles
+- `thing.outline()`: the tree under it, as state() shows the screen
+- `thing.drag()`: the start of a drag from it; see drag()
+- `tab(name).close()`: its close button, shown on hover
+- `tab(name).page()`: the web page it shows
+- `find(role, name)`: anything by its role and accessible name
+- `button(name), link(name), field(name), toggle(name), row(name), item(name), heading(name), control(name)`
+- `click(name)`: clicks whatever control has that name
+- `see(text, { timeout })`: waits until the text shows, and fails with the screen when it does not
+- `tab(name)`: a tab in the group up, by its title; tab() is the one up; tabs() lists every tab of the window's groups
+- `group(name)`: a tab group's row in the sidebar; .open(), .close(), .menu(...)
+- `side("left" | "right")`: one side of a split group, to look inside: side("right").button("Send")
+- `groups()`: the window's groups, each with its sides and tabs
+- `press(chord)`: a key or chord as a person presses it: "Escape", "Meta+t", "Shift+Meta+]". The window's own shortcuts hear it, then the page, then the menu bar's
+- `type(text)`: types into what has the keyboard; fails when nothing has it
+- `paste(text)`: pastes text into what has the keyboard, leaving the clipboard alone
+- `menu(...items)`: picks an item in the menu that is open (the app's or a system one held for the run); with none open, in the menu bar: menu("File", "Print…") or menu("Print…")
+- `menu.items()`: what the open menu offers, as lines
+- `menu.close()`: closes the open menu
+- `menu.bar()`: the menu bar's menus and items, as lines
+- `dialog`: the dialog in front, the app's or a system one held for the run. dialog.text(), dialog.button(name).click(), dialog.answer(button), dialog.cancel(), dialog.choose(paths) for a file picker
+- `composer`: the reply box of the side with the keyboard. composer.type(text), composer.send(text), composer.text(), composer.clear(), composer.button(name)
+- `omnibar`: the address field of the page up. omnibar.go(address) opens it (in a new tab's box when no page is up), omnibar.type(text), omnibar.rows(), omnibar.pick(row), omnibar.text()
+- `commandMenu`: ⌘K. commandMenu.open(), commandMenu.search(text), commandMenu.rows(), commandMenu.pick(name), commandMenu.close()
+- `sidebar`: sidebar.toggle(), sidebar.isOpen(), sidebar.width(px) drags its edge, sidebar.button(name), sidebar.new() makes a group
+- `settings`: settings.open(section?) opens Settings at a section, settings.toggle(name) a switch on it
+- `toast()`: the toasts showing, as text; toast.button(name) inside the front one ("Undo")
+- `chat(name?)`: a chat, opened from the command menu by name; chat() is the one up. .open(), .state() (title, working, model), .idle() waits for its agent to stop
+- `files`: the Files screen. files.open(folder?) opens it, files.item(name) a file or folder in it (.click(), .dblclick(), .menu(...))
+- `page()`: the web page up in the side with the keyboard (tab(name).page() for another). page.url(), .title(), .text(), .eval(js), .see(text), .click(name?), .menu(name?, ...items), .type(text), .shot(file)
+- `drag(thing)`: drags it with the mouse. await drag(tab("A")).to(group("B")) drops it; .over(target) holds it there and says what the app's drag shows; .drop() / .cancel() end it
+- `dropFiles(paths).on(thing)`: drops files from the Finder onto it; .over(thing) holds them there
+- `shot(file?)`: a picture of the window; returns its path
+- `burst(action, { every, max, dir })`: pictures of the window every `every` ms (50) while action runs; returns their paths
+- `state()`: what is on screen, as text: groups, tabs, the dialog or menu in front, toasts, and the screen's outline
+- `theme("dark" | "light" | "system")`
+- `size(width, height)`: sizes the window's content, which keeps its place off screen
+- `goto(address, { newTab })`: opens an app address (/chats, instrument://settings) in the tab up
+- `errors()`: console errors and uncaught exceptions since the run began
+- `until(check, { timeout, every })`: waits until a function (or page expression) returns something truthy, and returns it
+- `expect(value, message)`: fails the run with the screen when value is falsy
+- `windows()`: the app's windows; window(n) drives the n-th with its own words
+- `seed.file(relativePath, content)`: writes a file into the workspace folder; seed.chat(prompt) makes a chat with model.replies' next answer
+- `model.replies([...])`: a stand-in model for the run that answers each agent turn with the next reply (text, or { tool, input }), set as the default model; returns what it was asked
+- `js(expression)`: evaluates in the app window's page and returns its JSON value
+<!-- words:end -->
+
 ## Driving: `studio-drive.mjs`
 
 Resolve the path from the repo root rather than writing it relative, so a later `cd` into a package does not turn every command in the run into `MODULE_NOT_FOUND`:

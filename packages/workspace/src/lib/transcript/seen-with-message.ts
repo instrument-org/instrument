@@ -56,9 +56,21 @@ export function seenChipOf(view: ViewContext): SentChip | undefined {
   }
 }
 
-/** Whether two chips name the same thing, whatever it was called at the time. */
+/**
+ * Whether two chips name the same thing, whatever it was called at the time.
+ * Two pages of one site with one title are the same thing, since an address
+ * moves as someone goes through a form and their chips would read the same.
+ */
 export function isSameChip(a: SentChip, b: SentChip): boolean {
-  return keyOf(a) === keyOf(b);
+  if (keyOf(a) === keyOf(b)) {
+    return true;
+  }
+  return (
+    a.kind === "page" &&
+    b.kind === "page" &&
+    a.title === b.title &&
+    hostOf(a.url) === hostOf(b.url)
+  );
 }
 
 function hostOf(url: string): string {

@@ -134,6 +134,17 @@ describe("what was beside a message", () => {
     ).toEqual([a, undefined, undefined, undefined, b, a]);
   });
 
+  it("is not named again for a page of the same site and title", () => {
+    expect(
+      seenIn([
+        sent(pageAt(`${a}cart`, "Returns")),
+        sent(pageAt(`${a}contract`, "Returns")),
+        sent(pageAt(`${a}orders`, "Orders")),
+        sent(pageAt(`${b}cart`, "Orders")),
+      ]),
+    ).toEqual([`${a}cart`, undefined, `${a}orders`, `${b}cart`]);
+  });
+
   it("is not named beside the same thing attached", () => {
     expect(
       seenIn([

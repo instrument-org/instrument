@@ -21,24 +21,22 @@ import { layoutParts } from "../group-layout-parts";
 import { askWindow } from "./window-tab";
 import { isWorking } from "./activity";
 
+/**
+ * The parts the app writes that start a session's turn: all it authors but
+ * the note a branch's copied history ends on.
+ */
+type WakeName = Exclude<
+  SessionMessageDataPart.NameWith<{ author: "app" }>,
+  "branchedFrom"
+>;
+
 /** What a wake carries: the part that starts the session's turn. */
-export type WakePart =
-  | { data: SessionMessageDataPart.AppEventDataPart; type: "data-appEvent" }
-  | {
-      data: SessionMessageDataPart.PermissionAnswerDataPart;
-      type: "data-permissionAnswer";
-    }
-  | {
-      data: SessionMessageDataPart.QuestionAnswerDataPart;
-      type: "data-questionAnswer";
-    }
-  | { data: SessionMessageDataPart.JobEventDataPart; type: "data-jobEvent" }
-  | {
-      data: SessionMessageDataPart.PageTakeoverDataPart;
-      type: "data-pageTakeover";
-    }
-  | { data: SessionMessageDataPart.SignedInDataPart; type: "data-signedIn" }
-  | { data: SessionMessageDataPart.TaskEventDataPart; type: "data-taskEvent" };
+export type WakePart = {
+  [N in WakeName]: {
+    data: SessionMessageDataPart.DataParts[N];
+    type: `data-${N}`;
+  };
+}[WakeName];
 
 /**
  * The waits between lookups of a chat's model before a wake gives up on

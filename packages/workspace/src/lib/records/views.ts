@@ -1,5 +1,6 @@
 import { type Session } from "../../schemas/session";
 import { type SessionMessage } from "../../schemas/session/message";
+import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { TOOL_NAMES } from "../../tools/name";
@@ -36,22 +37,15 @@ interface HistoryOptions {
   only?: ReadonlySet<StoreId.Message>;
 }
 
-/** Parts the chat view draws for everyone, by type. */
+/**
+ * Parts of the conversation that are no data part shown to everyone: the
+ * words, the cards the person answers, and what the conversation is drawn
+ * from or kept beside without being shown.
+ */
 const CONVERSATION_PARTS = new Set<string>([
-  "data-asks",
   "data-attachments",
-  "data-branchedFrom",
-  "data-chatChanges",
-  "data-fileChanges",
-  "data-folderChanges",
-  "data-fromChat",
   "data-layoutChanges",
   "data-maxSteps",
-  "data-modelChange",
-  "data-permissionAnswer",
-  "data-ratingCard",
-  "data-settingChanges",
-  "data-setupChanges",
   "data-viewContext",
   "text",
   `tool-${TOOL_NAMES.choose}`,
@@ -367,11 +361,17 @@ function inConversation(
     return false;
   }
   // A task's news shows when the person or the app stopped it; the rest is
-  // the chat's to read.
+  // the chat's to read, as an app's is.
   if (part.type === "data-taskEvent") {
     return part.data.events.some((event) => event.stoppedBy !== undefined);
   }
-  return CONVERSATION_PARTS.has(part.type);
+  if (part.type === "data-appEvent") {
+    return false;
+  }
+  return (
+    CONVERSATION_PARTS.has(part.type) ||
+    SessionMessageDataPart.kindOf(part.type)?.shown === "always"
+  );
 }
 
 /**

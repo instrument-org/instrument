@@ -289,16 +289,16 @@ async function agentSays(
 async function noteSays(
   sessionId: StoreId.Session,
   minute: number,
-  part: (
+  ...parts: ((
     metadata: ReturnType<typeof partMetadata>,
-  ) => SessionMessage.UserWithParts["parts"][number],
+  ) => SessionMessage.UserWithParts["parts"][number])[]
 ) {
   const messageId = StoreId.newMessageId();
   const saved = await ChatWrites.saveMessageWithParts(
     {
       id: messageId,
       metadata: { createdAt: at(minute), sessionId },
-      parts: [part(partMetadata({ messageId, sessionId }))],
+      parts: parts.map((part) => part(partMetadata({ messageId, sessionId }))),
       role: "user",
     },
     await chatFor(sessionId),
@@ -453,6 +453,91 @@ describe("listChats", () => {
     );
     expect(asked.isOk()).toBe(true);
     expect((await listChats())[0]?.lastUserMessageAt).toBe(at(6).getTime());
+  });
+
+  // What the person did on a card or a page reaches the agent as a note the
+  // app wrote, so none of it is a message they sent.
+  it.each<{
+    note: string;
+    parts: Parameters<typeof noteSays>[2][];
+  }>([
+    {
+      note: "a task's news that says how the tab group changed too",
+      parts: [
+        (metadata) => ({
+          data: {
+            changes: [
+              {
+                change: "closed",
+                tab: {
+                  address: "https://shop.example",
+                  id: "tab-1",
+                  kind: "website",
+                  title: "Shop",
+                },
+              },
+            ],
+          },
+          metadata,
+          type: "data-layoutChanges",
+        }),
+        (metadata) => ({
+          data: {
+            events: [
+              {
+                sessionId: StoreId.newSessionId(),
+                status: "done",
+                title: "Check the pantry",
+              },
+            ],
+          },
+          metadata,
+          type: "data-taskEvent",
+        }),
+      ],
+    },
+    {
+      note: "a permission's answer",
+      parts: [
+        (metadata) => ({
+          data: { answer: "allowed", kind: "app", target: "notion" },
+          metadata,
+          type: "data-permissionAnswer",
+        }),
+      ],
+    },
+    {
+      note: "a page taken over",
+      parts: [
+        (metadata) => ({
+          data: {
+            page: { title: "Shop", url: "https://shop.example" },
+            stage: "taken",
+            tab: "tab-1",
+          },
+          metadata,
+          type: "data-pageTakeover",
+        }),
+      ],
+    },
+    {
+      note: "a sign-in",
+      parts: [
+        (metadata) => ({
+          data: { waitedFor: "image" },
+          metadata,
+          type: "data-signedIn",
+        }),
+      ],
+    },
+  ])("keeps the user's timestamp through $note", async ({ parts }) => {
+    const chatId = await freshChat();
+    const sessionId = await session(chatId, "Groceries");
+    await userSays(chatId, sessionId, "make a list", 1);
+
+    await noteSays(sessionId, 3, ...parts);
+
+    expect((await listChats())[0]?.lastUserMessageAt).toBe(at(1).getTime());
   });
 
   it("lists the chats oldest first, with their first asks, counts and latest lines", async () => {

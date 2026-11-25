@@ -90,58 +90,172 @@ export namespace SessionMessageDataPart {
   export type Cadence = "diff" | "event" | "state" | "unwritten";
 
   /**
-   * Every part's cadence, which assembly reads rather than each note's author
-   * remembering: a part declared `state` here cannot restate itself, and one
-   * added without a line here does not compile.
+   * Who wrote a message that carries the part, as far as the part says:
+   *
+   * - `person`: the person's, who sent it with their message or as all of it.
+   * - `chat`: the chat's, writing to one of its tasks.
+   * - `app`: the app's, telling the agent what happened. What the person did
+   *   on a card or a page reaches the agent this way too: they acted, and
+   *   the app wrote it down, so it is no message of theirs.
+   * - `any`: nothing, since it goes along on whatever message is written.
    */
-  export const CADENCE = {
-    actions: "event",
-    appEvent: "event",
-    asks: "event",
-    attachments: "event",
-    backgroundProcesses: "diff",
-    branchedFrom: "event",
-    browserStatus: "state",
-    chatChanges: "event",
-    chatContext: "unwritten",
-    contextRollover: "event",
-    dateChange: "event",
-    environmentChange: "diff",
-    fileChanges: "unwritten",
-    fileVersions: "event",
-    linkedTabs: "event",
-    folderChanges: "diff",
-    fromChat: "event",
-    groupLayout: "diff",
-    intent: "event",
-    jobEvent: "event",
-    layoutChanges: "event",
-    maxSteps: "event",
-    memory: "diff",
-    messageGap: "event",
-    modelAnswered: "diff",
-    modelChange: "diff",
-    outputLimit: "event",
-    pageTakeover: "event",
-    permissionAnswer: "event",
-    questionAnswer: "event",
-    settingChanges: "event",
-    setupChanges: "event",
-    setupNews: "diff",
-    signedIn: "event",
-    skillMentions: "event",
-    stepFacts: "event",
-    taskEvent: "event",
-    toolResultsCleared: "event",
-    project: "state",
-    ratingCard: "event",
-    requestFailure: "event",
-    requestNote: "event",
-    unknown: "unwritten",
-    viewContext: "state",
-    workSummary: "event",
-    workspaceInstructions: "state",
-  } satisfies Record<Name, Cadence>;
+  export type Author = "any" | "app" | "chat" | "person";
+
+  /**
+   * Who sees the part in the chat.
+   *
+   * - `always`: everyone, as a card or a line of its own.
+   * - `dev`: developer mode alone, and it counts as no content.
+   * - `hidden`: nobody; the model or a row that reads it has it.
+   */
+  export type Shown = "always" | "dev" | "hidden";
+
+  interface Kind {
+    author: Author;
+    cadence: Cadence;
+    shown: Shown;
+  }
+
+  /**
+   * What is true of every part of a kind: who wrote the message it is on,
+   * how often it says something new, and who sees it. Every reader of those
+   * takes them from here, so a kind added without all three does not compile,
+   * and none of them can be answered two ways.
+   */
+  export const KINDS = {
+    // What the user did in the app before the message, which they know better
+    // than the model does: a developer's peek, like the gap note.
+    actions: { author: "any", cadence: "event", shown: "dev" },
+    appEvent: { author: "app", cadence: "event", shown: "always" },
+    // The places the user marked in their files, as the pills they sent.
+    asks: { author: "person", cadence: "event", shown: "always" },
+    attachments: { author: "person", cadence: "event", shown: "hidden" },
+    // Deliberately not "always". This part is a persisted record of what was
+    // running when the turn began, and a card in the transcript saying "2 still
+    // running" is wrong the moment one stops -- the same staleness that kept live
+    // status out of tool results. The header pill is the live surface; this is
+    // context for the model, and a debug peek for us.
+    backgroundProcesses: { author: "any", cadence: "diff", shown: "dev" },
+    // The line after a branch's copied conversation naming the chat it came
+    // from; the folders it names are for the agent.
+    branchedFrom: { author: "app", cadence: "event", shown: "always" },
+    browserStatus: { author: "any", cadence: "state", shown: "dev" },
+    // What the turn's `chats` commands did to the person's chats, with Undo.
+    chatChanges: { author: "any", cadence: "event", shown: "always" },
+    // What the agent is told about the chats around this one: the other
+    // chats at the moment this one opened, and the project this one is filed
+    // under. Context for the model; the head of the chat is the user's copy.
+    chatContext: { author: "any", cadence: "unwritten", shown: "dev" },
+    // Developer-mode only, deliberately. What happens here is a rollover, not a
+    // compaction: assembly stops sending the model's own earlier turns and
+    // carries the user's across verbatim, with nothing summarized. Any wording
+    // faithful to that is a wording about our request assembly, which is not a
+    // thing to hand a reader mid-task, and the familiar word for it promises a
+    // summary that does not exist. The user-facing treatment belongs with the
+    // summarizing compaction it would be describing.
+    contextRollover: { author: "any", cadence: "event", shown: "dev" },
+    dateChange: { author: "any", cadence: "event", shown: "dev" },
+    environmentChange: { author: "any", cadence: "diff", shown: "dev" },
+    // Retired, and shown to everyone rather than to developers, which is the
+    // opposite of where it ended up before it was deleted. It was demoted to
+    // "dev" because it was a live change card nobody wanted; what it is now is
+    // the only record a pre-fence conversation has of what a turn produced, and
+    // the person who wants that is the person whose task it is.
+    fileChanges: { author: "any", cadence: "unwritten", shown: "always" },
+    // The files a reply handed over as its turn left them, which the reply's
+    // cards are drawn from once a later turn changes one.
+    fileVersions: { author: "any", cadence: "event", shown: "hidden" },
+    folderChanges: { author: "any", cadence: "diff", shown: "always" },
+    // Words the chat wrote to one of its tasks: the assignment a fork starts
+    // on, and what it sent later. Shown in the task's transcript, where they
+    // are the reason for everything that follows.
+    fromChat: { author: "chat", cadence: "event", shown: "always" },
+    // The chat's tab group as the message went: context for the model, and a
+    // developer's peek, since the person sees the group itself.
+    groupLayout: { author: "any", cadence: "diff", shown: "dev" },
+    intent: { author: "any", cadence: "event", shown: "dev" },
+    // The reason a session woke when a command it left running ended. Like a
+    // task's finish in the chat, the reply that follows says what came of it,
+    // so the note itself is a developer's peek.
+    jobEvent: { author: "app", cadence: "event", shown: "dev" },
+    // What changed in the chat's tab group since the agent last heard: context
+    // for the model, and a developer's peek, since the person made or watched
+    // every change in the window.
+    layoutChanges: { author: "any", cadence: "event", shown: "dev" },
+    // The pages of the tabs a reply linked, which its links are drawn from.
+    linkedTabs: { author: "any", cadence: "event", shown: "hidden" },
+    maxSteps: { author: "any", cadence: "event", shown: "dev" },
+    // What the agent is told it remembers about the user. Context for the
+    // model; the user's copy is the Memory section of Settings.
+    memory: { author: "any", cadence: "diff", shown: "dev" },
+    // The same treatment the date correction gets, and for the same reason: a
+    // note telling the model how long the user was away, which the user knows
+    // better than the model does.
+    messageGap: { author: "any", cadence: "event", shown: "dev" },
+    // Which model wrote the last reply, which the reply's own footer shows.
+    modelAnswered: { author: "any", cadence: "diff", shown: "dev" },
+    // Shown to everyone, unlike the rollover above it. The model a task runs on
+    // is the user's own choice, so naming the moment it changed describes
+    // something they did rather than something our assembly did.
+    modelChange: { author: "any", cadence: "diff", shown: "always" },
+    // The max-steps treatment, for now: a developer's peek at the note the next
+    // turn carries. What a reader of a chat gets is the reply stopping mid-word,
+    // which is not enough; the card that says so is still to design.
+    outputLimit: { author: "any", cadence: "event", shown: "dev" },
+    // Take over draws the paused line with Continue; Continue draws nothing.
+    pageTakeover: { author: "app", cadence: "event", shown: "always" },
+    permissionAnswer: { author: "app", cadence: "event", shown: "always" },
+    project: { author: "any", cadence: "state", shown: "dev" },
+    // The card the question was asked on shows the answer.
+    questionAnswer: { author: "app", cadence: "event", shown: "hidden" },
+    // The card asking how the chat went, for the person alone.
+    ratingCard: { author: "any", cadence: "event", shown: "always" },
+    // A request that failed before any reply was saved, for the margins too.
+    requestFailure: { author: "any", cadence: "event", shown: "hidden" },
+    // What one request went out with, kept for the margins; nobody reads it in
+    // the column and the model never reads it at all.
+    requestNote: { author: "any", cadence: "event", shown: "hidden" },
+    // What the turn's `settings` commands set in the app, with Undo.
+    settingChanges: { author: "any", cadence: "event", shown: "always" },
+    // What the turn did to the person's skills, apps and memories, from its own
+    // writes; see `setup-changes.ts`.
+    setupChanges: { author: "any", cadence: "event", shown: "always" },
+    // What changed in skills and apps since the session last heard, for the
+    // agent: the person was told by the chat that made each change.
+    setupNews: { author: "any", cadence: "diff", shown: "dev" },
+    // The note over the reply box that asked for it is gone once it lands.
+    signedIn: { author: "app", cadence: "event", shown: "hidden" },
+    skillMentions: { author: "person", cadence: "event", shown: "dev" },
+    // What a shell call did, and the line a turn folds to: the transcript reads
+    // both to draw its rows, and neither is a row of its own.
+    stepFacts: { author: "any", cadence: "event", shown: "hidden" },
+    // Shown for the same reason the folder note is: the change was made in a
+    // conversation the reader of this transcript is not looking at, and it is
+    // usually what the task had stopped and waited for.
+    // The reason a chat woke, shown so a reply that follows nothing the
+    // user typed has a visible cause.
+    taskEvent: { author: "app", cadence: "event", shown: "always" },
+    // Developer-mode only, like the rollover: what the model is sent of old tool
+    // results is our request assembly, and the transcript still shows them.
+    toolResultsCleared: { author: "any", cadence: "event", shown: "dev" },
+    unknown: { author: "any", cadence: "unwritten", shown: "dev" },
+    viewContext: { author: "any", cadence: "state", shown: "dev" },
+    workSummary: { author: "any", cadence: "event", shown: "hidden" },
+    workspaceInstructions: { author: "any", cadence: "state", shown: "dev" },
+  } satisfies Record<Name, Kind>;
+
+  /** The names of the kinds that answer as `K` does. */
+  export type NameWith<K extends Partial<Kind>> = {
+    [N in Name]: (typeof KINDS)[N] extends K ? N : never;
+  }[Name];
+
+  /** What is true of a part by its type; nothing for a part that is no data part, or one this build does not know. */
+  export function kindOf(type: string): Kind | undefined {
+    const kinds: Record<string, Kind | undefined> = KINDS;
+    return type.startsWith("data-")
+      ? kinds[type.slice("data-".length)]
+      : undefined;
+  }
 
   // Folders granted in the chat or taken back on this computer since the
   // session last heard -- attached to the user message that starts the next

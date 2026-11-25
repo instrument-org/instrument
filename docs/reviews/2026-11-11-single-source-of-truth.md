@@ -34,7 +34,7 @@ Letters go to the finding; a `plus N similar` names siblings with the same root 
 
 ### E. Which data parts are "state" is derived from `CADENCE` in one file and retyped by hand in the developer notes
 
-- Status: open
+- Status: fixed
 - Where: [developer-notes.ts:96](/packages/workspace/src/lib/transcript/developer-notes.ts#L96), [message-data-part.ts:90](/packages/workspace/src/schemas/session/message-data-part.ts#L90), [state-notes.ts:34](/packages/workspace/src/lib/state-notes.ts#L34)
 - What: `state-notes.ts` derives `StateName` from `CADENCE` and its table is typed so a part declared `state` without a note does not compile. `developer-notes.ts` keeps its own `STATE_PARTS` set of four literals and uses it at `:706` to suppress the generic JSON note for a picture the model was not told. A fifth `state` part compiles everywhere and then carries a raw JSON note card on every message, `wasSent: false`, on every turn.
 

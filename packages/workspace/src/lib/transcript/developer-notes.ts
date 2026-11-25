@@ -1,7 +1,7 @@
 import { sort } from "radashi";
 
 import { SessionMessage } from "../../schemas/session/message";
-import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { type StoreId } from "../../schemas/store-id";
 import { chatsChanged } from "../chat-change-groups";
@@ -98,13 +98,13 @@ const NEVER_NOTES = new Set<SessionMessagePart.DataPart["type"]>([
   "data-workSummary",
 ]);
 
-const STATE_PARTS = new Set<SessionMessagePart.DataPart["type"]>([
-  "data-browserStatus",
-  "data-groupLayout",
-  "data-project",
-  "data-viewContext",
-  "data-workspaceInstructions",
-]);
+/** A part that says the whole of a picture, rather than something that happened. */
+function isPicture({ type }: SessionMessagePart.DataPart): boolean {
+  return (
+    type === "data-groupLayout" ||
+    SessionMessageDataPart.kindOf(type)?.cadence === "state"
+  );
+}
 
 const MARK_OF_PART: Record<
   SessionMessagePart.DataPart["type"],
@@ -738,7 +738,7 @@ export function developerNotesWithBodies(
     }
     // A picture that says what the last one said told the model nothing, and
     // a part hidden from everyone that told it nothing has nothing to say.
-    if (STATE_PARTS.has(part.type) || dataPartVisibility(part) === "hidden") {
+    if (isPicture(part) || dataPartVisibility(part) === "hidden") {
       return undefined;
     }
     return {

@@ -11,12 +11,8 @@ import { workspaceInstructionsModelNote } from "../model-text/notes/workspace-in
 
 type DataParts = SessionMessageDataPart.DataParts;
 
-/** The parts `CADENCE` calls `state`. */
-type StateName = {
-  [K in SessionMessageDataPart.Name]: (typeof SessionMessageDataPart.CADENCE)[K] extends "state"
-    ? K
-    : never;
-}[SessionMessageDataPart.Name];
+/** The parts whose cadence is `state`. */
+type StateName = SessionMessageDataPart.NameWith<{ cadence: "state" }>;
 
 type StateNote<K extends StateName> = {
   /** A picture with nothing in it, which is news only after one that had something. */

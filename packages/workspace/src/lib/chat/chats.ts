@@ -8,6 +8,7 @@ import { type QuestionAsk } from "../../schemas/chat-state";
 import { type Session } from "../../schemas/session";
 import { SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
+import { isTypedByUser } from "../typed-by-user";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { ChatReads } from "../chat-reads";
@@ -93,7 +94,7 @@ export const ChatSchema = z.object({
   lastAsk: z.string().optional(),
   /** When the last reply with words finished, in ms; absent until there is one. */
   lastReplyAt: z.number().optional(),
-  /** When the user last sent a message, in ms, wake notes aside; the chat's creation before one is saved. */
+  /** When the user last sent a message, in ms, the notes the app writes the agent aside, an answer on a card among them; the chat's creation before one is saved. */
   lastUserMessageAt: z.number(),
   /** The step the chat's own turn is on, while it has one; never a task's. */
   ownStep: z.string().optional(),
@@ -830,18 +831,10 @@ function digestOf(
   // The newest message that started a turn of the chat's own, which every
   // reading of where its turn stands is measured from.
   const lastOpener = messages.findLast(startsTurn);
-  // A wake note is written as a user message but carries only task, app,
-  // or background-process news; everything else the user sent, asks on a
-  // file alone included.
+  // A note the app wrote is kept as a user message too; everything else the
+  // user sent, asks on a file alone included.
   const lastUserMessage = messages.findLast(
-    (message) =>
-      message.role === "user" &&
-      !message.parts.every(
-        (part) =>
-          part.type === "data-taskEvent" ||
-          part.type === "data-appEvent" ||
-          part.type === "data-jobEvent",
-      ),
+    (message) => message.role === "user" && isTypedByUser(message),
   );
   const spoken = messages.findLast(
     (message) => message.role === "assistant" && hasWords(message),

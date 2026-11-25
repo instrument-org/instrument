@@ -1,5 +1,6 @@
 import { type Session } from "../schemas/session";
 import { type SessionMessage } from "../schemas/session/message";
+import { SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { type StoreId } from "../schemas/store-id";
 import { isToolPart } from "./is-tool-part";
@@ -340,21 +341,28 @@ function retainNewestUserMessages(
 }
 
 /**
- * The data parts an older carried message keeps: what came with the user's
- * own words (their files, marks, answers and named skills, or the chat's words
- * to a task), the running processes the next note is measured against
- * (`backgroundProcesses` reads its last-told across the whole history), and
- * the rollover mark, which no note renders.
+ * The data parts an older carried message keeps beside what its writer sent
+ * with their own words (a person's files, marks and named skills, the chat's
+ * words to a task): the answers to what was asked, which are the person's to
+ * give though the app writes them down, the running processes the next note
+ * is measured against (`backgroundProcesses` reads its last-told across the
+ * whole history), and the rollover mark, which no note renders.
  */
-const TYPED_DATA_PARTS = new Set<SessionMessagePart.Type["type"]>([
-  "data-asks",
-  "data-attachments",
+const CARRIED_DATA_PARTS = new Set<SessionMessagePart.Type["type"]>([
   "data-backgroundProcesses",
   "data-contextRollover",
-  "data-fromChat",
   "data-questionAnswer",
-  "data-skillMentions",
 ]);
+
+function isCarried({ type }: SessionMessagePart.Type): boolean {
+  const author = SessionMessageDataPart.kindOf(type)?.author;
+  return (
+    !type.startsWith("data-") ||
+    author === "person" ||
+    author === "chat" ||
+    CARRIED_DATA_PARTS.has(type)
+  );
+}
 
 /**
  * A carried user message other than the newest, with only what the user
@@ -369,9 +377,7 @@ const TYPED_DATA_PARTS = new Set<SessionMessagePart.Type["type"]>([
 function typedOnly(
   message: SessionMessage.WithParts,
 ): SessionMessage.WithParts {
-  const parts = message.parts.filter(
-    (part) => !part.type.startsWith("data-") || TYPED_DATA_PARTS.has(part.type),
-  );
+  const parts = message.parts.filter(isCarried);
   return parts.length === message.parts.length
     ? message
     : { ...message, parts };

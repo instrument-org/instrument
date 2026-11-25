@@ -1,4 +1,5 @@
 import { chooseQuestions } from "../../src/lib/choose-call";
+import { isTypedByUser } from "../../src/lib/typed-by-user";
 import { type Session } from "../../src/schemas/session";
 
 /**
@@ -24,15 +25,11 @@ export function renderUserView(
       if (message.role === "user") {
         // A note the harness wrote (a task finishing, an app changing) is not
         // the user speaking, and nothing in the chat shows it as their words.
-        const fromHarness = message.parts.some(
-          (part) =>
-            part.type === "data-taskEvent" || part.type === "data-appEvent",
-        );
         const words = message.parts
           .flatMap((part) => (part.type === "text" ? [part.text.trim()] : []))
           .filter(Boolean)
           .join("\n");
-        if (!fromHarness && words !== "") {
+        if (isTypedByUser(message) && words !== "") {
           lines.push({ at, text: `**User:** ${words}` });
         }
         continue;

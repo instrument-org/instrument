@@ -1203,7 +1203,10 @@ describe("an open asked beside a group's tab", () => {
   const up = { href: "/apps", id: APPS_TAB, kind: "screen" as const };
 
   it("hands a page to the browser beside the tab, as a click in a chat does", () => {
-    const openBeside = vi.fn(() => ({ id: "tab_opened" }));
+    const openBeside = vi.fn(() => ({
+      front: true,
+      id: StoreId.newTabId(),
+    }));
     const { result } = windowOnTwoSides({
       browser: {
         openBeside,

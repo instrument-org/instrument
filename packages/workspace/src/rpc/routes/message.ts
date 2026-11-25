@@ -45,6 +45,7 @@ import {
 import { newMessage } from "../../lib/new-message";
 import { attendChatArrivals } from "../../lib/records/take-arrivals";
 import { setChatProject } from "../../lib/chat/chats";
+import { noteWindowSend } from "../../lib/chat/window-sends";
 import { computerName, thisDevice } from "../../lib/chat/asks";
 
 import { updateSessionTitle } from "../../lib/update-session-title";
@@ -275,6 +276,15 @@ const create = base
           }
         }
         context.workspaceConfig.lookUpSentLinkTitles?.(prompt);
+        // Before the turn it starts, which may look at that window. A message
+        // a phone asked this computer to send comes from no window.
+        if (context.webContentsId !== undefined) {
+          noteWindowSend(message.metadata.sessionId, {
+            at: Date.now(),
+            messageId: message.id,
+            window: context.webContentsId,
+          });
+        }
         context.workspaceRef.send({
           type: "addMessage",
           value: {

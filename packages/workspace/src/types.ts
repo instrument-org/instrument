@@ -22,6 +22,7 @@ import { type DeviceId } from "./lib/records/device-id";
 import { type AbsolutePath, type WorkspaceDir } from "./schemas/paths";
 import { StoreId } from "./schemas/store-id";
 import { type WebSearchClient } from "./schemas/web-search";
+import { type WindowBox } from "./schemas/window-look";
 
 export interface BrowserConfig {
   closeTarget: (targetId: BrowserTargetId) => Promise<void>;
@@ -222,6 +223,38 @@ export interface WorkspaceAppsConfig {
   };
 }
 
+/** What of a window's picture is shown; the rest is blanked. */
+export interface WindowMask {
+  /** Blanked whatever the cells say. */
+  blanked: WindowBox[];
+  columns: number;
+  rows: number;
+  /** Whether each cell of a `columns` by `rows` grid is shown, row by row. */
+  shown: boolean[];
+}
+
+/** A frame of a window, kept where it was taken until it is blanked. */
+export interface WindowFrame {
+  /** The frame as a PNG with everything the mask does not show blanked. */
+  masked: (mask: WindowMask) => Buffer;
+}
+
+export interface WindowCamera {
+  /**
+   * A frame of a window as it is drawn now; undefined for a window that is
+   * gone, hidden or minimized, or has no frame to give.
+   */
+  capture: (window: number) => Promise<undefined | WindowFrame>;
+  /**
+   * What a page's guest shows: the document of every frame in it, as the
+   * main process saw each load, and whether any has a field for a password
+   * or a one-time code on screen. Undefined where any of that cannot be told.
+   */
+  pageShows: (
+    tabId: string,
+  ) => Promise<undefined | { documents: string[]; isSigningIn: boolean }>;
+}
+
 export interface WorkspaceConfig {
   apps: WorkspaceAppsConfig;
   appVersion: string;
@@ -241,6 +274,8 @@ export interface WorkspaceConfig {
    * given or names none.
    */
   windowForChat?: (chatId: string | undefined) => number | undefined;
+  /** Takes the picture of a window `instrument window look` shows the agent. Absent where there is no window to take one of. */
+  windowCamera?: WindowCamera;
   /**
    * What the system's file manager calls each drive at `roots` (`C:\`), by
    * its root, for the Files sidebar's Locations: "Local Disk (C:)" on

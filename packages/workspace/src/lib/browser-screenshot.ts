@@ -50,6 +50,14 @@ export async function browserScreenshot({
     return undefined;
   }
   const fileData = Buffer.from(read.buffer, read.byteOffset, read.byteLength);
+  return imagePreview(fileData, signal);
+}
+
+/** An image as a model is shown it, or nothing for one that can't be sent whole. */
+export async function imagePreview(
+  fileData: Buffer,
+  signal: AbortSignal,
+): Promise<BrowserScreenshot | undefined> {
   const size = measureImage(fileData);
   const target = size && imageViewSize({ ...size, limits: PREVIEW_LIMITS });
   if (

@@ -29,11 +29,14 @@ export async function askWindow({
   askedBy,
   group,
   timeoutMs = WINDOW_TAB_TIMEOUT_MS,
+  window = getWorkspaceConfig().windowForChat?.(group),
 }: {
   action: WindowTabAction;
   askedBy: ChatId;
   group: ChatId | undefined;
   timeoutMs?: number;
+  /** The window to ask, by its web contents, in place of the chat's. */
+  window?: number | undefined;
 }): Promise<undefined | WindowTabAnswer> {
   const requestId = ulid();
   const controller = new AbortController();
@@ -43,7 +46,6 @@ export async function askWindow({
   const timer = setTimeout(() => {
     controller.abort();
   }, timeoutMs);
-  const window = getWorkspaceConfig().windowForChat?.(group);
   publisher.publish("window.tab", {
     action,
     id: askedBy,

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { BookmarkChangeSchema } from "./bookmark-change";
 import { ChatIdSchema } from "./chat-id";
 import { LayoutReadSchema, ListedGroupSchema } from "./group-layout";
+import { WindowLookSchema } from "./window-look";
 
 /**
  * What a tab is asked to show: a page by its address, a file or folder of
@@ -120,6 +121,8 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
    * date, and answered whether or not a page's guest is up.
    */
   z.object({ group: z.string().optional(), kind: z.literal("list") }),
+  /** What the window draws where, for blanking a picture of it. */
+  z.object({ kind: z.literal("look") }),
   /** Every bookmark and bookmark folder, as the Bookmarks page lists them. */
   z.object({ kind: z.literal("bookmarks") }),
   /**
@@ -238,6 +241,8 @@ export const WindowTabAnswerSchema = z.object({
   pages: z
     .array(z.object({ id: z.string(), title: z.string(), url: z.string() }))
     .optional(),
+  /** For a look: what the window draws where. */
+  look: WindowLookSchema.optional(),
   /** The page's text, for a read. */
   text: z.string().optional(),
   /** For a bookmarks list: every folder and bookmark, the bar's then All Bookmarks', each folder before what is filed in it. */

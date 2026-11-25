@@ -10,6 +10,7 @@ import { formatElapsed } from "../../lib/format-elapsed";
 import { getToolStreamingLabel } from "../../lib/tool-display";
 import { cn } from "../../lib/utils";
 import { StopProcessButton } from "../task/stop-process-button";
+import { ImageWithFallback } from "../image-with-fallback";
 import { BashCommandSection } from "./bash-command-section";
 import { isFailedBashExitCode } from "./bash-exit-status";
 import { useToolCallSession } from "./tool-call-session";
@@ -50,6 +51,7 @@ export function ToolBash({ part }: { part: BashPart }) {
 
   const hasExitError = hasOutput && isFailedBashExitCode(part.output.exitCode);
   const isFailed = isError || hasExitError;
+  const windowPicture = hasOutput ? part.output.windowPicture : undefined;
   // The call, not what it started. A promoted command's call is over -- it
   // returned a process id and stopped -- so the streaming label here said the
   // agent was still running a command when it had moved on. What is still going
@@ -123,6 +125,18 @@ export function ToolBash({ part }: { part: BashPart }) {
             </p>
           )}
         </ToolCardSection>
+      )}
+
+      {windowPicture && (
+        <div className="flex justify-center border-t border-border p-4">
+          <ImageWithFallback
+            alt="The window, as the agent saw it"
+            className="max-h-96 w-auto rounded-lg object-contain"
+            fallbackClassName="min-h-32 w-full"
+            filename="window.png"
+            src={`data:${windowPicture.mimeType};base64,${windowPicture.base64Data}`}
+          />
+        </div>
       )}
     </ToolCard>
   );

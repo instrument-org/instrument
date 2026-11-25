@@ -1,5 +1,6 @@
 import { PACKAGED_RESOURCES } from "@instrument-org/shared";
 import { agentSettings } from "@/electron-main/lib/agent-settings";
+import { windowCamera } from "@/electron-main/windows/window-camera";
 import {
   appWindowForChat,
   getAppWindows,
@@ -164,6 +165,7 @@ export async function createWorkspaceActor(deviceId: DeviceId) {
       appVersion: app.getVersion(),
       browser: browserViewManager.browser,
       windowForChat: appWindowForChat,
+      windowCamera,
       captureException: captureFor("workspace"),
       deviceId,
       ...(process.platform === "win32"

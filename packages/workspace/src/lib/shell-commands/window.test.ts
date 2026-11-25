@@ -372,7 +372,8 @@ function answeringWindow() {
                       : action.kind === "handOver" ||
                           action.kind === "bookmarks" ||
                           action.kind === "addBookmark" ||
-                          action.kind === "changeBookmarks"
+                          action.kind === "changeBookmarks" ||
+                          action.kind === "look"
                         ? {}
                         : action.kind === "show" &&
                             refusedShows.has(action.tabId)

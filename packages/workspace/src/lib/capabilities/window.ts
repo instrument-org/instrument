@@ -40,7 +40,11 @@ import { isPersonsTurn } from "../chat/person-turn";
 import { tabHolders } from "../chat/chat-tabs";
 import { agentPathOfFileUrl, isLocalAddress } from "../local-page-address";
 import { recordRaisedAsk } from "../shell-commands/raised-asks";
+import { recordWindowPicture } from "../shell-commands/window-pictures";
+import { windowJustSentFrom } from "../chat/window-sends";
+import { takeWindowPicture } from "../window-picture";
 import {
+  LOOKING_IS_THE_CHATS,
   NEW_WINDOW_IS_THE_USERS,
   WAITING_IS_THE_CHATS,
   WINDOW_COMMAND,
@@ -392,6 +396,67 @@ export const windowRead = defineCapability({
     script: { positional: ["tab"] },
   },
   text: (text) => text,
+});
+
+/** Why a look is refused outside a turn the person's own message started. */
+const NOT_JUST_ASKED =
+  "you can look at the user's window only while answering a message they just sent from it. Ask them what they see.";
+
+const NO_SIGHT = `the model you run on can't see pictures. \`${NAME} list\` says what is open, and \`${NAME} read <id>\` prints a page's text.`;
+
+export const windowLook = defineCapability({
+  // Before anything is drawn: a turn something other than the person woke,
+  // or one still going long after they asked, sees nothing.
+  async gate(_input, ctx) {
+    const window = await windowJustSentFrom(ctx);
+    if (window === undefined) {
+      return { kind: "refused", message: NOT_JUST_ASKED };
+    }
+    return (await ctx.callingModel()).features.includes("inputImage")
+      ? { kind: "allowed" }
+      : { kind: "refused", message: NO_SIGHT };
+  },
+  input: z.object({}),
+  name: "window.look",
+  output: z.object({
+    hidden: z.array(z.object({ tab: z.string().optional(), why: z.string() })),
+  }),
+  async run(_input, ctx) {
+    const window = await windowJustSentFrom(ctx);
+    if (window === undefined) {
+      throw new Error(NOT_JUST_ASKED);
+    }
+    const picture = await takeWindowPicture({
+      askedBy: ctx.chatId,
+      layout: ctx.layout,
+      window,
+    });
+    if ("error" in picture) {
+      throw new Error(picture.error);
+    }
+    recordWindowPicture(picture.png);
+    return { hidden: picture.hidden };
+  },
+  summary:
+    "Shows you the user's window as it looks now, in a picture with this call's result, what you can't read in it left gray; only while you answer a message they just sent.",
+  surfaces: { cli: { help: "", words: ["window", "look"] } },
+  text: ({ hidden }) =>
+    [
+      "The user's window as it looks now is in the picture with this result.",
+      ...(hidden.length === 0
+        ? []
+        : [
+            `Gray in it, and not for you to see: ${hidden
+              .map(({ tab, why }) =>
+                tab === undefined ? why : `${tab} (${why})`,
+              )
+              .join("; ")}. Say you can't see it rather than guess at it.`,
+          ]),
+    ].join("\n"),
+  where: {
+    roleRefusal: LOOKING_IS_THE_CHATS,
+    roles: ["chat"],
+  },
 });
 
 export const windowShow = defineCapability({

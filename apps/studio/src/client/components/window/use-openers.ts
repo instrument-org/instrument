@@ -98,10 +98,12 @@ import {
   closedTabsOf,
   draftOfTab,
 } from "./tab-model";
-import { groupLayoutFor, groupReadOf } from "./group-awareness";
+import { describedTab, groupLayoutFor, groupReadOf } from "./group-awareness";
 import { groupNameOf, leadTabOf, rowSidesOf } from "./group-leads";
 import { readFileTabTitles } from "./file-tab-titles";
 import { tabTitle } from "./tab-title";
+import { computerTabOf } from "./file-tabs";
+import { readWindowLook, windowDraws } from "./window-look";
 import { windowTabGroupsAtom } from "./open-groups";
 import { listedWith } from "./tab-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
@@ -1238,6 +1240,18 @@ export function useOpeners({
     return {};
   };
 
+  /** The tab up on a side, as an agent reads it, and where a folder's view starts. */
+  const tabUp = (tabId: string) => {
+    const up = windowTabs.allTabs.find((each) => each.id === tabId);
+    if (up === undefined) {
+      return undefined;
+    }
+    const tab = describedTab({ names, windowTabs }, up);
+    const root =
+      up.kind === "screen" ? computerTabOf(up.href)?.root : undefined;
+    return { ...(root === undefined ? {} : { root }), tab };
+  };
+
   /**
    * Does what an agent asked of the tabs, and says what came of it: the tab
    * it made or acted on, or why it did nothing. A tab is any tab of the
@@ -1429,6 +1443,11 @@ export function useOpeners({
         listedWith(list, group, { [where]: anchor }),
       );
       return {};
+    }
+    if (action.kind === "look") {
+      return (await windowDraws())
+        ? { look: readWindowLook(tabUp) }
+        : { error: "the window is not on screen, so there is nothing to see." };
     }
     if (action.kind === "history") {
       return { history: await historyRows(action) };

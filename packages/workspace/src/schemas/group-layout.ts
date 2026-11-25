@@ -16,7 +16,7 @@ const LayoutTabKindSchema = z.enum([
 
 export type LayoutTabKind = z.output<typeof LayoutTabKindSchema>;
 
-const LayoutTabSchema = z.object({
+export const LayoutTabSchema = z.object({
   /** Where it is: a website's URL, a file's or a folder's path, or an `instrument://` address. */
   address: z.string(),
   /** Opened by an agent, this chat's or another's, rather than the person. */

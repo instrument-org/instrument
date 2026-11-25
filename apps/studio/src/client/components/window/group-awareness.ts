@@ -93,7 +93,7 @@ export function groupLayoutFor(
 }
 
 /** One tab as the agent reads it: what it is, what it is called, and where. */
-function describedTab(
+export function describedTab(
   { names, windowTabs }: GroupAwarenessWindow,
   tab: WindowTab,
 ): LayoutTab {

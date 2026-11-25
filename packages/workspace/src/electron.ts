@@ -319,6 +319,8 @@ export {
 } from "./schemas/web-search";
 export {
   type BrowserConfig,
+  type WindowCamera,
+  type WindowMask,
   type BrowserTarget,
   type BrowserTargetId,
   BrowserTargetIdSchema,

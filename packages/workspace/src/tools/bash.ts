@@ -46,9 +46,14 @@ import {
 import {
   browserScreenshot,
   BrowserScreenshotSchema,
+  imagePreview,
 } from "../lib/browser-screenshot";
 import { describeImageSize } from "../lib/image-preview";
 import { AGENT_BROWSER_COMMAND } from "../lib/shell-commands/agent-browser";
+import {
+  type WindowPictures,
+  withWindowPictures,
+} from "../lib/shell-commands/window-pictures";
 import {
   BrowserFailureSchema,
   BrowserFollowUp,
@@ -272,6 +277,8 @@ const bashOutputSchema = z.object({
    * model that takes images as part of the result.
    */
   screenshot: BrowserScreenshotSchema.optional(),
+  /** The picture of the user's window the call's commands last took, blanked where the chat may not read. */
+  windowPicture: BrowserScreenshotSchema.optional(),
   /** Set when the command was promoted; holds its bounded process log. */
   logFilePath: RelativePathSchema.optional(),
   logOmittedBytes: z.number().optional(),
@@ -395,6 +402,7 @@ const bashCapability = defineCapability({
         const asks: string[] = [];
         const appGuides: RecordedAppGuide[] = [];
         const commandRuns = new CommandRuns();
+        const windowPictures: WindowPictures = {};
         let stderr = "";
         const ran = () => {
           const rows = commandRuns.rows();
@@ -412,7 +420,9 @@ const bashCapability = defineCapability({
                   withRaisedAsks(asks, () =>
                     withAppGuideHandOffs(appGuides, () =>
                       withBrowserFollowUp(browserFollowUp, () =>
-                        bash.exec(input.command, { signal: runSignal }),
+                        withWindowPictures(windowPictures, () =>
+                          bash.exec(input.command, { signal: runSignal }),
+                        ),
                       ),
                     ),
                   ),
@@ -594,6 +604,10 @@ const bashCapability = defineCapability({
                 signal,
               })
             : undefined;
+        const windowPicture =
+          windowPictures.last === undefined
+            ? undefined
+            : await imagePreview(windowPictures.last, signal);
         const browserNews = browserFollowUp.takeNews();
         const browserSkill =
           commands.includes(AGENT_BROWSER_COMMAND.name) ||
@@ -625,28 +639,39 @@ const bashCapability = defineCapability({
           ...(screenshot ? { screenshot } : {}),
           spillFilePath,
           ...(tabPlace ? { tabPlace } : {}),
+          ...(windowPicture ? { windowPicture } : {}),
         });
       },
       readOnly: false,
       timeoutMs: ({ input }) => bashToolCallTimeoutMs(input.yieldMs),
       toModelOutput: ({ output }) => {
         const text = bashOutputText(output);
-        if (!output.screenshot || text.type === "error-text") {
+        const images = [
+          {
+            image: output.screenshot,
+            lead: `The screenshot the call took, as \`${TOOL_NAMES.readFile}\` would show it`,
+          },
+          {
+            image: output.windowPicture,
+            lead: "The user's window, as it looked when the call ran",
+          },
+        ].flatMap(({ image, lead }) => (image ? [{ image, lead }] : []));
+        if (images.length === 0 || text.type === "error-text") {
           return text;
         }
         return {
           type: "content",
-          value: [
+          value: images.flatMap(({ image, lead }, index) => [
             {
-              text: `${text.value}\n\nThe screenshot the call took, as \`${TOOL_NAMES.readFile}\` would show it${describeImageSize(output.screenshot)}:`,
-              type: "text",
+              text: `${index === 0 ? `${text.value}\n\n` : ""}${lead}${describeImageSize(image)}:`,
+              type: "text" as const,
             },
             {
-              data: { data: output.screenshot.base64Data, type: "data" },
-              mediaType: output.screenshot.mimeType,
-              type: "file",
+              data: { data: image.base64Data, type: "data" as const },
+              mediaType: image.mimeType,
+              type: "file" as const,
             },
-          ],
+          ]),
         };
       },
       name: "bash",

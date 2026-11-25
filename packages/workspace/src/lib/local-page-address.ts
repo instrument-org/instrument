@@ -45,7 +45,7 @@ export function agentPathOfFileUrl(
  * kept from it by the rules, or reached through a symlink that leaves its
  * folder.
  */
-function agentPathOfHostFile(
+export function agentPathOfHostFile(
   layout: WorkspaceFsLayout,
   hostPath: string,
 ): null | string {

@@ -356,6 +356,52 @@ describe("the commands the CLI takes", () => {
   });
 });
 
+// The wrapper finds these commands' file by knowing their own flags, and
+// refuses one it does not know. A flag the CLI gains fails here: add it to
+// `fileOperandsOf`, or it stays refused, or its value is taken for the file. `network` lists flags that belong to its other operations.
+describe("the flags of the commands that name a file", () => {
+  it.each([
+    ["screenshot", ["--full", "--if-changed", "--threshold"]],
+    ["pdf", []],
+    ["download", []],
+    ["trace", []],
+    ["profiler", ["--categories"]],
+    [
+      "record",
+      ["--fps", "--cursor", "--contact-sheet", "--contact-sheet-threshold"],
+    ],
+    [
+      "network",
+      [
+        "--abort",
+        "--body",
+        "--allow-origin",
+        "--clear",
+        "--filter",
+        "--type",
+        "--method",
+        "--status",
+        "--content",
+      ],
+    ],
+  ])("%s has the ones the wrapper reads", (command, known) => {
+    const own = [
+      ...(execFileSync(agentBrowserPath(), [command, "--help"], {
+        encoding: "utf8",
+      })
+        .split("\nExamples:")[0]
+        ?.matchAll(/^ +(?:-\w, )?(--[a-z-]+)/gm) ?? []),
+    ].flatMap(([, flag]) =>
+      flag === undefined ||
+      GLOBAL_VALUE_FLAGS.has(flag) ||
+      GLOBAL_BOOL_FLAGS.has(flag)
+        ? []
+        : [flag],
+    );
+    expect(own).toEqual(known);
+  });
+});
+
 /** The global flag lines of the CLI's help, under every heading but `skipped`. */
 function* flagLinesOf(text: string, skipped: string[]) {
   let inSection = false;

@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-11-25T21:09:40.974Z",
-  "entriesHash": "bb18264132907740",
+  "revision": "2026-11-25T21:09:44.229Z",
+  "entriesHash": "90734b63cd9cb377",
   "entries": [
     {
       "slug": "activecampaign",
@@ -5238,7 +5238,7 @@
           "endpoint": "https://mcp.slack.com/mcp",
           "auth": "oauth-client",
           "approval": {
-            "why": "Slack is reviewing Instrument's app"
+            "why": "Slack takes only apps in its Marketplace, and Instrument's is not listed there yet"
           }
         },
         {

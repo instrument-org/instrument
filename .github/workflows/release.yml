@@ -398,6 +398,11 @@ jobs:
       - name: Merge the Mac update manifests
         run: node apps/studio/scripts/merge-mac-feeds.ts artifacts
 
+      # A stable cut behind the betas still builds every channel's feed; the
+      # ones whose live feed is newer stay as they are.
+      - name: Leave newer channels' feeds alone
+        run: node apps/studio/scripts/release-channels.ts prune artifacts --version "${GITHUB_REF_NAME#v}"
+
       # The manifests go up after everything they name: a running app offers
       # a build as soon as its manifest lands, and one read before the
       # installer is there fails the download.

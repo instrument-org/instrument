@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { leftWidthAt, scrollToShow, shareAt } from "./side-widths";
+import { leftWidthAt, scrollToShow, shareAt, sideShare } from "./side-widths";
 
 describe("leftWidthAt", () => {
   it.each([
@@ -13,6 +13,34 @@ describe("leftWidthAt", () => {
     { share: 0.69, room: 0, width: 0 },
   ])("lays out $share of $room as $width", ({ share, room, width }) => {
     expect(leftWidthAt(share, room)).toBeCloseTo(width);
+  });
+});
+
+describe("sideShare", () => {
+  it.each([
+    { room: 500, chat: 250 },
+    { room: 700, chat: 350 },
+    { room: 908, chat: 360 },
+    { room: 1180, chat: 412 },
+    { room: 1264, chat: 496 },
+    { room: 1700, chat: 500 },
+    { room: 2500, chat: 500 },
+  ])("gives a chat $chat of $room, on either side", ({ chat, room }) => {
+    const left = sideShare({ chatSide: 0, room, share: undefined });
+    const right = sideShare({ chatSide: 1, room, share: undefined });
+    expect(left * room).toBeCloseTo(chat);
+    expect((1 - right) * room).toBeCloseTo(chat);
+  });
+
+  it("keeps the person's share over the chat's width, the middle included", () => {
+    expect(sideShare({ chatSide: 0, room: 2000, share: 0.5 })).toBe(0.5);
+  });
+
+  it("splits evenly with no chat's side, or before the row is measured", () => {
+    expect(
+      sideShare({ chatSide: undefined, room: 2000, share: undefined }),
+    ).toBe(0.5);
+    expect(sideShare({ chatSide: 0, room: 0, share: undefined })).toBe(0.5);
   });
 });
 

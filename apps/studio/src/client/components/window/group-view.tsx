@@ -69,8 +69,8 @@ import {
   leftWidthAt,
   scrollToShow,
   shareAt,
-  SIDE_SHARE_DEFAULT,
   SIDE_WIDTH_MIN,
+  sideShare,
 } from "./side-widths";
 import { useTabSurface } from "./tab-surface";
 import { WINDOW_CARD, WINDOW_CARD_GAP } from "./window-frame";
@@ -191,8 +191,6 @@ function GroupSides({
   const rowRef = useRef<HTMLDivElement>(null);
   const scrollerRef = useRef<HTMLDivElement>(null);
   const isTwo = layout.sides.length === 2;
-  const share =
-    dragged ?? windowTabs.groupOwn[group]?.share ?? SIDE_SHARE_DEFAULT;
   useSidePagesTarget({
     group,
     isOn: useIsActiveTab(),
@@ -202,11 +200,13 @@ function GroupSides({
 
   // The row's width, which the gutter stands along.
   const [rowWidth, setRowWidth] = useState(0);
-  useEffect(() => {
+  // Measured before the first paint: where the gutter stands depends on it.
+  useLayoutEffect(() => {
     const row = rowRef.current;
     if (!row) {
       return;
     }
+    setRowWidth(row.offsetWidth);
     const observer = new ResizeObserver(() => {
       setRowWidth(row.offsetWidth);
     });
@@ -242,6 +242,19 @@ function GroupSides({
   /** The same room measured now, for a drag. */
   const roomNow = () =>
     (rowRef.current?.offsetWidth ?? rowWidth) - WINDOW_CARD_GAP;
+  const own = windowTabs.groupOwn[group];
+  const shareOfTwo = sideShare({
+    chatSide: own?.chatSide,
+    room,
+    share: dragged ?? own?.share,
+  });
+  // A side closing shrinks from where it stood, which the group forgets as
+  // it goes back to one side.
+  const [lastShare, setLastShare] = useState(shareOfTwo);
+  if (isTwo && lastShare !== shareOfTwo) {
+    setLastShare(shareOfTwo);
+  }
+  const share = isTwo ? shareOfTwo : lastShare;
   /** Where the gap between the sides is laid out, from the row's left. */
   const gutterAt = leftWidthAt(share, room);
   const motionSides = useSideMotion(group, layout);
@@ -298,10 +311,8 @@ function GroupSides({
       leaving: true,
     });
   }
-  const keepShare = (next: number) => {
-    windowTabs.setGroupOwn(group, {
-      share: next === SIDE_SHARE_DEFAULT ? undefined : next,
-    });
+  const keepShare = (next: number | undefined) => {
+    windowTabs.setGroupOwn(group, { share: next });
   };
 
   return (
@@ -443,7 +454,7 @@ function GroupSides({
             min={SIDE_WIDTH_MIN}
             onReset={() => {
               setDragged(undefined);
-              keepShare(SIDE_SHARE_DEFAULT);
+              keepShare(undefined);
             }}
             onResize={(width) => {
               draggedNow.current = shareAt(width, roomNow());

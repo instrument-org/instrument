@@ -2,6 +2,10 @@ import {
   PRIVATE_FOLDER_NAME,
   SETTINGS_FILE_NAME,
 } from "@instrument-org/shared";
+import {
+  MACHINE_PREFERENCES_NAME,
+  MACHINE_STATE_NAME,
+} from "@/electron-main/stores/machine/names";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
@@ -38,10 +42,6 @@ import {
  */
 
 export const CURRENT_SETTINGS_VERSION = 2;
-
-/** Electron-store names of the machine stores, at the root of userData. */
-export const MACHINE_PREFERENCES_NAME = "machine-preferences";
-export const MACHINE_STATE_NAME = "machine-state";
 
 /** The legacy root file whose keys split between the two halves. */
 const LEGACY_PREFERENCES = "preferences.json";

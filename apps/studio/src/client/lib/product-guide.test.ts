@@ -27,12 +27,15 @@ vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   toggleBookmarksBar: () => undefined,
 }));
 vi.mock("@/electron-main/lib/setup-state", () => ({ isSetupUp: () => false }));
+// Loading the agent takes longer than this test may, and picks programs by the
+// platform it loads on, so the menus reach it only for its types.
+vi.mock("@instrument-org/workspace/electron", () => {
+  throw new Error(
+    "The menu bar's modules load @instrument-org/workspace/electron. Import what they need from a module that does not.",
+  );
+});
 
 async function macMenuBar() {
-  // Loaded first on the real platform: a package under it picks its binary by
-  // platform as it loads (@vscode/ripgrep), and only a Mac has the Mac one.
-  // Node keeps that package loaded through vi.resetModules.
-  await import("@/electron-main/menus/app-window");
   const platform = process.platform;
   Object.defineProperty(process, "platform", { value: "darwin" });
   vi.resetModules();

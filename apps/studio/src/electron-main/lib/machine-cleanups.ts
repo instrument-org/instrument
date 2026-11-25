@@ -7,16 +7,16 @@ import {
   entryExists,
   moveEntrySync,
 } from "@instrument-org/workspace/electron";
+import {
+  MACHINE_PREFERENCES_NAME,
+  MACHINE_STATE_NAME,
+} from "@/electron-main/stores/machine/names";
 import { workspaceLayout } from "@instrument-org/workspace/layout";
 import fs from "node:fs";
 import path from "node:path";
 
 import { pathWithin } from "./path-identity";
-import {
-  CURRENT_SETTINGS_VERSION,
-  MACHINE_PREFERENCES_NAME,
-  MACHINE_STATE_NAME,
-} from "./settings-migration";
+import { CURRENT_SETTINGS_VERSION } from "./settings-migration";
 import {
   MACHINE_DATA_FORMAT_VERSION,
   readWorkspaceIdentity,

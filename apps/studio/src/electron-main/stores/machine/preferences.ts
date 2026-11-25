@@ -1,6 +1,5 @@
 import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
-import { MACHINE_PREFERENCES_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { PlatformApiServerSchema } from "@/shared/platform-api-server";
 import {
@@ -14,6 +13,8 @@ import {
 } from "@/shared/favorite-places";
 import Store from "electron-store";
 import { z } from "zod";
+
+import { MACHINE_PREFERENCES_NAME } from "./names";
 
 /**
  * What a person chose for this computer, whichever workspace is open: which

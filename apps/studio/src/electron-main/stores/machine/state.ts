@@ -9,12 +9,13 @@ import {
   type RelaunchView,
 } from "@/electron-main/lib/idle-restart-policy";
 import { launchOutcome } from "@/electron-main/lib/update-status";
-import { MACHINE_STATE_NAME } from "@/electron-main/lib/settings-migration";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { SetupRecordSchema } from "@/shared/setup";
 import { app } from "electron";
 import Store from "electron-store";
 import { z } from "zod";
+
+import { MACHINE_STATE_NAME } from "./names";
 
 /**
  * What the app remembers about this computer, whichever workspace is open.

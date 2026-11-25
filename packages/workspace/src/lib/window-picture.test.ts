@@ -9,7 +9,7 @@ import { AbsolutePathSchema, WorkDirSchema } from "../schemas/paths";
 import {
   type WindowBox,
   type WindowLook,
-  type WindowOwner,
+  type WindowSide,
 } from "../schemas/window-look";
 import { type WindowTabAnswer } from "../schemas/window-tab";
 import { type WindowMask } from "../types";
@@ -92,26 +92,21 @@ const tab = (
   id = "tab_a",
 ): LayoutTab => ({ address, id, isUp: true, kind, title: "" });
 
-const side = (up: LayoutTab, root?: string): WindowOwner => ({
-  kind: "side",
+/** Where the side under test draws its page: the right half. */
+const PAGE: WindowBox = { height: 0.9, width: 0.5, x: 0.5, y: 0.1 };
+
+const side = (up: LayoutTab, root?: string): WindowSide => ({
+  box: PAGE,
   ...(root === undefined ? {} : { root }),
   tab: up,
 });
 
-/** Two cells side by side: the frame's, and the owner's under test. */
-function lookAt(
-  owner: WindowOwner,
-  more: Partial<WindowLook> = {},
-): WindowLook {
-  return {
-    columns: 3,
-    covers: [],
-    owners: [{ kind: "frame" }, owner],
-    pictures: [],
-    points: [0, 0, 1, 1, 0, 0, 1, 1],
-    rows: 1,
-    ...more,
-  };
+const page = (tabId = "tab_page") =>
+  side({ ...tab("website", "https://example.com/"), id: tabId });
+
+/** The window with one side, the one under test. */
+function lookAt(one: WindowSide, more: Partial<WindowLook> = {}): WindowLook {
+  return { pictures: [], sides: [one], ...more };
 }
 
 async function take(layout = layoutWith()) {
@@ -123,14 +118,14 @@ async function take(layout = layoutWith()) {
   });
   return "error" in picture
     ? picture
-    : { hidden: picture.hidden, shown: masks.at(-1)?.shown };
+    : { blanked: masks.at(-1)?.blanked, hidden: picture.hidden };
 }
 
-const SHOWN = [true, true, true];
-const BLANK = [true, false, false];
+const SHOWN: WindowBox[] = [];
+const BLANK = [PAGE];
 
 describe("what a picture shows of a side or a page", () => {
-  it.each<[string, WindowOwner, boolean]>([
+  it.each<[string, WindowSide, boolean]>([
     ["a chat", side(tab("chat", "instrument://chat/x")), true],
     ["a file in reach", side(tab("file", path.join(docs, "a.md"))), true],
     ["a file out of reach", side(tab("file", path.join(hidden, "a"))), false],
@@ -157,17 +152,17 @@ describe("what a picture shows of a side or a page", () => {
     ],
     ["a folder whose view is unknown", side(tab("folder", docs)), false],
     ["a folder out of reach", side(tab("folder", hidden), hidden), false],
-    ["a page with no guest", { kind: "page", tabId: "tab_gone" }, false],
+    ["a page with no guest", page("tab_gone"), false],
   ])("%s", async (_name, owner, isShown) => {
     answers = [{ look: lookAt(owner) }];
-    expect(await take()).toMatchObject({ shown: isShown ? SHOWN : BLANK });
+    expect(await take()).toMatchObject({ blanked: isShown ? SHOWN : BLANK });
   });
 
   it("blanks a folder whose view starts in a folder that asks first", async () => {
     answers = [{ look: lookAt(side(tab("folder", docs), home)) }];
     expect(
       await take(layoutWith([{ level: "ask", path: home, source: "folder" }])),
-    ).toMatchObject({ shown: BLANK });
+    ).toMatchObject({ blanked: BLANK });
   });
 
   it("blanks a folder with a closed one anywhere in it", async () => {
@@ -175,12 +170,16 @@ describe("what a picture shows of a side or a page", () => {
     expect(
       await take(
         layoutWith([
-          { level: "never", path: path.join(docs, "in", "it"), source: "folder" },
+          {
+            level: "never",
+            path: path.join(docs, "in", "it"),
+            source: "folder",
+          },
         ]),
       ),
     ).toMatchObject({
       hidden: [{ tab: "tab_a", why: "a folder you can't read all of" }],
-      shown: BLANK,
+      blanked: BLANK,
     });
   });
 
@@ -224,40 +223,27 @@ describe("what a picture shows of a side or a page", () => {
     ["a page that loaded nothing", [], false, false],
   ])("%s", async (_name, documents, isSigningIn, isShown) => {
     pages = { tab_page: { documents, isSigningIn } };
-    answers = [{ look: lookAt({ kind: "page", tabId: "tab_page" }) }];
-    expect(await take()).toMatchObject({ shown: isShown ? SHOWN : BLANK });
+    answers = [{ look: lookAt(page()) }];
+    expect(await take()).toMatchObject({ blanked: isShown ? SHOWN : BLANK });
   });
 
-  it("blanks every cell a point over something unknown touches", async () => {
-    answers = [
-      {
-        look: lookAt(side(tab("chat", "instrument://chat/x")), {
-          points: [0, 0, 0, 0, 0, 0, 0, -1],
-        }),
-      },
-    ];
-    expect(await take()).toMatchObject({ shown: [true, true, false] });
-  });
-
-  it("blanks everything where the window says too little", async () => {
-    answers = [
-      { look: lookAt({ kind: "frame" }, { owners: [], points: [0] }) },
-    ];
-    expect(await take()).toMatchObject({ shown: [false, false, false] });
+  it("shows everything outside the sides as drawn", async () => {
+    answers = [{ look: { pictures: [], sides: [] } }];
+    expect(await take()).toEqual({ blanked: [], hidden: [] });
   });
 });
 
-describe("the parts blanked whatever the points say", () => {
+describe("pictures", () => {
   const box: WindowBox = { height: 0.1, width: 0.1, x: 0.5, y: 0.5 };
   const chat = side(tab("chat", "instrument://chat/x"));
   const blankedWith = async (
-    owner: WindowOwner,
+    one: WindowSide,
     picture: Partial<WindowLook["pictures"][number]>,
   ) => {
     answers = [
       {
-        look: lookAt(owner, {
-          pictures: [{ box, isIcon: false, owner: 1, ...picture }],
+        look: lookAt(one, {
+          pictures: [{ box, isIcon: false, side: 0, ...picture }],
         }),
       },
     ];
@@ -265,15 +251,7 @@ describe("the parts blanked whatever the points say", () => {
     return masks.at(-1)?.blanked;
   };
 
-  it("what stands over the sides", async () => {
-    answers = [{ look: lookAt(chat, { covers: [box] }) }];
-    expect(await take()).toMatchObject({
-      hidden: [{ why: expect.stringContaining("stands over the window") }],
-    });
-    expect(masks.at(-1)?.blanked).toEqual([box]);
-  });
-
-  it("a picture in a reply of a file the chat can't read", async () => {
+  it("blanks one in a reply of a file the chat can't read", async () => {
     expect(
       await blankedWith(chat, { file: path.join(hidden, "a.png") }),
     ).toEqual([box]);
@@ -288,12 +266,38 @@ describe("the parts blanked whatever the points say", () => {
     );
   });
 
-  it("a picture in a reply of nobody knows what", async () => {
+  it("blanks one of nobody knows what, but for an icon or a file's own viewer", async () => {
     expect(await blankedWith(chat, {})).toEqual([box]);
     expect(await blankedWith(chat, { isIcon: true })).toEqual([]);
     expect(
       await blankedWith(side(tab("file", path.join(docs, "a.png"))), {}),
     ).toEqual([]);
+  });
+
+  it("holds one outside every side, in a dialog, to the same rule", async () => {
+    answers = [
+      {
+        look: {
+          pictures: [
+            { box, file: path.join(hidden, "a.png"), isIcon: false },
+            { box: PAGE, file: path.join(docs, "a.png"), isIcon: false },
+          ],
+          sides: [],
+        },
+      },
+    ];
+    expect(await take()).toEqual({
+      blanked: [box],
+      hidden: [{ why: "pictures of files you can't read" }],
+    });
+  });
+
+  it("leaves one in a side already blanked to the side", async () => {
+    expect(
+      await blankedWith(side(tab("file", path.join(hidden, "a"))), {
+        file: path.join(hidden, "a.png"),
+      }),
+    ).toEqual([PAGE]);
   });
 });
 
@@ -305,13 +309,13 @@ describe("a window that changes", () => {
 
   it("is not captured until what is up has been up", async () => {
     answers = [chatLook, fileLook, fileLook, fileLook, fileLook];
-    expect(await take()).toMatchObject({ shown: BLANK });
+    expect(await take()).toMatchObject({ blanked: BLANK });
     expect(captures).toBe(1);
   });
 
   it("is taken again when something came up around the frame", async () => {
     answers = [chatLook, chatLook, fileLook, fileLook, fileLook, fileLook];
-    expect(await take()).toMatchObject({ shown: BLANK });
+    expect(await take()).toMatchObject({ blanked: BLANK });
     expect(captures).toBe(2);
   });
 

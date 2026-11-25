@@ -223,19 +223,14 @@ export interface WorkspaceAppsConfig {
   };
 }
 
-/** What of a window's picture is shown; the rest is blanked. */
+/** What of a window's picture is blanked; the rest is shown as drawn. */
 export interface WindowMask {
-  /** Blanked whatever the cells say. */
   blanked: WindowBox[];
-  columns: number;
-  rows: number;
-  /** Whether each cell of a `columns` by `rows` grid is shown, row by row. */
-  shown: boolean[];
 }
 
 /** A frame of a window, kept where it was taken until it is blanked. */
 export interface WindowFrame {
-  /** The frame as a PNG with everything the mask does not show blanked. */
+  /** The frame as a PNG with every part the mask names blanked. */
   masked: (mask: WindowMask) => Buffer;
 }
 

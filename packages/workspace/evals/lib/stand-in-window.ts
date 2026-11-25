@@ -80,18 +80,11 @@ export function createStandInWindow(chrome?: SharedChrome) {
   let layout: LayoutSnapshot | undefined;
   /**
    * The picture a case's window gives, already blanked as the app blanked it
-   * when it was captured; the window says it is all its own frame, so
-   * nothing more is blanked here.
+   * when it was captured; the window names no side, so nothing more is
+   * blanked here.
    */
   let picture: Buffer | undefined;
-  const look: WindowLook = {
-    columns: 1,
-    covers: [],
-    owners: [{ kind: "frame" }],
-    pictures: [],
-    points: [0, 0, 0, 0],
-    rows: 1,
-  };
+  const look: WindowLook = { pictures: [], sides: [] };
   /** The chat's last page in the group, which its next one goes right after. */
   let previous: string | undefined;
 

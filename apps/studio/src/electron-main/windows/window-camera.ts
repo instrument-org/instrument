@@ -111,8 +111,8 @@ export const windowCamera: WindowCamera = {
 const GRAY = Buffer.from([0x80, 0x80, 0x80, 0xff]).readUInt32LE();
 
 /**
- * Paints over everything a mask does not show, in place. A part's edges go
- * out to the next whole pixel, so nothing of what is left out is left.
+ * Paints over every part a mask names, in place. A part's edges go out to
+ * the next whole pixel, so nothing of what is left out is left.
  */
 export function blank({
   bitmap,
@@ -130,40 +130,15 @@ export function blank({
     bitmap.byteOffset,
     bitmap.byteLength / 4,
   );
-  const fill = (left: number, top: number, right: number, bottom: number) => {
-    const from = Math.max(0, Math.floor(left));
-    const to = Math.min(width, Math.ceil(right));
-    for (
-      let y = Math.max(0, Math.floor(top));
-      y < Math.min(height, Math.ceil(bottom));
-      y += 1
-    ) {
+  for (const box of mask.blanked) {
+    const from = Math.max(0, Math.floor(box.x * width));
+    const to = Math.min(width, Math.ceil((box.x + box.width) * width));
+    const bottom = Math.min(height, Math.ceil((box.y + box.height) * height));
+    for (let y = Math.max(0, Math.floor(box.y * height)); y < bottom; y += 1) {
       if (to > from) {
         pixels.fill(GRAY, y * width + from, y * width + to);
       }
     }
-  };
-  const cellWidth = width / mask.columns;
-  const cellHeight = height / mask.rows;
-  for (let row = 0; row < mask.rows; row += 1) {
-    for (let column = 0; column < mask.columns; column += 1) {
-      if (mask.shown[row * mask.columns + column] !== true) {
-        fill(
-          column * cellWidth,
-          row * cellHeight,
-          (column + 1) * cellWidth,
-          (row + 1) * cellHeight,
-        );
-      }
-    }
-  }
-  for (const box of mask.blanked) {
-    fill(
-      box.x * width - 1,
-      box.y * height - 1,
-      (box.x + box.width) * width + 1,
-      (box.y + box.height) * height + 1,
-    );
   }
 }
 

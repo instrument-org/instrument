@@ -44,7 +44,7 @@ export {
 export {
   type WindowBox,
   type WindowLook,
-  type WindowOwner,
+  type WindowSide,
 } from "./schemas/window-look";
 export { getToolNameByType } from "./lib/get-tool-name-by-type";
 export * from "./lib/is-chat-id";

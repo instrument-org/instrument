@@ -7,9 +7,9 @@ import { type LayoutTab } from "../schemas/group-layout";
 import {
   type WindowBox,
   type WindowLook,
-  type WindowOwner,
+  type WindowSide,
 } from "../schemas/window-look";
-import { type WindowCamera, type WindowMask } from "../types";
+import { type WindowCamera } from "../types";
 import { askWindow } from "./chat/window-tab";
 import { hostPathWithin } from "./host-path";
 import { agentPathOfFileUrl, agentPathOfHostFile } from "./local-page-address";
@@ -18,11 +18,11 @@ import { getWorkspaceConfig } from "./workspace-config";
 import { type WorkspaceFsLayout } from "./workspace-fs-layout";
 
 /**
- * A picture of the person's window, with everything the chat may not read
- * blanked. It starts all blank, and only a part the app can name and the
- * chat may read is shown: what the window cannot place (a menu, a dialog,
- * a toast), a page in a file or frame the chat cannot read, a page with a
- * password field up, and a screen not listed here stay blank.
+ * A picture of the person's window as they see it, with each part the chat
+ * may not read blanked: a side's page in a file or frame the chat cannot
+ * read, with a password field up, or a screen not listed here, and a picture
+ * of a file out of the chat's reach. Everything else (the sidebar, the rows
+ * of tabs, the gaps between sides, menus and dialogs) stays as drawn.
  */
 
 /** Built-in pages with nothing on them an agent is kept from. Any other is blanked. */
@@ -137,32 +137,30 @@ export async function takeWindowPicture({
     }
     return {
       hidden: hiddenParts(after),
-      png: frame.masked(maskOf(after)),
+      png: frame.masked({ blanked: after.blanked }),
     };
   }
   return { error: "the window kept changing, so no picture was taken." };
 }
 
-/** What is left out, each tab once, and whether anything besides a tab is. */
+/** What is left out, each tab once. */
 function hiddenParts({ blanked, look, shows }: Looked): HiddenPart[] {
   const parts = shows.flatMap(({ hidden }) =>
     hidden === undefined ? [] : [hidden],
   );
+  const sidesBlanked = shows.filter((each) => each.hidden).length;
   return [
     ...parts.filter(
       (part, index) =>
         parts.findIndex((each) => each.tab === part.tab) === index,
     ),
-    ...(blanked.length > look.covers.length
-      ? [{ why: "pictures you can't read" }]
-      : []),
-    ...(look.covers.length > 0
-      ? [{ why: "what stands over the window (a menu, a dialog, a toast)" }]
+    ...(blanked.length > sidesBlanked && look.pictures.length > 0
+      ? [{ why: "pictures of files you can't read" }]
       : []),
   ];
 }
 
-/** What became of an owner: shown, or why not. */
+/** What became of a side: shown, or why not. */
 interface Shows {
   /** The document a page is on, for telling whether it changed; its frames come and go, each judged at each reading. */
   document?: string;
@@ -170,7 +168,7 @@ interface Shows {
 }
 
 interface Looked {
-  /** The parts blanked whatever the points say. */
+  /** The parts blanked. */
   blanked: WindowBox[];
   look: WindowLook;
   shows: Shows[];
@@ -179,11 +177,8 @@ interface Looked {
 /** Whether two readings of a window have the same things in the same places. */
 function isSameWindow(one: Looked, other: Looked): boolean {
   return (
-    one.look.columns === other.look.columns &&
-    one.look.rows === other.look.rows &&
-    isEqual(one.look.points, other.look.points) &&
     isEqual(one.blanked, other.blanked) &&
-    isEqual(one.look.owners.map(identity), other.look.owners.map(identity)) &&
+    isEqual(one.look.sides.map(identity), other.look.sides.map(identity)) &&
     isEqual(
       one.shows.map(({ document, hidden }) => [document, hidden?.why]),
       other.shows.map(({ document, hidden }) => [document, hidden?.why]),
@@ -191,11 +186,9 @@ function isSameWindow(one: Looked, other: Looked): boolean {
   );
 }
 
-/** An owner without its title, which a page or a chat changes as it likes. */
-function identity(owner: WindowOwner) {
-  return owner.kind === "side"
-    ? [owner.tab.id, owner.tab.kind, owner.root, addressOf(owner.tab)]
-    : owner;
+/** A side without its tab's title, which a page or a chat changes as it likes. */
+function identity({ box, root, tab }: WindowSide) {
+  return [box, tab.id, tab.kind, root, addressOf(tab)];
 }
 
 /** A website's address is its page's to change; its documents are what count. */
@@ -204,18 +197,7 @@ function addressOf(tab: LayoutTab) {
 }
 
 async function decide(look: WindowLook, reading: Reading): Promise<Shows[]> {
-  return Promise.all(
-    look.owners.map(async (owner): Promise<Shows> => {
-      switch (owner.kind) {
-        case "frame":
-          return {};
-        case "page":
-          return pageShows(owner.tabId, reading);
-        case "side":
-          return sideShows(owner, reading);
-      }
-    }),
-  );
+  return Promise.all(look.sides.map((side) => sideShows(side, reading)));
 }
 
 /** A page, by every document in it: a frame can show what its page does not. */
@@ -253,7 +235,7 @@ async function pageShows(tabId: string, reading: Reading): Promise<Shows> {
 }
 
 async function sideShows(
-  { root, tab }: Extract<WindowOwner, { kind: "side" }>,
+  { root, tab }: WindowSide,
   reading: Reading,
 ): Promise<Shows> {
   const { layout } = reading;
@@ -328,70 +310,39 @@ function foldersDown(root: string, folder: string): string[] | undefined {
   return folders;
 }
 
-/** The parts blanked whatever the points say: what floats over the sides, and the pictures the chat may not see. */
+/** The pages of the sides the chat may not read, and the pictures of files it may not read wherever they are drawn. */
 function blankedBoxes(
   look: WindowLook,
   shows: readonly Shows[],
   layout: WorkspaceFsLayout,
 ): WindowBox[] {
   return [
-    ...look.covers,
+    ...look.sides.flatMap((side, index) =>
+      shows[index]?.hidden === undefined ? [] : [side.box],
+    ),
     ...look.pictures.flatMap((picture) =>
-      shows[picture.owner]?.hidden === undefined &&
-      !isPictureOpen(picture, look.owners[picture.owner], layout)
-        ? [picture.box]
-        : [],
+      (picture.side !== undefined &&
+        shows[picture.side]?.hidden !== undefined) ||
+      isPictureOpen(picture, look.sides[picture.side ?? -1], layout)
+        ? []
+        : [picture.box],
     ),
   ];
 }
 
 /**
- * A cell is shown only when all four of its corners are: one that a part left
- * out only touches is blank.
- */
-function maskOf({ blanked, look, shows }: Looked): WindowMask {
-  const { columns, points, rows } = look;
-  const isShown = (column: number, row: number) => {
-    const owner = points[row * (columns + 1) + column];
-    return (
-      owner !== undefined &&
-      shows[owner] !== undefined &&
-      shows[owner].hidden === undefined
-    );
-  };
-  return {
-    blanked,
-    columns,
-    rows,
-    shown: Array.from({ length: columns * rows }, (_, cell) => {
-      const column = cell % columns;
-      const row = Math.floor(cell / columns);
-      return (
-        isShown(column, row) &&
-        isShown(column + 1, row) &&
-        isShown(column, row + 1) &&
-        isShown(column + 1, row + 1)
-      );
-    }),
-  };
-}
-
-/**
- * Whether a picture in a side may be shown. A reply can name any file on the
- * computer as a picture, and the window draws it for the person whether or
- * not the chat may read it.
+ * Whether a picture may be shown. A reply can name any file on the computer
+ * as a picture, and the window draws it for the person whether or not the
+ * chat may read it. One whose source can't be told is shown only as an icon
+ * or in a file's own viewer, which draws the file the side already shows.
  */
 function isPictureOpen(
   picture: WindowLook["pictures"][number],
-  owner: undefined | WindowOwner,
+  side: undefined | WindowSide,
   layout: WorkspaceFsLayout,
 ): boolean {
   if (picture.file !== undefined) {
     return agentPathOfHostFile(layout, picture.file) !== null;
   }
-  return (
-    picture.isIcon ||
-    // A file's own viewer draws it from bytes it read.
-    (owner?.kind === "side" && owner.tab.kind === "file")
-  );
+  return picture.isIcon || side?.tab.kind === "file";
 }

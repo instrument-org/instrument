@@ -83,7 +83,6 @@ export function WindowFrame({
       <div
         className="relative flex h-full flex-col bg-ground"
         data-testid={bar || !hasBar ? "app-page" : undefined}
-        data-window-frame=""
         inert={isSetupUp}
       >
         {/* The bar is the window's own row and reserves the band the traffic

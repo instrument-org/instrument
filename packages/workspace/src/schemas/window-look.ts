@@ -3,7 +3,7 @@ import { z } from "zod";
 import { LayoutTabSchema } from "./group-layout";
 
 /** A part of a window, as fractions of its width and height. */
-export const WindowBoxSchema = z.object({
+const WindowBoxSchema = z.object({
   height: z.number(),
   width: z.number(),
   x: z.number(),
@@ -13,36 +13,26 @@ export const WindowBoxSchema = z.object({
 export type WindowBox = z.output<typeof WindowBoxSchema>;
 
 /**
- * What draws a point of a window, as far as the window can say: its own
- * frame (the sidebar, the tabs, the ground between), a web page by its tab,
- * or a side by the tab up on it.
+ * A side of the tab group on screen, by the tab up on it, and where its page
+ * is drawn: everything of the tab's below the side's row of tabs.
  */
-const WindowOwnerSchema = z.discriminatedUnion("kind", [
-  z.object({ kind: z.literal("frame") }),
-  z.object({ kind: z.literal("page"), tabId: z.string() }),
-  z.object({
-    kind: z.literal("side"),
-    /** For a folder: the folder its view starts from, whose folders down to this one it may list. */
-    root: z.string().optional(),
-    tab: LayoutTabSchema,
-  }),
-]);
+const WindowSideSchema = z.object({
+  box: WindowBoxSchema,
+  /** For a folder: the folder its view starts from, whose folders down to this one it may list. */
+  root: z.string().optional(),
+  tab: LayoutTabSchema,
+});
 
-export type WindowOwner = z.output<typeof WindowOwnerSchema>;
+export type WindowSide = z.output<typeof WindowSideSchema>;
 
 /**
- * What a window draws where, for blanking a picture of it: `points` is a
- * grid over the window, `columns` + 1 by `rows` + 1, each the place in
- * `owners` of what is on top there, or -1 for anything the window cannot
- * name (a menu, a dialog, a toast). Nothing is said to be showable: what
- * reads this decides that.
+ * What a window draws where, for blanking a picture of it: the page of each
+ * side on screen, and every picture drawn anywhere in it. Nothing is said to
+ * be showable: what reads this decides that, and blanks only what it finds
+ * the chat may not read.
  */
 export const WindowLookSchema = z.object({
-  columns: z.number().int().min(1).max(400),
-  /** What stands over the sides and is never in a picture. */
-  covers: z.array(WindowBoxSchema),
-  owners: z.array(WindowOwnerSchema),
-  /** Pictures, players and frames drawn inside a side. */
+  /** Pictures, players and frames drawn in the window, outside a web page's own. */
   pictures: z.array(
     z.object({
       box: WindowBoxSchema,
@@ -50,12 +40,11 @@ export const WindowLookSchema = z.object({
       file: z.string().optional(),
       /** Too small to be more than an icon. */
       isIcon: z.boolean(),
-      /** Its side's place in `owners`. */
-      owner: z.number().int().min(0),
+      /** The side it is drawn in, by its place in `sides`; none for one outside every side's page. */
+      side: z.number().int().min(0).optional(),
     }),
   ),
-  points: z.array(z.number().int().min(-1)),
-  rows: z.number().int().min(1).max(400),
+  sides: z.array(WindowSideSchema),
 });
 
 export type WindowLook = z.output<typeof WindowLookSchema>;

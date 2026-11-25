@@ -19,12 +19,15 @@ import { WarningIcon } from "@phosphor-icons/react/Warning";
 import {
   lazy,
   Suspense,
+  use,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+
+import { MessageEditingContext } from "./message-editing";
 
 import { cn } from "@/client/lib/utils";
 import { type RunAgain } from "../message-error";
@@ -109,6 +112,11 @@ export function Transcript({
     sessionId,
   );
   const replies = repliesOf(turns);
+  const editing = use(MessageEditingContext)?.editing;
+  const editedAt =
+    editing === undefined
+      ? -1
+      : turns.findIndex((turn) => turn.opener?.message.id === editing);
   const pausedAtMaxSteps =
     !isRunning && last?.replies.at(-1)?.metadata.finishReason === "max-steps";
   const drawTurn = (turn: Turn) => (
@@ -118,6 +126,13 @@ export function Transcript({
         changes={turn.opener && changes.get(turn.opener.message.id)}
         hasCard={turn.id === cardTurn}
         isCardAway={turn.id === cardTurn && isCardAway}
+        isFaded={
+          editedAt === -1 || turns.indexOf(turn) < editedAt
+            ? undefined
+            : turns[editedAt] === turn
+              ? "work"
+              : "all"
+        }
         isLast={turn === last}
 
         carriesOn={replies.carriedOn.has(turn.id)}

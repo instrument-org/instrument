@@ -176,14 +176,18 @@ export namespace ChatWrites {
     );
   }
 
-  /** A message taken out of its session, with its parts. */
+  /**
+   * Messages taken out of their session, with their parts; as an earlier
+   * version, when the person edited the message `edited` names.
+   */
   export function retract(
     chatId: ChatId,
     sessionId: StoreId.Session,
     messageIds: StoreId.Message[],
+    edited?: StoreId.Message,
   ): ResultAsync<void, TypedError.Storage> {
     return records(chatId).andThen((writing) =>
-      wrote(writing.retract(chatId, sessionId, messageIds), undefined),
+      wrote(writing.retract(chatId, sessionId, messageIds, edited), undefined),
     );
   }
 }

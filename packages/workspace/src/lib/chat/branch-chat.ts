@@ -40,10 +40,13 @@ import { listChats, renameChat, setChatProject } from "./chats";
 export async function branchChat({
   chatId,
   upTo,
+  version,
 }: {
   chatId: ChatId;
   /** The last message the branch carries: the end of the reply it was started from. */
   upTo: StoreId.Message;
+  /** The edited message whose earlier version the reply is in; none for the conversation as it stands. */
+  version?: StoreId.Message;
 }): Promise<ChatId> {
   const sessionId = sessionOfChat(chatId);
   if (sessionId === undefined) {
@@ -51,7 +54,9 @@ export async function branchChat({
   }
   const [session, history] = await Promise.all([
     ChatReads.session({ chatId, sessionId }),
-    ChatReads.developerHistory({ chatId, sessionId }),
+    version === undefined
+      ? ChatReads.developerHistory({ chatId, sessionId })
+      : ChatReads.versionHistory({ chatId, edited: version, sessionId }),
   ]);
   if (session.isErr()) {
     throw session.error;
@@ -206,6 +211,10 @@ function inSession(
   // its members each message and part is.
   const copy = structuredClone(message);
   copy.metadata.sessionId = sessionId;
+  // The earlier versions stay with the chat they are in.
+  if (copy.role === "user") {
+    delete copy.metadata.earlierVersions;
+  }
   for (const part of copy.parts) {
     part.metadata.sessionId = sessionId;
   }

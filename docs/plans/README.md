@@ -43,7 +43,6 @@ Each entry is the plan's title and the opening of its status.
 - [Dependency sweep: what upstream has fixed for us](dependency-upgrade-sweep.md): Two passes landed;
 - [Dependency work behind the PR queue](dependency-work-behind-the-pr-queue.md): Items 1 and 2 done, 3 to 5 partly.
 - [Drive Studio a sequence at a time, not a command at a time](driving-studio-in-batches.md): The session runner landed (`studio-drive.mjs run` over `.agents/skills/studio-chrome-devtools/scripts/studio-app.mjs`), with saved recipes beside it (`sweep-...
-- [Edit a user message in place (rewind + rerun)](edit-user-message-in-place.md): Proposed, not started.
 - [Moving files in the Finder](finder-moving-files.md): Accepted, 2026-10-02: undo-backed drag-to-move.
 - [Run the transcript scrollbar the full height of the pane](full-height-transcript-scrollbar.md): Proposed, not started: the composer is still a flex sibling below the `MessageScroller` in `task/chat.tsx`.
 - [Grouping a run of tool calls under what it is for](grouped-activities.md): In progress -- the `activity` field, the heading, and collapsing groups are built;
@@ -107,6 +106,7 @@ Each entry is the plan's title and the opening of its status.
 - [Killing a degenerate stream loop](degenerate-stream-loops.md): Both changes are built.
 - [Dictation](dictation.md): Landed (`b57a3a2ca`, with mic access in Settings from `bafc2b9b5`): live dictation in the composer, the problem report, topic instructions and the question c...
 - [Document viewers](document-viewers.md): Completed.
+- [Edit a user message in place](edit-user-message-in-place.md): Built as below.
 - [Explicit permission asks](explicit-permission-asks.md): Landed in full in `489ff735f`: `ask_permission` (`tools/ask-permission.ts`) is the only way a card goes up, refusals name what to ask for and raise nothing,...
 - [File references resolve at click, and the folder watcher goes](file-references-without-a-watcher.md): Landed.
 - [The names in a visible file's front matter](front-matter-names.md): Built.

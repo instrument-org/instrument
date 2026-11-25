@@ -58,7 +58,7 @@ export function SentFileChips({
   });
 }
 
-function normalizeAttachmentFilePath(filePath: string): string {
+export function normalizeAttachmentFilePath(filePath: string): string {
   const bare = filePath.startsWith("./") ? filePath.slice(2) : filePath;
   const legacyPrefix = LEGACY_ATTACHMENT_DIR_PREFIXES.find((prefix) =>
     bare.startsWith(prefix),

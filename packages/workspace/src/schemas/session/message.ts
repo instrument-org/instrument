@@ -237,6 +237,11 @@ export namespace SessionMessage {
      * card asked for.
      */
     fromDraft: z.string().optional(),
+    /**
+     * On an edited message, each message it was before, oldest first: the
+     * versions the person can look back at (`earlierVersions`).
+     */
+    earlierVersions: z.array(StoreId.MessageSchema).optional(),
   });
   const SystemMetadataSchema = BaseMetadataSchema;
   const AssistantMetadataSchema = BaseMetadataSchema.extend({

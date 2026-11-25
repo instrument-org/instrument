@@ -59,6 +59,6 @@ export function ProjectBanner({
   );
 }
 
-/** A quiet button on the project's wash. */
+/** A quiet button under the project's name. */
 const BANNER_BUTTON =
   "h-7 rounded-md bg-foreground/6 px-2.5 text-[13px] text-foreground/80 hover:bg-foreground/10 hover:text-foreground";

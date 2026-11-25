@@ -213,13 +213,6 @@ export function ChatPane({
   // project or back out of one.
   const shiftRef = useRef<HTMLDivElement>(null);
   useProjectShift(shiftRef, chosenProject?.id);
-  // The wash keeps the last project's color while it fades out, since the
-  // column's own tint goes the moment the list leaves.
-  const [lastProject, setLastProject] = useState<Project>();
-  if (chosenProject && chosenProject !== lastProject) {
-    setLastProject(chosenProject);
-  }
-  const washProject = chosenProject ?? lastProject;
 
   // Whether the new-project dialog is up, and for which chat when a row
   // opened it: a project made from a row is filed on that chat as it lands,
@@ -236,29 +229,15 @@ export function ChatPane({
   const deletingChat = chats.find((chat) => chat.id === deletingId);
 
   return (
-    // Its own stacking context, so the project's wash can sit under the rows
-    // without going under the page.
     <div
       className={cn(
-        "relative isolate flex h-full min-h-0 min-w-0 flex-col pt-3",
+        "flex h-full min-h-0 min-w-0 flex-col pt-3",
         chosenProject && "project-tint",
       )}
       style={
         chosenProject ? projectTint(projectColor(chosenProject)) : undefined
       }
     >
-      {/* While the list is one project, its tint washes down the whole width
-          of the page fading in under the address row and out behind the first rows. */}
-      {washProject && (
-        <div
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 bg-linear-to-b from-transparent via-(--project-tint-surface)/50 via-25% to-transparent transition-opacity duration-300 ease-out project-tint motion-reduce:transition-none dark:via-(--project-tint-surface)/25 starting:opacity-0",
-            !chosenProject && "opacity-0",
-          )}
-          style={projectTint(projectColor(washProject))}
-        />
-      )}
       <div className="flex min-h-0 flex-1 flex-col" ref={shiftRef}>
         <div className="mx-auto w-full max-w-170 px-4">
           <FilterHead

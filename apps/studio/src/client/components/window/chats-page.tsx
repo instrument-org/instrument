@@ -10,8 +10,7 @@ import { chatHref, newChatHref, projectHref } from "./window-href";
 
 /**
  * The Chats page: the inbox, its projects, search, drafts and places, in one
- * column down the middle of its tab, a project's under its tint across the
- * whole of it. A chat picked from it comes up in the
+ * column down the middle of its tab. A chat picked from it comes up in the
  * tab group it is in, open or closed (`useShowChatGroup`), and one in
  * neither opens in this tab, as a draft does, so Back comes back to the
  * list.

@@ -169,14 +169,11 @@ export function FilterHead({
       >
         {!isFieldShown && (
           <h2 className="flex min-w-0 flex-1 items-center gap-2.5 text-xl font-semibold text-(--project-tint-ink)">
-            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-background shadow-xs dark:bg-background/80">
-              <ProjectMark
-                className="size-6 text-xl"
-                plain
-                project={project}
-                size="lg"
-              />
-            </span>
+            <ProjectMark
+              className="size-9 rounded-lg text-xl"
+              project={project}
+              size="lg"
+            />
             <span className="truncate">{project.name}</span>
           </h2>
         )}

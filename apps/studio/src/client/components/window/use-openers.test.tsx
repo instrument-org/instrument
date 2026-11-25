@@ -22,6 +22,7 @@ import { useOpeners } from "./use-openers";
 import { chatHref, groupHref } from "./window-href";
 import {
   useWindowTabs,
+  hostGroupOf,
   seedWindowTabsAtom,
   windowTabsAtom,
 } from "./window-tabs";
@@ -68,7 +69,9 @@ const spies = vi.hoisted(() => ({
       _options?: { isShownHere?: boolean },
     ): string => "group_a",
   ),
-  moveTabs: vi.fn((_ids: readonly string[], _group: string) => {}),
+  moveTabs: vi.fn(
+    (_ids: readonly string[], _group: string, _placing?: unknown) => {},
+  ),
   pageMarks: {
     unreached: [] as string[],
     using: [] as {
@@ -723,6 +726,121 @@ describe("an agent tidying tabs and reading History", () => {
       "v1",
     );
     expect(spies.moveTabs).toHaveBeenCalledWith([LEFT_PAGE], OTHER_GROUP);
+  });
+
+  it("moves a file's tab by the page it draws", async () => {
+    const page = StoreId.newTabId();
+    const { result } = windowOnTwoSides();
+    act(() => {
+      result.current.windowTabs.openPage({
+        group: hostGroupOf(LEFT_PAGE),
+        page: { id: page, openedAt: 6 },
+      });
+    });
+    await answerTo(
+      { group: OTHER_GROUP, kind: "moveTabs", tabIds: [page] },
+      "h1",
+    );
+    expect(spies.moveTabs).toHaveBeenCalledWith([LEFT_PAGE], OTHER_GROUP);
+  });
+
+  it("moves tabs onto a side and beside a tab", async () => {
+    windowOnTwoSides();
+    const asks = [
+      { kind: "moveTabs", side: "right", tabIds: [LEFT_PAGE] },
+      { kind: "moveTabs", side: "left", tabIds: [OTHER_BEHIND] },
+      {
+        group: GROUP,
+        kind: "moveTabs",
+        side: "left",
+        tabIds: [OTHER_UP, OTHER_UP],
+      },
+      {
+        kind: "moveTabs",
+        place: { anchor: RIGHT_UP, where: "before" },
+        tabIds: [OTHER_UP],
+      },
+    ] as const;
+    for (const [at, ask] of asks.entries()) {
+      expect(
+        await answerTo({ ...ask, tabIds: [...ask.tabIds] }, `s${at}`),
+      ).toEqual({ requestId: `s${at}` });
+    }
+    expect(spies.moveTabs.mock.calls).toEqual([
+      [[LEFT_PAGE], GROUP, { side: 1 }],
+      [[OTHER_BEHIND], OTHER_GROUP, { side: 0 }],
+      [[OTHER_UP], GROUP, { side: 0 }],
+      [[OTHER_UP], GROUP, { place: { anchor: RIGHT_UP, where: "before" } }],
+    ]);
+  });
+
+  it.each([
+    [
+      "a side that leaves the other with no tab",
+      {
+        side: "right",
+        tabIds: [CHAT_TAB, LEFT_PAGE],
+      },
+      "that leaves no tab on the other side, so there is nothing to put them beside.",
+    ],
+    [
+      "a side of a group that is all of them",
+      { side: "right", tabIds: [OTHER_UP, OTHER_BEHIND] },
+      "that leaves no tab on the other side, so there is nothing to put them beside.",
+    ],
+    [
+      "a side of no one group",
+      { side: "right", tabIds: [OTHER_UP, LEFT_PAGE] },
+      "those tabs are in different tab groups; name the group to put them in.",
+    ],
+    [
+      "a place beside one of them",
+      {
+        place: { anchor: LEFT_PAGE, where: "after" },
+        tabIds: [LEFT_PAGE],
+      },
+      "tab_left is one of the tabs to move; name another to put them beside.",
+    ],
+    [
+      "a place beside a tab that is gone",
+      { place: { anchor: "tab_gone", where: "after" }, tabIds: [LEFT_PAGE] },
+      "no tab tab_gone is open.",
+    ],
+    [
+      "a place beside a tab of another group",
+      {
+        group: GROUP,
+        place: { anchor: OTHER_UP, where: "after" },
+        tabIds: [LEFT_PAGE],
+      },
+      "tab tab_b_up is not in the tab group group_a.",
+    ],
+    [
+      "a group that is gone",
+      { group: "group_z", tabIds: [LEFT_PAGE] },
+      "no tab group group_z is open.",
+    ],
+  ] as const)("refuses to move tabs to %s", async (_case, ask, error) => {
+    windowOnTwoSides();
+    const answer = await answerTo(
+      { kind: "moveTabs", ...ask, tabIds: [...ask.tabIds] },
+      "no",
+    );
+    expect(answer).toEqual({ error, requestId: "no" });
+    expect(spies.moveTabs).not.toHaveBeenCalled();
+  });
+
+  it("joins a split group's sides, and only a split one's", async () => {
+    const { result } = windowOnTwoSides();
+    await answerTo({ group: GROUP, kind: "joinSides" }, "j1");
+    const layout = result.current.windowTabs.layoutOf(GROUP);
+    expect(
+      layout.sides.map(({ tabs, up }) => [tabs.map((tab) => tab.id), up]),
+    ).toEqual([[[CHAT_TAB, LEFT_PAGE, RIGHT_UP, RIGHT_BEHIND], CHAT_TAB]]);
+    expect(await answerTo({ group: GROUP, kind: "joinSides" }, "j2")).toEqual({
+      error: "the tab group group_a is one side already.",
+      requestId: "j2",
+    });
   });
 
   it("pins and unpins a group", async () => {

@@ -822,10 +822,8 @@ function WindowShell({
       }
       return made;
     },
-    moveTabs: (ids, group) => {
-      for (const id of ids) {
-        groups.moveTab(id, group, undefined, { keepsPinned: true });
-      }
+    moveTabs: (ids, group, placing) => {
+      groups.moveTabs(ids, group, placing);
     },
     isOpen: opened !== undefined,
     names,

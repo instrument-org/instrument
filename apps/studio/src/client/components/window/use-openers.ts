@@ -150,8 +150,15 @@ export function useOpeners({
   closeTab: (id: string) => void;
   /** Makes a new tab group of tabs in this window, as Move to New Tab Group moves one, the window staying on its group; answers the group. */
   groupTabs: (ids: readonly string[]) => string;
-  /** Moves tabs into a tab group, as dropping each on its row does. */
-  moveTabs: (ids: readonly string[], group: string) => void;
+  /** Moves tabs into a tab group, onto a side of it or beside a tab there (`useTabGroupActions().moveTabs`). */
+  moveTabs: (
+    ids: readonly string[],
+    group: string,
+    placing?: {
+      place?: { anchor: string; where: "after" | "before" };
+      side?: 0 | 1;
+    },
+  ) => void;
   /** The names of what the window's tabs stand on, which name each tab and group as a chat reads it. */
   names: ScreenNames & { chatTitles: Map<ChatId, string> };
   /** Whether what the window opens on is made; nothing is opened before it is. */
@@ -1140,6 +1147,87 @@ export function useOpeners({
       : browser?.openOrFocus(page.open.url, { group: page.open.group });
   };
 
+  /** The tab an agent names by its id; a file tab's page names the file tab, which every action takes. */
+  const namedTab = (id: string): undefined | WindowTab => {
+    const named = windowTabs.allTabs.find((entry) => entry.id === id);
+    const owner = ownerOfHostGroup(named?.group);
+    return owner === undefined
+      ? named
+      : windowTabs.allTabs.find((entry) => entry.id === owner);
+  };
+
+  /**
+   * Moves tabs where an agent asked: into a group, onto a side, or beside a
+   * tab. A move onto a side that would leave nothing on the other is refused
+   * rather than joining the two, so each split asked for is one.
+   */
+  const moveAsked = (
+    {
+      group,
+      place,
+      side,
+    }: Pick<
+      Extract<WindowTabRequest["action"], { kind: "moveTabs" }>,
+      "group" | "place" | "side"
+    >,
+    moving: readonly WindowTab[],
+  ): Omit<WindowTabAnswer, "requestId"> => {
+    const ids = [...new Set(moving.map((tab) => tab.id))];
+    const anchor = place && namedTab(place.anchor);
+    if (place && anchor?.group === undefined) {
+      return { error: `no tab ${place.anchor} is open.` };
+    }
+    if (anchor !== undefined && ids.includes(anchor.id)) {
+      return {
+        error: `${anchor.id} is one of the tabs to move; name another to put them beside.`,
+      };
+    }
+    if (group !== undefined && anchor !== undefined && anchor.group !== group) {
+      return { error: `tab ${anchor.id} is not in the tab group ${group}.` };
+    }
+    const into =
+      group ??
+      anchor?.group ??
+      (moving.every((tab) => tab.group === moving[0]?.group)
+        ? moving[0]?.group
+        : undefined);
+    if (into === undefined) {
+      return {
+        error:
+          "those tabs are in different tab groups; name the group to put them in.",
+      };
+    }
+    if (!windowTabs.allTabs.some((tab) => tab.group === into)) {
+      return { error: `no tab group ${into} is open.` };
+    }
+    if (place && anchor) {
+      moveTabs(ids, into, {
+        place: { anchor: anchor.id, where: place.where },
+      });
+      return {};
+    }
+    if (side === undefined) {
+      moveTabs(ids, into);
+      return {};
+    }
+    const at = side === "left" ? 0 : 1;
+    const layout = windowTabs.layoutOf(into);
+    // In a group of one side, every tab that stays is the other side.
+    const staying = layout.sides.flatMap(({ tabs }, index) =>
+      layout.sides.length === 2 && index === at
+        ? []
+        : tabs.filter((tab) => !ids.includes(tab.id)),
+    );
+    if (staying.length === 0) {
+      return {
+        error:
+          "that leaves no tab on the other side, so there is nothing to put them beside.",
+      };
+    }
+    moveTabs(ids, into, { side: at });
+    return {};
+  };
+
   /**
    * Does what an agent asked of the tabs, and says what came of it: the tab
    * it made or acted on, or why it did nothing. A tab is any tab of the
@@ -1258,19 +1346,26 @@ export function useOpeners({
     }
     if (action.kind === "groupTabs" || action.kind === "moveTabs") {
       const missing = action.tabIds.filter(
-        (id) =>
-          windowTabs.allTabs.find((tab) => tab.id === id)?.group === undefined,
+        (id) => namedTab(id)?.group === undefined,
       );
       if (missing.length > 0) {
         return { error: `no tab ${missing.join(", ")} is open.` };
       }
+      const moving = action.tabIds.flatMap((id) => namedTab(id) ?? []);
       if (action.kind === "groupTabs") {
-        return { group: groupTabs(action.tabIds) };
+        return { group: groupTabs(moving.map(({ id }) => id)) };
       }
+      return moveAsked(action, moving);
+    }
+    if (action.kind === "joinSides") {
+      const layout = windowTabs.layoutOf(action.group);
       if (!windowTabs.allTabs.some((tab) => tab.group === action.group)) {
         return { error: `no tab group ${action.group} is open.` };
       }
-      moveTabs(action.tabIds, action.group);
+      if (layout.sides.length < 2) {
+        return { error: `the tab group ${action.group} is one side already.` };
+      }
+      windowTabs.joinSides(action.group);
       return {};
     }
     if (action.kind === "pinGroup") {
@@ -1381,12 +1476,7 @@ export function useOpeners({
         ),
       };
     }
-    // A file tab's page names the file tab, which every action takes.
-    const named = windowTabs.allTabs.find((entry) => entry.id === action.tabId);
-    const owner = ownerOfHostGroup(named?.group);
-    const tab = windowTabs.allTabs.find(
-      (entry) => entry.id === (owner ?? action.tabId),
-    );
+    const tab = namedTab(action.tabId);
     if (!tab) {
       return { error: `no tab ${action.tabId} is open.` };
     }

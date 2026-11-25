@@ -214,7 +214,7 @@ export function createStandInWindow(chrome?: SharedChrome) {
     if (
       action.kind === "showGroup" ||
       action.kind === "closeGroup" ||
-      action.kind === "moveTabs" ||
+      action.kind === "joinSides" ||
       action.kind === "pinGroup" ||
       action.kind === "placeGroup"
     ) {
@@ -232,6 +232,9 @@ export function createStandInWindow(chrome?: SharedChrome) {
     // What the app opens on its own as a turn ends is no ask of the agent's.
     if (action.kind === "handOver") {
       return {};
+    }
+    if (action.kind === "moveTabs") {
+      return { error: "the stand-in window has no tab group to move them to." };
     }
     if (action.kind === "groupTabs" || action.kind === "reopenClosed") {
       return { error: "the stand-in window has one tab group." };

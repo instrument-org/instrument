@@ -339,7 +339,7 @@ function answeringWindow() {
             }
           : action.kind === "showGroup" ||
               action.kind === "closeGroup" ||
-              action.kind === "moveTabs" ||
+              action.kind === "joinSides" ||
               action.kind === "pinGroup" ||
               action.kind === "placeGroup"
             ? groups.has(action.group)
@@ -348,33 +348,37 @@ function answeringWindow() {
                   { isListed: action.group !== "group:docs" }
                 : {}
               : { error: `no tab group ${action.group} is open.` }
-            : action.kind === "groupTabs"
-              ? { group: "group:docs" }
-              : action.kind === "history"
-                ? { history: HISTORY.slice(0, action.limit) }
-                : action.kind === "reopenClosed"
-                  ? action.entry === "tab_closed1" ||
-                    action.entry === "tab_closed2"
-                    ? {}
-                    : { error: `nothing in History is ${action.entry}.` }
-                  : action.kind === "handOver" ||
-                      action.kind === "bookmarks" ||
-                      action.kind === "addBookmark"
-                    ? {}
-                    : action.kind === "show" && refusedShows.has(action.tabId)
-                      ? {
-                          error: `tab ${action.tabId} is in a window that is closing.`,
-                        }
-                      : known.has(action.tabId)
+            : action.kind === "moveTabs"
+              ? action.group === undefined || groups.has(action.group)
+                ? {}
+                : { error: `no tab group ${action.group} is open.` }
+              : action.kind === "groupTabs"
+                ? { group: "group:docs" }
+                : action.kind === "history"
+                  ? { history: HISTORY.slice(0, action.limit) }
+                  : action.kind === "reopenClosed"
+                    ? action.entry === "tab_closed1" ||
+                      action.entry === "tab_closed2"
+                      ? {}
+                      : { error: `nothing in History is ${action.entry}.` }
+                    : action.kind === "handOver" ||
+                        action.kind === "bookmarks" ||
+                        action.kind === "addBookmark"
+                      ? {}
+                      : action.kind === "show" && refusedShows.has(action.tabId)
                         ? {
-                            tabId: action.tabId,
-                            ...(action.kind === "read"
-                              ? { text: "Jar\nA rigid container." }
-                              : {}),
+                            error: `tab ${action.tabId} is in a window that is closing.`,
                           }
-                        : {
-                            error: `no tab ${action.tabId} is open in this chat.`,
-                          };
+                        : known.has(action.tabId)
+                          ? {
+                              tabId: action.tabId,
+                              ...(action.kind === "read"
+                                ? { text: "Jar\nA rigid container." }
+                                : {}),
+                            }
+                          : {
+                              error: `no tab ${action.tabId} is open in this chat.`,
+                            };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
@@ -1002,6 +1006,128 @@ describe("window group, move, history and restore", () => {
     expect(result.stdout).toMatchInlineSnapshot(`
       "Moved tab_ex into the tab group "Meeting notes" instrument://group/group:notes; the window shows another group, so they are out of sight.
       "
+    `);
+  });
+
+  it("puts tabs on a side and beside a tab, and joins sides", async () => {
+    const results = [
+      await run({}, "move", "tab_hn", "--side", "right"),
+      await run(
+        {},
+        "move",
+        "tab_ex",
+        "instrument://tab/tab_hn",
+        "--after",
+        "tab_notes",
+      ),
+      await run(
+        {},
+        "move",
+        "tab_hn",
+        "--group",
+        "Meeting notes",
+        "--before",
+        "tab_ex",
+      ),
+      await run({}, "join", "Meeting notes"),
+      await run({}, "join"),
+      await run({}, "move", "tab_hn"),
+      await run({}, "move", "tab_hn", "--side", "top"),
+      await run({}, "move", "tab_hn", "--side", "left", "--after", "tab_ex"),
+    ];
+
+    expect(
+      asked.map(({ action }) => action).filter(({ kind }) => kind !== "list"),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "kind": "moveTabs",
+          "side": "right",
+          "tabIds": [
+            "tab_hn",
+          ],
+        },
+        {
+          "kind": "moveTabs",
+          "place": {
+            "anchor": "tab_notes",
+            "where": "after",
+          },
+          "tabIds": [
+            "tab_ex",
+            "tab_hn",
+          ],
+        },
+        {
+          "group": "group:notes",
+          "kind": "moveTabs",
+          "place": {
+            "anchor": "tab_ex",
+            "where": "before",
+          },
+          "tabIds": [
+            "tab_hn",
+          ],
+        },
+        {
+          "group": "group:notes",
+          "kind": "joinSides",
+        },
+        {
+          "group": "group_a",
+          "kind": "joinSides",
+        },
+      ]
+    `);
+    expect(
+      results.map(({ exitCode, stderr, stdout }) => ({
+        exitCode,
+        said: stderr || stdout,
+      })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "exitCode": 0,
+          "said": "Moved tab_hn: in the tab group "Meeting notes" instrument://group/group:notes, showing on the right side; the window shows another tab group now, so it is not on screen.
+      ",
+        },
+        {
+          "exitCode": 0,
+          "said": "Moved tab_ex: in the tab group "Meeting notes" instrument://group/group:notes, hidden on the right side, behind news.ycombinator.com; the window shows another tab group now, so it is not on screen.
+      Moved tab_hn: in the tab group "Meeting notes" instrument://group/group:notes, showing on the right side; the window shows another tab group now, so it is not on screen.
+      ",
+        },
+        {
+          "exitCode": 0,
+          "said": "Moved tab_hn: in the tab group "Meeting notes" instrument://group/group:notes, showing on the right side; the window shows another tab group now, so it is not on screen.
+      ",
+        },
+        {
+          "exitCode": 0,
+          "said": "Joined the sides of the tab group "Meeting notes" instrument://group/group:notes. The window shows another tab group now, so none of this is on screen. This group shows: [chat] Meeting notes on the left; news.ycombinator.com on the right.
+      ",
+        },
+        {
+          "exitCode": 0,
+          "said": "Joined the sides of the tab group "Prices" instrument://group/group_a. Showing: you on the left; zendesk.com/pricing on the right, beside you.
+      ",
+        },
+        {
+          "exitCode": 1,
+          "said": "instrument window: move needs the group to move them into (instrument window move <tab id>... --group <group>), or --side, --before or --after.
+      ",
+        },
+        {
+          "exitCode": 1,
+          "said": "instrument window: side: Invalid option: expected one of "left"|"right"
+      ",
+        },
+        {
+          "exitCode": 1,
+          "said": "instrument window: move takes one of --side, --before and --after; a tab is put on the side of the tab it goes beside.
+      ",
+        },
+      ]
     `);
   });
 

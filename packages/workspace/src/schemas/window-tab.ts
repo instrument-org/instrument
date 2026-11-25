@@ -51,12 +51,23 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
   z.object({ group: z.string(), kind: z.literal("closeGroup") }),
   /** Makes a new tab group of tabs, moved there as Move to New Tab Group moves one; the window stays on the group it shows. */
   z.object({ kind: z.literal("groupTabs"), tabIds: z.array(z.string()) }),
-  /** Moves tabs into a tab group, as dropping each on its row does. */
+  /**
+   * Moves tabs: into a tab group, as dropping each on its row does; onto a
+   * side of one, as Move to Other Side does; or to just before or after a
+   * tab, as dragging along a strip does, in the order given.
+   */
   z.object({
-    group: z.string(),
+    /** The group they go into; without one, each stays in its own, or goes into the anchor's. */
+    group: z.string().optional(),
     kind: z.literal("moveTabs"),
+    place: z
+      .object({ anchor: z.string(), where: z.enum(["after", "before"]) })
+      .optional(),
+    side: z.enum(["left", "right"]).optional(),
     tabIds: z.array(z.string()),
   }),
+  /** Makes a split tab group's two sides one, as Join Sides does. */
+  z.object({ group: z.string(), kind: z.literal("joinSides") }),
   /** Pins a tab group above its window's other groups, or takes its pin off, as its menu does. */
   z.object({
     group: z.string(),

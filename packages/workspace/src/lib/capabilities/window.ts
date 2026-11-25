@@ -838,27 +838,67 @@ export const windowGroup = defineCapability({
   where: CHATS,
 });
 
+const MOVE_FORM = "<tab id>... --group <group>";
+
 export const windowMove = defineCapability({
   input: z.object({
-    tabs: TabsField("move", "<tab id>... --group <group>"),
-    group: z
-      .string({
-        error: `move needs the group to move them into: ${NAME} move <tab id>... --group <group>.`,
-      })
-      .meta({
-        description: "The tab group to move them into, by its id or name.",
-      }),
+    tabs: TabsField("move", MOVE_FORM),
+    group: z.string().optional().meta({
+      description:
+        "The tab group to move them into, by its id or name; without it, they stay in theirs, or go into that of the tab they are put beside.",
+    }),
+    side: z.enum(["left", "right"]).optional().meta({
+      description:
+        "The side to put them on, beside what stays on the other; a group of one side is split.",
+    }),
+    before: z.string().optional().meta({
+      description: "The tab they go just before in its strip, in order.",
+    }),
+    after: z.string().optional().meta({
+      description: "The tab they go just after in its strip, in order.",
+    }),
   }),
   name: "window.move",
   output: z.string(),
-  async run({ group, tabs }, ctx) {
-    const named = groupNamed(await windowsOf(ctx), idOf(group));
-    if ("error" in named) {
+  async run({ after, before, group, side, tabs }, ctx) {
+    const placed = [side, before, after].filter((each) => each !== undefined);
+    if (placed.length > 1) {
+      throw new Error(
+        "move takes one of --side, --before and --after; a tab is put on the side of the tab it goes beside.",
+      );
+    }
+    if (group === undefined && placed.length === 0) {
+      throw new Error(
+        `move needs the group to move them into (${NAME} move ${MOVE_FORM}), or --side, --before or --after.`,
+      );
+    }
+    const named =
+      group === undefined
+        ? undefined
+        : groupNamed(await windowsOf(ctx), idOf(group));
+    if (named && "error" in named) {
       throw new Error(named.error);
     }
     const ids = tabs.map(idOf);
+    const anchor = before ?? after;
     const answer = await ask(
-      { group: named.group.group.id, kind: "moveTabs", tabIds: ids },
+      {
+        kind: "moveTabs",
+        tabIds: ids,
+        ...(named === undefined ? {} : { group: named.group.group.id }),
+        ...(side === undefined ? {} : { side }),
+        ...(anchor === undefined
+          ? {}
+          : {
+              place: {
+                anchor: idOf(anchor),
+                where:
+                  before === undefined
+                    ? ("after" as const)
+                    : ("before" as const),
+              },
+            }),
+      },
       ctx,
     );
     if (!answer) {
@@ -867,13 +907,74 @@ export const windowMove = defineCapability({
     if (answer.error !== undefined) {
       throw new Error(answer.error);
     }
-    const into = await groupById(named.group.group.id, ctx);
-    return `Moved ${ids.join(", ")} into the tab group ${groupWords(named.group)}${into ? `; ${sightOf(into)}` : ""}.`;
+    if (named !== undefined && placed.length === 0) {
+      const into = await groupById(named.group.group.id, ctx);
+      return `Moved ${ids.join(", ")} into the tab group ${groupWords(named.group)}${into ? `; ${sightOf(into)}` : ""}.`;
+    }
+    const lines: string[] = [];
+    for (const id of ids) {
+      const place = await placeOf(id, ctx);
+      lines.push(`Moved ${id}${place ? `: ${place}` : ""}.`);
+    }
+    return lines.join("\n");
   },
   summary:
-    "Move tabs into an existing tab group, by its id or name, as dropping each on its row does; a group left with no tab closes, or, pinned, gets a new tab.",
+    "Move tabs: into an existing tab group, by its id or name, as dropping each on its row does; with --side, onto its left or right side, beside what stays on the other, as Move to Other Side does; with --before or --after, beside a tab in its strip, in order, as dragging does. Where the user has the keyboard stays. A group left with no tab closes, or, pinned, gets a new tab.",
   surfaces: {
     cli: { help: "", positional: ["tabs"], words: ["window", "move"] },
+  },
+  text: (said) => said,
+  where: CHATS,
+});
+
+export const windowJoin = defineCapability({
+  input: z.object({
+    group: z.string().optional().meta({
+      description:
+        "A tab group's id or name; by default the group of the chat's tab the person last sent from.",
+    }),
+  }),
+  name: "window.join",
+  output: z.string(),
+  async run({ group }, ctx) {
+    const list = await ask({ kind: "list" }, ctx);
+    if (!list) {
+      throw new Error(NO_WINDOW);
+    }
+    const own = list.read?.layout;
+    // As its window lists it, which names it as its sidebar row does.
+    const listed =
+      own &&
+      (list.windows ?? [])
+        .flatMap((window) => window.groups)
+        .find((each) => each.group.id === own.group.id);
+    const named =
+      group === undefined
+        ? own && { group: listed ?? { ...own, name: own.group.id } }
+        : groupNamed(list.windows ?? [], idOf(group));
+    if (named === undefined) {
+      throw new Error(
+        `this chat has no tab in any group. \`${NAME} list --all\` lists every group.`,
+      );
+    }
+    if ("error" in named) {
+      throw new Error(named.error);
+    }
+    const answer = await ask(
+      { group: named.group.group.id, kind: "joinSides" },
+      ctx,
+    );
+    const error = answer ? answer.error : NO_WINDOW;
+    if (error !== undefined) {
+      throw new Error(error);
+    }
+    const joined = await groupById(named.group.group.id, ctx);
+    return `Joined the sides of the tab group ${groupWords(named.group)}.${joined ? ` ${showingLine(joined)}` : ""}`;
+  },
+  summary:
+    "Make a split tab group's two sides one, as Join Sides does: the right side's tabs after the left's, the tab the user has the keyboard in still showing.",
+  surfaces: {
+    cli: { help: "", positional: ["group"], words: ["window", "join"] },
   },
   text: (said) => said,
   where: CHATS,

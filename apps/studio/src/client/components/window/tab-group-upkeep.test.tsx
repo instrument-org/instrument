@@ -18,6 +18,7 @@ import {
   useTabGroupUpkeep,
 } from "./tab-groups";
 import { groupHref, matchScreen } from "./window-href";
+import { groupLayoutOf, tabsIn } from "./tab-model";
 import { seedWindowTabsAtom, windowTabsAtom } from "./window-tabs";
 
 vi.mock("@/client/lib/kept-state", async (importOriginal) => ({
@@ -506,5 +507,170 @@ describe("an agent taking a group's last tab", () => {
       made = actions().make({ href: "/files?path=/a", pinned: true });
     });
     expect(store.get(windowTabsAtom).groups?.[made]?.pinned).toBe(true);
+  });
+});
+
+describe("an agent placing tabs", () => {
+  const OTHER = "group:b";
+
+  /** The group on screen, the person in its chat with two pages after it, and a group behind it of one tab. */
+  function placed(move: {
+    group?: string;
+    ids: string[];
+    pinned?: boolean;
+    placing: Parameters<ReturnType<typeof useTabGroupActions>["moveTabs"]>[2];
+    split?: boolean;
+  }) {
+    const { actions, history, seed, store } = windowWithGroup();
+    act(() => {
+      store.set(windowTabGroupsAtom, [GROUP, OTHER]);
+      seed({
+        activeByGroup: { [GROUP]: "chat", [OTHER]: "far" },
+        ...(move.split ? { besideByGroup: { [GROUP]: "two" } } : {}),
+        groups: move.pinned ? { [OTHER]: { pinned: true } } : {},
+        tabs: [
+          { group: GROUP, href: "/chats", id: "chat", kind: "screen" },
+          { group: GROUP, id: "one", kind: "page", openedAt: 1 },
+          {
+            group: GROUP,
+            id: "two",
+            kind: "page",
+            openedAt: 2,
+            ...(move.split ? { side: 1 as const } : {}),
+          },
+          { group: OTHER, id: "far", kind: "page", openedAt: 3 },
+        ],
+      });
+      history.replace(groupHref(GROUP));
+    });
+    act(() => {
+      actions().moveTabs(move.ids, move.group ?? GROUP, move.placing);
+    });
+    const state = store.get(windowTabsAtom);
+    const layout = groupLayoutOf(state, GROUP);
+    return {
+      keyboard: layout.focused,
+      listed: store.get(windowTabGroupsAtom),
+      other: tabsIn(state, OTHER).length,
+      sides: layout.sides.map(({ tabs, up }) =>
+        tabs.map(({ id }) => (id === up ? `*${id}` : id)).join(" "),
+      ),
+    };
+  }
+
+  it.each([
+    [
+      "onto the right of one side",
+      ["one"],
+      { side: 1 },
+      false,
+      0,
+      ["*chat two", "*one"],
+    ],
+    [
+      "onto the left of one side",
+      ["two"],
+      { side: 0 },
+      false,
+      1,
+      ["*two", "*chat one"],
+    ],
+    [
+      "several onto the left",
+      ["one", "two"],
+      { side: 0 },
+      false,
+      1,
+      ["one *two", "*chat"],
+    ],
+    [
+      "the person's own tab across, its keyboard with it",
+      ["chat"],
+      { side: 1 },
+      false,
+      1,
+      ["*one two", "*chat"],
+    ],
+    [
+      "a side's last tab onto the keyboard's side",
+      ["two"],
+      { side: 0 },
+      true,
+      0,
+      ["*chat one two"],
+    ],
+    [
+      "a tab already there",
+      ["two"],
+      { side: 1 },
+      true,
+      0,
+      ["*chat one", "*two"],
+    ],
+    [
+      "a tab from another group onto the far side",
+      ["far"],
+      { side: 1 },
+      true,
+      0,
+      ["*chat one", "two *far"],
+    ],
+    [
+      "a tab from another group onto the keyboard's side",
+      ["far"],
+      { side: 0 },
+      true,
+      0,
+      ["*chat one far", "*two"],
+    ],
+    [
+      "before another",
+      ["two"],
+      { place: { anchor: "one", where: "before" } },
+      false,
+      0,
+      ["*chat two one"],
+    ],
+    [
+      "two after another, in order",
+      ["two", "far"],
+      { place: { anchor: "chat", where: "after" } },
+      false,
+      0,
+      ["*chat two far one"],
+    ],
+    [
+      "after a tab on the other side",
+      ["one"],
+      { place: { anchor: "two", where: "after" } },
+      true,
+      0,
+      ["*chat", "two *one"],
+    ],
+  ] as const)("%s", (_case, ids, placing, split, keyboard, sides) => {
+    expect(placed({ ids: [...ids], placing, split })).toMatchObject({
+      keyboard,
+      sides,
+    });
+  });
+
+  it("leaves a pinned group it empties a new tab", () => {
+    const { listed, other } = placed({
+      ids: ["far"],
+      pinned: true,
+      placing: { side: 1 },
+    });
+    expect(listed).toEqual([GROUP, OTHER]);
+    expect(other).toBe(1);
+  });
+
+  it("takes the window to the group its tabs went to when none stayed", () => {
+    const { listed, sides } = placed({
+      group: OTHER,
+      ids: ["chat", "one", "two"],
+      placing: { side: 1 },
+    });
+    expect(listed).toEqual([OTHER]);
+    expect(sides).toEqual([""]);
   });
 });

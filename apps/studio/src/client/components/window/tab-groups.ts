@@ -39,6 +39,7 @@ import {
   isBlankNewTab,
   isNewChatTab,
   selectedTabIn,
+  sideIndexOf,
   tabShowingAmong,
   tabsIn,
   type WindowTabs,
@@ -507,13 +508,18 @@ export function useTabGroupActions() {
    * A tab into another group, up there with the keyboard, at the end of the
    * side with it, or of the side `placing` names, made there when it
    * `split`s. A group the tab leaves with nothing closes, unless it is
-   * pinned and the move `keepsPinned`, which leaves it a new tab.
+   * pinned and the move `keepsPinned`, which leaves it a new tab. With
+   * `keepsKeyboard`, the group's tab with the keyboard keeps it and stays up:
+   * the tab moved comes up only on the other side.
    */
   const moveTab = (
     id: string,
     group: string,
     placing?: { index?: number; side: 0 | 1; split: boolean },
-    { keepsPinned = false }: { keepsPinned?: boolean } = {},
+    {
+      keepsKeyboard = false,
+      keepsPinned = false,
+    }: { keepsKeyboard?: boolean; keepsPinned?: boolean } = {},
   ) => {
     const found = store
       .get(windowTabsAtom)
@@ -523,20 +529,86 @@ export function useTabGroupActions() {
     }
     const state = store.get(windowTabsAtom);
     const tab = state.tabs.find((entry) => entry.id === id);
+    const sideWas = sideIndexOf(groupLayoutOf(state, group), id);
+    const inUse = keepsKeyboard ? selectedTabIn(state, group)?.id : undefined;
+    const isInUse = inUse === undefined || inUse === id;
     windowTabs.moveTo({
       group,
       id,
-      select: true,
+      select: isInUse,
       side: placing?.side ?? groupLayoutOf(state, group).focused,
       ...(placing?.index === undefined ? {} : { index: placing.index }),
       ...(placing?.split === true ? { split: true } : {}),
     });
+    if (!isInUse) {
+      const layout = groupLayoutOf(store.get(windowTabsAtom), group);
+      const side = sideIndexOf(layout, id);
+      if (side !== sideWas && side !== layout.focused) {
+        windowTabs.raise(id);
+      }
+    }
     const from = tab?.group;
     if (from !== undefined && from !== group) {
       const left = tabsIn(state, from).filter((entry) => entry.id !== id);
       if (left.length === 0) {
         drop(from);
       }
+    }
+  };
+
+  /**
+   * Moves tabs as an agent asks, in the order given (`moveTab`): into a
+   * group, onto a side of one, or to a place beside a tab. The tab the
+   * person has the keyboard in, in a group on screen here or one the tabs are
+   * placed in, keeps it, and the window goes where its tabs went when the
+   * group it shows is left none.
+   */
+  const moveTabs = (
+    ids: readonly string[],
+    group: string,
+    {
+      place,
+      side,
+    }: {
+      place?: { anchor: string; where: "after" | "before" };
+      side?: 0 | 1;
+    } = {},
+  ) => {
+    const onScreen = groupUp();
+    const keeps = {
+      keepsKeyboard:
+        place !== undefined || side !== undefined || group === onScreen,
+      keepsPinned: true,
+    };
+    let anchor = place?.anchor;
+    for (const id of ids) {
+      const layout = groupLayoutOf(store.get(windowTabsAtom), group);
+      const anchorSide =
+        anchor === undefined ? undefined : sideIndexOf(layout, anchor);
+      if (place && anchorSide !== undefined) {
+        // Its place along the strip it goes into, counted without it.
+        const at = (layout.sides[anchorSide]?.tabs ?? [])
+          .filter((tab) => tab.id !== id)
+          .findIndex((tab) => tab.id === anchor);
+        moveTab(
+          id,
+          group,
+          {
+            index: place.where === "after" ? at + 1 : at,
+            side: anchorSide,
+            split: false,
+          },
+          keeps,
+        );
+        anchor = place.where === "after" ? id : anchor;
+      } else if (side === undefined) {
+        moveTab(id, group, undefined, keeps);
+      } else if (layout.sides.length < 2 || sideIndexOf(layout, id) !== side) {
+        moveTab(id, group, { side, split: layout.sides.length < 2 }, keeps);
+      }
+    }
+    if (onScreen !== undefined && onScreen !== group && !hasTabs(onScreen)) {
+      show(group);
     }
   };
 
@@ -943,6 +1015,7 @@ export function useTabGroupActions() {
     make,
     moveOff,
     moveTab,
+    moveTabs,
     moveToNewWindow,
     newTab,
     openChat,

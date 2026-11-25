@@ -70,11 +70,11 @@ import {
   hoverPicturesAtom,
   pictureUrl,
 } from "./hover-pictures";
-import { rowSidesOf } from "./group-leads";
+import { groupNameOf, rowSidesOf } from "./group-leads";
 import { GroupRowLines } from "./group-row-lines";
 import { RowLinesView } from "./row-half";
 import { quiet } from "./row-lines";
-import { useTabTitle } from "./tab-title";
+import { useTabNames } from "./tab-title";
 import {
   pressGroupRow,
   useSidebarDrag,
@@ -629,13 +629,14 @@ export function GroupRow({
   onShow?: (group: string, options: { newWindow: boolean }) => void;
 }) {
   const { groupOwn, layoutOf } = useWindowTabs();
-  const titleOf = useTabTitle(chatTitles);
+  const names = useTabNames(chatTitles);
   const held = groupOwn[entry.group]?.lead;
-  const sides = rowSidesOf(layoutOf(entry.group));
-  const ups = sides?.map((side) => side.up) ?? [];
-  // Named as a group, so a row whose tab is a page the sidebar also has a
-  // button for (Activity) is told apart from that button.
-  const label = `${ups.length > 0 ? ups.map(titleOf).join(" and ") : entry.title} tab group`;
+  const layout = layoutOf(entry.group);
+  const sides = rowSidesOf(layout);
+  // Named as a group, by the name its row shows, so a row whose tab is a
+  // page the sidebar also has a button for (Activity) is told apart from
+  // that button.
+  const label = `${groupNameOf(layout, held, names) ?? entry.title} tab group`;
   const close = onClose && {
     label: "Close Tab Group",
     run: () => {

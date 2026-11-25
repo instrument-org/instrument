@@ -138,6 +138,26 @@ describe("platform API reachability", () => {
     expect(fetch).toHaveBeenCalledOnce();
     expect(reachability.getPlatformApiReachability()).toBe("reachable");
   });
+
+  it("asks when nothing has failed, and finds a connection that went", async () => {
+    electronApp.isPackaged = true;
+    const fetch = vi.fn().mockResolvedValue(new Response(null));
+    vi.stubGlobal("fetch", fetch);
+    const onChange = vi.fn();
+    const reachability = await load();
+    reachability.startPlatformApiReachability({ onChange });
+
+    reachability.askPlatformApi();
+    reachability.askPlatformApi();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetch).toHaveBeenCalledOnce();
+    expect(reachability.getPlatformApiReachability()).toBe("reachable");
+
+    fetch.mockRejectedValue(refused());
+    reachability.askPlatformApi();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(onChange.mock.calls).toEqual([["reachable"], ["unreachable"]]);
+  });
 });
 
 describe("probeDelay", () => {

@@ -30,6 +30,7 @@ export function probeDelay(failedProbes: number, isPackaged: boolean) {
 let reachability: Reachability = "unknown";
 let probeTimer: NodeJS.Timeout | undefined;
 let failedProbes = 0;
+let isProbing = false;
 let onChange: ((reachability: Reachability) => void) | undefined;
 
 /**
@@ -89,8 +90,22 @@ export function probePlatformApiNow() {
   void probe();
 }
 
+/**
+ * Asks now whatever is known, for while the OS reports no connection: an
+ * answer shows there is one, and no answer from an API last known to answer
+ * shows the connection went.
+ */
+export function askPlatformApi() {
+  if (isProbing) {
+    return;
+  }
+  clearTimeout(probeTimer);
+  void probe();
+}
+
 async function probe() {
   probeTimer = undefined;
+  isProbing = true;
   try {
     await fetch(platformApiBaseUrl(), {
       method: "HEAD",
@@ -99,6 +114,8 @@ async function probe() {
     notePlatformApiAnswered();
   } catch (error) {
     notePlatformApiFailed(error);
+  } finally {
+    isProbing = false;
   }
   if (reachability === "unreachable") {
     failedProbes += 1;

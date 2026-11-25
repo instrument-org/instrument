@@ -1,5 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import {
+  askPlatformApi,
   getPlatformApiReachability,
   probePlatformApiNow,
   type Reachability,
@@ -15,13 +16,17 @@ import ms from "ms";
 
 // `net.isOnline` can miss a dropped Wi-Fi network that still holds an
 // address, and nothing announces one, so it is asked again on this timer too.
+// It can also keep saying there is no connection after one came up (an app
+// opened at login, before the network), so while it says that the platform
+// API is asked on this timer as well.
 const ONLINE_CHECK_INTERVAL = ms("30 seconds");
 
 /**
- * The one status the window's corner shows: offline wins, since a platform
- * API that does not answer from a computer with no connection says nothing
- * about the API; then a platform API known not to answer. A development
- * build's `override` stands in for both.
+ * The one status the window's corner shows. Offline takes the OS reporting no
+ * connection and the platform API not known to answer: an answer is a
+ * connection whatever the OS reports, and no answer from a computer the OS
+ * calls offline says nothing about the API. Then a platform API known not to
+ * answer. A development build's `override` stands in for both.
  */
 export function combineNetworkStatus(inputs: {
   isOnline: boolean;
@@ -31,7 +36,7 @@ export function combineNetworkStatus(inputs: {
   if (inputs.override) {
     return inputs.override;
   }
-  if (!inputs.isOnline) {
+  if (!inputs.isOnline && inputs.platformApi !== "reachable") {
     return "offline";
   }
   return inputs.platformApi === "unreachable"
@@ -56,6 +61,7 @@ export function readNetworkStatusOverride(
 
 let isOnline = true;
 let status: NetworkStatus = "online";
+let isOverruled = false;
 let override: NetworkStatus | undefined;
 let onBackOnline: (() => void) | undefined;
 
@@ -76,6 +82,9 @@ export function startNetworkStatus(options: { onBackOnline: () => void }) {
   }
   isOnline = net.isOnline();
   startPlatformApiReachability({ onChange: recheckNetworkStatus });
+  if (!isOnline) {
+    askPlatformApi();
+  }
   update();
 
   powerMonitor.on("resume", recheckNetworkStatus);
@@ -98,21 +107,30 @@ export function recheckNetworkStatus() {
   if (isOnline && !wasOnline) {
     probePlatformApiNow();
   }
+  if (!isOnline) {
+    askPlatformApi();
+  }
   update();
 }
 
 function update() {
-  const next = combineNetworkStatus({
-    isOnline,
-    override,
-    platformApi: getPlatformApiReachability(),
-  });
+  const platformApi = getPlatformApiReachability();
+  const wasOverruled = isOverruled;
+  isOverruled = !isOnline && platformApi === "reachable";
+  if (isOverruled && !wasOverruled) {
+    logger.warn(
+      "The system reports no connection while the platform API answers; counted as online",
+    );
+  }
+  const next = combineNetworkStatus({ isOnline, override, platformApi });
   if (next === status) {
     return;
   }
   const previous = status;
   status = next;
-  logger.info(`Network status ${previous} -> ${next}`);
+  logger.info(
+    `Network status ${previous} -> ${next} (system ${isOnline ? "online" : "offline"}, platform API ${platformApi})`,
+  );
   publisher.publish("network.status.updated", null);
   if (next === "online") {
     onBackOnline?.();

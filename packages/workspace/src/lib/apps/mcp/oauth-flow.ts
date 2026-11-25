@@ -2,7 +2,10 @@ import { TOOL_NAMES } from "../../../tools/name";
 import { APP_NAME } from "@instrument-org/shared";
 import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import {
+  StreamableHTTPClientTransport,
+  StreamableHTTPError,
+} from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { err, ok, type Result } from "neverthrow";
 import { noop } from "radashi";
 
@@ -236,6 +239,23 @@ export async function beginMcpOAuth({
   } catch (error) {
     await client.close().catch(noop);
     failure = error;
+    // The sign-in it has refreshes and is refused all the same, so only a new
+    // one, perhaps with another account, can change that.
+    if (
+      signedIn &&
+      opened.url === undefined &&
+      error instanceof StreamableHTTPError &&
+      error.code === 401
+    ) {
+      await store.clearTokens(slug);
+      await auth(provider, {
+        fetchFn: registration.fetch,
+        scope,
+        serverUrl: new URL(manifest.url),
+      }).catch((error_: unknown) => {
+        failure = error_;
+      });
+    }
   }
   if (opened.url === undefined) {
     // Something other than the need to authorize (a network error, a
@@ -444,8 +464,10 @@ async function completeHostedMcpOAuth(
     authProvider: flow.provider,
     fetch: fetchForMcp,
   });
+  let signedIn = false;
   try {
     await flow.transport.finishAuth(code);
+    signedIn = true;
     await client.connect(transport);
     const tools = await client.listTools();
     if (flow.updatesTo) {
@@ -485,9 +507,13 @@ async function completeHostedMcpOAuth(
       toolCount: tools.tools.length,
     });
   } catch (error) {
+    // A service can give a sign-in and then refuse to be used with it, so the
+    // message says which of the two failed.
     return err({
       cause: error,
-      message: describeMcpFailure(error),
+      message: signedIn
+        ? `Signed in, but using the app then failed: ${describeMcpFailure(error)}`
+        : describeMcpFailure(error),
       reason: "unauthorized",
     });
   } finally {

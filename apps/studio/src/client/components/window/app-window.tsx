@@ -1,3 +1,4 @@
+import { showScreenFieldWithKeyboard } from "@/client/lib/screen-fields";
 import { keyboardSide } from "@/client/lib/keyboard-place";
 import { OUTSIDE_FILES_MAX } from "@instrument-org/shared";
 import {
@@ -58,6 +59,7 @@ import {
   focusScreenHome,
   installKeyboardHome,
   isKeyboardNowhere,
+  focusHomeIn,
 } from "@/client/lib/keyboard-home";
 import { installTypeToCompose } from "@/client/lib/type-to-compose";
 import { installUndoKey } from "@/client/lib/undo-toast";
@@ -443,15 +445,19 @@ function AppTabView({
 
 /**
  * The caret into the address field of the tab up on the side with the
- * keyboard, with what is in it selected.
+ * keyboard, with what is in it selected: a chat's comes up for it, and a new
+ * tab, which has none, takes it in its own box.
  */
 function focusField() {
-  const field = (keyboardSide() ?? document).querySelector<HTMLInputElement>(
+  const side = keyboardSide();
+  const field = (side ?? document).querySelector<HTMLInputElement>(
     "[data-app-tab-active] [data-tab-location] input",
   );
   if (field) {
     editField(field);
     field.select();
+  } else if (!showScreenFieldWithKeyboard() && side) {
+    focusHomeIn(side);
   }
 }
 

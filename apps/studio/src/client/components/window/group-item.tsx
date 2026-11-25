@@ -4,6 +4,7 @@ import { getGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { registerHistorySurface } from "@/client/lib/history-surfaces";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { useGroupTabRouter } from "@/client/lib/group-tab-router-registry";
+import { offerScreenField } from "@/client/lib/screen-fields";
 import { offerScreenReload } from "@/client/lib/screen-reloads";
 import { refetchTranscripts } from "@/client/components/transcript/use-transcript-feed";
 import { browserTargetOf } from "@instrument-org/workspace/client";
@@ -50,6 +51,7 @@ import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { KeptScrolls } from "./kept-scrolls";
 import { isKeptScreen, keptScreensAtom, withScreenUp } from "./kept-screens";
 import { segmentsOf } from "./host-path";
+import { editField } from "./omnibar-field";
 import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow, TabRowControl } from "./tab-location-row";
@@ -267,6 +269,22 @@ export function GroupItem({
     });
   }, [isReloaded, isShown]);
 
+  // A chat has no row over it, and Open Location brings its field up over
+  // its head until the caret leaves it.
+  const isRowless = up.kind === "screen" && chatOfTab(up) !== undefined;
+  const [isFieldAsked, setFieldAsked] = useState(false);
+  useEffect(() => {
+    if (!isRowless || !isShown) {
+      return;
+    }
+    return offerScreenField({
+      element: () => anchorRef.current,
+      show: () => {
+        setFieldAsked(true);
+      },
+    });
+  }, [isRowless, isShown]);
+
   // A screen up is kept drawn once another tab or group takes its place
   // (`kept-screens.ts`), the one longest out of sight let go first.
   const setKeptScreens = useSetAtom(keptScreensAtom);
@@ -436,6 +454,25 @@ export function GroupItem({
     />
   ) : chatOfTab(up) === undefined ? (
     row(location)
+  ) : isFieldAsked ? (
+    <AskedField
+      onLeft={() => {
+        setFieldAsked(false);
+      }}
+    >
+      <TabLocationRow
+        address={addressOfTab(up)}
+        location={location}
+        // The chat stays: what the field names opens beside it, as what a
+        // click in it names does.
+        onSite={(url) => {
+          appWindow.openPage(url, { beside: up.id });
+        }}
+        onVisit={(href) => {
+          appWindow.openScreen(href, { beside: up.id });
+        }}
+      />
+    </AskedField>
   ) : null;
   const versions = versionsOf(location);
   const content = router ? (
@@ -561,6 +598,41 @@ const RELOADED_SCREENS = new Set<Screen["kind"]>([
   "settings",
 ]);
 
+/** A row laid over the head of a screen that draws none, with the caret in its field, until the caret leaves it. */
+function AskedField({
+  children,
+  onLeft,
+}: {
+  children: ReactNode;
+  onLeft: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const box = ref.current?.querySelector("input");
+    if (box) {
+      editField(box);
+    }
+  }, []);
+  return (
+    <div
+      className="absolute inset-x-0 top-0 z-30"
+      onBlur={(event) => {
+        // The window losing the keyboard takes it from the box only until
+        // the window has it again.
+        if (
+          document.hasFocus() &&
+          !event.currentTarget.contains(event.relatedTarget)
+        ) {
+          onLeft();
+        }
+      }}
+      ref={ref}
+    >
+      {children}
+    </div>
+  );
+}
+
 /** What a card holds, edge to edge with nothing around it: the pane's own look. */
 function Bare({
   anchorRef,
@@ -572,7 +644,10 @@ function Bare({
   head?: ReactNode;
 }) {
   return (
-    <div className="flex h-full flex-col bg-background" ref={anchorRef}>
+    <div
+      className="relative flex h-full flex-col bg-background"
+      ref={anchorRef}
+    >
       {head}
       <div className="min-h-0 flex-1">{children}</div>
     </div>

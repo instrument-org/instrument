@@ -42,7 +42,6 @@ import { matchScreen } from "@/client/components/window/window-href";
 import { type TabLocation } from "@/client/components/window/tab-location";
 import { useDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { iconHostOf } from "@/client/lib/favicon-url";
-import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
 import { leaveField } from "@/client/lib/keyboard-home";
 import {
@@ -52,11 +51,7 @@ import {
   shownTypedPath,
   typedPathHere,
 } from "@/client/lib/locate-typed-path";
-import {
-  type TypedPath,
-  typedFileName,
-  withoutTrailingSeparators,
-} from "@/client/lib/typed-path";
+import { type TypedPath, typedFileName } from "@/client/lib/typed-path";
 import {
   webSearchLabel,
   webSearchUrl,
@@ -118,28 +113,6 @@ const PER_KIND_SHOWN = 3;
 const ENTRIES_SHOWN = 8;
 
 /**
- * What a tab's field reaches: the computer from a folder or a file, and the
- * web, with the app's own pages and chats, from anything else.
- */
-type OmnibarMode = "files" | "web";
-
-function omnibarModeOf(location: TabLocation): OmnibarMode {
-  switch (location.kind) {
-    // A file shown as a page is a page: its field takes an address the way a
-    // browser's does, and a path still opens the file's own view.
-    case "file": {
-      return location.asPage ? "web" : "files";
-    }
-    case "folder": {
-      return "files";
-    }
-    default: {
-      return "web";
-    }
-  }
-}
-
-/**
  * What an address in the field opens: in developer mode a debug page's
  * (`debugHrefOf`), which nowhere but the field takes, and otherwise what
  * any address opens (`targetOfAddress`).
@@ -155,30 +128,21 @@ function fieldTargetOf(
 }
 
 /** What the field says it is for, empty and to a screen reader. */
-const PROMPTS: Record<OmnibarMode, string> = {
-  files: "Go to a folder or file",
-  web: "Search or enter address",
-};
+const PROMPT = "Search or enter address";
 
 /**
- * A tab's address field, which reads what is typed in the terms of what the
- * tab holds (see `OmnibarMode`).
- *
- * The app's own pages and a chat have no address a person types, so the
- * field opens empty there and searches what it does on a new tab; each page
- * has its own search for what is in it.
+ * A tab's address field, which reads what is typed the same way whatever the
+ * tab shows: an address or a path goes there, and anything else searches the
+ * web. What the tab shows decides only the address the field opens with.
  *
  * The first row is always what Enter does with the words in the field, and it
- * is what the field says: an address a browser would open, a search, a path,
- * or the best match in the screen's list. The rows under it are other things
- * the words could mean, and the arrows pick one without the field forgetting
- * what was typed. On the web and the computer the field finishes an address or
- * a name ahead of the caret, from where the browser has been or what the
- * folder holds, the way a browser's address bar does.
- *
- * It lives in the row above a new tab, where a browser keeps its address
- * field, so a new tab is the field with nothing in it yet rather than a page
- * with a second field drawn on it.
+ * is what the field says: an address a browser would open, a path, or a
+ * search. The rows under it are other things the words could mean (bookmarks,
+ * the app's own pages and chats by name, pages the window knows, the engine's
+ * suggestions, a folder's names), and the arrows pick one without the field
+ * forgetting what was typed. The field finishes an address or a path's name
+ * ahead of the caret, from where the browser has been or what the folder
+ * holds, the way a browser's address bar does.
  */
 export function Omnibar({
   hint,
@@ -201,7 +165,7 @@ export function Omnibar({
    * Undefined when it has none, which leaves `initial`.
    */
   liveAddress?: () => string | undefined;
-  /** Where the tab is, which is what the field reaches and where a relative path starts. */
+  /** Where the tab is, which says whether the address in the field is one to go to again. */
   location: TabLocation;
   /** Called as the field sends the tab somewhere, ahead of the place changing: the words typed are done with. */
   onSent?: () => void;
@@ -217,7 +181,6 @@ export function Omnibar({
   /** Whether an empty field takes the caret as it arrives; false where something beside it has the caret first. */
   takesCaret?: boolean;
 }) {
-  const mode = omnibarModeOf(location);
   const { openPage, openScreen } = useWindow();
   const isDeveloperMode = useDeveloperMode();
   const router = useRouter();
@@ -409,8 +372,6 @@ export function Omnibar({
   const found = useOmnibarRows({
     canComplete,
     isEditing,
-    location,
-    mode,
     open: { openAddress, openFolder, openPath, openSite, visit },
     typed,
   });
@@ -422,7 +383,7 @@ export function Omnibar({
   const shownRows = notice
     ? missedRows(notice.outcome, notice.typed, missedOpeners)
     : found;
-  const { completion, empty } = shownRows;
+  const { completion } = shownRows;
   const rows =
     looking === typed.trim()
       ? shownRows.rows.map((row) =>
@@ -438,7 +399,6 @@ export function Omnibar({
   // The field says what Enter will do: the words with the rest of an address
   // written in ahead of the caret, or the row the arrows are on.
   const shown = picked?.fill ?? `${query}${completion}`;
-  const prompt = PROMPTS[mode];
 
   // The part the field wrote in is selected, so the next letter typed
   // replaces it and Backspace takes it away, the way a browser's does.
@@ -473,7 +433,7 @@ export function Omnibar({
         aria-autocomplete="both"
         aria-controls={isListShown ? listId : undefined}
         aria-expanded={isListShown}
-        aria-label={prompt}
+        aria-label={PROMPT}
         className={cn(
           "h-full min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground",
           // A new tab's empty box rests with its placeholder centered, the
@@ -608,7 +568,7 @@ export function Omnibar({
             // No default
           }
         }}
-        placeholder={prompt}
+        placeholder={PROMPT}
         ref={input}
         role="combobox"
         spellCheck={false}
@@ -619,7 +579,6 @@ export function Omnibar({
       {isListShown ? (
         <OmniList
           current={current}
-          empty={empty}
           id={listId}
           notice={notice ? missedPathNotice(notice.outcome) : undefined}
           onRun={run}
@@ -631,23 +590,19 @@ export function Omnibar({
 }
 
 /**
- * The rows the words in the field stand for, in the terms of what the tab
- * holds, the first of them what Enter does, and the rest of a name or an
- * address the field writes in ahead of the caret.
+ * The rows the words in the field stand for, the first of them what Enter
+ * does, and the rest of a name or an address the field writes in ahead of
+ * the caret.
  */
 function useOmnibarRows({
   canComplete,
   isEditing,
-  location,
-  mode,
   open,
   typed,
 }: {
   canComplete: boolean;
   /** Whether the field is being typed in, the only time the rows are read. */
   isEditing: boolean;
-  location: TabLocation;
-  mode: OmnibarMode;
   open: {
     /** Opens any address, the app's own included. */
     openAddress: (address: string) => void;
@@ -657,18 +612,17 @@ function useOmnibarRows({
     visit: (href: string) => void;
   };
   typed: string;
-}): { completion: string; empty?: string; rows: OmniRow[] } {
+}): { completion: string; rows: OmniRow[] } {
   const home = window.api.homeDir;
   const words = typed.trim();
   const shell = use(ShellContext);
   const appsBySlug = useAppsBySlug();
   const isDeveloperMode = useDeveloperMode();
 
-  // On the web: the pages the window knows, bookmarks ahead of history,
-  // whose part is the pages the person goes back to (Chromium's significant
+  // The pages the window knows, bookmarks ahead of history, whose part is the pages the person goes back to (Chromium's significant
   // ones) rather than every page seen once.
   const visited = useCompletionPages({
-    enabled: isEditing && mode === "web",
+    enabled: isEditing,
   });
   const bookmarks = useAtomValue(bookmarksAtom);
   // The app's own addresses kept as bookmarks are the app's places, which
@@ -702,7 +656,7 @@ function useOmnibarRows({
     );
   // What the engine would finish the words as, asked once typing pauses
   // rather than on every letter, and never for a path or an address.
-  const wantsSuggestions = mode === "web" && isSearchWords(words);
+  const wantsSuggestions = isSearchWords(words);
   const [asked, setAsked] = useState("");
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -722,18 +676,13 @@ function useOmnibarRows({
     }),
   );
 
-  // On the computer: the folder the words are in, and the start of a name.
-  const here = hereOf(location, home);
+  // A path's names: the folder the words are in, and the start of a name.
   // A pasted path is listed as the path it names, out of its quotes.
-  const path = pathQuery(typedPathHere(typed)?.written ?? typed, {
-    here,
-    home,
-  });
+  const typedHere = typedPathHere(typed);
+  const path = typedHere && pathQuery(typedHere.written, { here: home, home });
   const listing = useQuery(
     computerFolderOptions(
-      mode === "files" && words !== ""
-        ? { id: WINDOW_ID, path: path.folder }
-        : skipToken,
+      isEditing && path ? { id: WINDOW_ID, path: path.folder } : skipToken,
       { staleMs: ms("10 seconds") },
     ),
   );
@@ -741,7 +690,7 @@ function useOmnibarRows({
   // A chat's row says the project it is filed under.
   const chats = useQuery({
     ...chatListOptions(),
-    enabled: isEditing && mode === "web",
+    enabled: isEditing,
   }).data;
   const projectNames = new Map(
     (shell?.projects ?? []).map((project) => [project.id, project.name]),
@@ -762,6 +711,16 @@ function useOmnibarRows({
     .map((bookmark) => bookmarkRow(bookmark, { openAddress }));
   const isBookmarked = (url: string) =>
     bookmarks.some((bookmark) => sameAddress(bookmark.url, url));
+
+  const searchRowOf = (searched: string): OmniRow => ({
+    fill: searched,
+    icon: <MagnifyingGlassIcon className="size-4" />,
+    id: "search",
+    name: webSearchLabel(searched),
+    run: () => {
+      open.openSite(webSearchUrl(searched));
+    },
+  });
 
   // An address of the app's own, typed or pasted, is one place.
   const target = isInstrumentAddress(words)
@@ -801,250 +760,163 @@ function useOmnibarRows({
     };
   }
 
-  if (mode === "web") {
-    const completion =
-      canComplete && typedPathHere(words) === undefined
-        ? addressCompletion(typed, pages)
-        : "";
-    const whole = `${typed}${completion}`.trim();
-    const typedPath = typedPathHere(whole);
-    const address = typedPath ? undefined : typedAddress(whole);
-    const site = address?.kind === "page" ? address : undefined;
-    const known = site
-      ? pages.find((page) => bareAddress(page.url) === bareAddress(site.url))
-      : undefined;
-    const searchRow: OmniRow = {
-      fill: whole,
-      icon: <MagnifyingGlassIcon className="size-4" />,
-      id: "search",
-      name: webSearchLabel(whole),
-      run: () => {
-        open.openSite(webSearchUrl(whole));
-      },
-    };
-    const first: OmniRow = typedPath
-      ? pathRow(
-          shownTypedPath(typedPath),
-          () => {
-            void open.openPath(typedPath);
-          },
-          typedFileName(typedPath),
-        )
-      : site
-        ? {
-            detail: known?.title,
-            fill: whole,
-            icon: (
-              <TypedAddressMark
-                address={site}
-                className="size-4"
-                isKnown={isKnownSite(site.url, pages)}
-              />
-            ),
-            id: "site",
-            name: typedAddressLabel(site.shown),
-            run: () => {
-              // A page the window knows opens at the address it was at, the
-              // one the field finished the words as.
-              open.openSite(known?.url ?? site.url);
-            },
-          }
-        : searchRow;
-    const pageRows = matchPages(words, pages)
-      .filter((page) => page.url !== known?.url && !isBookmarked(page.url))
-      .slice(0, PER_KIND_SHOWN)
-      .map(
-        (page): OmniRow => ({
-          detail: siteOf(page.url),
-          fill: page.url,
-          icon: <PageFavicon favicon={page.favicon} url={page.url} />,
-          id: `page:${page.url}`,
-          name: page.title || bareAddress(page.url),
-          run: () => {
-            open.openSite(page.url);
-          },
-        }),
-      );
-    const suggestionRows = wantsSuggestions
-      ? (suggestions.data ?? [])
-          .filter(
-            (suggestion) => suggestion.toLowerCase() !== whole.toLowerCase(),
-          )
-          .slice(0, PER_KIND_SHOWN)
-          .map((suggestion): OmniRow => {
-            // What the engine suggests is a search unless it is plainly an
-            // address.
-            const suggested = typedAddress(suggestion);
-            const suggestedSite =
-              suggested?.kind === "page" && !suggested.doubt
-                ? suggested
-                : undefined;
-            return {
-              fill: suggestion,
-              icon: suggestedSite ? (
-                siteIcon(suggestedSite.url)
-              ) : (
-                <MagnifyingGlassIcon className="size-4" />
-              ),
-              id: `suggestion:${suggestion}`,
-              name: suggestion,
-              run: () => {
-                open.openSite(suggestedSite?.url ?? webSearchUrl(suggestion));
-              },
-            };
-          })
-      : [];
-    // The app's own places the words name: Enter's when they name one
-    // whole, and under it otherwise.
-    const appRows = appPlaceRows(words, {
-      chatTitles: shell?.chatTitles,
-      isBookmarked,
-      openAddress,
-      projectOfChat,
-    });
-    // A bookmark or a place of the app's own named whole is what Enter
-    // takes.
-    const placeRows = [...markRows, ...appRows];
-    const named = placeRows.find(
-      (row) => row.name.toLowerCase() === words.toLowerCase(),
+  // A path goes where it says: to the name the field finished it as, else
+  // to the path as typed, with the folder's other names that match under it.
+  if (typedHere && path) {
+    const listed = listing.data;
+    const entries = matchEntries(
+      path.prefix,
+      listed?.kind === "listing" ? listed.entries : [],
     );
-    return {
-      completion: named ? "" : completion,
-      rows: named
-        ? [
-            named,
-            ...placeRows.filter((row) => row !== named),
-            first,
-            ...pageRows,
-            ...suggestionRows,
-          ]
-        : [
-            first,
-            // A path that may as well be a search, and a name whose ending
-            // no site has.
-            ...(typedPath?.alsoSearch || site?.doubt === "host"
-              ? [searchRow]
-              : []),
-            ...placeRows,
-            ...pageRows,
-            ...suggestionRows,
-          ],
-    };
-  }
-
-  // On the computer.
-  // A `file://` address to a place in a page (`?frame=2`) opens the page
-  // there, the way a browser opens it; any other names a path, which opens
-  // the file's own view like the path typed.
-  const fileAddress =
-    typedPathHere(words) === undefined ? typedAddress(words) : undefined;
-  const filePage = fileAddress?.kind === "page" ? fileAddress : undefined;
-  const filePagePath = hostPathOfFileUrl(filePage?.url);
-  if (filePage && filePagePath !== undefined) {
-    return {
-      completion: "",
-      rows: [
-        {
-          fill: words,
-          icon: (
-            <FileTypeIcon
-              className="size-4"
-              fileName={segmentsOf(filePagePath).at(-1) ?? filePagePath}
-            />
-          ),
-          id: "site",
-          name: words,
-          run: () => {
-            open.openSite(filePage.url);
+    // The first name the start typed begins, letter for letter, so what the
+    // field writes in is a real name's rest.
+    const finished =
+      canComplete && path.prefix !== ""
+        ? entries.find((entry) => entry.name.startsWith(path.prefix))
+        : undefined;
+    // The name typed whole is the path itself, which is the row above it.
+    const isTyped = (entry: (typeof entries)[number]) =>
+      entry.name === path.prefix;
+    const completion = finished ? finished.name.slice(path.prefix.length) : "";
+    const entryRow = (entry: (typeof entries)[number]): OmniRow => ({
+      detail: segmentsOf(path.folder).at(-1),
+      fill:
+        entry === finished
+          ? `${typed}${completion}${entry.kind === "folder" ? "/" : ""}`
+          : `${path.lead}${entry.name}${entry.kind === "folder" ? "/" : ""}`,
+      icon:
+        entry.kind === "folder" ? (
+          <FileSystemFolderGlyph className="h-3 w-auto" />
+        ) : (
+          <FileTypeIcon className="size-4" fileName={entry.name} />
+        ),
+      id: `entry:${entry.path}`,
+      name: entry.name,
+      run: () => {
+        if (entry.kind === "folder") {
+          open.openFolder(entry.path);
+        } else {
+          open.visit(fileHref(entry.path));
+        }
+      },
+      ...(entry.kind === "folder" ? { leavesItself: true } : {}),
+    });
+    const first = finished
+      ? entryRow(finished)
+      : pathRow(
+          shownTypedPath(typedHere),
+          () => {
+            void open.openPath(typedHere);
           },
-        },
+          typedFileName(typedHere),
+        );
+    return {
+      completion,
+      rows: [
+        first,
+        // A path that may as well be a search.
+        ...(typedHere.alsoSearch ? [searchRowOf(words)] : []),
+        ...markRows,
+        ...entries
+          .filter(
+            (entry) => entry !== finished && (finished || !isTyped(entry)),
+          )
+          .slice(0, ENTRIES_SHOWN)
+          .map(entryRow),
       ],
     };
   }
-  // Only what is there: the folder's own entries, and the folder itself
-  // once the words end in it. Nothing is offered at a path with nothing at
-  // it, and words that are not a path find names in the folder on screen.
-  const isWhole = typedPathHere(words) !== undefined;
-  // A folder the system refused is still a folder, and opens to say so; it
-  // just has no names in it to offer.
-  const listed = listing.data;
-  const entries = matchEntries(
-    path.prefix,
-    listed?.kind === "listing" ? listed.entries : [],
-  );
-  // The name the field finishes a whole path as: the first the start typed
-  // begins, letter for letter, so what it writes in is a real name's rest.
-  // Bare words are a search of the folder on screen, and are left as typed.
-  const finished =
-    canComplete && isWhole && path.prefix !== ""
-      ? entries.find((entry) => entry.name.startsWith(path.prefix))
-      : undefined;
-  const completion = finished ? finished.name.slice(path.prefix.length) : "";
-  const whole = `${typed}${completion}`;
-  // A whole path's names are in a folder other than the one on screen,
-  // which each row says, or a name the folder on screen has too (its
-  // Documents) reads as that one.
-  const elsewhere =
-    isWhole &&
-    withoutTrailingSeparators(path.folder) !== withoutTrailingSeparators(here);
-  const entryRow = (entry: (typeof entries)[number]): OmniRow => ({
-    ...(elsewhere ? { detail: segmentsOf(path.folder).at(-1) } : {}),
-    fill:
-      entry === finished
-        ? `${whole}${entry.kind === "folder" ? "/" : ""}`
-        : `${path.lead}${entry.name}${entry.kind === "folder" ? "/" : ""}`,
-    icon:
-      entry.kind === "folder" ? (
-        <FileSystemFolderGlyph className="h-3 w-auto" />
-      ) : (
-        <FileTypeIcon className="size-4" fileName={entry.name} />
-      ),
-    id: `entry:${entry.path}`,
-    name: entry.name,
-    run: () => {
-      if (entry.kind === "folder") {
-        open.openFolder(entry.path);
-      } else {
-        open.visit(fileHref(entry.path));
+
+  const completion = canComplete ? addressCompletion(typed, pages) : "";
+  const whole = `${typed}${completion}`.trim();
+  const address = typedAddress(whole);
+  const site = address?.kind === "page" ? address : undefined;
+  const known = site
+    ? pages.find((page) => bareAddress(page.url) === bareAddress(site.url))
+    : undefined;
+  const searchRow = searchRowOf(whole);
+  const first: OmniRow = site
+    ? {
+        detail: known?.title,
+        fill: whole,
+        icon: (
+          <TypedAddressMark
+            address={site}
+            className="size-4"
+            isKnown={isKnownSite(site.url, pages)}
+          />
+        ),
+        id: "site",
+        name: typedAddressLabel(site.shown),
+        run: () => {
+          // A page the window knows opens at the address it was at, the
+          // one the field finished the words as.
+          open.openSite(known?.url ?? site.url);
+        },
       }
-    },
-    ...(entry.kind === "folder" ? { leavesItself: true } : {}),
+    : searchRow;
+  const pageRows = matchPages(words, pages)
+    .filter((page) => page.url !== known?.url && !isBookmarked(page.url))
+    .slice(0, PER_KIND_SHOWN)
+    .map(
+      (page): OmniRow => ({
+        detail: siteOf(page.url),
+        fill: page.url,
+        icon: <PageFavicon favicon={page.favicon} url={page.url} />,
+        id: `page:${page.url}`,
+        name: page.title || bareAddress(page.url),
+        run: () => {
+          open.openSite(page.url);
+        },
+      }),
+    );
+  const suggestionRows = wantsSuggestions
+    ? (suggestions.data ?? [])
+        .filter(
+          (suggestion) => suggestion.toLowerCase() !== whole.toLowerCase(),
+        )
+        .slice(0, PER_KIND_SHOWN)
+        .map((suggestion): OmniRow => {
+          // What the engine suggests is a search unless it is plainly an
+          // address.
+          const suggested = typedAddress(suggestion);
+          const suggestedSite =
+            suggested?.kind === "page" && !suggested.doubt
+              ? suggested
+              : undefined;
+          return {
+            fill: suggestion,
+            icon: suggestedSite ? (
+              siteIcon(suggestedSite.url)
+            ) : (
+              <MagnifyingGlassIcon className="size-4" />
+            ),
+            id: `suggestion:${suggestion}`,
+            name: suggestion,
+            run: () => {
+              open.openSite(suggestedSite?.url ?? webSearchUrl(suggestion));
+            },
+          };
+        })
+    : [];
+  // The app's own places the words name, under what Enter does.
+  const appRows = appPlaceRows(words, {
+    chatTitles: shell?.chatTitles,
+    isBookmarked,
+    openAddress,
+    projectOfChat,
   });
-  const folderRows: OmniRow[] =
-    listed && path.prefix === ""
-      ? [
-          pathRow(displayHostPath(path.folder, home), () => {
-            open.openFolder(path.folder);
-          }),
-        ]
-      : [];
-  const [enterRow, ...restRows] = [
-    ...folderRows,
-    ...(finished ? [entryRow(finished)] : []),
-    ...entries
-      .filter((entry) => entry !== finished)
-      .slice(0, ENTRIES_SHOWN)
-      .map(entryRow),
-  ];
-  // The bookmarks the words name come next to what Enter does, and never
-  // in its place: Enter on a path with no row still looks for the path.
-  const rows = enterRow ? [enterRow, ...markRows, ...restRows] : [];
-  const folderName = displayHostPath(path.folder, home);
   return {
     completion,
-    ...(listing.isError
-      ? { empty: `There’s nothing at “${folderName}”.` }
-      : listed?.kind === "refused"
-        ? {
-            empty:
-              listed.reason === "app"
-                ? `“${folderName}” has Instrument’s own files, so it stays closed.`
-                : `Instrument can’t read “${displayHostPath(listed.refusedBy ?? path.folder, home)}”`,
-          }
-        : listed
-          ? { empty: `Nothing in “${folderName}” matches “${path.prefix}”.` }
-          : {}),
-    rows,
+    rows: [
+      first,
+      // A name whose ending no site has.
+      ...(site?.doubt === "host" ? [searchRow] : []),
+      ...markRows,
+      ...appRows,
+      ...pageRows,
+      ...suggestionRows,
+    ],
   };
 }
 
@@ -1200,7 +1072,7 @@ function missedRows(
   missed: MissedPath,
   typed: string,
   open: { openFolder: (host: string) => void; openSite: (url: string) => void },
-): { completion: string; empty?: string; rows: OmniRow[] } {
+): { completion: string; rows: OmniRow[] } {
   const nearest = missed.kind === "missing" ? missed.nearest : undefined;
   return {
     completion: "",
@@ -1228,20 +1100,4 @@ function missedRows(
       },
     ],
   };
-}
-
-/**
- * The folder a path typed bare is in: the folder on screen, a file's own
- * folder, and the home folder from anywhere else.
- */
-function hereOf(location: TabLocation, home: string) {
-  if (location.kind === "folder" && location.path !== "") {
-    return expandHomePath(location.path, home);
-  }
-  if (location.kind === "file") {
-    const host = expandHomePath(location.path, home);
-    const cut = Math.max(host.lastIndexOf("/"), host.lastIndexOf("\\"));
-    return cut > 0 ? host.slice(0, cut) : host.slice(0, cut + 1) || home;
-  }
-  return home;
 }

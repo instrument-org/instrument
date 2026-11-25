@@ -59,7 +59,7 @@ export function SkillMenuRow({ match }: { match: SkillMatch<ComposerSkill> }) {
             {skillSourceLabel(match.skill.source)}
           </span>
         </TooltipTrigger>
-        <TooltipContent className="max-w-80 break-all">
+        <TooltipContent className="break-all">
           {skillLocationHint(match.skill)}
         </TooltipContent>
       </Tooltip>

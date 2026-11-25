@@ -46,7 +46,7 @@ export function SkillMention({
         <TooltipTrigger asChild>
           <span className={SKILL_TOKEN_CLASS_NAME}>{label}</span>
         </TooltipTrigger>
-        <TooltipContent className="max-w-xs">
+        <TooltipContent>
           This skill is no longer available in this workspace.
         </TooltipContent>
       </Tooltip>
@@ -70,7 +70,7 @@ export function SkillMention({
   return (
     <Tooltip>
       <TooltipTrigger asChild>{link}</TooltipTrigger>
-      <TooltipContent className="max-w-xs">
+      <TooltipContent>
         <p className="font-medium">{summary.title}</p>
         <p className="mt-0.5 font-mono text-popover-foreground/70">
           {skillMentionLabel(summary.id)}

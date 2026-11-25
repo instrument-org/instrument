@@ -12,13 +12,26 @@ import {
   setChatStarred,
   unarchiveChat,
 } from "./chats";
+import { getWorkspaceActorRef } from "../workspace-actor-ref";
+import { getWorkspaceConfig } from "../workspace-config";
+import { isWorking } from "./activity";
+import { openAsks } from "./open-asks";
+import { stopChat } from "./stop-chat";
 import { closeChatTabs } from "./tab-cap";
 
 /**
- * Puts a chat away. Nothing of an archived chat works on, so its agents'
- * tabs go, but for the ones the person used.
+ * Puts a chat away, as the person's Archive does, whoever asks. Archiving a
+ * chat is being done with it, so whatever of it is at work or waiting on the
+ * person stops as Stop stops it, and its agents' tabs go, but for the ones
+ * the person used.
  */
 export async function archiveChatAndTabs(chatId: ChatId): Promise<boolean> {
+  if (isWorking(chatId) || (await openAsks(chatId)).length > 0) {
+    await stopChat(chatId, {
+      captureException: getWorkspaceConfig().captureException,
+      workspaceRef: getWorkspaceActorRef(),
+    });
+  }
   const archived = await archiveChat(chatId);
   void closeChatTabs(chatId, { trashed: false }).catch(() => undefined);
   return archived;

@@ -38,6 +38,8 @@ const closedTabs = vi.hoisted(() => ({ value: [] as string[] }));
 // Which tasks are at work is the machine's to say, so it is a dial here.
 vi.mock(import("../chat/activity"), async (importOriginal) => ({
   ...(await importOriginal()),
+  isWorking: (chatId: ChatId) =>
+    running.value.some((task) => task.chat === sessionOfChat(chatId)),
   chatActivity: (chatId: ChatId) =>
     Promise.resolve({
       running: running.value.filter(
@@ -446,6 +448,46 @@ describe("instrument chats archive and unarchive", () => {
       false,
     );
     expect(back.changes).toHaveLength(1);
+  });
+
+  it("stops what it archives as the person's Archive does, and never its own chat", async () => {
+    running.value = [
+      {
+        chat: sessionOfChat(ChatIdSchema.parse("lisbon")),
+        sessionId: StoreId.newSessionId(),
+        title: "A task",
+        updatedAt: 0,
+      },
+    ];
+    const archived = await one(
+      "instrument chats archive lisbon groceries organizer",
+    );
+    expect(archived.stdout).toMatchInlineSnapshot(`
+      "Archived lisbon: Trip to Lisbon
+      Archived groceries: Groceries for the week
+      "
+    `);
+    expect(archived.stderr).toMatchInlineSnapshot(`
+      "instrument chats: archive: organizer is this chat, which archiving would stop mid-turn; the user archives it.
+      "
+    `);
+    expect(sent.value).toMatchInlineSnapshot(`
+      [
+        {
+          "type": "stopSessions",
+          "value": {
+            "id": "lisbon",
+            "notice": {
+              "by": "person",
+              "wakesChat": true,
+            },
+          },
+        },
+      ]
+    `);
+    expect((await chatById(ChatIdSchema.parse("organizer")))?.archived).toBe(
+      false,
+    );
   });
 
   it("fails the line of a chat that could not be changed and goes on to the rest", async () => {

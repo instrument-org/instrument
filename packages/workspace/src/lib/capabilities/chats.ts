@@ -299,6 +299,7 @@ function markCapability({
   did,
   field,
   mark,
+  notThisChat,
   summary,
   to,
   word,
@@ -311,6 +312,8 @@ function markCapability({
   did: string;
   field: "archived" | "starred" | "unread";
   mark: (chatId: ChatId) => Promise<boolean>;
+  /** Why the chat running the command is left as it is, where marking it would end the turn marking it. */
+  notThisChat?: string;
   summary: string;
   to: boolean;
   word: string;
@@ -326,10 +329,13 @@ function markCapability({
     name: `chats.${word.replace("-", "_")}`,
     output: Outcomes,
     render: renderOutcomes,
-    run: async (input) =>
+    run: async (input, ctx) =>
       eachChat(
         await namedOf(input, (chat) => chat[field] !== to),
         async (chat) => {
+          if (notThisChat !== undefined && chat.id === ctx.chatId) {
+            return { couldNot: `${word}: ${chat.id} ${notThisChat}` };
+          }
           if (chat[field] === to) {
             return `${chat.id} was ${already}: ${chat.title}`;
           }
@@ -354,7 +360,10 @@ export const chatsArchive = markCapability({
   did: "Archived",
   field: "archived",
   mark: archiveChatAndTabs,
-  summary: "Put chats away: out of the inbox, still there to find.",
+  notThisChat:
+    "is this chat, which archiving would stop mid-turn; the user archives it.",
+  summary:
+    "Put chats away, as the user's own Archive does: out of the inbox, still there to find, and stopped where working or waiting on the user.",
   to: true,
   word: "archive",
 });

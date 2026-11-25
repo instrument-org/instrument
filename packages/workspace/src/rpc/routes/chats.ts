@@ -1,4 +1,4 @@
-import { call, eventIterator, ORPCError } from "@orpc/server";
+import { eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { ChatWrites } from "../../lib/chat-writes";
@@ -25,7 +25,7 @@ import { liveChatRows, refreshChatRow } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
 import { TaskStatusKindSchema, taskStatus } from "../../lib/chat/task-status";
 import { answerQuestionAsk, declineSignInAsk } from "../../lib/chat/drive-asks";
-import { openAsks, openAsksOf, openAsksUntil } from "../../lib/chat/open-asks";
+import { openAsksOf, openAsksUntil } from "../../lib/chat/open-asks";
 import { AskSchema, SignInAskSchema } from "../../schemas/chat-state";
 import { signInOfCall } from "../../lib/chat/asks";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
@@ -49,7 +49,6 @@ import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { type ListedAt } from "../../lib/chat/chat-list-events";
 import { chatRoutes } from "./chat";
-import { stop } from "./session";
 import { base, toORPCError } from "../base";
 import { atMoment, distinct, liveRead, where } from "../live-read";
 import { publisher } from "../publisher";
@@ -279,18 +278,13 @@ const unreadChatRoute = base
   });
 
 /**
- * Puts a chat away: out of the inbox, still in the list, marked. The person
- * archiving a chat is done with it, so whatever of it is at work or waiting
- * on them stops as Stop stops it.
+ * Puts a chat away: out of the inbox, still in the list, marked, and
+ * stopped (`archiveChatAndTabs`).
  */
 const archiveChatRoute = base
   .input(z.object({ id: ChatIdSchema }))
   .output(ListedAtSchema)
-  .handler(async ({ context, input }) => {
-    const chatId = resolveChat(input.id);
-    if (chatId && (isWorking(chatId) || (await openAsks(chatId)).length > 0)) {
-      await call(stop, { id: chatId }, { context });
-    }
+  .handler(async ({ input }) => {
     return await whenChat(input.id, archiveChatAndTabs);
   });
 

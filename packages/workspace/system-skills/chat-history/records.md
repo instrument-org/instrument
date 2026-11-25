@@ -19,6 +19,7 @@ A chat's folder holds JSON Lines files, one record per line, with `t` naming the
     - `user`: the user
 - `settings.<device>.jsonl`: `set` records, one per change a device made to a session, the newest of each `session` and `field` standing:
   - `archived`: whether it is archived
+  - `choice`: how hard that model thinks and whether it runs fast, when the user chose; `null` is the model's defaults
   - `model`: the model the chat runs on, as a model URI, set on the chat's own session
   - `starred`: whether it is starred
   - `title`: its title, in `value.text`; `value.auto` is true while the app may still rename it

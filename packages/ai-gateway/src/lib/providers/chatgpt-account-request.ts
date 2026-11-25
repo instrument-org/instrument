@@ -27,7 +27,6 @@ const UNSUPPORTED_FIELDS = new Set<string>([
   "prompt",
   "prompt_cache_retention",
   "safety_identifier",
-  "service_tier",
   "temperature",
   "top_logprobs",
   "top_p",
@@ -92,6 +91,10 @@ export function rewriteChatGPTAccountResponsesBody(
   const next = Object.fromEntries(
     Object.entries(body).filter(([field]) => !UNSUPPORTED_FIELDS.has(field)),
   );
+  // The plan takes its fast tier and refuses every other.
+  if (next.service_tier !== "priority") {
+    delete next.service_tier;
+  }
   next.store = false;
   next.stream = true;
   // Nothing is stored, so the cache is what saves a long session from being

@@ -450,6 +450,9 @@ export class ChatFold {
       case "model":
         settings.model = newer(settings.model, record, place);
         break;
+      case "choice":
+        settings.choice = newer(settings.choice, record, place);
+        break;
     }
   }
 
@@ -682,6 +685,7 @@ function messagesOf(session: SessionState): {
 function foldedSettings(settings: SettingState): FoldedSettings {
   return {
     ...(settings.archived && { archived: made(settings.archived.value) }),
+    ...(settings.choice && { choice: made(settings.choice.value) }),
     ...(settings.model && { model: made(settings.model.value) }),
     ...(settings.starred && { starred: made(settings.starred.value) }),
     ...(settings.title && { title: made(settings.title.value) }),

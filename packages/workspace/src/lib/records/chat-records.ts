@@ -2079,6 +2079,8 @@ function withSetting(
   switch (setting.field) {
     case "archived":
       return { ...settings, archived: setting };
+    case "choice":
+      return { ...settings, choice: setting };
     case "model":
       return { ...settings, model: setting };
     case "starred":

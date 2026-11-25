@@ -110,6 +110,7 @@ import { asksForNewWindow } from "./lib/new-window-task";
 import { logGpuStatus } from "./lib/gpu-status";
 import { handleBootFailure } from "./lib/handle-boot-failure";
 import { startAppCatalog } from "./lib/app-catalog";
+import { startModelSettings } from "./lib/model-settings";
 import { startNotices } from "./lib/notices";
 import { sendPendingAutomatically } from "./lib/problem-reports";
 import { registerCrashDiagnostics } from "./lib/register-crash-diagnostics";
@@ -546,6 +547,7 @@ async function bootstrapPrimaryInstance() {
 
   // The app directory as we serve it now, in place of the one built in.
   startAppCatalog();
+  startModelSettings();
 }
 
 /** The Dock icon clicked once the windows are open. */

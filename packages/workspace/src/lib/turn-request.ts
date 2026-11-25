@@ -5,6 +5,7 @@ import {
   nativeSearchTools,
   providerOptionsForModel,
   type ReasoningEffort,
+  takenChoice,
 } from "@instrument-org/ai-gateway";
 import { CLAUDE_ACCOUNT_PROVIDER_CONFIG } from "@instrument-org/shared";
 import { type LanguageModel, type ToolSet } from "ai";
@@ -13,6 +14,7 @@ import { omit } from "radashi";
 import { type ChatId } from "../schemas/chat-id";
 import { type StoreId } from "../schemas/store-id";
 import { TOOL_NAMES } from "../tools/name";
+import { chatModelChoice } from "./chat-settings";
 import { cacheSessionFor } from "./fork-cache-session";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -56,9 +58,12 @@ export async function turnRequest({
     aiSDKModel.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type ||
     nativeTools !== undefined;
   const cacheSession = cacheSessionFor({ chatId, sessionId });
+  const taken = takenChoice(model, await chatModelChoice(chatId));
+  // An effort of its own, or a run's, stands over the person's.
+  const pinned = effort ?? getWorkspaceConfig().reasoningEffort;
   const providerOptions = providerOptionsForModel(aiSDKModel, {
-    effort:
-      effort ?? getWorkspaceConfig().reasoningEffort ?? catalogEffort(model),
+    choice: pinned ? omit(taken, ["effort"]) : taken,
+    effort: pinned ?? catalogEffort(model),
     reasoning: model.reasoning,
   });
   if (searchesNatively) {

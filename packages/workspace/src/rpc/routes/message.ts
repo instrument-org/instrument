@@ -1,4 +1,8 @@
-import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import {
+  AIGatewayModelURI,
+  ModelChoiceSchema,
+  fetchModel,
+} from "@instrument-org/ai-gateway";
 import { eventIterator, type } from "@orpc/server";
 import { isEqual } from "radashi";
 import { z } from "zod";
@@ -108,6 +112,8 @@ const create = base
       edits: StoreId.MessageSchema.optional(),
       /** The tab group the chat works in, as the window read it at the send. */
       layout: LayoutReadSchema.optional(),
+      /** What was chosen for the model, `null` for its defaults; left out, the chat's stands. */
+      modelChoice: ModelChoiceSchema.nullable().optional(),
       modelURI: AIGatewayModelURI.Schema,
       prompt: z.string(),
       sessionId: StoreId.SessionSchema.optional(),
@@ -129,6 +135,7 @@ const create = base
         fromDraft,
         id,
         layout,
+        modelChoice,
         modelURI,
         prompt,
         sessionId,
@@ -208,6 +215,7 @@ const create = base
           folders: sending.folders,
           ...(fromDraft ? { fromDraft } : {}),
           ...(layout ? { layout } : {}),
+          modelChoice,
           modelURI,
           prompt,
           sessionId: finalSessionId,

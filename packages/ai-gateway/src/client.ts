@@ -11,6 +11,7 @@ export {
 } from "./lib/route-model";
 export { catalogEffort, type ReasoningEffort } from "./lib/reasoning-effort";
 export type { AIGatewayModel } from "./schemas/model";
+export type { ModelChoice } from "./schemas/model-choice";
 export type { AIGatewayModelURI } from "./schemas/model-uri";
 export { AIGatewayProviderConfig } from "./schemas/provider-config";
 export type { ProviderMetadata } from "./schemas/provider-metadata";

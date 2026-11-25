@@ -13,7 +13,10 @@ import { type Draft } from "@/shared/drafts";
 import { type useDefaultModelURI } from "@/client/hooks/use-default-model-uri";
 import { holdSendsUntilOpened } from "@/client/lib/message-sends";
 import { rpcClient } from "@/client/rpc/client";
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import {
+  type AIGatewayModelURI,
+  type ModelChoice,
+} from "@instrument-org/ai-gateway/client";
 import {
   type ChatId,
   type FileUpload,
@@ -46,6 +49,7 @@ const CHAT_ARRIVAL_MS = ms("3 seconds");
 export interface DraftSend {
   files?: FileUpload.Input[];
   folders?: { path: string }[];
+  modelChoice?: ModelChoice | undefined;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
 }
@@ -296,7 +300,7 @@ export function useDrafts({
     const opened = holdSendsUntilOpened(sessionId);
     setStartingIds((current) => new Set(current).add(id));
     // The model chosen for the chat is the one the next draft opens with.
-    saveDefaultModelURI(send.modelURI);
+    saveDefaultModelURI(send.modelURI, send.modelChoice);
     // What was marked in files and moved to this draft goes as its asks.
     const marked = stagedAsks.filter(
       (ask) =>
@@ -375,6 +379,7 @@ export function useDrafts({
         fromDraft: id,
         id: chatId,
         ...(layoutSent ? { layout: layoutSent } : {}),
+        modelChoice: send.modelChoice ?? null,
         modelURI: send.modelURI,
         prompt: send.prompt,
         ...(draft.projectId ? { project: draft.projectId } : {}),

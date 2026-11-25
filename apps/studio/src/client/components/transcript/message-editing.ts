@@ -1,5 +1,11 @@
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
-import { type FileUpload, type StoreId } from "@instrument-org/workspace/client";
+import {
+  type AIGatewayModelURI,
+  type ModelChoice,
+} from "@instrument-org/ai-gateway/client";
+import {
+  type FileUpload,
+  type StoreId,
+} from "@instrument-org/workspace/client";
 import { createContext } from "react";
 
 /** An earlier version of an edited message, put up in its place. */
@@ -13,6 +19,7 @@ export interface ShownVersion {
 interface EditedSend {
   files?: FileUpload.Input[];
   folders?: { path: string }[];
+  modelChoice: ModelChoice | undefined;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
 }
@@ -25,10 +32,13 @@ export interface MessageEditing {
   /** The message open in a box. */
   editing?: StoreId.Message;
   isSending: boolean;
+  /** What was chosen for the model, which an edit goes out with. */
+  modelChoice?: ModelChoice;
   modelURI?: AIGatewayModelURI.Type;
   onCancel: () => void;
   onEdit: (message: StoreId.Message) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  onModelChoiceChange: (choice: ModelChoice | undefined) => void;
   onSend: (message: StoreId.Message, value: EditedSend) => void;
   /** Puts up one of a message's versions; the last is the conversation as it stands. */
   onShowVersion: (

@@ -23,9 +23,14 @@ const ChatGPTAccountModelsSchema = z.object({
       context_window: z.number().int().positive().optional(),
       default_reasoning_level: z.string().optional(),
       display_name: z.string().optional(),
+      service_tiers: z
+        .array(z.object({ description: z.string().optional(), id: z.string() }))
+        .nullish(),
       slug: z.string(),
       supported_reasoning_levels: z
-        .array(z.object({ effort: z.string() }))
+        .array(
+          z.object({ description: z.string().optional(), effort: z.string() }),
+        )
         .optional(),
       visibility: z.string().optional(),
     }),
@@ -63,11 +68,13 @@ export function fetchAndParseChatGPTAccountModels(
       .map((model) => {
         const providerId = AIGatewayModel.ProviderIdSchema.parse(model.slug);
         const canonicalId = AIGatewayModel.CanonicalIdSchema.parse(providerId);
+        const fast = model.service_tiers?.find(({ id }) => id === "priority");
         return addHeuristicTags(
           {
             author,
             canonicalId,
             contextLength: model.context_window,
+            fast: fast && { note: fast.description },
             features: getModelFeatures(canonicalId),
             name: model.display_name
               ? spaceBeforeFamily(model.display_name)
@@ -81,6 +88,13 @@ export function fetchAndParseChatGPTAccountModels(
             reasoning: model.supported_reasoning_levels?.length
               ? {
                   defaultEffort: model.default_reasoning_level,
+                  descriptions: Object.fromEntries(
+                    model.supported_reasoning_levels.flatMap((level) =>
+                      level.description
+                        ? [[level.effort, level.description]]
+                        : [],
+                    ),
+                  ),
                   efforts: model.supported_reasoning_levels.map(
                     (level) => level.effort,
                   ),

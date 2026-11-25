@@ -631,6 +631,7 @@ export function NewChatView({
           isLoading={false}
           keyboardHome
           besidePlus={projectButton}
+          modelChoice={shell.defaultModelChoice}
           modelURI={shell.defaultModelURI}
           onGo={
             lit >= 0
@@ -659,6 +660,7 @@ export function NewChatView({
           }}
           shownPath={shownPath}
           onModelChange={shell.setDefaultModelURI}
+          onModelChoiceChange={shell.setDefaultModelChoice}
           onWordsChange={takeWords}
           // Once, as a new tab's composer first comes up: never as the tab
           // is shown again or its first words name a draft. Over the box

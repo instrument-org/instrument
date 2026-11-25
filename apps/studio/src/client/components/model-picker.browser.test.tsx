@@ -6,9 +6,11 @@ import { renderInBrowser } from "@/tests/render-browser";
 import {
   AIGatewayModel,
   AIGatewayModelURI,
+  type ModelChoice,
 } from "@instrument-org/ai-gateway/schemas";
 import { AIProviderConfigIdSchema, OUR_MODELS } from "@instrument-org/shared";
 import { createStore } from "jotai";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
@@ -691,5 +693,90 @@ describe("ModelPicker in a browser", () => {
     await expect
       .element(page.getByRole("option", { name: `${chosen.name} (chosen)` }))
       .toBeInViewport();
+  });
+});
+
+describe("a model's choices", () => {
+  const thinks: AIGatewayModel.Type = {
+    ...sonnet,
+    choices: {
+      defaultLabel: "Medium",
+      efforts: [
+        { id: "medium", label: "Medium" },
+        { description: "Takes its time", id: "high", label: "High" },
+      ],
+      fast: { off: { note: "Fast is off.", row: "Usage credits are off" } },
+    },
+  };
+  function Harness({
+    model,
+    onPick,
+  }: {
+    model: AIGatewayModel.Type;
+    onPick: () => void;
+  }) {
+    const [choice, setChoice] = useState<ModelChoice>();
+    return (
+      <div className="p-40 pt-80">
+        <ModelPicker
+          choice={choice}
+          models={[model]}
+          modelURI={model.uri}
+          onChoiceChange={setChoice}
+          onValueChange={onPick}
+          selectedModel={model}
+        />
+      </div>
+    );
+  }
+  const trigger = () => page.getByRole("combobox", { name: "Model" });
+  const words = () => page.getByRole("button", { name: /^Effort and speed/ });
+
+  it("are first made on the model's row, without picking the model again", async () => {
+    const onPick = vi.fn();
+    await renderInBrowser(<Harness model={thinks} onPick={onPick} />);
+    await expect.element(words()).not.toBeInTheDocument();
+    await userEvent.click(trigger());
+    await userEvent.click(
+      page.getByRole("button", {
+        name: "Change effort and speed for Claude Sonnet 5.5",
+      }),
+    );
+    expect(await ariaSnapshot("[role=menu]")).toMatchInlineSnapshot(`
+      "- menu "Change effort and speed for Claude Sonnet 5.5":
+        - menuitemcheckbox "Default (Medium)" [checked]
+        - separator
+        - menuitemcheckbox "Medium"
+        - menuitemcheckbox "High"
+        - separator
+        - menuitemcheckbox "Fast Usage credits are off" [disabled]"
+    `);
+    await userEvent.click(page.getByRole("menuitemcheckbox", { name: "High" }));
+    // The menu stays up over the picker, and neither closes.
+    await expect
+      .element(page.getByRole("menuitemcheckbox", { name: "High" }))
+      .toBeChecked();
+    expect(onPick).not.toHaveBeenCalled();
+  });
+
+  it("are changed from the words in the button, which go on Default", async () => {
+    await renderInBrowser(<Harness model={thinks} onPick={vi.fn()} />);
+    await userEvent.click(trigger());
+    await userEvent.click(
+      page.getByRole("button", {
+        name: "Change effort and speed for Claude Sonnet 5.5",
+      }),
+    );
+    await userEvent.click(page.getByRole("menuitemcheckbox", { name: "High" }));
+    // The menu, whatever tooltip is up over it, then the picker.
+    await userEvent.keyboard("{Escape}");
+    await expect.element(page.getByRole("menu")).not.toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
+    await expect.element(words()).toHaveTextContent("High");
+    await userEvent.click(words());
+    await userEvent.click(
+      page.getByRole("menuitemcheckbox", { name: "Default (Medium)" }),
+    );
+    await expect.element(words()).not.toBeInTheDocument();
   });
 });

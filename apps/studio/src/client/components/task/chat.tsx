@@ -55,7 +55,10 @@ import {
   useQuestionDock,
 } from "@/client/components/question-dock";
 import { rpcClient } from "@/client/rpc/client";
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import {
+  type AIGatewayModelURI,
+  type ModelChoice,
+} from "@instrument-org/ai-gateway/client";
 import { APP_NAME } from "@instrument-org/shared";
 import {
   modelChangeSincePreviousTurn,
@@ -65,9 +68,14 @@ import {
   StoreId,
   type ChatId,
 } from "@instrument-org/workspace/client";
-import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
-import { noop } from "radashi";
+import { isEqual, noop } from "radashi";
 import {
   type ComponentProps,
   type ReactNode,
@@ -147,6 +155,7 @@ export function ChatConversation({
   composerLead,
   draftKey,
   layoutContext,
+  selectedModelChoice: initialModelChoice,
   selectedModelURI: initialSelectedModelURI,
   onSentStored,
   selectedSessionId,
@@ -176,6 +185,7 @@ export function ChatConversation({
    * chat's last message; read at the press, beside `sendContext`.
    */
   layoutContext?: () => LayoutRead | undefined;
+  selectedModelChoice?: ModelChoice;
   selectedModelURI?: AIGatewayModelURI.Type;
   /** Called once the stored transcript has `sentPrompt`'s message. */
   onSentStored?: () => void;
@@ -269,6 +279,15 @@ export function ChatConversation({
     }),
   );
 
+  const [modelChoice, setModelChoice] = useState(initialModelChoice);
+  const [lastModelChoice, setLastModelChoice] = useState(initialModelChoice);
+  if (!isEqual(initialModelChoice, lastModelChoice)) {
+    setLastModelChoice(initialModelChoice);
+    setModelChoice(initialModelChoice);
+  }
+  // What a send or a run says was chosen; a choice made for another model
+  // says nothing, so a switch starts on the model's defaults.
+  const sentChoice = modelChoice ?? null;
   const [selectedModelURI, setSelectedModelURI] = useState<
     AIGatewayModelURI.Type | undefined
   >(initialSelectedModelURI);
@@ -456,6 +475,7 @@ export function ChatConversation({
       ? {
           editing: editingMessage,
           isSending: editMessage.isPending,
+          modelChoice,
           modelURI: selectedModelURI,
           onCancel: () => {
             setEditingMessage(undefined);
@@ -463,7 +483,11 @@ export function ChatConversation({
           },
           onEdit: setEditingMessage,
           onModelChange: setSelectedModelURI,
-          onSend: (message, { files, folders, modelURI, prompt }) => {
+          onModelChoiceChange: setModelChoice,
+          onSend: (
+            message,
+            { files, folders, modelChoice: chosen, modelURI, prompt },
+          ) => {
             const layout = layoutContext?.();
             editMessage.mutate(
               {
@@ -472,6 +496,7 @@ export function ChatConversation({
                 folders,
                 id,
                 ...(layout ? { layout } : {}),
+                modelChoice: chosen ?? null,
                 modelURI,
                 prompt,
                 sessionId: selectedSessionId,
@@ -518,6 +543,7 @@ export function ChatConversation({
     }
     createMessage.mutate({
       id,
+      modelChoice: sentChoice,
       modelURI: selectedModelURI,
       prompt,
       sessionId: selectedSessionId,
@@ -540,6 +566,7 @@ export function ChatConversation({
     runTurn.mutate({
       id,
       ifIdle: options?.ifIdle,
+      modelChoice: sentChoice,
       modelURI,
       sessionId: selectedSessionId,
     });
@@ -779,6 +806,7 @@ export function ChatConversation({
           {
             id,
             ...(layout ? { layout } : {}),
+            modelChoice: sentChoice,
             modelURI: selectedModelURI,
             prompt,
             sessionId: selectedSessionId,
@@ -826,12 +854,14 @@ export function ChatConversation({
       id={id}
       isLoading={createMessage.isPending}
       lead={composerLead}
+      modelChoice={modelChoice}
       modelURI={selectedModelURI}
       note={note}
       onDictatingChange={setComposerDictating}
       onItemRemoved={draftKey.scope === "chat" ? staging.removeItem : undefined}
       onItemsChange={draftKey.scope === "chat" ? staging.keepItems : undefined}
       onModelChange={setSelectedModelURI}
+      onModelChoiceChange={setModelChoice}
       onShowQuote={(words) => {
         quoteSelectionRef.current?.show(words);
       }}
@@ -846,7 +876,13 @@ export function ChatConversation({
         },
       })}
       onSubmit={(sending) => {
-        const { files, folders, modelURI, prompt } = staging.asStaged(sending);
+        const {
+          files,
+          folders,
+          modelChoice: chosen,
+          modelURI,
+          prompt,
+        } = staging.asStaged(sending);
         // The composer empties on submit rather than on the reply, so a send the
         // workspace rejects has to hand the prompt and its attachments back --
         // nothing else holds them, and a toast the user cannot act on is worse
@@ -896,6 +932,7 @@ export function ChatConversation({
                 ...(outgoing ? { fromDraft: outgoing.draftId } : {}),
                 id,
                 ...(layout ? { layout } : {}),
+                modelChoice: chosen ?? null,
                 modelURI,
                 prompt,
                 sessionId: selectedSessionId,
@@ -1041,47 +1078,49 @@ export function ChatConversation({
                     >
                       <FoldsOpenedByFind value={foldsOpenedByFind}>
                         <MessageEditingContext value={messageEditing}>
-                        <TranscriptStream
-                          chatId={chatId}
-                          hasOlder={messagesQuery.data?.hasOlder ?? false}
-                          isDeveloperMode={isDeveloperMode}
-                          isLoadingOlder={messagesQuery.isLoadingOlder}
-                          // Through the send too, so the turn does not read as finished
-                          // between its message being stored and its session starting.
-                          isRunning={
-                            !isLookingBack &&
-                            (isAgentRunning ||
-                              runTurn.isPending ||
-                              isAgentAlive ||
-                              isFollowingSubmit ||
-                              shownMessages.length > messages.length)
-                          }
-                          messages={withSentSwitch(
-                            transcriptMessages,
-                            isAgentAlive || isFollowingSubmit
-                              ? sentSwitch
-                              : undefined,
-                          )}
-                          onBranch={handleBranch}
-                          // An archived chat has no reply box, so no picker.
-                          onChooseModel={isArchived ? undefined : chooseModel}
-                          onLoadOlder={messagesQuery.loadOlder}
-                          slideToSentRef={slideToSentRef}
-                          sessionId={selectedSessionId}
-                          onContinue={isLookingBack ? undefined : handleContinue}
-                          onModelChange={(modelURI) => {
-                            setSelectedModelURI(modelURI);
-                            handleRunAgain(modelURI);
-                          }}
-                          onRetry={handleRetry}
-                          onRunAgain={
-                            isLookingBack
-                              ? undefined
-                              : (options) => {
-                                  handleRunAgain(undefined, options);
-                                }
-                          }
-                        />
+                          <TranscriptStream
+                            chatId={chatId}
+                            hasOlder={messagesQuery.data?.hasOlder ?? false}
+                            isDeveloperMode={isDeveloperMode}
+                            isLoadingOlder={messagesQuery.isLoadingOlder}
+                            // Through the send too, so the turn does not read as finished
+                            // between its message being stored and its session starting.
+                            isRunning={
+                              !isLookingBack &&
+                              (isAgentRunning ||
+                                runTurn.isPending ||
+                                isAgentAlive ||
+                                isFollowingSubmit ||
+                                shownMessages.length > messages.length)
+                            }
+                            messages={withSentSwitch(
+                              transcriptMessages,
+                              isAgentAlive || isFollowingSubmit
+                                ? sentSwitch
+                                : undefined,
+                            )}
+                            onBranch={handleBranch}
+                            // An archived chat has no reply box, so no picker.
+                            onChooseModel={isArchived ? undefined : chooseModel}
+                            onLoadOlder={messagesQuery.loadOlder}
+                            slideToSentRef={slideToSentRef}
+                            sessionId={selectedSessionId}
+                            onContinue={
+                              isLookingBack ? undefined : handleContinue
+                            }
+                            onModelChange={(modelURI) => {
+                              setSelectedModelURI(modelURI);
+                              handleRunAgain(modelURI);
+                            }}
+                            onRetry={handleRetry}
+                            onRunAgain={
+                              isLookingBack
+                                ? undefined
+                                : (options) => {
+                                    handleRunAgain(undefined, options);
+                                  }
+                            }
+                          />
                         </MessageEditingContext>
                       </FoldsOpenedByFind>
                     </NextStepsContext>

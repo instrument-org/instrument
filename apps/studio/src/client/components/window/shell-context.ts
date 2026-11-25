@@ -9,7 +9,10 @@ import {
 } from "@instrument-org/workspace/client";
 import { createContext, useContext } from "react";
 
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import {
+  type AIGatewayModelURI,
+  type ModelChoice,
+} from "@instrument-org/ai-gateway/client";
 
 import { type Project } from "./chats";
 import { type DraftSend } from "./use-drafts";
@@ -30,6 +33,7 @@ export interface WindowShell {
   /** Closes the whole side a tab stands on, onto the closed list as one entry, asking first when that stops a chat on it. */
   closeSide: (tab: string) => void;
   /** The model a new chat starts on, and setting it. */
+  defaultModelChoice: ModelChoice | undefined;
   defaultModelURI: AIGatewayModelURI.Type | undefined;
   /** Throws a draft away, with a moment to take it back. */
   discardDraft: (id: string) => void;
@@ -45,6 +49,7 @@ export interface WindowShell {
   onNewProject: (chatId: ChatId, name?: string) => void;
   /** A project asked for from a draft's menu, with what was typed: the project it makes files that draft. */
   onNewDraftProject: (draftId: string, name?: string) => void;
+  setDefaultModelChoice: (choice: ModelChoice | undefined) => void;
   setDefaultModelURI: (modelURI: AIGatewayModelURI.Type) => void;
   /** Starts the chat a draft is for, from what its composer sends, in the tab it was written in. */
   startChat: (id: string, send: DraftSend, tabId: string) => void;

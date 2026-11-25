@@ -623,8 +623,13 @@ function WindowShell({
   // Undefined until the list has been read.
   const chatChrome = useChatChrome();
   const { chatTitles } = chatChrome;
-  const [defaultModelURI, setDefaultModelURI, saveDefaultModelURI] =
-    useDefaultModelURI();
+  const [
+    defaultModelURI,
+    setDefaultModelURI,
+    saveDefaultModelURI,
+    defaultModelChoice,
+    setDefaultModelChoice,
+  ] = useDefaultModelURI();
   const drafts = useAtomValue(draftsAtom);
   const draftsLoaded = useAtomValue(draftsLoadedAtom);
   const updateDraft = useSetAtom(updateDraftAtom);
@@ -1810,6 +1815,7 @@ function WindowShell({
   const shell: Shell = {
     arrivedId,
     childTitles,
+    defaultModelChoice,
     defaultModelURI,
     discardDraft,
     // Only a draft holding something is a draft to come back to; one being
@@ -1862,6 +1868,7 @@ function WindowShell({
     sentStored,
     sentWords: (chatId) => sent.get(chatId)?.words,
     setChatProject,
+    setDefaultModelChoice,
     setDefaultModelURI,
     showDraft: (id, here) => {
       revealDraft(id, here);

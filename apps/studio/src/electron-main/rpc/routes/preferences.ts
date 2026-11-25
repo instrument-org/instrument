@@ -40,7 +40,10 @@ import {
   platformApiServerLabel,
   resolvePlatformApiBaseUrl,
 } from "@/shared/platform-api-server";
-import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  AIGatewayModelURI,
+  ModelChoiceSchema,
+} from "@instrument-org/ai-gateway";
 import { APP_FLAVOR } from "@instrument-org/shared";
 import { call, eventIterator } from "@orpc/server";
 import { app } from "electron";
@@ -262,10 +265,21 @@ const getAppVersion = base.handler(() => {
 });
 
 const setDefaultModelURI = base
-  .input(z.object({ modelURI: AIGatewayModelURI.Schema }))
+  .input(
+    z.object({
+      /** What was chosen for it, for the next new chat to open with. */
+      choice: ModelChoiceSchema.optional(),
+      modelURI: AIGatewayModelURI.Schema,
+    }),
+  )
   .handler(({ input }) => {
     const preferencesStore = getWorkspacePreferences();
     preferencesStore.set("defaultModelURI", input.modelURI);
+    if (input.choice) {
+      preferencesStore.set("defaultModelChoice", input.choice);
+    } else {
+      preferencesStore.delete("defaultModelChoice");
+    }
   });
 
 const get = base.output(PreferencesSchema).handler(() => {
@@ -273,6 +287,15 @@ const get = base.output(PreferencesSchema).handler(() => {
 });
 
 const live = {
+  defaultModelChoice: base
+    .output(eventIterator(ModelChoiceSchema.optional()))
+    .handler(async function* ({ signal }) {
+      yield* liveRead({
+        changes: [publisher.subscribe("preferences.updated", { signal })],
+        read: () =>
+          Promise.resolve(getWorkspacePreferences().get("defaultModelChoice")),
+      });
+    }),
   defaultModelURI: base
     .output(eventIterator(AIGatewayModelURI.Schema.optional()))
     .handler(async function* ({ signal }) {

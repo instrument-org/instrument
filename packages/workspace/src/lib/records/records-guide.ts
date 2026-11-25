@@ -40,6 +40,8 @@ const MESSAGE_ROLES = {
 /** Every field a setting sets. */
 const SETTING_FIELDS = {
   archived: "whether it is archived",
+  choice:
+    "how hard that model thinks and whether it runs fast, when the user chose; `null` is the model's defaults",
   model:
     "the model the chat runs on, as a model URI, set on the chat's own session",
   starred: "whether it is starred",

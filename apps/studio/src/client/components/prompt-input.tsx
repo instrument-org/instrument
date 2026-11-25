@@ -25,6 +25,8 @@ import {
 } from "@/client/components/dictation-controls";
 import { SystemFolderIcon } from "@/client/components/icons/folder-glyph";
 import { type ChatNote } from "@/client/components/billing/chat-note";
+import { readChoice } from "@/client/lib/model-choice";
+import { ReplyNote } from "@/client/components/reply-note";
 import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
@@ -60,7 +62,10 @@ import {
 } from "@/client/lib/transfer-items";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
+import {
+  type AIGatewayModelURI,
+  type ModelChoice,
+} from "@instrument-org/ai-gateway/client";
 import { skillMentionToken } from "@instrument-org/shared/skill-mention";
 import {
   type FileUpload,
@@ -68,6 +73,7 @@ import {
   type ChatId,
 } from "@instrument-org/workspace/client";
 import { safe } from "@orpc/client";
+import { InfoIcon } from "@phosphor-icons/react/Info";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowUpIcon } from "@phosphor-icons/react/ArrowUp";
 import { StopIcon } from "@phosphor-icons/react/Stop";
@@ -224,6 +230,8 @@ interface PromptInputProps {
   isLoading: boolean;
   /** A chip at the head of the box, before any attached file: what goes with the prompt besides its words. */
   lead?: React.ReactNode;
+  /** What was chosen for the model: how hard it thinks, and Fast. */
+  modelChoice?: ModelChoice;
   modelURI?: AIGatewayModelURI.Type;
   /**
    * The chat's note about the account its model runs on, drawn above the box,
@@ -255,9 +263,12 @@ interface PromptInputProps {
   /** An item the person took out of the box, by its chip or by putting its words back in the message. */
   onItemRemoved?: (item: AttachedItem) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
+  /** Without it, the box offers no choices about the model. */
+  onModelChoiceChange?: (choice: ModelChoice | undefined) => void;
   onSubmit: (value: {
     files?: FileUpload.Input[];
     folders?: { path: string }[];
+    modelChoice: ModelChoice | undefined;
     modelURI: AIGatewayModelURI.Type;
     prompt: string;
   }) => void;
@@ -304,6 +315,7 @@ export const PromptInput = ({
   id,
   isLoading,
   lead,
+  modelChoice,
   modelURI,
   note,
   onGo,
@@ -314,6 +326,7 @@ export const PromptInput = ({
   onItemsChange,
   onItemRemoved,
   onModelChange,
+  onModelChoiceChange,
   onSubmit,
   overlay,
   placeholder,
@@ -451,6 +464,14 @@ export const PromptInput = ({
   // URI as stored, and the main process routes it the same way.
   const reached = reachModel(modelsData, modelURI);
   const selectedModel = reached.model;
+  const readModelChoice = readChoice(selectedModel, modelChoice);
+  // A model's choices go with it: another starts on its defaults.
+  const changeModel = (uri: AIGatewayModelURI.Type) => {
+    if (uri !== reached.uri) {
+      onModelChoiceChange?.(undefined);
+    }
+    onModelChange(uri);
+  };
   const [dismissedOffers, setDismissedOffers] = useAtom(
     dismissedModelOffersAtom,
   );
@@ -528,7 +549,7 @@ export const PromptInput = ({
         break;
       }
       case "switch": {
-        onModelChange(action.model.uri);
+        changeModel(action.model.uri);
         break;
       }
     }
@@ -547,6 +568,19 @@ export const PromptInput = ({
       onDismiss={dismissOffer}
     />
   );
+  const choiceNote = !modelNotice &&
+    onModelChoiceChange &&
+    readModelChoice.notice && (
+      <ReplyNote
+        icon={InfoIcon}
+        onDismiss={() => {
+          onModelChoiceChange(readModelChoice.kept);
+        }}
+        tone="neutral"
+      >
+        {readModelChoice.notice}
+      </ReplyNote>
+    );
   // The chat's note over the box, unless the model has a problem to fix
   // first: the model's note says that, and only a chat note that the next
   // turn can't run shows beside it.
@@ -966,9 +1000,14 @@ export const PromptInput = ({
         attachedFolders.length > 0
           ? attachedFolders.map((folder) => ({ path: folder.path }))
           : undefined,
+      modelChoice: readModelChoice.kept,
       modelURI,
       prompt,
     });
+    // What the model cannot do has been said, and goes with the send.
+    if (readModelChoice.notice) {
+      onModelChoiceChange?.(readModelChoice.kept);
+    }
   };
 
   // Enter pressed while recording waits for the words, then sends them with
@@ -1094,7 +1133,7 @@ export const PromptInput = ({
       {/* Notes dock over the box, never inside it: the chat's note, then the
           model's, nearest the words it holds back. */}
       <AnimatePresence initial={false}>
-        {(chatNote || noticeRow) && (
+        {(chatNote || noticeRow || choiceNote) && (
           <motion.div
             animate={{ height: "auto", opacity: 1 }}
             className="shrink-0 overflow-hidden"
@@ -1109,6 +1148,7 @@ export const PromptInput = ({
             >
               {chatNote}
               {noticeRow}
+              {choiceNote}
             </div>
           </motion.div>
         )}
@@ -1168,6 +1208,7 @@ export const PromptInput = ({
                 {!dictating && (
                   <ModelPicker
                     align="end"
+                    choice={modelChoice}
                     className="min-w-0 shrink"
                     disabled={isLoading}
                     errors={modelsErrors}
@@ -1178,6 +1219,10 @@ export const PromptInput = ({
                     notice={modelNotice}
                     onAction={handleModelAction}
                     onAddProvider={addProvider}
+                    onChoiceChange={onModelChoiceChange}
+                    onChoiceClosed={() => {
+                      promptEditorRef.current?.focus();
+                    }}
                     onClose={() => {
                       setPickerOpen(false);
                       // A model picked just now is not in `modelURI` until
@@ -1195,7 +1240,7 @@ export const PromptInput = ({
                     }}
                     onValueChange={(uri) => {
                       hasPicked.current = true;
-                      onModelChange(uri);
+                      changeModel(uri);
                     }}
                     open={pickerOpen}
                     selectedModel={selectedModel}

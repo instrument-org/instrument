@@ -18,6 +18,7 @@ interface OpenRouterShapedModel {
   created: number;
   id: string;
   instrument?: {
+    efforts?: string[];
     family?: string;
     maker?: string;
     name?: string;
@@ -93,6 +94,7 @@ export function mapOpenRouterShapedModel({
       maker: model.instrument?.maker,
       name: modelName,
       note: model.instrument?.note,
+      offeredEfforts: model.instrument?.efforts,
       params,
       pricing: pricingPerMillionTokens(model.pricing),
       providerId,

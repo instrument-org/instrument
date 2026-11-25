@@ -3,6 +3,7 @@ import { type SharedV2ProviderOptions } from "@ai-sdk/provider";
 import { type LanguageModel } from "ai";
 
 import { type AIGatewayModel } from "../schemas/model";
+import { choiceProviderOptions, type takenChoice } from "./model-choices";
 import {
   type ReasoningEffort,
   reasoningProviderOptions,
@@ -19,9 +20,12 @@ const ENCRYPTED_REASONING_MODEL_ID = /^(?:gpt-(?:[5-9]|\d{2,})|o\d)/;
 export function providerOptionsForModel(
   model: LanguageModel,
   {
+    choice,
     effort,
     reasoning,
   }: {
+    /** What the person chose, which outranks `effort` where it names a level. */
+    choice?: ReturnType<typeof takenChoice>;
     /**
      * How hard to ask this model to think. Omitted leaves the provider's own
      * default standing, which is what an agent turn wants and what every
@@ -53,14 +57,21 @@ export function providerOptionsForModel(
     result.xai = { store: false };
   }
 
-  if (effort && typeof model !== "string") {
-    const asked = reasoningProviderOptions({
-      effort,
-      providerId: model.provider,
-      reasoning,
-    });
-    for (const [provider, options] of Object.entries(asked ?? {})) {
-      result[provider] = { ...result[provider], ...options };
+  if (typeof model !== "string") {
+    const asked = [
+      effort &&
+        !choice?.effort &&
+        reasoningProviderOptions({
+          effort,
+          providerId: model.provider,
+          reasoning,
+        }),
+      choice && choiceProviderOptions(model.provider, choice),
+    ];
+    for (const options of asked) {
+      for (const [provider, values] of Object.entries(options || {})) {
+        result[provider] = { ...result[provider], ...values };
+      }
     }
   }
 

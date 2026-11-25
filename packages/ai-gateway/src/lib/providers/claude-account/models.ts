@@ -47,7 +47,7 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
       );
       try {
         const models = await session.supportedModels();
-        return { models, windows: await contextWindowsOf(session, models) };
+        return { models, ...(await readEachModel(session, models)) };
       } finally {
         session.close();
       }
@@ -56,7 +56,7 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
       new TypedError.Unknown("Failed to list the Claude account's models", {
         cause: error,
       }),
-  ).map(({ models: listed, windows }) => {
+  ).map(({ efforts, models: listed, windows }) => {
     const metadata = getProviderMetadata(config.type);
     const author = "anthropic";
     const params = { provider: config.type, providerConfigId: config.id };
@@ -91,6 +91,7 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
             contextLength:
               reportedContextLength({ params, providerId }) ??
               windows.get(model.value),
+            fast: model.supportsFastMode ? {} : undefined,
             features: getModelFeatures(canonicalId),
             name: generateModelName(canonicalId),
             params,
@@ -98,6 +99,7 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
             providerName: config.displayName ?? metadata.name,
             reasoning: model.supportedEffortLevels?.length
               ? {
+                  defaultEffort: efforts.get(model.value),
                   efforts: model.supportedEffortLevels,
                   enabledByDefault: true,
                   mandatory: false,
@@ -114,16 +116,17 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
 }
 
 /**
- * The window each model runs in, by the name Claude Code lists it under, as
+ * The window each model runs in and the level it runs at when asked for none, by the name Claude Code lists it under, as
  * the process says when switched to it: the capacity, not the smaller window
  * Claude Code would compact at. Asked without a prompt, so no model is
  * called. Once a model finishes a turn, the window that turn reports is
  * read instead.
  */
-async function contextWindowsOf(
+async function readEachModel(
   session: ClaudeCodeSession,
   models: { value: string }[],
 ) {
+  const efforts = new Map<string, string>();
   const windows = new Map<string, number>();
   const read = async () => {
     for (const { value } of models) {
@@ -136,9 +139,13 @@ async function contextWindowsOf(
         if (Number.isSafeInteger(rawMaxTokens) && rawMaxTokens > 0) {
           windows.set(value, rawMaxTokens);
         }
+        const effort = await session.runsAt();
+        if (effort) {
+          efforts.set(value, effort);
+        }
       } catch (error) {
         console.warn(
-          `[claude-account] could not read ${value}'s context window: ${String(error)}`,
+          `[claude-account] could not read ${value}'s context window and level: ${String(error)}`,
         );
       }
     }
@@ -153,7 +160,7 @@ async function contextWindowsOf(
     }),
   ]);
   clearTimeout(timer);
-  return windows;
+  return { efforts, windows };
 }
 
 /**

@@ -35,17 +35,21 @@ import {
 } from "@/client/lib/billing-website";
 import { feedbackReport } from "@/client/lib/problem-reports";
 import { type ModelAction, type ModelNotice } from "@/client/lib/model-status";
+import { readChoice } from "@/client/lib/model-choice";
 import { cn } from "@/client/lib/utils";
 import { type RPCOutput } from "@/client/rpc/client";
 import {
   type AIGatewayModel,
   type AIGatewayModelURI,
+  type ModelChoice,
   modelNameFromURI,
   readModelURI,
 } from "@instrument-org/ai-gateway/client";
 import { APP_NAME, OUR_MODELS } from "@instrument-org/shared";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
+import { LightningIcon } from "@phosphor-icons/react/Lightning";
+import { SlidersHorizontalIcon } from "@phosphor-icons/react/SlidersHorizontal";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { InfoIcon } from "@phosphor-icons/react/Info";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
@@ -54,6 +58,7 @@ import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   type PointerEvent,
+  type ReactNode,
   type RefObject,
   useLayoutEffect,
   useRef,
@@ -62,6 +67,7 @@ import {
 
 import { AIProviderIcon } from "./ai-provider-icon";
 import { FuzzyHighlight } from "./fuzzy-highlight";
+import { ModelChoiceMenu } from "./model-choice-menu";
 import { ModelMakerIcon } from "./model-maker-icon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
@@ -82,6 +88,9 @@ const EMPTY_PANEL_WIDTH = "23.75rem";
 /** The chosen model's row, the same pressed state the inbox's filters use. */
 const CHOSEN = "bg-accent text-accent-foreground";
 
+/** How a model's choices are set after its name in the button. */
+const WORDS = "flex shrink-0 items-center gap-1 text-xs leading-4 font-medium";
+
 type ListError = NonNullable<
   RPCOutput["gateway"]["models"]["list"]["errors"]
 >[number];
@@ -95,6 +104,7 @@ type RailEntry = Connection & {
 
 export function ModelPicker({
   align = "start",
+  choice,
   className = "",
   disabled = false,
   errors,
@@ -105,6 +115,8 @@ export function ModelPicker({
   notice,
   onAction,
   onAddProvider,
+  onChoiceChange,
+  onChoiceClosed,
   onClose,
   onOpenChange,
   onValueChange,
@@ -113,6 +125,8 @@ export function ModelPicker({
 }: {
   /** Which edge of the trigger the panel lines up with: the end for a trigger at the right of its row. */
   align?: "end" | "start";
+  /** What was chosen for the model: how hard it thinks, and Fast. */
+  choice?: ModelChoice;
   className?: string;
   disabled?: boolean;
   errors?: ListError[];
@@ -125,6 +139,9 @@ export function ModelPicker({
   notice?: ModelNotice | null;
   onAction?: (action: ModelAction) => void;
   onAddProvider?: () => void;
+  onChoiceChange?: (choice: ModelChoice | undefined) => void;
+  /** Takes the focus after the choices have been opened from the button. */
+  onChoiceClosed?: () => void;
   onClose?: () => void;
   onOpenChange?: (open: boolean) => void;
   onValueChange: (value: AIGatewayModelURI.Type) => void;
@@ -134,6 +151,7 @@ export function ModelPicker({
 }) {
   const [open, setOpen] = useState(false);
   const isOpen = openProp ?? open;
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const closePopover = () => {
     setOpen(false);
@@ -141,6 +159,16 @@ export function ModelPicker({
   };
 
   const isProblem = notice?.tone === "problem";
+  const chosen = readChoice(selectedModel, choice);
+  // What was chosen, after the model's name, while any of it is not Default.
+  const words = (chosen.effort || chosen.fast) && (
+    <>
+      {chosen.effort?.label}
+      {chosen.fast && (
+        <LightningIcon aria-hidden className="size-3" weight="fill" />
+      )}
+    </>
+  );
   const selectedName =
     selectedModel?.name.trim() ??
     (modelURI ? (modelNameFromURI(modelURI) ?? null) : null);
@@ -172,65 +200,98 @@ export function ModelPicker({
       }}
       open={isOpen}
     >
-      <PopoverTrigger asChild>
-        <Button
-          aria-expanded={isOpen}
-          aria-label="Model"
-          className={cn(
-            "flex h-auto max-w-full items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
-            "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
-            isProblem &&
-              "text-yellow-700 hover:text-yellow-700 dark:text-yellow-300 dark:hover:text-yellow-300",
-            // An invitation to connect something rather than a fault.
-            isEmpty &&
-              "text-brand-700 not-disabled:hover:text-brand-700 dark:text-brand-300 dark:not-disabled:hover:text-brand-300",
-            className,
-          )}
-          disabled={disabled || isLoading}
-          role="combobox"
-          size="sm"
-          variant="ghost"
-        >
-          {selectedName ? (
-            <span className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span className="flex shrink-0">
-                    {selectedModel && !isProblem ? (
-                      <AIProviderIcon
-                        className="size-4"
-                        type={selectedModel.params.provider}
-                      />
-                    ) : (
-                      <WarningIcon className="size-4" />
-                    )}
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  <p>{isProblem ? notice.text : selectedModel?.providerName}</p>
-                </TooltipContent>
-              </Tooltip>
-              <span className="min-w-0 flex-1 truncate">{selectedName}</span>
-            </span>
-          ) : isEmpty ? (
-            <span className="flex items-center gap-1.5 text-xs leading-4 font-medium">
-              <InfoIcon className="size-4 shrink-0" />
-              Add a model
-            </span>
-          ) : (
-            <span className="text-xs leading-4 font-medium opacity-50">
-              {placeholderText}
-            </span>
-          )}
-          <CaretDownIcon className="size-3 shrink-0" />
-        </Button>
-      </PopoverTrigger>
+      <span className={cn("relative flex max-w-full", className)}>
+        <PopoverTrigger asChild>
+          <Button
+            aria-expanded={isOpen}
+            aria-label="Model"
+            className={cn(
+              "flex h-auto max-w-full min-w-0 items-center justify-between gap-2 rounded-lg px-1.5! py-1 text-left",
+              "text-gray-400 hover:text-gray-400 dark:text-gray-500 dark:hover:text-gray-500",
+              isProblem &&
+                "text-yellow-700 hover:text-yellow-700 dark:text-yellow-300 dark:hover:text-yellow-300",
+              // An invitation to connect something rather than a fault.
+              isEmpty &&
+                "text-brand-700 not-disabled:hover:text-brand-700 dark:text-brand-300 dark:not-disabled:hover:text-brand-300",
+            )}
+            disabled={disabled || isLoading}
+            role="combobox"
+            size="sm"
+            variant="ghost"
+          >
+            {selectedName ? (
+              <span className="flex min-w-0 items-center gap-2 text-xs leading-4 font-medium">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="flex shrink-0">
+                      {selectedModel && !isProblem ? (
+                        <AIProviderIcon
+                          className="size-4"
+                          type={selectedModel.params.provider}
+                        />
+                      ) : (
+                        <WarningIcon className="size-4" />
+                      )}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      {isProblem ? notice.text : selectedModel?.providerName}
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+                <span className="min-w-0 flex-1 truncate">{selectedName}</span>
+              </span>
+            ) : isEmpty ? (
+              <span className="flex items-center gap-1.5 text-xs leading-4 font-medium">
+                <InfoIcon className="size-4 shrink-0" />
+                Add a model
+              </span>
+            ) : (
+              <span className="text-xs leading-4 font-medium opacity-50">
+                {placeholderText}
+              </span>
+            )}
+            {words && (
+              // Room for the words, which are a button of their own laid over it.
+              <span aria-hidden className={cn(WORDS, "invisible")}>
+                {words}
+              </span>
+            )}
+            <CaretDownIcon className="size-3 shrink-0" />
+          </Button>
+        </PopoverTrigger>
+        {words && selectedModel && onChoiceChange && (
+          <ModelChoiceMenu
+            choice={choice}
+            model={selectedModel}
+            onChange={onChoiceChange}
+            onClosed={onChoiceClosed}
+            side="top"
+            tooltip="Change effort and speed"
+          >
+            <button
+              aria-label={`Effort and speed: ${[chosen.effort?.label, chosen.fast && "Fast"].filter(Boolean).join(", ")}`}
+              // Past the caret, the gap before it and the button's padding.
+              className={cn(
+                WORDS,
+                "absolute top-1/2 right-6.5 -translate-y-1/2 rounded-sm text-gray-400 outline-offset-2 hover:text-foreground data-[state=open]:text-foreground dark:text-gray-500 dark:hover:text-foreground",
+              )}
+              disabled={disabled}
+              type="button"
+            >
+              {words}
+            </button>
+          </ModelChoiceMenu>
+        )}
+      </span>
       <PopoverContent
         align={align}
         // The composer's corner, which its menus wear too. What sits inside
         // is 8px in, so it rounds at 12px and curves alongside it.
         className="flex flex-col rounded-[20px] p-0"
         maxHeight={PANEL_HEIGHT}
+        ref={panelRef}
         style={
           isEmpty
             ? {
@@ -274,6 +335,31 @@ export function ModelPicker({
               closePopover();
             }}
             selectedModel={selectedModel}
+            settings={
+              selectedModel?.choices &&
+              onChoiceChange && (
+                <ModelChoiceMenu
+                  choice={choice}
+                  model={selectedModel}
+                  onChange={onChoiceChange}
+                  // Back to the search, where the panel's keys are: on the
+                  // button, its tooltip would take the next Escape.
+                  onClosed={() => {
+                    panelRef.current?.querySelector("input")?.focus();
+                  }}
+                  side="bottom"
+                  tooltip="Change effort and speed"
+                >
+                  <button
+                    aria-label={`Change effort and speed for ${selectedModel.name.trim()}`}
+                    className="grid size-6 shrink-0 place-items-center rounded-md text-muted-foreground hover:bg-black/5 hover:text-foreground data-[state=open]:text-foreground dark:hover:bg-white/10"
+                    type="button"
+                  >
+                    <SlidersHorizontalIcon className="size-4" />
+                  </button>
+                </ModelChoiceMenu>
+              )
+            }
           />
         )}
       </PopoverContent>
@@ -295,6 +381,7 @@ function PickerPanel({
   onAddProvider,
   onPick,
   selectedModel,
+  settings,
 }: {
   errors: ListError[];
   isError: boolean;
@@ -305,6 +392,8 @@ function PickerPanel({
   onAddProvider: () => void;
   onPick: (model: AIGatewayModel.Type) => void;
   selectedModel?: AIGatewayModel.Type;
+  /** Opens what can be chosen about the selected model, on its row. */
+  settings?: ReactNode;
 }) {
   const listed = connectionsOf(models);
   const rail: RailEntry[] = [
@@ -550,6 +639,7 @@ function PickerPanel({
                 rows={rows}
                 scrollRef={scrollRef}
                 selectedModel={selectedModel}
+                settings={settings}
               />
             )}
           </CommandList>
@@ -567,6 +657,7 @@ function VirtualRows({
   rows,
   scrollRef,
   selectedModel,
+  settings,
 }: {
   offer?: ModelAction;
   onAction: (action: ModelAction) => void;
@@ -576,6 +667,7 @@ function VirtualRows({
   /** The list's scroll, which also holds the notice above the rows. */
   scrollRef: RefObject<HTMLDivElement | null>;
   selectedModel?: AIGatewayModel.Type;
+  settings?: ReactNode;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
@@ -713,6 +805,9 @@ function VirtualRows({
                 onAction={onAction}
                 onPick={onPick}
                 row={row}
+                settings={
+                  selectedModel?.uri === row.model.uri ? settings : undefined
+                }
               />
             )}
           </div>
@@ -861,6 +956,7 @@ function ModelRow({
   onAction,
   onPick,
   row,
+  settings,
 }: {
   chosen: boolean;
   /** On the chosen row, the newer release to switch to, beside what replaced it. */
@@ -868,6 +964,7 @@ function ModelRow({
   onAction: (action: ModelAction) => void;
   onPick: (model: AIGatewayModel.Type) => void;
   row: Extract<PickerRow, { type: "model" }>;
+  settings?: ReactNode;
 }) {
   const { model } = row;
   // Other models show their recommendations as a group of their own; our
@@ -943,6 +1040,7 @@ function ModelRow({
           </span>
         )}
       </span>
+      {settings}
       {chosen && (
         <>
           <CheckIcon aria-hidden className="size-4 shrink-0 text-foreground" />

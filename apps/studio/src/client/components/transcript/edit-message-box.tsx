@@ -1,7 +1,11 @@
 import { type TurnOpener, type ChatId } from "@instrument-org/workspace/client";
 import { useEffect, useEffectEvent, useLayoutEffect, useRef } from "react";
 
-import { type AttachedItem, PromptInput, type PromptInputRef } from "../prompt-input";
+import {
+  type AttachedItem,
+  PromptInput,
+  type PromptInputRef,
+} from "../prompt-input";
 import { normalizeAttachmentFilePath } from "../sent-file-chips";
 import { Button } from "../ui/button";
 import { type MessageEditing } from "./message-editing";
@@ -34,11 +38,13 @@ export function EditMessageBox({
   const words = opener.text?.text ?? "";
   const startWith = useEffectEvent(() => {
     ref.current?.swapIn({
-      items: opener.folders.map((folder): AttachedItem => ({
-        id: folder.path,
-        path: folder.path,
-        type: "folder",
-      })),
+      items: opener.folders.map(
+        (folder): AttachedItem => ({
+          id: folder.path,
+          path: folder.path,
+          type: "folder",
+        }),
+      ),
       prompt: words,
     });
     ref.current?.focusEnd();
@@ -100,9 +106,11 @@ export function EditMessageBox({
         }
         draftKey={{ id: `edit:${id}`, scope: "transient" }}
         isLoading={editing.isSending}
+        modelChoice={editing.modelChoice}
         modelURI={editing.modelURI}
         onEscape={editing.isSending ? undefined : editing.onCancel}
         onModelChange={editing.onModelChange}
+        onModelChoiceChange={editing.onModelChoiceChange}
         onSubmit={(value) => {
           editing.onSend(id, value);
         }}

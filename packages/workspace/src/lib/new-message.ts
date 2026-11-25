@@ -1,4 +1,7 @@
-import { type AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  type AIGatewayModelURI,
+  type ModelChoice,
+} from "@instrument-org/ai-gateway";
 import { extractSkillMentions } from "@instrument-org/shared/skill-mention";
 import { err, ok, ResultAsync } from "neverthrow";
 
@@ -30,7 +33,11 @@ import { folderReach } from "./chat/folder-reach";
 import { listProjects, type ProjectFolder } from "./chat/projects";
 import { tabHolders } from "./chat/chat-tabs";
 import { chatDir, resolveChat } from "./record-folders";
-import { chatModelURI, setChatModel } from "./chat-settings";
+import {
+  chatModelURI,
+  setChatModel,
+  setChatModelChoice,
+} from "./chat-settings";
 import { grantFile, grantFolder } from "./chat/grants";
 import { sessionRole } from "./chat/children";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -48,6 +55,7 @@ export async function newMessage({
   fromChat,
   fromDraft,
   layout,
+  modelChoice,
   modelURI,
   prompt,
   sessionId,
@@ -70,6 +78,8 @@ export async function newMessage({
   fromDraft?: string;
   /** The tab group the chat works in, as the window read it at the send; see `layoutParts`. */
   layout?: LayoutRead;
+  /** What the composer chose for the model, `null` for its defaults; left out, the chat's stands. */
+  modelChoice?: ModelChoice | null;
   modelURI: AIGatewayModelURI.Type;
   prompt: string;
   sessionId: StoreId.Session;
@@ -403,6 +413,12 @@ export async function newMessage({
     const picked = await setChatModel(chatId, modelURI);
     if (picked.isErr()) {
       return picked;
+    }
+    if (modelChoice !== undefined) {
+      const chosen = await setChatModelChoice(chatId, modelChoice);
+      if (chosen.isErr()) {
+        return chosen;
+      }
     }
   }
 

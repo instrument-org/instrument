@@ -1,3 +1,4 @@
+import { ModelChoiceSchema } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -231,6 +232,8 @@ const SettingRecordSchema = z.discriminatedUnion("field", [
    * parse is the reader's to pass over, not a line to skip.
    */
   settingSchema("model", z.string().min(1)),
+  /** What the person chose for that model; `null` is its defaults. */
+  settingSchema("choice", ModelChoiceSchema.nullable()),
 ]);
 
 export type SettingRecord = z.output<typeof SettingRecordSchema>;

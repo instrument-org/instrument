@@ -15,6 +15,7 @@ import { ChatWrites } from "../chat-writes";
 import { type ChatActivity } from "../chat/activity";
 import { chatById, chatRecordTitle, markChatUnread } from "../chat/chats";
 import { recordAsk } from "../chat/asks";
+import { openAsks } from "../chat/open-asks";
 import { undoChatChanges } from "../chat/organize";
 import { createProject } from "../chat/projects";
 import { createLocalBashEnv } from "../create-bash-env";
@@ -647,7 +648,7 @@ describe("instrument chats stop", () => {
     expect(stop.exitCode).toBe(1);
     expect(stop.stdout).toMatchInlineSnapshot(`
       "Stopped lisbon: Trip to Lisbon
-      groceries was not working: Groceries for the week
+      groceries was not working or waiting on the user: Groceries for the week
       "
     `);
     expect(stop.stderr).toMatchInlineSnapshot(`
@@ -671,6 +672,33 @@ describe("instrument chats stop", () => {
     `);
     expect((await chatById(ChatIdSchema.parse("porto")))?.working).toBe(true);
     expect(stop.changes).toEqual([]);
+  });
+});
+
+describe("instrument chats stop on a card", () => {
+  it("stops a chat waiting on the user's answer, as their own Stop does", async () => {
+    const porto = ChatIdSchema.parse("porto");
+    const portoSession = sessionOfChat(porto);
+    if (!portoSession) {
+      throw new Error("porto has no session");
+    }
+    await recordAsk(
+      {
+        chatId: porto,
+        reason: "The timetable needs your account.",
+        sessionId: portoSession,
+        title: "Log in to the railway",
+      },
+      "page",
+      "tab_1",
+      { page: { title: "Railway", url: "https://rail.example.com/" } },
+    );
+    const stop = await one("instrument chats stop porto");
+    expect(stop.stdout).toMatchInlineSnapshot(`
+      "Stopped porto: about porto
+      "
+    `);
+    expect(await openAsks(porto)).toEqual([]);
   });
 });
 

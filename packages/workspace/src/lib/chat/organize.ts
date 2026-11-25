@@ -14,9 +14,7 @@ import {
 } from "./chats";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
-import { isWorking } from "./activity";
-import { openAsks } from "./open-asks";
-import { stopChat } from "./stop-chat";
+import { hasSomethingToStop, stopChat } from "./stop-chat";
 import { closeChatTabs } from "./tab-cap";
 
 /**
@@ -26,7 +24,7 @@ import { closeChatTabs } from "./tab-cap";
  * the person used.
  */
 export async function archiveChatAndTabs(chatId: ChatId): Promise<boolean> {
-  if (isWorking(chatId) || (await openAsks(chatId)).length > 0) {
+  if (await hasSomethingToStop(chatId)) {
     await stopChat(chatId, {
       captureException: getWorkspaceConfig().captureException,
       workspaceRef: getWorkspaceActorRef(),

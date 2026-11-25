@@ -8,9 +8,17 @@ import { isWorking } from "./activity";
 import { closeAsksOf } from "./asks";
 import { markChatStopped } from "./chats";
 import { listChildTasks } from "./children";
-import { openAsksOf, openQuestions } from "./open-asks";
+import { openAsks, openAsksOf, openQuestions } from "./open-asks";
 import { type TakenBack, takeBackUnanswered } from "./take-back";
 import { noteTaskStoppedOnCard } from "./wake";
+
+/**
+ * Whether the person's Stop of a whole chat has something to end: an agent
+ * of it at work, or a card it waits on the person's answer to.
+ */
+export async function hasSomethingToStop(chatId: ChatId): Promise<boolean> {
+  return isWorking(chatId) || (await openAsks(chatId)).length > 0;
+}
 
 /**
  * The person's Stop of a record's agents: a chat's, which is its own

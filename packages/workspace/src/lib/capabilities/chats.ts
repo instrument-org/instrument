@@ -29,7 +29,7 @@ import {
   chatStandingWords,
 } from "../../model-text/notes/chat-state-model-text";
 import { PROJECTS_COMMAND } from "../../model-text/commands/projects-command";
-import { stopChat } from "../chat/stop-chat";
+import { hasSomethingToStop, stopChat } from "../chat/stop-chat";
 import { resolveChat } from "../record-folders";
 import { getWorkspaceActorRef } from "../workspace-actor-ref";
 import { getWorkspaceConfig } from "../workspace-config";
@@ -437,8 +437,8 @@ export const chatsStop = defineCapability({
           couldNot: `stop: ${chat.id} is this chat; ending your turn ends it, and \`${TASK_COMMAND.name} stop\` a task of yours.`,
         };
       }
-      if (!chat.working) {
-        return `${chat.id} was not working: ${chat.title}`;
+      if (!chat.working && !(await hasSomethingToStop(chat.id))) {
+        return `${chat.id} was not working or waiting on the user: ${chat.title}`;
       }
       await stopChat(chat.id, {
         captureException: getWorkspaceConfig().captureException,
@@ -458,7 +458,7 @@ export const chatsStop = defineCapability({
     return outcomes;
   },
   summary:
-    "Stop chats that are working, only ones the user asked to stop, as their own Stop does: the chat's turn and its tasks end where they are, and what they did stays.",
+    "Stop chats that are working or waiting on the user, only ones the user asked to stop, as their own Stop does: the chat's turn and its tasks end where they are, what waits on the user closes, and what they did stays.",
   surfaces: {
     cli: { help: "", positional: ["ids"], words: ["chats", "stop"] },
   },

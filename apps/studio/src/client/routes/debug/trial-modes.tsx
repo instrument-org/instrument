@@ -154,7 +154,6 @@ const searchSchema = z.object({
 export const Route = createFileRoute("/debug/trial-modes")({
   beforeLoad: ({ search }) => {
     if (search.surface) {
-      // oxlint-disable-next-line typescript/only-throw-error
       throw redirect({
         replace: true,
         search: { mode: search.mode, state: search.surface },

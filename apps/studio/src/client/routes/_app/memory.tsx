@@ -8,7 +8,6 @@ import { z } from "zod";
  */
 export const Route = createFileRoute("/_app/memory")({
   beforeLoad: ({ search }) => {
-    // oxlint-disable-next-line typescript/only-throw-error
     throw redirect({
       params: { section: "memory" },
       replace: true,

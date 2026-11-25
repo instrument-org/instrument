@@ -330,6 +330,10 @@ export function useWindowCommands(
             continue;
           }
           switch (command) {
+            case "toggleBookmarksBar": {
+              // The main process answers this one itself.
+              break;
+            }
             case "back": {
               if (!runPageChord("back") && !stepForKeyboard("back")) {
                 latest.current.back();

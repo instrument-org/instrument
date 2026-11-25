@@ -346,7 +346,12 @@ function useLander(
         );
         return;
       }
-      case "bookmarks": {
+      // Where what is held lands as itself, with nothing to open.
+      case "attach":
+      case "bookmarks":
+      case "favorite":
+      case "into":
+      case "unfavorite": {
         return;
       }
     }

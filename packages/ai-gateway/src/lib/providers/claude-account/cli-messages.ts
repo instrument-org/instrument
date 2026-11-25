@@ -77,6 +77,9 @@ function resultFailureKind(message: SDKResultMessage): PlanErrorKind {
     case "tool_deferred_unavailable": {
       return "invalid_request";
     }
+    default: {
+      break;
+    }
   }
   if (status === undefined || status === null) {
     return "unknown";

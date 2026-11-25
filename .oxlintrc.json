@@ -170,7 +170,19 @@
     "typescript/no-unsafe-return": ["error"],
     "typescript/no-unsafe-unary-minus": ["error"],
     "typescript/no-wrapper-object-types": ["error"],
-    "typescript/only-throw-error": ["error"],
+    // TanStack Router answers a route with a thrown redirect.
+    "typescript/only-throw-error": [
+      "error",
+      {
+        "allow": [
+          {
+            "from": "package",
+            "name": "Redirect",
+            "package": "@tanstack/router-core"
+          }
+        ]
+      }
+    ],
     "typescript/prefer-as-const": ["error"],
     "typescript/prefer-literal-enum-member": ["error"],
     "typescript/prefer-promise-reject-errors": ["error"],
@@ -202,6 +214,12 @@
       }
     ],
     "typescript/return-await": ["error", "error-handling-correctness-only"],
+    // A switch that leaves out a member of a union says nothing the day the
+    // union grows. A `default` is an answer for every one, so it counts.
+    "typescript/switch-exhaustiveness-check": [
+      "error",
+      { "considerDefaultExhaustiveForUnions": true }
+    ],
     "typescript/triple-slash-reference": ["error"],
     "typescript/unbound-method": ["error"],
     "typescript/use-unknown-in-catch-callback-variable": ["error"]

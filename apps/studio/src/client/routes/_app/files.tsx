@@ -11,7 +11,6 @@ export const Route = createFileRoute("/_app/files")({
   // moves on.
   beforeLoad: ({ search }) => {
     if (search.view === undefined) {
-      // oxlint-disable-next-line typescript/only-throw-error
       throw redirect({
         replace: true,
         search: settleArrival(search, arrivalViewOf),

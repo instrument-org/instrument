@@ -184,6 +184,9 @@ const actor = createActor(workspaceMachine, {
 
         break;
       }
+      default: {
+        break;
+      }
     }
   },
 });

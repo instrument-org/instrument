@@ -717,6 +717,9 @@ const readFileCapability = defineCapability({
               ],
             };
           }
+          case "exists": {
+            break;
+          }
         }
 
         if (output.content === "") {

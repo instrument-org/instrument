@@ -25,7 +25,6 @@ export const Route = createFileRoute("/_app/settings/$section")({
   // to search for (`/settings/zoom`), and goes where that link goes.
   beforeLoad: ({ params }) => {
     if (!isSettingsSection(params.section)) {
-      // oxlint-disable-next-line typescript/only-throw-error
       throw redirect({
         href: settingsHrefOf({ setting: params.section }),
         replace: true,

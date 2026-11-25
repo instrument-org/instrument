@@ -584,6 +584,10 @@ async function* searchWithProviderModel({
           yield currentResult();
           break;
         }
+        default: {
+          // The rest of what a stream says is not part of an answer.
+          break;
+        }
       }
     }
   } catch (generationError) {

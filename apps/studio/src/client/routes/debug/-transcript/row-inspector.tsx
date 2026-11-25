@@ -45,6 +45,9 @@ function describeRow(
           name: "Worked row",
         };
       }
+      default: {
+        break;
+      }
     }
   }
   for (const each of turns) {

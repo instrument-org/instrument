@@ -37,8 +37,7 @@ export function AppsSection() {
         <div>
           <h3 className="text-base font-semibold">Apps</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Connect the services you already use, and Instrument works in them
-            from your chats.
+            Connect your existing services to work with them in Instrument.
           </p>
         </div>
         <Button

@@ -359,8 +359,8 @@ export function FolderStep({ hold, onBack, onContinue }: SetupStepProps) {
           }
           title={
             lostPast === "new" && picked === null
-              ? "Where should your new Instrument folder live?"
-              : "Where should your Instrument folder live?"
+              ? "Where do you want to place your new Instrument folder?"
+              : "Where do you want to place your Instrument folder?"
           }
         >
           <div className="mt-8 flex w-140 max-w-full flex-col">

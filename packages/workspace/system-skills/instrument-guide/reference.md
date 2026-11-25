@@ -58,7 +58,7 @@ What Instrument remembers about you, one file per memory, which you can search, 
 
 ### Skills (`skills`)
 
-The skills Instrument's tasks can use, and making a new one.
+The skills Instrument can use, and making a new one.
 
 - **New skill** (`new-skill`): Ask for a skill that teaches a new way of working.
 
@@ -91,7 +91,7 @@ Where your Instrument folder is, and chats in it that can’t be opened.
 
 Sending feedback, what Instrument sends when something goes wrong, and the diagnostic log.
 
-- **Diagnostic log** (`diagnostic-log`): A local record to send with a problem report. On it: View log (`view-log`).
+- **Diagnostic log** (`diagnostic-log`): A log on this computer to send with a problem report. On it: View log (`view-log`).
 - **Send feedback** (`send-feedback`): Tell us about something that isn't working.
 
 ### About (`about`)

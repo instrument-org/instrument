@@ -9,7 +9,6 @@ import {
   Dialog,
   DialogBody,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogTitle,
 } from "@/client/components/ui/dialog";
@@ -25,7 +24,6 @@ import {
   type TimeRangeId,
 } from "@/client/lib/browsing-data";
 import { rpcClient } from "@/client/rpc/client";
-import { APP_NAME } from "@instrument-org/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import { useState } from "react";
@@ -126,12 +124,13 @@ function ClearBrowsingDataContent({
   const note = allTimeNote({ ...picked, range });
 
   return (
-    <DialogContent maxWidth="28rem" onExitComplete={onExitComplete}>
+    <DialogContent
+      aria-describedby={undefined}
+      maxWidth="28rem"
+      onExitComplete={onExitComplete}
+    >
       <div className="flex flex-col gap-2">
         <DialogTitle>Clear browsing data</DialogTitle>
-        <DialogDescription>
-          {`This clears what the browser in ${APP_NAME} has kept from the sites you visit. Your chats and files stay as they are.`}
-        </DialogDescription>
       </div>
 
       <DialogBody className="flex flex-col gap-4">

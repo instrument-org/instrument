@@ -31,6 +31,7 @@ import {
   confineLocalPagesToTheirFolder,
   refuseLocalFilesIn,
 } from "./local-file-policy";
+import { contactSearchEngine } from "./search-engine";
 import { guestWindowOpenHandler, isHttpUrl } from "./window-open-policy";
 
 let configured: null | { dir: string; session: Session } = null;
@@ -195,6 +196,7 @@ export function configureGuestSession(profileDir: string): Session {
   enableBrowserExtensions(guestSession, extensionsDirOf(profileDir));
   listenForPageCapture();
   listenForPageEdits();
+  void contactSearchEngine(guestSession);
   return guestSession;
 }
 

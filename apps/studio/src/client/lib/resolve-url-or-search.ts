@@ -30,7 +30,7 @@ export function resolveUrlOrSearch(input: string): string | undefined {
 
 /** The results page for words typed into the address field. */
 export function webSearchUrl(words: string): string {
-  return `https://duckduckgo.com/?q=${encodeURIComponent(words)}`;
+  return `https://www.google.com/search?q=${encodeURIComponent(words)}`;
 }
 
 /** What a row that searches the web for typed words says, in every field that offers one. */

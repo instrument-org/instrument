@@ -199,7 +199,6 @@ export function TabStrip({
    */
   heldAt?: { grabX: number; key: string } | undefined;
   className?: string;
-  /** Drawn as a plus at the end of the row when given. */
   /** The set these tabs belong to; when it changes the strip adopts them silently. */
   groupKey?: string;
   /** The tabs are changing with nobody to see it, so nothing comes or goes with a motion. */
@@ -211,6 +210,7 @@ export function TabStrip({
   onContextMenu?: (key: string, event: React.MouseEvent) => void;
   /** What a right click on the plus offers: a menu's content, the tabs closed lately. */
   newMenu?: ReactNode;
+  /** Drawn as a plus at the end of the row when given. */
   onNew?: () => void;
   onSelect: (key: string) => void;
   /** A primary press on a tab that is not fixed, which may become a drag. */

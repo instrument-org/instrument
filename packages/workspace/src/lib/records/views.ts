@@ -297,10 +297,6 @@ export async function everyMessageView(
   );
 }
 
-/**
- * What the session's context meter shows: the input tokens the last reply
- * that reported any was built from. Zero where no reply has reported one.
- */
 /** The hosts the session's own browser has been on, oldest first. */
 export function sitesView(
   read: ChatRead,
@@ -309,6 +305,10 @@ export function sitesView(
   return read.chat.sessions.find(({ id }) => id === sessionId)?.sites ?? [];
 }
 
+/**
+ * What the session's context meter shows: the input tokens the last reply
+ * that reported any was built from. Zero where no reply has reported one.
+ */
 export function contextTokensView(
   read: ChatRead,
   sessionId: StoreId.Session,

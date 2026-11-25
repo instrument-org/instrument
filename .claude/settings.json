@@ -42,6 +42,11 @@
             "type": "command",
             "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; bash \"$(dirname \"$d\")/.claude/hooks/commit-skill-gate.sh\"",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; node \"$(dirname \"$d\")/scripts/checkout-guard.ts\"",
+            "timeout": 10
           }
         ]
       }

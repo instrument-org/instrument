@@ -1,11 +1,14 @@
-import { execFileSync } from "node:child_process";
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { pathToFileURL } from "node:url";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { agentBrowserPath } from "../agent-browser";
+import {
+  AGENT_BROWSER_MULTI_LINE_SNAPSHOT,
+  AGENT_BROWSER_SELECTED_VALUE,
+  AGENT_BROWSER_SNAPSHOT,
+} from "./agent-browser-cli-output.generated";
+import {
+  MULTI_LINE_VALUE,
+  SELECTED_OPTION_NAME,
+} from "./agent-browser-cli-recording";
 import {
   foldSnapshotText,
   parseSnapshot,
@@ -163,148 +166,16 @@ describe("foldSnapshotText", () => {
   });
 });
 
-const FIXTURE = `<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Snapshot fold fixture</title>
-  </head>
-  <body>
-    <nav aria-label="Primary">
-      <a href="#orders">Orders</a>
-    </nav>
-    <h1>Order a shirt</h1>
-    <label for="size">Size</label>
-    <select id="size">
-      <option>Small</option>
-      <option selected>Medium</option>
-      <option disabled>Large, tall</option>
-      <option value="xl">Extra "wide" [XL]</option>
-    </select>
-    <label for="qty">Quantity</label>
-    <select id="qty">
-      <optgroup label="Few"><option>1</option><option>2</option></optgroup>
-      <optgroup label="Many"><option>10</option><option>20</option><option>50</option></optgroup>
-    </select>
-    <select aria-label="Plan">
-      <option value="">Choose</option>
-      <option value="a">Monthly</option>
-      <option value="b">Monthly</option>
-      <option>Yearly</option>
-      <option>Every two years</option>
-    </select>
-    <select aria-label="Gift"><option>No</option><option>Yes</option></select>
-    <select aria-label="Sizes in stock" multiple>
-      <option>S</option>
-      <option selected>M</option>
-    </select>
-    <div role="combobox" tabindex="0" aria-label="Fit" aria-expanded="false" aria-controls="fits">Regular</div>
-    <div role="combobox" tabindex="0" aria-label="Sleeve" aria-expanded="true" aria-owns="sleeves">Long</div>
-    <ul id="sleeves" role="listbox" aria-label="Sleeve lengths">
-      <li role="option" aria-selected="true" tabindex="-1">Long</li>
-      <li role="option" tabindex="-1">Short</li>
-    </ul>
-    <ul role="listbox" aria-label="Gift wrap">
-      <li role="option" aria-selected="true" tabindex="0">None</li>
-      <li role="option" tabindex="-1">Paper</li>
-    </ul>
-    <label for="note">Note</label>
-    <textarea id="note">Leave it at the door</textarea>
-    <button type="button">Add to cart</button>
-  </body>
-</html>
-`;
-
-/** A value whose later lines read as controls, one of them with a ref of the page's. */
-const MULTI_LINE_VALUE = [
-  "Shopping:",
-  "- milk",
-  '- combobox "Pasted" [expanded=false, ref=e2]',
-  '  - option "One" [ref=e9001]',
-].join("\n");
-
-// The fold reads the text the installed CLI prints, which is the only form
-// the CLI gives the tree in. This takes a snapshot of a real page with the
-// real binary and a headless browser, so a release that prints the tree
-// another way fails here rather than leaving every snapshot unfolded.
-describe("the installed agent-browser's snapshot of a real page", () => {
-  const session = `snapshot-fold-test-${process.pid}`;
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "snapshot-fold-"));
-  const run = (...args: string[]) =>
-    execFileSync(agentBrowserPath(), ["--session", session, ...args], {
-      encoding: "utf8",
-      env: { ...process.env, AGENT_BROWSER_IDLE_TIMEOUT_MS: "60000" },
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 30_000,
-    });
-  /** Why the page could not be opened: a computer with no browser to launch. */
-  let noBrowser: string | undefined;
-
-  beforeAll(() => {
-    const page = path.join(dir, "page.html");
-    fs.writeFileSync(page, FIXTURE);
-    try {
-      run("open", pathToFileURL(page).href);
-    } catch (error) {
-      noBrowser = String(error);
-    }
-  }, 60_000);
-
-  afterAll(() => {
-    try {
-      run("close");
-    } catch {
-      // Nothing was opened.
-    }
-    fs.rmSync(dir, { force: true, recursive: true });
-  });
-
-  it("reads back byte for byte and folds only the closed selects", (context) => {
-    if (noBrowser !== undefined) {
-      context.skip(`agent-browser could not open a page: ${noBrowser}`);
-    }
-    const text = run("snapshot", "-i").trimEnd();
-
-    expect(text).toMatchInlineSnapshot(`
-      "- navigation "Primary" [ref=e1]
-        - link "Orders" [ref=e13]
-      - heading "Order a shirt" [level=1, ref=e2]
-      - combobox "Size" [expanded=false, ref=e3]: Medium
-        - option "Small" [ref=e19]
-        - option "Medium" [selected, ref=e20]
-        - option "Large, tall" [disabled, ref=e21]
-        - option "Extra \\"wide\\" [XL]" [ref=e22]
-      - combobox "Quantity" [expanded=false, ref=e4]: 1
-        - option "1" [selected, ref=e32]
-        - option "2" [ref=e33]
-        - option "10" [ref=e34]
-        - option "20" [ref=e35]
-        - option "50" [ref=e36]
-      - combobox "Plan" [expanded=false, ref=e5]: Choose
-        - option "Choose" [selected, ref=e23]
-        - option "Monthly" [ref=e24]
-        - option "Monthly" [ref=e25]
-        - option "Yearly" [ref=e26]
-        - option "Every two years" [ref=e27]
-      - combobox "Gift" [expanded=false, ref=e6]: No
-        - option "No" [selected, ref=e28]
-        - option "Yes" [ref=e29]
-      - listbox "Sizes in stock" [ref=e7]
-        - option "S" [ref=e14]
-        - option "M" [selected, ref=e15]
-      - combobox "Fit" [expanded=false, ref=e8]: Regular
-      - combobox "Sleeve" [expanded=true, ref=e9]: Long Long
-        - listbox "Sleeve lengths" [ref=e16]
-          - option "Long" [selected, ref=e30]
-          - option "Short" [ref=e31]
-      - listbox "Gift wrap" [ref=e10]
-        - option "None" [selected, ref=e17]
-        - option "Paper" [ref=e18]
-      - textbox "Note" [ref=e11]: Leave it at the door
-      - button "Add to cart" [ref=e12]"
-    `);
-    expect(renderSnapshot(tree(text))).toBe(text);
-    expect(foldSnapshotText(text)).toMatchInlineSnapshot(`
+// The fold reads the text the CLI prints, which is the only form the CLI
+// gives the tree in. These read a snapshot of a real page that
+// script:record-agent-browser-output took with the installed release, so a
+// release that prints the tree another way fails here once it is recorded.
+describe("the recorded agent-browser snapshot of a real page", () => {
+  it("reads back byte for byte and folds only the closed selects", () => {
+    expect(renderSnapshot(tree(AGENT_BROWSER_SNAPSHOT))).toBe(
+      AGENT_BROWSER_SNAPSHOT,
+    );
+    expect(foldSnapshotText(AGENT_BROWSER_SNAPSHOT)).toMatchInlineSnapshot(`
       "- navigation "Primary" [ref=e1]
         - link "Orders" [ref=e13]
       - heading "Order a shirt" [level=1, ref=e2]
@@ -337,26 +208,17 @@ describe("the installed agent-browser's snapshot of a real page", () => {
     `);
   });
 
-  it("chooses an option of a folded select by the name on its line", (context) => {
-    if (noBrowser !== undefined) {
-      context.skip(`agent-browser could not open a page: ${noBrowser}`);
-    }
-    run("select", "@e3", 'Extra "wide" [XL]');
-
-    expect(run("get", "value", "@e3").trim()).toBe("xl");
+  it("chooses an option of a folded select by the name on its line", () => {
+    expect(foldSnapshotText(AGENT_BROWSER_SNAPSHOT)).toContain(
+      JSON.stringify(SELECTED_OPTION_NAME),
+    );
+    expect(AGENT_BROWSER_SELECTED_VALUE).toBe("xl");
   });
 
-  it("leaves a page with a field value of several lines as printed", (context) => {
-    if (noBrowser !== undefined) {
-      context.skip(`agent-browser could not open a page: ${noBrowser}`);
-    }
-    run(
-      "eval",
-      `document.querySelector("#note").value = ${JSON.stringify(MULTI_LINE_VALUE)}; 1`,
+  it("leaves a page with a field value of several lines as printed", () => {
+    expect(AGENT_BROWSER_MULTI_LINE_SNAPSHOT).toContain(MULTI_LINE_VALUE);
+    expect(foldSnapshotText(AGENT_BROWSER_MULTI_LINE_SNAPSHOT)).toBe(
+      AGENT_BROWSER_MULTI_LINE_SNAPSHOT,
     );
-    const text = run("snapshot", "-i").trimEnd();
-
-    expect(text).toContain(MULTI_LINE_VALUE);
-    expect(foldSnapshotText(text)).toBe(text);
   });
 });

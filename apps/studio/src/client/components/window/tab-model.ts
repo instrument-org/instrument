@@ -1755,7 +1755,6 @@ export function addPages(
   return next;
 }
 
-/** What a page tab knows of its page, as the page announces it; nothing changes when nothing differs. */
 /**
  * The title a page tab keeps as its guest commits an address. The browser
  * names a new document by its address until the page's own title arrives,
@@ -1777,6 +1776,7 @@ export function titleAtNavigation({
   return isNewDocument && url !== was ? undefined : guestTitle || undefined;
 }
 
+/** What a page tab knows of its page, as the page announces it; nothing changes when nothing differs. */
 export function patchPage(
   state: WindowTabs,
   id: string,

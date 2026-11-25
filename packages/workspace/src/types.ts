@@ -147,19 +147,19 @@ export interface BrowserConfig {
     frameSession?: string,
   ): Promise<unknown>;
   /**
-   * The folders on this computer the agent driving a guest can read, or null
-   * once no agent is connected. While they are set, a page the agent can read
-   * may not take the tab to a file outside them (a link, a script setting
-   * `location`), so the agent cannot use a page of its own to open a file it
-   * could not open itself.
-   */
-  /**
    * Stops a guest drawing while no slot shows it: no frames, no animation
    * frames, throttled timers, its page kept as it is. The next command sent to
    * it, or the window showing it, wakes it. Ignored for a guest the window
    * shows, in HTML full screen, being recorded, or busy (`isGuestBusy`).
    */
   sleepGuest: (targetId: BrowserTargetId) => void;
+  /**
+   * The folders on this computer the agent driving a guest can read, or null
+   * once no agent is connected. While they are set, a page the agent can read
+   * may not take the tab to a file outside them (a link, a script setting
+   * `location`), so the agent cannot use a page of its own to open a file it
+   * could not open itself.
+   */
   setAgentFileRoots: (
     targetId: BrowserTargetId,
     roots: null | readonly string[],

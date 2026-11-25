@@ -601,10 +601,6 @@ function LiveDocument({
 }
 
 /**
- * A message document's head: what it is and who it is for, and its subject,
- * each editable in place and written back into the front matter.
- */
-/**
  * Measures the room between a document's text column and the right edge of
  * its page, as `--page-room-end`, which a wide table grows into
  * (markdown-editor.css). Measured rather than read from a container query: a
@@ -633,6 +629,10 @@ function trackPageRoom(column: HTMLDivElement | null) {
   };
 }
 
+/**
+ * A message document's head: what it is and who it is for, and its subject,
+ * each editable in place and written back into the front matter.
+ */
 function MessageHead({
   fm,
   kind,

@@ -161,14 +161,14 @@ const PER_KIND_SHOWN = 3;
 const MEANING_MIN_LENGTH = 3;
 /** The chats talked to last, listed before anything is typed. */
 const RECENT_CHATS_SHOWN = 4;
+/** Where the debug pages are listed, each picked from there. */
+const DEBUG_INDEX_HREF = "/debug";
+
 /**
  * The commands listed before anything is typed: the ones worth reaching
  * often, each with its chord. The rest (the theme, clearing browsing data,
  * updates) are found by typing.
  */
-/** Where the debug pages are listed, each picked from there. */
-const DEBUG_INDEX_HREF = "/debug";
-
 const LISTED_COMMANDS = new Set(["new-group", "new-tab", "settings"]);
 /**
  * How many actions for the tab in front are listed before anything is

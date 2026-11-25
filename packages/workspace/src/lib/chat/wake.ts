@@ -79,15 +79,6 @@ const OVERDUE_STEPS = 6;
 const overdueReportedAt = new Map<StoreId.Session, number>();
 
 /**
- * Who stopped a task's working turn, and whether the chat hears of it.
- * The chat's own `instrument task stop` is a step it took, so the chat hears
- * nothing of it. The user's Stop, of one task or of the whole chat, is
- * written into the chat as a note, so its agent knows the task did not
- * finish and leaves it stopped, but wakes nothing: the person who stopped it
- * knows already, and the agent reads the note with their next message, the
- * way a quit's note is read.
- */
-/**
  * Wakes a chat about one of its tasks with an event composed elsewhere,
  * through the same debounce and delivery a finish takes. What the eval
  * harness stands a task's finish in with, without the task doing the work.

@@ -259,11 +259,6 @@ export async function ensurePythonBase(): Promise<
 }
 
 /**
- * Starts a check in the background when one is due, for a chat's `python`,
- * `pip` or `uv` command, which never waits on it. A failure is logged and
- * leaves the set as it was.
- */
-/**
  * Asks for a check of the base packages when one is due. The bash worker
  * replaces it with a request to the main thread, so one thread owns the
  * refresh and the processes it starts.
@@ -279,6 +274,11 @@ export function askForPythonBaseRefresh(): void {
   requestRefresh();
 }
 
+/**
+ * Starts a check in the background when one is due, for a chat's `python`,
+ * `pip` or `uv` command, which never waits on it. A failure is logged and
+ * leaves the set as it was.
+ */
 export function refreshPythonBaseIfDue(): void {
   if (refreshing || !refreshDue(readState(), Date.now())) {
     return;

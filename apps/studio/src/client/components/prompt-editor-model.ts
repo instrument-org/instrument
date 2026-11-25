@@ -263,13 +263,6 @@ export const deleteQuoteBackward: Command = (state, dispatch) => {
 };
 
 /**
- * Puts dictated words at the end of the document, after a space on its last
- * line, so several takes in a row read as one run of sentences; into the last
- * line itself when it is empty (an empty box, or one that ends on a fresh
- * line). The words carry the dictated mark and the space before them does
- * not; nothing already written is touched, and the step undoes as one.
- */
-/**
  * The space dictated words need before them at the end of `doc`: none on an
  * empty last line or after a space, one after anything else, a chip included.
  */
@@ -281,6 +274,13 @@ export function dictationLead(doc: ProseMirrorNode): "" | " " {
   return end.isText && /\s$/.test(end.text ?? "") ? "" : " ";
 }
 
+/**
+ * Puts dictated words at the end of the document, after a space on its last
+ * line, so several takes in a row read as one run of sentences; into the last
+ * line itself when it is empty (an empty box, or one that ends on a fresh
+ * line). The words carry the dictated mark and the space before them does
+ * not; nothing already written is touched, and the step undoes as one.
+ */
 export function appendDictated(state: EditorState, text: string): Transaction {
   const [first = "", ...rest] = text.trim().split("\n");
   const { doc } = state;

@@ -549,11 +549,6 @@ type FolderEntry = FileSystemFolderItem & {
   name: string;
   parentPath: string;
 };
-/**
- * A selection of several, the way the Finder holds one: every path in it in
- * the order picked, the one a Shift-click or Shift-arrow reaches from, and the
- * reach the last of those took, which the next one replaces.
- */
 /** A press or key that adds to the selection, and the order the view draws its rows in. */
 type SelectionGesture = {
   mode: SelectionMode;

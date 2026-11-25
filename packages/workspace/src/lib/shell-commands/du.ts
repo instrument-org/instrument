@@ -51,34 +51,6 @@ interface DuRoot {
 }
 
 /**
- * `du`, walked in a worker thread against the real directories behind the
- * sandbox's mounts.
- *
- * just-bash's own `du` walks the virtual filesystem on the Electron main thread,
- * where every entry is a blocking `realpathSync` and `lstatSync` in front of
- * the read: over an attached home folder it spends the whole traversal budget
- * in about half a minute and prints nothing. A folder's size is a question the
- * agent is asked in plain words and has no other command for, so a slow `du`
- * is a question it cannot answer.
- *
- * Here the walk runs in a worker with synchronous filesystem calls, so the main
- * thread only receives the finished text, and no traversal budget applies: a
- * long walk costs time rather than the window, and outlives `yieldMs` the way
- * any long command does. Output follows GNU `du`: disk usage in 1024-byte units
- * unless `--apparent-size` or `-b` asks for the bytes files and links hold, children before parents,
- * `-h` rounding up. Windows reports no block counts, so there each file's size
- * is rounded up to a 4 KiB cluster.
- *
- * Paths are printed as the agent typed them, never in the host's spelling. The walk
- * does not follow symlinks and counts a hard-linked file once. It runs as the
- * app, outside every sandbox, so it leaves out what the rules don't open
- * ({@link walkBounds}): the app's own data neither counted nor named, a
- * place that asks first or is closed named on stderr, and what opens inside
- * either walked. Anything it does not
- * implement -- another flag, an operand outside every mount -- goes to
- * just-bash's `du` unchanged.
- */
-/**
  * What the walk leaves out: the app's own data, unnamed, and every place the
  * rules don't open for reading (a place that asks first, one the person
  * closed), named. The walk runs as the app, so reading inside Desktop,
@@ -141,6 +113,34 @@ export function walkBounds(layout: Pick<WorkspaceFsLayout, "rules">): {
   };
 }
 
+/**
+ * `du`, walked in a worker thread against the real directories behind the
+ * sandbox's mounts.
+ *
+ * just-bash's own `du` walks the virtual filesystem on the Electron main thread,
+ * where every entry is a blocking `realpathSync` and `lstatSync` in front of
+ * the read: over an attached home folder it spends the whole traversal budget
+ * in about half a minute and prints nothing. A folder's size is a question the
+ * agent is asked in plain words and has no other command for, so a slow `du`
+ * is a question it cannot answer.
+ *
+ * Here the walk runs in a worker with synchronous filesystem calls, so the main
+ * thread only receives the finished text, and no traversal budget applies: a
+ * long walk costs time rather than the window, and outlives `yieldMs` the way
+ * any long command does. Output follows GNU `du`: disk usage in 1024-byte units
+ * unless `--apparent-size` or `-b` asks for the bytes files and links hold, children before parents,
+ * `-h` rounding up. Windows reports no block counts, so there each file's size
+ * is rounded up to a 4 KiB cluster.
+ *
+ * Paths are printed as the agent typed them, never in the host's spelling. The walk
+ * does not follow symlinks and counts a hard-linked file once. It runs as the
+ * app, outside every sandbox, so it leaves out what the rules don't open
+ * ({@link walkBounds}): the app's own data neither counted nor named, a
+ * place that asks first or is closed named on stderr, and what opens inside
+ * either walked. Anything it does not
+ * implement -- another flag, an operand outside every mount -- goes to
+ * just-bash's `du` unchanged.
+ */
 export function createDuCommand({
   layout,
 }: {

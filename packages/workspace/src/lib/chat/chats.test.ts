@@ -1693,9 +1693,9 @@ describe("liveChatRows", () => {
   /**
    * The live list, followed as a window folds it: `next` answers with the
    * list after its next event, or none if nothing comes within `wait` ms,
-   * and `events` with every event sent so far.
+   * and `events` with every event sent so far. `firstWait` is how long the
+   * first answer may take, for a list with many chats to read.
    */
-  /** `firstWait` is how long the first answer may take, for a list with many chats to read. */
   async function open(firstWait?: number) {
     const controller = new AbortController();
     const answers: Chat[][] = [];

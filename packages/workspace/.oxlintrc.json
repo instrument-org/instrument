@@ -3,6 +3,9 @@
   "extends": ["../../.oxlintrc.json"],
   "ignorePatterns": ["coverage", "fixtures"],
   "jsPlugins": ["../../apps/studio/oxlint-rules.ts"],
+  "rules": {
+    "studio/no-stacked-doc-comments": "error"
+  },
   "overrides": [
     {
       "files": ["src/**"],

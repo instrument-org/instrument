@@ -317,6 +317,15 @@ async function readRange({
   );
 }
 
+/**
+ * The block a copy should take: the dragged selection, or the single clicked
+ * cell, which is the far more common case and the one the controller records
+ * as `activeCell` alone.
+ *
+ * Corners are ordered, since dragging up or left leaves the range inverted, and
+ * clamped to the sheet's used extent so selecting whole columns copies the data
+ * rather than a million blank rows.
+ */
 function selectedRange(controller: XlsxViewerController) {
   const range = controller.selection ?? {
     end: controller.activeCell,
@@ -342,15 +351,6 @@ function selectedRange(controller: XlsxViewerController) {
   return { firstCol, firstRow, lastCol, lastRow };
 }
 
-/**
- * The block a copy should take: the dragged selection, or the single clicked
- * cell, which is the far more common case and the one the controller records
- * as `activeCell` alone.
- *
- * Corners are ordered, since dragging up or left leaves the range inverted, and
- * clamped to the sheet's used extent so selecting whole columns copies the data
- * rather than a million blank rows.
- */
 /**
  * Everything the active sheet actually holds, for a copy that was not asked to
  * respect a selection. The same clamp as `selectedRange`: a sheet's grid is a

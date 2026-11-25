@@ -522,7 +522,6 @@ async function projectFile(
     : text;
 }
 
-/** A project's record as the projects store has it. */
 /** The id a project folder's `.instrument-project` names. */
 function idFileOf(folder: string): string | undefined {
   try {
@@ -537,6 +536,7 @@ function idFileOf(folder: string): string | undefined {
   }
 }
 
+/** A project's record as the projects store has it. */
 async function storeOf(id: string) {
   return projectRecords(await projectsStore()).get(id);
 }

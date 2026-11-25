@@ -88,10 +88,6 @@ print(count)
 `;
 
 /**
- * What a call prints: its report, what went wrong, and whether it failed
- * with nothing more to say (a recalc that found errors).
- */
-/**
  * What the Mac build logs on every headless start under Seatbelt, which
  * says nothing about the call.
  */
@@ -106,6 +102,10 @@ function withoutStartNoise(text: string) {
     .join("\n");
 }
 
+/**
+ * What a call prints: its report, what went wrong, and whether it failed
+ * with nothing more to say (a recalc that found errors).
+ */
 type Output = { failed?: boolean; lines: string[]; problems: string[] };
 
 class UsageError extends Error {}

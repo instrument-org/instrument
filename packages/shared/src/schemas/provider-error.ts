@@ -61,12 +61,6 @@ export const STREAM_ENDED_EARLY_MESSAGE =
   "The model's reply stopped before it finished.";
 
 /**
- * A reply that finished normally with nothing in it: no text, no reasoning,
- * no tool call. A provider's degenerate answer that the next attempt usually
- * does not repeat, so it reads as transient. The message is how a stored
- * error is recognized again.
- */
-/**
  * A reply the provider's content filter stopped (a `content-filter` finish),
  * failed with the code Azure gives the same refusal up front. The message is
  * how a stored error is recognized again.
@@ -75,5 +69,11 @@ export const CONTENT_FILTERED_CODE = "content_filter";
 export const CONTENT_FILTERED_MESSAGE =
   "The provider's content filter stopped the model's reply.";
 
+/**
+ * A reply that finished normally with nothing in it: no text, no reasoning,
+ * no tool call. A provider's degenerate answer that the next attempt usually
+ * does not repeat, so it reads as transient. The message is how a stored
+ * error is recognized again.
+ */
 export const EMPTY_RESPONSE_CODE = "empty_response";
 export const EMPTY_RESPONSE_MESSAGE = "The model's reply was empty.";

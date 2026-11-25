@@ -134,12 +134,12 @@ import { makeToolBinIn } from "../scripts/lib/tool-bin-dir";
 import { newDeviceId } from "../src/lib/records/device-id";
 import { askedOnCard } from "../src/tools/connect-app-output";
 
-/** The Mac helper a checkout builds, when it has; see the harness input. */
 /** The Seatbelt launcher the same build makes, which native commands start through. */
 const SEATBELT_LAUNCHER = path.resolve(
   import.meta.dirname,
   "../../../apps/studio/native/mac-helper/.build/bridge/instrument-seatbelt",
 );
+/** The Mac helper a checkout builds, when it has; see the harness input. */
 const MAC_HELPER_BIN = path.resolve(
   import.meta.dirname,
   "../../../apps/studio/native/mac-helper/.build/bridge/instrument-mac",
@@ -699,14 +699,6 @@ export interface EvalCase {
   /** Read after `setup`, so a getter can name something setup made. */
   prompt: string;
   /**
-   * AI requests the app made before the case's first message, written to
-   * this computer's request log once the case's chat exists, given its id
-   * and own session so a request can be the chat's own, and the earlier
-   * messages those requests answered can be written into it first. The run
-   * then keeps a `workspace.db`, as the app does, which every case in the
-   * process shares.
-   */
-  /**
    * Earlier turns of the case's own session, written once its chat exists and
    * before its prompt is sent (`lib/seed-chat-history.ts`): for a case about
    * what a long chat carries, which one that starts at its prompt never has.
@@ -716,6 +708,14 @@ export interface EvalCase {
     modelURI: string;
     sessionId: StoreId.Session;
   }) => Promise<void>;
+  /**
+   * AI requests the app made before the case's first message, written to
+   * this computer's request log once the case's chat exists, given its id
+   * and own session so a request can be the chat's own, and the earlier
+   * messages those requests answered can be written into it first. The run
+   * then keeps a `workspace.db`, as the app does, which every case in the
+   * process shares.
+   */
   requests?: (chat: {
     chatId: ChatId;
     sessionId: StoreId.Session;

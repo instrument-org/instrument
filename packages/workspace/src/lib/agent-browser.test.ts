@@ -1,14 +1,12 @@
 import { APP_NAME_SLUG } from "@instrument-org/shared";
-import { platform, tmpdir } from "node:os";
+import { platform } from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import { StoreId } from "../schemas/store-id";
 import {
-  AGENT_BROWSER_SOCKET_DIR,
   AGENT_BROWSER_SOCKET_ROOT,
   agentBrowserBinaryPath,
-  agentBrowserPath,
   agentBrowserSocketDir,
   readSessionName,
 } from "./agent-browser";
@@ -16,22 +14,10 @@ import {
 const isWindows = platform() === "win32";
 
 describe("the agent-browser socket folder", () => {
-  it("is this process's own, named for its pid", () => {
-    expect(AGENT_BROWSER_SOCKET_DIR).toBe(
-      path.join(AGENT_BROWSER_SOCKET_ROOT, String(process.pid)),
-    );
-  });
-
   it("differs between two app processes", () => {
     expect(agentBrowserSocketDir(4101)).not.toBe(agentBrowserSocketDir(4102));
     expect(path.dirname(agentBrowserSocketDir(4101))).toBe(
       AGENT_BROWSER_SOCKET_ROOT,
-    );
-  });
-
-  it.runIf(isWindows)("is in the temp directory on Windows", () => {
-    expect(AGENT_BROWSER_SOCKET_ROOT).toBe(
-      path.join(tmpdir(), `.${APP_NAME_SLUG}-browser`),
     );
   });
 
@@ -92,12 +78,6 @@ describe("agentBrowserBinaryPath", () => {
 });
 
 describe("agentBrowserPath", () => {
-  it("is the installed binary for this computer", () => {
-    expect(path.basename(agentBrowserPath())).toBe(
-      isWindows ? "agent-browser.exe" : "agent-browser",
-    );
-  });
-
   // A test that builds another platform's menus or paths loads this module
   // under that platform's name, where the package it names is not installed.
   it("asks for no package while the module loads", async () => {

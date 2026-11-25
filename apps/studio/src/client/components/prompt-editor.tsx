@@ -1124,7 +1124,6 @@ export function PromptEditor({
   );
 }
 
-/** Whether two answers to "which link is the caret in" are the same link. */
 /** Opens a link from the box; `newTab` asks for a tab of its own. */
 type OpenLink = (href: string, newTab: boolean) => void;
 
@@ -1187,6 +1186,7 @@ function hasLinksIn(state: EditorState) {
   return (promptLinksKey.getState(state)?.links.length ?? 0) > 0;
 }
 
+/** Whether two answers to "which link is the caret in" are the same link. */
 function sameLink(a: PromptLink | null, b: PromptLink | null) {
   return (
     a === b ||

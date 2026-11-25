@@ -1,7 +1,5 @@
-import { execFileSync } from "node:child_process";
 import { describe, expect, it } from "vitest";
 
-import { agentBrowserPath } from "../agent-browser";
 import { classifyInvocation } from "./agent-browser";
 import {
   agentBrowserFlagName,
@@ -10,6 +8,11 @@ import {
   parseAgentBrowserArgs,
   RESTORE_FLAG,
 } from "./agent-browser-args";
+import {
+  AGENT_BROWSER_COMMAND_HELP,
+  AGENT_BROWSER_HELP,
+} from "./agent-browser-cli-output.generated";
+import type { FileCommand } from "./agent-browser-cli-recording";
 
 describe("agentBrowserFlagName", () => {
   it.each([
@@ -181,11 +184,11 @@ describe("parseAgentBrowserArgs", () => {
   });
 });
 
-const help = execFileSync(agentBrowserPath(), ["--help"], { encoding: "utf8" });
+const help = AGENT_BROWSER_HELP;
 
 // A global flag the model does not know is read as the command, or lets its
-// value be, so a blocked command passes as an allowed one. The installed CLI
-// lists its global flags in `--help`, under every heading but the one for
+// value be, so a blocked command passes as an allowed one. The CLI lists its
+// global flags in its recorded `--help`, under every heading but the one for
 // `snapshot`'s own; one it gains fails here until it is in the tables, and the
 // wrapper's own test of what it does with each flag then asks for a decision.
 describe("the tables of global flags", () => {
@@ -223,7 +226,7 @@ describe("the tables of global flags", () => {
 });
 
 // A command is allowed unless the wrapper refuses it, so one the CLI gains
-// arrives allowed. Every command the installed CLI's `--help` names is decided
+// arrives allowed. Every command the recorded `--help` names is decided
 // here: a new one changes the snapshot, and is refused in BLOCKED_SUBCOMMANDS
 // where it manages the browser itself, sessions, saved state, credentials,
 // installs, plugins or a connection outside the app. The decision is the one
@@ -357,8 +360,9 @@ describe("the commands the CLI takes", () => {
 });
 
 // The wrapper finds these commands' file by knowing their own flags, and
-// refuses one it does not know. A flag the CLI gains fails here: add it to
-// `fileOperandsOf`, or it stays refused, or its value is taken for the file. `network` lists flags that belong to its other operations.
+// refuses one it does not know. A flag the CLI gains fails here once its help
+// is recorded: add it to `fileOperandsOf`, or it stays refused, or its value
+// is taken for the file. `network` lists flags that belong to its other operations.
 describe("the flags of the commands that name a file", () => {
   it.each([
     ["screenshot", ["--full", "--if-changed", "--threshold"]],
@@ -384,22 +388,23 @@ describe("the flags of the commands that name a file", () => {
         "--content",
       ],
     ],
-  ])("%s has the ones the wrapper reads", (command, known) => {
-    const own = [
-      ...(execFileSync(agentBrowserPath(), [command, "--help"], {
-        encoding: "utf8",
-      })
-        .split("\nExamples:")[0]
-        ?.matchAll(/^ +(?:-\w, )?(--[a-z-]+)/gm) ?? []),
-    ].flatMap(([, flag]) =>
-      flag === undefined ||
-      GLOBAL_VALUE_FLAGS.has(flag) ||
-      GLOBAL_BOOL_FLAGS.has(flag)
-        ? []
-        : [flag],
-    );
-    expect(own).toEqual(known);
-  });
+  ] satisfies [FileCommand, string[]][])(
+    "%s has the ones the wrapper reads",
+    (command, known) => {
+      const own = [
+        ...(AGENT_BROWSER_COMMAND_HELP[command]
+          .split("\nExamples:")[0]
+          ?.matchAll(/^ +(?:-\w, )?(--[a-z-]+)/gm) ?? []),
+      ].flatMap(([, flag]) =>
+        flag === undefined ||
+        GLOBAL_VALUE_FLAGS.has(flag) ||
+        GLOBAL_BOOL_FLAGS.has(flag)
+          ? []
+          : [flag],
+      );
+      expect(own).toEqual(known);
+    },
+  );
 });
 
 /** The global flag lines of the CLI's help, under every heading but `skipped`. */

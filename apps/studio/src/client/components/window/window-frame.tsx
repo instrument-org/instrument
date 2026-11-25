@@ -8,7 +8,7 @@ import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { BELL_TOASTER, Toaster } from "@/client/components/ui/sonner";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
-import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { TOOLBAR_HEIGHT, WINDOW_CARD_GAP } from "@/shared/constants";
 import { type CSSProperties, type ReactNode, type Ref } from "react";
 
 import {
@@ -102,6 +102,14 @@ export function WindowFrame({
               style={{ height: `${TOOLBAR_HEIGHT}px` }}
             />
           ))}
+        {/* The ground over the card drags the window too. */}
+        {!hasBar && (
+          <div
+            aria-hidden
+            className="absolute inset-x-0 top-0 [-webkit-app-region:drag]"
+            style={{ height: WINDOW_CARD_GAP }}
+          />
+        )}
         <div className="flex min-h-0 flex-1">
           {rail}
           {/* Measured on its own, past the rail, so a column sized against

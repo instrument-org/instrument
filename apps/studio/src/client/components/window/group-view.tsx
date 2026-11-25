@@ -21,7 +21,7 @@ import {
 } from "@/client/lib/keyboard-home";
 import { SIDE_MOTION } from "@/client/lib/motion";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
-import { cn } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { noop } from "radashi";
 import { useAtom, useAtomValue } from "jotai";
@@ -965,6 +965,10 @@ function SideCard({
           taskTitles={shell.childTitles}
           trailing={
             <>
+              {/* Room a full strip keeps to drag the window by. */}
+              {isLast && isMacOS() && (
+                <div aria-hidden className="w-10 shrink-0" />
+              )}
               {splitControl}
               {windowEnd}
             </>

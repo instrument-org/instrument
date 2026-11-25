@@ -1,12 +1,20 @@
 import { sidebarOpenAtom } from "@/client/atoms/tab-groups";
+import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
+import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useRef } from "react";
+
+/**
+ * How long after the sidebar starts to slide out the traffic lights come
+ * back: past the moment its toggle, which rides its edge, is clear of them.
+ */
+const LIGHTS_AFTER_SLIDE_MS = 120;
 
 /** Puts the sidebar of tab groups away and brings it back. */
 function InboxToggle() {
@@ -47,19 +55,59 @@ export function SidebarToggle() {
   );
 }
 
+function showTrafficLights(isShown: boolean) {
+  if (isMacOS()) {
+    void safe(rpcClient.utils.showTrafficLights.call({ isShown }));
+  }
+}
+
 /**
  * The Mac's traffic lights go and come back with the sidebar, so a window
- * whose sidebar is away has its top left to its tabs.
+ * whose sidebar is away has its top left to its tabs. They stay where
+ * something else has that corner: over setup, in full screen, whose dropped
+ * title bar has them, and on what stands in for the window once it has
+ * crashed, which this is gone from.
  */
 export function TrafficLightsWithSidebar() {
   const isSidebarOpen = useAtomValue(sidebarOpenAtom);
+  const isSetupUp = useIsSetupUp();
+  const { data: windowState } = useQuery(
+    rpcClient.utils.live.windowState.experimental_liveOptions(),
+  );
+  const isFullScreen = windowState?.fullScreen ?? false;
+  const isCornerTaken = isSetupUp || isFullScreen;
+  const wasHiddenRef = useRef(false);
+
   useEffect(() => {
-    if (isMacOS()) {
-      void safe(
-        rpcClient.utils.showTrafficLights.call({ isShown: isSidebarOpen }),
-      );
+    if (isCornerTaken) {
+      wasHiddenRef.current = false;
+      showTrafficLights(true);
+      return;
     }
-  }, [isSidebarOpen]);
+    if (!isSidebarOpen) {
+      wasHiddenRef.current = true;
+      showTrafficLights(false);
+      return;
+    }
+    if (!wasHiddenRef.current) {
+      showTrafficLights(true);
+      return;
+    }
+    const timer = setTimeout(() => {
+      wasHiddenRef.current = false;
+      showTrafficLights(true);
+    }, LIGHTS_AFTER_SLIDE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isCornerTaken, isSidebarOpen]);
+
+  useEffect(
+    () => () => {
+      showTrafficLights(true);
+    },
+    [],
+  );
   return null;
 }
 

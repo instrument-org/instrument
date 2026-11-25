@@ -8,6 +8,11 @@ export interface KnownPage {
   url: string;
 }
 
+/** A page a field can offer to open: a bookmark, or one the person visited, with the icon it last announced. */
+export interface OfferedPage extends KnownPage {
+  favicon: string | undefined;
+}
+
 /** A folder's entry, as the folder listing gives it. */
 export interface ListedEntry {
   hidden?: boolean | undefined;
@@ -70,37 +75,6 @@ export function addressCompletion(typed: string, pages: KnownPage[]): string {
     sites.find((site) => site.toLowerCase().startsWith(lower)) ??
     addresses.find((address) => address.toLowerCase().startsWith(lower));
   return found ? found.slice(lower.length) : "";
-}
-
-/**
- * The pages the words find, best first: those whose address starts with the
- * words, then those whose every word is somewhere in the title or the
- * address, each newest first. Words, not scattered letters: a page found by
- * three letters strewn through its title is not one anyone was reaching for.
- */
-export function matchPages<T extends KnownPage>(
-  typed: string,
-  pages: T[],
-): T[] {
-  const lower = typed.trim().toLowerCase();
-  if (!lower) {
-    return [];
-  }
-  const terms = lower.split(/\s+/);
-  const leading: T[] = [];
-  const containing: T[] = [];
-  for (const page of pages) {
-    const address = bareAddress(page.url).toLowerCase();
-    if (address.startsWith(lower)) {
-      leading.push(page);
-      continue;
-    }
-    const haystack = `${page.title} ${address}`.toLowerCase();
-    if (terms.every((term) => haystack.includes(term))) {
-      containing.push(page);
-    }
-  }
-  return [...leading, ...containing];
 }
 
 /**

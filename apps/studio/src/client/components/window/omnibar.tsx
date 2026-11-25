@@ -1,9 +1,6 @@
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 import { PageFavicon } from "@/client/components/favicon";
-import {
-  noteTypedPage,
-  useCompletionPages,
-} from "@/client/hooks/use-browser-history";
+import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import {
   type AddressTarget,
   sameAddress,
@@ -22,9 +19,7 @@ import {
   bareAddress,
   isSearchWords,
   matchEntries,
-  matchPages,
   pathQuery,
-  siteOf,
 } from "@/client/components/window/omnibar-match";
 import {
   initialOmnibarField,
@@ -103,6 +98,9 @@ import {
   typedAddressName,
 } from "./typed-address-row";
 import { OmniList, type OmniRow } from "./omnibar-list";
+import { useFieldPages } from "./known-pages";
+import { pageRows } from "./page-rows";
+import { pageRowText } from "./result-row";
 import { whereOfAddress } from "./row-text";
 import { chatListOptions } from "./chat-list-query";
 import { bookmarkName } from "./web-start";
@@ -619,35 +617,14 @@ function useOmnibarRows({
   const appsBySlug = useAppsBySlug();
   const isDeveloperMode = useDeveloperMode();
 
-  // The pages the window knows, bookmarks ahead of history, whose part is the pages the person goes back to (Chromium's significant
-  // ones) rather than every page seen once.
-  const visited = useCompletionPages({
-    enabled: isEditing,
-  });
+  const { completable, offered } = useFieldPages({ enabled: isEditing });
   const bookmarks = useAtomValue(bookmarksAtom);
-  // The app's own addresses kept as bookmarks are the app's places, which
-  // the rows below offer by name; the pages are the web's.
-  const pages = unique(
-    [
-      ...bookmarks
-        .filter((bookmark) => targetOfAddress(bookmark.url)?.kind === "page")
-        .map((bookmark) => ({
-          favicon: undefined,
-          title: bookmark.title,
-          url: bookmark.url,
-        })),
-      ...visited.map((page) => ({
-        favicon: page.favicon,
-        title: page.title,
-        url: page.url,
-      })),
-    ],
-    (page) => page.url,
-  );
   // A site's icon is asked for only once the window has been there. An
   // address still being typed, or one the engine suggests, would send every
   // host it spells out on the way to the icon service.
-  const visitedHosts = new Set(pages.map((page) => iconHostOf(page.url)));
+  const visitedHosts = new Set(
+    [...completable, ...offered].map((page) => iconHostOf(page.url)),
+  );
   const siteIcon = (url: string) =>
     visitedHosts.has(iconHostOf(url)) ? (
       <PageFavicon url={url} />
@@ -704,8 +681,8 @@ function useOmnibarRows({
   if (words === "") {
     return { completion: "", rows: [] };
   }
-  // The bookmarks the words name, which come before anything but what
-  // Enter does with them.
+  // The places kept as bookmarks that the words name, which come before
+  // anything but what Enter does with them.
   const markRows = matchBookmarks(words, bookmarks)
     .slice(0, PER_KIND_SHOWN)
     .map((bookmark) => bookmarkRow(bookmark, { openAddress }));
@@ -827,12 +804,14 @@ function useOmnibarRows({
     };
   }
 
-  const completion = canComplete ? addressCompletion(typed, pages) : "";
+  const completion = canComplete ? addressCompletion(typed, completable) : "";
   const whole = `${typed}${completion}`.trim();
   const address = typedAddress(whole);
   const site = address?.kind === "page" ? address : undefined;
   const known = site
-    ? pages.find((page) => bareAddress(page.url) === bareAddress(site.url))
+    ? completable.find(
+        (page) => bareAddress(page.url) === bareAddress(site.url),
+      )
     : undefined;
   const searchRow = searchRowOf(whole);
   const first: OmniRow = site
@@ -843,7 +822,7 @@ function useOmnibarRows({
           <TypedAddressMark
             address={site}
             className="size-4"
-            isKnown={isKnownSite(site.url, pages)}
+            isKnown={isKnownSite(site.url, offered)}
           />
         ),
         id: "site",
@@ -855,21 +834,25 @@ function useOmnibarRows({
         },
       }
     : searchRow;
-  const pageRows = matchPages(words, pages)
-    .filter((page) => page.url !== known?.url && !isBookmarked(page.url))
-    .slice(0, PER_KIND_SHOWN)
-    .map(
-      (page): OmniRow => ({
-        detail: siteOf(page.url),
-        fill: page.url,
-        icon: <PageFavicon favicon={page.favicon} url={page.url} />,
-        id: `page:${page.url}`,
-        name: page.title || bareAddress(page.url),
-        run: () => {
-          open.openSite(page.url);
-        },
-      }),
-    );
+  const foundRows = pageRows({
+    leaveOut: site && (known?.url ?? site.url),
+    pages: offered,
+    words,
+  }).map((row): OmniRow => {
+    const { name, nameRanges, where, whereRanges } = pageRowText(row);
+    return {
+      detail: where,
+      detailRanges: whereRanges ?? null,
+      fill: row.page.url,
+      icon: <PageFavicon favicon={row.page.favicon} url={row.page.url} />,
+      id: `page:${row.page.url}`,
+      name,
+      nameRanges,
+      run: () => {
+        open.openSite(row.page.url);
+      },
+    };
+  });
   const suggestionRows = wantsSuggestions
     ? (suggestions.data ?? [])
         .filter(
@@ -914,7 +897,7 @@ function useOmnibarRows({
       ...(site?.doubt === "host" ? [searchRow] : []),
       ...markRows,
       ...appRows,
-      ...pageRows,
+      ...foundRows,
       ...suggestionRows,
     ],
   };
@@ -980,7 +963,7 @@ function appPlaceRows(
         `settings ${part.toLowerCase()}`.startsWith(lower))
     );
   };
-  const pageRows = builtInPages()
+  const builtInRows = builtInPages()
     .filter((page) => pageNamed(page) && !isBookmarked(page.address))
     .map((page) =>
       place(
@@ -1002,31 +985,32 @@ function appPlaceRows(
       ),
     );
   return [
-    ...unique(pageRows, (row) => row.id).slice(0, PER_KIND_SHOWN),
+    ...unique(builtInRows, (row) => row.id).slice(0, PER_KIND_SHOWN),
     ...chatRows.slice(0, PER_KIND_SHOWN),
   ];
 }
 
 /**
- * The bookmarks the words name, best first: a site's by its address or its
- * name, as the pages the window knows are matched, and a place of the
- * app's own by its name alone, since its address is the app's to spell.
+ * The bookmarks of the app's own places, files and folders whose names have
+ * every word typed. A page's is found among the pages (`pageRows`).
  */
 function matchBookmarks(
   words: string,
   bookmarks: readonly Bookmark[],
 ): Bookmark[] {
-  const known = inOrder(bookmarks).map((bookmark) => ({
-    bookmark,
-    title: bookmark.title,
-    url: targetOfAddress(bookmark.url)?.kind === "page" ? bookmark.url : "",
-  }));
-  return matchPages(words, known).map(({ bookmark }) => bookmark);
+  const terms = words.toLowerCase().split(/\s+/);
+  return inOrder(bookmarks).filter((bookmark) => {
+    const title = bookmark.title.toLowerCase();
+    return (
+      targetOfAddress(bookmark.url)?.kind !== "page" &&
+      terms.every((term) => title.includes(term))
+    );
+  });
 }
 
 /**
- * A bookmark as a row, worn as the bar wears it: its mark and its name,
- * after it the site, or the folder a file or a folder is in.
+ * A place kept as a bookmark as a row, worn as the bar wears it: its mark
+ * and its name, after it the folder a file or a folder is in.
  */
 function bookmarkRow(
   bookmark: Bookmark,
@@ -1035,7 +1019,6 @@ function bookmarkRow(
   const target = targetOfAddress(bookmark.url);
   return {
     detail: whereOfAddress(bookmark.url),
-    ...(target?.kind === "page" ? { fill: target.url } : {}),
     icon: <AddressMark address={bookmark.url} className="size-4" />,
     id: `bookmark:${bookmark.id}`,
     // A path is looked for first, and the words stay if nothing is there.

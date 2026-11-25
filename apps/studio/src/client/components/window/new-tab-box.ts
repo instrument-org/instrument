@@ -1,34 +1,15 @@
 import { type TypedAddress, typedAddress } from "@/client/lib/typed-address";
 import { type TypedPath } from "@/client/lib/typed-path";
 
-import { foldName, foldText } from "@/shared/name-match";
 import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 
 import {
   addressCompletion,
   bareAddress,
   type KnownPage,
-  siteOf,
+  type OfferedPage,
 } from "./omnibar-match";
-
-/** How many pages the list under a new tab's box shows. */
-const MOST_PAGES_LISTED = 4;
-
-/** A page the box may offer, with the icon it last announced. */
-type OfferedPage = KnownPage & { favicon: string | undefined };
-
-/** A page the words find, as a row of the list under a new tab's box. */
-export type BoxPageRow = {
-  /** The page's address as the row shows it: no scheme, no `www.`, no query. */
-  address: string;
-  /** What to draw bold in `address`, as pairs of offsets, or null. */
-  addressRanges: null | number[];
-  page: OfferedPage;
-  /** The page's title, or empty when it has none worth showing. */
-  title: string;
-  /** What to draw bold in `title`, as pairs of offsets, or null. */
-  titleRanges: null | number[];
-};
+import { type PageRow, pageRows } from "./page-rows";
 
 /** What Return opens from a new tab's box, in place of sending its words. */
 export type BoxOpens =
@@ -126,153 +107,10 @@ export function siteToComplete(
 }
 
 /**
- * What a typed word means once the parts of an address that say nothing
- * about the page are taken off: a scheme (`https://`) and `www.`. A word
- * that is only one of those, or a scheme's name alone (`http`), finds no
- * page, since nearly every address has one.
- */
-function meaningfulWord(words: string): string | undefined {
-  const word = words
-    .toLowerCase()
-    .replace(/^(?:https?|ftp|file):(?:\/\/)?/, "")
-    .replace(/^www\./, "");
-  return word === "" || TRIVIAL_WORDS.has(word) ? undefined : word;
-}
-
-/** Words every address starts with, which a page is never found by alone. */
-const TRIVIAL_WORDS: ReadonlySet<string> = new Set([
-  "file",
-  "ftp",
-  "http",
-  "https",
-  "www",
-]);
-
-/** Where in a page the word was found, best first: how the rows are ordered. */
-const MATCH_PLACES = ["address", "site", "title", "path"] as const;
-
-/** A page's address as a row shows it: no scheme, no `www.`, no query or fragment. */
-function shownAddress(url: string): { address: string; siteLength: number } {
-  const bare = bareAddress(url).split(/[?#]/)[0] ?? "";
-  const address = bare.replace(/\/$/, "");
-  return { address, siteLength: siteOf(url).length };
-}
-
-/** A title that is the page's own address says nothing more than the address does. */
-function titleOf(page: KnownPage): string {
-  const title = page.title.trim();
-  return /^[a-z][a-z0-9+.-]*:\/\//i.test(title) ||
-    bareAddress(title) === bareAddress(page.url)
-    ? ""
-    : title;
-}
-
-/** `ranges`, pairs of offsets into a part of the address, moved to where that part starts. */
-function shifted(ranges: number[], by: number): number[] {
-  return ranges.map((offset) => offset + by);
-}
-
-/** A letter or digit, which continues a word rather than starting one. */
-const IN_WORD = /[\p{L}\p{N}]/u;
-
-/**
- * Where the word starts a word of `text`, as highlight ranges, or undefined
- * when it starts none. A word starts at the beginning or after a character
- * that is neither a letter nor a digit, so "hub" never finds "GitHub" and "3"
- * never finds "v13". `before` limits where the match may start, as a site's
- * last part (`com`) finds nothing.
- */
-function wordStartRanges(
-  text: string,
-  word: string,
-  before = Number.POSITIVE_INFINITY,
-): number[] | undefined {
-  const name = foldName(text);
-  const folded = foldText(word);
-  let at = name.text.indexOf(folded);
-  while (at !== -1 && at < before) {
-    if (at === 0 || !IN_WORD.test(name.text.charAt(at - 1))) {
-      const end = at + folded.length;
-      return name.offsets
-        ? [name.offsets[at] ?? 0, name.offsets[end] ?? text.length]
-        : [at, end];
-    }
-    at = name.text.indexOf(folded, at + 1);
-  }
-  return undefined;
-}
-
-/**
- * How the word finds a page, or undefined: `place` is the best of
- * `MATCH_PLACES` that holds, and the ranges mark every place it holds, so a
- * word in both a title and a path is bold in both.
- *
- * - `address`: the word starts the address as a person types it (`github.com/ac`)
- * - `site`: it starts a part of the site's name (`news` in news.ycombinator.com),
- *   never its last part (`com`)
- * - `title`: it starts a word of the page's title
- * - `path`: it starts a word of the address after the site; the query and
- *   fragment are never read
- */
-function pageMatch(
-  page: OfferedPage,
-  word: string,
-):
-  | undefined
-  | (Omit<BoxPageRow, "page"> & {
-      place: (typeof MATCH_PLACES)[number];
-    }) {
-  const { address, siteLength } = shownAddress(page.url);
-  const title = titleOf(page);
-  const site = address.slice(0, siteLength);
-  const path = address.slice(siteLength + 1);
-  const lastPart = site.lastIndexOf(".");
-  const inAddress = address.toLowerCase().startsWith(word)
-    ? [0, Math.min(word.length, address.length)]
-    : undefined;
-  const inSite = inAddress
-    ? undefined
-    : wordStartRanges(
-        site,
-        word,
-        lastPart === -1 ? Number.POSITIVE_INFINITY : lastPart + 1,
-      );
-  const inTitle = title === "" ? undefined : wordStartRanges(title, word);
-  const inPath =
-    inAddress || inSite || path === ""
-      ? undefined
-      : wordStartRanges(path, word);
-  const place = inAddress
-    ? "address"
-    : inSite
-      ? "site"
-      : inTitle
-        ? "title"
-        : inPath
-          ? "path"
-          : undefined;
-  if (place === undefined) {
-    return undefined;
-  }
-  return {
-    address,
-    addressRanges:
-      inAddress ?? inSite ?? (inPath ? shifted(inPath, siteLength + 1) : null),
-    place,
-    title,
-    titleRanges: inTitle ?? null,
-  };
-}
-
-/**
- * The pages under a new tab's box while it holds one word with no space:
- * each page whose address the word starts, whose site has a part it starts,
- * whose title has a word it starts, then whose path has one, each in
- * `pages`' order (bookmarks, then the pages visited, newest first), each
- * address once, at most four. The site the box finished the word to is left
- * out, since the box itself opens it. Each row says what to draw bold, so the
- * reason it is there shows. Nothing for a scheme or `www` alone, a place on
- * the computer, words with a space, or a slash command.
+ * The pages under a new tab's box (`pageRows`), while it holds one word with
+ * no space. The site the box finished the word to is left out, since the box
+ * itself opens it. Nothing for a place on the computer, words with a space,
+ * or a slash command.
  */
 export function boxPageRows({
   completedSite,
@@ -285,38 +123,10 @@ export function boxPageRows({
   pages: OfferedPage[];
   path: TypedPath | undefined;
   words: string;
-}): BoxPageRow[] {
-  if (path !== undefined || /\s/.test(words) || !offersToOpen(words, path)) {
-    return [];
-  }
-  const word = meaningfulWord(words);
-  if (word === undefined) {
-    return [];
-  }
-  const shown = new Set(
-    completedSite === undefined ? [] : [shownAddress(completedSite).address],
-  );
-  const found = pages.flatMap((page) => {
-    const match = pageMatch(page, word);
-    return match ? [{ ...match, page }] : [];
-  });
-  const rows: BoxPageRow[] = [];
-  for (const place of MATCH_PLACES) {
-    for (const match of found) {
-      if (match.place !== place || shown.has(match.address)) {
-        continue;
-      }
-      shown.add(match.address);
-      rows.push({
-        address: match.address,
-        addressRanges: match.addressRanges,
-        page: match.page,
-        title: match.title,
-        titleRanges: match.titleRanges,
-      });
-    }
-  }
-  return rows.slice(0, MOST_PAGES_LISTED);
+}): PageRow[] {
+  return path !== undefined || /\s/.test(words) || !offersToOpen(words, path)
+    ? []
+    : pageRows({ leaveOut: completedSite, pages, words });
 }
 
 /**

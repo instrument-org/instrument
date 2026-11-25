@@ -7,7 +7,6 @@ import {
   hostPathOf,
   matchEntries,
   matchNames,
-  matchPages,
   pathQuery,
 } from "./omnibar-match";
 
@@ -41,30 +40,6 @@ describe("addressCompletion", () => {
     ["", ""],
   ])("%j finishes with %j", (typed, rest) => {
     expect(addressCompletion(typed, pages)).toBe(rest);
-  });
-});
-
-describe("matchPages", () => {
-  it("puts an address the words start ahead of a title holding them", () => {
-    expect(
-      matchPages("git", [
-        { title: "Why git is hard", url: "https://blog.example.com/" },
-        ...pages,
-      ]).map((page) => page.title),
-    ).toMatchInlineSnapshot(`
-      [
-        "Pull requests",
-        "GitHub",
-        "Why git is hard",
-      ]
-    `);
-  });
-
-  it("needs every word, and not letters scattered through a title", () => {
-    expect(matchPages("hacker news", pages).map((page) => page.title)).toEqual([
-      "Hacker News",
-    ]);
-    expect(matchPages("hkn", pages)).toEqual([]);
   });
 });
 

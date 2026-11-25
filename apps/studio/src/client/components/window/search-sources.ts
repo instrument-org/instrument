@@ -11,9 +11,9 @@ import { useAtomValue } from "jotai";
 
 import { chatListOptions } from "./chat-list-query";
 import { type Chat, type Project } from "./chats";
-import { type OfferedPage, useKnownPages } from "./known-pages";
+import { useKnownPages } from "./known-pages";
 import { type Named, usageOf } from "./name-search";
-import { bareAddress, folderNameOf } from "./omnibar-match";
+import { bareAddress, folderNameOf, type OfferedPage } from "./omnibar-match";
 import { whereOfAddress } from "./row-text";
 import { useShell } from "./shell-context";
 import { type OpenGroupRow, useOpenGroupRows } from "./open-group-rows";

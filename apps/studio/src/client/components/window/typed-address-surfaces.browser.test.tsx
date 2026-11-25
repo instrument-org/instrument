@@ -191,7 +191,8 @@ async function fieldFor(words: string) {
   await expect.element(picked).toBeInTheDocument();
   await settled(() => picked.element().parentElement?.innerHTML ?? "");
   const row = picked.element();
-  const said = `“${row.textContent}” (${asksForIcon(row)})`;
+  // The row less the key it is marked with.
+  const said = `“${row.textContent.replace(/↵$/, "")}” (${asksForIcon(row)})`;
   const search =
     page
       .getByRole("option")

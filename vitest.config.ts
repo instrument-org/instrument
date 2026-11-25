@@ -7,6 +7,7 @@ export default defineConfig({
       "./packages/workspace/vitest.config.ts",
       "./packages/ai-gateway/vitest.config.ts",
       "./packages/shared/vitest.config.ts",
+      "./scripts/vitest.config.ts",
     ],
   },
 });

@@ -4,7 +4,7 @@
 # checks what it changed, fast-forwards the branch in the checkout that has it,
 # pushes it, then removes the worktree and its branch.
 #
-#   scripts/land.sh [--onto <branch>] [--keep] [--no-push]
+#   scripts/land.sh [--onto <branch>] [--keep] [--no-push] [--onto-red <reason>]
 #
 # Run from inside a linked worktree. The checks are the ones CI would fail on
 # for what the branch changed: types in the packages it touched, lint in the
@@ -15,11 +15,17 @@
 # than touch them. The push takes every commit the local target holds, other
 # sessions' included, and is never forced. --keep leaves the worktree and
 # branch in place after landing.
+#
+# Before its own checks it reads CI on the target and refuses a target that
+# stays red, unless this branch or a commit since fixes it or the failure is a
+# known one (scripts/ci-state.ts says which counts as which). --onto-red lands
+# anyway and prints the reason given.
 set -euo pipefail
 
 keep=false
 push=true
 target=main
+onto_red=()
 while (($# > 0)); do
   case "$1" in
     --keep) keep=true ;;
@@ -29,8 +35,13 @@ while (($# > 0)); do
       [[ -n "$target" ]] || { echo "land: --onto needs a branch" >&2; exit 1; }
       shift
       ;;
+    --onto-red)
+      [[ "${2:-}" == *[![:space:]]* && "$2" != --* ]] || { echo "land: --onto-red needs the reason this cannot wait" >&2; exit 1; }
+      onto_red=(--onto-red "$2")
+      shift
+      ;;
     *)
-      echo "usage: scripts/land.sh [--onto <branch>] [--keep] [--no-push]" >&2
+      echo "usage: scripts/land.sh [--onto <branch>] [--keep] [--no-push] [--onto-red <reason>]" >&2
       exit 1
       ;;
   esac
@@ -107,6 +118,12 @@ changed=$(git diff --name-only "$target"...HEAD)
 [[ -n "$changed" ]] || fail "nothing on $branch that $target does not already have"
 echo "land: $(git rev-list --count "$target"..HEAD) commit(s) on $branch"
 
+# What is failing on the target, read before the slow checks. Only its own
+# refusal (exit code 3) stops a landing: CI out of reach is a printed warning.
+ci_state=0
+node scripts/ci-state.ts "$target" ${onto_red[@]+"${onto_red[@]}"} || ci_state=$?
+((ci_state != 3)) || fail "$target is red; see above"
+
 # The Commits-to trailers of the commits that wrote the lines this branch
 # changes or removes, so a contract one of them made is in view before landing
 # rather than found broken by a later review. Shown, never enforced.
@@ -132,7 +149,7 @@ node -e '
     // the next trailer; a wrapped line that only looks like `Word: ...` is prose.
     let contract;
     for (const line of [...body, ""]) {
-      if (contract !== undefined && line.trim() !== "" && !/^(Rejected|Commits-to|Not-tested|Tested|Related|Review|Upstream|Co-Authored-By|Signed-off-by): /i.test(line)) {
+      if (contract !== undefined && line.trim() !== "" && !/^(Rejected|Commits-to|Not-tested|Tested|Related|Review|Fixes-CI|Upstream|Co-Authored-By|Signed-off-by): /i.test(line)) {
         contract += " " + line.trim();
         continue;
       }
@@ -175,7 +192,7 @@ run_checks() {
   # `// land: every landing`, which read source as text and so are related to
   # no change, run in the package that owns them and in the projects its
   # test:ci runs (Studio's browser project is not).
-  for package in apps/studio packages/workspace packages/ai-gateway packages/shared; do
+  for package in apps/studio packages/workspace packages/ai-gateway packages/shared scripts; do
     files=$({
       grep -E "^$package/.*\.(ts|tsx)$" <<< "$changed" || true
       git grep -l '^// land: every landing' -- "$package" || true

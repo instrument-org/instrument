@@ -41,6 +41,7 @@
     "studio": "node scripts/prepare.ts && pnpm --filter @instrument-org/studio dev",
     "sync": "bash scripts/sync.sh",
     "test": "vitest",
+    "test:ci": "vitest run --config scripts/vitest.config.ts",
     "turbo:check:lint:ci": "cross-env CI=true turbo check:lint",
     "turbo:fix:lint": "turbo run fix:lint",
     "update:actions": "actions-up",

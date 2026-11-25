@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   calls: [] as unknown[],
   complete: vi.fn(),
   pending: new Map<string, string>(),
+  updates: new Set<string>(),
 }));
 
 vi.mock("@/electron-main/lib/directory-icons", () => ({
@@ -34,6 +35,11 @@ vi.mock("@instrument-org/workspace/electron", () => ({
     return Promise.resolve();
   },
   completeMcpOAuth: mocks.complete,
+  appUpdateEnded: (slug: string, ended: string, error?: string) => {
+    mocks.calls.push(["appUpdateEnded", slug, ended, error]);
+    return Promise.resolve();
+  },
+  isPendingAppUpdate: (state: string) => mocks.updates.has(state),
   pendingMcpOAuthSlug: (state: string) => mocks.pending.get(state),
 }));
 
@@ -41,6 +47,7 @@ import { receiveAppCallback, rememberAppsReady, signInRefusalOf } from "./apps";
 
 beforeEach(() => {
   mocks.calls.length = 0;
+  mocks.updates.clear();
   mocks.pending = new Map([["waiting", "linear"]]);
   mocks.complete.mockResolvedValue({
     isErr: () => false,
@@ -215,6 +222,30 @@ describe("receiveAppCallback", () => {
         },
       }
     `);
+  });
+});
+
+describe("receiveAppCallback for an app's update", () => {
+  it.each([
+    ["a denial", "state=waiting&error=access_denied", "declined"],
+    [
+      "a vendor's refusal",
+      "state=waiting&error=access_denied&error_description=Blocked+by+policy",
+      "refused",
+    ],
+    ["an abandoned sign-in", "state=waiting", "failed"],
+  ])("leaves the connection alone on %s", async (_, query, ended) => {
+    mocks.updates.add("waiting");
+    await receiveAppCallback(new URLSearchParams(query));
+    expect(mocks.calls.map((made) => (made as unknown[])[0])).toEqual([
+      "settleSignIn",
+      "cancelMcpOAuth",
+      "appUpdateEnded",
+    ]);
+    expect((mocks.calls.at(-1) as unknown[]).slice(1, 3)).toEqual([
+      "linear",
+      ended,
+    ]);
   });
 });
 

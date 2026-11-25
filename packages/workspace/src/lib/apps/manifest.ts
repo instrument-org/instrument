@@ -352,6 +352,10 @@ const WebAppManifestSchema = z.strictObject({
     .optional(),
   service: ServiceSchema,
   type: z.literal("web"),
+  // Set when the app was put on its site although the directory had a direct
+  // sign-in for the service: one the service refused, or one nobody wanted.
+  // The app is never offered that sign-in. Left out of the manifest's hash.
+  webChosen: z.literal(true).optional(),
   // Where the work happens: the signed-in web app, e.g. https://drive.google.com.
   url: z.string().refine(isAllowedBaseUrl, {
     message:
@@ -476,8 +480,9 @@ url: https://drive.google.com`;
  * added never disconnects the app. A local app's `macApp` is left out: it
  * only says which icon the app is drawn with, and naming one changes nothing
  * that runs or is sent, and its retired `env` with it. Nor is any app's
- * `account`, a label for the account it is signed in as, or its `service`,
- * which says what it is rather than how it is reached.
+ * `account`, a label for the account it is signed in as, its `service`,
+ * which says what it is rather than how it is reached, or a web app's
+ * `webChosen`, which says why it is on the web.
  *
  * Takes a loose record as well as a parsed manifest, so the migration can
  * digest the manifest an older build wrote and find the approval given for
@@ -487,7 +492,7 @@ export function manifestHash(manifest: Record<string, unknown>): string {
   const reached =
     manifest.type === "mcp-local"
       ? omit(manifest, ["account", "env", "macApp", "service"])
-      : omit(manifest, ["account", "service"]);
+      : omit(manifest, ["account", "service", "webChosen"]);
   return createHash("sha256")
     .update(JSON.stringify(sortKeys(reached)))
     .digest("hex")

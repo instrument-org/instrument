@@ -22,8 +22,10 @@ import {
   catalogEntryForApp,
   completeMcpOAuth,
   findAppIcon,
+  isPendingAppUpdate,
   loadApp,
   appChanged,
+  appUpdateEnded,
   pendingMcpOAuthSlug,
   type WorkspaceConfig,
 } from "@instrument-org/workspace/electron";
@@ -201,6 +203,23 @@ export function signInRefusalOf({
 }
 
 /**
+ * An update that did not go through, in place of `settleConnection`: the app
+ * works as it did, so its connection and the chats hear nothing of it.
+ */
+async function settleUpdate(
+  slug: string,
+  outcome:
+    | { ended?: "refused"; error: string; status: "failed" }
+    | { status: "declined" },
+): Promise<void> {
+  if (outcome.status === "declined") {
+    await appUpdateEnded(slug, "declined");
+    return;
+  }
+  await appUpdateEnded(slug, outcome.ended ?? "failed", outcome.error);
+}
+
+/**
  * Finish the parked sign-in an app's provider sent the browser back for: the
  * code becomes tokens and the app becomes connected; the user turning it down
  * on the provider's page is a decline, the same as "Not now" on the card;
@@ -216,6 +235,11 @@ export async function receiveAppCallback(
   const oauthErrorDescription = params.get("error_description") ?? undefined;
   const readable = appsReady();
   const slug = state === undefined ? undefined : pendingMcpOAuthSlug(state);
+  // Read before the flow is torn down, which forgets it.
+  const settle =
+    state !== undefined && isPendingAppUpdate(state)
+      ? settleUpdate
+      : settleConnection;
   // The sign-in's pages in the window's browser end with this one: where
   // the tab goes next is the person's own history again.
   if (slug !== undefined) {
@@ -232,7 +256,7 @@ export async function receiveAppCallback(
       // Neither a code nor an error: the service broke off the sign-in
       // without saying why, which is nothing the user said.
       const error = "The service sent the sign-in back without finishing it.";
-      await settleConnection(slug, { error, status: "failed" });
+      await settle(slug, { error, status: "failed" });
       return { error, outcome: "failed", slug };
     }
     if (
@@ -241,7 +265,7 @@ export async function receiveAppCallback(
         error: oauthError,
       }) === "refused"
     ) {
-      await settleConnection(slug, {
+      await settle(slug, {
         ended: "refused",
         error: oauthErrorDescription
           ? `${oauthError}: ${oauthErrorDescription}`
@@ -250,7 +274,7 @@ export async function receiveAppCallback(
       });
       return { outcome: "refused", slug };
     }
-    await settleConnection(slug, { status: "declined" });
+    await settle(slug, { status: "declined" });
     return { outcome: "declined", slug };
   }
   if (code === undefined || state === undefined) {
@@ -263,7 +287,7 @@ export async function receiveAppCallback(
       return { outcome: "expired" };
     }
     if (readable) {
-      await settleConnection(slug, {
+      await settle(slug, {
         error: result.error.message,
         status: "failed",
       });

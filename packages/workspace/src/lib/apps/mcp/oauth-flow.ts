@@ -19,10 +19,16 @@ import {
   recordConnection,
   type SignInOpensIn,
 } from "../connection";
-import { type ApiAppManifest } from "../manifest";
+import { type ApiAppManifest, type McpAppManifest } from "../manifest";
 import { boundTo, credentialOrigin } from "../origin-bound";
 import { loadApp } from "../store";
 import { runAppTest } from "../test-app";
+import {
+  appUpdateEnded,
+  finishAppUpdate,
+  forgetEndedAppUpdate,
+  type UpdatedManifest,
+} from "../update-connection";
 import { describeMcpFailure, type McpConnectionError } from "./client";
 import { fetchForMcp } from "./fetch";
 import {
@@ -56,6 +62,8 @@ interface PendingApiFlow {
   expiry?: ReturnType<typeof setTimeout>;
   kind: "api";
   opensIn: SignInOpensIn;
+  /** For an update, the setup the app has once it lands; it stays as it is until then. */
+  updatesTo?: ApiAppManifest;
   /** Redeem the code the callback brings, keeping the tokens. */
   redeem: (code: string) => Promise<void>;
   slug: string;
@@ -67,6 +75,8 @@ interface PendingMcpFlow {
   expiry?: ReturnType<typeof setTimeout>;
   kind: "mcp";
   opensIn: SignInOpensIn;
+  /** For an update, the setup the app has once it lands; it stays as it is until then. */
+  updatesTo?: McpAppManifest;
   provider: ReturnType<typeof createMcpOAuthProvider>;
   slug: string;
   store: McpOAuthStore;
@@ -100,6 +110,7 @@ export async function beginMcpOAuth({
   relayTokenUrl,
   slug,
   store,
+  updatesTo,
 }: {
   opensIn?: SignInOpensIn;
   redirectUrl: string;
@@ -107,6 +118,8 @@ export async function beginMcpOAuth({
   relayTokenUrl: (service: string) => string;
   slug: string;
   store: McpOAuthStore;
+  /** For an update, the setup to sign in to in place of the app's own (`update-connection.ts`). */
+  updatesTo?: UpdatedManifest;
 }): Promise<
   Result<
     | { alreadyConnected: false; authorizationUrl: string; state: string }
@@ -121,7 +134,8 @@ export async function beginMcpOAuth({
   if (loaded.isErr()) {
     return err({ message: loaded.error.message, reason: "connect" });
   }
-  const { manifest, manifestHash } = loaded.value;
+  const { manifestHash } = loaded.value;
+  const manifest = updatesTo ?? loaded.value.manifest;
   if (
     (manifest.type !== "mcp" && manifest.type !== "api") ||
     manifest.auth.kind !== "oauth"
@@ -136,6 +150,12 @@ export async function beginMcpOAuth({
   // material so this flow starts clean.
   dropPendingFlowsForSlug(slug);
   await store.clearTransient(slug);
+  if (updatesTo) {
+    // An app on the web has no tokens of its own, so any here are another
+    // setup's: an update is always a new sign-in.
+    await store.clearTokens(slug);
+    forgetEndedAppUpdate(slug);
+  }
 
   if (manifest.type === "api") {
     return beginApiOAuth({
@@ -148,6 +168,7 @@ export async function beginMcpOAuth({
       relayTokenUrl,
       slug,
       store,
+      ...(updatesTo?.type === "api" ? { updatesTo } : {}),
     });
   }
 
@@ -244,6 +265,7 @@ export async function beginMcpOAuth({
     slug,
     store,
     transport,
+    ...(updatesTo?.type === "mcp" ? { updatesTo } : {}),
     url: manifest.url,
   });
   return ok({ alreadyConnected: false, authorizationUrl: opened.url, state });
@@ -264,6 +286,7 @@ async function beginApiOAuth({
   relayTokenUrl,
   slug,
   store,
+  updatesTo,
 }: {
   manifest: ApiAppManifest;
   manifestHash: string;
@@ -274,6 +297,7 @@ async function beginApiOAuth({
   relayTokenUrl: (service: string) => string;
   slug: string;
   store: McpOAuthStore;
+  updatesTo?: ApiAppManifest;
 }): Promise<
   Result<
     | { alreadyConnected: false; authorizationUrl: string; state: string }
@@ -342,6 +366,7 @@ async function beginApiOAuth({
       }),
     slug,
     store,
+    ...(updatesTo ? { updatesTo } : {}),
   });
   return ok({
     alreadyConnected: false,
@@ -384,10 +409,30 @@ export async function completeMcpOAuth({
       reason: "unauthorized",
     });
   }
-  if (flow.kind === "api") {
-    return completeApiOAuth(flow, code);
+  const result =
+    flow.kind === "api"
+      ? await completeApiOAuth(flow, code)
+      : await completeHostedMcpOAuth(flow, code);
+  if (flow.updatesTo && result.isErr()) {
+    // The app goes on working on the web, so a sign-in that did not land is
+    // not left behind as one it has.
+    const loaded = await loadApp(flow.slug);
+    if (loaded.isErr() || loaded.value.manifest.type === "web") {
+      await flow.store.clearTokens(flow.slug).catch(noop);
+    }
   }
+  return result;
+}
 
+async function completeHostedMcpOAuth(
+  flow: PendingMcpFlow,
+  code: string,
+): Promise<
+  Result<
+    { opensIn: SignInOpensIn; slug: string; toolCount?: number },
+    McpConnectionError
+  >
+> {
   // finishAuth on the original transport exchanges the code for tokens (saved
   // through the provider). That transport is already started, so the working
   // session uses a fresh transport and client that connect with the stored
@@ -401,6 +446,9 @@ export async function completeMcpOAuth({
     await flow.transport.finishAuth(code);
     await client.connect(transport);
     const tools = await client.listTools();
+    if (flow.updatesTo) {
+      return await finishUpdate(flow, flow.updatesTo, tools.tools.length);
+    }
     const loaded = await loadApp(flow.slug);
     if (loaded.isErr()) {
       return err({
@@ -447,6 +495,21 @@ export async function completeMcpOAuth({
     await client.close().catch(noop);
     await flow.transport.close().catch(noop);
   }
+}
+
+/** Whether a parked flow is an app's update, whose end leaves its connection alone. */
+export function isPendingAppUpdate(state: string): boolean {
+  return pendingFlows.get(state)?.updatesTo !== undefined;
+}
+
+/** Where the sign-in of an app's update was opened, while it waits. */
+export function pendingAppUpdate(slug: string): SignInOpensIn | undefined {
+  for (const flow of pendingFlows.values()) {
+    if (flow.slug === slug && flow.updatesTo) {
+      return flow.opensIn;
+    }
+  }
+  return undefined;
 }
 
 /** The slug a parked flow belongs to, for the callback to name it. */
@@ -505,6 +568,9 @@ async function completeApiOAuth(
   } finally {
     await flow.store.clearTransient(flow.slug).catch(noop);
   }
+  if (flow.updatesTo) {
+    return finishApiUpdate(flow, flow.updatesTo);
+  }
   // Before the test, whose passing is what readers of the connection wait for.
   const connection = await readConnection(flow.slug);
   await recordConnection(flow.slug, {
@@ -523,6 +589,68 @@ async function completeApiOAuth(
     });
   }
   return ok({ opensIn: flow.opensIn, slug: flow.slug });
+}
+
+/**
+ * An API app's update, once its code is redeemed: the directory's own check is
+ * sent with the new token before anything is written.
+ */
+async function finishApiUpdate(
+  flow: PendingApiFlow,
+  manifest: ApiAppManifest,
+): Promise<
+  Result<{ opensIn: SignInOpensIn; slug: string }, McpConnectionError>
+> {
+  try {
+    const { result } = await performSignedInRequest({
+      body: manifest.test.body,
+      manifest,
+      method: manifest.test.method ?? "GET",
+      params: {},
+      path: manifest.test.path,
+      signal: AbortSignal.timeout(API_PROBE_TIMEOUT_MS),
+      slug: flow.slug,
+    });
+    const status = result.isOk() ? result.value.status : undefined;
+    if (status === undefined || status < 200 || status >= 300) {
+      return err({
+        message: `Signed in, but ${manifest.test.path} ${status === undefined ? "could not be reached" : `answered HTTP ${status}`}.`,
+        reason: "connect",
+      });
+    }
+  } catch (error) {
+    return err({
+      cause: error,
+      message: describeMcpFailure(error),
+      reason: "connect",
+    });
+  }
+  return finishUpdate(flow, manifest);
+}
+
+async function finishUpdate(
+  flow: PendingFlow,
+  manifest: UpdatedManifest,
+  toolCount?: number,
+): Promise<
+  Result<
+    { opensIn: SignInOpensIn; slug: string; toolCount?: number },
+    McpConnectionError
+  >
+> {
+  const counted = toolCount === undefined ? {} : { toolCount };
+  const landed = await finishAppUpdate({
+    manifest,
+    opensIn: flow.opensIn,
+    slug: flow.slug,
+    ...counted,
+  });
+  return landed
+    ? ok({ opensIn: flow.opensIn, slug: flow.slug, ...counted })
+    : err({
+        message: `Signed in, but "${flow.slug}" changed while the sign-in was open, so it was left as it is.`,
+        reason: "connect",
+      });
 }
 
 /** Let go of what a parked flow holds open. */
@@ -585,6 +713,10 @@ async function lapse(state: string): Promise<void> {
   }
   await closeFlow(flow);
   await flow.store.clearTransient(flow.slug).catch(noop);
+  if (flow.updatesTo) {
+    await appUpdateEnded(flow.slug, "expired");
+    return;
+  }
   const connection = await readConnection(flow.slug);
   if (connection?.status === "connected") {
     return;

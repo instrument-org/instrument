@@ -17,16 +17,22 @@ const fixesAskedAtom = atom<ReadonlyMap<string, number | undefined>>(new Map());
 /** How long after the press the chat has to start on it. */
 const STARTS_WITHIN_MS = 5000;
 
+const askAnotherWay = (app: string) =>
+  `${app} didn't connect. Look for another way to connect it.`;
+
 /**
  * Asks Instrument for another way to connect an app: inside a chat the line
  * is sent there, and anywhere else it waits in a draft. `isFixing` holds in
  * the chat for as long as it works and the app stands as it did.
  */
 export function useFixConnection({
+  ask = askAnotherWay,
   name,
   slug,
   updatedAt,
 }: {
+  /** What it asks, of the app as a mention. */
+  ask?: (app: string) => string;
   name: string;
   slug: string;
   updatedAt: number | undefined;
@@ -62,10 +68,7 @@ export function useFixConnection({
       setAsked((current) => new Map(current).set(slug, updatedAt));
       setIsStarting(true);
     }
-    appWindow?.ask(
-      `${appMentionToken({ name, slug })} didn't connect. Look for another way to connect it.`,
-      { from },
-    );
+    appWindow?.ask(ask(appMentionToken({ name, slug })), { from });
   };
   return { fix, isFixing };
 }

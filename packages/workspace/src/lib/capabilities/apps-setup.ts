@@ -50,6 +50,7 @@ import {
 } from "../apps/store";
 import { checkAppIcon, setAppIcon } from "../apps/icon";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
+import { entrySignsInDirectly } from "../apps/update-connection";
 import { catalogWayIn, parseAuths } from "../apps/way-in";
 import { macAppNamed } from "../mac-apps/apps";
 import { bundledMacAppHere } from "../apps/mac-app";
@@ -647,7 +648,13 @@ async function runNew(input: z.output<typeof NewInput>) {
   }
   const service = fromDirectory ? { service: fromDirectory.service } : {};
   const candidate: unknown = web
-    ? { ...service, ...(signIn ? { signIn } : {}), type: "web", url: web }
+    ? {
+        ...service,
+        ...(signIn ? { signIn } : {}),
+        type: "web",
+        url: web,
+        ...(entry && entrySignsInDirectly(entry) ? { webChosen: true } : {}),
+      }
     : local
       ? {
           ...(serverArgs.length > 0 ? { args: serverArgs } : {}),

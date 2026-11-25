@@ -781,6 +781,7 @@ describe("app new refuses what cannot connect", () => {
         "https://accounts.google.com/AddSession?service=mail&continue=https://mail.google.com/mail/",
       type: "web",
       url: "https://mail.google.com/mail/u/1/",
+      webChosen: true,
     });
     expect(result.stdout).toContain(
       'It is another Gmail account beside gmail (name@example.com), so it keeps the name Gmail rather than "Gmail (personal)"',
@@ -965,6 +966,7 @@ describe("app new refuses what cannot connect", () => {
         "service": "linear",
         "type": "web",
         "url": "https://linear.app",
+        "webChosen": true,
       }
     `);
   });

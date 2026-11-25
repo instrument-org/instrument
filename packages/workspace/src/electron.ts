@@ -80,6 +80,8 @@ export {
   beginMcpOAuth,
   cancelMcpOAuth,
   completeMcpOAuth,
+  isPendingAppUpdate,
+  pendingAppUpdate,
   pendingMcpOAuthSlug,
 } from "./lib/apps/mcp/oauth-flow";
 export { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
@@ -103,6 +105,11 @@ export { findAppIcon } from "./lib/apps/icon";
 export { setUpFromDirectory } from "./lib/apps/set-up";
 export { listApps, loadApp, readAppGuide, removeApp } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
+export {
+  appUpdate,
+  appUpdateEnded,
+  endedAppUpdate,
+} from "./lib/apps/update-connection";
 export {
   BACKGROUND_PROCESS_TEARDOWN_MS,
   killAllBackgroundProcesses,

@@ -1,5 +1,4 @@
 import { renderInBrowser } from "@/tests/render-browser";
-import { skipToken } from "@tanstack/react-query";
 import { beforeEach, expect, test, vi } from "vitest";
 import { page } from "vitest/browser";
 
@@ -14,22 +13,10 @@ vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     files: {
       folderItemCount: {
-        queryOptions: ({
-          input,
-        }: {
-          input: { path: string } | typeof skipToken;
-        }) => ({
-          queryFn:
-            input === skipToken
-              ? skipToken
-              : () => Promise.resolve(counts.get(input.path) ?? null),
-          queryKey: ["folderItemCount", input],
-        }),
+        call: ({ path }: { path: string }) =>
+          Promise.resolve(counts.get(path) ?? null),
       },
-      folderSize: {
-        call: (input: { path: string }) => sizes(input),
-        queryKey: ({ input }: { input: unknown }) => ["folderSize", input],
-      },
+      folderSize: { call: (input: { path: string }) => sizes(input) },
     },
   },
 }));

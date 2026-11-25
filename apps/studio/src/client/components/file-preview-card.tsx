@@ -263,22 +263,26 @@ async function inFolderWalkQueue<T>(
  */
 function useFolderSummary(hostPath: string | undefined) {
   const { isNear, ref } = useNearViewport<HTMLDivElement>();
-  const input = isNear && hostPath ? { path: hostPath } : skipToken;
+  // Nothing is asked of main until the card is near: a card drawn and
+  // never reached costs no request.
+  const input = isNear && hostPath ? { path: hostPath } : undefined;
   const count = useQuery({
-    ...rpcClient.files.folderItemCount.queryOptions({ input, retry: false }),
+    queryFn: input
+      ? () => rpcClient.files.folderItemCount.call(input)
+      : skipToken,
+    queryKey: ["folderItemCount", input?.path],
     refetchOnWindowFocus: false,
+    retry: false,
     staleTime: FOLDER_SUMMARY_STALE_MS,
   });
   const size = useQuery({
-    enabled: input !== skipToken,
-    queryFn:
-      input === skipToken
-        ? skipToken
-        : ({ signal }) =>
-            inFolderWalkQueue(signal, () =>
-              rpcClient.files.folderSize.call(input, { signal }),
-            ),
-    queryKey: rpcClient.files.folderSize.queryKey({ input }),
+    queryFn: input
+      ? ({ signal }) =>
+          inFolderWalkQueue(signal, () =>
+            rpcClient.files.folderSize.call(input, { signal }),
+          )
+      : skipToken,
+    queryKey: ["folderSize", input?.path],
     refetchOnWindowFocus: false,
     retry: false,
     staleTime: FOLDER_SUMMARY_STALE_MS,

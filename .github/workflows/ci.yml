@@ -6,6 +6,7 @@ jobs:
   # Types, lint, knip and the other checks that say the same thing on every
   # platform. The tests run in the jobs below, so this one never waits on them.
   check:
+    if: ${{ github.event_name == 'push' || github.head_ref != 'tab-groups-prototype' }}
     name: Check
     permissions:
       contents: read
@@ -45,6 +46,7 @@ jobs:
   test:
     env:
       VITEST_MAX_WORKERS: "3"
+    if: ${{ github.event_name == 'push' || github.head_ref != 'tab-groups-prototype' }}
     name: Tests (${{ matrix.platform }} ${{ matrix.shard }}/${{ matrix.shards }})
     permissions:
       contents: read
@@ -127,6 +129,7 @@ jobs:
       # Workspace-local rather than the default `~/.cache/ms-playwright`, so the
       # cache step below can restore it by path.
       PLAYWRIGHT_BROWSERS_PATH: ${{ github.workspace }}/.playwright-browsers
+    if: ${{ github.event_name == 'push' || github.head_ref != 'tab-groups-prototype' }}
     name: Browser Tests
     permissions:
       contents: read
@@ -169,7 +172,7 @@ jobs:
       SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
       # #notifications
       SLACK_CHANNEL: C07R4FUL073
-    if: ${{ !cancelled() && github.event_name == 'push' }}
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     name: Report
     needs: [check, test, browser]
     permissions:
@@ -188,14 +191,21 @@ jobs:
           node-version-file: .node-version
       - run: node scripts/ci-report.ts
 
+# A run on a pushed branch finishes whatever is pushed after it, so the branch
+# always has a recent verdict for scripts/land.sh to read: one run goes, one
+# waits, and a newer push replaces the one waiting.
 concurrency:
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
   group: ci-${{ github.ref }}
 
 name: CI
 
+# tab-groups-prototype runs on its pushes, as main does: its pull request gets
+# no runs while it conflicts with main, and the jobs above skip the runs it does
+# get so nothing is checked twice.
 on:
   pull_request: ~
   push:
     branches:
       - main
+      - tab-groups-prototype

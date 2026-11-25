@@ -15,7 +15,7 @@ Copy from `apps/studio/.env.local.example`. Loaded by electron-vite for the main
 
 Linked worktrees copy local env files and normalize relative registry overrides to absolute paths based on the source env file.
 
-Dev and agent runtime knobs (`ELECTRON_USER_DATA_DIR`, `DISABLE_DEV_RELAUNCH`, `REMOTE_DEBUGGING_PORT`, `SKIP_ONBOARDING`, `INSTRUMENT_OZONE_PLATFORM`, and friends) are not env-file settings: they are declared in `turbo.json` and documented where they are used (`apps/studio/AGENTS.md`, [cloud-dev.md](cloud-dev.md), the `studio-chrome-devtools` skill).
+Dev and agent runtime knobs (`ELECTRON_USER_DATA_DIR`, `DISABLE_DEV_RELAUNCH`, `REMOTE_DEBUGGING_PORT`, `SKIP_ONBOARDING`, and friends) are not env-file settings: they are declared in `turbo.json` and documented where they are used (`apps/studio/AGENTS.md`, [cloud-dev.md](cloud-dev.md), the `studio-chrome-devtools` skill).
 
 ## Workspace (`packages/workspace/.env`)
 

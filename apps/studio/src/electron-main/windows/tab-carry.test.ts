@@ -105,7 +105,6 @@ const zoom = vi.hoisted(() => ({ value: 1 }));
 
 vi.mock("./tab-picture", () => ({ openTabPicture }));
 vi.mock("electron", () => ({
-  app: { commandLine: { getSwitchValue: () => "" } },
   BrowserWindow: {
     fromWebContents: (source: { id: number }) => state.windows.get(source.id),
   },
@@ -118,8 +117,7 @@ vi.mock("electron", () => ({
   webContents: { fromId: (id: number) => ({ id }) },
 }));
 vi.mock("@/electron-main/lib/ozone-platform", () => ({
-  effectiveDisplayProtocol: () => "x11",
-  resolveOzonePlatform: () => ({ platform: "x11" }),
+  displayProtocol: () => "x11",
 }));
 vi.mock("@/electron-main/browser-view/manager", () => ({
   getBrowserViewManager: () => ({

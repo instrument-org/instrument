@@ -1,7 +1,4 @@
-import {
-  effectiveDisplayProtocol,
-  resolveOzonePlatform,
-} from "@/electron-main/lib/ozone-platform";
+import { displayProtocol } from "@/electron-main/lib/ozone-platform";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { publisher } from "@/electron-main/rpc/publisher";
 import {
@@ -41,7 +38,7 @@ import {
   type TabStanding,
 } from "@/shared/tabs";
 import { type BrowserTargetId } from "@instrument-org/workspace/electron";
-import { app, BrowserWindow, screen, webContents } from "electron";
+import { BrowserWindow, screen, webContents } from "electron";
 
 import {
   type Bounds,
@@ -153,14 +150,7 @@ let isReleasing = false;
 
 /** A Wayland client cannot place its own window, so nothing could follow the pointer. */
 function canPlaceWindows() {
-  return (
-    process.platform !== "linux" ||
-    effectiveDisplayProtocol(
-      resolveOzonePlatform(process.env.INSTRUMENT_OZONE_PLATFORM).platform,
-      process.env.WAYLAND_DISPLAY,
-      app.commandLine.getSwitchValue("ozone-platform"),
-    ) !== "wayland"
-  );
+  return process.platform !== "linux" || displayProtocol() !== "wayland";
 }
 
 /** Whether a person has used a page the tab shows, one drawn inside its screens included. */

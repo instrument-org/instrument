@@ -14,11 +14,7 @@ import {
   LAUNCH_OVERRIDES_FILENAME,
   readLaunchOverrides,
 } from "./lib/launch-overrides";
-import {
-  decideOzonePlatform,
-  OZONE_PLATFORMS,
-  resolveOzonePlatform,
-} from "./lib/ozone-platform";
+import { displayProtocol } from "./lib/ozone-platform";
 import { registerAppStoredPaths } from "./lib/app-stored-paths";
 import {
   resolveLaunchWorkspace,
@@ -262,30 +258,7 @@ if (launchOverrides.overrides.disableHardwareAcceleration) {
 }
 
 if (platform.isLinux) {
-  const ozone = resolveOzonePlatform(process.env.INSTRUMENT_OZONE_PLATFORM);
-  if (ozone.ignored) {
-    logger.warn(
-      `Ignoring INSTRUMENT_OZONE_PLATFORM=${ozone.ignored}; expected one of ${OZONE_PLATFORMS.join(", ")}`,
-    );
-  }
-  // Read before appending, because a value already there is the one the browser
-  // process took and the only one its window will honor.
-  const decision = decideOzonePlatform(
-    ozone.platform,
-    app.commandLine.getSwitchValue("ozone-platform") || undefined,
-  );
-  if (decision.append === null) {
-    logger.warn(
-      `--ozone-platform=${decision.platform} on the command line decides the display protocol, so neither the session nor INSTRUMENT_OZONE_PLATFORM is consulted. Drop it and set INSTRUMENT_OZONE_PLATFORM instead; a launcher that adds this switch can leave the window blank.`,
-    );
-  } else {
-    app.commandLine.appendSwitch("ozone-platform", decision.append);
-  }
-  // The switch, not the request, because the two can disagree and an app
-  // logging `auto` while talking X11 is a run nobody can diagnose.
-  logger.info(
-    `Using ozone platform: ${ozone.platform} (switch: ${decision.platform})`,
-  );
+  logger.info(`Display protocol: ${displayProtocol()}`);
 
   // Allow CDP Input.dispatchMouseEvent on occluded web contents (e.g.
   // agent-browser webview guests parked offscreen in the paint host).

@@ -1,6 +1,6 @@
 # Dragging a file out does not cross from XWayland to Wayland
 
-**Status:** fixed in de130238c, checked 2026-10-02 (`lib/ozone-platform.ts`, which since also reads `XDG_SESSION_TYPE` and defers to a `--ozone-platform` already on the command line). Reproduced by hand on Ubuntu 24.04.4 with GNOME Shell 46 in a Wayland session, against a shipped beta, 2026-08-28. The cause was the `--ozone-platform=x11` pin, not our drag code. The pin came off in 1.6.6, but its replacement asked Chromium to choose by leaving the switch off, which selects X11 rather than reading the session: 1.6.6 and 1.6.7 therefore ran on XWayland while logging otherwise, and the drag stayed broken for everyone who did not set the override by hand. The app now resolves the platform from `WAYLAND_DISPLAY` and always names it, verified on a packaged build launching with no override and dragging a file to the desktop. `INSTRUMENT_OZONE_PLATFORM=x11` is the way back. The costs that decision accepts are recorded under [What the default now costs](#what-the-default-now-costs). Last updated 2026-08-29.
+**Status:** fixed in de130238c, checked 2026-10-02; since Electron 38 Electron itself does what that fix did, and the app's own platform choice is gone. Reproduced by hand on Ubuntu 24.04.4 with GNOME Shell 46 in a Wayland session, against a shipped beta, 2026-08-28. The cause was the `--ozone-platform=x11` pin, not our drag code. The pin came off in 1.6.6, but its replacement asked Chromium to choose by leaving the switch off, which then selected X11 rather than reading the session: 1.6.6 and 1.6.7 therefore ran on XWayland while logging otherwise. The app then resolved the platform from the session and always named it. Electron 38 made reading the session the default (`--ozone-platform` defaults to `auto`, Wayland when `XDG_SESSION_TYPE=wayland`), and it names the platform on the command line before the app's code runs, so the app now only reads what was chosen (`lib/ozone-platform.ts`). `--ozone-platform=x11` on the launch is the way back. The costs that decision accepts are recorded under [What the default now costs](#what-the-default-now-costs).
 
 ## The symptom
 
@@ -62,21 +62,15 @@ Running as a native Wayland app in a Wayland session fixes the drag. Verified by
 
 So Electron's Wayland drag source does support file drags, which was the open question.
 
-`INSTRUMENT_OZONE_PLATFORM` is what answered it, and it remains the override. It takes `x11`, `wayland`, or `auto`, defaults to `auto`, and ignores anything else with a warning:
+An override variable, `INSTRUMENT_OZONE_PLATFORM`, is what answered it at the time. It can no longer work: since Electron 38 the browser process picks its platform and writes it into its own `--ozone-platform` before the app's code runs, and a switch appended later reaches only the child processes, which then disagree with the browser and leave a window that maps and never presents a frame. So the app no longer chooses or appends anything. Pass the platform on the launch instead, which the browser process reads first:
 
 ```bash
-INSTRUMENT_OZONE_PLATFORM=wayland <installed binary>
+<installed binary> --ozone-platform=x11
 ```
-
-`auto` means read the session, and the app resolves it before Chromium sees it. It is **not a platform Chromium accepts**: passing it to `--ozone-platform` is fatal at startup with `Invalid ozone platform: auto`, and the app dies before any window exists. Leaving the switch off is not the same request either, which is the trap 1.6.6 fell into. An absent `--ozone-platform` selects Chromium's compiled-in default, which is X11, and `--ozone-platform-hint=auto` does not read the session either; both were tested against an installed build on a Wayland session. So `auto` is resolved from `WAYLAND_DISPLAY` and a real platform name is always passed.
-
-That is also why the switch is set rather than removed. Removal fails twice over: it lands on X11 by default, and `app.commandLine.removeSwitch` does not reliably undo an `--ozone-platform` the process was started with. Read the protocol rather than the request.
-
-Passing `--ozone-platform` on the command line instead does not work either, and fails in a way that looks like a Wayland bug rather than a conflict: the switch set in `setup-environment.ts` is applied after the process command line is parsed and overwrites it, leaving the app erroring out of an X11 presenter while asked for Wayland, with no window.
 
 Confirm which protocol actually took before trusting a result, by either signal under [Telling which protocol took](#telling-which-protocol-took).
 
-Dragging a file out works on macOS, on Windows, and in a Linux Wayland session. It still does nothing when the app is on XWayland, which now means only a deliberate `INSTRUMENT_OZONE_PLATFORM=x11`.
+Dragging a file out works on macOS, on Windows, and in a Linux Wayland session. It still does nothing when the app is on XWayland, which now means only a deliberate `--ozone-platform=x11`.
 
 ## Telling which protocol took
 

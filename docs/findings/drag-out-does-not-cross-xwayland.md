@@ -104,4 +104,4 @@ Testing that claim needs a launch the compositor issued a token for, which in pr
 
 **Client-side decorations cost nothing.** `getBounds()` and `getContentBounds()` are pixel-identical on a Wayland window, so the custom title bar, the window controls and the agent-browser paint host are positioned against the geometry they always saw.
 
-**The window hairline is the compositor's.** A frameless window is decorated by the compositor under Wayland and by nothing at all under X11, so the CSS border is conditional on the session -- see `apps/studio/src/client/components/window-border.tsx`. The fractional-scale clipping that border suffered under XWayland cannot arise on Wayland, because there is no hairline of ours there to clip.
+**The window's edge is the system's.** With the system's caption buttons a frameless window gets a shadow and rounded corners under both Wayland and X11, so the app draws no edge of its own.

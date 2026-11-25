@@ -72,7 +72,7 @@ const coreGroups = [
     title: "Actions",
   },
   {
-    colors: tokens(["border", "window-border", "input", "ring", "ground"]),
+    colors: tokens(["border", "input", "ring", "ground"]),
     title: "Chrome",
   },
   {

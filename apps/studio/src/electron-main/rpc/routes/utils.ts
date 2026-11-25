@@ -19,10 +19,6 @@ import { resolveDarwinTarget } from "@/electron-main/lib/file-open-target/resolv
 import { openExternal } from "@/electron-main/lib/open-external";
 import { openPathOnComputer } from "@/electron-main/lib/open-path";
 import {
-  effectiveDisplayProtocol,
-  resolveOzonePlatform,
-} from "@/electron-main/lib/ozone-platform";
-import {
   quitsWithLastWindow,
   requestQuitApproval,
 } from "@/electron-main/lib/quit";
@@ -406,32 +402,6 @@ const openThirdPartyLicenses = base
   });
 
 /**
- * Which display protocol the app is talking, or null where the question does
- * not arise. Linux is the only platform whose window decoration depends on it:
- * a frameless window is decorated by the compositor under Wayland and by
- * nothing at all under X11.
- *
- * Constant for the life of the process, so it is a query rather than part of
- * the window-state stream it is read alongside.
- */
-const displayProtocol = base
-  .output(z.enum(["wayland", "x11"]).nullable())
-  .handler(() => {
-    if (process.platform !== "linux") {
-      return null;
-    }
-
-    const { platform } = resolveOzonePlatform(
-      process.env.INSTRUMENT_OZONE_PLATFORM,
-    );
-    return effectiveDisplayProtocol(
-      platform,
-      process.env.WAYLAND_DISPLAY,
-      app.commandLine.getSwitchValue("ozone-platform"),
-    );
-  });
-
-/**
  * The origin the renderer reads files on this computer through, token and all.
  * Only the top frame can open the RPC port, so only the app's own code learns
  * it; constant for the life of the process.
@@ -735,7 +705,6 @@ export const utils = {
   closeWindow,
   computerFileBase,
   copyFileToClipboard,
-  displayProtocol,
   events,
   fileManagerApp,
   fileOpenCandidates,

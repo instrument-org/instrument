@@ -35,7 +35,6 @@ import { ThemeProvider } from "@/client/components/theme-provider";
 import { Spinner } from "@/client/components/ui/spinner";
 import { TooltipProvider } from "@/client/components/ui/tooltip";
 import { SetupHost } from "@/client/components/setup/setup-host";
-import { WindowBorder } from "@/client/components/window-border";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
 import { TOOLBAR_HEIGHT } from "@/shared/constants";
 import { SCREENS, screenOfHref } from "@/shared/instrument-screens";
@@ -284,7 +283,6 @@ function SetupWindow() {
               </WithDeveloperStrip>
             </WindowZoomRoot>
           </IconContext.Provider>
-          <WindowBorder />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>
@@ -323,9 +321,6 @@ function WorkspaceWindow() {
               </WindowZoomRoot>
             </IconContext.Provider>
           </CatchBoundary>
-          {/* Past the boundary, so a window showing its crash card keeps
-            its edge too. */}
-          <WindowBorder />
         </TooltipProvider>
       </ThemeProvider>
     </QueryClientProvider>

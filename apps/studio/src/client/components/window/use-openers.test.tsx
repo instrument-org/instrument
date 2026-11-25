@@ -629,6 +629,50 @@ describe("an agent tidying tabs and reading History", () => {
     expect(spies.moveTabs).toHaveBeenCalledWith([LEFT_PAGE], OTHER_GROUP);
   });
 
+  it("pins and unpins a group", async () => {
+    const { result } = windowOnTwoSides();
+    for (const pinned of [true, false]) {
+      await answerTo(
+        { group: OTHER_GROUP, kind: "pinGroup", pinned },
+        `pin-${String(pinned)}`,
+      );
+      expect(result.current.windowTabs.groupOwn[OTHER_GROUP]?.pinned).toBe(
+        pinned ? true : undefined,
+      );
+    }
+    expect(
+      await answerTo(
+        { group: "group_gone", kind: "pinGroup", pinned: true },
+        "pin-gone",
+      ),
+    ).toEqual({
+      error: "no tab group group_gone is open.",
+      requestId: "pin-gone",
+    });
+  });
+
+  it("places a group beside another in the sidebar, and refuses one listed apart", async () => {
+    const { result, store } = windowOnTwoSides();
+    const place = (requestId: string) =>
+      answerTo(
+        {
+          anchor: GROUP,
+          group: OTHER_GROUP,
+          kind: "placeGroup",
+          where: "before",
+        },
+        requestId,
+      );
+    await place("place-1");
+    expect(store.get(windowTabGroupsAtom)).toEqual([OTHER_GROUP, GROUP]);
+    act(() => {
+      result.current.windowTabs.setGroupOwn(GROUP, { pinned: true });
+    });
+    expect(await place("place-2")).toMatchObject({
+      error: expect.stringContaining("pin or unpin one first"),
+    });
+  });
+
   it("lists a closed group by the id its reopen takes, and reopens it", async () => {
     const { store } = windowOnTwoSides();
     act(() => {

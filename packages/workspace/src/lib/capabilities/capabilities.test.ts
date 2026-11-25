@@ -541,8 +541,11 @@ describe("the registry", () => {
         "window.close": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
         "window.group": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
         "window.move": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
+        "window.pin": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
+        "window.place": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
         "window.restore": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
         "window.show": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
+        "window.unpin": "only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.",
         "window.wait": "only the chat hands the user a page. End your last message with a needs fence naming the tab and what the user has to do there (sign in, prove they are a person); the chat asks them and sends you on.",
       }
     `);
@@ -597,9 +600,12 @@ describe("the registry", () => {
           "history",
           "list",
           "move",
+          "pin",
+          "place",
           "read",
           "restore",
           "show",
+          "unpin",
           "wait",
         ],
         "x": [

@@ -214,7 +214,9 @@ export function createStandInWindow(chrome?: SharedChrome) {
     if (
       action.kind === "showGroup" ||
       action.kind === "closeGroup" ||
-      action.kind === "moveTabs"
+      action.kind === "moveTabs" ||
+      action.kind === "pinGroup" ||
+      action.kind === "placeGroup"
     ) {
       return { error: `no tab group ${action.group} is open.` };
     }

@@ -482,15 +482,45 @@ export function useTabGroupActions() {
   };
 
   /**
+   * A new tab beside the last tab of a pinned group, which an agent is about
+   * to take out of it, so the group and its pin stay. Answers whether the
+   * group needed one.
+   */
+  const keepPinned = (tab: WindowTab): boolean => {
+    const state = store.get(windowTabsAtom);
+    const { group } = tab;
+    if (
+      group === undefined ||
+      state.groups?.[group]?.pinned !== true ||
+      tabsIn(state, group).some((each) => each.id !== tab.id)
+    ) {
+      return false;
+    }
+    windowTabs.openIn(screenTab(group, NEW_TAB_HREF), {
+      group,
+      select: false,
+    });
+    return true;
+  };
+
+  /**
    * A tab into another group, up there with the keyboard, at the end of the
    * side with it, or of the side `placing` names, made there when it
-   * `split`s. A group the tab leaves with nothing closes.
+   * `split`s. A group the tab leaves with nothing closes, unless it is
+   * pinned and the move `keepsPinned`, which leaves it a new tab.
    */
   const moveTab = (
     id: string,
     group: string,
     placing?: { index?: number; side: 0 | 1; split: boolean },
+    { keepsPinned = false }: { keepsPinned?: boolean } = {},
   ) => {
+    const found = store
+      .get(windowTabsAtom)
+      .tabs.find((entry) => entry.id === id);
+    if (keepsPinned && found !== undefined && found.group !== group) {
+      keepPinned(found);
+    }
     const state = store.get(windowTabsAtom);
     const tab = state.tabs.find((entry) => entry.id === id);
     windowTabs.moveTo({
@@ -530,6 +560,7 @@ export function useTabGroupActions() {
     href,
     isShownHere = true,
     moving,
+    pinned = false,
     place,
     project,
     replace = false,
@@ -543,6 +574,8 @@ export function useTabGroupActions() {
     isShownHere?: boolean;
     /** A tab to move into the new group in place of opening one. */
     moving?: string;
+    /** Whether it is pinned, wherever it goes. */
+    pinned?: boolean;
     /** Where it goes in the list, when not at the top. */
     place?: SidebarPlace;
     /** The project it is in, or null for the root. */
@@ -566,7 +599,7 @@ export function useTabGroupActions() {
     if (isShownHere) {
       setListed((list) => listedWith(list, group, place));
     }
-    if (place?.pinned === true) {
+    if (pinned || place?.pinned === true) {
       windowTabs.setGroupOwn(group, { pinned: true });
     }
     if (fill) {
@@ -904,6 +937,7 @@ export function useTabGroupActions() {
     duplicate,
     groupUp,
     hasTabs,
+    keepPinned,
     letGo,
     listChat,
     make,

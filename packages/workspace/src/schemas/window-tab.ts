@@ -57,6 +57,19 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
     kind: z.literal("moveTabs"),
     tabIds: z.array(z.string()),
   }),
+  /** Pins a tab group above its window's other groups, or takes its pin off, as its menu does. */
+  z.object({
+    group: z.string(),
+    kind: z.literal("pinGroup"),
+    pinned: z.boolean(),
+  }),
+  /** Moves a tab group to just before or after another in the sidebar, both of the window's own and in the same part of it. */
+  z.object({
+    anchor: z.string(),
+    group: z.string(),
+    kind: z.literal("placeGroup"),
+    where: z.enum(["after", "before"]),
+  }),
   /** The window's History, newest first: what was closed, and with `closedOnly` false the places visited too. */
   z.object({
     closedOnly: z.boolean(),

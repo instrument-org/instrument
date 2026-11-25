@@ -21,12 +21,12 @@ export type WindowGroups = readonly {
 }[];
 
 /** The task at work in a tab, by the tab's id, and whether that is the session asking. */
-export type TabTasks = Readonly<
+type TabTasks = Readonly<
   Record<string, { id: string; title: string; you: boolean }>
 >;
 
 /** What a chat's tab says of its chat, as the sidebar and the Chats page show it. */
-export interface TabChat {
+interface TabChat {
   archived: boolean;
   /** The day anything last happened in it, YYYY-MM-DD. */
   last_activity: string;
@@ -143,7 +143,9 @@ function tabLine(
   const notes = [
     ...(tab.byAgent ? ["opened by an agent"] : []),
     ...(chat === undefined || tab.isThisChat ? [] : chatNotes(chat)),
-    ...(draft === undefined ? [] : [`unsent: ${JSON.stringify(draft)}`]),
+    ...(draft === undefined
+      ? []
+      : [`unsent: ${JSON.stringify(draft)}, kept in Drafts if closed`]),
   ];
   return `${tab.id}  ${mark}  ${shows}${tab.isThisChat ? " (you)" : ""}  ${link}${working}${notes.length === 0 ? "" : `  (${notes.join(", ")})`}`;
 }

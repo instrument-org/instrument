@@ -316,7 +316,9 @@ function answeringWindow() {
             }
           : action.kind === "showGroup" ||
               action.kind === "closeGroup" ||
-              action.kind === "moveTabs"
+              action.kind === "moveTabs" ||
+              action.kind === "pinGroup" ||
+              action.kind === "placeGroup"
             ? groups.has(action.group)
               ? action.kind === "closeGroup"
                 ? // The docs group holds only tabs an agent opened.
@@ -812,7 +814,7 @@ describe("window list, of other groups", () => {
         Tab group "report.md" instrument://group/group:docs, pinned, in the project "Launch", not on screen, last brought up 2026-11-24T09:12Z:
           tab_docs  showing  /Users/me/Instrument/report.md  instrument://tab/tab_docs
           tab_settings  hidden   [app] Settings · instrument://screen/settings  instrument://tab/tab_settings
-          tab_new  hidden   New Tab  instrument://tab/tab_new  (unsent: "Ask about rent")
+          tab_new  hidden   New Tab  instrument://tab/tab_new  (unsent: "Ask about rent", kept in Drafts if closed)
         Tab group "Meeting notes" instrument://group/group:notes, split, not on screen:
           left (keyboard):
             tab_notes  left     [chat] Meeting notes  instrument://chat/notes  (waiting on the user, still working, unread, last active 2026-11-23)
@@ -971,6 +973,29 @@ describe("window group, move, history and restore", () => {
     expect(result.stdout).toMatchInlineSnapshot(`
       "Moved tab_ex into the tab group "Meeting notes" instrument://group/group:notes; the window shows another group, so they are out of sight.
       "
+    `);
+  });
+
+  it("pins, unpins and places groups by name", async () => {
+    const results = [
+      await run({}, "pin", "Meeting notes", "group:docs"),
+      await run({}, "unpin", "group:docs"),
+      await run({}, "place", "Meeting notes", "--after", "group:docs"),
+      await run({}, "place", "Meeting notes"),
+    ];
+    expect(results.map(({ stderr, stdout }) => stdout + stderr))
+      .toMatchInlineSnapshot(`
+      [
+        "Pinned the tab group "Meeting notes" instrument://group/group:notes.
+      The tab group "report.md" instrument://group/group:docs is already pinned.
+      ",
+        "Unpinned the tab group "report.md" instrument://group/group:docs.
+      ",
+        "Placed the tab group "Meeting notes" instrument://group/group:notes just below "report.md" instrument://group/group:docs.
+      ",
+        "instrument window: place takes one of --before and --after: instrument window place <group> --before <group>.
+      ",
+      ]
     `);
   });
 

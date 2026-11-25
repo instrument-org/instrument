@@ -641,7 +641,7 @@ export const windowClose = defineCapability({
     return outcomes;
   },
   summary:
-    "Close tabs, or a tab group whole by its id; the user can bring back from the closed list what was theirs, not an agent's tab they never used.",
+    "Close tabs, or a tab group whole by its id; the user can bring back from the closed list what was theirs, not an agent's tab they never used. A pinned group whose last tab closes gets a new tab; its id closes it.",
   surfaces: {
     cli: { help: "", positional: ["tabs"], words: ["window", "close"] },
   },
@@ -658,6 +658,7 @@ function sideOf(windows: WindowGroups, tabId: string) {
     if (side !== undefined) {
       return {
         group: layout.group.id,
+        isLastTab: layout.sides.length === 1 && side.tabs.length === 1,
         mates: side.tabs.filter((tab) => tab.id !== tabId).map((tab) => tab.id),
       };
     }
@@ -671,7 +672,7 @@ function sideOf(windows: WindowGroups, tabId: string) {
  * does not answer.
  */
 async function closedSideLine(
-  before: { group: string; mates: readonly string[] },
+  before: { group: string; isLastTab: boolean; mates: readonly string[] },
   ctx: CapabilityContext,
 ): Promise<string> {
   const answer = await ask({ kind: "list" }, ctx);
@@ -683,6 +684,9 @@ async function closedSideLine(
     .find((each) => each.group.id === before.group);
   if (layout === undefined) {
     return " Its tab group closed with it.";
+  }
+  if (before.isLastTab) {
+    return ` It was the last tab of the pinned tab group ${groupAddressOf(before.group)}, which stays, with a new tab.`;
   }
   const where =
     layout.group.id === answer.read?.layout.group.id
@@ -875,9 +879,132 @@ export const windowMove = defineCapability({
     return `Moved ${ids.join(", ")} into the tab group ${groupWords(named.group)}${into ? `; ${sightOf(into)}` : ""}.`;
   },
   summary:
-    "Move tabs into an existing tab group, by its id or name, as dropping each on its row does; a group left with no tab closes.",
+    "Move tabs into an existing tab group, by its id or name, as dropping each on its row does; a group left with no tab closes, or, pinned, gets a new tab.",
   surfaces: {
     cli: { help: "", positional: ["tabs"], words: ["window", "move"] },
+  },
+  text: (said) => said,
+  where: CHATS,
+});
+
+async function pinGroups(
+  args: readonly string[],
+  pinned: boolean,
+  ctx: CapabilityContext,
+): Promise<Outcome[]> {
+  const outcomes: Outcome[] = [];
+  for (const arg of args) {
+    const named = groupNamed(await windowsOf(ctx), idOf(arg));
+    if ("error" in named) {
+      outcomes.push({ failed: true, said: named.error, target: arg });
+      continue;
+    }
+    const { id } = named.group.group;
+    const words = groupWords(named.group);
+    const answer = await ask({ group: id, kind: "pinGroup", pinned }, ctx);
+    const error = answer ? answer.error : NO_WINDOW;
+    outcomes.push(
+      error === undefined
+        ? {
+            failed: false,
+            said:
+              (named.group.pinned === true) === pinned
+                ? `The tab group ${words} is already ${pinned ? "pinned" : "unpinned"}.`
+                : `${pinned ? "Pinned" : "Unpinned"} the tab group ${words}.`,
+            target: arg,
+          }
+        : { failed: true, said: error, target: arg },
+    );
+  }
+  return outcomes;
+}
+
+const GroupsField = (verb: string) =>
+  z
+    .array(z.string(), {
+      error: `${verb} needs a tab group (${NAME} ${verb} <group>...).`,
+    })
+    .min(1, `${verb} needs a tab group (${NAME} ${verb} <group>...).`);
+
+export const windowPin = defineCapability({
+  input: z.object({ groups: GroupsField("pin") }),
+  name: "window.pin",
+  output: Outcomes,
+  render: renderOutcomes,
+  run: ({ groups }, ctx) => pinGroups(groups, true, ctx),
+  summary: "Pin tab groups, by id or name, above the sidebar's others.",
+  surfaces: {
+    cli: { help: "", positional: ["groups"], words: ["window", "pin"] },
+  },
+  text: (outcomes) => outcomes.map((each) => each.said).join("\n"),
+  where: CHATS,
+});
+
+export const windowUnpin = defineCapability({
+  input: z.object({ groups: GroupsField("unpin") }),
+  name: "window.unpin",
+  output: Outcomes,
+  render: renderOutcomes,
+  run: ({ groups }, ctx) => pinGroups(groups, false, ctx),
+  summary: "Take the pin off tab groups, by id or name; they stay open.",
+  surfaces: {
+    cli: { help: "", positional: ["groups"], words: ["window", "unpin"] },
+  },
+  text: (outcomes) => outcomes.map((each) => each.said).join("\n"),
+  where: CHATS,
+});
+
+export const windowPlace = defineCapability({
+  input: z.object({
+    group: z.string({
+      error: `place needs a tab group: ${NAME} place <group> --before <group>.`,
+    }),
+    before: z.string().optional().meta({
+      description: "The group it goes just above, by its id or name.",
+    }),
+    after: z.string().optional().meta({
+      description: "The group it goes just below, by its id or name.",
+    }),
+  }),
+  name: "window.place",
+  output: z.string(),
+  async run({ after, before, group }, ctx) {
+    const beside = before ?? after;
+    if (beside === undefined || (before !== undefined && after !== undefined)) {
+      throw new Error(
+        `place takes one of --before and --after: ${NAME} place <group> --before <group>.`,
+      );
+    }
+    const windows = await windowsOf(ctx);
+    const named = groupNamed(windows, idOf(group));
+    const anchor = groupNamed(windows, idOf(beside));
+    if ("error" in named) {
+      throw new Error(named.error);
+    }
+    if ("error" in anchor) {
+      throw new Error(anchor.error);
+    }
+    const answer = await ask(
+      {
+        anchor: anchor.group.group.id,
+        group: named.group.group.id,
+        kind: "placeGroup",
+        where: before === undefined ? "after" : "before",
+      },
+      ctx,
+    );
+    if (!answer) {
+      throw new Error(NO_WINDOW);
+    }
+    if (answer.error !== undefined) {
+      throw new Error(answer.error);
+    }
+    return `Placed the tab group ${groupWords(named.group)} just ${before === undefined ? "below" : "above"} ${groupWords(anchor.group)}.`;
+  },
+  summary:
+    "Move a tab group in the sidebar to just above or below another, each by id or name: both pinned or both not, in the same project, in the window the chat works in.",
+  surfaces: {
+    cli: { help: "", positional: ["group"], words: ["window", "place"] },
   },
   text: (said) => said,
   where: CHATS,

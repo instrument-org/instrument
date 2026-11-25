@@ -507,7 +507,7 @@ function WindowShell({
     // Each group goes on the window's closed list whole, so Shift+Cmd+T
     // brings it back as it was; a group of only blank new tabs leaves
     // nothing to bring back, and neither does an agent's close of a group
-    // of only agents' own tabs (`agentCloseKeeps`).
+    // of only agents' own tabs (`agentCloseKeeps`) the person has not pinned.
     for (const group of closed) {
       const kept = windowTabs.allTabs.flatMap((tab) => {
         if (tab.group !== group) {
@@ -516,15 +516,17 @@ function WindowShell({
         const closedAs = closingAsWritten(tab);
         return closedAs && !isBlankNewTab(closedAs) ? [closedAs] : [];
       });
+      const isPinned = windowTabs.groupOwn[group]?.pinned === true;
       if (
         kept.length > 0 &&
-        (!byAgent || agentCloseKeeps(kept, wasPagePressed))
+        (!byAgent || isPinned || agentCloseKeeps(kept, wasPagePressed))
       ) {
         const id = freshTabId();
         store.set(appTabsAtom, (current) =>
           closeTabGroup(current, {
             id,
             pathname: groupHref(group),
+            ...(isPinned ? { pinned: true } : {}),
             project: groupList.open.find((entry) => entry.group === group)
               ?.project,
             tabs: kept,
@@ -788,7 +790,7 @@ function WindowShell({
       const made = groups.make({
         fill: (group) => {
           for (const id of ids) {
-            groups.moveTab(id, group);
+            groups.moveTab(id, group, undefined, { keepsPinned: true });
           }
         },
         isShownHere: false,
@@ -802,7 +804,7 @@ function WindowShell({
     },
     moveTabs: (ids, group) => {
       for (const id of ids) {
-        groups.moveTab(id, group);
+        groups.moveTab(id, group, undefined, { keepsPinned: true });
       }
     },
     isOpen: opened !== undefined,
@@ -890,8 +892,11 @@ function WindowShell({
   ) => {
     const tab = windowTabs.allTabs.find((each) => each.id === id);
     const closedAs = closingAsWritten(tab);
-    // A group's last tab closes the group.
+    // A group's last tab closes the group, but an agent's close never ends
+    // one the person pinned, which gets a new tab.
+    const isKept = byAgent && tab !== undefined && groups.keepPinned(tab);
     if (
+      !isKept &&
       tab?.group !== undefined &&
       groupList.open.some((entry) => entry.group === tab.group) &&
       windowTabs.allTabs.every(
@@ -1103,9 +1108,10 @@ function WindowShell({
           side ? { active: side.up } : entry.ups,
         );
       },
-      // A whole group goes back to the project it was in, or the root.
+      // A whole group goes back to the project it was in, or the root, and
+      // pinned if it was.
       ...(closedTabGroupOf(entry) && !side
-        ? { project: entry.project ?? null }
+        ? { pinned: entry.pinned === true, project: entry.project ?? null }
         : {}),
       ...(leaving === undefined
         ? {}

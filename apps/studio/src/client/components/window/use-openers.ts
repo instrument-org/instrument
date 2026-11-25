@@ -92,6 +92,7 @@ import {
 } from "./tab-model";
 import { groupLayoutFor, groupReadOf } from "./group-awareness";
 import { windowTabGroupsAtom } from "./open-groups";
+import { listedWith } from "./tab-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
 import { agentPageOfTab, ownerOfHostGroup, pageFileOfTab } from "./hosted-page";
 
@@ -1203,6 +1204,44 @@ export function useOpeners({
         return { error: `no tab group ${action.group} is open.` };
       }
       moveTabs(action.tabIds, action.group);
+      return {};
+    }
+    if (action.kind === "pinGroup") {
+      if (!windowTabs.allTabs.some((tab) => tab.group === action.group)) {
+        return { error: `no tab group ${action.group} is open.` };
+      }
+      windowTabs.setGroupOwn(action.group, {
+        pinned: action.pinned ? true : undefined,
+      });
+      return {};
+    }
+    if (action.kind === "placeGroup") {
+      const { anchor, group, where } = action;
+      const listed = store.get(windowTabGroupsAtom) ?? [];
+      const elsewhere = [group, anchor].find((each) => !listed.includes(each));
+      if (elsewhere !== undefined) {
+        return {
+          error: `the tab group ${elsewhere} is not in the sidebar of the window you work in, so it can't be placed from here.`,
+        };
+      }
+      if (group === anchor) {
+        return { error: "a tab group is placed beside another one." };
+      }
+      const own = windowTabs.groupOwn[group];
+      const there = windowTabs.groupOwn[anchor];
+      if ((own?.pinned === true) !== (there?.pinned === true)) {
+        return {
+          error: `one of ${group} and ${anchor} is pinned and the other is not, and the sidebar lists pinned groups apart; pin or unpin one first.`,
+        };
+      }
+      if (own?.project !== there?.project) {
+        return {
+          error: `${group} and ${anchor} are in different projects, which the sidebar lists apart.`,
+        };
+      }
+      store.set(windowTabGroupsAtom, (list) =>
+        listedWith(list, group, { [where]: anchor }),
+      );
       return {};
     }
     if (action.kind === "history") {

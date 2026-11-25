@@ -53,6 +53,7 @@ export async function newMessage({
   sessionId,
   chatId,
   viewing,
+  without,
 }: {
   /** Places in files the user marked, with what to change at each; see the asks part. */
   asks?: SessionMessageDataPart.AsksDataPart;
@@ -75,10 +76,25 @@ export async function newMessage({
   chatId: ChatId;
   /** What the sending surface had on screen; see the view-context part. */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
+  /**
+   * Messages this one takes the place of, which the session will not have
+   * been told: what only they said is said again.
+   */
+  without?: ReadonlySet<StoreId.Message>;
 }) {
   const messageId = StoreId.newMessageId();
   const createdAt = new Date();
   const parts: SessionMessagePart.Type[] = [];
+  const stored = await ChatReads.history({ chatId, sessionId });
+  if (stored.isErr()) {
+    // What to tell the agent is best-effort; never block sending.
+    getWorkspaceConfig().captureException(stored.error);
+  }
+  // What the session has been told, which the notes on this message are
+  // worked out from.
+  const history = stored
+    .unwrapOr([])
+    .filter(({ id }) => without?.has(id) !== true);
   const workspaceInstructions = await readWorkspaceInstructions();
   if (workspaceInstructions) {
     parts.push({
@@ -146,13 +162,14 @@ export async function newMessage({
   }
 
   parts.push(
-    ...(await layoutParts({
+    ...layoutParts({
       chatId,
       createdAt,
+      history,
       messageId,
       read: layout,
       sessionId,
-    })),
+    }),
   );
 
   if (asks) {
@@ -224,9 +241,9 @@ export async function newMessage({
 
   const backgroundProcessesPart = await createBackgroundProcessesPart({
     createdAt,
+    history,
     messageId,
     sessionId,
-    chatId,
   });
   if (backgroundProcessesPart) {
     parts.push(backgroundProcessesPart);
@@ -247,12 +264,9 @@ export async function newMessage({
 
   // The session context states the date the session started and is never
   // rewritten, so a session that ran overnight is corrected here instead.
-  const dateChange = await detectDateChange({ messageId, sessionId, chatId });
-  if (dateChange.isErr()) {
-    // Awareness of the date is best-effort; never block sending.
-    getWorkspaceConfig().captureException(dateChange.error);
-  } else if (dateChange.value) {
-    parts.push(dateChange.value);
+  const dateChange = detectDateChange({ history, messageId, sessionId });
+  if (dateChange) {
+    parts.push(dateChange);
   }
 
   // The session context names the computer it started on and is never
@@ -262,15 +276,13 @@ export async function newMessage({
   // which picks it, or for a task the chat's.
   const environmentChange = await detectEnvironmentChange({
     chatId,
+    history,
     messageId,
     runsOn: isChat ? modelURI : await chatModelURI(chatId),
     sessionId,
   });
-  if (environmentChange.isErr()) {
-    // Awareness of the computer is best-effort; never block sending.
-    getWorkspaceConfig().captureException(environmentChange.error);
-  } else if (environmentChange.value) {
-    parts.push(environmentChange.value);
+  if (environmentChange) {
+    parts.push(environmentChange);
   }
 
   // Nothing in the context says what time it is, so a message sent a day after
@@ -282,17 +294,14 @@ export async function newMessage({
   // long the app took to say something back, which is neither the task's to
   // reason about nor what its instructions tell it to do with the answer.
   if (isChat) {
-    const messageGap = await detectMessageGap({
+    const messageGap = detectMessageGap({
+      history,
       messageId,
       sentAt: createdAt,
       sessionId,
-      chatId,
     });
-    if (messageGap.isErr()) {
-      // Awareness of the gap is best-effort; never block sending.
-      getWorkspaceConfig().captureException(messageGap.error);
-    } else if (messageGap.value) {
-      parts.push(messageGap.value);
+    if (messageGap) {
+      parts.push(messageGap);
     }
 
     // What the user did in the app since they last wrote here, as the kinds
@@ -301,6 +310,7 @@ export async function newMessage({
     const actionsPart = await createActionsPart({
       chatId,
       createdAt,
+      history,
       messageId,
       sessionId,
     });
@@ -324,9 +334,9 @@ export async function newMessage({
     // it changed since: another chat saved something, or the user forgot one.
     const memoryPart = await createMemoryPart({
       createdAt,
+      history,
       messageId,
       sessionId,
-      chatId,
     });
     if (memoryPart) {
       parts.push(memoryPart);
@@ -337,9 +347,9 @@ export async function newMessage({
     // began.
     const setupNews = await createSetupNewsPart({
       createdAt,
+      history,
       messageId,
       sessionId,
-      chatId,
     });
     if (setupNews) {
       parts.push(setupNews);
@@ -350,14 +360,12 @@ export async function newMessage({
   // connected, disconnected, or removed since arrives on this message.
   if (isChat) {
     const chatAppChanges = await detectChatAppChanges({
+      history,
       messageId,
       sessionId,
-      chatId,
     });
-    if (chatAppChanges.isErr()) {
-      getWorkspaceConfig().captureException(chatAppChanges.error);
-    } else if (chatAppChanges.value) {
-      parts.push(chatAppChanges.value);
+    if (chatAppChanges) {
+      parts.push(chatAppChanges);
     }
   }
 
@@ -365,20 +373,17 @@ export async function newMessage({
   // (per-session baseline diff). Runs after the grants above, so a folder
   // sent with this message is told here, under the name it mounts at.
   const folderChanges = await detectFolderChanges({
+    history,
     messageId,
     sessionId,
     chatId,
   });
-  if (folderChanges.isErr()) {
-    // Awareness of folder changes is best-effort; never block sending.
-    getWorkspaceConfig().captureException(folderChanges.error);
-  } else if (folderChanges.value) {
-    parts.push(folderChanges.value);
+  if (folderChanges) {
+    parts.push(folderChanges);
   }
 
   // An empty picture the session never had anything in says nothing to any
   // reader, so it is not stored; one that cannot be checked is.
-  const history = await ChatReads.history({ chatId, sessionId });
   const message: SessionMessage.UserWithParts = {
     id: messageId,
     metadata: {
@@ -386,8 +391,8 @@ export async function newMessage({
       ...(fromDraft ? { fromDraft } : {}),
       sessionId,
     },
-    parts: history.isOk()
-      ? parts.filter((part) => !goesUnsaid(part, history.value))
+    parts: stored.isOk()
+      ? parts.filter((part) => !goesUnsaid(part, history))
       : parts,
     role: "user",
   };

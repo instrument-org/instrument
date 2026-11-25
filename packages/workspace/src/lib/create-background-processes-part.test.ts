@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { ChatReads } from "./chat-reads";
 import { TASKS_DIR_NAME } from "../constants";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
@@ -27,10 +28,10 @@ let chatId: ChatId;
 /** The note the next message carries, written with it as a turn does. */
 async function makePart() {
   const part = await createBackgroundProcessesPart({
+    history: (await ChatReads.history({ chatId, sessionId }))._unsafeUnwrap(),
     createdAt: new Date(),
     messageId: StoreId.newMessageId(),
     sessionId,
-    chatId,
   });
   await writeMessage(chatId, sessionId, "user", [part]);
   return part;

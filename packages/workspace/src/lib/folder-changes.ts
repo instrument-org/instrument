@@ -1,11 +1,8 @@
-import { ok, safeTry } from "neverthrow";
-
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type ToldFolders } from "../schemas/told";
-import { ChatReads } from "./chat-reads";
 import { chatGrants } from "./chat/grants";
 import { folderReach } from "./chat/folder-reach";
 import { baselineRecorded, partsAfter } from "./last-told";
@@ -69,64 +66,59 @@ export async function grantedFolders(chatId: ChatId): Promise<ToldFolders> {
  * Must run after any grant for this message, so a folder sent with it is told
  * here the same turn instead of lagging behind.
  */
-export function detectFolderChanges({
+export async function detectFolderChanges({
+  chatId,
+  history,
   messageId,
   sessionId,
-  chatId,
 }: {
+  /** The session's messages the note is worked out from; see `newMessage`. */
+  history: SessionMessage.WithParts[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
   chatId: ChatId;
-}) {
-  return safeTry<SessionMessagePart.Type | undefined, Error>(
-    async function* () {
-      const told = lastToldFolders(
-        yield* ChatReads.history({ chatId, sessionId }),
-        sessionId,
-      );
-      if (!told) {
-        return ok(undefined);
-      }
-      const { deviceId } = getWorkspaceConfig();
-      const current = await grantedFolders(chatId);
+}): Promise<SessionMessagePart.Type | undefined> {
+  const told = lastToldFolders(history, sessionId);
+  if (!told) {
+    return undefined;
+  }
+  const { deviceId } = getWorkspaceConfig();
+  const current = await grantedFolders(chatId);
 
-      const currentPaths = new Set(current.map((folder) => folder.path));
-      const toldPaths = new Set(told.map((folder) => folder.path));
-      // A folder granted since: attached to a message or allowed from a
-      // card. The mount is already live -- the sandbox is built from the
-      // chat's grants every turn -- so what this
-      // carries is the telling, without which the model has a folder it was
-      // never told it had and a standing list that contradicts it.
-      const added = current.filter((folder) => !toldPaths.has(folder.path));
-      // Taken back only where this computer granted it: a grant is one
-      // computer's, so a folder told on another one is simply not granted
-      // here, and reaching for it raises a card like any other.
-      const removed = told.filter(
-        (folder) =>
-          folder.device === deviceId && !currentPaths.has(folder.path),
-      );
-      if (added.length === 0 && removed.length === 0) {
-        return ok(undefined);
-      }
-
-      // Spelled now, as the shell spells them on this computer, so the note
-      // reads the same wherever the chat is read later.
-      const spelled = (folders: ToldFolders) =>
-        folders.map(({ device, path }) => ({
-          agentPath: shellPath(path),
-          ...(device && { device }),
-          path,
-        }));
-      return ok({
-        data: { added: spelled(added), removed: spelled(removed) },
-        metadata: {
-          createdAt: new Date(),
-          id: StoreId.newPartId(),
-          messageId,
-          sessionId,
-        },
-        type: "data-folderChanges",
-      } satisfies SessionMessagePart.Type);
-    },
+  const currentPaths = new Set(current.map((folder) => folder.path));
+  const toldPaths = new Set(told.map((folder) => folder.path));
+  // A folder granted since: attached to a message or allowed from a
+  // card. The mount is already live -- the sandbox is built from the
+  // chat's grants every turn -- so what this
+  // carries is the telling, without which the model has a folder it was
+  // never told it had and a standing list that contradicts it.
+  const added = current.filter((folder) => !toldPaths.has(folder.path));
+  // Taken back only where this computer granted it: a grant is one
+  // computer's, so a folder told on another one is simply not granted
+  // here, and reaching for it raises a card like any other.
+  const removed = told.filter(
+    (folder) => folder.device === deviceId && !currentPaths.has(folder.path),
   );
+  if (added.length === 0 && removed.length === 0) {
+    return undefined;
+  }
+
+  // Spelled now, as the shell spells them on this computer, so the note
+  // reads the same wherever the chat is read later.
+  const spelled = (folders: ToldFolders) =>
+    folders.map(({ device, path }) => ({
+      agentPath: shellPath(path),
+      ...(device && { device }),
+      path,
+    }));
+  return {
+    data: { added: spelled(added), removed: spelled(removed) },
+    metadata: {
+      createdAt: new Date(),
+      id: StoreId.newPartId(),
+      messageId,
+      sessionId,
+    },
+    type: "data-folderChanges",
+  };
 }

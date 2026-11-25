@@ -1,10 +1,8 @@
-import { ok, safeTry } from "neverthrow";
 import { alphabetical } from "radashi";
 
+import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type ChatId } from "../schemas/chat-id";
-import { ChatReads } from "./chat-reads";
 import { contextDateKey } from "./context-date";
 import { getCurrentDate } from "./get-current-date";
 
@@ -23,61 +21,53 @@ import { getCurrentDate } from "./get-current-date";
  * and on every message sent on a day already recorded.
  */
 export function detectDateChange({
+  history,
   messageId,
   sessionId,
-  chatId,
 }: {
+  /** The session's messages the note is worked out from; see `newMessage`. */
+  history: SessionMessage.WithParts[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  chatId: ChatId;
-}) {
-  return safeTry<SessionMessagePart.Type | undefined, Error>(
-    async function* () {
-      const messages = yield* ChatReads.modelHistory({
-        chatId,
-        sessionId,
-      });
+}): SessionMessagePart.Type | undefined {
+  // ulid sorts oldest to newest, and the store makes no ordering promise.
+  const baseline = alphabetical(
+    history.filter((message) => message.role === "session-context"),
+    (message) => message.id,
+  ).at(0);
+  if (!baseline) {
+    return undefined;
+  }
 
-      // ulid sorts oldest to newest, and the store makes no ordering promise.
-      const baseline = alphabetical(
-        messages.filter((message) => message.role === "session-context"),
-        (message) => message.id,
-      ).at(0);
-      if (!baseline) {
-        return ok(undefined);
-      }
-
-      const corrections = alphabetical(
-        messages
-          .flatMap((message) => message.parts)
-          .filter(
-            (
-              part,
-            ): part is SessionMessagePart.DataPart & {
-              type: "data-dateChange";
-            } => part.type === "data-dateChange",
-          ),
-        (part) => part.metadata.id,
-      );
-      const recorded =
-        corrections.at(-1)?.data.date ??
-        contextDateKey(baseline.metadata.createdAt);
-
-      const today = contextDateKey(getCurrentDate());
-      if (today === recorded) {
-        return ok(undefined);
-      }
-
-      return ok({
-        data: { date: today },
-        metadata: {
-          createdAt: getCurrentDate(),
-          id: StoreId.newPartId(),
-          messageId,
-          sessionId,
-        },
-        type: "data-dateChange",
-      } satisfies SessionMessagePart.Type);
-    },
+  const corrections = alphabetical(
+    history
+      .flatMap((message) => message.parts)
+      .filter(
+        (
+          part,
+        ): part is SessionMessagePart.DataPart & {
+          type: "data-dateChange";
+        } => part.type === "data-dateChange",
+      ),
+    (part) => part.metadata.id,
   );
+  const recorded =
+    corrections.at(-1)?.data.date ??
+    contextDateKey(baseline.metadata.createdAt);
+
+  const today = contextDateKey(getCurrentDate());
+  if (today === recorded) {
+    return undefined;
+  }
+
+  return {
+    data: { date: today },
+    metadata: {
+      createdAt: getCurrentDate(),
+      id: StoreId.newPartId(),
+      messageId,
+      sessionId,
+    },
+    type: "data-dateChange",
+  };
 }

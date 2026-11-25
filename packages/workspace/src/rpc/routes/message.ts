@@ -10,7 +10,6 @@ import { withCopiesHere } from "../../lib/chat/turn-file-versions";
 import { withVersionNumbers } from "../../lib/chat/version-records";
 import { asNewVersion, beginEdit } from "../../lib/chat/edit-message";
 import { TypedError } from "../../lib/errors";
-import { asThoughTakenOut } from "../../lib/records/earlier-versions";
 import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { nameChat } from "../../lib/chat/chat-name";
@@ -203,22 +202,19 @@ const create = base
           fromDraft,
           rootDir: context.workspaceConfig.rootDir,
         });
-        const messageResult = await asThoughTakenOut(
-          new Set(edit?.takesOut),
-          () =>
-            newMessage({
-              asks,
-              files: sending.files,
-              folders: sending.folders,
-              ...(fromDraft ? { fromDraft } : {}),
-              ...(layout ? { layout } : {}),
-              modelURI,
-              prompt,
-              sessionId: finalSessionId,
-              chatId,
-              viewing,
-            }),
-        );
+        const messageResult = await newMessage({
+          asks,
+          files: sending.files,
+          folders: sending.folders,
+          ...(fromDraft ? { fromDraft } : {}),
+          ...(layout ? { layout } : {}),
+          modelURI,
+          prompt,
+          sessionId: finalSessionId,
+          chatId,
+          viewing,
+          ...(edit ? { without: new Set(edit.takesOut) } : {}),
+        });
 
         if (messageResult.isErr()) {
           throw toORPCError(messageResult.error, errors);

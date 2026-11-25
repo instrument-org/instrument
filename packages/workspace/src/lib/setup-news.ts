@@ -2,9 +2,7 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type ChatId } from "../schemas/chat-id";
 import { type ToldDigests } from "../schemas/told";
-import { ChatReads } from "./chat-reads";
 import { baselineRecorded, partsAfter } from "./last-told";
 import { type SetupChange } from "./setup-changes";
 import { type SetupSnapshot, snapshotSetup } from "./setup-snapshot";
@@ -77,20 +75,18 @@ function lastToldSkills(
  */
 export async function createSetupNewsPart({
   createdAt,
+  history,
   messageId,
   sessionId,
-  chatId,
 }: {
   createdAt: Date;
+  /** The session's messages the note is worked out from; see `newMessage`. */
+  history: SessionMessage.WithParts[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
-    const history = await ChatReads.history({ chatId, sessionId });
-    const told = history.isOk()
-      ? lastToldSkills(history.value, sessionId)
-      : undefined;
+    const told = lastToldSkills(history, sessionId);
     if (told === undefined) {
       return undefined;
     }

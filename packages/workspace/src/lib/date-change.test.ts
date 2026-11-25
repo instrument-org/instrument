@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { ChatReads } from "./chat-reads";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
@@ -72,11 +73,13 @@ describe("detectDateChange", () => {
     }
 
     return {
-      detect: () =>
+      detect: async () =>
         detectDateChange({
+          history: (
+            await ChatReads.history({ chatId, sessionId })
+          )._unsafeUnwrap(),
           messageId: StoreId.newMessageId(),
           sessionId,
-          chatId,
         }),
       record: async (part: SessionMessagePart.Type) => {
         const messageId = part.metadata.messageId;
@@ -99,7 +102,7 @@ describe("detectDateChange", () => {
 
     const result = await detect();
 
-    expect(result._unsafeUnwrap()).toBeUndefined();
+    expect(result).toBeUndefined();
   });
 
   it("reports nothing on the day the baseline was written", async () => {
@@ -108,7 +111,7 @@ describe("detectDateChange", () => {
 
     const result = await detect();
 
-    expect(result._unsafeUnwrap()).toBeUndefined();
+    expect(result).toBeUndefined();
   });
 
   it("reports the new date once the session crosses midnight", async () => {
@@ -117,7 +120,7 @@ describe("detectDateChange", () => {
 
     const result = await detect();
 
-    expect(result._unsafeUnwrap()).toMatchObject({
+    expect(result).toMatchObject({
       data: { date: "2013-09-01" },
       type: "data-dateChange",
     });
@@ -130,13 +133,13 @@ describe("detectDateChange", () => {
     useClock(localDate(2013, 9, 1, 1));
 
     const firstResult = await detect();
-    const first = firstResult._unsafeUnwrap();
+    const first = firstResult;
     if (!first) {
       throw new Error("Expected a correction on the first message of the day");
     }
     await record(first);
     const secondResult = await detect();
 
-    expect(secondResult._unsafeUnwrap()).toBeUndefined();
+    expect(secondResult).toBeUndefined();
   });
 });

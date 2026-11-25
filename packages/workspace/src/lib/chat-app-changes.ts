@@ -93,49 +93,43 @@ export function lastToldApps(
  * app's page) must not wake the chat and start work nobody asked for, so it
  * waits here for the next thing the user writes.
  */
-export function detectChatAppChanges({
+export async function detectChatAppChanges({
+  history,
   messageId,
   sessionId,
-  chatId,
 }: {
+  /** The session's messages the note is worked out from; see `newMessage`. */
+  history: SessionMessage.WithParts[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  chatId: ChatId;
-}) {
-  return safeTry<SessionMessagePart.Type | undefined, Error>(
-    async function* () {
-      const told = lastToldApps(
-        yield* ChatReads.history({ chatId, sessionId }),
-        sessionId,
-      );
-      // Missing before the session's first baseline, which lists the apps as
-      // they stand.
-      if (told === undefined) {
-        return ok(undefined);
-      }
-      const current = await currentChatApps();
-      const events = appEventsBetween(told, current);
-      const otherComputer = toldOnOtherComputer(told, current);
-      if (events.length === 0 && !otherComputer) {
-        return ok(undefined);
-      }
-      return ok({
-        data: {
-          apps: current,
-          carried: true,
-          events,
-          ...(otherComputer && { otherComputer }),
-        },
-        metadata: {
-          createdAt: new Date(),
-          id: StoreId.newPartId(),
-          messageId,
-          sessionId,
-        },
-        type: "data-appEvent",
-      } satisfies SessionMessagePart.Type);
+}): Promise<SessionMessagePart.Type | undefined> {
+  const told = lastToldApps(history, sessionId);
+  // Missing before the session's first baseline, which lists the apps as
+  // they stand.
+  if (told === undefined) {
+    return undefined;
+  }
+  const current = await currentChatApps();
+  const events = appEventsBetween(told, current);
+  const otherComputer = toldOnOtherComputer(told, current);
+  if (events.length === 0 && !otherComputer) {
+    return undefined;
+  }
+  return {
+    data: {
+      apps: current,
+      carried: true,
+      events,
+      ...(otherComputer && { otherComputer }),
     },
-  );
+    metadata: {
+      createdAt: new Date(),
+      id: StoreId.newPartId(),
+      messageId,
+      sessionId,
+    },
+    type: "data-appEvent",
+  };
 }
 
 /**

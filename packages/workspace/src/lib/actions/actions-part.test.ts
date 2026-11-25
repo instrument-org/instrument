@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 
+import { ChatReads } from "../chat-reads";
 import { ChatIdSchema } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
@@ -280,6 +281,9 @@ describe("createActionsPart", () => {
 
     const rows = async () => {
       const part = await createActionsPart({
+        history: (
+          await ChatReads.history({ chatId, sessionId })
+        )._unsafeUnwrap(),
         chatId,
         createdAt: SENT,
         messageId: StoreId.newMessageId(),

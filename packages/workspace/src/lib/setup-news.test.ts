@@ -9,6 +9,7 @@ import {
   PROJECT_FILE_NAME,
   PROJECTS_FOLDER_NAME,
 } from "../constants";
+import { ChatReads } from "./chat-reads";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
@@ -105,7 +106,9 @@ describe("createSetupNewsPart", () => {
     let first = true;
     const next = async () => {
       const part = await createSetupNewsPart({
-        chatId,
+        history: (
+          await ChatReads.history({ chatId, sessionId })
+        )._unsafeUnwrap(),
         createdAt: new Date(),
         messageId: StoreId.newMessageId(),
         sessionId,

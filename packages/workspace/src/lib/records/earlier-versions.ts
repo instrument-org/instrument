@@ -1,5 +1,3 @@
-import { AsyncLocalStorage } from "node:async_hooks";
-
 import { type SessionMessage } from "../../schemas/session/message";
 import { type StoreId } from "../../schemas/store-id";
 import { type ChatRead } from "./chat-records";
@@ -7,8 +5,7 @@ import { type FoldedSession } from "./fold";
 
 /**
  * A chat read with one of its sessions put another way: an earlier version of
- * it, everything an edit took out beside what stands, or what it will be once
- * an edit on its way has taken its messages out.
+ * it, or everything an edit took out beside what stands.
  */
 
 function withMessages(
@@ -70,36 +67,4 @@ export function withEarlierVersions(
       ]),
     ).values(),
   ]);
-}
-
-const takenOut = new AsyncLocalStorage<ReadonlySet<StoreId.Message>>();
-
-/**
- * Runs `work` with every read of a chat in it leaving `messages` out: how a
- * message that takes others' place is built, told again what only they said,
- * before anything is taken out.
- */
-export function asThoughTakenOut<T>(
-  messages: ReadonlySet<StoreId.Message>,
-  work: () => Promise<T>,
-): Promise<T> {
-  return takenOut.run(messages, work);
-}
-
-/** A chat as `asThoughTakenOut` has it read here. */
-export function withoutTakenOut(read: ChatRead): ChatRead {
-  const gone = takenOut.getStore();
-  if (gone === undefined) {
-    return read;
-  }
-  return {
-    ...read,
-    chat: {
-      ...read.chat,
-      sessions: read.chat.sessions.map((session) => ({
-        ...session,
-        messages: session.messages.filter(({ id }) => !gone.has(id)),
-      })),
-    },
-  };
 }

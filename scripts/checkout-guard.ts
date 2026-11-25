@@ -210,7 +210,7 @@ function main() {
   }
   const repoRoot = path.resolve(
     path.dirname(fileURLToPath(import.meta.url)),
-    "../..",
+    "..",
   );
   const cwd = typeof input.cwd === "string" ? input.cwd : process.cwd();
   for (const { args, dir, env } of gitCommands(command, cwd)) {

@@ -20,6 +20,7 @@ import {
   withDraftLinks,
 } from "@/client/components/window/draft-links";
 import { ShellContext } from "@/client/components/window/shell-context";
+import { useStageAsk } from "@/client/components/window/staged-asks";
 import { projectCommand } from "@/client/lib/app-commands";
 import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
 import {
@@ -29,7 +30,9 @@ import {
   makeReplyAtom,
   replyInBox,
   settleReplySendAtom,
+  replyOfTakenBack,
   swapInReplyAtom,
+  takeBackReplyAtom,
   takeUpArrivedReplyAtom,
   takeUpBoxAtom,
 } from "@/client/drafts/chat-box";
@@ -69,6 +72,7 @@ import {
   type SessionMessagePart,
   StoreId,
   type ChatId,
+  type TakenBack,
 } from "@instrument-org/workspace/client";
 import {
   skipToken,
@@ -629,6 +633,8 @@ export function ChatConversation({
   const beginReplySend = useSetAtom(beginReplySendAtom);
   const settleReplySend = useSetAtom(settleReplySendAtom);
   const swapInReplyDraft = useSetAtom(swapInReplyAtom);
+  const takeBackReply = useSetAtom(takeBackReplyAtom);
+  const stageAsk = useStageAsk();
   const takeUpBox = useSetAtom(takeUpBoxAtom);
   const boxChat = draftKey.scope === "chat" ? draftKey.chatId : undefined;
   // The box writes into the reply it first shows, whatever arrives after.
@@ -687,6 +693,45 @@ export function ChatConversation({
     });
     promptEditor?.focus();
     promptEditor?.moveCaretToEnd();
+  };
+  /**
+   * A message the Stop took back, as it was sent: in the box where the box
+   * is still empty, and otherwise a reply waiting beside it. Its marked
+   * places go back over the box either way.
+   */
+  const giveBack = (taken: TakenBack) => {
+    if (draftKey.scope !== "chat") {
+      return;
+    }
+    const replyChatId = draftKey.chatId;
+    const shown = promptInputRef.current?.snapshot();
+    const { draft, inBox } = takeBackReply({
+      chatId: replyChatId,
+      isBoxEmpty:
+        !composerDictating &&
+        shown?.prompt.trim() === "" &&
+        shown.items.length === 0 &&
+        !hasWaitingWords(chatBoxWordsKey(replyChatId)),
+      reply: replyOfTakenBack(taken),
+    });
+    for (const ask of taken.asks?.asks ?? []) {
+      stageAsk({
+        ...(ask.context ? { context: ask.context } : {}),
+        destination: { chatId: replyChatId, kind: "chat" },
+        ...(ask.excerpt ? { excerpt: ask.excerpt } : {}),
+        instruction: ask.instruction,
+        path: ask.file.path,
+        target: ask.target,
+      });
+    }
+    if (inBox) {
+      promptInputRef.current?.swapIn({
+        items: itemsOf(draft),
+        prompt: draft.words,
+      });
+      promptEditor?.focus();
+      promptEditor?.moveCaretToEnd();
+    }
   };
   // A reply started for this chat elsewhere (another window, another device)
   // while this box writes into nothing and has nothing in it is taken up
@@ -886,7 +931,25 @@ export function ChatConversation({
       // offered while any of them is working.
       {...(isChatRunning && {
         onStop: () => {
-          stopChat.mutate({ id });
+          // Before the model has answered, Stop takes the message back into
+          // the box: the likeliest reason to stop that early is to change what
+          // was just sent. Not while another send is on its way, or with
+          // something in the box, both of which say the person moved on.
+          const takeBack =
+            draftKey.scope === "chat" &&
+            isBoxEmpty &&
+            unsettled.length === 0 &&
+            !createMessage.isPending;
+          stopChat.mutate(
+            { id, ...(takeBack && { takeBack }) },
+            {
+              onSuccess: ({ takenBack }) => {
+                if (takenBack) {
+                  giveBack(takenBack);
+                }
+              },
+            },
+          );
         },
       })}
       onSubmit={(sending) => {

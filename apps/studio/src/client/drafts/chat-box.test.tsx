@@ -13,8 +13,10 @@ import {
   chatBoxesAtom,
   otherRepliesOf,
   replyInBox,
+  replyOfTakenBack,
   settleReplySendAtom,
   swapInReplyAtom,
+  takeBackReplyAtom,
   takeUpArrivedReplyAtom,
   takeUpBoxAtom,
 } from "./chat-box";
@@ -412,6 +414,80 @@ describe("a chat with several replies waiting", () => {
       "one",
       "two",
       "a new one",
+    ]);
+  });
+});
+
+describe("a message a Stop took back", () => {
+  const taken = {
+    chips: [
+      { id: CHAT, kind: "chat" as const, title: "Dishwashers" },
+      { kind: "page" as const, title: "Rates", url: "https://example.com/" },
+    ],
+    files: [
+      {
+        mediaType: "image/png",
+        name: "receipt.png",
+        path: "/chats/attachments/receipt.png",
+        size: 3,
+      },
+    ],
+    folders: [{ path: "/Files/Trip" }],
+    words: "Which is quietest?",
+  };
+
+  it("is a reply with its words, what was attached and what it named", () => {
+    expect(replyOfTakenBack(taken)).toEqual({
+      attached: [
+        {
+          kind: "file",
+          mediaType: "image/png",
+          name: "receipt.png",
+          path: "/chats/attachments/receipt.png",
+          size: 3,
+        },
+        { kind: "folder", path: "/Files/Trip" },
+      ],
+      context: [
+        { chat: CHAT, kind: "chat" },
+        { kind: "link", url: "https://example.com/" },
+      ],
+      words: "Which is quietest?",
+    });
+  });
+
+  it("goes back in the box it was sent from", () => {
+    const { inBox, store } = window();
+    store.set(beginReplySendAtom, { chatId: CHAT, words: "Which is quietest?" });
+
+    const { draft, inBox: tookIt } = store.set(takeBackReplyAtom, {
+      chatId: CHAT,
+      isBoxEmpty: true,
+      reply: replyOfTakenBack(taken),
+    });
+
+    expect(tookIt).toBe(true);
+    expect(inBox()?.id).toBe(draft.id);
+    expect(inBox()?.words).toBe("Which is quietest?");
+  });
+
+  it("waits beside a box something was typed into since", () => {
+    const { inBox, replies, settle, store, type } = window();
+    store.set(beginReplySendAtom, { chatId: CHAT, words: "Which is quietest?" });
+    type("Actually, the cheapest");
+    settle();
+
+    const { inBox: tookIt } = store.set(takeBackReplyAtom, {
+      chatId: CHAT,
+      isBoxEmpty: false,
+      reply: replyOfTakenBack(taken),
+    });
+
+    expect(tookIt).toBe(false);
+    expect(inBox()?.words).toBe("Actually, the cheapest");
+    expect(replies().map((draft) => draft.words).toSorted()).toEqual([
+      "Actually, the cheapest",
+      "Which is quietest?",
     ]);
   });
 });

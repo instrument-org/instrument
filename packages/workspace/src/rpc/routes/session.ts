@@ -3,7 +3,7 @@ import {
   ModelChoiceSchema,
   fetchModel,
 } from "@instrument-org/ai-gateway";
-import { call } from "@orpc/server";
+import { call, type } from "@orpc/server";
 import { sleep } from "radashi";
 import { z } from "zod";
 
@@ -12,6 +12,7 @@ import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { isWorking } from "../../lib/chat/activity";
 import { markChatStopped } from "../../lib/chat/chats";
 import { listChildTasks } from "../../lib/chat/children";
+import { type TakenBack, takeBackUnanswered } from "../../lib/chat/take-back";
 import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
 import { enqueueWake, saveNote } from "../../lib/chat/wake-queue";
 import { askWindow } from "../../lib/chat/window-tab";
@@ -104,14 +105,22 @@ function endsOnFinishedReply(messages: readonly SessionMessage.WithParts[]) {
  * from its row or page, with everything it has running in the background,
  * or the chat's own turn alone, which leaves its tasks working and its
  * processes running.
+ *
+ * With `takeBack`, a Stop that reaches the chat's own turn before the model
+ * has answered the person's message takes that message back
+ * (`takeBackUnanswered`): it goes from the chat, the Stop is not recorded,
+ * since what it stopped is gone, and what it was sent with is answered for
+ * the reply box.
  */
 export const stop = base
   .input(
     z.object({
       id: ChatIdSchema,
       sessionId: StoreId.SessionSchema.optional(),
+      takeBack: z.boolean().optional(),
     }),
   )
+  .output(type<{ takenBack?: TakenBack }>())
   .handler(async ({ context, input }) => {
     // When the user pressed Stop, on the clock a message is dated by, and
     // whether it reaches a turn of the chat's own, read before the stop
@@ -168,14 +177,22 @@ export const stop = base
         ...(input.sessionId ? { sessionId: input.sessionId } : {}),
       },
     });
+    // What the stopped sessions were waiting on the person to allow goes
+    // with them, unanswered, so it neither keeps the chat waiting nor
+    // starts them again when answered.
+    const closing = closeAsksOf(input.id, input.sessionId);
+    const takenBack =
+      input.takeBack && stopsOwnTurn && chatSessionId !== undefined
+        ? await takeBackUnanswered({
+            chatId: input.id,
+            sessionId: chatSessionId,
+          })
+        : undefined;
     await Promise.all([
-      // What the stopped sessions were waiting on the person to allow goes
-      // with them, unanswered, so it neither keeps the chat waiting nor
-      // starts them again when answered.
-      closeAsksOf(input.id, input.sessionId),
+      closing,
       // The chat says the user stopped it until a turn starts after the
       // Stop, however far its turn had got, before it began included.
-      stopsOwnTurn || closesQuestions
+      (stopsOwnTurn || closesQuestions) && takenBack === undefined
         ? markChatStopped(input.id, pressedAt)
         : undefined,
     ]);
@@ -189,6 +206,7 @@ export const stop = base
         "person",
       ).catch(context.workspaceConfig.captureException);
     }
+    return takenBack ? { takenBack } : {};
   });
 
 /** How long Take over waits for the stopped turn to wind down before it writes its note. */

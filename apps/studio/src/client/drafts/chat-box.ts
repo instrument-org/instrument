@@ -1,5 +1,15 @@
-import { type Draft, holdsSomething, repliesOf } from "@/shared/drafts";
-import { type ChatId } from "@instrument-org/workspace/client";
+import {
+  type Draft,
+  type DraftAttachment,
+  type DraftContextItem,
+  holdsSomething,
+  repliesOf,
+} from "@/shared/drafts";
+import {
+  type ChatId,
+  ChatIdSchema,
+  type TakenBack,
+} from "@instrument-org/workspace/client";
 import { atom } from "jotai";
 import { ulid } from "ulid";
 
@@ -311,3 +321,73 @@ export const swapInReplyAtom = atom(
     return picked;
   },
 );
+
+/**
+ * A message the person's Stop took back, a reply of its chat again: in the
+ * box, where the box is empty (`isBoxEmpty`) and writes into no reply, so
+ * the box shows it as it was sent; else waiting beside the box, so what was
+ * typed there since stays as it is. Answers with the reply, and whether the
+ * box writes into it.
+ */
+export const takeBackReplyAtom = atom(
+  null,
+  (
+    get,
+    set,
+    {
+      chatId,
+      isBoxEmpty,
+      reply,
+    }: {
+      chatId: ChatId;
+      isBoxEmpty: boolean;
+      reply: Pick<Draft, "attached" | "context" | "words">;
+    },
+  ): { draft: Draft; inBox: boolean } => {
+    const now = Date.now();
+    const draft: Draft = {
+      chatId,
+      createdAt: now,
+      id: ulid(),
+      updatedAt: now,
+      ...reply,
+    };
+    const inBox =
+      isBoxEmpty &&
+      replyInBox(get(draftsAtom), get(chatBoxesAtom), chatId) === undefined;
+    void set(applyDraftOpsAtom, [{ draft, type: "create" }]);
+    if (inBox) {
+      set(bindBoxAtom, { chatId, draftId: draft.id });
+    }
+    return { draft, inBox };
+  },
+);
+
+/**
+ * What a reply keeps of a message taken back: its words, the files and
+ * folders sent with it, and the pages, screens and chats named on it.
+ */
+export function replyOfTakenBack(
+  taken: TakenBack,
+): Pick<Draft, "attached" | "context" | "words"> {
+  const attached = [
+    ...taken.files.map(
+      (file): DraftAttachment => ({ kind: "file", ...file }),
+    ),
+    ...taken.folders.map(
+      ({ path }): DraftAttachment => ({ kind: "folder", path }),
+    ),
+  ];
+  const context = taken.chips.flatMap((chip): DraftContextItem[] => {
+    if (chip.kind === "chat") {
+      const chat = ChatIdSchema.safeParse(chip.id);
+      return chat.success ? [{ chat: chat.data, kind: "chat" }] : [];
+    }
+    return chip.kind === "paths" ? [] : [{ kind: "link", url: chip.url }];
+  });
+  return {
+    ...(attached.length > 0 ? { attached } : {}),
+    ...(context.length > 0 ? { context } : {}),
+    words: taken.words,
+  };
+}

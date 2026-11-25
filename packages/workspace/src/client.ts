@@ -72,6 +72,7 @@ export {
   type ListedAt,
 } from "./lib/chat/chat-list-events";
 export { joinedMidTurn, MID_TURN_NOTE } from "./lib/chat/mid-turn";
+export type { TakenBack } from "./lib/chat/take-back";
 export {
   activityLine,
   activityWords,

@@ -59,13 +59,13 @@ export function checkFeedbackImages<T extends ImageCandidate>(
     const type = imageTypeOf(file.head);
     if (!type) {
       problems.push(
-        `“${file.name}” isn't an image, so we left it out. You can attach PNG, JPEG, WebP or GIF.`,
+        `“${file.name}” wasn't attached because it isn't an image. You can attach PNG, JPEG, WebP or GIF.`,
       );
     } else if (file.size > MAX_FEEDBACK_IMAGE_BYTES) {
-      problems.push(`“${file.name}” is over 5 MB, so we left it out.`);
+      problems.push(`“${file.name}” wasn't attached because it's over 5 MB.`);
     } else if (already + accepted.length >= MAX_FEEDBACK_IMAGES) {
       problems.push(
-        `You can attach up to ${MAX_FEEDBACK_IMAGES} images, so we left out “${file.name}”.`,
+        `“${file.name}” wasn't attached because the limit is ${MAX_FEEDBACK_IMAGES} images.`,
       );
     } else {
       accepted.push({ ...file, type });

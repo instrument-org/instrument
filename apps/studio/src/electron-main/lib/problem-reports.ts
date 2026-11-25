@@ -537,10 +537,9 @@ export async function sendReport(
     });
   } catch (error) {
     // Chromium's failures read as `net::ERR_INTERNET_DISCONNECTED` and the like.
-    throw new Error(
-      "We couldn't be reached, so it didn't send. Check your connection and try again.",
-      { cause: error },
-    );
+    throw new Error("Error sending. Check your connection and try again.", {
+      cause: error,
+    });
   }
   if (!response.ok) {
     throw new Error(

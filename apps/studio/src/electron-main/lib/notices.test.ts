@@ -466,9 +466,9 @@ describe("notices", () => {
 
       expect(notices.listNotices()).toMatchObject([
         {
-          body: "Instrument couldn't finish bringing one of your chats over, so it isn't in your list yet. The conversation is safe where it is, and Instrument tries again the next time it starts.",
+          body: "One chat couldn't be upgraded and isn't in your list yet. Nothing was lost, and Instrument will try again the next time it opens.",
           severity: "important",
-          title: "One chat is still being brought over",
+          title: "One chat couldn't be upgraded",
         },
       ]);
 
@@ -476,8 +476,8 @@ describe("notices", () => {
 
       expect(notices.listNotices()).toMatchObject([
         {
-          body: "Instrument couldn't finish bringing 3 of your chats over, so they aren't in your list yet. Their conversations are safe where they are, and Instrument tries again the next time it starts.",
-          title: "Some chats are still being brought over",
+          body: "3 chats couldn't be upgraded and aren't in your list yet. Nothing was lost, and Instrument will try again the next time it opens.",
+          title: "Some chats couldn't be upgraded",
         },
       ]);
     });
@@ -512,7 +512,7 @@ describe("notices", () => {
       notices.noteChatsLeftBehind(1);
 
       expect(notices.listNotices()).toMatchObject([
-        { title: "One chat is still being brought over" },
+        { title: "One chat couldn't be upgraded" },
       ]);
     });
   });

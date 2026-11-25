@@ -4203,9 +4203,9 @@ export function filesToPaste(
 function refusalLine(reason: ComputerRefusal["reason"]) {
   switch (reason) {
     case "account":
-      return "Your account can’t read this folder";
+      return "You don’t have permission to open this folder";
     case "app":
-      return "Instrument keeps this folder private";
+      return "This folder is protected";
     case "system":
       return "macOS hasn’t let Instrument read this folder";
   }
@@ -4259,11 +4259,9 @@ export function NotPermitted({
         <div className="flex max-w-sm flex-col items-center gap-4 text-center">
           <FileSystemFolderGlyph className="h-10 w-auto opacity-60" />
           <div>
-            <p className="text-sm font-medium">
-              {`Instrument keeps “${name}” private`}
-            </p>
+            <p className="text-sm font-medium">{`“${name}” is protected`}</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">
-              It holds Instrument’s own data, so you can’t open it here.
+              It has Instrument’s data and can’t be opened here.
             </p>
           </div>
         </div>
@@ -4303,13 +4301,13 @@ export function NotPermitted({
           <p className="text-sm font-medium">
             {isSystem
               ? `macOS hasn’t let Instrument read “${name}”`
-              : `Your account can’t read “${name}”`}
+              : `You don’t have permission to open “${name}”`}
           </p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
             {isSystem
               ? // oxlint-disable-next-line studio/no-os-words -- a system refusal is macOS privacy, so only a Mac shows it
                 "Open the folder in the system’s own panel to read it now, or allow it under Files and Folders in System Settings."
-              : "Its permissions keep this account out. Whoever owns it can change them."}
+              : "Ask its owner for access."}
           </p>
         </div>
         {isSystem && (

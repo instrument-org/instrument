@@ -283,12 +283,12 @@ function PermissionAskCard({
           title={ask.failed.message}
         >
           <ShieldWarningIcon className="mt-0.5 size-3.5 shrink-0" />
-          <span>{`Your last answer didn’t go through on ${ask.computer}, so you can answer again.`}</span>
+          <span>{`Error applying your answer on ${ask.computer}. Please try again.`}</span>
         </p>
       ) : null}
       {ask.away && !ask.answered ? (
         <p className="mt-2 text-[13px] text-muted-foreground">
-          {`You answered from ${ask.away.by} while ${ask.here ? "this computer" : ask.computer} was away, so it’s asking again.`}
+          {`${ask.here ? "This computer" : ask.computer} wasn’t available when you answered on ${ask.away.by}. Please answer again.`}
         </p>
       ) : null}
       {!ask.here && ask.answerable ? (
@@ -596,7 +596,7 @@ function WindowsFixes({
       onSuccess: ({ outcome }) => {
         if (outcome === "failed") {
           toast.error(
-            "Windows didn’t take the change. Try Windows Security instead.",
+            "Error changing Windows settings. Try Windows Security instead.",
           );
         }
       },

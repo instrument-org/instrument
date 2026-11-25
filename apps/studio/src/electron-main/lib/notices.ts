@@ -436,16 +436,16 @@ function chatsLeftBehindNotice({
   return {
     body:
       count > 1
-        ? `${APP_NAME} couldn't finish bringing ${count.toString()} of your chats over, so they aren't in your list yet. Their conversations are safe where they are, and ${APP_NAME} tries again the next time it starts.`
-        : `${APP_NAME} couldn't finish bringing one of your chats over, so it isn't in your list yet. The conversation is safe where it is, and ${APP_NAME} tries again the next time it starts.`,
+        ? `${count.toString()} chats couldn't be upgraded and aren't in your list yet. Nothing was lost, and ${APP_NAME} will try again the next time it opens.`
+        : `One chat couldn't be upgraded and isn't in your list yet. Nothing was lost, and ${APP_NAME} will try again the next time it opens.`,
     id: `chats-left-behind-${count.toString()}-${at}`,
     kind: "announcement",
     publishedAt: new Date(at).toISOString(),
     severity: "important",
     title:
       count > 1
-        ? "Some chats are still being brought over"
-        : "One chat is still being brought over",
+        ? "Some chats couldn't be upgraded"
+        : "One chat couldn't be upgraded",
   };
 }
 

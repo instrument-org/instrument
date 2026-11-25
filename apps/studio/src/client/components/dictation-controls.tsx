@@ -404,8 +404,8 @@ export function useDictatedText({
       const fitted = appendDictatedTextWithin(current, text, maxLength);
       change(fitted.text);
       if (fitted.trimmed) {
-        toast.info("Some of what you said didn't fit", {
-          description: `This box holds up to ${maxLength.toLocaleString("en-US")} characters, so the rest was left out.`,
+        toast.info("Dictation was too long", {
+          description: `The limit is ${maxLength.toLocaleString("en-US")} characters, so the rest was left out.`,
         });
       }
     },

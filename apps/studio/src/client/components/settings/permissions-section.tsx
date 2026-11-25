@@ -572,14 +572,13 @@ function EveryChatCanUse({
           {isWindows() ? (
             <p>
               {listed
-                ? "Programs the agent runs can see the names of what's in Other apps' files, and in a folder set to Ask first when you've allowed a folder inside it. Instrument still asks you before a program opens anything there."
-                : "Programs the agent runs can see the names of what's in a folder set to Ask first when you've allowed a folder inside it. Instrument still asks you before a program opens anything there."}
+                ? "Programs run by the agent can see file names in Other apps' files, and in a folder set to Ask first when you've allowed a folder inside it. Opening a file still requires your permission."
+                : "Programs run by the agent can see file names in a folder set to Ask first when you've allowed a folder inside it. Opening a file still requires your permission."}
             </p>
           ) : listed ? (
             <p>
-              Programs the agent runs can see the names, sizes and dates of
-              what's in Other apps' files, but Instrument asks you before a
-              program opens anything there.
+              Programs run by the agent can see file names, sizes and dates in
+              Other apps' files. Opening a file requires your permission.
             </p>
           ) : null}
         </div>

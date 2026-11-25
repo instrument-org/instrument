@@ -322,7 +322,7 @@ describe("how a sign-in ended", () => {
     [
       "refused, only the app's site",
       { ended: "refused", error: "access_denied", status: "failed" },
-      ["Outlook won’t let this account connect directly."],
+      ["Direct connections aren’t available for this Outlook account."],
       ["[Not now]", "[Sign in here]"],
     ],
   ] as const)("%s", async (_, connection, line, buttons) => {
@@ -375,7 +375,9 @@ describe("how a sign-in ended", () => {
       }),
     );
     renderCard();
-    await screen.findByText("Outlook won’t let this account connect directly.");
+    await screen.findByText(
+      "Direct connections aren’t available for this Outlook account.",
+    );
     expect(
       screen.queryByRole("button", { name: /Sign in here|Try again/ }),
     ).toBeNull();
@@ -392,7 +394,9 @@ describe("how a sign-in ended", () => {
     );
     renderCard();
 
-    await screen.findByText("Outlook won’t let this account connect directly.");
+    await screen.findByText(
+      "Direct connections aren’t available for this Outlook account.",
+    );
     expect(screen.queryByText(/AADSTS65001/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
   });
@@ -407,7 +411,9 @@ describe("how a sign-in ended", () => {
     });
     const { queryClient } = renderCard();
 
-    await screen.findByText("Outlook won’t let this account connect directly.");
+    await screen.findByText(
+      "Direct connections aren’t available for this Outlook account.",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Sign in here" }));
     await waitFor(
       () => {

@@ -245,7 +245,7 @@ function rowLine(
       return `Instrument couldn’t connect to ${row.name}.`;
     }
     case "refused": {
-      return `${row.name} won’t let this account connect directly.`;
+      return `Direct connections aren’t available for this ${row.name} account.`;
     }
     case "removed": {
       return "This app was removed.";

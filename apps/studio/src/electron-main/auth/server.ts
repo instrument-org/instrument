@@ -267,7 +267,7 @@ export function createAuthCallbackApp() {
         focusAppWindow();
         return c.html(
           renderAuthPage({
-            headline: `${name} won’t let this account connect directly`,
+            headline: `Direct connections aren’t available for this ${name} account`,
             kind: "declined",
             service,
           }),

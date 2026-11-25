@@ -66,13 +66,7 @@ import { sharedQueryClient, type TabRouter } from "@/client/lib/tab-router";
 import { getRouterHistory } from "@/client/lib/tab-router-history";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { restoreTabView } from "@/client/lib/tab-view-state";
-import {
-  closeGroupSide,
-  closeGroupTab,
-  closeTabGroup,
-  forgetClosed,
-  setTabPathname,
-} from "@/client/lib/tabs-model";
+import { forgetClosed, setTabPathname } from "@/client/lib/tabs-model";
 import { freshTabId } from "@/client/lib/tab-actions";
 import { type TabId, TabIdSchema } from "@/shared/tabs";
 import { spokenMessage, toast } from "@/client/lib/toast";
@@ -83,6 +77,13 @@ import { fileHref } from "@/shared/computer-href";
 import { type Tab } from "@/shared/tabs";
 
 import { useRestoredTabsWaiting } from "./use-restored-tabs-waiting";
+import {
+  keptOf,
+  reopeningOf,
+  withGroupClosed,
+  withSideClosed,
+  withTabClosed,
+} from "./closed-tabs";
 import { useStopBeforeClosing } from "./stop-before-closing";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { IconContext } from "@phosphor-icons/react/dist/lib/context";
@@ -133,9 +134,6 @@ import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens } from "./context";
 import {
   chatOfTab,
-  closedGroupTabOf,
-  closedSideOf,
-  closedTabGroupOf,
   closedTabsOf,
   agentCloseKeeps,
   draftOfTab,
@@ -145,7 +143,6 @@ import {
   isNewChatTab,
   selectedTabIn,
   sideIndexOf,
-  upsAmong,
 } from "./tab-model";
 import { setBuiltInPageGroupOpener } from "./built-in-pages";
 import {
@@ -509,26 +506,21 @@ function WindowShell({
     // nothing to bring back, and neither does an agent's close of a group
     // of only agents' own tabs (`agentCloseKeeps`).
     for (const group of closed) {
-      const kept = windowTabs.allTabs.flatMap((tab) => {
-        if (tab.group !== group) {
-          return [];
-        }
-        const closedAs = closingAsWritten(tab);
-        return closedAs && !isBlankNewTab(closedAs) ? [closedAs] : [];
-      });
+      const kept = keptOf(
+        windowTabs.allTabs.filter((tab) => tab.group === group),
+        closingAsWritten,
+      );
       if (
         kept.length > 0 &&
         (!byAgent || agentCloseKeeps(kept, wasPagePressed))
       ) {
         const id = freshTabId();
         store.set(appTabsAtom, (current) =>
-          closeTabGroup(current, {
+          withGroupClosed(current, windowTabs.layoutOf(group), kept, {
             id,
             pathname: groupHref(group),
             project: groupList.open.find((entry) => entry.group === group)
               ?.project,
-            tabs: kept,
-            ups: upsAmong(windowTabs.layoutOf(group), kept),
           }),
         );
         entries.push(id);
@@ -904,19 +896,13 @@ function WindowShell({
     if (
       tab?.group !== undefined &&
       closedAs &&
-      !isBlankNewTab(closedAs) &&
       (!byAgent || agentCloseKeeps([closedAs], wasPagePressed))
     ) {
       const { group } = tab;
-      const index = windowTabs.allTabs
-        .filter((each) => each.group === group)
-        .indexOf(tab);
       store.set(appTabsAtom, (current) =>
-        closeGroupTab(current, {
+        withTabClosed(current, windowTabs.layoutOf(group), closedAs, {
           id: freshTabId(),
-          index,
           pathname: groupHref(group),
-          tab: closedAs,
         }),
       );
     }
@@ -938,27 +924,13 @@ function WindowShell({
       closeGroups([group]);
       return;
     }
-    const sideTabs = layout.sides[side]?.tabs ?? [];
-    const upId = layout.sides[side]?.up;
-    const kept = sideTabs.flatMap((each) => {
-      const closedAs = closingAsWritten(each);
-      return closedAs && !isBlankNewTab(closedAs) ? [closedAs] : [];
-    });
-    if (kept.length > 0) {
-      store.set(appTabsAtom, (current) =>
-        closeGroupSide(current, {
-          focused: layout.focused === side,
-          id: freshTabId(),
-          pathname: groupHref(group),
-          side,
-          tabs: kept,
-          up: Math.max(
-            0,
-            kept.findIndex((each) => each.id === upId),
-          ),
-        }),
-      );
-    }
+    const kept = keptOf(layout.sides[side]?.tabs ?? [], closingAsWritten);
+    store.set(appTabsAtom, (current) =>
+      withSideClosed(current, layout, side, kept, {
+        id: freshTabId(),
+        pathname: groupHref(group),
+      }),
+    );
     windowTabs.closeSide(group, side);
   };
   // The person's closes ask first when they stop a chat at work or waiting
@@ -1064,49 +1036,35 @@ function WindowShell({
     // A tab id is never opened twice. A page's guest went with it, and
     // comes back when the page shows, at the address it had, the way a
     // launch brings a tab's page back.
-    const side = closedSideOf(entry);
-    if (
-      side &&
-      groupList.open.some((each) => each.group === side.group) &&
-      windowTabs.allTabs.some((each) => each.group === side.group)
-    ) {
-      windowTabs.reopenSide({
-        ...side,
-        tabs: side.tabs.map((each) => ({ ...each, id: newScreenId() })),
-      });
-      showGroup(side.group, { from });
+    const reopening = reopeningOf(entry, {
+      again: (tab) => ({ ...tab, id: newScreenId() }),
+      isOpen: (group) =>
+        groupList.open.some((each) => each.group === group) &&
+        windowTabs.allTabs.some((each) => each.group === group),
+    });
+    if (!reopening) {
       return;
     }
-    const tab = closedGroupTabOf(entry);
-    const isOpen =
-      tab !== undefined &&
-      groupList.open.some((each) => each.group === tab.group);
-    if (tab && isOpen) {
-      windowTabs.reopen(
-        { ...tab, id: newScreenId() },
-        entry.index ?? Number.POSITIVE_INFINITY,
-      );
-      showGroup(tab.group, { from });
+    if (reopening.kind !== "group") {
+      if (reopening.kind === "side") {
+        windowTabs.reopenSide(reopening.placing);
+      } else {
+        windowTabs.reopen(reopening.placing.tab, reopening.placing.index);
+      }
+      showGroup(reopening.group, { from });
       return;
     }
-    // A tab alone, or a side whose group has closed, stands on the one side
-    // its new group has.
-    const reopened = side
-      ? side.tabs.map((each) => ({ ...each, side: undefined }))
-      : (closedTabGroupOf(entry) ?? (tab ? [{ ...tab, side: undefined }] : []));
     const leaving = givesWay(from) ? from : undefined;
     const made = groups.make({
       fill: (group) => {
         windowTabs.restoreGroup(
           group,
-          reopened.map((each) => ({ ...each, group, id: newScreenId() })),
-          side ? { active: side.up } : entry.ups,
+          reopening.tabs.map((each) => ({ ...each, group })),
+          reopening.ups,
         );
       },
       // A whole group goes back to the project it was in, or the root.
-      ...(closedTabGroupOf(entry) && !side
-        ? { project: entry.project ?? null }
-        : {}),
+      ...(reopening.isWholeGroup ? { project: entry.project ?? null } : {}),
       ...(leaving === undefined
         ? {}
         : { place: { after: leaving }, replace: true }),

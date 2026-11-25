@@ -1150,6 +1150,29 @@ describe("pageBecomesFile", () => {
     );
   });
 
+  // A side kept in the step back would split a group closed to one side.
+  it("keeps the side it stands on out of the step back", () => {
+    const next = pageBecomesFile(
+      windowOf(
+        [
+          pageTab("left", "https://example.com/", CHAT),
+          { ...pageTab("page", `file://${FILE}`, CHAT), side: 1 },
+        ],
+        { [CHAT]: "page" },
+      ),
+      {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        left: { id: "was", url: "https://example.org/" },
+        page: "page",
+      },
+    );
+    const back = stepVisit(closeTab(next, "left"), "file", -1).state;
+    expect(back.tabs.find((tab) => tab.id === "was")).not.toHaveProperty(
+      "side",
+    );
+  });
+
   // Back from the file goes to the site the page left, as a page of its
   // own: the guest went with the file.
   it("puts what the page showed before a step back in the tab's history", () => {

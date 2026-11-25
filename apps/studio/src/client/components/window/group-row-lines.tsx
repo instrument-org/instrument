@@ -132,7 +132,13 @@ export function GroupRowLines({
     ),
   ).slice(0, MOST_MARKS);
   const otherMarks = others.length > 0 && (
-    <span className="ml-auto flex shrink-0 items-center gap-1 text-foreground/65">
+    <span
+      className={cn(
+        "ml-auto flex shrink-0 items-center gap-1 text-foreground/65",
+        // The last 14px mark centered under the X, a 16px mark in a 24px control.
+        close && "pr-1.25",
+      )}
+    >
       {others.map((run) => (
         <span className="flex items-center gap-0.5" key={run.tab.id}>
           {markOf(run.tab)}

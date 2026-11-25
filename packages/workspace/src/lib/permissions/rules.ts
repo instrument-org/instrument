@@ -62,10 +62,32 @@ const ChatDenialSchema = z.object({
   target: z.string().min(1),
 });
 
+/**
+ * A list read an entry at a time. One entry that will not parse costs that
+ * entry, where a list that failed whole would read as empty and be written
+ * back so.
+ */
+function readableEntries<T extends z.ZodType>(entry: T) {
+  return z
+    .array(z.unknown())
+    .catch([])
+    .transform((entries) =>
+      entries.flatMap((raw): z.output<T>[] => {
+        const read = entry.safeParse(raw);
+        return read.success ? [read.data] : [];
+      }),
+    );
+}
+
+const PlaceLevelsSchema = z.partialRecord(
+  PlaceIdSchema.exclude(["output"]),
+  LevelSchema,
+);
+
 export const ChatPermissionsSchema = z.object({
-  appGrants: z.array(ChatAppGrantSchema).catch([]).default([]),
-  denials: z.array(ChatDenialSchema).catch([]).default([]),
-  grants: z.array(ChatGrantSchema).catch([]).default([]),
+  appGrants: readableEntries(ChatAppGrantSchema).default([]),
+  denials: readableEntries(ChatDenialSchema).default([]),
+  grants: readableEntries(ChatGrantSchema).default([]),
 });
 
 export type ChatPermissions = z.output<typeof ChatPermissionsSchema>;
@@ -78,10 +100,9 @@ export type ChatDenial = z.output<typeof ChatDenialSchema>;
  * reaches, each by its path on this computer.
  */
 const ProjectPermissionsSchema = z.object({
-  folders: z
-    .array(z.object({ addedAt: z.coerce.date(), path: AbsolutePathSchema }))
-    .catch([])
-    .default([]),
+  folders: readableEntries(
+    z.object({ addedAt: z.coerce.date(), path: AbsolutePathSchema }),
+  ).default([]),
 });
 
 const PermissionSettingsShape = z.object({
@@ -89,30 +110,34 @@ const PermissionSettingsShape = z.object({
    * Apps on this computer, by the name a script tells them by, that the
    * agent may control in every chat, asks first about, or never controls.
    */
-  apps: z
-    .array(
-      z.object({
-        addedAt: z.coerce.date(),
-        bundleId: z.string().optional(),
-        level: LevelSchema,
-        name: z.string().min(1),
-      }),
-    )
-    .catch([])
-    .default([]),
-  folders: z
-    .array(
-      z.object({
-        addedAt: z.coerce.date(),
-        level: LevelSchema,
-        path: AbsolutePathSchema,
-      }),
-    )
-    .catch([])
-    .default([]),
+  apps: readableEntries(
+    z.object({
+      addedAt: z.coerce.date(),
+      bundleId: z.string().optional(),
+      level: LevelSchema,
+      name: z.string().min(1),
+    }),
+  ).default([]),
+  folders: readableEntries(
+    z.object({
+      addedAt: z.coerce.date(),
+      level: LevelSchema,
+      path: AbsolutePathSchema,
+    }),
+  ).default([]),
   places: z
-    .partialRecord(PlaceIdSchema.exclude(["output"]), LevelSchema)
+    .record(z.string(), z.unknown())
     .catch({})
+    .transform((places) =>
+      PlaceLevelsSchema.parse(
+        Object.fromEntries(
+          Object.entries(places).filter(
+            ([place, level]) =>
+              PlaceLevelsSchema.safeParse({ [place]: level }).success,
+          ),
+        ),
+      ),
+    )
     .default({}),
   /**
    * What the person allowed inside one chat, by its id: a folder or a file

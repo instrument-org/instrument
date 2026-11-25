@@ -5,7 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AbsolutePathSchema } from "../../schemas/paths";
 import { SYSTEM_DRIVE } from "../disk-root";
-import { folderToAskFor, reachOf, type Rules, rulesFor } from "./rules";
+import {
+  folderToAskFor,
+  permissionSettingsOf,
+  reachOf,
+  type Rules,
+  rulesFor,
+} from "./rules";
 
 // A home folder on the drive this computer runs from, spelled as node:path
 // spells one here (`C:\Users\someone` on Windows), so a folder the rules name
@@ -644,5 +650,42 @@ describe("a skill source the shell mounts", () => {
     expect(
       reachOf(rules, nodePath.join(skills, "pdf/SKILL.md"), "write").level,
     ).not.toBe("allow");
+  });
+});
+
+describe("permissionSettingsOf", () => {
+  it("keeps every rule that reads beside one that does not", () => {
+    const addedAt = "2026-01-01T00:00:00.000Z";
+    const kept = inHome("Payroll");
+    const read = permissionSettingsOf({
+      apps: [
+        { addedAt, level: "never", name: "Mail" },
+        { addedAt, level: "sometimes", name: "Notes" },
+      ],
+      chats: {
+        c: {
+          grants: [
+            { grantedAt: addedAt, path: kept, source: "card" },
+            { grantedAt: addedAt, path: "not/absolute", source: "card" },
+          ],
+        },
+      },
+      folders: [
+        { addedAt, level: "never", path: kept },
+        { addedAt, level: "never", path: "not/absolute" },
+      ],
+      places: { downloads: "never", "a-newer-place": "never" },
+    });
+    expect({
+      apps: read.apps.map((app) => app.name),
+      folders: read.folders.map((folder) => folder.path),
+      grants: read.chats.c?.grants.map((grant) => grant.path),
+      places: read.places,
+    }).toEqual({
+      apps: ["Mail"],
+      folders: [kept],
+      grants: [kept],
+      places: { downloads: "never" },
+    });
   });
 });

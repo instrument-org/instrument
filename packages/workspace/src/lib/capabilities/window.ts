@@ -32,7 +32,7 @@ import {
 } from "../../model-text/notes/window-list-model-text";
 import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
-import { ChatStatusSchema } from "../chat/chat-status";
+import { ChatStateSchema, chatStateOf } from "../chat/chat-state";
 import { listChats } from "../chat/chats";
 import { recordAsk } from "../chat/asks";
 import { askWindow, WINDOW_TAB_TIMEOUT_MS } from "../chat/window-tab";
@@ -225,19 +225,7 @@ const TabField = (verb: string, form: string) =>
 const ListedSchema = z.object({
   all: z.boolean(),
   /** Where each chat's tab's chat stands, by the tab's id. */
-  chats: z.record(
-    z.string(),
-    z.object({
-      archived: z.boolean(),
-      /** The day anything last happened in it, YYYY-MM-DD. */
-      last_activity: z.string(),
-      starred: z.boolean(),
-      status: ChatStatusSchema,
-      unread: z.boolean(),
-      /** Whether anything of it still moves, its tasks included. */
-      working: z.boolean(),
-    }),
-  ),
+  chats: z.record(z.string(), ChatStateSchema),
   layout: ListedGroupSchema.optional(),
   /** The projects in use, their names by the ids the groups have. */
   projects: z.record(z.string(), z.string()),
@@ -254,11 +242,6 @@ const ListedSchema = z.object({
   ),
 });
 
-/** A day as the list prints it, YYYY-MM-DD. */
-function day(at: number): string {
-  return new Date(at).toISOString().slice(0, 10);
-}
-
 /** What the workspace knows of the chats and projects the windows' groups name. */
 async function factsOf(
   windows: WindowGroups,
@@ -274,21 +257,7 @@ async function factsOf(
         .flatMap((side) => side.tabs)
         .flatMap((tab) => {
           const chat = tab.kind === "chat" ? chats.get(tab.address) : undefined;
-          return chat === undefined
-            ? []
-            : [
-                [
-                  tab.id,
-                  {
-                    archived: chat.archived,
-                    last_activity: day(chat.updatedAt),
-                    starred: chat.starred,
-                    status: chat.status,
-                    unread: chat.unread,
-                    working: chat.working,
-                  },
-                ],
-              ];
+          return chat === undefined ? [] : [[tab.id, chatStateOf(chat)]];
         }),
     ),
     projects: Object.fromEntries(

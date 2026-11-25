@@ -17,8 +17,13 @@ import {
   setChatStarred,
   unarchiveChat,
 } from "../chat/chats";
+import { ChatStateSchema, chatStateOf, day } from "../chat/chat-state";
 import { archiveChatAndTabs } from "../chat/organize";
 import { listProjects, type Project } from "../chat/projects";
+import {
+  chatLatestWords,
+  chatStandingWords,
+} from "../../model-text/notes/chat-state-model-text";
 import { PROJECTS_COMMAND } from "../../model-text/commands/projects-command";
 import { resolveChat } from "../record-folders";
 import { defineCapability } from "./define";
@@ -32,18 +37,14 @@ const CHATS = { roleRefusal: CHATS_ARE_THE_CHATS, roles: ["chat"] } as const;
 /** The word that files a chat under no project. */
 const NO_PROJECT = "none";
 
-const ListedChat = z.object({
-  archived: z.boolean(),
+const ListedChat = ChatStateSchema.extend({
   /** The day it began, YYYY-MM-DD. */
   began: z.string(),
   id: z.string(),
-  /** The day anything last happened in it, YYYY-MM-DD. */
-  last_activity: z.string(),
   /** Whether it has a name yet; one without shows its opening words. */
   named: z.boolean(),
   /** The project it is filed under, by name. */
   project: z.string().optional(),
-  starred: z.boolean(),
   /** Set on the chat running the command, so a request about another chat never lands on it. */
   this_chat: z.literal(true).optional(),
   title: z.string(),
@@ -74,10 +75,6 @@ function renderOutcomes(outcomes: readonly Outcome[]) {
 
 function outcomesText(outcomes: readonly Outcome[]) {
   return outcomes.map((each) => each.said).join("\n");
-}
-
-function day(at: number): string {
-  return new Date(at).toISOString().slice(0, 10);
 }
 
 function namedProjects(projects: readonly Project[]): string {
@@ -125,6 +122,13 @@ async function eachChat(
   return outcomes;
 }
 
+/** Where a chat stands and its latest line, after its title. */
+function standingText(chat: z.output<typeof ListedChat>): string {
+  const words = chatStandingWords(chat);
+  const latest = chatLatestWords(chat);
+  return `${words.length === 0 ? "" : `  (${words.join(", ")})`}${latest === "" ? "" : `  latest: ${latest}`}`;
+}
+
 export const chatsList = defineCapability({
   input: z.object({
     archived: z
@@ -139,10 +143,22 @@ export const chatsList = defineCapability({
       .boolean()
       .default(false)
       .describe("only the chats that have no name yet"),
+    unread: z
+      .boolean()
+      .default(false)
+      .describe("only the unread chats, with any others asked for beside it"),
+    waiting: z
+      .boolean()
+      .default(false)
+      .describe("only the chats waiting on the user, in the same way"),
+    working: z
+      .boolean()
+      .default(false)
+      .describe("only the chats still working, in the same way"),
   }),
   name: "chats.list",
   output: z.array(ListedChat),
-  async run({ archived, project, unnamed }, ctx) {
+  async run({ archived, project, unnamed, unread, waiting, working }, ctx) {
     const projects = await listProjects();
     const names = new Map(projects.map((each) => [each.id, each.name]));
     let under: null | string | undefined;
@@ -157,36 +173,42 @@ export const chatsList = defineCapability({
     } else if (project === NO_PROJECT) {
       under = null;
     }
+    const asked = (chat: Chat) =>
+      !(unread || waiting || working) ||
+      (unread && chat.unread) ||
+      (waiting && chat.status === "waiting") ||
+      (working && chat.working);
     return (await listChats())
       .filter(
         (chat) =>
           chat.archived === archived &&
           (!unnamed || !chat.titled) &&
+          asked(chat) &&
           (under === undefined || (chat.project ?? null) === under),
       )
       .toSorted((a, b) => b.updatedAt - a.updatedAt)
       .map((chat) => {
         const name = chat.project && names.get(chat.project);
         return {
-          archived: chat.archived,
+          ...chatStateOf(chat),
           began: day(chat.createdAt),
           id: chat.id,
-          last_activity: day(chat.updatedAt),
           named: chat.titled,
           ...(name ? { project: name } : {}),
-          starred: chat.starred,
           ...(chat.id === ctx.chatId ? { this_chat: true as const } : {}),
           title: chat.title,
         };
       });
   },
   summary:
-    "The user's chats, newest first: each one's id, the day it began and the day it was last active, its project, and its title.",
+    "The user's chats, newest first: each one's id, the day it began and the day it was last active, its project, its title, whether it is working, waiting on the user or unread, and its latest line.",
   surfaces: {
     cli: {
       help: `A chat's id is also its folder's name under $INSTRUMENT_CHATS, where what
 was said in it can be read. A chat that began and was last active on the same
-day was never come back to.`,
+day was never come back to. The latest line is the one its row shows: the step it
+is on while it works, its question while it waits, else its last reply. What
+needs the user is list --unread --waiting.`,
       words: ["chats", "list"],
     },
     script: {},
@@ -194,10 +216,10 @@ day was never come back to.`,
   text: (chats) =>
     chats.length === 0
       ? "No chats match."
-      : `${chats.length} ${chats.length === 1 ? "chat" : "chats"}, newest first (id, began, last active, title):\n${chats
+      : `${chats.length} ${chats.length === 1 ? "chat" : "chats"}, newest first (id, began, last active, title, where it stands, latest line):\n${chats
           .map(
             (chat) =>
-              `  ${chat.id}  ${chat.began}  ${chat.last_activity}  ${chat.project ? `[${chat.project}]  ` : ""}${chat.title}${chat.named ? "" : "  (unnamed)"}${chat.starred ? "  (starred)" : ""}${chat.this_chat ? "  (this chat)" : ""}`,
+              `  ${chat.id}  ${chat.began}  ${chat.last_activity}  ${chat.project ? `[${chat.project}]  ` : ""}${chat.title}${chat.named ? "" : "  (unnamed)"}${chat.starred ? "  (starred)" : ""}${chat.this_chat ? "  (this chat)" : standingText(chat)}`,
           )
           .join("\n")}`,
   where: CHATS,

@@ -5,8 +5,9 @@ import {
 } from "@instrument-org/shared";
 
 import { type LayoutTab, type ListedGroup } from "../../schemas/group-layout";
-import { type ChatStatus } from "../../lib/chat/chat-status";
+import { type ChatState } from "../../lib/chat/chat-state";
 import { WINDOW_COMMAND } from "../commands/window-command";
+import { chatStandingWords } from "./chat-state-model-text";
 import { layoutTabName } from "./group-layout-model-text";
 
 /** Every open window's tab groups, the one in front first, as the window answers a list. */
@@ -20,22 +21,10 @@ type TabTasks = Readonly<
   Record<string, { id: string; title: string; you: boolean }>
 >;
 
-/** What a chat's tab says of its chat, as the sidebar and the Chats page show it. */
-interface TabChat {
-  archived: boolean;
-  /** The day anything last happened in it, YYYY-MM-DD. */
-  last_activity: string;
-  starred: boolean;
-  status: ChatStatus;
-  unread: boolean;
-  /** Whether anything of it still moves, its tasks included, whatever its status. */
-  working: boolean;
-}
-
 /** What a list says of groups and tabs past where they stand. */
 export interface ListFacts {
   /** Each chat's tab's chat, by the tab's id. */
-  chats: Readonly<Record<string, TabChat>>;
+  chats: Readonly<Record<string, ChatState>>;
   /** The projects in use, their names by their ids. */
   projects: Readonly<Record<string, string>>;
   tasks: TabTasks;
@@ -116,19 +105,9 @@ function tabLine(
 }
 
 /** Where a chat stands, as the clauses after its tab's line. */
-function chatNotes(chat: TabChat): string[] {
-  const status = {
-    failed: "stopped by an error",
-    idle: undefined,
-    limited: "stopped by a usage limit",
-    stopped: "stopped by the user",
-    waiting: "waiting on the user",
-    working: "working",
-  }[chat.status];
+function chatNotes(chat: ChatState): string[] {
   return [
-    ...(status === undefined ? [] : [status]),
-    ...(chat.working && chat.status !== "working" ? ["still working"] : []),
-    ...(chat.unread ? ["unread"] : []),
+    ...chatStandingWords(chat),
     ...(chat.starred ? ["starred"] : []),
     ...(chat.archived ? ["archived"] : []),
     `last active ${chat.last_activity}`,

@@ -11,16 +11,19 @@
  * - **archive-stale.** "Older than a month that I never came back to" takes
  *   both halves: an old chat the person returned to stays, and so does a
  *   recent one they never returned to.
+ * - **needs-me.** "What needs me?" is the chat waiting on an answer and the
+ *   unread one, and not the two that need nothing.
  */
 import { ensureChat } from "../../src/lib/chat/chat-records";
-import { renameChat } from "../../src/lib/chat/chats";
+import { recordAsk } from "../../src/lib/chat/asks";
+import { markChatUnread, renameChat } from "../../src/lib/chat/chats";
 import { createProject } from "../../src/lib/chat/projects";
 import { ChatReads } from "../../src/lib/chat-reads";
 import { type ChatId } from "../../src/schemas/chat-id";
 import { StoreId } from "../../src/schemas/store-id";
 import { type Assertion, defineEval } from "../harness";
 import { seed } from "./chat-history";
-import { fail, pass } from "./handoff";
+import { fail, pass, said } from "./handoff";
 
 const DAY = 86_400_000;
 const MINUTE = 60_000;
@@ -334,6 +337,72 @@ const keptTheRest: Assertion = {
   text: "left the returned-to, the recent and its own chat in the inbox",
 };
 
+// ---------------------------------------------------------------------------
+// needs-me
+// ---------------------------------------------------------------------------
+
+async function seedNeedsMe() {
+  await earlierChat({
+    ask: "Order the replacement filter for our fridge.",
+    daysAgo: 1,
+    key: "filter",
+    reply: "I found the right filter. Log in and I'll order it.",
+    title: "Fridge filter order",
+  });
+  await earlierChat({
+    ask: "Compare the three preschools on our shortlist.",
+    daysAgo: 2,
+    key: "preschool",
+    reply: "Maple has the shortest waitlist and the longest day.",
+    title: "Comparing preschools",
+  });
+  await earlierChat({
+    ask: "How long do I roast a whole cauliflower?",
+    daysAgo: 1,
+    key: "cauliflower",
+    reply: "About an hour at 400°F, covered for the first half.",
+    title: "Roasting cauliflower",
+  });
+  await earlierChat({
+    ask: "What does a torn meniscus feel like?",
+    daysAgo: 3,
+    key: "knee",
+    reply: "A catch or a click on bending, and swelling by the next day.",
+    title: "Knee pain questions",
+  });
+  const filter = seeded.get("filter");
+  const preschool = seeded.get("preschool");
+  if (filter === undefined || preschool === undefined) {
+    return;
+  }
+  await recordAsk(
+    {
+      ...filter,
+      reason: "The order needs your account.",
+      title: "Log in to Northwind Parts",
+    },
+    "page",
+    StoreId.newTabId(),
+    { page: { title: "Northwind Parts", url: "https://parts.example.com/" } },
+  );
+  await markChatUnread(preschool.chatId, { byUser: false });
+}
+
+const namedWhatNeedsThem: Assertion = {
+  check: (ctx) => {
+    const text =
+      "named the chat waiting on them and the unread one, and neither of the others";
+    const reply = said(ctx.sessions).at(-1)?.text ?? "";
+    const hasFilter = /filter|northwind/i.test(reply);
+    const hasPreschool = /preschool/i.test(reply);
+    const hasOthers = /cauliflower|knee|meniscus/i.test(reply);
+    return hasFilter && hasPreschool && !hasOthers
+      ? pass(text, reply.slice(0, 300))
+      : fail(text, reply.slice(0, 300));
+  },
+  text: "named the chat waiting on them and the unread one, and neither of the others",
+};
+
 export const CHATS_ORGANIZE_EVALS = [
   defineEval({
     assertions: [filedTheTrips, archivedNone, usedTheCommand],
@@ -348,5 +417,12 @@ export const CHATS_ORGANIZE_EVALS = [
     name: "chats-archive-stale",
     prompt: "Archive everything older than a month that I never came back to.",
     setup: seedStale,
+  }),
+  defineEval({
+    assertions: [namedWhatNeedsThem, usedTheCommand],
+    kind: "chat",
+    name: "chats-needs-me",
+    prompt: "Which of my chats need me right now?",
+    setup: seedNeedsMe,
   }),
 ];

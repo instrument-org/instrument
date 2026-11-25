@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../../schemas/paths";
@@ -12,7 +13,8 @@ import { createMockChatConfig } from "../../test/helpers/mock-chat-config";
 import { beginChatChangeTracking, consumeChatChanges } from "../chat-changes";
 import { ChatWrites } from "../chat-writes";
 import { type ChatActivity } from "../chat/activity";
-import { chatById, chatRecordTitle } from "../chat/chats";
+import { chatById, chatRecordTitle, markChatUnread } from "../chat/chats";
+import { recordAsk } from "../chat/asks";
 import { undoChatChanges } from "../chat/organize";
 import { createProject } from "../chat/projects";
 import { createLocalBashEnv } from "../create-bash-env";
@@ -104,6 +106,43 @@ async function chat(name: string, title: string, minute: number) {
   return { chatId, sessionId };
 }
 
+/** The agent's words in a chat, after the person's. */
+async function reply(chatId: ChatId, text: string) {
+  const sessionId = sessionOfChat(chatId);
+  if (!sessionId) {
+    throw new Error(`no session of ${chatId}`);
+  }
+  const messageId = StoreId.newMessageId();
+  const saved = await ChatWrites.saveMessageWithParts(
+    {
+      metadata: {
+        createdAt: at(4),
+        finishReason: "stop",
+        finishedAt: at(4),
+        modelId: "maker/model",
+        providerId: "test",
+        sessionId,
+      },
+      id: messageId,
+      parts: [
+        {
+          metadata: {
+            createdAt: at(4),
+            id: StoreId.newPartId(),
+            messageId,
+            sessionId,
+          },
+          text,
+          type: "text",
+        },
+      ],
+      role: "assistant",
+    },
+    chatId,
+  );
+  expect(saved.isOk()).toBe(true);
+}
+
 beforeEach(async () => {
   running.value = [];
   closedTabs.value = [];
@@ -164,7 +203,7 @@ describe("instrument chats list", () => {
     expect(travel.name).toBe("Travel");
     expect((await one("instrument chats list")).stdout).toMatchInlineSnapshot(
       `
-      "4 chats, newest first (id, began, last active, title):
+      "4 chats, newest first (id, began, last active, title, where it stands, latest line):
         organizer  2026-09-16  2026-09-16  Tidy up my chats  (this chat)
         groceries  2026-09-16  2026-09-16  Groceries for the week
         porto  2026-09-16  2026-09-16  about porto  (unnamed)
@@ -182,28 +221,119 @@ describe("instrument chats list", () => {
     );
     expect((await one("instrument chats list --project Travel")).stdout)
       .toMatchInlineSnapshot(`
-        "2 chats, newest first (id, began, last active, title):
+        "2 chats, newest first (id, began, last active, title, where it stands, latest line):
           porto  2026-09-16  2026-09-16  [Travel]  about porto  (unnamed)
           lisbon  2026-09-16  2026-09-16  [Travel]  Trip to Lisbon
         "
       `);
     expect((await one("instrument chats list --archived")).stdout)
       .toMatchInlineSnapshot(`
-        "1 chat, newest first (id, began, last active, title):
+        "1 chat, newest first (id, began, last active, title, where it stands, latest line):
           groceries  2026-09-16  2026-09-16  Groceries for the week
         "
       `);
     expect((await one("instrument chats list --unnamed")).stdout)
       .toMatchInlineSnapshot(`
-        "1 chat, newest first (id, began, last active, title):
+        "1 chat, newest first (id, began, last active, title, where it stands, latest line):
           porto  2026-09-16  2026-09-16  [Travel]  about porto  (unnamed)
         "
       `);
     expect((await one("instrument chats list --project none")).stdout)
       .toMatchInlineSnapshot(`
-        "1 chat, newest first (id, began, last active, title):
+        "1 chat, newest first (id, began, last active, title, where it stands, latest line):
           organizer  2026-09-16  2026-09-16  Tidy up my chats  (this chat)
         "
+      `);
+  });
+
+  it("says which are unread, waiting or working, with the line each row shows", async () => {
+    const lisbon = ChatIdSchema.parse("lisbon");
+    const groceries = ChatIdSchema.parse("groceries");
+    await reply(lisbon, "The castle **first**, then Belém.\n\nBook ahead.");
+    await markChatUnread(lisbon, { byUser: false });
+    running.value = [
+      {
+        chat: sessionOfChat(groceries),
+        sessionId: StoreId.newSessionId(),
+        step: "Comparing prices",
+        title: "Find the cheapest store",
+        updatedAt: at(4).getTime(),
+      },
+    ];
+    const porto = ChatIdSchema.parse("porto");
+    const portoSession = sessionOfChat(porto);
+    if (!portoSession) {
+      throw new Error("no session of porto");
+    }
+    vi.setSystemTime(at(5));
+    await recordAsk(
+      {
+        chatId: porto,
+        reason: "The timetable needs your account.",
+        sessionId: portoSession,
+        title: "Log in to the railway",
+      },
+      "page",
+      "tab_1",
+      { page: { title: "Railway", url: "https://rail.example.com/" } },
+    );
+    expect((await one("instrument chats list")).stdout).toMatchInlineSnapshot(`
+        "4 chats, newest first (id, began, last active, title, where it stands, latest line):
+          lisbon  2026-09-16  2026-09-16  Trip to Lisbon  (unread)  latest: The castle first, then Belém.
+          organizer  2026-09-16  2026-09-16  Tidy up my chats  (this chat)
+          porto  2026-09-16  2026-09-16  about porto  (unnamed)  (waiting on the user)  latest: Log in to the railway
+          groceries  2026-09-16  2026-09-16  Groceries for the week  (working)  latest: Comparing prices
+        "
+      `);
+    expect((await one("instrument chats list --unread")).stdout)
+      .toMatchInlineSnapshot(`
+        "1 chat, newest first (id, began, last active, title, where it stands, latest line):
+          lisbon  2026-09-16  2026-09-16  Trip to Lisbon  (unread)  latest: The castle first, then Belém.
+        "
+      `);
+    expect((await one("instrument chats list --working --waiting")).stdout)
+      .toMatchInlineSnapshot(`
+        "2 chats, newest first (id, began, last active, title, where it stands, latest line):
+          porto  2026-09-16  2026-09-16  about porto  (unnamed)  (waiting on the user)  latest: Log in to the railway
+          groceries  2026-09-16  2026-09-16  Groceries for the week  (working)  latest: Comparing prices
+        "
+      `);
+    const listed = z
+      .array(z.record(z.string(), z.unknown()))
+      .parse(
+        JSON.parse((await one("instrument chats list --json")).stdout ?? ""),
+      );
+    expect(listed.find((each) => each["id"] === "lisbon"))
+      .toMatchInlineSnapshot(`
+        {
+          "archived": false,
+          "began": "2026-09-16",
+          "id": "lisbon",
+          "last_activity": "2026-09-16",
+          "latest": "The castle first, then Belém.",
+          "named": true,
+          "starred": false,
+          "status": "idle",
+          "title": "Trip to Lisbon",
+          "unread": true,
+          "working": false,
+        }
+      `);
+    expect(listed.find((each) => each["id"] === "groceries"))
+      .toMatchInlineSnapshot(`
+        {
+          "archived": false,
+          "began": "2026-09-16",
+          "id": "groceries",
+          "last_activity": "2026-09-16",
+          "latest": "Comparing prices",
+          "named": true,
+          "starred": false,
+          "status": "working",
+          "title": "Groceries for the week",
+          "unread": false,
+          "working": true,
+        }
       `);
   });
 

@@ -1,6 +1,7 @@
 // What a session's edits leave wrong that nothing importing them would show,
-// so it is fixed while the session still has the change in hand. The Stop hook
-// (.claude/hooks/turn-end.mjs) runs it over the files a turn edited.
+// so it is fixed while the session still has the change in hand. The shared
+// format hook (@instrument-org/agent-hooks) runs it at Stop over the files a
+// turn edited.
 //
 //   node scripts/turn-end.ts --regenerate <file>...
 //   node scripts/turn-end.ts <file>...

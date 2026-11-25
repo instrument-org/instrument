@@ -78,7 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; f=\"$(dirname \"$d\")/node_modules/@instrument-org/agent-hooks/format.mjs\"; t=\"$(git rev-parse --show-toplevel)/.claude/hooks/turn-end.mjs\"; if [ -f \"$t\" ]; then node \"$t\" \"$f\"; else node \"$f\"; fi",
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; node \"$(dirname \"$d\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
             "timeout": 180
           }
         ]
@@ -89,7 +89,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; f=\"$(dirname \"$d\")/node_modules/@instrument-org/agent-hooks/format.mjs\"; t=\"$(git rev-parse --show-toplevel)/.claude/hooks/turn-end.mjs\"; if [ -f \"$t\" ]; then node \"$t\" \"$f\"; else node \"$f\"; fi",
+            "command": "d=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || exit 0; node \"$(dirname \"$d\")/node_modules/@instrument-org/agent-hooks/format.mjs\"",
             "timeout": 180
           }
         ]

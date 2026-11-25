@@ -32,10 +32,7 @@ import { Children, type ReactNode } from "react";
 
 import { EmailLink } from "./email-link";
 import { ExternalLink } from "./external-link";
-import {
-  FAVICON_SCHEME_CLASS_NAME,
-  FAVICON_SURFACE_CLASS_NAME,
-} from "./favicon";
+import { FAVICON_SCHEME_CLASS_NAME } from "./favicon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { AppIcon } from "./window/app-icon";
 import { useAppsBySlug } from "./window/apps-by-slug";
@@ -494,7 +491,6 @@ export function SiteIcon({
       className={cn(
         "my-0! size-4 shrink-0 rounded-xs align-middle",
         FAVICON_SCHEME_CLASS_NAME,
-        FAVICON_SURFACE_CLASS_NAME,
         arrivalClassName,
         className,
       )}

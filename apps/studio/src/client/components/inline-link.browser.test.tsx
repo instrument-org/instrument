@@ -174,11 +174,7 @@ describe("An inline link in a browser", () => {
     expect(pieces[0]?.top ?? 0).toBeLessThan(paragraphTop + lineHeight);
   });
 
-  // A favicon is drawn for the light chrome a browser puts it in, where it
-  // wants nothing from us; on a dark page a faint tile under it separates the
-  // mark from a ground it was never drawn for. Faint rather than a plate: a
-  // near-white square made every icon in dark mode a sticker.
-  it("lifts the site icon on a faint tile in dark mode, and on nothing in light", async () => {
+  it("draws the site icon on nothing in either theme", async () => {
     await renderReply("Rotation is on [the docs](https://github.com/x).");
     const inLight = siteIcon();
     if (!inLight) {
@@ -193,9 +189,7 @@ describe("An inline link in a browser", () => {
       if (!inDark) {
         throw new Error("the link rendered without a site icon");
       }
-      const alpha = alphaOf(getComputedStyle(inDark).backgroundColor);
-      expect(alpha).toBeGreaterThan(0);
-      expect(alpha).toBeLessThan(0.5);
+      expect(alphaOf(getComputedStyle(inDark).backgroundColor)).toBe(0);
     } finally {
       document.documentElement.classList.remove("dark");
     }

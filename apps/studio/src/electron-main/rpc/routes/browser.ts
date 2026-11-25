@@ -327,9 +327,8 @@ const setEmulatedDevice = base
   });
 
 /**
- * A browser tab's page named its own icons: an SVG is kept for its site over
- * the favicon proxy's, and any other when the proxy has none, so a site the
- * person opened draws its real mark everywhere.
+ * A browser tab's page named its own icons: one is kept for a site the icon
+ * service has none for, so a site the person opened draws its mark everywhere.
  */
 const rememberPageIcon = base
   .input(z.object({ iconUrls: z.array(z.string()), pageUrl: z.string() }))

@@ -60,6 +60,7 @@ Each entry is the plan's title and the opening of its status.
 - [Privacy-first diagnostics and feedback](privacy-first-diagnostics-and-feedback.md): In progress.
 - [Radashi → es-toolkit migration (Instrument monorepo)](radashi-to-es-toolkit-migration.md): Planned, not started (checked 2026-10-29: radashi is imported in 148 files, es-toolkit in none).
 - [Radix upgrade, and whether to move to Base UI](radix-upgrade-and-base-ui-migration.md): Phase 0 landed (`fa27ad0e2` took the July 2026 Radix releases, `894c2cdd6` the 2026-10-05 ones);
+- [Rainy-day refactors](rainy-day-refactors.md): A running list;
 - [The code React Compiler never sees](react-compiler-blind-spots.md): Proposal, mostly not started (checked 2026-10-29).
 - [Letting a task look at what it made](render-a-file-to-look-at-it.md): Proposed, 2026-09-07.
 - [Seeded, disposable workspaces for driving and testing Studio](seeded-test-workspaces.md): Corpus (`fixtures/workspaces/`), seeder (`pnpm workspace:seed`), recorder and `studio-drive --workspace` wiring landed, on the 2.0 chat layout.

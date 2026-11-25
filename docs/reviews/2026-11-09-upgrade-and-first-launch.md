@@ -89,10 +89,10 @@ Ordered by what to fix first.
 
 ### M. Permission rules read an unreadable file as no rules, and one bad entry empties a list for good
 
-- Status: open
+- Status: fixed `2ecfb3be8`
 - Where: [rules.ts:199](/packages/workspace/src/lib/permissions/rules.ts#L199), [:66](/packages/workspace/src/lib/permissions/rules.ts#L66)
 - What: every "never" becomes "ask" while the file cannot be read, and a list with one entry that fails to parse reads as empty and is written back empty. The same `.catch([])` drops all of a chat's grants on conversion when one path is not absolute on this system. Not checked.
-- Note: lists and places are read an entry at a time, so a bad entry costs only itself. A file that cannot be read still reads as no rules.
+- Note: lists and places are read an entry at a time, so a bad entry costs only itself. A file that cannot be read is left as it is: every place's default is Ask and an update refuses an unreadable file, so while it cannot be read every rule asks and nothing opens wider, where refusing to read would stop every chat.
 
 ### N. Setup's wait on the website reports its timeout as ready
 

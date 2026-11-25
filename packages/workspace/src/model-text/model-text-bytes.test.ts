@@ -621,6 +621,34 @@ describe.skipIf(WINDOWS)("the builders called directly", () => {
         ],
         undone: { at: "2026-11-10T10:00:00Z", skipped: 0 },
       }),
+      undoneBookmarks: undoneChanges.undoneBookmarksModelNote({
+        changes: [
+          {
+            after: null,
+            before: {
+              kind: "bookmark",
+              order: 0,
+              place: "Bookmarks bar/Work",
+              root: "bar",
+              title: "Docs",
+              url: "https://example.com/docs",
+            },
+            id: "0b6f2a1c",
+          },
+          {
+            after: {
+              kind: "folder",
+              order: 1,
+              place: "All Bookmarks",
+              root: "all",
+              title: "Reading",
+            },
+            before: null,
+            id: "5d20c7e9",
+          },
+        ],
+        undone: { at: "2026-11-25T10:00:00Z", skipped: 1 },
+      }),
       undoneProjects: undoneChanges.undoneProjectsModelNote({
         changes: [
           {

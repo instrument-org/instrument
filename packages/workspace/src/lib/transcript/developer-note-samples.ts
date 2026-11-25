@@ -100,6 +100,22 @@ export const DATA_PART_SAMPLES = {
   ratingCard: {},
   requestFailure: { error: "It failed." },
   requestNote: { kind: "turn", text: "Sample words." },
+  bookmarkChanges: {
+    changes: [
+      {
+        after: null,
+        before: {
+          kind: "bookmark",
+          order: 0,
+          place: "All Bookmarks",
+          root: "all",
+          title: "Docs",
+          url: "https://example.com/docs",
+        },
+        id: "0b6f2a1c",
+      },
+    ],
+  },
   settingChanges: {
     changes: [
       {

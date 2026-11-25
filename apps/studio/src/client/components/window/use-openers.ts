@@ -1,9 +1,11 @@
 import {
   addToAllBookmarks,
   bookmarkListing,
+  changeBookmarks,
   listedBookmark,
   useAddBookmark,
 } from "@/client/bookmarks/actions";
+import { bookmarkChangesBetween } from "@/client/bookmarks/agent-changes";
 import { bookmarksStateAtom } from "@/client/bookmarks/store";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
@@ -1436,13 +1438,21 @@ export function useOpeners({
     }
     if (action.kind === "addBookmark") {
       // Kept as a menu's Add to Bookmarks keeps it, by this window's store.
+      const before = store.get(bookmarksStateAtom);
       const { bookmark, isNew } = addToAllBookmarks(store, action);
       return {
+        bookmarkChanges: bookmarkChangesBetween(
+          before,
+          store.get(bookmarksStateAtom),
+        ),
         bookmark: {
           ...listedBookmark(store.get(bookmarksStateAtom), bookmark),
           isNew,
         },
       };
+    }
+    if (action.kind === "changeBookmarks") {
+      return changeBookmarks(store, action.change);
     }
     if (action.kind === "reopenClosed") {
       const entry = store

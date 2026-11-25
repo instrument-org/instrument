@@ -27,6 +27,7 @@ import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { BROWSER_TYPING_EVALS } from "./browser-typing";
 import { VIEWPORT_WIDTH_EVALS } from "./viewport-width";
 import { CHAT_HISTORY_EVALS } from "./chat-history";
+import { BOOKMARKS_EVALS } from "./bookmarks";
 import { CHATS_ORGANIZE_EVALS } from "./chats-organize";
 import { PROJECTS_LIFECYCLE_EVALS } from "./projects-lifecycle";
 import { PROJECTS_RESTYLE_EVALS } from "./projects-restyle";
@@ -113,6 +114,7 @@ export const EVALS = [
   ...BROWSER_TYPING_EVALS,
   ...VIEWPORT_WIDTH_EVALS,
   ...CHAT_HISTORY_EVALS,
+  ...BOOKMARKS_EVALS,
   ...CHATS_ORGANIZE_EVALS,
   ...PROJECTS_RESTYLE_EVALS,
   ...PROJECTS_LIFECYCLE_EVALS,

@@ -142,6 +142,7 @@ const MARK_OF_PART: Record<
   "data-ratingCard": "note",
   "data-requestFailure": "error",
   "data-requestNote": "once",
+  "data-bookmarkChanges": "note",
   "data-settingChanges": "computer",
   "data-setupChanges": "skill",
   "data-setupNews": "skill",
@@ -376,6 +377,16 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
       return named(
         "Chats changed",
         chatsChanged(part.data.changes).length.toString(),
+      );
+    }
+    case "data-bookmarkChanges": {
+      return named(
+        "Bookmarks changed",
+        someOf(
+          part.data.changes.map(
+            ({ after, before }) => (after ?? before)?.title ?? "",
+          ),
+        ),
       );
     }
     case "data-settingChanges": {

@@ -20,7 +20,15 @@ import {
   appsTest,
 } from "./apps-setup";
 import { activityList } from "./activity";
-import { bookmarksAdd, bookmarksList } from "./bookmarks";
+import {
+  bookmarksAdd,
+  bookmarksAddress,
+  bookmarksList,
+  bookmarksMove,
+  bookmarksNewFolder,
+  bookmarksRemove,
+  bookmarksRename,
+} from "./bookmarks";
 import { browserRun } from "./browser";
 import {
   chatsArchive,
@@ -94,6 +102,11 @@ export const CAPABILITIES: readonly Capability[] = [
   appsDisconnect,
   bookmarksList,
   bookmarksAdd,
+  bookmarksMove,
+  bookmarksRename,
+  bookmarksAddress,
+  bookmarksNewFolder,
+  bookmarksRemove,
   browserRun,
   chatsList,
   chatsRename,

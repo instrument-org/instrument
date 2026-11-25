@@ -20,6 +20,10 @@ import { TypedError } from "../lib/errors";
 import { getCurrentDate } from "../lib/get-current-date";
 import { getWorkspaceConfig } from "../lib/workspace-config";
 import {
+  beginBookmarkChangeTracking,
+  consumeBookmarkChanges,
+} from "../lib/bookmark-changes";
+import {
   beginSettingChangeTracking,
   consumeSettingChanges,
 } from "../lib/setting-changes";
@@ -137,11 +141,13 @@ export const instrumentAgent = setupAgent({
   onFinish: async ({ parentMessageId, sessionId, chatId }) => {
     const chatChanges = consumeChatChanges({ id: chatId, sessionId });
     const settingChanges = consumeSettingChanges({ id: chatId, sessionId });
+    const bookmarkChanges = consumeBookmarkChanges({ id: chatId, sessionId });
     const changes = await consumeSetupChanges({ id: chatId, sessionId });
     if (
       changes.length === 0 &&
       chatChanges.length === 0 &&
-      settingChanges.length === 0
+      settingChanges.length === 0 &&
+      bookmarkChanges.length === 0
     ) {
       return;
     }
@@ -188,6 +194,21 @@ export const instrumentAgent = setupAgent({
               sessionId,
             },
             type: "data-settingChanges",
+          },
+          chatId,
+        );
+      }
+      if (bookmarkChanges.length > 0) {
+        yield* ChatWrites.savePart(
+          {
+            data: { changes: bookmarkChanges },
+            metadata: {
+              createdAt: new Date(),
+              id: StoreId.newPartId(),
+              messageId: lastAssistantMessage.id,
+              sessionId,
+            },
+            type: "data-bookmarkChanges",
           },
           chatId,
         );
@@ -240,6 +261,7 @@ export const instrumentAgent = setupAgent({
   onStart: async ({ sessionId, chatId }) => {
     beginSetupChangeTracking({ id: chatId, sessionId });
     beginChatChangeTracking({ id: chatId, sessionId });
+    beginBookmarkChangeTracking({ id: chatId, sessionId });
     beginSettingChangeTracking({ id: chatId, sessionId });
     beginTurnFileVersions(sessionId, keptReader(chatId));
   },

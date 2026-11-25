@@ -1,3 +1,4 @@
+import { bookmarkChangeLines } from "../bookmark-change-lines";
 import { APP_NAME, chatAddressOf } from "@instrument-org/shared";
 import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 import { z } from "zod";
@@ -61,6 +62,7 @@ const VISIBLE = new Set<string>([
   "data-modelChange",
   "data-permissionAnswer",
   "data-questionAnswer",
+  "data-bookmarkChanges",
   "data-settingChanges",
   "data-setupChanges",
   "data-taskEvent",
@@ -319,6 +321,11 @@ function visibleBlock(part: SessionMessagePart.Type): string | undefined {
         ),
         ...(answer.note === undefined ? [] : [`You added: ${answer.note}`]),
       ].join("\n");
+    }
+    case "data-bookmarkChanges": {
+      return part.data.changes
+        .flatMap((change) => bookmarkChangeLines(change))
+        .join("\n");
     }
     case "data-settingChanges": {
       return part.data.changes

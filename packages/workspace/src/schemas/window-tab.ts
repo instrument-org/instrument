@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { BookmarkChangeSchema } from "./bookmark-change";
 import { ChatIdSchema } from "./chat-id";
 import { LayoutReadSchema, ListedGroupSchema } from "./group-layout";
 
@@ -130,6 +131,36 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
     title: z.string(),
     url: z.string(),
   }),
+  /**
+   * Changes the bookmarks and folders as the Bookmarks page does, through
+   * the window's own store. Each is named by its id.
+   */
+  z.object({
+    change: z.discriminatedUnion("type", [
+      /** Into a place (the bar, All Bookmarks or a folder by its id), last or beside one already there, whose place it is where none is named. */
+      z.object({
+        after: z.string().optional(),
+        before: z.string().optional(),
+        ids: z.array(z.string()),
+        to: z.string().optional(),
+        type: z.literal("move"),
+      }),
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        type: z.literal("rename"),
+      }),
+      z.object({ id: z.string(), type: z.literal("setUrl"), url: z.string() }),
+      z.object({
+        root: z.enum(["all", "bar"]),
+        title: z.string(),
+        type: z.literal("newFolder"),
+      }),
+      /** A folder goes with every bookmark filed in it. */
+      z.object({ ids: z.array(z.string()), type: z.literal("remove") }),
+    ]),
+    kind: z.literal("changeBookmarks"),
+  }),
 ]);
 
 export type WindowTabAction = z.output<typeof WindowTabActionSchema>;
@@ -147,10 +178,11 @@ export type WindowTabRequest = z.output<typeof WindowTabRequestSchema>;
 /**
  * A bookmark or a bookmark folder as the window names it to the agent: the
  * root it is in (the bar, or All Bookmarks), the folder it is filed in by
- * name, its name, and a bookmark's address.
+ * name, its id, its name, and a bookmark's address.
  */
 export const ListedBookmarkSchema = z.object({
   folder: z.string().optional(),
+  id: z.string(),
   kind: z.enum(["bookmark", "folder"]),
   root: z.enum(["bar", "all"]),
   title: z.string(),
@@ -212,6 +244,8 @@ export const WindowTabAnswerSchema = z.object({
   bookmarks: z.array(ListedBookmarkSchema).optional(),
   /** For a bookmark's add: the bookmark, and whether it was kept already. */
   bookmark: ListedBookmarkSchema.extend({ isNew: z.boolean() }).optional(),
+  /** For an ask that changed the bookmarks: each one added, changed or removed. */
+  bookmarkChanges: z.array(BookmarkChangeSchema).optional(),
 });
 
 export type WindowTabAnswer = z.output<typeof WindowTabAnswerSchema>;

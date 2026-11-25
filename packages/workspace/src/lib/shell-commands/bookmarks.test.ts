@@ -11,10 +11,20 @@ import {
   type WindowTabAction,
   type WindowTabAnswer,
 } from "../../schemas/window-tab";
+import {
+  beginBookmarkChangeTracking,
+  consumeBookmarkChanges,
+} from "../bookmark-changes";
+import { beginTurn, withTurnContext } from "../turn-context";
+import {
+  type BookmarkChange,
+  type BookmarkSide,
+} from "../../schemas/bookmark-change";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
 import { createBookmarksCommand } from "./bookmarks";
 
 const chatId = ChatIdSchema.parse("bookmarks-command-chat");
+const turn = { id: chatId, sessionId: StoreId.newSessionId() };
 // As this computer spells it, with a drive on Windows, where a file's
 // address carries one.
 const chatFolder = path.resolve("/work/chats/bookmarks-command-chat");
@@ -35,32 +45,37 @@ vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
 /** The bookmarks as the window lists them: the bar's, then All Bookmarks'. */
 const LISTED: NonNullable<WindowTabAnswer["bookmarks"]> = [
   {
+    id: "11111111-a",
     kind: "bookmark",
     root: "bar",
     title: "Zendesk pricing",
     url: "https://www.zendesk.com/pricing/",
   },
-  { kind: "folder", root: "bar", title: "Competitors" },
+  { id: "22222222-b", kind: "folder", root: "bar", title: "Competitors" },
   {
     folder: "Competitors",
+    id: "33333333-c",
     kind: "bookmark",
     root: "bar",
     title: "Intercom pricing",
     url: "https://www.intercom.com/pricing",
   },
   {
+    id: "44444444-d",
     kind: "bookmark",
     root: "all",
     title: "plan.md",
     url: planUrl,
   },
   {
+    id: "55555555-e",
     kind: "bookmark",
     root: "all",
     title: "secrets.txt",
     url: pathToFileURL(path.resolve("/elsewhere/secrets.txt")).href,
   },
   {
+    id: "55555555-f",
     kind: "bookmark",
     root: "all",
     title: "",
@@ -70,6 +85,34 @@ const LISTED: NonNullable<WindowTabAnswer["bookmarks"]> = [
 
 let asked: WindowTabAction[];
 let stopAnswering: () => void;
+
+/** What the window says a remove or a rename did; of the rest, nothing. */
+function madeBy(
+  change: Extract<WindowTabAction, { kind: "changeBookmarks" }>["change"],
+): BookmarkChange[] {
+  const side = (id: string, title?: string): BookmarkSide => {
+    const found = LISTED.find((each) => each.id === id);
+    return {
+      kind: found?.kind ?? "bookmark",
+      order: 0,
+      place: "All Bookmarks",
+      root: found?.root ?? "all",
+      title: title ?? found?.title ?? "",
+      ...(found?.url === undefined ? {} : { url: found.url }),
+    };
+  };
+  return change.type === "remove"
+    ? change.ids.map((id) => ({ after: null, before: side(id), id }))
+    : change.type === "rename"
+      ? [
+          {
+            after: side(change.id, change.title),
+            before: side(change.id),
+            id: change.id,
+          },
+        ]
+      : [];
+}
 
 /** A window that answers each ask as the app's does, keeping a bookmark once by its address. */
 function answeringWindow() {
@@ -83,6 +126,7 @@ function answeringWindow() {
         : action.kind === "addBookmark"
           ? {
               bookmark: {
+                id: "66666666-g",
                 isNew: !kept.has(action.url),
                 kind: "bookmark",
                 root: "all",
@@ -90,7 +134,9 @@ function answeringWindow() {
                 url: action.url,
               },
             }
-          : { error: "not a bookmarks ask." };
+          : action.kind === "changeBookmarks"
+            ? { bookmarkChanges: madeBy(action.change) }
+            : { error: "not a bookmarks ask." };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
@@ -106,7 +152,7 @@ function run(options: { role?: "chat" | "task" }, ...args: string[]) {
     chatId,
     layout,
     role: options.role ?? "chat",
-    sessionId: StoreId.newSessionId(),
+    sessionId: turn.sessionId,
   }).execute(
     args,
     createCommandContext({
@@ -116,6 +162,20 @@ function run(options: { role?: "chat" | "task" }, ...args: string[]) {
       stdin: EMPTY_BYTES,
     }),
   );
+}
+
+/** Runs each command as the agent's in one turn, and answers with what the turn's card has. */
+async function inTurn(...commands: string[][]) {
+  beginTurn(turn);
+  beginBookmarkChangeTracking(turn);
+  const results = await withTurnContext(turn, async () => {
+    const each = [];
+    for (const args of commands) {
+      each.push(await run({}, ...args));
+    }
+    return each;
+  });
+  return { changes: consumeBookmarkChanges(turn), results };
 }
 
 beforeEach(() => {
@@ -136,16 +196,16 @@ describe("bookmarks list", () => {
     expect(asked).toEqual([{ kind: "bookmarks" }]);
     expect(result.stdout.replaceAll(layout.chat.shellRoot, "<chat>"))
       .toMatchInlineSnapshot(`
-      "Bookmarks bar:
-        Zendesk pricing  https://www.zendesk.com/pricing/
-        Competitors/
-          Intercom pricing  https://www.intercom.com/pricing
-      All Bookmarks:
-        plan.md  <chat>/plan.md
-        secrets.txt  a file outside your folders
-        https://example.com/
-      "
-    `);
+        "Bookmarks bar:
+          11111111  Zendesk pricing  https://www.zendesk.com/pricing/
+          22222222  Competitors/
+            33333333  Intercom pricing  https://www.intercom.com/pricing
+        All Bookmarks:
+          44444444  plan.md  <chat>/plan.md
+          55555555  secrets.txt  a file outside your folders
+          55555555  https://example.com/
+        "
+      `);
   });
 
   it("keeps only what has every word, with the folder each is in", async () => {
@@ -154,8 +214,8 @@ describe("bookmarks list", () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
       "Bookmarks bar:
-        Competitors/
-          Intercom pricing  https://www.intercom.com/pricing
+        22222222  Competitors/
+          33333333  Intercom pricing  https://www.intercom.com/pricing
       "
     `);
     expect(
@@ -165,7 +225,7 @@ describe("bookmarks list", () => {
       ),
     ).toMatchInlineSnapshot(`
       "All Bookmarks:
-        plan.md  <chat>/plan.md
+        44444444  plan.md  <chat>/plan.md
       "
     `);
     expect((await run({}, "list", "nothing")).stdout).toMatchInlineSnapshot(`
@@ -270,8 +330,132 @@ describe("bookmarks add", () => {
     expect(result.exitCode).toBe(1);
     expect(asked).toEqual([]);
     expect(result.stderr).toMatchInlineSnapshot(`
-      "instrument bookmarks: only the chat adds to the user's bookmarks. Say in your report what the chat should bookmark.
+      "instrument bookmarks: only the chat changes the user's bookmarks. Say in your report what the chat should change.
       "
     `);
   });
+});
+
+describe("bookmarks changes", () => {
+  it.each([
+    {
+      args: ["move", "11111111", "55555555-f", "--to", "competitors"],
+      change: {
+        ids: ["11111111-a", "55555555-f"],
+        to: "22222222-b",
+        type: "move",
+      },
+    },
+    {
+      args: ["move", "11111111", "--before", "44444444"],
+      change: { before: "44444444-d", ids: ["11111111-a"], type: "move" },
+    },
+    {
+      args: ["move", "44444444", "--to", "bar"],
+      change: { ids: ["44444444-d"], to: "bar", type: "move" },
+    },
+    {
+      args: ["address", "11111111", "https://example.org/"],
+      change: {
+        id: "11111111-a",
+        type: "setUrl",
+        url: "https://example.org/",
+      },
+    },
+    {
+      args: ["address", "11111111", "notes/plan #2.md"],
+      change: {
+        id: "11111111-a",
+        type: "setUrl",
+        url: pathToFileURL(path.join(chatFolder, "notes/plan #2.md")).href,
+      },
+    },
+    {
+      args: ["new-folder", "To", "read", "--in", "bar"],
+      change: { root: "bar", title: "To read", type: "newFolder" },
+    },
+  ])("asks the window: $args", async ({ args, change }) => {
+    const { results } = await inTurn(args);
+
+    expect(results[0]?.stderr).toBe("");
+    expect(asked.at(-1)).toEqual({ change, kind: "changeBookmarks" });
+  });
+
+  it("says what it did and puts it on the turn's card", async () => {
+    const { changes, results } = await inTurn(
+      ["rename", "11111111", "Zendesk", "plans"],
+      ["remove", "11111111", "44444444"],
+    );
+
+    expect(
+      results
+        .map((each) => each.stdout)
+        .join("")
+        .replaceAll(layout.chat.shellRoot, "<chat>"),
+    ).toMatchInlineSnapshot(`
+      "Renamed "Zendesk pricing" to "Zendesk plans" (11111111).
+      Removed "Zendesk pricing" (11111111) from All Bookmarks.
+      Removed "plan.md" (44444444) from All Bookmarks.
+      "
+    `);
+    // The whole turn: how it stood before the rename, and gone.
+    expect(
+      changes.map(({ after, before, id }) => [id, before?.title, after]),
+    ).toEqual([
+      ["11111111-a", "Zendesk pricing", null],
+      ["44444444-d", "plan.md", null],
+    ]);
+  });
+
+  it("says nothing on the card of a change that ended where it began", async () => {
+    const { changes } = await inTurn(["rename", "11111111", "Zendesk pricing"]);
+
+    expect(changes).toEqual([]);
+  });
+
+  it("changes nothing outside a turn, whose card would have Undo", async () => {
+    const result = await run({}, "remove", "11111111");
+
+    expect(result.exitCode).toBe(1);
+    expect(asked).toEqual([{ kind: "bookmarks" }]);
+    expect(result.stderr).toMatchInlineSnapshot(`
+      "instrument bookmarks: bookmarks change only while you are working on a reply, whose card shows the change with Undo. Nothing changed. Run it again in this turn.
+      "
+    `);
+  });
+
+  it.each([
+    [["remove", "55555555"], "begins several ids"],
+    [["remove", "1111"], "no bookmark or folder has the id"],
+    [["remove"], "needs the ids"],
+    [["move", "11111111"], "move needs where they go"],
+    [["move", "11111111", "--to", "44444444"], "is a bookmark"],
+    [
+      ["move", "11111111", "--before", "44444444", "--after", "44444444"],
+      "one of --before and --after",
+    ],
+    [["address", "11111111", "missing.md"], "does not exist"],
+  ])("refuses %j", async (args, said) => {
+    const { results } = await inTurn(args);
+
+    expect(results[0]?.exitCode).toBe(1);
+    expect(results[0]?.stderr).toContain(said);
+    expect(asked.some((each) => each.kind === "changeBookmarks")).toBe(false);
+  });
+
+  it.each([["move"], ["rename"], ["address"], ["new-folder"], ["remove"]])(
+    "%s is the chat's alone",
+    async (verb) => {
+      const result = await run(
+        { role: "task" },
+        verb,
+        "11111111",
+        "https://example.org/",
+      );
+
+      expect(result.exitCode).toBe(1);
+      expect(result.stderr).toContain("only the chat changes");
+      expect(asked).toEqual([]);
+    },
+  );
 });

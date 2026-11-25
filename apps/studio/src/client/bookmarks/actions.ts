@@ -15,6 +15,11 @@ import { type WindowTabAnswer } from "@instrument-org/workspace/client";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
 
 import { sameAddress } from "./address";
+import {
+  agentChangeOps,
+  bookmarkChangesBetween,
+  listedRoot,
+} from "./agent-changes";
 import { newBookmarkPlace } from "./edit";
 import {
   applyBookmarkOpsAtom,
@@ -120,12 +125,28 @@ export function useAddBookmark() {
   };
 }
 
-type ListedBookmark = NonNullable<WindowTabAnswer["bookmarks"]>[number];
-
-/** The root as the agent is told it: the bar, or All Bookmarks. */
-function listedRoot(root: BookmarkRoot | undefined): ListedBookmark["root"] {
-  return root === OTHER_ROOT ? "all" : "bar";
+/** Makes a change the agent asked for, and answers what it did. */
+export function changeBookmarks(
+  store: ReturnType<typeof useStore>,
+  change: Parameters<typeof agentChangeOps>[1],
+): Pick<WindowTabAnswer, "bookmarkChanges" | "error"> {
+  const before = store.get(bookmarksStateAtom);
+  const made = agentChangeOps(before, change);
+  if ("error" in made) {
+    return { error: made.error };
+  }
+  if (made.ops.length > 0) {
+    void store.set(applyBookmarkOpsAtom, made.ops);
+  }
+  return {
+    bookmarkChanges: bookmarkChangesBetween(
+      before,
+      store.get(bookmarksStateAtom),
+    ),
+  };
 }
+
+type ListedBookmark = NonNullable<WindowTabAnswer["bookmarks"]>[number];
 
 /** A bookmark as `instrument bookmarks` tells the agent of it: where it is, its name and its address. */
 export function listedBookmark(
@@ -134,6 +155,7 @@ export function listedBookmark(
 ): ListedBookmark {
   const folder = folderOf(state, bookmark);
   return {
+    id: bookmark.id,
     kind: "bookmark",
     root: listedRoot(rootOf(state, bookmark)),
     title: bookmark.title,
@@ -155,6 +177,7 @@ export function bookmarkListing(state: Bookmarks): ListedBookmark[] {
         ? [listedBookmark(state, item.bookmark)]
         : [
             {
+              id: item.folder.id,
               kind: "folder",
               root: listedRoot(root),
               title: item.folder.title,

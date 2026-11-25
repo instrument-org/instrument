@@ -119,6 +119,36 @@ export function undoneSettingsModelNote(
 }
 
 /**
+ * Tells the agent the person took back a turn's `instrument bookmarks`
+ * changes with the card's Undo, so it does not make them again. Nothing for
+ * a card not undone.
+ */
+export function undoneBookmarksModelNote(
+  data: SessionMessageDataPart.BookmarkChangesDataPart,
+): string | undefined {
+  if (!data.undone) {
+    return undefined;
+  }
+  const said = data.changes.flatMap(({ after, before }) => {
+    const side = before ?? after;
+    if (!side) {
+      return [];
+    }
+    const name = `${side.kind === "folder" ? "the folder " : ""}"${side.title || (side.url ?? "")}"`;
+    return [
+      before === null
+        ? `${name} removed`
+        : after === null
+          ? `${name} back`
+          : `${name} as it was`,
+    ];
+  });
+  return systemNote`
+    The user clicked Undo on your earlier bookmark changes: ${said.join("; ")}${except(data.undone.skipped)}. Do not redo them unless asked.
+  `;
+}
+
+/**
  * Tells the agent the person took back a turn's `instrument memory` changes
  * with the card's Undo, so it does not save them again. Nothing for a card
  * not undone.

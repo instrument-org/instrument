@@ -13,6 +13,7 @@
  */
 import { pageTextOf, READ_PAGE_TEXT } from "@instrument-org/shared/page-text";
 
+import { type BookmarkSide } from "../../src/schemas/bookmark-change";
 import { publisher } from "../../src/rpc/publisher";
 import {
   type LayoutRead,
@@ -33,6 +34,8 @@ import {
   parseBrowserTargetId,
 } from "../../src/types";
 import { type SharedChrome } from "./shared-chrome";
+
+export type ListedBookmark = NonNullable<WindowTabAnswer["bookmarks"]>[number];
 
 export interface StandInTab {
   at: string;
@@ -72,6 +75,111 @@ export function createStandInWindow(chrome?: SharedChrome) {
   let layout: LayoutSnapshot | undefined;
   /** The chat's last page in the group, which its next one goes right after. */
   let previous: string | undefined;
+
+  /** The case's bookmarks and folders, as a list answers them. */
+  let bookmarks: ListedBookmark[] = [];
+
+  /** A bookmark as a change has it, every one sorting alike. */
+  const sideOfBookmark = (id: string): BookmarkSide | null => {
+    const found = bookmarks.find((each) => each.id === id);
+    if (!found) {
+      return null;
+    }
+    const { folder, kind, root, title, url } = found;
+    const inFolder = bookmarks.find(
+      (each) =>
+        each.kind === "folder" && each.root === root && each.title === folder,
+    );
+    return {
+      kind,
+      order: 0,
+      place: `${root === "all" ? "All Bookmarks" : "Bookmarks bar"}${folder === undefined ? "" : `/${folder}`}`,
+      root,
+      title,
+      ...(url === undefined ? {} : { url }),
+      ...(inFolder ? { folder: inFolder.id } : {}),
+    };
+  };
+
+  /** Makes a change to the bookmarks, but for their order within a place, which no case scores. */
+  const changeBookmarks = (
+    change: Extract<WindowTabAction, { kind: "changeBookmarks" }>["change"],
+  ): Omit<WindowTabAnswer, "requestId"> => {
+    const before = new Map(
+      bookmarks.map(({ id }) => [id, sideOfBookmark(id)] as const),
+    );
+    if (change.type === "newFolder") {
+      bookmarks.push({
+        id: crypto.randomUUID(),
+        kind: "folder",
+        root: change.root,
+        title: change.title,
+      });
+    } else if (change.type === "remove") {
+      const gone = bookmarks.filter((each) => change.ids.includes(each.id));
+      bookmarks = bookmarks.filter(
+        (each) =>
+          !gone.some(
+            (one) =>
+              one.id === each.id ||
+              (one.kind === "folder" &&
+                one.root === each.root &&
+                one.title === each.folder),
+          ),
+      );
+    } else if (change.type === "move") {
+      const beside = bookmarks.find(
+        (each) => each.id === (change.before ?? change.after),
+      );
+      const into = bookmarks.find((each) => each.id === change.to);
+      for (const each of bookmarks) {
+        if (!change.ids.includes(each.id) || each.kind === "folder") {
+          continue;
+        }
+        delete each.folder;
+        if (change.to === "all" || change.to === "bar") {
+          each.root = change.to;
+        } else if (into) {
+          each.root = into.root;
+          each.folder = into.title;
+        } else if (beside) {
+          each.root = beside.root;
+          if (beside.folder !== undefined) {
+            each.folder = beside.folder;
+          }
+        }
+      }
+    } else {
+      const one = bookmarks.find((each) => each.id === change.id);
+      if (one && change.type === "rename") {
+        for (const each of bookmarks) {
+          if (
+            one.kind === "folder" &&
+            each.root === one.root &&
+            each.folder === one.title
+          ) {
+            each.folder = change.title;
+          }
+        }
+        one.title = change.title;
+      } else if (one && change.type === "setUrl") {
+        one.url = change.url;
+      }
+    }
+    const ids = new Set([
+      ...before.keys(),
+      ...bookmarks.map((each) => each.id),
+    ]);
+    return {
+      bookmarkChanges: [...ids].flatMap((id) => {
+        const was = before.get(id) ?? null;
+        const is = sideOfBookmark(id);
+        return JSON.stringify(was) === JSON.stringify(is)
+          ? []
+          : [{ after: is, before: was, id }];
+      }),
+    };
+  };
 
   const sideOf = (id: string) =>
     layout?.sides.findIndex((side) => side.tabs.some((tab) => tab.id === id));
@@ -224,10 +332,13 @@ export function createStandInWindow(chrome?: SharedChrome) {
       return { history: [] };
     }
     if (action.kind === "bookmarks") {
-      return { bookmarks: [] };
+      return { bookmarks: structuredClone(bookmarks) };
     }
     if (action.kind === "addBookmark") {
-      return { error: "the stand-in window keeps no bookmarks." };
+      return { error: "the stand-in window adds no bookmarks." };
+    }
+    if (action.kind === "changeBookmarks") {
+      return changeBookmarks(action.change);
     }
     // What the app opens on its own as a turn ends is no ask of the agent's.
     if (action.kind === "handOver") {
@@ -401,6 +512,12 @@ export function createStandInWindow(chrome?: SharedChrome) {
             kind: tab.kind === "website" ? "page" : "screen",
           });
         }
+      }
+    },
+    /** Keeps the bookmarks a case says the user has. */
+    keep(listed: readonly ListedBookmark[] | undefined) {
+      if (listed) {
+        bookmarks = structuredClone([...listed]);
       }
     },
     /** Opens the tabs a case's note names, under the ids the note gives them. */

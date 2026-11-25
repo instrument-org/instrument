@@ -371,7 +371,8 @@ function answeringWindow() {
                         : { error: `nothing in History is ${action.entry}.` }
                       : action.kind === "handOver" ||
                           action.kind === "bookmarks" ||
-                          action.kind === "addBookmark"
+                          action.kind === "addBookmark" ||
+                          action.kind === "changeBookmarks"
                         ? {}
                         : action.kind === "show" &&
                             refusedShows.has(action.tabId)

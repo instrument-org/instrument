@@ -33,6 +33,7 @@ import {
   undoneChatsModelNote,
   undoneMemoriesModelNote,
   undoneProjectsModelNote,
+  undoneBookmarksModelNote,
   undoneSettingsModelNote,
   restoredFileModelNote,
 } from "../../model-text/notes/undone-changes-model-text";
@@ -524,6 +525,12 @@ export namespace SessionMessage {
             const text = restoredFileModelNote(part.data, shellPath);
             return text
               ? [{ at: part.metadata.createdAt.getTime(), part, text }]
+              : [];
+          }
+          if (part.type === "data-bookmarkChanges") {
+            const text = undoneBookmarksModelNote(part.data);
+            return part.data.undone && text
+              ? [{ at: Date.parse(part.data.undone.at), part, text }]
               : [];
           }
           if (part.type === "data-settingChanges") {

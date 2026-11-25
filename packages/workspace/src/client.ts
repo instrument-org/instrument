@@ -196,6 +196,10 @@ export { FileUpload } from "./schemas/file-upload";
 export { MountedFolder } from "./schemas/mounted-folder";
 export { AbsolutePathSchema, RelativePathSchema } from "./schemas/paths";
 export { type SessionMessage } from "./schemas/session/message";
+export {
+  type BookmarkChange,
+  type BookmarkSide,
+} from "./schemas/bookmark-change";
 export { type SessionMessageDataPart } from "./schemas/session/message-data-part";
 export {
   setupChangeSentence,
@@ -223,7 +227,11 @@ export type { SessionTag } from "./schemas/chat-agent-status";
 export { type ChatId, ChatIdSchema } from "./schemas/chat-id";
 export { DeviceIdSchema } from "./schemas/device-id";
 export { WINDOW_ID } from "./schemas/window-id";
-export type { WindowTabAnswer, WindowTabRequest } from "./schemas/window-tab";
+export type {
+  WindowTabAction,
+  WindowTabAnswer,
+  WindowTabRequest,
+} from "./schemas/window-tab";
 export type { ToolName } from "./tools/types";
 export {
   type BrowserTargetId,

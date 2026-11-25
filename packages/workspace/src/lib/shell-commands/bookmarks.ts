@@ -5,9 +5,9 @@ import { type CapabilityScope } from "../capabilities/context";
 /**
  * `instrument bookmarks`: its subcommands are the registry's `bookmarks.*`
  * capabilities. The window keeps the bookmarks, so a list asks it for them
- * and an add asks it to keep one, which its own store applies as a menu's
- * Add to Bookmarks would. A task lists them; adding one is the chat's. Bare,
- * it lists.
+ * and a change asks it to make one, which its own store applies as the
+ * person's own would be. A task lists them; changing them is the chat's.
+ * Bare, it lists.
  */
 export function createBookmarksCommand(scope: CapabilityScope) {
   return generatedCommand({

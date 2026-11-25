@@ -45,6 +45,9 @@ export async function markCardUndone(
       if (part.type === "data-settingChanges" && !part.data.undone) {
         return { ...part, data: { ...part.data, undone: mark } };
       }
+      if (part.type === "data-bookmarkChanges" && !part.data.undone) {
+        return { ...part, data: { ...part.data, undone: mark } };
+      }
       if (part.type === "data-chatChanges" && !part.data.undone) {
         return { ...part, data: { ...part.data, undone: mark } };
       }

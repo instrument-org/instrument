@@ -9,15 +9,30 @@ import { z } from "zod";
 import {
   BOOKMARKS_ARE_THE_CHATS,
   BOOKMARKS_COMMAND,
+  BOOKMARKS_NEED_A_TURN,
 } from "../../model-text/commands/bookmarks-command";
+import {
+  type BookmarkChange,
+  BookmarkChangeSchema,
+  type BookmarkSide,
+} from "../../schemas/bookmark-change";
 import {
   type WindowTabAction,
   ListedBookmarkSchema,
 } from "../../schemas/window-tab";
+import {
+  bookmarkChangesAreShown,
+  recordBookmarkChanges,
+} from "../bookmark-changes";
 import { askWindow, WINDOW_TAB_TIMEOUT_MS } from "../chat/window-tab";
 import { agentPathOfFileUrl, fileUrlOfHostPath } from "../local-page-address";
 import { hostPathOf } from "../workspace-fs-layout";
-import { type CapabilityContext, defineCapability } from "./define";
+import { bookmarkChangeLines } from "../bookmark-change-lines";
+import {
+  type CapabilityContext,
+  CapabilityFailure,
+  defineCapability,
+} from "./define";
 
 const NAME = BOOKMARKS_COMMAND.name;
 
@@ -51,6 +66,125 @@ function addressFor(url: string, ctx: CapabilityContext): string {
   return agentPathOfFileUrl(ctx.layout, url) ?? "a file outside your folders";
 }
 
+/** How much of an id a list shows, enough to tell bookmarks apart. */
+const SHOWN_ID_LENGTH = 8;
+
+/** Every bookmark and folder, as the window lists them. */
+async function bookmarksNow(ctx: CapabilityContext) {
+  const answer = await ask({ kind: "bookmarks" }, ctx);
+  if (!answer) {
+    throw new Error("the window did not answer, so no bookmark was read.");
+  }
+  if (answer.error !== undefined) {
+    throw new Error(answer.error);
+  }
+  return answer.bookmarks ?? [];
+}
+
+type FromWindow = Awaited<ReturnType<typeof bookmarksNow>>[number];
+
+/** The bookmark or folder an id names, whole or as the list shows it. */
+function withId(listed: readonly FromWindow[], id: string): FromWindow {
+  const exact = listed.find((each) => each.id === id);
+  if (exact) {
+    return exact;
+  }
+  const found =
+    id.length < SHOWN_ID_LENGTH
+      ? []
+      : listed.filter((each) => each.id.startsWith(id));
+  if (found.length > 1) {
+    throw new Error(
+      `"${id}" begins several ids: ${found.map((each) => each.id).join(", ")}.`,
+    );
+  }
+  const [only] = found;
+  if (!only) {
+    throw new Error(
+      `no bookmark or folder has the id "${id}". See ${NAME} list.`,
+    );
+  }
+  return only;
+}
+
+/** The place an argument names: the bar, All Bookmarks, or a folder by its id or name, as the window is asked for it. */
+function placeNamed(listed: readonly FromWindow[], named: string): string {
+  const words = named.toLowerCase();
+  if (words === "bar" || words === "all") {
+    return words;
+  }
+  const folders = listed.filter(
+    (each) => each.kind === "folder" && each.title.toLowerCase() === words,
+  );
+  const [only] = folders;
+  if (only && folders.length === 1) {
+    return only.id;
+  }
+  if (folders.length > 1) {
+    throw new Error(
+      `several folders are called "${named}": ${folders.map((each) => `${each.id} in ${ROOT_TITLES[each.root]}`).join(", ")}. Name one by its id.`,
+    );
+  }
+  const found = withId(listed, named);
+  if (found.kind !== "folder") {
+    throw new Error(`"${named}" is a bookmark, which nothing is filed in.`);
+  }
+  return found.id;
+}
+
+/**
+ * Makes a change through the window's own store and records it for the card
+ * under the reply, which has Undo. Refused where no reply is being written,
+ * so no bookmark changes without a card.
+ */
+async function change(
+  action: Extract<WindowTabAction, { kind: "changeBookmarks" }>["change"],
+  ctx: CapabilityContext,
+): Promise<BookmarkChange[]> {
+  if (!bookmarkChangesAreShown()) {
+    throw new CapabilityFailure(BOOKMARKS_NEED_A_TURN, "refused");
+  }
+  const answer = await ask({ change: action, kind: "changeBookmarks" }, ctx);
+  if (!answer) {
+    throw new Error(
+      `the window did not answer, so check ${NAME} list for what changed.`,
+    );
+  }
+  if (answer.error !== undefined) {
+    throw new Error(answer.error);
+  }
+  const changes = answer.bookmarkChanges ?? [];
+  recordBookmarkChanges(changes);
+  return changes.map((each) => ({
+    ...each,
+    after: each.after && sideFor(each.after, ctx),
+    before: each.before && sideFor(each.before, ctx),
+  }));
+}
+
+/** A side of a change as the agent reads it: a file's address as its own path. */
+function sideFor(side: BookmarkSide, ctx: CapabilityContext): BookmarkSide {
+  return side.url === undefined
+    ? side
+    : { ...side, url: addressFor(side.url, ctx) };
+}
+
+const Changed = z.array(BookmarkChangeSchema);
+
+/** What a change did, a line each. */
+function changeLines(changes: readonly BookmarkChange[]): string {
+  if (changes.length === 0) {
+    return "Nothing changed: it was so already.";
+  }
+  return changes.flatMap((each) => bookmarkChangeLines(each, "id")).join("\n");
+}
+
+const IDS = z
+  .array(z.string(), {
+    error: `needs the ids ${NAME} list shows.`,
+  })
+  .min(1, `needs the ids ${NAME} list shows.`);
+
 /** Where a bookmark or folder is, as a list or a line names it: `All Bookmarks`, `Bookmarks bar/Work`. */
 function placeWords({ folder, root }: Pick<Listed, "folder" | "root">) {
   return `${ROOT_TITLES[root]}${folder === undefined ? "" : `/${folder}`}`;
@@ -66,14 +200,7 @@ export const bookmarksList = defineCapability({
   name: "bookmarks.list",
   output: z.array(Listed),
   async run({ query }, ctx) {
-    const answer = await ask({ kind: "bookmarks" }, ctx);
-    if (!answer) {
-      throw new Error("the window did not answer, so no bookmark was read.");
-    }
-    if (answer.error !== undefined) {
-      throw new Error(answer.error);
-    }
-    const listed = (answer.bookmarks ?? []).map(
+    const listed = (await bookmarksNow(ctx)).map(
       ({ url, ...each }): Listed => ({
         ...each,
         ...(url === undefined ? {} : { address: addressFor(url, ctx) }),
@@ -125,11 +252,12 @@ export const bookmarksList = defineCapability({
         root = row.root;
         lines.push(`${ROOT_TITLES[root]}:`);
       }
+      const id = row.id.slice(0, SHOWN_ID_LENGTH);
       const indent = row.folder === undefined ? "  " : "    ";
       lines.push(
         row.kind === "folder"
-          ? `  ${row.title}/`
-          : `${indent}${row.title === "" ? "" : `${row.title}  `}${row.address ?? ""}`,
+          ? `  ${id}  ${row.title}/`
+          : `${indent}${id}  ${row.title === "" ? "" : `${row.title}  `}${row.address ?? ""}`,
       );
     }
     return lines.join("\n");
@@ -202,6 +330,7 @@ export const bookmarksAdd = defineCapability({
     if (answer.error !== undefined || answer.bookmark === undefined) {
       throw new Error(answer.error ?? "the window bookmarked nothing.");
     }
+    recordBookmarkChanges(answer.bookmarkChanges ?? []);
     const { url: address, ...bookmark } = answer.bookmark;
     return {
       ...bookmark,
@@ -224,5 +353,161 @@ export const bookmarksAdd = defineCapability({
       ? `Bookmarked "${name}" in ${placeWords(bookmark)}.`
       : `Already bookmarked as "${name}" in ${placeWords(bookmark)}.`;
   },
+  where: { roleRefusal: BOOKMARKS_ARE_THE_CHATS, roles: ["chat"] },
+});
+
+export const bookmarksMove = defineCapability({
+  input: z.object({
+    ids: IDS,
+    to: z.string().optional().meta({
+      description: "`bar`, `all` (All Bookmarks), or a folder's id or name.",
+    }),
+    before: z.string().optional().meta({
+      description: "The id of the one they go just before, in order.",
+    }),
+    after: z.string().optional().meta({
+      description: "The id of the one they go just after, in order.",
+    }),
+  }),
+  name: "bookmarks.move",
+  output: Changed,
+  async run({ after, before, ids, to }, ctx) {
+    if (before !== undefined && after !== undefined) {
+      throw new Error("move takes one of --before and --after.");
+    }
+    if (to === undefined && before === undefined && after === undefined) {
+      throw new Error(
+        `move needs where they go: --to <bar|all|folder>, --before <id> or --after <id>.`,
+      );
+    }
+    const listed = await bookmarksNow(ctx);
+    return change(
+      {
+        ids: ids.map((id) => withId(listed, id).id),
+        type: "move",
+        ...(to === undefined ? {} : { to: placeNamed(listed, to) }),
+        ...(before === undefined ? {} : { before: withId(listed, before).id }),
+        ...(after === undefined ? {} : { after: withId(listed, after).id }),
+      },
+      ctx,
+    );
+  },
+  summary:
+    "Move bookmarks to the bookmarks bar, All Bookmarks or a folder, last there or beside another. A folder stays on the bar or in All Bookmarks and only changes its order there.",
+  surfaces: {
+    cli: { help: "", positional: ["ids"], words: ["bookmarks", "move"] },
+  },
+  text: changeLines,
+  where: { roleRefusal: BOOKMARKS_ARE_THE_CHATS, roles: ["chat"] },
+});
+
+export const bookmarksRename = defineCapability({
+  input: z.object({
+    id: z.string({ error: `rename takes an id: ${NAME} rename <id> <name>.` }),
+    title: z.string({
+      error: `rename takes a name: ${NAME} rename <id> <name>.`,
+    }),
+  }),
+  name: "bookmarks.rename",
+  output: Changed,
+  async run({ id, title }, ctx) {
+    const listed = await bookmarksNow(ctx);
+    return change(
+      { id: withId(listed, id).id, title: title.trim(), type: "rename" },
+      ctx,
+    );
+  },
+  summary: "Rename a bookmark or a folder.",
+  surfaces: {
+    cli: {
+      help: "",
+      positional: ["id", "title"],
+      rest: true,
+      words: ["bookmarks", "rename"],
+    },
+  },
+  text: changeLines,
+  where: { roleRefusal: BOOKMARKS_ARE_THE_CHATS, roles: ["chat"] },
+});
+
+export const bookmarksAddress = defineCapability({
+  input: z.object({
+    id: z.string({
+      error: `address takes an id: ${NAME} address <id> <url or path>.`,
+    }),
+    url: z.string({
+      error: `address takes a URL, an instrument:// address or a path: ${NAME} address <id> <url or path>.`,
+    }),
+  }),
+  name: "bookmarks.address",
+  output: Changed,
+  async run({ id, url }, ctx) {
+    const kept = await keptAddressOf(url, ctx);
+    if ("error" in kept) {
+      throw new Error(kept.error);
+    }
+    const listed = await bookmarksNow(ctx);
+    return change(
+      { id: withId(listed, id).id, type: "setUrl", url: kept.url },
+      ctx,
+    );
+  },
+  summary: "Change the page, file or folder a bookmark opens.",
+  surfaces: {
+    cli: {
+      help: "",
+      positional: ["id", "url"],
+      words: ["bookmarks", "address"],
+    },
+  },
+  text: changeLines,
+  where: { roleRefusal: BOOKMARKS_ARE_THE_CHATS, roles: ["chat"] },
+});
+
+export const bookmarksNewFolder = defineCapability({
+  input: z.object({
+    title: z.string({
+      error: `new-folder takes a name: ${NAME} new-folder <name>.`,
+    }),
+    in: z.enum(["all", "bar"]).default("all").meta({
+      description:
+        "`bar` puts it on the bookmarks bar, `all` in All Bookmarks. Folders are one level deep.",
+    }),
+  }),
+  name: "bookmarks.newFolder",
+  output: Changed,
+  run: ({ in: root, title }, ctx) =>
+    change({ root, title: title.trim(), type: "newFolder" }, ctx),
+  summary:
+    "Make a bookmark folder, last in All Bookmarks or on the bookmarks bar.",
+  surfaces: {
+    cli: {
+      help: "",
+      positional: ["title"],
+      rest: true,
+      words: ["bookmarks", "new-folder"],
+    },
+  },
+  text: changeLines,
+  where: { roleRefusal: BOOKMARKS_ARE_THE_CHATS, roles: ["chat"] },
+});
+
+export const bookmarksRemove = defineCapability({
+  input: z.object({ ids: IDS }),
+  name: "bookmarks.remove",
+  output: Changed,
+  async run({ ids }, ctx) {
+    const listed = await bookmarksNow(ctx);
+    return change(
+      { ids: ids.map((id) => withId(listed, id).id), type: "remove" },
+      ctx,
+    );
+  },
+  summary:
+    "Remove bookmarks, or a folder with every bookmark in it. The card under the reply has Undo.",
+  surfaces: {
+    cli: { help: "", positional: ["ids"], words: ["bookmarks", "remove"] },
+  },
+  text: changeLines,
   where: { roleRefusal: BOOKMARKS_ARE_THE_CHATS, roles: ["chat"] },
 });

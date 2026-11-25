@@ -98,7 +98,10 @@ import {
   type SharedChrome,
   setSharedChrome,
 } from "./lib/shared-chrome";
-import { createStandInWindow } from "./lib/stand-in-window";
+import {
+  createStandInWindow,
+  type ListedBookmark,
+} from "./lib/stand-in-window";
 import { EVAL_MACHINE_DIR_NAME, recordRun } from "./lib/run-record";
 import { grantCaseFolders, startRun } from "./lib/start-run";
 import { type StartsTask } from "./lib/start-task";
@@ -750,6 +753,8 @@ export interface EvalCase {
    * them as the chat's.
    */
   viewing?: SessionMessageDataPart.ViewContextDataPart;
+  /** The bookmarks the user has, which the stand-in window lists and changes. One window serves a whole run, so run such a case alone. */
+  bookmarks?: ListedBookmark[];
   /**
    * The tab group the chat works in as the case's message was sent, as the
    * window reads it: the notes on the message say it and what changed since,
@@ -1190,6 +1195,7 @@ export async function runEvals(
 
         standInWindow.seed(evalCase.viewing);
         standInWindow.lay(evalCase.layout);
+        standInWindow.keep(evalCase.bookmarks);
         const created = creating.then(async () => {
           if (evalCase.kind === "chat") {
             ensureWorkspaceFolder();

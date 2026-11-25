@@ -641,5 +641,27 @@
     "note": "as written on 2026-11-13",
     "reads": "data-layoutChanges",
     "type": "data-layoutChanges"
+  },
+  {
+    "data": {
+      "changes": [
+        {
+          "after": null,
+          "before": {
+            "folder": "5d20c7e9",
+            "kind": "bookmark",
+            "order": 0,
+            "place": "Bookmarks bar/Work",
+            "root": "bar",
+            "title": "Docs",
+            "url": "https://example.com/docs"
+          },
+          "id": "0b6f2a1c"
+        }
+      ]
+    },
+    "note": "as written on 2026-11-25",
+    "reads": "data-bookmarkChanges",
+    "type": "data-bookmarkChanges"
   }
 ]

@@ -215,6 +215,14 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join(",");
       return `<chat-changes changes="${changes}" />`;
     }
+    case "data-bookmarkChanges": {
+      const changes = part.data.changes
+        .map(
+          ({ after, before }) => `${before?.title ?? ""}>${after?.title ?? ""}`,
+        )
+        .join(",");
+      return `<bookmark-changes changes="${changes}" />`;
+    }
     case "data-settingChanges": {
       const changes = part.data.changes
         .map((item) => `${item.id}:${item.before.value}>${item.after.value}`)

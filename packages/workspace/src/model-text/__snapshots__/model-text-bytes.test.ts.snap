@@ -1600,6 +1600,10 @@ You added the skill "pdf" to the workspace skills folder, so it is not in the sk
   "stoppedByUser": "The user stopped this. Do not run it again unless they ask.",
   "timeZoneRegion": "Central European Time",
   "unanswered": "This call was stopped before it returned: it never ran, or was interrupted while it ran.",
+  "undoneBookmarks": "
+<instrument-system-note>
+The user clicked Undo on your earlier bookmark changes: "Docs" back; the folder "Reading" removed, except what they had changed since. Do not redo them unless asked.
+</instrument-system-note>",
   "undoneChats": "
 <instrument-system-note>
 The user clicked Undo on your earlier chat changes: chat 2026-11-10-trip-a1b2's archive as before. Do not redo them unless asked.
@@ -2347,6 +2351,15 @@ exports[`the notes a stored data part renders > backgroundProcesses 1`] = `
 <instrument-system-note>
 Still running from earlier in this session: bg_1 (\`pnpm build\`), running 1 second. Do not start a second copy of any of these. Read one with \`fg <id>\`, list them with \`jobs\`, and stop what is no longer needed with \`kill <id>\`.
 </instrument-system-note>",
+  ],
+]
+`;
+
+exports[`the notes a stored data part renders > bookmarkChanges 1`] = `
+[
+  [
+    "First",
+    "data-bookmarkChanges",
   ],
 ]
 `;

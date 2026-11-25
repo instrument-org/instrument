@@ -1,6 +1,8 @@
 import { AIProviderTypeSchema } from "@instrument-org/shared";
 import { z } from "zod";
 
+import { BookmarkChangeSchema } from "../bookmark-change";
+
 import { ChatIdSchema } from "../chat-id";
 import { DeviceIdSchema } from "../device-id";
 import { EnvironmentChangeSchema } from "../environment";
@@ -26,6 +28,7 @@ export namespace SessionMessageDataPart {
     "attachments",
     "backgroundProcesses",
     "branchedFrom",
+    "bookmarkChanges",
     "browserStatus",
     "chatChanges",
     "contextRollover",
@@ -140,6 +143,8 @@ export namespace SessionMessageDataPart {
     // from; the folders it names are for the agent.
     branchedFrom: { author: "app", cadence: "event", shown: "always" },
     browserStatus: { author: "any", cadence: "state", shown: "dev" },
+    // What the turn's `bookmarks` commands changed, with Undo.
+    bookmarkChanges: { author: "any", cadence: "event", shown: "always" },
     // What the turn's `chats` commands did to the person's chats, with Undo.
     chatChanges: { author: "any", cadence: "event", shown: "always" },
     // What the agent is told about the chats around this one: the other
@@ -777,6 +782,21 @@ export namespace SessionMessageDataPart {
 
   export type SettingChangesDataPart = z.output<
     typeof SettingChangesDataPartSchema
+  >;
+
+  /**
+   * What a turn changed among the person's bookmarks through the `bookmarks`
+   * command, shown as a card that offers to undo it. The bookmarks are the
+   * workspace's, so any device can.
+   */
+  export const BookmarkChangesDataPartSchema = z.object({
+    changes: z.array(BookmarkChangeSchema).min(1),
+    /** Set once the person took the changes back with the card's Undo. */
+    undone: CardUndoneSchema.optional(),
+  });
+
+  export type BookmarkChangesDataPart = z.output<
+    typeof BookmarkChangesDataPartSchema
   >;
 
   /**
@@ -2011,6 +2031,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.modelAnswered]: ModelAnsweredDataPartSchema,
     [NameSchema.enum.modelChange]: ModelChangeDataPartSchema,
     [NameSchema.enum.outputLimit]: OutputLimitDataPartSchema,
+    [NameSchema.enum.bookmarkChanges]: BookmarkChangesDataPartSchema,
     [NameSchema.enum.settingChanges]: SettingChangesDataPartSchema,
     [NameSchema.enum.setupChanges]: SetupChangesDataPartSchema,
     [NameSchema.enum.setupNews]: SetupNewsDataPartSchema,

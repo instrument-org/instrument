@@ -363,12 +363,20 @@ it("starts a detail's code unwrapped, so its indentation reads as written", asyn
 
 it("drops a choice the pointer only crosses before it rests", async () => {
   const { area, screen } = await renderDetail(800);
-  await userEvent.hover(screen.getByRole("radio", { name: /Bar chart/ }));
-  await userEvent.hover(
-    screen.getByRole("textbox", { name: "Your own answer" }),
-  );
-
-  await new Promise((resolve) => setTimeout(resolve, DETAIL_HOVER_REST_MS * 2));
+  // On the card's clock alone: a slow machine can take longer than the rest
+  // between two hovers, and the choice has then rested.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+  try {
+    await userEvent.hover(screen.getByRole("radio", { name: /Bar chart/ }));
+    await userEvent.hover(
+      screen.getByRole("textbox", { name: "Your own answer" }),
+    );
+    vi.advanceTimersByTime(DETAIL_HOVER_REST_MS * 2);
+  } finally {
+    vi.useRealTimers();
+  }
+  // Long enough for React to draw a choice the timer had shown.
+  await new Promise((resolve) => setTimeout(resolve, 50));
   expect(area().querySelector("table")).not.toBeNull();
 });
 

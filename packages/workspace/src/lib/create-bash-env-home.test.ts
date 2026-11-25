@@ -115,7 +115,11 @@ it(
           "process.stdout.write(require('fs').readFileSync(file, 'utf8'))",
         ),
       );
-      expect(read).toMatchObject({ exitCode: 0, stdout: "from-shell\n" });
+      expect(read).toMatchObject({
+        exitCode: 0,
+        stderr: "",
+        stdout: "from-shell\n",
+      });
       await expect(
         fs.readFile(path.join(os.tmpdir(), name), "utf8"),
       ).resolves.toBe("from-shell\n");

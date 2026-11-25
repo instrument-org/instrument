@@ -4,7 +4,9 @@ import { type Cookie, type Session } from "electron";
 import { getDomain } from "tldts";
 
 import { configureGuestSession } from "./guest-session";
+import { clearHoverPictures } from "@/electron-main/windows/hover-pictures";
 import { forgetSiteCapture } from "./page-capture";
+import { keepOnlyPageThumbnails } from "./page-thumbnails";
 
 /** The in-app browser's session, opened if no page has opened it yet this run. */
 function browserSession(): Session {
@@ -82,6 +84,10 @@ export async function clearBrowsingData({
     // data too, kept by the app rather than the session.
     getExternalAppLinksStore().set("allowed", []);
     forgetSiteCapture();
+  }
+  // The pictures kept of pages are what the sites showed, signed in or not.
+  if (cache || siteData) {
+    await Promise.all([clearHoverPictures(), keepOnlyPageThumbnails([])]);
   }
   if (cache) {
     await ses.clearCache();

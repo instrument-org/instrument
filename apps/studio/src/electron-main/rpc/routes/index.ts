@@ -11,6 +11,7 @@ import { browser } from "./browser";
 import { browserExtensions } from "./browser-extensions";
 import { browsingData } from "./browsing-data";
 import { captures } from "./captures";
+import { hoverPictures } from "./hover-pictures";
 import { chatLocation } from "./chat-location";
 import { chatgptAccount } from "./chatgpt-account";
 import { claudeAccount } from "./claude-account";
@@ -49,6 +50,7 @@ export const router = {
   browserExtensions,
   browsingData,
   captures,
+  hoverPictures,
   chatLocation,
   chatgptAccount,
   claudeAccount,

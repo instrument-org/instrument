@@ -59,6 +59,18 @@ import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
 import { SoftKey } from "@/client/components/soft-key";
 import { SidebarSearch } from "./sidebar-search";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
+import { HoverPicture } from "./hover-picture";
+import {
+  groupPictureKey,
+  groupShows,
+  hoverPicturesAtom,
+  pictureUrl,
+} from "./hover-pictures";
 import { groupLeadsAtom, rowSidesOf } from "./group-leads";
 import { GroupRowLines } from "./group-row-lines";
 import { RowLinesView } from "./row-half";
@@ -698,7 +710,76 @@ export function GroupRow({
       )}
     </div>
   );
-  return menu ? <GroupRowMenu menu={menu}>{shown}</GroupRowMenu> : shown;
+  if (!menu) {
+    return shown;
+  }
+  return (
+    <GroupRowPicture
+      group={entry.group}
+      isUp={isUp}
+      label={label}
+      wrap={(trigger) => <GroupRowMenu menu={menu}>{trigger}</GroupRowMenu>}
+    >
+      {shown}
+    </GroupRowPicture>
+  );
+}
+
+/** How long the pointer rests on a row before the first picture; the rows after it show theirs at once. */
+const PICTURE_DELAY_MS = 450;
+
+/**
+ * A row with a picture beside it on hover: the whole of what picking it
+ * would put up, as it last stood. Nothing for the group already up, or one
+ * there is no picture of. It takes no pointer, and it goes as the pointer
+ * leaves the row or presses.
+ */
+function GroupRowPicture({
+  children,
+  group,
+  isUp,
+  label,
+  wrap,
+}: {
+  children: ReactNode;
+  group: string;
+  isUp: boolean;
+  label: string;
+  wrap: (trigger: ReactNode) => ReactNode;
+}) {
+  const { layoutOf } = useWindowTabs();
+  const pictures = useAtomValue(hoverPicturesAtom);
+  const picture = isUp
+    ? undefined
+    : pictureUrl(pictures, groupPictureKey(group), groupShows(layoutOf(group)));
+  return (
+    <Tooltip delayDuration={PICTURE_DELAY_MS} disableHoverableContent>
+      {wrap(
+        <TooltipTrigger
+          asChild
+          // A held pointer is carrying a row, or reordering them.
+          onPointerMove={(event) => {
+            if (event.buttons !== 0) {
+              event.preventDefault();
+            }
+          }}
+        >
+          {children}
+        </TooltipTrigger>,
+      )}
+      {picture !== undefined && (
+        <TooltipContent
+          align="start"
+          aria-label={label}
+          className="pointer-events-none w-80 overflow-hidden rounded-xl border p-0 shadow-float-lg"
+          collisionPadding={8}
+          side="right"
+        >
+          <HoverPicture url={picture} />
+        </TooltipContent>
+      )}
+    </Tooltip>
+  );
 }
 
 /**

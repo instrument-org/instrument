@@ -489,7 +489,9 @@ describe("a page tab's tooltip", () => {
       throw new Error("no address line");
     }
 
-    expect(detail.scrollWidth).toBeLessThanOrEqual(detail.clientWidth);
+    // On one line, cut at its end.
+    expect(getComputedStyle(detail).textOverflow).toBe("ellipsis");
+    expect(detail.clientHeight).toBeLessThan(24);
     expect(detail.getBoundingClientRect().right).toBeLessThanOrEqual(
       content.getBoundingClientRect().right,
     );

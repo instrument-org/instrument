@@ -172,6 +172,7 @@ import { useTaskTitles } from "./task-titles";
 import { useDrafts } from "./use-drafts";
 import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
+import { useHoverPictures } from "./use-hover-pictures";
 import { usePageThumbnailHousekeeping } from "./use-page-thumbnail-housekeeping";
 import { useWindowSteps } from "./use-tab-steps";
 import { useSetChatProject } from "./use-set-chat-project";
@@ -1121,6 +1122,7 @@ function WindowShell({
   };
 
   usePageThumbnailHousekeeping();
+  useHoverPictures();
   useSignInLanding(openScreen);
   useSiteSignInsEnd();
 

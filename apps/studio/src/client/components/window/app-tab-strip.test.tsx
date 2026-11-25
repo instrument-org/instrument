@@ -8,7 +8,7 @@ describe("tabTooltip", () => {
   it.each([
     {
       expected: {
-        detail: "sam › visual-answers",
+        detail: "visual-answers",
         title: "2026-10-26-billing-controls.html",
       },
       href: fileHref(
@@ -25,12 +25,12 @@ describe("tabTooltip", () => {
     },
     {
       expected: {
-        detail: "zendesk.com/pricing",
+        detail: "zendesk.com",
         title: "Suite plans · Zendesk",
       },
       href: "/sites/a",
-      name: "a page names its address",
-      url: "https://zendesk.com/pricing",
+      name: "a page names its site",
+      url: "https://www.zendesk.com/pricing",
     },
     {
       expected: undefined,

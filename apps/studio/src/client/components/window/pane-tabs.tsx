@@ -33,6 +33,12 @@ import { type Chat } from "./chats";
 import { useTasksOf } from "./child-tasks-query";
 import { useComputerVolumes } from "./computer-volumes";
 import { DeleteChatDialog } from "./delete-chat-dialog";
+import {
+  hoverPicturesAtom,
+  pictureUrl,
+  tabPictureKey,
+  tabShows,
+} from "./hover-pictures";
 import { useFileTabTitles } from "./file-tab-titles";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { computerTabOf } from "./file-tabs";
@@ -132,6 +138,7 @@ export function PaneTabs({
     tabs.map((tab) => (tab.kind === "page" ? undefined : tab.href)),
   );
   const captures = usePageCaptures();
+  const pictures = useAtomValue(hoverPicturesAtom);
   const { data: chats } = useQuery(chatListOptions());
   const driven = useTargetsAgentActivity(
     // A bookmark held over the strip stands in as a page with no browser
@@ -190,6 +197,11 @@ export function PaneTabs({
     } else if (named.url !== undefined) {
       tooltip = tabTooltip("", named);
     }
+    // The tab up on its side is there to look at.
+    const picture =
+      tab.id === chosenId
+        ? undefined
+        : pictureUrl(pictures, tabPictureKey(tab.id), tabShows(tab));
     const chat = chatOfTab(tab);
     const listed =
       chat === undefined ? undefined : chats?.find((each) => each.id === chat);
@@ -282,7 +294,15 @@ export function PaneTabs({
         isScreenWorking || (tab.kind === "page" && drivenIds.has(tab.id)),
       key: named.key,
       title: short.get(named.key) ?? named.title,
-      ...(tooltip ? { tooltip } : {}),
+      ...(tooltip || picture !== undefined
+        ? {
+            tooltip: {
+              title: named.title,
+              ...tooltip,
+              ...(picture === undefined ? {} : { picture }),
+            },
+          }
+        : {}),
     };
   });
   const chosen = tabs.find((tab) => tab.id === chosenId);

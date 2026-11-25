@@ -1,4 +1,4 @@
-import { displayPath } from "@/client/lib/path-utils";
+import { folderLabel } from "@/client/lib/path-utils";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { expandHomePath } from "@instrument-org/shared";
 import { type ChatId } from "@instrument-org/workspace/client";
@@ -7,19 +7,14 @@ import { useQuery } from "@tanstack/react-query";
 import { chatListOptions } from "./chat-list-query";
 import { Peek } from "./chat-row";
 import { RECENTS_ROOT } from "./computer-page";
-import {
-  folderOf,
-  joinHostPath,
-  parentFolderOf,
-  segmentsOf,
-} from "./host-path";
+import { folderOf, joinHostPath, parentFolderOf } from "./host-path";
 import { type StripTab } from "./tab-strip";
 import { matchScreen } from "./window-href";
 
 /**
- * What hovering a window tab says: its whole name over what the tab has no
- * room for. A page's address, a file's or folder's folder, a chat's latest
- * line. A tab that says all it has (Chats, Apps, Browser, a new tab) keeps
+ * What hovering a window tab says: its name over where it is, a line each.
+ * A page's site, the name of the folder a file or folder is in, a chat's
+ * latest line. A tab that says all it has (Chats, Apps, Browser, a new tab) keeps
  * the bare name.
  */
 export function tabTooltip(
@@ -31,7 +26,7 @@ export function tabTooltip(
   }
   const { title, url } = presentation;
   if (url !== undefined) {
-    return { detail: url.replace(/^https?:\/\//, ""), title };
+    return { detail: hostOf(url), title };
   }
   const screen = matchScreen(href);
   if (screen.kind === "chat") {
@@ -56,17 +51,14 @@ export function tabTooltip(
   if (folder === null) {
     return undefined;
   }
-  // A page named by its own title says its file's name after the folder.
-  const name =
-    screen.file === undefined ? undefined : segmentsOf(screen.file).at(-1);
-  const crumbs = segmentsOf(displayPath(folder));
-  return {
-    detail: (name !== undefined && name !== title
-      ? [...crumbs, name]
-      : crumbs
-    ).join(" › "),
-    title,
-  };
+  return { detail: folderLabel(folder), title };
+}
+
+/** A page's site, or its whole address where it has none. */
+function hostOf(url: string): string {
+  return (
+    (URL.canParse(url) && new URL(url).hostname.replace(/^www\./, "")) || url
+  );
 }
 
 /** A chat's latest line, as its row in the inbox says it. */

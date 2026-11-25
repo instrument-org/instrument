@@ -1,3 +1,4 @@
+import { HoverPicture } from "./hover-picture";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import {
   ContextMenu,
@@ -70,7 +71,12 @@ export interface StripTab {
    * (`title` may be a shortened one) over a line the tab has no room for,
    * such as where it is. Without it the name alone is the tab's tooltip.
    */
-  tooltip?: { detail?: ReactNode; title: string };
+  tooltip?: {
+    detail?: ReactNode;
+    /** The address of a picture of the tab as it was last up. */
+    picture?: string;
+    title: string;
+  };
 }
 
 // The strip's measurements, in layout px. `GAP` is the `gap-1` between tabs.
@@ -1122,15 +1128,31 @@ function Tab({
         {element}
       </TooltipTrigger>
       {isClosing || isHeld ? null : (
-        <TooltipContent maxWidth="28rem" side="bottom">
-          <div className="font-medium break-words">{tab.tooltip.title}</div>
-          {tab.tooltip.detail ? (
-            // An address breaks anywhere to stay in the tooltip, and a long
-            // query string stops after three lines rather than filling it.
-            <div className="mt-0.5 line-clamp-3 break-all text-muted-foreground">
-              {tab.tooltip.detail}
+        <TooltipContent
+          align="start"
+          aria-label={tab.tooltip.title}
+          className={cn(
+            "pointer-events-none overflow-hidden rounded-xl border p-0 shadow-float-lg",
+            tab.tooltip.picture !== undefined && "w-80",
+          )}
+          collisionPadding={8}
+          side="bottom"
+        >
+          <div className="px-3 py-2">
+            <div className="truncate text-[13px] font-medium">
+              {tab.tooltip.title}
             </div>
-          ) : null}
+            {tab.tooltip.detail ? (
+              <div className="truncate text-muted-foreground">
+                {tab.tooltip.detail}
+              </div>
+            ) : null}
+          </div>
+          {tab.tooltip.picture !== undefined && (
+            <div className="border-t border-border/60">
+              <HoverPicture url={tab.tooltip.picture} />
+            </div>
+          )}
         </TooltipContent>
       )}
     </Tooltip>

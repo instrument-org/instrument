@@ -123,49 +123,151 @@ describe("the rest of a site's address a new tab's box writes in", () => {
 });
 
 describe("the pages under a new tab's box", () => {
-  const pages = visited.map(({ title, url }) => ({
-    favicon: undefined,
-    title,
-    url,
-  }));
+  const pages = [
+    ...visited.map(({ title, url }) => ({ favicon: undefined, title, url })),
+    {
+      favicon: undefined,
+      title: "https://docs.example.com/guide",
+      url: "https://docs.example.com/guide",
+    },
+    {
+      favicon: undefined,
+      title: "Sign in",
+      url: "https://accounts.google.com/signin?continue=https%3A%2F%2Fmail.google.com%2F",
+    },
+    {
+      favicon: undefined,
+      title: "",
+      url: "http://localhost:5173/settings/http-cache",
+    },
+    {
+      favicon: undefined,
+      title: "Help desk pricing",
+      url: "https://www.zendesk.com/pricing/",
+    },
+    {
+      favicon: undefined,
+      title: "Weekly report",
+      url: "https://notion.so/acme/Weekly-report-1a2b",
+    },
+    {
+      favicon: undefined,
+      title: "Explore GitHub",
+      url: "https://github.com/explore",
+    },
+  ];
+  /** A row as a person reads it, the bold letters in brackets. */
+  const marked = (text: string, ranges: null | number[]) => {
+    let out = "";
+    let at = 0;
+    for (let index = 0; ranges && index + 1 < ranges.length; index += 2) {
+      const start = ranges[index] ?? 0;
+      const end = ranges[index + 1] ?? 0;
+      out += `${text.slice(at, start)}[${text.slice(start, end)}]`;
+      at = end;
+    }
+    return out + text.slice(at);
+  };
   const rowsFor = (words: string, completedSite?: string) =>
     boxPageRows({
       completedSite,
       pages,
       path: typedPathOf(words, "darwin"),
       words,
-    }).map((row) => `${row.kind} ${row.page.url}`);
-
-  it.each([
-    [
-      "the finished site, then the pages its address starts",
-      "git",
-      "https://github.com/",
+    }).map((row) =>
       [
-        "site https://github.com/",
-        "page https://github.com/acme/app/pulls",
-        "page https://github.com/acme/app/issues",
-      ],
-    ],
-    [
-      "a page whose title has a word the word starts",
+        row.kind,
+        row.title === "" ? undefined : marked(row.title, row.titleRanges),
+        marked(row.address, row.addressRanges),
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    );
+
+  it("finds pages only where a word of their site, title or path starts, and says where", () => {
+    const words = [
+      "http",
+      "https",
+      "www",
+      "https://",
+      "com",
+      "h",
+      "ht",
       "hack",
-      undefined,
-      ["page https://news.ycombinator.com/"],
-    ],
-    [
-      "a page whose address has a word the word starts",
       "ycomb",
-      undefined,
-      ["page https://news.ycombinator.com/"],
-    ],
-    ["nothing for letters inside a word", "acker", undefined, []],
-    ["nothing for words with a space", "git hub", undefined, []],
-    ["nothing for a slash command", "/proj", undefined, []],
-    ["nothing for a path", "/Users/mac-user/notes.md", undefined, []],
-    ["nothing for an empty box", "", undefined, []],
-  ])("%s: %j", (_what, words, completedSite, rows) => {
-    expect(rowsFor(words, completedSite)).toEqual(rows);
+      "acker",
+      "hub",
+      "a2b",
+      "pricing",
+      "report",
+      "settings",
+      "github.com/acme/app/p",
+      "https://git",
+      "git hub",
+      "/proj",
+      "/Users/mac-user/notes.md",
+      "",
+    ];
+    expect(
+      Object.fromEntries(words.map((word) => [word, rowsFor(word)])),
+    ).toMatchInlineSnapshot(`
+      {
+        "": [],
+        "/Users/mac-user/notes.md": [],
+        "/proj": [],
+        "a2b": [],
+        "acker": [],
+        "com": [],
+        "git hub": [],
+        "github.com/acme/app/p": [
+          "page · Pull requests · [github.com/acme/app/p]ulls",
+        ],
+        "h": [
+          "page · [H]acker News · news.ycombinator.com",
+          "page · [H]elp desk pricing · zendesk.com/pricing",
+          "page · localhost:5173/settings/[h]ttp-cache",
+        ],
+        "hack": [
+          "page · [Hack]er News · news.ycombinator.com",
+        ],
+        "ht": [
+          "page · localhost:5173/settings/[ht]tp-cache",
+        ],
+        "http": [],
+        "https": [],
+        "https://": [],
+        "https://git": [
+          "page · Pull requests · [git]hub.com/acme/app/pulls",
+          "page · Issues · [git]hub.com/acme/app/issues",
+          "page · Explore [Git]Hub · [git]hub.com/explore",
+        ],
+        "hub": [],
+        "pricing": [
+          "page · Help desk [pricing] · zendesk.com/[pricing]",
+        ],
+        "report": [
+          "page · Weekly [report] · notion.so/acme/Weekly-[report]-1a2b",
+        ],
+        "settings": [
+          "page · localhost:5173/[settings]/http-cache",
+        ],
+        "www": [],
+        "ycomb": [
+          "page · Hacker News · news.[ycomb]inator.com",
+        ],
+      }
+    `);
+  });
+
+  it("puts the site the box finished the word to first, once", () => {
+    expect(rowsFor("git", "https://github.com/")).toMatchInlineSnapshot(`
+      [
+        "site · [git]hub.com",
+        "page · Pull requests · [git]hub.com/acme/app/pulls",
+        "page · Issues · [git]hub.com/acme/app/issues",
+        "page · Explore [Git]Hub · [git]hub.com/explore",
+      ]
+    `);
   });
 
   it("lists at most four", () => {

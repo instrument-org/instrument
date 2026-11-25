@@ -1,15 +1,15 @@
 import { PageFavicon } from "@/client/components/favicon";
+import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { Kbd } from "@/client/components/ui/kbd";
 import { cn } from "@/client/lib/utils";
 
 import { type BoxPageRow } from "./new-tab-box";
-import { bareAddress, siteOf } from "./omnibar-match";
-import { RowText } from "./row-text";
 
 /**
- * The pages under a new tab's box while it holds one word: the site the box
- * finished the words to by its address, and each other page by its title
- * and its site, the lit one marked with the key that opens it.
+ * The pages under a new tab's box while it holds one word: each by its
+ * title, when it has one, and its address, with the letters the word
+ * matched in bold wherever they were found, the lit one marked with the key
+ * that opens it.
  */
 export function NewTabPageList({
   className,
@@ -40,7 +40,7 @@ export function NewTabPageList({
             "flex h-9 items-center gap-2.5 rounded-lg px-2.5 text-left",
             index === lit && "bg-accent",
           )}
-          key={`${row.kind}:${row.page.url}`}
+          key={`${row.kind}:${row.address}`}
           onClick={() => {
             onOpen(row);
           }}
@@ -65,14 +65,25 @@ export function NewTabPageList({
               url={row.page.url}
             />
           </span>
-          {row.kind === "site" ? (
-            <RowText name={bareAddress(row.page.url)} where={undefined} />
-          ) : (
-            <RowText
-              name={row.page.title || bareAddress(row.page.url)}
-              where={siteOf(row.page.url)}
-            />
-          )}
+          <span className="flex min-w-0 flex-1 items-center gap-2">
+            {row.title === "" ? (
+              <span className="min-w-0 truncate">
+                <FuzzyHighlight ranges={row.addressRanges} text={row.address} />
+              </span>
+            ) : (
+              <>
+                <span className="min-w-0 shrink truncate">
+                  <FuzzyHighlight ranges={row.titleRanges} text={row.title} />
+                </span>
+                <span className="max-w-[55%] min-w-0 shrink-0 truncate text-xs text-muted-foreground">
+                  <FuzzyHighlight
+                    ranges={row.addressRanges}
+                    text={row.address}
+                  />
+                </span>
+              </>
+            )}
+          </span>
           {index === lit && <Kbd>↵</Kbd>}
         </button>
       ))}

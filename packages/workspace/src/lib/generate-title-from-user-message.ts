@@ -23,6 +23,13 @@ import { isNonRetryableGatewayError } from "./gateway-response-body";
 import { TASK_NAME_MAX_OUTPUT_TOKENS } from "./llm-token-limits";
 import { textForMessage } from "./text-for-message";
 
+/**
+ * Where an answer past the words it was asked to keep to is cut. A title a
+ * few words over reads whole; only an answer that runs on is cut, since a cut
+ * can land mid-phrase.
+ */
+const LONGEST_TITLE_WORDS = MAX_TITLE_WORDS + 4;
+
 // The prompt tells the model to answer nothing for a message with no subject,
 // so an empty answer that ran to a natural stop is the design working. It still
 // fails the call, which is what leaves the placeholder standing, but reporting
@@ -236,7 +243,7 @@ export function generateTitleFromUserMessage({
       const words = cleanedTitle.split(/\s+/).filter(Boolean);
       // A cut mid-sentence leaves the comma that led into the next word.
       const limitedTitle = words
-        .slice(0, MAX_TITLE_WORDS)
+        .slice(0, LONGEST_TITLE_WORDS)
         .join(" ")
         .replace(/[,;:]+$/, "");
       // Checked after the cut too, which can leave a quote it opened unclosed.

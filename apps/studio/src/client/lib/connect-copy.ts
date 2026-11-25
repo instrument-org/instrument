@@ -129,7 +129,7 @@ export function connectPageCopy(
     case "out-of-usage": {
       return {
         subtitle: `${usageLimitReason(provider, outcome.resetsAt, now)} You can keep going and use it ${outcome.resetsAt ? "then" : "once it resets"}, or choose another way to use AI now.`,
-        title: `${name} is out of usage for now`,
+        title: outOfUsageTitle(provider),
       };
     }
     case "ready": {
@@ -252,7 +252,7 @@ export function connectToast(
       return {
         description: usageLimitReason(provider, outcome.resetsAt, now),
         isError: true,
-        title: `${name} is out of usage for now`,
+        title: outOfUsageTitle(provider),
       };
     }
     case "ready": {
@@ -359,7 +359,20 @@ function usageLimitReason(
   const name = CONNECT_NAMES[provider];
   return resetsAt
     ? `Your ${name} plan hit its limit, and ${name} says it resets ${describeWhen(new Date(resetsAt), now).replace(/^at /, "around ")}.`
-    : `Your ${name} plan hit its limit for now.`;
+    : provider === "chatgpt"
+      ? `${name} isn't taking more requests from ${APP_NAME} for now.`
+      : `Your ${name} plan hit its limit for now.`;
+}
+
+/**
+ * ChatGPT refuses the same way for a spent plan and for the weekly cap a
+ * person can put on one app, so its words name a limit and never the plan.
+ */
+function outOfUsageTitle(provider: ConnectProvider) {
+  const name = CONNECT_NAMES[provider];
+  return provider === "chatgpt"
+    ? `You've reached your ${name} usage limit`
+    : `${name} is out of usage for now`;
 }
 
 function outOfUsageLine(
@@ -370,7 +383,7 @@ function outOfUsageLine(
   const name = CONNECT_NAMES[provider];
   return resetsAt
     ? `${name} is out of usage until ${describeWhen(new Date(resetsAt), now).replace(/^at /, "")}.`
-    : `${name} is out of usage for now.`;
+    : `${outOfUsageTitle(provider)}.`;
 }
 
 function readyLine(provider: ConnectProvider, modelName: string | undefined) {

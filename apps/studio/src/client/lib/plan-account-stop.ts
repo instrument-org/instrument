@@ -178,7 +178,11 @@ export function planAccountStopLine(stop: PlanAccountStop, stoppedAt: Date) {
       ? "I couldn't start on this. Grok says this account doesn't have an eligible paid plan."
       : `I couldn't start on this. ${name} says this account can't be used in other apps without a paid plan.`;
   }
-  return stop.resetsAt
-    ? `I had to stop here. Your ${name} plan is out of usage until ${describeReset(stop.resetsAt, stoppedAt)}.`
+  if (stop.resetsAt) {
+    return `I had to stop here. Your ${name} plan is out of usage until ${describeReset(stop.resetsAt, stoppedAt)}.`;
+  }
+  // ChatGPT doesn't say whether the plan or this app's own cap ran out.
+  return stop.provider === "chatgpt-account"
+    ? `I had to stop here. You've reached your ${name} usage limit.`
     : `I had to stop here. Your ${name} plan is out of usage for now.`;
 }

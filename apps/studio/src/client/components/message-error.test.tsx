@@ -269,7 +269,7 @@ describe("MessageError", () => {
         statusCode: 400,
         url: "http://localhost/ai-gateway/providers/chatgpt-account/responses",
       },
-      line: "I had to stop here. Your ChatGPT plan is out of usage for now.",
+      line: "I had to stop here. You've reached your ChatGPT usage limit.",
       provider: "chatgpt-account",
     },
     {

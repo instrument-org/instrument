@@ -33,7 +33,7 @@ Why Google scores the two differently was not established; only the outcome was.
 
 ## What the app does
 
-`contactSearchEngine` (`apps/studio/src/electron-main/browser-view/search-engine.ts`) asks google.com for an empty answer when the browser's session opens, with no cookies and no words. Suggestions go out through the same session, also without cookies. Nothing about the browser's identity changes.
+`contactGoogle` (`apps/studio/src/electron-main/browser-view/search-engine.ts`) asks google.com for an empty answer when the browser's session opens while Google is the chosen engine, with no cookies and no words. Suggestions go out through the same session, also without cookies. Nothing about the browser's identity changes.
 
 ## What other browsers do
 

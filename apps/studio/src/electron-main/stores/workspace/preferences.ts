@@ -10,6 +10,10 @@ import {
 } from "@/shared/features";
 import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { APP_FLAVOR } from "@instrument-org/shared";
+import {
+  DEFAULT_SEARCH_ENGINE,
+  SearchEngineIdSchema,
+} from "@/shared/search-engines";
 import Store from "electron-store";
 import { z } from "zod";
 
@@ -87,9 +91,14 @@ export const WorkspacePreferencesSchema = z.object({
   // window, brought out and put away from the View menu or the bar's own
   // menu. Off, it shows on a new tab alone.
   showBookmarksBar: z.boolean().catch(false),
+  // Where words typed into the address field are searched.
+  searchEngine: SearchEngineIdSchema.catch(DEFAULT_SEARCH_ENGINE),
   // A next message offered in a chat's empty box once it settles; see
   // next-message.ts in the workspace package.
   suggestNextMessage: z.boolean().catch(true),
+  // Words in the address field sent to the search engine as they are typed,
+  // for what it would finish them as.
+  suggestSearches: z.boolean().catch(true),
   theme: z.enum(["light", "dark", "system"]).catch("system"),
   // Browser extensions whose button the person took out of the browser's
   // row, by id; the rest show there.

@@ -17,7 +17,12 @@ import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
 import { BellSimpleIcon } from "@phosphor-icons/react/BellSimple";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import {
+  DEFAULT_SEARCH_ENGINE,
+  SEARCH_ENGINES,
+  SearchEngineIdSchema,
+} from "@/shared/search-engines";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useEffect } from "react";
 import { toast } from "@/client/lib/toast";
 
@@ -51,6 +56,7 @@ export function GeneralSection() {
     <div className="space-y-4">
       <h3 className="text-base font-semibold">General</h3>
       <InterfaceAndTheme />
+      <BrowserSearch />
       <Notifications />
       <SettingsSection title="Chats">
         <NextMessageSuggestions />
@@ -87,6 +93,95 @@ function InterfaceAndTheme() {
               </p>
             </div>
             <ZoomStepper />
+          </div>
+        </div>
+      </Card>
+    </SettingsSection>
+  );
+}
+
+function BrowserSearch() {
+  const { data: preferences } = useQuery(
+    rpcClient.preferences.live.get.experimental_liveOptions(),
+  );
+  const queryClient = useQueryClient();
+  const options = {
+    onError: (error: Error) => {
+      toast.error("Couldn't change that setting", { cause: error });
+    },
+    // What one engine suggested is not what the next one would.
+    onSuccess: () => {
+      queryClient.removeQueries({
+        queryKey: rpcClient.browser.searchSuggestions.key(),
+      });
+    },
+  };
+  const setSearchEngine = useMutation(
+    rpcClient.preferences.setSearchEngine.mutationOptions(options),
+  );
+  const setSuggestSearches = useMutation(
+    rpcClient.preferences.setSuggestSearches.mutationOptions(options),
+  );
+  const engine = preferences?.searchEngine ?? DEFAULT_SEARCH_ENGINE;
+  return (
+    <SettingsSection title="Browser">
+      <Card className="p-4">
+        <div className="space-y-5">
+          <div
+            className="flex items-center justify-between gap-4"
+            {...settingAnchor("search-engine")}
+          >
+            <div className="space-y-0.5">
+              <Label htmlFor="search-engine">Search engine</Label>
+              <p className="text-xs text-muted-foreground">
+                Words you type in the address field are searched here.
+              </p>
+            </div>
+            <Select
+              disabled={setSearchEngine.isPending}
+              onValueChange={(value) => {
+                const picked = SearchEngineIdSchema.safeParse(value);
+                if (picked.success) {
+                  setSearchEngine.mutate({ engine: picked.data });
+                }
+              }}
+              value={engine}
+            >
+              <SelectTrigger
+                className="bg-card bg-none dark:bg-gray-700"
+                id="search-engine"
+              >
+                {SEARCH_ENGINES[engine].name}
+              </SelectTrigger>
+              <SelectContent align="end" position="popper">
+                {SearchEngineIdSchema.options.map((id) => (
+                  <SelectItem key={id} value={id}>
+                    {SEARCH_ENGINES[id].name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div
+            className="flex items-center justify-between gap-4"
+            {...settingAnchor("suggest-searches")}
+          >
+            <div className="space-y-0.5">
+              <Label htmlFor="suggest-searches">Suggest searches</Label>
+              <p className="text-xs text-muted-foreground">
+                What you type in the address field goes to{" "}
+                {SEARCH_ENGINES[engine].name} as you type, so it can suggest
+                searches.
+              </p>
+            </div>
+            <Switch
+              checked={preferences?.suggestSearches !== false}
+              disabled={setSuggestSearches.isPending}
+              id="suggest-searches"
+              onCheckedChange={(enabled) => {
+                setSuggestSearches.mutate({ enabled });
+              }}
+            />
           </div>
         </div>
       </Card>

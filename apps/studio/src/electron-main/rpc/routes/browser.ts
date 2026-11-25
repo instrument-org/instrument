@@ -41,6 +41,7 @@ import {
 import { suggestSearches } from "@/electron-main/browser-view/search-engine";
 import { siteIconDeps } from "@/electron-main/lib/app-protocol";
 import { rememberPageIcon as keepPageIcon } from "@/electron-main/lib/site-icons";
+import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type BrowserGuestTarget } from "@/shared/browser";
@@ -550,13 +551,18 @@ const lastLoad = base
 const searchSuggestions = base
   .input(z.object({ query: z.string().min(1).max(200) }))
   .output(z.array(z.string()))
-  .handler(({ input, signal }) =>
-    suggestSearches(configureGuestSession(getBrowserSessionDir()), {
+  .handler(({ input, signal }) => {
+    const preferences = getWorkspacePreferences();
+    if (!preferences.get("suggestSearches")) {
+      return [];
+    }
+    return suggestSearches(configureGuestSession(getBrowserSessionDir()), {
+      engine: preferences.get("searchEngine"),
       locale: app.getLocale(),
       query: input.query,
       signal,
-    }),
-  );
+    });
+  });
 
 export const browser = {
   allowPageCapture,

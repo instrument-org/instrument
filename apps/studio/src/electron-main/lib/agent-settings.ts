@@ -19,6 +19,7 @@ import {
   microphoneNames,
   resolveMicrophone,
 } from "@/shared/dictation-microphone";
+import { SEARCH_ENGINES, SearchEngineIdSchema } from "@/shared/search-engines";
 import { APP_ZOOM_KEY, clampZoom, ZOOM_MAX, ZOOM_MIN } from "@/shared/zoom";
 import { APP_NAME_SLUG } from "@instrument-org/shared";
 import {
@@ -55,6 +56,11 @@ const NOTIFICATIONS = [
   { label: "Not focused", value: "unfocused" },
   { label: "Never", value: "never" },
 ];
+
+const ENGINES = SearchEngineIdSchema.options.map((id) => ({
+  label: SEARCH_ENGINES[id].name,
+  value: id,
+}));
 
 const ON_OFF = [
   { label: "On", value: "on" },
@@ -210,6 +216,17 @@ const ACCESS: Record<AgentSettingId, Access> = {
       getMachinePreferences().set("offerFeedback", on);
     },
   ),
+  "search-engine": {
+    choices: () => ENGINES,
+    read: () =>
+      choiceOf(ENGINES, getWorkspacePreferences().get("searchEngine")),
+    write: (value) => {
+      getWorkspacePreferences().set(
+        "searchEngine",
+        SearchEngineIdSchema.parse(value),
+      );
+    },
+  },
   "send-error-reports": onOff(() =>
     getMachinePreferences().get("sendErrorReportsAutomatically"),
   ),
@@ -221,6 +238,9 @@ const ACCESS: Record<AgentSettingId, Access> = {
     (on) => {
       getWorkspacePreferences().set("suggestNextMessage", on);
     },
+  ),
+  "suggest-searches": onOff(() =>
+    getWorkspacePreferences().get("suggestSearches"),
   ),
   theme: {
     choices: () => THEMES,

@@ -1,4 +1,5 @@
 import { type Session } from "electron";
+import { SEARCH_ENGINES, type SearchEngineId } from "@/shared/search-engines";
 import { z } from "zod";
 
 /** The engine's answer: the words asked about, then what it would finish them as. */
@@ -11,13 +12,19 @@ const SuggestionsSchema = z.tuple(
 const TIMEOUT_MS = 3000;
 
 /**
- * Makes the browser's first contact with the search engine ahead of the first
+ * The longest text the engine is asked about. Longer text is more likely a
+ * message or a paste than a search, and goes nowhere until it is searched for.
+ */
+const MAX_SUGGESTED_LENGTH = 100;
+
+/**
+ * Makes the browser's first contact with Google ahead of the first
  * search. Google serves a results page asked for over HTTP/3 and answers one
  * asked for over HTTP/2 with its bot check, and Chromium learns that a host
  * speaks HTTP/3 from an earlier answer. Asks for an empty answer, with no
  * cookies and no words. See `docs/findings/google-refuses-a-search-over-http-2.md`.
  */
-export async function contactSearchEngine(
+export async function contactGoogle(
   browserSession: Pick<Session, "fetch">,
 ): Promise<void> {
   try {
@@ -39,23 +46,29 @@ export async function contactSearchEngine(
 export async function suggestSearches(
   browserSession: Pick<Session, "fetch">,
   {
+    engine,
     locale,
     query,
     signal,
-  }: { locale: string; query: string; signal?: AbortSignal | undefined },
+  }: {
+    engine: SearchEngineId;
+    locale: string;
+    query: string;
+    signal?: AbortSignal | undefined;
+  },
 ): Promise<string[]> {
-  const url = new URL("https://www.google.com/complete/search");
-  // The answer's format, the OpenSearch one; `chrome` answers in another.
-  url.searchParams.set("client", "firefox");
-  url.searchParams.set("hl", locale);
-  url.searchParams.set("oe", "utf-8");
-  url.searchParams.set("q", query);
+  if (query.length > MAX_SUGGESTED_LENGTH) {
+    return [];
+  }
   const timeout = AbortSignal.timeout(TIMEOUT_MS);
   try {
-    const response = await browserSession.fetch(url.href, {
-      credentials: "omit",
-      signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-    });
+    const response = await browserSession.fetch(
+      SEARCH_ENGINES[engine].suggest({ locale, query }),
+      {
+        credentials: "omit",
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      },
+    );
     if (!response.ok) {
       return [];
     }

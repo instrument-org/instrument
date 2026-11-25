@@ -64,6 +64,18 @@ export const SETTINGS_INDEX = [
     title: "Zoom",
   },
   {
+    detail: "Where words you type in the address field are searched.",
+    id: "search-engine",
+    tab: "General",
+    title: "Search engine",
+  },
+  {
+    detail: "What you type in the address field is sent as you type.",
+    id: "suggest-searches",
+    tab: "General",
+    title: "Suggest searches",
+  },
+  {
     detail: "Show a desktop notification when a task finishes.",
     id: "notifications",
     tab: "General",

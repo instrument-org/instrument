@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveUrlOrSearch } from "./resolve-url-or-search";
+import {
+  resolveUrlOrSearch,
+  setSearchEngine,
+  webSearchUrl,
+} from "./resolve-url-or-search";
 
 describe("resolveUrlOrSearch", () => {
   it.each([
@@ -64,5 +68,15 @@ describe("resolveUrlOrSearch", () => {
     },
   ])("$input -> $expected", ({ expected, input }) => {
     expect(resolveUrlOrSearch(input)).toBe(expected);
+  });
+});
+
+describe("webSearchUrl", () => {
+  it("searches with the chosen engine", () => {
+    setSearchEngine("duckduckgo");
+    expect(webSearchUrl("egg salad")).toBe(
+      "https://duckduckgo.com/?q=egg%20salad",
+    );
+    setSearchEngine("google");
   });
 });

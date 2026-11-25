@@ -270,11 +270,11 @@ export function createAuthCallbackApp() {
         return c.html(renderAuthPage({ kind: "declined", service }));
       }
       case "refused": {
-        // The card back in the app offers signing in on the web.
+        // The card back in the app offers another way in.
         focusAppWindow();
         return c.html(
           renderAuthPage({
-            headline: `${name} won’t let this account connect directly`,
+            headline: `${name} won’t let Instrument connect directly`,
             kind: "declined",
             service,
           }),

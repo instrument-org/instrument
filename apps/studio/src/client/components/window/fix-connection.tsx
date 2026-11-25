@@ -4,6 +4,7 @@ import { WindowContext } from "@/client/components/window/context";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { cn } from "@/client/lib/utils";
+import { FAILED_SIGN_IN_LABELS } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { atom, useAtom } from "jotai";
 import { useContext, useEffect, useState } from "react";
@@ -90,7 +91,7 @@ export function FixWithInstrumentButton({
       size="sm"
       variant="outline"
     >
-      Fix with Instrument
+      {FAILED_SIGN_IN_LABELS.fix}
     </Button>
   );
 }

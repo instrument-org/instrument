@@ -12,6 +12,7 @@ import { type SignInDestination } from "@/client/components/window/use-sign-in-l
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { cn } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
+import { FAILED_SIGN_IN_LABELS } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 import { useQuery } from "@tanstack/react-query";
@@ -169,7 +170,7 @@ export function SignInButton({
                 <>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onSelect={fix}>
-                    Fix with Instrument
+                    {FAILED_SIGN_IN_LABELS.fix}
                   </DropdownMenuItem>
                 </>
               ) : null}

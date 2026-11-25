@@ -564,7 +564,7 @@ function AppSetUp({
         "Copy the key again and paste it here, or let Instrument take a look."
       )
     ) : failure === "refused" ? (
-      `${name} won’t let this account connect directly, but Instrument can look for another way.`
+      `${name} won’t let Instrument connect directly, but it can look for another way.`
     ) : isFailed ? (
       "Try again, or let Instrument look for another way."
     ) : app?.status === "stale" ? (

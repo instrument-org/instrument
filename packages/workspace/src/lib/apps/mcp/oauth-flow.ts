@@ -3,7 +3,6 @@ import { APP_NAME } from "@instrument-org/shared";
 import { auth } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { ServerError } from "@modelcontextprotocol/sdk/server/auth/errors.js";
 import { err, ok, type Result } from "neverthrow";
 import { noop } from "radashi";
 
@@ -31,6 +30,7 @@ import {
 } from "../update-connection";
 import { describeMcpFailure, type McpConnectionError } from "./client";
 import { fetchForMcp } from "./fetch";
+import { type RegistrationRefusal, watchRegistration } from "./registration";
 import {
   createMcpOAuthProvider,
   mcpSignInClient,
@@ -194,9 +194,10 @@ export async function beginMcpOAuth({
     slug,
     store,
   });
+  const registration = watchRegistration(fetchForMcp);
   const transport = new StreamableHTTPClientTransport(new URL(manifest.url), {
     authProvider: provider,
-    fetch: fetchForMcp,
+    fetch: registration.fetch,
   });
   const client = new Client({ name: APP_NAME, version: "1.0.0" });
 
@@ -228,7 +229,7 @@ export async function beginMcpOAuth({
     // have started the authorization is never coming: ask for it outright.
     await client.close().catch(noop);
     await auth(provider, {
-      fetchFn: fetchForMcp,
+      fetchFn: registration.fetch,
       scope,
       serverUrl: new URL(manifest.url),
     });
@@ -242,10 +243,11 @@ export async function beginMcpOAuth({
     // authorization cannot be started): no browser is wanted and there is no
     // flow to park.
     await transport.close().catch(noop);
+    const refusal = registration.refusal();
     return err({
       cause: failure,
-      message: `Could not start sign-in for "${slug}": ${describeSignInFailure(failure)}`,
-      reason: "connect",
+      message: `Could not start sign-in for "${slug}": ${describeSignInFailure(failure, refusal)}`,
+      reason: refusal === undefined ? "connect" : "client-refused",
     });
   }
   const state = await store.getState(slug);
@@ -519,12 +521,19 @@ export function pendingMcpOAuthSlug(state: string): string | undefined {
 
 /**
  * Why a sign-in could not begin, in words the conversation can pass on. A
- * server that answers the client registration with 403 is not misconfigured:
- * it only takes clients it has approved in advance (Figma's MCP server does
- * this), so the card cannot be one and asking again changes nothing. What the
- * server said follows either way, for the agent to read.
+ * server that refuses the client registration will not take Instrument as a
+ * client (many take only ones they approved in advance, as Figma's and
+ * Monarch's do), so asking again changes nothing. What the server said
+ * follows either way, for the agent to read.
  */
-export function describeSignInFailure(failure: unknown): string {
+export function describeSignInFailure(
+  failure: unknown,
+  refusal?: RegistrationRefusal,
+): string {
+  if (refusal !== undefined) {
+    const code = refusal.error === undefined ? "" : `, ${refusal.error}`;
+    return `the server refuses to register ${APP_NAME} as a client (HTTP ${refusal.status}${code}), as servers that take only clients they approved in advance do, so this sign-in cannot start${refusal.said === undefined ? "" : `. The server said: ${refusal.said}`}`;
+  }
   if (failure === undefined) {
     return "the server asked for no authorization";
   }
@@ -534,17 +543,7 @@ export function describeSignInFailure(failure: unknown): string {
   if (!(failure instanceof Error) && typeof failure !== "string") {
     return "the server refused the sign-in without saying why";
   }
-  const said = describeMcpFailure(failure);
-  // The SDK has no structured status here. A refusal whose body is an OAuth
-  // error object becomes its typed OAuthError with the status dropped; one
-  // whose body is not (Figma's 403 at registration) becomes a ServerError
-  // whose only record of the status is the "HTTP <status>: " its message
-  // starts with. A refresh's ServerError never gets this far (the SDK falls
-  // through to a new authorization), so that leaves the registration.
-  if (failure instanceof ServerError && /^HTTP 403\b/.test(failure.message)) {
-    return `the server refuses to register a client from here (HTTP 403). It only accepts clients it has approved in advance, so this sign-in cannot be one; a web app (the user signs in to the site in Instrument's browser), or a server the service ships for this machine, is the way in. The server said: ${said}`;
-  }
-  return said;
+  return describeMcpFailure(failure);
 }
 
 /**

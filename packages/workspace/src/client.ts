@@ -1,5 +1,10 @@
 export type { AgentName } from "./agents/types";
 export {
+  FAILED_SIGN_IN_LABELS,
+  FAILED_SIGN_IN_OFFERS,
+  type FailedSignIn,
+} from "./lib/apps/failed-sign-in";
+export {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
   CHAT_FOLDER_NAMES,

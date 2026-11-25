@@ -103,7 +103,7 @@ describe("the note an app event wakes the chat with", () => {
     `);
   });
 
-  it("points a sign-in that did not connect at the card, which offers the site", () => {
+  it("names the buttons the card has after a sign-in that did not connect", () => {
     const ended = (["refused", "failed", "canceled", "expired"] as const).map(
       (how) =>
         appEventModelNote({
@@ -126,15 +126,15 @@ describe("the note an app event wakes the chat with", () => {
     );
     expect(ended).toMatchInlineSnapshot(`
       [
-        "- Outlook (outlook) refused to connect this account directly: access_denied: AADSTS65001: The user or administrator has not consented to use the application. That is the service's rule, not the user declining, and trying the same sign-in again meets it again. The card now offers signing in on the service's site in Instrument's browser, which connects the app when they finish. Say so in a line and wait: do not change the app or call connect_app again.",
-        "- Signing in to Outlook (outlook) failed: HTTP 500: registration failed. The card now offers signing in on the service's site in Instrument's browser, which connects the app when they finish, or another try. Say so in a line and wait: do not change the app or call connect_app again.",
+        "- Outlook (outlook) refused to let Instrument connect directly: access_denied: AADSTS65001: The user or administrator has not consented to use the application. That is the service's rule, not the user declining, and the same sign-in meets it again in any browser. The card has "Fix with Instrument". Say why in a line and wait: do not change the app or call connect_app until they press "Fix with Instrument", which sends you a message asking for another way. With no better one, that is the web: \`instrument app new outlook --web https://outlook.office.com --force\`, at the service's own web app and not a page an error names, then connect_app.",
+        "- Signing in to Outlook (outlook) failed: HTTP 500: registration failed. The card has "Fix with Instrument" and "Try again". Say why in a line and wait: do not change the app or call connect_app until they press "Fix with Instrument", which sends you a message asking for another way. With no better one, that is the web: \`instrument app new outlook --web https://outlook.office.com --force\`, at the service's own web app and not a page an error names, then connect_app.",
         "- The user stopped signing in to Outlook (outlook) before it finished. The card offers signing in on the web or trying again; ask which in a line. For the web: \`instrument app new outlook --web https://outlook.office.com --force\`, then connect_app. To try again: connect_app as it is.",
         "- The sign-in to Outlook (outlook) was left unfinished and lapsed. The card offers signing in on the web or trying again; ask which in a line. For the web: \`instrument app new outlook --web https://outlook.office.com --force\`, then connect_app. To try again: connect_app as it is.",
       ]
     `);
   });
 
-  it("names the site to find when the directory has none", () => {
+  it("leaves the site to find when none is known", () => {
     expect(
       appEventModelNote({
         apps: {},
@@ -148,7 +148,7 @@ describe("the note an app event wakes the chat with", () => {
         ],
       }).split("\n")[3],
     ).toMatchInlineSnapshot(
-      `"- Signing in to Acme (acme) failed. Next, sign in on the web in Instrument's browser: \`instrument app new acme --web <the service's site> --force\`, then connect_app; its card opens the site, and the app is worked in a tab there."`,
+      `"- Signing in to Acme (acme) failed. The card has "Fix with Instrument" and "Try again". Say why in a line and wait: do not change the app or call connect_app until they press "Fix with Instrument", which sends you a message asking for another way. With no better one, that is the web: \`instrument app new acme --web <the service's site> --force\`, at the service's own web app and not a page an error names, then connect_app."`,
     );
   });
 

@@ -773,6 +773,7 @@ const startOAuth = base
       // A sign-in that cannot start is as much news as one that finished:
       // the conversation asked for it, and is the one to say what now.
       await settleConnection(input.slug, {
+        ...(result.error.reason === "client-refused" && { ended: "refused" }),
         error: result.error.message,
         status: "failed",
       });

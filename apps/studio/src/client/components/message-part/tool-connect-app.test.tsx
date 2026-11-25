@@ -498,7 +498,7 @@ describe("how a sign-in ended", () => {
     [
       "refused, only Instrument",
       { ended: "refused", error: "access_denied", status: "failed" },
-      ["Outlook won’t let this account connect directly."],
+      ["Outlook won’t let Instrument connect directly."],
       ["[Not now]", "[Fix with Instrument]"],
     ],
   ] as const)("%s", async (_, connection, line, buttons) => {
@@ -523,7 +523,7 @@ describe("how a sign-in ended", () => {
     );
     renderCard();
 
-    await screen.findByText("Outlook won’t let this account connect directly.");
+    await screen.findByText("Outlook won’t let Instrument connect directly.");
     expect(screen.queryByText(/AADSTS65001/)).toBeNull();
     expect(screen.queryByRole("button", { name: "Details" })).toBeNull();
   });

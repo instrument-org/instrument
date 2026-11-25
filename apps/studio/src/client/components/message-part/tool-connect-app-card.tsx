@@ -297,7 +297,7 @@ function rowLine(
         : `${row.name} didn’t connect.`;
     }
     case "refused": {
-      return `${row.name} won’t let this account connect directly.`;
+      return `${row.name} won’t let Instrument connect directly.`;
     }
     case "removed": {
       return "This app was removed.";

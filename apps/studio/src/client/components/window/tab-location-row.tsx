@@ -493,7 +493,9 @@ function Field({
     });
     return (
       <>
-        {isExtensionPage ? null : <PageAppChip url={location.url} />}
+        {isExtensionPage ? null : (
+          <PageAppChip url={location.url} {...(onVisit ? { onVisit } : {})} />
+        )}
         {isExtensionPage ? (
           <ExtensionPageBadge url={location.url} />
         ) : (
@@ -622,8 +624,18 @@ function Field({
   );
 }
 
-/** The chip of the person's own app whose site a page is on, which goes to the app's page in Instrument. */
-function PageAppChip({ url }: { url: string }) {
+/**
+ * The chip of the person's own app whose site a page is on, which takes the
+ * tab to the app's page in Instrument, a step Back undoes (`onVisit`); a row
+ * with no `onVisit` brings the app's page up as its own tab.
+ */
+function PageAppChip({
+  onVisit,
+  url,
+}: {
+  onVisit?: (href: string) => void;
+  url: string;
+}) {
   const app = appOfPage(url, useOwnApps());
   const showAppPage = useShowAppPage();
   if (app === undefined) {
@@ -634,7 +646,11 @@ function PageAppChip({ url }: { url: string }) {
       icon={app.icon}
       name={app.name}
       onPress={() => {
-        showAppPage(app.slug);
+        if (onVisit) {
+          onVisit(`/apps/${app.slug}`);
+        } else {
+          showAppPage(app.slug);
+        }
       }}
       site={app.site}
     />

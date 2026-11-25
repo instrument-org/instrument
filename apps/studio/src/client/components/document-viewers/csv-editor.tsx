@@ -646,9 +646,8 @@ function reportNotes(notes: ReplayNotes) {
     });
   }
   if (notes.byPosition > 0) {
-    toast.message("Your edits were matched by row and column", {
-      description:
-        "Instrument changed the rows or columns you edited, so check that your edits are where you expect.",
+    toast.message("Please check your edits", {
+      description: "Instrument changed the rows or columns you edited.",
     });
   }
   if (notes.lost > 0) {

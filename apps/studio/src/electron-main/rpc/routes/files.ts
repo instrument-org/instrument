@@ -952,7 +952,7 @@ async function oneWriterAt<T>(filePath: string, work: () => Promise<T>) {
 const write = base
   .errors({
     CANNOT_WRITE: { message: "That file cannot be written to" },
-    FORBIDDEN: { message: "That file is Instrument’s own data" },
+    FORBIDDEN: { message: "This file is protected" },
     UNSAVEABLE_ENCODING: {
       message: "Instrument can’t save files in this text format",
     },
@@ -1026,7 +1026,7 @@ const write = base
 const read = base
   .errors({
     FILE_NOT_FOUND: { message: "This file was moved or deleted." },
-    FORBIDDEN: { message: "That file is Instrument’s own data" },
+    FORBIDDEN: { message: "This file is protected" },
   })
   .input(z.object({ path: HostPathSchema }))
   .output(

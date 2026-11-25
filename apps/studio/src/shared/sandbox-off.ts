@@ -9,7 +9,7 @@ export const SANDBOX_OFF_COPY = {
     notice:
       "You chose to run them without a sandbox on this computer, so they can reach any file you can.",
     settings:
-      "Programs the agent runs, like Python scripts, can reach any file you can. Instrument's own tools still follow this list.",
+      "Programs the agent runs, like Python scripts, can reach any file you can. Instrument's built-in tools still follow this list.",
     title: "Programs the agent runs can reach all your files",
   },
   refused: {

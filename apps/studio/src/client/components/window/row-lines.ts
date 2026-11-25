@@ -25,6 +25,8 @@ export interface RowLines {
   strong: boolean;
   title: string;
   tone: LineTone;
+  /** The folders `line` names, outermost first, where it says the way to a file or folder. */
+  trail?: readonly string[];
 }
 
 /** How a page's last load stands, where it is not simply shown. */
@@ -150,6 +152,11 @@ export function quiet(
   tone: LineTone = "quiet",
 ): RowLines {
   return { line, strong: false, title, tone };
+}
+
+/** A file's or folder's two lines: its title over the folders it is in, outermost first. */
+export function placeLines(title: string, trail: readonly string[]): RowLines {
+  return { ...quiet(title, trail.join(" › ")), trail };
 }
 
 /** A page's site as a person says it: its host without `www.`. */

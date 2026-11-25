@@ -8,6 +8,7 @@ import {
   chatLines,
   newTabLines,
   pageLines,
+  placeLines,
   type RowLines,
   tabsBesideLead,
   taskLines,
@@ -213,4 +214,21 @@ describe("tabsBesideLead", () => {
       ),
     ).toHaveLength(1);
   });
+});
+
+it("says the way to a file, outermost folder first", () => {
+  expect(
+    placeLines("prices.csv", ["mac-user", "Downloads"]),
+  ).toMatchInlineSnapshot(`
+    {
+      "line": "mac-user › Downloads",
+      "strong": false,
+      "title": "prices.csv",
+      "tone": "quiet",
+      "trail": [
+        "mac-user",
+        "Downloads",
+      ],
+    }
+  `);
 });

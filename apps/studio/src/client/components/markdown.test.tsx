@@ -1478,6 +1478,19 @@ describe("Markdown file chips", () => {
   });
 });
 
+describe("Markdown tables of pictures", () => {
+  it.each([
+    ["| A | B |\n| - | - |\n| ![a](a.png) | ![b](b.png) |\n", true],
+    ["| Room | After |\n| - | - |\n| Kitchen | ![b](b.png) |\n", false],
+    ["| A | B |\n| - | - |\n| 1 | 2 |\n", false],
+  ])("%j lays out as pictures: %s", (markdown, isPictures) => {
+    const { container } = renderMarkdown(markdown);
+    expect(
+      container.querySelector("table")?.hasAttribute("data-pictures"),
+    ).toBe(isPictures);
+  });
+});
+
 describe("a timeline fence", () => {
   const rows = (markdown: string, isStreaming?: boolean) => {
     const { container } = renderWithProviders(

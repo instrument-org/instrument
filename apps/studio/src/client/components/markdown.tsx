@@ -1040,6 +1040,42 @@ const BlockedImage = ({
  * The failure is held against the source that produced it, so a URL still
  * growing clears it as it goes.
  */
+type MarkdownNode = NonNullable<ExtraProps["node"]>;
+type MarkdownContent = MarkdownNode["children"][number];
+
+/** The body cells of a table, wherever they sit under it. */
+const bodyCellsOf = (node: MarkdownContent): MarkdownNode[] =>
+  node.type !== "element"
+    ? []
+    : node.tagName === "td"
+      ? [node]
+      : node.children.flatMap(bodyCellsOf);
+
+/** Whether `node` is a picture, or a link around one and nothing else. */
+const isPicture = (node: MarkdownContent): boolean =>
+  node.type === "element" &&
+  (node.tagName === "img" ||
+    (node.tagName === "a" &&
+      node.children.length > 0 &&
+      node.children.every(isPicture)));
+
+/**
+ * Whether every body cell of a table is a picture alone, as a before and
+ * after side by side, which lays out as columns of one width.
+ */
+const isPictureTable = (node: MarkdownNode | undefined): boolean => {
+  const cells = node ? bodyCellsOf(node) : [];
+  return (
+    cells.length > 0 &&
+    cells.every((cell) => {
+      const content = cell.children.filter(
+        (child) => child.type !== "text" || child.value.trim() !== "",
+      );
+      return content.length > 0 && content.every(isPicture);
+    })
+  );
+};
+
 const MarkdownImage = ({
   alt,
   className,
@@ -1435,7 +1471,11 @@ export const Markdown = memo(
         ol: markdownOrderedList,
         p: markdownParagraph,
         pre: MarkdownPre,
-        table: MarkdownTable,
+        table: ({ children, node }) => (
+          <MarkdownTable isPictures={isPictureTable(node)}>
+            {children}
+          </MarkdownTable>
+        ),
       }),
       [documentUrl, handleImageClick, hideImages, imageKinds],
     );

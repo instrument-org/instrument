@@ -1812,6 +1812,21 @@ a.cursor-pointer {
   margin: 0;
 }
 
+/* A picture in a table shrinks to its column. A table of pictures alone, as
+   a before and after side by side, keeps to the prose measure with columns
+   of one width: laid out at its own width, each picture's full size would
+   carry the table past the measure, and the columns would split by whatever
+   the header says. */
+.markdown-table-frame > table :is(td, th) img {
+  max-width: 100%;
+  height: auto;
+}
+
+.markdown-table-frame > table[data-pictures] {
+  table-layout: fixed;
+  width: calc(100% - 2 * var(--table-bleed));
+}
+
 /* Where the table continues past the frame, on whichever side it does. Sticky
    flex items rather than overlays: the frame is the scroll container, so
    anything drawn inside it scrolls away with the table, and anything outside it

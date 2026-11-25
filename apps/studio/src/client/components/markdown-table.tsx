@@ -166,10 +166,13 @@ const copy = (rows: string[][], format?: TableCopyFormat) => {
 export const MarkdownTable = ({
   children,
   expandable = true,
+  isPictures = false,
 }: {
   children?: ReactNode;
   /** False inside the expanded view, which is already this table with room. */
   expandable?: boolean;
+  /** Whether every body cell is a picture alone, which takes columns of one width. */
+  isPictures?: boolean;
 }) => {
   const frameRef = useRef<HTMLDivElement>(null);
   const rowCopyRef = useRef<HTMLSpanElement>(null);
@@ -433,7 +436,7 @@ export const MarkdownTable = ({
       >
         <span aria-hidden className="markdown-table-fade" data-edge="start" />
         <span aria-hidden className="markdown-table-lead" />
-        <table>{children}</table>
+        <table data-pictures={isPictures || undefined}>{children}</table>
         <span aria-hidden className="markdown-table-fade" data-edge="end" />
       </div>
 

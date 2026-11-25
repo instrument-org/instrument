@@ -52,6 +52,22 @@ export const LayoutSnapshotSchema = z.object({
 
 export type LayoutSnapshot = z.output<typeof LayoutSnapshotSchema>;
 
+/** What a page's tab or its sidebar row is marked with, past what it shows. */
+export const PageMarkSchema = z.object({
+  /** Its page could not be reached, so its row says it can't connect. */
+  failed: z.literal(true).optional(),
+  /** What it is using of the two, and whether the person paused that. */
+  using: z
+    .object({
+      camera: z.boolean(),
+      microphone: z.boolean(),
+      paused: z.boolean(),
+    })
+    .optional(),
+});
+
+export type PageMark = z.output<typeof PageMarkSchema>;
+
 /**
  * A tab group as a window lists it: its layout, and what its sidebar row
  * and its tabs say of it besides. Answered fresh to each ask and never
@@ -60,6 +76,8 @@ export type LayoutSnapshot = z.output<typeof LayoutSnapshotSchema>;
 export const ListedGroupSchema = LayoutSnapshotSchema.extend({
   /** The words typed and not sent in a new chat's tab, by the tab's id. */
   drafts: z.record(z.string(), z.string()).optional(),
+  /** What a page's tab is marked with, by the tab's id. */
+  marks: z.record(z.string(), PageMarkSchema).optional(),
   /** What its sidebar row calls it, which the person reads out and a command names it by. */
   name: z.string(),
   /** Pinned above the sidebar's other groups. */

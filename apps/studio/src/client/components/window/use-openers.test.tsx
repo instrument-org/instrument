@@ -1,6 +1,7 @@
 import { TabIdSchema } from "@/shared/tabs";
 import {
   ChatIdSchema,
+  browserTargetOf,
   StoreId,
   type WindowTabRequest,
 } from "@instrument-org/workspace/client";
@@ -68,6 +69,15 @@ const spies = vi.hoisted(() => ({
     ): string => "group_a",
   ),
   moveTabs: vi.fn((_ids: readonly string[], _group: string) => {}),
+  pageMarks: {
+    unreached: [] as string[],
+    using: [] as {
+      camera: boolean;
+      microphone: boolean;
+      paused: boolean;
+      targetId: string;
+    }[],
+  },
   closedEntry: { current: undefined as string | undefined },
   reopenClosed: vi.fn((_entry: string) => {}),
   showGroup: vi.fn((_group: string) => {}),
@@ -106,6 +116,7 @@ vi.mock("@/client/rpc/client", () => ({
         openInNewTab: { call: async () => silent() },
         pageBecameDownload: { call: async () => silent() },
       },
+      pageMarks: { call: async () => spies.pageMarks },
     },
     window: {
       bringForward: { call: async () => {} },
@@ -467,6 +478,44 @@ describe("an agent and the window's other tab groups", () => {
       "New Tab",
       "example.com/behind",
     ]);
+  });
+
+  it("marks the pages using the microphone or camera, and those not reached", async () => {
+    const [first, second] = [StoreId.newTabId(), StoreId.newTabId()];
+    const { result } = windowOnTwoSides();
+    act(() => {
+      for (const id of [first, second]) {
+        result.current.windowTabs.openPage({
+          group: OTHER_GROUP,
+          page: { id, openedAt: 6 },
+        });
+      }
+    });
+    spies.pageMarks = {
+      unreached: [browserTargetOf(first)],
+      using: [
+        {
+          camera: false,
+          microphone: true,
+          paused: true,
+          targetId: browserTargetOf(second),
+        },
+      ],
+    };
+    const answer = await answerTo({ kind: "list" }, "l3");
+    const windows = (answer as { windows?: unknown }).windows as {
+      groups: { marks?: unknown }[];
+    }[];
+    expect(windows[0]?.groups.map(({ marks }) => marks)).toEqual([
+      undefined,
+      {
+        [first]: { failed: true },
+        [second]: {
+          using: { camera: false, microphone: true, paused: true },
+        },
+      },
+    ]);
+    spies.pageMarks = { unreached: [], using: [] };
   });
 
   it("switches the window to a group by its id", async () => {

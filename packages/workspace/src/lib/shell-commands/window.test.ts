@@ -29,6 +29,14 @@ const layout = buildWorkspaceFsLayout({
 // What a list reads of a chat, the rest of it unused here.
 const CHAT_FACTS = {
   archived: false,
+  latest: { kind: "question" as const, text: "Which **one**\nfirst?" },
+  runningTasks: [
+    {
+      id: StoreId.SessionSchema.parse("ses_01ARZ3NDEKTSV4RRFFQ69G5FAV"),
+      step: "Reading the menu",
+      title: "Read the menu",
+    },
+  ],
   starred: false,
   status: "waiting" as const,
   unread: true,
@@ -118,6 +126,13 @@ const OTHER_GROUPS = [
             kind: "newChat" as const,
             title: "New Tab",
           },
+          {
+            address:
+              "instrument://task/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=notes",
+            id: "tab_task",
+            kind: "builtIn" as const,
+            title: "Read the menu",
+          },
         ],
       },
     ],
@@ -127,6 +142,10 @@ const OTHER_GROUPS = [
     group: { id: "group:notes" },
     name: "Meeting notes",
     isShown: false,
+    marks: {
+      tab_ex: { failed: true as const },
+      tab_hn: { using: { camera: true, microphone: true, paused: false } },
+    },
     sides: [
       {
         tabs: [
@@ -789,11 +808,16 @@ describe("window list --json", () => {
       project: "project_launch",
       shownAt: Date.UTC(2026, 10, 24, 9, 12),
     });
+    expect(listed.windows[0]?.groups[2]?.marks).toEqual({
+      tab_ex: { failed: true },
+      tab_hn: { using: { camera: true, microphone: true, paused: false } },
+    });
     expect(listed.projects).toEqual({ project_launch: "Launch" });
     expect(listed.chats).toEqual({
       tab_notes: {
         archived: false,
         last_activity: "2026-11-23",
+        latest: "Which **one**\nfirst?",
         starred: false,
         status: "waiting",
         unread: true,
@@ -819,12 +843,13 @@ describe("window list, of other groups", () => {
           tab_docs  showing  /Users/me/Instrument/report.md  instrument://tab/tab_docs
           tab_settings  hidden   [app] Settings · instrument://screen/settings  instrument://tab/tab_settings
           tab_new  hidden   New Tab  instrument://tab/tab_new  (unsent: "Ask about rent", kept in Drafts if closed)
+          tab_task  hidden   [app] Read the menu · instrument://task/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=notes  instrument://tab/tab_task  (working: "Reading the menu")
         Tab group "Meeting notes" instrument://group/group:notes, split, not on screen:
           left (keyboard):
-            tab_notes  left     [chat] Meeting notes  instrument://chat/notes  (waiting on the user, still working, unread, last active 2026-11-23)
+            tab_notes  left     [chat] Meeting notes  instrument://chat/notes  (waiting on the user, still working, unread, latest: "Which **one** first?", last active 2026-11-23)
           right:
-            tab_hn  right    Hacker News · https://news.ycombinator.com/  instrument://tab/tab_hn
-            tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex  (opened by an agent)
+            tab_hn  right    Hacker News · https://news.ycombinator.com/  instrument://tab/tab_hn  (using the user's camera and microphone)
+            tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex  (opened by an agent, can't connect)
       Window 2: 1 tab group
         Tab group "report.md" instrument://group/group:far, on screen:
           tab_far  showing  report.md · https://example.org/  instrument://tab/tab_far
@@ -839,10 +864,10 @@ describe("window list, of other groups", () => {
     expect(result.stdout).toMatchInlineSnapshot(`
       "Tab group "Meeting notes" instrument://group/group:notes, split, not on screen:
         left (keyboard):
-          tab_notes  left     [chat] Meeting notes  instrument://chat/notes  (waiting on the user, still working, unread, last active 2026-11-23)
+          tab_notes  left     [chat] Meeting notes  instrument://chat/notes  (waiting on the user, still working, unread, latest: "Which **one** first?", last active 2026-11-23)
         right:
-          tab_hn  right    Hacker News · https://news.ycombinator.com/  instrument://tab/tab_hn
-          tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex  (opened by an agent)
+          tab_hn  right    Hacker News · https://news.ycombinator.com/  instrument://tab/tab_hn  (using the user's camera and microphone)
+          tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex  (opened by an agent, can't connect)
       The window shows another tab group now, so none of this is on screen. This group shows: [chat] Meeting notes on the left; news.ycombinator.com on the right.
       2 other tab groups in this window: "Prices", "report.md" (pinned). 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
@@ -930,7 +955,7 @@ describe("window show and close, of a group", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Closed the tab group "report.md" instrument://group/group:docs, its 3 tabs.
+      "Closed the tab group "report.md" instrument://group/group:docs, its 4 tabs.
       "
     `);
   });

@@ -222,6 +222,8 @@ export interface BrowserViewManager {
   // its guest after it did: a guest's first load can fail before the panel
   // showing it has its listeners on.
   lastLoadOf: (targetId: BrowserTargetId) => GuestLastLoad | null;
+  // The tabs still on a page that could not be reached, every window's.
+  unreachedTargets: () => BrowserTargetId[];
   // Record focus returning to any element in the host renderer.
   setHostFocus: () => void;
   // Whether a guest that took the keyboard from its window holds it for an
@@ -1482,6 +1484,18 @@ function createBrowserViewManager(): BrowserViewManager {
       const entry = entries.get(targetId);
       return (entry && lastLoads.get(entry)) ?? null;
     },
+    unreachedTargets: () =>
+      [...entries.values()].flatMap((entry) => {
+        const last = lastLoads.get(entry);
+        const guest = entry.webContents;
+        return last?.errorCode !== undefined &&
+          guest &&
+          !guest.isDestroyed() &&
+          !guest.isLoading() &&
+          guest.getURL() === last.url
+          ? [entry.targetId]
+          : [];
+      }),
     getTargets: (webContentsId) =>
       [...entries.values()]
         .filter((entry) => hostIdOf(entry) === webContentsId)

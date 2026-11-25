@@ -16,6 +16,8 @@ export const ChatStateSchema = z.object({
   latest: z.string().optional(),
   starred: z.boolean(),
   status: ChatStatusSchema,
+  /** While `status` is `limited`, what stopped its turn, as `Chat` says it. */
+  stopped_for: z.enum(["payment", "plan", "usage"]).optional(),
   unread: z.boolean(),
   /** Whether anything of it still moves, its tasks included, whatever its status. */
   working: z.boolean(),
@@ -53,6 +55,7 @@ export function chatStateOf(chat: Chat): ChatState {
     ...(latest === undefined ? {} : { latest }),
     starred: chat.starred,
     status: chat.status,
+    ...(chat.stoppedFor === undefined ? {} : { stopped_for: chat.stoppedFor }),
     unread: chat.unread,
     working: chat.working,
   };

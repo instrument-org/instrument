@@ -16,6 +16,8 @@ import {
   type ChatId,
   browserTargetOf,
   isFolderPath,
+  type PageMark,
+  parseBrowserTargetId,
   StoreId,
   WINDOW_ID,
   type WindowTabAnswer,
@@ -1018,7 +1020,29 @@ export function useOpeners({
   const windowsRead = async (
     chatTab: string | undefined,
   ): Promise<NonNullable<WindowTabAnswer["windows"]>> => {
-    const [, windows] = await safe(rpcClient.window.tabGroupsByWindow.call());
+    const [[, windows], [, pageMarks]] = await Promise.all([
+      safe(rpcClient.window.tabGroupsByWindow.call()),
+      safe(rpcClient.browser.pageMarks.call()),
+    ]);
+    const markOf = (id: string): PageMark | undefined => {
+      const target = parseBrowserTargetId(id);
+      const using = pageMarks?.using.find((each) => each.targetId === target);
+      const failed = pageMarks?.unreached.some((each) => each === target);
+      return target === null || (!using && !failed)
+        ? undefined
+        : {
+            ...(failed ? { failed: true as const } : {}),
+            ...(using
+              ? {
+                  using: {
+                    camera: using.camera,
+                    microphone: using.microphone,
+                    paused: using.paused,
+                  },
+                }
+              : {}),
+          };
+    };
     const listedHere = store.get(windowTabGroupsAtom) ?? [];
     const byWindow = windows ?? [
       {
@@ -1076,8 +1100,17 @@ export function useOpeners({
           );
           const own = windowTabs.groupOwn[group];
           const unsent = unsentIn(group);
+          const marks = Object.fromEntries(
+            layout.sides
+              .flatMap((side) => side.tabs)
+              .flatMap(({ id }) => {
+                const mark = markOf(id);
+                return mark === undefined ? [] : [[id, mark]];
+              }),
+          );
           return {
             ...layout,
+            ...(Object.keys(marks).length === 0 ? {} : { marks }),
             name:
               groupNameOf(
                 windowTabs.layoutOf(group),

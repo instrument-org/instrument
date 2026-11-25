@@ -561,6 +561,27 @@ const lastLoad = base
   .handler(({ input }) => getBrowserViewManager().lastLoadOf(input.targetId));
 
 /**
+ * What each tab's page is marked with, every window's: using the microphone
+ * or camera, or not reached. For an agent's list of the tabs; the sidebar
+ * hears of each as it changes.
+ */
+const pageMarks = base.handler(() => ({
+  unreached: getBrowserViewManager().unreachedTargets(),
+  using: listCaptures().flatMap(({ paused, targetId, using }) =>
+    using.audio || using.video
+      ? [
+          {
+            camera: using.video,
+            microphone: using.audio,
+            paused,
+            targetId,
+          },
+        ]
+      : [],
+  ),
+}));
+
+/**
  * What the search engine would finish words typed into the address field as.
  * From here rather than the renderer, whose page policy keeps every request
  * at home.
@@ -596,6 +617,7 @@ export const browser = {
   lastLoad,
   live,
   page,
+  pageMarks,
   rememberPageIcon,
   searchSuggestions,
   setEmulatedDevice,

@@ -10,11 +10,21 @@ const STATUS_WORDS = {
   working: "working",
 } as const satisfies Record<ChatState["status"], string | undefined>;
 
+/** A chat stopped short of usage, by why. */
+const LIMITED_WORDS = {
+  payment: "stopped: the user's payment failed",
+  plan: "stopped: needs a plan",
+  usage: STATUS_WORDS.limited,
+} as const;
+
 /** Where a chat stands and whether it has been read, as its row marks it. */
 export function chatStandingWords(
-  chat: Pick<ChatState, "status" | "unread" | "working">,
+  chat: Pick<ChatState, "status" | "stopped_for" | "unread" | "working">,
 ): string[] {
-  const status = STATUS_WORDS[chat.status];
+  const status =
+    chat.status === "limited"
+      ? LIMITED_WORDS[chat.stopped_for ?? "usage"]
+      : STATUS_WORDS[chat.status];
   return [
     ...(status === undefined ? [] : [status]),
     ...(chat.working && chat.status !== "working" ? ["still working"] : []),

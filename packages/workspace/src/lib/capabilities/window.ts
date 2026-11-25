@@ -229,6 +229,8 @@ const ListedSchema = z.object({
   layout: ListedGroupSchema.optional(),
   /** The projects in use, their names by the ids the groups have. */
   projects: z.record(z.string(), z.string()),
+  /** The step of the task whose page a tab shows, by the tab's id, while it works. */
+  steps: z.record(z.string(), z.string()),
   /** The task at work in a tab, by the tab's id, and whether that is the session asking. */
   tasks: z.record(
     z.string(),
@@ -242,26 +244,39 @@ const ListedSchema = z.object({
   ),
 });
 
-/** What the workspace knows of the chats and projects the windows' groups name. */
+/** The task a tab's address names, by its session. */
+const TASK_ADDRESS = /^instrument:\/\/task\/([^/?#]+)/;
+
+/** What the workspace knows of the chats, tasks and projects the windows' groups name. */
 async function factsOf(
   windows: WindowGroups,
-): Promise<Pick<ListFacts, "chats" | "projects">> {
-  const chats = new Map(
-    (await listChats()).map((chat) => [chatAddressOf(chat.id), chat]),
+): Promise<Pick<ListFacts, "chats" | "projects" | "steps">> {
+  const listed = await listChats();
+  const chats = new Map(listed.map((chat) => [chatAddressOf(chat.id), chat]));
+  const running = new Map<string, string>(
+    listed.flatMap((chat) =>
+      chat.runningTasks.map(({ id, step = "" }) => [id, step]),
+    ),
   );
+  const tabs = windows
+    .flatMap((window) => window.groups)
+    .flatMap((group) => group.sides)
+    .flatMap((side) => side.tabs);
   return {
     chats: Object.fromEntries(
-      windows
-        .flatMap((window) => window.groups)
-        .flatMap((group) => group.sides)
-        .flatMap((side) => side.tabs)
-        .flatMap((tab) => {
-          const chat = tab.kind === "chat" ? chats.get(tab.address) : undefined;
-          return chat === undefined ? [] : [[tab.id, chatStateOf(chat)]];
-        }),
+      tabs.flatMap((tab) => {
+        const chat = tab.kind === "chat" ? chats.get(tab.address) : undefined;
+        return chat === undefined ? [] : [[tab.id, chatStateOf(chat)]];
+      }),
     ),
     projects: Object.fromEntries(
       (await projectsInUse()).map((project) => [project.id, project.name]),
+    ),
+    steps: Object.fromEntries(
+      tabs.flatMap((tab) => {
+        const step = running.get(TASK_ADDRESS.exec(tab.address)?.[1] ?? "");
+        return step === undefined ? [] : [[tab.id, step]];
+      }),
     ),
   };
 }
@@ -327,16 +342,16 @@ export const windowList = defineCapability({
     };
   },
   summary:
-    "A tab group's sides and tabs, one line each, by default the group the chat works in: the group's address, whether it is pinned, its project, whether it is on screen and when it was last brought up (absent when not known), each tab's id (which every other subcommand and `agent-browser tab` take), where it stands, what it has open and the address a reply links it by, which task is at work in it, whether an agent opened it, words in a new tab not sent yet, and whether its chat is working, waiting on the user or unread and when it was last active; then what the user sees, and the other groups there are. A group is named by its id or its name; --all lists every window's groups, the pinned first.",
+    "A tab group's sides and tabs, one line each, by default the group the chat works in: the group's address, whether it is pinned, its project, whether it is on screen and when it was last brought up (absent when not known), each tab's id (which every other subcommand and `agent-browser tab` take), where it stands, what it has open and the address a reply links it by, which task is at work in it, whether an agent opened it, words in a new tab not sent yet, whether a page uses the microphone or camera or can't connect, the step of a task's page, and whether its chat is working, waiting on the user or unread, its latest line and when it was last active; then what the user sees, and the other groups there are. A group is named by its id or its name; --all lists every window's groups, the pinned first.",
   surfaces: {
     cli: { help: "", positional: ["group"], words: ["window", "list"] },
     script: { positional: ["group"] },
   },
-  text: ({ all, chats, layout, projects, tasks, windows }) =>
+  text: ({ all, layout, windows, ...facts }) =>
     all || layout === undefined
-      ? allWindowsLines(windows, { chats, projects, tasks }).join("\n")
+      ? allWindowsLines(windows, facts).join("\n")
       : [
-          ...groupLines(layout, { facts: { chats, projects, tasks } }),
+          ...groupLines(layout, { facts }),
           showingLine(layout),
           otherGroupsLine(windows, layout.group.id),
         ].join("\n"),

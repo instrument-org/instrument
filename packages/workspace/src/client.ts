@@ -37,6 +37,7 @@ export {
   type LayoutChange,
   type LayoutRead,
   type LayoutSnapshot,
+  type PageMark,
   type LayoutTab,
   type LayoutTabKind,
 } from "./schemas/group-layout";

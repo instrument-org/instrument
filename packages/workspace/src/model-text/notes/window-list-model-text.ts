@@ -4,10 +4,14 @@ import {
   tabAddressOf,
 } from "@instrument-org/shared";
 
-import { type LayoutTab, type ListedGroup } from "../../schemas/group-layout";
+import {
+  type LayoutTab,
+  type ListedGroup,
+  type PageMark,
+} from "../../schemas/group-layout";
 import { type ChatState } from "../../lib/chat/chat-state";
 import { WINDOW_COMMAND } from "../commands/window-command";
-import { chatStandingWords } from "./chat-state-model-text";
+import { chatLatestWords, chatStandingWords } from "./chat-state-model-text";
 import { layoutTabName } from "./group-layout-model-text";
 
 /** Every open window's tab groups, the one in front first, as the window answers a list. */
@@ -27,6 +31,8 @@ export interface ListFacts {
   chats: Readonly<Record<string, ChatState>>;
   /** The projects in use, their names by their ids. */
   projects: Readonly<Record<string, string>>;
+  /** The step of the task whose page a tab shows, by the tab's id, while it works. */
+  steps: Readonly<Record<string, string>>;
   tasks: TabTasks;
 }
 
@@ -61,11 +67,13 @@ function tabLine(
     draft,
     facts,
     isTwo,
+    mark: pageMark,
     side,
   }: {
     draft: string | undefined;
     facts: ListFacts;
     isTwo: boolean;
+    mark: PageMark | undefined;
     side: number;
   },
 ): string {
@@ -94,8 +102,13 @@ function tabLine(
       : `  task ${task.id} is working in it`
     : "";
   const chat = facts.chats[tab.id];
+  const step = facts.steps[tab.id];
   const notes = [
     ...(tab.byAgent ? ["opened by an agent"] : []),
+    ...(pageMark === undefined ? [] : pageNotes(pageMark)),
+    ...(step === undefined
+      ? []
+      : [step === "" ? "working" : `working: ${JSON.stringify(step)}`]),
     ...(chat === undefined || tab.isThisChat ? [] : chatNotes(chat)),
     ...(draft === undefined
       ? []
@@ -104,10 +117,30 @@ function tabLine(
   return `${tab.id}  ${mark}  ${shows}${tab.isThisChat ? " (you)" : ""}  ${link}${working}${notes.length === 0 ? "" : `  (${notes.join(", ")})`}`;
 }
 
-/** Where a chat stands, as the clauses after its tab's line. */
+/** What a page's tab is marked with, as the clauses after its line. */
+function pageNotes({ failed, using }: PageMark): string[] {
+  const devices = [
+    ...(using?.camera ? ["camera"] : []),
+    ...(using?.microphone ? ["microphone"] : []),
+  ].join(" and ");
+  return [
+    ...(failed ? ["can't connect"] : []),
+    ...(devices === ""
+      ? []
+      : [
+          using?.paused
+            ? `the user's ${devices}, paused`
+            : `using the user's ${devices}`,
+        ]),
+  ];
+}
+
+/** Where a chat stands and its row's line, as the clauses after its tab's line. */
 function chatNotes(chat: ChatState): string[] {
+  const latest = chatLatestWords(chat);
   return [
     ...chatStandingWords(chat),
+    ...(latest === "" ? [] : [`latest: ${JSON.stringify(latest)}`]),
     ...(chat.starred ? ["starred"] : []),
     ...(chat.archived ? ["archived"] : []),
     `last active ${chat.last_activity}`,
@@ -133,7 +166,7 @@ export function groupLines(
         : []),
       ...tabs.map(
         (tab) =>
-          `${indent}${isTwo ? "    " : "  "}${tabLine(tab, { draft: layout.drafts?.[tab.id], facts, isTwo, side })}`,
+          `${indent}${isTwo ? "    " : "  "}${tabLine(tab, { draft: layout.drafts?.[tab.id], facts, isTwo, mark: layout.marks?.[tab.id], side })}`,
       ),
     ]),
   ];

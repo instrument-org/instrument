@@ -27,6 +27,11 @@ vi.mock("@/electron-main/stores/workspace/preferences", () => ({
   showsBookmarksBar: () => true,
   toggleBookmarksBar: () => undefined,
 }));
+// What its items do, none of which building the menu runs.
+vi.mock("@/electron-main/app-command", () => ({ runAppCommand: () => {} }));
+vi.mock("@/electron-main/lib/open-external", () => ({}));
+vi.mock("@/electron-main/rpc/publisher", () => ({ publisher: {} }));
+vi.mock("@/electron-main/stores/workspace/window-state", () => ({}));
 vi.mock("@/electron-main/lib/setup-state", () => ({ isSetupUp: () => false }));
 // Loading the agent takes longer than this test may, and picks programs by the
 // platform it loads on, so the menus reach it only for its types.
@@ -39,7 +44,6 @@ vi.mock("@instrument-org/workspace/electron", () => {
 async function macMenuBar() {
   const platform = process.platform;
   Object.defineProperty(process, "platform", { value: "darwin" });
-  vi.resetModules();
   try {
     const { createAppWindowMenu } =
       await import("@/electron-main/menus/app-window");

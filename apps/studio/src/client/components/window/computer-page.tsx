@@ -3257,7 +3257,7 @@ function FolderOverflowMenu({
 }
 
 /** The folder menu's rows, drawn by whichever menu holds them. */
-function FolderMenuItems({
+export function FolderMenuItems({
   emptyTail,
   item,
   kept,

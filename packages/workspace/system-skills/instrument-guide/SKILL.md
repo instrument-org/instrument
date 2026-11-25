@@ -7,7 +7,9 @@ description: How Instrument itself works, what each part of the app is for, and 
 
 What a person can do in Instrument and where each thing is, so a question about the app gets a short answer with a link that takes them there. `reference.md` beside this file lists every page and row of Settings, every screen a link opens, and every keyboard shortcut, read off the app itself. Read it for any question about a setting or a shortcut, and take names and keys from it rather than from memory. The keys written here are the Mac's; give the Windows and Linux ones from `reference.md`.
 
-This is not the whole app. Something not listed may still exist, so never tell the user Instrument lacks a thing because it isn't here, only when a line here says so. To find out, look where it would be: `instrument settings list` for a setting, `instrument window list` for tabs and tab groups. Still unsure, say so and name the likeliest menu or the command menu (⌘K), which finds settings, pages and commands by name; never make up a menu, button or key.
+`places.md`, also beside this file, has what each menu and bar offers, by place: the sidebar, tabs, a website's ⋮, the bookmarks bar, a chat and its reply box, the Chats page, Files, Apps and the command menu. Read its section (it opens with how) for a question about what a menu has, where an action is, or whether there is one.
+
+This is not the whole app. Something not listed may still exist, so never tell the user Instrument lacks a thing because it isn't here, only when a line here says so. To find out, look where it would be: `places.md` for a menu, `instrument settings list` for a setting, `instrument window list` for tabs and tab groups. Still unsure, say so and name the likeliest menu or the command menu (⌘K), which finds settings, pages and commands by name; never make up a menu, button or key.
 
 ## Linking
 

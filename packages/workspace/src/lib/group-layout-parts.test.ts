@@ -45,7 +45,8 @@ async function setup(name = "layout-parts") {
   const send = async (given?: LayoutRead) => {
     const createdAt = new Date();
     const messageId = StoreId.newMessageId();
-    const parts = await layoutParts({
+    const parts = layoutParts({
+      history: (await ChatReads.history({ chatId, sessionId }))._unsafeUnwrap(),
       chatId,
       createdAt,
       messageId,

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { ChatReads } from "./chat-reads";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
 import { ChatIdSchema } from "../schemas/chat-id";
@@ -70,12 +71,14 @@ describe("detectMessageGap", () => {
     }
 
     return {
-      detect: (sentAt: Date) =>
+      detect: async (sentAt: Date) =>
         detectMessageGap({
+          history: (
+            await ChatReads.history({ chatId, sessionId })
+          )._unsafeUnwrap(),
           messageId: StoreId.newMessageId(),
           sentAt,
           sessionId,
-          chatId,
         }),
       typed,
       wake,
@@ -87,7 +90,7 @@ describe("detectMessageGap", () => {
 
     const result = await detect(new Date(9 * HOUR));
 
-    expect(result._unsafeUnwrap()).toBeUndefined();
+    expect(result).toBeUndefined();
   });
 
   it("reports nothing while the user is still in the same sitting", async () => {
@@ -96,7 +99,7 @@ describe("detectMessageGap", () => {
 
     const result = await detect(new Date(9.5 * HOUR));
 
-    expect(result._unsafeUnwrap()).toBeUndefined();
+    expect(result).toBeUndefined();
   });
 
   it("reports the gap once the user has been away", async () => {
@@ -105,7 +108,7 @@ describe("detectMessageGap", () => {
 
     const result = await detect(new Date(31 * HOUR));
 
-    expect(result._unsafeUnwrap()).toMatchObject({
+    expect(result).toMatchObject({
       data: { minutes: 22 * 60 },
       type: "data-messageGap",
     });
@@ -118,7 +121,7 @@ describe("detectMessageGap", () => {
 
     const result = await detect(new Date(31 * HOUR));
 
-    expect(result._unsafeUnwrap()).toMatchObject({
+    expect(result).toMatchObject({
       data: { minutes: 22 * 60 },
       type: "data-messageGap",
     });

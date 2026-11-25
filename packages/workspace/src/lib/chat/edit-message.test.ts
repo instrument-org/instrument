@@ -1,3 +1,4 @@
+import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
 import { describe, expect, it, vi } from "vitest";
 
 import { type WorkspaceActorRef } from "../../machines/workspace";
@@ -7,7 +8,7 @@ import { StoreId } from "../../schemas/store-id";
 import { chatTaskFor } from "../../test/helpers/chat-task";
 import { ChatReads } from "../chat-reads";
 import { ChatWrites } from "../chat-writes";
-import { asThoughTakenOut } from "../records/earlier-versions";
+import { newMessage } from "../new-message";
 import { sessionOfChat } from "../record-folders";
 import { branchChat } from "./branch-chat";
 import { ensureChat } from "./chat-records";
@@ -176,14 +177,30 @@ describe("editing a message", () => {
     ]);
   });
 
-  it("reads the chat without what it takes out while the new version is built", async () => {
+  it("builds the new version from what the agent will have been told", async () => {
     const { chatId, messages, sessionId } = await chat();
-    const gone = new Set(messages.slice(2).map(({ id }) => id));
+    const away = said(sessionId, "user", "three");
+    away.metadata.createdAt = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    (await ChatWrites.saveMessageWithParts(away, chatId))._unsafeUnwrap();
+    const gapOf = async (without?: ReadonlySet<StoreId.Message>) => {
+      const built = await newMessage({
+        chatId,
+        modelURI: AIGatewayModelURI.Schema.parse(
+          "openai/gpt-5?provider=openai&providerConfigId=test",
+        ),
+        prompt: "again",
+        sessionId,
+        ...(without ? { without } : {}),
+      });
+      const message = built._unsafeUnwrap();
+      return message && "parts" in message
+        ? message.parts.find(({ type }) => type === "data-messageGap")
+        : expect.unreachable();
+    };
 
-    expect(
-      await asThoughTakenOut(gone, () => history(chatId, sessionId)),
-    ).toEqual(["one", "reply one"]);
-    expect(await history(chatId, sessionId)).toHaveLength(4);
+    expect(await gapOf()).toBeDefined();
+    const all = [...messages, away].map(({ id }) => id);
+    expect(await gapOf(new Set(all))).toBeUndefined();
   });
 
   it("refuses a reply, which is not the person's to edit", async () => {

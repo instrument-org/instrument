@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { ChatReads } from "./chat-reads";
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ToldFolders } from "../schemas/told";
@@ -38,17 +39,15 @@ async function changesSince(baseline: ToldFolders) {
 /** The note the next message would carry, written with it as a turn does. */
 async function detect() {
   const result = await detectFolderChanges({
+    history: (
+      await ChatReads.history({ chatId: CHAT_ID, sessionId })
+    )._unsafeUnwrap(),
     messageId: StoreId.newMessageId(),
     sessionId,
     chatId: CHAT_ID,
   });
-  if (result.isErr()) {
-    throw result.error;
-  }
-  await writeMessage(CHAT_ID, sessionId, "user", [result.value]);
-  return result.value?.type === "data-folderChanges"
-    ? result.value.data
-    : undefined;
+  await writeMessage(CHAT_ID, sessionId, "user", [result]);
+  return result?.type === "data-folderChanges" ? result.data : undefined;
 }
 
 beforeEach(async () => {

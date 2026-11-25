@@ -1,13 +1,10 @@
 import { differenceInMinutes } from "date-fns/differenceInMinutes";
 import ms from "ms";
-import { ok, safeTry } from "neverthrow";
 import { alphabetical } from "radashi";
 
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type ChatId } from "../schemas/chat-id";
-import { ChatReads } from "./chat-reads";
 
 /**
  * How long the user has to be away before the next thing they write is treated
@@ -40,52 +37,44 @@ const AWAY_AFTER_MS = ms("1 hour");
  * on every message inside the window.
  */
 export function detectMessageGap({
+  history,
   messageId,
   sentAt,
   sessionId,
-  chatId,
 }: {
+  /** The session's messages the note is worked out from; see `newMessage`. */
+  history: SessionMessage.WithParts[];
   messageId: StoreId.Message;
   /** When the message being assembled was sent, so the part matches its message. */
   sentAt: Date;
   sessionId: StoreId.Session;
-  chatId: ChatId;
-}) {
-  return safeTry<SessionMessagePart.Type | undefined, Error>(
-    async function* () {
-      const messages = yield* ChatReads.modelHistory({
-        chatId,
-        sessionId,
-      });
+}): SessionMessagePart.Type | undefined {
+  // ulid sorts oldest to newest, and the store makes no ordering promise.
+  const previous = alphabetical(
+    history.filter(isFromUser),
+    (message) => message.id,
+  ).at(-1);
+  if (!previous) {
+    return undefined;
+  }
 
-      // ulid sorts oldest to newest, and the store makes no ordering promise.
-      const previous = alphabetical(
-        messages.filter(isFromUser),
-        (message) => message.id,
-      ).at(-1);
-      if (!previous) {
-        return ok(undefined);
-      }
+  const gapMs = sentAt.getTime() - previous.metadata.createdAt.getTime();
+  if (gapMs < AWAY_AFTER_MS) {
+    return undefined;
+  }
 
-      const gapMs = sentAt.getTime() - previous.metadata.createdAt.getTime();
-      if (gapMs < AWAY_AFTER_MS) {
-        return ok(undefined);
-      }
-
-      return ok({
-        data: {
-          minutes: differenceInMinutes(sentAt, previous.metadata.createdAt),
-        },
-        metadata: {
-          createdAt: sentAt,
-          id: StoreId.newPartId(),
-          messageId,
-          sessionId,
-        },
-        type: "data-messageGap",
-      } satisfies SessionMessagePart.Type);
+  return {
+    data: {
+      minutes: differenceInMinutes(sentAt, previous.metadata.createdAt),
     },
-  );
+    metadata: {
+      createdAt: sentAt,
+      id: StoreId.newPartId(),
+      messageId,
+      sessionId,
+    },
+    type: "data-messageGap",
+  };
 }
 
 /**

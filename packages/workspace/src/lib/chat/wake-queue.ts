@@ -15,6 +15,7 @@ import { classifyProviderError } from "../classify-provider-error";
 import { describeErrorCause } from "../describe-error-cause";
 import { recordChanged } from "../record-changes";
 import { resolveChat, sessionOfChat } from "../record-folders";
+import { ChatReads } from "../chat-reads";
 import { getWorkspaceConfig } from "../workspace-config";
 import { layoutParts } from "../group-layout-parts";
 import { askWindow } from "./window-tab";
@@ -397,9 +398,16 @@ export async function saveNote(
     metadata: { createdAt, sessionId },
     parts: [
       ...(withLayout
-        ? await layoutParts({
+        ? layoutParts({
             chatId,
             createdAt,
+            history: await ChatReads.history({ chatId, sessionId }).match(
+              (messages) => messages,
+              (error) => {
+                getWorkspaceConfig().captureException(error);
+                return [];
+              },
+            ),
             messageId,
             read: await layoutNow(chatId),
             sessionId,

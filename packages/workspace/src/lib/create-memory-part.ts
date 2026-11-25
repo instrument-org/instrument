@@ -3,9 +3,7 @@ import { isEqual } from "radashi";
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type ChatId } from "../schemas/chat-id";
 import { type ToldDigests } from "../schemas/told";
-import { ChatReads } from "./chat-reads";
 import { partsAfter, rolledOverAfter } from "./last-told";
 import { learnedIn } from "./memory/learned-in";
 import {
@@ -83,25 +81,23 @@ function lastToldMemory(
  */
 export async function createMemoryPart({
   createdAt,
+  history,
   messageId,
   sessionId,
-  chatId,
 }: {
   createdAt: Date;
+  /** The session's messages the note is worked out from; see `newMessage`. */
+  history: SessionMessage.WithParts[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
     const memories = await listMemories(memoryDir());
     const digests = memoryDigests(memories);
 
-    const history = await ChatReads.history({ chatId, sessionId });
     // Told nothing is what an empty memory also reads as: a fresh chat with
     // nothing to remember gets no note.
-    const state = history.isOk()
-      ? lastToldMemory(history.value, sessionId)
-      : {};
+    const state = lastToldMemory(history, sessionId);
     if (isEqual(state, digests)) {
       return undefined;
     }

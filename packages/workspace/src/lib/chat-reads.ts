@@ -11,7 +11,6 @@ import { type FoldedSession, type FoldedSettings } from "./records/fold";
 import {
   asEarlierVersion,
   withEarlierVersions,
-  withoutTakenOut,
 } from "./records/earlier-versions";
 import { sessionOf } from "./records/session-of";
 import {
@@ -406,10 +405,7 @@ function read(chatId: ChatId): ResultAsync<ChatRead, Failure> {
       new TypedError.Storage(`No records are in place to read chat ${chatId}`),
     );
   }
-  return ResultAsync.fromPromise(
-    records.read(chatId).then(withoutTakenOut),
-    storageError,
-  );
+  return ResultAsync.fromPromise(records.read(chatId), storageError);
 }
 
 function missingVersion(

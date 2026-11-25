@@ -7,10 +7,8 @@ import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { ChatReads } from "./chat-reads";
 import { sessionRole } from "./chat/children";
 import { layoutChanges } from "./group-layout";
-import { getWorkspaceConfig } from "./workspace-config";
 
 type Placed = Pick<
   SessionMessagePart.DataPart["metadata"],
@@ -25,27 +23,22 @@ type Placed = Pick<
  * alone, which has nothing to say. Read from the chat's own records, so
  * earlier parts are never rewritten.
  */
-export async function layoutParts({
+export function layoutParts({
   chatId,
+  history,
   read,
   ...placed
 }: Placed & {
   chatId: ChatId;
+  /** The session's messages, for the last layout it was told. */
+  history: SessionMessage.WithParts[];
   /** What the window read, at the send or when the wake asked. */
   read: LayoutRead | undefined;
-}): Promise<SessionMessagePart.DataPart[]> {
+}): SessionMessagePart.DataPart[] {
   if (read === undefined || sessionRole(chatId, placed.sessionId) !== "chat") {
     return [];
   }
-  const history = await ChatReads.history({
-    chatId,
-    sessionId: placed.sessionId,
-  });
-  if (history.isErr()) {
-    getWorkspaceConfig().captureException(history.error);
-    return [];
-  }
-  const before = lastLayout(history.value);
+  const before = lastLayout(history);
   const now = read.layout;
   if (before === undefined ? isChatAlone(now) : sameLayout(before, now)) {
     return [];

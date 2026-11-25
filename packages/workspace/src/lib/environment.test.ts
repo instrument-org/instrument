@@ -1,6 +1,7 @@
 import { AIGatewayProviderConfig } from "@instrument-org/ai-gateway/schemas";
 import { describe, expect, it } from "vitest";
 
+import { ChatReads } from "./chat-reads";
 import { type Environment } from "../schemas/environment";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
@@ -255,12 +256,13 @@ describe("detectEnvironmentChange", () => {
       await ChatWrites.saveMessageWithParts(message, chatId);
     }
     const result = await detectEnvironmentChange({
+      history: (await ChatReads.history({ chatId, sessionId }))._unsafeUnwrap(),
       chatId,
       messageId: StoreId.newMessageId(),
       runsOn: undefined,
       sessionId,
     });
-    return { here, part: result._unsafeUnwrap() };
+    return { here, part: result };
   }
 
   it("notes the facts that differ from what the chat was told on another computer", async () => {

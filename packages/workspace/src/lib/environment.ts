@@ -2,7 +2,6 @@ import {
   AIGatewayModelURI,
   imageParametersDescription,
 } from "@instrument-org/ai-gateway";
-import { ok, safeTry } from "neverthrow";
 import os from "node:os";
 
 import {
@@ -177,42 +176,37 @@ export function lastToldEnvironment(
  * baseline: the note supersedes it, so the request in front of it stays
  * byte-stable and cached.
  */
-export function detectEnvironmentChange({
+export async function detectEnvironmentChange({
   chatId,
+  history,
   messageId,
   runsOn,
   sessionId,
 }: {
   chatId: ChatId;
+  /** The session's messages the note is worked out from; see `newMessage`. */
+  history: SessionMessage.WithParts[];
   messageId: StoreId.Message;
   /** The model the chat runs on as of this message. */
   runsOn: AIGatewayModelURI.Type | undefined;
   sessionId: StoreId.Session;
-}) {
-  return safeTry<SessionMessagePart.Type | undefined, Error>(
-    async function* () {
-      const messages = yield* ChatReads.modelHistory({
-        chatId,
-        sessionId,
-      });
-      const told = lastToldEnvironment(messages, sessionId);
-      const change =
-        told === undefined
-          ? undefined
-          : environmentChange(told, await currentEnvironment(chatId, runsOn));
-      if (change === undefined) {
-        return ok(undefined);
-      }
-      return ok({
-        data: change,
-        metadata: {
-          createdAt: getCurrentDate(),
-          id: StoreId.newPartId(),
-          messageId,
-          sessionId,
-        },
-        type: "data-environmentChange",
-      } satisfies SessionMessagePart.Type);
+}): Promise<SessionMessagePart.Type | undefined> {
+  const told = lastToldEnvironment(history, sessionId);
+  const change =
+    told === undefined
+      ? undefined
+      : environmentChange(told, await currentEnvironment(chatId, runsOn));
+  if (change === undefined) {
+    return undefined;
+  }
+  return {
+    data: change,
+    metadata: {
+      createdAt: getCurrentDate(),
+      id: StoreId.newPartId(),
+      messageId,
+      sessionId,
     },
-  );
+    type: "data-environmentChange",
+  };
 }

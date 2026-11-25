@@ -1,3 +1,4 @@
+import { ChatAskIcon } from "@/client/components/icons/chat-ask-icon";
 import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { chatNotesAtom } from "@/client/atoms/chat-notes";
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
@@ -32,11 +33,15 @@ import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
 import { useShowChatGroup } from "@/client/components/window/chat-group";
-import { ChatMarkDot } from "@/client/components/window/chat-mark";
+import {
+  chatDotOf,
+  type ChatDot,
+  ChatMarkIcon,
+  isAsking,
+} from "@/client/components/window/chat-mark";
 import {
   byLastUserMessage,
   type Chat,
-  railMarkOf,
   type Project,
   projectSearch,
 } from "@/client/components/window/chats";
@@ -186,8 +191,8 @@ const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
 type Item = {
   chord?: ShortcutAccelerator;
   detail?: string | undefined;
-  /** The dot a chat wears on its icon in a tab: a reply not yet seen, or a question waiting. */
-  dot?: "unread" | "waiting" | undefined;
+  /** The dot a chat wears on its icon in a tab. */
+  dot?: ChatDot | undefined;
   icon: ReactNode;
   id: string;
   /** A file's name, cut in its middle when the row is short of room, with its folder giving way first. */
@@ -1052,17 +1057,16 @@ export function useCommandMenuRows({
     };
   }
 
-  // A chat's row is the address field's: the dot its tab would wear, its
+  // A chat's row is the address field's: the mark and dot of its tab, its
   // title, then the project it is filed under, and nothing at its right.
   // It brings up the tab group the chat is in, open or closed, and a chat in
   // neither opens as a screen.
   function chatItem(chat: Chat, ranges: null | number[]): Item {
     const project = shell.projects.find((each) => each.id === chat.project);
-    const mark = railMarkOf([chat]);
     return {
       detail: project?.name ?? (chat.archived ? "Archived" : undefined),
-      dot: mark === "working" ? undefined : mark,
-      icon: <ChatCircleIcon />,
+      dot: chatDotOf(chat),
+      icon: isAsking(chat) ? <ChatAskIcon /> : <ChatCircleIcon />,
       id: `chat:${chat.id}`,
       label: chat.title,
       ranges,
@@ -1543,14 +1547,14 @@ function ResultRows({
                   role="option"
                 >
                   {/* The dot outside the icon's fade, so it reads as it does in a tab. */}
-                  <span className="relative flex shrink-0">
-                    <span className="flex size-4 shrink-0 items-center justify-center opacity-60">
-                      {row.icon}
-                    </span>
-                    {row.dot ? (
-                      <ChatMarkDot className="size-2 ring-0" mark={row.dot} />
-                    ) : null}
-                  </span>
+                  <ChatMarkIcon
+                    dot={row.dot}
+                    icon={
+                      <span className="flex size-4 shrink-0 items-center justify-center opacity-60">
+                        {row.icon}
+                      </span>
+                    }
+                  />
                   <RowText
                     name={
                       row.isFileName ? (

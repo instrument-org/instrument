@@ -1,3 +1,4 @@
+import { ChatAskIcon } from "@/client/components/icons/chat-ask-icon";
 import { type WindowTab } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
 import {
@@ -26,7 +27,7 @@ import {
   DraftTabItems,
 } from "./chat-tab-menu";
 import { chatListOptions } from "./chat-list-query";
-import { chatDotOf, ChatMarkIcon } from "./chat-mark";
+import { chatDotOf, ChatMarkIcon, isAsking } from "./chat-mark";
 import { type Chat } from "./chats";
 import { useTasksOf } from "./child-tasks-query";
 import { useComputerVolumes } from "./computer-volumes";
@@ -221,19 +222,25 @@ export function PaneTabs({
               : chatDotOf(listed)
           }
           icon={
-            <ScreenMark
-              appsBySlug={appsBySlug}
-              chatId={tab.group === undefined ? undefined : chatUpIn(tab.group)}
-              chatTitles={chatTitles}
-              href={tab.href}
-            />
+            isAsking(listed) ? (
+              <ChatAskIcon className="size-3.5 shrink-0" />
+            ) : (
+              <ScreenMark
+                appsBySlug={appsBySlug}
+                chatId={
+                  tab.group === undefined ? undefined : chatUpIn(tab.group)
+                }
+                chatTitles={chatTitles}
+                href={tab.href}
+              />
+            )
           }
         />
       );
     }
     // A chat or a task at work shimmers its tab's name, as a page its agent
     // is using does, and its mark with it, the tab up included. A chat with
-    // a question waiting is not at work: its dot says so instead.
+    // a question waiting is not at work: its bubble asks instead.
     const task = taskOf(tab);
     const isScreenWorking =
       listed?.status === "working" ||

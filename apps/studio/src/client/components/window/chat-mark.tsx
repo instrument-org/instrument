@@ -1,32 +1,28 @@
-import { type Chat, type RailChatMark } from "@/client/components/window/chats";
+import { type Chat } from "@/client/components/window/chats";
 import { cn } from "@/client/lib/utils";
 import { type ReactNode } from "react";
 
+/** What a chat's dot says: something in it is not yet seen, or it is at work. */
+export type ChatDot = "unread" | "working";
+
 /**
- * The dot that says where chats stand, ringed in what it sits on so it reads
- * clear of the icon under it: gray and still while a chat waits on the user,
- * pulsing green while one works, and still green while one has something not
- * yet seen. The rail's Chat wears it for every chat; a chat's window tab and
- * its bar along the foot wear it, smaller, for that chat alone, as does a
- * chat's mark in a group's row of several tabs, working included.
+ * The dot on a chat's icon: still green while the chat has something not yet seen,
+ * pulsing green while it works. A question waiting on the person is the
+ * icon's to say (`ChatAskIcon`), so a chat can be unread and asking at once.
  */
 export function ChatMarkDot({
   className,
   mark,
 }: {
   className?: string;
-  mark: RailChatMark;
+  mark: ChatDot;
 }) {
   return (
     <span
       aria-hidden
       className={cn(
-        "absolute -top-0.5 -right-1 size-2.5 rounded-full ring-2 ring-ground",
-        mark === "waiting" && "bg-foreground/70",
+        "absolute -top-0.5 -right-1 size-2.5 rounded-full",
         mark === "unread" && "bg-brand-500",
-        // Filled with its ring's color, so the pulse inside fades to what
-        // the dot sits on and never shows the icon's lines through it.
-        mark === "working" && "bg-(--tw-ring-color)",
         className,
       )}
       data-chat-mark={mark}
@@ -39,45 +35,50 @@ export function ChatMarkDot({
 }
 
 /**
- * The dot a chat's mark wears: a question waiting on the person, else, with
- * `isWorkShown`, the pulse of a chat at work, as a one-line row of the chat
- * list wears it, else a reply not yet seen.
+ * The dot a chat's mark wears: with `isWorkShown`, the pulse of a chat at
+ * work, else green for something not yet seen. A chat with a question waiting
+ * is not at work.
  */
 export function chatDotOf(
   chat: Pick<Chat, "status" | "unread" | "working"> | undefined,
   { isWorkShown = false }: { isWorkShown?: boolean } = {},
-): RailChatMark | undefined {
-  if (chat?.status === "waiting") {
-    return "waiting";
-  }
-  if (isWorkShown && chat?.working === true) {
+): ChatDot | undefined {
+  if (isWorkShown && chat?.working === true && !isAsking(chat)) {
     return "working";
   }
   return chat?.unread === true ? "unread" : undefined;
 }
 
 /**
+ * Whether a chat's icon is the asking bubble wherever it stands: the chat
+ * waits on the person, read or not, on screen or not.
+ */
+export function isAsking(chat: Pick<Chat, "status"> | undefined): boolean {
+  return chat?.status === "waiting";
+}
+
+/**
  * One chat's icon wherever it stands for the chat (its tab in a strip, its
- * half of a sidebar row, its row of the bookmarks bar's Chats menu): the dot on
- * its corner for a reply not yet seen, a question waiting or, where the
- * caller asks for it, work going on, and the icon alone otherwise. `ring` is what the icon sits on.
+ * mark in a sidebar row, its row of the bookmarks bar's Chats menu or of the
+ * command menu), with its dot on the corner. The icon is cut away around the dot, so
+ * the two read apart on any background.
  */
 export function ChatMarkIcon({
   dot,
   icon,
-  ring,
 }: {
-  dot: RailChatMark | undefined;
+  dot: ChatDot | undefined;
   icon: ReactNode;
-  ring?: string;
 }) {
   if (!dot) {
     return icon;
   }
   return (
     <span className="relative flex shrink-0">
-      {icon}
-      <ChatMarkDot className={cn("size-2", ring)} mark={dot} />
+      <span className="flex mask-[radial-gradient(circle_5.5px_at_100%_2px,transparent_5px,black)]">
+        {icon}
+      </span>
+      <ChatMarkDot className="size-2" mark={dot} />
     </span>
   );
 }

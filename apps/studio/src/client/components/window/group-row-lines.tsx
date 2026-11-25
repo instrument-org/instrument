@@ -82,7 +82,7 @@ export function GroupRowLines({
   chatTitles: Map<ChatId, string>;
   close?: { label: string; run: () => void } | undefined;
   isCloseShown: boolean;
-  /** Whether the group is up: a chat's mark wears no dot there but the working pulse. */
+  /** Whether the group is up: the tabs in front then wear no unread dot, as in their strips. */
   isOnScreen: boolean;
   sides: RowSides;
 }) {
@@ -119,18 +119,19 @@ export function GroupRowLines({
       }
       return runs;
     }, []);
-  const dotOf = (chat: ChatId, isLead: boolean) => {
-    const listed = chats.find((each) => each.id === chat);
-    if (!isOnScreen) {
-      return chatDotOf(listed, { isWorkShown: !isLead });
-    }
-    return !isLead && listed?.working === true ? "working" : undefined;
+  const dotOf = (chat: ChatId, tab: WindowTab) => {
+    const dot = chatDotOf(
+      chats.find((each) => each.id === chat),
+      { isWorkShown: tab.id !== lead.id },
+    );
+    const isSeen = isOnScreen && sides.some((side) => side.up.id === tab.id);
+    return dot === "unread" && isSeen ? undefined : dot;
   };
   const markOf = (tab: WindowTab) => {
     const chat = chatOfTab(tab);
     return (
       <ChatMarkIcon
-        dot={chat === undefined ? undefined : dotOf(chat, tab.id === lead.id)}
+        dot={chat === undefined ? undefined : dotOf(chat, tab)}
         icon={
           <TabMark appsBySlug={appsBySlug} chatTitles={chatTitles} tab={tab} />
         }

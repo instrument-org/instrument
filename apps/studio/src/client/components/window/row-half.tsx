@@ -1,3 +1,4 @@
+import { ChatAskIcon } from "@/client/components/icons/chat-ask-icon";
 import { type WindowTab } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
@@ -21,6 +22,7 @@ import { createContext, type ReactNode, use, useEffect, useState } from "react";
 
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatListOptions } from "./chat-list-query";
+import { isAsking } from "./chat-mark";
 import { type Chat } from "./chats";
 import { useTasksOf } from "./child-tasks-query";
 import { FadeTitle } from "./fade-title";
@@ -327,7 +329,7 @@ function usePageLoad(tab: WindowTab): PageLoad | undefined {
   return state?.target === targetId ? state.load : undefined;
 }
 
-/** A tab's own mark, as its tab in a strip wears it: a page's favicon, else its kind's. */
+/** A tab's own mark, as its tab in a strip wears it: a page's favicon, an asking chat's bubble, else its kind's. */
 export function TabMark({
   appsBySlug,
   chatTitles,
@@ -338,6 +340,8 @@ export function TabMark({
   tab: WindowTab;
 }) {
   const { chatUpIn } = useWindowTabs();
+  const { chats } = useRowSources();
+  const chat = chatOfTab(tab);
   const capture = usePageCaptures().find(
     ({ targetId, using }) =>
       (using.audio || using.video) &&
@@ -360,6 +364,9 @@ export function TabMark({
         url={tab.url ?? tab.openedUrl ?? ""}
       />
     );
+  }
+  if (chat !== undefined && isAsking(chats.find((each) => each.id === chat))) {
+    return <ChatAskIcon className="size-3.5 shrink-0" />;
   }
   return (
     <span className="grid size-3.5 shrink-0 place-items-center [&_svg]:size-3.5">

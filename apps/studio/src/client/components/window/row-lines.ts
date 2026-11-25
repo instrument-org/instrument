@@ -17,8 +17,8 @@ export type LineTone = "ask" | "draft" | "fail" | "news" | "quiet" | "work";
 
 /**
  * What one tab says on its two lines in a sidebar row: its title, and under
- * it `line` in a `tone`. `strong` sets the title in bold while the tab wants
- * a look: its chat asks something or has a reply not yet read.
+ * it `line` in a `tone`. `strong` sets the title in bold while its chat is
+ * unread, whatever else the chat says.
  */
 export interface RowLines {
   line: string;
@@ -45,29 +45,32 @@ export function chatLines(
 ): RowLines {
   const named = stripMarkdown(chat?.title ?? title);
   const latest = chat?.latest?.text ?? "";
+  const strong = chat?.unread === true;
   switch (chat?.status) {
     case "failed": {
-      return quiet(named, "Stopped", "fail");
+      return { ...quiet(named, "Stopped", "fail"), strong };
     }
     case "limited": {
-      return quiet(named, LIMITED_LINES[chat.stoppedFor ?? "usage"]);
+      const line = LIMITED_LINES[chat.stoppedFor ?? "usage"];
+      return { ...quiet(named, line), strong };
     }
     case "waiting": {
       return {
         line: latest || "Needs you",
-        strong: true,
+        strong,
         title: named,
         tone: "ask",
       };
     }
     case "working": {
       const step = chat.latest?.kind === "step" ? chat.latest.text : undefined;
-      return quiet(named, step ?? "Working", "work");
+      return { ...quiet(named, step ?? "Working", "work"), strong };
     }
     default: {
-      return chat?.unread === true
-        ? { line: plain(latest), strong: true, title: named, tone: "news" }
-        : quiet(named, plain(latest));
+      return {
+        ...quiet(named, plain(latest), strong ? "news" : "quiet"),
+        strong,
+      };
     }
   }
 }

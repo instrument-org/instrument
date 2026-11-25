@@ -514,9 +514,10 @@ describe("ChatRow", () => {
     ["quiet", {}, undefined, undefined],
     ["unseen", { unread: true }, "unread", "unread"],
     ["working", { status: "working", working: true }, undefined, "working"],
-    ["waiting", { status: "waiting" }, undefined, "waiting"],
+    ["asking", { status: "waiting", working: true }, undefined, undefined],
+    ["asking, unseen", { status: "waiting", unread: true }, "unread", "unread"],
   ])(
-    "wears the rail's dot when %s: for what is unseen, and at one line for where it stands",
+    "wears its dot when %s: for what is unseen, and at one line for work too",
     async (_, overrides, atThree, atOne) => {
       const { row } = await renderRow(chat(overrides));
       expect(dotOf(row)?.dataset.chatMark).toBe(atThree);
@@ -524,6 +525,19 @@ describe("ChatRow", () => {
         density: "one",
       });
       expect(dotOf(short)?.dataset.chatMark).toBe(atOne);
+    },
+  );
+
+  it.each(["one", "two", "three"] as const)(
+    "shows the asking bubble at %s lines only while it waits",
+    async (density) => {
+      const { rows } = await renderRows(
+        [chat({ status: "waiting" }), chat({ unread: true })],
+        { density },
+      );
+      expect(
+        rows.map((row) => row.querySelectorAll("[data-chat-asks]").length),
+      ).toEqual([1, 0]);
     },
   );
 
@@ -582,7 +596,7 @@ describe("ChatRow", () => {
     expect(names.map((name) => name.textContent)).toEqual(["Money"]);
   });
 
-  it("shows the step in brand while working, and the question behind a gray question mark while waiting", async () => {
+  it("shows the step in brand while working, and the question behind a gray asking bubble while waiting", async () => {
     const { rows } = await renderRows([
       chat({
         // The workspace names a working chat's step in `latest`, the same

@@ -1,3 +1,4 @@
+import { ChatAskIcon } from "@/client/components/icons/chat-ask-icon";
 import { hasReplyWaitingAtom } from "@/client/drafts/store";
 import { chatHref } from "@/client/components/window/window-href";
 import { FileOpenContext } from "@/client/components/file-open-context";
@@ -26,7 +27,6 @@ import { type ChatId } from "@instrument-org/workspace/client";
 import { chatAddressOf } from "@instrument-org/shared";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { QuestionIcon } from "@phosphor-icons/react/Question";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -39,7 +39,7 @@ import { contextMenuComponents } from "@/client/components/ui/menu-components";
 import { ChatCopyMenu } from "./chat-copy-menu";
 import { chatMenuGroups } from "./chat-actions";
 import { type RowDensity } from "./chat-list-view";
-import { ChatMarkDot } from "./chat-mark";
+import { chatDotOf, ChatMarkDot, isAsking } from "./chat-mark";
 import { ChatTitleField } from "./chat-title";
 import { useContentDrag } from "./drag/content-drag";
 import {
@@ -87,7 +87,7 @@ const PICKER_LEAVE_MS = 250;
  * with the time in the row's bottom corner. A starred chat wears a filled
  * star past its project. Where the chat
  * stands is said by the latest line alone: shimmering while it works, behind
- * a question mark while it waits on the user. No avatar,
+ * the asking bubble while it waits on the user. No avatar,
  * no name: every row here is the user's. The marks, the tag
  * control that stands in front of the title while the pointer is on the
  * row, and the actions that stand over the corner then (putting the chat
@@ -254,6 +254,10 @@ export function ChatRow({
         <span className="shrink-0 text-[13px] text-error-700 dark:text-error-300">
           Draft
         </span>
+      )}
+      {/* A one-line row has no line for the question, and here no mark. */}
+      {density === "one" && !mark && isAsking(chat) && (
+        <ChatAskIcon className="size-3.5 shrink-0 text-foreground/80" />
       )}
     </>
   );
@@ -523,26 +527,18 @@ function isBusy(chat: Chat) {
 }
 
 /**
- * The dot in the row's gutter, the rail's own: green while the chat has
- * something not yet seen. A one-line row has no line to say where the chat
- * stands, so there the dot says that too, pulsing green while it works and
- * gray while it waits on the user, as the rail's Chat does.
+ * The dot in the row's gutter: green while the chat has something not yet
+ * seen. A one-line row has no line to say the chat is at work, so there the
+ * dot pulses for that too.
  */
 function RowDot({ chat, density }: { chat: Chat; density: RowDensity }) {
-  const shown =
-    density === "one" && chat.status === "waiting"
-      ? "waiting"
-      : density === "one" && chat.working
-        ? "working"
-        : chat.unread
-          ? "unread"
-          : undefined;
+  const shown = chatDotOf(chat, { isWorkShown: density === "one" });
   if (!shown) {
     return null;
   }
   return (
     <span className="absolute top-4.5 left-1.5 flex size-1.5">
-      <ChatMarkDot className="static size-1.5 ring-0" mark={shown} />
+      <ChatMarkDot className="static size-1.5" mark={shown} />
     </span>
   );
 }
@@ -669,7 +665,7 @@ function HoldsInChat({
 /**
  * The agent's latest line: the step while it works, in brand; that its turn
  * stopped on an error, behind a red warning glyph; the question while it
- * waits, behind a question mark, both in gray; and
+ * waits, behind the asking bubble, both in gray; and
  * otherwise, a chat the user stopped included, the last reply's first words,
  * in muted. Nothing when an idle or stopped chat has said nothing yet. One
  * line that truncates.
@@ -718,10 +714,7 @@ export function Peek({
         </span>
       ) : isWaiting ? (
         <>
-          <QuestionIcon
-            className="size-3.5 shrink-0 text-foreground/80"
-            weight="bold"
-          />
+          <ChatAskIcon className="size-3.5 shrink-0 text-foreground/80" />
           <span className="min-w-0 truncate text-foreground/80">
             <Marked
               search={search}

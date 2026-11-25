@@ -2050,6 +2050,7 @@ exports[`the exported text constants > appCommand 1`] = `
   },
   "APP_SETUP_IS_THE_CHATS": "only the chat sets up and changes apps, since every chat uses them. End your last message with a needs fence naming the app and what it needs (set up, connected, or changed); the chat does it and sends you on.",
   "WEB_APP_NOT_SIGNED_IN": "not marked signed in. Open its site in a tab first: if it loads signed in, call connect_app (unless its card is open) and tell the user they are already signed in, so they only press Sign in on the card, then Done on the page it opens; otherwise connect_app",
+  "WEB_APP_UNMARKED": "not marked signed in, though the user may already be signed in on the site in Instrument's browser",
 }
 `;
 

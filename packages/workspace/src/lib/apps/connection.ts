@@ -1,4 +1,7 @@
-import { WEB_APP_NOT_SIGNED_IN } from "../../model-text/commands/app-command";
+import {
+  WEB_APP_NOT_SIGNED_IN,
+  WEB_APP_UNMARKED,
+} from "../../model-text/commands/app-command";
 import { TOOL_NAMES } from "../../tools/name";
 import { APP_NAME } from "@instrument-org/shared";
 import { z } from "zod";
@@ -86,19 +89,28 @@ export interface AppConnectionStore {
 /**
  * A line for a listing: the status in words, with the account when known and,
  * for an app with a sign-in of its own (`direct`), where that went through.
- * Every chat reads a connected app's line, so it states and never instructs.
+ * Without `nextSteps` it says only where the app stands, for the context every
+ * chat starts with: a step there is one more thing to do in a chat about
+ * something else.
  */
 export function describeConnection(
   connection: AppConnection | undefined,
   manifestHash: string,
   {
     direct = false,
+    nextSteps = true,
     role = "chat",
     web = false,
-  }: { direct?: boolean; role?: "chat" | "task"; web?: boolean } = {},
+  }: {
+    direct?: boolean;
+    nextSteps?: boolean;
+    role?: "chat" | "task";
+    web?: boolean;
+  } = {},
 ): string {
   // What to run next, for the chat alone: a task neither tests nor connects.
-  const next = (step: string) => (role === "chat" ? ` (${step})` : "");
+  const next = (step: string) =>
+    nextSteps && role === "chat" ? ` (${step})` : "";
   if (!connection) {
     return `not connected${next("run `instrument app test`")}`;
   }
@@ -128,7 +140,7 @@ export function describeConnection(
     case "needs-sign-in": {
       // A web app's sign-in may already be there, unsaid.
       if (web && role === "chat") {
-        return WEB_APP_NOT_SIGNED_IN;
+        return nextSteps ? WEB_APP_NOT_SIGNED_IN : WEB_APP_UNMARKED;
       }
       return `needs the user to sign in${next(TOOL_NAMES.connectApp)}`;
     }

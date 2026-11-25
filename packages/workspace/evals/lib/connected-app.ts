@@ -13,6 +13,8 @@ export const SIGNED_IN_TOKEN = "stand-in";
 export interface AppFixture {
   /** The account it is signed in as, as the manifest names it. */
   account?: string;
+  /** For a `signed-in` app, its guide. */
+  guide?: string;
   /**
    * `api` (the default) serves the small REST tracker below; `mcp` serves
    * the larger issue tracker in `mcp-tracker.ts` over MCP; `web` is a site
@@ -24,12 +26,14 @@ export interface AppFixture {
    * written, which `connect_app` refuses to put on a card; `signed-out` is
    * the MCP tracker, connected by a sign-in its server has stopped taking,
    * so every call is refused until the user signs in again on a card
-   * (`signInsAnswerAs`).
+   * (`signInsAnswerAs`); `signed-in` is the same tracker with a sign-in it
+   * takes, made in the user's own browser.
    */
   kind?:
     | "api"
     | "mcp"
     | "sign-in"
+    | "signed-in"
     | "signed-out"
     | "unfinished"
     | "web"
@@ -156,16 +160,18 @@ export async function seedConnectedApps(
       );
       continue;
     }
-    if (fixture.kind === "signed-out") {
+    if (fixture.kind === "signed-out" || fixture.kind === "signed-in") {
+      const signedIn = fixture.kind === "signed-in";
       const store = apps.oauth?.store;
       if (store === undefined) {
         throw new Error(
-          `${fixture.slug}: a signed-out app needs a case with signInsAnswerAs, which gives the run a sign-in store`,
+          `${fixture.slug}: a ${fixture.kind} app needs a case with signInsAnswerAs, which gives the run a sign-in store`,
         );
       }
       const tracker = await startMcpTracker({ accepts: SIGNED_IN_TOKEN });
       closers.push(tracker.close);
       const manifest = AppManifestSchema.parse({
+        ...(fixture.account ? { account: fixture.account } : {}),
         auth: { kind: "oauth" },
         type: "mcp",
         url: tracker.url,
@@ -173,7 +179,7 @@ export async function seedConnectedApps(
       await seedApp(
         fixture,
         manifest,
-        `${fixture.name} tracks the team's issues.\n`,
+        fixture.guide ?? `${fixture.name} tracks the team's issues.\n`,
       );
       // What an earlier sign-in left: a registered client, and an access
       // token with nothing to refresh it by.
@@ -187,9 +193,15 @@ export async function seedConnectedApps(
       });
       await store.saveTokens(fixture.slug, {
         origin,
-        value: { access_token: "lapsed", token_type: "Bearer" },
+        value: {
+          access_token: signedIn ? SIGNED_IN_TOKEN : "lapsed",
+          token_type: "Bearer",
+        },
       });
-      await recordConnected(fixture.slug, { apps });
+      await recordConnected(fixture.slug, {
+        apps,
+        ...(signedIn && { signedInFrom: "external" }),
+      });
       continue;
     }
     if (fixture.kind === "unfinished") {
@@ -320,7 +332,10 @@ async function seedApp(
  */
 async function recordConnected(
   slug: string,
-  { apps }: { apps: WorkspaceAppsConfig },
+  {
+    apps,
+    signedInFrom,
+  }: { apps: WorkspaceAppsConfig; signedInFrom?: "app" | "external" },
 ) {
   const loaded = await loadApp(slug);
   if (loaded.isErr()) {
@@ -329,6 +344,7 @@ async function recordConnected(
   await apps.connections.set(slug, {
     connectedAt: Date.now(),
     manifestHash: loaded.value.manifestHash,
+    ...(signedInFrom && { signedInFrom }),
     status: "connected",
     updatedAt: Date.now(),
   });

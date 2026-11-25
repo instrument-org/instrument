@@ -20,7 +20,7 @@ export async function buildAppsContextText(): Promise<string> {
 
   const rows = apps.map(
     (app) =>
-      `- ${app.slug} (${app.name}${app.manifest.account ? `, signed in as ${app.manifest.account}` : ""}, ${app.manifest.type === "web" ? `web at ${app.manifest.url}` : app.manifest.type}): ${describeConnection(connections[app.slug], app.manifestHash, { direct: signsInDirectly(app.manifest), web: app.manifest.type === "web" })}`,
+      `- ${app.slug} (${app.name}${app.manifest.account ? `, signed in as ${app.manifest.account}` : ""}, ${app.manifest.type === "web" ? `web at ${app.manifest.url}` : app.manifest.type}): ${describeConnection(connections[app.slug], app.manifestHash, { direct: signsInDirectly(app.manifest), nextSteps: false, web: app.manifest.type === "web" })}`,
   );
   for (const entry of invalid) {
     rows.push(`- ${entry.slug}: broken manifest, ${entry.message}`);

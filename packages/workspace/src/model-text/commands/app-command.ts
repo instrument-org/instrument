@@ -1,3 +1,4 @@
+import { APP_NAME } from "@instrument-org/shared";
 import { TOOL_NAMES } from "../../tools/name";
 import { INSTRUMENT_COMMAND } from "./instrument-command";
 
@@ -27,6 +28,12 @@ export const APPS_ARE_THE_CHATS = `Setting up and connecting apps is the chat's.
 
 /** Why a task's setup word changes nothing. */
 export const APP_SETUP_IS_THE_CHATS = `only the chat sets up and changes apps, since every chat uses them. ${NAME_IT_IN_YOUR_NEEDS}`;
+
+/**
+ * The same app in the list every chat starts with, which says where each
+ * stands and leaves what to do about it to the work that needs the app.
+ */
+export const WEB_APP_UNMARKED = `not marked signed in, though the user may already be signed in on the site in ${APP_NAME}'s browser`;
 
 /**
  * Where a web app stands, for the chat, before the user has said they are

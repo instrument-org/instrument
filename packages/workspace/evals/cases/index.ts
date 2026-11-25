@@ -13,6 +13,7 @@ import { NEXT_MESSAGE_EVALS } from "./next-message";
 import { APP_SCRIPTING_EVALS } from "./app-scripting";
 import { APP_SCRIPTING_API_EVALS } from "./app-scripting-api";
 import { APP_SIGN_IN_CARD_EVALS } from "./app-sign-in-card";
+import { APP_LINES_EVALS } from "./app-lines";
 import { APP_SIGN_IN_LOST_EVALS } from "./app-sign-in-lost";
 import { APP_SIGN_IN_REFUSED_EVALS } from "./app-sign-in-refused";
 import { APP_WEB_SIGNED_IN_EVALS } from "./app-web-signed-in";
@@ -98,6 +99,7 @@ export const EVALS = [
   ...APP_SCRIPTING_EVALS,
   ...APP_SCRIPTING_API_EVALS,
   ...APP_SIGN_IN_CARD_EVALS,
+  ...APP_LINES_EVALS,
   ...APP_SIGN_IN_LOST_EVALS,
   ...APP_SIGN_IN_REFUSED_EVALS,
   ...APP_WEB_SIGNED_IN_EVALS,

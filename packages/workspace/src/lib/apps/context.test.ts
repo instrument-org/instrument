@@ -65,7 +65,7 @@ describe("the apps a session starts with", () => {
     expect(text).not.toContain("app_instructions");
   });
 
-  it("has a web app waiting on its sign-in checked in a tab before the user is asked again", async () => {
+  it("has a web app waiting on its sign-in said to be maybe signed in already", async () => {
     await seedApp("shopify", {
       guide: "",
       name: "Shopify",
@@ -77,7 +77,7 @@ describe("the apps a session starts with", () => {
     });
 
     expect(await buildAppsContextText()).toContain(
-      "- shopify (Shopify, web at https://admin.shopify.com): not marked signed in. Open its site in a tab first: if it loads signed in, call connect_app (unless its card is open) and tell the user they are already signed in, so they only press Sign in on the card, then Done on the page it opens; otherwise connect_app",
+      "- shopify (Shopify, web at https://admin.shopify.com): not marked signed in, though the user may already be signed in on the site in Instrument's browser",
     );
   });
 
@@ -111,6 +111,32 @@ describe("the apps a session starts with", () => {
       );
     },
   );
+
+  it.each([
+    undefined,
+    "declined",
+    "failed",
+    "needs-approval",
+    "needs-key",
+    "needs-sign-in",
+    "connected",
+  ] as const)("gives no step to run for an app that is %s", async (status) => {
+    await writeApp("Linear", "linear", "");
+    if (status) {
+      // Connected on another manifest than the app has, so it wants testing.
+      await getWorkspaceConfig().apps.connections.set("linear", {
+        manifestHash: "another",
+        status,
+        updatedAt: 0,
+      });
+    }
+
+    const row = (await buildAppsContextText())
+      .split("\n")
+      .find((line) => line.startsWith("- linear"));
+    expect(row).toBeDefined();
+    expect(row).not.toMatch(/connect_app|instrument app|run `/);
+  });
 
   it("states nowhere for an app whose sign-in is gone", async () => {
     await seedApp("tella", {

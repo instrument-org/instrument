@@ -29,6 +29,7 @@ const config: KnipConfig = {
         "scripts/*.ts!",
         "scripts/sandbox-bakeoff/*.ts!",
         ".agents/wireframe-kit/**/*.{ts,mjs}!",
+        ".claude/hooks/*.mjs!", // Run by .claude/settings.json's hook commands
       ],
       ignoreBinaries: ["actionlint", "electron"],
       ignoreDependencies: [

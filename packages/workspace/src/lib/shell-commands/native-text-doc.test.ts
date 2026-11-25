@@ -1,3 +1,4 @@
+// turn end, regenerating: packages/workspace/src/lib/shell-commands/native-text.ts, docs/architecture/native-and-builtin-commands.md
 import fs from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";

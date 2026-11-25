@@ -1,5 +1,6 @@
 // land: every landing. It reads the source tree, which `vitest related` cannot
 // trace to the change that breaks it, so scripts/land.sh always runs it.
+// turn end: packages/workspace/src/**/*-model-text.ts
 import fs from "node:fs";
 import path from "node:path";
 import { expect, it } from "vitest";

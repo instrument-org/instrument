@@ -1,3 +1,4 @@
+// turn end, regenerating: packages/workspace/src/lib/records/*, packages/workspace/system-skills/chat-history/records.md
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 

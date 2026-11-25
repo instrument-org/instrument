@@ -1,5 +1,6 @@
 // land: every landing. It reads source as text, which `vitest related` cannot
 // trace to the change that breaks it, so scripts/land.sh always runs it.
+// turn end: packages/workspace/src/**/*.ts with (generate|stream)(Text|Object)\(
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";

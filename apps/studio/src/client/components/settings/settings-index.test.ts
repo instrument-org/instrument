@@ -1,5 +1,6 @@
 // land: every landing. It reads source as text, which `vitest related` cannot
 // trace to the change that breaks it, so scripts/land.sh always runs it.
+// turn end: apps/studio/src/client/components/settings/**, apps/studio/src/shared/agent-settings.ts
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";

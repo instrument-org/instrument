@@ -1,3 +1,4 @@
+// turn end: packages/workspace/src/{model-text,agents,tools}/**
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";

@@ -61,9 +61,9 @@
       }
     },
     {
-      // Agent skill scripts are plain JavaScript run by node with no types, so
+      // Agent skill scripts and hooks are plain JavaScript run by node with no types, so
       // every value is `any` and the type-aware rules flag every line of them.
-      "files": [".agents/**/*.mjs"],
+      "files": [".agents/**/*.mjs", ".claude/hooks/*.mjs"],
       "rules": {
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-assignment": "off",

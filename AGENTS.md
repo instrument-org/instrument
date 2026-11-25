@@ -121,6 +121,8 @@ Run lint/types from **repo root** through Turbo for caching. Avoid package-loop 
 
 A format hook (`.claude/settings.json`, `@instrument-org/agent-hooks`) runs oxfmt on every file you Edit or Write, and on one a Bash command changes and names (a heredoc, `sed -i`), then oxfmt + `oxlint --type-aware --fix` on Stop over the files that session edited, knip over them, and `vitest related` over them in each one's package (the `test:ci` projects, capped at 60s). Any error oxlint could not fix, anything knip finds unused, and any related test that fails, blocks the turn and comes back to you to fix in context. So: expect files to change after you write them, never hand-format or hand-fix auto-fixable lint (including Tailwind class order), and don't run `check:lint` proactively to find what the hook is about to hand you anyway.
 
+Around it the Stop hook (`.claude/hooks/turn-end.mjs`) runs `scripts/turn-end.ts` in each checkout the session edited: it regenerates files a test holds equal to an edited source (and asks you to commit them), runs the tests that read an edited file as text, and names what the React Compiler skips in edited client files. A test that reads source as text says which edits it answers for on its own `// turn end:` line, beside `// land: every landing`.
+
 What the hook does not cover: type errors, tests in another package that import what you edited, and a file a script writes without the command naming it; `pnpm fix` sweeps the tree for the formatting, `pnpm fix --lint` for the rest. Run `check:types` yourself when a change can move types: a signature, a schema, a prop, the shape of data flowing through. Skip it when a change cannot: className and CSS edits, copy, Markdown.
 
 ## Key catalog versions

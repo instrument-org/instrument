@@ -21,6 +21,12 @@ export interface OpenOptions {
    * names, else the chat's tab the person last sent from.
    */
   chat?: ChatId;
+  /**
+   * The group's tab it was asked from, by its id, which it opens beside as a
+   * click in a chat opens what it names (`openBesideChat`): the other side,
+   * made where the group has one. Read only where `chat` is not given.
+   */
+  beside?: string;
   /** The tab it was asked from, by its id, which `into: "split"` opens across from; the tab up with the keyboard where none is named. */
   from?: string;
   /** The tab group it belongs to, by its id, when not the one on screen. */
@@ -105,8 +111,9 @@ export interface WindowContextValue {
   /**
    * Opens a new draft and moves these staged asks into it as pills, for a
    * file with no chat beside it; inside a draft, moves them into that one.
+   * Asked from a group's tab (`from`), the draft opens beside it, as `ask`'s does.
    */
-  moveAsksToDraft?: (ids: string[]) => void;
+  moveAsksToDraft?: (ids: string[], options?: { from?: string }) => void;
   /**
    * Opens several things as one new tab group, up in this window or as a
    * window of its own: a tab each, in the order given, the first up. What a

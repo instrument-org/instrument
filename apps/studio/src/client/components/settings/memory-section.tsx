@@ -17,6 +17,7 @@ import { Checkbox } from "@/client/components/ui/checkbox";
 import { Input } from "@/client/components/ui/input";
 import { Textarea } from "@/client/components/ui/textarea";
 import { WindowContext } from "@/client/components/window/context";
+import { useGroupTab } from "@/client/components/window/group-tab";
 import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { chatHref } from "@/client/components/window/window-href";
 import { useModalBack } from "@/client/hooks/use-modal-back";
@@ -557,6 +558,8 @@ function FromChat({ chatId, title }: { chatId: ChatId; title: string }) {
  */
 function ImportPage() {
   const appWindow = useContext(WindowContext);
+  // An import's draft opens beside the tab Settings is in.
+  const from = useGroupTab()?.id;
   const { data: sources } = useQuery(
     rpcClient.workspace.memory.sources.queryOptions(),
   );
@@ -565,7 +568,7 @@ function ImportPage() {
     return null;
   }
   const start = (prompt: string) => {
-    appWindow.ask(prompt);
+    appWindow.ask(prompt, { from });
   };
 
   return (

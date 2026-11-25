@@ -3,6 +3,7 @@ import { Button } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { useWindow } from "@/client/components/window/context";
+import { useGroupTab } from "@/client/components/window/group-tab";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
 import { AppContextMenu } from "@/client/components/window/app-menu";
 import { PageSection } from "@/client/components/window/page-section";
@@ -65,6 +66,8 @@ const RELATED_SKELETONS = 2;
  */
 export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
   const { ask } = useWindow();
+  // What is asked here opens its draft beside the page.
+  const from = useGroupTab()?.id;
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(
     rpcClient.apps.live.catalog.experimental_liveOptions(),
@@ -142,7 +145,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
     ? (byMeaning.data ?? []).filter((entry) => !shownSlugs.has(entry.slug))
     : [];
   const connectTyped = () => {
-    ask(`Connect ${typed}`);
+    ask(`Connect ${typed}`, { from });
     setQuery("");
   };
   const { connect } = useConnectFromDirectory();
@@ -396,6 +399,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
                       onClick={() => {
                         ask(
                           `Fix the ${entry.slug} app; its manifest is broken`,
+                          { from },
                         );
                       }}
                       size="sm"

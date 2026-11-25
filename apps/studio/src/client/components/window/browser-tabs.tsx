@@ -972,7 +972,7 @@ export function BrowserTabs({
       {/* A page's file keeps its asks at its foot while viewed; in Edit the
           page's own dock holds them. */}
       {activeFilePath !== undefined && !(active && editTabs[active.id]) && (
-        <AskTray path={activeFilePath} />
+        <AskTray path={activeFilePath} tabId={active?.id} />
       )}
       {Object.entries(hosts).map(([group, host]) => {
         // The page the window has up, when what it has up is a page: the

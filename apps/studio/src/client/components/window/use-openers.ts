@@ -186,14 +186,20 @@ export function useOpeners({
    * against the chat's tab it was asked from (`from`), else the chat's tab
    * the person last sent from (`chatTab`), in that tab's group. Beside it
    * where that tab's page type opens beside it (`opensBeside`), otherwise
-   * right after it. Undefined for a chat with no tab, which opens where
-   * anything else would.
+   * right after it. One asked from a group's tab (`beside`) opens beside
+   * that tab. Undefined for a chat with no tab, which opens where anything
+   * else would.
    */
   const placeOf = (
     options: OpenOptions,
   ): undefined | { after: string; group: string; isBeside: boolean } => {
     if (options.chat === undefined) {
-      return undefined;
+      const beside = windowTabs.allTabs.find(
+        (tab) => tab.id === options.beside,
+      );
+      return beside?.group === undefined
+        ? undefined
+        : { after: beside.id, group: beside.group, isBeside: true };
     }
     const asking = windowTabs.allTabs.find((tab) => tab.id === options.from);
     const tab =

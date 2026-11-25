@@ -2,6 +2,7 @@ import { Button } from "@/client/components/ui/button";
 import { cn, osConventions } from "@/client/lib/utils";
 import { KeyForm } from "@/client/components/window/key-form";
 import { WindowContext } from "@/client/components/window/context";
+import { useGroupTab } from "@/client/components/window/group-tab";
 import {
   type SignInDestination,
   signInsWaitingAtom,
@@ -87,6 +88,7 @@ export function ConnectControls({
   slug: string;
 }) {
   const appWindow = useContext(WindowContext);
+  const groupTabId = useGroupTab()?.id;
   const inChat = askedIn === undefined ? {} : { chatId: askedIn };
   const openExternalLink = useOpenExternalLink();
   const site = useSiteSignIn({ askedIn, name, slug });
@@ -310,7 +312,8 @@ export function ConnectControls({
           <Button
             onClick={() => {
               if (appWindow?.browser) {
-                appWindow.openPage(keyHelp.page);
+                // Beside the card, so the key can be pasted here as it is made there.
+                appWindow.openPage(keyHelp.page, { beside: groupTabId });
               } else {
                 openExternalLink(keyHelp.page, { addReferral: false });
               }

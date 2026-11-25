@@ -113,7 +113,7 @@ export function PageEditSession({
   const placement = "row" as const;
   const stageAsk = useStageAsk();
   const { remove: removeAsks } = useStagedAskActions();
-  const { label: moveLabelFor, move } = useMoveAsks();
+  const { label: moveLabelFor, move } = useMoveAsks(tabId);
   const asks = useFileAsks(path);
   const moveLabel = moveLabelFor(
     asks.filter((ask) => ask.destination === undefined).length,

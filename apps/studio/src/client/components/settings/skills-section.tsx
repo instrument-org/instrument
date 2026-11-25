@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { WindowContext } from "@/client/components/window/context";
+import { useGroupTab } from "@/client/components/window/group-tab";
 import { showInFolder } from "@/client/lib/show-in-files";
 import { rpcClient, type RPCOutput } from "@/client/rpc/client";
 import { APP_NAME } from "@instrument-org/shared";
@@ -218,15 +219,16 @@ function SkillMenu({ skill }: { skill: Skill }) {
 }
 
 /**
- * Opens a draft with the words in it, or `undefined` outside the app window,
- * where there is no draft to open.
+ * Opens a draft with the words in it, beside the tab Settings is in, or
+ * `undefined` outside the app window, where there is no draft to open.
  */
 function useAsk() {
   const appWindow = useContext(WindowContext);
+  const from = useGroupTab()?.id;
   if (!appWindow) {
     return;
   }
   return (words: string) => {
-    appWindow.ask(words);
+    appWindow.ask(words, { from });
   };
 }

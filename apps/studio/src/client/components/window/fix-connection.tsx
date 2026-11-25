@@ -1,6 +1,7 @@
 import { Button } from "@/client/components/ui/button";
 import { chatListOptions } from "@/client/components/window/chat-list-query";
 import { WindowContext } from "@/client/components/window/context";
+import { useGroupTab } from "@/client/components/window/group-tab";
 import { appMentionToken } from "@/client/lib/app-mention";
 import { cn } from "@/client/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -31,6 +32,7 @@ export function useFixConnection({
   updatedAt: number | undefined;
 }) {
   const appWindow = useContext(WindowContext);
+  const from = useGroupTab()?.id;
   const chatId = appWindow?.chatId;
   const [asked, setAsked] = useAtom(fixesAskedAtom);
   const [isStarting, setIsStarting] = useState(false);
@@ -62,6 +64,7 @@ export function useFixConnection({
     }
     appWindow?.ask(
       `${appMentionToken({ name, slug })} didn't connect. Look for another way to connect it.`,
+      { from },
     );
   };
   return { fix, isFixing };

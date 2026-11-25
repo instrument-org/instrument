@@ -26,12 +26,19 @@ import {
  * said once, in that button's words; nothing is typed or sent here. Absent
  * while nothing waits.
  */
-export function AskTray({ path }: { path: string }) {
+export function AskTray({
+  path,
+  tabId,
+}: {
+  path: string;
+  /** The file's tab, which a new chat for the comments opens beside. */
+  tabId: string | undefined;
+}) {
   const waiting = numbered(useFileAsks(path)).filter(
     ({ ask }) => ask.destination === undefined,
   );
   const { remove } = useStagedAskActions();
-  const { canMove, label, move } = useMoveAsks();
+  const { canMove, label, move } = useMoveAsks(tabId);
   const [tray, setTray] = useAtom(askTrayAtom);
   if (waiting.length === 0) {
     return null;

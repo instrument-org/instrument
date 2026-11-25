@@ -1230,7 +1230,12 @@ export function FilesScreen({
                                 {!(
                                   hostedTabId !== undefined &&
                                   editTabs[hostedTabId]
-                                ) && <AskTray path={activeFile.hostPath} />}
+                                ) && (
+                                  <AskTray
+                                    path={activeFile.hostPath}
+                                    tabId={groupTab?.id}
+                                  />
+                                )}
                               </div>
                             )}
                           </LinkSurface>
@@ -1300,7 +1305,7 @@ export function FilesScreen({
         {/* A page in Edit keeps its asks in its own dock instead. */}
         {activeFile &&
           !(hostedTabId !== undefined && editTabs[hostedTabId]) && (
-            <AskTray path={activeFile.hostPath} />
+            <AskTray path={activeFile.hostPath} tabId={groupTab?.id} />
           )}
         {fileInfo.card}
       </div>

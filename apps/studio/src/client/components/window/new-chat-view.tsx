@@ -288,10 +288,17 @@ export function NewChatView({
     }
   };
 
-  // The plus opens the web, the computer and Apps beside the new chat, in
-  // the side panel, the way a chat's plus opens them beside the chat.
+  // The plus opens the web, the computer and Apps beside the new chat, the
+  // way a chat's plus opens them beside the chat (`openBesideChat`): on the
+  // other side, made where the group has one.
   const openBeside = (href: string) => {
     const opened = ensureGroup();
+    if (
+      windowTabs.openScreenBeside(href, { chatTab: tabId, gesture: "click" })
+    ) {
+      onOpenBeside(opened);
+      return;
+    }
     windowTabs.openScreen(href, {
       after: tabId,
       group: opened,

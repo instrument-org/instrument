@@ -238,10 +238,10 @@ export function useAskRevealer(
 /**
  * Moving a file's waiting asks into a composer, as pills: the chat beside
  * the file when one is up, otherwise a new draft (or, inside a draft window,
- * that draft). What the button that does it says, and whether there is
- * anywhere to move them at all.
+ * that draft), opened beside the file's tab (`from`). What the button that
+ * does it says, and whether there is anywhere to move them at all.
  */
-export function useMoveAsks() {
+export function useMoveAsks(from?: string) {
   const appWindow = useContext(WindowContext);
   const store = useStore();
   const chat = useChatBeside();
@@ -254,7 +254,7 @@ export function useMoveAsks() {
       `Add ${commentCount(count)} to ${chat === undefined ? "new chat" : "chat"}`,
     move: (ids: string[]) => {
       if (chat === undefined) {
-        appWindow?.moveAsksToDraft?.(ids);
+        appWindow?.moveAsksToDraft?.(ids, { from });
       } else {
         moveTo(ids, { chatId: chat, kind: "chat" });
         const editor = store.get(

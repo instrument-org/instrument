@@ -1197,3 +1197,44 @@ describe("a setting clicked in a chat", () => {
     expect(result.current.windowTabs.active?.id).toBe(CHAT_TAB);
   });
 });
+
+describe("an open asked beside a group's tab", () => {
+  const APPS_TAB = "tab_apps";
+  const up = { href: "/apps", id: APPS_TAB, kind: "screen" as const };
+
+  it("hands a page to the browser beside the tab, as a click in a chat does", () => {
+    const openBeside = vi.fn(() => ({ id: "tab_opened" }));
+    const { result } = windowOnTwoSides({
+      browser: {
+        openBeside,
+      } as Partial<BrowserTabsHandle> as BrowserTabsHandle,
+      isSplit: false,
+      up,
+    });
+    act(() => {
+      result.current.openers.openPage("https://keys.example/", {
+        beside: APPS_TAB,
+      });
+    });
+    expect(openBeside).toHaveBeenCalledWith("https://keys.example/", {
+      chatTab: APPS_TAB,
+      gesture: "click",
+    });
+  });
+
+  it("makes the right side for a screen when the group has one", () => {
+    const { result } = windowOnTwoSides({ isSplit: false, up });
+    act(() => {
+      result.current.openers.openScreen("/settings/general", {
+        beside: APPS_TAB,
+      });
+    });
+    expect(
+      result.current.windowTabs
+        .layoutOf(GROUP)
+        .sides.map((side) =>
+          side.tabs.map((tab) => (tab.kind === "screen" ? tab.href : tab.id)),
+        ),
+    ).toEqual([["/apps", LEFT_PAGE], ["/settings/general"]]);
+  });
+});

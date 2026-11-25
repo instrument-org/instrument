@@ -248,3 +248,80 @@ describe("chats.live.folders", () => {
     await live.return?.(undefined).catch(() => undefined);
   });
 });
+
+describe("chats.sendPrompt", () => {
+  const context: WorkspaceRPCContext = {
+    workspaceConfig: getWorkspaceConfig(),
+    // Neither case reaches a send, which is the one thing that needs it.
+    workspaceRef: undefined as unknown as WorkspaceRPCContext["workspaceRef"],
+  };
+  const REPLY =
+    "Start it as its own chat:\n\n```message\n---\nmessage: prompt\n---\nFind the prices\n```\n\n```message\n---\nmessage: prompt\nto: Claude Code\n---\nAdd a table\n```";
+
+  async function reply(metadata: Record<string, unknown> = {}) {
+    const sessionId = sessionOfChat(chatId);
+    if (!sessionId) {
+      throw new Error("The chat has no session");
+    }
+    const createdAt = new Date();
+    const messageId = StoreId.newMessageId();
+    const partId = StoreId.newPartId();
+    const written = await ChatWrites.saveMessageWithParts(
+      {
+        id: messageId,
+        metadata: {
+          createdAt,
+          finishReason: "stop",
+          modelId: "m",
+          providerId: "p",
+          sessionId,
+        },
+        parts: [
+          {
+            metadata: {
+              createdAt,
+              id: partId,
+              messageId,
+              sessionId,
+              ...metadata,
+            },
+            state: "done",
+            text: REPLY,
+            type: "text",
+          },
+        ],
+        role: "assistant",
+      },
+      chatId,
+    );
+    if (written.isErr()) {
+      throw written.error;
+    }
+    return { id: chatId, messageId, partId, sessionId };
+  }
+
+  it("answers a card already sent with the chat it started, and starts nothing", async () => {
+    const card = await reply({
+      promptsSent: [
+        { at: "2026-11-25T11:31:00.000Z", chat: otherChatId, fence: 0 },
+      ],
+    });
+    expect(
+      await call(
+        chats.sendPrompt,
+        { ...card, body: "Find the prices" },
+        { context },
+      ),
+    ).toEqual({ chat: otherChatId, listed: null, sessionId: null });
+  });
+
+  it.each([
+    ["a prompt for another app's agent", "Add a table"],
+    ["words the reply has no card for", "Something else"],
+  ])("refuses %s", async (_name, body) => {
+    const card = await reply();
+    await expect(
+      call(chats.sendPrompt, { ...card, body }, { context }),
+    ).rejects.toThrow("The reply has no such prompt");
+  });
+});

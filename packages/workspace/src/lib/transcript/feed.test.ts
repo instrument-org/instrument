@@ -75,6 +75,31 @@ describe("TranscriptProjection", () => {
     expect(back.messages[1]).not.toBe(held.messages[1]);
   });
 
+  it("sends a settled reply whose metadata alone changed whole", () => {
+    const messageId = StoreId.newMessageId();
+    const partId = StoreId.newPartId();
+    const reply = (extra: Record<string, unknown>) =>
+      stored(
+        "assistant",
+        (id) => [
+          {
+            ...text(id, "Words", partId, "done"),
+            metadata: { ...partMeta(id, partId), ...extra },
+          },
+        ],
+        messageId,
+      );
+    const projection = new TranscriptProjection();
+    projection.reset([typed("Hi"), reply({})]);
+    const next = projection.update({
+      changed: [reply({ promptsSent: [{ fence: 0 }] })],
+      removed: [],
+    });
+    expect(next?.kind === "change" && next.patches).toMatchObject([
+      { kind: "part", part: { metadata: { promptsSent: [{ fence: 0 }] } } },
+    ]);
+  });
+
   it("sends only the words a token adds", () => {
     const messageId = StoreId.newMessageId();
     const partId = StoreId.newPartId();

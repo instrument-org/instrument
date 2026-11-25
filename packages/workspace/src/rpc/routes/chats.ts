@@ -1,4 +1,4 @@
-import { eventIterator, ORPCError } from "@orpc/server";
+import { call, eventIterator, ORPCError } from "@orpc/server";
 import { z } from "zod";
 
 import { ChatWrites } from "../../lib/chat-writes";
@@ -7,6 +7,15 @@ import { latestStepIn } from "../../lib/chat/step-label";
 import { taskSlices } from "../../lib/chat/task-slices";
 import { branchChat } from "../../lib/chat/branch-chat";
 import { ensureChat } from "../../lib/chat/chat-records";
+import { chatModelChoice, chatModelURI } from "../../lib/chat-settings";
+import { ChatReads } from "../../lib/chat-reads";
+import { createWriteQueue } from "../../lib/create-write-queue";
+import {
+  PROMPTS_SENT_KEY,
+  promptFenceOf,
+  promptSentAt,
+  promptsSentOf,
+} from "../../lib/prompt-card";
 import { ChangesCardSchema, markCardUndone } from "../../lib/chat/card-undone";
 import {
   chatById,
@@ -49,6 +58,7 @@ import { StoreId } from "../../schemas/store-id";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { type ListedAt } from "../../lib/chat/chat-list-events";
 import { chatRoutes } from "./chat";
+import { message } from "./message";
 import { base, toORPCError } from "../base";
 import { atMoment, distinct, liveRead, where } from "../live-read";
 import { publisher } from "../publisher";
@@ -387,6 +397,120 @@ const ensureChatRoute = base
   .handler(async ({ input }) => ({
     id: await ensureChat(input.sessionId, input.firstWords),
   }));
+
+/** One Send at a time per reply, so a second press waits and finds the first. */
+const promptSends = createWriteQueue();
+
+/**
+ * Starts a new chat from a prompt card in a reply: the card's words as its
+ * first message, filed under this chat's project and run on this chat's
+ * model, then written onto the reply's part as sent, which every device
+ * reads. A card already sent answers with the chat it started and starts
+ * nothing, so a second press, here or on another device that has read the
+ * first, opens that chat.
+ */
+const sendPromptRoute = base
+  .input(
+    z.object({
+      body: z.string().min(1),
+      id: ChatIdSchema,
+      messageId: StoreId.MessageSchema,
+      partId: StoreId.PartSchema,
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(
+    z.object({
+      chat: ChatIdSchema,
+      listed: ListedAtSchema,
+      sessionId: StoreId.SessionSchema.nullable(),
+    }),
+  )
+  .handler(({ context, errors, input }) =>
+    promptSends(input.partId, async () => {
+      const chatId = resolveChat(input.id);
+      if (!chatId) {
+        throw errors.NOT_FOUND({ message: `${input.id} is not a chat` });
+      }
+      const ids = {
+        chatId,
+        messageId: input.messageId,
+        partId: input.partId,
+        sessionId: input.sessionId,
+      };
+      const read = await ChatWrites.updatePart(ids, (part) => part);
+      if (read.isErr()) {
+        throw toORPCError(read.error, errors);
+      }
+      const part = read.value;
+      const fence =
+        part?.type === "text"
+          ? promptFenceOf(part.text, input.body)
+          : undefined;
+      if (part === undefined || fence === undefined) {
+        throw errors.NOT_FOUND({ message: "The reply has no such prompt" });
+      }
+      const sent = promptSentAt(part.metadata, fence);
+      if (sent) {
+        return {
+          chat: sent.chat,
+          listed: null,
+          sessionId: sessionOfChat(sent.chat) ?? null,
+        };
+      }
+      const modelURI = await chatModelURI(chatId);
+      if (!modelURI) {
+        throw errors.NOT_FOUND({
+          message: "The chat has no model to send with",
+        });
+      }
+      const settings = await ChatReads.settings({
+        chatId,
+        sessionId: sessionOfChat(chatId) ?? input.sessionId,
+      });
+      const project = settings.isOk()
+        ? (settings.value.project?.value ?? undefined)
+        : undefined;
+      const sessionId = StoreId.newSessionId();
+      const started = await ensureChat(sessionId, input.body);
+      await call(
+        message.create,
+        {
+          id: started,
+          modelChoice: (await chatModelChoice(chatId)) ?? null,
+          modelURI,
+          prompt: input.body,
+          ...(project ? { project } : {}),
+        },
+        { context },
+      );
+      const mark = {
+        at: new Date().toISOString(),
+        chat: started,
+        fence,
+      };
+      const written = await ChatWrites.updatePart(ids, (current) =>
+        current.type === "text" &&
+        promptSentAt(current.metadata, fence) === undefined
+          ? {
+              ...current,
+              metadata: {
+                ...current.metadata,
+                [PROMPTS_SENT_KEY]: [...promptsSentOf(current.metadata), mark],
+              },
+            }
+          : current,
+      );
+      if (written.isErr()) {
+        throw toORPCError(written.error, errors);
+      }
+      return {
+        chat: started,
+        listed: await refreshChatRow(started),
+        sessionId,
+      };
+    }),
+  );
 
 /**
  * A new chat with a chat's conversation up to one of its replies, `upTo`
@@ -740,6 +864,7 @@ export const chats = {
   ofSession: chatOfSessionRoute,
   read: readChatRoute,
   rename: renameChatRoute,
+  sendPrompt: sendPromptRoute,
   restoreFileVersion: restoreFileVersionRoute,
   retitle: retitleChatRoute,
   session: chatSessionRoute,

@@ -160,6 +160,12 @@ export {
   type MessageKind,
   parseMessage,
 } from "./lib/parse-message";
+export {
+  isSendablePrompt,
+  type PromptSent,
+  promptFenceOf,
+  promptSentAt,
+} from "./lib/prompt-card";
 export { pathsNamedInMessage } from "./lib/paths-named-in-message";
 export { shellPath } from "./lib/shell-path";
 export { stateNotes } from "./lib/state-notes";

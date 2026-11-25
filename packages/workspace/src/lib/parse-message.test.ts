@@ -30,6 +30,13 @@ describe("parseMessage", () => {
     ["no headers", "Running late", "other", undefined],
     ["a subject alone", "subject: Hi\n\nBody", "email", undefined],
     ["an unknown kind", "message: fax\n\nBody", "other", undefined],
+    ["a prompt", "message: prompt\n\nFind the prices", "prompt", undefined],
+    [
+      "a prompt for another app's agent",
+      "---\nmessage: prompt\nto: Claude Code\n---\nAdd a table",
+      "prompt",
+      "Claude Code",
+    ],
   ])("reads %s", (_name, source, kind, to) => {
     const message = parseMessage(source);
     expect(message.kind).toBe(kind);

@@ -7,7 +7,9 @@ import { AGENT_MESSAGE_LANGUAGE } from "../constants";
 
 /**
  * What a message is for, which decides what the card offers: an email opens
- * in a mail app with its subject, anything else is copied or shared.
+ * in a mail app with its subject, a prompt starts a new chat (or, with a
+ * `to`, is copied for another app's agent), anything else is copied or
+ * shared. A build that does not know a kind reads it as `other`.
  */
 export const MESSAGE_KINDS = [
   "email",
@@ -15,6 +17,7 @@ export const MESSAGE_KINDS = [
   "chat",
   "post",
   "comment",
+  "prompt",
   "other",
 ] as const;
 

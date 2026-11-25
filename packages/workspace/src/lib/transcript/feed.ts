@@ -176,6 +176,7 @@ function whatMoved(
       before.type === "text" &&
       part.type === "text" &&
       before.state === part.state &&
+      isEqual(before.metadata, part.metadata) &&
       part.text.startsWith(before.text)
     ) {
       if (part.text.length > before.text.length) {

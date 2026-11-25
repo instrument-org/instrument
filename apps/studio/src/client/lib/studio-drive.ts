@@ -3,6 +3,14 @@ import { openSettings } from "@/client/atoms/settings-modal";
 import { resetStudioModals } from "@/client/atoms/studio-modal";
 import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { currentDrag } from "@/client/components/window/drag/session";
+import {
+  groupLayoutOf,
+  type WindowTabs,
+} from "@/client/components/window/tab-model";
+import {
+  groupOnScreenAtom,
+  windowTabsAtom,
+} from "@/client/components/window/window-tabs";
 import { freshTabId, openTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { reopenClosed } from "@/client/lib/tabs-model";
@@ -44,6 +52,12 @@ interface StudioDrive {
     dialog: null | string;
     path: null | string;
     tabs: { isSelected: boolean; pathname: string }[];
+  };
+  /** The window's tab groups, the group on screen and its sides, for a run that checks them against what is drawn. */
+  windowTabs: () => {
+    group: string | undefined;
+    layout: ReturnType<typeof groupLayoutOf> | undefined;
+    tabs: WindowTabs;
   };
 }
 
@@ -113,6 +127,15 @@ export function initStudioDrive() {
           isSelected: tab.id === model.selectedId,
           pathname: tab.pathname,
         })),
+      };
+    },
+    windowTabs: () => {
+      const tabs = store.get(windowTabsAtom);
+      const group = store.get(groupOnScreenAtom);
+      return {
+        group,
+        layout: group === undefined ? undefined : groupLayoutOf(tabs, group),
+        tabs,
       };
     },
   };

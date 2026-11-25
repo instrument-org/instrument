@@ -92,6 +92,8 @@ Confirm an assertion fails against the unfixed code before keeping it. A DOM tes
 
 Browser tests need `pnpm exec playwright install chromium` once, then `pnpm test:browser`; a failure leaves a Playwright trace under `.vitest/traces/`.
 
+After changing how tabs open, move, close or come back, run the two sequence checks: `tab-sequences.test.ts` (its docblock says how) plays thousands of random sequences through the tab model, and `pnpm --filter @instrument-org/studio tabs:drive` plays them through a running app's menus, catching what the model cannot see between it and the screen. A finding prints the command that replays it.
+
 Outside the three projects, `vitest.smoke.config.ts` (`pnpm smoke-test`) runs the packaged-app boot smoke test CI gates releases on, saving screenshots under `smoke-test-screenshots/`.
 
 ## Where things are

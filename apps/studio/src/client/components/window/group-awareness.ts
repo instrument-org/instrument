@@ -10,7 +10,7 @@ import {
 
 import { computerTabOf } from "./file-tabs";
 import { agentPageOfTab } from "./hosted-page";
-import { joinHostPath, segmentsOf } from "./host-path";
+import { joinHostPath } from "./host-path";
 import { type ScreenNames } from "./screen-presentation";
 import { tabTitle } from "./tab-title";
 import { matchScreen } from "./window-href";
@@ -97,6 +97,7 @@ function describedTab(
   { names, windowTabs }: GroupAwarenessWindow,
   tab: WindowTab,
 ): LayoutTab {
+  const title = tabTitle(tab, names);
   if (tab.kind === "page") {
     const filePath = hostPathOfFileUrl(tab.url);
     return filePath === undefined
@@ -104,16 +105,10 @@ function describedTab(
           address: tab.url ?? "about:blank",
           id: tab.id,
           kind: "website",
-          title: tab.title || tab.url || "New tab",
+          title,
         }
-      : {
-          address: filePath,
-          id: tab.id,
-          kind: "file",
-          title: segmentsOf(filePath).at(-1) ?? filePath,
-        };
+      : { address: filePath, id: tab.id, kind: "file", title };
   }
-  const title = tabTitle(tab, names);
   const computer = computerTabOf(tab.href);
   if (computer?.file !== undefined) {
     // A tab on a page's file goes by its page's id, the one agent-browser
@@ -140,7 +135,7 @@ function describedTab(
       address: "instrument://new-chat",
       id: tab.id,
       kind: "newChat",
-      title: "New Tab",
+      title,
     };
   }
   if (screen.kind === "chat") {

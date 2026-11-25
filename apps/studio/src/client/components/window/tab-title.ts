@@ -8,10 +8,14 @@ import { pageTabTitle } from "./file-tabs";
 import { type ScreenNames, screenPresentation } from "./screen-presentation";
 import { useTaskTitles } from "./task-titles";
 
-/** What a tab is called: its page's own title, or what its address stands on. */
+/**
+ * What a tab is called, in the strip, the sidebar, the chips, History and the
+ * agent's window list alike: a page's title (`pageTabTitle`), or what a
+ * screen's address stands on.
+ */
 export function tabTitle(tab: WindowTab, names: ScreenNames): string {
   return tab.kind === "page"
-    ? pageTabTitle(tab) || (tab.openedUrl ?? "")
+    ? pageTabTitle(tab)
     : screenPresentation(tab.href, names).title;
 }
 

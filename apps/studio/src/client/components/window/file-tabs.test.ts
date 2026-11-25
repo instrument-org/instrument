@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { reachablePath } from "./file-tabs";
+import { pageTabTitle, reachablePath } from "./file-tabs";
 
 const CONVERSATION_FOLDERS = {
   home: { path: "/Users/casey" },
@@ -38,5 +38,18 @@ describe("reachablePath", () => {
     expect(
       reachablePath("D:\\Archive\\2019.csv", WINDOWS_FOLDERS),
     ).toBeUndefined();
+  });
+});
+
+describe("pageTabTitle", () => {
+  it.each([
+    [{ title: "Shop", url: "https://shop.example/cart" }, "Shop"],
+    [{ url: "https://www.shop.example/cart/" }, "www.shop.example/cart"],
+    [{ openedUrl: "https://shop.example/" }, "shop.example"],
+    [{ url: "file:///Users/mac-user/Notes/plan.html" }, "plan.html"],
+    [{ url: "about:blank" }, "New Tab"],
+    [{}, "New Tab"],
+  ])("calls %o %s", (tab, title) => {
+    expect(pageTabTitle(tab)).toBe(title);
   });
 });

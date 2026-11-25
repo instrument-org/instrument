@@ -41,7 +41,7 @@ import {
 } from "./hover-pictures";
 import { useFileTabTitles } from "./file-tab-titles";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
-import { computerTabOf } from "./file-tabs";
+import { computerTabOf, pageTabTitle } from "./file-tabs";
 import { isInVersionsFolder, VersionTabMark } from "./file-versions";
 import { screenPresentation, screenLocation } from "./screen-presentation";
 import { siteTabTitles } from "./site-tab-titles";
@@ -54,13 +54,6 @@ import { useWindowTabs } from "./window-tabs";
 import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
 
 type Presentation = Parameters<typeof screenPresentation>[1];
-
-function hostOf(url: string): string {
-  if (!URL.canParse(url)) {
-    return url;
-  }
-  return new URL(url).hostname.replace(/^www\./, "") || url;
-}
 
 /** A tab as the strip orders it. */
 export function stripKeyOf(tab: WindowTab): string {
@@ -172,7 +165,7 @@ export function PaneTabs({
     const key = stripKeyOf(tab);
     if (tab.kind === "page") {
       const url = tab.url ?? tab.openedUrl;
-      return { key, title: tab.title || hostOf(url ?? ""), url };
+      return { key, title: pageTabTitle(tab), url };
     }
     return {
       key,

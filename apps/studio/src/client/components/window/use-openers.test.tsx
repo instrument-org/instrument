@@ -465,7 +465,7 @@ describe("an agent and the window's other tab groups", () => {
     }[];
     expect(windows[0]?.groups.map(({ name }) => name)).toEqual([
       "New Tab",
-      "https://example.com/behind",
+      "example.com/behind",
     ]);
   });
 

@@ -33,6 +33,16 @@ export interface PathQuery {
 
 const fuzzy = boundedFuzzy({ intraMode: 1 });
 
+/** An address as a person reads it: the host and the path, no scheme, no trailing slash. */
+export function shownAddress(url: string): string {
+  if (!URL.canParse(url)) {
+    return url;
+  }
+  const parsed = new URL(url);
+  const path = parsed.pathname === "/" ? "" : parsed.pathname;
+  return `${parsed.host}${path}${parsed.search}`.replace(/\/$/, "");
+}
+
 /**
  * An address as a person types it: no scheme, no `www.`, no trailing slash.
  * What the field completes against and what its rows say under a title.

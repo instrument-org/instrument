@@ -7,6 +7,7 @@ import { PageFavicon } from "@/client/components/favicon";
 
 import { PageContextMenu, usePageClicks } from "./page-menu";
 import { PageTooltip } from "./page-tooltip";
+import { shownAddress } from "./omnibar-match";
 
 /**
  * Pages visited lately, as rows: each the page's mark, drawn the way its
@@ -126,14 +127,4 @@ export function VisitedPageRows({
       ))}
     </ul>
   );
-}
-
-/** An address as a person reads it: the host and the path, no scheme, no trailing slash. */
-export function shownAddress(url: string): string {
-  if (!URL.canParse(url)) {
-    return url;
-  }
-  const parsed = new URL(url);
-  const path = parsed.pathname === "/" ? "" : parsed.pathname;
-  return `${parsed.host}${path}${parsed.search}`.replace(/\/$/, "");
 }

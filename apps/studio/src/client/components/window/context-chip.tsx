@@ -55,7 +55,7 @@ const SENT_WITH_THIS_MESSAGE = "Sent with this message";
  */
 export function heldChipOf(
   { items, tab }: { items: ChosenItem[] | undefined; tab: WindowTab },
-  names: Pick<ScreenNames, "appsBySlug" | "taskTitles" | "volumes">,
+  names: ScreenNames,
 ): SentChip {
   if (items !== undefined && items.length > 0) {
     return {
@@ -66,7 +66,7 @@ export function heldChipOf(
   if (tab.kind === "page") {
     return {
       kind: "page",
-      title: pageTabTitle(tab) || "Page",
+      title: pageTabTitle(tab),
       url: tab.url ?? "about:blank",
     };
   }

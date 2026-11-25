@@ -1206,10 +1206,10 @@ function WindowShell({
   // What goes with a message, read at the moment of sending.
   const readersNow = () =>
     contextReaders({
-      ...names,
       appTabId: appTabs.model.selectedId,
       browser,
       href: hrefNow(),
+      names,
       screenView,
       state: opened,
       surfaces,

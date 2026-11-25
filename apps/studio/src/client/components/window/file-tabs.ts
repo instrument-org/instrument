@@ -1,6 +1,7 @@
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 
 import { isInside, segmentsOf } from "./host-path";
+import { shownAddress } from "./omnibar-match";
 import { type ComputerTab, matchScreen } from "./window-href";
 
 /**
@@ -34,16 +35,25 @@ export function reachablePath(
 }
 
 /**
- * What a page tab is called when the page has not said: its address, or for
- * a file shown as a page, the file's name, since its address is a path only
- * this window opens.
+ * What a page tab is called: the page's own title, and until it says one its
+ * address as a person reads it, or for a file shown as a page the file's
+ * name, since its address is a path only this window opens. A tab that has
+ * been nowhere yet is the new tab it is.
  */
-export function pageTabTitle(tab: { title?: string; url?: string }) {
+export function pageTabTitle(tab: {
+  openedUrl?: string;
+  title?: string;
+  url?: string;
+}): string {
   if (tab.title) {
     return tab.title;
   }
-  const filePath = hostPathOfFileUrl(tab.url);
-  return filePath === undefined
-    ? tab.url
-    : (segmentsOf(filePath).at(-1) ?? filePath);
+  const url = tab.url ?? tab.openedUrl;
+  const filePath = hostPathOfFileUrl(url);
+  if (filePath !== undefined) {
+    return segmentsOf(filePath).at(-1) ?? filePath;
+  }
+  return url === undefined || url === "" || url === "about:blank"
+    ? "New Tab"
+    : shownAddress(url);
 }

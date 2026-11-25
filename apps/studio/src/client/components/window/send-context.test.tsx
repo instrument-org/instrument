@@ -61,9 +61,6 @@ function tabsOf(
 /** A window with nothing up, for each case to put its own thing on. */
 function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
   return {
-    appsBySlug: new Map([
-      ["notion", { name: "Notion", site: "https://notion.so" }],
-    ]),
     appTabId: null,
     browser: {
       readPage: (tabId) =>
@@ -77,8 +74,13 @@ function windowOf(over: Partial<SendContextWindow> = {}): SendContextWindow {
           url: "https://example.com/",
         }),
     },
-    chatTitles: new Map([[CHAT, "Lisbon"]]),
     href: "/browser",
+    names: {
+      appsBySlug: new Map([
+        ["notion", { name: "Notion", site: "https://notion.so" }],
+      ]),
+      chatTitles: new Map([[CHAT, "Lisbon"]]),
+    },
     screenView: null,
     state: { folders: { home: HOME } },
     surfaces: {},

@@ -12,7 +12,7 @@ import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import { useRecentPages } from "@/client/hooks/use-browser-history";
 import { ClockCounterClockwiseIcon } from "@phosphor-icons/react/ClockCounterClockwise";
 
-import { shownAddress } from "./visited-page-rows";
+import { shownAddress } from "./omnibar-match";
 
 /** How many pages the menu shows, as a browser's History menu does. */
 const SHOWN = 8;

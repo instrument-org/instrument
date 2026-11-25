@@ -9,7 +9,6 @@ import {
 } from "@instrument-org/workspace/client";
 import ms from "ms";
 
-import { type AppsBySlug } from "./apps-by-slug";
 import { isSiteGroup } from "./app-tabs";
 import { type BrowserTabsHandle } from "./browser-tabs";
 import { heldChipOf } from "./context-chip";
@@ -17,8 +16,8 @@ import { chatContextItems, type ContextItem } from "./context-items";
 import { tabInView } from "./draft-context";
 import { computerTabOf, reachablePath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
-import { screenLocation, screenPresentation } from "./screen-presentation";
-import { type Volume } from "./tab-location";
+import { type ScreenNames, screenLocation } from "./screen-presentation";
+import { tabTitle } from "./tab-title";
 import { chatOfTab, draftOfTab, isFreshTab, isNewChatTab } from "./tab-model";
 import { type TabSurface } from "./tab-surface";
 import { matchScreen } from "./window-href";
@@ -34,16 +33,14 @@ const PAGE_READ_MS = ms("5 seconds");
  * nothing is described.
  */
 export interface SendContextWindow {
-  appsBySlug: AppsBySlug;
   /** The window's own tab that is up, by its id; null before there is one. */
   appTabId: null | TabId;
   /** The window's browser, for a page's words; null until it is mounted. */
   browser: null | Pick<BrowserTabsHandle, "readPage">;
-  chatTitles: Map<ChatId, string>;
   /** The router's address, which is the screen's own. */
   href: string;
-  /** The computer's volumes, which name a folder chip the way the Finder does. */
-  volumes?: Volume[];
+  /** What names each tab, as everywhere else (`tabTitle`). */
+  names: ScreenNames;
   /** What the screen that is up says it shows, or nothing while none has said. */
   screenView: null | ScreenView;
   /** The folders the window reaches, which say how the conversation reaches a file; undefined until the window is open. */
@@ -64,17 +61,16 @@ export interface SendContextWindow {
  * drawn from, so the two cannot disagree.
  */
 export function contextReaders({
-  appsBySlug,
   appTabId,
   browser,
-  chatTitles,
   href,
+  names,
   screenView,
   state,
   surfaces,
-  volumes,
   windowTabs,
 }: SendContextWindow) {
+  const { appsBySlug, chatTitles = new Map<ChatId, string>() } = names;
   const { active } = windowTabs;
   const isActiveShown = active?.group !== undefined;
   /** What the window has in view: see tabInView. */
@@ -95,28 +91,12 @@ export function contextReaders({
     listed: WindowTab[],
   ): NonNullable<SessionMessageDataPart.ViewContextDataPart["tabs"]> =>
     listed.map((tab) => {
+      const title = tabTitle(tab, names);
       if (tab.kind !== "page") {
-        return {
-          at: tab.href,
-          id: tab.id,
-          title: screenPresentation(tab.href, {
-            appsBySlug,
-            chatTitles,
-          }).title,
-        };
+        return { at: tab.href, id: tab.id, title };
       }
       const filePath = hostPathOfFileUrl(tab.url);
-      return filePath === undefined
-        ? {
-            at: tab.url ?? "about:blank",
-            id: tab.id,
-            title: tab.title || tab.url || "New tab",
-          }
-        : {
-            at: filePath,
-            id: tab.id,
-            title: segmentsOf(filePath).at(-1) ?? filePath,
-          };
+      return { at: filePath ?? tab.url ?? "about:blank", id: tab.id, title };
     });
   /** How the conversation reaches a file on this computer: its name, its path, and the mount it is under when a granted folder covers it. */
   const fileOf = (filePath: string) => {
@@ -231,7 +211,6 @@ export function contextReaders({
     }
     return;
   };
-  const names = { appsBySlug, ...(volumes ? { volumes } : {}) };
   /** The chip an item drew, for the transcript to draw over the message. */
   const sentChipOf = (item: ContextItem): SessionMessageDataPart.SentChip => {
     switch (item.kind) {

@@ -10,7 +10,7 @@ export interface ShownVersion {
   version: StoreId.Message;
 }
 
-export interface EditedSend {
+interface EditedSend {
   files?: FileUpload.Input[];
   folders?: { path: string }[];
   modelURI: AIGatewayModelURI.Type;

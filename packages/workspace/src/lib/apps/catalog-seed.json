@@ -1,7 +1,7 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-11-25T19:42:58.119Z",
-  "entriesHash": "8dfacc66e63e8e4a",
+  "revision": "2026-11-25T21:09:36.461Z",
+  "entriesHash": "52c97e897ed5a720",
   "entries": [
     {
       "slug": "ahrefs",
@@ -818,8 +818,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Calendly sign-in",
+          "note": "Signs in on Calendly's own site in Instrument's browser. Calendly's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -827,7 +827,10 @@
           "format": "mcp",
           "name": "Calendly MCP server",
           "endpoint": "https://mcp.calendly.com",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Calendly refuses Instrument's registration"
+          }
         }
       ],
       "home": "https://calendly.com/app",
@@ -1302,8 +1305,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "Dovetail sign-in",
-          "note": "Needs a sign-in client registered with Dovetail, which Instrument doesn't have yet; until then the user signs in on the web."
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser with Instrument's client metadata document, so there is no key to paste."
         }
       ],
       "interfaces": [
@@ -1311,7 +1314,8 @@
           "format": "mcp",
           "name": "Dovetail MCP server",
           "endpoint": "https://dovetail.com/api/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "clientDocument": true
         }
       ],
       "category": "research",
@@ -1362,8 +1366,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Dropbox sign-in",
+          "note": "Signs in on Dropbox's own site in Instrument's browser. Dropbox's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -1371,7 +1375,10 @@
           "format": "mcp",
           "name": "Dropbox MCP server",
           "endpoint": "https://mcp.dropbox.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Dropbox registers only the MCP partners it has approved"
+          }
         }
       ],
       "home": "https://www.dropbox.com/home",
@@ -1388,8 +1395,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server reads the client's published metadata, so there is no key to paste."
+          "label": "ElevenLabs sign-in",
+          "note": "Signs in on ElevenLabs's own site in Instrument's browser. ElevenLabs's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -1397,7 +1404,10 @@
           "format": "mcp",
           "name": "ElevenLabs MCP server",
           "endpoint": "https://api.us.elevenlabs.io/v1/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "ElevenLabs takes a client metadata document, and Instrument's hasn't been tried with an account"
+          }
         }
       ],
       "category": "design",
@@ -1573,7 +1583,11 @@
           "format": "mcp",
           "name": "Figma MCP server (approved clients only)",
           "endpoint": "https://mcp.figma.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "askAt": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
+            "why": "Figma registers only the clients in its catalog"
+          }
         }
       ],
       "home": "https://www.figma.com/files",
@@ -1698,8 +1712,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Gamma sign-in",
+          "note": "Signs in on Gamma's own site in Instrument's browser. Gamma's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -1707,7 +1721,11 @@
           "format": "mcp",
           "name": "Gamma MCP server",
           "endpoint": "https://mcp.gamma.app/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "askAt": "https://developers.gamma.app/mcp/gamma-mcp-server",
+            "why": "Gamma refuses Instrument's callback address, and takes requests to approve one"
+          }
         }
       ],
       "category": "notes",
@@ -1717,7 +1735,8 @@
         "Make a five-slide deck on the history of coffee",
         "Make a one-page guide to houseplant care",
         "Make a presentation about the solar system"
-      ]
+      ],
+      "home": "https://gamma.app"
     },
     {
       "slug": "gemini",
@@ -2417,8 +2436,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "IFTTT sign-in",
+          "note": "Signs in on IFTTT's own site in Instrument's browser. IFTTT's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -2426,7 +2445,10 @@
           "format": "mcp",
           "name": "IFTTT MCP server",
           "endpoint": "https://ifttt.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "IFTTT refuses Instrument's callback address"
+          }
         }
       ],
       "category": "automation",
@@ -2481,8 +2503,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Instacart sign-in",
+          "note": "Signs in on Instacart's own site in Instrument's browser. Instacart's MCP sign-in needs a client registered with Instacart, which Instrument doesn't have yet."
         }
       ],
       "interfaces": [
@@ -2490,7 +2512,10 @@
           "format": "mcp",
           "name": "Instacart MCP server",
           "endpoint": "https://fig-mcp.instacart.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Instacart registers no clients on the spot"
+          }
         }
       ],
       "home": "https://www.instacart.com",
@@ -3556,8 +3581,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "PagerDuty sign-in",
+          "note": "Signs in on PagerDuty's own site in Instrument's browser. PagerDuty's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -3565,7 +3590,10 @@
           "format": "mcp",
           "name": "PagerDuty MCP server",
           "endpoint": "https://mcp.pagerduty.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "PagerDuty doesn't know Instrument's client metadata document"
+          }
         }
       ],
       "home": "https://www.pagerduty.com",
@@ -4358,8 +4386,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Similarweb sign-in",
+          "note": "Signs in on Similarweb's own site in Instrument's browser. Similarweb's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -4367,7 +4395,10 @@
           "format": "mcp",
           "name": "Similarweb MCP server",
           "endpoint": "https://mcp.similarweb.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Similarweb blocks Instrument's registration"
+          }
         }
       ],
       "home": "https://pro.similarweb.com",
@@ -4433,7 +4464,10 @@
           "format": "mcp",
           "name": "Slack MCP",
           "endpoint": "https://mcp.slack.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Slack is reviewing Instrument's app"
+          }
         },
         {
           "format": "openapi",
@@ -4572,8 +4606,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Strava sign-in",
+          "note": "Signs in on Strava's own site in Instrument's browser. Strava's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -4581,7 +4615,10 @@
           "format": "mcp",
           "name": "Strava MCP server",
           "endpoint": "https://mcp.strava.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Strava refuses Instrument's registration"
+          }
         }
       ],
       "home": "https://www.strava.com/dashboard",
@@ -4812,7 +4849,10 @@
           "authorizationParams": {
             "prompt": "select_account"
           },
-          "authorizationEndpoint": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+          "authorizationEndpoint": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+          "approval": {
+            "why": "Instrument's Microsoft client is not open to everyone for Teams yet"
+          }
         }
       ],
       "category": "mail",
@@ -4832,13 +4872,22 @@
       "tagline": "Local pros for a job, with quotes.",
       "description": "Ask questions about repairs, maintenance, or improvements and get matched with local pros.",
       "domain": "thumbtack.com",
-      "authMethods": [],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Thumbtack sign-in",
+          "note": "Signs in on Thumbtack's own site in Instrument's browser. Thumbtack's MCP sign-in needs a client registered with Thumbtack, which Instrument doesn't have yet."
+        }
+      ],
       "interfaces": [
         {
           "format": "mcp",
           "name": "Thumbtack MCP server",
           "endpoint": "https://mcp.thumbtack.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Thumbtack registers no clients on the spot"
+          }
         }
       ],
       "home": "https://www.thumbtack.com",
@@ -5373,8 +5422,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Zoom sign-in",
+          "note": "Signs in on Zoom's own site in Instrument's browser. Zoom's MCP sign-in needs a client registered with Zoom, which Instrument doesn't have yet."
         }
       ],
       "interfaces": [
@@ -5382,7 +5431,10 @@
           "format": "mcp",
           "name": "Zoom MCP server",
           "endpoint": "https://mcp.zoom.us/mcp/zoom/streamable",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Zoom registers no clients on the spot"
+          }
         }
       ],
       "category": "calendar",
@@ -5400,8 +5452,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "ZoomInfo sign-in",
+          "note": "Signs in on ZoomInfo's own site in Instrument's browser. ZoomInfo's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -5409,7 +5461,10 @@
           "format": "mcp",
           "name": "ZoomInfo MCP server",
           "endpoint": "https://mcp.zoominfo.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "ZoomInfo registers only the vendors it has approved, by name"
+          }
         }
       ],
       "home": "https://app.zoominfo.com",

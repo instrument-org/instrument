@@ -93,7 +93,7 @@ function describeCatalogEntry(entry: AppCatalogEntry, role: Role): string {
   const surfaces = entry.interfaces.map((surface) => {
     // Said in words, so the endpoint is not mistaken for one to set up.
     const auth = catalogInterfaceLacksClient(surface)
-      ? ` (not usable: its sign-in takes only a client registered with ${entry.name}, which ${APP_NAME} does not have yet)`
+      ? ` (not usable: its sign-in takes only a client registered with ${entry.name}, which ${APP_NAME} does not have yet${surface.approval ? `; ${surface.approval.why}` : ""})`
       : surface.auth
         ? // A sign-in with Instrument's own client is a sign-in like any other.
           ` (${surface.auth === "oauth-client" ? "oauth" : surface.auth})`

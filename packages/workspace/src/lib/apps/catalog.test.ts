@@ -8,6 +8,7 @@ import {
   builtInAppCatalogRevision,
   catalogEntryAt,
   catalogEntryForApp,
+  catalogInterfaceLacksClient,
   catalogRelayedSignIn,
   getAppCatalog,
   resetServedAppCatalog,
@@ -248,6 +249,51 @@ describe("HubSpot's and Asana's MCP sign-in", () => {
       });
     },
   );
+});
+
+describe("a service that takes only clients it approved", () => {
+  const surfaces = getAppCatalog().flatMap((entry) =>
+    entry.interfaces.map((surface) => ({ entry, surface })),
+  );
+
+  it.each(
+    surfaces.filter(({ surface }) => catalogInterfaceLacksClient(surface)),
+  )(
+    "says why for $entry.slug, and has another way in",
+    ({ entry, surface }) => {
+      expect(surface.approval?.why).toBeTruthy();
+      expect(catalogWayIn(entry).kind).not.toBe("mcp");
+    },
+  );
+
+  it("signs in with the metadata document where the vendor reads it", () => {
+    applyServedAppCatalog({
+      ...seed,
+      entries: seed.entries.map((entry) =>
+        entry.slug === "zoom"
+          ? {
+              ...entry,
+              interfaces: [
+                {
+                  auth: "oauth-client",
+                  clientDocument: true,
+                  endpoint: "https://mcp.zoom.us/mcp",
+                  format: "mcp",
+                  name: "Zoom MCP server",
+                },
+              ],
+            }
+          : entry,
+      ),
+    });
+    const zoom = getAppCatalog().find((entry) => entry.slug === "zoom");
+    expect(zoom && catalogWayIn(zoom)).toEqual({
+      endpoint: "https://mcp.zoom.us/mcp",
+      kind: "mcp",
+    });
+    expect(catalogRelayedSignIn("https://mcp.zoom.us/mcp")).toBeUndefined();
+    resetServedAppCatalog();
+  });
 });
 
 describe("Microsoft Graph's sign-in", () => {

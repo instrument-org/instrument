@@ -125,6 +125,7 @@ describe("connectNote", () => {
       ["claude", { kind: "no-plan" }],
       ["claude", { kind: "out-of-usage", resetsAt }],
       ["grok", { kind: "out-of-usage" }],
+      ["chatgpt", { kind: "out-of-usage" }],
       ["chatgpt", { kind: "signed-out" }],
       ["chatgpt", { kind: "failed", message: "x" }],
     ] satisfies ["chatgpt" | "claude" | "grok", ConnectOutcome][];
@@ -139,6 +140,7 @@ describe("connectNote", () => {
         "Your Claude account doesn't have a paid plan.",
         "Claude is out of usage until 3:40 PM.",
         "Grok is out of usage for now.",
+        "You've reached your ChatGPT usage limit.",
         "You're signed out of ChatGPT.",
         undefined,
       ]

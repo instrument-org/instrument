@@ -410,7 +410,7 @@ const WORKSPACE_HELP_MANAGED = dedent`
     get text body               Read visible page copy
     get text|html|value|attr    Read targeted element details
     get url | get title         Read page metadata
-    screenshot [path|@ref]      Capture the page or an element
+    screenshot [@ref] [path]    Capture the page or an element, to a path
     is visible|enabled|checked  Check element state
     find role|text|label ...    Use semantic locators as an alternative to refs
     adblock [on|off]            Show or set ad and tracker blocking for this
@@ -535,6 +535,17 @@ const FILE_OPERAND_SUBCOMMANDS = new Set([
   "screenshot",
   "trace",
   "upload",
+]);
+
+/** The file subcommands that name their file by its place, never after a flag. */
+const FLAGS_ARE_NEVER_FILES = new Set([
+  "download",
+  "network",
+  "pdf",
+  "profiler",
+  "record",
+  "screenshot",
+  "trace",
 ]);
 
 type Operand = { index: number; value: string };
@@ -764,6 +775,10 @@ function positionalsOf(
       optionsEnded = true;
     } else if (flags.valued.includes(operand.value)) {
       i++;
+    } else if (
+      flags.valued.some((flag) => operand.value.startsWith(`${flag}=`))
+    ) {
+      continue;
     } else if (!flags.bool.includes(operand.value)) {
       positionals.push(operand);
     }
@@ -810,6 +825,19 @@ export async function resolveAgentBrowserPathArgs(
   );
   const initScripts = initScriptOperands(args, parsed);
   const commandFiles = fileOperandsOf(subcommand, subArgs.slice(1));
+  // A flag the CLI does not have would be taken for the file here and reach
+  // the CLI as a path, which it writes to rather than refuses.
+  const unknownFlag = FLAGS_ARE_NEVER_FILES.has(subcommand ?? "")
+    ? commandFiles.find(
+        ({ index }) =>
+          index < parsed.endOfOptions && /^-./.test(args[index] ?? ""),
+      )
+    : undefined;
+  if (unknownFlag) {
+    return {
+      error: `unknown flag '${args[unknownFlag.index] ?? ""}' for ${subcommand ?? ""}. Name the file by its place after the command${subcommand === "screenshot" ? ": screenshot [selector] [path]" : ""}. A file whose name starts with - goes after --.`,
+    };
+  }
   const fileOperands = [...commandFiles, ...initScripts];
   const pathOf = ({ index, prefix = "" }: FileOperand) =>
     (args[index] ?? "").slice(prefix.length);
@@ -1616,7 +1644,7 @@ async function recordDrivenTabHosts({
     const urls = tabsActedInBy(sessionId)
       .filter((targetId) => (lastActOf(targetId, sessionId) ?? 0) >= since)
       .flatMap((targetId) => {
-        const url = browser.getTargetUrl(targetId);
+        const url = browser.getLoadedDocumentUrl(targetId);
         return url ? [url] : [];
       });
     if (callPartId !== undefined) {

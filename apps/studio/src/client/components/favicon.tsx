@@ -14,25 +14,6 @@ import { type ReactNode, useState } from "react";
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
-/**
- * The lift under a favicon, for the theme that needs one.
- *
- * An icon is authored for the light chrome a browser draws it in, so it sits
- * on a light page exactly as its author meant and wants nothing from us
- * there. On a dark page the same icon is on a ground it was never drawn for,
- * and a faint tile under it separates the mark from the page and gives the
- * ones carrying a dark background of their own an edge.
- *
- * Faint on purpose. This used to be a near-white plate with a ring, which did
- * make the rare dark-ink-on-transparent icon legible and made every other
- * icon in dark mode look like a sticker. That trade is the wrong way round:
- * most icons carry their own color and need nothing, so the tile lifts them
- * all a little rather than rescuing a few at the cost of the rest. An icon
- * that is dark ink on nothing is dim in dark mode, the way it is in any other
- * dark chrome that draws it.
- */
-export const FAVICON_SURFACE_CLASS_NAME = "dark:bg-white/10";
-
 /** The theme an SVG icon draws itself for, where it carries one of each. */
 export const FAVICON_SCHEME_CLASS_NAME = "scheme-light dark:scheme-dark";
 
@@ -71,9 +52,8 @@ export function Favicon({
       className={cn(
         // A rounded rectangle, the way a browser tab softens a site's
         // own square mark, and what tells a site from an app's circle.
-        "size-4 shrink-0 rounded-sm border border-border/50",
+        "size-4 shrink-0 rounded-sm border border-border/50 dark:border-transparent",
         FAVICON_SCHEME_CLASS_NAME,
-        FAVICON_SURFACE_CLASS_NAME,
         arrivalClassName,
         className,
       )}

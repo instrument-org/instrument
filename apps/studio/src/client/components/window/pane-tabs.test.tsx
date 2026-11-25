@@ -270,14 +270,27 @@ describe("PaneTabs", () => {
   });
 
   // As a window's tab on the earlier strip wears its chat's state: the
-  // shimmer wherever the tab stands, the dot only on a tab behind.
+  // shimmer and the asking bubble wherever the tab stands, the dot only on a
+  // tab behind.
   it.each<[string, Partial<Chat>, boolean, ReturnType<typeof lookOf>]>([
     ["at work, behind", { status: "working", working: true }, false, "shimmer"],
     ["at work, up", { status: "working", working: true }, true, "shimmer"],
     ["unread, behind", { unread: true }, false, "unread"],
     ["unread, up", { unread: true }, true, "plain"],
-    ["asking, behind", { status: "waiting", working: true }, false, "waiting"],
-    ["asking, up", { status: "waiting", working: true }, true, "plain"],
+    ["asking, behind", { status: "waiting", working: true }, false, "asking"],
+    ["asking, up", { status: "waiting", working: true }, true, "asking"],
+    [
+      "asking and unread, behind",
+      { status: "waiting", unread: true },
+      false,
+      "asking, unread",
+    ],
+    [
+      "asking and unread, up",
+      { status: "waiting", unread: true },
+      true,
+      "asking",
+    ],
     ["failed, behind", { status: "failed" }, false, "plain"],
     ["idle, behind", {}, false, "plain"],
   ])("draws a chat's tab %s as its state says", (_label, state, isUp, look) => {
@@ -350,10 +363,10 @@ function listedChat(state: Partial<Chat>): Chat {
   };
 }
 
-/** What a tab wears for where its chat or task stands: a shimmer, one of the chat's dots, or neither. */
+/** What a tab wears for where its chat or task stands: a shimmer, the asking bubble, the unread dot, or none of them. */
 function lookOf(
   drawn: HTMLElement,
-): "plain" | "shimmer" | "unread" | "waiting" | "both" {
+): "plain" | "shimmer" | "unread" | "asking" | "asking, unread" | "both" {
   const isShimmering =
     drawn.querySelector(".brand-shiny-text") !== null &&
     drawn.querySelector(".brand-shiny-icon") !== null;
@@ -362,7 +375,11 @@ function lookOf(
   if (isShimmering) {
     return dot === undefined ? "shimmer" : "both";
   }
-  return dot === "unread" || dot === "waiting" ? dot : "plain";
+  const asks = drawn.querySelector("[data-chat-asks]") !== null;
+  if (dot === "unread") {
+    return asks ? "asking, unread" : "unread";
+  }
+  return asks ? "asking" : "plain";
 }
 
 function panes(tabs: ReturnType<typeof tab>[]) {

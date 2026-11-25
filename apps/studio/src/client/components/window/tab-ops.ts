@@ -49,6 +49,7 @@ import {
   tabShowingIn,
   tabToScreen,
   type WindowTabs,
+  withChatSides,
   withGroupOwn,
 } from "./tab-model";
 import { type Opening } from "./tab-openers";
@@ -503,7 +504,7 @@ export interface TabCommand {
   op: TabOp;
 }
 
-/** The tabs after a change, and what it answers. */
+/** The tabs after a change, each split sized by what is in it (`withChatSides`), and what it answers. */
 export function applyTabCommand(
   state: WindowTabs,
   context: TabOpContext,
@@ -515,5 +516,6 @@ export function applyTabCommand(
     context: TabOpContext,
     ...args: readonly unknown[]
   ) => Outcome<unknown>;
-  return change(state, context, ...command.args);
+  const { state: after, value } = change(state, context, ...command.args);
+  return { state: withChatSides(state, after), value };
 }

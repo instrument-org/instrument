@@ -2,6 +2,7 @@ import { type TypedAddress, typedAddress } from "@/client/lib/typed-address";
 import { type TypedPath } from "@/client/lib/typed-path";
 
 import { foldName, foldText } from "@/shared/name-match";
+import { stripDictatedMarks } from "@instrument-org/shared/dictated-text";
 
 import {
   addressCompletion,
@@ -16,16 +17,12 @@ const MOST_PAGES_LISTED = 4;
 /** A page the box may offer, with the icon it last announced. */
 type OfferedPage = KnownPage & { favicon: string | undefined };
 
-/**
- * A row of the list under a new tab's box: the site the box finished the
- * words to, or a page the words find.
- */
+/** A page the words find, as a row of the list under a new tab's box. */
 export type BoxPageRow = {
   /** The page's address as the row shows it: no scheme, no `www.`, no query. */
   address: string;
   /** What to draw bold in `address`, as pairs of offsets, or null. */
   addressRanges: null | number[];
-  kind: "page" | "site";
   page: OfferedPage;
   /** The page's title, or empty when it has none worth showing. */
   title: string;
@@ -222,7 +219,7 @@ function pageMatch(
   word: string,
 ):
   | undefined
-  | (Omit<BoxPageRow, "kind" | "page"> & {
+  | (Omit<BoxPageRow, "page"> & {
       place: (typeof MATCH_PLACES)[number];
     }) {
   const { address, siteLength } = shownAddress(page.url);
@@ -268,14 +265,14 @@ function pageMatch(
 }
 
 /**
- * The rows under a new tab's box while it holds one word with no space:
- * the site the box finished the word to first, then each page whose
- * address the word starts, whose site has a part it starts, whose title has
- * a word it starts, then whose path has one, each in `pages`' order
- * (bookmarks, then the pages visited, newest first), each address once, at
- * most four. Each row says what to draw bold, so the reason it is there
- * shows. Nothing for a scheme or `www` alone, a place on the computer, words
- * with a space, or a slash command.
+ * The pages under a new tab's box while it holds one word with no space:
+ * each page whose address the word starts, whose site has a part it starts,
+ * whose title has a word it starts, then whose path has one, each in
+ * `pages`' order (bookmarks, then the pages visited, newest first), each
+ * address once, at most four. The site the box finished the word to is left
+ * out, since the box itself opens it. Each row says what to draw bold, so the
+ * reason it is there shows. Nothing for a scheme or `www` alone, a place on
+ * the computer, words with a space, or a slash command.
  */
 export function boxPageRows({
   completedSite,
@@ -296,36 +293,14 @@ export function boxPageRows({
   if (word === undefined) {
     return [];
   }
-  const site: BoxPageRow[] =
-    completedSite === undefined
-      ? []
-      : [
-          {
-            address: shownAddress(completedSite).address,
-            addressRanges: [
-              0,
-              Math.min(word.length, shownAddress(completedSite).address.length),
-            ],
-            kind: "site",
-            page: {
-              favicon: pages.find(
-                (page) =>
-                  shownAddress(page.url).address ===
-                  shownAddress(completedSite).address,
-              )?.favicon,
-              title: "",
-              url: completedSite,
-            },
-            title: "",
-            titleRanges: null,
-          },
-        ];
-  const shown = new Set(site.map((row) => row.address));
+  const shown = new Set(
+    completedSite === undefined ? [] : [shownAddress(completedSite).address],
+  );
   const found = pages.flatMap((page) => {
     const match = pageMatch(page, word);
     return match ? [{ ...match, page }] : [];
   });
-  const rows: BoxPageRow[] = [...site];
+  const rows: BoxPageRow[] = [];
   for (const place of MATCH_PLACES) {
     for (const match of found) {
       if (match.place !== place || shown.has(match.address)) {
@@ -335,7 +310,6 @@ export function boxPageRows({
       rows.push({
         address: match.address,
         addressRanges: match.addressRanges,
-        kind: "page",
         page: match.page,
         title: match.title,
         titleRanges: match.titleRanges,
@@ -343,6 +317,31 @@ export function boxPageRows({
     }
   }
   return rows.slice(0, MOST_PAGES_LISTED);
+}
+
+/**
+ * The words the last row under a new tab's box searches the web for, while
+ * the box holds anything but an address, a place on the computer, or words
+ * the box has a menu or a chip for: a slash being typed, and a link or a
+ * mention, which are written as Markdown. Whether the words also fit on one
+ * line is the box's to say (`PromptEditorRef.isOneLine`).
+ */
+export function boxSearchWords(
+  words: string,
+  path: TypedPath | undefined,
+): string | undefined {
+  const search = stripDictatedMarks(words).trim();
+  if (
+    search === "" ||
+    search.includes("\n") ||
+    path !== undefined ||
+    /(?:^|\s)\/[\w:-]*$/.test(words) ||
+    search.includes("](") ||
+    boxAddress(search) !== undefined
+  ) {
+    return undefined;
+  }
+  return search;
 }
 
 /**

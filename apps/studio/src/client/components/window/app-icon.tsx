@@ -7,8 +7,7 @@ import { isDirectoryIconUrl } from "@/shared/directory-icon";
  * the card, the band and the rail all draw a service the same way. The mark
  * stands bare on whatever holds it, inset a little inside its box at the
  * larger sizes and softened at the corners, the way a site's icon does on a
- * row, in a chip or in a button. A dark mark on a dark surface is dim there,
- * as it is in any other chrome that draws it. A site with no icon anywhere
+ * row, in a chip or in a button. A site with no icon anywhere
  * has the initial every surface draws for it; with no site to ask, the app's
  * own initial on a quiet tile fills the box, so a missing mark reads as
  * missing everywhere. A service the directory ships a mark for is drawn with
@@ -126,7 +125,7 @@ export function AppIcon({
           // A mark that brought a square background of its own is softened
           // at the corners.
           className={cn(
-            "size-full border-0 bg-transparent ring-0 dark:bg-transparent",
+            "size-full border-0",
             size === "sm" ? "rounded-sm" : "rounded-[22%]",
           )}
           fallback={

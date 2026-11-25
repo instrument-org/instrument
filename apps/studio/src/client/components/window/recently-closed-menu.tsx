@@ -191,7 +191,6 @@ export function HistoryButton() {
               >
                 <GroupRowLines
                   chatTitles={shell.chatTitles}
-                  isCloseShown={false}
                   isOnScreen={false}
                   sides={group.sides}
                 />

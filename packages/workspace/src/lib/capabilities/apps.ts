@@ -46,7 +46,7 @@ import {
   loadApp,
   readAppGuide,
 } from "../apps/store";
-import { webInsteadUrl } from "../apps/site";
+import { signsInDirectly, webInsteadUrl } from "../apps/site";
 import { webInsteadCommand } from "../apps/web-instead";
 import { INSTRUCTIONS_MAX } from "../instructions-in-context";
 import { baselineRecorded } from "../last-told";
@@ -1157,6 +1157,7 @@ export const appsList = defineCapability({
         name: app.name,
         slug: app.slug,
         status: describeConnection(connections[app.slug], app.manifestHash, {
+          direct: signsInDirectly(app.manifest),
           web: app.manifest.type === "web",
         }),
         type: app.manifest.type,

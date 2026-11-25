@@ -1,3 +1,4 @@
+import { FieldKeys } from "@/client/components/field-keys";
 import { displayLocale } from "@/client/lib/display-locale";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
@@ -733,16 +734,19 @@ export function DataGrid({
           {note ? ` (${note})` : ""}
         </span>
         <ViewerToolbarSpacer />
-        <Input
-          aria-label="Filter rows"
-          className="h-7 w-40 text-xs"
-          onChange={(event) => {
-            setGlobalFilter(event.target.value);
-          }}
-          placeholder="Filter rows"
-          ref={filterRef}
-          value={globalFilter}
-        />
+        <div className="group/field relative">
+          <Input
+            aria-label="Filter rows"
+            className="h-7 w-40 text-xs"
+            onChange={(event) => {
+              setGlobalFilter(event.target.value);
+            }}
+            placeholder="Filter rows"
+            ref={filterRef}
+            value={globalFilter}
+          />
+          {globalFilter === "" ? <FieldKeys className="right-1" /> : null}
+        </div>
         <TableCopyMenu
           onCopy={(format) => {
             copyBlock(readTable(), format);

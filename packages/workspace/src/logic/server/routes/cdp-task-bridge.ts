@@ -12,6 +12,7 @@ import {
   forgetOpenedTabs,
   noteOpenedTab,
 } from "../../../lib/chat/chat-tabs";
+import { liveTabTitles, tabPage } from "../../../lib/chat/tab-page";
 import { closeTabsOverCap } from "../../../lib/chat/tab-cap";
 import { getBrowserSessionDir } from "../../../lib/chat-dir-utils";
 import { getChatState } from "../../../lib/chat-record";
@@ -182,7 +183,7 @@ export function handleTaskCdpClient(
             tabId: tab.id,
             targetId: tab.targetId,
             title: tab.title,
-            url: browser.getTargetUrl(tab.targetId) ?? tab.url,
+            url: browser.getTargetAddress(tab.targetId) ?? tab.url,
           })),
         ]
       : [...announced.values()].filter(
@@ -217,23 +218,20 @@ export function handleTaskCdpClient(
     return true;
   };
 
-  /** The window's titles for its tabs, which only the main process knows. */
-  const titles = async (): Promise<Map<BrowserTargetId, string>> => {
-    const targets = await browser.listTargets();
-    return new Map(targets.map((target) => [target.id, target.title]));
-  };
-
   const targetInfo = (
     tab: Tab,
-    titleOf: Map<BrowserTargetId, string>,
-  ): Protocol.Target.TargetInfo => ({
-    attached: attached.has(tab.tabId),
-    canAccessOpener: false,
-    targetId: tab.tabId,
-    title: titleOf.get(tab.targetId) ?? tab.title,
-    type: "page",
-    url: browser.getTargetUrl(tab.targetId) ?? tab.url,
-  });
+    titles: Map<BrowserTargetId, string>,
+  ): Protocol.Target.TargetInfo => {
+    const page = tabPage(browser, tab.targetId, { listed: tab, titles });
+    return {
+      attached: attached.has(tab.tabId),
+      canAccessOpener: false,
+      targetId: tab.tabId,
+      title: page.title ?? tab.title,
+      type: "page",
+      url: page.url ?? tab.url,
+    };
+  };
 
   const detach = (tabId: string) => {
     watches.get(tabId)?.();
@@ -261,7 +259,7 @@ export function handleTaskCdpClient(
     if (!announced.has(tab.tabId)) {
       announced.set(tab.tabId, tab);
       event("Target.targetCreated", {
-        targetInfo: targetInfo(tab, await titles()),
+        targetInfo: targetInfo(tab, await liveTabTitles(browser)),
       });
     }
   };
@@ -374,7 +372,7 @@ export function handleTaskCdpClient(
       action: {
         kind: "adopt",
         tabId: tab.tabId,
-        url: browser.getTargetUrl(tab.targetId) ?? tab.url,
+        url: browser.getTargetAddress(tab.targetId) ?? tab.url,
       },
       askedBy: chatId,
       group: resolveChat(chatId),
@@ -471,7 +469,7 @@ export function handleTaskCdpClient(
     const told = async () => {
       if (attached.has(tab.tabId)) {
         event("Target.targetInfoChanged", {
-          targetInfo: targetInfo(tab, await titles()),
+          targetInfo: targetInfo(tab, await liveTabTitles(browser)),
         } satisfies Protocol.Target.TargetInfoChangedEvent);
       }
     };
@@ -691,9 +689,9 @@ export function handleTaskCdpClient(
       }
       case "Target.getTargets": {
         const now = await reconcile();
-        const titleOf = await titles();
+        const titles = await liveTabTitles(browser);
         answer(id, {
-          targetInfos: now.map((tab) => targetInfo(tab, titleOf)),
+          targetInfos: now.map((tab) => targetInfo(tab, titles)),
         } satisfies Protocol.Target.GetTargetsResponse);
         return;
       }

@@ -116,8 +116,8 @@ function fileOfTab(tab: WindowTab): string | undefined {
 }
 
 /**
- * What the command menu offers for the tab in front, under a heading that
- * says what it is: a chat's own menu (`useChatActionsFor`,
+ * What the command menu offers for the tab in front, and what that tab is: a
+ * chat's own menu (`useChatActionsFor`,
  * `chatHeadActions`), and for a page or a file, the tab's own actions
  * (`useTabActionsFor`) with the ways out of the app its row has. Each is in
  * the order the menu lists them before anything is typed. Nothing for a tab
@@ -133,7 +133,7 @@ export function useFrontTabActions({
   tab: undefined | WindowTab;
   /** What the tab is called, which a bookmark of it is named. */
   title: string;
-}): undefined | { actions: TabAction[]; heading: string } {
+}): undefined | { actions: TabAction[]; kind: "chat" | "file" | "page" } {
   const chatActionsFor = useChatActionsFor();
   const tabActionsFor = useTabActionsFor();
   const pageUrl = tab?.kind === "page" ? (tab.url ?? tab.openedUrl) : undefined;
@@ -175,7 +175,7 @@ export function useFrontTabActions({
       actions: CHAT_ORDER.flatMap((id) =>
         all.filter((action) => action.id === id),
       ),
-      heading: "This chat",
+      kind: "chat",
     };
   }
   const own = tabActionsFor(tab, title);
@@ -211,7 +211,7 @@ export function useFrontTabActions({
           },
         },
       ],
-      heading: "This file",
+      kind: "file",
     };
   }
   if (pageUrl === undefined || pageUrl === "about:blank") {
@@ -242,7 +242,7 @@ export function useFrontTabActions({
         },
       },
     ],
-    heading: "This page",
+    kind: "page",
   };
 }
 

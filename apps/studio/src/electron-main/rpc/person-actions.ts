@@ -1,3 +1,4 @@
+import { SEARCH_ENGINES, SearchEngineIdSchema } from "@/shared/search-engines";
 import { type ActionInput } from "@instrument-org/workspace/electron";
 import path from "node:path";
 import { z } from "zod";
@@ -158,6 +159,16 @@ const ROUTES: Record<string, Mapper> = {
   ),
   "preferences.setShowBookmarksBar": setting(
     "Show bookmarks bar",
+    Enabled,
+    ({ enabled }) => onOff(enabled),
+  ),
+  "preferences.setSearchEngine": setting(
+    "Search engine",
+    z.object({ engine: SearchEngineIdSchema }),
+    ({ engine }) => SEARCH_ENGINES[engine].name,
+  ),
+  "preferences.setSuggestSearches": setting(
+    "Suggest searches",
     Enabled,
     ({ enabled }) => onOff(enabled),
   ),

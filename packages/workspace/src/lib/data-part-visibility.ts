@@ -107,6 +107,8 @@ const DATA_PART_DISPLAY: Record<DataPartType, DataPartVisibility> = {
   // The files a reply handed over as its turn left them, which the reply's
   // cards are drawn from once a later turn changes one.
   "data-fileVersions": "hidden",
+  // The pages of the tabs a reply linked, which its links are drawn from.
+  "data-linkedTabs": "hidden",
   // Shown for the same reason the folder note is: the change was made in a
   // conversation the reader of this transcript is not looking at, and it is
   // usually what the task had stopped and waited for.

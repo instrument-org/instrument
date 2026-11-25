@@ -57,7 +57,9 @@ import { ProjectBanner } from "./project-banner";
 import { projectColor } from "./project-colors";
 import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
-import { SidebarSearch, SoftKey } from "./sidebar-search";
+import { SoftKey } from "@/client/components/soft-key";
+import { SidebarSearch } from "./sidebar-search";
+import { groupLeadsAtom, rowSidesOf } from "./group-leads";
 import { GroupRowLines } from "./group-row-lines";
 import { RowLinesView } from "./row-half";
 import { quiet } from "./row-lines";
@@ -578,8 +580,8 @@ function BackRow({ label, onBack }: { label: string; onBack: () => void }) {
 
 /**
  * One tab group as two lines (`GroupRowLines`): its lead tab's mark and
- * title, then its other tabs' marks, over what the lead tab says, a chat's
- * state among it. The whole row is one press. While the
+ * title over what the lead tab says, a chat's state among it, then its other
+ * tabs' marks. The whole row is one press. While the
  * pointer is on it, one X at its end closes the whole group, as a middle
  * click does, with nothing asked: Reopen brings it back. While a tab held
  * over it would land in its group, it is raised and ringed in place of any
@@ -617,12 +619,9 @@ export function GroupRow({
 }) {
   const { layoutOf } = useWindowTabs();
   const titleOf = useTabTitle(chatTitles);
-  const layout = layoutOf(entry.group);
-  const sides = layout.sides.flatMap((side) => {
-    const up = side.tabs.find((tab) => tab.id === side.up) ?? side.tabs[0];
-    return up ? [{ tabs: side.tabs, up }] : [];
-  });
-  const ups = sides.map((side) => side.up);
+  const held = useAtomValue(groupLeadsAtom).get(entry.group);
+  const sides = rowSidesOf(layoutOf(entry.group));
+  const ups = sides?.map((side) => side.up) ?? [];
   // Named as a group, so a row whose tab is a page the sidebar also has a
   // button for (Activity) is told apart from that button.
   const label = `${ups.length > 0 ? ups.map(titleOf).join(" and ") : entry.title} tab group`;
@@ -632,14 +631,14 @@ export function GroupRow({
       onClose(entry.group);
     },
   };
-  const [first, ...rest] = sides;
-  const inner = first ? (
+  const inner = sides ? (
     <GroupRowLines
       chatTitles={chatTitles}
       close={close}
+      held={held}
       isCloseShown={isCloseShown}
       isOnScreen={isUp}
-      sides={[first, ...rest]}
+      sides={sides}
     />
   ) : (
     // A group whose tabs are not in yet goes by its own title.

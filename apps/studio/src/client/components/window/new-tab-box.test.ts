@@ -1,7 +1,12 @@
 import { typedPathOf } from "@/client/lib/typed-path";
 import { describe, expect, it } from "vitest";
 
-import { boxOpens, boxPageRows, siteToComplete } from "./new-tab-box";
+import {
+  boxOpens,
+  boxPageRows,
+  boxSearchWords,
+  siteToComplete,
+} from "./new-tab-box";
 
 const visited = [
   {
@@ -176,7 +181,6 @@ describe("the pages under a new tab's box", () => {
       words,
     }).map((row) =>
       [
-        row.kind,
         row.title === "" ? undefined : marked(row.title, row.titleRanges),
         marked(row.address, row.addressRanges),
       ]
@@ -208,9 +212,8 @@ describe("the pages under a new tab's box", () => {
       "/Users/mac-user/notes.md",
       "",
     ];
-    expect(
-      Object.fromEntries(words.map((word) => [word, rowsFor(word)])),
-    ).toMatchInlineSnapshot(`
+    expect(Object.fromEntries(words.map((word) => [word, rowsFor(word)])))
+      .toMatchInlineSnapshot(`
       {
         "": [],
         "/Users/mac-user/notes.md": [],
@@ -220,52 +223,51 @@ describe("the pages under a new tab's box", () => {
         "com": [],
         "git hub": [],
         "github.com/acme/app/p": [
-          "page · Pull requests · [github.com/acme/app/p]ulls",
+          "Pull requests · [github.com/acme/app/p]ulls",
         ],
         "h": [
-          "page · [H]acker News · news.ycombinator.com",
-          "page · [H]elp desk pricing · zendesk.com/pricing",
-          "page · localhost:5173/settings/[h]ttp-cache",
+          "[H]acker News · news.ycombinator.com",
+          "[H]elp desk pricing · zendesk.com/pricing",
+          "localhost:5173/settings/[h]ttp-cache",
         ],
         "hack": [
-          "page · [Hack]er News · news.ycombinator.com",
+          "[Hack]er News · news.ycombinator.com",
         ],
         "ht": [
-          "page · localhost:5173/settings/[ht]tp-cache",
+          "localhost:5173/settings/[ht]tp-cache",
         ],
         "http": [],
         "https": [],
         "https://": [],
         "https://git": [
-          "page · Pull requests · [git]hub.com/acme/app/pulls",
-          "page · Issues · [git]hub.com/acme/app/issues",
-          "page · Explore [Git]Hub · [git]hub.com/explore",
+          "Pull requests · [git]hub.com/acme/app/pulls",
+          "Issues · [git]hub.com/acme/app/issues",
+          "Explore [Git]Hub · [git]hub.com/explore",
         ],
         "hub": [],
         "pricing": [
-          "page · Help desk [pricing] · zendesk.com/[pricing]",
+          "Help desk [pricing] · zendesk.com/[pricing]",
         ],
         "report": [
-          "page · Weekly [report] · notion.so/acme/Weekly-[report]-1a2b",
+          "Weekly [report] · notion.so/acme/Weekly-[report]-1a2b",
         ],
         "settings": [
-          "page · localhost:5173/[settings]/http-cache",
+          "localhost:5173/[settings]/http-cache",
         ],
         "www": [],
         "ycomb": [
-          "page · Hacker News · news.[ycomb]inator.com",
+          "Hacker News · news.[ycomb]inator.com",
         ],
       }
     `);
   });
 
-  it("puts the site the box finished the word to first, once", () => {
+  it("leaves out the site the box finished the word to", () => {
     expect(rowsFor("git", "https://github.com/")).toMatchInlineSnapshot(`
       [
-        "site · [git]hub.com",
-        "page · Pull requests · [git]hub.com/acme/app/pulls",
-        "page · Issues · [git]hub.com/acme/app/issues",
-        "page · Explore [Git]Hub · [git]hub.com/explore",
+        "Pull requests · [git]hub.com/acme/app/pulls",
+        "Issues · [git]hub.com/acme/app/issues",
+        "Explore [Git]Hub · [git]hub.com/explore",
       ]
     `);
   });
@@ -279,5 +281,23 @@ describe("the pages under a new tab's box", () => {
     expect(
       boxPageRows({ pages: many, path: undefined, words: "docs" }),
     ).toHaveLength(4);
+  });
+});
+
+describe("what a new tab's box searches the web for", () => {
+  it.each([
+    ["one word", "pricing", "pricing"],
+    ["several words", "zendesk pricing ", "zendesk pricing"],
+    ["an address in doubt", "node.js", "node.js"],
+    ["words with a slash in them", "and/or rules", "and/or rules"],
+    ["nothing", " ", undefined],
+    ["two lines", "zendesk\npricing", undefined],
+    ["an address", "example.com", undefined],
+    ["a path", "/Users/mac-user/notes.md", undefined],
+    ["a slash command", "/proj", undefined],
+    ["a slash after words", "draft it with /wri", undefined],
+    ["a link among words", "read [this](https://example.com)", undefined],
+  ])("%s: %j", (_what, words, search) => {
+    expect(boxSearchWords(words, typedPathOf(words, "darwin"))).toBe(search);
   });
 });

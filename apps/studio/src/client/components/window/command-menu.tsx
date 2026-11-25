@@ -1,3 +1,4 @@
+import { ChatAskIcon } from "@/client/components/icons/chat-ask-icon";
 import { MiddleTruncate } from "@/client/components/middle-truncate";
 import { chatNotesAtom } from "@/client/atoms/chat-notes";
 import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
@@ -30,17 +31,31 @@ import {
 } from "@/client/components/ui/dialog";
 import { Spinner } from "@/client/components/ui/spinner";
 import { AppIcon } from "@/client/components/window/app-icon";
-import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
-import { useShowChatGroup } from "@/client/components/window/chat-group";
-import { ChatMarkDot } from "@/client/components/window/chat-mark";
 import {
+  type AppsBySlug,
+  useAppsBySlug,
+} from "@/client/components/window/apps-by-slug";
+import { useShowChatGroup } from "@/client/components/window/chat-group";
+import {
+  chatDotOf,
+  type ChatDot,
+  ChatMarkIcon,
+  isAsking,
+} from "@/client/components/window/chat-mark";
+import {
+  activityLabel,
   byLastUserMessage,
   type Chat,
-  railMarkOf,
   type Project,
   projectSearch,
 } from "@/client/components/window/chats";
+import { groupLeadsAtom } from "@/client/components/window/group-leads";
+import { GroupRowLines } from "@/client/components/window/group-row-lines";
+import { HoldMarks } from "@/client/components/window/hold-marks";
+import { type OpenGroupRow } from "@/client/components/window/open-group-rows";
 import { chatOfTab } from "@/client/components/window/tab-model";
+import { useNow } from "@/client/components/window/use-now";
+import { useWindowTabs } from "@/client/components/window/window-tabs";
 import {
   findNamed,
   type Found,
@@ -186,8 +201,14 @@ const COMMAND_MENU_PLACEHOLDER = "Search or type an address";
 type Item = {
   chord?: ShortcutAccelerator;
   detail?: string | undefined;
-  /** The dot a chat wears on its icon in a tab: a reply not yet seen, or a question waiting. */
-  dot?: "unread" | "waiting" | undefined;
+  /** What a chat's row ends with: its marks and the day it was last talked to. */
+  ending?: ReactNode;
+  /** The tab group the row is drawn as, as the sidebar draws it, in place of its icon and label. */
+  groupRow?: OpenGroupRow;
+  /** Whether the row is the group on screen. */
+  isHere?: boolean;
+  /** The dot a chat wears on its icon in a tab. */
+  dot?: ChatDot | undefined;
   icon: ReactNode;
   id: string;
   /** A file's name, cut in its middle when the row is short of room, with its folder giving way first. */
@@ -216,10 +237,11 @@ type Row =
 
 /**
  * The menu's rows for the words typed: an address or a path the words are,
- * then what they find by name (`name-match.ts`) among the tabs open in this
- * window, files and folders, chats, projects, the apps set up here, pages,
+ * then what they find by name (`name-match.ts`) among this window's tab
+ * groups and the tabs open in them, files and folders, chats, projects, the
+ * apps set up here, pages,
  * and commands with the actions for the tab in front. One row is promoted
- * over the sections, with no heading: what the person picked the last time
+ * over the sections as the top result: what the person picked the last time
  * they typed these words, or else the best match of any kind when the words
  * are its name or start it. The sections follow in the order of their best
  * match, three rows each at most (`orderSearch`). A name one wrong letter
@@ -227,7 +249,8 @@ type Row =
  * that are a search, then, when nothing matched by name and the words are
  * no address, the chats the decision model says they mean, below the search
  * so Return never changes under the caret. Before anything is typed,
- * what was used last of every kind, what the tab in front offers (a chat, a
+ * the tab groups as the sidebar lists them, the chats talked to last that
+ * none of them has open, what the tab in front offers (a chat, a
  * page or a file), and the commands worth reaching often.
  * Words
  * starting `!` reach the switches kept out of sight: `!dev` and `!beta`.
@@ -275,6 +298,8 @@ export function useCommandMenuRows({
   const { bookmarkPages, chats, chatTitles, recentPages } = sources;
   const picks = useSearchPicks({ enabled: active });
   const showChatGroup = useShowChatGroup();
+  const { select: selectTab } = useWindowTabs();
+  const now = useNow();
 
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
@@ -299,7 +324,6 @@ export function useCommandMenuRows({
 
   // What the tab up on the side with the keyboard offers, under what it is.
   const { frontTab, titleOfTab } = sources;
-  const frontChat = frontTab === undefined ? undefined : chatOfTab(frontTab);
   const front = useFrontTabActions({
     chats,
     tab: frontTab,
@@ -713,14 +737,17 @@ export function useCommandMenuRows({
   const thingsOf = (things: Named<SearchThing>[]): Named<ItemOf>[] =>
     things.map((entry) => ({
       ...entry,
-      value: (ranges) => thingItem(entry.value, ranges),
+      value: (ranges) => thingItem(entry.value, entry.id, ranges),
     }));
   const searched: {
     entries: Named<ItemOf>[];
     label: string;
     words?: ReturnType<typeof foldWords>;
   }[] = [
-    { entries: thingsOf(sources.named.tabs), label: "Open tabs" },
+    {
+      entries: thingsOf([...sources.named.groups, ...sources.named.tabs]),
+      label: "Open tabs",
+    },
     // The sidebar's folders and the files opened lately.
     {
       entries: thingsOf([...sources.named.folders, ...sources.named.files]),
@@ -774,7 +801,7 @@ export function useCommandMenuRows({
       entries: [
         ...frontActions.map((action) => ({
           ...action,
-          detail: front?.heading,
+          detail: front && `This ${front.kind}`,
         })),
         ...commands,
       ].map((command) => ({
@@ -840,7 +867,7 @@ export function useCommandMenuRows({
   });
   const named: { items: Item[]; label: string }[] = [
     ...(ordered.promoted
-      ? [{ items: [ordered.promoted.entry.value()], label: "" }]
+      ? [{ items: [ordered.promoted.entry.value()], label: "Top result" }]
       : []),
     ...ordered.sections.map((section) => ({
       items: section.rows.map((row) => row.entry.value()),
@@ -866,17 +893,31 @@ export function useCommandMenuRows({
     search: words,
   });
 
+  // The chats this window's groups have a tab on.
+  const openChats = new Set(
+    sources.groupRows.flatMap((row) =>
+      row.sides.flatMap((side) => side.tabs.map(chatOfTab)),
+    ),
+  );
+
   const sections: { items: Item[]; label: string; looking?: boolean }[] = isBang
     ? [{ items: bangRows, label: "Switches" }]
     : words === ""
       ? [
           {
-            // In the Chats page's order, open and closed alike, less the
-            // chat in front, which is where the person already is. All
-            // chats under them is the way to the rest.
+            items: sources.groupRows.map((row) =>
+              groupItem(row, `group:${row.entry.group}`),
+            ),
+            label: "",
+          },
+          {
+            // In the Chats page's order, less the ones the groups over them
+            // have a tab on. All chats under them is the way to the rest.
             items: [
               ...byLastUserMessage(
-                chats.filter((chat) => !chat.archived && chat.id !== frontChat),
+                chats.filter(
+                  (chat) => !chat.archived && !openChats.has(chat.id),
+                ),
               )
                 .slice(0, RECENT_CHATS_SHOWN)
                 .map((chat) => chatItem(chat, null)),
@@ -897,7 +938,7 @@ export function useCommandMenuRows({
             items: frontActions
               .slice(0, FRONT_ACTIONS_SHOWN)
               .map((action) => ({ ...action, ranges: null, type: "item" })),
-            label: front?.heading ?? "",
+            label: front ? `Actions for this ${front.kind}` : "",
           },
           {
             items: [...commands, settingsPage]
@@ -984,13 +1025,20 @@ export function useCommandMenuRows({
     };
   }
 
-  function thingItem(thing: SearchThing, ranges: null | number[]): Item {
+  function thingItem(
+    thing: SearchThing,
+    id: string,
+    ranges: null | number[],
+  ): Item {
     switch (thing.kind) {
       case "chat": {
         return chatItem(thing.chat, ranges);
       }
       case "file": {
         return fileItem(thing.file, ranges);
+      }
+      case "group": {
+        return groupItem(thing.row, id, { found: { ranges } });
       }
       case "folder": {
         return {
@@ -1052,17 +1100,18 @@ export function useCommandMenuRows({
     };
   }
 
-  // A chat's row is the address field's: the dot its tab would wear, its
-  // title, then the project it is filed under, and nothing at its right.
-  // It brings up the tab group the chat is in, open or closed, and a chat in
-  // neither opens as a screen.
+  // A chat's row is the address field's: the mark and dot of its tab, its
+  // title, then the project it is filed under, ending with the marks of what
+  // it holds and its day, as the Chats page has them. It brings up the tab
+  // group the chat is in, open or closed, and a chat in neither opens as a
+  // screen.
   function chatItem(chat: Chat, ranges: null | number[]): Item {
     const project = shell.projects.find((each) => each.id === chat.project);
-    const mark = railMarkOf([chat]);
     return {
       detail: project?.name ?? (chat.archived ? "Archived" : undefined),
-      dot: mark === "working" ? undefined : mark,
-      icon: <ChatCircleIcon />,
+      dot: chatDotOf(chat),
+      ending: <ChatEnding appsBySlug={appsBySlug} chat={chat} now={now} />,
+      icon: isAsking(chat) ? <ChatAskIcon /> : <ChatCircleIcon />,
       id: `chat:${chat.id}`,
       label: chat.title,
       ranges,
@@ -1070,6 +1119,33 @@ export function useCommandMenuRows({
         if (!showChatGroup(chat.id)) {
           openScreen(`${CHATS_HREF}/${chat.id}`);
         }
+      },
+      type: "item",
+    };
+  }
+
+  // A tab group's row is the sidebar's. Before anything is typed it brings
+  // the group up as it was left, as a press in the sidebar does; found by
+  // words, it brings up the tab those words name.
+  function groupItem(
+    row: OpenGroupRow,
+    id: string,
+    { found }: { found?: { ranges: null | number[] } } = {},
+  ): Item {
+    const { group } = row.entry;
+    const here = frontTab?.group;
+    return {
+      groupRow: row,
+      icon: null,
+      id,
+      isHere: group === here,
+      label: row.name,
+      ranges: row.name === row.title ? (found?.ranges ?? null) : null,
+      run: () => {
+        if (found) {
+          selectTab(row.lead.id);
+        }
+        shell.showGroup(group, here === undefined ? {} : { from: here });
       },
       type: "item",
     };
@@ -1157,7 +1233,8 @@ interface Selection {
  * another for as long as those words stand and the row is listed. The
  * pointer picks only by moving: the rows changing under a pointer at rest
  * make the browser send a move to the place it already was, and that leaves
- * the pick where it is. Return pressed
+ * the pick where it is. Before anything is typed, the first row is the
+ * first that is not where the person already is. Return pressed
  * before the rows have caught up with the words waits for them, so it runs
  * a row for what was typed rather than for the letters before it.
  */
@@ -1183,8 +1260,10 @@ function useSelection({
   const pointer = useRef<{ x: number; y: number }>(undefined);
   const items = rows.filter((row) => row.type === "item");
   const ids = items.map((item) => item.id);
+  const first =
+    words === "" ? (items.find((item) => !item.isHere)?.id ?? ids[0]) : ids[0];
   const id =
-    picked?.words === words && ids.includes(picked.id) ? picked.id : ids[0];
+    picked?.words === words && ids.includes(picked.id) ? picked.id : first;
 
   const runPicked = () => {
     items.find((item) => item.id === id)?.run();
@@ -1311,8 +1390,8 @@ function CommandMenuField({
 }
 
 /**
- * The menu's list, one height whatever the search finds, eight rows tall,
- * so it does not grow and shrink under the caret as results come and go.
+ * The menu's list, as tall as its rows up to a height it scrolls past. It
+ * hangs from the field, which stays where it is whatever the list does.
  */
 function CommandMenuList({
   className,
@@ -1354,11 +1433,66 @@ function CommandMenuList({
           selection={selection}
         />
       ) : words !== "" && !(isBang && words.length < 3) ? (
-        <div className="flex h-full flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
+        <div className="flex h-20 flex-col items-center justify-center gap-1 text-sm text-muted-foreground">
           Nothing matches “{words}”
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** A tab group in the list, as its row in the sidebar (`GroupRowLines`). */
+function GroupRowText({
+  isHere,
+  ranges,
+  row,
+}: {
+  isHere: boolean;
+  ranges: null | number[];
+  row: OpenGroupRow;
+}) {
+  const { chatTitles } = useShell();
+  const held = useAtomValue(groupLeadsAtom).get(row.entry.group);
+  return (
+    <GroupRowLines
+      chatTitles={chatTitles}
+      end={
+        <CommandShortcut className="hidden in-data-[selected=true]:inline">
+          {osConventions().returnKey}
+        </CommandShortcut>
+      }
+      held={held}
+      isOnScreen={isHere}
+      sides={row.sides}
+      titleRanges={ranges}
+    />
+  );
+}
+
+/** What a chat's row ends with: the marks of what it holds, as the Chats page has them but for the row to press, then the day it was last talked to. */
+function ChatEnding({
+  appsBySlug,
+  chat,
+  now,
+}: {
+  appsBySlug: AppsBySlug;
+  chat: Chat;
+  now: Date;
+}) {
+  return (
+    <>
+      <span className="ml-auto flex shrink-0" inert>
+        <HoldMarks
+          appsBySlug={appsBySlug}
+          chatId={chat.id}
+          className="max-w-40 justify-end gap-1 overflow-hidden"
+          holds={chat.holds}
+        />
+      </span>
+      <span className="min-w-10 shrink-0 text-right text-[11px] text-muted-foreground/70 tabular-nums">
+        {activityLabel(new Date(chat.lastUserMessageAt), now)}
+      </span>
+    </>
   );
 }
 
@@ -1423,7 +1557,9 @@ export function CommandMenu({
         </DialogDescription>
       </DialogHeader>
       <DialogContent
-        className="overflow-hidden rounded-2xl p-0"
+        // Held by its top, so the field stays put as the list under it grows
+        // and shrinks.
+        className="top-[12%] translate-y-0 overflow-hidden rounded-2xl p-0"
         // Once it is out of sight, so the list does not visibly empty first
         // and the next opening does not start from the last one's rows.
         onExitComplete={() => {
@@ -1442,7 +1578,7 @@ export function CommandMenu({
             value={search}
           />
           <CommandMenuList
-            className="h-74"
+            className="max-h-[min(28rem,calc(100vh/var(--content-zoom)-120px))]"
             isBang={isBang}
             itemClassName="py-2"
             listId={listId}
@@ -1477,7 +1613,11 @@ function ResultRows({
     count: rows.length,
     estimateSize: (i) => {
       const row = rows[i];
-      return row?.type === "header" ? 28 : 36;
+      return row?.type === "header"
+        ? 28
+        : row?.type === "item" && row.groupRow
+          ? 52
+          : 36;
     },
     getScrollElement: () => parentRef.current,
     // Rows on the first render, before the scroller is measured.
@@ -1500,7 +1640,10 @@ function ResultRows({
   }, [at, firstItem, selection.isKeyed, virtualizer]);
 
   return (
-    <div className="h-full overflow-y-auto p-1" ref={parentRef}>
+    <div
+      className="max-h-[inherit] overflow-y-auto scroll-fade-y p-1"
+      ref={parentRef}
+    >
       <div
         className="relative w-full"
         style={{ height: `${virtualizer.getTotalSize()}px` }}
@@ -1532,7 +1675,11 @@ function ResultRows({
                   aria-selected={row.id === selection.id}
                   className={cn(
                     "relative flex cursor-default items-center gap-2 rounded-sm px-3 text-sm outline-hidden select-none data-[selected=true]:bg-accent data-[selected=true]:text-accent-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
-                    itemClassName,
+                    // A column, as the sidebar's row is, so a group with no second
+                    // line is as short here as there.
+                    row.groupRow
+                      ? "flex-col items-stretch rounded-lg py-1.5"
+                      : itemClassName,
                   )}
                   data-selected={row.id === selection.id}
                   id={`${listId}-${virtualItem.index}`}
@@ -1542,48 +1689,62 @@ function ResultRows({
                   }}
                   role="option"
                 >
-                  {/* The dot outside the icon's fade, so it reads as it does in a tab. */}
-                  <span className="relative flex shrink-0">
-                    <span className="flex size-4 shrink-0 items-center justify-center opacity-60">
-                      {row.icon}
-                    </span>
-                    {row.dot ? (
-                      <ChatMarkDot className="size-2 ring-0" mark={row.dot} />
-                    ) : null}
-                  </span>
-                  <RowText
-                    name={
-                      row.isFileName ? (
-                        <MiddleTruncate
-                          className="max-w-full"
-                          extension
-                          renderText={(piece, start) => (
-                            <FuzzyHighlight
-                              ranges={rangesWithin(
-                                row.ranges,
-                                start,
-                                piece.length,
+                  {row.groupRow ? (
+                    <GroupRowText
+                      isHere={row.isHere === true}
+                      ranges={row.ranges}
+                      row={row.groupRow}
+                    />
+                  ) : (
+                    <>
+                      {/* The dot outside the icon's fade, so it reads as it does in a tab. */}
+                      <ChatMarkIcon
+                        dot={row.dot}
+                        icon={
+                          <span className="flex size-4 shrink-0 items-center justify-center opacity-60">
+                            {row.icon}
+                          </span>
+                        }
+                      />
+                      <RowText
+                        name={
+                          row.isFileName ? (
+                            <MiddleTruncate
+                              className="max-w-full"
+                              extension
+                              renderText={(piece, start) => (
+                                <FuzzyHighlight
+                                  ranges={rangesWithin(
+                                    row.ranges,
+                                    start,
+                                    piece.length,
+                                  )}
+                                  text={piece}
+                                />
                               )}
-                              text={piece}
+                              text={row.label}
                             />
-                          )}
-                          text={row.label}
-                        />
-                      ) : (
-                        <FuzzyHighlight ranges={row.ranges} text={row.label} />
-                      )
-                    }
-                    where={row.detail}
-                  />
-                  {row.chord === undefined ? null : (
-                    <CommandShortcut>
-                      {formatAcceleratorText(row.chord)}
-                    </CommandShortcut>
+                          ) : (
+                            <FuzzyHighlight
+                              ranges={row.ranges}
+                              text={row.label}
+                            />
+                          )
+                        }
+                        where={row.detail}
+                      />
+                      {row.ending}
+                      {row.chord === undefined ? null : (
+                        <CommandShortcut>
+                          {formatAcceleratorText(row.chord)}
+                        </CommandShortcut>
+                      )}
+                      {/* Return runs the row picked, so it says so, whichever row that is. */}
+                      <CommandShortcut className="hidden in-data-[selected=true]:inline">
+                        {osConventions().returnKey}
+                      </CommandShortcut>
+                    </>
                   )}
-                  {/* Return runs the row picked, so it says so, whichever row that is. */}
-                  <CommandShortcut className="hidden in-data-[selected=true]:inline">
-                    {osConventions().returnKey}
-                  </CommandShortcut>
                 </div>
               )}
             </div>

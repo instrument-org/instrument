@@ -545,7 +545,7 @@ function WorkingStrips() {
 function Rows() {
   return (
     <Section
-      description="Each row draws the tabs that are up: one side across the row, two in equal halves with a hairline between. A tab's mark leads its title, and its second line says where it is, or for a chat, what it's doing."
+      description="The lead tab's mark and title are on a row's first line. The second says where it is, or for a chat, what it's doing, with the other tabs' marks at its end."
       id="rows"
     >
       <RowFrames />

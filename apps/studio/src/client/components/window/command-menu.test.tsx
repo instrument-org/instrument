@@ -184,11 +184,12 @@ describe("the debug pages in the command menu in developer mode", () => {
     await screen.findByRole("button", { name: "Debug pages" });
     expect(screen.getAllByRole("listitem").map((item) => item.textContent))
       .toMatchInlineSnapshot(`
-      [
-        "Debug pages",
-        "Search the web for “debug”",
-      ]
-    `);
+        [
+          "Top result",
+          "Debug pages",
+          "Search the web for “debug”",
+        ]
+      `);
   });
 });
 
@@ -236,7 +237,7 @@ describe("folders and bookmarks in the command menu", () => {
     expect(
       await screen.findByRole("button", { name: "Documents" }),
     ).toBeTruthy();
-    expect(screen.getAllByRole("listitem")[0]?.textContent).toBe("Documents");
+    expect(screen.getAllByRole("listitem")[1]?.textContent).toBe("Documents");
     expect(screen.queryByRole("button", { name: "Backup Disk" })).toBeNull();
   });
 
@@ -259,6 +260,7 @@ describe("folders and bookmarks in the command menu", () => {
     expect(screen.getAllByRole("listitem").map((item) => item.textContent))
       .toMatchInlineSnapshot(`
         [
+          "Top result",
           "Weather Radar",
           "Pages",
           "Weather Today",

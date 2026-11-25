@@ -9,33 +9,37 @@ export interface PickEntry {
   icon: ReactNode;
   id: string;
   label: string;
+  /** Stands for none of the rest: over a hairline above them, and not among what the find field finds. */
+  isNone?: boolean;
   /** A small figure at the row's far edge: how many chats it reaches. */
   note?: string;
 }
 
 /**
- * What opens under a tag control: a find field, rows with a check where
- * chosen, and whatever the caller keeps at the foot. Growth lands here, never
- * in the row of chips above the chat.
+ * A list to pick one thing from: a find field, rows with a check on the one
+ * chosen, and whatever the caller keeps at the foot.
  */
 export function PickList({
   chosen,
   entries,
   findPlaceholder,
   foot,
-  onToggle,
+  onPick,
 }: {
-  chosen: ReadonlySet<string>;
+  /** The id of the one that is on; none of them is without it. */
+  chosen: string | undefined;
   entries: PickEntry[];
   findPlaceholder: string;
   /** Drawn under the rows, past a hairline: an action that adds to the list, told what is typed in the find field. */
   foot?: ((find: string) => ReactNode) | ReactNode;
-  onToggle: (id: string) => void;
+  onPick: (id: string) => void;
 }) {
   const [find, setFind] = useState("");
   const words = find.trim().toLowerCase();
   const shown = words
-    ? entries.filter((entry) => entry.label.toLowerCase().includes(words))
+    ? entries.filter(
+        (entry) => !entry.isNone && entry.label.toLowerCase().includes(words),
+      )
     : entries;
   const scrollerRef = useRef<HTMLDivElement>(null);
   const [isOverflowing, setOverflowing] = useState(false);
@@ -75,7 +79,7 @@ export function PickList({
             const [only, ...rest] = shown;
             if (event.key === "Enter" && only && rest.length === 0) {
               event.preventDefault();
-              onToggle(only.id);
+              onPick(only.id);
             }
           }}
           placeholder={findPlaceholder}
@@ -97,19 +101,23 @@ export function PickList({
             </p>
           ) : (
             shown.map((entry) => {
-              const isOn = chosen.has(entry.id);
+              const isOn = entry.id === chosen;
               return (
                 <div
-                  className="flex h-7 items-center gap-2 rounded-sm px-2 text-xs hover:bg-accent"
+                  className={cn(
+                    "flex h-7 items-center gap-2 rounded-sm px-2 text-xs hover:bg-accent",
+                    entry.isNone &&
+                      "relative mb-2 after:absolute after:inset-x-0 after:-bottom-1 after:h-px after:bg-border",
+                  )}
                   key={entry.id}
                 >
                   <button
                     aria-checked={isOn}
                     className="flex h-full min-w-0 flex-1 items-center gap-2 text-left"
                     onClick={() => {
-                      onToggle(entry.id);
+                      onPick(entry.id);
                     }}
-                    role="menuitemcheckbox"
+                    role="menuitemradio"
                     type="button"
                   >
                     <span className="flex size-4 shrink-0 items-center justify-center">

@@ -130,6 +130,7 @@ const READ_THOUGH_HIDDEN = new Set<SessionMessagePart.DataPart["type"]>([
   "data-attachments",
   "data-fileVersions",
   "data-intent",
+  "data-linkedTabs",
   "data-stepFacts",
   "data-viewContext",
   "data-workSummary",

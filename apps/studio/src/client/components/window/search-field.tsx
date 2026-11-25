@@ -1,10 +1,11 @@
+import { FieldKeys } from "@/client/components/field-keys";
 import {
   Popover,
   PopoverAnchor,
   PopoverContent,
 } from "@/client/components/ui/popover";
 import { leaveField } from "@/client/lib/keyboard-home";
-import { cn } from "@/client/lib/utils";
+import { cn, osConventions } from "@/client/lib/utils";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { XIcon } from "@phosphor-icons/react/X";
 import { type ReactNode, type Ref, useId, useState } from "react";
@@ -29,6 +30,7 @@ export interface SearchToken<T extends string> {
  * offer while the keyboard stays in the field.
  */
 export function SearchField<T extends string>({
+  chord,
   className,
   inputRef,
   label,
@@ -40,6 +42,8 @@ export function SearchField<T extends string>({
   tokens = [],
   value,
 }: {
+  /** The shortcut that puts the keyboard here, whose keys the empty field shows. */
+  chord?: "findInPage" | "searchChats";
   /** The field's own box, where a list lines it up with its rows. */
   className?: string;
   inputRef?: Ref<HTMLInputElement>;
@@ -82,7 +86,7 @@ export function SearchField<T extends string>({
       <PopoverAnchor asChild>
         <div
           className={cn(
-            "relative flex h-9 min-w-0 flex-1 items-center gap-1 rounded-lg border border-transparent pl-8 text-sm",
+            "group/field @container/search relative flex h-9 min-w-0 flex-1 items-center gap-1 rounded-lg border border-transparent pl-8 text-sm",
             isSearched ? "pr-7" : "pr-3",
             // A faint well at rest that darkens a touch under the pointer,
             // and the raised white field once it is typed into.
@@ -194,6 +198,18 @@ export function SearchField<T extends string>({
             type="text"
             value={value}
           />
+          {/* A field too narrow for its placeholder and the keys keeps the
+              placeholder; off the Mac the keys are words. */}
+          {chord && !isSearched && (
+            <FieldKeys
+              chord={chord}
+              className={
+                osConventions().keyJoiner === ""
+                  ? "hidden @min-[176px]/search:flex"
+                  : "hidden @min-[240px]/search:flex"
+              }
+            />
+          )}
           {isSearched && (
             <button
               aria-label="Clear search"

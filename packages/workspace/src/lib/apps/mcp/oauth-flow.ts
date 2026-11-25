@@ -14,7 +14,11 @@ import {
   startApiSignIn,
 } from "../api-oauth";
 import { catalogApiSignInClient } from "../catalog";
-import { readConnection, recordConnection } from "../connection";
+import {
+  readConnection,
+  recordConnection,
+  type SignInOpensIn,
+} from "../connection";
 import { type ApiAppManifest } from "../manifest";
 import { boundTo, credentialOrigin } from "../origin-bound";
 import { loadApp } from "../store";
@@ -45,9 +49,6 @@ import {
  * service (`api-oauth.ts`): what is parked is how to redeem its code, and
  * the app's own test is what connects it.
  */
-/** Where the authorization page was opened: the window's own browser, or the user's. */
-export type SignInOpensIn = "app" | "external";
-
 type PendingFlow = PendingApiFlow | PendingMcpFlow;
 
 interface PendingApiFlow {
@@ -424,6 +425,7 @@ export async function completeMcpOAuth({
     await recordConnection(flow.slug, {
       connectedAt: Date.now(),
       manifestHash: loaded.value.manifestHash,
+      signedInFrom: flow.opensIn,
       status: "connected",
       toolCount: tools.tools.length,
     });
@@ -503,6 +505,12 @@ async function completeApiOAuth(
   } finally {
     await flow.store.clearTransient(flow.slug).catch(noop);
   }
+  // Before the test, whose passing is what readers of the connection wait for.
+  const connection = await readConnection(flow.slug);
+  await recordConnection(flow.slug, {
+    signedInFrom: flow.opensIn,
+    status: connection?.status === "connected" ? "connected" : "needs-sign-in",
+  });
   const report = await runAppTest({
     signal: AbortSignal.timeout(API_PROBE_TIMEOUT_MS),
     slug: flow.slug,

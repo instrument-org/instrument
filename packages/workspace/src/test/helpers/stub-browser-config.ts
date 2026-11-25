@@ -20,7 +20,11 @@ export function createStubBrowserConfig(): BrowserConfig {
     personInputAt: () => undefined,
     isGuestBusy: () => false,
     isGuestEdited: () => false,
-    getTargetUrl: (): string | undefined => {
+    getTargetAddress: (): string | undefined => {
+      // No guest is ever live here, so there is no address to report.
+      return;
+    },
+    getLoadedDocumentUrl: (): string | undefined => {
       // No guest is ever live here, so there is no address to report.
       return;
     },

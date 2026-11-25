@@ -514,9 +514,10 @@ describe("ChatRow", () => {
     ["quiet", {}, undefined, undefined],
     ["unseen", { unread: true }, "unread", "unread"],
     ["working", { status: "working", working: true }, undefined, "working"],
-    ["waiting", { status: "waiting" }, undefined, "waiting"],
+    ["asking", { status: "waiting", working: true }, undefined, undefined],
+    ["asking, unseen", { status: "waiting", unread: true }, "unread", "unread"],
   ])(
-    "wears the rail's dot when %s: for what is unseen, and at one line for where it stands",
+    "wears its dot when %s: for what is unseen, and at one line for work too",
     async (_, overrides, atThree, atOne) => {
       const { row } = await renderRow(chat(overrides));
       expect(dotOf(row)?.dataset.chatMark).toBe(atThree);
@@ -524,6 +525,19 @@ describe("ChatRow", () => {
         density: "one",
       });
       expect(dotOf(short)?.dataset.chatMark).toBe(atOne);
+    },
+  );
+
+  it.each(["one", "two", "three"] as const)(
+    "shows the asking bubble at %s lines only while it waits",
+    async (density) => {
+      const { rows } = await renderRows(
+        [chat({ status: "waiting" }), chat({ unread: true })],
+        { density },
+      );
+      expect(
+        rows.map((row) => row.querySelectorAll("[data-chat-asks]").length),
+      ).toEqual([1, 0]);
     },
   );
 
@@ -582,7 +596,7 @@ describe("ChatRow", () => {
     expect(names.map((name) => name.textContent)).toEqual(["Money"]);
   });
 
-  it("shows the step in brand while working, and the question behind a gray question mark while waiting", async () => {
+  it("shows the step in brand while working, and the question behind a gray asking bubble while waiting", async () => {
     const { rows } = await renderRows([
       chat({
         // The workspace names a working chat's step in `latest`, the same
@@ -711,7 +725,7 @@ describe("ChatRow", () => {
       (span) => span.textContent === "8:46 AM",
     );
     if (!control || !pill) {
-      throw new Error("no tag control or time");
+      throw new Error("no project control or time");
     }
     // The pointer is shared across test files, so it may sit wherever another
     // file left it, over the row just drawn. Move it off before reading rest.
@@ -731,14 +745,10 @@ describe("ChatRow", () => {
     const edge = row.getBoundingClientRect();
     expect(box.top).toBeLessThan(titleBefore.bottom);
     expect(box.right).toBeLessThanOrEqual(edge.right);
-    // The tint is a square bar across the row's full width, the open row's
-    // bar in grey, rather than a rounded field inside the row.
-    expect(getComputedStyle(row).backgroundColor).toBe("rgba(0, 0, 0, 0)");
-    const tint = getComputedStyle(row, "::before");
-    expect(tint.opacity).toBe("1");
-    expect(tint.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
-    expect(tint.borderRadius).toBe("0px");
-    expect([tint.left, tint.right]).toEqual(["0px", "0px"]);
+    // The fill is a rounded one across the row's full width.
+    const face = getComputedStyle(row);
+    expect(face.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(face.borderRadius).not.toBe("0px");
     // Nothing on the row moves with the pointer.
     expect(titleOf(row).getBoundingClientRect()).toEqual(titleBefore);
     expect(marksOf(row)[0]?.getBoundingClientRect()).toEqual(chipBefore);
@@ -1003,13 +1013,13 @@ describe("ChatRow", () => {
     expect(openScreen).not.toHaveBeenCalled();
   });
 
-  it("opens the chat's project list from the corner's tag control, which files the chat rather than opening it, and holds the corner while the list leaves", async () => {
+  it("opens the chat's project list from the corner's project control, which files the chat rather than opening it, and holds the corner while the list leaves", async () => {
     const { onOpen, onSetProject, row } = await renderRow(
       chat({ project: "house" }),
     );
     const control = row.querySelector<HTMLElement>('[aria-label="Project"]');
     if (!control) {
-      throw new Error("no tag control");
+      throw new Error("no project control");
     }
     // The control is in the flow only while the pointer is on the row.
     await userEvent.hover(titleOf(row));
@@ -1081,7 +1091,7 @@ describe("the row's actions", () => {
     expect(box.right).toBeLessThanOrEqual(edge.right);
     expect(box.right).toBeGreaterThan(edge.right - 80);
     expect(box.top).toBeGreaterThanOrEqual(edge.top);
-    // Nothing on the row moved for them but the tag control's arrival in
+    // Nothing on the row moved for them but the project control's arrival in
     // front of the title.
     expect(titleOf(row).getBoundingClientRect().top).toBeCloseTo(before.top, 0);
     await userEvent.unhover(titleOf(row));
@@ -1170,7 +1180,7 @@ describe("the row's actions", () => {
 
     await userEvent.click(titleOf(row), { button: "right" });
     await userEvent.hover(page.getByRole("menuitem", { name: "Project" }));
-    const house = page.getByRole("menuitemcheckbox", { name: "House" });
+    const house = page.getByRole("menuitemradio", { name: "House" });
     await expect.element(house).toBeVisible();
     await userEvent.click(house);
     expect(onSetProject).toHaveBeenCalledWith("house");

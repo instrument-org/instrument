@@ -57,9 +57,9 @@ describe("planAccountStop", () => {
       }),
     },
     {
-      line: "I had to stop here. Your ChatGPT plan is out of usage for now.",
+      line: "I had to stop here. You've reached your ChatGPT usage limit.",
       name: "ChatGPT out of usage with no reset",
-      note: "ChatGPT is out of usage for now.",
+      note: "You've reached your ChatGPT usage limit.",
       turn: stoppedTurn({
         body: { code: "subscription_sharing_usage_limit_exceeded" },
         provider: "chatgpt-account",

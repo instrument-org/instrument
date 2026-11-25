@@ -28,18 +28,20 @@ import { FingerprintIcon } from "@phosphor-icons/react/Fingerprint";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { skipToken, useQuery } from "@tanstack/react-query";
-import { Children, type ReactNode } from "react";
+import { atom, useAtomValue } from "jotai";
+import { Children, type ReactNode, useContext, useMemo } from "react";
 
 import { EmailLink } from "./email-link";
 import { ExternalLink } from "./external-link";
-import {
-  FAVICON_SCHEME_CLASS_NAME,
-  FAVICON_SURFACE_CLASS_NAME,
-} from "./favicon";
+import { FAVICON_SCHEME_CLASS_NAME, PageFavicon } from "./favicon";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { LinkedTabsContext } from "./transcript/linked-tabs-context";
 import { AppIcon } from "./window/app-icon";
+import { appTabsAtom } from "./window/app-tabs";
 import { useAppsBySlug } from "./window/apps-by-slug";
 import { contentOfAddress, useContentDrag } from "./window/drag/content-drag";
+import { closedTabsOf, isTabNamed } from "./window/tab-model";
+import { windowTabsAtom } from "./window/window-tabs";
 import { InstrumentGlyph } from "./wordmark";
 
 /**
@@ -226,6 +228,13 @@ export function InlineLink({
   }
 
   const link = instrumentLinkOf(href);
+  if (link?.kind === "tab") {
+    return (
+      <TabLink address={href} className={className} link={link}>
+        {children}
+      </TabLink>
+    );
+  }
   if (link) {
     return (
       <AppLink address={href} className={className} link={link}>
@@ -388,6 +397,112 @@ function AppLinkIcon({ link }: { link: InstrumentLink }) {
 }
 
 /**
+ * A link to a tab: drawn as a link to the web page it is on, wherever that is
+ * known from, and a chip for any other tab.
+ *
+ * A tab open in some window, or that this one closed and can reopen, is gone
+ * to by its id. Past that, on another computer included, the link is one to
+ * the page its tab was on when the reply was written
+ * ({@link LinkedTabsContext}).
+ */
+function TabLink(props: {
+  address: string;
+  children: ReactNode;
+  className?: string;
+  link: InstrumentLink;
+}) {
+  const { address, children, className, link } = props;
+  const saved = useContext(LinkedTabsContext)?.get(link.name);
+  const here = useAtomValue(useMemo(() => tabHereAtom(link.name), [link.name]));
+  const gestures = useOpenGestures(
+    { href: link.href, kind: "screen" },
+    { isLink: true },
+  );
+  const dragProps = useContentDrag(
+    contentOfAddress(address, textOf(children) ?? ""),
+  );
+  if (here === undefined && saved) {
+    return (
+      <WebLink className={className} href={saved.url} title={saved.title}>
+        {children}
+      </WebLink>
+    );
+  }
+  const page =
+    here === undefined
+      ? undefined
+      : here.kind === "page" && here.url !== undefined
+        ? { title: here.title, url: here.url }
+        : saved;
+  const url = page && webUrl(page.url);
+  const open = gestures.destinations.find((entry) => entry.id === "open");
+  if (!page || !url || !open) {
+    return <AppLink {...props} />;
+  }
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          {...dragProps}
+          className={cn(
+            INLINE_LINK_CLASS_NAME,
+            // Prose colors only an anchor as a link.
+            "text-(--tw-prose-links)",
+            className,
+          )}
+          onAuxClick={gestures.onAuxClick}
+          onClick={open.run}
+          onContextMenu={gestures.onContextMenu}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              open.run();
+            }
+          }}
+          role="link"
+          tabIndex={0}
+        >
+          <span className="whitespace-nowrap">
+            <PageFavicon
+              className="my-0! mr-1 inline-block align-middle"
+              favicon={here?.kind === "page" ? here.favicon : undefined}
+              hasTooltip={false}
+              url={page.url}
+            />
+            <bdi
+              className={cn(
+                "whitespace-normal",
+                INLINE_LINK_UNDERLINE_CLASS_NAME,
+              )}
+            >
+              {children}
+            </bdi>
+          </span>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent maxWidth="24rem">
+        {page.title && <p className="mb-1">{page.title}</p>}
+        <LinkDestination url={url} />
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
+/** The tab an id names, open in any window or on this one's closed list. */
+function tabHereAtom(id: string) {
+  return atom((get) => {
+    const open = get(windowTabsAtom).tabs;
+    return (
+      open.find((tab) => tab.id === id) ??
+      open.find((tab) => isTabNamed(tab, id)) ??
+      get(appTabsAtom)
+        .recentlyClosed.flatMap(closedTabsOf)
+        .find((tab) => isTabNamed(tab, id))
+    );
+  });
+}
+
+/**
  * The URL a link leads to, whole.
  *
  * Read in one pass by the same order a reader checks it in: the scheme, then
@@ -494,7 +609,6 @@ export function SiteIcon({
       className={cn(
         "my-0! size-4 shrink-0 rounded-xs align-middle",
         FAVICON_SCHEME_CLASS_NAME,
-        FAVICON_SURFACE_CLASS_NAME,
         arrivalClassName,
         className,
       )}

@@ -8,7 +8,6 @@ import { useEffect, useEffectEvent, useRef } from "react";
 import { z } from "zod";
 
 import { appTabsAtom } from "./app-tabs";
-import { AGENT_SPLIT_CHAT_SHARE } from "./beside-chat";
 import { chatListOptions } from "./chat-list-query";
 import { byLastUserMessage, type Chat, type Project } from "./chats";
 import { windowTabGroupsAtom } from "./open-groups";
@@ -223,10 +222,7 @@ export function useOpenRecentChats({
           active: 0,
           ...(beside === undefined ? {} : { beside }),
         });
-        windowTabs.setGroupOwn(group, {
-          ...(project === undefined ? {} : { project }),
-          ...(beside === undefined ? {} : { share: AGENT_SPLIT_CHAT_SHARE }),
-        });
+        windowTabs.setGroupOwn(group, project === undefined ? {} : { project });
         return group;
       },
     );

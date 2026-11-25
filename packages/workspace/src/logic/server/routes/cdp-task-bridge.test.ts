@@ -177,7 +177,13 @@ function connect(sessionId: StoreId.Session = SESSION_ID) {
       },
       getTargetMeta: (targetId: BrowserTargetId) =>
         live.has(targetId) ? { partitionDir: "/tmp/profile" } : null,
-      getTargetUrl: (targetId: BrowserTargetId) =>
+      getTargetAddress: (targetId: BrowserTargetId) =>
+        live.has(targetId)
+          ? (pages.get(targetId)?.url ??
+            windowList.find((entry) => entry.id === targetId)?.url ??
+            "https://example.com/")
+          : undefined,
+      getLoadedDocumentUrl: (targetId: BrowserTargetId) =>
         live.has(targetId)
           ? (pages.get(targetId)?.url ??
             windowList.find((entry) => entry.id === targetId)?.url ??

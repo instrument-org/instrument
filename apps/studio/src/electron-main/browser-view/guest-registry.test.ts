@@ -72,6 +72,37 @@ describe("createGuestRegistry", () => {
     expect(
       registry.documentOf(contents.id, { processId: 4, routingId: 1 }),
     ).toBe("file:///Users/casey/site/index.html");
+    expect(
+      registry.addressOf(contents.id, { processId: 4, routingId: 1 }),
+    ).toBe("file:///Users/casey/site/index.html");
+  });
+
+  it("says where a web page moved within its document, until it loads another", () => {
+    const registry = createGuestRegistry();
+    const contents = contentsIn({});
+    registry.track(contents as unknown as WebContents, "webview");
+    const frame = { processId: 4, routingId: 1 };
+
+    commit(contents, 1, "https://shop.test/cart");
+    contents.emit(
+      "did-navigate-in-page",
+      {},
+      "https://shop.test/contract",
+      true,
+      4,
+      1,
+    );
+    expect(registry.addressOf(contents.id, frame)).toBe(
+      "https://shop.test/contract",
+    );
+    expect(registry.documentOf(contents.id, frame)).toBe(
+      "https://shop.test/cart",
+    );
+
+    commit(contents, 1, "https://shop.test/orders");
+    expect(registry.addressOf(contents.id, frame)).toBe(
+      "https://shop.test/orders",
+    );
   });
 
   it("forgets a frame that no longer exists", () => {

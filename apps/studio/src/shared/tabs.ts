@@ -51,7 +51,7 @@ export type Tab = z.output<typeof TabSchema>;
  * whole tab group closed holds every tab it had (`groupTabs`), with the
  * places among them of the tab it had up on the side with the keyboard and
  * of the one up on the other side (`ups`), and the project it was in
- * (`project`), none for the root; one side of a group closed holds
+ * (`project`), none for the root, and whether it was `pinned`; one side of a group closed holds
  * that side's tabs the same way, with which side it was (`side`), as
  * `index` the place among them of the tab it had up, and whether it had the
  * keyboard (`focused`).
@@ -62,6 +62,7 @@ const ClosedTabSchema = TabSchema.extend({
   groupTab: z.unknown().optional(),
   groupTabs: z.unknown().optional(),
   index: z.number().optional(),
+  pinned: z.boolean().optional(),
   project: z.string().optional(),
   // Any side past the first reopens on the right, so a later layout's
   // closed side still reads here.

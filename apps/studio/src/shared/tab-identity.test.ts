@@ -39,6 +39,11 @@ describe("isSameTabIdentity", () => {
     ["the extensions", "/extensions", "/extensions"],
     ["every chat, whatever it searches", "/chat-list", "/chat-list?q=trip"],
     [
+      "a project's chats, whatever they search",
+      "/chat-list?project=a",
+      "/chat-list?project=a&q=trip",
+    ],
+    [
       "the debug pages, whichever is up",
       "/debug",
       "/debug/components/transcript?scenario=long-reply",
@@ -70,6 +75,8 @@ describe("isSameTabIdentity", () => {
     ["a chat and a draft", "/chats/a", "/chats?draft=a"],
     ["two apps", "/apps/github", "/apps/linear"],
     ["the apps and an app", "/apps", "/apps/github"],
+    ["every chat and a project's", "/chat-list", "/chat-list?project=a"],
+    ["two projects", "/chat-list?project=a", "/chat-list?project=b"],
   ])("tells apart %s", (_, a, b) => {
     expect(isSameTabIdentity(a, b, HOME)).toBe(false);
   });

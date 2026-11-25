@@ -14,7 +14,6 @@ import {
   selectTab,
   sideIndexOf,
   tabShowingIn,
-  withGroupOwn,
   type WindowTabs,
 } from "./tab-model";
 import { matchScreen, showsSame } from "./window-href";
@@ -222,9 +221,6 @@ export function agentPlacementOf(
   };
 }
 
-/** The chat's share of a split the agent's page makes, which leaves the page the larger side. */
-export const AGENT_SPLIT_CHAT_SHARE = 0.38;
-
 /** Where an open from a chat lands: the person's (`personPlacementOf`) or the agent's (`agentPlacementOf`). */
 function besidePlacementOf(
   layout: GroupLayout,
@@ -295,17 +291,6 @@ export function openBesideChat(
     if (placement.front) {
       next = raiseTab(next, tab.id);
     }
-  }
-  // The agent's page making the split, or taking the place of an unwritten
-  // New Tab that is all the other side has, opens on the wider side, where a
-  // site has room for its desktop layout; a split the person sized before
-  // keeps their share.
-  if (
-    ask.gesture === undefined &&
-    (layout.sides.length === 1 || placement.kind === "replace") &&
-    state.groups?.[group]?.share === undefined
-  ) {
-    next = withGroupOwn(next, group, { share: AGENT_SPLIT_CHAT_SHARE });
   }
   if (ask.gesture !== undefined && ask.gesture !== "background") {
     next = selectTab(next, id);

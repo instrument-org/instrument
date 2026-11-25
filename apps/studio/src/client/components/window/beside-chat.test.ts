@@ -212,38 +212,6 @@ describe("opening beside a chat", () => {
     ]);
   });
 
-  it.each<[string, BesideAsk, WindowTabs, number | undefined]>([
-    ["the agent's page making it", SHOWN, windowOf([chatTab], "chat"), 0.38],
-    ["a page the person opens", PERSON, windowOf([chatTab], "chat"), undefined],
-    [
-      "the agent's page taking an unwritten New Tab's place",
-      SHOWN,
-      windowOf([chatTab, newTab("blank", 1)], "chat", "blank"),
-      0.38,
-    ],
-    [
-      "the agent's page where the person sized a split before",
-      SHOWN,
-      { ...windowOf([chatTab], "chat"), groups: { [G]: { share: 0.5 } } },
-      0.5,
-    ],
-  ])(
-    "gives the chat its share of a new split for %s",
-    (_, ask, from, share) => {
-      const { state } = openBesideChat(from, agentOpened, ask);
-      expect(state.groups?.[G]?.share).toBe(share);
-    },
-  );
-
-  it("leaves a split's share alone when the agent's page joins it", () => {
-    const { state } = openBesideChat(
-      windowOf([chatTab, page("other", 1)], "chat"),
-      agentOpened,
-      SHOWN,
-    );
-    expect(state.groups?.[G]?.share).toBeUndefined();
-  });
-
   it("takes an unwritten New Tab's place, leaving nothing to go back to", () => {
     const { front, state } = openBesideChat(
       windowOf([chatTab, newTab("blank", 1)], "chat", "blank"),

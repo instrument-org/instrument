@@ -178,6 +178,7 @@ describe("what the command menu lists first", () => {
     await screen.findByRole("button", { name: "wireframe-notes.md" });
     expect(listed()).toMatchInlineSnapshot(`
       [
+        "# Top result",
         "wireframes",
         "# Files",
         "wireframe-notes.md",
@@ -210,10 +211,11 @@ describe("what the command menu lists first", () => {
 
     await screen.findByRole("button", { name: "wireframe-notes.md" });
     await vi.waitFor(() => {
-      expect(listed()[0]).toBe(PHONE.title);
+      expect(listed()[1]).toBe(PHONE.title);
     });
     expect(listed()).toMatchInlineSnapshot(`
       [
+        "# Top result",
         "New wireframes for the phone",
         "# Files",
         "wireframes",
@@ -233,7 +235,7 @@ describe("what the command menu lists first", () => {
     rerender(<MenuRows words="wire" />);
 
     await vi.waitFor(() => {
-      expect(listed()[0]).toBe(REVIEW.title);
+      expect(listed().slice(0, 2)).toEqual(["# Top result", REVIEW.title]);
     });
   });
 });
@@ -253,7 +255,7 @@ describe("one of the app's own pages", () => {
     renderWithProviders(<MenuRows words={words} />);
 
     await screen.findAllByRole("button", { name: title });
-    expect(listed()[0]).toBe(title);
+    expect(listed().slice(0, 2)).toEqual(["# Top result", title]);
   });
 
   it("is listed among the pages when the words are only inside its name", async () => {
@@ -279,6 +281,7 @@ describe("a part of Settings", () => {
     await screen.findByRole("button", { name: "Providers" });
     expect(listed()).toMatchInlineSnapshot(`
       [
+        "# Top result",
         "Providers",
         "Search the web for “providers”",
       ]
@@ -292,6 +295,7 @@ describe("a part of Settings", () => {
     await screen.findByRole("button", { name: "Apps settings" });
     expect(listed()).toMatchInlineSnapshot(`
       [
+        "# Top result",
         "Apps",
         "# Pages",
         "Apps settings",
@@ -354,6 +358,7 @@ describe("a name one wrong letter away", () => {
     await screen.findByRole("button", { name: FARMERS.title });
     expect(listed()).toMatchInlineSnapshot(`
       [
+        "# Top result",
         "Farmers market plan",
         "Search the web for “farme”",
       ]

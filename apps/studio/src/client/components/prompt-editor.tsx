@@ -179,6 +179,10 @@ export interface PromptEditorRef {
   completeAhead: (rest: string) => boolean;
   focus: () => void;
   getValue: () => string;
+  /** Whether the selection ends at the end of the words, where Down has no line or letter left to move to. */
+  isCaretAtEnd: () => boolean;
+  /** Whether the words are drawn on one line: no line break, and no wrap at the box's width. */
+  isOneLine: () => boolean;
   /** Adds words as a quote over what is written, with the caret after it. */
   appendQuote: (words: string) => void;
   /** Insert at the caret, spaced off from whatever it lands between. */
@@ -896,6 +900,23 @@ export function PromptEditor({
       }
     },
     insertText,
+    isCaretAtEnd: () => {
+      const view = viewRef.current;
+      return (
+        view !== null &&
+        view.state.selection.to === TextSelection.atEnd(view.state.doc).to
+      );
+    },
+    isOneLine: () => {
+      const view = viewRef.current;
+      if (!view) {
+        return true;
+      }
+      const { doc } = view.state;
+      const first = view.coordsAtPos(TextSelection.atStart(doc).from, 1);
+      const last = view.coordsAtPos(TextSelection.atEnd(doc).to, -1);
+      return last.top < first.bottom;
+    },
     pasteText: (text) => {
       const view = viewRef.current;
       if (view) {

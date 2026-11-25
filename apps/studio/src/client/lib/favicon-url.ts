@@ -4,8 +4,8 @@ import { useSyncExternalStore } from "react";
 
 /**
  * A favicon for any URL, as the app keeps it: the main process answers from a
- * copy on disk, fetched once per site from a favicon proxy that has already
- * fetched it (see `electron-main/lib/site-icons.ts`).
+ * copy on disk, fetched once per site and theme from the icon service (see
+ * `electron-main/lib/site-icons.ts`).
  *
  * Only the host is asked for, never the URL as written. An icon belongs to a
  * site rather than to a page, so the path and query buy nothing and are the

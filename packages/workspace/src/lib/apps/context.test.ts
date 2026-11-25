@@ -81,6 +81,56 @@ describe("the apps a session starts with", () => {
     );
   });
 
+  it.each([
+    ["external", "connected, signed in from the user's own browser, 202 tools"],
+    ["app", "connected, signed in from Instrument's browser, 202 tools"],
+    [undefined, "connected, 202 tools"],
+  ] as const)(
+    "states where a connected app signed in: %s",
+    async (signedInFrom, standing) => {
+      await seedApp("tella", {
+        guide: "",
+        name: "Tella",
+        setup: {
+          auth: { kind: "oauth" },
+          type: "mcp",
+          url: "https://api.tella.com/mcp",
+        },
+      });
+      const app = (await loadApp("tella"))._unsafeUnwrap();
+      await getWorkspaceConfig().apps.connections.set("tella", {
+        manifestHash: app.manifestHash,
+        ...(signedInFrom && { signedInFrom }),
+        status: "connected",
+        toolCount: 202,
+        updatedAt: 0,
+      });
+
+      expect((await buildAppsContextText()).split("\n")).toContain(
+        `- tella (Tella, mcp): ${standing}`,
+      );
+    },
+  );
+
+  it("states nowhere for an app whose sign-in is gone", async () => {
+    await seedApp("tella", {
+      guide: "",
+      name: "Tella",
+      setup: {
+        auth: { kind: "oauth" },
+        type: "mcp",
+        url: "https://api.tella.com/mcp",
+      },
+    });
+    await getWorkspaceConfig().apps.connections.set("tella", {
+      signedInFrom: "external",
+      status: "needs-sign-in",
+      updatedAt: 0,
+    });
+
+    expect(await buildAppsContextText()).not.toContain("signed in from");
+  });
+
   it("says nothing for a connected app whose file holds a manifest and no words", async () => {
     await writeApp("Linear", "linear", "");
     await connect("linear");

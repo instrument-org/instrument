@@ -130,7 +130,6 @@ function ClosedGroupCard({
         >
           <GroupRowLines
             chatTitles={shell?.chatTitles ?? NO_TITLES}
-            isCloseShown={false}
             isOnScreen={false}
             sides={group.sides}
           />

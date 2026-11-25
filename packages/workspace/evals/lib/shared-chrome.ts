@@ -488,9 +488,10 @@ export async function launchSharedChrome(): Promise<SharedChrome> {
       closeTarget: (targetId) => remove(targetId),
       createTarget: (targetId) => ensure(targetId),
       discardTarget: (targetId) => remove(targetId),
+      getTargetAddress: (targetId) => pages.get(targetId)?.url,
       getTargetMeta: (targetId) =>
         pages.has(targetId) ? { partitionDir } : null,
-      getTargetUrl: (targetId) => pages.get(targetId)?.url,
+      getLoadedDocumentUrl: (targetId) => pages.get(targetId)?.url,
       hasNoWindow: false,
       listTargets: () =>
         Promise.resolve(

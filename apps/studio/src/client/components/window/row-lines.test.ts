@@ -8,6 +8,7 @@ import {
   chatLines,
   newTabLines,
   pageLines,
+  placeLines,
   type RowLines,
   tabsBesideLead,
   taskLines,
@@ -53,6 +54,15 @@ describe("chatLines", () => {
     [
       "a chat asking",
       { latest: line("Send the 14 drafts now?"), status: "waiting" },
+      { line: "Send the 14 drafts now?", strong: false, tone: "ask" },
+    ],
+    [
+      "a chat asking, not yet read",
+      {
+        latest: line("Send the 14 drafts now?"),
+        status: "waiting",
+        unread: true,
+      },
       { line: "Send the 14 drafts now?", strong: true, tone: "ask" },
     ],
     [
@@ -64,6 +74,11 @@ describe("chatLines", () => {
       "a chat that failed",
       { latest: line("Here's the FAQ"), status: "failed" },
       { line: "Stopped", strong: false, tone: "fail" },
+    ],
+    [
+      "a chat that failed, not yet read",
+      { status: "failed", unread: true },
+      { line: "Stopped", strong: true, tone: "fail" },
     ],
   ])("says %s", (_kind, fields, expected) => {
     expect(
@@ -213,4 +228,21 @@ describe("tabsBesideLead", () => {
       ),
     ).toHaveLength(1);
   });
+});
+
+it("says the way to a file, outermost folder first", () => {
+  expect(
+    placeLines("prices.csv", ["mac-user", "Downloads"]),
+  ).toMatchInlineSnapshot(`
+    {
+      "line": "mac-user › Downloads",
+      "strong": false,
+      "title": "prices.csv",
+      "tone": "quiet",
+      "trail": [
+        "mac-user",
+        "Downloads",
+      ],
+    }
+  `);
 });

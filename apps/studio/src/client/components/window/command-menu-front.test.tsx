@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { listChatHead } from "./chat-head-requests";
 import { type Chat } from "./chats";
 import { useCommandMenuRows } from "./command-menu";
+import { groupLayoutOf } from "./tab-model";
 import { chatHref, newChatHref } from "./window-href";
 
 /** The tab up on the side with the keyboard, and every tab kept on this computer. */
@@ -22,6 +23,24 @@ const front = vi.hoisted(
 
 /** The tab the menu went to. */
 const shown = vi.hoisted(() => vi.fn());
+
+/** The group the menu brought up, and the tab it picked there. */
+const went = vi.hoisted(() => ({ select: vi.fn(), showGroup: vi.fn() }));
+
+/** The files opened lately. */
+const opened = vi.hoisted((): { files: string[] } => ({ files: [] }));
+
+vi.mock("@/client/hooks/use-recent-files", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/client/hooks/use-recent-files")>()),
+  useRecentFiles: () => ({
+    files: opened.files.map((path) => ({
+      name: path.slice(path.lastIndexOf("/") + 1),
+      openCount: 1,
+      openedAt: 0,
+      path,
+    })),
+  }),
+}));
 
 // Every query stays pending.
 vi.mock("@/client/rpc/client", () => {
@@ -48,6 +67,7 @@ vi.mock("@/client/components/window/shell-context", () => ({
     newGroup: () => undefined,
     newTab: () => undefined,
     projects: [],
+    showGroup: went.showGroup,
   }),
 }));
 
@@ -59,7 +79,22 @@ vi.mock("@/client/components/window/window-tabs", async (importOriginal) => ({
   ...(await importOriginal<
     typeof import("@/client/components/window/window-tabs")
   >()),
-  useWindowTabs: () => ({ active: front.tab, allTabs: front.all }),
+  useWindowTabs: () => ({
+    active: front.tab,
+    allTabs: front.all,
+    layoutOf: (group: string) =>
+      groupLayoutOf(
+        {
+          activeByGroup:
+            front.tab?.group === undefined
+              ? {}
+              : { [front.tab.group]: front.tab.id },
+          tabs: front.all,
+        },
+        group,
+      ),
+    select: went.select,
+  }),
 }));
 
 // This window lists two groups; a third is another window's.
@@ -162,7 +197,10 @@ const listed = () =>
 afterEach(() => {
   front.tab = undefined;
   front.all = [];
+  opened.files = [];
   shown.mockClear();
+  went.select.mockClear();
+  went.showGroup.mockClear();
   installWindowStubs();
 });
 
@@ -171,12 +209,13 @@ describe("the command menu's actions for the tab in front", () => {
     front.tab = CHAT_TAB;
     renderWithProviders(<MenuRows words="" />);
 
-    await screen.findByText("# This chat");
+    await screen.findByText("# Actions for this chat");
     expect(listed()).toMatchInlineSnapshot(`
       [
         "# Recent chats",
+        "Roofer quotes",
         "All chats",
-        "# This chat",
+        "# Actions for this chat",
         "Rename",
         "Star",
         "Move to Project…",
@@ -197,6 +236,7 @@ describe("the command menu's actions for the tab in front", () => {
     await screen.findByRole("button", { name: /Export/ });
     expect(listed()).toMatchInlineSnapshot(`
       [
+        "# Top result",
         "Export as Markdown… · This chat",
         "Search the web for “export”",
       ]
@@ -236,12 +276,12 @@ describe("the command menu's actions for the tab in front", () => {
     front.tab = PAGE_TAB;
     const { rerender } = renderWithProviders(<MenuRows words="" />);
 
-    await screen.findByText("# This page");
+    await screen.findByText("# Actions for this page");
     expect(listed()).toMatchInlineSnapshot(`
       [
         "# Recent chats",
         "All chats",
-        "# This page",
+        "# Actions for this page",
         "Add to Bookmarks",
         "Copy URL",
         "Open in browser",
@@ -264,12 +304,12 @@ describe("the command menu's actions for the tab in front", () => {
     front.tab = FILE_TAB;
     renderWithProviders(<MenuRows words="" />);
 
-    await screen.findByText("# This file");
+    await screen.findByText("# Actions for this file");
     expect(listed()).toMatchInlineSnapshot(`
       [
         "# Recent chats",
         "All chats",
-        "# This file",
+        "# Actions for this file",
         "Add to Bookmarks",
         "Open in default app",
         "Show in Finder",
@@ -315,24 +355,24 @@ describe("the command menu's open tabs", () => {
 
   it("finds a tab of another group by its title, named by its group, and goes to it", async () => {
     front.tab = CHAT_TAB;
-    front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB, ELSEWHERE_TAB, NEW_TAB];
+    front.all = [CHAT_TAB, FILE_TAB, PAGE_TAB, ELSEWHERE_TAB, NEW_TAB];
     renderWithProviders(<MenuRows words="plans" />);
 
     fireEvent.click(
-      await screen.findByRole("button", { name: "Suite plans · Pricing" }),
+      await screen.findByRole("button", { name: "Suite plans · quotes.csv" }),
     );
 
     expect(listed()).toMatchInlineSnapshot(`
       [
         "# Open tabs",
-        "Suite plans · Pricing",
+        "Suite plans · quotes.csv",
         "Search the web for “plans”",
       ]
     `);
     expect(shown.mock.calls).toEqual([[PAGE_TAB]]);
   });
 
-  it("leaves a chat's tab to the chat's own row", async () => {
+  it("leaves a chat's tab, and the chat, to the group that goes by it", async () => {
     front.tab = PAGE_TAB;
     front.all = [CHAT_TAB, PAGE_TAB];
     renderWithProviders(<MenuRows words="roofer" />);
@@ -340,6 +380,7 @@ describe("the command menu's open tabs", () => {
     await screen.findByRole("button", { name: "Roofer quotes" });
     expect(listed()).toMatchInlineSnapshot(`
       [
+        "# Top result",
         "Roofer quotes",
         "Search the web for “roofer”",
       ]
@@ -348,19 +389,30 @@ describe("the command menu's open tabs", () => {
 
   it("lists a file once, as the tab showing it", async () => {
     front.tab = CHAT_TAB;
-    front.all = [CHAT_TAB, FILE_TAB];
+    front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB];
     renderWithProviders(<MenuRows words="quotes" />);
 
-    await screen.findByRole("button", { name: "quotes.csv · Pricing" });
+    await screen.findByRole("button", { name: "quotes.csv · Suite plans" });
     await screen.findByRole("button", { name: "Roofer quotes" });
     expect(listed()).toMatchInlineSnapshot(`
       [
-        "quotes.csv · Pricing",
-        "# Chats",
+        "# Top result",
+        "quotes.csv · Suite plans",
+        "# Open tabs",
         "Roofer quotes",
         "Search the web for “quotes”",
       ]
     `);
+  });
+
+  it("leaves out a file in front, however lately it was opened", async () => {
+    front.tab = FILE_TAB;
+    front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB];
+    opened.files = ["/Users/sam/Instrument/quotes.csv", "/Users/sam/quotes.md"];
+    renderWithProviders(<MenuRows words="quotes" />);
+
+    await screen.findByRole("button", { name: /quotes\.md/ });
+    expect(screen.queryByRole("button", { name: /quotes\.csv/ })).toBeNull();
   });
 
   it("leaves out the tab in front and a new tab nobody has written in", async () => {
@@ -374,5 +426,65 @@ describe("the command menu's open tabs", () => {
     rerender(<MenuRows words="new" />);
     await screen.findByText("# Commands");
     expect(screen.queryByText("# Open tabs")).toBeNull();
+  });
+});
+
+describe("the command menu's tab groups", () => {
+  it("come first with nothing typed, and the chats they have open are not listed again", async () => {
+    front.tab = CHAT_TAB;
+    front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB];
+    renderWithProviders(<MenuRows words="" />);
+
+    await screen.findByRole("button", { name: "Roofer quotes" });
+    expect(listed().slice(0, 6)).toMatchInlineSnapshot(`
+      [
+        "Roofer quotes",
+        "Suite plans",
+        "# Recent chats",
+        "All chats",
+        "# Actions for this chat",
+        "Rename",
+      ]
+    `);
+  });
+
+  it("are brought up as they were left", async () => {
+    front.tab = CHAT_TAB;
+    front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB];
+    renderWithProviders(<MenuRows words="" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Suite plans" }));
+    expect(went.showGroup.mock.calls).toEqual([
+      ["pricing", { from: "roofer" }],
+    ]);
+    expect(went.select).not.toHaveBeenCalled();
+  });
+
+  it("are found by the tab they go by, which is the tab they come up on", async () => {
+    front.tab = CHAT_TAB;
+    front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB];
+    renderWithProviders(<MenuRows words="suite" />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Suite plans" }));
+    expect(listed()).toMatchInlineSnapshot(`
+      [
+        "# Top result",
+        "Suite plans",
+        "Search the web for “suite”",
+      ]
+    `);
+    expect(went.select.mock.calls).toEqual([[PAGE_TAB.id]]);
+    expect(went.showGroup.mock.calls).toEqual([
+      ["pricing", { from: "roofer" }],
+    ]);
+  });
+
+  it("are not found by the page in front", async () => {
+    front.tab = PAGE_TAB;
+    front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB];
+    renderWithProviders(<MenuRows words="suite" />);
+
+    await screen.findByRole("button", { name: /Search the web/ });
+    expect(screen.queryByRole("button", { name: "Suite plans" })).toBeNull();
   });
 });

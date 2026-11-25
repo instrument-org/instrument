@@ -2,6 +2,7 @@ import { PlaceIcon } from "@/client/components/window/place-icons";
 import { OpenInAppButton } from "@/client/components/open-in-app";
 import { FileMark } from "./file-mark";
 import { FolderMark } from "@/client/components/window/folder-mark";
+import { fileAddressOf } from "@/client/bookmarks/address";
 import { COMPUTER_ROOT } from "@/shared/computer-href";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import {
@@ -13,6 +14,7 @@ import {
   ContextMenu,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
+import { ProjectMark } from "./project-mark";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { FoldingTrail } from "@/client/components/window/folding-trail";
 import {
@@ -97,9 +99,8 @@ import { PANE_TOP_ROW, usePaneTop } from "./pane-top";
  * of those a way there. So a file reaches its folder, an app page reaches Apps,
  * and a task reaches the work, without the row pretending to be a URL bar. A
  * chip ahead of the parts names which of the app's own apps the tab is in and
- * goes to its index. With the caret the field holds a page's or a file's real
- * address to edit, or opens empty to search the app the chip names; the star
- * at the field's end keeps the tab's address as a bookmark.
+ * goes to its index. With the caret the field holds the place's real address to
+ * edit; the star at the field's end keeps the tab's address as a bookmark.
  */
 export function TabLocationRow({
   address,
@@ -167,7 +168,7 @@ export function TabLocationRow({
 }) {
   const top = usePaneTop();
   const openIn = openInAppTargetOf(location);
-  const place = locationText(location);
+  const place = locationText(location, address);
   // Whether the field's words have the caret, where a press selects in them
   // rather than carrying the address out.
   const [isEditing, setIsEditing] = useState(false);
@@ -802,7 +803,7 @@ function FieldChip({
 function locationItemMark(location: TabLocation): ReactNode {
   if (
     location.kind === "chat" ||
-    location.kind === "chats" ||
+    (location.kind === "chats" && location.project === undefined) ||
     location.kind === "builtin" ||
     location.kind === "apps" ||
     location.kind === "newChat"
@@ -864,8 +865,14 @@ function locationMark(location: TabLocation): ReactNode {
     case "builtin": {
       return <AppMark app={location.screen} />;
     }
+    case "chats": {
+      return location.project ? (
+        <ProjectMark project={location.project} />
+      ) : (
+        <AppMark app="chat" />
+      );
+    }
     case "chat":
-    case "chats":
     case "newChat": {
       return <AppMark app="chat" />;
     }
@@ -913,12 +920,13 @@ function locationMark(location: TabLocation): ReactNode {
 }
 
 /**
- * What the field holds when it is edited: an address a person can type and
- * read, the place's own. A file's and a folder's path and a page's URL are
- * that; the app's own places have none (their `instrument://` addresses are
- * for bookmarks and links), so their field opens empty.
+ * What the field holds when it is edited: the address of what is up, which
+ * opens it again from any field. A page's is its URL, a file's and a folder's
+ * the `file://` one a browser opens them at, and a place of the app's own its
+ * `instrument://` one (`address`, the tab's). The recents, the disks and a
+ * new tab have none, and open empty.
  */
-function locationText(location: TabLocation) {
+function locationText(location: TabLocation, address: string | undefined) {
   switch (location.kind) {
     case "app":
     case "apps":
@@ -928,19 +936,21 @@ function locationText(location: TabLocation) {
     case "newChat":
     case "newTab":
     case "task": {
-      return "";
+      return address ?? "";
     }
     // A file is at its `file://` address, the one a browser opens it at, so
     // what is copied from the field carries over to one as it stands.
     case "file": {
       return fileUrlOf(expandHomePath(location.path, window.api.homeDir));
     }
-    // Written out in full, since a path from the home folder's name is not
-    // one the field can open.
     case "folder": {
-      return location.path === COMPUTER_ROOT
+      return location.path === "" || location.path === COMPUTER_ROOT
         ? ""
-        : expandHomePath(location.path, window.api.homeDir);
+        : fileAddressOf(
+            location.hostPath ??
+              expandHomePath(location.path, window.api.homeDir),
+            { isFolder: true },
+          );
     }
     case "page": {
       return location.url;

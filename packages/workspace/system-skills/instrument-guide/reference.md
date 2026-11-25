@@ -12,6 +12,8 @@ How Instrument looks, notifications, and suggested messages.
 
 - **Theme** (`theme`): Choose your preferred color scheme. You can change it.
 - **Zoom** (`zoom`): Make everything in the app larger or smaller. You can change it.
+- **Search engine** (`search-engine`): Where words you type in the address field are searched. You can change it.
+- **Suggest searches** (`suggest-searches`): What you type in the address field is sent as you type.
 - **Notify when tasks finish** (`notifications`): Show a desktop notification when a task finishes. You can change it. On it: Send a test notification (`test-notification`).
 - **Suggest a next message** (`suggest-next-message`): After a reply, show a few things you might say next. You can change it.
 

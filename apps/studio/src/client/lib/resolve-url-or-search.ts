@@ -1,3 +1,8 @@
+import {
+  DEFAULT_SEARCH_ENGINE,
+  SEARCH_ENGINES,
+  type SearchEngineId,
+} from "@/shared/search-engines";
 import { parse } from "tldts";
 
 /**
@@ -28,9 +33,16 @@ export function resolveUrlOrSearch(input: string): string | undefined {
   return webSearchUrl(trimmed);
 }
 
-/** The results page for words typed into the address field. */
+let searchEngine: SearchEngineId = DEFAULT_SEARCH_ENGINE;
+
+/** Keeps {@link webSearchUrl} on the engine the person chose. */
+export function setSearchEngine(engine: SearchEngineId) {
+  searchEngine = engine;
+}
+
+/** The chosen engine's results page for words typed into the address field. */
 export function webSearchUrl(words: string): string {
-  return `https://duckduckgo.com/?q=${encodeURIComponent(words)}`;
+  return SEARCH_ENGINES[searchEngine].results + encodeURIComponent(words);
 }
 
 /** What a row that searches the web for typed words says, in every field that offers one. */

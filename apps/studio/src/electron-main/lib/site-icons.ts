@@ -11,99 +11,56 @@ import { isPublicPage } from "@/electron-main/browser-view/page-title-fetch";
  *
  * The renderer draws a site's icon from `instrument://site-icon/<host>`, and
  * this answers it: from the copy on disk when there is one, and otherwise by
- * asking the favicon proxy once and keeping what it says. A row of chips then
+ * asking the icon service once and keeping what it says. A row of chips then
  * costs a read from disk rather than a request per chip per mount, so icons are
  * there when the row is, on every launch after the first sighting.
  *
- * Three answers, kept apart. A found icon is kept for a month and served stale
- * while it is fetched again. The proxy saying it has nothing (a 404, whatever
- * size of stand-in comes with it) is kept for a week. A request that failed says
- * nothing about the site, so it is never kept: the copy on disk is served if
- * there is one, and otherwise the renderer is told to try again later.
+ * What the service says is a site's icon is its icon: it has one per theme,
+ * made to be seen there, and the app does nothing to it. The answer is kept for
+ * as long as the service says, then served as it is while it is asked for
+ * again. A request that failed says nothing about the site, so it is never
+ * kept.
  *
- * Only the host is ever sent to the proxy. A page's path and query are the half
+ * Where the service has none, or cannot be asked and nothing is kept, the icon
+ * is the one a page named for itself when it was opened in one of the app's
+ * browser tabs. Failing that too, Google's stands in for a service that cannot
+ * be asked, for a few minutes.
+ *
+ * Only the host is ever sent to either. A page's path and query are the half
  * worth keeping private, and an icon belongs to the site.
- *
- * The proxy draws an SVG icon as a bitmap on solid white, so a site's own SVG
- * is drawn in place of the proxy's bitmap wherever there is one, in this order:
- *
- * 1. The SVG a page named for itself when it was opened in one of the app's
- *    browser tabs, kept apart for the theme it was opened in, since a page may
- *    name another file in dark.
- * 2. The SVG the proxy says its bitmap was made from, fetched from where the
- *    proxy found it.
- * 3. The proxy's bitmap.
- *
- * A page's SVG is its site's with and without `www.`, which are one site.
- *
- * An SVG that cannot be seen in the theme (dark ink on nothing, in dark) is
- * passed over for the next. A page's other icons, not SVGs, are kept only for
- * a site the proxy has nothing for.
- *
- * The second is the one request the app makes to a site nobody opened, and it
- * is made because a model can name a host: it goes only to a public https
- * address the proxy already knew, with no cookies, referrer or redirect.
  */
 
-const FOUND_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const NONE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const FETCH_TIMEOUT_MS = 8000;
+const ICON_SERVICE = "https://icons.tryinstrument.com";
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
+/** How long an answer that does not say is kept, and the most one may say. */
+const DEFAULT_TTL_MS = DAY_MS;
+const MAX_TTL_MS = 30 * DAY_MS;
+const STAND_IN_TTL_MS = 5 * MINUTE_MS;
+const PAGE_ICON_TTL_MS = 30 * DAY_MS;
+const FETCH_TIMEOUT_MS = 10_000;
 const SVG_TYPE = "image/svg+xml";
 const MAX_SVG_BYTES = 256 * 1024;
 const MAX_BITMAP_BYTES = 1024 * 1024;
-/** How many of a page's icons are tried for a site the proxy has none for. */
+/** How many of a page's icons are tried for a site the service has none for. */
 const MAX_PAGE_ICONS = 3;
-/** How long an icon being drawn waits for a better one to be fetched or measured. */
-const BETTER_ICON_WAIT_MS = 2000;
-/**
- * How long a page's SVG stands before its page may name another, so a page
- * that swaps its icon for a badge or a status does not swap its site's.
- */
-const PAGE_SVG_STANDS_MS = 24 * 60 * 60 * 1000;
-/**
- * The size asked of the proxy: large enough for an app's biggest plate on a
- * 2x screen. The proxy answers with the largest it has up to this, so a site
- * with only a small icon still gets that one rather than an upscale.
- */
-const PROXY_ICON_SIZE = 256;
+/** The size asked of Google, whose answer is the largest it has up to this. */
+const STAND_IN_SIZE = 256;
 
 /** A hostname as the renderer sends it: lowercase labels, no port, nothing to climb out of the folder with. */
 const HOST_PATTERN =
   /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*$/;
 
-const StoredSchema = z.discriminatedUnion("found", [
-  z.object({ at: z.number(), found: z.literal(false) }),
-  // The size the proxy was asked for when this was kept. An icon kept while
-  // it was asked for another reads as never kept, so it is fetched again.
-  z.object({
-    at: z.number(),
-    found: z.literal(true),
-    size: z.literal(PROXY_ICON_SIZE),
-    type: z.string(),
-    // Whether the proxy's answer was read for the SVG it was made from. An
-    // icon kept before that was read is served and fetched again behind it.
-    readForSvg: z.boolean().optional(),
-  }),
-]);
-
-/** Beside a kept SVG: where it came from, and what is known about drawing it. */
-const StoredSvgSchema = z.object({
+const StoredSchema = z.object({
   at: z.number(),
-  /** Whether the page that named it was its site's front page. */
-  isFrontPage: z.boolean().optional(),
-  /** Whether it can be seen, for each theme it was measured in. */
-  legible: z.object({
-    dark: z.boolean().optional(),
-    light: z.boolean().optional(),
-  }),
-  url: z.string(),
+  /** The icon's type; undefined where the service said the site has none. */
+  type: z.string().optional(),
+  ttl: z.number(),
 });
 
 export interface Deps {
   dir: string;
   fetch: (url: string, init: RequestInit) => Promise<Response>;
-  /** Whether an SVG can be seen in a theme; undefined when that could not be told. */
-  isLegible: (svg: Buffer, theme: Theme) => Promise<boolean | undefined>;
   now: () => number;
   /** The addresses a host name stands for. */
   resolveHost: (host: string) => Promise<string[]>;
@@ -111,31 +68,25 @@ export interface Deps {
 
 export type Theme = "dark" | "light";
 
-/** Which of a host's SVGs: the proxy's, or a page's as it was in a theme. */
-type SvgSlot = "page-dark" | "page-light" | "proxy";
+/** Which of a host's kept icons: the service's in a theme, or its page's. */
+type Slot = "page-dark" | "page-light" | "served-dark" | "served-light";
 
-type StoredSvg = z.output<typeof StoredSvgSchema>;
+type Stored = z.output<typeof StoredSchema>;
 
-interface SiteIcon {
+export interface SiteIcon {
   bytes: Buffer;
   type: string;
 }
 
-type Stored = z.output<typeof StoredSchema>;
-
 const inFlight = new Map<string, Promise<"failed" | "none" | SiteIcon>>();
 
-/** Measures being taken, so an icon drawn many times over is measured once. */
-const measuring = new Map<string, Promise<boolean | undefined>>();
-
-/** The last change to each kept SVG, so one is not read or written under another. */
-const svgChanges = new Map<string, Promise<unknown>>();
+/** Page icons that could not be fetched this session, not asked for again. */
+const failedPageIcons = new Set<string>();
 
 /**
- * Keeps the icon a page named for itself: an SVG over whatever the proxy has,
- * and any other only for a site the proxy has nothing for. Told by a browser
- * tab whenever its page names its icons; says whether the site's icon may be
- * another than before, so the caller can draw it.
+ * Keeps the icon a page named for itself, for a site the service has none for.
+ * Told by a browser tab whenever its page names its icons; says whether the
+ * site's icon may be another than before, so the caller can draw it.
  */
 export async function rememberPageIcon(
   {
@@ -150,229 +101,245 @@ export async function rememberPageIcon(
     return false;
   }
   const host = page.hostname;
-  if (!isSiteIconHost(host) || isLocalHost(host)) {
+  if (!isSiteIconHost(host)) {
     return false;
   }
   const icons = iconUrls.filter((iconUrl) =>
     /^https?:$/.test(URL.parse(iconUrl)?.protocol ?? ""),
   );
-  if (icons.length === 0) {
-    return false;
-  }
-  const svg = icons.find((iconUrl) => isSvgUrl(iconUrl));
-  if (svg !== undefined) {
-    const outcome = await rememberPageSvg({ host, page, svg, theme }, deps);
-    if (outcome !== "unavailable") {
-      return outcome === "kept";
-    }
-  } else if (page.pathname === "/") {
-    await forgetPageSvgs(host, deps);
-  }
   try {
-    if (await siteIconFor(host, theme, deps)) {
+    if (icons.length === 0 || (await servedIcon(host, theme, deps))) {
       return false;
     }
   } catch {
-    // The proxy could not be asked; the page's own icon is no worse a guess.
+    // The service could not be asked; the page's own icon can be drawn until it can.
   }
-  for (const iconUrl of icons
-    .filter((candidate) => !isSvgUrl(candidate))
-    .slice(0, MAX_PAGE_ICONS)) {
-    const icon = await fetchIcon(iconUrl, deps, {
-      accepts: (type) => type.startsWith("image/") && type !== SVG_TYPE,
-      maxBytes: MAX_BITMAP_BYTES,
-      redirect: "follow",
-      trustedHost: host,
-    });
+  const site = siteOf(host);
+  const slot: Slot = `page-${theme}`;
+  const kept = await readStored(site, slot, deps.dir);
+  if (kept && deps.now() - kept.at < kept.ttl) {
+    return false;
+  }
+  for (const url of [
+    ...icons.filter((iconUrl) => isSvgUrl(iconUrl)),
+    ...icons.filter((iconUrl) => !isSvgUrl(iconUrl)),
+  ].slice(0, MAX_PAGE_ICONS)) {
+    if (failedPageIcons.has(url)) {
+      continue;
+    }
+    const icon = await fetchPageIcon(url, host, deps);
     if (icon) {
-      await keep(host, icon, deps);
+      await keep(site, slot, icon, PAGE_ICON_TTL_MS, deps);
       return true;
     }
+    failedPageIcons.add(url);
   }
   return false;
 }
 
-/** Drops a site's SVGs once its front page names its icons and none is one. */
-async function forgetPageSvgs(host: string, deps: Deps) {
-  const site = siteOf(host);
-  for (const slot of ["page-dark", "page-light"] as const) {
-    await changingSvg(site, slot, async () => {
-      const kept = (await readSvg(site, slot, deps.dir))?.stored;
-      if (kept && deps.now() - kept.at >= PAGE_SVG_STANDS_MS) {
-        await forgetSvg(site, slot, deps.dir);
-      }
-    });
-  }
-}
-
 /**
- * A host can serve several products, each naming an icon of its own, so the
- * site's is its front page's, and until that is opened the first page's to
- * name one.
- */
-async function rememberPageSvg(
-  {
-    host,
-    page,
-    svg,
-    theme,
-  }: { host: string; page: URL; svg: string; theme: Theme },
-  deps: Deps,
-): Promise<"kept" | "settled" | "unavailable"> {
-  const slot: SvgSlot = `page-${theme}`;
-  const site = siteOf(host);
-  const isFrontPage = page.pathname === "/";
-  return changingSvg(site, slot, async () => {
-    const kept = (await readSvg(site, slot, deps.dir))?.stored;
-    if (kept) {
-      const age = deps.now() - kept.at;
-      const stands =
-        kept.url === svg
-          ? age < FOUND_TTL_MS
-          : kept.isFrontPage
-            ? !isFrontPage || age < PAGE_SVG_STANDS_MS
-            : !isFrontPage && age < FOUND_TTL_MS;
-      if (stands) {
-        return "settled";
-      }
-    }
-    const icon = await fetchSvg(svg, deps, host);
-    if (!icon) {
-      return "unavailable";
-    }
-    await keepSvg(
-      site,
-      slot,
-      icon,
-      { isFrontPage: isFrontPage || kept?.isFrontPage, url: svg },
-      deps,
-    );
-    return "kept";
-  });
-}
-
-/**
- * The icon for a host in a theme: a kept or fresh one of its own or the
- * proxy's, or none. Throws when there is no copy and the proxy could not be
- * reached, so the caller can answer "not now" rather than "never".
+ * The icon for a host in a theme, or none. Throws when there is no copy and
+ * the service could not be reached, so the caller can answer "not now" rather
+ * than "never".
  */
 export async function siteIconFor(
   host: string,
   theme: Theme,
   deps: Deps,
 ): Promise<SiteIcon | undefined> {
-  if (!isSiteIconHost(host) || isLocalHost(host)) {
+  if (!isSiteIconHost(host)) {
     return undefined;
   }
-  const otherTheme: Theme = theme === "dark" ? "light" : "dark";
-  const own =
-    (await legibleSvg(siteOf(host), `page-${theme}`, theme, deps)) ??
-    (await legibleSvg(siteOf(host), `page-${otherTheme}`, theme, deps));
-  if (own) {
-    return own;
+  let failure: Error | undefined;
+  try {
+    const served = await servedIcon(host, theme, deps);
+    if (served) {
+      return served;
+    }
+  } catch (error) {
+    failure =
+      error instanceof Error ? error : new Error("No icon", { cause: error });
   }
-  const bitmap = await proxyIconFor(host, deps);
-  return bitmap && ((await legibleSvg(host, "proxy", theme, deps)) ?? bitmap);
+  const other: Theme = theme === "dark" ? "light" : "dark";
+  for (const slot of [`page-${theme}`, `page-${other}`] as const) {
+    const kept = await readIcon(siteOf(host), slot, deps.dir);
+    if (kept) {
+      return kept;
+    }
+  }
+  if (failure === undefined) {
+    return undefined;
+  }
+  const standIn = await fetchStandIn(host, deps);
+  if (!standIn) {
+    throw failure;
+  }
+  await keep(host, `served-${theme}`, standIn, STAND_IN_TTL_MS, deps);
+  return standIn;
 }
 
-/** The proxy's bitmap for a host, and the SVG it was made from kept beside it. */
-async function proxyIconFor(
+/** The service's icon for a host, kept or fresh. */
+async function servedIcon(
   host: string,
+  theme: Theme,
   deps: Deps,
 ): Promise<SiteIcon | undefined> {
-  const stored = await readStored(host, deps.dir);
-  const age = stored ? deps.now() - stored.at : Number.POSITIVE_INFINITY;
-
-  if (stored && !stored.found && age < NONE_TTL_MS) {
+  if (!isPublicPage(`https://${host}/`)) {
     return undefined;
   }
-  const kept = stored?.found
-    ? await readBytes(host, stored.type, deps.dir)
-    : undefined;
-  if (kept && stored?.found && stored.readForSvg && age < FOUND_TTL_MS) {
+  const slot: Slot = `served-${theme}`;
+  const stored = await readStored(host, slot, deps.dir);
+  const kept = stored?.type ? await readIcon(host, slot, deps.dir) : undefined;
+  if (stored && (kept || !stored.type)) {
+    if (deps.now() - stored.at >= stored.ttl) {
+      // Stale: served as it is, and asked for again behind it. One that fails
+      // leaves the stale answer standing.
+      void refresh(host, theme, deps).catch(() => undefined);
+    }
     return kept;
   }
-  if (kept) {
-    // Stale: served as it is, and fetched again behind it.
-    void refresh(host, deps).catch(() => {
-      // A refresh that fails leaves the stale copy standing.
-    });
-    return kept;
-  }
-
-  const fetched = await refresh(host, deps);
+  const fetched = await refresh(host, theme, deps);
   if (fetched === "failed") {
-    throw new Error(`Could not reach the favicon proxy for ${host}`);
+    throw new Error(`Could not reach the icon service for ${host}`);
   }
   return fetched === "none" ? undefined : fetched;
 }
 
-/** A host's kept SVG, when it can be seen in the theme. */
-async function legibleSvg(
-  host: string,
-  slot: SvgSlot,
-  theme: Theme,
-  deps: Deps,
-): Promise<SiteIcon | undefined> {
-  const kept = await readSvg(host, slot, deps.dir);
-  if (!kept) {
-    return undefined;
-  }
-  const legible =
-    kept.stored.legible[theme] ??
-    (await within(
-      BETTER_ICON_WAIT_MS,
-      measureOnce(host, slot, theme, kept, deps),
-    ));
-  return legible ? { bytes: kept.bytes, type: SVG_TYPE } : undefined;
-}
-
-/** One measure of an SVG in a theme at a time, written down as it is taken. */
-function measureOnce(
-  host: string,
-  slot: SvgSlot,
-  theme: Theme,
-  kept: { bytes: Buffer; stored: StoredSvg },
-  deps: Deps,
-) {
-  const key = `${svgPath(host, slot, deps.dir)} ${theme} ${kept.stored.at}`;
-  const pending = measuring.get(key);
+/** One request per host and theme at a time, however many rows ask at once. */
+function refresh(host: string, theme: Theme, deps: Deps) {
+  const key = `${host} ${theme}`;
+  const pending = inFlight.get(key);
   if (pending) {
     return pending;
   }
-  const run = deps
-    .isLegible(kept.bytes, theme)
-    .then(async (legible) => {
-      if (legible !== undefined) {
-        await recordLegible(host, slot, { legible, theme }, kept.stored, deps);
-      }
-      return legible;
-    })
-    .catch(() => undefined)
-    .finally(() => {
-      measuring.delete(key);
-    });
-  measuring.set(key, run);
+  const run = fetchServed(host, theme, deps).finally(() => {
+    inFlight.delete(key);
+  });
+  inFlight.set(key, run);
   return run;
 }
 
-/** Runs a change to a kept SVG after the last one to it has finished. */
-function changingSvg<T>(
+async function fetchServed(
   host: string,
-  slot: SvgSlot,
-  change: () => Promise<T>,
-): Promise<T> {
-  const key = `${host}_${slot}`;
-  const run = (svgChanges.get(key) ?? Promise.resolve()).then(change, change);
-  const settled = run
-    .catch(() => undefined)
-    .finally(() => {
-      if (svgChanges.get(key) === settled) {
-        svgChanges.delete(key);
+  theme: Theme,
+  deps: Deps,
+): Promise<"failed" | "none" | SiteIcon> {
+  try {
+    const response = await ask(
+      `${ICON_SERVICE}/v1/${host}?theme=${theme}`,
+      deps,
+    );
+    const isNone = response.status === 404 || response.status === 400;
+    if (!response.ok && !isNone) {
+      await response.body?.cancel();
+      return "failed";
+    }
+    const slot: Slot = `served-${theme}`;
+    const ttl = ttlOf(response);
+    if (isNone) {
+      await response.body?.cancel();
+      await writeStored(host, slot, { at: deps.now(), ttl }, deps.dir);
+      return "none";
+    }
+    const icon = await iconOf(response);
+    if (!icon) {
+      return "failed";
+    }
+    await keep(host, slot, icon, ttl, deps);
+    return icon;
+  } catch {
+    return "failed";
+  }
+}
+
+async function fetchStandIn(host: string, deps: Deps) {
+  const origin = encodeURIComponent(`https://${host}`);
+  try {
+    const response = await ask(
+      `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${origin}&size=${STAND_IN_SIZE}`,
+      deps,
+    );
+    if (response.ok) {
+      return await iconOf(response);
+    }
+    await response.body?.cancel();
+  } catch {
+    // Nothing stands in.
+  }
+  return undefined;
+}
+
+function ask(url: string, deps: Deps, init?: RequestInit) {
+  return deps.fetch(url, {
+    credentials: "omit",
+    referrerPolicy: "no-referrer",
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    ...init,
+  });
+}
+
+/** How long an answer says it may be kept. */
+function ttlOf(response: Response) {
+  const seconds = /\bmax-age=(\d+)/.exec(
+    response.headers.get("cache-control") ?? "",
+  )?.[1];
+  return seconds === undefined
+    ? DEFAULT_TTL_MS
+    : Math.min(Number(seconds) * 1000, MAX_TTL_MS);
+}
+
+/** An answer's image, where it is one of a size an icon has. */
+async function iconOf(response: Response): Promise<SiteIcon | undefined> {
+  const type = response.headers.get("content-type")?.split(";")[0]?.trim();
+  if (!response.ok || !response.body || !type?.startsWith("image/")) {
+    await response.body?.cancel();
+    return undefined;
+  }
+  const max = type === SVG_TYPE ? MAX_SVG_BYTES : MAX_BITMAP_BYTES;
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for await (const chunk of response.body) {
+    size += chunk.byteLength;
+    if (size > max) {
+      return undefined;
+    }
+    chunks.push(chunk);
+  }
+  return size > 0 ? { bytes: Buffer.concat(chunks), type } : undefined;
+}
+
+/**
+ * A page's icon from an address that may be asked: a public https one, or the
+ * opened site's own. Nothing of the person's goes with it.
+ */
+async function fetchPageIcon(
+  url: string,
+  openedHost: string,
+  deps: Deps,
+): Promise<SiteIcon | undefined> {
+  const { hostname, protocol } = new URL(url);
+  try {
+    if (hostname !== openedHost) {
+      if (protocol !== "https:" || !isPublicPage(url)) {
+        return undefined;
       }
-    });
-  svgChanges.set(key, settled);
-  return run;
+      const addresses = await within(
+        FETCH_TIMEOUT_MS,
+        deps.resolveHost(hostname),
+      );
+      if (
+        !addresses?.length ||
+        !addresses.every((address) => isPublicAddress(address))
+      ) {
+        return undefined;
+      }
+    }
+    return await iconOf(
+      await ask(url, deps, { redirect: isSvgUrl(url) ? "error" : "follow" }),
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 /** What a promise comes to, when it does in time. */
@@ -392,101 +359,6 @@ async function within<T>(ms: number, promise: Promise<T>) {
   }
 }
 
-/** Writes down a measure, unless the SVG it was taken of has been replaced. */
-async function recordLegible(
-  host: string,
-  slot: SvgSlot,
-  { legible, theme }: { legible: boolean; theme: Theme },
-  measured: StoredSvg,
-  deps: Deps,
-) {
-  await changingSvg(host, slot, async () => {
-    const current = (await readSvg(host, slot, deps.dir))?.stored;
-    if (current?.at === measured.at && current.url === measured.url) {
-      await writeWhole(
-        svgMetaPath(host, slot, deps.dir),
-        JSON.stringify({
-          ...current,
-          legible: { ...current.legible, [theme]: legible },
-        } satisfies StoredSvg),
-      );
-    }
-  });
-}
-
-/** An SVG icon's bytes, when the address has one. */
-async function fetchSvg(url: string, deps: Deps, trustedHost?: string) {
-  const icon = await fetchIcon(url, deps, {
-    accepts: (type) => type === SVG_TYPE,
-    maxBytes: MAX_SVG_BYTES,
-    redirect: "error",
-    trustedHost,
-  });
-  return icon?.bytes;
-}
-
-/**
- * An icon from an address that may be asked: a public https one, or the opened
- * site's own (`trustedHost`). Nothing of the person's goes with it.
- */
-async function fetchIcon(
-  url: string,
-  deps: Deps,
-  {
-    accepts,
-    maxBytes,
-    redirect,
-    trustedHost,
-  }: {
-    accepts: (type: string) => boolean;
-    maxBytes: number;
-    redirect: "error" | "follow";
-    trustedHost: string | undefined;
-  },
-): Promise<SiteIcon | undefined> {
-  const { hostname, protocol } = new URL(url);
-  try {
-    if (hostname !== trustedHost) {
-      if (protocol !== "https:" || !isPublicPage(url)) {
-        return undefined;
-      }
-      const addresses = await within(
-        FETCH_TIMEOUT_MS,
-        deps.resolveHost(hostname),
-      );
-      if (
-        !addresses?.length ||
-        !addresses.every((address) => isPublicAddress(address))
-      ) {
-        return undefined;
-      }
-    }
-    const response = await deps.fetch(url, {
-      credentials: "omit",
-      redirect,
-      referrerPolicy: "no-referrer",
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-    const type = response.headers.get("content-type")?.split(";")[0]?.trim();
-    if (!response.ok || !response.body || !type || !accepts(type)) {
-      await response.body?.cancel();
-      return undefined;
-    }
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    for await (const chunk of response.body) {
-      size += chunk.byteLength;
-      if (size > maxBytes) {
-        return undefined;
-      }
-      chunks.push(chunk);
-    }
-    return size > 0 ? { bytes: Buffer.concat(chunks), type } : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 /** An address outside this computer and its network. */
 function isPublicAddress(address: string) {
   const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(address)?.[1];
@@ -502,60 +374,68 @@ function isSvgUrl(url: string) {
   return /\.svg$/i.test(URL.parse(url)?.pathname ?? "");
 }
 
-async function keepSvg(
-  host: string,
-  slot: SvgSlot,
-  bytes: Buffer,
-  { isFrontPage, url }: { isFrontPage?: boolean; url: string },
-  deps: Deps,
-) {
-  await fs.mkdir(deps.dir, { recursive: true });
-  // The old one's record goes first, so no measure of it is read for the new.
-  await fs.rm(svgMetaPath(host, slot, deps.dir), { force: true });
-  await writeWhole(svgPath(host, slot, deps.dir), bytes);
-  await writeWhole(
-    svgMetaPath(host, slot, deps.dir),
-    JSON.stringify({
-      at: deps.now(),
-      ...(isFrontPage !== undefined && { isFrontPage }),
-      legible: {},
-      url,
-    } satisfies StoredSvg),
+/** A host an icon is kept for: a name, and not this machine's. */
+function isSiteIconHost(host: string): boolean {
+  return (
+    HOST_PATTERN.test(host) &&
+    host !== "localhost" &&
+    !host.endsWith(".localhost") &&
+    !/^[\d.]+$/.test(host)
   );
 }
 
-async function forgetSvg(host: string, slot: SvgSlot, dir: string) {
-  await fs.rm(svgMetaPath(host, slot, dir), { force: true });
-  await fs.rm(svgPath(host, slot, dir), { force: true });
+async function keep(
+  host: string,
+  slot: Slot,
+  { bytes, type }: SiteIcon,
+  ttl: number,
+  deps: Deps,
+) {
+  await fs.mkdir(deps.dir, { recursive: true });
+  await writeWhole(bytesPath(host, slot, deps.dir), bytes);
+  await writeStored(host, slot, { at: deps.now(), ttl, type }, deps.dir);
 }
 
-async function readSvg(
+async function readIcon(
   host: string,
-  slot: SvgSlot,
+  slot: Slot,
   dir: string,
-): Promise<{ bytes: Buffer; stored: StoredSvg } | undefined> {
+): Promise<SiteIcon | undefined> {
+  const stored = await readStored(host, slot, dir);
+  if (stored?.type === undefined) {
+    return undefined;
+  }
   try {
-    const parsed = StoredSvgSchema.safeParse(
-      JSON.parse(await fs.readFile(svgMetaPath(host, slot, dir), "utf8")),
-    );
-    return parsed.success
-      ? {
-          bytes: await fs.readFile(svgPath(host, slot, dir)),
-          stored: parsed.data,
-        }
-      : undefined;
+    const bytes = await fs.readFile(bytesPath(host, slot, dir));
+    return { bytes, type: stored.type };
   } catch {
     return undefined;
   }
 }
 
-// A host has no underscore in it, so no host's files are another's.
-function svgMetaPath(host: string, slot: SvgSlot, dir: string) {
-  return path.join(dir, `${host}_${slot}.json`);
+async function readStored(
+  host: string,
+  slot: Slot,
+  dir: string,
+): Promise<Stored | undefined> {
+  try {
+    const parsed = StoredSchema.safeParse(
+      JSON.parse(await fs.readFile(metaPath(host, slot, dir), "utf8")),
+    );
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
-function svgPath(host: string, slot: SvgSlot, dir: string) {
-  return path.join(dir, `${host}_${slot}.svg`);
+async function writeStored(
+  host: string,
+  slot: Slot,
+  stored: Stored,
+  dir: string,
+) {
+  await fs.mkdir(dir, { recursive: true });
+  await writeWhole(metaPath(host, slot, dir), JSON.stringify(stored));
 }
 
 /** Written to a temp name and moved into place, so a reader never sees half. */
@@ -565,175 +445,11 @@ async function writeWhole(target: string, content: Buffer | string) {
   await fs.rename(temporary, target);
 }
 
-function bytesPath(host: string, dir: string) {
-  return path.join(dir, `${host}.icon`);
+// A host has no underscore in it, so no host's files are another's.
+function metaPath(host: string, slot: Slot, dir: string) {
+  return path.join(dir, `${host}_${slot}.kept.json`);
 }
 
-async function fetchAndKeep(
-  host: string,
-  deps: Deps,
-): Promise<"failed" | "none" | SiteIcon> {
-  let response: Response;
-  try {
-    response = await deps.fetch(proxyUrl(host), {
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-  } catch {
-    return "failed";
-  }
-  if (response.status === 404) {
-    await changingSvg(host, "proxy", () => forgetSvg(host, "proxy", deps.dir));
-    // An icon a page gave for itself stands until the proxy has one.
-    const stored = await readStored(host, deps.dir);
-    const kept = stored?.found
-      ? await readBytes(host, stored.type, deps.dir)
-      : undefined;
-    if (stored?.found && kept) {
-      await writeStored(
-        host,
-        { ...stored, at: deps.now(), readForSvg: true },
-        deps.dir,
-      );
-      return kept;
-    }
-    await writeStored(host, { at: deps.now(), found: false }, deps.dir);
-    return "none";
-  }
-  if (!response.ok) {
-    return "failed";
-  }
-  const type =
-    response.headers.get("content-type")?.split(";")[0]?.trim() || "image/png";
-  if (!type.startsWith("image/")) {
-    return "failed";
-  }
-  const bytes = Buffer.from(await response.arrayBuffer());
-  const icon = await keep(host, { bytes, type }, deps, { readForSvg: false });
-  // The bitmap is kept and drawn whether or not its SVG comes in time.
-  await within(
-    BETTER_ICON_WAIT_MS,
-    keepProxySvg(host, response.headers.get("content-location"), icon, deps),
-  );
-  return icon;
-}
-
-/** Keeps the SVG the proxy made a bitmap from, or drops the one before it. */
-async function keepProxySvg(
-  host: string,
-  origin: null | string,
-  icon: SiteIcon,
-  deps: Deps,
-) {
-  try {
-    await changingSvg(host, "proxy", async () => {
-      if (!origin || !URL.canParse(origin) || !isSvgUrl(origin)) {
-        await forgetSvg(host, "proxy", deps.dir);
-        return;
-      }
-      const svg = await fetchSvg(origin, deps);
-      // One that cannot be had just now leaves the last one standing.
-      if (svg) {
-        await keepSvg(host, "proxy", svg, { url: origin }, deps);
-      }
-    });
-    await writeStored(
-      host,
-      {
-        at: deps.now(),
-        found: true,
-        readForSvg: true,
-        size: PROXY_ICON_SIZE,
-        type: icon.type,
-      },
-      deps.dir,
-    );
-  } catch {
-    // Read again the next time the icon is drawn.
-  }
-}
-
-/** A host the proxy cannot see: this machine, or an address rather than a name. */
-function isLocalHost(host: string) {
-  return (
-    host === "localhost" || host.endsWith(".localhost") || /^[\d.]+$/.test(host)
-  );
-}
-
-function isSiteIconHost(host: string): boolean {
-  return HOST_PATTERN.test(host);
-}
-
-async function keep(
-  host: string,
-  icon: SiteIcon,
-  deps: Deps,
-  { readForSvg }: { readForSvg: boolean } = { readForSvg: true },
-) {
-  await fs.mkdir(deps.dir, { recursive: true });
-  await writeWhole(bytesPath(host, deps.dir), icon.bytes);
-  await writeStored(
-    host,
-    {
-      at: deps.now(),
-      found: true,
-      readForSvg,
-      size: PROXY_ICON_SIZE,
-      type: icon.type,
-    },
-    deps.dir,
-  );
-  return icon;
-}
-
-function metaPath(host: string, dir: string) {
-  return path.join(dir, `${host}.json`);
-}
-
-function proxyUrl(host: string) {
-  const origin = encodeURIComponent(`https://${host}`);
-  return `https://t0.gstatic.com/faviconV2?client=SOCIAL&type=FAVICON&fallback_opts=TYPE,SIZE,URL&url=${origin}&size=${PROXY_ICON_SIZE}`;
-}
-
-async function readBytes(
-  host: string,
-  type: string,
-  dir: string,
-): Promise<SiteIcon | undefined> {
-  try {
-    return { bytes: await fs.readFile(bytesPath(host, dir)), type };
-  } catch {
-    return undefined;
-  }
-}
-
-async function readStored(
-  host: string,
-  dir: string,
-): Promise<Stored | undefined> {
-  try {
-    const parsed = StoredSchema.safeParse(
-      JSON.parse(await fs.readFile(metaPath(host, dir), "utf8")),
-    );
-    return parsed.success ? parsed.data : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** One fetch per host at a time, however many rows ask at once. */
-function refresh(host: string, deps: Deps) {
-  const pending = inFlight.get(host);
-  if (pending) {
-    return pending;
-  }
-  const run = fetchAndKeep(host, deps).finally(() => {
-    inFlight.delete(host);
-  });
-  inFlight.set(host, run);
-  return run;
-}
-
-async function writeStored(host: string, stored: Stored, dir: string) {
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(metaPath(host, dir), JSON.stringify(stored));
+function bytesPath(host: string, slot: Slot, dir: string) {
+  return path.join(dir, `${host}_${slot}.icon`);
 }

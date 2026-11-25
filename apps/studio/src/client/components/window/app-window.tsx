@@ -1,3 +1,4 @@
+import { showScreenFieldWithKeyboard } from "@/client/lib/screen-fields";
 import { keyboardSide } from "@/client/lib/keyboard-place";
 import { OUTSIDE_FILES_MAX } from "@instrument-org/shared";
 import {
@@ -58,6 +59,7 @@ import {
   focusScreenHome,
   installKeyboardHome,
   isKeyboardNowhere,
+  focusHomeIn,
 } from "@/client/lib/keyboard-home";
 import { installTypeToCompose } from "@/client/lib/type-to-compose";
 import { installUndoKey } from "@/client/lib/undo-toast";
@@ -143,11 +145,16 @@ import {
   isHomeTab,
   isSplit,
   isNewChatTab,
+  isTabNamed,
+  reopenedTab,
   selectedTabIn,
   sideIndexOf,
   upsAmong,
 } from "./tab-model";
-import { setBuiltInPageGroupOpener } from "./built-in-pages";
+import {
+  bringForwardShowing,
+  setBuiltInPageGroupOpener,
+} from "./built-in-pages";
 import {
   sidebarRowOrderAtom,
   tabAtChord,
@@ -175,6 +182,7 @@ import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
+import { useGroupLeadUpkeep } from "./group-leads";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
 import { TrafficLightsWithSidebar } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
@@ -441,15 +449,19 @@ function AppTabView({
 
 /**
  * The caret into the address field of the tab up on the side with the
- * keyboard, with what is in it selected.
+ * keyboard, with what is in it selected: a chat's comes up for it, and a new
+ * tab, which has none, takes it in its own box.
  */
 function focusField() {
-  const field = (keyboardSide() ?? document).querySelector<HTMLInputElement>(
+  const side = keyboardSide();
+  const field = (side ?? document).querySelector<HTMLInputElement>(
     "[data-app-tab-active] [data-tab-location] input",
   );
   if (field) {
     editField(field);
     field.select();
+  } else if (!showScreenFieldWithKeyboard() && side) {
+    focusHomeIn(side);
   }
 }
 
@@ -493,6 +505,10 @@ function WindowShell({
     select: (routerState) => routerState.location.href,
   });
   useTabGroupUpkeep(appTabHref, groupList.open);
+  useGroupLeadUpkeep(
+    groupUp,
+    groupList.open.map((entry) => entry.group),
+  );
   useCloseStrandedHostedPages();
   // Closing a group stops none of its chats here: the person's close has
   // stopped them once asked (`askToCloseGroups`), and an agent's leaves them
@@ -507,7 +523,7 @@ function WindowShell({
     // Each group goes on the window's closed list whole, so Shift+Cmd+T
     // brings it back as it was; a group of only blank new tabs leaves
     // nothing to bring back, and neither does an agent's close of a group
-    // of only agents' own tabs (`agentCloseKeeps`).
+    // of only agents' own tabs (`agentCloseKeeps`) the person has not pinned.
     for (const group of closed) {
       const kept = windowTabs.allTabs.flatMap((tab) => {
         if (tab.group !== group) {
@@ -516,15 +532,17 @@ function WindowShell({
         const closedAs = closingAsWritten(tab);
         return closedAs && !isBlankNewTab(closedAs) ? [closedAs] : [];
       });
+      const isPinned = windowTabs.groupOwn[group]?.pinned === true;
       if (
         kept.length > 0 &&
-        (!byAgent || agentCloseKeeps(kept, wasPagePressed))
+        (!byAgent || isPinned || agentCloseKeeps(kept, wasPagePressed))
       ) {
         const id = freshTabId();
         store.set(appTabsAtom, (current) =>
           closeTabGroup(current, {
             id,
             pathname: groupHref(group),
+            ...(isPinned ? { pinned: true } : {}),
             project: groupList.open.find((entry) => entry.group === group)
               ?.project,
             tabs: kept,
@@ -768,7 +786,7 @@ function WindowShell({
       store.get(appTabsAtom).recentlyClosed.find((entry) => {
         const closedTabs = closedTabsOf(entry);
         return closedTabs.some((each) =>
-          kind === "group" ? each.group === id : each.id === id,
+          kind === "group" ? each.group === id : isTabNamed(each, id),
         );
       })?.id,
     // The sidebar's X: onto the closed list whole, unless it was only the
@@ -788,7 +806,7 @@ function WindowShell({
       const made = groups.make({
         fill: (group) => {
           for (const id of ids) {
-            groups.moveTab(id, group);
+            groups.moveTab(id, group, undefined, { keepsPinned: true });
           }
         },
         isShownHere: false,
@@ -802,7 +820,7 @@ function WindowShell({
     },
     moveTabs: (ids, group) => {
       for (const id of ids) {
-        groups.moveTab(id, group);
+        groups.moveTab(id, group, undefined, { keepsPinned: true });
       }
     },
     isOpen: opened !== undefined,
@@ -890,8 +908,11 @@ function WindowShell({
   ) => {
     const tab = windowTabs.allTabs.find((each) => each.id === id);
     const closedAs = closingAsWritten(tab);
-    // A group's last tab closes the group.
+    // A group's last tab closes the group, but an agent's close never ends
+    // one the person pinned, which gets a new tab.
+    const isKept = byAgent && tab !== undefined && groups.keepPinned(tab);
     if (
+      !isKept &&
       tab?.group !== undefined &&
       groupList.open.some((entry) => entry.group === tab.group) &&
       windowTabs.allTabs.every(
@@ -1072,7 +1093,7 @@ function WindowShell({
     ) {
       windowTabs.reopenSide({
         ...side,
-        tabs: side.tabs.map((each) => ({ ...each, id: newScreenId() })),
+        tabs: side.tabs.map((each) => reopenedTab(each, newScreenId())),
       });
       showGroup(side.group, { from });
       return;
@@ -1083,7 +1104,7 @@ function WindowShell({
       groupList.open.some((each) => each.group === tab.group);
     if (tab && isOpen) {
       windowTabs.reopen(
-        { ...tab, id: newScreenId() },
+        reopenedTab(tab, newScreenId()),
         entry.index ?? Number.POSITIVE_INFINITY,
       );
       showGroup(tab.group, { from });
@@ -1099,13 +1120,17 @@ function WindowShell({
       fill: (group) => {
         windowTabs.restoreGroup(
           group,
-          reopened.map((each) => ({ ...each, group, id: newScreenId() })),
+          reopened.map((each) => ({
+            ...reopenedTab(each, newScreenId()),
+            group,
+          })),
           side ? { active: side.up } : entry.ups,
         );
       },
-      // A whole group goes back to the project it was in, or the root.
+      // A whole group goes back to the project it was in, or the root, and
+      // pinned if it was.
       ...(closedTabGroupOf(entry) && !side
-        ? { project: entry.project ?? null }
+        ? { pinned: entry.pinned === true, project: entry.project ?? null }
         : {}),
       ...(leaving === undefined
         ? {}
@@ -1921,11 +1946,18 @@ function WindowShell({
                   ) : null;
                 })}
               </div>
+              {/* A pick opens in a new tab, or in a blank one up, so it never
+                takes the place of what the person was on; a screen the group
+                already shows comes forward. */}
               <CommandMenu
                 openPage={(url) => {
-                  openPage(url);
+                  openPage(url, { newTab: "reuseBlank" });
                 }}
-                openScreen={openScreen}
+                openScreen={(href) => {
+                  if (!bringForwardShowing(windowTabs, href)) {
+                    openScreen(href, { newTab: "reuseBlank" });
+                  }
+                }}
                 showTab={(tab) => {
                   if (tab.group !== undefined) {
                     groups.show(tab.group);

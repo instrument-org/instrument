@@ -50,6 +50,7 @@ import { BookmarkEditor } from "@/client/components/window/bookmark-editor";
 import { BookmarkNameDialog } from "@/client/components/window/bookmark-folders";
 import { DROP_TONE, HELD_LOOK } from "@/client/components/window/drag/tone";
 import { bareAddress } from "@/client/components/window/omnibar-match";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { SearchField } from "@/client/components/window/search-field";
 import { bookmarkName } from "@/client/components/window/web-start";
 import { matchScreen } from "@/client/components/window/window-href";
@@ -458,9 +459,20 @@ export function BookmarksPage({
       dropTargetAt(store.get(bookmarksStateAtom), rows, index, fraction, held),
   });
 
+  const searchRef = useRef<HTMLInputElement>(null);
+  useFindTarget({
+    anchor: searchRef,
+    openFind: () => {
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    },
+  });
   const empty = rows.length === 0;
   return (
-    <div className="@container/activity flex h-full min-h-0 flex-col bg-background">
+    <div
+      className="@container/activity flex h-full min-h-0 flex-col bg-background"
+      data-find-surface
+    >
       <div className="flex shrink-0 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-3 @min-[640px]/activity:px-6">
         <h1 className="mr-1 text-base font-semibold">Bookmarks</h1>
         {picked.length > 1 ? (
@@ -489,6 +501,8 @@ export function BookmarksPage({
         ) : (
           <div className="flex w-64 max-w-full">
             <SearchField
+              chord="findInPage"
+              inputRef={searchRef}
               onChange={onSearch}
               placeholder="Search bookmarks"
               value={q}

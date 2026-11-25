@@ -78,6 +78,7 @@ export {
   type CardFileVersion,
   cardFileVersions,
 } from "./lib/transcript/card-file-versions";
+export { type LinkedTab, linkedTabsOf } from "./lib/transcript/linked-tabs";
 export { VERSIONS_FOLDERS } from "./lib/chat/versions-folder";
 export {
   applyFeedEvent,

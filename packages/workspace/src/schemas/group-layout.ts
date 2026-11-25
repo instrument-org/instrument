@@ -47,12 +47,28 @@ export const LayoutSnapshotSchema = z.object({
   group: z.object({ id: z.string() }),
   /** False while the window shows another group, so none of this one is on screen. */
   isShown: z.boolean().optional(),
-  sides: z
-    .array(z.object({ tabs: z.array(LayoutTabSchema) }))
-    .min(1),
+  sides: z.array(z.object({ tabs: z.array(LayoutTabSchema) })).min(1),
 });
 
 export type LayoutSnapshot = z.output<typeof LayoutSnapshotSchema>;
+
+/**
+ * A tab group as a window lists it: its layout, and what its sidebar row
+ * and its tabs say of it besides. Answered fresh to each ask and never
+ * written to a chat's log, which keeps the layout alone.
+ */
+export const ListedGroupSchema = LayoutSnapshotSchema.extend({
+  /** The words typed and not sent in a new chat's tab, by the tab's id. */
+  drafts: z.record(z.string(), z.string()).optional(),
+  /** Pinned above the sidebar's other groups. */
+  pinned: z.boolean().optional(),
+  /** The project whose set of groups it is in, by its id. */
+  project: z.string().optional(),
+  /** When a window last came to show it, in ms; absent when none has since that was first kept. */
+  shownAt: z.number().optional(),
+});
+
+export type ListedGroup = z.output<typeof ListedGroupSchema>;
 
 /**
  * A side named by where it stands in its layout; absent when the group is

@@ -263,6 +263,15 @@ describe("locationCrumbs", () => {
     expect(readable({ kind: "chats" })).toMatchInlineSnapshot(`[]`);
   });
 
+  it("puts a project after the chip", () => {
+    expect(readable({ kind: "chats", project: { name: "House" } }))
+      .toMatchInlineSnapshot(`
+      [
+        "House",
+      ]
+    `);
+  });
+
   it("says an address whole, and a new tab not at all", () => {
     expect(
       readable({ kind: "page", url: "https://example.com/a/b" }),

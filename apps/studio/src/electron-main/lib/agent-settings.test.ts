@@ -64,6 +64,7 @@ describe("agentSettings", () => {
     ["bookmarks-bar", "on", "on", "On"],
     ["offer-feedback", "off", "off", "Off"],
     ["suggest-next-message", "on", "on", "On"],
+    ["search-engine", "brave search", "brave", "Brave Search"],
   ])("sets %s to %s", async (id, asked, value, label) => {
     await agentSettings.set(id, asked);
     expect(await valueOf(id)).toEqual({ label, value });
@@ -77,6 +78,8 @@ describe("agentSettings", () => {
     ["keep-history", "off"],
     ["share-activity", "on"],
     ["send-error-reports", "on"],
+    ["search-engine", "Ask Jeeves"],
+    ["suggest-searches", "off"],
     ["nothing", "on"],
   ])("refuses %s as %s", async (id, value) => {
     await expect(agentSettings.set(id, value)).rejects.toThrow(

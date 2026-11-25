@@ -8,8 +8,52 @@ export const SIDE_WIDTH_MIN = 240;
 /** How near the middle, in layout px, a dragged gutter settles on it. */
 const SIDE_SNAP_PX = 15;
 
-/** The left side's share of a group of two sides that has none kept. */
+/** The left side's share of two sides nobody sized, neither of them sized as a chat. */
 export const SIDE_SHARE_DEFAULT = 0.5;
+
+/**
+ * A chat's width beside a page, in layout px: its cards stop growing at 460,
+ * inside the transcript's 32 of padding. Layout px scale with the window's
+ * zoom, so it fits the same at any zoom.
+ */
+const CHAT_WIDTH = 500;
+
+/** The narrowest a chat gives up room to, for the page beside it. */
+const CHAT_WIDTH_TIGHT = 360;
+
+/** The width a chat gives up room to keep the page beside it at, where many sites lay out past a phone's. */
+const PAGE_WIDTH = 768;
+
+/**
+ * The left side's share of the room two sides split, where the gutter
+ * stands: the share the person dragged it to, else by which side is sized
+ * as a chat (`chatSideOf`), else the middle. A chat takes the width it needs
+ * and the page the rest. Where the page would be under its own width the
+ * chat gives up room, down to its tightest, and never takes more than half
+ * to keep that.
+ */
+export function sideShare({
+  chatSide,
+  room,
+  share,
+}: {
+  chatSide: 0 | 1 | undefined;
+  room: number;
+  share: number | undefined;
+}) {
+  if (share !== undefined) {
+    return share;
+  }
+  if (chatSide === undefined || room <= 0) {
+    return SIDE_SHARE_DEFAULT;
+  }
+  const wanted = Math.min(
+    Math.max(room - PAGE_WIDTH, CHAT_WIDTH_TIGHT),
+    CHAT_WIDTH,
+  );
+  const chat = Math.min(wanted, room / 2) / room;
+  return chatSide === 0 ? chat : 1 - chat;
+}
 
 /**
  * The left side's width at a share of the room two sides split past the

@@ -1291,7 +1291,13 @@ function createBrowserViewManager(): BrowserViewManager {
               isCapturing(guest))))
       );
     },
-    getTargetUrl: (targetId) => {
+    getTargetAddress: (targetId) => {
+      const guest = entries.get(targetId)?.webContents;
+      return guest && !guest.isDestroyed()
+        ? guests.addressOf(guest.id, guest.mainFrame)
+        : undefined;
+    },
+    getLoadedDocumentUrl: (targetId) => {
       const entry = entries.get(targetId);
       const guest = entry?.webContents;
       return guest && !guest.isDestroyed()

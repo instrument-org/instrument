@@ -489,7 +489,7 @@ export function openTargetSession({
   let pageGone = false;
   const leftOnPage = emptyLeftOnPage();
   const fileGate = createLocalFileGate({
-    currentUrl: () => workspaceConfig.browser.getTargetUrl(targetId),
+    currentUrl: () => workspaceConfig.browser.getLoadedDocumentUrl(targetId),
     onLayout: (layout) => {
       if (!ended) {
         workspaceConfig.browser.setAgentFileRoots(

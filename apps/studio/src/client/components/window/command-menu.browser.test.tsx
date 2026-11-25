@@ -183,23 +183,30 @@ describe("the menu's icons", () => {
   });
 });
 
-// One height whatever it finds, so the menu never jumps under the caret.
+// The field never moves under the caret: the list hangs from it, as tall as
+// its rows.
 describe("the menu's list", () => {
-  it("is eight rows tall with nothing typed and with one match", async () => {
+  it("grows and shrinks below a field that stays where it is", async () => {
     await renderMenu();
+    const field = page.getByRole("combobox");
     const list = page.getByRole("listbox");
     await expect.element(page.getByText("Commands")).toBeVisible();
-    const heightOf = () => {
-      const element = list.element();
-      return element instanceof HTMLElement ? element.offsetHeight : 0;
-    };
-    expect(heightOf()).toBe(296);
+    // Once the menu has finished opening.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    const top = () => field.element().getBoundingClientRect().top;
+    const height = () => list.element().getBoundingClientRect().height;
+    const start = { height: height(), top: top() };
 
-    await userEvent.fill(page.getByRole("combobox"), "keyboard shortcuts");
+    await userEvent.fill(field, "keyboard shortcuts");
     await expect
       .element(page.getByRole("option", { selected: true }))
       .toMatchTextContent("Keyboard shortcuts");
-    expect(heightOf()).toBe(296);
+    expect(top()).toBe(start.top);
+    expect(height()).toBeLessThan(start.height);
     expect(list.element().querySelector("[class*='border-t']")).toBeNull();
+
+    await userEvent.fill(field, "");
+    await expect.element(page.getByText("Commands")).toBeVisible();
+    expect({ height: height(), top: top() }).toEqual(start);
   });
 });

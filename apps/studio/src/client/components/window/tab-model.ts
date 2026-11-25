@@ -57,13 +57,17 @@ export interface WindowTabs {
   tabs: WindowTab[];
 }
 
-/** What a group keeps of its own: its pin, the project it was made in, and the left side's share of two. */
+/** What a group keeps of its own: its pin, the project it was made in, how its two sides are sized (`sideShare`), and when it last came up. */
 export interface GroupOwn {
+  /** The side sized as a chat while the group has two, set as it gets them (`withChatSides`). */
+  chatSide?: 0 | 1;
   pinned?: true;
   /** The project whose set of groups it was made in, by its id. */
   project?: string;
-  /** The left side's share of the row past the gutter; half where absent. */
+  /** The left side's share of the row past the gutter, as the person dragged it. */
   share?: number;
+  /** When a window last came to stand on it, in ms, which the agent's list says. */
+  shownAt?: number;
 }
 
 /** A group's own record with one field changed, a field left empty taken off. */
@@ -74,9 +78,11 @@ export function withGroupOwn(
 ): WindowTabs {
   const merged: GroupOwn = { ...state.groups?.[group], ...change };
   const own: GroupOwn = {
+    ...(merged.chatSide === undefined ? {} : { chatSide: merged.chatSide }),
     ...(merged.pinned ? { pinned: true } : {}),
     ...(merged.project === undefined ? {} : { project: merged.project }),
     ...(merged.share === undefined ? {} : { share: merged.share }),
+    ...(merged.shownAt === undefined ? {} : { shownAt: merged.shownAt }),
   };
   const { [group]: _was, ...others } = state.groups ?? {};
   return {
@@ -142,6 +148,91 @@ export function sideIndexOf(
     side.tabs.some((tab) => tab.id === id),
   );
   return at === -1 ? undefined : at === 1 ? 1 : 0;
+}
+
+/** What a side's tab up is, as a split is sized by it: a New Tab with nothing written is either. */
+function sizedAs(tab: undefined | WindowTab): "blank" | "chat" | "page" {
+  if (tab === undefined || isHomeTab(tab)) {
+    return "blank";
+  }
+  return isChatTab(tab) || isNewChatTab(tab) ? "chat" : "page";
+}
+
+/**
+ * Which of a group's two sides is sized as a chat, by what each has up: the
+ * chat, beside a page. A New Tab takes the other part from what is beside
+ * it. None for two alike, or for a group of one side.
+ */
+export function chatSideOf({ sides }: GroupLayout): 0 | 1 | undefined {
+  if (sides.length < 2) {
+    return undefined;
+  }
+  const [left, right] = sides.map((side) =>
+    sizedAs(side.tabs.find((tab) => tab.id === side.up)),
+  );
+  if (left === right) {
+    return undefined;
+  }
+  return left === "chat" || right === "page" ? 0 : 1;
+}
+
+/** Whether one of a group's sides was a New Tab alone, which something else has taken the place of. */
+function tookNewTabsPlace(was: GroupLayout, now: GroupLayout): boolean {
+  const open = new Set(
+    now.sides.flatMap((side) => side.tabs.map((tab) => tab.id)),
+  );
+  return was.sides.some(
+    ({ tabs: [only, ...rest] }) =>
+      only !== undefined &&
+      rest.length === 0 &&
+      isHomeTab(only) &&
+      !open.has(only.id),
+  );
+}
+
+/** The groups whose tabs stand on both sides. */
+function splitGroups({ tabs }: WindowTabs): Set<string> {
+  const left = new Set<string>();
+  const right = new Set<string>();
+  for (const tab of tabs) {
+    if (tab.group !== undefined) {
+      (sideOf(tab) === 0 ? left : right).add(tab.group);
+    }
+  }
+  return new Set([...left].filter((group) => right.has(group)));
+}
+
+/**
+ * The tabs after a change, with the side each group sizes as a chat
+ * (`chatSideOf`) set as the group gets two sides, however it got them, and
+ * dropped as it goes back to one. It stays as it is while other tabs come
+ * up, so the gutter does not move under the person; a split with none set
+ * gets one when something takes the place of a New Tab that was a whole side.
+ */
+export function withChatSides(was: WindowTabs, now: WindowTabs): WindowTabs {
+  if (was.tabs === now.tabs) {
+    return now;
+  }
+  const before = splitGroups(was);
+  const after = splitGroups(now);
+  let next = now;
+  for (const group of after) {
+    const layout = groupLayoutOf(now, group);
+    const isNew =
+      !before.has(group) ||
+      (now.groups?.[group]?.chatSide === undefined &&
+        tookNewTabsPlace(groupLayoutOf(was, group), layout));
+    const chatSide = chatSideOf(layout);
+    if (isNew && now.groups?.[group]?.chatSide !== chatSide) {
+      next = withGroupOwn(next, group, { chatSide });
+    }
+  }
+  for (const group of before) {
+    if (!after.has(group) && next.groups?.[group]?.chatSide !== undefined) {
+      next = withGroupOwn(next, group, { chatSide: undefined });
+    }
+  }
+  return next;
 }
 
 /**
@@ -788,6 +879,16 @@ export function closedTabGroupOf({
     groupTabs.every(isGroupTabRecord)
     ? groupTabs
     : undefined;
+}
+
+/** Whether a tab is the one an id names: its own, or one it had before it was reopened. */
+export function isTabNamed(tab: WindowTab, id: string): boolean {
+  return tab.id === id || tab.reopenedFrom?.includes(id) === true;
+}
+
+/** A closed tab as it comes back: under an id of its own, remembering the ones it had. */
+export function reopenedTab<T extends WindowTab>(tab: T, id: string): T {
+  return { ...tab, id, reopenedFrom: [...(tab.reopenedFrom ?? []), tab.id] };
 }
 
 /** Every tab a closed entry brings back: a group's, a side's, or the lone tab; none for an entry holding no group's tabs. */

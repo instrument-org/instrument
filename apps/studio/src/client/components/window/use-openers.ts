@@ -26,7 +26,7 @@ import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "jotai";
 import { sleep } from "radashi";
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { isSiteGroup, type useAppTabs } from "./app-tabs";
@@ -50,7 +50,13 @@ import {
 } from "./placement";
 import { visitInTab } from "./tab-history";
 import { taskHref, tasksOfHref } from "./tab-location";
-import { isChatTab, isFreshTab, isSplit, sideIndexOf } from "./tab-model";
+import {
+  isChatTab,
+  isFreshTab,
+  isSplit,
+  isTabNamed,
+  sideIndexOf,
+} from "./tab-model";
 import {
   chatHref,
   chatOfHref,
@@ -77,7 +83,9 @@ import { type WindowTab } from "@/client/atoms/window";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { osConventions } from "@/client/lib/utils";
 import { instrumentUrlOf } from "@instrument-org/shared";
+import { draftsAtom } from "@/client/drafts/store";
 import { appTabsAtom } from "./app-tabs";
+import { draftTitle } from "./chats";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { closedText } from "./closed-groups";
@@ -86,9 +94,11 @@ import {
   closedSideOf,
   closedTabGroupOf,
   closedTabsOf,
+  draftOfTab,
 } from "./tab-model";
 import { groupLayoutFor, groupReadOf } from "./group-awareness";
 import { windowTabGroupsAtom } from "./open-groups";
+import { listedWith } from "./tab-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
 import { agentPageOfTab, ownerOfHostGroup, pageFileOfTab } from "./hosted-page";
 
@@ -812,7 +822,9 @@ export function useOpeners({
    */
   const showTabWhereItIs = (tabId: string): { error?: string } => {
     // A file tab's page names the file tab.
-    const named = windowTabs.allTabs.find((entry) => entry.id === tabId);
+    const named =
+      windowTabs.allTabs.find((entry) => entry.id === tabId) ??
+      windowTabs.allTabs.find((entry) => isTabNamed(entry, tabId));
     const owner = ownerOfHostGroup(named?.group);
     const tab =
       owner === undefined
@@ -827,32 +839,39 @@ export function useOpeners({
     }
     return {};
   };
+  /** The tab a link named in what it reopened, brought up once it is back. */
+  const linkedTab = useRef<string>(undefined);
   /**
    * What a link to a tab group or a tab does: brings it up, as `show` does,
-   * or says it closed, with Reopen where this window's closed list has it.
+   * reopening it first when it is on this window's closed list.
    */
   const showLinked = (kind: "group" | "tab", id: string) => {
+    linkedTab.current = undefined;
     const shown = kind === "group" ? showWholeGroup(id) : showTabWhereItIs(id);
     if (shown.error === undefined) {
       return;
     }
     const entry = closedEntryOf(kind, id);
-    const what = kind === "group" ? "tab group" : "tab";
     if (entry === undefined) {
-      toast(`That ${what} is gone`, {
+      toast(`That ${kind === "group" ? "tab group" : "tab"} is gone`, {
         description: `It was closed, and it's no longer in History.`,
       });
       return;
     }
-    toast(`That ${what} is closed`, {
-      action: {
-        label: "Reopen",
-        onClick: () => {
-          reopenClosed(entry);
-        },
-      },
-    });
+    if (kind === "tab") {
+      linkedTab.current = id;
+    }
+    reopenClosed(entry);
   };
+  const showReopened = useEffectEvent(() => {
+    const id = linkedTab.current;
+    if (id !== undefined && showTabWhereItIs(id).error === undefined) {
+      linkedTab.current = undefined;
+    }
+  });
+  useEffect(() => {
+    showReopened();
+  }, [windowTabs.allTabs]);
   /**
    * Opens what an agent asked for in a tab group it named, not the one its
    * chat is in: after the tab up on the side with the keyboard, up there
@@ -993,8 +1012,9 @@ export function useOpeners({
   };
   /**
    * Every open window's tab groups as a chat reads them, the one in front
-   * first, each marked shown where its window shows it; the chat's own tab
-   * marked in whichever group has it.
+   * first, its pinned groups before the rest as its sidebar has them, each
+   * marked shown where its window shows it, with what its sidebar row and
+   * its new tabs say; the chat's own tab marked in whichever group has it.
    */
   const windowsRead = async (
     chatTab: string | undefined,
@@ -1012,6 +1032,21 @@ export function useOpeners({
     ];
     const hasTabs = (group: string) =>
       windowTabs.allTabs.some((tab) => tab.group === group);
+    const isPinned = (group: string) =>
+      windowTabs.groupOwn[group]?.pinned === true;
+    const pinnedFirst = (groups: readonly string[]) => [
+      ...groups.filter(isPinned),
+      ...groups.filter((group) => !isPinned(group)),
+    ];
+    const drafts = store.get(draftsAtom);
+    const unsentIn = (group: string): Record<string, string> =>
+      Object.fromEntries(
+        windowTabs.allTabs.flatMap((tab) => {
+          const draft = tab.group === group ? draftOfTab(tab) : undefined;
+          const words = drafts.find((each) => each.id === draft)?.words ?? "";
+          return words.trim() === "" ? [] : [[tab.id, draftTitle(words)]];
+        }),
+      );
     return byWindow.map((window) => {
       // This window's own list is read here, as fresh as it is.
       const listed = window.isThisWindow ? listedHere : window.groups;
@@ -1020,13 +1055,22 @@ export function useOpeners({
         : window.shown;
       return {
         ...(window.isThisWindow ? { isThisWindow: true } : {}),
-        groups: listed.filter(hasTabs).map((group) => {
+        groups: pinnedFirst(listed.filter(hasTabs)).map((group) => {
           const { isShown: _shownHere, ...layout } = groupLayoutFor(
             { appsBySlug, chatTitles, windowTabs },
             group,
             chatTab,
           );
-          return group === shown ? layout : { ...layout, isShown: false };
+          const own = windowTabs.groupOwn[group];
+          const unsent = unsentIn(group);
+          return {
+            ...layout,
+            ...(group === shown ? {} : { isShown: false }),
+            ...(Object.keys(unsent).length === 0 ? {} : { drafts: unsent }),
+            ...(own?.pinned ? { pinned: true } : {}),
+            ...(own?.project === undefined ? {} : { project: own.project }),
+            ...(own?.shownAt === undefined ? {} : { shownAt: own.shownAt }),
+          };
         }),
       };
     });
@@ -1175,6 +1219,44 @@ export function useOpeners({
         return { error: `no tab group ${action.group} is open.` };
       }
       moveTabs(action.tabIds, action.group);
+      return {};
+    }
+    if (action.kind === "pinGroup") {
+      if (!windowTabs.allTabs.some((tab) => tab.group === action.group)) {
+        return { error: `no tab group ${action.group} is open.` };
+      }
+      windowTabs.setGroupOwn(action.group, {
+        pinned: action.pinned ? true : undefined,
+      });
+      return {};
+    }
+    if (action.kind === "placeGroup") {
+      const { anchor, group, where } = action;
+      const listed = store.get(windowTabGroupsAtom) ?? [];
+      const elsewhere = [group, anchor].find((each) => !listed.includes(each));
+      if (elsewhere !== undefined) {
+        return {
+          error: `the tab group ${elsewhere} is not in the sidebar of the window you work in, so it can't be placed from here.`,
+        };
+      }
+      if (group === anchor) {
+        return { error: "a tab group is placed beside another one." };
+      }
+      const own = windowTabs.groupOwn[group];
+      const there = windowTabs.groupOwn[anchor];
+      if ((own?.pinned === true) !== (there?.pinned === true)) {
+        return {
+          error: `one of ${group} and ${anchor} is pinned and the other is not, and the sidebar lists pinned groups apart; pin or unpin one first.`,
+        };
+      }
+      if (own?.project !== there?.project) {
+        return {
+          error: `${group} and ${anchor} are in different projects, which the sidebar lists apart.`,
+        };
+      }
+      store.set(windowTabGroupsAtom, (list) =>
+        listedWith(list, group, { [where]: anchor }),
+      );
       return {};
     }
     if (action.kind === "history") {

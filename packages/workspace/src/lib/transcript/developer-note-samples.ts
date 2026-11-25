@@ -179,6 +179,15 @@ export const DATA_PART_SAMPLES = {
     ],
   },
   workSummary: { words: "Read two pages" },
+  linkedTabs: {
+    tabs: [
+      {
+        id: "tab_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+        title: "Returns",
+        url: "https://shop.test/returns",
+      },
+    ],
+  },
   fileVersions: {
     device: "dev_0123ABCD",
     files: [

@@ -28,6 +28,7 @@ import { FolderMark } from "./folder-mark";
 import { RECENTS_ROOT } from "./computer-page";
 import { joinHostPath, segmentsOf } from "./host-path";
 import { askedAddressOf } from "./missing-page";
+import { ProjectMark, type ProjectMarkSpec } from "./project-mark";
 import { locationCrumbs, type TabLocation, type Volume } from "./tab-location";
 import { type ComputerTab, matchScreen, type Screen } from "./window-href";
 
@@ -49,6 +50,8 @@ export interface ScreenNames {
   chatTitles?: Map<ChatId, string>;
   /** The titles pages give themselves by host path, for a tab standing on one; a page not in it goes by its file name. */
   fileTitles?: Map<string, string>;
+  /** The projects in use by id, for a tab standing on one; one not in it is every chat. */
+  projects?: ReadonlyMap<string, ProjectMarkSpec & { name: string }>;
   /** Each task's title by its id, for a tab standing on one; a task not in it is a "Task". */
   taskTitles?: Map<StoreId.Session, string>;
   /** The disks the sidebar lists, which name a folder tab at the top of one. */
@@ -58,7 +61,7 @@ export interface ScreenNames {
 /** Where a screen tab is, in the terms the row above it says a place in. */
 export function screenLocation(
   href: string,
-  { appsBySlug, chatTitles, taskTitles }: ScreenNames,
+  { appsBySlug, chatTitles, projects, taskTitles }: ScreenNames,
 ): TabLocation {
   const screen = matchScreen(href);
   switch (screen.kind) {
@@ -107,9 +110,10 @@ export function screenLocation(
     case "inbox": {
       return { kind: "newChat" };
     }
-    // Every chat, which is Chat's own index.
+    // Every chat, which is Chat's own index, or one project's.
     case "chats": {
-      return { kind: "chats" };
+      const project = projectOf(screen, projects);
+      return { kind: "chats", ...(project ? { project } : {}) };
     }
     // What History shows, when it is one kind of row, is the part it is at.
     case "activity": {
@@ -161,7 +165,14 @@ export function screenLocation(
 /** What a screen tab is called and drawn with, read off its address. */
 export function screenPresentation(
   href: string,
-  { appsBySlug, chatTitles, fileTitles, taskTitles, volumes }: ScreenNames,
+  {
+    appsBySlug,
+    chatTitles,
+    fileTitles,
+    projects,
+    taskTitles,
+    volumes,
+  }: ScreenNames,
 ): { icon: ReactNode; title: string } {
   const screen = matchScreen(href);
   switch (screen.kind) {
@@ -232,8 +243,16 @@ export function screenPresentation(
         title: debugPageTitle(screen.pathname),
       };
     }
-    // The index of every chat, under the bubbles of many chats.
+    // A project by its own name and mark, and the index of every chat under
+    // the bubbles of many chats.
     case "chats": {
+      const project = projectOf(screen, projects);
+      if (project) {
+        return {
+          icon: <ProjectMark project={project} size="sm" />,
+          title: project.name,
+        };
+      }
       return {
         icon: <ScreenMark className="size-3.5" name="chats" />,
         title: SCREENS.chats.title,
@@ -279,6 +298,16 @@ export function screenPresentation(
       };
     }
   }
+}
+
+/** The project the address of a list of chats stands in, when it is one in use. */
+function projectOf(
+  screen: Extract<Screen, { kind: "chats" }>,
+  projects: ScreenNames["projects"],
+) {
+  return screen.project === undefined
+    ? undefined
+    : projects?.get(screen.project);
 }
 
 /** The one kind of row Activity's address shows, if it names one. */

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveUrlOrSearch } from "./resolve-url-or-search";
+import {
+  resolveUrlOrSearch,
+  setSearchEngine,
+  webSearchUrl,
+} from "./resolve-url-or-search";
 
 describe("resolveUrlOrSearch", () => {
   it.each([
@@ -37,24 +41,24 @@ describe("resolveUrlOrSearch", () => {
 
     // Anything that isn't host-shaped falls back to a web search.
     {
-      expected: "https://duckduckgo.com/?q=cats",
+      expected: "https://www.google.com/search?q=cats",
       input: "cats",
     },
     {
-      expected: "https://duckduckgo.com/?q=how%20to%20make%20bread",
+      expected: "https://www.google.com/search?q=how%20to%20make%20bread",
       input: "how to make bread",
     },
     // A period isn't enough: whitespace and unknown TLDs both route to search.
     {
-      expected: "https://duckduckgo.com/?q=node.js%20tutorial",
+      expected: "https://www.google.com/search?q=node.js%20tutorial",
       input: "node.js tutorial",
     },
     {
-      expected: "https://duckduckgo.com/?q=foo.zzzzz",
+      expected: "https://www.google.com/search?q=foo.zzzzz",
       input: "foo.zzzzz",
     },
     {
-      expected: "https://duckduckgo.com/?q=stackoverflow.com%20questions",
+      expected: "https://www.google.com/search?q=stackoverflow.com%20questions",
       input: "stackoverflow.com questions",
     },
     // Leading/trailing whitespace is trimmed before routing.
@@ -64,5 +68,15 @@ describe("resolveUrlOrSearch", () => {
     },
   ])("$input -> $expected", ({ expected, input }) => {
     expect(resolveUrlOrSearch(input)).toBe(expected);
+  });
+});
+
+describe("webSearchUrl", () => {
+  it("searches with the chosen engine", () => {
+    setSearchEngine("duckduckgo");
+    expect(webSearchUrl("egg salad")).toBe(
+      "https://duckduckgo.com/?q=egg%20salad",
+    );
+    setSearchEngine("google");
   });
 });

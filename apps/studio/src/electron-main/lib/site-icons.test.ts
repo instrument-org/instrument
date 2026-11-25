@@ -5,118 +5,136 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { type Deps, rememberPageIcon, siteIconFor } from "./site-icons";
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * MINUTE_MS;
 
 let dir: string;
 let now: number;
+let deps: Deps;
+let fetch: ReturnType<typeof vi.fn<Deps["fetch"]>>;
+
+/** What each address says. The service's by theme; any other, unreachable. */
+let site: {
+  dark?: () => Response;
+  google?: () => Response;
+  light?: () => Response;
+  pages: Record<string, () => Response>;
+};
 
 beforeEach(async () => {
   dir = await fs.mkdtemp(path.join(os.tmpdir(), "site-icons-"));
   now = Date.UTC(2026, 8, 23);
+  site = { pages: {} };
+  fetch = vi.fn((url: string) => {
+    const answer = url.startsWith("https://icons.tryinstrument.com/")
+      ? site[url.endsWith("=dark") ? "dark" : "light"]
+      : url.startsWith("https://t0.gstatic.com/")
+        ? site.google
+        : site.pages[url];
+    return answer
+      ? Promise.resolve(answer())
+      : Promise.reject(new TypeError("fetch failed"));
+  });
+  deps = {
+    dir,
+    fetch,
+    now: () => now,
+    resolveHost: () => Promise.resolve(["93.184.216.34"]),
+  };
 });
 
 afterEach(async () => {
   await fs.rm(dir, { force: true, recursive: true });
 });
 
-function proxyAnswering(...answers: (() => Promise<Response>)[]) {
-  return vi.fn((_url: string, _init: RequestInit) => {
-    const next = answers.shift();
-    if (!next) {
-      throw new Error("asked the proxy more often than expected");
-    }
-    return next();
+const image =
+  (text: string, type = "image/png", maxAge = 7 * 24 * 60 * 60) =>
+  () =>
+    new Response(text, {
+      headers: {
+        "cache-control": `public, max-age=${maxAge}`,
+        "content-type": type,
+      },
+    });
+const none = () =>
+  new Response(null, {
+    headers: { "cache-control": "public, max-age=86400" },
+    status: 404,
   });
-}
 
-const found = () =>
-  Promise.resolve(
-    new Response(PNG, { headers: { "content-type": "image/png" } }),
-  );
-const none = () => Promise.resolve(new Response(PNG, { status: 404 }));
-const unreachable = () => Promise.reject(new TypeError("fetch failed"));
-
-function deps(
-  fetch: ReturnType<typeof proxyAnswering>,
-  overrides: Partial<Deps> = {},
-): Deps {
-  return {
-    dir,
-    fetch,
-    isLegible: () => Promise.resolve(true),
-    now: () => now,
-    resolveHost: () => Promise.resolve(["93.184.216.34"]),
-    ...overrides,
-  };
-}
+const iconOf = async (
+  theme: "dark" | "light" = "light",
+  host = "example.com",
+) => (await siteIconFor(host, theme, deps))?.bytes.toString();
 
 describe("siteIconFor", () => {
-  it("asks the proxy once for a host, by its origin alone, and answers from disk after", async () => {
-    const fetch = proxyAnswering(found);
+  it("asks the service once for each theme, by the host alone, and answers from disk after", async () => {
+    site.light = image("for light");
+    site.dark = image("for dark");
 
-    expect(await siteIconFor("example.com", "light", deps(fetch))).toEqual({
-      bytes: PNG,
-      type: "image/png",
+    expect(await iconOf()).toBe("for light");
+    expect(await iconOf("dark")).toBe("for dark");
+    expect(await iconOf()).toBe("for light");
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      "https://icons.tryinstrument.com/v1/example.com?theme=light",
+      "https://icons.tryinstrument.com/v1/example.com?theme=dark",
+    ]);
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({
+      credentials: "omit",
+      referrerPolicy: "no-referrer",
     });
-    expect(await siteIconFor("example.com", "light", deps(fetch))).toEqual({
-      bytes: PNG,
-      type: "image/png",
-    });
+  });
+
+  it("keeps a site having none for as long as the service says", async () => {
+    site.light = none;
+    expect(await iconOf()).toBeUndefined();
+    expect(await iconOf()).toBeUndefined();
     expect(fetch).toHaveBeenCalledOnce();
-    expect(fetch.mock.calls[0]?.[0]).toContain(
-      `url=${encodeURIComponent("https://example.com")}&`,
-    );
-  });
 
-  it("keeps a 404 as the site having no icon, for a week", async () => {
-    const fetch = proxyAnswering(none, found);
-
-    expect(
-      await siteIconFor("example.com", "light", deps(fetch)),
-    ).toBeUndefined();
-    now += 6 * DAY_MS;
-    expect(
-      await siteIconFor("example.com", "light", deps(fetch)),
-    ).toBeUndefined();
     now += 2 * DAY_MS;
-    expect(
-      await siteIconFor("example.com", "light", deps(fetch)),
-    ).toBeDefined();
-    expect(fetch).toHaveBeenCalledTimes(2);
-  });
-
-  it("keeps nothing when the proxy cannot be reached, and asks again next time", async () => {
-    const fetch = proxyAnswering(unreachable, found);
-
-    await expect(
-      siteIconFor("example.com", "light", deps(fetch)),
-    ).rejects.toThrow();
-    expect(
-      await siteIconFor("example.com", "light", deps(fetch)),
-    ).toBeDefined();
-  });
-
-  it("serves a month-old copy while it fetches a fresh one", async () => {
-    const fetch = proxyAnswering(found, unreachable);
-    await siteIconFor("example.com", "light", deps(fetch));
-
-    now += 31 * DAY_MS;
-    expect(await siteIconFor("example.com", "light", deps(fetch))).toEqual({
-      bytes: PNG,
-      type: "image/png",
+    site.light = image("new");
+    await iconOf();
+    await vi.waitFor(async () => {
+      expect(await iconOf()).toBe("new");
     });
-    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
-  it("fetches once for many rows asking at the same moment", async () => {
-    const fetch = proxyAnswering(found);
+  it("serves a stale copy while it asks again, and keeps it when that fails", async () => {
+    site.light = image("old");
+    await iconOf();
 
-    await Promise.all(
-      Array.from({ length: 5 }, () =>
-        siteIconFor("example.com", "light", deps(fetch)),
-      ),
-    );
+    now += 8 * DAY_MS;
+    site.light = undefined;
+    expect(await iconOf()).toBe("old");
+    expect(fetch).toHaveBeenCalledTimes(2);
+    site.light = image("new");
+    await vi.waitFor(async () => {
+      expect(await iconOf()).toBe("new");
+    });
+  });
+
+  it("shows Google's for minutes when the service cannot be asked", async () => {
+    site.light = () => new Response(null, { status: 503 });
+    site.google = image("google's");
+    expect(await iconOf()).toBe("google's");
+
+    now += 6 * MINUTE_MS;
+    site.light = image("the service's");
+    await iconOf();
+    await vi.waitFor(async () => {
+      expect(await iconOf()).toBe("the service's");
+    });
+  });
+
+  it("keeps nothing when neither can be asked, and asks again next time", async () => {
+    await expect(iconOf()).rejects.toThrow();
+    site.light = image("found");
+    expect(await iconOf()).toBe("found");
+  });
+
+  it("asks once for many rows asking at the same moment", async () => {
+    site.light = image("found");
+    await Promise.all(Array.from({ length: 5 }, () => iconOf()));
     expect(fetch).toHaveBeenCalledOnce();
   });
 
@@ -124,276 +142,116 @@ describe("siteIconFor", () => {
     ["this machine", "localhost"],
     ["a page served here", "assets.task-1.localhost"],
     ["an address", "192.168.1.4"],
+    ["a name on this network", "printer.local"],
     ["a path out of the folder", "../../secrets"],
   ])("asks nobody about %s", async (_name, host) => {
-    const fetch = proxyAnswering();
-
-    expect(await siteIconFor(host, "light", deps(fetch))).toBeUndefined();
+    expect(await iconOf("light", host)).toBeUndefined();
     expect(fetch).not.toHaveBeenCalled();
   });
 });
 
 describe("rememberPageIcon", () => {
+  const ICO = "https://example.com/a.ico";
+  const SVG = "https://example.com/a.svg";
   const page = {
-    iconUrls: ["https://example.com/static/icon.ico"],
+    iconUrls: [ICO, SVG],
     pageUrl: "https://example.com/wiki/Jar",
     theme: "light" as const,
   };
-  const ico = () =>
-    Promise.resolve(
-      new Response(PNG, { headers: { "content-type": "image/x-icon" } }),
-    );
 
-  it("keeps a page's own icon for a site the proxy has none for", async () => {
-    const fetch = proxyAnswering(none, ico);
-
-    expect(await rememberPageIcon(page, deps(fetch))).toBe(true);
-    expect(fetch.mock.calls[1]?.[0]).toBe(page.iconUrls[0]);
-    const icon = await siteIconFor("example.com", "light", deps(fetch));
-    expect(icon?.type).toBe("image/x-icon");
-  });
-
-  it("leaves the site alone when the proxy has its icon", async () => {
-    const fetch = proxyAnswering(found);
-
-    expect(await rememberPageIcon(page, deps(fetch))).toBe(false);
+  it("leaves the site alone when the service has its icon", async () => {
+    site.light = image("the service's");
+    expect(await rememberPageIcon(page, deps)).toBe(false);
     expect(fetch).toHaveBeenCalledOnce();
   });
 
-  it("keeps the page's icon when the proxy still has none a month later", async () => {
-    const fetch = proxyAnswering(none, ico, none);
-    await rememberPageIcon(page, deps(fetch));
+  it("keeps a page's own for a site the service has none for, its SVG first", async () => {
+    site.light = none;
+    site.dark = none;
+    site.pages = { [SVG]: image("svg", "image/svg+xml"), [ICO]: image("ico") };
 
-    now += 31 * DAY_MS;
-    await siteIconFor("example.com", "light", deps(fetch));
-    now += 1;
-    const icon = await siteIconFor("example.com", "light", deps(fetch));
-    expect(icon?.type).toBe("image/x-icon");
+    expect(await rememberPageIcon(page, deps)).toBe(true);
+    expect(await rememberPageIcon(page, deps)).toBe(false);
+    expect(await iconOf()).toBe("svg");
+    expect(await iconOf("dark")).toBe("svg");
+    expect(await iconOf("light", "www.example.com")).toBe("svg");
   });
 
-  it("asks nothing for an icon that is not on the web", async () => {
-    const fetch = proxyAnswering();
+  it("takes the next icon when one cannot be had", async () => {
+    site.light = none;
+    const pageUrl = "https://second.com/";
+    const iconUrls = ["https://second.com/a.svg", "https://second.com/a.ico"];
+    site.pages = { "https://second.com/a.ico": image("ico") };
+
+    expect(await rememberPageIcon({ ...page, iconUrls, pageUrl }, deps)).toBe(
+      true,
+    );
+    expect(await iconOf("light", "second.com")).toBe("ico");
+  });
+
+  it("gives way once the service has one", async () => {
+    site.pages = { [SVG]: image("the page's", "image/svg+xml") };
+    await rememberPageIcon(page, deps);
+    expect(await iconOf()).toBe("the page's");
+
+    site.light = image("the service's");
+    expect(await iconOf()).toBe("the service's");
+  });
+
+  it("keeps one for a name the service cannot see, asking only the page's own host", async () => {
+    const iconUrl = "https://wiki.corp.internal/a.png";
+    site.pages = { [iconUrl]: image("intranet") };
+    const pageUrl = "https://wiki.corp.internal/";
 
     expect(
-      await rememberPageIcon(
-        { ...page, iconUrls: ["file:///etc/passwd"] },
-        deps(fetch),
-      ),
-    ).toBe(false);
-    expect(fetch).not.toHaveBeenCalled();
-  });
-});
-
-const svgOf = (text: string) => () =>
-  Promise.resolve(
-    new Response(text, { headers: { "content-type": "image/svg+xml" } }),
-  );
-
-describe("the SVG the proxy's bitmap was made from", () => {
-  const ORIGIN = "https://cdn.example.com/favicon.svg";
-  const madeFrom = (origin: string) => () =>
-    Promise.resolve(
-      new Response(PNG, {
-        headers: { "content-location": origin, "content-type": "image/png" },
-      }),
-    );
-  const typeFor = async (d: Deps, theme: "dark" | "light" = "light") =>
-    (await siteIconFor("example.com", theme, d))?.type;
-
-  it("is served in the bitmap's place, asked for with nothing of the person's", async () => {
-    const fetch = proxyAnswering(madeFrom(ORIGIN), svgOf("<svg/>"));
-
-    expect(await typeFor(deps(fetch))).toBe("image/svg+xml");
-    expect(await typeFor(deps(fetch))).toBe("image/svg+xml");
-    expect(fetch).toHaveBeenCalledTimes(2);
-    expect(fetch.mock.calls[1]?.[1]).toMatchObject({
-      credentials: "omit",
-      redirect: "error",
-      referrerPolicy: "no-referrer",
-    });
-  });
-
-  it("gives way to the bitmap in a theme it cannot be seen in, measured once", async () => {
-    const fetch = proxyAnswering(madeFrom(ORIGIN), svgOf("<svg/>"));
-    const isLegible = vi.fn<Deps["isLegible"]>((_svg, theme) =>
-      Promise.resolve(theme === "light"),
-    );
-    const d = deps(fetch, { isLegible });
-
-    expect(await typeFor(d, "dark")).toBe("image/png");
-    expect(await typeFor(d, "dark")).toBe("image/png");
-    expect(await typeFor(d, "light")).toBe("image/svg+xml");
-    expect(isLegible).toHaveBeenCalledTimes(2);
-  });
-
-  it("is measured again when it could not be", async () => {
-    const fetch = proxyAnswering(madeFrom(ORIGIN), svgOf("<svg/>"));
-    const isLegible = vi
-      .fn<Deps["isLegible"]>()
-      .mockResolvedValueOnce(undefined)
-      .mockResolvedValueOnce(true);
-    const d = deps(fetch, { isLegible });
-
-    expect(await typeFor(d)).toBe("image/png");
-    expect(await typeFor(d)).toBe("image/svg+xml");
+      await rememberPageIcon({ ...page, iconUrls: [iconUrl], pageUrl }, deps),
+    ).toBe(true);
+    expect(await iconOf("light", "wiki.corp.internal")).toBe("intranet");
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([iconUrl]);
   });
 
   it.each([
-    ["not https", "http://example.com/favicon.svg", ["93.184.216.34"]],
-    ["on this computer", "https://localhost/favicon.svg", ["127.0.0.1"]],
-    ["a private address", "https://192.168.1.1/favicon.svg", ["192.168.1.1"]],
-    ["a name for a private address", ORIGIN, ["93.184.216.34", "10.0.0.2"]],
-    ["a name for a private IPv6 address", ORIGIN, ["fd00::1"]],
-    ["a name for a mapped private address", ORIGIN, ["::ffff:127.0.0.1"]],
-    ["a name for nothing", ORIGIN, []],
-  ])("is not asked for when it is %s", async (_name, origin, addresses) => {
-    const fetch = proxyAnswering(madeFrom(origin));
-    const d = deps(fetch, { resolveHost: () => Promise.resolve(addresses) });
+    ["not on the web", "file:///etc/passwd", ["93.184.216.34"]],
+    ["not https", "http://cdn.example.com/x.png", ["93.184.216.34"]],
+    ["on this computer", "https://localhost/x.png", ["127.0.0.1"]],
+    ["a private address", "https://192.168.1.1/x.png", ["192.168.1.1"]],
+    [
+      "a name for a private address",
+      "https://one.example.com/x.png",
+      ["93.184.216.34", "10.0.0.2"],
+    ],
+    [
+      "a name for a private IPv6 address",
+      "https://two.example.com/x.png",
+      ["fd00::1"],
+    ],
+    [
+      "a name for a mapped private address",
+      "https://three.example.com/x.png",
+      ["::ffff:127.0.0.1"],
+    ],
+    ["a name for nothing", "https://four.example.com/x.png", []],
+  ])("does not ask for an icon %s", async (_name, iconUrl, addresses) => {
+    site.light = none;
+    site.pages = { [iconUrl]: image("secret") };
+    deps.resolveHost = () => Promise.resolve(addresses);
 
-    expect(await typeFor(d)).toBe("image/png");
-    expect(fetch).toHaveBeenCalledOnce();
-  });
-
-  it.each([
-    ["too large", svgOf("x".repeat(300 * 1024))],
-    ["not an SVG", found],
-    ["unreachable", unreachable],
-  ])("is left out when it is %s", async (_name, answer) => {
-    const fetch = proxyAnswering(madeFrom(ORIGIN), answer);
-
-    expect(await typeFor(deps(fetch))).toBe("image/png");
-  });
-});
-
-describe("the SVG a page names for itself", () => {
-  const page = {
-    iconUrls: ["https://example.com/a.ico", "https://example.com/a.svg"],
-    pageUrl: "https://example.com/",
-    theme: "dark" as const,
-  };
-  const textFor = async (d: Deps, theme: "dark" | "light") =>
-    (await siteIconFor("example.com", theme, d))?.bytes.toString();
-
-  it("is taken over the icons named before it, and over the proxy's", async () => {
-    const fetch = proxyAnswering(svgOf("<svg>page</svg>"));
-    const d = deps(fetch);
-
-    expect(await rememberPageIcon(page, d)).toBe(true);
-    expect(fetch.mock.calls[0]?.[0]).toBe("https://example.com/a.svg");
-    expect(await textFor(d, "dark")).toBe("<svg>page</svg>");
-    expect(await rememberPageIcon(page, d)).toBe(false);
-  });
-
-  it("is not asked for again unguarded when its address is refused", async () => {
-    const fetch = proxyAnswering(none);
-    const iconUrls = ["http://192.168.1.1/x.svg", "http://10.0.0.1/y.png"];
-
-    expect(await rememberPageIcon({ ...page, iconUrls }, deps(fetch))).toBe(
+    expect(await rememberPageIcon({ ...page, iconUrls: [iconUrl] }, deps)).toBe(
       false,
     );
-    expect(fetch).toHaveBeenCalledOnce();
-  });
-
-  it("stands for a day against its front page naming another, or none", async () => {
-    const fetch = proxyAnswering(svgOf("one"), svgOf("two"), none, unreachable);
-    const d = deps(fetch);
-    const naming = (name: string) =>
-      rememberPageIcon(
-        { ...page, iconUrls: [`https://example.com/${name}`] },
-        d,
-      );
-    await naming("one.svg");
-
-    expect(await naming("two.svg")).toBe(false);
-    await naming("badge.png");
-    expect(await textFor(d, "dark")).toBe("one");
-    now += 2 * DAY_MS;
-    expect(await naming("two.svg")).toBe(true);
-    expect(await textFor(d, "dark")).toBe("two");
-    now += 2 * DAY_MS;
-    await naming("plain.png");
-    expect(await textFor(d, "dark")).toBeUndefined();
-  });
-
-  it("is the front page's when both pages' are fetched at once", async () => {
-    let answer: (response: Response) => void = () => undefined;
-    const slow = new Promise<Response>((resolve) => {
-      answer = resolve;
-    });
-    const fetch = proxyAnswering(() => slow, svgOf("front"));
-    const d = deps(fetch);
-    const docs = rememberPageIcon(
-      {
-        ...page,
-        iconUrls: ["https://example.com/docs.svg"],
-        pageUrl: "https://example.com/docs",
-      },
-      d,
-    );
-    const front = rememberPageIcon(page, d);
-    answer(await svgOf("docs")());
-    await Promise.all([docs, front]);
-
-    expect(await textFor(d, "dark")).toBe("front");
+    expect(fetch.mock.calls.map(([url]) => url)).not.toContain(iconUrl);
   });
 
   it.each([
-    ["www.example.com", "example.com"],
-    ["example.com", "www.example.com"],
-  ])("opened at %s is the icon at %s too", async (opened, other) => {
-    const fetch = proxyAnswering(svgOf("page"));
-    const d = deps(fetch);
-    await rememberPageIcon({ ...page, pageUrl: `https://${opened}/` }, d);
+    ["too large", image("x".repeat(300 * 1024), "image/svg+xml")],
+    ["not an image", image("<html>", "text/html")],
+  ])("leaves out one that is %s", async (name, answer) => {
+    site.light = none;
+    const iconUrl = `https://example.com/${name.replaceAll(" ", "-")}.svg`;
+    site.pages = { [iconUrl]: answer };
 
-    expect((await siteIconFor(other, "dark", d))?.bytes.toString()).toBe(
-      "page",
+    expect(await rememberPageIcon({ ...page, iconUrls: [iconUrl] }, deps)).toBe(
+      false,
     );
-  });
-
-  it.each([
-    ["unreachable", unreachable],
-    ["not an SVG", found],
-  ])(
-    "gives way to the page's first icon when it is %s and the proxy has none",
-    async (_name, answer) => {
-      const fetch = proxyAnswering(answer, none, found);
-      const d = deps(fetch);
-
-      expect(await rememberPageIcon(page, d)).toBe(true);
-      expect(fetch.mock.calls[2]?.[0]).toBe("https://example.com/a.ico");
-      expect((await siteIconFor("example.com", "dark", d))?.type).toBe(
-        "image/png",
-      );
-    },
-  );
-
-  it("is kept apart for each theme, and stands in for the other where it can be seen", async () => {
-    const fetch = proxyAnswering(svgOf("white ink"), svgOf("dark ink"));
-    const d = deps(fetch);
-    await rememberPageIcon(page, d);
-
-    expect(await textFor(d, "light")).toBe("white ink");
-    await rememberPageIcon(
-      { ...page, iconUrls: ["https://example.com/b.svg"], theme: "light" },
-      d,
-    );
-    expect(await textFor(d, "light")).toBe("dark ink");
-    expect(await textFor(d, "dark")).toBe("white ink");
-  });
-
-  it("is the front page's once that is opened, whichever page named one first", async () => {
-    const fetch = proxyAnswering(svgOf("first"), svgOf("front"));
-    const d = deps(fetch);
-    const at = (pageUrl: string, name: string) =>
-      rememberPageIcon(
-        { ...page, iconUrls: [`https://example.com/${name}.svg`], pageUrl },
-        d,
-      );
-
-    expect(await at("https://example.com/sheets", "sheets")).toBe(true);
-    expect(await at("https://example.com/docs", "docs")).toBe(false);
-    expect(await at("https://example.com/", "front")).toBe(true);
-    expect(await at("https://example.com/docs", "docs")).toBe(false);
-    expect(await textFor(d, "dark")).toBe("front");
   });
 });

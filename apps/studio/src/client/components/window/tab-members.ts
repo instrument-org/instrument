@@ -8,7 +8,8 @@ import { type GroupOwn, groupLayoutOf, type WindowTabs } from "./tab-model";
  * The tabs as they are kept: a group at a time, each a member of the kept
  * file under its own id, in the shape the agent reads a group in. Its
  * sides, each its tabs in strip order and the one up, which side has the
- * keyboard, and its own pin, project and share. A tab keeps neither its
+ * keyboard, and its own pin, project, share and when it
+ * last came up. A tab keeps neither its
  * group nor its side, which the member says. Whoever keeps the tabs splits
  * them into members to write and joins the members to read, the main
  * process and a window alike.
@@ -16,10 +17,15 @@ import { type GroupOwn, groupLayoutOf, type WindowTabs } from "./tab-model";
 
 /** A kept group's shape; its tabs' own fields are the tab model's. */
 const TabGroupMemberSchema = z.object({
+  chatSide: z
+    .union([z.literal(0), z.literal(1)])
+    .optional()
+    .catch(undefined),
   focused: z.number().int().min(0),
   pinned: z.boolean().optional(),
   project: z.string().optional(),
   share: z.number().optional(),
+  shownAt: z.number().optional(),
   sides: z
     .array(
       z.object({
@@ -29,6 +35,12 @@ const TabGroupMemberSchema = z.object({
     )
     .min(1),
 });
+
+/**
+ * The share an earlier build kept on a group whose split an agent's page
+ * made, on the left, read as a chat's side rather than as the person's share.
+ */
+const EARLIER_CHAT_SHARE = 0.38;
 
 /** A tab as a member keeps it, without its group or side. */
 type KeptTab = Omit<WindowTab, "group" | "side">;
@@ -111,10 +123,17 @@ export function joinTabGroups(members: Map<string, unknown>): WindowTabs {
     if (other?.up !== undefined) {
       besideByGroup[group] = other.up;
     }
+    const isEarlier = member.share === EARLIER_CHAT_SHARE;
+    const chatSide =
+      member.chatSide ?? (isEarlier && member.sides.length > 1 ? 0 : undefined);
     const own: GroupOwn = {
+      ...(chatSide === undefined ? {} : { chatSide }),
       ...(member.pinned === true ? { pinned: true } : {}),
       ...(member.project === undefined ? {} : { project: member.project }),
-      ...(member.share === undefined ? {} : { share: member.share }),
+      ...(member.share === undefined || isEarlier
+        ? {}
+        : { share: member.share }),
+      ...(member.shownAt === undefined ? {} : { shownAt: member.shownAt }),
     };
     if (Object.keys(own).length > 0) {
       groups[group] = own;

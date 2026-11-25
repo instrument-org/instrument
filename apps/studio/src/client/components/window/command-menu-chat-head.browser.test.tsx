@@ -119,6 +119,7 @@ async function renderChatWithMenu() {
         chat={CHAT}
         onDeleted={() => undefined}
         onNewProject={() => undefined}
+        onOpenPage={() => undefined}
         onSetProject={() => undefined}
         projects={[HOUSE]}
       />
@@ -133,7 +134,7 @@ async function renderChatWithMenu() {
   );
   await userEvent.click(page.getByRole("textbox", { name: "Reply" }));
   store.set(commandMenuOpenAtom, true);
-  await expect.element(page.getByText("This chat")).toBeVisible();
+  await expect.element(page.getByText("Actions for this chat")).toBeVisible();
 }
 
 // The menu adds no control of its own for a chat: each of these happens in

@@ -1,3 +1,4 @@
+import { ChatAskIcon } from "@/client/components/icons/chat-ask-icon";
 import { type WindowTab } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
 import {
@@ -19,6 +20,7 @@ import { useAtomValue } from "jotai";
 import { type ReactNode, useRef, useState } from "react";
 
 import { tabTooltip } from "./app-tab-strip";
+import { useProjectsById } from "./projects-by-id";
 import { useAppsBySlug } from "./apps-by-slug";
 import {
   ChatTabItems,
@@ -26,7 +28,7 @@ import {
   DraftTabItems,
 } from "./chat-tab-menu";
 import { chatListOptions } from "./chat-list-query";
-import { chatDotOf, ChatMarkIcon } from "./chat-mark";
+import { chatDotOf, ChatMarkIcon, isAsking } from "./chat-mark";
 import { type Chat } from "./chats";
 import { useTasksOf } from "./child-tasks-query";
 import { useComputerVolumes } from "./computer-volumes";
@@ -121,6 +123,7 @@ export function PaneTabs({
   trailing?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
+  const projects = useProjectsById();
   // The chat whose versions of a file a tab may have up: the one its group
   // has up, as the tab's row reads it.
   const { chatUpIn } = useWindowTabs();
@@ -170,6 +173,7 @@ export function PaneTabs({
         appsBySlug,
         chatTitles,
         ...(fileTitles ? { fileTitles } : {}),
+        projects,
         taskTitles,
         ...(volumes ? { volumes } : {}),
       }).title,
@@ -221,19 +225,25 @@ export function PaneTabs({
               : chatDotOf(listed)
           }
           icon={
-            <ScreenMark
-              appsBySlug={appsBySlug}
-              chatId={tab.group === undefined ? undefined : chatUpIn(tab.group)}
-              chatTitles={chatTitles}
-              href={tab.href}
-            />
+            isAsking(listed) ? (
+              <ChatAskIcon className="size-3.5 shrink-0" />
+            ) : (
+              <ScreenMark
+                appsBySlug={appsBySlug}
+                chatId={
+                  tab.group === undefined ? undefined : chatUpIn(tab.group)
+                }
+                chatTitles={chatTitles}
+                href={tab.href}
+              />
+            )
           }
         />
       );
     }
     // A chat or a task at work shimmers its tab's name, as a page its agent
     // is using does, and its mark with it, the tab up included. A chat with
-    // a question waiting is not at work: its dot says so instead.
+    // a question waiting is not at work: its bubble asks instead.
     const task = taskOf(tab);
     const isScreenWorking =
       listed?.status === "working" ||
@@ -577,6 +587,7 @@ export function ScreenMark({
   chatTitles: Presentation["chatTitles"];
   href: string;
 }) {
+  const projects = useProjectsById();
   const location = screenLocation(href, { appsBySlug, chatTitles });
   if (location.kind === "file") {
     const icon = <FileTypeIcon className="size-3.5" fileName={location.name} />;
@@ -593,5 +604,5 @@ export function ScreenMark({
   if (location.kind === "folder") {
     return <FileSystemFolderGlyph className="h-3 w-auto" />;
   }
-  return screenPresentation(href, { appsBySlug, chatTitles }).icon;
+  return screenPresentation(href, { appsBySlug, chatTitles, projects }).icon;
 }

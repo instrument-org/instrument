@@ -1,4 +1,5 @@
 import { applyThemeClass } from "@/client/lib/initial-theme";
+import { setSearchEngine } from "@/client/lib/resolve-url-or-search";
 import { rpcClient } from "@/client/rpc/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { createContext, useContext, useEffect, useState } from "react";
@@ -32,6 +33,13 @@ export function ThemeProvider({
   const setThemeMutation = useMutation(
     rpcClient.preferences.setTheme.mutationOptions(),
   );
+
+  const searchEngine = preferences?.searchEngine;
+  useEffect(() => {
+    if (searchEngine) {
+      setSearchEngine(searchEngine);
+    }
+  }, [searchEngine]);
 
   const theme = preferences?.theme || defaultTheme;
 

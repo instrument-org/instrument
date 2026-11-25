@@ -39,6 +39,7 @@ import {
 } from "@/client/lib/locate-typed-path";
 import { type TypedPath } from "@/client/lib/typed-path";
 import { projectCommand } from "@/client/lib/app-commands";
+import { webSearchUrl } from "@/client/lib/resolve-url-or-search";
 import { toast } from "@/client/lib/toast";
 import { targetOfAddress } from "@/client/bookmarks/address";
 import { hrefOfTarget } from "@/client/bookmarks/open-address";
@@ -73,6 +74,7 @@ import {
   type BoxOpens,
   boxPageRows,
   type BoxPageRow,
+  boxSearchWords,
   siteToComplete,
 } from "./new-tab-box";
 import { NewTabPageList } from "./new-tab-page-list";
@@ -318,12 +320,12 @@ export function NewChatView({
   // typed to go there is no draft (`takeBackWords`); anything else in it is a message, which Return sends. The
   // command key with Return always sends.
   const groupTab = useGroupTab();
-  const { keyJoiner, modifierKeys } = osConventions();
-  const commandEnter = [modifierKeys.command, "↵"].join(keyJoiner);
   // The words the person typed, and after them the rest of a site's address
   // the box wrote in after the caret (`ahead`), which is in the box and is
   // not theirs.
   const [words, setWords] = useState("");
+  // Whether the words fit on one line of the box, as of their last change.
+  const [isOneLine, setOneLine] = useState(true);
   const [ahead, setAhead] = useState<{ rest: string; url: string }>();
   // Whether the last key pressed in the box was a letter typed.
   const letterTyped = useRef(false);
@@ -360,6 +362,7 @@ export function NewChatView({
       next.startsWith(words);
     letterTyped.current = false;
     setWords(next);
+    setOneLine(inputRef.current?.isOneLine() ?? true);
     const site =
       isTypedOn && groupTab !== undefined && typedPathHere(next) === undefined
         ? siteToComplete(next, completable)
@@ -374,8 +377,8 @@ export function NewChatView({
     groupTab === undefined
       ? undefined
       : boxOpens({ completedSite: ahead?.url, path: typedPath, words });
-  // The pages under the box while it holds one word, until Escape puts them
-  // away for these words or the box is emptied.
+  // The list under the box, until Escape puts it away for these words or the
+  // box is emptied.
   const [isListPutAway, setListPutAway] = useState(false);
   if (isListPutAway && words === "") {
     setListPutAway(false);
@@ -392,18 +395,20 @@ export function NewChatView({
           path: typedPath,
           words,
         });
-  // The row Return opens: the one the arrows moved to for these words, or
-  // the finished site's own row while its rest is in the box; -1 is the box.
+  // The words as a web search, the list's last row while they fit on one line.
+  const searchWords =
+    groupTab === undefined || isListPutAway || !isOneLine
+      ? undefined
+      : boxSearchWords(words, typedPath);
+  const rowCount = pageRows.length + (searchWords === undefined ? 0 : 1);
+  // The row the arrows moved to for these words. No row is lit until Down
+  // goes into the list; -1 is the box, where Return does what Send shows.
   const [litFor, setLitFor] = useState<{ index: number; words: string }>();
-  const lowest = ahead === undefined ? -1 : 0;
   const lit =
-    litFor?.words === words && litFor.index < pageRows.length
-      ? Math.max(litFor.index, lowest)
-      : lowest;
+    litFor?.words === words && litFor.index < rowCount ? litFor.index : -1;
   const light = (index: number) => {
     setLitFor({ index, words });
   };
-  const litRow = pageRows[lit];
   /**
    * The words taken out of the box as they open a place, with the draft they
    * made: an address is not something to send later. A draft holding more
@@ -465,6 +470,20 @@ export function NewChatView({
   };
   const openRow = (row: BoxPageRow) => {
     openAddress(row.page.url);
+  };
+  const searchWeb = () => {
+    if (searchWords !== undefined) {
+      takeBackWords();
+      groupTab?.showPage(webSearchUrl(searchWords));
+    }
+  };
+  const openLit = () => {
+    const row = pageRows[lit];
+    if (row) {
+      openRow(row);
+    } else {
+      searchWeb();
+    }
   };
   const places = {
     computerName: osConventions().computer,
@@ -563,16 +582,27 @@ export function NewChatView({
             !event.ctrlKey &&
             !event.shiftKey &&
             !event.nativeEvent.isComposing;
-          if (pageRows.length > 0 && isPlain) {
-            if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+          if (rowCount > 0 && isPlain) {
+            // Down and Up move the caret until it stands at the end of the
+            // words, where Down goes into the list.
+            if (
+              event.key === "ArrowDown" &&
+              (lit >= 0 || inputRef.current?.isCaretAtEnd())
+            ) {
               event.preventDefault();
               event.stopPropagation();
-              light(
-                event.key === "ArrowDown"
-                  ? Math.min(lit + 1, pageRows.length - 1)
-                  : Math.max(lit - 1, lowest),
-              );
+              light(Math.min(lit + 1, rowCount - 1));
               return;
+            }
+            if (event.key === "ArrowUp" && lit >= 0) {
+              event.preventDefault();
+              event.stopPropagation();
+              light(lit - 1);
+              return;
+            }
+            // A key that moves the caret is back in the box.
+            if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+              light(-1);
             }
             if (event.key === "Escape") {
               event.preventDefault();
@@ -580,10 +610,10 @@ export function NewChatView({
               setListPutAway(true);
               return;
             }
-            if (event.key === "Enter" && litRow) {
+            if (event.key === "Enter" && lit >= 0) {
               event.preventDefault();
               event.stopPropagation();
-              openRow(litRow);
+              openLit();
               return;
             }
           }
@@ -614,27 +644,14 @@ export function NewChatView({
           autoFocus={takesCaret}
           commands={commands}
           draftKey={key}
-          hasAttachmentsLead={
-            markedCount > 0 || draftLinksOf(draft).length > 0
-          }
+          hasAttachmentsLead={markedCount > 0 || draftLinksOf(draft).length > 0}
           isLoading={false}
           keyboardHome
-          besidePlus={
-            <>
-              {projectButton}
-              {(opens !== undefined || litRow !== undefined) && (
-                <span className="text-xs whitespace-nowrap text-muted-foreground">
-                  {commandEnter} sends to chat
-                </span>
-              )}
-            </>
-          }
+          besidePlus={projectButton}
           modelURI={shell.defaultModelURI}
           onGo={
-            litRow !== undefined
-              ? () => {
-                  openRow(litRow);
-                }
+            lit >= 0
+              ? openLit
               : opens === undefined
                 ? undefined
                 : () => {
@@ -693,16 +710,17 @@ export function NewChatView({
         />
         {/* Under the box without moving it, so the box stays where it was
             as the list comes and goes; over it for a box at the foot. */}
-        {pageRows.length > 0 && (
+        {rowCount > 0 && (
           <NewTabPageList
             className={cn(
               "absolute inset-x-3",
               isCentered ? "top-full mt-2" : "bottom-full mb-2",
             )}
             lit={lit}
-            onLight={light}
             onOpen={openRow}
+            onSearch={searchWeb}
             rows={pageRows}
+            searchWords={searchWords}
           />
         )}
       </div>

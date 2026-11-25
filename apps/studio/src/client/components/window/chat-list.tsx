@@ -331,10 +331,8 @@ export function ChatList({
     overscan: 8,
   });
   // The mounted rows stay siblings in the flow, with the height of the rows
-  // above and below them standing in as spacers: a row draws its hairline
-  // against the row before it, drops it as the first, and hides it beside a
-  // hovered or open row, all through sibling selectors a wrapper per row
-  // would break.
+  // above and below them standing in as spacers: a row is measured and
+  // focused as a child of the list.
   const listRef = useRef<HTMLDivElement>(null);
   const items = virtualizer.getVirtualItems();
   const before = items[0]?.start ?? 0;
@@ -396,8 +394,7 @@ export function ChatList({
   );
   return (
     // Fading into the head over it once there is anything scrolled under
-    // it, and at its foot while there is more below. No pad at the top: the
-    // first row's hairline meets the head, tinted as it is under a project.
+    // it, and at its foot while there is more below.
     <div
       className={cn(
         "min-h-0 flex-1 overflow-y-auto pb-4",
@@ -470,7 +467,11 @@ export function ChatList({
     >
       {listedRows.length === 0 && outsideChats.length === 0 ? (
         isLoading ? (
-          <div aria-busy className="h-full overflow-hidden" role="status">
+          <div
+            aria-busy
+            className="mx-auto h-full w-full max-w-170 overflow-hidden px-4"
+            role="status"
+          >
             {Array.from({ length: SKELETON_ROWS }, (_, index) => {
               const [title, peek] =
                 SKELETON_WIDTHS[index % SKELETON_WIDTHS.length] ??
@@ -482,7 +483,7 @@ export function ChatList({
           // In the middle of the list's room, a touch above center where
           // the eye expects it, under the plate No chat open draws its mark
           // on, smaller here.
-          <div className="flex h-full flex-col">
+          <div className="mx-auto flex h-full w-full max-w-170 flex-col px-4">
             {head?.node}
             <div className="grid flex-1 place-items-center px-8 pb-16">
               <div className="flex flex-col items-center text-center text-[13px]">
@@ -501,10 +502,9 @@ export function ChatList({
           </div>
         )
       ) : (
-        // Edge to edge, as the open row's bar and the hover tint are: each
-        // row pads its words in by 16px, a step inside the 8px line the
-        // search and the filters stand on.
-        <div ref={listRef}>
+        // The list scrolls across the whole page, its rows in the column the
+        // head over it stands in.
+        <div className="mx-auto w-full max-w-170 px-4" ref={listRef}>
           {before > 0 && (
             <div aria-hidden data-spacer style={{ height: before }} />
           )}
@@ -533,7 +533,7 @@ export function ChatList({
 /** A line over the rows after it: the chats under the projects, a day, what lies outside the filter. */
 function ListHeading({ text }: { text: string }) {
   return (
-    <p className="px-4 pt-3 pb-1.5 text-xs font-medium text-muted-foreground">
+    <p className="px-3 pt-3 pb-1.5 text-xs font-medium text-muted-foreground">
       {text}
     </p>
   );
@@ -573,7 +573,7 @@ function focusComposerWhenDrawn() {
  */
 function RowSkeleton({ peek, title }: { peek: string; title: string }) {
   return (
-    <div className="border-t border-border/70 px-4 py-2.5">
+    <div className="px-3 py-2.5">
       <div className="flex h-5 items-center">
         <Skeleton className="h-3" style={{ width: title }} />
       </div>

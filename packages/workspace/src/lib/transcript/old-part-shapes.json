@@ -540,6 +540,20 @@
     "type": "data-fileVersions"
   },
   {
+    "type": "data-linkedTabs",
+    "data": {
+      "tabs": [
+        {
+          "id": "tab_01ARZ3NDEKTSV4RRFFQ69G5FAV",
+          "title": "Returns",
+          "url": "https://shop.test/returns"
+        }
+      ]
+    },
+    "note": "as written on 2026-11-25",
+    "reads": "data-linkedTabs"
+  },
+  {
     "data": {
       "file": "AGENTS.md",
       "instructions": "Sample words."

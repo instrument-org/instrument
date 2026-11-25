@@ -4,6 +4,7 @@ import { type AIGatewayModelURI } from "@instrument-org/ai-gateway/client";
 import {
   type CardFileVersion,
   cardFileVersions,
+  linkedTabsOf,
   type ChatId,
   type StoreId,
   type TranscriptMessage,
@@ -40,6 +41,7 @@ import {
   TranscriptActionsContext,
 } from "./transcript-actions";
 import { CardFileVersionsContext } from "./card-file-versions-context";
+import { LinkedTabsContext } from "./linked-tabs-context";
 import { useIsCardAway } from "./transcript-data";
 import { TurnView } from "./turn-view";
 
@@ -121,27 +123,29 @@ export function Transcript({
     !isRunning && last?.replies.at(-1)?.metadata.finishReason === "max-steps";
   const drawTurn = (turn: Turn) => (
     <CardFileVersionsContext key={turn.id} value={turnVersions(versions, turn)}>
-      <TurnView
-        chatId={chatId}
-        changes={turn.opener && changes.get(turn.opener.message.id)}
-        hasCard={turn.id === cardTurn}
-        isCardAway={turn.id === cardTurn && isCardAway}
-        isFaded={
-          editedAt === -1 || turns.indexOf(turn) < editedAt
-            ? undefined
-            : turns[editedAt] === turn
-              ? "work"
-              : "all"
-        }
-        isLast={turn === last}
+      <LinkedTabsContext value={linkedTabsOf(turn.replies)}>
+        <TurnView
+          chatId={chatId}
+          changes={turn.opener && changes.get(turn.opener.message.id)}
+          hasCard={turn.id === cardTurn}
+          isCardAway={turn.id === cardTurn && isCardAway}
+          isFaded={
+            editedAt === -1 || turns.indexOf(turn) < editedAt
+              ? undefined
+              : turns[editedAt] === turn
+                ? "work"
+                : "all"
+          }
+          isLast={turn === last}
 
-        carriesOn={replies.carriedOn.has(turn.id)}
-        replyEnd={replies.ends.get(turn.id)}
-        separator={turn.opener && separators.get(turn.opener.message.id)}
-        sessionId={sessionId}
-        turn={turn}
-        waitsForStep={turn === last && waitsForStep(turns)}
-      />
+          carriesOn={replies.carriedOn.has(turn.id)}
+          replyEnd={replies.ends.get(turn.id)}
+          separator={turn.opener && separators.get(turn.opener.message.id)}
+          sessionId={sessionId}
+          turn={turn}
+          waitsForStep={turn === last && waitsForStep(turns)}
+        />
+      </LinkedTabsContext>
     </CardFileVersionsContext>
   );
   return (

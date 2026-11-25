@@ -6,8 +6,9 @@ import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { type ToldApps } from "../schemas/told";
-import { isConnected } from "./apps/connection";
-import { appFingerprint, listApps } from "./apps/store";
+import { type AppConnection, isConnected } from "./apps/connection";
+import { signsInDirectly } from "./apps/site";
+import { type AppInfo, appFingerprint, listApps } from "./apps/store";
 import { ChatReads } from "./chat-reads";
 import { baselineRecorded, partsAfter } from "./last-told";
 import { getWorkspaceConfig } from "./workspace-config";
@@ -27,12 +28,19 @@ export async function currentChatApps(): Promise<ToldApps> {
             device: deviceId,
             fingerprint: await appFingerprint(app.slug),
             name: app.name,
+            ...signedInFromOf(app, connections[app.slug]),
             ...(app.manifest.type === "web" ? { web: app.manifest.url } : {}),
           },
         ],
       ),
     ),
   );
+}
+
+function signedInFromOf(app: AppInfo, connection: AppConnection | undefined) {
+  return signsInDirectly(app.manifest) && connection?.signedInFrom
+    ? { signedInFrom: connection.signedInFrom }
+    : {};
 }
 
 /**
@@ -226,6 +234,7 @@ export function appEventsBetween(
       events.push({
         event: "connected",
         name: now.name,
+        ...(now.signedInFrom ? { signedInFrom: now.signedInFrom } : {}),
         slug,
         ...(now.web ? { web: now.web } : {}),
       });

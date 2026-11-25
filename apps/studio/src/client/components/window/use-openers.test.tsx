@@ -416,6 +416,37 @@ describe("an agent and the window's other tab groups", () => {
     ]);
   });
 
+  it("lists pinned groups first, with each group's pin, project and last showing", async () => {
+    const { result } = windowOnTwoSides();
+    act(() => {
+      result.current.windowTabs.setGroupOwn(OTHER_GROUP, {
+        pinned: true,
+        project: "project_launch",
+        shownAt: 5000,
+      });
+    });
+    const answer = await answerTo({ kind: "list" }, "l2");
+    const windows = (answer as { windows?: unknown }).windows as {
+      groups: Record<string, unknown>[];
+    }[];
+    expect(
+      windows[0]?.groups.map(({ group, pinned, project, shownAt }) => ({
+        group,
+        pinned,
+        project,
+        shownAt,
+      })),
+    ).toEqual([
+      {
+        group: { id: OTHER_GROUP },
+        pinned: true,
+        project: "project_launch",
+        shownAt: 5000,
+      },
+      { group: { id: GROUP } },
+    ]);
+  });
+
   it("switches the window to a group by its id", async () => {
     windowOnTwoSides();
     await answerTo({ group: OTHER_GROUP, kind: "showGroup" }, "g1");
@@ -546,21 +577,46 @@ describe("a link to a tab group or a tab", () => {
     );
   });
 
-  it("offers to reopen a closed group from the closed list", () => {
+  it("reopens a closed group from the closed list", () => {
     windowOnTwoSides();
     spies.closedEntry.current = "entry_1";
     act(() => {
       openLinkAddress("/tab-groups/group_closed");
     });
-    expect(spies.toast).toHaveBeenCalledWith("That tab group is closed", {
-      action: { label: "Reopen", onClick: expect.any(Function) },
-    });
-    const [, options] = spies.toast.mock.calls[0] as [
-      string,
-      { action: { onClick: () => void } },
-    ];
-    options.action.onClick();
     expect(spies.reopenClosed).toHaveBeenCalledWith("entry_1");
+    expect(spies.toast).not.toHaveBeenCalled();
+  });
+
+  it("reopens a closed tab, then brings it up by the id the link has", () => {
+    const { result } = windowOnTwoSides();
+    spies.closedEntry.current = "entry_1";
+    spies.showGroup.mockClear();
+    act(() => {
+      openLinkAddress("/window-tabs/tab_before");
+    });
+    expect(spies.reopenClosed).toHaveBeenCalledWith("entry_1");
+    expect(spies.showGroup).not.toHaveBeenCalled();
+    act(() => {
+      result.current.seed({
+        activeByGroup: { [GROUP]: CHAT_TAB, [OTHER_GROUP]: OTHER_UP },
+        besideByGroup: { [GROUP]: RIGHT_UP },
+        groups: {},
+        tabs: result.current.windowTabs.allTabs.map((tab) =>
+          tab.id === OTHER_BEHIND
+            ? { ...tab, reopenedFrom: ["tab_before"] }
+            : tab,
+        ),
+      });
+    });
+    expect(spies.showGroup).toHaveBeenCalledWith(OTHER_GROUP);
+    expect(result.current.windowTabs.layoutOf(OTHER_GROUP).sides[0]?.up).toBe(
+      OTHER_BEHIND,
+    );
+    spies.closedEntry.current = undefined;
+    act(() => {
+      openLinkAddress("/window-tabs/tab_before");
+    });
+    expect(spies.toast).not.toHaveBeenCalled();
   });
 
   it("says a tab no closed list has is gone", () => {
@@ -596,6 +652,50 @@ describe("an agent tidying tabs and reading History", () => {
       "v1",
     );
     expect(spies.moveTabs).toHaveBeenCalledWith([LEFT_PAGE], OTHER_GROUP);
+  });
+
+  it("pins and unpins a group", async () => {
+    const { result } = windowOnTwoSides();
+    for (const pinned of [true, false]) {
+      await answerTo(
+        { group: OTHER_GROUP, kind: "pinGroup", pinned },
+        `pin-${String(pinned)}`,
+      );
+      expect(result.current.windowTabs.groupOwn[OTHER_GROUP]?.pinned).toBe(
+        pinned ? true : undefined,
+      );
+    }
+    expect(
+      await answerTo(
+        { group: "group_gone", kind: "pinGroup", pinned: true },
+        "pin-gone",
+      ),
+    ).toEqual({
+      error: "no tab group group_gone is open.",
+      requestId: "pin-gone",
+    });
+  });
+
+  it("places a group beside another in the sidebar, and refuses one listed apart", async () => {
+    const { result, store } = windowOnTwoSides();
+    const place = (requestId: string) =>
+      answerTo(
+        {
+          anchor: GROUP,
+          group: OTHER_GROUP,
+          kind: "placeGroup",
+          where: "before",
+        },
+        requestId,
+      );
+    await place("place-1");
+    expect(store.get(windowTabGroupsAtom)).toEqual([OTHER_GROUP, GROUP]);
+    act(() => {
+      result.current.windowTabs.setGroupOwn(GROUP, { pinned: true });
+    });
+    expect(await place("place-2")).toMatchObject({
+      error: expect.stringContaining("pin or unpin one first"),
+    });
   });
 
   it("lists a closed group by the id its reopen takes, and reopens it", async () => {

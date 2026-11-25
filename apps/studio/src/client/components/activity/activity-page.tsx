@@ -55,6 +55,7 @@ import {
   dropdownMenuComponents,
   type MenuComponents,
 } from "@/client/components/ui/menu-components";
+import { useFindTarget } from "@/client/hooks/use-find-target";
 import { SearchField } from "@/client/components/window/search-field";
 import {
   refreshWhileShown,
@@ -85,7 +86,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { type KeyboardEvent, useEffect, useState } from "react";
+import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 /** How many of each log one read takes. */
 const PAGE_SIZE = 200;
@@ -404,6 +405,14 @@ export function ActivityPage({
     isMixed && terms.length === 0 && closedGroups.length > 0 ? (
       <RecentlyClosedCards groups={closedGroups} />
     ) : null;
+  const searchRef = useRef<HTMLInputElement>(null);
+  useFindTarget({
+    anchor: searchRef,
+    openFind: () => {
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    },
+  });
   // The list of kinds folds to pills over the rows, and the details come up
   // from the bottom, by the room each has.
   const [frame, setFrame] = useState<HTMLDivElement | null>(null);
@@ -435,6 +444,7 @@ export function ActivityPage({
   return (
     <div
       className="@container/activity flex h-full min-h-0 flex-col bg-background"
+      data-find-surface
       ref={setFrame}
     >
       {/* One bar: the page's name, its search, and its menu. */}
@@ -480,6 +490,8 @@ export function ActivityPage({
           >
             <div className="flex w-64 max-w-full">
               <SearchField
+                chord="findInPage"
+                inputRef={searchRef}
                 onChange={(value) => {
                   narrow({ q: value });
                 }}

@@ -704,7 +704,7 @@ async function openTabsOf({
     if (!browser.getTargetMeta(id)) {
       continue;
     }
-    const url = browser.getTargetUrl(id);
+    const url = browser.getTargetAddress(id);
     tabs.push({
       id,
       ...(url === undefined

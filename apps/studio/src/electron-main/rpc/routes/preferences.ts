@@ -33,6 +33,7 @@ import {
   type FavoriteChanges,
   removeFavorite,
 } from "@/shared/favorite-places";
+import { SearchEngineIdSchema } from "@/shared/search-engines";
 import {
   offersAnyPlatformApiServer,
   PlatformApiServerSchema,
@@ -144,6 +145,20 @@ const setSuggestNextMessage = base
   .input(z.object({ enabled: z.boolean() }))
   .handler(({ input }) => {
     getWorkspacePreferences().set("suggestNextMessage", input.enabled);
+  });
+
+/** Where words typed into the address field are searched. */
+const setSearchEngine = base
+  .input(z.object({ engine: SearchEngineIdSchema }))
+  .handler(({ input }) => {
+    getWorkspacePreferences().set("searchEngine", input.engine);
+  });
+
+/** Whether the search engine suggests searches as words are typed. */
+const setSuggestSearches = base
+  .input(z.object({ enabled: z.boolean() }))
+  .handler(({ input }) => {
+    getWorkspacePreferences().set("suggestSearches", input.enabled);
   });
 
 /** Whether the app keeps a history of what the person does in it. */
@@ -298,7 +313,9 @@ export const preferences = {
   setKeepHistory,
   setShareActionsWithChats,
   setShowBookmarksBar,
+  setSearchEngine,
   setSuggestNextMessage,
+  setSuggestSearches,
   setTheme,
   removeFavoritePlace,
 };

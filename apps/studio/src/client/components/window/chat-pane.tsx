@@ -19,9 +19,7 @@ import {
   type ChatFilters,
   draftTitle,
   hasWords,
-  inPlace,
   matchesFilters,
-  NO_FILTERS,
   outsideFilters,
   type Project,
 } from "./chats";
@@ -44,9 +42,8 @@ import { backfillCandidates } from "./use-project-backfill";
  * chat can be. Nothing is composed here: New in the rail opens a new chat,
  * and the chat it starts lands at the top of the list; a draft saved and left
  * is a row of the Drafts place, which lists the drafts where the chats
- * otherwise go. In the inbox the projects stand above the chats, and
- * stepping into one makes the list that project, under its own head, in its
- * tint.
+ * otherwise go. In the inbox the projects stand above the chats, each opening
+ * its page, where the list is that project, under its own head, in its tint.
  */
 export function ChatPane({
   arrivedId,
@@ -57,6 +54,7 @@ export function ChatPane({
   onListed,
   onOpenChat,
   onOpenDraft,
+  onOpenProject,
   openChatId,
 }: {
   /** The chat that just started from a draft, whose row arrives with a motion of its own. */
@@ -74,6 +72,8 @@ export function ChatPane({
   onOpenChat: (chat: Chat) => void;
   /** Opens a draft to go on writing it. */
   onOpenDraft: (id: string) => void;
+  /** Opens a project's page, this list standing in it. */
+  onOpenProject: (id: string) => void;
   /** The chat open beside the list, if one is. */
   openChatId: string | undefined;
 }) {
@@ -105,10 +105,6 @@ export function ChatPane({
   const [filters, setFilters] = useAtom(
     tabChatFiltersAtom(useGroupTab()?.id ?? ""),
   );
-  /** The list standing in one project, under its own head, in its tint. */
-  const enterProject = (projectId: string) => {
-    setFilters({ ...NO_FILTERS, projects: [projectId] });
-  };
   const density = useAtomValue(rowDensityAtom);
   const groupByDay = useAtomValue(groupByDayAtom);
   // A change of filter is a change of subject, and the newest of the new
@@ -217,13 +213,6 @@ export function ChatPane({
   // project or back out of one.
   const shiftRef = useRef<HTMLDivElement>(null);
   useProjectShift(shiftRef, chosenProject?.id);
-  // The wash keeps the last project's color while it fades out, since the
-  // column's own tint goes the moment the list leaves.
-  const [lastProject, setLastProject] = useState<Project>();
-  if (chosenProject && chosenProject !== lastProject) {
-    setLastProject(chosenProject);
-  }
-  const washProject = chosenProject ?? lastProject;
 
   // Whether the new-project dialog is up, and for which chat when a row
   // opened it: a project made from a row is filed on that chat as it lands,
@@ -240,47 +229,26 @@ export function ChatPane({
   const deletingChat = chats.find((chat) => chat.id === deletingId);
 
   return (
-    // Its own stacking context, so the project's wash can sit under the rows
-    // without going under the card. The rows stop a pixel short of the
-    // column's edge, where its line is drawn over them, so two see-through
-    // hairlines never cross; the wash, placed against the padding box,
-    // still reaches under the line.
     <div
       className={cn(
-        "relative isolate flex h-full min-h-0 min-w-0 flex-col pr-px",
+        "flex h-full min-h-0 min-w-0 flex-col pt-3",
         chosenProject && "project-tint",
       )}
-      data-project={chosenProject ? "" : undefined}
       style={
         chosenProject ? projectTint(projectColor(chosenProject)) : undefined
       }
     >
-      {/* While the list is one project, its tint washes down from the
-          card's edge and fades out past the head, behind the first rows;
-          sized against the whole column, so a taller window washes further
-          down it. */}
-      {washProject && (
-        <div
-          aria-hidden
-          className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--project-tint-surface)/50 to-transparent transition-opacity duration-300 ease-out project-tint motion-reduce:transition-none dark:from-(--project-tint-surface)/25 starting:opacity-0",
-            !chosenProject && "opacity-0",
-          )}
-          style={projectTint(projectColor(washProject))}
-        />
-      )}
       <div className="flex min-h-0 flex-1 flex-col" ref={shiftRef}>
-        <FilterHead
-          chats={chats}
-          filters={filters}
-          onFiltersChange={setFilters}
-          onLeaveProject={() => {
-            setFilters((current) => inPlace(current, undefined));
-          }}
-          project={chosenProject}
-        />
+        <div className="mx-auto w-full max-w-170 px-4">
+          <FilterHead
+            chats={chats}
+            filters={filters}
+            onFiltersChange={setFilters}
+            project={chosenProject}
+          />
+        </div>
         {isAISearch && (
-          <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+          <p className="mx-auto w-full max-w-170 shrink-0 px-7 pt-2 pb-1 text-xs font-medium text-muted-foreground">
             AI results
           </p>
         )}
@@ -314,7 +282,7 @@ export function ChatPane({
                       <ProjectsSection
                         chats={chats}
                         onChoose={(project) => {
-                          enterProject(project.id);
+                          onOpenProject(project.id);
                         }}
                         onDetails={(project) => {
                           openProjectDetails(project.id);
@@ -396,7 +364,7 @@ export function ChatPane({
                 setChatProject(forChat.id, created.id);
                 return;
               }
-              enterProject(created.id);
+              onOpenProject(created.id);
             },
           });
         }}

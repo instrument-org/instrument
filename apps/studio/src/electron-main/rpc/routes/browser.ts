@@ -38,8 +38,10 @@ import {
   keepOnlyPageThumbnails,
   readPageThumbnail,
 } from "@/electron-main/browser-view/page-thumbnails";
+import { suggestSearches } from "@/electron-main/browser-view/search-engine";
 import { siteIconDeps } from "@/electron-main/lib/app-protocol";
 import { rememberPageIcon as keepPageIcon } from "@/electron-main/lib/site-icons";
+import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { type BrowserGuestTarget } from "@/shared/browser";
@@ -327,9 +329,8 @@ const setEmulatedDevice = base
   });
 
 /**
- * A browser tab's page named its own icons: an SVG is kept for its site over
- * the favicon proxy's, and any other when the proxy has none, so a site the
- * person opened draws its real mark everywhere.
+ * A browser tab's page named its own icons: one is kept for a site the icon
+ * service has none for, so a site the person opened draws its mark everywhere.
  */
 const rememberPageIcon = base
   .input(z.object({ iconUrls: z.array(z.string()), pageUrl: z.string() }))
@@ -542,49 +543,26 @@ const lastLoad = base
   .input(z.object({ targetId: BrowserTargetIdSchema }))
   .handler(({ input }) => getBrowserViewManager().lastLoadOf(input.targetId));
 
-/** The engine's answer: the words asked about, then what it would finish them as. */
-const SuggestionsSchema = z.tuple(
-  [z.string(), z.array(z.string())],
-  z.unknown(),
-);
-
 /**
- * What the search engine would finish words typed into the address field as,
- * asked the way a browser's own field asks it. From here rather than the
- * renderer, whose page policy keeps every request at home. A slow or failed
- * answer is no suggestions: the field still searches for what was typed.
+ * What the search engine would finish words typed into the address field as.
+ * From here rather than the renderer, whose page policy keeps every request
+ * at home.
  */
 const searchSuggestions = base
   .input(z.object({ query: z.string().min(1).max(200) }))
   .output(z.array(z.string()))
-  .handler(async ({ input, signal }) => {
-    const url = new URL("https://duckduckgo.com/ac/");
-    url.searchParams.set("kl", duckDuckGoRegion(app.getLocale()));
-    url.searchParams.set("q", input.query);
-    url.searchParams.set("type", "list");
-    const timeout = AbortSignal.timeout(3000);
-    try {
-      const response = await fetch(url, {
-        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
-      });
-      if (!response.ok) {
-        return [];
-      }
-      const body = SuggestionsSchema.safeParse(await response.json());
-      return body.success ? body.data[1] : [];
-    } catch {
+  .handler(({ input, signal }) => {
+    const preferences = getWorkspacePreferences();
+    if (!preferences.get("suggestSearches")) {
       return [];
     }
+    return suggestSearches(configureGuestSession(getBrowserSessionDir()), {
+      engine: preferences.get("searchEngine"),
+      locale: app.getLocale(),
+      query: input.query,
+      signal,
+    });
   });
-
-/**
- * The engine's region code for a locale, `en-US` as `us-en`; `wt-wt` (no
- * region) when the locale names no country.
- */
-function duckDuckGoRegion(locale: string) {
-  const [language, country] = locale.toLowerCase().split(/[-_]/);
-  return language && country ? `${country}-${language}` : "wt-wt";
-}
 
 export const browser = {
   allowPageCapture,

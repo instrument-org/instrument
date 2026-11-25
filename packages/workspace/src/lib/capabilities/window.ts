@@ -1,4 +1,5 @@
 import {
+  chatAddressOf,
   filePathOfInstrumentLink,
   groupAddressOf,
   instrumentLinkOf,
@@ -9,7 +10,7 @@ import { z } from "zod";
 import { type ChatId } from "../../schemas/chat-id";
 import {
   type LayoutSnapshot,
-  LayoutSnapshotSchema,
+  ListedGroupSchema,
 } from "../../schemas/group-layout";
 import {
   type WindowTabAction,
@@ -25,11 +26,14 @@ import {
   groupLines,
   groupName,
   groupNamed,
+  type ListFacts,
   otherGroupsLine,
   type WindowGroups,
 } from "../../model-text/notes/window-list-model-text";
 import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
+import { ChatStatusSchema } from "../chat/chat-status";
+import { listChats } from "../chat/chats";
 import { recordAsk } from "../chat/asks";
 import { askWindow, WINDOW_TAB_TIMEOUT_MS } from "../chat/window-tab";
 import { tabHolders } from "../chat/chat-tabs";
@@ -42,6 +46,7 @@ import {
 } from "../../model-text/commands/window-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type CapabilityContext, defineCapability } from "./define";
+import { projectsInUse } from "./projects";
 
 const NAME = WINDOW_COMMAND.name;
 
@@ -195,7 +200,7 @@ function showsFileOutside(tabId: string, ctx: CapabilityContext): boolean {
   if (targetId === null) {
     return false;
   }
-  const url = getWorkspaceConfig().browser.getTargetUrl(targetId);
+  const url = getWorkspaceConfig().browser.getLoadedDocumentUrl(targetId);
   return (
     url !== undefined &&
     isLocalAddress(url) &&
@@ -213,7 +218,23 @@ const TabField = (verb: string, form: string) =>
 /** What a list prints from: the group it is of (none for `--all`), every window's groups, and which task is at work in each tab. */
 const ListedSchema = z.object({
   all: z.boolean(),
-  layout: LayoutSnapshotSchema.optional(),
+  /** Where each chat's tab's chat stands, by the tab's id. */
+  chats: z.record(
+    z.string(),
+    z.object({
+      archived: z.boolean(),
+      /** The day anything last happened in it, YYYY-MM-DD. */
+      last_activity: z.string(),
+      starred: z.boolean(),
+      status: ChatStatusSchema,
+      unread: z.boolean(),
+      /** Whether anything of it still moves, its tasks included. */
+      working: z.boolean(),
+    }),
+  ),
+  layout: ListedGroupSchema.optional(),
+  /** The projects in use, their names by the ids the groups have. */
+  projects: z.record(z.string(), z.string()),
   /** The task at work in a tab, by the tab's id, and whether that is the session asking. */
   tasks: z.record(
     z.string(),
@@ -221,11 +242,54 @@ const ListedSchema = z.object({
   ),
   windows: z.array(
     z.object({
-      groups: z.array(LayoutSnapshotSchema),
+      groups: z.array(ListedGroupSchema),
       isThisWindow: z.boolean().optional(),
     }),
   ),
 });
+
+/** A day as the list prints it, YYYY-MM-DD. */
+function day(at: number): string {
+  return new Date(at).toISOString().slice(0, 10);
+}
+
+/** What the workspace knows of the chats and projects the windows' groups name. */
+async function factsOf(
+  windows: WindowGroups,
+): Promise<Pick<ListFacts, "chats" | "projects">> {
+  const chats = new Map(
+    (await listChats()).map((chat) => [chatAddressOf(chat.id), chat]),
+  );
+  return {
+    chats: Object.fromEntries(
+      windows
+        .flatMap((window) => window.groups)
+        .flatMap((group) => group.sides)
+        .flatMap((side) => side.tabs)
+        .flatMap((tab) => {
+          const chat = tab.kind === "chat" ? chats.get(tab.address) : undefined;
+          return chat === undefined
+            ? []
+            : [
+                [
+                  tab.id,
+                  {
+                    archived: chat.archived,
+                    last_activity: day(chat.updatedAt),
+                    starred: chat.starred,
+                    status: chat.status,
+                    unread: chat.unread,
+                    working: chat.working,
+                  },
+                ],
+              ];
+        }),
+    ),
+    projects: Object.fromEntries(
+      (await projectsInUse()).map((project) => [project.id, project.name]),
+    ),
+  };
+}
 
 export const windowList = defineCapability({
   input: z.object({
@@ -259,34 +323,40 @@ export const windowList = defineCapability({
         },
       ]),
     );
+    const facts = { tasks, ...(await factsOf(windows)) };
     if (all) {
-      return { all, tasks, windows };
+      return { all, ...facts, windows };
     }
     if (group !== undefined) {
       const named = groupNamed(windows, group);
       if ("error" in named) {
         throw new Error(named.error);
       }
-      return { all, layout: named.group, tasks, windows };
+      return { all, layout: named.group, ...facts, windows };
     }
     if (!answer.read) {
       throw new Error(
         `this chat has no tab in any group. \`${NAME} list --all\` lists every group.`,
       );
     }
-    return { all, layout: answer.read.layout, tasks, windows };
+    const own = answer.read.layout;
+    // As its window lists it, which says what a layout alone does not.
+    const listed = windows
+      .flatMap((window) => window.groups)
+      .find((each) => each.group.id === own.group.id);
+    return { all, layout: listed ?? own, ...facts, windows };
   },
   summary:
-    "A tab group's sides and tabs, one line each, by default the group the chat works in: the group's address and whether it is on screen, each tab's id (which every other subcommand and `agent-browser tab` take), where it stands, what it has open and the address a reply links it by, and which task is at work in it; then what the user sees, and the other groups there are. A group is named by its id or its name; --all lists every window's groups.",
+    "A tab group's sides and tabs, one line each, by default the group the chat works in: the group's address, whether it is pinned, its project, whether it is on screen and when it was last brought up (absent when not known), each tab's id (which every other subcommand and `agent-browser tab` take), where it stands, what it has open and the address a reply links it by, which task is at work in it, whether an agent opened it, words in a new tab not sent yet, and whether its chat is working, waiting on the user or unread and when it was last active; then what the user sees, and the other groups there are. A group is named by its id or its name; --all lists every window's groups, the pinned first.",
   surfaces: {
     cli: { help: "", positional: ["group"], words: ["window", "list"] },
     script: { positional: ["group"] },
   },
-  text: ({ all, layout, tasks, windows }) =>
+  text: ({ all, chats, layout, projects, tasks, windows }) =>
     all || layout === undefined
-      ? allWindowsLines(windows, tasks).join("\n")
+      ? allWindowsLines(windows, { chats, projects, tasks }).join("\n")
       : [
-          ...groupLines(layout, { tasks }),
+          ...groupLines(layout, { facts: { chats, projects, tasks } }),
           showingLine(layout),
           otherGroupsLine(windows, layout.group.id),
         ].join("\n"),
@@ -571,7 +641,7 @@ export const windowClose = defineCapability({
     return outcomes;
   },
   summary:
-    "Close tabs, or a tab group whole by its id; the user can bring back from the closed list what was theirs, not an agent's tab they never used.",
+    "Close tabs, or a tab group whole by its id; the user can bring back from the closed list what was theirs, not an agent's tab they never used. A pinned group whose last tab closes gets a new tab; its id closes it.",
   surfaces: {
     cli: { help: "", positional: ["tabs"], words: ["window", "close"] },
   },
@@ -588,6 +658,7 @@ function sideOf(windows: WindowGroups, tabId: string) {
     if (side !== undefined) {
       return {
         group: layout.group.id,
+        isLastTab: layout.sides.length === 1 && side.tabs.length === 1,
         mates: side.tabs.filter((tab) => tab.id !== tabId).map((tab) => tab.id),
       };
     }
@@ -601,7 +672,7 @@ function sideOf(windows: WindowGroups, tabId: string) {
  * does not answer.
  */
 async function closedSideLine(
-  before: { group: string; mates: readonly string[] },
+  before: { group: string; isLastTab: boolean; mates: readonly string[] },
   ctx: CapabilityContext,
 ): Promise<string> {
   const answer = await ask({ kind: "list" }, ctx);
@@ -613,6 +684,9 @@ async function closedSideLine(
     .find((each) => each.group.id === before.group);
   if (layout === undefined) {
     return " Its tab group closed with it.";
+  }
+  if (before.isLastTab) {
+    return ` It was the last tab of the pinned tab group ${groupAddressOf(before.group)}, which stays, with a new tab.`;
   }
   const where =
     layout.group.id === answer.read?.layout.group.id
@@ -805,9 +879,132 @@ export const windowMove = defineCapability({
     return `Moved ${ids.join(", ")} into the tab group ${groupWords(named.group)}${into ? `; ${sightOf(into)}` : ""}.`;
   },
   summary:
-    "Move tabs into an existing tab group, by its id or name, as dropping each on its row does; a group left with no tab closes.",
+    "Move tabs into an existing tab group, by its id or name, as dropping each on its row does; a group left with no tab closes, or, pinned, gets a new tab.",
   surfaces: {
     cli: { help: "", positional: ["tabs"], words: ["window", "move"] },
+  },
+  text: (said) => said,
+  where: CHATS,
+});
+
+async function pinGroups(
+  args: readonly string[],
+  pinned: boolean,
+  ctx: CapabilityContext,
+): Promise<Outcome[]> {
+  const outcomes: Outcome[] = [];
+  for (const arg of args) {
+    const named = groupNamed(await windowsOf(ctx), idOf(arg));
+    if ("error" in named) {
+      outcomes.push({ failed: true, said: named.error, target: arg });
+      continue;
+    }
+    const { id } = named.group.group;
+    const words = groupWords(named.group);
+    const answer = await ask({ group: id, kind: "pinGroup", pinned }, ctx);
+    const error = answer ? answer.error : NO_WINDOW;
+    outcomes.push(
+      error === undefined
+        ? {
+            failed: false,
+            said:
+              (named.group.pinned === true) === pinned
+                ? `The tab group ${words} is already ${pinned ? "pinned" : "unpinned"}.`
+                : `${pinned ? "Pinned" : "Unpinned"} the tab group ${words}.`,
+            target: arg,
+          }
+        : { failed: true, said: error, target: arg },
+    );
+  }
+  return outcomes;
+}
+
+const GroupsField = (verb: string) =>
+  z
+    .array(z.string(), {
+      error: `${verb} needs a tab group (${NAME} ${verb} <group>...).`,
+    })
+    .min(1, `${verb} needs a tab group (${NAME} ${verb} <group>...).`);
+
+export const windowPin = defineCapability({
+  input: z.object({ groups: GroupsField("pin") }),
+  name: "window.pin",
+  output: Outcomes,
+  render: renderOutcomes,
+  run: ({ groups }, ctx) => pinGroups(groups, true, ctx),
+  summary: "Pin tab groups, by id or name, above the sidebar's others.",
+  surfaces: {
+    cli: { help: "", positional: ["groups"], words: ["window", "pin"] },
+  },
+  text: (outcomes) => outcomes.map((each) => each.said).join("\n"),
+  where: CHATS,
+});
+
+export const windowUnpin = defineCapability({
+  input: z.object({ groups: GroupsField("unpin") }),
+  name: "window.unpin",
+  output: Outcomes,
+  render: renderOutcomes,
+  run: ({ groups }, ctx) => pinGroups(groups, false, ctx),
+  summary: "Take the pin off tab groups, by id or name; they stay open.",
+  surfaces: {
+    cli: { help: "", positional: ["groups"], words: ["window", "unpin"] },
+  },
+  text: (outcomes) => outcomes.map((each) => each.said).join("\n"),
+  where: CHATS,
+});
+
+export const windowPlace = defineCapability({
+  input: z.object({
+    group: z.string({
+      error: `place needs a tab group: ${NAME} place <group> --before <group>.`,
+    }),
+    before: z.string().optional().meta({
+      description: "The group it goes just above, by its id or name.",
+    }),
+    after: z.string().optional().meta({
+      description: "The group it goes just below, by its id or name.",
+    }),
+  }),
+  name: "window.place",
+  output: z.string(),
+  async run({ after, before, group }, ctx) {
+    const beside = before ?? after;
+    if (beside === undefined || (before !== undefined && after !== undefined)) {
+      throw new Error(
+        `place takes one of --before and --after: ${NAME} place <group> --before <group>.`,
+      );
+    }
+    const windows = await windowsOf(ctx);
+    const named = groupNamed(windows, idOf(group));
+    const anchor = groupNamed(windows, idOf(beside));
+    if ("error" in named) {
+      throw new Error(named.error);
+    }
+    if ("error" in anchor) {
+      throw new Error(anchor.error);
+    }
+    const answer = await ask(
+      {
+        anchor: anchor.group.group.id,
+        group: named.group.group.id,
+        kind: "placeGroup",
+        where: before === undefined ? "after" : "before",
+      },
+      ctx,
+    );
+    if (!answer) {
+      throw new Error(NO_WINDOW);
+    }
+    if (answer.error !== undefined) {
+      throw new Error(answer.error);
+    }
+    return `Placed the tab group ${groupWords(named.group)} just ${before === undefined ? "below" : "above"} ${groupWords(anchor.group)}.`;
+  },
+  summary:
+    "Move a tab group in the sidebar to just above or below another, each by id or name: both pinned or both not, in the same project, in the window the chat works in.",
+  surfaces: {
+    cli: { help: "", positional: ["group"], words: ["window", "place"] },
   },
   text: (said) => said,
   where: CHATS,

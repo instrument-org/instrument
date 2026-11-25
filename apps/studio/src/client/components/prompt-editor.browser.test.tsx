@@ -397,6 +397,22 @@ describe("PromptEditor in a browser", () => {
     expect(ref.current?.getValue()).toBe("gitl");
   });
 
+  it("says whether the caret is at the end and the words are on one line", async () => {
+    const { ref } = renderEditor();
+    const says = () => [ref.current?.isCaretAtEnd(), ref.current?.isOneLine()];
+
+    await userEvent.click(editor());
+    expect(says()).toEqual([true, true]);
+    await userEvent.keyboard("git hub");
+    expect(says()).toEqual([true, true]);
+    await userEvent.keyboard("{ArrowLeft}");
+    expect(says()).toEqual([false, true]);
+    ref.current?.setValue("words enough to wrap ".repeat(60).trim());
+    expect(says()).toEqual([true, false]);
+    ref.current?.setValue("two\nlines");
+    expect(says()).toEqual([true, false]);
+  });
+
   it("writes nothing in with the caret short of the end, or with words selected", async () => {
     const { ref } = renderEditor();
 

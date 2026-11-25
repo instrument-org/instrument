@@ -33,21 +33,19 @@ export interface OmniRow {
  */
 export function OmniList({
   current,
-  empty,
   id,
   notice,
   onRun,
   rows,
 }: {
   current: number;
-  empty?: string | undefined;
   id: string;
   /** What is said over the rows: why a path typed led nowhere. */
   notice?: ReactNode;
   onRun: (row: OmniRow) => void;
   rows: OmniRow[];
 }) {
-  if (rows.length === 0 && !empty && !notice) {
+  if (rows.length === 0 && !notice) {
     return null;
   }
   return (
@@ -65,39 +63,35 @@ export function OmniList({
       {notice ? (
         <p className="px-3 py-2 text-sm text-muted-foreground">{notice}</p>
       ) : null}
-      {rows.length === 0 ? (
-        <p className="px-3 py-2 text-sm text-muted-foreground">{empty}</p>
-      ) : (
-        rows.map((row, index) => (
-          <button
-            aria-selected={index === current}
-            className={cn(
-              "flex h-8 w-full items-center gap-2.5 px-3 text-left text-sm",
-              index === current ? "bg-accent" : "hover:bg-accent/50",
-            )}
-            id={`${id}-${index}`}
-            key={row.id}
-            onClick={() => {
-              onRun(row);
-            }}
-            // The arrows move the highlight past the list's fold; the
-            // list follows, so the row picked is the row seen.
-            ref={(element) => {
-              if (index === current) {
-                element?.scrollIntoView({ block: "nearest" });
-              }
-            }}
-            role="option"
-            tabIndex={-1}
-            type="button"
-          >
-            <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-              {row.icon}
-            </span>
-            <RowText name={row.name} where={row.detail} />
-          </button>
-        ))
-      )}
+      {rows.map((row, index) => (
+        <button
+          aria-selected={index === current}
+          className={cn(
+            "flex h-8 w-full items-center gap-2.5 px-3 text-left text-sm",
+            index === current ? "bg-accent" : "hover:bg-accent/50",
+          )}
+          id={`${id}-${index}`}
+          key={row.id}
+          onClick={() => {
+            onRun(row);
+          }}
+          // The arrows move the highlight past the list's fold; the
+          // list follows, so the row picked is the row seen.
+          ref={(element) => {
+            if (index === current) {
+              element?.scrollIntoView({ block: "nearest" });
+            }
+          }}
+          role="option"
+          tabIndex={-1}
+          type="button"
+        >
+          <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
+            {row.icon}
+          </span>
+          <RowText name={row.name} where={row.detail} />
+        </button>
+      ))}
     </div>
   );
 }

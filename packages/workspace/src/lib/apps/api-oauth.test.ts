@@ -248,7 +248,7 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
     });
     expect(completed._unsafeUnwrap()).toEqual({ opensIn: "app", slug });
     expect(await getWorkspaceConfig().apps.connections.get(slug)).toMatchObject(
-      { status: "connected" },
+      { signedInFrom: "app", status: "connected" },
     );
     expect(await store.getCodeVerifier(slug)).toBeUndefined();
 

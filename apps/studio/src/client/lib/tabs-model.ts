@@ -116,20 +116,22 @@ export function closeGroupTab(
 /**
  * A whole tab group closed, on the window's closed list beside its own
  * tabs: at the group's address, holding every tab it had, which of them
- * were up (`ups`, by their places among them) and its project, so a reopen brings the
- * group back as it was.
+ * were up (`ups`, by their places among them) and its project and pin, so a
+ * reopen brings the group back as it was.
  */
 export function closeTabGroup(
   model: TabsModel,
   {
     id,
     pathname,
+    pinned,
     project,
     tabs,
     ups,
   }: {
     id: TabId;
     pathname: string;
+    pinned?: boolean;
     project?: string;
     tabs: WindowTab[];
     ups?: { active: number; beside?: number };
@@ -138,7 +140,15 @@ export function closeTabGroup(
   return {
     ...model,
     recentlyClosed: [
-      { closedAt: Date.now(), groupTabs: tabs, id, pathname, project, ups },
+      {
+        closedAt: Date.now(),
+        groupTabs: tabs,
+        id,
+        pathname,
+        pinned,
+        project,
+        ups,
+      },
       ...model.recentlyClosed,
     ].slice(0, MAX_RECENTLY_CLOSED),
   };

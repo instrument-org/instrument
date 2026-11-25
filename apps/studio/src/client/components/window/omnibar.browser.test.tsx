@@ -155,14 +155,13 @@ describe("words the field searches the web for", () => {
   });
 });
 
-// Typed over home in Files, a whole path's names are in some other folder,
-// where a name home has too (Documents) would read as home's own.
+// A path's names say the folder they are in, which no page's own place
+// stands for, and read the same from every page.
 describe("a folder's names a whole path reaches", () => {
   it.each([
     ["C:\\Users\\Public\\Documents", "DocumentsPublic"],
     ['"C:\\Users\\Public\\Documents"', "DocumentsPublic"],
-    // In the folder on screen, a name says enough on its own.
-    ["C:\\Users\\casey\\Doc", /^Documents$/],
+    ["C:\\Users\\casey\\Doc", "Documentscasey"],
   ])("say where they are for %s", async (typed, row) => {
     Object.defineProperty(window, "electron", {
       configurable: true,
@@ -235,41 +234,41 @@ describe("a page's file pressed into", () => {
   });
 });
 
-// A chat and the app's own pages have no address to edit, so their field
-// opens empty and reads what is typed as a new tab's does.
-describe("the field of a place with no address", () => {
-  const chat = { kind: "chat", title: "Trip to Lisbon" } as const;
-
-  it.each([
-    ["a chat", chat],
-    ["History", { kind: "builtin", part: "Files", screen: "activity" }],
+// What the tab shows decides nothing about what words mean, so a folder, a
+// file and the app's own pages read them as a site's tab does.
+describe("words typed over any place", () => {
+  const places = [
+    ["a site", { kind: "page", url: "https://example.org/" }],
+    ["a folder", { kind: "folder", path: "/Users/casey" }],
+    ["a file", { kind: "file", name: "w.csv", path: "/Users/casey/w.csv" }],
     ["Settings", { kind: "builtin", part: "Providers", screen: "settings" }],
     ["Apps", { kind: "apps" }],
-  ] as const)(
-    "opens empty in %s, lists nothing, and opens an address typed",
-    async (_, location) => {
-      await renderInBrowser(
-        <Omnibar location={location} resting={<span>The place</span>} />,
-      );
-      const field = page.getByRole("combobox");
-      const box = field.element();
-      if (box instanceof HTMLInputElement) {
-        editField(box);
-      }
+    ["a chat", { kind: "chat", title: "Trip to Lisbon" }],
+  ] as const;
 
-      await expect.element(field).toHaveValue("");
-      await expect
-        .element(field)
-        .toHaveAttribute("placeholder", "Search or enter address");
-      await expect.element(field).toHaveAttribute("aria-expanded", "false");
-      await expect.element(page.getByText("The place")).not.toBeInTheDocument();
+  it.each(places)("open an address from %s", async (_, location) => {
+    await renderInBrowser(<Omnibar location={location} />);
+    await userEvent.fill(page.getByRole("combobox"), "example.net/a");
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toMatchTextContent(/example\.net\/a/);
+  });
 
-      await userEvent.keyboard("https://example.org");
-      await expect
-        .element(page.getByRole("option", { selected: true }))
-        .toMatchTextContent(/example\.org/);
-    },
-  );
+  // A page of the app's own by name is a row under the search.
+  it.each(places)("search the web from %s", async (_, location) => {
+    await renderInBrowser(<Omnibar location={location} />);
+    await userEvent.fill(page.getByRole("combobox"), "settings");
+    await expect
+      .element(page.getByRole("option", { selected: true }))
+      .toMatchTextContent(/^Search the web for “settings”$/);
+    await expect
+      .element(page.getByRole("option", { name: "Settings", exact: true }))
+      .toBeInTheDocument();
+  });
+});
+
+describe("the field with the caret brought by the keyboard", () => {
+  const chat = { kind: "chat", title: "Trip to Lisbon" } as const;
 
   it("keeps the place on show for a caret the keyboard brought, until a letter is typed", async () => {
     await renderInBrowser(

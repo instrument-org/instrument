@@ -442,3 +442,69 @@ describe("a chat a phone started on this computer", () => {
     expect(store.get(windowTabGroupsAtom)).toEqual([GROUP]);
   });
 });
+
+describe("a group the window comes to stand on", () => {
+  it("keeps when it came up, once per arrival", () => {
+    vi.useFakeTimers({ now: 1000 });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const { actions, history, store } = windowWithGroup();
+    const shownAt = (group: string) =>
+      store.get(windowTabsAtom).groups?.[group]?.shownAt;
+    act(() => {
+      history.replace(groupHref(GROUP));
+    });
+    expect(shownAt(GROUP)).toBe(1000);
+    vi.setSystemTime(2000);
+    let made = "";
+    act(() => {
+      made = actions().make({ href: "/files?path=/a" });
+    });
+    expect(shownAt(made)).toBe(2000);
+    expect(shownAt(GROUP)).toBe(1000);
+    vi.setSystemTime(3000);
+    act(() => {
+      actions().show(GROUP);
+    });
+    expect(shownAt(GROUP)).toBe(3000);
+  });
+});
+
+describe("an agent taking a group's last tab", () => {
+  it.each([
+    ["leaves a pinned group a new tab", true, true],
+    ["closes a group that is not pinned", false, false],
+  ])("%s", (_case, pinned, isListed) => {
+    const { actions, history, store } = windowWithGroup();
+    act(() => {
+      history.replace(groupHref(GROUP));
+    });
+    let other = "";
+    act(() => {
+      other = actions().make({ href: "/files?path=/a" });
+    });
+    act(() => {
+      actions().pin(GROUP, pinned);
+    });
+    act(() => {
+      actions().moveTab(CHAT_TAB, other, undefined, { keepsPinned: true });
+    });
+    const state = store.get(windowTabsAtom);
+    expect(state.tabs.find((tab) => tab.id === CHAT_TAB)?.group).toBe(other);
+    expect(store.get(windowTabGroupsAtom)?.includes(GROUP)).toBe(isListed);
+    expect(state.groups?.[GROUP]?.pinned === true).toBe(pinned);
+    expect(state.tabs.filter((tab) => tab.group === GROUP)).toHaveLength(
+      isListed ? 1 : 0,
+    );
+  });
+
+  it("makes a group pinned when it comes back so", () => {
+    const { actions, store } = windowWithGroup();
+    let made = "";
+    act(() => {
+      made = actions().make({ href: "/files?path=/a", pinned: true });
+    });
+    expect(store.get(windowTabsAtom).groups?.[made]?.pinned).toBe(true);
+  });
+});

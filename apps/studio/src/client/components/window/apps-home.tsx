@@ -1,4 +1,5 @@
 import { useDecisionModelAvailable } from "@/client/hooks/use-decision";
+import { FieldKeys } from "@/client/components/field-keys";
 import { Button } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { AppIcon } from "@/client/components/window/app-icon";
@@ -96,6 +97,15 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
   // when a keystroke's render would hold the next one up.
   const typed = useDeferredValue(query.trim());
   const matches = typed === "" ? more : searchDirectory(listed, typed);
+  // The workspace's own apps the words name, less those a service's tiles
+  // already show: one no service lists is found here or nowhere.
+  const matchedOwn =
+    typed === ""
+      ? []
+      : searchOwn(own, typed).filter(
+          (app) => !matches.some((entry) => entry.slug === app.service),
+        );
+  const isFound = matches.length > 0 || matchedOwn.length > 0;
   // Unsearched, the AIs not yet here lead, then the featured services as
   // Popular, and
   // every other one follows under its category, so the whole directory is a scroll away.
@@ -128,9 +138,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
   // never holds a "Related" place that only empties.
   const canAskMeaning = useDecisionModelAvailable(typed !== "");
   const asksMeaning =
-    canAskMeaning === true &&
-    typed.length >= MEANING_MIN_LENGTH &&
-    matches.length === 0;
+    canAskMeaning === true && typed.length >= MEANING_MIN_LENGTH && !isFound;
   const settled = useDebouncedValue(typed, 300);
   const byMeaning = useQuery(
     rpcClient.apps.catalogByMeaning.queryOptions({
@@ -247,10 +255,10 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
           ref={headRef}
         >
           <form
-            className="group/search relative"
+            className="group/search group/field relative"
             onSubmit={(event) => {
               event.preventDefault();
-              if (typed !== "" && matches.length === 0) {
+              if (typed !== "" && !isFound) {
                 connectTyped();
               }
             }}
@@ -261,7 +269,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
             <input
               aria-label="Search apps"
               ref={searchRef}
-              className="h-11 w-full rounded-xl border-0 bg-card pr-4 pl-11 text-[15px] shadow-xs transition-shadow outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:bg-input/30"
+              className="h-11 w-full rounded-xl border-0 bg-card pr-24 pl-11 text-[15px] shadow-xs transition-shadow outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:bg-input/30"
               onChange={(event) => {
                 setQuery(event.target.value);
               }}
@@ -270,6 +278,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
               }
               value={query}
             />
+            {query === "" ? <FieldKeys className="right-4" /> : null}
           </form>
           {typed === "" && categories.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">
@@ -346,8 +355,20 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
             </>
           ) : (
             <div className="space-y-6">
-              {matches.length > 0 ? (
-                <div className={TWO_COLUMNS}>{matches.map(searchTileFor)}</div>
+              {isFound ? (
+                <div className={TWO_COLUMNS}>
+                  {matchedOwn.map((app) => (
+                    <OwnTile
+                      app={app}
+                      count={1}
+                      key={app.slug}
+                      onOpen={() => {
+                        onOpenApp(app.slug);
+                      }}
+                    />
+                  ))}
+                  {matches.map(searchTileFor)}
+                </div>
               ) : null}
               {asksMeaning && !(answered && meant.length === 0) ? (
                 answered ? (
@@ -416,6 +437,17 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
       </div>
     </div>
   );
+}
+
+/** The workspace's own apps matching every word typed, by name, slug, site or account. */
+function searchOwn(own: App[], typed: string): App[] {
+  const words = typed.toLowerCase().split(/\s+/).filter(Boolean);
+  return own.filter((app) => {
+    const haystack = [app.name, app.slug, app.site, app.account]
+      .join(" ")
+      .toLowerCase();
+    return words.every((word) => haystack.includes(word));
+  });
 }
 
 /** One tile per service of the workspace's own, on its first account, with how many it has. */

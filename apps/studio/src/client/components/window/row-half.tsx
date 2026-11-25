@@ -1,3 +1,4 @@
+import { ChatAskIcon } from "@/client/components/icons/chat-ask-icon";
 import { type WindowTab } from "@/client/atoms/window";
 import { PageFavicon } from "@/client/components/favicon";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
@@ -19,8 +20,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { createContext, type ReactNode, use, useEffect, useState } from "react";
 
+import { useProjectsById } from "./projects-by-id";
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatListOptions } from "./chat-list-query";
+import { isAsking } from "./chat-mark";
 import { type Chat } from "./chats";
 import { useTasksOf } from "./child-tasks-query";
 import { FadeTitle } from "./fade-title";
@@ -36,6 +39,7 @@ import {
   PAGE_START_LINES,
   type PageLoad,
   pageLines,
+  placeLines,
   quiet,
   type RowLines,
   siteOf,
@@ -161,7 +165,7 @@ export function RowLinesView({
 
 /**
  * What a tab says on its row's two lines: a chat or a task its state, a page its site,
- * a file the title it gives itself over its folder, a built-in page its name over the
+ * a file the title it gives itself over the folders it is in, a built-in page its name over the
  * part open, a new tab the words typed in it (`row-lines.ts`).
  */
 export function useRowLines(
@@ -170,8 +174,11 @@ export function useRowLines(
 ): RowLines {
   const { chats, drafts } = useRowSources();
   const appsBySlug = useAppsBySlug();
+  const projects = useProjectsById();
   const taskTitles = useTaskTitles();
   const load = usePageLoad(tab);
+  const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
+  const volumes = places.data?.volumes;
   const fileTitles = useFileTabTitles([
     tab.kind === "page" ? undefined : tab.href,
   ]);
@@ -184,12 +191,13 @@ export function useRowLines(
     const path = hostPathOfFileUrl(tab.url);
     return path === undefined
       ? pageLines(title, tab.url, load)
-      : quiet(title, folderLine(path));
+      : placeLines(title, foldersOf(path, volumes));
   }
   const names = {
     appsBySlug,
     chatTitles,
     ...(fileTitles ? { fileTitles } : {}),
+    projects,
     taskTitles,
   };
   const location = screenLocation(tab.href, names);
@@ -207,16 +215,16 @@ export function useRowLines(
       const draft = draftOfTab(tab);
       return newTabLines(drafts.find((each) => each.id === draft)?.words);
     }
-    case "file": {
-      return quiet(title, folderLine(location.path));
-    }
+    case "file":
     case "folder": {
-      return quiet(title, folderLine(location.path));
+      return placeLines(title, foldersOf(location.path, volumes));
     }
     case "builtin": {
       return quiet(title, location.part ?? PAGE_START_LINES[location.screen]);
     }
-    case "chats":
+    case "chats": {
+      return quiet(title, location.project ? "Project" : "");
+    }
     case "debug": {
       return quiet(title, "");
     }
@@ -243,14 +251,21 @@ export function useRowLines(
   }
 }
 
-/** Where a file or folder is: its folder's name, or the computer for one at the top. */
-function folderLine(path: string): string {
-  const crumbs = locationCrumbs(
+/**
+ * The folders a file or folder is in, named as the address field names them
+ * and outermost first, or the computer for one at the top.
+ */
+function foldersOf(
+  path: string,
+  volumes: Parameters<typeof locationCrumbs>[1]["volumes"],
+): string[] {
+  const folders = locationCrumbs(
     { kind: "folder", path },
-    { home: window.api.homeDir },
-  );
-  const folder = crumbs.at(-2)?.label;
-  return folder ?? osConventions().computer;
+    { home: window.api.homeDir, ...(volumes ? { volumes } : {}) },
+  )
+    .slice(0, -1)
+    .map((crumb) => crumb.label);
+  return folders.length > 0 ? folders : [osConventions().computer];
 }
 
 /**
@@ -319,7 +334,7 @@ function usePageLoad(tab: WindowTab): PageLoad | undefined {
   return state?.target === targetId ? state.load : undefined;
 }
 
-/** A tab's own mark, as its tab in a strip wears it: a page's favicon, else its kind's. */
+/** A tab's own mark, as its tab in a strip wears it: a page's favicon, an asking chat's bubble, else its kind's. */
 export function TabMark({
   appsBySlug,
   chatTitles,
@@ -330,6 +345,8 @@ export function TabMark({
   tab: WindowTab;
 }) {
   const { chatUpIn } = useWindowTabs();
+  const { chats } = useRowSources();
+  const chat = chatOfTab(tab);
   const capture = usePageCaptures().find(
     ({ targetId, using }) =>
       (using.audio || using.video) &&
@@ -352,6 +369,9 @@ export function TabMark({
         url={tab.url ?? tab.openedUrl ?? ""}
       />
     );
+  }
+  if (chat !== undefined && isAsking(chats.find((each) => each.id === chat))) {
+    return <ChatAskIcon className="size-3.5 shrink-0" />;
   }
   return (
     <span className="grid size-3.5 shrink-0 place-items-center [&_svg]:size-3.5">

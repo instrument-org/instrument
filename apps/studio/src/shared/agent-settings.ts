@@ -50,6 +50,18 @@ export const AGENT_SETTINGS = {
       "After each reply, a few next messages the user might send are offered under it, which adds a little to their AI usage.",
     title: "Suggest a next message",
   },
+  "search-engine": {
+    changeable: true,
+    detail:
+      "Where words typed into the address field are searched, and where they are sent for suggestions when those are on.",
+    title: "Search engine",
+  },
+  "suggest-searches": {
+    changeable: false,
+    detail:
+      "What the user types into the address field goes to their search engine as they type, so it can suggest searches.",
+    title: "Suggest searches",
+  },
   "block-ads": {
     changeable: true,
     detail: `Ads and trackers are blocked on every page in ${APP_NAME}'s browser. A page already open follows once it is reloaded. For your own tabs alone, use agent-browser adblock.`,

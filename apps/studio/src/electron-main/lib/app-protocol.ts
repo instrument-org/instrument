@@ -22,7 +22,6 @@ import {
 import { handleDirectoryIconRequest } from "./directory-icons";
 import { handleLivePageRequest } from "./live-page-frame";
 import { getResourcePath } from "./resource-path";
-import { isSvgLegible } from "./site-icon-legibility";
 import { type Deps as SiteIconDeps, siteIconFor } from "./site-icons";
 import {
   RENDERER_DOCUMENT_POLICY,
@@ -149,7 +148,6 @@ export function siteIconDeps(): SiteIconDeps {
   return {
     dir: path.join(app.getPath("userData"), "site-icons"),
     fetch: (target, init) => net.fetch(target, init),
-    isLegible: isSvgLegible,
     now: Date.now,
     resolveHost: async (host) => {
       const { endpoints } = await net.resolveHost(host);
@@ -222,7 +220,7 @@ async function handleFileOpenIconRequest({
 
 /**
  * A site's icon by host, from the copy kept on disk (see `site-icons.ts`). A
- * 404 is the proxy saying the site has none; a 503 is a request that could not
+ * 404 is the site having none; a 503 is a request that could not
  * be made, which the renderer must not take as an answer about the site.
  */
 async function handleSiteIconRequest({

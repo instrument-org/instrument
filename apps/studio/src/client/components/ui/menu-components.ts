@@ -28,6 +28,8 @@ export interface MenuComponents {
     checked?: boolean;
     children?: React.ReactNode;
     onSelect?: (event: Event) => void;
+    /** A row that is one choice of several rather than a switch of its own. */
+    role?: "menuitemradio";
   }>;
   Item: React.ComponentType<{
     children?: React.ReactNode;

@@ -153,6 +153,10 @@ export interface PromptInputRef {
   focusEnd: () => void;
   /** Insert at the caret, spaced off from whatever it lands between; a token's wire form becomes its chip. */
   insertText: (text: string) => void;
+  /** Whether Down has nowhere left to move the caret (`PromptEditorRef.isCaretAtEnd`). */
+  isCaretAtEnd: () => boolean;
+  /** Whether the words fit on one line of the box (`PromptEditorRef.isOneLine`). */
+  isOneLine: () => boolean;
   /**
    * Follows a change made to what the box holds from outside it, such as a
    * file put into a draft's folder or taken out of it: adds each item whose
@@ -777,6 +781,8 @@ export const PromptInput = ({
     insertText: (text) => {
       promptEditorRef.current?.insertText(text);
     },
+    isCaretAtEnd: () => promptEditorRef.current?.isCaretAtEnd() ?? false,
+    isOneLine: () => promptEditorRef.current?.isOneLine() ?? true,
     mergeItems: ({ added, gone, keep }) => {
       const leaving = new Set(gone);
       setAttachedItems((prev) => {

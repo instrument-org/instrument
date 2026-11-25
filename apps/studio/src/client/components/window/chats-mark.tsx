@@ -1,3 +1,4 @@
+import { ChatAskIcon } from "@/client/components/icons/chat-ask-icon";
 import {
   Popover,
   PopoverContent,
@@ -14,7 +15,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 import { type OpenAddress, bookmarkClicks } from "./bookmark-menu";
 import { useChatActionsFor } from "./chat-actions";
 import { chatListOptions } from "./chat-list-query";
-import { chatDotOf, ChatMarkIcon } from "./chat-mark";
+import { chatDotOf, ChatMarkIcon, isAsking } from "./chat-mark";
 import { ChatRow } from "./chat-row";
 import { byLastUserMessage, type Chat } from "./chats";
 import { useShowChatGroup } from "./chat-group";
@@ -153,12 +154,16 @@ function RecentChatRow({
           dot={chatDotOf(chat)}
           icon={
             <span className="grid size-3.5 shrink-0 place-items-center [&_svg]:size-3.5">
-              <ScreenMark
-                appsBySlug={appsBySlug}
-                chatId={undefined}
-                chatTitles={NO_TITLES}
-                href={chatHref(chat.id)}
-              />
+              {isAsking(chat) ? (
+                <ChatAskIcon />
+              ) : (
+                <ScreenMark
+                  appsBySlug={appsBySlug}
+                  chatId={undefined}
+                  chatTitles={NO_TITLES}
+                  href={chatHref(chat.id)}
+                />
+              )}
             </span>
           }
         />

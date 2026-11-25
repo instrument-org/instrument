@@ -31,6 +31,8 @@ import {
   confineLocalPagesToTheirFolder,
   refuseLocalFilesIn,
 } from "./local-file-policy";
+import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
+import { contactGoogle } from "./search-engine";
 import { guestWindowOpenHandler, isHttpUrl } from "./window-open-policy";
 
 let configured: null | { dir: string; session: Session } = null;
@@ -195,6 +197,15 @@ export function configureGuestSession(profileDir: string): Session {
   enableBrowserExtensions(guestSession, extensionsDirOf(profileDir));
   listenForPageCapture();
   listenForPageEdits();
+  const preferences = getWorkspacePreferences();
+  if (preferences.get("searchEngine") === "google") {
+    void contactGoogle(guestSession);
+  }
+  preferences.onDidChange("searchEngine", (engine) => {
+    if (engine === "google") {
+      void contactGoogle(guestSession);
+    }
+  });
   return guestSession;
 }
 

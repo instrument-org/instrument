@@ -36,6 +36,7 @@ export namespace SessionMessageDataPart {
     "fromChat",
     "groupLayout",
     "intent",
+    "linkedTabs",
     "jobEvent",
     "layoutChanges",
     "settingChanges",
@@ -108,6 +109,7 @@ export namespace SessionMessageDataPart {
     environmentChange: "diff",
     fileChanges: "unwritten",
     fileVersions: "event",
+    linkedTabs: "event",
     folderChanges: "diff",
     fromChat: "event",
     groupLayout: "diff",
@@ -812,6 +814,24 @@ export namespace SessionMessageDataPart {
     kind: z.enum(["before-restore", "original", "restored"]).optional(),
   });
 
+  /**
+   * The web pages the tabs a reply linked were on when its turn ended, by the
+   * tab's id (`turn-linked-tabs.ts`): a tab's id means nothing once it is
+   * closed for good, or on another computer, where the link opens the page.
+   * Never sent to the model.
+   */
+  export const LinkedTabsDataPartSchema = z.object({
+    tabs: z.array(
+      z.object({
+        id: z.string(),
+        title: z.string().optional(),
+        url: z.string(),
+      }),
+    ),
+  });
+
+  export type LinkedTabsDataPart = z.output<typeof LinkedTabsDataPartSchema>;
+
   export type FileVersionsDataPart = z.output<
     typeof FileVersionsDataPartSchema
   >;
@@ -1116,6 +1136,11 @@ export namespace SessionMessageDataPart {
             "removed",
           ]),
           name: z.string(),
+          /**
+           * For a sign-in of the app's own that connected, where its page was
+           * opened: the window's own browser, or the user's.
+           */
+          signedInFrom: z.enum(["app", "external"]).optional(),
           /**
            * For a sign-in of the app's own that did not connect: how it
            * ended, and the service's site, where signing in on the web is
@@ -1869,6 +1894,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.fromChat]: FromChatDataPartSchema,
     [NameSchema.enum.groupLayout]: GroupLayoutDataPartSchema,
     [NameSchema.enum.intent]: IntentDataPartSchema,
+    [NameSchema.enum.linkedTabs]: LinkedTabsDataPartSchema,
     [NameSchema.enum.jobEvent]: JobEventDataPartSchema,
     [NameSchema.enum.layoutChanges]: LayoutChangesDataPartSchema,
     [NameSchema.enum.maxSteps]: MaxStepsDataPartSchema,

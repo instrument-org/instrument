@@ -11,6 +11,8 @@ import { isInside, relativeHostPath } from "./host-path";
 export type FilesStep = {
   /** A file open with the folder, by where it is on the computer. */
   file?: string | undefined;
+  /** The page a PDF file opens at. */
+  page?: number | undefined;
   /** The folder under the root, as a prefix: `Documents/Instrument/`. */
   path: string;
   /** What the folder is searched for, as typed. */

@@ -375,6 +375,8 @@ const fileViewerClassName =
   "flex h-full w-full flex-col overflow-hidden rounded-xl bg-card shadow-sm [--markdown-surface:var(--card)]";
 
 interface ViewerContext {
+  /** The page a PDF opens at. */
+  atPage?: number;
   /** Whether the file opens as a live editor (code, text, CSV) rather than a view. */
   editable: boolean;
   fallback: ReactNode;
@@ -852,11 +854,15 @@ function renderCodeEditor(
   );
 }
 
-function renderPdf({ fallback, file }: ViewerContext) {
+function renderPdf({ atPage, fallback, file }: ViewerContext) {
   return (
     <ViewerSurface fallback={fallback} resetKey={file.hostPath}>
       <AskSelection path={file.hostPath}>
-        <LazyPdfViewer filename={file.filename} url={file.url} />
+        <LazyPdfViewer
+          filename={file.filename}
+          url={file.url}
+          {...(atPage === undefined ? {} : { atPage })}
+        />
       </AskSelection>
     </ViewerSurface>
   );
@@ -928,6 +934,7 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 });
 
 export function FileViewer({
+  atPage,
   actionsInto,
   actionsInToolbar = false,
   actionsLead,
@@ -947,6 +954,8 @@ export function FileViewer({
   silent = false,
   toolbarInto,
 }: {
+  /** The page a PDF opens at, as a link to a page in it names. */
+  atPage?: number;
   /**
    * Where the file's actions go when the surface around the viewer has a row
    * of its own for them: the viewer then wears no head, and draws its actions
@@ -1151,6 +1160,7 @@ export function FileViewer({
     actionsInToolbar && viewer.hasToolbar && !mediaLoadError;
   const actionsTarget = takesToolbarEnd ? toolbarEnd : actionsInto;
   const viewerContext: ViewerContext = {
+    ...(atPage === undefined ? {} : { atPage }),
     editable,
     fallback: (
       <FilePreviewFallback

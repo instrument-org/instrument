@@ -21,6 +21,7 @@ import { Profiler } from "react";
 import { describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { ComposerDraftContext } from "./composer-draft-context";
+import { FileOpenContext } from "./file-open-context";
 import { Markdown } from "./markdown";
 import { WindowContext, type WindowContextValue } from "./window/context";
 
@@ -1449,6 +1450,31 @@ describe("Markdown file chips", () => {
     await screen.findByRole("menu");
 
     expect(screen.queryByRole("button", { name: "Add to chat" })).toBeNull();
+  });
+
+  // The page is a place in the file, not part of its name: the chip names
+  // the PDF itself, and opening it asks for that page.
+  it("opens a link to a page in a PDF at that page", () => {
+    const openFile = vi.fn();
+    renderWithProviders(
+      <FileOpenContext value={openFile}>
+        <Markdown
+          chatId={TASK_ID}
+          markdown="See [Lease, page 4](</Users/sam/Lease/Alder Street lease.pdf#page=4>)."
+        />
+      </FileOpenContext>,
+    );
+
+    const chip = screen.getByRole("button", { name: "Lease, page 4" });
+    expect(chip.getAttribute("title")).toBe(
+      "/Users/sam/Lease/Alder Street lease.pdf",
+    );
+    fireEvent.click(chip);
+
+    expect(openFile).toHaveBeenCalledWith(
+      "/Users/sam/Lease/Alder Street lease.pdf",
+      { page: 4 },
+    );
   });
 });
 

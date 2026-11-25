@@ -741,6 +741,7 @@ export function useOpeners({
   const hrefOfNamedPath = async (
     path: string,
     chat: ChatId | undefined,
+    page?: number,
   ): Promise<string | undefined> => {
     if (!isOpen) {
       return;
@@ -783,7 +784,7 @@ export function useOpeners({
         return versionHref(history.file, hostPath);
       }
     }
-    return fileHref(hostPath);
+    return fileHref(hostPath, page === undefined ? {} : { page });
   };
   /**
    * Opens a path a reply named: a file in its viewer, a folder as the folder
@@ -796,7 +797,7 @@ export function useOpeners({
    * beats a tab rooted nowhere.
    */
   const openNamedPath = (path: string, options?: OpenOptions) => {
-    void hrefOfNamedPath(path, options?.chat).then((href) => {
+    void hrefOfNamedPath(path, options?.chat, options?.page).then((href) => {
       if (href !== undefined) {
         openScreen(href, options);
       }

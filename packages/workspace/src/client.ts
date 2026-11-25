@@ -158,7 +158,11 @@ export {
 } from "./lib/transcript/developer-notes";
 export { systemNoteBody } from "./model-text/notes/system-note";
 export { taskEventModelNote } from "./model-text/notes/task-event-model-text";
-export { isChatFileHref, chatFilePathFromHref } from "./lib/chat-file-href";
+export {
+  chatFilePageFromHref,
+  chatFilePathFromHref,
+  isChatFileHref,
+} from "./lib/chat-file-href";
 export { isDriveHref } from "./lib/normalize-chat-file-path";
 export {
   isAddressableChatFilePath,

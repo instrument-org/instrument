@@ -178,7 +178,7 @@ export function FilesScreen({
   // Where the tab stands is the address's alone; every change to it goes
   // through `go`.
   const { arrivals, go, step: here } = useFilesStep(routed);
-  const { file, path, query, root, select, tree, version, view } = here;
+  const { file, page, path, query, root, select, tree, version, view } = here;
   const source = here.source ?? false;
   const {
     openScreen,
@@ -1304,6 +1304,9 @@ export function FilesScreen({
                                       file={viewerFile}
                                       keyboardHome
                                       key={activeFile.hostPath}
+                                      {...(page === undefined
+                                        ? {}
+                                        : { atPage: page })}
                                       onInfo={fileInfo.openOnFile}
                                       {...pageInSlot(isFolderShown)}
                                     />
@@ -1355,6 +1358,7 @@ export function FilesScreen({
                   file={viewerFile}
                   keyboardHome
                   key={activeFile.hostPath}
+                  {...(page === undefined ? {} : { atPage: page })}
                   onInfo={fileInfo.openOnFile}
                   {...pageInSlot(false)}
                   {...(source

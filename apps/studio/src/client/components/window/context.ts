@@ -61,6 +61,8 @@ export interface OpenOptions {
   into?: "group" | "split" | "window";
   /** A tab of its own in the group, beside the one up rather than in its place: what a conversation or an agent opens. */
   ownTab?: boolean;
+  /** The page a PDF opens at, from a link's `#page=4`. */
+  page?: number;
   /** Takes the place of the address the window's tab stands on rather than stepping on from it: a screen handing its file to the page. */
   replace?: boolean;
   show?: boolean;

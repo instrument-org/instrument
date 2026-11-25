@@ -28,6 +28,7 @@ import {
   AGENT_TIMELINE_LANGUAGE,
   isAddressableChatFilePath,
   isChatFileHref,
+  chatFilePageFromHref,
   chatFilePathFromHref,
   isDriveHref,
   isTimelineEntry,
@@ -579,6 +580,9 @@ const ChatFileLink = ({
   const { chatId } = useContext(MarkdownChatContext);
   const filePath = chatFilePathFromHref(href);
   const filename = filePath.split("/").at(-1) ?? filePath;
+  // A link to a page in a PDF opens the file there.
+  const page = chatFilePageFromHref(href);
+  const atPage = page === undefined ? {} : { page };
   const showChatFile = useShowChatFile();
   const placesOf = useWindowPlaces();
   const bookmarkRow = useBookmarkRow();
@@ -605,21 +609,24 @@ const ChatFileLink = ({
     <ChipButton
       className={className}
       onActivate={(event) => {
-        showChatFile(
-          filePath,
-          !hasTabs
+        showChatFile(filePath, {
+          ...atPage,
+          ...(!hasTabs
             ? {}
             : wantsNewWindow(event)
               ? { newTab: true }
               : wantsNewTab(event)
                 ? { behind: true, newTab: true }
-                : {},
-        );
+                : {}),
+        });
       }}
       onAuxClick={(event) => {
         if (event.button === 1) {
           event.preventDefault();
-          showChatFile(filePath, hasTabs ? { behind: true, newTab: true } : {});
+          showChatFile(filePath, {
+            ...atPage,
+            ...(hasTabs ? { behind: true, newTab: true } : {}),
+          });
         }
       }}
       title={filePath}
@@ -661,7 +668,7 @@ const ChatFileLink = ({
           <>
             <ContextMenuItem
               onSelect={() => {
-                showChatFile(filePath);
+                showChatFile(filePath, atPage);
               }}
             >
               Open
@@ -670,7 +677,7 @@ const ChatFileLink = ({
               components={contextMenuComponents}
               destinations={[
                 ...placesOf((options) => {
-                  showChatFile(filePath, options);
+                  showChatFile(filePath, { ...options, ...atPage });
                 }),
                 bookmarkRow(async () => ({
                   title: filename,

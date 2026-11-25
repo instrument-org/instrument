@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isChatFileHref, chatFilePathFromHref } from "./chat-file-href";
+import {
+  chatFilePageFromHref,
+  chatFilePathFromHref,
+  isChatFileHref,
+} from "./chat-file-href";
 
 describe("isChatFileHref", () => {
   it.each([
@@ -54,5 +58,34 @@ describe("chatFilePathFromHref", () => {
 
   it("decodes an escaped separator into a path segment", () => {
     expect(chatFilePathFromHref("output/a%2Fb.png")).toBe("output/a/b.png");
+  });
+});
+
+describe("a place in the file", () => {
+  it.each([
+    [
+      "/Users/sam/Lease/Alder Street lease.pdf#page=4",
+      "/Users/sam/Lease/Alder Street lease.pdf",
+    ],
+    [
+      "/Users/sam/Lease/Alder%20Street%20lease.pdf#page=12",
+      "/Users/sam/Lease/Alder Street lease.pdf",
+    ],
+    ["src/app.ts#L12", "src/app.ts"],
+    ["src/app.ts#L12-L20", "src/app.ts"],
+    ["notes/#1 ideas.md", "notes/#1 ideas.md"],
+    ["notes/take #2.md", "notes/take #2.md"],
+    ["report.pdf#pagex=4", "report.pdf#pagex=4"],
+  ])("%s names %s", (href, path) => {
+    expect(chatFilePathFromHref(href)).toBe(path);
+  });
+
+  it.each([
+    ["/Users/sam/Lease/Alder Street lease.pdf#page=4", 4],
+    ["report.pdf", undefined],
+    ["report.pdf#page=0", undefined],
+    ["src/app.ts#L12", undefined],
+  ])("%s opens at page %s", (href, page) => {
+    expect(chatFilePageFromHref(href)).toBe(page);
   });
 });

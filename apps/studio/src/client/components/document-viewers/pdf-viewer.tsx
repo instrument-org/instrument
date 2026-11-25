@@ -27,6 +27,7 @@ import {
   Scroller,
   ScrollPluginPackage,
   useScroll,
+  useScrollCapability,
 } from "@embedpdf/plugin-scroll/react";
 import {
   SearchLayer,
@@ -254,7 +255,15 @@ function useHeldView(
   }, [holdRef, rootRef]);
 }
 
-export function PdfViewer({ url }: { filename: string; url: string }) {
+export function PdfViewer({
+  atPage,
+  url,
+}: {
+  /** The page to open at, counted from 1. */
+  atPage?: number;
+  filename: string;
+  url: string;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   const holdRef = useRef<HTMLDivElement>(null);
   useHeldView(rootRef, holdRef);
@@ -262,7 +271,7 @@ export function PdfViewer({ url }: { filename: string; url: string }) {
     // The same box as the viewer's own content area, so a view left here
     // lays out the same in the next viewer's layer.
     <div className="relative flex min-h-0 flex-1 flex-col" ref={rootRef}>
-      <PdfEngineView url={url} />
+      <PdfEngineView url={url} {...(atPage === undefined ? {} : { atPage })} />
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 z-10 flex flex-col empty:hidden"
@@ -272,7 +281,7 @@ export function PdfViewer({ url }: { filename: string; url: string }) {
   );
 }
 
-function PdfEngineView({ url }: { url: string }) {
+function PdfEngineView({ atPage, url }: { atPage?: number; url: string }) {
   const [engine, setEngine] = useState<null | PdfEngine>(null);
   const [engineError, setEngineError] = useState<Error | null>(null);
 
@@ -309,7 +318,7 @@ function PdfEngineView({ url }: { url: string }) {
 
   return (
     <EmbedPDF engine={engine} plugins={PLUGINS}>
-      <PdfDocument url={url} />
+      <PdfDocument url={url} {...(atPage === undefined ? {} : { atPage })} />
     </EmbedPDF>
   );
 }
@@ -330,7 +339,7 @@ function loadEngine() {
   return pending;
 }
 
-function PdfDocument({ url }: { url: string }) {
+function PdfDocument({ atPage, url }: { atPage?: number; url: string }) {
   const { provides: documentManager } = useDocumentManagerCapability();
   const { activeDocument, activeDocumentId } = useActiveDocument();
   // Keyed by URL so opening a different file clears the previous failure
@@ -401,10 +410,50 @@ function PdfDocument({ url }: { url: string }) {
     return <FileLoading />;
   }
 
-  return <PdfDocumentView documentId={activeDocumentId} />;
+  return (
+    <PdfDocumentView
+      documentId={activeDocumentId}
+      {...(atPage === undefined ? {} : { atPage })}
+    />
+  );
 }
 
-function PdfDocumentView({ documentId }: { documentId: string }) {
+/**
+ * Scrolls to the page asked for once the document is laid out, and again
+ * when another page is asked for while it is open.
+ */
+function useOpenAtPage(documentId: string, atPage: number | undefined) {
+  const { provides: scroll } = useScrollCapability();
+  const [isLaidOut, setLaidOut] = useState(false);
+  useEffect(
+    () =>
+      scroll?.onLayoutReady((event) => {
+        if (event.documentId === documentId) {
+          setLaidOut(true);
+        }
+      }),
+    [scroll, documentId],
+  );
+  useEffect(() => {
+    if (!scroll || !isLaidOut || atPage === undefined) {
+      return;
+    }
+    const pages = scroll.forDocument(documentId);
+    pages.scrollToPage({
+      behavior: "instant",
+      pageNumber: Math.min(atPage, pages.getTotalPages()),
+    });
+  }, [scroll, isLaidOut, atPage, documentId]);
+}
+
+function PdfDocumentView({
+  atPage,
+  documentId,
+}: {
+  atPage?: number;
+  documentId: string;
+}) {
+  useOpenAtPage(documentId, atPage);
   const [railOpen, setRailOpen] = useState(false);
   const [pageArea, setPageArea] = useState<HTMLDivElement | null>(null);
   const { provides: scroll, state: scrollState } = useScroll(documentId);

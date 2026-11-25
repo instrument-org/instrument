@@ -1641,7 +1641,7 @@ export function pageBecomesFile(
       ? []
       : [
           {
-            ...omit(visit, ["favicon", "title"]),
+            ...omit(visit, ["favicon", "side", "title"]),
             id: left.id,
             url: left.url,
             ...(left.title === undefined ? {} : { title: left.title }),

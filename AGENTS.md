@@ -31,13 +31,25 @@ Before changing any of these, read the doc that owns it: the layout in [`system-
 
 ## UI copy
 
-Words a person reads in the app (subheads, descriptions, empty states, toasts, dialogs) are written in conversational plain language: full sentences, said the way you would say them out loud to a friend. Keep it short, and keep the grammar. Read the line aloud, and if no one would say it that way, rewrite it.
+Words a person reads in the app (subheads, descriptions, empty states, toasts, dialogs, errors) read like a well-made app printed them, not like the app narrating itself. Take the phrase people already know first, and plain spoken English where there isn't one. Short is what that usually comes to and not the aim: a line no one would say or print is wrong however short it is.
+
+In this order:
+
+- **Cut what the screen already says.** A title or button that explains itself needs no description, and a true clause that changes nothing ("then comes right back here") goes.
+- **Use the familiar phrase**: what macOS, Chrome or ChatGPT say for the same thing, or what the app's own sibling message says.
+- **State what happened or what the person can do.** A status or an error can be a fragment or passive: "Thanks! Feedback submitted.", "Error sending your feedback", "Icon updated". A description is a full sentence.
+- **Trust the reader with the ordinary word**: "Scale the app" over "Make the app larger or smaller". Data is stored, and a folder the app won't open is protected.
+- **Keep the app a tool.** It has no "we" or "us" and doesn't keep, want or hear, and a thing has no possessions ("model limits" over "the model's limit"). The people behind it are "the Instrument team".
+- **Echo the button.** A line beside Send again says "try sending again", and a link to Send feedback says "send feedback".
+- **Put warmth in a word**: "Thanks!", "Please check your edits", "enjoy".
+
+An email from a person on the team is the other voice: "Hi Sam", "we", contractions, whole sentences the way you'd talk.
 
 These rules cover prose a person reads in the app and nothing else. Buttons, labels and placeholders are a word or a few ("Send", not "Stop and send what you said"). Text written for the agent (system prompts, tool descriptions, skill and environment notes) is terse and direct, written the way an agent reads best. When a full sentence and a shorter matter-of-fact one both work, take the shorter.
 
 What to avoid:
 
-- **Telegraphic sentences** that drop the subject or the small words to sound punchy: "Adds to what Instrument already knows." Say what does it: "Importing adds to what Instrument remembers."
+- **Telegraphic descriptions** that drop the subject or the small words to sound punchy: "Adds to what Instrument already knows." Say what does it: "Importing adds to what Instrument remembers."
 - **Negative contrast**, "X, never Y" or "not X but Y", which adds emphasis by denying something nobody claimed: "Adds to your memories, never replaces them."
 - **Clipped commands with a vague "it"**: "Repeat it for each AI you use."
 - **Narrating the mechanism** instead of saying what the person gets: "Instrument reads it in a new chat and keeps what is worth keeping."

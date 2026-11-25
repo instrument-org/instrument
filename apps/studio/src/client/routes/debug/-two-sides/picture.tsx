@@ -754,6 +754,7 @@ function ScreenRoute({
         id,
         isShown: true,
         showPage: noop,
+        step: noop,
         versionsOf: undefined,
       }}
     >

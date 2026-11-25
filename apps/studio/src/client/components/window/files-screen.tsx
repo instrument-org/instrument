@@ -1,7 +1,8 @@
 import { type ChosenItem } from "@/shared/drafts";
 import { type FileTab, finderBesideWidthAtom } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { FileViewer } from "@/client/components/file-viewer";
+import { FileViewer, hasFormatToolbar } from "@/client/components/file-viewer";
+import { lookAtAtom } from "@/client/components/window/look-at";
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { type RailBounds } from "@/client/components/studio-sidebar-rail";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
@@ -21,7 +22,7 @@ import { fileUrlOf } from "@/client/lib/file-url";
 import { COMPUTER_FILE_REFUSAL_HEADER } from "@/shared/computer-file-refusal";
 import { getFileType } from "@/client/lib/get-file-type";
 import { isTypingTarget } from "@/client/lib/is-typing-target";
-import { keptByTab } from "@/client/lib/kept-by-tab";
+import { folderFoldByTab } from "./folder-fold";
 import {
   pageHoldingKeyboard,
   takeKeyboardOnArrival,
@@ -40,7 +41,7 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import {
   AnimatePresence,
   motion,
@@ -61,7 +62,7 @@ import {
   foldToWidth,
   hidePanel,
   KEPT_PANEL,
-  type PanelFold,
+  showPanel,
   showsPanel,
   togglePanel,
 } from "@/client/lib/panel-fold";
@@ -120,6 +121,10 @@ const BESIDE_BOUNDS: RailBounds = {
  * folds the folder away, and the folder's edge stops short of taking it.
  */
 const FILE_ROOM = 420;
+/** The least room a file has for its format's controls to share the view's row. */
+const SHARED_ROW_ROOM = 400;
+/** The room a file needs for Expand to stay in that row beside them. */
+const EXPAND_ROOM = 520;
 /** How long a held arrow rests on a file before it shows, as the chat list does. */
 const HELD_SHOW_REST_MS = 150;
 
@@ -135,12 +140,6 @@ const BESIDE_EXIT_TRANSITION = {
   duration: 0.38,
   ease: [0.2, 0, 0, 1],
 } as const;
-/**
- * The folder beside a file by tab, whether the person kept it or hid it and
- * whether the tab last had room for it, with the file it was beside, for
- * the screen drawn again as its tab comes back up.
- */
-const folderFoldByTab = keptByTab<{ file: string; fold: PanelFold }>();
 /** The pile several picked make beside the folder, the way the columns draw one. */
 const PILE_POSES = [
   { rotate: 9, x: 24, y: -12 },
@@ -181,8 +180,16 @@ export function FilesScreen({
   const { arrivals, go, step: here } = useFilesStep(routed);
   const { file, path, query, root, select, tree, version, view } = here;
   const source = here.source ?? false;
-  const { openScreen, rowField, rowReload, rowTail, rowView } = useWindow();
-  const { moveToGroup, pageTakesOver, stepVisitOf } = useWindowTabs();
+  const {
+    openScreen,
+    rowField,
+    rowReload,
+    rowTail,
+    rowView,
+    rowViewTools,
+    takeFolderPress,
+  } = useWindow();
+  const { moveToGroup, pageTakesOver } = useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
   const appTabId = useTabId();
@@ -388,6 +395,43 @@ export function FilesScreen({
   const closeBeside = () => {
     go({ type: "closeFile" });
   };
+  // A press on the file's own folder in the address shows the folder beside
+  // the file, the file kept open, and pressed again puts it away.
+  const pressFolder = useEffectEvent(() => {
+    if (file === undefined) {
+      return;
+    }
+    const parent = folderOf(file);
+    if (!isBesideLayout) {
+      setFold(showPanel);
+      router.history.push(
+        fileHref(file, {
+          source,
+          tree: parent,
+          ...(version === undefined ? {} : { version }),
+        }),
+      );
+    } else if (folder?.hostPath === parent) {
+      setFold(togglePanel);
+    } else {
+      // Walked to another folder, or folded away in one: the file's own comes up.
+      setFold(showPanel);
+      go({
+        path: "",
+        root: parent === window.api.homeDir ? "~" : parent,
+        select: relativeHostPath(parent, file) ?? undefined,
+        type: "walk",
+      });
+    }
+  });
+  useEffect(() => {
+    takeFolderPress?.(() => {
+      pressFolder();
+    });
+    return () => {
+      takeFolderPress?.(undefined);
+    };
+  }, [takeFolderPress]);
   const onFolderChange = (next: FolderOnScreen | null) => {
     setFolder((current) =>
       JSON.stringify(current) === JSON.stringify(next) ? current : next,
@@ -549,11 +593,17 @@ export function FilesScreen({
   // shows in this one's place while the step stays in the page's own
   // history (which back walks first), or off the computer, where the tab
   // becomes the page at that address and back returns here. A step past
-  // either end of the page's history is the tab's own.
+  // either end of the page's history is the tab's own: in a group, by the
+  // rule its row's arrows take, so a press there never goes where they can't.
   useHostedPageNavigation(
     hostedTabId === undefined ? undefined : browserTargetOf(hostedTabId),
     hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
+    hostGroup,
     (step) => {
+      if (groupTab && (step.kind === "back" || step.kind === "forward")) {
+        groupTab.step(step.kind);
+        return;
+      }
       if (step.kind === "back") {
         leaveFile();
         return;
@@ -563,8 +613,6 @@ export function FilesScreen({
           router.history.location.state.__TSR_index < router.history.length - 1;
         if (canGoForward) {
           router.history.forward();
-        } else if (groupTab) {
-          stepVisitOf(groupTab.id, 1);
         }
         return;
       }
@@ -758,9 +806,9 @@ export function FilesScreen({
         return;
       }
       if (response.status === 403) {
-        toast(`Instrument keeps “${name}” private`, {
+        toast(`“${name}” is protected`, {
           description:
-            "It’s part of Instrument’s own data, so you can’t open it here.",
+            "It’s part of Instrument’s data and can’t be opened here.",
         });
         putAway();
       } else if (response.status === 404) {
@@ -875,9 +923,24 @@ export function FilesScreen({
   // row for its actions alone; `rowTail` here puts them back in the address
   // row and drops that row.
   const ownTabActionsInto = fileActionsInto;
+  // The room the file has beside its folder. Short of its least, as with the
+  // folder summoned into a narrow split, its format's controls keep a row of
+  // their own; short of a little more, they share the view's row with Expand
+  // in the menu.
+  const fileRoom =
+    (layoutWidth ?? Number.POSITIVE_INFINITY) -
+    (isFileOpen && isFolderShown ? besideWidth : 0);
+  const sharesRow =
+    isBesideLayout && rowViewTools !== undefined && fileRoom >= SHARED_ROW_ROOM;
+  const isExpandInMenu =
+    sharesRow &&
+    activeFile !== undefined &&
+    fileRoom < EXPAND_ROOM &&
+    hasFormatToolbar(activeFile.name);
+  const setLookAt = useSetAtom(lookAtAtom);
   const actionsLead = (
     <>
-      {rowView !== undefined && activeFile && (
+      {rowView !== undefined && activeFile && !isExpandInMenu && (
         <ExpandFileControl
           file={{ hostPath: activeFile.hostPath, name: activeFile.name }}
         />
@@ -1213,6 +1276,27 @@ export function FilesScreen({
                                       actionsTrail={
                                         isFolderShown ? closeButton : null
                                       }
+                                      {...(sharesRow
+                                        ? {
+                                            toolbarInto:
+                                              isPresent && !isVersionOver
+                                                ? rowViewTools
+                                                : null,
+                                          }
+                                        : {})}
+                                      {...(isExpandInMenu
+                                        ? {
+                                            onExpand: () => {
+                                              setLookAt({
+                                                kind: "file",
+                                                tab: {
+                                                  hostPath: activeFile.hostPath,
+                                                  name: activeFile.name,
+                                                },
+                                              });
+                                            },
+                                          }
+                                        : {})}
                                       // A tab opened behind waits to be looked at.
                                       autoPlay={isActiveTab}
                                       className={FULL_BLEED}

@@ -836,6 +836,37 @@ describe.skipIf(onWindows)("bwrapArgs", () => {
     rmSync(home, { force: true, recursive: true });
   });
 
+  it("closes what is closed in a closed folder with that folder", () => {
+    const home = realpathSync(
+      mkdtempSync(path.join(os.tmpdir(), "bwrap-nested-")),
+    );
+    const at = (relative: string) => path.join(home, relative);
+    mkdirSync(at(".config/google-chrome"), { recursive: true });
+    writeFileSync(at(".config/token"), "x");
+    const closed: Rule[] = [
+      { level: "ask", path: at(".config"), source: "place" },
+      { level: "never", path: at(".config/google-chrome"), source: "place" },
+      { level: "never", path: at(".config/token"), source: "place" },
+    ];
+    const argsFor = (rules: Rule[]) =>
+      bwrapArgs(reachOver(home, rules)).join(" ").replaceAll(home, "~");
+
+    const args = argsFor(closed);
+    expect(args).toContain("--perms 0000 --tmpfs ~/.config ");
+    expect(args).not.toContain("~/.config/");
+
+    // Beside a folder opened there, each is closed on its own.
+    mkdirSync(at(".config/app"));
+    const opened = argsFor([
+      ...closed,
+      { level: "allow", path: at(".config/app"), source: "grant" },
+    ]);
+    expect(opened).toContain("--perms 0111 --tmpfs ~/.config ");
+    expect(opened).toContain("--perms 0000 --tmpfs ~/.config/google-chrome ");
+    expect(opened.endsWith("--remount-ro ~/.config")).toBe(true);
+    rmSync(home, { force: true, recursive: true });
+  });
+
   it("refuses a closed folder or file rather than showing it empty", () => {
     const home = realpathSync(mkdtempSync(path.join(os.tmpdir(), "bwrap-")));
     for (const folder of ["Documents/Acme", "Secrets"]) {

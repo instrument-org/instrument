@@ -3,7 +3,12 @@ import { type SessionMessageDataPart } from "../../schemas/session/message-data-
 import { APP_NAME } from "@instrument-org/shared";
 
 import { APP_COMMAND } from "../commands/app-command";
-import { webInsteadCommand, webInsteadStep } from "../../lib/apps/web-instead";
+import {
+  FAILED_SIGN_IN_LABELS,
+  FAILED_SIGN_IN_OFFERS,
+  type FailedSignIn,
+} from "../../lib/apps/failed-sign-in";
+import { webInsteadCommand } from "../../lib/apps/web-instead";
 import {
   signInProgressLine,
   signInsSettled,
@@ -120,10 +125,8 @@ function signInCardLine(
 
 /**
  * A sign-in of the app's own that did not connect, and the way on from it:
- * the service's site, where its own sign-in page works in the window's
- * browser. The card offers that itself, so a second card would only ask the
- * same thing again; with no site to offer, the agent has to find one. A
- * sign-in the user stopped or
+ * the buttons the card has, by name, and what the agent does once the user
+ * hands it the connection with one of them. A sign-in the user stopped or
  * left to lapse tells nobody now, so those two lines are only for a note an
  * earlier build stored.
  */
@@ -133,8 +136,6 @@ function signInEnded(
   detail: string | undefined,
 ): string {
   const said = detail ? `: ${detail}` : "";
-  const onCard = `The card now offers signing in on the service's site in ${APP_NAME}'s browser, which connects the app when they finish`;
-  const wait = `Say so in a line and wait: do not change the app or call ${TOOL_NAMES.connectApp} again.`;
   switch (ended) {
     case "canceled":
     case "expired": {
@@ -145,14 +146,24 @@ function signInEnded(
       return `- ${what} The card offers signing in on the web or trying again; ask which in a line. For the web: \`${webInsteadCommand(slug, web)}\`, then ${TOOL_NAMES.connectApp}. To try again: ${TOOL_NAMES.connectApp} as it is.`;
     }
     case "failed": {
-      return web === undefined
-        ? `- Signing in to ${name} (${slug}) failed${said}. ${webInsteadStep(slug, web)}`
-        : `- Signing in to ${name} (${slug}) failed${said}. ${onCard}, or another try. ${wait}`;
+      return `- Signing in to ${name} (${slug}) failed${said}. ${failedSignInNext(slug, ended, web)}`;
     }
     case "refused": {
-      return `- ${name} (${slug}) refused to connect this account directly${said}. That is the service's rule, not the user declining, and trying the same sign-in again meets it again. ${web === undefined ? webInsteadStep(slug, web) : `${onCard}. ${wait}`}`;
+      return `- ${name} (${slug}) refused to let ${APP_NAME} connect directly${said}. That is the service's rule, not the user declining, and the same sign-in meets it again in any browser. ${failedSignInNext(slug, ended, web)}`;
     }
   }
+}
+
+/** What the card has to press, and what the press asks of the agent. */
+function failedSignInNext(
+  slug: string,
+  ended: FailedSignIn,
+  web: string | undefined,
+): string {
+  const buttons = FAILED_SIGN_IN_OFFERS[ended]
+    .map((offer) => `"${FAILED_SIGN_IN_LABELS[offer]}"`)
+    .join(" and ");
+  return `The card has ${buttons}. Say why in a line and wait: do not change the app or call ${TOOL_NAMES.connectApp} until they press "${FAILED_SIGN_IN_LABELS.fix}", which sends you a message asking for another way. With no better one, that is the web: \`${webInsteadCommand(slug, web)}\`, at the service's own web app and not a page an error names, then ${TOOL_NAMES.connectApp}.`;
 }
 
 /**

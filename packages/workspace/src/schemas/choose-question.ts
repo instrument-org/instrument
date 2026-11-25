@@ -13,7 +13,7 @@ const ChoiceSchema = z.object({
   }),
   detail: z.string().optional().meta({
     description:
-      "Markdown shown beside the choices while this one is pointed at: a table, code, a layout or a mockup",
+      "Markdown shown beside the choices while this one is pointed at: a table, code, a layout, a mockup, or a picture as `![](</full/path.png>)`",
   }),
   label: z
     .string()

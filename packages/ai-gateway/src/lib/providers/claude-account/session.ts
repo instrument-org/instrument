@@ -61,6 +61,8 @@ export interface SessionShape {
   /** The CLI's config folder, holding the sign-in it uses, when not its default. */
   configDir: string | undefined;
   effort: EffortLevel | undefined;
+  /** Claude Code's fast mode, which each step switches in place. */
+  fast?: boolean;
   executablePath: string;
   modelId: string;
   systemPrompt: string;
@@ -85,6 +87,9 @@ export class ClaudeCodeSession implements MessageSource {
    */
   contextWindow: number | undefined;
   effort: EffortLevel | undefined;
+  /** What the result ending this process's last turn said of fast mode. */
+  fastMode: undefined | { disabledReason: string | undefined; state: string };
+  fast: boolean;
   modelId: string;
   /** The plan's usage as the CLI last reported it, which it does not repeat every turn. */
   rateLimit: SDKRateLimitInfo | undefined;
@@ -152,6 +157,7 @@ export class ClaudeCodeSession implements MessageSource {
   ) {
     this.builtInTools = new Set(shape.builtInTools);
     this.effort = shape.effort;
+    this.fast = shape.fast ?? false;
     this.modelId = shape.modelId;
     const env = claudeCodeEnvironment(shape.configDir);
     this.query = query({
@@ -199,7 +205,11 @@ export class ClaudeCodeSession implements MessageSource {
         // instead of replaying ours into a new one as text.
         ...transcriptOptions(transcript),
         settingSources: [],
-        settings: { disableClaudeAiConnectors: true },
+        settings: {
+          disableClaudeAiConnectors: true,
+          // Left out when off: naming it opts this process in.
+          ...(shape.fast && { fastMode: true }),
+        },
         // Spawned here, as the SDK would, so that `exited` can say when the
         // process is gone.
         spawnClaudeCodeProcess: (spawned) => {
@@ -322,6 +332,24 @@ export class ClaudeCodeSession implements MessageSource {
       await this.query.applyFlagSettings({ effortLevel: effort ?? null });
       this.effort = effort;
     }
+  }
+
+  /** Switches the process's fast mode, before a step that asks for it. */
+  async useFast(fast: boolean) {
+    if (this.fast !== fast) {
+      await this.query.applyFlagSettings({ fastMode: fast });
+      this.fast = fast;
+    }
+  }
+
+  /** The level the process runs the model it is switched to at. */
+  async runsAt() {
+    // The SDK answers this and leaves it out of its types.
+    const asked = this.query as Query & {
+      getSettings?: () => Promise<{ applied?: { effort?: null | string } }>;
+    };
+    const settings = await asked.getSettings?.();
+    return settings?.applied?.effort ?? undefined;
   }
 
   /** Carries this process on from what it saw, with what the request adds. */

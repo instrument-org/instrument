@@ -68,6 +68,7 @@ import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { AskSelection } from "./document-viewers/ask-selection";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
 import { ViewerToolbarEndContext } from "./document-viewers/viewer-toolbar-end";
+import { ViewerToolbarIntoContext } from "./document-viewers/viewer-toolbar-into";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
 import { FilePreviewFallback } from "./file-preview-fallback";
@@ -944,6 +945,7 @@ export function FileViewer({
   pageEdit,
   pageMenu,
   silent = false,
+  toolbarInto,
 }: {
   /**
    * Where the file's actions go when the surface around the viewer has a row
@@ -1009,6 +1011,11 @@ export function FileViewer({
   pageMenu?: ReactNode;
   /** Set where video and audio must never play sound, such as a thumbnail. */
   silent?: boolean;
+  /**
+   * Where a format with a toolbar of its own draws it, in a row the surface
+   * around the viewer has; null while that row has no place for it.
+   */
+  toolbarInto?: HTMLElement | null;
 }) {
   const { filename, hostPath, mimeType, url } = file;
   const [sourceChosen, setSourceChosen] = useState(false);
@@ -1175,7 +1182,9 @@ export function FileViewer({
 
   const rendered = (
     <ViewerToolbarEndContext value={takesToolbarEnd ? setToolbarEnd : null}>
-      {viewer.render(viewerContext)}
+      <ViewerToolbarIntoContext value={toolbarInto}>
+        {viewer.render(viewerContext)}
+      </ViewerToolbarIntoContext>
     </ViewerToolbarEndContext>
   );
 
@@ -1536,4 +1545,9 @@ function FileViewerHeader({
       </div>
     </div>
   );
+}
+
+/** Whether a file by this name is viewed under a toolbar of its format's own. */
+export function hasFormatToolbar(filename: string) {
+  return VIEWERS[getFileType({ filename })].hasToolbar;
 }

@@ -14,8 +14,11 @@ vi.mock("@/client/components/theme-provider", () => ({
   useTheme: () => ({ theme: "light" }),
 }));
 
-const KEY = /Mac/u.test(navigator.platform) ? "Meta" : "Control";
-const pressUndo = () => userEvent.keyboard(`{${KEY}>}z{/${KEY}}`);
+// An editor takes its own undo key from the computer the test runs on, so the
+// app reads the same one here in place of the Mac the tests stand in.
+const isMac = /Mac/u.test(navigator.platform);
+const key = isMac ? "Meta" : "Control";
+const pressUndo = () => userEvent.keyboard(`{${key}>}z{/${key}}`);
 
 vi.mock("@/client/components/skill-mention", () => ({
   SkillMentionByName: ({ name }: { name: string }) => <span>/{name}</span>,
@@ -27,9 +30,16 @@ const noop = () => {
 
 let uninstall: () => void;
 beforeEach(() => {
+  if (!isMac) {
+    vi.stubGlobal("electron", {
+      ...window.electron,
+      process: { ...window.electron.process, platform: "linux" },
+    });
+  }
   uninstall = installUndoKey();
 });
 afterEach(() => {
+  vi.unstubAllGlobals();
   uninstall();
   toast.dismiss();
 });

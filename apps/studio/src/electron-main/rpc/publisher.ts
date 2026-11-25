@@ -129,6 +129,7 @@ interface PublisherEvents {
   // The network status the window's corner shows changed.
   "network.status.updated": null;
   // This computer settled on a connection for a model another computer chose.
+  "model-choices.updated": null;
   "model-routes.updated": null;
   "preferences.updated": null;
   "provider-config.updated": null;

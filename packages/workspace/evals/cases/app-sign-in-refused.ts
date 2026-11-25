@@ -6,10 +6,10 @@
  * The user asks to connect Linear; the agent sets it up and puts a sign-in
  * card up. The run then ends that sign-in the way the app's callback does
  * when the service turns the account away (`signInsEndAs`), which wakes the
- * chat with a note saying the card now offers the service's site. Scored: the
- * note arrived, the agent said so in a line, it neither moved the app to the
- * web itself nor called `connect_app` again, and it never told the user they
- * declined.
+ * chat with a note saying the card has "Fix with Instrument" and to wait for
+ * it. Scored: the note arrived, the agent said so in a line, it neither moved
+ * the app to the web itself nor called `connect_app` again, and it never told
+ * the user they declined.
  */
 import { type Session } from "../../src/schemas/session";
 import { connectAppResults } from "../../src/tools/connect-app-output";

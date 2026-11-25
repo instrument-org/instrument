@@ -746,6 +746,7 @@ const startOAuth = base
   .output(
     z.discriminatedUnion("status", [
       z.object({ status: z.literal("connected") }),
+      z.object({ status: z.literal("refused") }),
       z.object({ status: z.literal("started"), url: z.string() }),
     ]),
   )
@@ -773,9 +774,14 @@ const startOAuth = base
       // A sign-in that cannot start is as much news as one that finished:
       // the conversation asked for it, and is the one to say what now.
       await settleConnection(input.slug, {
+        ...(result.error.reason === "client-refused" && { ended: "refused" }),
         error: result.error.message,
         status: "failed",
       });
+      // The card says it, from the record just written.
+      if (result.error.reason === "client-refused") {
+        return { status: "refused" as const };
+      }
       // Carried as the cause so a sign-in that could not start because the
       // network is down is not captured as a fault.
       throw errors.API_ERROR({

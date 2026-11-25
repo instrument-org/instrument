@@ -16,14 +16,17 @@ import {
   type ChatId,
   type WorkspaceActorRef,
   type WorkspaceConfig,
+  chatReads,
   chatSettles,
   settleIsNews,
   workspaceRouter,
 } from "@instrument-org/workspace/electron";
 import { call, type InferRouterOutputs } from "@orpc/server";
 import { isAppInFront } from "@/electron-main/windows/app-in-front";
-import { app, Notification } from "electron";
+import { app, BrowserWindow, Notification } from "electron";
 import { sleep } from "radashi";
+
+import { createChatNotifications } from "./chat-notifications";
 
 const SUBSCRIPTION_RETRY_DELAY_MS = 1000;
 const MAX_BUFFERED_COMPLETION_EVENTS = 100;
@@ -32,6 +35,8 @@ const MAX_NOTIFICATION_BODY_LENGTH = 200;
 // Keep notifications reachable until dismissed or clicked so their event
 // handlers stay alive.
 const liveNotifications = new Set<Notification>();
+
+const chatNotifications = createChatNotifications();
 
 type Chat = NonNullable<
   InferRouterOutputs<typeof workspaceRouter>["chats"]["byId"]
@@ -143,17 +148,16 @@ export function startAgentCompletionNotifications({
     }
     const chat = await chatOf({ context, id });
 
+    const inFront = await isAppInFront();
     if (
-      !(await canShowAgentCompletionNotification({
-        canRevealChat,
-        inFront: await isAppInFront(),
-      }))
+      !(await canShowAgentCompletionNotification({ canRevealChat, inFront }))
     ) {
       return;
     }
 
     presentNotification({
       body,
+      chat: { id, overApp: inFront },
       onClick: () => {
         revealChat(id);
       },
@@ -200,7 +204,27 @@ export function startAgentCompletionNotifications({
     }
   }
 
+  async function closeOnRead() {
+    while (true) {
+      try {
+        for await (const { id } of chatReads()) {
+          chatNotifications.chatRead(id, {
+            inFront: BrowserWindow.getFocusedWindow() !== null,
+          });
+        }
+      } catch (error) {
+        logger
+          .scope("agentCompletionNotifications")
+          .error("Chat read subscription failed", error);
+      }
+
+      await sleep(SUBSCRIPTION_RETRY_DELAY_MS);
+    }
+  }
+
   void subscribe();
+  void closeOnRead();
+  app.on("browser-window-focus", chatNotifications.appCameForward);
 }
 
 /**
@@ -287,21 +311,39 @@ function latestTurnText(messages: Messages): string | undefined {
 
 function presentNotification({
   body,
+  chat,
   onClick,
   title,
 }: {
   body: string | undefined;
+  /** The chat it is about, and whether the app was in front as it went up. */
+  chat?: { id: ChatId; overApp: boolean };
   onClick?: () => void;
   title: string;
 }) {
   const notification = new Notification({ body, title });
   liveNotifications.add(notification);
+  const forget = chat
+    ? chatNotifications.add(chat.id, {
+        close: () => {
+          notification.close();
+        },
+        overApp: chat.overApp,
+      })
+    : undefined;
   notification.once("click", () => {
     liveNotifications.delete(notification);
+    forget?.();
     onClick?.();
   });
-  notification.once("close", () => {
+  notification.on("close", ({ reason }) => {
+    // Windows moves one that timed out into its notification center, where
+    // it can still be clicked and still be taken away.
+    if (reason === "timedOut") {
+      return;
+    }
     liveNotifications.delete(notification);
+    forget?.();
   });
   notification.show();
 }

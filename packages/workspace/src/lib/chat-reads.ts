@@ -8,6 +8,10 @@ import { TypedError } from "./errors";
 import { type ChatRead, writingChatRecords } from "./records/chat-records";
 import { type DeviceId } from "./records/device-id";
 import { type FoldedSession, type FoldedSettings } from "./records/fold";
+import {
+  asEarlierVersion,
+  withEarlierVersions,
+} from "./records/earlier-versions";
 import { sessionOf } from "./records/session-of";
 import {
   sitesView,
@@ -76,6 +80,55 @@ export namespace ChatReads {
   }
 
   /**
+   * The session as it was when one of its messages was edited, as
+   * `developerHistory` reads the session.
+   */
+  export function versionHistory({
+    chatId,
+    edited,
+    sessionId,
+  }: {
+    chatId: ChatId;
+    edited: StoreId.Message;
+    sessionId: StoreId.Session;
+  }): ResultAsync<SessionMessage.WithParts[], Failure> {
+    return read(chatId).andThen((chat) => {
+      const version = asEarlierVersion(chat, sessionId, edited);
+      return version
+        ? okAsync(developerHistoryView(version, sessionId))
+        : errAsync(missingVersion(chatId, edited));
+    });
+  }
+
+  /**
+   * An earlier version's transcript: the edited message and what followed
+   * it, as `transcript` reads the session.
+   */
+  export function versionTranscript({
+    chatId,
+    edited,
+    sessionId,
+  }: {
+    chatId: ChatId;
+    edited: StoreId.Message;
+    sessionId: StoreId.Session;
+  }): ResultAsync<SessionMessage.WithParts[], Failure> {
+    return read(chatId).andThen((chat) => {
+      const version = asEarlierVersion(chat, sessionId, edited);
+      return version
+        ? ResultAsync.fromPromise(
+            stepsView(version, sessionId, { bytes: false }).then((steps) =>
+              mergeViews(conversationView(version, sessionId), steps).filter(
+                ({ id }) => id >= edited,
+              ),
+            ),
+            storageError,
+          )
+        : errAsync(missingVersion(chatId, edited));
+    });
+  }
+
+  /**
    * That history with the parts kept for a developer alone, for what reads
    * beside the transcript and for what those parts remember of themselves.
    */
@@ -117,11 +170,13 @@ export namespace ChatReads {
    * reads those bytes back from the blobs that hold them; a reader that does
    * not show them spends no read on one. `live: false` leaves the running
    * turn out, for a reader that keeps what it derives as though the records
-   * said it.
+   * said it. `earlierVersions` finds the messages of those too, for a reader
+   * that names the ones it wants.
    */
   export function transcript({
     bytes = false,
     chatId,
+    earlierVersions = false,
     inherited,
     live = true,
     only,
@@ -129,12 +184,16 @@ export namespace ChatReads {
   }: {
     bytes?: boolean;
     chatId: ChatId;
+    earlierVersions?: boolean;
     inherited?: boolean;
     live?: boolean;
     only?: ReadonlySet<StoreId.Message>;
     sessionId: StoreId.Session;
   }): ResultAsync<SessionMessage.WithParts[], Failure> {
-    return read(chatId).andThen((chat) => {
+    return read(chatId).andThen((stored) => {
+      const chat = earlierVersions
+        ? withEarlierVersions(stored, sessionId)
+        : stored;
       const options = { inherited, only };
       return ResultAsync.fromPromise(
         stepsView(chat, sessionId, { ...options, bytes }).then((steps) =>
@@ -347,6 +406,15 @@ function read(chatId: ChatId): ResultAsync<ChatRead, Failure> {
     );
   }
   return ResultAsync.fromPromise(records.read(chatId), storageError);
+}
+
+function missingVersion(
+  chatId: ChatId,
+  edited: StoreId.Message,
+): TypedError.NotFound {
+  return new TypedError.NotFound(
+    `Chat ${chatId} has no earlier version at ${edited}`,
+  );
 }
 
 function missingSession(

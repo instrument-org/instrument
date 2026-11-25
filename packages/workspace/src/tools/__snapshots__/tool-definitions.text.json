@@ -113,7 +113,7 @@
                       "type": "string"
                     },
                     "detail": {
-                      "description": "Markdown shown beside the choices while this one is pointed at: a table, code, a layout or a mockup",
+                      "description": "Markdown shown beside the choices while this one is pointed at: a table, code, a layout, a mockup, or a picture as `![](</full/path.png>)`",
                       "type": "string"
                     },
                     "label": {

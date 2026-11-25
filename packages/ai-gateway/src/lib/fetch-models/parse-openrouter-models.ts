@@ -22,6 +22,7 @@ const OpenRouterModelSchema = z.object({
   // later. Only our own gateway sends this; a user's OpenRouter key will not.
   instrument: z
     .object({
+      efforts: z.array(z.string()).optional(),
       family: z.string().optional(),
       maker: z.string().optional(),
       name: z.string().optional(),

@@ -75,11 +75,37 @@ export namespace AIGatewayModel {
    */
   export const ReasoningSchema = z.object({
     defaultEffort: z.string().optional(),
+    /** The provider's own sentence about a level, by level, when it gives one. */
+    descriptions: z.record(z.string(), z.string()).optional(),
     efforts: z.array(z.string()),
     enabledByDefault: z.boolean(),
     mandatory: z.boolean(),
   });
   export type Reasoning = z.output<typeof ReasoningSchema>;
+
+  /** What a person may choose about the model, as the picker shows it. */
+  export const ChoicesSchema = z.object({
+    /** The name of the level Default runs at, when anything says. */
+    defaultLabel: z.string().optional(),
+    /** Lowest first. Empty where only Fast can be chosen. */
+    efforts: z.array(
+      z.object({
+        description: z.string().optional(),
+        id: z.string(),
+        label: z.string(),
+      }),
+    ),
+    /** Present where the model has a faster mode. */
+    fast: z
+      .object({
+        /** The provider's own words for what it does. */
+        note: z.string().optional(),
+        /** Why the account cannot run it, for its row and for a note. */
+        off: z.object({ note: z.string(), row: z.string() }).optional(),
+      })
+      .optional(),
+  });
+  export type Choices = z.output<typeof ChoicesSchema>;
 
   export const PricingSchema = z.object({
     /**
@@ -96,6 +122,8 @@ export namespace AIGatewayModel {
   export const Schema = z.object({
     author: z.string(),
     canonicalId: AIGatewayModelURI.CanonicalIdSchema,
+    /** Set on the list the app shows, from `modelChoicesFor`. */
+    choices: ChoicesSchema.optional(),
     /**
      * Tokens the model accepts in one request, when the provider tells us.
      *
@@ -114,6 +142,8 @@ export namespace AIGatewayModel {
      * brand name serves. Absent for every other provider and an older gateway.
      */
     family: z.string().optional(),
+    /** The account's own faster mode for this model, when its list has one. */
+    fast: z.object({ note: z.string().optional() }).optional(),
     features: ModelFeaturesSchema.array(),
     /**
      * Who makes the model behind one of our own models, as an author slug
@@ -124,6 +154,8 @@ export namespace AIGatewayModel {
     name: z.string(),
     /** A short line our gateway wants shown beside one of our models. */
     note: z.string().optional(),
+    /** The levels our gateway offers people on one of our models. */
+    offeredEfforts: z.array(z.string()).optional(),
     params: AIGatewayModelURI.ParamsSchema,
     /**
      * Dollars per million tokens in and out, when the provider's list prices

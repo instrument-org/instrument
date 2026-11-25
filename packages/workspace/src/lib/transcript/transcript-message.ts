@@ -1,3 +1,4 @@
+import { isInterruptedByClosing } from "../../constants";
 import { MARKDOWN_EXTENSIONS } from "@instrument-org/shared";
 import { z } from "zod";
 
@@ -60,6 +61,8 @@ export interface StepPart {
   blocked?: { inSettings?: true; why: string };
   /** What a blocked or failed call couldn't do, which is its line. */
   couldnt?: string;
+  /** The app closed on the call while it ran. */
+  appClosed?: true;
   explanation?: string;
   metadata: {
     createdAt: Date;
@@ -392,6 +395,8 @@ function toolStep(
     ...(explanation && { explanation }),
     metadata: part.metadata,
     ...(output.processId && { processId: output.processId }),
+    ...(part.state === "output-error" &&
+      isInterruptedByClosing(part.errorText) && { appClosed: true as const }),
     ...(putsUpCard && { putsUpCard }),
     ...(sentTasks.length > 0 && { sentTasks }),
     ...(shows && { shows }),

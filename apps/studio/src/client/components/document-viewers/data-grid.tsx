@@ -724,7 +724,7 @@ export function DataGrid({
   return (
     <>
       <ViewerToolbar>
-        <span className="px-1.5 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
+        <span className="min-w-0 truncate px-1.5 text-xs whitespace-nowrap text-muted-foreground tabular-nums">
           {title && <span className="text-foreground">{title}</span>}
           {title && " · "}
           {filtered
@@ -734,10 +734,10 @@ export function DataGrid({
           {note ? ` (${note})` : ""}
         </span>
         <ViewerToolbarSpacer />
-        <div className="group/field relative">
+        <div className="group/field relative min-w-20 shrink">
           <Input
             aria-label="Filter rows"
-            className="h-7 w-40 text-xs"
+            className="h-7 w-40 max-w-full text-xs"
             onChange={(event) => {
               setGlobalFilter(event.target.value);
             }}

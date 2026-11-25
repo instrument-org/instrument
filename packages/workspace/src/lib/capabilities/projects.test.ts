@@ -297,8 +297,11 @@ describe("instrument projects icons", () => {
 
 describe("instrument projects list", () => {
   it("lists each project with its mark and its color by name", async () => {
+    // Two made in one second, which is as finely as a project's start is kept.
+    vi.useFakeTimers({ now: Date.UTC(2026, 10, 16), toFake: ["Date"] });
     await createProject({ color: "#82c7f0", icon: "bird", name: "X Growth" });
     await createProject({ emoji: "📚", name: "Reading" });
+    vi.useRealTimers();
     const listed = (await turn("instrument projects list")).results[0]?.stdout;
     expect(listed?.replaceAll(/prj_\w+/g, "<id>")).toMatchInlineSnapshot(`
       "  Reading  <id>  emoji 📚

@@ -8,7 +8,12 @@ import { StoreId } from "../../schemas/store-id";
 import { chatAttachmentsDir, handoffNotesPath } from "../chat-dir-utils";
 import { chatGone } from "../chat-gone";
 import { ChatReads } from "../chat-reads";
-import { chatModelURI, setChatModel } from "../chat-settings";
+import {
+  chatModelChoice,
+  chatModelURI,
+  setChatModel,
+  setChatModelChoice,
+} from "../chat-settings";
 import { ChatWrites } from "../chat-writes";
 import { TypedError } from "../errors";
 import {
@@ -40,10 +45,13 @@ import { listChats, renameChat, setChatProject } from "./chats";
 export async function branchChat({
   chatId,
   upTo,
+  version,
 }: {
   chatId: ChatId;
   /** The last message the branch carries: the end of the reply it was started from. */
   upTo: StoreId.Message;
+  /** The edited message whose earlier version the reply is in; none for the conversation as it stands. */
+  version?: StoreId.Message;
 }): Promise<ChatId> {
   const sessionId = sessionOfChat(chatId);
   if (sessionId === undefined) {
@@ -51,7 +59,9 @@ export async function branchChat({
   }
   const [session, history] = await Promise.all([
     ChatReads.session({ chatId, sessionId }),
-    ChatReads.developerHistory({ chatId, sessionId }),
+    version === undefined
+      ? ChatReads.developerHistory({ chatId, sessionId })
+      : ChatReads.versionHistory({ chatId, edited: version, sessionId }),
   ]);
   if (session.isErr()) {
     throw session.error;
@@ -65,9 +75,10 @@ export async function branchChat({
   }
   const copied = history.value.slice(0, end + 1);
 
-  const [places, model, permissions, listed] = await Promise.all([
+  const [places, model, choice, permissions, listed] = await Promise.all([
     chatPlaces(chatId),
     chatModelURI(chatId),
+    chatModelChoice(chatId),
     readChatPermissions(chatId),
     listChats(),
   ]);
@@ -111,6 +122,12 @@ export async function branchChat({
     }
     if (model !== undefined) {
       const set = await setChatModel(branch, model);
+      if (set.isErr()) {
+        throw set.error;
+      }
+    }
+    if (choice !== undefined) {
+      const set = await setChatModelChoice(branch, choice);
       if (set.isErr()) {
         throw set.error;
       }
@@ -206,6 +223,10 @@ function inSession(
   // its members each message and part is.
   const copy = structuredClone(message);
   copy.metadata.sessionId = sessionId;
+  // The earlier versions stay with the chat they are in.
+  if (copy.role === "user") {
+    delete copy.metadata.earlierVersions;
+  }
   for (const part of copy.parts) {
     part.metadata.sessionId = sessionId;
   }

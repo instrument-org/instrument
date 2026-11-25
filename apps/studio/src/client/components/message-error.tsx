@@ -70,7 +70,7 @@ interface MessageErrorProps {
    */
   compact?: boolean;
   /** What `errorOutcomeOf` decided it draws; a card when nothing says otherwise. */
-  draws?: "card" | "nothing" | "online-retry";
+  draws?: "card" | "cut-off" | "nothing" | "online-retry";
   isAgentRunning: boolean;
   isLastMessage: boolean;
   /** Last, or above a retry that hasn't said anything yet (`isLatestAttempt`). */
@@ -162,6 +162,19 @@ export function MessageError({
       }),
   });
 
+  if (draws === "cut-off") {
+    return (
+      <AppClosedLine
+        onContinue={
+          isAgentRunning || chatStatus === "stopped" || !onRunAgain
+            ? undefined
+            : () => {
+                onRunAgain({ ifIdle: true });
+              }
+        }
+      />
+    );
+  }
   if (!error || draws === "nothing") {
     return null;
   }
@@ -798,6 +811,33 @@ function providerSentence(error: MessageErrorData): string {
     }
   }
   return error.message;
+}
+
+/**
+ * A reply the app closed on, by a quit or a crash, with the way on: the turn
+ * runs again from where its records end, only when the person asks.
+ */
+function AppClosedLine({
+  onContinue,
+}: {
+  onContinue: (() => void) | undefined;
+}) {
+  return (
+    <div className="flex min-h-7 flex-wrap items-center gap-x-1 text-sm text-muted-foreground">
+      <PauseCircleIcon className="mr-1 size-4 shrink-0" />
+      {APP_NAME} closed before this reply finished.
+      {onContinue && (
+        <Button
+          className="-my-1 font-medium text-foreground"
+          onClick={onContinue}
+          size="xs"
+          variant="ghost"
+        >
+          Continue
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /** How a turn our platform turned away for the plan ends: one plain line. */

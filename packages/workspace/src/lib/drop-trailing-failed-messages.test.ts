@@ -227,3 +227,39 @@ describe("dropRepeatingReplies", () => {
     ).toEqual([ask.id, followUp.id, failed.id]);
   });
 });
+
+describe("a reply the app closed on", () => {
+  const closed = {
+    appClosed: true,
+    kind: "aborted",
+    message: "Aborted",
+  } as const;
+
+  it("goes when it holds only words", () => {
+    const cut = createAssistantMessage({ error: closed, text: "Sending i" });
+    expect(dropTrailingFailedMessages([cut])).toEqual([]);
+  });
+
+  it("stays when it holds a call that ran", () => {
+    const cut = createAssistantMessage({ error: closed, text: "Sent" });
+    const message: SessionMessage.AssistantWithParts = {
+      ...cut,
+      parts: [
+        {
+          errorText: "Interrupted",
+          input: { command: "send" },
+          metadata: {
+            createdAt: mockDate,
+            id: StoreId.newPartId(),
+            messageId: cut.id,
+            sessionId,
+          },
+          state: "output-error",
+          toolCallId: "call",
+          type: "tool-bash",
+        } as unknown as SessionMessage.AssistantWithParts["parts"][number],
+      ],
+    };
+    expect(dropTrailingFailedMessages([message])).toEqual([message]);
+  });
+});

@@ -2209,3 +2209,35 @@ describe("a failed attempt", () => {
     expect(errorRows(messages())).toEqual(expected);
   });
 });
+
+describe("a chat the app closed on", () => {
+  const closedCall = (id: StoreId.Message) =>
+    ({
+      ...call(id, "bash", {}, undefined, "output-error"),
+      // Earlier builds wrote the first sentence alone.
+      errorText: "This action was interrupted when the app closed.",
+    }) as SessionMessagePart.Type;
+  const question = () => message("user", (id) => [said(id, "Send the email")]);
+  const cutOffRows = (messages: TranscriptMessage[], isRunning = false) =>
+    turnsOf(messages, { isRunning, sessionId }, new Map()).flatMap((turn) =>
+      turn.rows.filter(
+        (row) => row.kind === "error" && row.draws === "cut-off",
+      ),
+    );
+
+  it("offers to carry on from a call left unfinished, only while nothing follows", () => {
+    const sent = question();
+    const reply = message("assistant", (id) => [closedCall(id)], {
+      finishReason: "tool-calls",
+    });
+    expect(cutOffRows([sent, reply])).toHaveLength(1);
+    expect(cutOffRows([sent, reply], true)).toHaveLength(0);
+    expect(cutOffRows([sent, reply, question()])).toHaveLength(0);
+    const [turn] = turnsOf(
+      [sent, reply],
+      { isRunning: false, sessionId },
+      new Map(),
+    );
+    expect(turn?.phase).toBe("interrupted");
+  });
+});

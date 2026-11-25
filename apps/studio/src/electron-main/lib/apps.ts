@@ -160,7 +160,7 @@ export async function disconnectApp(
 export type AppCallbackOutcome =
   | { opensIn: "app" | "external"; outcome: "connected"; slug: string }
   | { outcome: "declined"; slug: string }
-  /** The service would not let this account connect, by its own rule. */
+  /** The service would not let Instrument connect, by its own rule. */
   | { outcome: "refused"; slug: string }
   /** The browser came back to a sign-in nobody was waiting for. */
   | { outcome: "expired" }

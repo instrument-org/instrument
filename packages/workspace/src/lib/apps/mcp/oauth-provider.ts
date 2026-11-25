@@ -1,4 +1,4 @@
-import { APP_NAME } from "@instrument-org/shared";
+import { APP_DOMAIN, APP_NAME } from "@instrument-org/shared";
 import {
   discoverOAuthServerInfo,
   type OAuthClientProvider,
@@ -11,9 +11,16 @@ import {
   type OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
 
-import { catalogRegisteredClient } from "../catalog";
+import { catalogRelayedSignIn } from "../catalog";
 import { boundTo, type OriginBound } from "../origin-bound";
 import { fetchForMcp } from "./fetch";
+
+/**
+ * Instrument's client metadata document, whose address is its client id with
+ * a vendor that reads one in place of a registration. The website serves it;
+ * it names the loopback callback and not our API's relay.
+ */
+const CLIENT_METADATA_URL = `https://${APP_DOMAIN}/oauth/client-metadata.json`;
 
 /**
  * Everything the OAuth flow must persist for one app, keyed by slug. The
@@ -72,6 +79,11 @@ export interface McpOAuthStore {
  * its endpoints from the discovery state, so the provider runs the discovery
  * itself and hands back the result with the token endpoint replaced.
  *
+ * A server that registers no clients on the spot and reads a client metadata
+ * document is given Instrument's. The SDK would take the document over a
+ * registration wherever both are offered, so it is withheld from a server
+ * that registers.
+ *
  * `origin` is the MCP server's origin under the manifest as it stands. What
  * this provider saves is recorded against it, and what it reads back is only
  * what was saved for it: a manifest pointed at another server gets no token
@@ -101,7 +113,11 @@ export function createMcpOAuthProvider({
   store: McpOAuthStore;
   tokenExchange?: { serverUrl: string; tokenUrl: string };
 }): OAuthClientProvider {
-  const clientMetadata: OAuthClientMetadata = {
+  // The SDK's type has no `application_type`, which the MCP spec has every
+  // client say: without it an OpenID server takes the client for a web app,
+  // which may not call back to the loopback.
+  const clientMetadata: OAuthClientMetadata & { application_type: "native" } = {
+    application_type: "native",
     client_name: APP_NAME,
     grant_types: ["authorization_code", "refresh_token"],
     redirect_uris: [redirectUrl],
@@ -110,6 +126,7 @@ export function createMcpOAuthProvider({
     token_endpoint_auth_method: "none",
   };
 
+  let registers = true;
   let discovered: Promise<OAuthDiscoveryState> | undefined;
   const discoveryState =
     tokenExchange === undefined
@@ -132,6 +149,10 @@ export function createMcpOAuthProvider({
         ? boundTo(await store.getClientInformation(slug), origin)
         : { client_id: clientId },
     clientMetadata,
+    get clientMetadataUrl() {
+      const onLoopback = new URL(redirectUrl).hostname === "127.0.0.1";
+      return registers || !onLoopback ? undefined : CLIENT_METADATA_URL;
+    },
     discoveryState,
     codeVerifier: async () => {
       const verifier = await store.getCodeVerifier(slug);
@@ -190,6 +211,12 @@ export function createMcpOAuthProvider({
         value: info as OAuthClientInformationFull,
       }),
     saveCodeVerifier: (verifier) => store.saveCodeVerifier(slug, verifier),
+    // The SDK reads `clientMetadataUrl` only after this.
+    saveDiscoveryState: ({ authorizationServerMetadata }) => {
+      registers =
+        authorizationServerMetadata === undefined ||
+        authorizationServerMetadata.registration_endpoint !== undefined;
+    },
     saveTokens: (tokens) => {
       known = tokens;
       return store.saveTokens(slug, { origin, value: tokens });
@@ -249,8 +276,9 @@ async function discoverWithTokenUrl({
  * with it through our API's relay, the state naming the loopback port the
  * relay passes the browser on to, with the scopes and authorization page
  * parameters the directory gives, and redeems its code at our API when the
- * directory says the API holds the client's secret; any other server
- * registers a client of its own and comes straight back to the loopback.
+ * directory says the API holds the client's secret. A server whose vendor
+ * approves callbacks registers a client with the relay's address; any other
+ * registers one that comes straight back to the loopback.
  */
 export function mcpSignInClient({
   loopbackRedirectUrl,
@@ -271,22 +299,22 @@ export function mcpSignInClient({
   | "statePrefix"
   | "tokenExchange"
 > {
-  const registered = catalogRegisteredClient(serverUrl);
-  if (registered === undefined) {
+  const relayed = catalogRelayedSignIn(serverUrl);
+  if (relayed === undefined) {
     return { redirectUrl: loopbackRedirectUrl };
   }
   return {
-    ...(registered.authorizationParams && {
-      authorizationParams: registered.authorizationParams,
+    ...(relayed.authorizationParams && {
+      authorizationParams: relayed.authorizationParams,
     }),
-    clientId: registered.clientId,
-    redirectUrl: relayRedirectUrl(registered.service),
-    ...(registered.scope && { scope: registered.scope }),
+    ...(relayed.clientId !== undefined && { clientId: relayed.clientId }),
+    redirectUrl: relayRedirectUrl(relayed.service),
+    ...(relayed.scope && { scope: relayed.scope }),
     statePrefix: new URL(loopbackRedirectUrl).port,
-    ...(registered.tokenExchange === "api" && {
+    ...(relayed.tokenExchange === "api" && {
       tokenExchange: {
         serverUrl,
-        tokenUrl: relayTokenUrl(registered.service),
+        tokenUrl: relayTokenUrl(relayed.service),
       },
     }),
   };

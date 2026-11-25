@@ -49,14 +49,14 @@ export function foldToWidth(
     : { ...fold, hasRoom, isShownAnyway: false };
 }
 
-/**
- * The person's toggle: a shown panel is put away at every width; a hidden
- * one shows, where the layout has no room for it too.
- */
+/** The person's toggle: a shown panel is put away at every width; a hidden one shows. */
 export function togglePanel(fold: PanelFold): PanelFold {
-  return showsPanel(fold)
-    ? hidePanel(fold)
-    : { ...fold, isShownAnyway: !fold.hasRoom, isWanted: true };
+  return showsPanel(fold) ? hidePanel(fold) : showPanel(fold);
+}
+
+/** The person asked for the panel: shown, where the layout has no room for it too. */
+export function showPanel(fold: PanelFold): PanelFold {
+  return { ...fold, isShownAnyway: !fold.hasRoom, isWanted: true };
 }
 
 /** The person put the panel away: hidden at every width until shown again. */

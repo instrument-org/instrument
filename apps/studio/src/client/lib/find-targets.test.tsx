@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { chooseFindTarget } from "./find-targets";
+import { chooseFindTarget, insideViewer } from "./find-targets";
 import { placeOf } from "./keyboard-place";
 
 // A window with the inbox beside a screen, a viewer open in the screen, and a
@@ -95,6 +95,28 @@ describe("chooseFindTarget", () => {
     expect(
       chooseFindTarget([entry("inbox", "inbox", { stamp: 1 })], at("confirm")),
     ).toBeUndefined();
+  });
+});
+
+describe("insideViewer", () => {
+  it("puts a toolbar drawn outside its viewer inside it", () => {
+    const { at, entry } = layout();
+    at("page").innerHTML = `<span hidden id="mark"></span>`;
+    at("inbox").insertAdjacentHTML(
+      "beforeend",
+      `<div data-find-surface-of="mark"><input id="field" /></div>`,
+    );
+    const entries = [entry("inbox", "inbox"), entry("viewer", "viewer")];
+    const place = insideViewer(at("field"));
+    expect(place).toBe(at("mark"));
+    expect(chooseFindTarget(entries, place)?.name).toBe("viewer");
+    expect(insideViewer(at("row"))).toBe(at("row"));
+  });
+
+  it("leaves an element where it is once its viewer is gone", () => {
+    const { at } = layout();
+    at("row").setAttribute("data-find-surface-of", "gone");
+    expect(insideViewer(at("row"))).toBe(at("row"));
   });
 });
 

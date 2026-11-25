@@ -156,6 +156,12 @@ export const AGENT_FILES_LANGUAGE = "files";
 export const AGENT_MESSAGE_LANGUAGE = "message";
 
 /**
+ * Info string of the fenced block an agent writes to lay out dated things in
+ * order: one `date: what happened` per line.
+ */
+export const AGENT_TIMELINE_LANGUAGE = "timeline";
+
+/**
  * Info string of the fenced block a task started by the chat ends its turn
  * with when it cannot go on without something from the user or the chat: one
  * need per line, `<kind>: <what, and what for>`. A contract between the task's
@@ -174,7 +180,19 @@ export const TOOL_EXPLANATION_PARAM_NAME = "explanation";
  * failed.
  */
 export const INTERRUPTED_TOOL_CALL_ERROR_TEXT =
-  "This action was interrupted when the app closed.";
+  "This action was interrupted when the app closed. It may have finished anyway, so check before doing it again.";
+
+/**
+ * Whether a call's error says the app closed on it, in these words or in the
+ * first sentence alone, which is all an earlier build wrote.
+ */
+export function isInterruptedByClosing(errorText: string | undefined) {
+  return (
+    errorText?.startsWith(
+      "This action was interrupted when the app closed.",
+    ) === true
+  );
+}
 
 /**
  * What a tool call reads when the reply it belonged to ended before its

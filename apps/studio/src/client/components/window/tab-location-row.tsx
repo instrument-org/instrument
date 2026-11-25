@@ -118,6 +118,7 @@ export function TabLocationRow({
   liveAddress,
   location,
   onBack,
+  onFolder,
   onForward,
   onSite,
   onVisit,
@@ -155,6 +156,8 @@ export function TabLocationRow({
   /** Back through what the thing up has been at, drawn with forward; a row over a screen that is the tab's own route leaves both to the window's bar. */
   onBack?: () => void;
   onForward?: () => void;
+  /** What a press on the folder a file is in does: shows it beside the file, or puts it away. Going to the folder, unless given. */
+  onFolder?: () => void;
   /** Where a site typed into the field goes on this tab, when not a new tab of its own. */
   onSite?: (url: string) => void;
   /** Where a screen typed into the field goes, for a row over a tab the router does not follow. */
@@ -328,7 +331,11 @@ export function TabLocationRow({
             resting={
               location.kind === "newTab" ||
               location.kind === "newChat" ? undefined : (
-                <Field location={location} {...(onVisit ? { onVisit } : {})} />
+                <Field
+                  location={location}
+                  {...(onFolder ? { onFolder } : {})}
+                  {...(onVisit ? { onVisit } : {})}
+                />
               )
             }
           />
@@ -420,9 +427,11 @@ export function TabRowControl({
 /** The mark and the words, which is all that changes between page types. */
 function Field({
   location,
+  onFolder,
   onVisit,
 }: {
   location: TabLocation;
+  onFolder?: () => void;
   onVisit?: (href: string) => void;
 }) {
   // The disks the sidebar lists, which name where a path outside the home
@@ -521,6 +530,8 @@ function Field({
       (destination) => destination.id === "open",
     );
     const isHere = index === crumbs.length - 1;
+    const isFolderOfFile =
+      location.kind === "file" && index === crumbs.length - 2;
     // Several picked read as a count, set apart from the folder it is in.
     const isCount =
       isHere && location.kind === "folder" && location.picked !== undefined;
@@ -550,7 +561,9 @@ function Field({
               // this tab, the way a folder above a file is: the window would
               // only bring up the page's tab as it is, the one tab it keeps
               // for it.
-              if (
+              if (isFolderOfFile && onFolder) {
+                onFolder();
+              } else if (
                 onVisit &&
                 crumb.to?.kind === "screen" &&
                 crumb.path === undefined

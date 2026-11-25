@@ -24,7 +24,7 @@ import { usePrefetchFileOpenTarget } from "../hooks/use-file-open-target";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { CardVersionContext } from "./card-version";
 import { DrawingPicture } from "./excalidraw-editor/drawing-picture";
-import { FileTypeIcon } from "./extend/file-system";
+import { FileTypeIcon, formatByteSize } from "./extend/file-system";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { SystemFolderIcon } from "./icons/folder-glyph";
@@ -97,7 +97,7 @@ export function FilePreviewCard({
 
   // The card stays whatever became of the file; it is drawn as gone once the
   // origin says so, which is asked only once the card is near the viewport.
-  const { isMissing, ref } = useFilePresence<HTMLDivElement>(file.url);
+  const { isMissing, ref, size } = useFilePresence<HTMLDivElement>(file.url);
 
   const card =
     fileType === "image" ? (
@@ -157,6 +157,7 @@ export function FilePreviewCard({
         file={file}
         isMissing={isMissing}
         onClick={onClick}
+        size={size}
       />
     );
 
@@ -246,11 +247,14 @@ function FileRowCard({
   file,
   isMissing,
   onClick,
+  size,
 }: {
   keepsActionsRoom?: boolean;
   file: ViewerFile;
   isMissing?: boolean;
   onClick: () => void;
+  /** In bytes, once it is known. */
+  size?: number;
 }) {
   const { filename, hostPath } = file;
   const dragProps = useFileDrag(file);
@@ -303,13 +307,24 @@ function FileRowCard({
             <span className="break-all">{hostPath}</span>
           </TooltipContent>
         </Tooltip>
-        <span className="flex min-w-0 items-center gap-1.5 text-xs leading-[18px] font-medium text-muted-foreground">
-          {version && (
-            <VersionTag className="h-4 text-[11px]" number={version.number} />
-          )}
-          <span className="truncate">
-            {isMissing ? FILE_MISSING_LABEL : getFileKindLabel(file)}
+        {/* One line tall and wrapping, so a size with no room beside the kind
+            drops onto a line that is not shown: it is there whole or not at
+            all, and never shortens the kind. */}
+        <span className="flex h-[18px] min-w-0 flex-wrap overflow-hidden text-xs leading-[18px] font-medium text-muted-foreground">
+          <span className="flex max-w-full min-w-0 items-center gap-1.5">
+            {version && (
+              <VersionTag className="h-4 text-[11px]" number={version.number} />
+            )}
+            <span className="truncate">
+              {isMissing ? FILE_MISSING_LABEL : getFileKindLabel(file)}
+            </span>
           </span>
+          {size !== undefined && !isMissing && (
+            <span className="whitespace-pre" data-slot="file-size">
+              {" · "}
+              {formatByteSize(size)}
+            </span>
+          )}
         </span>
       </div>
       {/* No width until the row is hovered or has focus, so a name in a

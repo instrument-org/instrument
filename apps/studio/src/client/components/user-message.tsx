@@ -9,6 +9,7 @@ import { type SessionMessagePart } from "@instrument-org/workspace/client";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
 import { CaretUpIcon } from "@phosphor-icons/react/CaretUp";
 import { MicrophoneIcon } from "@phosphor-icons/react/Microphone";
+import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
 import { debounce } from "radashi";
 import { memo, useEffect, useRef, useState } from "react";
 
@@ -22,6 +23,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "./ui/collapsible";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 // The height a collapsed message clamps to: fifteen and a half of `text-sm`'s
 // 20px lines, so the cut lands in the middle of a line rather than between two,
@@ -49,13 +51,16 @@ const TONES = {
 };
 
 export const UserMessage = memo(function UserMessage({
+  onEdit,
   part,
 }: {
+  /** Opens the message for editing; none where it can't be edited. */
+  onEdit?: () => void;
   part: SessionMessagePart.TextPart;
 }) {
   return (
     <div className="group flex w-full flex-col items-end">
-      <MessageBubble text={part.text} tone="you" />
+      <MessageBubble onEdit={onEdit} text={part.text} tone="you" />
       {isAllDictated(part.text) && (
         <div className="mt-1 flex items-center gap-1 pr-1 text-xs text-muted-foreground">
           <MicrophoneIcon className="size-3.5" />
@@ -72,9 +77,11 @@ export const UserMessage = memo(function UserMessage({
  * composer, and a long message clips with Show more.
  */
 export function MessageBubble({
+  onEdit,
   text: messageText,
   tone,
 }: {
+  onEdit?: () => void;
   text: string;
   tone: keyof typeof TONES;
 }) {
@@ -123,6 +130,21 @@ export function MessageBubble({
           row and holding its place either way, so the bubble never moves. */}
       <div className="group/bubble-row flex w-full items-end justify-end gap-1">
         <div className="flex shrink-0 items-center pb-0.5 opacity-0 group-hover/bubble-row:opacity-100 focus-within:opacity-100">
+          {onEdit && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  aria-label="Edit message"
+                  className={SHARED.messageFooterButton}
+                  onClick={onEdit}
+                  type="button"
+                >
+                  <PencilSimpleIcon size={MESSAGE_FOOTER_ICON_SIZE} />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Edit message</TooltipContent>
+            </Tooltip>
+          )}
           <CopyButton
             className={SHARED.messageFooterButton}
             iconSize={MESSAGE_FOOTER_ICON_SIZE}

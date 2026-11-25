@@ -75,7 +75,7 @@ export function findAgainForKeyboard(forward: boolean): boolean {
 }
 
 function findTargetForKeyboard(): FindTarget | undefined {
-  const place = keyboardPlace();
+  const place = insideViewer(keyboardPlace());
   const side = keyboardSide();
   const chosen = chooseFindTarget(
     registered.flatMap(({ stamp, target }) => {
@@ -138,7 +138,20 @@ export function chooseFindTarget<
 
 function surfaceOf(target: FindTarget): Element | null {
   const anchor = target.anchor();
-  return anchor?.closest("[data-find-surface]") ?? anchor;
+  const inside = insideViewer(anchor);
+  return inside?.closest("[data-find-surface]") ?? anchor;
+}
+
+/**
+ * Where an element counts as being: in a toolbar drawn outside its viewer
+ * (`data-find-surface-of`), the mark the toolbar left inside it, and anywhere
+ * else, itself.
+ */
+export function insideViewer(element: Element | null): Element | null {
+  const markId = element
+    ?.closest("[data-find-surface-of]")
+    ?.getAttribute("data-find-surface-of");
+  return (markId ? document.getElementById(markId) : null) ?? element;
 }
 
 let isListening = false;
@@ -150,7 +163,8 @@ function listenForVisits() {
   }
   isListening = true;
   const visit = (event: Event) => {
-    const into = event.target instanceof Node ? event.target : null;
+    const into =
+      event.target instanceof Element ? insideViewer(event.target) : null;
     clock += 1;
     for (const entry of registered) {
       const surface = surfaceOf(entry.target);

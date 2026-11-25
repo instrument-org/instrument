@@ -9,6 +9,7 @@ import { AbsolutePathSchema, ChatDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
 import { type ChatId } from "../schemas/chat-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
+import { removeChatsDir } from "../test/helpers/remove-chats-dir";
 import { createBashEnv } from "./create-bash-env";
 import { withShellOutputSink } from "./shell-commands/output-sink";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
@@ -71,7 +72,7 @@ beforeAll(async () => {
 afterAll(async () => {
   const { uutilsDir: _, ...config } = getWorkspaceConfig();
   setWorkspaceConfig(config);
-  await fs.rm(tmpDir, { force: true, recursive: true });
+  await removeChatsDir(tmpDir);
 });
 
 describe.runIf(vendored)("native pipelines", () => {

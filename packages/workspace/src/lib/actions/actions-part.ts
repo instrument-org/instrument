@@ -1,8 +1,8 @@
 import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
+import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
 import { StoreId } from "../../schemas/store-id";
-import { ChatReads } from "../chat-reads";
 import { isFromUser } from "../message-gap";
 import { readActions } from "./read";
 import { type Action } from "./schema";
@@ -106,25 +106,25 @@ export function actionsNoteRows(
 export async function createActionsPart({
   chatId,
   createdAt,
+  history,
   messageId,
   sessionId,
 }: {
   chatId: ChatId;
   createdAt: Date;
+  /** The session's messages the note is worked out from; see `newMessage`. */
+  history: SessionMessage.WithParts[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
 }): Promise<SessionMessagePart.Type | undefined> {
   if (!mayShareActions()) {
     return undefined;
   }
-  const history = await ChatReads.history({ chatId, sessionId });
-  const previous = history.isOk()
-    ? Math.max(
-        ...history.value
-          .filter(isFromUser)
-          .map((message) => message.metadata.createdAt.getTime()),
-      )
-    : Number.NEGATIVE_INFINITY;
+  const previous = Math.max(
+    ...history
+      .filter(isFromUser)
+      .map((message) => message.metadata.createdAt.getTime()),
+  );
   const until = createdAt.getTime();
   const actions = await readActions({
     since: Math.max(until - NOTE_WINDOW_MS, previous + 1),

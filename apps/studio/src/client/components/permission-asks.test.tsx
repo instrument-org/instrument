@@ -248,7 +248,7 @@ describe("PermissionAsksFoot", () => {
 
     expect(
       await screen.findByText(
-        "Your last answer didn’t go through on Studio Mac, so you can answer again.",
+        "Error applying your answer on Studio Mac. Please try again.",
       ),
     ).toBeDefined();
     expect(buttons()).toContain("Allow in this chat");
@@ -281,7 +281,7 @@ describe("PermissionAsksFoot", () => {
 
     expect(
       await screen.findByText(
-        "You answered from Sam’s iPhone while this computer was away, so it’s asking again.",
+        "This computer wasn’t available when you answered on Sam’s iPhone. Please answer again.",
       ),
     ).toBeDefined();
     expect(buttons()).toContain("Allow in this chat");

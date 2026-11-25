@@ -162,6 +162,8 @@ export interface GuestEventMap {
   "ipc-message": { args: unknown[]; channel: string };
   "page-favicon-updated": { favicons: string[] };
   "page-title-updated": { title: string };
+  /** The pool's own, fired once `leaveHistory` has cleared the guest's history. */
+  "history-left": object;
   /** The pool's own, fired after `setZoom`: Electron says nothing when a guest's zoom changes. */
   "zoom-set": object;
 }
@@ -185,6 +187,12 @@ export interface GuestHandle {
   capture(): Promise<null | string>;
   /** Forgets every entry but the one the guest is at. */
   clearHistory(): void;
+  /**
+   * Starts the guest's history at the page it is on, as the page it came from
+   * at `url` becomes a step of its tab's own: what is behind is kept for the
+   * guest that comes back there, as `as`. The guest has no steps meanwhile.
+   */
+  leaveHistory(left: { as: BrowserTargetId; url: string }): Promise<void>;
   find(text: string, options?: { findNext?: boolean; forward?: boolean }): void;
   /** Whether the page, or a frame in it, is still loading. */
   isLoading(): boolean;
@@ -1288,7 +1296,6 @@ function disposeWebview(targetId: BrowserTargetId) {
 function ensureWebview(
   targetId: BrowserTargetId,
   generation: number,
-  src?: string,
 ): PooledWebview {
   const existing = pool.get(targetId);
   if (existing) {
@@ -1303,7 +1310,7 @@ function ensureWebview(
   // attach; main overrides the actual session there (partition is just a
   // carrier, see browserPartition).
   webview.setAttribute("partition", browserPartition(targetId));
-  webview.setAttribute("src", src ?? "about:blank");
+  webview.setAttribute("src", "about:blank");
   // Permit window.open so a genuine sign-in popup reaches the main process's
   // window-open handler (which allows only real popups; see manager.ts). Without
   // this attribute Chromium blocks every `<webview>` popup before the handler
@@ -1471,6 +1478,7 @@ function guestHandle(
       return otherwise;
     }
   };
+  let isLeaving = false;
   const allowSound = () => {
     if (document.hasFocus()) {
       guard(() => {
@@ -1480,14 +1488,29 @@ function guestHandle(
   };
   return {
     allowSound,
-    canGoBack: () => guard(() => webview.canGoBack(), false),
-    canGoForward: () => guard(() => webview.canGoForward(), false),
+    canGoBack: () => !isLeaving && guard(() => webview.canGoBack(), false),
+    canGoForward: () =>
+      !isLeaving && guard(() => webview.canGoForward(), false),
     capture: async () => {
       try {
         return (await webview.capturePage()).toDataURL();
       } catch {
         return null;
       }
+    },
+    leaveHistory: async (left) => {
+      isLeaving = true;
+      await rpcClient.browser.keepHistory
+        .call({ ...left, leaving: true, targetId })
+        .catch(() => {
+          guard(() => {
+            webview.clearHistory();
+          }, undefined);
+        })
+        .finally(() => {
+          isLeaving = false;
+          webview.dispatchEvent(new Event("history-left"));
+        });
     },
     clearHistory: () => {
       guard(() => {
@@ -1830,7 +1853,7 @@ function reconcile(targets: BrowserGuestTarget[]) {
     if (isRemade) {
       disposeWebview(target.id);
     }
-    const kept = ensureWebview(target.id, target.generation, target.src);
+    const kept = ensureWebview(target.id, target.generation);
     if (hadKeyboard) {
       takeKeyboardOnArrival(target.id);
     }

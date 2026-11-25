@@ -880,6 +880,52 @@ body {
     margin-bottom: 1.25em;
   }
 
+  /* A task list's boxes stand where its bullets would, one size with the text.
+     They are the author's marks and not controls, so nothing about them
+     answers the pointer. A numbered item keeps its number and has the box
+     after it. Centered on the line by a translate, since the edge rules above
+     zero the margin of whatever opens the text. */
+  :is(.task-list-item, .task-list-item > p) > input[type="checkbox"] {
+    appearance: none;
+    display: inline-grid;
+    place-content: center;
+    width: 1.0625em;
+    height: 1.0625em;
+    margin: 0 0.25em 0 0;
+    border: 1.5px solid color-mix(in oklab, var(--foreground) 30%, transparent);
+    border-radius: 0.25em;
+    vertical-align: top;
+    translate: 0 calc((1lh - 1.0625em) / 2);
+    pointer-events: none;
+  }
+
+  :is(.task-list-item, .task-list-item > p) > input[type="checkbox"]:checked {
+    border-color: var(--brand-600);
+    background-color: var(--brand-600);
+  }
+
+  :is(.task-list-item, .task-list-item > p)
+    > input[type="checkbox"]:checked::before {
+    width: 0.625em;
+    height: 0.625em;
+    background-color: white;
+    clip-path: polygon(8% 52%, 21% 39%, 39% 57%, 80% 14%, 93% 27%, 39% 83%);
+    content: "";
+  }
+
+  ul > .task-list-item {
+    position: relative;
+    list-style: none;
+  }
+
+  /* With no top of its own, so it starts where the first line does. */
+  ul > .task-list-item > input[type="checkbox"],
+  ul > .task-list-item > p > input[type="checkbox"] {
+    position: absolute;
+    inset-inline-start: -1.1875em;
+    margin: 0;
+  }
+
   /* Markdown marks an exactly bold-only paragraph as a lightweight section
      label. Limit this rhythm to top-level blocks: the same shape inside a list
      or blockquote belongs to that container's own flow. */

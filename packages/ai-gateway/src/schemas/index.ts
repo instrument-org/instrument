@@ -8,6 +8,7 @@
  * test runner pays once per test file, since each one gets its own registry.
  */
 export * from "./model";
+export * from "./model-choice";
 export * from "./model-uri";
 export * from "./provider-config";
 export * from "./provider-metadata";

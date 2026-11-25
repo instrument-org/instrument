@@ -1,3 +1,4 @@
+import { ModelChoiceSchema } from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 import { ChatIdSchema } from "../../schemas/chat-id";
@@ -134,6 +135,12 @@ const LogRecordSchema = z.discriminatedUnion("t", [
     t: z.literal("retract"),
     ...envelope,
     messages: z.array(StoreId.MessageSchema).min(1),
+    /**
+     * The message the person edited, when that is why these went: the
+     * earlier version, which the message that took its place names among its
+     * `earlierVersions` and the person can still look back at.
+     */
+    edited: StoreId.MessageSchema.optional(),
   }),
   z.object({
     t: z.literal("rollover"),
@@ -225,6 +232,8 @@ const SettingRecordSchema = z.discriminatedUnion("field", [
    * parse is the reader's to pass over, not a line to skip.
    */
   settingSchema("model", z.string().min(1)),
+  /** What the person chose for that model; `null` is its defaults. */
+  settingSchema("choice", ModelChoiceSchema.nullable()),
 ]);
 
 export type SettingRecord = z.output<typeof SettingRecordSchema>;

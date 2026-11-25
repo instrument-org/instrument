@@ -126,6 +126,8 @@ export interface WindowContextValue {
   openPath: (path: string, options?: OpenOptions) => void;
   /** As `openPage`, for a screen of the app. */
   openScreen: (href: string, options?: OpenOptions) => void;
+  /** Where a screen showing a file says what a press on the file's own folder in the tab's address does; absent where the address has no such press. */
+  takeFolderPress?: (press: (() => void) | undefined) => void;
   /** Brings a tab the window has up in its group, and its group on screen; false when no such tab is open. */
   showTab?: (id: string) => boolean;
   /** The head of the tab's row, ahead of back and forward, where a screen draws the toggle for a panel along its left edge; null until the row is up. */
@@ -138,6 +140,8 @@ export interface WindowContextValue {
   rowTail?: HTMLElement | null;
   /** The end of the view's own row under the bookmarks bar, where a screen draws what acts on the file it shows; absent where the tab has no such row, and null until it is up. */
   rowView?: HTMLElement | null;
+  /** The room in that row ahead of its end, where a file's format draws its own controls; as `rowView` otherwise. */
+  rowViewTools?: HTMLElement | null;
   /** The chat a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a draft. */
   chatId?: ChatId;
 }

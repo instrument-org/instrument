@@ -128,7 +128,12 @@ export function connectPageCopy(
     }
     case "out-of-usage": {
       return {
-        subtitle: `${usageLimitReason(provider, outcome.resetsAt, now)} You can keep going and use it ${outcome.resetsAt ? "then" : "once it resets"}, or choose another way to use AI now.`,
+        subtitle: [
+          usageLimitReason(provider, outcome.resetsAt, now),
+          `You can continue and use ${CONNECT_NAMES[provider]} ${outcome.resetsAt ? "then" : "once it resets"}, or choose another way to use AI.`,
+        ]
+          .filter(Boolean)
+          .join(" "),
         title: outOfUsageTitle(provider),
       };
     }
@@ -360,7 +365,7 @@ function usageLimitReason(
   return resetsAt
     ? `Your ${name} plan hit its limit, and ${name} says it resets ${describeWhen(new Date(resetsAt), now).replace(/^at /, "around ")}.`
     : provider === "chatgpt"
-      ? `${name} isn't taking more requests from ${APP_NAME} for now.`
+      ? undefined
       : `Your ${name} plan hit its limit for now.`;
 }
 

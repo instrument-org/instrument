@@ -1150,6 +1150,29 @@ describe("pageBecomesFile", () => {
     );
   });
 
+  // A side kept in the step back would split a group closed to one side.
+  it("keeps the side it stands on out of the step back", () => {
+    const next = pageBecomesFile(
+      windowOf(
+        [
+          pageTab("left", "https://example.com/", CHAT),
+          { ...pageTab("page", `file://${FILE}`, CHAT), side: 1 },
+        ],
+        { [CHAT]: "page" },
+      ),
+      {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        left: { id: "was", url: "https://example.org/" },
+        page: "page",
+      },
+    );
+    const back = stepVisit(closeTab(next, "left"), "file", -1).state;
+    expect(back.tabs.find((tab) => tab.id === "was")).not.toHaveProperty(
+      "side",
+    );
+  });
+
   // Back from the file goes to the site the page left, as a page of its
   // own: the guest went with the file.
   it("puts what the page showed before a step back in the tab's history", () => {
@@ -1173,6 +1196,39 @@ describe("pageBecomesFile", () => {
         },
       ],
     });
+  });
+
+  // The agent's page is the same page through a file and out again.
+  it("keeps the chat whose agent opened it, and so does the page leaving", () => {
+    const file = pageBecomesFile(
+      windowOf(
+        [{ ...pageTab("page", `file://${FILE}`, CHAT), openedBy: ROOFER }],
+        { [CHAT]: "page" },
+      ),
+      {
+        file: { href: fileHref(FILE), id: "file" },
+        hostGroup: "page:file",
+        page: "page",
+      },
+    );
+    expect(file.tabs[0]).toMatchObject({ id: "file", openedBy: ROOFER });
+    const site = pageTakesOver(file, {
+      page: "page",
+      tab: "file",
+      url: "https://example.com/",
+    });
+    expect(site.tabs).toMatchObject([{ id: "page", openedBy: ROOFER }]);
+  });
+
+  it("keeps a file tab's own mark when the page it drew has none", () => {
+    const site = pageTakesOver(
+      windowOf([
+        { ...screenTab("file", fileHref(FILE), CHAT), openedBy: ROOFER },
+        pageTab("page", `file://${FILE}`, "page:file"),
+      ]),
+      { page: "page", tab: "file", url: "https://example.com/" },
+    );
+    expect(site.tabs).toMatchObject([{ id: "page", openedBy: ROOFER }]);
   });
 
   it("leaves a tab that is no page as it is", () => {

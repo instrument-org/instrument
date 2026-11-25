@@ -858,7 +858,8 @@ describe("a task the app's quit cut off", () => {
       .flatMap((message) => message.parts)
       .find((part) => part.metadata.id === partId);
     expect(call).toMatchObject({
-      errorText: "This action was interrupted when the app closed.",
+      errorText:
+        "This action was interrupted when the app closed. It may have finished anyway, so check before doing it again.",
       metadata: { endedAt: expect.any(Date) },
       state: "output-error",
     });

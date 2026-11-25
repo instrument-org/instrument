@@ -268,13 +268,17 @@ export async function chatReadProblem(
 
 /** Takes the unread mark off a chat: the user has looked at it, or said they have. */
 export async function markChatRead(chatId: ChatId): Promise<boolean> {
-  return saveMark(chatId, (session) => {
+  const saved = await saveMark(chatId, (session) => {
     if (session.unreadAt === undefined) {
       return session;
     }
     const { unreadAt: _at, unreadByUser: _byUser, ...rest } = session;
     return rest;
   });
+  if (saved) {
+    publisher.publish("chat.read", { id: chatId });
+  }
+  return saved;
 }
 
 /**

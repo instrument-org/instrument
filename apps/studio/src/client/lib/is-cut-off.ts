@@ -1,5 +1,5 @@
 import {
-  INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+  isInterruptedByClosing,
   type SessionMessagePart,
 } from "@instrument-org/workspace/client";
 
@@ -9,7 +9,6 @@ import {
  */
 export function isCutOff(part: SessionMessagePart.ToolPart): boolean {
   return (
-    part.state === "output-error" &&
-    part.errorText === INTERRUPTED_TOOL_CALL_ERROR_TEXT
+    part.state === "output-error" && isInterruptedByClosing(part.errorText)
   );
 }

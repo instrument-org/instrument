@@ -128,7 +128,7 @@ export function QuestionDock({
             </div>
             {card.away ? (
               <p className="relative mt-1.5 px-1 text-[13px] text-muted-foreground">
-                {`You answered from ${card.away.by} while ${card.here ? "this computer" : card.computer} was away, so it’s asking again.`}
+                {`${card.here ? "This computer" : card.computer} wasn’t available when you answered on ${card.away.by}. Please answer again.`}
               </p>
             ) : null}
           </div>

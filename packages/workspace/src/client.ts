@@ -1,9 +1,16 @@
 export type { AgentName } from "./agents/types";
 export {
+  FAILED_SIGN_IN_LABELS,
+  FAILED_SIGN_IN_OFFERS,
+  type FailedSignIn,
+} from "./lib/apps/failed-sign-in";
+export {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
+  AGENT_TIMELINE_LANGUAGE,
   CHAT_FOLDER_NAMES,
   INTERRUPTED_TOOL_CALL_ERROR_TEXT,
+  isInterruptedByClosing,
   KEY_FOLDER_NAMES,
   type KeyFolderName,
   PROJECT_FILE_NAME,
@@ -133,6 +140,7 @@ export { latestStepIn } from "./lib/chat/step-label";
 export { taskSlices } from "./lib/chat/task-slices";
 export type { Memory } from "./lib/memory/store";
 export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";
+export { isTimelineEntry, parseTimeline } from "./lib/parse-timeline";
 export {
   isMessageDocument,
   MESSAGE_FENCE,

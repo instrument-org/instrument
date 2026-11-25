@@ -1,4 +1,7 @@
-import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  AIGatewayModelURI,
+  ModelChoiceSchema,
+} from "@instrument-org/ai-gateway";
 import { z } from "zod";
 
 import { ChatIdSchema } from "./chat-id";
@@ -10,6 +13,8 @@ import { ChatIdSchema } from "./chat-id";
 export const ChatInfoSchema = z.object({
   createdAt: z.date(),
   id: ChatIdSchema,
+  /** What the person chose for that model, absent on its defaults. */
+  modelChoice: ModelChoiceSchema.optional(),
   // The model the chat's sessions run on, absent until the composer first
   // sends with one. See chatModelURI.
   modelURI: AIGatewayModelURI.Schema.optional(),

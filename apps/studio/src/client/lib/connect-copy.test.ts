@@ -50,7 +50,7 @@ describe("connectPageCopy", () => {
       connectPageCopy({ kind: "out-of-usage", resetsAt }, "claude", { now }),
     ).toEqual({
       subtitle:
-        "Your Claude plan hit its limit, and Claude says it resets around 3:40 PM. You can keep going and use it then, or choose another way to use AI now.",
+        "Your Claude plan hit its limit, and Claude says it resets around 3:40 PM. You can continue and use Claude then, or choose another way to use AI.",
       title: "Claude is out of usage for now",
     });
   });
@@ -89,11 +89,11 @@ describe("connectPageCopy", () => {
           "title": "Your Grok account doesn't have a paid plan",
         },
         "out-of-usage": {
-          "subtitle": "Your Grok plan hit its limit for now. You can keep going and use it once it resets, or choose another way to use AI now.",
+          "subtitle": "Your Grok plan hit its limit for now. You can continue and use Grok once it resets, or choose another way to use AI.",
           "title": "Grok is out of usage for now",
         },
         "out-of-usage with reset": {
-          "subtitle": "Your Grok plan hit its limit, and Grok says it resets around 3:40 PM. You can keep going and use it then, or choose another way to use AI now.",
+          "subtitle": "Your Grok plan hit its limit, and Grok says it resets around 3:40 PM. You can continue and use Grok then, or choose another way to use AI.",
           "title": "Grok is out of usage for now",
         },
         "ready": {

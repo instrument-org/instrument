@@ -18,6 +18,7 @@ export type StepSession = Pick<
   | "awaitingToolCallIds"
   | "builtInTools"
   | "contextWindow"
+  | "fastMode"
   | "forkPoint"
   | "leaf"
   | "messages"
@@ -148,6 +149,10 @@ export async function pumpStep(
       }
       case "result": {
         session.contextWindow = contextWindowOf(message, messageModel);
+        session.fastMode = message.fast_mode_state && {
+          disabledReason: message.fast_mode_disabled_reason,
+          state: message.fast_mode_state,
+        };
         finish(finishReasonOf(stopReason), message);
         return;
       }

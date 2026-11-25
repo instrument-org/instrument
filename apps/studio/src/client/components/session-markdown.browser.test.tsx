@@ -75,3 +75,69 @@ describe("prose sized by its surface", () => {
     },
   );
 });
+
+describe("a task list in a reply", () => {
+  const boxOf = (item: Element) => {
+    const box = item.querySelector<HTMLElement>("input[type=checkbox]");
+    if (!box) {
+      throw new Error("an item with no box");
+    }
+    return box;
+  };
+
+  // A list with a blank line between its items wraps each one's words in a
+  // paragraph, box included.
+  it.each([
+    ["tight", "- [ ] Call the plumber\n- [x] Find the lease"],
+    ["loose", "- [ ] Call the plumber\n\n- [x] Find the lease"],
+  ])("has a box in place of each bullet, %s", async (_case, markdown) => {
+    await renderInBrowser(<SessionMarkdown markdown={markdown} />);
+
+    const [open, done, ...rest] = document.querySelectorAll("li");
+    if (!open || !done || rest.length > 0) {
+      throw new Error("expected two items");
+    }
+
+    for (const item of [open, done]) {
+      const box = boxOf(item).getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(boxOf(item).parentElement ?? item);
+      range.setStartAfter(boxOf(item));
+      const words = range.getClientRects()[0];
+      expect(getComputedStyle(item).listStyleType).toBe("none");
+      expect(box.right).toBeLessThan(words?.left ?? 0);
+      expect(
+        Math.abs(
+          (box.top + box.bottom) / 2 -
+            ((words?.top ?? 0) + (words?.bottom ?? 0)) / 2,
+        ),
+      ).toBeLessThan(1.5);
+    }
+    expect(getComputedStyle(boxOf(done)).backgroundColor).not.toBe(
+      getComputedStyle(boxOf(open)).backgroundColor,
+    );
+  });
+
+  it("keeps the bullets of the items that have no box", async () => {
+    await renderInBrowser(
+      <SessionMarkdown markdown={"- [ ] Call\n- Plain\n  - Nested"} />,
+    );
+
+    expect(
+      [...document.querySelectorAll("li")].map(
+        (item) => getComputedStyle(item).listStyleType,
+      ),
+    ).toEqual(["none", "disc", "disc"]);
+  });
+
+  it("keeps a numbered item's number beside its box", async () => {
+    await renderInBrowser(<SessionMarkdown markdown={"1. [x] Call"} />);
+
+    const item = document.querySelector("li");
+    if (!item) {
+      throw new Error("no item");
+    }
+    expect(getComputedStyle(item).listStyleType).toBe("decimal");
+    expect(getComputedStyle(boxOf(item)).position).toBe("static");
+  });
+});

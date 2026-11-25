@@ -37,6 +37,7 @@ async function recordStep(session: ClaudeCodeSession): Promise<RecordedStep> {
     awaitingToolCallIds: session.awaitingToolCallIds,
     builtInTools: session.builtInTools,
     contextWindow: undefined,
+    fastMode: undefined,
     forkPoint: undefined,
     leaf: undefined,
     messages: {

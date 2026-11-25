@@ -286,6 +286,7 @@ export function bwrapArgs(
   const remountLater: string[] = [];
   const mounted = new Set<string>();
   const passedThrough = new Set<string>();
+  const shut = new Set<string>();
   const madeOnTheWay = new Set<string>();
   // The folders between `real` and a closed folder passed through around it,
   // made searchable and no more where bubblewrap would make them listable.
@@ -327,6 +328,15 @@ export function bwrapArgs(
     if (!existsSync(real)) {
       continue;
     }
+    // A closed place in a folder closed with nothing open in it is closed
+    // with it. bubblewrap would have to make what stands in for it in that
+    // folder's empty one, which is read-only, and would start nothing.
+    if (
+      entry.access === "none" &&
+      [...shut].some((folder) => hostPathWithin(folder, real) !== null)
+    ) {
+      continue;
+    }
     args.push(...onTheWay(real));
     mounted.add(real);
     if (entry.access === "write") {
@@ -357,6 +367,7 @@ export function bwrapArgs(
         remountLater.push("--remount-ro", real);
       } else {
         args.push("--remount-ro", real);
+        shut.add(real);
       }
     } else {
       // A file nobody may open, in place of the closed one, so reading it

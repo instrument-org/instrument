@@ -574,6 +574,26 @@ describe("Markdown images", () => {
     },
   );
 
+  it.each([
+    ["in brackets", "![a](</Users/casey/My Photos/a (2).png>)"],
+    ["as written", "![a](/Users/casey/My Photos/a (2).png)"],
+    ["encoded", "![a](/Users/casey/My%20Photos/a%20(2).png)"],
+  ])("draws an image at a path with spaces, %s", (_case, markdown) => {
+    const { container } = renderMarkdown(markdown);
+
+    expect(container.querySelector("img")?.getAttribute("src")).toContain(
+      "/Users/casey/My Photos/a (2).png",
+    );
+  });
+
+  it("draws an image whose name has a bare percent sign", () => {
+    const { container } = renderMarkdown("![a](/Users/casey/100%.png)");
+
+    expect(container.querySelector("img")?.getAttribute("src")).toContain(
+      "/Users/casey/100%.png",
+    );
+  });
+
   // A reply routinely names the file it is still writing, so mid-turn a miss
   // says nothing about whether the image will be there.
   it("says nothing of an image the reply has not finished writing", () => {
@@ -1177,7 +1197,7 @@ describe("Markdown images in a chat's own file", () => {
     const { container } = renderMarkdown("![a](./output/chart.png)");
 
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
-      `${TASK_ROOT}/./output/chart.png`,
+      `${TASK_ROOT}/output/chart.png`,
     );
   });
 });
@@ -1429,5 +1449,56 @@ describe("Markdown file chips", () => {
     await screen.findByRole("menu");
 
     expect(screen.queryByRole("button", { name: "Add to chat" })).toBeNull();
+  });
+});
+
+describe("a timeline fence", () => {
+  const rows = (markdown: string, isStreaming?: boolean) => {
+    const { container } = renderWithProviders(
+      <Markdown
+        chatId={TASK_ID}
+        isStreaming={isStreaming}
+        markdown={markdown}
+      />,
+    );
+    return [...container.querySelectorAll("[role=listitem]")].map((row) =>
+      [...row.children]
+        .map((cell) => cell.textContent.trim())
+        .filter((text) => text !== ""),
+    );
+  };
+
+  it("sets each date beside what happened", () => {
+    expect(
+      rows(
+        "```timeline\n2 Aug: You tell the landlord.\nFri 10:15 AM: **It leaks.**\n```",
+      ),
+    ).toEqual([
+      ["2 Aug", "You tell the landlord."],
+      ["Fri 10:15 AM", "It leaks."],
+    ]);
+    expect(screen.getByText("It leaks.").tagName).toBe("STRONG");
+  });
+
+  it("draws a link to a file as its chip", () => {
+    rows("```timeline\n2 Aug: [The letter](letters/one.pdf)\n```");
+
+    expect(screen.getByRole("button", { name: /The letter/ })).toBeTruthy();
+  });
+
+  it.each([
+    ["a date", "13 Au", [["2 Aug", "First."]]],
+    [
+      "the words",
+      "13 Aug: **Sec",
+      [
+        ["2 Aug", "First."],
+        ["13 Aug", "Sec"],
+      ],
+    ],
+  ])("waits for %s still being typed", (_case, typed, expected) => {
+    expect(
+      rows(`Here.\n\n\`\`\`timeline\n2 Aug: First.\n${typed}`, true),
+    ).toEqual(expected);
   });
 });

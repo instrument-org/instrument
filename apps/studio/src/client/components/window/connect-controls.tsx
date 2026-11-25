@@ -12,7 +12,12 @@ import { SignInButton } from "@/client/components/window/sign-in-button";
 import { useSiteSignIn } from "@/client/components/window/site-sign-in";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { rpcClient } from "@/client/rpc/client";
-import { type ChatId } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  FAILED_SIGN_IN_LABELS,
+  FAILED_SIGN_IN_OFFERS,
+  type FailedSignIn,
+} from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
 import {
@@ -70,7 +75,7 @@ export function ConnectControls({
   /** For a card in a chat, the chat, which hears what the user does here even after the card stopped waiting. */
   askedIn?: ChatId;
   /** How the app's last sign-in ended. A refusal leaves only `fix`, since the same sign-in meets the same refusal. */
-  failure?: "failed" | "refused" | undefined;
+  failure?: FailedSignIn | undefined;
   /** Asks Instrument for another way, offered beside another try once a sign-in failed. */
   fix?: () => void;
   kind: "key" | "run" | "sign-in" | "web";
@@ -265,10 +270,12 @@ export function ConnectControls({
     cancelOAuth.mutate({ slug });
   };
   if (kind === "sign-in") {
-    if (failure === "refused") {
+    const offers =
+      failure === undefined ? undefined : FAILED_SIGN_IN_OFFERS[failure];
+    if (offers && !offers.includes("retry")) {
       return fix ? <FixWithInstrumentButton onClick={fix} /> : null;
     }
-    const offersFix = failure !== undefined && waitingIn === undefined;
+    const offersFix = offers?.includes("fix") && waitingIn === undefined;
     return (
       <div className="flex shrink-0 items-center gap-1.5">
         {fix && offersFix ? (
@@ -282,7 +289,11 @@ export function ConnectControls({
           busy={busy}
           canSignInHere={Boolean(appWindow?.browser)}
           {...(offersFix && fixInMenu ? { fix } : {})}
-          label={failure === undefined ? (label ?? "Sign in") : "Try again"}
+          label={
+            failure === undefined
+              ? (label ?? "Sign in")
+              : FAILED_SIGN_IN_LABELS.retry
+          }
           onCancel={cancelSignIn}
           onMenuOpen={() => {
             // Hidden where the row has no room for it.

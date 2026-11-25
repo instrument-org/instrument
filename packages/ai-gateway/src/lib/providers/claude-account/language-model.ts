@@ -12,6 +12,7 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { CLIENT_SESSION_ID_HEADER } from "../../../constants";
 import { noteReportedContextLength } from "../../reported-context-windows";
+import { noteReportedFastMode } from "../../reported-fast-mode";
 import {
   branchIsSaid,
   coldStartReason,
@@ -225,6 +226,7 @@ function streamStep({
     builtInTools: builtInToolsOf(options),
     configDir,
     effort: effortOf(options),
+    fast: options.providerOptions?.[CLAUDE_ACCOUNT_PROVIDER_ID]?.fast === true,
     executablePath,
     modelId,
     systemPrompt,
@@ -359,6 +361,7 @@ function streamStep({
           // asked for.
           await session.useModel(modelId);
           await session.useEffort(shape.effort);
+          await session.useFast(shape.fast ?? false);
           if (plan.kind === "cold") {
             session.noteGiven(rest, { newTurn: true });
             const how = await coldStart(session, rest);
@@ -390,6 +393,14 @@ function streamStep({
             );
           }
           await pumpStep(session, controller);
+          if (shape.fast && session.fastMode) {
+            const { disabledReason, state } = session.fastMode;
+            // A pause after a rate limit ends by itself, so it is no reason.
+            noteReportedFastMode(
+              providerConfigId,
+              state === "off" ? (disabledReason ?? "unknown") : undefined,
+            );
+          }
           if (session.contextWindow !== undefined) {
             // Claude Code's own word on the window, which the context budget
             // reads in place of the catalog's from the next request on.

@@ -44,6 +44,10 @@ import { SentFolderChips } from "../sent-folder-chips";
 import { useReleaseAutoScroll } from "../transcript-scroll-context";
 import { MessageScrollerItem, ScrollPin } from "../ui/message-scroller";
 import { MessageBubble, UserMessage } from "../user-message";
+import { cn } from "@/client/lib/utils";
+import { EditMessageBox } from "./edit-message-box";
+import { MessageEditingContext, versionsOf } from "./message-editing";
+import { MessageVersions } from "./message-versions";
 import { SentChips } from "../window/context-chip";
 import {
   CardPresence,
@@ -63,6 +67,7 @@ import {
 import { BranchedFromLine } from "./branched-from-line";
 import { FoldsOpenedByFind } from "./folds-opened-by-find";
 import { NextStepRows, useHasNextSteps } from "./next-steps";
+import { StoppedLine } from "./stopped-line";
 import { useStage } from "./stage/stage-context";
 import { renderDataPart } from "./note-part";
 import { PageTakeoverNote } from "./page-takeover-note";
@@ -163,6 +168,7 @@ export const TurnView = memo(function TurnView({
   changes,
   hasCard,
   isCardAway,
+  isFaded,
   isLast,
   replyEnd,
   separator,
@@ -179,6 +185,8 @@ export const TurnView = memo(function TurnView({
   hasCard: boolean;
   /** That card is out of sight (`useIsCardAway`). */
   isCardAway: boolean;
+  /** It would go if the message being edited were sent: all of it, or only its work under that message. */
+  isFaded: "all" | "work" | undefined;
   isLast: boolean;
   /** Its footer and card, when it is the last turn of its reply (`repliesOf`). */
   replyEnd: ReplyEnd | undefined;
@@ -193,18 +201,28 @@ export const TurnView = memo(function TurnView({
     <>
       {turn.opener && (
         <MessageScrollerItem
-          className="flex flex-col gap-1 pb-2"
+          className={cn(
+            "flex flex-col gap-1 pb-2",
+            isFaded === "all" && "opacity-40",
+          )}
           data-transcript-row={`message:${turn.id}`}
           messageId={turn.opener.message.id}
           scrollAnchor
         >
           {separator && <ChatSeparatorRow separator={separator} />}
-          <OpenerView chatId={chatId} opener={turn.opener} />
+          <OpenerView
+            chatId={chatId}
+            isWaiting={waitsForStep || turn.inherited === true}
+            opener={turn.opener}
+          />
           {changes && <InstructionsChangesNote changes={changes} />}
         </MessageScrollerItem>
       )}
       <MessageScrollerItem
-        className="group/assistant-turn flex flex-col gap-2"
+        className={cn(
+          "group/assistant-turn flex flex-col gap-2",
+          isFaded && "opacity-40",
+        )}
         ref={floorRef}
         style={carriesOn ? { marginTop: ROW_GAP - TURN_GAP } : undefined}
         {...(turn.opener ? {} : { messageId: turn.id })}
@@ -226,12 +244,29 @@ export const TurnView = memo(function TurnView({
 
 function OpenerView({
   chatId,
+  isWaiting,
   opener,
 }: {
   chatId: ChatId;
+  /** The agent has not read it, or it is another session's, so it can't be edited. */
+  isWaiting: boolean;
   opener: TurnOpener;
 }) {
   const { chips, files, folders, fromChat, notes, seen, text } = opener;
+  const editing = use(MessageEditingContext);
+  const { message } = opener;
+  if (editing?.editing === message.id) {
+    return <EditMessageBox chatId={chatId} editing={editing} opener={opener} />;
+  }
+  const versions =
+    editing &&
+    message.role === "user" &&
+    versionsOf(
+      { earlier: message.metadata.earlierVersions ?? [], id: message.id },
+      editing.shown,
+    );
+  const canEdit =
+    editing && !editing.isSending && !editing.shown && !isWaiting && !fromChat;
   return (
     <div className="flex flex-col gap-1">
       {/* What went with the message, one row of the composer's own chips:
@@ -249,7 +284,27 @@ function OpenerView({
         </div>
       )}
       {fromChat && <AssignmentBubble fromChat={fromChat} />}
-      {text && <UserMessage part={text} />}
+      {text && (
+        <UserMessage
+          onEdit={
+            canEdit
+              ? () => {
+                  editing.onEdit(message.id);
+                }
+              : undefined
+          }
+          part={text}
+        />
+      )}
+      {versions && (
+        <MessageVersions
+          at={versions.at}
+          onShow={(version) => {
+            editing.onShowVersion(versions.versions, version);
+          }}
+          versions={versions.versions}
+        />
+      )}
       {notes.map((part) => (
         <NoteRow chatId={chatId} key={part.metadata.id} part={part} />
       ))}
@@ -432,6 +487,7 @@ function TurnBody({
       {turn.phase !== "working" && !isHolding && (
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
+      {isLast && turn.phase !== "working" && !isHolding && <StoppedLine />}
       {replyEnd?.hasFooter && !isHolding && (
         <ReplyFoot
           chatId={chatId}

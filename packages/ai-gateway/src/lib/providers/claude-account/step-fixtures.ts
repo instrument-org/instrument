@@ -114,6 +114,7 @@ export async function replayStep(step: RecordedStep) {
     awaitingToolCallIds: [],
     builtInTools: new Set(step.builtInTools),
     contextWindow: undefined,
+    fastMode: undefined,
     forkPoint: undefined,
     leaf: undefined,
     messages: {

@@ -1,10 +1,8 @@
 import { type SessionMessage } from "../schemas/session/message";
 import { type SessionMessagePart } from "../schemas/session/message-part";
 import { StoreId } from "../schemas/store-id";
-import { type ChatId } from "../schemas/chat-id";
 import { listBackgroundProcesses } from "./background-processes";
 import { getCurrentDate } from "./get-current-date";
-import { ChatReads } from "./chat-reads";
 import { partsAfter } from "./last-told";
 import { getWorkspaceConfig } from "./workspace-config";
 
@@ -53,21 +51,18 @@ function lastToldProcesses(
  */
 export async function createBackgroundProcessesPart({
   createdAt,
+  history,
   messageId,
   sessionId,
-  chatId,
 }: {
   createdAt: Date;
+  /** The session's messages the note is worked out from; see `newMessage`. */
+  history: SessionMessage.WithParts[];
   messageId: StoreId.Message;
   sessionId: StoreId.Session;
-  chatId: ChatId;
 }): Promise<SessionMessagePart.Type | undefined> {
   try {
-    const history = await ChatReads.history({ chatId, sessionId });
-    // A history that does not read is a session told nothing.
-    const previous = history.isOk()
-      ? lastToldProcesses(history.value, sessionId)
-      : [];
+    const previous = lastToldProcesses(history, sessionId);
 
     const now = getCurrentDate().getTime();
     const processes = listBackgroundProcesses(sessionId);

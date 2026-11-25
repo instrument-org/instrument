@@ -110,6 +110,11 @@ export namespace SessionMessage {
     z.object({
       kind: z.literal("aborted"),
       message: z.string(),
+      /**
+       * The app closed on the reply, by a quit or a crash: written by the
+       * next launch, with the reason `unknown`, which every build reads.
+       */
+      appClosed: z.literal(true).optional(),
       /** Absent on a reply cut off before the reason was kept. */
       reason: AbortReasonSchema.optional(),
     }),
@@ -237,6 +242,11 @@ export namespace SessionMessage {
      * card asked for.
      */
     fromDraft: z.string().optional(),
+    /**
+     * On an edited message, each message it was before, oldest first: the
+     * versions the person can look back at (`earlierVersions`).
+     */
+    earlierVersions: z.array(StoreId.MessageSchema).optional(),
   });
   const SystemMetadataSchema = BaseMetadataSchema;
   const AssistantMetadataSchema = BaseMetadataSchema.extend({

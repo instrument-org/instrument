@@ -1,4 +1,8 @@
-import { AIGatewayModelURI, fetchModel } from "@instrument-org/ai-gateway";
+import {
+  AIGatewayModelURI,
+  ModelChoiceSchema,
+  fetchModel,
+} from "@instrument-org/ai-gateway";
 import { call } from "@orpc/server";
 import { sleep } from "radashi";
 import { z } from "zod";
@@ -18,6 +22,7 @@ import { ChatReads } from "../../lib/chat-reads";
 import { type SessionMessage } from "../../schemas/session/message";
 import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
+import { setChatModelChoice } from "../../lib/chat-settings";
 import { base, toORPCError } from "../base";
 
 // Run the agent over the session as it stands, with nothing added to it. What
@@ -30,13 +35,15 @@ const run = base
       id: ChatIdSchema,
       /** Does nothing if the session is running, rather than running it next. */
       ifIdle: z.boolean().optional(),
+      /** What was chosen for the model, `null` for its defaults; left out, the chat's stands. */
+      modelChoice: ModelChoiceSchema.nullable().optional(),
       modelURI: AIGatewayModelURI.Schema,
       sessionId: StoreId.SessionSchema,
     }),
   )
   .output(z.void())
   .handler(async ({ context, errors, input }) => {
-    const { id, ifIdle, modelURI, sessionId } = input;
+    const { id, ifIdle, modelChoice, modelURI, sessionId } = input;
 
     // A session whose last word is a reply the model finished has no request
     // in it to answer, and a provider handed a conversation ending on its own
@@ -56,6 +63,13 @@ const run = base
 
     if (!modelResult.ok) {
       throw toORPCError(modelResult.error, errors);
+    }
+
+    if (modelChoice !== undefined) {
+      const chosen = await setChatModelChoice(id, modelChoice);
+      if (chosen.isErr()) {
+        throw toORPCError(chosen.error, errors);
+      }
     }
 
     context.workspaceRef.send({

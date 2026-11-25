@@ -60,7 +60,7 @@
     "verify-packaged-app": "node scripts/verify-packaged-app.ts"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "0.3.321",
+    "@anthropic-ai/claude-agent-sdk": "0.3.332",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@ghostery/adblocker": "^2.18.2",
@@ -215,6 +215,7 @@
     "electron-builder": "26.18.1",
     "electron-vite": "6.0.0",
     "emojibase-data": "^17.0.0",
+    "fast-check": "^4.10.2",
     "hast-util-from-html": "^2.0.3",
     "hast-util-sanitize": "^5.0.2",
     "hast-util-to-dom": "^4.0.1",

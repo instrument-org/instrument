@@ -51,7 +51,8 @@ import { GroupTabContext } from "./group-tab";
 import { liveFileAddress, liveHostedFileAddress } from "./hosted-page";
 import { KeptScrolls } from "./kept-scrolls";
 import { isKeptScreen, keptScreensAtom, withScreenUp } from "./kept-screens";
-import { segmentsOf } from "./host-path";
+import { keepFolderShown } from "./folder-fold";
+import { folderOf, segmentsOf } from "./host-path";
 import { editField } from "./omnibar-field";
 import { screenLocation } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
@@ -104,9 +105,11 @@ export function GroupItem({
   // What is up draws its own controls into the rows: a page its reload, zoom
   // and controls, a file screen its folder toggle and, under the bookmarks
   // bar, the file's actions.
-  const { rowProps, slots, viewEnd } = useRowSlots();
+  const { rowProps, slots, viewEnd, viewTools } = useRowSlots();
   const taskTitles = useTaskTitles();
   const { chatTitles } = useShell();
+  // What the file's screen does when its folder is pressed in the address.
+  const folderPress = useRef<(() => void) | undefined>(undefined);
   // What the screen up says it shows, which the row reads a folder's place off.
   const surface = useAtomValue(tabSurfaceAtom)[up.id];
 
@@ -185,6 +188,18 @@ export function GroupItem({
       appWindow.openScreen(href);
     } else {
       windowTabs.visitHref(up.id, href);
+    }
+  };
+  const hasFolderPress =
+    !before && (pageFilePath ?? computerTab?.file) !== undefined;
+  // A file's page has no screen under it to draw its folder beside it, so it
+  // turns into the file's screen, as a page's file opened from Files is.
+  const onFolder = () => {
+    if (pageFilePath === undefined) {
+      folderPress.current?.();
+    } else {
+      keepFolderShown(up.id, pageFilePath);
+      visitHere(fileHref(pageFilePath, { tree: folderOf(pageFilePath) }));
     }
   };
   /** An open from the screen in this tab, which says so; a chat's names its own. */
@@ -352,6 +367,7 @@ export function GroupItem({
           expandsFile={isFileAlone}
           location={location}
           {...(before ? {} : { onBack: goBack, onForward: goForward })}
+          {...(hasFolderPress ? { onFolder } : {})}
           onSite={openHere}
           onVisit={visitHere}
           {...(up.kind === "page" ? { title: up.title } : {})}
@@ -510,7 +526,9 @@ export function GroupItem({
                     {viewEnd}
                   </>
                 }
-                {...(isFiles ? { lead: rowProps.leading } : {})}
+                {...(isFiles
+                  ? { lead: rowProps.leading, tools: viewTools }
+                  : {})}
               />
             )}
           </>
@@ -530,6 +548,7 @@ export function GroupItem({
           showPage: (url) => {
             browser?.open(url, { group, replacing: up });
           },
+          step: steps.go,
           versionsOf: chatId,
         }}
       >
@@ -552,11 +571,16 @@ export function GroupItem({
               }
               appWindow.openScreen(href, openedHere(options));
             },
+            takeFolderPress: (press) => {
+              folderPress.current = press;
+            },
             rowField: slots.field,
             rowLead: slots.lead,
             rowReload: slots.reload,
             rowTail: slots.tail,
-            ...(isFiles && !isFileAlone ? { rowView: slots.view } : {}),
+            ...(isFiles && !isFileAlone
+              ? { rowView: slots.view, rowViewTools: slots.viewTools }
+              : {}),
           }}
         >
           {/* A chat opens at its end, as it always does, rather than where

@@ -86,12 +86,11 @@ describe("getBrowserViewManager", () => {
       }: { entries?: { title: string; url: string }[]; index?: number } = {},
     ) => {
       const restore = vi.fn(() => Promise.resolve());
-      host.emit(
-        "will-attach-webview",
-        { preventDefault: vi.fn() },
-        {},
-        { partition: browserPartition(targetId) },
-      );
+      const params = {
+        partition: browserPartition(targetId),
+        src: "about:blank",
+      };
+      host.emit("will-attach-webview", { preventDefault: vi.fn() }, {}, params);
       const guest = new Proxy(
         Object.assign(new EventEmitter(), {
           id: guestId,
@@ -111,7 +110,7 @@ describe("getBrowserViewManager", () => {
         },
       );
       host.emit("did-attach-webview", {}, guest);
-      return { restore };
+      return { params, restore };
     };
 
     it("mounts a guest only in the window that asked for it", () => {
@@ -240,7 +239,7 @@ describe("getBrowserViewManager", () => {
       hostId: number,
     ) => {
       const host = hostWith(hostId);
-      const { browser, getTargets } = getBrowserViewManager();
+      const { browser } = getBrowserViewManager();
       const targetId = browserTargetOf(StoreId.newTabId());
       const open = (url?: string) =>
         void browser
@@ -252,18 +251,14 @@ describe("getBrowserViewManager", () => {
         ? browser.closeTarget(targetId)
         : browser.discardTarget(targetId));
       open(restoreUrl);
-      const src = getTargets(hostId).find(({ id }) => id === targetId)?.src;
-      const { restore } = attachGuest(host, targetId, hostId * 10 + 1);
-      return { restored: restore.mock.calls, src };
+      const { params, restore } = attachGuest(host, targetId, hostId * 10 + 1);
+      return { loads: "src" in params, restored: restore.mock.calls };
     };
 
-    it("brings a discarded tab back on its page, over the pages behind it", async () => {
+    it("brings a discarded tab back on its page, with the pages behind and ahead", async () => {
       expect(
         await reopened({ goes: "discard", restoreUrl: A_AND_B[1] }, 311),
-      ).toEqual({
-        restored: [[{ entries: [visited.entries[0]], index: 0 }]],
-        src: A_AND_B[1],
-      });
+      ).toEqual({ loads: false, restored: [[visited]] });
     });
 
     it.each([
@@ -278,11 +273,37 @@ describe("getBrowserViewManager", () => {
       "brings no history back for a tab %s",
       async (_, hostId, how) => {
         expect(await reopened(how, hostId)).toEqual({
+          loads: true,
           restored: [],
-          src: undefined,
         });
       },
     );
+
+    it("gives a page a tab steps back to the history it left with, whole", async () => {
+      const host = hostWith(321);
+      const manager = getBrowserViewManager();
+      const [targetId, as] = [StoreId.newTabId(), StoreId.newTabId()].map(
+        (id) => browserTargetOf(id),
+      );
+      if (!targetId || !as) {
+        throw new Error("no targets");
+      }
+      const open = (id: typeof targetId, url?: string) =>
+        void manager.browser
+          .createTarget(id, partition, { webContentsId: 321 }, url)
+          .catch(() => undefined);
+      open(targetId);
+      attachGuest(host, targetId, 3210, visited);
+      const url = "https://b.example/";
+      await manager.keepHistoryFor({ as, leaving: false, targetId, url });
+      open(as, url);
+      const { params, restore } = attachGuest(host, as, 3211);
+      expect(restore.mock.calls).toEqual([
+        [{ entries: visited.entries.slice(0, 2), index: 1 }],
+      ]);
+      // An address of the element's own would load over the history.
+      expect(params).not.toHaveProperty("src");
+    });
 
     it("moves a parked guest to the window showing it, as a new guest", () => {
       hostWith(301);

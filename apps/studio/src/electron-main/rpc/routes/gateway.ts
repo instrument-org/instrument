@@ -7,6 +7,7 @@ import {
   AIGatewayModel,
   AIGatewayProviderConfig,
   fetchModelResultsForProviders,
+  modelChoicesFor,
   type ModelRoutes,
 } from "@instrument-org/ai-gateway";
 import { call, eventIterator } from "@orpc/server";
@@ -38,6 +39,11 @@ const ListSchema = z.object({
 });
 
 type ListErrors = z.output<typeof ListSchema>["errors"];
+
+/** The models with what a person may choose about each. */
+function withChoices(models: AIGatewayModel.Type[]) {
+  return models.map((model) => ({ ...model, choices: modelChoicesFor(model) }));
+}
 
 /** What the list says about this computer, beside the models. */
 function routing(
@@ -84,7 +90,7 @@ const list = base
 
     return {
       errors,
-      models,
+      models: withChoices(models),
       ...routing(providers, context.workspaceConfig.modelRoutes),
     };
   });
@@ -99,6 +105,7 @@ const live = {
     const changes = [
       publisher.subscribe("provider-config.updated", { signal }),
       publisher.subscribe("session.apiBearerToken.updated", { signal }),
+      publisher.subscribe("model-choices.updated", { signal }),
       publisher.subscribe("model-routes.updated", { signal }),
     ];
 
@@ -115,7 +122,7 @@ const live = {
     if (cachedModels.length > 0) {
       yield {
         errors: [],
-        models: cachedModels,
+        models: withChoices(cachedModels),
         ...routing(providers, context.workspaceConfig.modelRoutes),
       };
     }

@@ -47,8 +47,16 @@ export interface McpConnectionError {
    * `unauthorized`: the key or sign-in was refused, and a new one may fix it.
    * `forbidden`: the server refused anyway (HTTP 403), which a new sign-in
    * does not change.
+   * `client-refused`: the server would not register Instrument as a client, so
+   * no sign-in to it can start.
    */
-  reason: "connect" | "forbidden" | "protocol" | "unapproved" | "unauthorized";
+  reason:
+    | "client-refused"
+    | "connect"
+    | "forbidden"
+    | "protocol"
+    | "unapproved"
+    | "unauthorized";
 }
 
 interface McpCallResult {

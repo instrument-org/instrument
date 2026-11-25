@@ -1603,7 +1603,17 @@ export function pageTakesOver(
     ...state,
     tabs: state.tabs.filter((entry) => entry.id !== pageId),
   };
-  return replaceTab(without, tabId, visitInTab(tab, { ...visit, url }));
+  // The same page going on, so the tab keeps the chat whose agent opened it.
+  const openedBy = tab.openedBy ?? visit.openedBy;
+  return replaceTab(
+    without,
+    tabId,
+    visitInTab(tab, {
+      ...visit,
+      ...(openedBy === undefined ? {} : { openedBy }),
+      url,
+    }),
+  );
 }
 
 /**
@@ -1641,7 +1651,7 @@ export function pageBecomesFile(
       ? []
       : [
           {
-            ...omit(visit, ["favicon", "title"]),
+            ...omit(visit, ["favicon", "side", "title"]),
             id: left.id,
             url: left.url,
             ...(left.title === undefined ? {} : { title: left.title }),
@@ -1653,6 +1663,8 @@ export function pageBecomesFile(
     href: file.href,
     id: file.id,
     kind: "screen",
+    // The same page going on, so the tab keeps the chat whose agent opened it.
+    ...(page.openedBy === undefined ? {} : { openedBy: page.openedBy }),
     ...(behind.length === 0 ? {} : { past: behind }),
     stripKey: stripKey ?? page.id,
   });

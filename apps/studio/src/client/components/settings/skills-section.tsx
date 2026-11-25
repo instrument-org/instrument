@@ -117,8 +117,7 @@ function SkippedSkillFolders() {
         Waiting to load
       </h4>
       <p className="text-sm text-muted-foreground">
-        Your Mac asks before Instrument reads these folders, so their skills
-        load when you say so.
+        Your Mac requires permission before these skills can load.
       </p>
       <div className="divide-y overflow-hidden rounded-lg border">
         {skipped.data.map(({ folder }) => (

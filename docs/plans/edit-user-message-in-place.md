@@ -1,73 +1,22 @@
-# Edit a user message in place (rewind + rerun)
+# Edit a user message in place
 
-Status: open. Proposed, not started. Owner: TBD. Nothing in the app edits or rewinds a user message. An unmerged backend prototype (`message.restartFrom`, commit `85267e810`) predates 2.0 and was never merged. "Why this is mostly easy" and the store half of "Key files" predate the chat records: `task.db` and `lib/store.ts` (`getMessageIdsAfter`, `removeMessage`) are gone, and a session is an append-only log per device, so a rewind is something appended, not a truncation. Redo that part of the design before picking this up.
+Status: done. Built as below.
 
-## Goal
+A person edits a message they sent where it stands. Sending it takes the old message and everything after it out of the conversation, and the agent answers the new one in the same chat. The old message and what followed it can still be looked at, and a reply in it can be branched into a chat of its own.
 
-Let a user edit one of their own past messages in the chat, Save or Cancel. Saving rewinds the conversation to that message and re-runs the agent from it, **in the same task** (not a fork). Assistant messages are not editable.
+## How it works
 
-Behavior:
+- The new version is an ordinary new message. Its metadata's `earlierVersions` lists each message it was before, oldest first.
+- A `retract` record whose `edited` names the old message takes out that message and all that followed it. A build that does not know `edited` still takes them out.
+- The fold hands out only the conversation as it stands, so its readers need no change. What an edit took out is in `FoldedSession.earlierVersions` by the edited message. A context rollover at a message an edit took out no longer counts, and the newest one left stands.
+- The current version is always the newest edit, so nothing records which version is up: looking back is the window's own state.
+- `beginEdit` (`packages/workspace/src/lib/chat/edit-message.ts`) stops the chat's turn and the tasks started since the message, closes their asks, and waits for them to wind down. Background processes, files and anything sent stay as they are, and the new message carries a note telling the agent so.
+- The new message is built with the chat read as though the old ones were gone (`asThoughTakenOut`), so it tells the agent again what only they told it.
 
-- Hover a user message -> pencil affordance. Click -> the bubble becomes an editable field prefilled with the message's current text; Save / Cancel.
-- **Save**: overwrite that user message's text in place (keep its id), delete every message after it, then start a fresh agent turn from it.
-- **Cancel**: discard the edit, no writes.
-- Only allowed when the agent is idle for that session.
+## Limits
 
-## Decided scope
-
-- **Rewind-in-place**, not fork. (Task branching existed in 1.x, commits `e30d6c917` / `51dbb81df`, and was removed with the 1.x window in `a73917f45`.)
-- **Files on disk are NOT rolled back.** The rerun happens against the current working tree, same tradeoff 1.x branching accepted. No snapshot/restore work.
-- Edit text only. Keep the message's attachments and existing parts.
-
-## Why this is mostly easy
-
-The data model is a flat, ULID-ordered linear list of messages per session in `task.db` (KV store). Because we truncate everything after the edited message first, that message becomes the tail again, so ordering stays valid with no schema changes. The truncation primitives already exist in the store.
-
-## Key files & primitives
-
-Store (all in `packages/workspace/src/lib/store.ts`):
-
-- `Store.getMessageWithParts({ messageId, sessionId, taskId })` — read current text.
-- `Store.getMessageIdsAfter(sessionId, messageId, taskId)` — messages after M.
-- `Store.removeMessage(messageId, sessionId, taskId)` — delete a message + parts.
-- `Store.saveMessageWithParts(message, taskId)` / `Store.savePart` / `Store.updatePart` — overwrite the edited message's text part in place.
-
-Schema: `packages/workspace/src/schemas/session/message.ts` (user role, parts), `.../message-part.ts` (text part), `packages/workspace/src/schemas/store-id.ts` (ids).
-
-Send / agent-start path (the piece to decouple):
-
-- RPC `message.create` in `packages/workspace/src/rpc/routes/message.ts` — today this builds a NEW user message (`packages/workspace/src/lib/new-message.ts`) AND kicks off the agent turn.
-- Session machine `packages/workspace/src/machines/session.ts` runs the agent; `packages/workspace/src/lib/prepare-model-messages.ts` builds model messages from stored messages. Find the event that starts an agent run for the current tail.
-
-UI:
-
-- `apps/studio/src/client/components/user-message.tsx` — user bubble; already has a per-message hover row (RelativeTime + CopyButton). Add the edit affordance here.
-- Inline-edit reference: `useInlineRename` (`@/client/hooks/use-inline-rename`) + `InlineRenameInput`, used for chat-title editing via `apps/studio/src/client/components/window/use-chat-rename.ts`. Consider reusing the composer/prompt input for a nicer multiline edit.
-- Retry precedent: `handleRetry` in `apps/studio/src/client/components/task/chat.tsx` -> `createMessage.mutate` (`createMessageOptions` in `apps/studio/src/client/lib/message-sends.ts`) -> `message.create`.
-
-## Implementation steps
-
-1. **Backend RPC** `message.editAndRerun` (or `message.update` + a rerun) taking `{ taskId, sessionId, messageId, text }`:
-   - Guard: session must be idle.
-   - Overwrite the message's text part(s) in place (same message id).
-   - `getMessageIdsAfter(sessionId, messageId)` -> `removeMessage` each.
-   - Start an agent turn from the current tail. **This is the one non-trivial part**: `message.create` couples message-creation with turn-start, so factor out (or find) a "start turn on existing tail" path into the session machine and call it here. Investigate how `message.create` signals the machine and reuse that signal without creating a new message.
-   - Decide whether to recompute the per-turn data parts on the edited message (paneTabs / browserStatus from `new-message.ts`). Leaving them stale is acceptable for v1.
-
-2. **UI** in `user-message.tsx`:
-   - Add an edit (pencil) button to the hover row, gated on session idle.
-   - Local `isEditing` state -> render an editable field prefilled with the text; Save calls the RPC, Cancel resets.
-   - On Save success the live message stream will re-render the truncated conversation and the new streaming turn; no manual cache surgery needed (mutations publish `message.updated` / `message.removed`).
-
-## Verification
-
-- Edit a mid-conversation user message -> everything after it disappears, agent re-runs from the edited text, task id unchanged.
-- Cancel writes nothing.
-- Edit disabled/hidden while the agent is running.
-- Files on disk are untouched by the rewind (expected).
-
-## Open decisions for the implementer
-
-- New dedicated RPC vs. extend an existing message route.
-- Whether to recompute per-turn data parts (default: no).
-- Multiline editor: reuse the composer vs. a lightweight inline textarea.
+- A message the agent has not read yet cannot be edited.
+- Two computers that edit the same message before reading each other's records leave both new versions in the conversation, as two sends do.
+- Only this computer's turns are stopped. Work another computer is doing in the chat goes on.
+- Handoff notes written at a rollover that an edit took out stay as written.
+- A task started after the message reads less of its chat's history once the edit takes it out, since a task reads its chat's messages as they stand.

@@ -1,5 +1,8 @@
-import { createDiscardedHistories } from "@/electron-main/browser-view/discarded-histories";
-import { historyToRestore } from "@/electron-main/browser-view/guest-history";
+import {
+  historyStandingOn,
+  wholeHistory,
+} from "@/electron-main/browser-view/guest-history";
+import { createKeptHistories } from "@/electron-main/browser-view/kept-histories";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { keptOpenerOfTab } from "@/electron-main/stores/workspace/kept-state";
 import { keepsHistory } from "@/electron-main/stores/workspace/preferences";
@@ -129,6 +132,10 @@ const agentCommandTimers = new WeakMap<
 
 // How long a guest brought over from another window waits on its page.
 const RESTORE_WAIT_MS = 5000;
+// How long after a page commits its guest's history is read for the page it
+// left: Chromium hears where that page was scrolled as it unloads, a moment
+// after the new one commits.
+const LEFT_PAGE_STATE_MS = 150;
 
 export interface BrowserViewManager {
   // Register the `<webview>` attach lifecycle on a window's webContents.
@@ -185,6 +192,14 @@ export interface BrowserViewManager {
   // Record whether a slot in the window shows a guest or the pool parks it,
   // as the renderer pool reports each change.
   setGuestShown: (targetId: BrowserTargetId, shown: boolean) => void;
+  // Keep a guest's history, standing on its page at `url`, for the guest that
+  // comes back there as `as`. With `leaving` the guest's own is then cleared.
+  keepHistoryFor: (input: {
+    as: BrowserTargetId;
+    leaving: boolean;
+    targetId: BrowserTargetId;
+    url: string;
+  }) => Promise<void>;
   // Zoom a guest for the agent's side, keeping its zoom to its own tab from
   // then on rather than to every page of its site, so it never reaches the
   // person's own tabs on the same site. One call, so the zoom is never set
@@ -276,7 +291,11 @@ function createBrowserViewManager(): BrowserViewManager {
     const guest = entries.get(targetId)?.webContents;
     return guest && !guest.isDestroyed() ? guest : null;
   };
-  const discardedHistories = createDiscardedHistories();
+  // The histories of pages whose guests have gone, each under the target its
+  // page comes back as.
+  const keptHistories = createKeptHistories<
+    NonNullable<BrowserEntry["returnTo"]> & { url: string }
+  >();
   const closeIfPlaying = createPutAwaySound({
     close: (targetId) => {
       void browser.discardTarget(targetId);
@@ -769,28 +788,26 @@ function createBrowserViewManager(): BrowserViewManager {
       // view) flip this target from pending to live.
       notifyEntriesChanged();
     };
-    // A guest brought over from another window, or back from being discarded,
-    // comes up on the page it stood on, which its element loads (`BrowserGuestTarget.src`), over the pages
-    // behind it, which have to go in before that load lands. That page can be
-    // slow to answer, and the guest is not held up for it.
-    const { restoreHistory } = entry;
-    guest.once("did-finish-load", settle);
-    if (restoreHistory) {
-      entry.restoreHistory = null;
-      if (restoreHistory.behind.length > 0) {
-        void guest.navigationHistory
-          .restore({
-            entries: restoreHistory.behind,
-            index: restoreHistory.behind.length - 1,
-          })
-          .catch(noop);
-      }
+    // A guest that comes back on a page (`returnTo`) takes its history before
+    // it loads anything. That page can be slow to answer, and the guest is not
+    // held up for it.
+    const { returnTo } = entry;
+    const settleLate = () => {
       setTimeout(() => {
         if (!entry.attach.settled && entries.get(entry.targetId) === entry) {
           guest.off("did-finish-load", settle);
           settle();
         }
       }, RESTORE_WAIT_MS);
+    };
+    guest.once("did-finish-load", settle);
+    if (returnTo) {
+      entry.returnTo = null;
+      const { entries: pages, index } = returnTo;
+      void guest.navigationHistory
+        .restore({ entries: pages, index })
+        .catch(noop);
+      settleLate();
     } else {
       void guest.loadURL("about:blank");
     }
@@ -911,6 +928,12 @@ function createBrowserViewManager(): BrowserViewManager {
       // editor to the guest's isolated world; see page-editor/sessions.ts.
       webPreferences.preload = pageEditorPreloadPath();
 
+      // Electron loads the element's address as it attaches, over whatever
+      // history the guest is given then; without one it loads nothing.
+      if (entry.returnTo) {
+        delete params.src;
+      }
+
       pendingAttachQueue.push(entry);
     });
 
@@ -1003,15 +1026,52 @@ function createBrowserViewManager(): BrowserViewManager {
     }
   }
 
-  /** Where a live guest stands and the pages behind it. */
+  /** A live guest's whole history. */
   function historyOfGuest(targetId: BrowserTargetId) {
     const guest = liveGuestOf(targetId);
     return guest
-      ? historyToRestore(
+      ? wholeHistory(
           guest.navigationHistory.getAllEntries(),
           guest.navigationHistory.getActiveIndex(),
         )
       : null;
+  }
+
+  /**
+   * Keeps a guest's history, standing on its page at `url`, for the page that
+   * comes back at that address as `as`: a guest about to close, or with
+   * `leaving` one whose page went on to be another tab kind's, which is at the
+   * start of its own history from there.
+   */
+  async function keepHistoryFor({
+    as,
+    leaving,
+    targetId,
+    url,
+  }: {
+    as: BrowserTargetId;
+    leaving: boolean;
+    targetId: BrowserTargetId;
+    url: string;
+  }) {
+    const guest = liveGuestOf(targetId);
+    if (leaving) {
+      await new Promise((resolve) => {
+        setTimeout(resolve, LEFT_PAGE_STATE_MS);
+      });
+    }
+    if (!guest || guest.isDestroyed()) {
+      return;
+    }
+    const history = historyStandingOn(
+      guest.navigationHistory.getAllEntries(),
+      guest.navigationHistory.getActiveIndex(),
+      url,
+    );
+    keptHistories.keep(as, history && { ...history, url });
+    if (leaving) {
+      guest.navigationHistory.clear();
+    }
   }
 
   /**
@@ -1024,21 +1084,20 @@ function createBrowserViewManager(): BrowserViewManager {
     partitionDir: AbsolutePath,
     hostId: number,
   ) {
-    const restoreHistory = historyOfGuest(existing.targetId);
+    const returnTo = historyOfGuest(existing.targetId);
     // The page goes on: what waits for it to go waits on, and its reload is no visit.
     const { destructionListeners } = existing;
     existing.destructionListeners = new Set();
     existing.closing = true;
     tellDetached(existing);
     destroyEntry(entries, existing.targetId);
-    if (restoreHistory) {
-      noteRestored(existing.targetId, restoreHistory.url);
+    if (returnTo) {
+      noteRestored(existing.targetId, returnTo.url);
     }
     const entry = createEntry({
       hostId,
       partitionDir,
-      restoreHistory,
-      ...(restoreHistory ? { src: restoreHistory.url } : {}),
+      returnTo,
       targetId: existing.targetId,
     });
     entry.destructionListeners = destructionListeners;
@@ -1097,15 +1156,15 @@ function createBrowserViewManager(): BrowserViewManager {
       return waitForAttach(existing);
     }
 
-    const restoreHistory = discardedHistories.take(targetId, restoreUrl);
-    if (restoreHistory) {
-      noteRestored(targetId, restoreHistory.url);
+    const returnTo = keptHistories.take(targetId, restoreUrl);
+    const returnUrl = returnTo?.entries[returnTo.index]?.url;
+    if (returnUrl !== undefined) {
+      noteRestored(targetId, returnUrl);
     }
     const entry = createEntry({
       hostId: host?.webContentsId ?? null,
       partitionDir,
-      restoreHistory,
-      ...(restoreHistory ? { src: restoreHistory.url } : {}),
+      returnTo,
       targetId,
     });
     entries.set(targetId, entry);
@@ -1239,7 +1298,7 @@ function createBrowserViewManager(): BrowserViewManager {
     hasNoWindow: false,
     closeTarget: (targetId) =>
       new Promise<void>((resolve) => {
-        discardedHistories.forget(targetId);
+        keptHistories.forget(targetId);
         // Resolve only after the destruction listener fires (which happens as
         // part of the disposer chain). If the entry is already gone,
         // onTargetDestroyed fires the listener synchronously.
@@ -1256,7 +1315,7 @@ function createBrowserViewManager(): BrowserViewManager {
     discardTarget: async (targetId) => {
       const history = historyOfGuest(targetId);
       const closed = browser.closeTarget(targetId);
-      discardedHistories.keep(targetId, history);
+      keptHistories.keep(targetId, history);
       await closed;
     },
     getTargetMeta: (targetId) => {
@@ -1415,6 +1474,7 @@ function createBrowserViewManager(): BrowserViewManager {
   }
 
   return {
+    keepHistoryFor,
     bindHost,
     browser,
     continueDespiteCertificate,
@@ -1431,7 +1491,6 @@ function createBrowserViewManager(): BrowserViewManager {
           generation: entry.generation,
           id: entry.targetId,
           navigated: entry.navigated,
-          src: entry.src,
         })),
     getTargetsElsewhere: (webContentsId) =>
       [...entries.values()]
@@ -1513,7 +1572,7 @@ function createBrowserViewManager(): BrowserViewManager {
         log.info(`quit: closing targetId=${targetId}`);
         destroyEntry(entries, targetId);
       }
-      discardedHistories.clear();
+      keptHistories.clear();
       notifyEntriesChanged();
     },
   };

@@ -15,7 +15,7 @@ const LOG_RECORDS = {
   message:
     "a message, with its `role` and `id`; its words are in the `part` records that name it",
   part: "a piece of a message, which `part.metadata.messageId` names: `text` and `reasoning` hold words, `tool-<name>` a call with its `input` and `output`, `file` a file. The newest record of a part's id is the one that stands. A path the app wrote that starts `workspace:/` is from the workspace's top level",
-  retract: "the `messages` it names are no longer in the session",
+  retract: "the `messages` it names are no longer in the session; with `edited`, the user edited that message, and these are it and what followed it, kept as an earlier version of the conversation",
   rollover:
     "the context window was reset after message `after`; `windows` says, by model, whether that still holds (`lifted` when the model has room for everything). The newest record stands",
   session:
@@ -40,6 +40,8 @@ const MESSAGE_ROLES = {
 /** Every field a setting sets. */
 const SETTING_FIELDS = {
   archived: "whether it is archived",
+  choice:
+    "how hard that model thinks and whether it runs fast, when the user chose; `null` is the model's defaults",
   model:
     "the model the chat runs on, as a model URI, set on the chat's own session",
   starred: "whether it is starred",

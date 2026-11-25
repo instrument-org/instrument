@@ -1,3 +1,4 @@
+import { fileHref } from "@/shared/computer-href";
 import { renderWithProviders } from "@/tests/render";
 import { StoreId } from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
@@ -15,15 +16,28 @@ const calls = vi.hoisted(() => ({
 
 // The row's field, as a press that names the Downloads folder.
 vi.mock("./tab-location-row", () => ({
-  TabLocationRow: ({ onVisit }: { onVisit?: (href: string) => void }) => (
-    <button
-      onClick={() => {
-        onVisit?.(DOWNLOADS);
-      }}
-      type="button"
-    >
-      Open Downloads
-    </button>
+  TabLocationRow: ({
+    onFolder,
+    onVisit,
+  }: {
+    onFolder?: () => void;
+    onVisit?: (href: string) => void;
+  }) => (
+    <>
+      <button
+        onClick={() => {
+          onVisit?.(DOWNLOADS);
+        }}
+        type="button"
+      >
+        Open Downloads
+      </button>
+      {onFolder && (
+        <button onClick={onFolder} type="button">
+          File&apos;s folder
+        </button>
+      )}
+    </>
   ),
 }));
 
@@ -60,7 +74,17 @@ const appWindow: WindowContextValue = {
   openScreen: calls.openScreen,
 };
 
-function renderPage({ atWindowLevel }: { atWindowLevel: boolean }) {
+function openDownloads() {
+  fireEvent.click(screen.getByRole("button", { name: "Open Downloads" }));
+}
+
+function renderPage({
+  atWindowLevel,
+  url = "https://example.org/",
+}: {
+  atWindowLevel: boolean;
+  url?: string;
+}) {
   const id = StoreId.newTabId();
   renderWithProviders(
     <WindowContext value={appWindow}>
@@ -77,12 +101,11 @@ function renderPage({ atWindowLevel }: { atWindowLevel: boolean }) {
           id,
           kind: "page",
           openedAt: 0,
-          url: "https://example.org/",
+          url,
         }}
       />
     </WindowContext>,
   );
-  fireEvent.click(screen.getByRole("button", { name: "Open Downloads" }));
   return id;
 }
 
@@ -96,6 +119,7 @@ describe("a screen a page's field names", () => {
   // that screen's tab, and back returns to the page.
   it("takes the window's tab there from a site of the window's own", () => {
     renderPage({ atWindowLevel: true });
+    openDownloads();
 
     expect(calls.openScreen).toHaveBeenLastCalledWith(DOWNLOADS);
     expect(calls.visitHref).not.toHaveBeenCalled();
@@ -103,8 +127,34 @@ describe("a screen a page's field names", () => {
 
   it("turns a chat's page into the screen in its place", () => {
     const id = renderPage({ atWindowLevel: false });
+    openDownloads();
 
     expect(calls.visitHref).toHaveBeenLastCalledWith(id, DOWNLOADS);
     expect(calls.openScreen).not.toHaveBeenCalled();
+  });
+});
+
+describe("the folder of a file in the address", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("comes up beside a file's page, the file kept open", () => {
+    const id = renderPage({
+      atWindowLevel: false,
+      url: "file:///Users/sam/Notes/plan.html",
+    });
+    fireEvent.click(screen.getByRole("button", { name: "File's folder" }));
+
+    expect(calls.visitHref).toHaveBeenLastCalledWith(
+      id,
+      fileHref("/Users/sam/Notes/plan.html", { tree: "/Users/sam/Notes" }),
+    );
+  });
+
+  it("has no press of its own on a site", () => {
+    renderPage({ atWindowLevel: false });
+
+    expect(screen.queryByRole("button", { name: "File's folder" })).toBeNull();
   });
 });

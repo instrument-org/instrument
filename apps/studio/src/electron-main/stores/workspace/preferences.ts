@@ -8,7 +8,10 @@ import {
   type Features,
   FeaturesSchema,
 } from "@/shared/features";
-import { AIGatewayModelURI } from "@instrument-org/ai-gateway";
+import {
+  AIGatewayModelURI,
+  ModelChoiceSchema,
+} from "@instrument-org/ai-gateway";
 import { APP_FLAVOR } from "@instrument-org/shared";
 import {
   DEFAULT_SEARCH_ENGINE,
@@ -51,6 +54,8 @@ export const WorkspacePreferencesSchema = z.object({
     AgentCompletionNotificationModeSchema.catch("unfocused"),
   // Ads and trackers blocked in the in-app browser; see content-blocking.ts.
   blockAds: z.boolean().catch(true),
+  // What was chosen for the model below when it was last started with.
+  defaultModelChoice: ModelChoiceSchema.optional().catch(undefined),
   defaultModelURI: AIGatewayModelURI.Schema.optional().catch(undefined),
   // On from the start in a development run and in a preview, which are both
   // built to be looked into.

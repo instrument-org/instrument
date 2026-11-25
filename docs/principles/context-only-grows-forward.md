@@ -7,7 +7,8 @@ What the agent has already been told is never rewritten. A change reaches it as 
 - A chat's start is written once. A release's new prompt reaches an old chat when its context window rolls over.
 - Tool descriptions stay static. Details that vary by model or computer go in appended message parts.
 - Tools are not added or removed in the middle of a conversation.
-- Nothing retracts or edits earlier context.
+- The app retracts and edits nothing it already said.
+- The person may edit a message they sent: the agent carries on from before that message, and the new one carries a note that what was done after the old one still stands.
 - Switching computers breaks the cache on purpose, so the agent is told about the switch.
 
 **Not:** a ban on the rollover itself, which already rewrites the front of the request and is where a new start belongs.

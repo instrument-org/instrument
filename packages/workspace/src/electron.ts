@@ -239,6 +239,7 @@ export { WINDOW_ID } from "./schemas/window-id";
 export {
   appCatalogChanges,
   appListChanges,
+  chatReads,
   chatSettles,
 } from "./lib/host-events";
 export { settleIsNews } from "./lib/chat/chats";

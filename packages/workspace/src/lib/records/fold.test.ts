@@ -116,6 +116,42 @@ describe("foldChat", () => {
     }
   });
 
+  it("keeps what an edit took out as an earlier version, without its rollover", () => {
+    const [session] = foldChat([
+      log(DEVICE_A, [
+        HEADER_A,
+        messageRecord(1, user(1)),
+        { t: "rollover", seq: 2, at: at(1), after: messageId(1) },
+        messageRecord(3, user(2)),
+        partRecord(4, text(2, 2, "before")),
+        messageRecord(5, user(3)),
+        { t: "rollover", seq: 6, at: at(3), after: messageId(3) },
+        messageRecord(7, user(4)),
+        {
+          t: "retract",
+          seq: 8,
+          at: at(4),
+          edited: messageId(2),
+          messages: [messageId(2), messageId(3)],
+        },
+      ]),
+    ]).sessions;
+
+    expect(session?.messages.map(({ id }) => id)).toEqual([
+      messageId(1),
+      messageId(4),
+    ]);
+    expect(
+      session?.earlierVersions
+        .get(messageId(2))
+        ?.map(({ id, parts }) => [id, parts.length]),
+    ).toEqual([
+      [messageId(2), 1],
+      [messageId(3), 0],
+    ]);
+    expect(session?.rollover?.after).toBe(messageId(1));
+  });
+
   it("keeps the newest rollover, stop and sites", () => {
     const [session] = foldChat([
       log(DEVICE_A, [

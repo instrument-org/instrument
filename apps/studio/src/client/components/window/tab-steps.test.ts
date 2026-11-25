@@ -73,6 +73,18 @@ describe("which history a step walks", () => {
       undefined,
     ],
     [
+      "nothing from a file opened from outside, at its start with no opener",
+      {
+        history: { entries: ["/files?file=/a.html"], index: 0 },
+        href: "/files?file=/a.html",
+        id: "f",
+        kind: "screen",
+      },
+      { guest: NO_HISTORY },
+      "back",
+      undefined,
+    ],
+    [
       "nothing from a page with no history and nothing behind it",
       PAGE,
       { guest: NO_HISTORY },

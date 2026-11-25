@@ -1,8 +1,38 @@
 {
   "generatedFrom": "integrations.sh curated catalog",
-  "revision": "2026-11-25T19:42:58.119Z",
-  "entriesHash": "8dfacc66e63e8e4a",
+  "revision": "2026-11-25T21:09:44.229Z",
+  "entriesHash": "90734b63cd9cb377",
   "entries": [
+    {
+      "slug": "activecampaign",
+      "name": "ActiveCampaign",
+      "tagline": "Email campaigns and contacts.",
+      "description": "Analyze and manage contacts, campaigns, automations and deals.",
+      "domain": "activecampaign.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. An account admin sets it up."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "ActiveCampaign MCP server",
+          "endpoint": "https://mcp.app-us1.com/http",
+          "auth": "oauth"
+        }
+      ],
+      "category": "marketing",
+      "tier": "listed",
+      "examples": [
+        "How did my last campaign do?",
+        "Which deals are open?",
+        "Who signed up this week?"
+      ],
+      "docsUrl": "https://github.com/ActiveCampaign/activecampaign-plugin"
+    },
     {
       "slug": "ahrefs",
       "name": "Ahrefs",
@@ -608,6 +638,67 @@
       ]
     },
     {
+      "slug": "basecamp",
+      "name": "Basecamp",
+      "tagline": "Projects, to-dos, and messages.",
+      "description": "Read and update projects, to-dos, messages, cards, docs and chats.",
+      "domain": "basecamp.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Basecamp MCP server",
+          "endpoint": "https://mcp.basecamp.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "tasks",
+      "tier": "listed",
+      "examples": [
+        "What’s assigned to me?",
+        "What changed in my projects today?",
+        "Summarize the latest messages"
+      ],
+      "home": "https://launchpad.37signals.com",
+      "docsUrl": "https://basecamp.com/ai"
+    },
+    {
+      "slug": "beehiiv",
+      "name": "beehiiv",
+      "tagline": "Newsletters and their readers.",
+      "description": "Read stats, write posts, and manage subscribers and automations.",
+      "domain": "beehiiv.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. Writing needs a paid plan."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "beehiiv MCP server",
+          "endpoint": "https://mcp.beehiiv.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "marketing",
+      "tier": "listed",
+      "examples": [
+        "How did my last issue do?",
+        "Draft my next issue",
+        "How many subscribers joined this week?"
+      ],
+      "home": "https://app.beehiiv.com"
+    },
+    {
       "slug": "bitly",
       "name": "Bitly",
       "tagline": "Short links, QR codes, and click counts.",
@@ -776,6 +867,37 @@
       ]
     },
     {
+      "slug": "buffer",
+      "name": "Buffer",
+      "tagline": "Scheduled social posts.",
+      "description": "Schedule and edit social posts, capture ideas and read analytics.",
+      "domain": "buffer.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Buffer MCP server",
+          "endpoint": "https://mcp.buffer.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "marketing",
+      "tier": "listed",
+      "examples": [
+        "What’s scheduled this week?",
+        "Draft a post about this",
+        "How did my last posts do?"
+      ],
+      "home": "https://publish.buffer.com",
+      "docsUrl": "https://developers.buffer.com/guides/integrations/mcp.html"
+    },
+    {
       "slug": "buildkite",
       "name": "Buildkite",
       "tagline": "Pipelines, builds, and their logs.",
@@ -805,6 +927,38 @@
       ]
     },
     {
+      "slug": "cal-com",
+      "name": "Cal.com",
+      "tagline": "Scheduling links and bookings.",
+      "description": "Manage bookings, event types, schedules and availability.",
+      "domain": "cal.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Cal.com MCP server",
+          "endpoint": "https://mcp.cal.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "calendar",
+      "tier": "listed",
+      "examples": [
+        "Who booked time with me this week?",
+        "Block off Friday afternoon",
+        "What event types do I have?"
+      ],
+      "aliases": ["cal"],
+      "home": "https://app.cal.com",
+      "docsUrl": "https://cal.com/docs/mcp-server"
+    },
+    {
       "slug": "calendly",
       "name": "Calendly",
       "tagline": "Event types, scheduled events, and availability.",
@@ -818,8 +972,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Calendly sign-in",
+          "note": "Signs in on Calendly's own site in Instrument's browser. Calendly's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -827,7 +981,10 @@
           "format": "mcp",
           "name": "Calendly MCP server",
           "endpoint": "https://mcp.calendly.com",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Calendly refuses Instrument's registration"
+          }
         }
       ],
       "home": "https://calendly.com/app",
@@ -868,6 +1025,37 @@
       "registryName": "com.canva.mcp/mcp"
     },
     {
+      "slug": "capacities",
+      "name": "Capacities",
+      "tagline": "Notes organized as objects.",
+      "description": "Search, read, create and edit notes and tasks, and save to your daily note.",
+      "domain": "capacities.io",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. Needs Capacities Pro."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Capacities MCP server",
+          "endpoint": "https://api.capacities.io/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "examples": [
+        "Add this to today’s daily note",
+        "Find my notes about hiring",
+        "What tasks are open?"
+      ],
+      "home": "https://app.capacities.io",
+      "docsUrl": "https://docs.capacities.io/developer/model-context-protocol"
+    },
+    {
       "slug": "chatgpt",
       "name": "ChatGPT",
       "tagline": "Chats, projects, and memory.",
@@ -886,6 +1074,36 @@
       "tier": "featured",
       "rank": 5,
       "signIn": "https://chatgpt.com/auth/login"
+    },
+    {
+      "slug": "circleback",
+      "name": "Circleback",
+      "tagline": "Meeting notes and action items.",
+      "description": "Search meetings and transcripts, and edit notes and action items.",
+      "domain": "circleback.ai",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Circleback MCP server",
+          "endpoint": "https://circleback.ai/api/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "calendar",
+      "tier": "listed",
+      "examples": [
+        "Summarize my last meeting",
+        "What action items do I have open?",
+        "What did we decide about pricing?"
+      ],
+      "docsUrl": "https://circleback.ai/integrations/mcp"
     },
     {
       "slug": "claude",
@@ -1122,6 +1340,37 @@
       ]
     },
     {
+      "slug": "coda",
+      "name": "Coda",
+      "tagline": "Docs with tables, now Superhuman Docs.",
+      "description": "Read, create and edit docs, pages, tables and comments.",
+      "domain": "coda.io",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Coda MCP server",
+          "endpoint": "https://coda.io/apis/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "examples": [
+        "What docs did I edit this week?",
+        "Summarize this doc",
+        "Add a row to my tracker"
+      ],
+      "aliases": ["superhuman docs"],
+      "home": "https://coda.io/docs"
+    },
+    {
       "slug": "consensus",
       "name": "Consensus",
       "tagline": "Search the scientific literature and read what the papers found.",
@@ -1259,6 +1508,37 @@
       ]
     },
     {
+      "slug": "deepl",
+      "name": "DeepL",
+      "tagline": "Translation for text and documents.",
+      "description": "Translate text, documents and images, and rephrase writing.",
+      "domain": "deepl.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "DeepL MCP server",
+          "endpoint": "https://mcp.deepl.com/v1/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "ai",
+      "tier": "listed",
+      "examples": [
+        "Translate this email into German",
+        "Translate this document into Spanish",
+        "Rephrase this to sound more formal"
+      ],
+      "home": "https://www.deepl.com/translator",
+      "docsUrl": "https://developers.deepl.com/docs/mcp"
+    },
+    {
       "slug": "deepseek",
       "name": "DeepSeek",
       "tagline": "Chats.",
@@ -1294,6 +1574,67 @@
       "tier": "hidden"
     },
     {
+      "slug": "descript",
+      "name": "Descript",
+      "tagline": "Video and podcast editing by text.",
+      "description": "Import media, edit video and audio by text, manage projects and publish.",
+      "domain": "descript.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Descript MCP server",
+          "endpoint": "https://api.descript.com/v2/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "design",
+      "tier": "listed",
+      "examples": [
+        "What projects do I have?",
+        "Remove the filler words from my latest recording",
+        "Make a short clip from this video"
+      ],
+      "home": "https://web.descript.com",
+      "docsUrl": "https://help.descript.com/api-and-mcp/mcp-custom"
+    },
+    {
+      "slug": "docsend",
+      "name": "DocSend",
+      "tagline": "Shared documents and who viewed them.",
+      "description": "Find and read DocSend documents, and see who viewed them and for how long.",
+      "domain": "docsend.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. Needs a paid DocSend plan."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "DocSend MCP server",
+          "endpoint": "https://docsend.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "files",
+      "tier": "listed",
+      "examples": [
+        "Who viewed my deck this week?",
+        "Which pages did people spend the most time on?",
+        "What documents have I shared?"
+      ],
+      "docsUrl": "https://help.dropbox.com/integrations/connect-docsend-mcp-server"
+    },
+    {
       "slug": "dovetail",
       "name": "Dovetail",
       "tagline": "Customer research: interviews, highlights, and insights.",
@@ -1302,8 +1643,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "Dovetail sign-in",
-          "note": "Needs a sign-in client registered with Dovetail, which Instrument doesn't have yet; until then the user signs in on the web."
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser with Instrument's client metadata document, so there is no key to paste."
         }
       ],
       "interfaces": [
@@ -1311,7 +1652,8 @@
           "format": "mcp",
           "name": "Dovetail MCP server",
           "endpoint": "https://dovetail.com/api/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "clientDocument": true
         }
       ],
       "category": "research",
@@ -1362,8 +1704,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Dropbox sign-in",
+          "note": "Signs in on Dropbox's own site in Instrument's browser. Dropbox's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -1371,7 +1713,10 @@
           "format": "mcp",
           "name": "Dropbox MCP server",
           "endpoint": "https://mcp.dropbox.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Dropbox registers only the MCP partners it has approved"
+          }
         }
       ],
       "home": "https://www.dropbox.com/home",
@@ -1388,8 +1733,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server reads the client's published metadata, so there is no key to paste."
+          "label": "ElevenLabs sign-in",
+          "note": "Signs in on ElevenLabs's own site in Instrument's browser. ElevenLabs's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -1397,7 +1742,10 @@
           "format": "mcp",
           "name": "ElevenLabs MCP server",
           "endpoint": "https://api.us.elevenlabs.io/v1/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "ElevenLabs takes a client metadata document, and Instrument's hasn't been tried with an account"
+          }
         }
       ],
       "category": "design",
@@ -1411,6 +1759,37 @@
         "Make a sound effect of rain on a window"
       ],
       "signIn": "https://elevenlabs.io/app/sign-in"
+    },
+    {
+      "slug": "evernote",
+      "name": "Evernote",
+      "tagline": "Notes, notebooks, and tasks.",
+      "description": "Search, read and write notes, and manage notebooks, tags and tasks.",
+      "domain": "evernote.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. Needs a paid Evernote plan."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Evernote MCP server",
+          "endpoint": "https://mcp.evernote.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "examples": [
+        "What did I save this week?",
+        "Find my notes about the kitchen remodel",
+        "What tasks are due?"
+      ],
+      "home": "https://www.evernote.com/client/web",
+      "docsUrl": "https://dev.evernote.com/mcp/faq"
     },
     {
       "slug": "exa",
@@ -1456,6 +1835,36 @@
         "Draw a whiteboard diagram of my week",
         "Sketch a simple sign-up flow"
       ]
+    },
+    {
+      "slug": "expensify",
+      "name": "Expensify",
+      "tagline": "Expenses and reimbursements.",
+      "description": "Search and analyze expenses, reports and reimbursements. It cannot change them.",
+      "domain": "expensify.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Expensify MCP server",
+          "endpoint": "https://www.expensify.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "money",
+      "tier": "listed",
+      "examples": [
+        "What have I spent this month?",
+        "Which reports are waiting on approval?",
+        "What are my biggest expenses this quarter?"
+      ],
+      "home": "https://new.expensify.com"
     },
     {
       "slug": "expo",
@@ -1519,6 +1928,36 @@
       ]
     },
     {
+      "slug": "fastmail",
+      "name": "Fastmail",
+      "tagline": "Mail, contacts, and calendar.",
+      "description": "Search, draft, send and organize mail, and manage contacts and calendars.",
+      "domain": "fastmail.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Fastmail MCP server",
+          "endpoint": "https://api.fastmail.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "mail",
+      "tier": "listed",
+      "examples": [
+        "What’s unread today?",
+        "Draft a reply to the last email from Sam",
+        "What’s on my calendar tomorrow?"
+      ],
+      "home": "https://app.fastmail.com"
+    },
+    {
       "slug": "fathom",
       "name": "Fathom",
       "tagline": "Meeting recordings, transcripts, and summaries.",
@@ -1573,7 +2012,11 @@
           "format": "mcp",
           "name": "Figma MCP server (approved clients only)",
           "endpoint": "https://mcp.figma.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "askAt": "https://developers.figma.com/docs/figma-mcp-server/remote-server-installation/",
+            "why": "Figma registers only the clients in its catalog"
+          }
         }
       ],
       "home": "https://www.figma.com/files",
@@ -1651,6 +2094,37 @@
       ]
     },
     {
+      "slug": "framer",
+      "name": "Framer",
+      "tagline": "Websites you design and publish.",
+      "description": "Design pages, edit layouts, manage content and publish sites.",
+      "domain": "framer.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Framer MCP server",
+          "endpoint": "https://mcp.framer.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "stores",
+      "tier": "listed",
+      "examples": [
+        "What’s on my home page?",
+        "Draft a new blog post in my CMS",
+        "Which changes aren’t published yet?"
+      ],
+      "home": "https://framer.com/projects",
+      "docsUrl": "https://www.framer.com/help/articles/getting-started-with-framer-mcp/"
+    },
+    {
       "slug": "front",
       "name": "Front",
       "tagline": "Shared inboxes, conversations, and drafts.",
@@ -1698,8 +2172,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Gamma sign-in",
+          "note": "Signs in on Gamma's own site in Instrument's browser. Gamma's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -1707,7 +2181,11 @@
           "format": "mcp",
           "name": "Gamma MCP server",
           "endpoint": "https://mcp.gamma.app/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "askAt": "https://developers.gamma.app/mcp/gamma-mcp-server",
+            "why": "Gamma refuses Instrument's callback address, and takes requests to approve one"
+          }
         }
       ],
       "category": "notes",
@@ -1717,7 +2195,8 @@
         "Make a five-slide deck on the history of coffee",
         "Make a one-page guide to houseplant care",
         "Make a presentation about the solar system"
-      ]
+      ],
+      "home": "https://gamma.app"
     },
     {
       "slug": "gemini",
@@ -2271,6 +2750,37 @@
       "rank": 40
     },
     {
+      "slug": "habitify",
+      "name": "Habitify",
+      "tagline": "Habits and streaks.",
+      "description": "List your habits and streaks, log values, and mark habits done or skipped.",
+      "domain": "habitify.me",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. Needs Habitify Pro."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Habitify MCP server",
+          "endpoint": "https://mcp.habitify.me/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "life",
+      "tier": "listed",
+      "examples": [
+        "Which habits are left today?",
+        "Mark my walk done",
+        "How long is my reading streak?"
+      ],
+      "home": "https://app.habitify.me",
+      "docsUrl": "https://api-docs.habitify.me/mcp/others/"
+    },
+    {
       "slug": "heroku",
       "name": "Heroku",
       "tagline": "Apps, dynos, add-ons, and logs.",
@@ -2417,8 +2927,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "IFTTT sign-in",
+          "note": "Signs in on IFTTT's own site in Instrument's browser. IFTTT's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -2426,7 +2936,10 @@
           "format": "mcp",
           "name": "IFTTT MCP server",
           "endpoint": "https://ifttt.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "IFTTT refuses Instrument's callback address"
+          }
         }
       ],
       "category": "automation",
@@ -2481,8 +2994,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Instacart sign-in",
+          "note": "Signs in on Instacart's own site in Instrument's browser. Instacart's MCP sign-in needs a client registered with Instacart, which Instrument doesn't have yet."
         }
       ],
       "interfaces": [
@@ -2490,7 +3003,10 @@
           "format": "mcp",
           "name": "Instacart MCP server",
           "endpoint": "https://fig-mcp.instacart.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Instacart registers no clients on the spot"
+          }
         }
       ],
       "home": "https://www.instacart.com",
@@ -2661,6 +3177,37 @@
       ]
     },
     {
+      "slug": "kit",
+      "name": "Kit",
+      "tagline": "Newsletters for creators.",
+      "description": "Manage subscribers and tags, and draft and send broadcasts and sequences.",
+      "domain": "kit.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. Needs a paid Kit plan."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Kit MCP server",
+          "endpoint": "https://app.kit.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "marketing",
+      "tier": "listed",
+      "examples": [
+        "How did my last broadcast do?",
+        "Draft a newsletter from these notes",
+        "How many subscribers joined this month?"
+      ],
+      "aliases": ["convertkit"],
+      "home": "https://app.kit.com"
+    },
+    {
       "slug": "kiwi",
       "name": "Kiwi.com",
       "tagline": "Flight search and fares.",
@@ -2716,6 +3263,36 @@
         "Which flows bring in the most revenue?",
         "How big is my email list?"
       ]
+    },
+    {
+      "slug": "krisp",
+      "name": "Krisp",
+      "tagline": "Meeting notes and transcripts.",
+      "description": "Search meetings, read transcripts, and manage action items and folders.",
+      "domain": "krisp.ai",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. Needs a paid Krisp plan."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Krisp MCP server",
+          "endpoint": "https://mcp.krisp.ai/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "calendar",
+      "tier": "listed",
+      "examples": [
+        "Summarize my last meeting",
+        "What action items came up this week?",
+        "Find where we talked about the budget"
+      ],
+      "home": "https://app.krisp.ai"
     },
     {
       "slug": "linear",
@@ -2972,6 +3549,37 @@
       "tier": "listed"
     },
     {
+      "slug": "metricool",
+      "name": "Metricool",
+      "tagline": "Social analytics and scheduling.",
+      "description": "Read social analytics, and schedule and publish posts.",
+      "domain": "metricool.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Metricool MCP server",
+          "endpoint": "https://ai.metricool.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "marketing",
+      "tier": "listed",
+      "examples": [
+        "How did my posts do this week?",
+        "What’s scheduled?",
+        "When is the best time to post?"
+      ],
+      "home": "https://app.metricool.com",
+      "docsUrl": "https://help.metricool.com/how-to-connect-metricools-mcp-eqp9h"
+    },
+    {
       "slug": "microsoft-copilot",
       "name": "Microsoft Copilot",
       "tagline": "Chats and pages.",
@@ -3071,6 +3679,42 @@
         "Which events are most common this week?",
         "How many new users come back after a week?"
       ]
+    },
+    {
+      "slug": "monarch",
+      "name": "Monarch",
+      "tagline": "Budgets, accounts, and spending.",
+      "description": "See accounts, budgets, transactions and net worth in Monarch Money.",
+      "domain": "monarch.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Monarch sign-in",
+          "note": "Signs in on Monarch's own site in Instrument's browser. Monarch's MCP sign-in takes only apps it has approved, which Instrument is not."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Monarch MCP server",
+          "endpoint": "https://api.monarch.com/mcp",
+          "auth": "oauth-client",
+          "callback": "relay",
+          "approval": {
+            "askAt": "https://app.monarch.com/settings/integrations",
+            "why": "Monarch connects only the apps it has approved"
+          }
+        }
+      ],
+      "category": "money",
+      "tier": "listed",
+      "examples": [
+        "What did I spend this month?",
+        "Am I over budget anywhere?",
+        "How has my net worth changed this year?"
+      ],
+      "aliases": ["monarch money"],
+      "home": "https://app.monarch.com"
     },
     {
       "slug": "monday",
@@ -3556,8 +4200,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "PagerDuty sign-in",
+          "note": "Signs in on PagerDuty's own site in Instrument's browser. PagerDuty's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -3565,7 +4209,10 @@
           "format": "mcp",
           "name": "PagerDuty MCP server",
           "endpoint": "https://mcp.pagerduty.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "PagerDuty doesn't know Instrument's client metadata document"
+          }
         }
       ],
       "home": "https://www.pagerduty.com",
@@ -3709,6 +4356,37 @@
       "category": "ai",
       "aliases": ["pplx"],
       "tier": "listed"
+    },
+    {
+      "slug": "pocketsmith",
+      "name": "PocketSmith",
+      "tagline": "Budgets and cash flow.",
+      "description": "Read, create and change transactions, budgets, accounts and categories.",
+      "domain": "pocketsmith.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "PocketSmith MCP server",
+          "endpoint": "https://mcp.pocketsmith.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "money",
+      "tier": "listed",
+      "examples": [
+        "What did I spend this month?",
+        "Am I over budget anywhere?",
+        "What bills are coming up?"
+      ],
+      "home": "https://my.pocketsmith.com",
+      "docsUrl": "https://developers.pocketsmith.com/docs/pocketsmith-mcp-server"
     },
     {
       "slug": "posthog",
@@ -3908,6 +4586,37 @@
       ]
     },
     {
+      "slug": "raindrop",
+      "name": "Raindrop.io",
+      "tagline": "Bookmarks in collections.",
+      "description": "Find, add and organize bookmarks, collections, tags and highlights.",
+      "domain": "raindrop.io",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. The free plan is limited."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Raindrop.io MCP server",
+          "endpoint": "https://api.raindrop.io/rest/v2/ai/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "files",
+      "tier": "listed",
+      "examples": [
+        "What did I bookmark this week?",
+        "Save this page to my recipes collection",
+        "Find my bookmarks about gardening"
+      ],
+      "home": "https://app.raindrop.io",
+      "docsUrl": "https://help.raindrop.io/integrations/mcp"
+    },
+    {
       "slug": "ramp",
       "name": "Ramp",
       "tagline": "Cards, transactions, and spend policies.",
@@ -3968,6 +4677,37 @@
         "Which payments were refunded this week?",
         "When is my next settlement?"
       ]
+    },
+    {
+      "slug": "readwise",
+      "name": "Readwise",
+      "tagline": "Highlights and saved reading.",
+      "description": "Search and edit your highlights, and save, tag and read Reader documents.",
+      "domain": "readwise.io",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Readwise MCP server",
+          "endpoint": "https://mcp2.readwise.io/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "examples": [
+        "What did I highlight this week?",
+        "Find my highlights about habits",
+        "Save this article to Reader"
+      ],
+      "home": "https://readwise.io/dashboard",
+      "docsUrl": "https://docs.readwise.io/tools/mcp"
     },
     {
       "slug": "render",
@@ -4032,6 +4772,36 @@
       ]
     },
     {
+      "slug": "replit",
+      "name": "Replit",
+      "tagline": "Apps built and hosted in the browser.",
+      "description": "Create, find, inspect, update and publish Replit apps.",
+      "domain": "replit.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Replit MCP server",
+          "endpoint": "https://mcp.replit.com/server/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "developer",
+      "tier": "listed",
+      "examples": [
+        "What apps do I have?",
+        "Publish my latest app",
+        "What changed in my app recently?"
+      ],
+      "docsUrl": "https://docs.replit.com/platforms/mcp-server"
+    },
+    {
       "slug": "resend",
       "name": "Resend",
       "tagline": "Email sent through one API key.",
@@ -4069,6 +4839,36 @@
         "Which emails bounced this week?",
         "How many contacts are in my audiences?"
       ]
+    },
+    {
+      "slug": "roam-research",
+      "name": "Roam Research",
+      "tagline": "Linked notes in a graph.",
+      "description": "Search, read and write your graphs, at the access you choose.",
+      "domain": "roamresearch.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Roam Research MCP server",
+          "endpoint": "https://mcp.roamresearch.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "examples": [
+        "What did I write today?",
+        "Find my notes on this topic",
+        "Add this to today’s page"
+      ],
+      "aliases": ["roam"]
     },
     {
       "slug": "sanity",
@@ -4358,8 +5158,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Similarweb sign-in",
+          "note": "Signs in on Similarweb's own site in Instrument's browser. Similarweb's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -4367,7 +5167,10 @@
           "format": "mcp",
           "name": "Similarweb MCP server",
           "endpoint": "https://mcp.similarweb.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Similarweb blocks Instrument's registration"
+          }
         }
       ],
       "home": "https://pro.similarweb.com",
@@ -4433,7 +5236,10 @@
           "format": "mcp",
           "name": "Slack MCP",
           "endpoint": "https://mcp.slack.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Slack takes only apps in its Marketplace, and Instrument's is not listed there yet"
+          }
         },
         {
           "format": "openapi",
@@ -4448,6 +5254,36 @@
       "tier": "featured",
       "rank": 3,
       "signIn": "https://slack.com/signin"
+    },
+    {
+      "slug": "sonos",
+      "name": "Sonos",
+      "tagline": "Speakers and what they play.",
+      "description": "Control playback, volume and grouping on your Sonos speakers.",
+      "domain": "sonos.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. Early access, for an S2 system."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Sonos MCP server",
+          "endpoint": "https://mcp.ws.sonos.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "life",
+      "tier": "listed",
+      "examples": [
+        "What’s playing right now?",
+        "Turn the kitchen down a little",
+        "Group the living room and kitchen"
+      ],
+      "docsUrl": "https://tech-blog.sonos.com/posts/sonos-27mcp/"
     },
     {
       "slug": "spotify",
@@ -4572,8 +5408,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Strava sign-in",
+          "note": "Signs in on Strava's own site in Instrument's browser. Strava's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -4581,7 +5417,10 @@
           "format": "mcp",
           "name": "Strava MCP server",
           "endpoint": "https://mcp.strava.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Strava refuses Instrument's registration"
+          }
         }
       ],
       "home": "https://www.strava.com/dashboard",
@@ -4757,6 +5596,37 @@
       "registryName": "dev.svelte/mcp"
     },
     {
+      "slug": "tana",
+      "name": "Tana",
+      "tagline": "Notes and meetings, connected.",
+      "description": "Read, search and write notes and items. Changes wait for your review.",
+      "domain": "tana.inc",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Tana MCP server",
+          "endpoint": "https://home.tana.inc/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "notes",
+      "tier": "listed",
+      "examples": [
+        "What did I note this week?",
+        "Find my notes on this project",
+        "Add this to my inbox"
+      ],
+      "home": "https://home.tana.inc",
+      "docsUrl": "https://tana.inc/learn/features/mcp"
+    },
+    {
       "slug": "tavily",
       "name": "Tavily",
       "tagline": "Web search and page extraction.",
@@ -4812,7 +5682,10 @@
           "authorizationParams": {
             "prompt": "select_account"
           },
-          "authorizationEndpoint": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize"
+          "authorizationEndpoint": "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+          "approval": {
+            "why": "Instrument's Microsoft client is not open to everyone for Teams yet"
+          }
         }
       ],
       "category": "mail",
@@ -4832,13 +5705,22 @@
       "tagline": "Local pros for a job, with quotes.",
       "description": "Ask questions about repairs, maintenance, or improvements and get matched with local pros.",
       "domain": "thumbtack.com",
-      "authMethods": [],
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "Thumbtack sign-in",
+          "note": "Signs in on Thumbtack's own site in Instrument's browser. Thumbtack's MCP sign-in needs a client registered with Thumbtack, which Instrument doesn't have yet."
+        }
+      ],
       "interfaces": [
         {
           "format": "mcp",
           "name": "Thumbtack MCP server",
           "endpoint": "https://mcp.thumbtack.com/mcp",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Thumbtack registers no clients on the spot"
+          }
         }
       ],
       "home": "https://www.thumbtack.com",
@@ -4851,6 +5733,98 @@
         "Find house cleaners near me"
       ],
       "signIn": "https://www.thumbtack.com/login"
+    },
+    {
+      "slug": "ticktick",
+      "name": "TickTick",
+      "tagline": "Tasks, lists, and habits.",
+      "description": "Read, create and complete tasks, and work with lists, habits and focus records.",
+      "domain": "ticktick.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "TickTick MCP server",
+          "endpoint": "https://mcp.ticktick.com",
+          "auth": "oauth"
+        }
+      ],
+      "category": "tasks",
+      "tier": "listed",
+      "examples": [
+        "What’s due today?",
+        "Add a task to call the dentist tomorrow",
+        "What did I finish this week?"
+      ],
+      "home": "https://ticktick.com/webapp",
+      "docsUrl": "https://help.ticktick.com/articles/7438129581631995904"
+    },
+    {
+      "slug": "tiller",
+      "name": "Tiller",
+      "tagline": "Your money in a spreadsheet.",
+      "description": "Query transactions and balances, and edit categories and notes in your sheet.",
+      "domain": "tiller.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. For Google Sheets with Direct Fills; Tiller calls it experimental."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Tiller MCP server",
+          "endpoint": "https://ai-tools.tillermoney.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "money",
+      "tier": "listed",
+      "examples": [
+        "What did I spend on groceries this month?",
+        "Which transactions have no category?",
+        "What are my account balances?"
+      ],
+      "docsUrl": "https://help.tiller.com/en/articles/14999828-connecting-ai-tools-to-tiller-via-mcp"
+    },
+    {
+      "slug": "tldv",
+      "name": "tl;dv",
+      "tagline": "Meeting recordings and notes.",
+      "description": "Search and read meeting transcripts and notes.",
+      "domain": "tldv.io",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste. Needs tl;dv Pro."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "tl;dv MCP server",
+          "endpoint": "https://mcp.tldv.io/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "calendar",
+      "tier": "listed",
+      "examples": [
+        "Summarize my last meeting",
+        "What did the customer ask for?",
+        "Find where we talked about launch"
+      ],
+      "aliases": ["tldv"],
+      "home": "https://tldv.io/app"
     },
     {
       "slug": "todoist",
@@ -5018,6 +5992,36 @@
       ]
     },
     {
+      "slug": "upwork",
+      "name": "Upwork",
+      "tagline": "Freelance jobs and talent.",
+      "description": "Search jobs or talent, draft proposals and offers, and send messages.",
+      "domain": "upwork.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "Upwork MCP server",
+          "endpoint": "https://mcp.upwork.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "sales",
+      "tier": "listed",
+      "examples": [
+        "Find new jobs that fit my profile",
+        "Draft a proposal for this job",
+        "What messages are waiting on me?"
+      ],
+      "docsUrl": "https://www.upwork.com/ai/mcp"
+    },
+    {
       "slug": "vanta",
       "name": "Vanta",
       "tagline": "Compliance controls, tests, and evidence.",
@@ -5173,6 +6177,35 @@
       ]
     },
     {
+      "slug": "wetransfer",
+      "name": "WeTransfer",
+      "tagline": "Big files sent as links.",
+      "description": "Upload files and send them as WeTransfer links.",
+      "domain": "wetransfer.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "WeTransfer MCP server",
+          "endpoint": "https://mcp-server.wetransfer.com/mcp",
+          "auth": "oauth"
+        }
+      ],
+      "category": "files",
+      "tier": "listed",
+      "examples": [
+        "Send this folder as a link",
+        "Make a transfer link for this video"
+      ],
+      "docsUrl": "https://wetransfer.com/mcp"
+    },
+    {
       "slug": "whimsical",
       "name": "Whimsical",
       "tagline": "Flowcharts, mind maps, and wireframes.",
@@ -5261,6 +6294,38 @@
         "How far is Mars from Earth right now?",
         "Convert 350 Fahrenheit to Celsius"
       ]
+    },
+    {
+      "slug": "wordpress-com",
+      "name": "WordPress.com",
+      "tagline": "Websites and blogs.",
+      "description": "Read and edit the posts, pages and settings of your WordPress.com sites.",
+      "domain": "wordpress.com",
+      "authMethods": [
+        {
+          "type": "oauth2",
+          "label": "OAuth 2.0",
+          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+        }
+      ],
+      "interfaces": [
+        {
+          "format": "mcp",
+          "name": "WordPress.com MCP server",
+          "endpoint": "https://public-api.wordpress.com/wpcom/v2/mcp/v1",
+          "auth": "oauth"
+        }
+      ],
+      "category": "stores",
+      "tier": "listed",
+      "examples": [
+        "What are my latest posts?",
+        "Draft a post from these notes",
+        "Which drafts are unfinished?"
+      ],
+      "aliases": ["wordpress"],
+      "home": "https://wordpress.com/home",
+      "docsUrl": "https://developer.wordpress.com/docs/mcp/"
     },
     {
       "slug": "workos",
@@ -5373,8 +6438,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "Zoom sign-in",
+          "note": "Signs in on Zoom's own site in Instrument's browser. Zoom's MCP sign-in needs a client registered with Zoom, which Instrument doesn't have yet."
         }
       ],
       "interfaces": [
@@ -5382,7 +6447,10 @@
           "format": "mcp",
           "name": "Zoom MCP server",
           "endpoint": "https://mcp.zoom.us/mcp/zoom/streamable",
-          "auth": "oauth-client"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "Zoom registers no clients on the spot"
+          }
         }
       ],
       "category": "calendar",
@@ -5400,8 +6468,8 @@
       "authMethods": [
         {
           "type": "oauth2",
-          "label": "OAuth 2.0",
-          "note": "Signs in with OAuth in the browser; the MCP server registers a client on the spot, so there is no key to paste."
+          "label": "ZoomInfo sign-in",
+          "note": "Signs in on ZoomInfo's own site in Instrument's browser. ZoomInfo's MCP sign-in takes only apps it has approved, which Instrument is not."
         }
       ],
       "interfaces": [
@@ -5409,7 +6477,10 @@
           "format": "mcp",
           "name": "ZoomInfo MCP server",
           "endpoint": "https://mcp.zoominfo.com/mcp",
-          "auth": "oauth"
+          "auth": "oauth-client",
+          "approval": {
+            "why": "ZoomInfo registers only the vendors it has approved, by name"
+          }
         }
       ],
       "home": "https://app.zoominfo.com",

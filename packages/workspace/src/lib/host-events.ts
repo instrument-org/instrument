@@ -41,3 +41,8 @@ export function chatSettles({
     signal,
   });
 }
+
+/** Each chat marked read on this computer, until `signal` aborts. */
+export function chatReads(signal?: AbortSignal) {
+  return publisher.subscribe("chat.read", { signal });
+}

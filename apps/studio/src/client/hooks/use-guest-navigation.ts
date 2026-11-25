@@ -81,6 +81,7 @@ export function useGuestNavigation(
       guest.on("did-start-loading", syncSteps),
       guest.on("did-start-navigation", syncSteps),
       guest.on("dom-ready", syncSteps),
+      guest.on("history-left", syncSteps),
       // A redirect can move the history once loading stops without a
       // navigation event for it.
       guest.on("did-stop-loading", syncSteps),

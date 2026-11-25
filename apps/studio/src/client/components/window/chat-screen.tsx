@@ -138,7 +138,7 @@ function ChatScreenOfRecord({
     ...chatListOptions(),
     select: (chats) => chats.find((entry) => entry.id === chatId),
   });
-  const [defaultModelURI] = useDefaultModelURI();
+  const [defaultModelURI, , , defaultModelChoice] = useDefaultModelURI();
   const openFile = useContext(FileOpenContext);
   const createMessage = useMutation(createMessageOptions());
   // What was marked in files and moved into this chat's composer goes
@@ -187,6 +187,10 @@ function ChatScreenOfRecord({
     );
   }
   const modelURI = info.data?.modelURI ?? defaultModelURI;
+  // A chat nobody has sent in yet opens on the default model, choice and all.
+  const modelChoice = info.data?.modelURI
+    ? info.data.modelChoice
+    : defaultModelChoice;
   const reach = folders.data;
   // From this copy of the chat: an open from a chat's transcript is the
   // chat's whatever the window has up at that moment, and never a silent
@@ -276,6 +280,7 @@ function ChatScreenOfRecord({
                   // Kept past this screen's unmount, so the row in the inbox
                   // can say the chat holds a draft while it does.
                   draftKey={{ chatId, scope: "chat" }}
+                  selectedModelChoice={modelChoice}
                   selectedModelURI={modelURI}
                   selectedSessionId={sessionId}
                   {...(layoutContext ? { layoutContext } : {})}

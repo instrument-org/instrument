@@ -1,5 +1,7 @@
 import { type SharedV2ProviderOptions } from "@ai-sdk/provider";
 
+import { CLAUDE_ACCOUNT_PROVIDER_CONFIG } from "@instrument-org/shared";
+
 import { type AIGatewayModel } from "../schemas/model";
 
 /**
@@ -109,10 +111,23 @@ export function catalogEffort(
   model: AIGatewayModel.Type,
 ): ReasoningEffort | undefined {
   const reasoning = model.reasoning;
+  // Claude Code runs a model at its own default when asked for no level, and
+  // names that level only for the picker to show.
+  if (model.params.provider === CLAUDE_ACCOUNT_PROVIDER_CONFIG.type) {
+    return undefined;
+  }
   if (!reasoning?.enabledByDefault || reasoning.defaultEffort === undefined) {
     return undefined;
   }
   return REASONING_EFFORTS.find((effort) => effort === reasoning.defaultEffort);
+}
+
+/** The provider options that ask for `effort`, a level in the provider's own words. */
+export function effortProviderOptions(
+  family: string,
+  effort: string,
+): SharedV2ProviderOptions | undefined {
+  return PROVIDERS[family]?.options(effort);
 }
 
 /**

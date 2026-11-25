@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { ChatReads } from "./chat-reads";
 import { ChatIdSchema } from "../schemas/chat-id";
 import { type SessionMessage } from "../schemas/session/message";
 import { StoreId } from "../schemas/store-id";
@@ -90,13 +91,13 @@ describe("detectChatAppChanges", () => {
     await ChatWrites.saveMessageWithParts(baseline(sessionId, there), chatId);
 
     const detect = async () =>
-      (
-        await detectChatAppChanges({
-          chatId,
-          messageId: StoreId.newMessageId(),
-          sessionId,
-        })
-      )._unsafeUnwrap();
+      detectChatAppChanges({
+        history: (
+          await ChatReads.history({ chatId, sessionId })
+        )._unsafeUnwrap(),
+        messageId: StoreId.newMessageId(),
+        sessionId,
+      });
     const first = await detect();
     expect(first?.type === "data-appEvent" && first.data).toMatchObject({
       apps: { elsewhere: { connected: false } },

@@ -1,6 +1,3 @@
-import { TOOL_NAMES } from "../../tools/name";
-import { APP_NAME } from "@instrument-org/shared";
-
 import { APP_COMMAND } from "../../model-text/commands/app-command";
 
 /**
@@ -13,12 +10,4 @@ import { APP_COMMAND } from "../../model-text/commands/app-command";
 /** The command that moves an app over to signing in on the web. */
 export function webInsteadCommand(slug: string, url: string | undefined) {
   return `${APP_COMMAND.name} new ${slug} --web ${url ?? "<the service's site>"} --force`;
-}
-
-/**
- * The next step, as a sentence for the agent: move the app to the web and ask
- * with `connect_app`, whose card opens the site in the window's browser.
- */
-export function webInsteadStep(slug: string, url: string | undefined): string {
-  return `Next, sign in on the web in ${APP_NAME}'s browser: \`${webInsteadCommand(slug, url)}\`, then ${TOOL_NAMES.connectApp}; its card opens the site, and the app is worked in a tab there.`;
 }

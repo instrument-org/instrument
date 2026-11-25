@@ -310,6 +310,7 @@ export function PromptEditor({
   disabled,
   onChange,
   onCommandEnter,
+  onEscape,
   onPaste,
   onShowQuote,
   onSubmit,
@@ -347,6 +348,8 @@ export function PromptEditor({
    * first of its suggested next messages.
    */
   onCommandEnter?: () => void;
+  /** Escape in the box, when no menu of its own takes it. */
+  onEscape?: () => void;
   /** Shows where a quote's words are, when its card is pressed. */
   onShowQuote?: (words: string) => void;
   onSubmit: () => void;
@@ -385,6 +388,8 @@ export function PromptEditor({
     );
   };
   const onSubmitEvent = useEffectEvent(onSubmit);
+  const hasOnEscape = useEffectEvent(() => onEscape !== undefined);
+  const onEscapeEvent = useEffectEvent(() => onEscape?.());
   const onCommandEnterEvent = useEffectEvent(() => {
     if (!onCommandEnter) {
       return false;
@@ -557,6 +562,12 @@ export function PromptEditor({
             }
             return true;
           }
+        }
+        if (event.key === "Escape" && !event.isComposing && hasOnEscape()) {
+          event.preventDefault();
+          event.stopPropagation();
+          onEscapeEvent();
+          return true;
         }
         if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
           event.preventDefault();

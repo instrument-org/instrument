@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { ChatReads } from "./chat-reads";
 import { TASKS_DIR_NAME } from "../constants";
 import { WorkspaceDirSchema } from "../schemas/paths";
 import { StoreId } from "../schemas/store-id";
@@ -44,10 +45,10 @@ afterEach(async () => {
 /** The note the next message carries, written with it as a turn does. */
 async function build() {
   const part = await createMemoryPart({
+    history: (await ChatReads.history({ chatId, sessionId }))._unsafeUnwrap(),
     createdAt: new Date("2026-09-19T12:00:00.000Z"),
     messageId: StoreId.newMessageId(),
     sessionId,
-    chatId,
   });
   await writeMessage(chatId, sessionId, "user", [part]);
   return part;

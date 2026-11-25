@@ -287,6 +287,42 @@ describe("startOAuth", () => {
     ).rejects.toMatchObject({ code: "API_ERROR" });
     expect(mocks.beginMcpOAuth).not.toHaveBeenCalled();
   });
+
+  it("records a sign-in that could not start", async () => {
+    mocks.beginMcpOAuth.mockResolvedValue({
+      error: { message: "no", reason: "connect" },
+      isErr: () => true,
+    });
+
+    await expect(
+      call(
+        apps.startOAuth,
+        { origin: "https://mcp.example.com", slug: "signed-in" },
+        options,
+      ),
+    ).rejects.toMatchObject({ code: "API_ERROR" });
+    expect(mocks.recordConnection.mock.calls).toEqual([
+      ["signed-in", { error: "no", status: "failed" }],
+    ]);
+  });
+
+  it("answers a service that will not take Instrument as refused, without an error", async () => {
+    mocks.beginMcpOAuth.mockResolvedValue({
+      error: { message: "no", reason: "client-refused" },
+      isErr: () => true,
+    });
+
+    await expect(
+      call(
+        apps.startOAuth,
+        { origin: "https://mcp.example.com", slug: "signed-in" },
+        options,
+      ),
+    ).resolves.toEqual({ status: "refused" });
+    expect(mocks.recordConnection.mock.calls).toEqual([
+      ["signed-in", { ended: "refused", error: "no", status: "failed" }],
+    ]);
+  });
 });
 
 describe("inspect", () => {

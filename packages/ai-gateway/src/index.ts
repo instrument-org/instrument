@@ -37,6 +37,12 @@ export * from "./lib/hosted-limiter";
 export * from "./lib/image-capabilities";
 export { isRouterModel } from "./lib/is-router-model";
 export * from "./lib/model-cache";
+export {
+  applyServedModelSettings,
+  modelChoicesFor,
+  takenChoice,
+} from "./lib/model-choices";
+export { onReportedFastMode } from "./lib/reported-fast-mode";
 export { modelDisplayName } from "./lib/model-display-name";
 export { modelNameFromURI } from "./lib/model-name-from-uri";
 export { readModelURI } from "./lib/find-replacement";
@@ -63,6 +69,7 @@ export * from "./lib/select-provider-configs";
 export * from "./lib/stream-image";
 export { verifyAPIKey } from "./lib/verify-api-key";
 export * from "./schemas/model";
+export * from "./schemas/model-choice";
 export * from "./schemas/model-uri";
 export * from "./schemas/provider-config";
 export * from "./schemas/provider-metadata";

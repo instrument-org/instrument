@@ -26,7 +26,7 @@ import {
   type Project,
 } from "./chats";
 import { DraftRow } from "./draft-row";
-import { useNow } from "./use-now";
+import { useMinuteClock } from "./use-minute-clock";
 
 /**
  * One chat's row, rendered again only when something it shows changes:
@@ -194,7 +194,7 @@ export function ChatList({
   search?: string;
   projects: Project[];
 }) {
-  const now = useNow();
+  const now = useMinuteClock();
   const ref = useRef<HTMLDivElement>(null);
   const actionsFor = useChatActionsFor();
   // The handlers as the list last had them, for the rows to call: the ones

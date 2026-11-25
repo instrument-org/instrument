@@ -23,7 +23,7 @@ import { DeleteChatDialog } from "./delete-chat-dialog";
 import { pressShortcut } from "./drag/press-bookmark";
 import { ScreenMark } from "./pane-tabs";
 import { useShell } from "./shell-context";
-import { useNow } from "./use-now";
+import { useMinuteClock } from "./use-minute-clock";
 import { useSetChatProject } from "./use-set-chat-project";
 import { CHATS_INDEX_HREF, chatHref } from "./window-href";
 
@@ -138,7 +138,7 @@ function RecentChatRow({
   const appsBySlug = useAppsBySlug();
   const actionsFor = useChatActionsFor();
   const setChatProject = useSetChatProject();
-  const now = useNow();
+  const now = useMinuteClock();
   const projects =
     useQuery(rpcClient.workspace.projects.list.queryOptions()).data ?? [];
   return (

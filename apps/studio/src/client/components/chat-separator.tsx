@@ -11,7 +11,7 @@ import { osConventions } from "../lib/utils";
 import { ModelSwitch } from "./model-change-note";
 import { ModelUsageChip, TooltipRow } from "./model-usage-chip";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
-import { useNow } from "./window/use-now";
+import { useMinuteClock } from "./window/use-minute-clock";
 
 /**
  * A centered line above a message the person sent: the day, the time, the
@@ -20,7 +20,7 @@ import { useNow } from "./window/use-now";
  * before, are in their cards, never on the line.
  */
 export function ChatSeparatorRow({ separator }: { separator: ChatSeparator }) {
-  const now = useNow();
+  const now = useMinuteClock();
   const { at, change, computer, timed, usage } = separator;
 
   return (

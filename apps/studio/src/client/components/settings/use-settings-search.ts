@@ -14,7 +14,7 @@ import { FEATURE_METADATA } from "@/shared/features";
 import { decisionBar } from "@instrument-org/shared/decision-bars";
 import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
-import { useEffect, useState } from "react";
+import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 
 const DEBOUNCE_MS = 300;
 /** The shortest search worth asking the model about. */
@@ -155,15 +155,7 @@ function useMeaningFallback({
   search: string;
 }) {
   const candidates = all.slice(0, MOST_ASKED);
-  const [settled, setSettled] = useState(search.trim());
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSettled(search.trim());
-    }, DEBOUNCE_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [search]);
+  const settled = useDebouncedValue(search.trim(), DEBOUNCE_MS);
 
   const settledNow = active && settled === search.trim();
   const { answer, available, isAsking } = useDecision({

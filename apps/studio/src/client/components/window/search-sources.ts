@@ -19,7 +19,7 @@ import { useShell } from "./shell-context";
 import { type OpenGroupRow, useOpenGroupRows } from "./open-group-rows";
 import { chatOfTab, isHomeTab } from "./tab-model";
 import { useTabTitle } from "./tab-title";
-import { useNow } from "./use-now";
+import { useMinuteClock } from "./use-minute-clock";
 import { matchScreen } from "./window-href";
 import { useWindowTabs } from "./window-tabs";
 
@@ -62,7 +62,7 @@ type NamedOf<Kind extends SearchThing["kind"]> = Named<
  */
 export function useSearchSources({ enabled }: { enabled: boolean }) {
   const shell = useShell();
-  const now = useNow().getTime();
+  const now = useMinuteClock().getTime();
   const { bookmarkPages, recentPages, visited } = useKnownPages({ enabled });
   // Described only while asked for: each file is looked at on the disk.
   const recentFiles = useRecentFiles({ enabled }).files;

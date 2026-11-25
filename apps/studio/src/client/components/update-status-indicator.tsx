@@ -13,7 +13,7 @@ import {
 } from "@/client/components/ui/hover-card";
 import { Spinner } from "@/client/components/ui/spinner";
 import { useWindow } from "@/client/components/window/context";
-import { useNow } from "@/client/components/window/use-now";
+import { useMinuteClock } from "@/client/components/window/use-minute-clock";
 import {
   formatAbsoluteTime,
   formatRelativeTime,
@@ -542,7 +542,7 @@ function UpdateReadyCardBody({
   // Mounting again on each open refetches notes that have gone stale.
   const { data: notes, isPending } = useQuery(notesQuery(version));
   const { openScreen } = useWindow();
-  const now = useNow();
+  const now = useMinuteClock();
   const asksForPassword = useInstallAsksForPassword();
   const installsUnattended = useInstallsUnattended();
   return (

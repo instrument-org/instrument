@@ -54,7 +54,7 @@ import { GroupRowLines } from "@/client/components/window/group-row-lines";
 import { HoldMarks } from "@/client/components/window/hold-marks";
 import { type OpenGroupRow } from "@/client/components/window/open-group-rows";
 import { chatOfTab } from "@/client/components/window/tab-model";
-import { useNow } from "@/client/components/window/use-now";
+import { useMinuteClock } from "@/client/components/window/use-minute-clock";
 import { useWindowTabs } from "@/client/components/window/window-tabs";
 import {
   findNamed,
@@ -299,7 +299,7 @@ export function useCommandMenuRows({
   const picks = useSearchPicks({ enabled: active });
   const showChatGroup = useShowChatGroup();
   const { select: selectTab } = useWindowTabs();
-  const now = useNow();
+  const now = useMinuteClock();
 
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),

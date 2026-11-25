@@ -1,6 +1,7 @@
 import { type Draft } from "@/shared/drafts";
 import { useDecision } from "@/client/hooks/use-decision";
-import { useEffect, useState } from "react";
+import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
+import { useEffect } from "react";
 
 import { type Project } from "./chats";
 
@@ -41,15 +42,7 @@ export function useDraftProjectSuggestion({
   const open =
     draft.projectId === undefined && draft.projectSource === undefined;
 
-  const [settled, setSettled] = useState(words.trim());
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSettled(words.trim());
-    }, DEBOUNCE_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [words]);
+  const settled = useDebouncedValue(words.trim(), DEBOUNCE_MS);
 
   const asking =
     open && projects.length > 0 && settled.split(/\s+/).length >= MIN_WORDS;

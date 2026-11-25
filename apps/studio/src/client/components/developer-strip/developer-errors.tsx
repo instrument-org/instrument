@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
 import { Popover, PopoverTrigger } from "@/client/components/ui/popover";
-import { useNow } from "@/client/components/window/use-now";
+import { useMinuteClock } from "@/client/components/window/use-minute-clock";
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
 import {
   formatAbsoluteTime,
@@ -108,7 +108,7 @@ function ErrorsPanel({
   /** Opens the log, where the window can show Settings. */
   onViewLog?: () => void;
 }) {
-  const now = useNow().getTime();
+  const now = useMinuteClock().getTime();
   const [picked, setPicked] = useState<string>();
   const { mutate: clearAll } = useMutation(
     rpcClient.utils.clearExceptions.mutationOptions({}),

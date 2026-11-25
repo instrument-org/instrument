@@ -3,6 +3,7 @@ import {
   findRanges,
   MATCH_COLOR,
 } from "@/client/components/document-viewers/use-find-highlights";
+import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { FindRow } from "@/client/components/find-row";
 import {
   FindScrollMarks,
@@ -92,15 +93,7 @@ export function ChatFind({
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
-  const [rested, setRested] = useState("");
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setRested(query);
-    }, SEARCH_REST_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [query]);
+  const rested = useDebouncedValue(query, SEARCH_REST_MS);
   const searched = open ? query : "";
 
   const { data: found } = useQuery({

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
  * once a minute: one clock for the whole render, so every row is measured from
  * the same moment and the list is re-read on the tick rather than per row.
  */
-export function useNow(): Date {
+export function useMinuteClock(): Date {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => {

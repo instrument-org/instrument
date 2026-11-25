@@ -1,6 +1,6 @@
 import { type DecisionAnswer, useDecision } from "@/client/hooks/use-decision";
 import { decisionBar } from "@instrument-org/shared/decision-bars";
-import { useEffect, useState } from "react";
+import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 
 import { byLastUserMessage, type Chat } from "./chats";
 
@@ -56,15 +56,7 @@ export function useChatSearchFallback({
 }) {
   const candidates =
     all.length > MOST_ASKED ? byLastUserMessage(all).slice(0, MOST_ASKED) : all;
-  const [settled, setSettled] = useState(search.trim());
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setSettled(search.trim());
-    }, DEBOUNCE_MS);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [search]);
+  const settled = useDebouncedValue(search.trim(), DEBOUNCE_MS);
 
   const settledNow = settled === search.trim();
   const askable = active && candidates.length > 0 && search.trim().length > 1;

@@ -124,15 +124,13 @@ import {
   siteGroupsOf,
   useAppTabs,
 } from "./app-tabs";
-import { useAppsBySlug } from "./apps-by-slug";
 import { addressOfTab } from "@/client/bookmarks/address";
 import { BookmarkAllTabs } from "./bookmark-all-tabs";
-import { useTabTitle } from "./tab-title";
+import { tabTitle, useTabNames } from "./tab-title";
 import { editField } from "./omnibar-field";
 import { BrowserTabs, type BrowserTabsHandle } from "./browser-tabs";
 import { chatListOptions, chromeOfChats } from "./chat-list-query";
 import { type ChatFilters, inPlace } from "./chats";
-import { useComputerVolumes } from "./computer-volumes";
 import { type WindowContextValue as Screens } from "./context";
 import {
   chatOfTab,
@@ -168,7 +166,6 @@ import { contextReaders } from "./send-context";
 import { type WindowShell as Shell, ShellContext } from "./shell-context";
 import { useStagedAskActions } from "./staged-asks";
 import { tabSurfaceAtom } from "./tab-surface";
-import { useTaskTitles } from "./task-titles";
 import { useDrafts } from "./use-drafts";
 import { useOpeners } from "./use-openers";
 import { CommandMenu } from "./command-menu";
@@ -608,7 +605,6 @@ function WindowShell({
     }),
   );
   const opened = ensure.data;
-  const childTitles = useTaskTitles();
   // Undefined until the list has been read.
   const chatChrome = useChatChrome();
   const { chatTitles } = chatChrome;
@@ -769,16 +765,13 @@ function WindowShell({
     }
   }, [pageHost, stage]);
 
-  const appsBySlug = useAppsBySlug();
-  const tabTitle = useTabTitle(chatTitles);
+  const names = useTabNames(chatTitles);
   useEffect(() => {
-    describeTabs(tabTitle);
+    describeTabs((tab) => tabTitle(tab, names));
   });
   const { openAll, openNamedPath, openPage, openScreen } = useOpeners({
-    appsBySlug,
     appTabs,
     browser,
-    chatTitles,
     closedEntryOf: (kind, id) =>
       store.get(appTabsAtom).recentlyClosed.find((entry) => {
         const closedTabs = closedTabsOf(entry);
@@ -821,6 +814,7 @@ function WindowShell({
       }
     },
     isOpen: opened !== undefined,
+    names,
     newGroup: (fill, options) => groups.make({ fill, ...options }),
     openChat: (chat) => {
       groups.openChat(chat, { returns: "untilUnrelated" });
@@ -1200,7 +1194,7 @@ function WindowShell({
   const hrefInView = builtInInView ?? screenHref;
   useRecordScreen(
     screenActionOf({
-      appName: (slug) => appsBySlug.get(slug)?.name,
+      appName: (slug) => names.appsBySlug.get(slug)?.name,
       chatTitle: (chat) => chatTitles.get(chat),
       ...(surfaceInView?.walked
         ? { folderPath: surfaceInView.walked.hostPath }
@@ -1210,18 +1204,15 @@ function WindowShell({
     }),
   );
   // What goes with a message, read at the moment of sending.
-  const volumes = useComputerVolumes();
   const readersNow = () =>
     contextReaders({
-      appsBySlug,
+      ...names,
       appTabId: appTabs.model.selectedId,
       browser,
-      chatTitles,
       href: hrefNow(),
       screenView,
       state: opened,
       surfaces,
-      ...(volumes ? { volumes } : {}),
       windowTabs,
     });
   const draftContext = (draft: Draft, tabId: string | undefined) =>
@@ -1230,7 +1221,7 @@ function WindowShell({
   // tab sent from is where the chat's agent works from then on (`chatTab`).
   const layoutNow = (tabId: string) => {
     windowTabs.markPrompted(tabId);
-    return layoutReadOf({ appsBySlug, chatTitles, windowTabs }, tabId);
+    return layoutReadOf({ names, windowTabs }, tabId);
   };
   useLayoutEffect(() => {
     sendContextRef.current = (options) => readersNow().sendContext(options);
@@ -1771,7 +1762,7 @@ function WindowShell({
 
   const shell: Shell = {
     arrivedId,
-    childTitles,
+    childTitles: names.taskTitles,
     defaultModelChoice,
     defaultModelURI,
     discardDraft,
@@ -1955,7 +1946,7 @@ function WindowShell({
                   const url = addressOfTab(tab);
                   return url === undefined
                     ? []
-                    : [{ title: tabTitle(tab), url }];
+                    : [{ title: tabTitle(tab, names), url }];
                 })
               }
             />

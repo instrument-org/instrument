@@ -28,7 +28,6 @@ import { type Chat } from "./chats";
 import { useTasksOf } from "./child-tasks-query";
 import { FadeTitle } from "./fade-title";
 import { useFileTabTitles } from "./file-tab-titles";
-import { pageTabTitle } from "./file-tabs";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
 import { ScreenMark } from "./pane-tabs";
 import { RowActionBar } from "./row-action-bar";
@@ -45,8 +44,9 @@ import {
   siteOf,
   taskLines,
 } from "./row-lines";
-import { screenLocation, screenPresentation } from "./screen-presentation";
+import { screenLocation } from "./screen-presentation";
 import { chatOfTab, draftOfTab } from "./tab-model";
+import { tabTitle } from "./tab-title";
 import { useTaskTitles } from "./task-titles";
 import { locationCrumbs, tasksOfHref } from "./tab-location";
 import { useWindowTabs } from "./window-tabs";
@@ -186,22 +186,22 @@ export function useRowLines(
   const tasks = useTasksOf(
     named?.chat === undefined ? [] : [{ chat: named.chat, id: named.task }],
   );
-  if (tab.kind === "page") {
-    const title = pageTabTitle(tab) ?? "";
-    const path = hostPathOfFileUrl(tab.url);
-    return path === undefined
-      ? pageLines(title, tab.url, load)
-      : placeLines(title, foldersOf(path, volumes));
-  }
   const names = {
     appsBySlug,
     chatTitles,
     ...(fileTitles ? { fileTitles } : {}),
     projects,
     taskTitles,
+    ...(volumes ? { volumes } : {}),
   };
+  const title = tabTitle(tab, names);
+  if (tab.kind === "page") {
+    const path = hostPathOfFileUrl(tab.url);
+    return path === undefined
+      ? pageLines(title, tab.url, load)
+      : placeLines(title, foldersOf(path, volumes));
+  }
   const location = screenLocation(tab.href, names);
-  const { title } = screenPresentation(tab.href, names);
   switch (location.kind) {
     case "chat": {
       const id = chatOfTab(tab);

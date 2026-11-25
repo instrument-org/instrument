@@ -79,7 +79,6 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
   const { active: frontTab, allTabs } = useWindowTabs();
   // This window's groups, each as its row in the sidebar has it.
   const groupRows = useOpenGroupRows({
-    chats,
     chatTitles,
     enabled,
     projects: shell.projects,

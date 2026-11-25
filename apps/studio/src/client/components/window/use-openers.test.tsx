@@ -174,16 +174,15 @@ function windowOnTwoSides({
       const windowTabs = useWindowTabs();
       const appTabs = useAppTabs();
       const openers = useOpeners({
-        appsBySlug: new Map(),
         appTabs,
         browser,
-        chatTitles: new Map(),
         closedEntryOf: () => spies.closedEntry.current,
         closeGroup: spies.closeGroup,
         closeTab: spies.closeTab,
         groupTabs: spies.groupTabs,
         isOpen: true,
         moveTabs: spies.moveTabs,
+        names: { appsBySlug: new Map(), chatTitles: new Map() },
         newGroup,
         openChat: () => {},
         reopenClosed: spies.reopenClosed,
@@ -226,7 +225,13 @@ function windowOnTwoSides({
             }))
           : []),
         { group: OTHER_GROUP, id: OTHER_UP, kind: "page", openedAt: 4 },
-        { group: OTHER_GROUP, id: OTHER_BEHIND, kind: "page", openedAt: 5 },
+        {
+          group: OTHER_GROUP,
+          id: OTHER_BEHIND,
+          kind: "page",
+          openedAt: 5,
+          url: "https://example.com/behind",
+        },
       ],
     });
   });
@@ -444,6 +449,23 @@ describe("an agent and the window's other tab groups", () => {
         shownAt: 5000,
       },
       { group: { id: GROUP } },
+    ]);
+  });
+
+  it("names each group as its sidebar row does, by the tab held for it", async () => {
+    const { result } = windowOnTwoSides();
+    act(() => {
+      result.current.windowTabs.setGroupOwn(OTHER_GROUP, {
+        lead: OTHER_BEHIND,
+      });
+    });
+    const answer = await answerTo({ kind: "list" }, "l3");
+    const windows = (answer as { windows?: unknown }).windows as {
+      groups: { name: string }[];
+    }[];
+    expect(windows[0]?.groups.map(({ name }) => name)).toEqual([
+      "New Tab",
+      "https://example.com/behind",
     ]);
   });
 

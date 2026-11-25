@@ -49,7 +49,6 @@ import {
   type Project,
   projectSearch,
 } from "@/client/components/window/chats";
-import { groupLeadsAtom } from "@/client/components/window/group-leads";
 import { GroupRowLines } from "@/client/components/window/group-row-lines";
 import { HoldMarks } from "@/client/components/window/hold-marks";
 import { type OpenGroupRow } from "@/client/components/window/open-group-rows";
@@ -1456,7 +1455,7 @@ function GroupRowText({
   row: OpenGroupRow;
 }) {
   const { chatTitles } = useShell();
-  const held = useAtomValue(groupLeadsAtom).get(row.entry.group);
+  const held = useWindowTabs().groupOwn[row.entry.group]?.lead;
   return (
     <GroupRowLines
       chatTitles={chatTitles}

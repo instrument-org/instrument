@@ -1,21 +1,14 @@
 import { sidebarProjectAtom } from "@/client/atoms/tab-groups";
 import { type WindowTab } from "@/client/atoms/window";
 import { draftsAtom } from "@/client/drafts/store";
-import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useAtomValue } from "jotai";
 
 import { useAppsBySlug } from "./apps-by-slug";
-import { type Chat, draftTitle, type Project } from "./chats";
+import { draftTitle, type Project } from "./chats";
+import { useComputerVolumes } from "./computer-volumes";
 import { useFileTabTitles } from "./file-tab-titles";
-import { pageTabTitle } from "./file-tabs";
-import {
-  groupLeadsAtom,
-  leadTabOf,
-  type RowSides,
-  rowSidesOf,
-} from "./group-leads";
-import { screenPresentation } from "./screen-presentation";
+import { leadTabOf, type RowSides, rowSidesOf } from "./group-leads";
 import {
   groupsInProject,
   inSidebarOrder,
@@ -23,6 +16,8 @@ import {
   useOpenGroups,
 } from "./tab-groups";
 import { chatOfTab, draftOfTab, isHomeTab } from "./tab-model";
+import { useProjectsById } from "./projects-by-id";
+import { tabTitle } from "./tab-title";
 import { useTaskTitles } from "./task-titles";
 import { useWindowTabs } from "./window-tabs";
 
@@ -49,23 +44,22 @@ export interface OpenGroupRow {
  * out.
  */
 export function useOpenGroupRows({
-  chats,
   chatTitles,
   enabled,
   projects,
 }: {
-  chats: readonly Chat[];
   chatTitles: Map<ChatId, string>;
   /** Whether the titles pages give themselves are read off the disk. */
   enabled: boolean;
   projects: readonly Project[];
 }): OpenGroupRow[] {
   const { open } = useOpenGroups();
-  const { layoutOf } = useWindowTabs();
-  const leads = useAtomValue(groupLeadsAtom);
+  const { groupOwn, layoutOf } = useWindowTabs();
   const drafts = useAtomValue(draftsAtom);
   const appsBySlug = useAppsBySlug();
+  const projectsById = useProjectsById();
   const taskTitles = useTaskTitles();
+  const volumes = useComputerVolumes();
   const shown = new Set(
     groupsInProject(open, useAtomValue(sidebarProjectAtom), projects),
   );
@@ -75,7 +69,7 @@ export function useOpenGroupRows({
   ].flatMap((entry) => {
     const sides = rowSidesOf(layoutOf(entry.group));
     return sides
-      ? [{ entry, lead: leadTabOf(sides, leads.get(entry.group)), sides }]
+      ? [{ entry, lead: leadTabOf(sides, groupOwn[entry.group]?.lead), sides }]
       : [];
   });
   const fileTitles = useFileTabTitles(
@@ -83,24 +77,17 @@ export function useOpenGroupRows({
       ? listed.map(({ lead }) => (lead.kind === "page" ? undefined : lead.href))
       : [],
   );
-  const titleOf = (tab: WindowTab) => {
-    if (tab.kind === "page") {
-      return pageTabTitle(tab) ?? "";
-    }
-    const chat = chats.find((each) => each.id === chatOfTab(tab));
-    return chat
-      ? stripMarkdown(chat.title)
-      : screenPresentation(tab.href, {
-          appsBySlug,
-          chatTitles,
-          ...(fileTitles ? { fileTitles } : {}),
-          taskTitles,
-        }).title;
-  };
   return listed.map((row) => {
     const draft = draftOfTab(row.lead);
     const words = drafts.find((each) => each.id === draft)?.words.trim() ?? "";
-    const title = draft === undefined ? titleOf(row.lead) : "New Tab";
+    const title = tabTitle(row.lead, {
+      appsBySlug,
+      chatTitles,
+      ...(fileTitles ? { fileTitles } : {}),
+      projects: projectsById,
+      taskTitles,
+      ...(volumes ? { volumes } : {}),
+    });
     return {
       ...row,
       chat: chatOfTab(row.lead),

@@ -70,7 +70,7 @@ import {
   hoverPicturesAtom,
   pictureUrl,
 } from "./hover-pictures";
-import { groupLeadsAtom, rowSidesOf } from "./group-leads";
+import { rowSidesOf } from "./group-leads";
 import { GroupRowLines } from "./group-row-lines";
 import { RowLinesView } from "./row-half";
 import { quiet } from "./row-lines";
@@ -628,9 +628,9 @@ export function GroupRow({
   onPress?: (group: string, event: ReactPointerEvent<HTMLElement>) => void;
   onShow?: (group: string, options: { newWindow: boolean }) => void;
 }) {
-  const { layoutOf } = useWindowTabs();
+  const { groupOwn, layoutOf } = useWindowTabs();
   const titleOf = useTabTitle(chatTitles);
-  const held = useAtomValue(groupLeadsAtom).get(entry.group);
+  const held = groupOwn[entry.group]?.lead;
   const sides = rowSidesOf(layoutOf(entry.group));
   const ups = sides?.map((side) => side.up) ?? [];
   // Named as a group, so a row whose tab is a page the sidebar also has a

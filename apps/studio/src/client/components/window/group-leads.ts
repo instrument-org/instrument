@@ -1,8 +1,9 @@
 import { type WindowTab } from "@/client/atoms/window";
-import { atom, useAtom } from "jotai";
 import { useLayoutEffect, useRef } from "react";
 
+import { type ScreenNames } from "./screen-presentation";
 import { chatOfTab, type GroupLayout } from "./tab-model";
+import { tabTitle } from "./tab-title";
 import { useWindowTabs } from "./window-tabs";
 
 /** A group's sides as its row reads them: each side's tabs and the one in front, the left side first. */
@@ -19,17 +20,9 @@ export function rowSidesOf(layout: GroupLayout): RowSides | undefined {
 }
 
 /**
- * The tab each of this window's groups goes by where it holds no chat, by
- * the group: the left side's front tab when the group was last left, or when
- * the window first listed it. Kept while the group is up, so picking another
- * tab in it does not rename it (`useGroupLeadUpkeep`).
- */
-export const groupLeadsAtom = atom<ReadonlyMap<string, string>>(new Map());
-
-/**
- * The tab a group's row goes by: its first chat, else the tab held for it
- * (`groupLeadsAtom`), else, with none held or that one since closed, the left
- * side's front tab.
+ * The tab a group goes by: its first chat, else the tab held for it
+ * (`useGroupLeadUpkeep`), else, with none held or that one since closed, the
+ * left side's front tab.
  */
 export function leadTabOf(
   sides: RowSides,
@@ -44,30 +37,45 @@ export function leadTabOf(
   );
 }
 
-/** Keeps the tab each group the window lists goes by, as groups come and go and as one goes out of sight. */
+/**
+ * What a group is called, by the tab it goes by: the title of its sidebar
+ * row, what the command menu lists it by, and what the agent names it by
+ * (`ListedGroup.name`). None for a group whose tabs are not in yet.
+ */
+export function groupNameOf(
+  layout: GroupLayout,
+  held: string | undefined,
+  names: ScreenNames,
+): string | undefined {
+  const sides = rowSidesOf(layout);
+  return sides && tabTitle(leadTabOf(sides, held), names);
+}
+
+/**
+ * Holds the tab each group the window lists goes by where it has no chat
+ * (`GroupOwn.lead`): the left side's front tab when the group was last left,
+ * or when a window first listed it. Kept while the group is up, so picking
+ * another tab in it does not rename it.
+ */
 export function useGroupLeadUpkeep(
   groupUp: string | undefined,
   listed: readonly string[],
 ) {
-  const { layoutOf } = useWindowTabs();
-  const [leads, setLeads] = useAtom(groupLeadsAtom);
+  const { groupOwn, layoutOf, setGroupOwn } = useWindowTabs();
   const lastUp = useRef(groupUp);
   // Before paint, so a row never shows the tab it stopped going by.
   useLayoutEffect(() => {
     const left = lastUp.current === groupUp ? undefined : lastUp.current;
     lastUp.current = groupUp;
-    const next = new Map(
-      listed.flatMap((group) => {
-        const held = group === left ? undefined : leads.get(group);
-        const lead = held ?? rowSidesOf(layoutOf(group))?.[0].up.id;
-        return lead === undefined ? [] : [[group, lead] as const];
-      }),
-    );
-    const isSame =
-      next.size === leads.size &&
-      [...next].every(([group, lead]) => leads.get(group) === lead);
-    if (!isSame) {
-      setLeads(next);
+    for (const group of listed) {
+      const held = groupOwn[group]?.lead;
+      const lead =
+        held === undefined || group === left
+          ? rowSidesOf(layoutOf(group))?.[0].up.id
+          : held;
+      if (lead !== undefined && lead !== held) {
+        setGroupOwn(group, { lead });
+      }
     }
   });
 }

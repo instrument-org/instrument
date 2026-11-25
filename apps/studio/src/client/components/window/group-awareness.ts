@@ -3,24 +3,22 @@ import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { SCREENS } from "@/shared/instrument-screens";
 import { chatAddressOf, instrumentUrlOf } from "@instrument-org/shared";
 import {
-  type ChatId,
   type LayoutRead,
   type LayoutSnapshot,
   type LayoutTab,
 } from "@instrument-org/workspace/client";
 
-import { type AppsBySlug } from "./apps-by-slug";
 import { computerTabOf } from "./file-tabs";
 import { agentPageOfTab } from "./hosted-page";
 import { joinHostPath, segmentsOf } from "./host-path";
-import { screenPresentation } from "./screen-presentation";
+import { type ScreenNames } from "./screen-presentation";
+import { tabTitle } from "./tab-title";
 import { matchScreen } from "./window-href";
 import { type useWindowTabs } from "./window-tabs";
 
 /** What a chat's tab group is read from: the window's tabs and how each group lays them out. */
 export interface GroupAwarenessWindow {
-  appsBySlug: AppsBySlug;
-  chatTitles: Map<ChatId, string>;
+  names: ScreenNames;
   windowTabs: Pick<
     ReturnType<typeof useWindowTabs>,
     "allTabs" | "groupOnScreen" | "layoutOf"
@@ -96,7 +94,7 @@ export function groupLayoutFor(
 
 /** One tab as the agent reads it: what it is, what it is called, and where. */
 function describedTab(
-  { appsBySlug, chatTitles, windowTabs }: GroupAwarenessWindow,
+  { names, windowTabs }: GroupAwarenessWindow,
   tab: WindowTab,
 ): LayoutTab {
   if (tab.kind === "page") {
@@ -115,10 +113,7 @@ function describedTab(
           title: segmentsOf(filePath).at(-1) ?? filePath,
         };
   }
-  const { title } = screenPresentation(tab.href, {
-    appsBySlug,
-    chatTitles,
-  });
+  const title = tabTitle(tab, names);
   const computer = computerTabOf(tab.href);
   if (computer?.file !== undefined) {
     // A tab on a page's file goes by its page's id, the one agent-browser

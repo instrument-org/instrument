@@ -61,6 +61,8 @@ export interface WindowTabs {
 export interface GroupOwn {
   /** The side sized as a chat while the group has two, set as it gets them (`withChatSides`). */
   chatSide?: 0 | 1;
+  /** The tab it goes by where it has no chat, by id (`useGroupLeadUpkeep`). */
+  lead?: string;
   pinned?: true;
   /** The project whose set of groups it was made in, by its id. */
   project?: string;
@@ -79,6 +81,7 @@ export function withGroupOwn(
   const merged: GroupOwn = { ...state.groups?.[group], ...change };
   const own: GroupOwn = {
     ...(merged.chatSide === undefined ? {} : { chatSide: merged.chatSide }),
+    ...(merged.lead === undefined ? {} : { lead: merged.lead }),
     ...(merged.pinned ? { pinned: true } : {}),
     ...(merged.project === undefined ? {} : { project: merged.project }),
     ...(merged.share === undefined ? {} : { share: merged.share }),

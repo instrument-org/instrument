@@ -8,7 +8,7 @@ import { type GroupOwn, groupLayoutOf, type WindowTabs } from "./tab-model";
  * The tabs as they are kept: a group at a time, each a member of the kept
  * file under its own id, in the shape the agent reads a group in. Its
  * sides, each its tabs in strip order and the one up, which side has the
- * keyboard, and its own pin, project, share and when it
+ * keyboard, and its own pin, project, share, lead tab and when it
  * last came up. A tab keeps neither its
  * group nor its side, which the member says. Whoever keeps the tabs splits
  * them into members to write and joins the members to read, the main
@@ -22,6 +22,7 @@ const TabGroupMemberSchema = z.object({
     .optional()
     .catch(undefined),
   focused: z.number().int().min(0),
+  lead: z.string().optional(),
   pinned: z.boolean().optional(),
   project: z.string().optional(),
   share: z.number().optional(),
@@ -128,6 +129,7 @@ export function joinTabGroups(members: Map<string, unknown>): WindowTabs {
       member.chatSide ?? (isEarlier && member.sides.length > 1 ? 0 : undefined);
     const own: GroupOwn = {
       ...(chatSide === undefined ? {} : { chatSide }),
+      ...(member.lead === undefined ? {} : { lead: member.lead }),
       ...(member.pinned === true ? { pinned: true } : {}),
       ...(member.project === undefined ? {} : { project: member.project }),
       ...(member.share === undefined || isEarlier

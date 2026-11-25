@@ -1,11 +1,10 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { renderWithProviders } from "@/tests/render";
-import { useAtomValue } from "jotai";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { groupLeadsAtom, leadTabOf, useGroupLeadUpkeep } from "./group-leads";
-import { groupLayoutOf } from "./tab-model";
-import { chatHref } from "./window-href";
+import { groupNameOf, leadTabOf, useGroupLeadUpkeep } from "./group-leads";
+import { type GroupOwn, groupLayoutOf } from "./tab-model";
+import { chatHref, newChatHref } from "./window-href";
 import { ChatIdSchema } from "@instrument-org/workspace/client";
 
 const tab = (id: string, group: string): WindowTab => ({
@@ -17,70 +16,146 @@ const tab = (id: string, group: string): WindowTab => ({
 
 const TABS = [tab("a1", "a"), tab("a2", "a"), tab("b1", "b")];
 
-/** The tab up in each group. */
-const up = vi.hoisted((): { byGroup: Record<string, string> } => ({
-  byGroup: {},
-}));
+/** The tab up in each group, and what each group keeps of its own. */
+const kept = vi.hoisted(
+  (): {
+    own: Record<string, GroupOwn>;
+    up: Record<string, string>;
+  } => ({ own: {}, up: {} }),
+);
 
 vi.mock("@/client/components/window/window-tabs", () => ({
   useWindowTabs: () => ({
+    groupOwn: kept.own,
     layoutOf: (group: string) =>
-      groupLayoutOf({ activeByGroup: up.byGroup, tabs: TABS }, group),
+      groupLayoutOf({ activeByGroup: kept.up, tabs: TABS }, group),
+    setGroupOwn: (group: string, change: GroupOwn) => {
+      kept.own = {
+        ...kept.own,
+        [group]: { ...kept.own[group], ...change },
+      };
+    },
   }),
 }));
 
-function Leads({ groupUp, listed }: { groupUp: string; listed: string[] }) {
+function Upkeep({ groupUp, listed }: { groupUp: string; listed: string[] }) {
   useGroupLeadUpkeep(groupUp, listed);
-  const leads = useAtomValue(groupLeadsAtom);
-  return <output>{JSON.stringify(Object.fromEntries(leads))}</output>;
+  return null;
 }
 
+const CHAT = ChatIdSchema.parse("2026-11-14-roofer-quotes");
+const CHAT_TAB: WindowTab = {
+  group: "a",
+  href: chatHref(CHAT),
+  id: "chat",
+  kind: "screen",
+};
+const PAGE: WindowTab = {
+  group: "a",
+  id: "page",
+  kind: "page",
+  openedAt: 1,
+  title: "Roofers near me",
+  url: "https://example.com/roofers",
+};
+const NEW_TAB: WindowTab = {
+  group: "a",
+  href: newChatHref("01M7BVSPAMVP4SR3P07E7PFGCQ"),
+  id: "new",
+  kind: "screen",
+};
+
 describe("the tab a group goes by", () => {
-  it("is held while the group is up, taken again as it is left, and let go with the group", () => {
-    up.byGroup = { a: "a1", b: "b1" };
-    const { container, rerender } = renderWithProviders(
-      <Leads groupUp="a" listed={["a", "b"]} />,
+  beforeEach(() => {
+    kept.own = {};
+  });
+
+  it("is held while the group is up, and taken again as it is left", () => {
+    kept.up = { a: "a1", b: "b1" };
+    const { rerender } = renderWithProviders(
+      <Upkeep groupUp="a" listed={["a", "b"]} />,
     );
-    const said = [container.textContent];
+    const held = () =>
+      Object.entries(kept.own).map(
+        ([group, own]) => `${group}: ${own.lead ?? ""}`,
+      );
+    const said = [held()];
 
     // Another tab picked in the group that is up.
-    up.byGroup = { a: "a2", b: "b1" };
-    rerender(<Leads groupUp="a" listed={["a", "b"]} />);
-    said.push(container.textContent);
+    kept.up = { a: "a2", b: "b1" };
+    rerender(<Upkeep groupUp="a" listed={["a", "b"]} />);
+    said.push(held());
 
-    rerender(<Leads groupUp="b" listed={["a", "b"]} />);
-    said.push(container.textContent);
-
-    rerender(<Leads groupUp="b" listed={["b"]} />);
-    said.push(container.textContent);
+    rerender(<Upkeep groupUp="b" listed={["a", "b"]} />);
+    said.push(held());
 
     expect(said).toMatchInlineSnapshot(`
       [
-        "{"a":"a1","b":"b1"}",
-        "{"a":"a1","b":"b1"}",
-        "{"a":"a2","b":"b1"}",
-        "{"b":"b1"}",
+        [
+          "a: a1",
+          "b: b1",
+        ],
+        [
+          "a: a1",
+          "b: b1",
+        ],
+        [
+          "a: a2",
+          "b: b1",
+        ],
       ]
     `);
   });
 
   it("is the group's chat wherever it sits", () => {
-    const chat: WindowTab = {
-      group: "a",
-      href: chatHref(ChatIdSchema.parse("2026-11-14-roofer-quotes")),
-      id: "chat",
-      kind: "screen",
-    };
     const [left] = TABS;
     expect(
       left &&
         leadTabOf(
           [
             { tabs: [left], up: left },
-            { tabs: [chat], up: chat },
+            { tabs: [CHAT_TAB], up: CHAT_TAB },
           ],
           left.id,
         ),
-    ).toBe(chat);
+    ).toBe(CHAT_TAB);
+  });
+});
+
+describe("a group's name", () => {
+  it.each<[string, WindowTab[], string, string | undefined, string]>([
+    [
+      "its chat's, behind another tab",
+      [PAGE, CHAT_TAB],
+      "page",
+      undefined,
+      "Roofer quotes",
+    ],
+    ["the tab held for it", [PAGE, NEW_TAB], "new", "page", "Roofers near me"],
+    [
+      "the tab up, with none held",
+      [PAGE, NEW_TAB],
+      "page",
+      undefined,
+      "Roofers near me",
+    ],
+    [
+      "a new tab's, whatever is typed in it",
+      [NEW_TAB],
+      "new",
+      undefined,
+      "New Tab",
+    ],
+  ])("is %s", (_case, tabs, up, held, name) => {
+    expect(
+      groupNameOf(
+        groupLayoutOf({ activeByGroup: { a: up }, tabs }, "a"),
+        held,
+        {
+          appsBySlug: new Map(),
+          chatTitles: new Map([[CHAT, "**Roofer** quotes"]]),
+        },
+      ),
+    ).toBe(name);
   });
 });

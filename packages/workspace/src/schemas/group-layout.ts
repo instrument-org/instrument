@@ -60,6 +60,8 @@ export type LayoutSnapshot = z.output<typeof LayoutSnapshotSchema>;
 export const ListedGroupSchema = LayoutSnapshotSchema.extend({
   /** The words typed and not sent in a new chat's tab, by the tab's id. */
   drafts: z.record(z.string(), z.string()).optional(),
+  /** What its sidebar row calls it, which the person reads out and a command names it by. */
+  name: z.string(),
   /** Pinned above the sidebar's other groups. */
   pinned: z.boolean().optional(),
   /** The project whose set of groups it is in, by its id. */

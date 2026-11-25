@@ -72,7 +72,6 @@ import {
   pageOpenPlaceOf,
   tabHrefOfAppAddress,
 } from "./agent-opens";
-import { type AppsBySlug } from "./apps-by-slug";
 import {
   bringsBack,
   entryText,
@@ -86,8 +85,7 @@ import { instrumentUrlOf } from "@instrument-org/shared";
 import { draftsAtom } from "@/client/drafts/store";
 import { appTabsAtom } from "./app-tabs";
 import { draftTitle } from "./chats";
-import { pageTabTitle } from "./file-tabs";
-import { screenPresentation } from "./screen-presentation";
+import { type ScreenNames } from "./screen-presentation";
 import { closedText } from "./closed-groups";
 import {
   closedGroupTabOf,
@@ -97,6 +95,9 @@ import {
   draftOfTab,
 } from "./tab-model";
 import { groupLayoutFor, groupReadOf } from "./group-awareness";
+import { groupNameOf, leadTabOf, rowSidesOf } from "./group-leads";
+import { readFileTabTitles } from "./file-tab-titles";
+import { tabTitle } from "./tab-title";
 import { windowTabGroupsAtom } from "./open-groups";
 import { listedWith } from "./tab-groups";
 import { openLinkAddress, setLinkedShower } from "./open-link-address";
@@ -116,29 +117,25 @@ const ASK_HOLD_MS = 1000;
  * of each ask, since they close over the tabs as they are then.
  */
 export function useOpeners({
-  appsBySlug,
   appTabs,
   browser,
-  chatTitles,
   closedEntryOf,
   closeGroup,
   closeTab,
   groupTabs,
   isOpen,
   moveTabs,
+  names,
   newGroup,
   openChat,
   reopenClosed,
   showGroup,
   windowTabs,
 }: {
-  /** The apps by slug, which name an app's page in a group as a chat reads it. */
-  appsBySlug: AppsBySlug;
   /** The window's tabs: what is not a chat's opens by moving the tab up, or in a tab of its own. */
   appTabs: ReturnType<typeof useAppTabs>;
   /** The window's browser; null until it is mounted. */
   browser: BrowserTabsHandle | null;
-  chatTitles: Map<ChatId, string>;
   /** The entry of this window's closed list a closed tab group or tab is on, by the group's or the tab's id. */
   closedEntryOf: (kind: "group" | "tab", id: string) => string | undefined;
   /**
@@ -153,6 +150,8 @@ export function useOpeners({
   groupTabs: (ids: readonly string[]) => string;
   /** Moves tabs into a tab group, as dropping each on its row does. */
   moveTabs: (ids: readonly string[], group: string) => void;
+  /** The names of what the window's tabs stand on, which name each tab and group as a chat reads it. */
+  names: ScreenNames & { chatTitles: Map<ChatId, string> };
   /** Whether what the window opens on is made; nothing is opened before it is. */
   isOpen: boolean;
   /**
@@ -511,7 +510,7 @@ export function useOpeners({
     // Until the list has been read, a whole id is taken on its own.
     const chats = queryClient.getQueryData(chatListOptions().queryKey);
     const chat = chats
-      ? (chatOfHrefPrefix(href, chatTitles.keys()) ??
+      ? (chatOfHrefPrefix(href, names.chatTitles.keys()) ??
         chatOfSessionPrefix(href, chats))
       : chatOfHref(href);
     if (chat) {
@@ -942,10 +941,6 @@ export function useOpeners({
     closedOnly: boolean;
     limit: number;
   }): Promise<NonNullable<WindowTabAnswer["history"]>> => {
-    const titleOf = (tab: WindowTab) =>
-      tab.kind === "page"
-        ? pageTabTitle(tab) || (tab.url ?? tab.openedUrl ?? "")
-        : screenPresentation(tab.href, { appsBySlug, chatTitles }).title;
     const closed = store.get(appTabsAtom).recentlyClosed.flatMap((entry) => {
       const whole = closedTabGroupOf(entry);
       const tabs = closedTabsOf(entry);
@@ -961,7 +956,10 @@ export function useOpeners({
       return [
         {
           at: entry.closedAt,
-          ...closedText({ kind, titles: tabs.map(titleOf) }),
+          ...closedText({
+            kind,
+            titles: tabs.map((tab) => tabTitle(tab, names)),
+          }),
           id: entry.id,
           kind: (
             {
@@ -1048,6 +1046,20 @@ export function useOpeners({
           return words.trim() === "" ? [] : [[tab.id, draftTitle(words)]];
         }),
       );
+    const heldIn = (group: string) => windowTabs.groupOwn[group]?.lead;
+    // A group goes by the title its lead tab's file gives itself, as its row
+    // in the sidebar does.
+    const fileTitles = await readFileTabTitles(
+      queryClient,
+      [...listedHere, ...byWindow.flatMap((window) => window.groups)].map(
+        (group) => {
+          const sides = rowSidesOf(windowTabs.layoutOf(group));
+          const lead = sides && leadTabOf(sides, heldIn(group));
+          return lead?.kind === "page" ? undefined : lead?.href;
+        },
+      ),
+    );
+    const groupNames = { ...names, ...(fileTitles ? { fileTitles } : {}) };
     return byWindow.map((window) => {
       // This window's own list is read here, as fresh as it is.
       const listed = window.isThisWindow ? listedHere : window.groups;
@@ -1058,7 +1070,7 @@ export function useOpeners({
         ...(window.isThisWindow ? { isThisWindow: true } : {}),
         groups: pinnedFirst(listed.filter(hasTabs)).map((group) => {
           const { isShown: _shownHere, ...layout } = groupLayoutFor(
-            { appsBySlug, chatTitles, windowTabs },
+            { names, windowTabs },
             group,
             chatTab,
           );
@@ -1066,6 +1078,12 @@ export function useOpeners({
           const unsent = unsentIn(group);
           return {
             ...layout,
+            name:
+              groupNameOf(
+                windowTabs.layoutOf(group),
+                heldIn(group),
+                groupNames,
+              ) ?? "",
             ...(group === shown ? {} : { isShown: false }),
             ...(Object.keys(unsent).length === 0 ? {} : { drafts: unsent }),
             ...(own?.pinned ? { pinned: true } : {}),
@@ -1324,7 +1342,7 @@ export function useOpeners({
               ];
         }),
         read: groupReadOf(
-          { appsBySlug, chatTitles, windowTabs },
+          { names, windowTabs },
           group,
           own?.group === group ? own.id : undefined,
         ),

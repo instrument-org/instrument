@@ -396,7 +396,7 @@ export function useWindowTabs() {
     pageBecameDownload: (id: string) => {
       run("pageBecameDownload", id);
     },
-    /** A group's pin, its project, the left side's share of two, or when it last came up, set (`withGroupOwn`). */
+    /** A group's pin, its project, the left side's share of two, its lead tab, or when it last came up, set (`withGroupOwn`). */
     setGroupOwn: (group: string, change: GroupOwn) => {
       run("withGroupOwn", group, change);
     },

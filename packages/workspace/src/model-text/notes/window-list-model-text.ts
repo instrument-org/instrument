@@ -3,13 +3,8 @@ import {
   isInstrumentAddress,
   tabAddressOf,
 } from "@instrument-org/shared";
-import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 
-import {
-  type LayoutSnapshot,
-  type LayoutTab,
-  type ListedGroup,
-} from "../../schemas/group-layout";
+import { type LayoutTab, type ListedGroup } from "../../schemas/group-layout";
 import { type ChatStatus } from "../../lib/chat/chat-status";
 import { WINDOW_COMMAND } from "../commands/window-command";
 import { layoutTabName } from "./group-layout-model-text";
@@ -51,36 +46,6 @@ const SIDE_NAMES = ["left", "right"] as const;
 /** The most group names the line about the other groups spells out. */
 const NAMED_GROUPS_MAX = 6;
 
-/**
- * A tab group's name, as its sidebar row titles it: the chat up on either
- * side (the keyboard's first), else the tab up on the side with the keyboard.
- */
-export function groupName(layout: LayoutSnapshot): string {
-  const sides = [
-    layout.sides[layout.focused],
-    ...layout.sides.filter((_, at) => at !== layout.focused),
-  ];
-  const ups = sides.flatMap(
-    (side) => side?.tabs.filter((tab) => tab.isUp) ?? [],
-  );
-  const chat = ups.find((tab) => tab.kind === "chat");
-  const up = chat ?? ups[0];
-  if (up === undefined) {
-    return "New Tab";
-  }
-  switch (up.kind) {
-    case "chat": {
-      return stripMarkdown(up.title);
-    }
-    case "newChat": {
-      return "New Tab";
-    }
-    default: {
-      return up.title || up.address;
-    }
-  }
-}
-
 /** A tab group's header: its name, its address, its pin and project, whether the person sees it, and when they last did. */
 function groupHeader(layout: ListedGroup, { projects }: ListFacts): string {
   const pinned = layout.pinned === true ? ", pinned" : "";
@@ -93,7 +58,7 @@ function groupHeader(layout: ListedGroup, { projects }: ListFacts): string {
       : "";
   const split = layout.sides.length === 2 ? ", split" : "";
   const shown = layout.isShown === false ? "not on screen" : "on screen";
-  return `Tab group "${groupName(layout)}" ${groupAddressOf(layout.group.id)}${pinned}${project}${split}, ${shown}${last}:`;
+  return `Tab group "${layout.name}" ${groupAddressOf(layout.group.id)}${pinned}${project}${split}, ${shown}${last}:`;
 }
 
 /**
@@ -200,8 +165,7 @@ function someNames(groups: readonly ListedGroup[]): string {
   const named = groups
     .slice(0, NAMED_GROUPS_MAX)
     .map(
-      (group) =>
-        `"${groupName(group)}"${group.pinned === true ? " (pinned)" : ""}`,
+      (group) => `"${group.name}"${group.pinned === true ? " (pinned)" : ""}`,
     )
     .join(", ");
   return groups.length > NAMED_GROUPS_MAX ? `${named}…` : named;
@@ -274,12 +238,12 @@ export function groupNamed(
   if (byId) {
     return { group: byId };
   }
-  const exact = groups.filter((each) => groupName(each) === named);
+  const exact = groups.filter((each) => each.name === named);
   const matches =
     exact.length > 0
       ? exact
       : groups.filter(
-          (each) => groupName(each).toLowerCase() === named.toLowerCase(),
+          (each) => each.name.toLowerCase() === named.toLowerCase(),
         );
   const [only] = matches;
   if (only !== undefined && matches.length === 1) {

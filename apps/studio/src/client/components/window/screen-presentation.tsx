@@ -16,6 +16,7 @@ import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { LinkBreakIcon } from "@phosphor-icons/react/LinkBreak";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
+import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { type ReactNode } from "react";
 
 import { ScreenMark } from "./app-chip";
@@ -345,10 +346,9 @@ function chatTitleOf(
   if (screen.kind === "inbox") {
     return "New Tab";
   }
-  return (
-    (screen.kind === "chat" ? chatTitles?.get(screen.chat) : undefined) ??
-    "Chat"
-  );
+  const title =
+    screen.kind === "chat" ? chatTitles?.get(screen.chat) : undefined;
+  return title === undefined ? "Chat" : stripMarkdown(title);
 }
 
 /**

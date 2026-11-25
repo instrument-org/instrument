@@ -10,6 +10,7 @@ import { z } from "zod";
 import { type ChatId } from "../../schemas/chat-id";
 import {
   type LayoutSnapshot,
+  type ListedGroup,
   ListedGroupSchema,
 } from "../../schemas/group-layout";
 import {
@@ -24,7 +25,6 @@ import {
 import {
   allWindowsLines,
   groupLines,
-  groupName,
   groupNamed,
   type ListFacts,
   otherGroupsLine,
@@ -124,8 +124,8 @@ async function windowsOf(ctx: CapabilityContext): Promise<WindowGroups> {
 }
 
 /** A group's name and address, as a result line names it. */
-function groupWords(layout: LayoutSnapshot): string {
-  return `"${groupName(layout)}" ${groupAddressOf(layout.group.id)}`;
+function groupWords(layout: ListedGroup): string {
+  return `"${layout.name}" ${groupAddressOf(layout.group.id)}`;
 }
 
 function describeTarget(target: WindowTabTarget) {
@@ -344,7 +344,12 @@ export const windowList = defineCapability({
     const listed = windows
       .flatMap((window) => window.groups)
       .find((each) => each.group.id === own.group.id);
-    return { all, layout: listed ?? own, ...facts, windows };
+    return {
+      all,
+      layout: listed ?? { ...own, name: own.group.id },
+      ...facts,
+      windows,
+    };
   },
   summary:
     "A tab group's sides and tabs, one line each, by default the group the chat works in: the group's address, whether it is pinned, its project, whether it is on screen and when it was last brought up (absent when not known), each tab's id (which every other subcommand and `agent-browser tab` take), where it stands, what it has open and the address a reply links it by, which task is at work in it, whether an agent opened it, words in a new tab not sent yet, and whether its chat is working, waiting on the user or unread and when it was last active; then what the user sees, and the other groups there are. A group is named by its id or its name; --all lists every window's groups, the pinned first.",

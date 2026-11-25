@@ -59,7 +59,7 @@ export function GroupRowLines({
   close?: { label: string; run: () => void } | undefined;
   /** What stands at the first line's end. */
   end?: ReactNode;
-  /** The tab held for the group to go by (`groupLeadsAtom`); none for one that is not open. */
+  /** The tab held for the group to go by (`GroupOwn.lead`); none for one that is not open. */
   held?: string | undefined;
   isCloseShown?: boolean;
   /** Whether the group is up: the tabs in front then wear no unread dot, as in their strips. */

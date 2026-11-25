@@ -1,9 +1,12 @@
 import { rpcClient } from "@/client/rpc/client";
 import { expandHomePath } from "@instrument-org/shared";
-import { useQuery } from "@tanstack/react-query";
+import { type QueryClient, useQuery } from "@tanstack/react-query";
+import { safe } from "@orpc/client";
 
 import { TITLED_NAME } from "./file-info";
 import { matchScreen } from "./window-href";
+
+type Hrefs = readonly (string | undefined)[];
 
 /**
  * The titles the pages open in `hrefs` give themselves, by the file each
@@ -11,9 +14,27 @@ import { matchScreen } from "./window-href";
  * named as its row is.
  */
 export function useFileTabTitles(
-  hrefs: readonly (string | undefined)[],
+  hrefs: Hrefs,
 ): Map<string, string> | undefined {
-  const files = [
+  const files = titledFilesOf(hrefs);
+  const titles = useQuery({ ...titlesOf(files), enabled: files.length > 0 });
+  return titles.data && byFile(files, titles.data);
+}
+
+/** The same titles, read now for one use rather than watched. */
+export async function readFileTabTitles(
+  queryClient: QueryClient,
+  hrefs: Hrefs,
+): Promise<Map<string, string> | undefined> {
+  const files = titledFilesOf(hrefs);
+  if (files.length === 0) return undefined;
+  const { data } = await safe(queryClient.fetchQuery(titlesOf(files)));
+  return data && byFile(files, data);
+}
+
+/** The files in `hrefs` a page may give a title of its own. */
+function titledFilesOf(hrefs: Hrefs): string[] {
+  return [
     ...new Set(
       hrefs.flatMap((href) => {
         if (href === undefined) return [];
@@ -26,16 +47,22 @@ export function useFileTabTitles(
       }),
     ),
   ].toSorted();
+}
+
+function titlesOf(files: readonly string[]) {
   const home = window.api.homeDir;
-  const titles = useQuery({
-    ...rpcClient.workspace.computer.titles.queryOptions({
-      input: { paths: files.map((file) => expandHomePath(file, home)) },
-      retry: false,
-    }),
-    enabled: files.length > 0,
+  return rpcClient.workspace.computer.titles.queryOptions({
+    input: { paths: files.map((file) => expandHomePath(file, home)) },
+    retry: false,
   });
-  const found = titles.data;
-  if (!found) return undefined;
+}
+
+/** The titles found, by each file as its address names it. */
+function byFile(
+  files: readonly string[],
+  found: Record<string, string | null | undefined>,
+): Map<string, string> {
+  const home = window.api.homeDir;
   return new Map(
     files.flatMap((file) => {
       const title = found[expandHomePath(file, home)];

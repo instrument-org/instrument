@@ -90,6 +90,7 @@ const OTHER_GROUPS = [
   {
     focused: 0 as const,
     group: { id: "group:docs" },
+    name: "report.md",
     isShown: false,
     drafts: { tab_new: "Ask about rent" },
     pinned: true,
@@ -124,6 +125,7 @@ const OTHER_GROUPS = [
   {
     focused: 0 as const,
     group: { id: "group:notes" },
+    name: "Meeting notes",
     isShown: false,
     sides: [
       {
@@ -133,7 +135,7 @@ const OTHER_GROUPS = [
             id: "tab_notes",
             isUp: true,
             kind: "chat" as const,
-            title: "Meeting **notes**",
+            title: "Meeting notes",
           },
         ],
       },
@@ -182,6 +184,7 @@ const HISTORY = [
 const ELSEWHERE = {
   focused: 0 as const,
   group: { id: "group:far" },
+  name: "report.md",
   sides: [
     {
       tabs: [
@@ -220,7 +223,7 @@ function answeringWindow() {
   /** The tabs closed, which a list leaves out, as the window does. */
   const closed = new Set<string>();
   /** A group as the window lists it once the closed tabs are gone: the next tab on a side comes up, and a side or group left empty goes. */
-  const open = (group: LayoutSnapshot): LayoutSnapshot => ({
+  const open = <T extends LayoutSnapshot>(group: T): T => ({
     ...group,
     sides: group.sides.flatMap((side) => {
       const tabs = side.tabs.filter((tab) => !closed.has(tab.id));
@@ -258,6 +261,7 @@ function answeringWindow() {
     const own = {
       focused: 1 as const,
       group: { id: "group_a" },
+      name: "Prices",
       sides: [
         {
           tabs: [

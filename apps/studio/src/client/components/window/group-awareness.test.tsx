@@ -61,8 +61,10 @@ function windowOf(
     ...over,
   };
   return {
-    appsBySlug: new Map(),
-    chatTitles: new Map([[CHAT, "Help desk prices"]]),
+    names: {
+      appsBySlug: new Map(),
+      chatTitles: new Map([[CHAT, "Help desk prices"]]),
+    },
     windowTabs: {
       allTabs: tabs,
       groupOnScreen: GROUP,

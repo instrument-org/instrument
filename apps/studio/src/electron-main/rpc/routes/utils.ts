@@ -18,10 +18,7 @@ import {
 import { resolveDarwinTarget } from "@/electron-main/lib/file-open-target/resolve-darwin";
 import { openExternal } from "@/electron-main/lib/open-external";
 import { openPathOnComputer } from "@/electron-main/lib/open-path";
-import {
-  effectiveDisplayProtocol,
-  resolveOzonePlatform,
-} from "@/electron-main/lib/ozone-platform";
+import { displayProtocol } from "@/electron-main/lib/ozone-platform";
 import {
   quitsWithLastWindow,
   requestQuitApproval,
@@ -413,21 +410,14 @@ const openThirdPartyLicenses = base
  * Constant for the life of the process, so it is a query rather than part of
  * the window-state stream it is read alongside.
  */
-const displayProtocol = base
+const displayProtocolQuery = base
   .output(z.enum(["wayland", "x11"]).nullable())
   .handler(() => {
     if (process.platform !== "linux") {
       return null;
     }
 
-    const { platform } = resolveOzonePlatform(
-      process.env.INSTRUMENT_OZONE_PLATFORM,
-    );
-    return effectiveDisplayProtocol(
-      platform,
-      process.env.WAYLAND_DISPLAY,
-      app.commandLine.getSwitchValue("ozone-platform"),
-    );
+    return displayProtocol();
   });
 
 /**
@@ -753,7 +743,7 @@ export const utils = {
   closeWindow,
   computerFileBase,
   copyFileToClipboard,
-  displayProtocol,
+  displayProtocol: displayProtocolQuery,
   events,
   fileManagerApp,
   fileOpenCandidates,

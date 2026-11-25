@@ -94,7 +94,6 @@ declare namespace NodeJS {
        * `auto`; anything else is ignored. See
        * docs/findings/drag-out-does-not-cross-xwayland.md.
        */
-      INSTRUMENT_OZONE_PLATFORM: string | undefined;
       /**
        * Where finished work goes for a workspace in the app's own data, in
        * place of the flavor's folder in the home folder: studio-drive sets it

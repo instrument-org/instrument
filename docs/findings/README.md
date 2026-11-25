@@ -53,7 +53,7 @@ Each entry is the finding's title and the opening of its own `Status:` line.
 - [A deb update can leave the package unpacked but not configured](deb-update-left-the-package-unconfigured.md): fixed (df48c5507) and verified in a shipped build;
 - [A dev rebuild wipes the running main process's bundle](dev-rebuild-wipes-live-main-bundle.md): fixed in dc32a15d4;
 - [A dictated paste lands the old clipboard, because a status poll holds the main thread](dictated-paste-lost-to-a-status-poll.md): fixed in 4962c9595, 16fb93fab and f9413ee76;
-- [Dragging a file out does not cross from XWayland to Wayland](drag-out-does-not-cross-xwayland.md): fixed in de130238c, checked 2026-10-02 (`lib/ozone-platform.ts`, which since also reads `XDG_SESSION_TYPE` and defers to a `--ozone-platform` already on the...
+- [Dragging a file out does not cross from XWayland to Wayland](drag-out-does-not-cross-xwayland.md): fixed in de130238c, checked 2026-10-02;
 - [Driving Studio over CDP: what makes it flaky](driving-studio-for-ui-capture.md): partly addressed.
 - [What actually marks a Studio renderer hidden, and what does not](electron-page-visibility.md): resolved — guidance for anything gating work on `document.hidden`.
 - [Electron reads an app's archive as a folder](electron-reads-asar-archives-as-folders.md): `du` fixed;

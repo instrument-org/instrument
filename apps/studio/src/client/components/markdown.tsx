@@ -1064,10 +1064,15 @@ const resolveImageSource = (
  * the path is what the rest of the app names a file by, and reading it back out
  * of a URL means re-deriving something we were handed.
  */
-const chatFilePathFromImageSrc = (src: string | undefined) =>
-  src && !isAbsoluteImageSrc(src) && isAddressableChatFilePath(src)
-    ? src
-    : undefined;
+const chatFilePathFromImageSrc = (src: string | undefined) => {
+  if (!src || isAbsoluteImageSrc(src)) {
+    return undefined;
+  }
+  // The parser percent-encodes what it hands over, so a space in the path
+  // arrives as `%20`.
+  const filePath = chatFilePathFromHref(src);
+  return isAddressableChatFilePath(filePath) ? filePath : undefined;
+};
 
 /**
  * One block of a message, or a whole document when it is not being split.

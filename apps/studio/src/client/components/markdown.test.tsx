@@ -575,6 +575,26 @@ describe("Markdown images", () => {
     },
   );
 
+  it.each([
+    ["in brackets", "![a](</Users/casey/My Photos/a (2).png>)"],
+    ["as written", "![a](/Users/casey/My Photos/a (2).png)"],
+    ["encoded", "![a](/Users/casey/My%20Photos/a%20(2).png)"],
+  ])("draws an image at a path with spaces, %s", (_case, markdown) => {
+    const { container } = renderMarkdown(markdown);
+
+    expect(container.querySelector("img")?.getAttribute("src")).toContain(
+      "/Users/casey/My Photos/a (2).png",
+    );
+  });
+
+  it("draws an image whose name has a bare percent sign", () => {
+    const { container } = renderMarkdown("![a](/Users/casey/100%.png)");
+
+    expect(container.querySelector("img")?.getAttribute("src")).toContain(
+      "/Users/casey/100%.png",
+    );
+  });
+
   // A reply routinely names the file it is still writing, so mid-turn a miss
   // says nothing about whether the image will be there.
   it("says nothing of an image the reply has not finished writing", () => {
@@ -1178,7 +1198,7 @@ describe("Markdown images in a chat's own file", () => {
     const { container } = renderMarkdown("![a](./output/chart.png)");
 
     expect(container.querySelector("img")?.getAttribute("src")).toBe(
-      `${TASK_ROOT}/./output/chart.png`,
+      `${TASK_ROOT}/output/chart.png`,
     );
   });
 });

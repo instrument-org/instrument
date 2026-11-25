@@ -55,7 +55,7 @@ type NamedOf<Kind extends SearchThing["kind"]> = Named<
  * in, the one its group goes by, and a chat's, which the chat's own row goes
  * to, the chats but the ones a group goes by, the projects, the
  * Files sidebar's folders, the files opened lately, and the bookmarks and
- * pages visited. Pinned is what the person marked: a starred chat, a pinned group
+ * pages visited, but the ones an open tab is on. Pinned is what the person marked: a starred chat, a pinned group
  * and its tabs, a folder in the sidebar's Favorites, a bookmark. Use is how
  * lately and how often each was opened (`usageOf`). Read off the disk and
  * history only while `enabled`.
@@ -117,12 +117,7 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
   };
   const tabs: NamedOf<"tab">[] = allTabs.flatMap((tab) => {
     const row = tab.group === undefined ? undefined : groupRowOf.get(tab.group);
-    if (
-      row === undefined ||
-      tab.id === frontTab?.id ||
-      isHomeTab(tab) ||
-      chatOfTab(tab) !== undefined
-    ) {
+    if (row === undefined || isHomeTab(tab) || chatOfTab(tab) !== undefined) {
       return [];
     }
     const standing = standingOf(tab);
@@ -132,8 +127,9 @@ export function useSearchSources({ enabled }: { enabled: boolean }) {
     if (standing.path !== undefined) {
       shownPaths.add(standing.path);
     }
-    // The group's row goes to the tab it goes by.
-    if (tab.id === row.lead.id) {
+    // The group's row goes to the tab it goes by, and the one in front has
+    // nowhere to go to.
+    if (tab.id === row.lead.id || tab.id === frontTab?.id) {
       return [];
     }
     return [

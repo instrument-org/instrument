@@ -151,7 +151,10 @@ import {
   sideIndexOf,
   upsAmong,
 } from "./tab-model";
-import { setBuiltInPageGroupOpener } from "./built-in-pages";
+import {
+  bringForwardShowing,
+  setBuiltInPageGroupOpener,
+} from "./built-in-pages";
 import {
   sidebarRowOrderAtom,
   tabAtChord,
@@ -1943,11 +1946,18 @@ function WindowShell({
                   ) : null;
                 })}
               </div>
+              {/* A pick opens in a new tab, or in a blank one up, so it never
+                takes the place of what the person was on; a screen the group
+                already shows comes forward. */}
               <CommandMenu
                 openPage={(url) => {
-                  openPage(url);
+                  openPage(url, { newTab: "reuseBlank" });
                 }}
-                openScreen={openScreen}
+                openScreen={(href) => {
+                  if (!bringForwardShowing(windowTabs, href)) {
+                    openScreen(href, { newTab: "reuseBlank" });
+                  }
+                }}
                 showTab={(tab) => {
                   if (tab.group !== undefined) {
                     groups.show(tab.group);

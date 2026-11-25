@@ -27,6 +27,21 @@ const shown = vi.hoisted(() => vi.fn());
 /** The group the menu brought up, and the tab it picked there. */
 const went = vi.hoisted(() => ({ select: vi.fn(), showGroup: vi.fn() }));
 
+/** The files opened lately. */
+const opened = vi.hoisted((): { files: string[] } => ({ files: [] }));
+
+vi.mock("@/client/hooks/use-recent-files", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/client/hooks/use-recent-files")>()),
+  useRecentFiles: () => ({
+    files: opened.files.map((path) => ({
+      name: path.slice(path.lastIndexOf("/") + 1),
+      openCount: 1,
+      openedAt: 0,
+      path,
+    })),
+  }),
+}));
+
 // Every query stays pending.
 vi.mock("@/client/rpc/client", () => {
   const pending = () => new Promise(() => undefined);
@@ -182,6 +197,7 @@ const listed = () =>
 afterEach(() => {
   front.tab = undefined;
   front.all = [];
+  opened.files = [];
   shown.mockClear();
   went.select.mockClear();
   went.showGroup.mockClear();
@@ -387,6 +403,16 @@ describe("the command menu's open tabs", () => {
         "Search the web for “quotes”",
       ]
     `);
+  });
+
+  it("leaves out a file in front, however lately it was opened", async () => {
+    front.tab = FILE_TAB;
+    front.all = [CHAT_TAB, PAGE_TAB, FILE_TAB];
+    opened.files = ["/Users/sam/Instrument/quotes.csv", "/Users/sam/quotes.md"];
+    renderWithProviders(<MenuRows words="quotes" />);
+
+    await screen.findByRole("button", { name: /quotes\.md/ });
+    expect(screen.queryByRole("button", { name: /quotes\.csv/ })).toBeNull();
   });
 
   it("leaves out the tab in front and a new tab nobody has written in", async () => {

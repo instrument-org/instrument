@@ -42,6 +42,28 @@ describe("the note an app event wakes the chat with", () => {
     `);
   });
 
+  it("says which browser a direct sign-in went through", () => {
+    const note = (signedInFrom: "app" | "external") =>
+      appEventModelNote({
+        apps: {},
+        events: [
+          {
+            account: "Northwind",
+            event: "connected",
+            name: "Tella",
+            signedInFrom,
+            slug: "tella",
+          },
+        ],
+      });
+    expect(note("external")).toContain(
+      "- The user signed in to Tella (tella) in their own browser, outside Instrument. It is connected.",
+    );
+    expect(note("app")).toContain(
+      "- The user signed in to Tella (tella) in Instrument's browser. It is connected.",
+    );
+  });
+
   it("tells this computer's connections to a session last told another's", () => {
     expect(
       appEventModelNote({

@@ -34,6 +34,7 @@ import {
   readSignatures,
   unpackPackageExecutables,
 } from "../src/electron-main/lib/update-signature.ts";
+import { newerServed, readFeedFile } from "./release-channels.ts";
 
 const studioDir = path.resolve(import.meta.dirname, "..");
 const studioPackage = JSON.parse(
@@ -123,6 +124,17 @@ async function main() {
   rmSync(out, { force: true, recursive: true });
   mkdirSync(out, { recursive: true });
   for (const channel of channelsFor(version)) {
+    // A stable cut behind the betas stays off the channels serving them. A
+    // preview build's packages are its own, whatever the channel serves.
+    const live =
+      APP_FLAVOR.kind === "preview"
+        ? undefined
+        : await readFeedFile(feed, `releases.${channel}.json`);
+    const served = newerServed(version, live);
+    if (served !== undefined) {
+      console.log(`Skipping the ${channel} channel: it serves ${served}`);
+      continue;
+    }
     // The channel's previous release, which the delta is made from. A first
     // release on a channel has none. A preview build makes no delta: its
     // package is its own, and the channel's release at this same version

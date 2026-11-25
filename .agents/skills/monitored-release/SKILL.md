@@ -20,7 +20,7 @@ Run from `apps/studio`:
 
 Add `--version <x.y.z[-beta.n]>` to any of them to tag that exact version instead of the next one, for a release that skips ahead (a milestone beta). It must be greater than `apps/studio/package.json`'s version.
 
-**A stable release rewrites every channel's update file.** `generateUpdatesFilesForAllChannels` is on, so publishing a stable build rewrites `beta.yml` and `alpha.yml` alongside `latest.yml`. A stable and a beta cannot be in flight together. Sequence them and let the first finish before tagging the second.
+**A stable release rewrites every channel's update file that serves an older version.** `generateUpdatesFilesForAllChannels` is on, so publishing a stable build rewrites `beta.yml` and `alpha.yml` alongside `latest.yml`, unless that channel already serves something newer (`release-channels.ts`), which a stable cut behind the betas leaves alone. Which channels the Windows leg packs is decided when it runs, so a stable and a beta cannot be in flight together. Sequence them and let the first finish before tagging the second.
 
 ## Before you tag
 

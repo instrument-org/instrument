@@ -1,6 +1,8 @@
+import { ShortcutKeys } from "@/client/components/shortcut-keys";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { cn } from "@/client/lib/utils";
 import { MAX_ZOOM, MIN_ZOOM } from "@/client/lib/zoom-levels";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { steppedZoom } from "@/shared/zoom";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
@@ -88,7 +90,10 @@ export function ViewerFindControl({
             </Button>
           </PopoverTrigger>
         </TooltipTrigger>
-        <TooltipContent>Find in document</TooltipContent>
+        <TooltipContent className="flex items-center gap-2">
+          Find in document
+          <ShortcutKeys accelerator={WINDOW_SHORTCUTS.findInPage.accelerator} />
+        </TooltipContent>
       </Tooltip>
       <PopoverContent align="end" className="w-90 p-1.5">
         <FindRow

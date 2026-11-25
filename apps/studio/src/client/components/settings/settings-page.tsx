@@ -10,6 +10,7 @@ import { GeneralSection } from "@/client/components/settings/general-section";
 import { MemorySection } from "@/client/components/settings/memory-section";
 import { PermissionsSection } from "@/client/components/settings/permissions-section";
 import { ProvidersSection } from "@/client/components/settings/providers-section";
+import { FieldKeys } from "@/client/components/field-keys";
 import { SkillsSection } from "@/client/components/settings/skills-section";
 import { StorageSection } from "@/client/components/settings/storage-section";
 import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
@@ -170,7 +171,7 @@ export function SettingsPage({
   };
 
   const searchField = (
-    <div className="relative shrink-0">
+    <div className="group/field relative shrink-0">
       <MagnifyingGlassIcon className="pointer-events-none absolute top-4 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         aria-activedescendant={
@@ -220,7 +221,9 @@ export function SettingsPage({
         >
           <XIcon className="size-4" />
         </button>
-      ) : null}
+      ) : (
+        <FieldKeys />
+      )}
     </div>
   );
   const results = (

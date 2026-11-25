@@ -66,6 +66,8 @@ import {
 import { Spinner } from "@/client/components/ui/spinner";
 import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import { useFileDragArea } from "@/client/hooks/use-file-drag";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import {
   folderGlyphUrl,
@@ -3944,6 +3946,7 @@ const TOOLBAR_SELECT_TRIGGER_CLASSNAME = cn(
 // the header's right column; at compact widths it collapses into a ghost
 // icon button that opens the input in a popover (a dot marks the button
 // while a query keeps filtering the views).
+const SEARCH_TITLE = `Search (${formatAcceleratorText(WINDOW_SHORTCUTS.findInPage.accelerator)})`;
 function FileSystemSearchField({
   inputRef,
   isExpanded,
@@ -4119,7 +4122,7 @@ function FileSystemSearchField({
           aria-label="Search"
           className={TOOLBAR_ICON_BUTTON_CLASSNAME}
           onClick={() => onExpandedChange(true)}
-          title="Search"
+          title={SEARCH_TITLE}
           type="button"
         >
           <Search className="size-4" />
@@ -4177,7 +4180,7 @@ function FileSystemSearchField({
           aria-label="Search"
           className={TOOLBAR_ICON_BUTTON_CLASSNAME}
           onClick={() => onExpandedChange(true)}
-          title="Search"
+          title={SEARCH_TITLE}
           type="button"
         >
           <Search className="size-4" />
@@ -4246,7 +4249,7 @@ function FileSystemSearchField({
           <button
             aria-label="Search"
             className={TOOLBAR_ICON_BUTTON_CLASSNAME}
-            title="Search"
+            title={SEARCH_TITLE}
             type="button"
           >
             <Search className="size-4" />

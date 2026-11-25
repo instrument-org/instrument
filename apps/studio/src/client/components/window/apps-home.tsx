@@ -1,4 +1,5 @@
 import { useDecisionModelAvailable } from "@/client/hooks/use-decision";
+import { FieldKeys } from "@/client/components/field-keys";
 import { Button } from "@/client/components/ui/button";
 import { Skeleton } from "@/client/components/ui/skeleton";
 import { AppIcon } from "@/client/components/window/app-icon";
@@ -254,7 +255,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
           ref={headRef}
         >
           <form
-            className="group/search relative"
+            className="group/search group/field relative"
             onSubmit={(event) => {
               event.preventDefault();
               if (typed !== "" && !isFound) {
@@ -268,7 +269,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
             <input
               aria-label="Search apps"
               ref={searchRef}
-              className="h-11 w-full rounded-xl border-0 bg-card pr-4 pl-11 text-[15px] shadow-xs transition-shadow outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:bg-input/30"
+              className="h-11 w-full rounded-xl border-0 bg-card pr-24 pl-11 text-[15px] shadow-xs transition-shadow outline-none placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-brand-500/30 dark:bg-input/30"
               onChange={(event) => {
                 setQuery(event.target.value);
               }}
@@ -277,6 +278,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
               }
               value={query}
             />
+            {query === "" ? <FieldKeys className="right-4" /> : null}
           </form>
           {typed === "" && categories.length > 0 ? (
             <div className="flex flex-wrap gap-1.5">

@@ -6,6 +6,8 @@ import {
 import { Switch } from "@/client/components/ui/switch";
 import { chatSearchAskedAtom } from "@/client/atoms/window";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { cn } from "@/client/lib/utils";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CheckIcon } from "@phosphor-icons/react/Check";
@@ -133,6 +135,7 @@ export function FilterHead({
   const placeLabel = PLACES.find((place) => place.id === filters.place)?.label;
   const search = (
     <SearchField
+      chord="searchChats"
       inputRef={searchRef}
       offered={offered}
       onChange={(words) => {
@@ -193,7 +196,7 @@ export function FilterHead({
                 searchRef.current?.focus();
               });
             }}
-            title="Search"
+            title={`Search (${formatAcceleratorText(WINDOW_SHORTCUTS.searchChats.accelerator)})`}
             type="button"
           >
             <MagnifyingGlassIcon className="size-4" />

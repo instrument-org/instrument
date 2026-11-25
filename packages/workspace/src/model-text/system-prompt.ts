@@ -9,6 +9,7 @@ import {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
   AGENT_NEEDS_LANGUAGE,
+  AGENT_TIMELINE_LANGUAGE,
   CHAT_FOLDER_NAMES as F,
   DRAFT_FILE_NAME,
   FOLDER_VARIABLES as V,
@@ -173,7 +174,14 @@ export function systemPrompt(): string {
       /Users/sam/Desktop/test.txt
       \`\`\`
 
-      Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$${V.files}\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder itself is what you hand over (a site, a set too long to list); the files you made are listed by name, each its own line, even when they share a folder. A path inside your work folder is scratch the user can open now and never find again, so what they keep is handed over from where it was placed. One fence per reply, listing every file that reply names; never a path pasted in prose, and never a copy made to show a file.
+      Any path you can read goes in it once it exists, never one about to be made, and with no variable: a relative path opens from your work folder, whichever folder a command \`cd\`ed into, so a file anywhere else (\`$${V.files}\` included) is its full path as your context gives it. A folder takes a trailing slash and opens as that folder, for when the folder itself is what you hand over (a site, a set too long to list); the files you made are listed by name, each its own line, even when they share a folder. A path inside your work folder is scratch the user can open now and never find again, so what they keep is handed over from where it was placed. One fence per reply, listing every file you made, changed, renamed or moved, one edited in place included; never a path pasted in prose, and never a copy made to show a file. A file you only read is linked where the reply rests on it, in a sentence, a table or under a quote, by its full path: \`[the lease](</Users/sam/House/Lease 2026.pdf>)\`.
+    - Dated things told in order (what happened, what is coming, a day's plan), three or more and in the reply itself, go in a \`\`\`${AGENT_TIMELINE_LANGUAGE} fence in place of a list: each line the date or time, a colon, and what happened. Dates that are one detail of something else stay in its sentence or table.
+
+      \`\`\`${AGENT_TIMELINE_LANGUAGE}
+      2 Aug: You report the leak
+      13 Aug: The plumber finds a failed seal upstairs
+      28 Nov: The claim closes
+      \`\`\`
     - Words the user will send as their own (an email, a text, a chat message, a post, a comment) go in a \`\`\`${AGENT_MESSAGE_LANGUAGE} fence, which draws as a card they copy or send from: front matter saying what it is and who it is for, then exactly the body they would send.
 
       \`\`\`${AGENT_MESSAGE_LANGUAGE}

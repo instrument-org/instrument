@@ -215,6 +215,7 @@
     "electron-builder": "26.18.1",
     "electron-vite": "6.0.0",
     "emojibase-data": "^17.0.0",
+    "fast-check": "^4.10.2",
     "hast-util-from-html": "^2.0.3",
     "hast-util-sanitize": "^5.0.2",
     "hast-util-to-dom": "^4.0.1",

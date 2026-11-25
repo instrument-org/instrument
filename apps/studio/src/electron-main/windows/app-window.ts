@@ -687,8 +687,13 @@ export function restoreAppWindows() {
 export function openNewAppWindow(
   tabs: readonly Tab[] = [],
   {
+    behindOtherApps = false,
     bounds = cascadedBounds(),
-  }: { bounds?: ReturnType<typeof cascadedBounds> } = {},
+  }: {
+    /** Comes up behind the app the person is in, where that is another. */
+    behindOtherApps?: boolean;
+    bounds?: ReturnType<typeof cascadedBounds>;
+  } = {},
 ): BrowserWindow | null {
   if (isSetupUp()) {
     return null;
@@ -717,7 +722,7 @@ export function openNewAppWindow(
       ),
     ]);
   }
-  return createAppWindow(id, { bounds });
+  return createAppWindow(id, { behindOtherApps, bounds });
 }
 
 function openSpareWindow(): SpareWindow {
@@ -1091,9 +1096,14 @@ export function cascadedBounds() {
 function createAppWindow(
   id: string,
   {
+    behindOtherApps = false,
     bounds,
     isSpare = false,
-  }: { bounds?: ReturnType<typeof cascadedBounds>; isSpare?: boolean } = {},
+  }: {
+    behindOtherApps?: boolean;
+    bounds?: ReturnType<typeof cascadedBounds>;
+    isSpare?: boolean;
+  } = {},
 ): BrowserWindow {
   // A window already open comes forward rather than opening twice.
   const open = openWindows.get(id);
@@ -1207,6 +1217,9 @@ function createAppWindow(
     showWhenReady(window, () => {
       if (!window.isDestroyed()) {
         putOnScreen(window, {
+          // Read as it comes up, which is when it would take focus.
+          behindOtherApps:
+            behindOtherApps && BrowserWindow.getFocusedWindow() === null,
           maximized: !bounds && remembered.isMaximized,
         });
       }

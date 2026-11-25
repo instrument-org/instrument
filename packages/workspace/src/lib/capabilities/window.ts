@@ -36,16 +36,22 @@ import { ChatStateSchema, chatStateOf } from "../chat/chat-state";
 import { listChats } from "../chat/chats";
 import { recordAsk } from "../chat/asks";
 import { askWindow, WINDOW_TAB_TIMEOUT_MS } from "../chat/window-tab";
+import { isPersonsTurn } from "../chat/person-turn";
 import { tabHolders } from "../chat/chat-tabs";
 import { agentPathOfFileUrl, isLocalAddress } from "../local-page-address";
 import { recordRaisedAsk } from "../shell-commands/raised-asks";
 import {
+  NEW_WINDOW_IS_THE_USERS,
   WAITING_IS_THE_CHATS,
   WINDOW_COMMAND,
   WINDOW_IS_THE_CHATS,
 } from "../../model-text/commands/window-command";
 import { getWorkspaceConfig } from "../workspace-config";
-import { type CapabilityContext, defineCapability } from "./define";
+import {
+  type CapabilityContext,
+  CapabilityFailure,
+  defineCapability,
+} from "./define";
 import { projectsInUse } from "./projects";
 import {
   ABOVE_REPLY_BOX,
@@ -975,6 +981,62 @@ export const windowJoin = defineCapability({
     "Make a split tab group's two sides one, as Join Sides does: the right side's tabs after the left's, the tab the user has the keyboard in still showing.",
   surfaces: {
     cli: { help: "", positional: ["group"], words: ["window", "join"] },
+  },
+  text: (said) => said,
+  where: CHATS,
+});
+
+export const windowNew = defineCapability({
+  input: z.object({
+    targets: z
+      .array(z.string(), {
+        error: `new needs a tab group or the ids of tabs (${NAME} new <group>).`,
+      })
+      .min(
+        1,
+        `new needs a tab group or the ids of tabs (${NAME} new <group>).`,
+      ),
+  }),
+  name: "window.new",
+  output: z.string(),
+  async run({ targets }, ctx) {
+    if (!(await isPersonsTurn(ctx.chatId, ctx.sessionId))) {
+      throw new CapabilityFailure(NEW_WINDOW_IS_THE_USERS, "refused");
+    }
+    const ids = targets.map(idOf);
+    const tabs = ids.filter(isTabId);
+    let group: string | undefined;
+    if (tabs.length < ids.length) {
+      const named = ids.length === 1 ? ids[0] : undefined;
+      if (named === undefined) {
+        throw new Error("new takes one tab group, or tabs by their ids.");
+      }
+      const found = groupNamed(await windowsOf(ctx), named);
+      if ("error" in found) {
+        throw new Error(found.error);
+      }
+      group = found.group.group.id;
+    }
+    const answer = await ask(
+      {
+        kind: "newWindow",
+        tabIds: tabs,
+        ...(group === undefined ? {} : { group }),
+      },
+      ctx,
+    );
+    if (!answer) {
+      throw new Error(NO_WINDOW);
+    }
+    if (answer.error !== undefined || answer.group === undefined) {
+      throw new Error(answer.error ?? NO_WINDOW);
+    }
+    return `Opened a new window on the tab group ${groupAddressOf(answer.group)}.`;
+  },
+  summary:
+    "Put a tab group, by id or name, or tabs, by their ids, in a new window, as Open in New Window does. Only when the message you are answering asks for a new window; refused in a turn the user did not start.",
+  surfaces: {
+    cli: { help: "", positional: ["targets"], words: ["window", "new"] },
   },
   text: (said) => said,
   where: CHATS,

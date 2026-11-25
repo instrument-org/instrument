@@ -33,9 +33,14 @@ vi.mock("@/client/hooks/use-files-start-href", () => ({
 }));
 
 // No other window lists a group.
+const openNew = vi.hoisted(() =>
+  vi.fn((_input: unknown) => Promise.resolve(true)),
+);
+
 vi.mock("@/client/rpc/client", () => ({
   rpcClient: {
     window: {
+      openNew: { call: openNew },
       live: {
         tabGroupsElsewhere: {
           experimental_liveOptions: () => ({
@@ -672,5 +677,196 @@ describe("an agent placing tabs", () => {
     });
     expect(listed).toEqual([OTHER]);
     expect(sides).toEqual([""]);
+  });
+});
+
+describe("an agent putting tabs in a new window", () => {
+  const OTHER = "group:b";
+
+  async function opened(
+    moving: Parameters<
+      ReturnType<typeof useTabGroupActions>["openWindowFor"]
+    >[0],
+    { opens = true, pinned = false } = {},
+  ) {
+    openNew.mockReset().mockResolvedValue(opens);
+    const { actions, history, seed, store } = windowWithGroup();
+    act(() => {
+      store.set(windowTabGroupsAtom, [GROUP, OTHER]);
+      seed({
+        activeByGroup: { [GROUP]: "chat", [OTHER]: "far" },
+        groups: pinned ? { [OTHER]: { pinned: true } } : {},
+        tabs: [
+          { group: GROUP, href: "/chats", id: "chat", kind: "screen" },
+          { group: GROUP, id: "one", kind: "page", openedAt: 1 },
+          { group: OTHER, id: "far", kind: "page", openedAt: 2 },
+          { group: "group:gone", id: "gone", kind: "page", openedAt: 3 },
+        ],
+      });
+      history.replace(groupHref(GROUP));
+    });
+    const list = [GROUP, OTHER].map(
+      (group): TabGroup => ({ group, kind: "tabs", pinned: false, title: "" }),
+    );
+    const answer = await act(() => actions().openWindowFor(moving, list));
+    const state = store.get(windowTabsAtom);
+    const name = (group: string | undefined) =>
+      group === undefined || [GROUP, OTHER, "group:gone"].includes(group)
+        ? group
+        : "new";
+    return {
+      answer: "group" in answer ? name(answer.group) : answer.error,
+      asked: openNew.mock.calls.length,
+      listed: store.get(windowTabGroupsAtom)?.map(name),
+      on: [GROUP, OTHER].find(
+        (group) => history.location.href === groupHref(group),
+      ),
+      tabs: state.tabs.map(
+        ({ group, id }) =>
+          `${id.startsWith("tab_0") ? "a new tab" : id} ${name(group)}`,
+      ),
+    };
+  }
+
+  it("takes a whole group, which leaves this window's list", async () => {
+    expect(await opened({ group: OTHER })).toMatchInlineSnapshot(`
+      {
+        "answer": "group:b",
+        "asked": 1,
+        "listed": [
+          "group:a",
+        ],
+        "on": "group:a",
+        "tabs": [
+          "chat group:a",
+          "one group:a",
+          "far group:b",
+          "gone group:gone",
+        ],
+      }
+    `);
+  });
+
+  it("takes the group on screen, the window going to the next", async () => {
+    expect(await opened({ group: GROUP })).toMatchInlineSnapshot(`
+      {
+        "answer": "group:a",
+        "asked": 1,
+        "listed": [
+          "group:b",
+        ],
+        "on": "group:b",
+        "tabs": [
+          "chat group:a",
+          "one group:a",
+          "far group:b",
+          "gone group:gone",
+        ],
+      }
+    `);
+  });
+
+  it("takes a tab into a group of its own, the rest staying", async () => {
+    expect(await opened({ tabs: ["one"] })).toMatchInlineSnapshot(`
+      {
+        "answer": "new",
+        "asked": 1,
+        "listed": [
+          "group:a",
+          "group:b",
+        ],
+        "on": "group:a",
+        "tabs": [
+          "chat group:a",
+          "far group:b",
+          "gone group:gone",
+          "one new",
+        ],
+      }
+    `);
+  });
+
+  it("takes tabs of two groups, a pinned one it empties keeping a new tab", async () => {
+    expect(await opened({ tabs: ["one", "far"] }, { pinned: true }))
+      .toMatchInlineSnapshot(`
+      {
+        "answer": "new",
+        "asked": 1,
+        "listed": [
+          "group:a",
+          "group:b",
+        ],
+        "on": "group:a",
+        "tabs": [
+          "chat group:a",
+          "a new tab group:b",
+          "gone group:gone",
+          "one new",
+          "far new",
+        ],
+      }
+    `);
+  });
+
+  it("opens none for everything the window has, or another's", async () => {
+    expect([
+      await opened({ tabs: ["chat", "one", "far"] }),
+      await opened({ tabs: ["gone"] }),
+    ]).toMatchInlineSnapshot(`
+      [
+        {
+          "answer": "that is everything the window has, so it is in a window of its own already.",
+          "asked": 0,
+          "listed": [
+            "group:a",
+            "group:b",
+          ],
+          "on": "group:a",
+          "tabs": [
+            "chat group:a",
+            "one group:a",
+            "far group:b",
+            "gone group:gone",
+          ],
+        },
+        {
+          "answer": "that is not in the window you work in, so no window opened; it goes to a new one from its own.",
+          "asked": 0,
+          "listed": [
+            "group:a",
+            "group:b",
+          ],
+          "on": "group:a",
+          "tabs": [
+            "chat group:a",
+            "one group:a",
+            "far group:b",
+            "gone group:gone",
+          ],
+        },
+      ]
+    `);
+  });
+
+  it("keeps the tabs in this window when none could open", async () => {
+    expect(await opened({ tabs: ["one"] }, { opens: false }))
+      .toMatchInlineSnapshot(`
+      {
+        "answer": "no window could be opened.",
+        "asked": 1,
+        "listed": [
+          "new",
+          "group:a",
+          "group:b",
+        ],
+        "on": "group:a",
+        "tabs": [
+          "chat group:a",
+          "far group:b",
+          "gone group:gone",
+          "one new",
+        ],
+      }
+    `);
   });
 });

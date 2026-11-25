@@ -151,10 +151,26 @@ const tabGroupsByWindow = base
   )
   .handler(({ context }) => groupsByWindow(context.webContentsId));
 
-/** A window of its own, opening on the inbox, or on a tab given it. Answers whether one opened. */
+/**
+ * A window of its own, opening on the inbox, or on a tab given it. One an
+ * agent opens comes up behind the app the person is in, where that is
+ * another. Answers whether one opened.
+ */
 const openNew = base
-  .input(z.object({ tabs: z.array(TabSchema).optional() }).optional())
-  .handler(({ input }) => openNewAppWindow(input?.tabs) !== null);
+  .input(
+    z
+      .object({
+        byAgent: z.boolean().optional(),
+        tabs: z.array(TabSchema).optional(),
+      })
+      .optional(),
+  )
+  .handler(
+    ({ input }) =>
+      openNewAppWindow(input?.tabs, {
+        behindOtherApps: input?.byAgent === true,
+      }) !== null,
+  );
 
 /** Whether a window closed lately can come back. */
 const canReopenClosed = base.handler(() => canReopenClosedAppWindow());

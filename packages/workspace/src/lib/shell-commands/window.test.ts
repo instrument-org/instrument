@@ -224,6 +224,12 @@ let asked: { action: WindowTabAction; chatId?: ChatId }[];
 const refusedShows = new Set<string>();
 let stopAnswering: () => void;
 
+/** Whether the turn is the person's (`isPersonsTurn`). */
+let personsTurn = true;
+vi.mock(import("../chat/person-turn"), () => ({
+  isPersonsTurn: () => Promise.resolve(personsTurn),
+}));
+
 /**
  * A window with two tabs open, `tab_known` and a page in front: answers each
  * ask the way the window does, with a new tab for an open and an error for
@@ -348,37 +354,40 @@ function answeringWindow() {
                   { isListed: action.group !== "group:docs" }
                 : {}
               : { error: `no tab group ${action.group} is open.` }
-            : action.kind === "moveTabs"
-              ? action.group === undefined || groups.has(action.group)
-                ? {}
-                : { error: `no tab group ${action.group} is open.` }
-              : action.kind === "groupTabs"
-                ? { group: "group:docs" }
-                : action.kind === "history"
-                  ? { history: HISTORY.slice(0, action.limit) }
-                  : action.kind === "reopenClosed"
-                    ? action.entry === "tab_closed1" ||
-                      action.entry === "tab_closed2"
-                      ? {}
-                      : { error: `nothing in History is ${action.entry}.` }
-                    : action.kind === "handOver" ||
-                        action.kind === "bookmarks" ||
-                        action.kind === "addBookmark"
-                      ? {}
-                      : action.kind === "show" && refusedShows.has(action.tabId)
-                        ? {
-                            error: `tab ${action.tabId} is in a window that is closing.`,
-                          }
-                        : known.has(action.tabId)
+            : action.kind === "newWindow"
+              ? { group: action.group ?? "group:new" }
+              : action.kind === "moveTabs"
+                ? action.group === undefined || groups.has(action.group)
+                  ? {}
+                  : { error: `no tab group ${action.group} is open.` }
+                : action.kind === "groupTabs"
+                  ? { group: "group:docs" }
+                  : action.kind === "history"
+                    ? { history: HISTORY.slice(0, action.limit) }
+                    : action.kind === "reopenClosed"
+                      ? action.entry === "tab_closed1" ||
+                        action.entry === "tab_closed2"
+                        ? {}
+                        : { error: `nothing in History is ${action.entry}.` }
+                      : action.kind === "handOver" ||
+                          action.kind === "bookmarks" ||
+                          action.kind === "addBookmark"
+                        ? {}
+                        : action.kind === "show" &&
+                            refusedShows.has(action.tabId)
                           ? {
-                              tabId: action.tabId,
-                              ...(action.kind === "read"
-                                ? { text: "Jar\nA rigid container." }
-                                : {}),
+                              error: `tab ${action.tabId} is in a window that is closing.`,
                             }
-                          : {
-                              error: `no tab ${action.tabId} is open in this chat.`,
-                            };
+                          : known.has(action.tabId)
+                            ? {
+                                tabId: action.tabId,
+                                ...(action.kind === "read"
+                                  ? { text: "Jar\nA rigid container." }
+                                  : {}),
+                              }
+                            : {
+                                error: `no tab ${action.tabId} is open in this chat.`,
+                              };
     publisher.publish("window.tabDone", {
       id: ask.id,
       requestId: ask.requestId,
@@ -416,6 +425,7 @@ function run(
 
 beforeEach(() => {
   asked = [];
+  personsTurn = true;
   raised.length = 0;
   refusedShows.clear();
   holders.clear();
@@ -1125,6 +1135,54 @@ describe("window group, move, history and restore", () => {
         {
           "exitCode": 1,
           "said": "instrument window: move takes one of --side, --before and --after; a tab is put on the side of the tab it goes beside.
+      ",
+        },
+      ]
+    `);
+  });
+
+  it("puts a group, or tabs, in a new window", async () => {
+    const results = [
+      await run({}, "new", "Meeting notes"),
+      await run({}, "new", "tab_hn", "instrument://tab/tab_ex"),
+      await run({}, "new", "tab_hn", "Meeting notes"),
+    ];
+    expect(
+      asked.map(({ action }) => action).filter(({ kind }) => kind !== "list"),
+    ).toEqual([
+      { group: "group:notes", kind: "newWindow", tabIds: [] },
+      { kind: "newWindow", tabIds: ["tab_hn", "tab_ex"] },
+    ]);
+    expect(results.map(({ stderr, stdout }) => stderr || stdout))
+      .toMatchInlineSnapshot(`
+      [
+        "Opened a new window on the tab group instrument://group/group:notes.
+      ",
+        "Opened a new window on the tab group instrument://group/group:new.
+      ",
+        "instrument window: new takes one tab group, or tabs by their ids.
+      ",
+      ]
+    `);
+  });
+
+  it("opens no window in a turn the user did not start, nor for a task", async () => {
+    personsTurn = false;
+    const woken = await run({}, "new", "tab_hn");
+    personsTurn = true;
+    const task = await run({ role: "task" }, "new", "tab_hn");
+    expect(asked).toEqual([]);
+    expect([woken, task].map(({ exitCode, stderr }) => ({ exitCode, stderr })))
+      .toMatchInlineSnapshot(`
+      [
+        {
+          "exitCode": 1,
+          "stderr": "instrument window: a new window opens only in a turn the user started, when their message asks for one, and something else has woken you since theirs. Leave the window as it is.
+      ",
+        },
+        {
+          "exitCode": 1,
+          "stderr": "instrument window: only the chat changes the window. To open a page to work in, use \`agent-browser tab new <url>\`; say in your report what the chat should show.
       ",
         },
       ]

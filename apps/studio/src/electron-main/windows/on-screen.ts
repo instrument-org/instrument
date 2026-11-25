@@ -77,13 +77,17 @@ export function expectRestoredWindows(count: number) {
  * screen: a window put up even without focus can land on a Space its display
  * is not showing, and macOS then scrolls the display there and hands focus to
  * whatever is in front on it. A launch that is the app restarting itself
- * brings it back as it was left (`comeBackAsLeft`), without focus.
+ * brings it back as it was left (`comeBackAsLeft`), without focus, and one
+ * asked to come up `behindOtherApps` comes up so too.
  */
 export function putOnScreen(
   window: ScreenWindow,
-  { maximized = false }: { maximized?: boolean } = {},
+  {
+    behindOtherApps = false,
+    maximized = false,
+  }: { behindOtherApps?: boolean; maximized?: boolean } = {},
 ) {
-  const view = relaunchView;
+  const view = relaunchView ?? (behindOtherApps ? "front" : undefined);
   relaunchWindows -= 1;
   if (relaunchWindows <= 0) {
     relaunchView = undefined;

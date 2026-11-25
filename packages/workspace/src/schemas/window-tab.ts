@@ -68,6 +68,15 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
   }),
   /** Makes a split tab group's two sides one, as Join Sides does. */
   z.object({ group: z.string(), kind: z.literal("joinSides") }),
+  /**
+   * Puts a tab group, or tabs in one made of them, in a window of its own,
+   * as Open in New Window and Move to New Window do.
+   */
+  z.object({
+    group: z.string().optional(),
+    kind: z.literal("newWindow"),
+    tabIds: z.array(z.string()),
+  }),
   /** Pins a tab group above its window's other groups, or takes its pin off, as its menu does. */
   z.object({
     group: z.string(),
@@ -153,7 +162,7 @@ export const WindowTabAnswerSchema = z.object({
   /** For an open: the tab waits behind what is up on its side, since the user is working there. */
   behind: z.boolean().optional(),
   error: z.string().optional(),
-  /** For a group of tabs: the group made. */
+  /** For a group of tabs, or a new window: the group made, or the one it opened on. */
   group: z.string().optional(),
   /** For a group's close: whether it went on the closed list, which leaves off an unpinned group of only an agent's own tabs the person never used. */
   isListed: z.boolean().optional(),

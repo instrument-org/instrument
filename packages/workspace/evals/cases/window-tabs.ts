@@ -18,6 +18,8 @@
  *   user's.
  * - **A tab already open is brought forward**, not opened a second time.
  * - **A result the user asks to see goes on screen.**
+ * - **A new window is only for one the user asked for.** A window opening
+ *   that nobody asked for is startling, however tidy the reason.
  * - **A result left on a page is that page.** A task that filled a cart in a
  *   tab of its own finished, and the conversation said the cart was "waiting
  *   in" a link to the task, whose chip opens the transcript over the page.
@@ -325,6 +327,24 @@ const neverOpenedNew: Assertion = {
   text: "Never opened a new tab",
 };
 
+/** Never opened a window, which is only for a message that asks for one. */
+const neverOpenedAWindow: Assertion = {
+  check: ({ sessions }) => {
+    const calls = bashCommands(sessions)
+      .flatMap(windowCalls)
+      .filter((call) => call.verb === "new");
+    return {
+      evidence:
+        calls.length > 0
+          ? calls.map((call) => `window new ${call.args.join(" ")}`).join("\n")
+          : "none",
+      passed: calls.length === 0,
+      text: "Never opened a new window",
+    };
+  },
+  text: "Never opened a new window",
+};
+
 function ranWindow(
   verb: string,
   {
@@ -503,5 +523,34 @@ export const WINDOW_TABS_EVALS = [
     prompt:
       "Make a small HTML page about jars, with a heading and three facts, in my Instrument folder.",
     viewing: homeWith([]),
+  }),
+
+  defineEval({
+    assertions: [startedNoTask, ranWindow("new", { exactly: [JAR_TAB] })],
+    kind: "chat",
+    name: "window-tabs-new-window-asked",
+    prompt: "Put the Jar article in a window of its own.",
+    viewing: homeWith([
+      { at: "https://example.com/", id: EXAMPLE_TAB, title: "Example Domain" },
+      { at: JAR, id: JAR_TAB, title: "Jar - Wikipedia" },
+    ]),
+  }),
+
+  defineEval({
+    assertions: [neverOpenedAWindow],
+    followUps: ["Now get the IANA page out of the way too."],
+    kind: "chat",
+    name: "window-tabs-new-window-not-asked",
+    prompt:
+      "It's crowded in here. Pull the Jar article out from the other tabs so I can read it next to example.com.",
+    viewing: homeWith([
+      { at: "https://example.com/", id: EXAMPLE_TAB, title: "Example Domain" },
+      {
+        at: "https://www.iana.org/help/example-domains",
+        id: IANA_TAB,
+        title: "Example Domains - IANA",
+      },
+      { at: JAR, id: JAR_TAB, title: "Jar - Wikipedia" },
+    ]),
   }),
 ];

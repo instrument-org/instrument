@@ -69,6 +69,9 @@ const spies = vi.hoisted(() => ({
       _options?: { isShownHere?: boolean },
     ): string => "group_a",
   ),
+  newWindow: vi.fn((_moving: { group: string } | { tabs: readonly string[] }) =>
+    Promise.resolve({ group: "group_made" }),
+  ),
   moveTabs: vi.fn(
     (_ids: readonly string[], _group: string, _placing?: unknown) => {},
   ),
@@ -198,6 +201,7 @@ function windowOnTwoSides({
         moveTabs: spies.moveTabs,
         names: { appsBySlug: new Map(), chatTitles: new Map() },
         newGroup,
+        newWindow: spies.newWindow,
         openChat: () => {},
         reopenClosed: spies.reopenClosed,
         showGroup: spies.showGroup,
@@ -726,6 +730,24 @@ describe("an agent tidying tabs and reading History", () => {
       "v1",
     );
     expect(spies.moveTabs).toHaveBeenCalledWith([LEFT_PAGE], OTHER_GROUP);
+  });
+
+  it("puts a group, or tabs, in a window of their own", async () => {
+    windowOnTwoSides();
+    await answerTo({ group: OTHER_GROUP, kind: "newWindow", tabIds: [] }, "w1");
+    expect(
+      await answerTo(
+        { kind: "newWindow", tabIds: [LEFT_PAGE, LEFT_PAGE] },
+        "w2",
+      ),
+    ).toEqual({ group: "group_made", requestId: "w2" });
+    expect(
+      await answerTo({ kind: "newWindow", tabIds: ["tab_gone"] }, "w3"),
+    ).toEqual({ error: "no tab tab_gone is open.", requestId: "w3" });
+    expect(spies.newWindow.mock.calls).toEqual([
+      [{ group: OTHER_GROUP }],
+      [{ tabs: [LEFT_PAGE] }],
+    ]);
   });
 
   it("moves a file's tab by the page it draws", async () => {

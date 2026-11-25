@@ -129,6 +129,7 @@ export function useOpeners({
   moveTabs,
   names,
   newGroup,
+  newWindow,
   openChat,
   reopenClosed,
   showGroup,
@@ -176,6 +177,13 @@ export function useOpeners({
       returns?: "untilUnrelated";
     },
   ) => string;
+  /**
+   * Puts a tab group, or one made of tabs, in a window of its own, for an
+   * agent; answers the group, or why none opened.
+   */
+  newWindow: (
+    moving: { group: string } | { tabs: readonly string[] },
+  ) => Promise<{ error: string } | { group: string }>;
   /** Opens a chat as a new tab group of its own (`useTabGroupActions().openChat`). */
   openChat: (chat: ChatId) => void;
   /** Brings one entry of this window's closed list back, as Shift+Cmd+T does. */
@@ -1356,6 +1364,20 @@ export function useOpeners({
         return { group: groupTabs(moving.map(({ id }) => id)) };
       }
       return moveAsked(action, moving);
+    }
+    if (action.kind === "newWindow") {
+      if (action.group !== undefined) {
+        return newWindow({ group: action.group });
+      }
+      const moving = action.tabIds.map(namedTab);
+      const missing = action.tabIds.filter(
+        (_id, at) => moving[at]?.group === undefined,
+      );
+      return missing.length > 0
+        ? { error: `no tab ${missing.join(", ")} is open.` }
+        : newWindow({
+            tabs: [...new Set(moving.flatMap((tab) => tab?.id ?? []))],
+          });
     }
     if (action.kind === "joinSides") {
       const layout = windowTabs.layoutOf(action.group);

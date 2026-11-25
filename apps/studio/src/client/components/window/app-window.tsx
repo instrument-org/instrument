@@ -828,6 +828,7 @@ function WindowShell({
     isOpen: opened !== undefined,
     names,
     newGroup: (fill, options) => groups.make({ fill, ...options }),
+    newWindow: (moving) => groups.openWindowFor(moving, groupList.open),
     openChat: (chat) => {
       groups.openChat(chat, { returns: "untilUnrelated" });
     },

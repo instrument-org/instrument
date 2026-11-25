@@ -820,6 +820,83 @@ export function useTabGroupActions() {
     });
   };
 
+  /**
+   * A group, or tabs as a group of their own, put in a new window for an
+   * agent; answers the group the window opened on, or why none did. Only
+   * what this window has, and never all of it, which is in a window of its
+   * own already. Tabs that are a whole group go as that group, with its pin
+   * and project, and a pinned group that loses some but not all keeps its own.
+   */
+  const openWindowFor = async (
+    moving: { group: string } | { tabs: readonly string[] },
+    list: readonly TabGroup[],
+  ): Promise<{ error: string } | { group: string }> => {
+    const state = store.get(windowTabsAtom);
+    const listed = store.get(windowTabGroupsAtom) ?? [];
+    const ids =
+      "group" in moving
+        ? tabsIn(state, moving.group).map((tab) => tab.id)
+        : moving.tabs;
+    const isMoving = (tab: { id: string }) => ids.includes(tab.id);
+    const froms = [
+      ...new Set(state.tabs.filter(isMoving).flatMap((tab) => tab.group ?? [])),
+    ];
+    if (ids.length === 0 || froms.some((group) => !listed.includes(group))) {
+      return {
+        error:
+          "that is not in the window you work in, so no window opened; it goes to a new one from its own.",
+      };
+    }
+    const emptied = froms.filter((group) =>
+      tabsIn(state, group).every(isMoving),
+    );
+    if (listed.every((group) => emptied.includes(group))) {
+      return {
+        error:
+          "that is everything the window has, so it is in a window of its own already.",
+      };
+    }
+    const [from] = froms;
+    const isWhole = froms.length === 1 && emptied.length === 1;
+    const group = isWhole && from !== undefined ? from : undefined;
+    if (group === undefined) {
+      for (const each of emptied) {
+        if (state.groups?.[each]?.pinned !== true) {
+          moveOff(
+            each,
+            list.filter(
+              (entry) => !emptied.includes(entry.group) || entry.group === each,
+            ),
+          );
+        }
+      }
+    }
+    const opening =
+      group ??
+      make({
+        fill: (made) => {
+          for (const id of ids) {
+            moveTab(id, made, undefined, { keepsPinned: true });
+          }
+        },
+        isShownHere: false,
+      });
+    const opened = await rpcClient.window.openNew
+      .call({
+        byAgent: true,
+        tabs: [{ id: freshTabId(), pathname: groupHref(opening) }],
+      })
+      .catch(() => false);
+    if (!opened) {
+      if (group === undefined) {
+        place(opening, {});
+      }
+      return { error: "no window could be opened." };
+    }
+    letGo(opening, list);
+    return { group: opening };
+  };
+
   /** Pins a group above the line, or takes it back down, by its own pin. */
   const pin = (group: string, pinned: boolean) => {
     windowTabs.setGroupOwn(group, { pinned: pinned ? true : undefined });
@@ -1020,6 +1097,7 @@ export function useTabGroupActions() {
     newTab,
     openChat,
     openNew,
+    openWindowFor,
     openDraft,
     pin,
     place,

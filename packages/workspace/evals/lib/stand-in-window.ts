@@ -234,7 +234,14 @@ export function createStandInWindow(chrome?: SharedChrome) {
       return {};
     }
     if (action.kind === "moveTabs") {
+      // Its one group keeps the order it has: a case scores what was asked.
+      if (action.group === undefined) {
+        return {};
+      }
       return { error: "the stand-in window has no tab group to move them to." };
+    }
+    if (action.kind === "newWindow") {
+      return { group: action.group ?? "group_new_window" };
     }
     if (action.kind === "groupTabs" || action.kind === "reopenClosed") {
       return { error: "the stand-in window has one tab group." };

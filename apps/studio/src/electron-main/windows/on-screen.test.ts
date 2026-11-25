@@ -68,6 +68,14 @@ describe("putting a window on screen", () => {
     expect(calls).toEqual(["show"]);
   });
 
+  it("brings a window up behind the other app in use when asked", async () => {
+    const { putOnScreen } = await load({ dev: false });
+    const { calls, window } = fakeWindow();
+    putOnScreen(window, { behindOtherApps: true });
+    expect(calls).not.toContain("show");
+    expect(calls).toContain("showInactive");
+  });
+
   it("brings a development run's window up without focus", async () => {
     const { putOnScreen } = await load({ dev: true });
     const { calls, window } = fakeWindow();

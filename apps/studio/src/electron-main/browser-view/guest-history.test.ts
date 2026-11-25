@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { historyStandingOn, historyToRestore } from "./guest-history";
+import { historyStandingOn, wholeHistory } from "./guest-history";
 
 const page = (url: string) => ({ title: url, url });
 
@@ -10,26 +10,22 @@ it.each([
   {
     entries: ["about:blank", "https://a", "https://b"],
     index: 2,
-    want: { behind: ["https://a"], url: "https://b" },
+    want: { index: 1, url: "https://b", urls: ["https://a", "https://b"] },
   },
   {
     entries: ["about:blank", "https://a", "about:blank", "https://b"],
     index: 1,
-    want: { behind: [], url: "https://a" },
-  },
-  {
-    entries: ["https://a", "https://b", "https://c"],
-    index: 1,
-    want: { behind: ["https://a"], url: "https://b" },
+    want: { index: 0, url: "https://a", urls: ["https://a", "https://b"] },
   },
 ])(
-  "keeps a guest's page and those behind it, from $entries at $index",
+  "keeps every page a guest has, from $entries at $index",
   ({ entries, index, want }) => {
-    const restored = historyToRestore(entries.map(page), index);
+    const kept = wholeHistory(entries.map(page), index);
     expect(
-      restored && {
-        behind: restored.behind.map(({ url }) => url),
-        url: restored.url,
+      kept && {
+        index: kept.index,
+        url: kept.url,
+        urls: kept.entries.map(({ url }) => url),
       },
     ).toEqual(want);
   },

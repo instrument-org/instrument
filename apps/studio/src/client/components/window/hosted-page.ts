@@ -133,10 +133,28 @@ export function useHostedPageNavigation(
       // The tab's own history holds the file now, behind the page; the
       // guest's would hold it a second time.
       if (next.kind === "site") {
-        guest.leaveHistory({
+        void guest.leaveHistory({
           as: pageComingBack(latest.current.group, shown),
           url: shown,
         });
+      }
+      // A file of another kind takes the page away, so its history is kept
+      // for back to the file before the tab moves.
+      if (
+        next.kind === "file" &&
+        getFileType({ filename: next.path }) !== "html"
+      ) {
+        void guest
+          .leaveHistory({
+            as: pageComingBack(latest.current.group, shown),
+            url: shown,
+          })
+          .then(() => {
+            if (guest.url() === url) {
+              latest.current.onStep(next);
+            }
+          });
+        return;
       }
       step(next);
     };
@@ -185,6 +203,11 @@ export function pageComingBack(
   return browserTargetOf(id);
 }
 
+/** Whether a group's page has a history waiting for it at `url`. */
+function isComingBack(group: string, url: string) {
+  return pagesComingBack.get(group)?.url === url;
+}
+
 /** Takes the page a group comes back as, if it comes back at `url`. */
 function takePageComingBack(group: string, url: string) {
   const page = pagesComingBack.get(group);
@@ -203,6 +226,7 @@ function keepHistoryOf(id: string, group: string) {
   // surface and tab both close it is kept once.
   if (
     path === undefined ||
+    getFileType({ filename: path }) !== "html" ||
     ownerOfHostGroup(group) === undefined ||
     pagesComingBack.get(group)?.closed === id
   ) {
@@ -326,7 +350,9 @@ export function useHostedPage({
     );
     let kept: string | undefined;
     if (url !== undefined && browser) {
-      if (current?.kind !== "page") {
+      // One with a history waiting comes back in a guest given that history,
+      // which a guest that has loaded anything cannot be.
+      if (current?.kind !== "page" || isComingBack(group, url)) {
         const returnAs = takePageComingBack(group, url);
         kept = browser.openOrFocus(url, {
           group,

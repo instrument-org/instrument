@@ -239,7 +239,7 @@ describe("getBrowserViewManager", () => {
       hostId: number,
     ) => {
       const host = hostWith(hostId);
-      const { browser, getTargets } = getBrowserViewManager();
+      const { browser } = getBrowserViewManager();
       const targetId = browserTargetOf(StoreId.newTabId());
       const open = (url?: string) =>
         void browser
@@ -251,18 +251,14 @@ describe("getBrowserViewManager", () => {
         ? browser.closeTarget(targetId)
         : browser.discardTarget(targetId));
       open(restoreUrl);
-      const src = getTargets(hostId).find(({ id }) => id === targetId)?.src;
-      const { restore } = attachGuest(host, targetId, hostId * 10 + 1);
-      return { restored: restore.mock.calls, src };
+      const { params, restore } = attachGuest(host, targetId, hostId * 10 + 1);
+      return { loads: "src" in params, restored: restore.mock.calls };
     };
 
-    it("brings a discarded tab back on its page, over the pages behind it", async () => {
+    it("brings a discarded tab back on its page, with the pages behind and ahead", async () => {
       expect(
         await reopened({ goes: "discard", restoreUrl: A_AND_B[1] }, 311),
-      ).toEqual({
-        restored: [[{ entries: [visited.entries[0]], index: 0 }]],
-        src: A_AND_B[1],
-      });
+      ).toEqual({ loads: false, restored: [[visited]] });
     });
 
     it.each([
@@ -277,8 +273,8 @@ describe("getBrowserViewManager", () => {
       "brings no history back for a tab %s",
       async (_, hostId, how) => {
         expect(await reopened(how, hostId)).toEqual({
+          loads: true,
           restored: [],
-          src: undefined,
         });
       },
     );

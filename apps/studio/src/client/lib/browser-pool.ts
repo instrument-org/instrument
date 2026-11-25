@@ -192,7 +192,7 @@ export interface GuestHandle {
    * at `url` becomes a step of its tab's own: what is behind is kept for the
    * guest that comes back there, as `as`. The guest has no steps meanwhile.
    */
-  leaveHistory(left: { as: BrowserTargetId; url: string }): void;
+  leaveHistory(left: { as: BrowserTargetId; url: string }): Promise<void>;
   find(text: string, options?: { findNext?: boolean; forward?: boolean }): void;
   /** Whether the page, or a frame in it, is still loading. */
   isLoading(): boolean;
@@ -1296,7 +1296,6 @@ function disposeWebview(targetId: BrowserTargetId) {
 function ensureWebview(
   targetId: BrowserTargetId,
   generation: number,
-  src?: string,
 ): PooledWebview {
   const existing = pool.get(targetId);
   if (existing) {
@@ -1311,7 +1310,7 @@ function ensureWebview(
   // attach; main overrides the actual session there (partition is just a
   // carrier, see browserPartition).
   webview.setAttribute("partition", browserPartition(targetId));
-  webview.setAttribute("src", src ?? "about:blank");
+  webview.setAttribute("src", "about:blank");
   // Permit window.open so a genuine sign-in popup reaches the main process's
   // window-open handler (which allows only real popups; see manager.ts). Without
   // this attribute Chromium blocks every `<webview>` popup before the handler
@@ -1499,9 +1498,9 @@ function guestHandle(
         return null;
       }
     },
-    leaveHistory: (left) => {
+    leaveHistory: async (left) => {
       isLeaving = true;
-      void rpcClient.browser.keepHistory
+      await rpcClient.browser.keepHistory
         .call({ ...left, leaving: true, targetId })
         .catch(() => {
           guard(() => {
@@ -1854,7 +1853,7 @@ function reconcile(targets: BrowserGuestTarget[]) {
     if (isRemade) {
       disposeWebview(target.id);
     }
-    const kept = ensureWebview(target.id, target.generation, target.src);
+    const kept = ensureWebview(target.id, target.generation);
     if (hadKeyboard) {
       takeKeyboardOnArrival(target.id);
     }

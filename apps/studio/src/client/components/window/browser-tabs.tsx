@@ -524,7 +524,7 @@ export function BrowserTabs({
                 }
               : undefined;
           if (left) {
-            guest.leaveHistory({
+            void guest.leaveHistory({
               as: browserTargetOf(left.id),
               url: left.url,
             });
@@ -554,7 +554,7 @@ export function BrowserTabs({
             guest.clearHistory();
           } else {
             const leftUrl = fileUrlOf(path);
-            guest.leaveHistory({
+            void guest.leaveHistory({
               as: pageComingBack(hostGroupOf(undrawn.owner), leftUrl),
               url: leftUrl,
             });
@@ -763,9 +763,13 @@ export function BrowserTabs({
         // Only the exact address counts, so a second page on a site still
         // gets a tab of its own. Only the group's own: another chat's tab
         // is that chat's.
-        const atAddress = latest.current.tabs.find(
-          (tab) => tab.group === key && sameAddress(tab.url, url),
-        );
+        // A page coming back has its history waiting under an id of its own.
+        const atAddress =
+          options?.returnAs === undefined
+            ? latest.current.tabs.find(
+                (tab) => tab.group === key && sameAddress(tab.url, url),
+              )
+            : undefined;
         if (atAddress) {
           if (options?.show || key === latest.current.group) {
             change("selectTab", atAddress.id);

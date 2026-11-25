@@ -1,24 +1,22 @@
 import { isPageEditAddress } from "@instrument-org/shared";
 
 /**
- * What a guest's history comes back as in another window: the page it stood
- * on and the pages behind it, without the blank page every guest starts on.
- * A new guest can only be given its stack before its first load, and that load
- * lands on top of the stack and takes the place of any pages ahead, so those
- * are not kept. None for a guest that has been nowhere.
+ * A guest's whole history as another guest comes back on it, with what
+ * Chromium keeps of each page, without the blank page every guest starts on.
+ * None for a guest that has been nowhere.
  */
-export function historyToRestore<Entry extends { url: string }>(
+export function wholeHistory<Entry extends { url: string }>(
   entries: readonly Entry[],
   index: number,
-): { behind: Entry[]; url: string } | null {
+): { entries: Entry[]; index: number; url: string } | null {
   const url = entries[index]?.url;
   if (url === undefined || url === "about:blank") {
     return null;
   }
+  const isPage = (entry: Entry) => entry.url !== "about:blank";
   return {
-    behind: entries
-      .slice(0, index)
-      .filter((entry) => entry.url !== "about:blank"),
+    entries: entries.filter(isPage),
+    index: entries.slice(0, index).filter(isPage).length,
     url,
   };
 }

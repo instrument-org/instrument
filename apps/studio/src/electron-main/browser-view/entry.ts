@@ -137,16 +137,11 @@ export interface BrowserEntry {
   // until there is a window to ask.
   hostId: null | number;
   phase: EntryPhase;
-  // What the guest was showing in the window it left, or as it was discarded,
-  // to come back to, the pages behind it with it. Spent as the guest attaches.
-  restoreHistory: null | { behind: NavigationEntry[]; url: string };
   // The history the guest is given whole, coming up on the page at its index
-  // as Chromium kept it: one a tab's step back or forward returns to. Its
-  // element loads nothing, since that load would land on top.
+  // as Chromium kept it: brought over from another window, back from being
+  // discarded, or returned to by a tab's step. Its element loads nothing,
+  // since that load would land on top. Spent as the guest attaches.
   returnTo: null | { entries: NavigationEntry[]; index: number };
-  // The page the guest's element opens on: its own blank page, or the one a
-  // guest brought over from another window, or discarded, stood on.
-  src: string | undefined;
   // Workspace browser profile directory, threaded through BrowserConfig so the
   // task lifecycle can correlate a target with its storage without re-deriving
   // the path.
@@ -195,16 +190,12 @@ interface AttachSignal {
 export function createEntry({
   hostId = null,
   partitionDir,
-  restoreHistory = null,
   returnTo = null,
-  src,
   targetId,
 }: {
   hostId?: null | number;
   partitionDir: AbsolutePath;
-  restoreHistory?: BrowserEntry["restoreHistory"];
   returnTo?: BrowserEntry["returnTo"];
-  src?: string;
   targetId: BrowserTargetId;
 }): BrowserEntry {
   return {
@@ -232,9 +223,7 @@ export function createEntry({
     agentDownloads: new Set(),
     phase: "pending",
     putAway: false,
-    restoreHistory,
     returnTo,
-    src,
     screencastInterval: null,
     screencastSessionId: 0,
     shown: false,

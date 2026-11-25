@@ -226,6 +226,7 @@ rpc.answers["browser.live.downloads"] = [
 ];
 rpc.answers["files.clipboardHasFiles"] = { hasFiles: true };
 rpc.answers["user.live.me"] = null;
+rpc.answers["utils.browserOpenTarget"] = { appName: "<default browser>" };
 rpc.answers["workspace.skill.list"] = [
   { id: "skill", name: "<skill>", userInvocable: true },
 ];

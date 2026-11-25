@@ -11,7 +11,7 @@ import { useAtomValue } from "jotai";
 import { segmentsOf } from "../host-path";
 import { bareAddress } from "../omnibar-match";
 import { useWindowTabs } from "../window-tabs";
-import { type Point } from "./landing";
+import { holds, type Point } from "./landing";
 import { dragAtom, useDropTarget } from "./session";
 import { type DroppedFile, type Held, isBookmark } from "./types";
 
@@ -186,16 +186,23 @@ const BAR_SLACK = 28;
 export function useBookmarksTarget({
   area,
   row,
+  start,
 }: {
   /** Where it takes drops. */
   area: () => HTMLElement | null;
   /** The bookmarks' own row in it, if there are any. */
   row: () => HTMLElement | null;
+  /** Apps, Chats and Files at the bar's start, where a shortcut taken from there lands nowhere. */
+  start?: () => HTMLElement | null;
 }) {
   const context = useKeptContext(() => "");
   const state = useAtomValue(bookmarksStateAtom);
   useDropTarget({
     landingAt: (point, { held }) => {
+      const shortcuts = held.kind === "link" && held.shortcut && start?.();
+      if (shortcuts && holds(shortcuts.getBoundingClientRect(), point)) {
+        return undefined;
+      }
       const element = row();
       if (held.kind === "folder") {
         // A folder stays on the bar, so it only moves along it.

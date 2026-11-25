@@ -110,6 +110,7 @@ export function ChatRow({
   onDelete,
   onNewProject,
   onOpen,
+  onPress,
   onSetProject,
   search = "",
   projects,
@@ -144,6 +145,8 @@ export function ChatRow({
   onNewProject: (name?: string) => void;
   /** A plain click: the chat in place of whatever the window shows. */
   onOpen: () => void;
+  /** A press that drags the row as the pointer holds it, in place of the system's drag (a row of the bar's Chats menu). */
+  onPress?: (event: React.PointerEvent<HTMLElement>) => void;
   onSetProject: (project: null | string) => void;
   /** The words the list is searched for, which the title and the latest line mark where they turn up. */
   search?: string;
@@ -182,7 +185,7 @@ export function ChatRow({
   // Dragged, the row is the chat's address, held like any link.
   const dragProps = useContentDrag(
     { kind: "link", title: chat.title, url: chatAddressOf(chat.id) },
-    { isOff: rename.isEditing },
+    { isOff: rename.isEditing || onPress !== undefined },
   );
   const titleArrival = useTitleArrival(chat);
   // The menu hands focus back to the row as it closes, which would land
@@ -314,6 +317,7 @@ export function ChatRow({
           data-open={isOpen || undefined}
           {...clicks}
           {...dragProps}
+          {...(onPress && !rename.isEditing ? { onPointerDown: onPress } : {})}
           onKeyDown={(event) => {
             if (event.key === "Enter" && event.target === event.currentTarget) {
               onOpen();

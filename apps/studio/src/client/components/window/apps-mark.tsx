@@ -18,6 +18,7 @@ import { type SyntheticEvent, useState } from "react";
 
 import { AppIcon } from "./app-icon";
 import { type OpenAddress, bookmarkClicks } from "./bookmark-menu";
+import { pressShortcut } from "./drag/press-bookmark";
 import { useOwnApps } from "./use-own-apps";
 
 type OwnApp = ReturnType<typeof useOwnApps>[number];
@@ -27,7 +28,8 @@ type OwnApp = ReturnType<typeof useOwnApps>[number];
  * bookmark opens (`bookmarkClicks`), and the caret beside it lists the
  * person's own apps by name, in one list. Only what they set up or started to is
  * there. A pick goes to the app's site where it is signed in, and to its page
- * in Instrument otherwise.
+ * in Instrument otherwise. Apps and each row drag as a bookmark to where
+ * they go (`pressShortcut`).
  */
 export function AppsMark({
   open,
@@ -45,6 +47,9 @@ export function AppsMark({
       <button
         className="flex h-6 cursor-default items-center gap-1.5 rounded-l-md pr-1 pl-1.5 hover:bg-foreground/8 hover:text-foreground"
         {...bookmarkClicks(SCREENS.apps.href, open)}
+        onPointerDown={(event) => {
+          pressShortcut(event, { href: SCREENS.apps.href, title: "Apps" });
+        }}
         type="button"
       >
         <ShapesIcon className="size-3.5 shrink-0 text-foreground/70" />
@@ -70,7 +75,18 @@ export function AppsMark({
             />
           ))}
           {apps.length > 0 && <DropdownMenuSeparator />}
-          <DropdownMenuItem {...bookmarkClicks(SCREENS.apps.href, open)}>
+          <DropdownMenuItem
+            {...bookmarkClicks(SCREENS.apps.href, open)}
+            onPointerDown={(event) => {
+              pressShortcut(
+                event,
+                { href: SCREENS.apps.href, title: "Apps" },
+                () => {
+                  setOpen(false);
+                },
+              );
+            }}
+          >
             <ShapesIcon className="size-4 text-foreground/70" />
             All apps
           </DropdownMenuItem>
@@ -99,9 +115,19 @@ function AppRow({
       <span className="min-w-0 flex-1 truncate">{app.name}</span>
     </>
   );
+  // Dragged, it is the link a pick goes to, the menu getting out of the way.
+  const press = (event: React.PointerEvent<HTMLElement>) => {
+    pressShortcut(
+      event,
+      app.opensAt === undefined
+        ? { href: page, title: app.name }
+        : { title: app.name, url: app.opensAt },
+      onDone,
+    );
+  };
   if (app.opensAt === undefined) {
     return (
-      <DropdownMenuItem {...bookmarkClicks(page, open)}>
+      <DropdownMenuItem {...bookmarkClicks(page, open)} onPointerDown={press}>
         {face}
       </DropdownMenuItem>
     );
@@ -116,6 +142,7 @@ function AppRow({
         <DropdownMenuItem
           className="group/app"
           {...bookmarkClicks(app.opensAt, openSite)}
+          onPointerDown={press}
         >
           {face}
           {/* A press on it is its own, never a pick of the row. */}

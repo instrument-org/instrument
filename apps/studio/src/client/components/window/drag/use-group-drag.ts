@@ -26,7 +26,7 @@ import {
   steadyAt,
   useDropTarget,
 } from "./session";
-import { type Held, isBookmark, type Landing } from "./types";
+import { type Held, type Landing, opensAsBookmark } from "./types";
 import { pullOf } from "./use-sidebar-drag";
 
 /**
@@ -309,9 +309,9 @@ export function useStripTarget({
   );
 }
 
-/** Whether what is held is a piece of the window, which lands in a strip: a tab, a whole group, a bookmark or a place. Files and a link are content, which a page's own row takes. */
+/** Whether what is held is a piece of the window, which lands in a strip: a tab, a whole group, a bookmark or a shortcut at the bar's start. Files and a link are content, which a page's own row takes. */
 function isPieceOfWindow(held: Held) {
-  return held.kind === "tab" || held.kind === "group" || isBookmark(held);
+  return held.kind === "tab" || held.kind === "group" || opensAsBookmark(held);
 }
 
 /** Whether something from elsewhere is held over a side's strip, or over the row that stands in for one, which brings the strip up. */
@@ -333,8 +333,9 @@ function heldInGroup(
   if (held.kind === "group") {
     return { kind: "group" };
   }
-  // A bookmark opens as its tab wherever a tab from elsewhere lands.
-  if (isBookmark(held)) {
+  // A bookmark or a shortcut opens as its tab wherever a tab from elsewhere
+  // lands.
+  if (opensAsBookmark(held)) {
     return { kind: "tab" };
   }
   if (held.kind !== "tab") {

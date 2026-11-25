@@ -56,7 +56,11 @@ import {
   useOpenFolder,
 } from "./bookmark-folders";
 import { dragAtom } from "./drag/session";
-import { pressBookmark, pressPlace } from "./drag/press-bookmark";
+import {
+  pressBookmark,
+  pressPlace,
+  pressShortcut,
+} from "./drag/press-bookmark";
 import {
   useBookmarksTarget,
   marksBesides,
@@ -77,8 +81,9 @@ import { BookmarkNameField, bookmarkName } from "./web-start";
  * tab whatever it names (a site by `onOpen`, a place of the app's own, a
  * chat's included, by `onVisit`), a Cmd-click or a middle click in a new tab
  * behind this one, a Shift-click in a new tab in front, and a right click
- * offers the rest (`BookmarkContextMenu`). Apps, Chats, Files and its
- * places open the same way.
+ * offers the rest (`BookmarkContextMenu`). Apps, Chats, Files and the
+ * rows of their menus open the same way, and drag as a bookmark does
+ * (`pressShortcut`), all but back onto the bar's start.
  * A bookmark or a folder dragged along the bar moves there, and a tab
  * dragged onto it is kept there. What is held stays in its place until it
  * lands, a copy on the pointer and a line where it would go
@@ -135,6 +140,7 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
   // asked for it.
   const [naming, setNaming] = useState<{ after?: string; kind: "folder" }>();
   const row = useRef<HTMLDivElement>(null);
+  const start = useRef<HTMLDivElement>(null);
   // How many fit before the row's end, the rest under the chevron.
   const [fitting, setFitting] = useState(items.length);
   useLayoutEffect(() => {
@@ -191,6 +197,7 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
   useBookmarksTarget({
     area: () => bar.current,
     row: () => row.current,
+    start: () => start.current,
   });
 
   return (
@@ -207,7 +214,7 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
             role="toolbar"
           >
             {files && (
-              <>
+              <div className="flex shrink-0 items-center gap-1" ref={start}>
                 <AppsMark open={openFilesAt} openSite={open} />
                 <ChatsMark open={openFilesAt} />
                 <FilesMark group={files.group} open={openFilesAt} />
@@ -215,7 +222,7 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
                   aria-hidden
                   className="mx-1 h-4 w-px shrink-0 bg-border"
                 />
-              </>
+              </div>
             )}
             {items.length === 0 ? (
               <NoBookmarks />
@@ -508,6 +515,7 @@ function NameInPlace({
  * keeps, the group's project first, to open it at one of them. Each opens as
  * a bookmark does (`bookmarkClicks`), and drags as the same place in Files'
  * sidebar does (`pressPlace`), the menu getting out of the way as it does.
+ * Files itself drags as a link to where it opens (`pressShortcut`).
  */
 function FilesMark({ group, open }: { group: string; open: OpenAddress }) {
   const filesHref = useFilesStartHref();
@@ -535,6 +543,9 @@ function FilesMark({ group, open }: { group: string; open: OpenAddress }) {
       <button
         className="flex h-6 cursor-default items-center gap-1.5 rounded-l-md pr-1 pl-1.5 hover:bg-foreground/8 hover:text-foreground"
         {...bookmarkClicks(filesHref, open)}
+        onPointerDown={(event) => {
+          pressShortcut(event, { href: filesHref, title: "Files" });
+        }}
         type="button"
       >
         <FileSystemFolderGlyph className="h-3 w-auto" />

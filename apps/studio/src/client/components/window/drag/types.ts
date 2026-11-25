@@ -10,8 +10,8 @@ export interface DroppedFile {
 /**
  * What a drag holds, on one of two paths decided by what was grabbed. A
  * piece of the window (a group's tab, a whole group by its sidebar row, a
- * bookmark or a folder of the bar, a place of Files' sidebar or Files menu)
- * is held by the pointer (`WindowHeld`); content (files
+ * bookmark or a folder of the bar, a shortcut at the bar's start, a place
+ * of Files' sidebar or Files menu) is held by the pointer (`WindowHeld`); content (files
  * from the Finder, Files, a file card or the address field, and a link from a
  * page, a reply, a chip, a row of the Chats list or the address field) is
  * held by the system's drag (`ContentHeld`). A link opens as the tab its
@@ -64,6 +64,13 @@ export type Held =
        * it leaves Favorites, and Undo puts it back there.
        */
       place?: { path: string; favorites?: readonly string[] };
+      /**
+       * Apps, Chats or Files at the bookmarks bar's start, or a row of their
+       * menus: a link to where it opens, held by the pointer and landing
+       * where a bookmark does, though it is no bookmark kept, so the bar's
+       * row adds it as one.
+       */
+      shortcut?: true;
       /** Its name, empty where the system's drag says it only at the release. */
       title: string;
       /** The address it names, empty where the system's drag says it only at the release. */
@@ -143,13 +150,15 @@ export type Landing =
 
 /**
  * What the pointer path holds: a piece of the window itself, a tab, a whole
- * group by its row, a bookmark of the bar, or a place of Files' sidebar. It
+ * group by its row, a bookmark of the bar or a shortcut at its start, or a
+ * place of Files' sidebar. It
  * moves where it lands, as itself, and leaves the window only as main
  * carries a tab or a group.
  */
 export type WindowHeld =
   | Extract<Held, { kind: "folder" | "group" | "tab" }>
   | (Extract<Held, { kind: "link" }> & { bookmark: string })
+  | (Extract<Held, { kind: "link" }> & { shortcut: true })
   | (Extract<Held, { kind: "link" }> & {
       place: NonNullable<Extract<Held, { kind: "link" }>["place"]>;
     });
@@ -164,6 +173,14 @@ export type ContentHeld = Extract<Held, { kind: "files" | "link" }>;
 /** A link that is a bookmark of the bar. */
 export function isBookmark(held: Held): boolean {
   return held.kind === "link" && held.bookmark !== undefined;
+}
+
+/**
+ * A link that opens as a tab from a strip or a page's outer edge and nowhere
+ * else on a page: a bookmark of the bar, or a shortcut from its start.
+ */
+export function opensAsBookmark(held: Held): boolean {
+  return isBookmark(held) || (held.kind === "link" && held.shortcut === true);
 }
 
 /** The place of Files' sidebar or Files menu a link is, if it is one. */

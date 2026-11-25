@@ -1,4 +1,4 @@
-import { fileAddressOf } from "@/client/bookmarks/address";
+import { addressOfTab, fileAddressOf } from "@/client/bookmarks/address";
 import { StoreId } from "@instrument-org/workspace/client";
 
 import { pressToHold } from "./session";
@@ -20,6 +20,39 @@ export function pressBookmark(
     title: bookmark.title,
     url: bookmark.url,
   }));
+}
+
+/**
+ * A press on Apps, Chats or Files at the bookmarks bar's start, or on a row
+ * of their menus, which past the start becomes a link to what it opens
+ * (`href`, a screen of the app's own, or `url`, a site) held by the pointer
+ * as a bookmark is: it opens as its tab wherever a bookmark does, goes on
+ * the bar as a new bookmark, and lands nowhere where nothing takes it. A
+ * press that goes nowhere stays a click. `onHeld` is told as it becomes a
+ * drag, for a menu it was in to get out of the way.
+ */
+export function pressShortcut(
+  event: React.PointerEvent<HTMLElement>,
+  shortcut: { title: string } & ({ href: string } | { url: string }),
+  onHeld?: () => void,
+) {
+  const url =
+    "url" in shortcut
+      ? shortcut.url
+      : addressOfTab({ href: shortcut.href, kind: "screen" });
+  if (url === undefined) {
+    return;
+  }
+  pressToHold(event, () => {
+    onHeld?.();
+    return {
+      id: StoreId.newTabId(),
+      kind: "link",
+      shortcut: true,
+      title: shortcut.title,
+      url,
+    };
+  });
 }
 
 /**

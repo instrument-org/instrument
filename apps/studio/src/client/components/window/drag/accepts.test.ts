@@ -26,6 +26,13 @@ const LINK: Held = {
   url: "https://example.com/",
 };
 const BOOKMARK: Held = { ...LINK, bookmark: "b" };
+const SHORTCUT: Held = {
+  id: "s",
+  kind: "link",
+  shortcut: true,
+  title: "Apps",
+  url: "instrument://screen/apps",
+};
 const PLACE: Held = {
   id: "p",
   kind: "link",
@@ -49,7 +56,7 @@ const TAB: Held = { group: "g", id: "t", key: "t", kind: "tab", side: 0 };
 const landing = ({
   held,
   input = held.kind === "files" ||
-  (held.kind === "link" && !held.bookmark && !held.place)
+  (held.kind === "link" && !held.bookmark && !held.place && !held.shortcut)
     ? "native"
     : "pointer",
   shows = "other",
@@ -155,6 +162,11 @@ describe("pageLandingOf", () => {
     { expected: "nothing", held: BOOKMARK, under: "text" },
     { expected: "nothing", held: BOOKMARK, under: "box" },
     { expected: "nothing", held: BOOKMARK, shows: "newTab" },
+    // So does a shortcut at the bar's start, as a bookmark does.
+    { expected: "nothing", held: SHORTCUT, shows: "site" },
+    { expected: "nothing", held: SHORTCUT, under: "box" },
+    { expected: "nothing", held: SHORTCUT, shows: "newTab" },
+    { expected: "split", held: SHORTCUT, zone: EDGE },
     // A place of Files' sidebar is a link to Files there, never the folder.
     { expected: "nothing", held: PLACE, under: "folder" },
   ] satisfies {

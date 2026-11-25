@@ -1,4 +1,10 @@
-import { isBookmark, type Held, type Landing, placeOf } from "./types";
+import {
+  isBookmark,
+  type Held,
+  type Landing,
+  opensAsBookmark,
+  placeOf,
+} from "./types";
 
 /**
  * What letting go of what is held does where it would land, and the line
@@ -20,8 +26,9 @@ import { isBookmark, type Held, type Landing, placeOf } from "./types";
  * Let go where nothing takes it, a bookmark stays where it is kept, as in a
  * browser's bar.
  *
- * A bookmark or a place held is a piece of the window, as a tab is, which
- * no page's content takes: a bookmark opens as a tab from a strip or a
+ * A bookmark, a shortcut at the bar's start or a place held is a piece of
+ * the window, as a tab is, which no page's content takes: a bookmark or a
+ * shortcut opens as a tab from a strip or a
  * page's outer edge, and a place from a strip alone.
  *
  * No line where what is held already stands where it would go: its own
@@ -55,9 +62,9 @@ export function outcomeOf(
   } = {},
 ): Outcome {
   const isOwnTab = held.kind === "tab" || held.kind === "group";
-  // A bookmark or a place held by the pointer, a link that is a piece of the
-  // window, which a page's content never takes.
-  const isPiece = isBookmark(held) || placeOf(held) !== undefined;
+  // A bookmark, a shortcut or a place held by the pointer, a link that is a
+  // piece of the window, which a page's content never takes.
+  const isPiece = opensAsBookmark(held) || placeOf(held) !== undefined;
   const goes = (line: string | undefined): Outcome => ({
     does: isOwnTab ? "move" : "open",
     line,
@@ -98,9 +105,9 @@ export function outcomeOf(
         : goes("Open in this tab");
     }
     case "side": {
-      // A place opens as a tab from a strip alone, and a bookmark from a
-      // strip or a page's outer edge.
-      if (placeOf(held) || (isBookmark(held) && !landing.edge)) {
+      // A place opens as a tab from a strip alone, and a bookmark or a
+      // shortcut from a strip or a page's outer edge.
+      if (placeOf(held) || (opensAsBookmark(held) && !landing.edge)) {
         return nothing;
       }
       if (landing.isLone) {

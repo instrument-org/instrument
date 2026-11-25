@@ -45,6 +45,13 @@ const HELD: Record<string, Held> = {
     title: "Example",
     url: "https://example.com/",
   },
+  "shortcut (bar's start or its menus)": {
+    id: "tab_s1",
+    kind: "link",
+    shortcut: true,
+    title: "Apps",
+    url: "instrument://screen/apps",
+  },
   "place (Favorites)": {
     id: "tab_p1",
     kind: "link",
@@ -292,6 +299,28 @@ describe("outcomeOf", () => {
         sidebar room → open · "New tab group"
         sidebar line → open · "New tab group"
         bookmarks bar → keep · "Move here"
+        Favorites line → favorite · "Add to Favorites"
+        Favorites line, a row of it → favorite · "Move here"
+        Favorites row, own files → into · "Move into Downloads"
+        Favorites row, from Finder → into · "Copy into Downloads"
+        past the window → open · "Open in a new window"
+        over nothing, a Favorites row → nothing
+        message box → nothing
+        nowhere → nothing
+      shortcut (bar's start or its menus):
+        own strip → open
+        strip line → open · "Open in a new tab"
+        strip tab → open · "Open in this tab"
+        left edge, one side → open · "Open on the left"
+        right edge, one side → open · "Open on the right"
+        middle, one side → nothing
+        right side of two → nothing
+        right edge, two sides → open · "Open on the right"
+        new tab's page → nothing
+        sidebar row → open · "Add to Reading"
+        sidebar room → open · "New tab group"
+        sidebar line → open · "New tab group"
+        bookmarks bar → keep · "Add to bookmarks"
         Favorites line → favorite · "Add to Favorites"
         Favorites line, a row of it → favorite · "Move here"
         Favorites row, own files → into · "Move into Downloads"

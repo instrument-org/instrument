@@ -19,6 +19,7 @@ import { ChatRow } from "./chat-row";
 import { byLastUserMessage, type Chat } from "./chats";
 import { useShowChatGroup } from "./chat-group";
 import { DeleteChatDialog } from "./delete-chat-dialog";
+import { pressShortcut } from "./drag/press-bookmark";
 import { ScreenMark } from "./pane-tabs";
 import { useShell } from "./shell-context";
 import { useNow } from "./use-now";
@@ -34,6 +35,8 @@ const RECENT_CHATS_SHOWN = 12;
  * it lists the chats talked to last, newest first, each in the chat list's
  * one-line row. A pick brings up the tab group that chat is in, open or
  * closed (`useShowChatGroup`), and a chat in neither opens in this tab.
+ * Chats and each row drag as a bookmark to where they go
+ * (`pressShortcut`), the menu getting out of the way.
  */
 export function ChatsMark({ open }: { open: OpenAddress }) {
   const [isOpen, setOpen] = useState(false);
@@ -48,6 +51,9 @@ export function ChatsMark({ open }: { open: OpenAddress }) {
       <button
         className="flex h-6 cursor-default items-center gap-1.5 rounded-l-md pr-1 pl-1.5 hover:bg-foreground/8 hover:text-foreground"
         {...bookmarkClicks(CHATS_INDEX_HREF, open)}
+        onPointerDown={(event) => {
+          pressShortcut(event, { href: CHATS_INDEX_HREF, title: "Chats" });
+        }}
         type="button"
       >
         <ChatsCircleIcon className="size-3.5 shrink-0 text-foreground/70" />
@@ -83,6 +89,15 @@ export function ChatsMark({ open }: { open: OpenAddress }) {
                     open(chatHref(chat.id));
                   }
                 }}
+                onPress={(event) => {
+                  pressShortcut(
+                    event,
+                    { href: chatHref(chat.id), title: chat.title },
+                    () => {
+                      setOpen(false);
+                    },
+                  );
+                }}
               />
             ))
           )}
@@ -111,10 +126,12 @@ function RecentChatRow({
   chat,
   onDelete,
   onOpen,
+  onPress,
 }: {
   chat: Chat;
   onDelete: () => void;
   onOpen: () => void;
+  onPress: (event: React.PointerEvent<HTMLElement>) => void;
 }) {
   const shell = useShell();
   const appsBySlug = useAppsBySlug();
@@ -152,6 +169,7 @@ function RecentChatRow({
         shell.onNewProject(chat.id, name);
       }}
       onOpen={onOpen}
+      onPress={onPress}
       onSetProject={(next) => {
         setChatProject(chat.id, next);
       }}

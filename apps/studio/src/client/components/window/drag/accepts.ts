@@ -1,5 +1,5 @@
 import { type Rect, type SideZone } from "./landing";
-import { type Held, isBookmark, type Landing, placeOf } from "./types";
+import { type Held, type Landing, opensAsBookmark, placeOf } from "./types";
 
 /**
  * What a side's page has under the pointer that takes a drop itself, as the
@@ -33,8 +33,9 @@ export type SideShows = "newTab" | "other" | "site";
  *    (`sideZoneAt`): content joins it, and a tab or a whole group lands
  *    nowhere.
  *
- * A piece of the window (a tab, a group, a bookmark, a place) skips step 2:
- * it is never handed to a page. A bookmark stops after step 1, as a tab
+ * A piece of the window (a tab, a group, a bookmark, a shortcut at the
+ * bar's start, a place) skips step 2: it is never handed to a page. A
+ * bookmark or a shortcut stops after step 1, as a tab
  * does, so it opens as a tab only from a strip or an edge; a place lands
  * nowhere on a page, its edge included, and opens as a tab from a strip.
  */
@@ -74,7 +75,7 @@ export function pageLandingOf({
   if (zone?.edge) {
     return landingOf(zone);
   }
-  if (isBookmark(held)) {
+  if (opensAsBookmark(held)) {
     return undefined;
   }
   const isContent =

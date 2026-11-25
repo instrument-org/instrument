@@ -57,13 +57,15 @@ export interface WindowTabs {
   tabs: WindowTab[];
 }
 
-/** What a group keeps of its own: its pin, the project it was made in, and the left side's share of two. */
+/** What a group keeps of its own: its pin, the project it was made in, the left side's share of two, and when it last came up. */
 export interface GroupOwn {
   pinned?: true;
   /** The project whose set of groups it was made in, by its id. */
   project?: string;
   /** The left side's share of the row past the gutter; half where absent. */
   share?: number;
+  /** When a window last came to stand on it, in ms, which the agent's list says. */
+  shownAt?: number;
 }
 
 /** A group's own record with one field changed, a field left empty taken off. */
@@ -77,6 +79,7 @@ export function withGroupOwn(
     ...(merged.pinned ? { pinned: true } : {}),
     ...(merged.project === undefined ? {} : { project: merged.project }),
     ...(merged.share === undefined ? {} : { share: merged.share }),
+    ...(merged.shownAt === undefined ? {} : { shownAt: merged.shownAt }),
   };
   const { [group]: _was, ...others } = state.groups ?? {};
   return {

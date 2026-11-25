@@ -416,6 +416,37 @@ describe("an agent and the window's other tab groups", () => {
     ]);
   });
 
+  it("lists pinned groups first, with each group's pin, project and last showing", async () => {
+    const { result } = windowOnTwoSides();
+    act(() => {
+      result.current.windowTabs.setGroupOwn(OTHER_GROUP, {
+        pinned: true,
+        project: "project_launch",
+        shownAt: 5000,
+      });
+    });
+    const answer = await answerTo({ kind: "list" }, "l2");
+    const windows = (answer as { windows?: unknown }).windows as {
+      groups: Record<string, unknown>[];
+    }[];
+    expect(
+      windows[0]?.groups.map(({ group, pinned, project, shownAt }) => ({
+        group,
+        pinned,
+        project,
+        shownAt,
+      })),
+    ).toEqual([
+      {
+        group: { id: OTHER_GROUP },
+        pinned: true,
+        project: "project_launch",
+        shownAt: 5000,
+      },
+      { group: { id: GROUP } },
+    ]);
+  });
+
   it("switches the window to a group by its id", async () => {
     windowOnTwoSides();
     await answerTo({ group: OTHER_GROUP, kind: "showGroup" }, "g1");

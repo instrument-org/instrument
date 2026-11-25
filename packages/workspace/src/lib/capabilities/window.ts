@@ -1,4 +1,5 @@
 import {
+  chatAddressOf,
   filePathOfInstrumentLink,
   groupAddressOf,
   instrumentLinkOf,
@@ -9,7 +10,7 @@ import { z } from "zod";
 import { type ChatId } from "../../schemas/chat-id";
 import {
   type LayoutSnapshot,
-  LayoutSnapshotSchema,
+  ListedGroupSchema,
 } from "../../schemas/group-layout";
 import {
   type WindowTabAction,
@@ -25,11 +26,14 @@ import {
   groupLines,
   groupName,
   groupNamed,
+  type ListFacts,
   otherGroupsLine,
   type WindowGroups,
 } from "../../model-text/notes/window-list-model-text";
 import { parseBrowserTargetId } from "../../types";
 import { noteBrowserAgentActivity } from "../browser-agent-activity";
+import { ChatStatusSchema } from "../chat/chat-status";
+import { listChats } from "../chat/chats";
 import { recordAsk } from "../chat/asks";
 import { askWindow, WINDOW_TAB_TIMEOUT_MS } from "../chat/window-tab";
 import { tabHolders } from "../chat/chat-tabs";
@@ -42,6 +46,7 @@ import {
 } from "../../model-text/commands/window-command";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type CapabilityContext, defineCapability } from "./define";
+import { projectsInUse } from "./projects";
 
 const NAME = WINDOW_COMMAND.name;
 
@@ -213,7 +218,23 @@ const TabField = (verb: string, form: string) =>
 /** What a list prints from: the group it is of (none for `--all`), every window's groups, and which task is at work in each tab. */
 const ListedSchema = z.object({
   all: z.boolean(),
-  layout: LayoutSnapshotSchema.optional(),
+  /** Where each chat's tab's chat stands, by the tab's id. */
+  chats: z.record(
+    z.string(),
+    z.object({
+      archived: z.boolean(),
+      /** The day anything last happened in it, YYYY-MM-DD. */
+      last_activity: z.string(),
+      starred: z.boolean(),
+      status: ChatStatusSchema,
+      unread: z.boolean(),
+      /** Whether anything of it still moves, its tasks included. */
+      working: z.boolean(),
+    }),
+  ),
+  layout: ListedGroupSchema.optional(),
+  /** The projects in use, their names by the ids the groups have. */
+  projects: z.record(z.string(), z.string()),
   /** The task at work in a tab, by the tab's id, and whether that is the session asking. */
   tasks: z.record(
     z.string(),
@@ -221,11 +242,54 @@ const ListedSchema = z.object({
   ),
   windows: z.array(
     z.object({
-      groups: z.array(LayoutSnapshotSchema),
+      groups: z.array(ListedGroupSchema),
       isThisWindow: z.boolean().optional(),
     }),
   ),
 });
+
+/** A day as the list prints it, YYYY-MM-DD. */
+function day(at: number): string {
+  return new Date(at).toISOString().slice(0, 10);
+}
+
+/** What the workspace knows of the chats and projects the windows' groups name. */
+async function factsOf(
+  windows: WindowGroups,
+): Promise<Pick<ListFacts, "chats" | "projects">> {
+  const chats = new Map(
+    (await listChats()).map((chat) => [chatAddressOf(chat.id), chat]),
+  );
+  return {
+    chats: Object.fromEntries(
+      windows
+        .flatMap((window) => window.groups)
+        .flatMap((group) => group.sides)
+        .flatMap((side) => side.tabs)
+        .flatMap((tab) => {
+          const chat = tab.kind === "chat" ? chats.get(tab.address) : undefined;
+          return chat === undefined
+            ? []
+            : [
+                [
+                  tab.id,
+                  {
+                    archived: chat.archived,
+                    last_activity: day(chat.updatedAt),
+                    starred: chat.starred,
+                    status: chat.status,
+                    unread: chat.unread,
+                    working: chat.working,
+                  },
+                ],
+              ];
+        }),
+    ),
+    projects: Object.fromEntries(
+      (await projectsInUse()).map((project) => [project.id, project.name]),
+    ),
+  };
+}
 
 export const windowList = defineCapability({
   input: z.object({
@@ -259,34 +323,40 @@ export const windowList = defineCapability({
         },
       ]),
     );
+    const facts = { tasks, ...(await factsOf(windows)) };
     if (all) {
-      return { all, tasks, windows };
+      return { all, ...facts, windows };
     }
     if (group !== undefined) {
       const named = groupNamed(windows, group);
       if ("error" in named) {
         throw new Error(named.error);
       }
-      return { all, layout: named.group, tasks, windows };
+      return { all, layout: named.group, ...facts, windows };
     }
     if (!answer.read) {
       throw new Error(
         `this chat has no tab in any group. \`${NAME} list --all\` lists every group.`,
       );
     }
-    return { all, layout: answer.read.layout, tasks, windows };
+    const own = answer.read.layout;
+    // As its window lists it, which says what a layout alone does not.
+    const listed = windows
+      .flatMap((window) => window.groups)
+      .find((each) => each.group.id === own.group.id);
+    return { all, layout: listed ?? own, ...facts, windows };
   },
   summary:
-    "A tab group's sides and tabs, one line each, by default the group the chat works in: the group's address and whether it is on screen, each tab's id (which every other subcommand and `agent-browser tab` take), where it stands, what it has open and the address a reply links it by, and which task is at work in it; then what the user sees, and the other groups there are. A group is named by its id or its name; --all lists every window's groups.",
+    "A tab group's sides and tabs, one line each, by default the group the chat works in: the group's address, whether it is pinned, its project, whether it is on screen and when it was last brought up (absent when not known), each tab's id (which every other subcommand and `agent-browser tab` take), where it stands, what it has open and the address a reply links it by, which task is at work in it, whether an agent opened it, words in a new tab not sent yet, and whether its chat is working, waiting on the user or unread and when it was last active; then what the user sees, and the other groups there are. A group is named by its id or its name; --all lists every window's groups, the pinned first.",
   surfaces: {
     cli: { help: "", positional: ["group"], words: ["window", "list"] },
     script: { positional: ["group"] },
   },
-  text: ({ all, layout, tasks, windows }) =>
+  text: ({ all, chats, layout, projects, tasks, windows }) =>
     all || layout === undefined
-      ? allWindowsLines(windows, tasks).join("\n")
+      ? allWindowsLines(windows, { chats, projects, tasks }).join("\n")
       : [
-          ...groupLines(layout, { tasks }),
+          ...groupLines(layout, { facts: { chats, projects, tasks } }),
           showingLine(layout),
           otherGroupsLine(windows, layout.group.id),
         ].join("\n"),

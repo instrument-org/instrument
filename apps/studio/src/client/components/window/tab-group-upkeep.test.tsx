@@ -442,3 +442,31 @@ describe("a chat a phone started on this computer", () => {
     expect(store.get(windowTabGroupsAtom)).toEqual([GROUP]);
   });
 });
+
+describe("a group the window comes to stand on", () => {
+  it("keeps when it came up, once per arrival", () => {
+    vi.useFakeTimers({ now: 1000 });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const { actions, history, store } = windowWithGroup();
+    const shownAt = (group: string) =>
+      store.get(windowTabsAtom).groups?.[group]?.shownAt;
+    act(() => {
+      history.replace(groupHref(GROUP));
+    });
+    expect(shownAt(GROUP)).toBe(1000);
+    vi.setSystemTime(2000);
+    let made = "";
+    act(() => {
+      made = actions().make({ href: "/files?path=/a" });
+    });
+    expect(shownAt(made)).toBe(2000);
+    expect(shownAt(GROUP)).toBe(1000);
+    vi.setSystemTime(3000);
+    act(() => {
+      actions().show(GROUP);
+    });
+    expect(shownAt(GROUP)).toBe(3000);
+  });
+});

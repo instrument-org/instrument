@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { ChatIdSchema } from "./chat-id";
-import { LayoutReadSchema, LayoutSnapshotSchema } from "./group-layout";
+import { LayoutReadSchema, ListedGroupSchema } from "./group-layout";
 
 /**
  * What a tab is asked to show: a page by its address, a file or folder of
@@ -157,7 +157,7 @@ export const WindowTabAnswerSchema = z.object({
   read: LayoutReadSchema.optional(),
   /**
    * For a list: every open window, the one in front first, each with its
-   * tab groups in sidebar order, every group's layout marked shown where its
+   * tab groups in sidebar order, pinned first, every group's layout marked shown where its
    * window shows it.
    */
   windows: z
@@ -165,7 +165,7 @@ export const WindowTabAnswerSchema = z.object({
       z.object({
         /** The window that answered, which the chat works in. */
         isThisWindow: z.boolean().optional(),
-        groups: z.array(LayoutSnapshotSchema),
+        groups: z.array(ListedGroupSchema),
       }),
     )
     .optional(),

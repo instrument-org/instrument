@@ -77,7 +77,9 @@ import { type WindowTab } from "@/client/atoms/window";
 import { type OpenTarget } from "@/client/lib/open-target";
 import { osConventions } from "@/client/lib/utils";
 import { instrumentUrlOf } from "@instrument-org/shared";
+import { draftsAtom } from "@/client/drafts/store";
 import { appTabsAtom } from "./app-tabs";
+import { draftTitle } from "./chats";
 import { pageTabTitle } from "./file-tabs";
 import { screenPresentation } from "./screen-presentation";
 import { closedText } from "./closed-groups";
@@ -86,6 +88,7 @@ import {
   closedSideOf,
   closedTabGroupOf,
   closedTabsOf,
+  draftOfTab,
 } from "./tab-model";
 import { groupLayoutFor, groupReadOf } from "./group-awareness";
 import { windowTabGroupsAtom } from "./open-groups";
@@ -993,8 +996,9 @@ export function useOpeners({
   };
   /**
    * Every open window's tab groups as a chat reads them, the one in front
-   * first, each marked shown where its window shows it; the chat's own tab
-   * marked in whichever group has it.
+   * first, its pinned groups before the rest as its sidebar has them, each
+   * marked shown where its window shows it, with what its sidebar row and
+   * its new tabs say; the chat's own tab marked in whichever group has it.
    */
   const windowsRead = async (
     chatTab: string | undefined,
@@ -1012,6 +1016,21 @@ export function useOpeners({
     ];
     const hasTabs = (group: string) =>
       windowTabs.allTabs.some((tab) => tab.group === group);
+    const isPinned = (group: string) =>
+      windowTabs.groupOwn[group]?.pinned === true;
+    const pinnedFirst = (groups: readonly string[]) => [
+      ...groups.filter(isPinned),
+      ...groups.filter((group) => !isPinned(group)),
+    ];
+    const drafts = store.get(draftsAtom);
+    const unsentIn = (group: string): Record<string, string> =>
+      Object.fromEntries(
+        windowTabs.allTabs.flatMap((tab) => {
+          const draft = tab.group === group ? draftOfTab(tab) : undefined;
+          const words = drafts.find((each) => each.id === draft)?.words ?? "";
+          return words.trim() === "" ? [] : [[tab.id, draftTitle(words)]];
+        }),
+      );
     return byWindow.map((window) => {
       // This window's own list is read here, as fresh as it is.
       const listed = window.isThisWindow ? listedHere : window.groups;
@@ -1020,13 +1039,22 @@ export function useOpeners({
         : window.shown;
       return {
         ...(window.isThisWindow ? { isThisWindow: true } : {}),
-        groups: listed.filter(hasTabs).map((group) => {
+        groups: pinnedFirst(listed.filter(hasTabs)).map((group) => {
           const { isShown: _shownHere, ...layout } = groupLayoutFor(
             { appsBySlug, chatTitles, windowTabs },
             group,
             chatTab,
           );
-          return group === shown ? layout : { ...layout, isShown: false };
+          const own = windowTabs.groupOwn[group];
+          const unsent = unsentIn(group);
+          return {
+            ...layout,
+            ...(group === shown ? {} : { isShown: false }),
+            ...(Object.keys(unsent).length === 0 ? {} : { drafts: unsent }),
+            ...(own?.pinned ? { pinned: true } : {}),
+            ...(own?.project === undefined ? {} : { project: own.project }),
+            ...(own?.shownAt === undefined ? {} : { shownAt: own.shownAt }),
+          };
         }),
       };
     });

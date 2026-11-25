@@ -1012,6 +1012,7 @@ export function useTabGroupUpkeep(href: string, open: readonly TabGroup[]) {
       }
       if (lastUp.current !== group) {
         store.set(groupReturnAtom, (back) => returnAfterArrival(back, group));
+        windowTabs.setGroupOwn(group, { shownAt: Date.now() });
       }
       lastUp.current = group;
       return;

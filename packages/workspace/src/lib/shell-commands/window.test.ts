@@ -9,6 +9,8 @@ import { WorkDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
 import { type LayoutSnapshot } from "../../schemas/group-layout";
 import { type WindowTabAction } from "../../schemas/window-tab";
+import { type Chat } from "../chat/chats";
+import { type Project } from "../chat/projects";
 import { tabStanding } from "../capabilities/window";
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { buildWorkspaceFsLayout } from "../workspace-fs-layout";
@@ -24,6 +26,16 @@ const layout = buildWorkspaceFsLayout({
 
 // A page tab, by its id, and the
 // addresses the browser reports it showing, one per ask, the last repeating.
+// What a list reads of a chat, the rest of it unused here.
+const CHAT_FACTS = {
+  archived: false,
+  starred: false,
+  status: "waiting" as const,
+  unread: true,
+  updatedAt: Date.UTC(2026, 10, 23),
+  working: true,
+};
+
 const pageTab = StoreId.newTabId();
 let pageUrls: string[];
 
@@ -37,6 +49,22 @@ let windowTimeoutMs = 2000;
 vi.mock(import("../chat/chat-tabs"), async (importOriginal) => ({
   ...(await importOriginal()),
   tabHolders: () => Promise.resolve(holders),
+}));
+// The chat a tab in another group shows, and the project a group is in.
+vi.mock(import("../chat/chats"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  listChats: () =>
+    Promise.resolve([
+      {
+        ...CHAT_FACTS,
+        id: ChatIdSchema.parse("notes"),
+      } as Chat,
+    ]),
+}));
+vi.mock(import("../capabilities/projects"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  projectsInUse: () =>
+    Promise.resolve([{ id: "project_launch", name: "Launch" } as Project]),
 }));
 vi.mock(import("../chat/window-tab"), async (importOriginal) => ({
   ...(await importOriginal()),
@@ -63,6 +91,10 @@ const OTHER_GROUPS = [
     focused: 0 as const,
     group: { id: "group:docs" },
     isShown: false,
+    drafts: { tab_new: "Ask about rent" },
+    pinned: true,
+    project: "project_launch",
+    shownAt: Date.UTC(2026, 10, 24, 9, 12),
     sides: [
       {
         tabs: [
@@ -78,6 +110,12 @@ const OTHER_GROUPS = [
             id: "tab_settings",
             kind: "builtIn" as const,
             title: "Settings",
+          },
+          {
+            address: "instrument://new-chat",
+            id: "tab_new",
+            kind: "newChat" as const,
+            title: "New Tab",
           },
         ],
       },
@@ -110,6 +148,7 @@ const OTHER_GROUPS = [
           },
           {
             address: "https://example.com/",
+            byAgent: true,
             id: "tab_ex",
             kind: "website" as const,
             title: "Example",
@@ -706,7 +745,7 @@ describe("window list", () => {
         right (keyboard):
           <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>  task t1 is working in it
       Showing: you on the left; zendesk.com/pricing on the right, beside you.
-      2 other tab groups in this window: "report.md", "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
+      2 other tab groups in this window: "report.md" (pinned), "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
     `);
   });
@@ -724,9 +763,37 @@ describe("window list", () => {
         right (keyboard):
           <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>  you are working in it
       Showing: you on the left; zendesk.com/pricing on the right, beside you.
-      2 other tab groups in this window: "report.md", "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
+      2 other tab groups in this window: "report.md" (pinned), "Meeting notes". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
     `);
+  });
+});
+
+describe("window list --json", () => {
+  it("has the pin, project, unsent words, last showing and chat state a script filters by", async () => {
+    const result = await run({}, "list", "--all", "--json");
+    const listed = JSON.parse(result.stdout) as {
+      chats: unknown;
+      projects: unknown;
+      windows: { groups: Record<string, unknown>[] }[];
+    };
+    expect(listed.windows[0]?.groups[1]).toMatchObject({
+      drafts: { tab_new: "Ask about rent" },
+      pinned: true,
+      project: "project_launch",
+      shownAt: Date.UTC(2026, 10, 24, 9, 12),
+    });
+    expect(listed.projects).toEqual({ project_launch: "Launch" });
+    expect(listed.chats).toEqual({
+      tab_notes: {
+        archived: false,
+        last_activity: "2026-11-23",
+        starred: false,
+        status: "waiting",
+        unread: true,
+        working: true,
+      },
+    });
   });
 });
 
@@ -742,15 +809,16 @@ describe("window list, of other groups", () => {
             tab_known  left     [chat] Prices (you)  instrument://chat/this
           right (keyboard):
             <page>  right    Suite plans · https://www.zendesk.com/pricing/  instrument://tab/<page>
-        Tab group "report.md" instrument://group/group:docs, not on screen:
+        Tab group "report.md" instrument://group/group:docs, pinned, in the project "Launch", not on screen, last brought up 2026-11-24T09:12Z:
           tab_docs  showing  /Users/me/Instrument/report.md  instrument://tab/tab_docs
           tab_settings  hidden   [app] Settings · instrument://screen/settings  instrument://tab/tab_settings
+          tab_new  hidden   New Tab  instrument://tab/tab_new  (unsent: "Ask about rent")
         Tab group "Meeting notes" instrument://group/group:notes, split, not on screen:
           left (keyboard):
-            tab_notes  left     [chat] Meeting notes  instrument://chat/notes
+            tab_notes  left     [chat] Meeting notes  instrument://chat/notes  (waiting on the user, still working, unread, last active 2026-11-23)
           right:
             tab_hn  right    Hacker News · https://news.ycombinator.com/  instrument://tab/tab_hn
-            tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex
+            tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex  (opened by an agent)
       Window 2: 1 tab group
         Tab group "report.md" instrument://group/group:far, on screen:
           tab_far  showing  report.md · https://example.org/  instrument://tab/tab_far
@@ -765,12 +833,12 @@ describe("window list, of other groups", () => {
     expect(result.stdout).toMatchInlineSnapshot(`
       "Tab group "Meeting notes" instrument://group/group:notes, split, not on screen:
         left (keyboard):
-          tab_notes  left     [chat] Meeting notes  instrument://chat/notes
+          tab_notes  left     [chat] Meeting notes  instrument://chat/notes  (waiting on the user, still working, unread, last active 2026-11-23)
         right:
           tab_hn  right    Hacker News · https://news.ycombinator.com/  instrument://tab/tab_hn
-          tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex
+          tab_ex  hidden   Example · https://example.com/  instrument://tab/tab_ex  (opened by an agent)
       The window shows another tab group now, so none of this is on screen. This group shows: [chat] Meeting notes on the left; news.ycombinator.com on the right.
-      2 other tab groups in this window: "Prices", "report.md". 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
+      2 other tab groups in this window: "Prices", "report.md" (pinned). 1 other window has 1 tab group. \`instrument window list --all\` lists their tabs.
       "
     `);
   });
@@ -856,7 +924,7 @@ describe("window show and close, of a group", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Closed the tab group "report.md" instrument://group/group:docs, its 2 tabs.
+      "Closed the tab group "report.md" instrument://group/group:docs, its 3 tabs.
       "
     `);
   });

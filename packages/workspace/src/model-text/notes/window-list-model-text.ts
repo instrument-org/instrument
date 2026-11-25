@@ -8,13 +8,15 @@ import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import {
   type LayoutSnapshot,
   type LayoutTab,
+  type ListedGroup,
 } from "../../schemas/group-layout";
+import { type ChatStatus } from "../../lib/chat/chat-status";
 import { WINDOW_COMMAND } from "../commands/window-command";
 import { layoutTabName } from "./group-layout-model-text";
 
 /** Every open window's tab groups, the one in front first, as the window answers a list. */
 export type WindowGroups = readonly {
-  groups: readonly LayoutSnapshot[];
+  groups: readonly ListedGroup[];
   isThisWindow?: boolean;
 }[];
 
@@ -22,6 +24,27 @@ export type WindowGroups = readonly {
 export type TabTasks = Readonly<
   Record<string, { id: string; title: string; you: boolean }>
 >;
+
+/** What a chat's tab says of its chat, as the sidebar and the Chats page show it. */
+export interface TabChat {
+  archived: boolean;
+  /** The day anything last happened in it, YYYY-MM-DD. */
+  last_activity: string;
+  starred: boolean;
+  status: ChatStatus;
+  unread: boolean;
+  /** Whether anything of it still moves, its tasks included, whatever its status. */
+  working: boolean;
+}
+
+/** What a list says of groups and tabs past where they stand. */
+export interface ListFacts {
+  /** Each chat's tab's chat, by the tab's id. */
+  chats: Readonly<Record<string, TabChat>>;
+  /** The projects in use, their names by their ids. */
+  projects: Readonly<Record<string, string>>;
+  tasks: TabTasks;
+}
 
 const SIDE_NAMES = ["left", "right"] as const;
 
@@ -58,11 +81,19 @@ export function groupName(layout: LayoutSnapshot): string {
   }
 }
 
-/** A tab group's header: its name, its address, and whether the person sees it. */
-function groupHeader(layout: LayoutSnapshot): string {
+/** A tab group's header: its name, its address, its pin and project, whether the person sees it, and when they last did. */
+function groupHeader(layout: ListedGroup, { projects }: ListFacts): string {
+  const pinned = layout.pinned === true ? ", pinned" : "";
+  const named =
+    layout.project === undefined ? undefined : projects[layout.project];
+  const project = named === undefined ? "" : `, in the project "${named}"`;
+  const last =
+    layout.isShown === false && layout.shownAt !== undefined
+      ? `, last brought up ${new Date(layout.shownAt).toISOString().slice(0, 16)}Z`
+      : "";
   const split = layout.sides.length === 2 ? ", split" : "";
   const shown = layout.isShown === false ? "not on screen" : "on screen";
-  return `Tab group "${groupName(layout)}" ${groupAddressOf(layout.group.id)}${split}, ${shown}:`;
+  return `Tab group "${groupName(layout)}" ${groupAddressOf(layout.group.id)}${pinned}${project}${split}, ${shown}${last}:`;
 }
 
 /**
@@ -72,9 +103,19 @@ function groupHeader(layout: LayoutSnapshot): string {
  */
 function tabLine(
   tab: LayoutTab,
-  { side, tasks, isTwo }: { isTwo: boolean; side: number; tasks: TabTasks },
+  {
+    draft,
+    facts,
+    isTwo,
+    side,
+  }: {
+    draft: string | undefined;
+    facts: ListFacts;
+    isTwo: boolean;
+    side: number;
+  },
 ): string {
-  const task = tasks[tab.id];
+  const task = facts.tasks[tab.id];
   const mark = !tab.isUp
     ? "hidden "
     : isTwo
@@ -98,7 +139,33 @@ function tabLine(
       ? "  you are working in it"
       : `  task ${task.id} is working in it`
     : "";
-  return `${tab.id}  ${mark}  ${shows}${tab.isThisChat ? " (you)" : ""}  ${link}${working}`;
+  const chat = facts.chats[tab.id];
+  const notes = [
+    ...(tab.byAgent ? ["opened by an agent"] : []),
+    ...(chat === undefined || tab.isThisChat ? [] : chatNotes(chat)),
+    ...(draft === undefined ? [] : [`unsent: ${JSON.stringify(draft)}`]),
+  ];
+  return `${tab.id}  ${mark}  ${shows}${tab.isThisChat ? " (you)" : ""}  ${link}${working}${notes.length === 0 ? "" : `  (${notes.join(", ")})`}`;
+}
+
+/** Where a chat stands, as the clauses after its tab's line. */
+function chatNotes(chat: TabChat): string[] {
+  const status = {
+    failed: "stopped by an error",
+    idle: undefined,
+    limited: "stopped by a usage limit",
+    stopped: "stopped by the user",
+    waiting: "waiting on the user",
+    working: "working",
+  }[chat.status];
+  return [
+    ...(status === undefined ? [] : [status]),
+    ...(chat.working && chat.status !== "working" ? ["still working"] : []),
+    ...(chat.unread ? ["unread"] : []),
+    ...(chat.starred ? ["starred"] : []),
+    ...(chat.archived ? ["archived"] : []),
+    `last active ${chat.last_activity}`,
+  ];
 }
 
 /**
@@ -106,12 +173,12 @@ function tabLine(
  * side, the keyboard's marked; each line indented by `indent`.
  */
 export function groupLines(
-  layout: LayoutSnapshot,
-  { indent = "", tasks }: { indent?: string; tasks: TabTasks },
+  layout: ListedGroup,
+  { facts, indent = "" }: { facts: ListFacts; indent?: string },
 ): string[] {
   const isTwo = layout.sides.length === 2;
   return [
-    `${indent}${groupHeader(layout)}`,
+    `${indent}${groupHeader(layout, facts)}`,
     ...layout.sides.flatMap(({ tabs }, side) => [
       ...(isTwo
         ? [
@@ -120,17 +187,20 @@ export function groupLines(
         : []),
       ...tabs.map(
         (tab) =>
-          `${indent}${isTwo ? "    " : "  "}${tabLine(tab, { isTwo, side, tasks })}`,
+          `${indent}${isTwo ? "    " : "  "}${tabLine(tab, { draft: layout.drafts?.[tab.id], facts, isTwo, side })}`,
       ),
     ]),
   ];
 }
 
 /** Names, quoted, the first few and an ellipsis past them. */
-function someNames(groups: readonly LayoutSnapshot[]): string {
+function someNames(groups: readonly ListedGroup[]): string {
   const named = groups
     .slice(0, NAMED_GROUPS_MAX)
-    .map((group) => `"${groupName(group)}"`)
+    .map(
+      (group) =>
+        `"${groupName(group)}"${group.pinned === true ? " (pinned)" : ""}`,
+    )
     .join(", ");
   return groups.length > NAMED_GROUPS_MAX ? `${named}…` : named;
 }
@@ -176,12 +246,12 @@ export function otherGroupsLine(windows: WindowGroups, group: string): string {
  */
 export function allWindowsLines(
   windows: WindowGroups,
-  tasks: TabTasks,
+  facts: ListFacts,
 ): string[] {
   return windows.flatMap((window, at) => [
     `Window ${at + 1}${at === 0 ? ", in front" : ""}${window.isThisWindow === true ? ", yours" : ""}: ${plural(window.groups.length, "tab group", "tab groups")}`,
     ...window.groups.flatMap((group) =>
-      groupLines(group, { indent: "  ", tasks }),
+      groupLines(group, { facts, indent: "  " }),
     ),
   ]);
 }
@@ -193,7 +263,7 @@ export function allWindowsLines(
 export function groupNamed(
   windows: WindowGroups,
   named: string,
-): { error: string } | { group: LayoutSnapshot } {
+): { error: string } | { group: ListedGroup } {
   const groups = windows.flatMap((window) => window.groups);
   const id = named.startsWith("instrument://group/")
     ? named.slice("instrument://group/".length)

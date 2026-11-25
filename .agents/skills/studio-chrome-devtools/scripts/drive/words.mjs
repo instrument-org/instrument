@@ -14,7 +14,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { callRpc, waitIdle } from "../studio-app.mjs";
+import { callRpc, waitForDriveHandle, waitIdle } from "../studio-app.mjs";
 import { describeNode, findNodes, indexTree, outline, placeOf, ROLES } from "./ax.mjs";
 import { parseChord } from "./keys.mjs";
 import { describeLook, menuLines } from "./look.mjs";
@@ -48,6 +48,8 @@ export function createWords(app, options = {}) {
   /** A page's file picker waiting on dialog.choose. */
   let fileChooser;
   const stubs = [];
+  /** Other windows' words, ended with these. */
+  const others = [];
 
   // --- plumbing -------------------------------------------------------
 
@@ -294,7 +296,9 @@ export function createWords(app, options = {}) {
         const scopeNote = last.scopeMissing
           ? " (the place it is in is not on screen)"
           : "";
-        throw await missing(`No ${spec.label} on screen${scopeNote}.`, {
+        throw await missing(
+          `${spec.label.startsWith("the ") ? `${spec.label[0].toUpperCase()}${spec.label.slice(1)} is not` : `No ${spec.label}`} on screen${scopeNote}.${spec.selected ? " A side with one tab draws no tab strip." : ""}`,
+          {
           index: last.index,
           pool: last.pool,
           wanted: spec.name,
@@ -611,11 +615,16 @@ export function createWords(app, options = {}) {
 
   /** A tab in a side's strip. */
   class Tab extends Thing {
-    /** @word tab(name).close(): its close button, shown on hover */
+    /** @word tab(name).close(): its close button, shown on hover; tab().close() is File › Close Tab when the side has no strip */
     close() {
       return step(`close ${this.label}`, () => this._close());
     }
     async _close() {
+      // A side with one tab draws no strip to close it from; the tab up
+      // closes the way a person closes it then, with File › Close Tab.
+      if (this.spec.selected && !(await this.exists())) {
+        return menuWord("File", "Close Tab");
+      }
       await this.hover();
       const { node } = await locate(this.spec);
       // The tab shows its close button inside itself while hovered or up.
@@ -1296,7 +1305,7 @@ export function createWords(app, options = {}) {
   // --- drags ---------------------------------------------------------
 
   /**
-   * @word drag(thing): drags it with the mouse. await drag(tab("A")).to(group("B")) drops it; .over(target) holds it there and says what the app's drag shows; .drop() / .cancel() end it
+   * @word drag(thing): drags it with the mouse. drag(tab("A")).to(target) drops it where it lands on arrival (between rows, beside a tab); .into(group("B")) rests on it until it goes in; .over(target) holds it there and returns the app's drag; .drop() / .cancel() end it
    */
   const dragWord = (from, { steps = 12 } = {}) => {
     let at;
@@ -1339,6 +1348,27 @@ export function createWords(app, options = {}) {
           await start();
           await moveTo(target);
           const during = await dragState();
+          await mouse("mouseReleased", at, { button: "left", buttons: 0, clickCount: 1 });
+          await settle();
+          return { during };
+        }),
+      into: (target, { timeout = 3000 } = {}) =>
+        step(`drag ${from.label ?? "point"} into ${target.label ?? "point"}`, async () => {
+          await start();
+          await moveTo(target);
+          // Going into a row or a tab takes the pointer resting on its
+          // middle; it rests until the app's drag says it has gone in.
+          const deadline = Date.now() + timeout;
+          let during = await dragState();
+          while (during?.landing?.drop?.kind !== "into") {
+            if (Date.now() > deadline) {
+              await mouse("mouseReleased", at, { button: "left", buttons: 0, clickCount: 1 });
+              throw await missing(`${target.label} never took what was held; the drag's landing was ${JSON.stringify(during?.landing ?? null)}.`);
+            }
+            await mouse("mouseMoved", at, { button: "left", buttons: 1 });
+            await sleep(100);
+            during = await dragState();
+          }
           await mouse("mouseReleased", at, { button: "left", buttons: 0, clickCount: 1 });
           await settle();
           return { during };
@@ -1449,6 +1479,17 @@ export function createWords(app, options = {}) {
 
   // --- the window ----------------------------------------------------
 
+  /** @word keyboard(): what has the keyboard, as `role "name": "value"`, or null */
+  const keyboard = async () => {
+    const index = await tree();
+    const focused = [...index.byId.values()].find(
+      (node) => node.props.focused && !node.ignored && node.role !== "RootWebArea",
+    );
+    if (!focused) return null;
+    const value = typeof focused.value === "string" && focused.value.trim() ? `: ${JSON.stringify(focused.value)}` : "";
+    return `${describeNode(index, focused)}${value}`;
+  };
+
   /** @word state(): what is on screen, as text: groups, tabs, the dialog or menu in front, toasts, and the screen's outline */
   const state = async () => {
     const settled = await settle();
@@ -1501,7 +1542,7 @@ export function createWords(app, options = {}) {
     }
   };
 
-  /** @word windows(): the app's windows; window(n) drives the n-th with its own words */
+  /** @word windows(): the app's windows, newest first; window(n) is the n-th's own words */
   const windows = async () => {
     const list = await (await fetch(`http://127.0.0.1:${app.port}/json/list`)).json();
     return list.filter((each) => each.type === "page" && /\/renderer\/|:\/\/app\/index\.html/.test(each.url) && !each.url.includes("#/onboarding")).map((each, at) => ({ at, title: each.title }));
@@ -1509,7 +1550,10 @@ export function createWords(app, options = {}) {
   const windowWord = async (at) => {
     const { connect } = await import("../studio-app.mjs");
     const other = await connect({ page: `window:${at}`, port: app.port, workspace: app.workspace });
-    return createWords(other, options);
+    const made = createWords(other, options);
+    await made.begin();
+    others.push({ connection: other, made });
+    return made.words;
   };
 
   // --- setup ---------------------------------------------------------
@@ -1590,6 +1634,7 @@ export function createWords(app, options = {}) {
     groups,
     heading,
     item,
+    keyboard,
     link,
     look,
     menu: menuWord,
@@ -1621,6 +1666,7 @@ export function createWords(app, options = {}) {
   };
 
   const begin = async () => {
+    await waitForDriveHandle(cdp);
     await cdp.send("Runtime.enable");
     // A page's own file picker (an <input type=file>) is held for the run
     // too, for dialog.choose to answer.
@@ -1639,6 +1685,10 @@ export function createWords(app, options = {}) {
   };
 
   const end = async () => {
+    for (const { connection, made } of others) {
+      await made.end();
+      connection.close();
+    }
     for (const stub of stubs) await stub.close();
     for (const connection of guestCdps.values()) connection.close();
   };

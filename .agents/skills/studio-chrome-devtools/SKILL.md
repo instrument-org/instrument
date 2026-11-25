@@ -46,7 +46,7 @@ node $DRIVE run -e 'await press("Meta+t"); await composer.send("hello"); return 
 - `thing.measure(...properties)`: its box and computed styles
 - `thing.outline()`: the tree under it, as state() shows the screen
 - `thing.drag()`: the start of a drag from it; see drag()
-- `tab(name).close()`: its close button, shown on hover
+- `tab(name).close()`: its close button, shown on hover; tab().close() is File › Close Tab when the side has no strip
 - `tab(name).page()`: the web page it shows
 - `find(role, name)`: anything by its role and accessible name
 - `button(name), link(name), field(name), toggle(name), row(name), item(name), heading(name), control(name)`
@@ -73,10 +73,11 @@ node $DRIVE run -e 'await press("Meta+t"); await composer.send("hello"); return 
 - `chat(name?)`: a chat, opened from the command menu by name; chat() is the one up. .open(), .state() (title, working, model), .idle() waits for its agent to stop
 - `files`: the Files screen. files.open(folder?) opens it, files.item(name) a file or folder in it (.click(), .dblclick(), .menu(...))
 - `page()`: the web page up in the side with the keyboard (tab(name).page() for another). page.url(), .title(), .text(), .eval(js), .see(text), .click(name?), .menu(name?, ...items), .type(text), .shot(file)
-- `drag(thing)`: drags it with the mouse. await drag(tab("A")).to(group("B")) drops it; .over(target) holds it there and says what the app's drag shows; .drop() / .cancel() end it
+- `drag(thing)`: drags it with the mouse. drag(tab("A")).to(target) drops it where it lands on arrival (between rows, beside a tab); .into(group("B")) rests on it until it goes in; .over(target) holds it there and returns the app's drag; .drop() / .cancel() end it
 - `dropFiles(paths).on(thing)`: drops files from the Finder onto it; .over(thing) holds them there
 - `shot(file?)`: a picture of the window; returns its path
 - `burst(action, { every, max, dir })`: pictures of the window every `every` ms (50) while action runs; returns their paths
+- `keyboard()`: what has the keyboard, as `role "name": "value"`, or null
 - `state()`: what is on screen, as text: groups, tabs, the dialog or menu in front, toasts, and the screen's outline
 - `theme("dark" | "light" | "system")`
 - `size(width, height)`: sizes the window's content, which keeps its place off screen
@@ -84,7 +85,7 @@ node $DRIVE run -e 'await press("Meta+t"); await composer.send("hello"); return 
 - `errors()`: console errors and uncaught exceptions since the run began
 - `until(check, { timeout, every })`: waits until a function (or page expression) returns something truthy, and returns it
 - `expect(value, message)`: fails the run with the screen when value is falsy
-- `windows()`: the app's windows; window(n) drives the n-th with its own words
+- `windows()`: the app's windows, newest first; window(n) is the n-th's own words
 - `seed.file(relativePath, content)`: writes a file into the workspace folder; seed.chat(prompt) makes a chat with model.replies' next answer
 - `model.replies([...])`: a stand-in model for the run that answers each agent turn with the next reply (text, or { tool, input }), set as the default model; returns what it was asked
 - `js(expression)`: evaluates in the app window's page and returns its JSON value

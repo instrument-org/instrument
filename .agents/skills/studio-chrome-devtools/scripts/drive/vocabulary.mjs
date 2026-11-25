@@ -31,6 +31,7 @@ export const WORD_NAMES = [
   "heading",
   "item",
   "js",
+  "keyboard",
   "link",
   "look",
   "menu",

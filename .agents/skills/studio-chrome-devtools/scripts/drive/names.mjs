@@ -83,23 +83,24 @@ export function bestMatches(candidates, wanted, nameOf = (each) => each.name) {
   return found;
 }
 
-/** Edit distance, for the names a missed one was probably meant to be. */
+/**
+ * Edit distance counting a swap of two neighbors as one edit, for the names
+ * a missed one was probably meant to be ("Sned" is one from "Send").
+ */
 function distance(a, b) {
-  const row = Array.from({ length: b.length + 1 }, (_, index) => index);
+  const rows = Array.from({ length: a.length + 1 }, (_, i) =>
+    Array.from({ length: b.length + 1 }, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+  );
   for (let i = 1; i <= a.length; i++) {
-    let previous = row[0];
-    row[0] = i;
     for (let j = 1; j <= b.length; j++) {
-      const current = row[j];
-      row[j] = Math.min(
-        row[j] + 1,
-        row[j - 1] + 1,
-        previous + (a[i - 1] === b[j - 1] ? 0 : 1),
-      );
-      previous = current;
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      rows[i][j] = Math.min(rows[i - 1][j] + 1, rows[i][j - 1] + 1, rows[i - 1][j - 1] + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) {
+        rows[i][j] = Math.min(rows[i][j], rows[i - 2][j - 2] + 1);
+      }
     }
   }
-  return row[b.length];
+  return rows[a.length][b.length];
 }
 
 /** The names nearest to `wanted`, closest first, for a failure to offer. */

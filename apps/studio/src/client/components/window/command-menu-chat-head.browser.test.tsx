@@ -112,6 +112,7 @@ async function renderChatWithMenu() {
         id: CHAT_TAB.id,
         isShown: true,
         showPage: () => undefined,
+        step: () => undefined,
         versionsOf: undefined,
       }}
     >

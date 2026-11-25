@@ -189,7 +189,7 @@ export function FilesScreen({
     rowViewTools,
     takeFolderPress,
   } = useWindow();
-  const { moveToGroup, pageTakesOver, stepVisitOf } = useWindowTabs();
+  const { moveToGroup, pageTakesOver } = useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
   const appTabId = useTabId();
@@ -593,12 +593,17 @@ export function FilesScreen({
   // shows in this one's place while the step stays in the page's own
   // history (which back walks first), or off the computer, where the tab
   // becomes the page at that address and back returns here. A step past
-  // either end of the page's history is the tab's own.
+  // either end of the page's history is the tab's own: in a group, by the
+  // rule its row's arrows take, so a press there never goes where they can't.
   useHostedPageNavigation(
     hostedTabId === undefined ? undefined : browserTargetOf(hostedTabId),
     hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
     hostGroup,
     (step) => {
+      if (groupTab && (step.kind === "back" || step.kind === "forward")) {
+        groupTab.step(step.kind);
+        return;
+      }
       if (step.kind === "back") {
         leaveFile();
         return;
@@ -608,8 +613,6 @@ export function FilesScreen({
           router.history.location.state.__TSR_index < router.history.length - 1;
         if (canGoForward) {
           router.history.forward();
-        } else if (groupTab) {
-          stepVisitOf(groupTab.id, 1);
         }
         return;
       }

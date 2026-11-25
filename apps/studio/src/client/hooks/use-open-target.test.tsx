@@ -195,6 +195,7 @@ describe("a link's menu in a window with tabs", () => {
             id: "tab-left",
             isShown: true,
             showPage: vi.fn(),
+            step: vi.fn(),
             versionsOf: undefined,
           }}
         >

@@ -548,6 +548,7 @@ export function GroupItem({
           showPage: (url) => {
             browser?.open(url, { group, replacing: up });
           },
+          step: steps.go,
           versionsOf: chatId,
         }}
       >

@@ -768,6 +768,12 @@ export interface EvalCase {
    * own. Follow-ups carry `viewing` too, as every message in the app does.
    */
   sharedBrowser?: boolean;
+  /**
+   * A picture of the window, a PNG captured from the app with what the chat
+   * may not read already blanked, which `instrument window look` gives. The
+   * prompt counts as sent from that window, so the chat may look.
+   */
+  windowPicture?: string;
 }
 
 interface AssertionContext {
@@ -1053,6 +1059,7 @@ export async function runEvals(
           : {}),
         ...(macAppsStandInFor && { macAppsServer: macAppsStandInFor.launch }),
         modelCache: noopModelCache,
+        windowCamera: standInWindow.camera,
         readPersonHistory: readSeededHistory,
         // Where the request log is indexed, as the app keeps it, for a case
         // that seeds requests or what the user did: `instrument activity`
@@ -1196,6 +1203,11 @@ export async function runEvals(
         standInWindow.seed(evalCase.viewing);
         standInWindow.lay(evalCase.layout);
         standInWindow.keep(evalCase.bookmarks);
+        standInWindow.showPicture(
+          evalCase.windowPicture === undefined
+            ? undefined
+            : fs.readFileSync(evalCase.windowPicture),
+        );
         const created = creating.then(async () => {
           if (evalCase.kind === "chat") {
             ensureWorkspaceFolder();
@@ -1225,6 +1237,7 @@ export async function runEvals(
               }),
               files: evalCase.files,
               folders: folders.length > 0 ? folders : undefined,
+              fromWindow: evalCase.windowPicture !== undefined,
               kind: evalCase.kind ?? "task",
               ...(evalCase.layout ? { layout: evalCase.layout } : {}),
               modelURI: uri,

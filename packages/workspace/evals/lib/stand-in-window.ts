@@ -32,7 +32,9 @@ import {
   type BrowserConfig,
   browserTargetOf,
   parseBrowserTargetId,
+  type WindowCamera,
 } from "../../src/types";
+import { type WindowLook } from "../../src/schemas/window-look";
 import { type SharedChrome } from "./shared-chrome";
 
 export type ListedBookmark = NonNullable<WindowTabAnswer["bookmarks"]>[number];
@@ -76,6 +78,20 @@ export function createStandInWindow(chrome?: SharedChrome) {
   let front: string | undefined;
   /** The case's tab group, where a page the chat opens lands as the app places it (`placed`). */
   let layout: LayoutSnapshot | undefined;
+  /**
+   * The picture a case's window gives, already blanked as the app blanked it
+   * when it was captured; the window says it is all its own frame, so
+   * nothing more is blanked here.
+   */
+  let picture: Buffer | undefined;
+  const look: WindowLook = {
+    columns: 1,
+    covers: [],
+    owners: [{ kind: "frame" }],
+    pictures: [],
+    points: [0, 0, 0, 0],
+    rows: 1,
+  };
   /** The chat's last page in the group, which its next one goes right after. */
   let previous: string | undefined;
 
@@ -377,6 +393,11 @@ export function createStandInWindow(chrome?: SharedChrome) {
     if (action.kind === "history") {
       return { history: [] };
     }
+    if (action.kind === "look") {
+      return picture === undefined
+        ? { error: "the window is not on screen, so there is nothing to see." }
+        : { look };
+    }
     if (action.kind === "bookmarks") {
       return { bookmarks: structuredClone(bookmarks) };
     }
@@ -505,6 +526,17 @@ export function createStandInWindow(chrome?: SharedChrome) {
     return tab?.kind === "page" ? tab : undefined;
   };
 
+  /** Takes the case's picture, the frame and its blanking both done when it was captured. */
+  const camera: WindowCamera = {
+    capture: () =>
+      Promise.resolve(
+        picture === undefined
+          ? undefined
+          : { masked: () => picture ?? Buffer.alloc(0) },
+      ),
+    pageShows: () => Promise.resolve(undefined),
+  };
+
   return {
     /** The browser config with the window's page tabs live. */
     browser(base: BrowserConfig): BrowserConfig {
@@ -551,6 +583,11 @@ export function createStandInWindow(chrome?: SharedChrome) {
             });
           });
       });
+    },
+    camera,
+    /** Sets the picture of the window a case's run gives, a PNG captured from the app; none for a window not on screen. */
+    showPicture(png: Buffer | undefined) {
+      picture = png;
     },
     /** Opens a page tab under the id given, the way a task's own tab arrives behind. */
     openPage({ at, id }: { at: string; id: string }) {

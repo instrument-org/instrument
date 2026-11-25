@@ -15,7 +15,11 @@ import { type SessionMessageDataPart } from "../../src/schemas/session/message-d
 import { StoreId } from "../../src/schemas/store-id";
 import { type ChatId } from "../../src/schemas/chat-id";
 import { type WorkspaceConfig } from "../../src/types";
+import { noteWindowSend } from "../../src/lib/chat/window-sends";
 import { type StartsTask, startTaskForChat } from "./start-task";
+
+/** The stand-in window's web contents, as a send from it names it. */
+const STAND_IN_WINDOW = 1;
 
 /**
  * Starts one eval run the way the product starts the agent it measures.
@@ -37,6 +41,7 @@ export async function startRun(
     beforeSend,
     files,
     folders,
+    fromWindow,
     kind,
     layout,
     modelURI,
@@ -52,6 +57,8 @@ export async function startRun(
     }) => Promise<void>;
     files?: FileUpload.Type[];
     folders?: { path: string }[];
+    /** Sent from a window of this run, as the composer sends, so the chat may look at it. */
+    fromWindow?: boolean;
     kind: "chat" | "task";
     /** The chat's tab group as the first message was sent. */
     layout?: LayoutRead;
@@ -113,6 +120,13 @@ export async function startRun(
     throw sent.error;
   }
   const message = sent.value;
+  if (fromWindow) {
+    noteWindowSend(sessionId, {
+      at: Date.now(),
+      messageId: message.id,
+      window: STAND_IN_WINDOW,
+    });
+  }
 
   const session = (
     await ChatReads.session({ chatId: chatId, sessionId: sessionId })

@@ -3,7 +3,6 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
 import { XIcon } from "@phosphor-icons/react/X";
 import { ResizeHandle } from "@/client/components/resize-handle";
-import { CaptionRoom } from "@/client/components/window-controls";
 import {
   ActiveTabProvider,
   useIsActiveTab,
@@ -420,7 +419,6 @@ function GroupSides({
                   hasKeyboard={isUp && layout.focused === each.at}
                   isFirst={each.at === 0}
                   isUp={isUp}
-                  isLast={each.at === layout.sides.length - 1}
                   layout={layout}
                   place={`${group}:${each.at}:${isTwo ? growOf(each.at) : 1}`}
                   side={each.side}
@@ -561,7 +559,6 @@ function SideCard({
   group,
   hasKeyboard,
   isFirst,
-  isLast,
   isUp,
   layout,
   place,
@@ -572,7 +569,6 @@ function SideCard({
   group: string;
   hasKeyboard: boolean;
   isFirst: boolean;
-  isLast: boolean;
   /** Whether the side's group is the one on screen. */
   isUp: boolean;
   layout: GroupLayout;
@@ -871,8 +867,6 @@ function SideCard({
         word={isUpChat ? undefined : "Chat"}
       />
     );
-  // The window's own end, at the last side's right.
-  const windowEnd = isLast ? <CaptionRoom /> : undefined;
 
   return (
     <div
@@ -963,12 +957,7 @@ function SideCard({
           split={split}
           tabs={drawn.tabs}
           taskTitles={shell.childTitles}
-          trailing={
-            <>
-              {splitControl}
-              {windowEnd}
-            </>
-          }
+          trailing={splitControl}
         />
       )}
       <div className="relative min-h-0 flex-1" data-side-page={sideIndex}>
@@ -1000,7 +989,6 @@ function SideCard({
                               onClick={newTabHere}
                             />
                             {splitControl}
-                            {windowEnd}
                           </div>
                         ),
                         lead: isFirst ? <SidebarToggle /> : undefined,

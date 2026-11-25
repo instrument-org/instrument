@@ -184,7 +184,7 @@ import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
 import { useGroupLeadUpkeep } from "./group-leads";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
-import { TrafficLightsWithSidebar } from "./inbox-toggle";
+import { WindowCorner } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
 import { useCloseStrandedHostedPages } from "./hosted-page";
 import { DragLayer } from "./drag/drag-layer";
@@ -1879,7 +1879,7 @@ function WindowShell({
       >
         <PageOpenContext value={openPage}>
           <WindowFrame
-            corner={<TrafficLightsWithSidebar />}
+            corner={<WindowCorner />}
             hasBar={false}
             rail={
               <StudioSidebarRail

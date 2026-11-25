@@ -1,4 +1,4 @@
-import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { stripBand, TOOLBAR_HEIGHT } from "@/shared/constants";
 import { BrowserWindow, systemPreferences } from "electron";
 
 import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
@@ -216,12 +216,13 @@ async function barOf(window: BrowserWindow) {
     return null;
   }
   const { width } = window.getContentBounds();
+  const below = stripBand(process.platform === "darwin") - TOOLBAR_HEIGHT;
   const image = await window.webContents
     .capturePage({
       height: Math.round(TOOLBAR_HEIGHT * getAppZoom()),
       width,
       x: 0,
-      y: 0,
+      y: Math.round(below * getAppZoom()),
     })
     .catch(() => null);
   return image && !image.isEmpty() ? image.toDataURL() : null;

@@ -19,7 +19,6 @@ import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { getInitials } from "@/client/lib/get-initials";
 import { showProjectInFiles } from "@/client/lib/show-in-files";
 import { cn, isMacOS } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { GearSixIcon } from "@phosphor-icons/react/GearSix";
@@ -702,42 +701,25 @@ export function GroupRow({
 }
 
 /**
- * The sidebar's top row, which drags the window, centered on the tab strips
- * beside it, under the ground above their card: room for the traffic
- * lights on a Mac, then the app's menu off the Mac; the update pill, the
- * mark that Instrument is out of reach while it is, then the bell at its
- * end.
+ * The sidebar's top row, which drags the window, centered on a Mac on the tab
+ * strips beside it, and elsewhere on the ground above their card: room for
+ * the window's corner, then the update pill, the mark that Instrument is out
+ * of reach while it is, and the bell at its end.
  */
 function SidebarTop() {
   return (
     <div
-      className="relative flex h-12 shrink-0 items-center gap-1 pt-2 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]"
+      className={cn(
+        "relative flex shrink-0 items-center gap-1 [-webkit-app-region:drag] [&_button]:[-webkit-app-region:no-drag]",
+        isMacOS() ? "h-12 pt-2" : "h-8",
+      )}
       style={{ paddingLeft: sidebarTopInset() }}
     >
-      {!isMacOS() && <AppMenuButton />}
       <span className="flex-1" />
       <UpdateStatusIndicator />
       <NetworkStatusIndicator isIcon />
       <NotificationsBell />
     </div>
-  );
-}
-
-/** The app's menu, off the Mac, where no menu bar shows it. */
-function AppMenuButton() {
-  return (
-    <button
-      aria-label="Menu"
-      className="grid size-7 shrink-0 place-items-center rounded-md text-foreground/80 hover:bg-foreground/5"
-      onClick={({ currentTarget }) => {
-        const { bottom, left } = currentTarget.getBoundingClientRect();
-        void rpcClient.window.showAppMenu.call({ x: left, y: bottom });
-      }}
-      title="Menu"
-      type="button"
-    >
-      <span className="text-base leading-none">≡</span>
-    </button>
   );
 }
 

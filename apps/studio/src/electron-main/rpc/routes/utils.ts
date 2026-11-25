@@ -39,6 +39,7 @@ import {
 } from "@/electron-main/windows/app-window";
 import { getAppZoom } from "@/electron-main/stores/workspace/window-state";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
+import { syncCaptionOverlay } from "@/electron-main/windows/caption-buttons";
 import {
   setTrafficLightForZoom,
   setTrafficLightsShown,
@@ -483,7 +484,7 @@ const restoreClearedExceptions = base.input(z.void()).handler(() => {
 });
 
 // The renderer owns the app zoom (CSS `zoom`); it reports the current level so
-// the main process can keep the macOS traffic lights centered in the band of
+// the main process can keep the system's window buttons centered in the band of
 // chrome above the UI, whose visual height scales with that zoom. One setting
 // shared by every window, and each window reports it for itself as it hears
 // of the change.
@@ -496,6 +497,9 @@ const syncZoom = base
       input.zoom,
       window && isAppWindow(window) ? WINDOW_CARD_GAP : 0,
     );
+    if (window && isAppWindow(window)) {
+      syncCaptionOverlay(window, input.zoom);
+    }
   });
 
 // The macOS traffic lights of the window that asked, shown while its sidebar
@@ -510,24 +514,6 @@ const showTrafficLights = base
       WINDOW_CARD_GAP,
     );
   });
-
-// Custom title-bar window controls (Windows/Linux, and macOS when force-shown).
-// Each acts on the window that asked.
-const minimizeWindow = base.input(z.void()).handler(({ context }) => {
-  getCallingWindow(context.webContentsId)?.minimize();
-});
-
-const toggleMaximizeWindow = base.input(z.void()).handler(({ context }) => {
-  const window = getCallingWindow(context.webContentsId);
-  if (!window) {
-    return;
-  }
-  if (window.isMaximized()) {
-    window.unmaximize();
-  } else {
-    window.maximize();
-  }
-});
 
 const closeWindow = base.input(z.void()).handler(({ context }) => {
   getCallingWindow(context.webContentsId)?.close();
@@ -580,10 +566,8 @@ const live = {
         read: () => [...listSessionExceptionEvents()],
       });
     }),
-  // What the renderer needs to draw window chrome for itself: the custom controls
-  // pick the maximize/restore glyph, or leave it out while the window is fixed
-  // at setup's shape, and the Linux window border hides when an
-  // edge sits against the screen. Re-yields on OS-driven transitions too (snap,
+  // What the renderer needs to draw window chrome for itself: the Linux window
+  // border hides when an edge sits against the screen. Re-yields on OS-driven transitions too (snap,
   // double-click, Win+Up) and after a resize, which is when a move between
   // displays can have changed the scale the border insets itself for.
   windowState: base
@@ -591,7 +575,6 @@ const live = {
       eventIterator(
         z.object({
           fullScreen: z.boolean(),
-          maximizable: z.boolean(),
           maximized: z.boolean(),
         }),
       ),
@@ -610,7 +593,6 @@ function readWindowState(webContentsId: number) {
   const window = getCallingWindow(webContentsId);
   return {
     fullScreen: window?.isFullScreen() ?? false,
-    maximizable: window?.isMaximizable() ?? true,
     maximized: window?.isMaximized() ?? false,
   };
 }
@@ -759,7 +741,6 @@ export const utils = {
   fileOpenCandidates,
   fileOpenTarget,
   live,
-  minimizeWindow,
   openExternalLink,
   openFileWith,
   openFolder,
@@ -777,5 +758,4 @@ export const utils = {
   showTrafficLights,
   syncZoom,
   chatWorkFolderPath,
-  toggleMaximizeWindow,
 };

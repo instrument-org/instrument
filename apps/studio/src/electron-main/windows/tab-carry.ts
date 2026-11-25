@@ -26,7 +26,7 @@ import {
   takeSpareWindow,
 } from "@/electron-main/windows/app-window";
 import { keepsOffScreen } from "@/electron-main/windows/on-screen";
-import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { stripBand } from "@/shared/constants";
 import { APP_TABS_KEY, isHostedPageKey } from "@/shared/kept-state";
 import {
   type GroupTabLanding,
@@ -625,7 +625,7 @@ function followCursor() {
 
 /** How tall the band a window's strip draws in stands, at the zoom it is drawn at. */
 function stripBandHeight() {
-  return TOOLBAR_HEIGHT * getAppZoom();
+  return stripBand(process.platform === "darwin") * getAppZoom();
 }
 
 /**

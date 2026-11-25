@@ -208,15 +208,15 @@ function RouteComponent() {
         </StateSection>
         <StateSection title="Window">
           {/* States a dev run on this Mac never reaches by itself: another
-            platform's window buttons, and the prompt dev builds skip when an
+            platform's window edge, and the prompt dev builds skip when an
             agent is running at quit. */}
           {isMacOS() && (
             <StateRow
-              description="Draws the minimize, maximize and close buttons Windows and Linux get, so you can check the layout around them."
-              id="windows-style-buttons"
+              description="Draws the hairline a Linux window gets around its edge."
+              id="linux-window-edge"
             >
               <Switch
-                aria-label="Windows-style buttons"
+                aria-label="Linux window edge"
                 checked={forceWindowControls}
                 onCheckedChange={setForceWindowControls}
               />

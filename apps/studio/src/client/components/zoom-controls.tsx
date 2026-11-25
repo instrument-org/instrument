@@ -1,8 +1,8 @@
 import { zoomAtom } from "@/client/atoms/zoom";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
-import { cn } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { ZOOM_LEVELS } from "@/client/lib/zoom-levels";
-import { TOOLBAR_HEIGHT } from "@/shared/constants";
+import { stripBand } from "@/shared/constants";
 import { WINDOW_MENU_SHORTCUTS } from "@/shared/window-shortcuts";
 import { steppedZoom, ZOOM_MAX, ZOOM_MIN } from "@/shared/zoom";
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/ArrowCounterClockwise";
@@ -351,7 +351,7 @@ export function ZoomToast() {
       )}
       // On-screen px, outside the zoomed root: the bar is drawn at the zoom,
       // so its bottom edge moves with it.
-      style={{ top: TOOLBAR_HEIGHT * zoom + 8 }}
+      style={{ top: stripBand(isMacOS()) * zoom + 8 }}
       onMouseEnter={() => {
         clearTimeout(hideTimer.current);
       }}

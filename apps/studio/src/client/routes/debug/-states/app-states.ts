@@ -13,7 +13,7 @@ export const appStates = [
   { id: "fill-bell", label: "Fill the bell" },
   { id: "notification-pop-ups", label: "Notification pop-ups" },
   { id: "run-setup-again", label: "Run setup again" },
-  { id: "windows-style-buttons", label: "Windows-style buttons" },
+  { id: "linux-window-edge", label: "Linux window edge" },
   { id: "quit-prompt", label: "Quit prompt" },
   { id: "crash-window", label: "Crash the window" },
 ] as const satisfies readonly DebugStateEntry[];

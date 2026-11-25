@@ -43,6 +43,7 @@
     "script:measure-snapshot-fold": "tsx scripts/measure-snapshot-fold.ts",
     "script:probe-app-directory": "tsx scripts/probe-app-directory.ts",
     "script:query-chat-db": "tsx scripts/query-chat-db.ts",
+    "script:record-agent-browser-output": "tsx scripts/record-agent-browser-output.ts",
     "script:record-fixture-session": "tsx scripts/record-fixture-session.ts",
     "script:refresh-agent-browser-guide": "tsx scripts/refresh-agent-browser-guide.ts",
     "script:refresh-directory-icons": "tsx scripts/refresh-directory-icons.ts",

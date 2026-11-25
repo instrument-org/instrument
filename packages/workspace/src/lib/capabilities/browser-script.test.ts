@@ -1,5 +1,8 @@
+import { ChildProcess, spawn } from "node:child_process";
+import { writeSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { Writable } from "node:stream";
 import { setTimeout as sleep } from "node:timers/promises";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -22,10 +25,15 @@ import { getWorkspaceConfig } from "../workspace-config";
 import { AGENT_BROWSER_STUB_MESSAGE } from "./stub";
 
 // The agent-browser CLI is answered here; `node` and everything else the
-// shell starts run for real.
+// shell starts run for real. The command starts the CLI through execa on
+// macOS and Linux, and through `spawn` on Windows, its output going to files.
 vi.mock("execa", async (importOriginal) => {
   const actual = await importOriginal<typeof import("execa")>();
   return { ...actual, execa: vi.fn(actual.execa) };
+});
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  return { ...actual, spawn: vi.fn(actual.spawn) };
 });
 
 const chatId = ChatIdSchema.parse("browser-script");
@@ -59,6 +67,34 @@ const NO_MESSAGES = JSON.stringify({
   data: { result: { loadedAt: 0, regions: [], url: "https://example.com/" } },
   success: true,
 });
+
+/** Notes a run of the CLI, and how it ends. */
+function runCli(
+  words: string[],
+  env: Record<string, string | undefined>,
+  input: string | undefined,
+) {
+  const at = words.indexOf("--session");
+  const args = at === -1 ? words : words.slice(at + 2);
+  const run: CliRun = {
+    args,
+    env,
+    input,
+    session: at === -1 ? undefined : words[at + 1],
+  };
+  runs.push(run);
+  const ended =
+    args[0] === "--json" && args[1] === "eval"
+      ? { exitCode: 0, stderr: "", stdout: NO_MESSAGES }
+      : args[0] === "tab"
+        ? { exitCode: 0, stderr: "", stdout: TABS }
+        : args[0] === "snapshot"
+          ? { exitCode: 0, stderr: "", stdout: '- link "Next" [ref=e1]\n' }
+          : args[0] === "wait"
+            ? { exitCode: 0, stderr: "", stdout: "" }
+            : answer(args);
+  return { ended, run };
+}
 
 beforeEach(async () => {
   knowChat(chatId);
@@ -98,28 +134,50 @@ beforeEach(async () => {
         { once: () => undefined },
       );
     }
-    const at = words.indexOf("--session");
-    const args = at === -1 ? words : words.slice(at + 2);
-    runs.push({
-      args,
-      env: options.env ?? {},
-      input: options.input?.toString("utf8"),
-      session: at === -1 ? undefined : words[at + 1],
-    });
-    const ended =
-      args[0] === "--json" && args[1] === "eval"
-        ? { exitCode: 0, stderr: "", stdout: NO_MESSAGES }
-        : args[0] === "tab"
-          ? { exitCode: 0, stderr: "", stdout: TABS }
-          : args[0] === "snapshot"
-            ? { exitCode: 0, stderr: "", stdout: '- link "Next" [ref=e1]\n' }
-            : args[0] === "wait"
-              ? { exitCode: 0, stderr: "", stdout: "" }
-              : answer(args);
+    const { ended } = runCli(
+      words,
+      options.env ?? {},
+      options.input?.toString("utf8"),
+    );
     return Object.assign(
       sleep(cliMs).then(() => ended),
       { once: () => undefined },
     );
+  }) as never);
+  if (process.platform !== "win32") {
+    return;
+  }
+  const { spawn: actualSpawn } =
+    await vi.importActual<typeof import("node:child_process")>(
+      "node:child_process",
+    );
+  // spawn's overloads are more than a mock's one signature can spell.
+  vi.mocked(spawn).mockImplementation(((
+    file: string,
+    given: string[],
+    options: {
+      env?: Record<string, string | undefined>;
+      stdio?: ["pipe", number, number];
+    },
+  ) => {
+    if (file !== agentBrowserPath()) {
+      return actualSpawn(file, given, options as never);
+    }
+    const { ended, run } = runCli(given, options.env ?? {}, undefined);
+    // The files close as soon as the CLI has started.
+    if (options.stdio) {
+      writeSync(options.stdio[1], ended.stdout);
+      writeSync(options.stdio[2], ended.stderr);
+    }
+    const child = new ChildProcess();
+    child.stdin = new Writable({
+      write: (chunk, _encoding, done) => {
+        run.input = `${run.input ?? ""}${String(chunk)}`;
+        done();
+      },
+    });
+    setTimeout(() => child.emit("exit", ended.exitCode), cliMs);
+    return child;
   }) as never);
 });
 

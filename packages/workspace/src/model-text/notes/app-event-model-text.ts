@@ -143,7 +143,7 @@ function signInEnded(
         ended === "canceled"
           ? `The user stopped signing in to ${name} (${slug}) before it finished.`
           : `The sign-in to ${name} (${slug}) was left unfinished and lapsed.`;
-      return `- ${what} The card offers signing in on the web or trying again; ask which in a line. For the web: \`${webInsteadCommand(slug, web)}\`, then ${TOOL_NAMES.connectApp}. To try again: ${TOOL_NAMES.connectApp} as it is.`;
+      return `- ${what} Ask in a line whether to sign in on the web or try again. For the web: \`${webInsteadCommand(slug, web)}\`, then ${TOOL_NAMES.connectApp}. To try again: ${TOOL_NAMES.connectApp} as it is.`;
     }
     case "failed": {
       return `- Signing in to ${name} (${slug}) failed${said}. ${failedSignInNext(slug, ended, web)}`;

@@ -50,7 +50,7 @@ describe("choose", () => {
         }),
       ),
     ).toMatchInlineSnapshot(
-      `"The user now sees your questions and their choices on a card in the chat, and answers there. Their answers reach you together as a message of their own."`,
+      `"The user now sees your questions and their choices on a card above the reply box, and answers there. Their answers reach you together as a message of their own."`,
     );
   });
 

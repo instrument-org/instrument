@@ -147,7 +147,7 @@ describe("ActivityRowView", () => {
     ...call("Opening the Taxes folder"),
     blocked: {
       ...(inSettings && { inSettings: true }),
-      why: "You turned off Taxes in Settings.",
+      why: "Taxes is set to Not allowed in Settings.",
     },
     couldnt: "Couldn't open Taxes",
     status: "failed",
@@ -169,7 +169,7 @@ describe("ActivityRowView", () => {
       />,
     );
     expect(screen.getByText("Couldn't open Taxes")).toBeTruthy();
-    expect(screen.getByText("You turned off Taxes in Settings.")).toBeTruthy();
+    expect(screen.getByText("Taxes is set to Not allowed in Settings.")).toBeTruthy();
     expect(screen.getByText("Open Permissions")).toBeTruthy();
 
     fireEvent.click(screen.getByText("Finding the receipts"));
@@ -188,7 +188,7 @@ describe("ActivityRowView", () => {
 
     fireEvent.click(screen.getByText("Finding the receipts"));
     fireEvent.click(screen.getByText("Couldn't open Taxes"));
-    expect(screen.getByText("You turned off Taxes in Settings.")).toBeTruthy();
+    expect(screen.getByText("Taxes is set to Not allowed in Settings.")).toBeTruthy();
     expect(screen.queryByText("Open Permissions")).toBeNull();
   });
 });

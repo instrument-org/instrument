@@ -366,7 +366,7 @@ export async function reportBlocks(
       `Windows ransomware protection (Controlled folder access) kept ${names.join(", ")} from changing ${shown}: that is what the error above is, not a missing file. ${
         asker === undefined
           ? `Only the person can let ${APP_NAME} through, under Windows Security › Ransomware protection › Allow an app through Controlled folder access.`
-          : "The person now sees a card to let it through, and their answer wakes you; stop here and say what you're waiting for."
+          : "The person now sees a card above the reply box to let it through, and their answer wakes you; stop here and say what you're waiting for."
       }`,
     );
   }

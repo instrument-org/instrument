@@ -325,10 +325,10 @@ describe("GenerateImage with nothing that makes images", () => {
     });
     expect(GenerateImage.toModelOutput({ input, output, toolCallId: "call_1" }))
       .toMatchInlineSnapshot(`
-      {
-        "type": "error-text",
-        "value": "Nothing connected here makes images. The person sees a note above their message box offering a free Instrument account, which makes images in any chat. Say so in one plain sentence and leave the image for now: when they sign in, you are woken to make it.",
-      }
-    `);
+        {
+          "type": "error-text",
+          "value": "Nothing connected here makes images. The person sees a note above the reply box offering a free Instrument account, which makes images in any chat. Say so in one plain sentence and leave the image for now: when they sign in, you are woken to make it.",
+        }
+      `);
   });
 });

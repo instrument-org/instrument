@@ -916,7 +916,7 @@ describe("window show and close, of a group", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Closed the tab group "Meeting notes" instrument://group/group:notes, its 3 tabs. The user can bring it back with Undo or from the closed list.
+      "Closed the tab group "Meeting notes" instrument://group/group:notes, its 3 tabs. The user can bring it back with Undo or from Recently Closed.
       "
     `);
     expect(asked.map(({ action }) => action.kind)).toEqual([
@@ -1066,7 +1066,7 @@ describe("window group, move, history and restore", () => {
     ]);
     expect(raised).toHaveLength(1);
     expect(result.stdout.replaceAll(pageTab, "<page>")).toMatchInlineSnapshot(`
-      "Showed the user tab <page> ("Suite plans") with a card titled "Log in", your reason, Done and Skip. Tab <page>: showing on the right side, beside you. Your turn ends here; their answer wakes you.
+      "Showed the user tab <page> ("Suite plans") with a card above the reply box titled "Log in", your reason, Done and Skip. Tab <page>: showing on the right side, beside you. Your turn ends here; their answer wakes you.
       "
     `);
   });

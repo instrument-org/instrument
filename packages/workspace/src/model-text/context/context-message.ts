@@ -19,7 +19,7 @@ export const FOLDERS_INTRO =
   "These are the user's folders this conversation reaches: their home folder, their Instrument folder, and any folder they sent, allowed, or filed the conversation's project with:";
 
 /** What the context message says in place of the folders list, when there is none. */
-export const NO_FOLDERS_TEXT = `You reach none of the user's folders yet. Reaching for one shows the person a card; folders allowed later are announced on the message they arrive with.`;
+export const NO_FOLDERS_TEXT = `You reach none of the user's folders yet. Ask for one with ${TOOL_NAMES.askPermission}; folders allowed later are announced on the message they arrive with.`;
 
 /** What reaches the network from the agent's shell and tools, for `getSystemInfoText`. */
 export function networkText(): string {

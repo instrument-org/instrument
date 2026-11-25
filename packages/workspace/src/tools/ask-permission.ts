@@ -112,7 +112,7 @@ const askPermissionCapability = defineCapability({
           case "asked": {
             return {
               type: "text",
-              value: `The user now sees a card asking for ${JSON.stringify(output.agentTarget ?? shellPath(output.target))}. Their answer reaches you as a message of its own.`,
+              value: `The user now sees a card above the reply box asking for ${JSON.stringify(output.agentTarget ?? shellPath(output.target))}. Their answer reaches you as a message of its own.`,
             };
           }
           case "allowed": {
@@ -314,7 +314,7 @@ async function appToAsk(
       state: "refused",
       why: saidNotNow
         ? "You said not now to this app in this chat."
-        : `You turned off ${app.name} in Settings.`,
+        : `${app.name} is set to Not allowed in Settings.`,
     };
   }
   return { state: "ask", target: given };

@@ -16,7 +16,7 @@ export function createChatsCommand(scope: CapabilityScope) {
     name: CHATS_COMMAND.name,
     scope,
     usage: (generated) =>
-      `Usage: ${CHATS_COMMAND.name} <subcommand> ...\n\n  Every change shows the user a note in this chat, with Undo.\n  These take --json, for the result as JSON, and --out <file>, to write it there.\n${generated.join("\n")}\n`,
+      `Usage: ${CHATS_COMMAND.name} <subcommand> ...\n\n  Every change shows on a card under your reply, with Undo.\n  These take --json, for the result as JSON, and --out <file>, to write it there.\n${generated.join("\n")}\n`,
     word: CHATS_COMMAND.word,
   });
 }

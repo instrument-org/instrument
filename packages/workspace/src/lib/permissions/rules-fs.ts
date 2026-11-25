@@ -239,7 +239,7 @@ function closedWhy(reach: Reach): { inSettings?: true; why?: string } {
     rule && rule.path !== homedir() ? nodePath.basename(rule.path) : "";
   return {
     inSettings: true,
-    why: `You turned off ${name === "" ? "this folder" : name} in Settings.`,
+    why: `${name === "" ? "This folder" : name} is set to Not allowed in Settings.`,
   };
 }
 
@@ -266,7 +266,7 @@ export function closedNote(reach: Reach, shown: string): string {
   if (rule?.source === "system" && rule.level === "never") {
     return `${shown} runs every time the person logs in or opens a terminal, so it is never changed for them, whatever their settings. Tell them what to add and they can add it themselves.`;
   }
-  return `${shown} is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
+  return `${shown} is marked Not allowed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.`;
 }
 
 /**

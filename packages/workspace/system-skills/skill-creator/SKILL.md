@@ -17,11 +17,11 @@ Skills live in the workspace's own skills folder, which your instructions name, 
 4. Draft a concise `SKILL.md` body. Assume the agent already knows general concepts and include only domain-specific procedures, constraints, and decision guidance.
 5. Write the package to `<name>/` in the workspace's skills folder. Check whether that directory already exists first. If it does, stop and ask whether to revise that existing skill or choose another name; revising is fine, silently replacing the wrong skill is not.
 6. Run `validate-skill <name>` and fix what it reports. A skill with broken frontmatter fails silently by never appearing at all, so this is the only confirmation that what you wrote is a skill.
-7. Tell the user the skill name and that it is available from Skills and the prompt slash menu.
+7. Tell the user the skill name and that it is listed in [Skills](instrument://settings/skills) and offered by typing / in the reply box.
 
 ## Installing a skill from elsewhere
 
-Skills published on the web are written for other agents, and their install steps name those agents' folders: `~/.claude/skills`, `.claude/skills`, `~/.codex/skills`, `.agents/skills`, `.cursor/skills` and the like. Here every one of those means the workspace's skills folder. Install into it and nowhere else, so the skill shows in Skills and loads by name.
+Skills published on the web are written for other agents, and their install steps name those agents' folders: `~/.claude/skills`, `.claude/skills`, `~/.codex/skills`, `.agents/skills`, `.cursor/skills` and the like. Here every one of those means the workspace's skills folder. Install into it and nowhere else, so the skill shows in Settings' Skills and loads by name.
 
 - A skills.sh page or a GitHub link names a repository and a folder in it: clone the repository with `git clone --depth 1` into your work folder, find the folder holding the skill's `SKILL.md`, and copy that folder whole into the workspace's skills folder.
 - `npx skills add <owner/repo> -s <name>` (the skills command line tool, which most install instructions use) knows no folder of ours. Run it in a scratch folder with `-a universal --copy -y`, which writes `.agents/skills/<name>/` there, then copy that folder into the workspace's skills folder.
@@ -40,7 +40,7 @@ description: <what it does and when to use it>
 ---
 ```
 
-Add `disable-model-invocation: true` when the skill should only ever run because the user asked for it by name. It then stays listed in Skills and the slash menu but is kept out of the catalog agents choose from.
+Add `disable-model-invocation: true` when the skill should only ever run because the user asked for it by name. It then stays listed in Settings' Skills and the slash menu but is kept out of the catalog agents choose from.
 
 Add `user-invocable: false` when the skill should be available for automatic model loading but hidden from the slash menu and other direct manual-invocation affordances.
 

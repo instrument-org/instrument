@@ -486,14 +486,14 @@ function failureForModel(output: {
 }) {
   switch (output.errorType) {
     case "no-image-model": {
-      return `Nothing connected here makes images. The person sees a note above their message box offering a free ${APP_NAME} account, which makes images in any chat. Say so in one plain sentence and leave the image for now: when they sign in, you are woken to make it.`;
+      return `Nothing connected here makes images. The person sees a note above the reply box offering a free ${APP_NAME} account, which makes images in any chat. Say so in one plain sentence and leave the image for now: when they sign in, you are woken to make it.`;
     }
     case "refused": {
       const why =
         output.refusal?.code === "usage-limit-exceeded"
           ? `their ${APP_NAME} usage has run out for now`
           : `their ${APP_NAME} account has no plan that covers it`;
-      return `${APP_NAME} turned the image away: ${why}. The person sees a note above their message box with what they can do. Say so in one plain sentence and leave the image for now.`;
+      return `${APP_NAME} turned the image away: ${why}. The person sees a note above the reply box with what they can do. Say so in one plain sentence and leave the image for now.`;
     }
     default: {
       return output.errorMessage;

@@ -399,7 +399,7 @@ it("says why each kind of closed path is closed", () => {
     ),
   ).toMatchInlineSnapshot(`
     {
-      "closed in Settings": "/h/x is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.",
+      "closed in Settings": "/h/x is marked Not allowed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.",
       "not now": "/h/x: the person said not now to this folder in this chat. Don't look for another way in; say what you skipped without it.",
       "read-only": "/h/x is read-only. Copy what you need out of it and change the copy.",
       "runs at login": "/h/x runs every time the person logs in or opens a terminal, so it is never changed for them, whatever their settings. Tell them what to add and they can add it themselves.",

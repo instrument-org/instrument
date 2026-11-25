@@ -646,7 +646,7 @@ export const windowClose = defineCapability({
     return outcomes;
   },
   summary:
-    "Close tabs, or a tab group whole by its id; the user can bring back from the closed list what was theirs, not an agent's tab they never used. A pinned group whose last tab closes gets a new tab; its id closes it.",
+    "Close tabs, or a tab group whole by its id; the user can bring back from Recently Closed what was theirs or a pinned group, not an agent's tab they never used; closing leaves its chats working. A pinned group whose last tab closes gets a new tab; its id closes it.",
   surfaces: {
     cli: { help: "", positional: ["tabs"], words: ["window", "close"] },
   },
@@ -725,7 +725,7 @@ async function closeGroup(
   const count = layout?.sides.reduce((sum, side) => sum + side.tabs.length, 0);
   return {
     failed: false,
-    said: `Closed the tab group ${layout ? groupWords(layout) : group}${count === undefined ? "" : count === 1 ? ", its one tab" : `, its ${count} tabs`}.${answer?.isListed === false ? "" : " The user can bring it back with Undo or from the closed list."}`,
+    said: `Closed the tab group ${layout ? groupWords(layout) : group}${count === undefined ? "" : count === 1 ? ", its one tab" : `, its ${count} tabs`}.${answer?.isListed === false ? "" : " The user can bring it back with Undo or from Recently Closed."}`,
     target: group,
   };
 }
@@ -796,7 +796,7 @@ export const windowWait = defineCapability({
       { page: { title: page.title, url: page.url } },
     );
     recordRaisedAsk(askId);
-    return `Showed the user tab ${tab} ("${page.title || page.url}") with a card titled "${title.trim()}", your reason, Done and Skip.${place ? ` Tab ${tab}: ${place}.` : ""} Your turn ends here; their answer wakes you.`;
+    return `Showed the user tab ${tab} ("${page.title || page.url}") with a card above the reply box titled "${title.trim()}", your reason, Done and Skip.${place ? ` Tab ${tab}: ${place}.` : ""} Your turn ends here; their answer wakes you.`;
   },
   summary:
     "Hand the user a page of this chat's for what only they can do there (sign in, prove they are a person) and wait: a card shows your title and reason with Done and Skip, your turn ends, and their answer wakes you.",

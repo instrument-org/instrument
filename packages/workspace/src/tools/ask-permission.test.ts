@@ -215,7 +215,7 @@ describe("ask_permission", () => {
     ).toMatchInlineSnapshot(`
       {
         "type": "text",
-        "value": "The user now sees a card asking for "/Users/sam/Desktop". Their answer reaches you as a message of its own.",
+        "value": "The user now sees a card above the reply box asking for "/Users/sam/Desktop". Their answer reaches you as a message of its own.",
       }
     `);
   });

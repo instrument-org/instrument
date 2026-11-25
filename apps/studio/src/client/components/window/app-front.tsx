@@ -31,6 +31,7 @@ import {
 import { visitsWithin } from "@/client/components/window/app-visits";
 import { ConnectControls } from "@/client/components/window/connect-controls";
 import { useWindow } from "@/client/components/window/context";
+import { useGroupTab } from "@/client/components/window/group-tab";
 import {
   FixWithInstrumentButton,
   useFixConnection,
@@ -78,7 +79,12 @@ export function AppFront({
   reportsScreen?: boolean;
   slug: string;
 }) {
-  const { ask, browser, openPage, openScreen } = useWindow();
+  const { ask: askWindow, browser, openPage, openScreen } = useWindow();
+  // A line asked here opens its draft beside the app's page in its group.
+  const groupTabId = useGroupTab()?.id;
+  const ask = (line: string) => {
+    askWindow(line, { from: groupTabId });
+  };
   const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
   const catalog = useQuery(
     rpcClient.apps.live.catalog.experimental_liveOptions(),
@@ -462,6 +468,7 @@ function AppSetUp({
   slug: string;
 }) {
   const { ask } = useWindow();
+  const groupTabId = useGroupTab()?.id;
   const { connect, isConnecting } = useConnectFromDirectory();
   const test = useAppTest(name);
   const { fix } = useFixConnection({
@@ -507,7 +514,7 @@ function AppSetUp({
     kind: signInKind ?? "sign-in",
     name,
     onNeedsAgent: () => {
-      ask(`Connect ${appMentionToken({ name, slug })}`);
+      ask(`Connect ${appMentionToken({ name, slug })}`, { from: groupTabId });
     },
     slug,
   });

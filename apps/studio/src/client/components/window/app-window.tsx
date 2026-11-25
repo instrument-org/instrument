@@ -1711,8 +1711,23 @@ function WindowShell({
         // No session: a line a button hands over at the top level opens a
         // draft with the line in it rather than a chat, so the person reads
         // what is about to be asked, adds to it, and sends it themselves.
-        ask: (prompt) => {
-          draftWith(prompt);
+        // Asked from a group's tab, the draft opens beside it, as a click in
+        // a chat does; from a tab no group has, in the tab up.
+        ask: (prompt, { from } = {}) => {
+          draftWith(
+            prompt,
+            from === undefined
+              ? undefined
+              : (id) => {
+                  const shown = windowTabs.openScreenBeside(newChatHref(id), {
+                    chatTab: from,
+                    gesture: "click",
+                  });
+                  if (shown === undefined) {
+                    appTabs.navigate(newChatHref(id));
+                  }
+                },
+          );
         },
         browser,
         // With no chat beside the file, a new draft takes what was marked,

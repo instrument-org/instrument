@@ -496,6 +496,60 @@ describe("what the person opens in a chat", () => {
   });
 });
 
+describe("a draft asked from an app's page", () => {
+  const appTab: WindowTab = {
+    group: G,
+    href: "/apps/gmail",
+    id: "app",
+    kind: "screen",
+  };
+  const draft = newTab("draft", undefined, "d1");
+  const ASKED: BesideAsk = { chatTab: "app", gesture: "click" };
+  const sidesOf = (state: WindowTabs) =>
+    groupLayoutOf(state, G).sides.map((side) => ({
+      tabs: side.tabs.map((tab) => tab.id),
+      up: side.up,
+    }));
+
+  it("makes the right side of an app's page alone, with the keyboard", () => {
+    const { front, state } = openBesideChat(
+      windowOf([appTab], "app"),
+      draft,
+      ASKED,
+    );
+    expect(front).toBe(true);
+    expect(groupLayoutOf(state, G).focused).toBe(1);
+    expect(sidesOf(state)).toEqual([
+      { tabs: ["app"], up: "app" },
+      { tabs: ["draft"], up: "draft" },
+    ]);
+  });
+
+  it("opens a tab right after the one up on the right side", () => {
+    const { state } = openBesideChat(
+      windowOf([appTab, page("a", 1), page("b", 1)], "app", "a"),
+      draft,
+      ASKED,
+    );
+    expect(sidesOf(state)).toEqual([
+      { tabs: ["app"], up: "app" },
+      { tabs: ["a", "draft", "b"], up: "draft" },
+    ]);
+  });
+
+  it("opens a tab right after an app's page on the right side", () => {
+    const { state } = openBesideChat(
+      windowOf([page("a"), onRight(appTab)], "app", "a"),
+      draft,
+      ASKED,
+    );
+    expect(sidesOf(state)).toEqual([
+      { tabs: ["a"], up: "a" },
+      { tabs: ["app", "draft"], up: "draft" },
+    ]);
+  });
+});
+
 describe("which pages open beside them", () => {
   it("is only a chat for now", () => {
     expect(

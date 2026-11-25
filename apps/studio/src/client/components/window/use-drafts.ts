@@ -162,9 +162,14 @@ export function useDrafts({
    * Makes a draft, filed under a project when the pane stands in one and with
    * words already in it when a button handed some over, and brings it up
    * where drafts are written from where the tab stands (see `showDraft`).
-   * Every ask is a new draft, beside the ones already open.
+   * Every ask is a new draft, beside the ones already open. `show` puts it
+   * up somewhere else.
    */
-  const startDraft = (projectId: string | undefined, words = "") => {
+  const startDraft = (
+    projectId: string | undefined,
+    words = "",
+    show: (id: string) => void = showDraft,
+  ) => {
     const now = Date.now();
     const draft: Draft = {
       createdAt: now,
@@ -174,7 +179,7 @@ export function useDrafts({
       words,
     };
     createDraft(draft);
-    showDraft(draft.id);
+    show(draft.id);
     return draft.id;
   };
   /** The project the inbox stands in, while the tab is on Chat and the inbox stands in one. */
@@ -189,10 +194,10 @@ export function useDrafts({
   };
   /**
    * A draft a button hands over a line to, made at once since it has
-   * something in it, filed as New files one.
+   * something in it, filed as New files one, put up by `show` when given.
    */
-  const draftWith = (words = "") =>
-    startDraft(inboxProject() ?? sidebarProject(), words);
+  const draftWith = (words = "", show?: (id: string) => void) =>
+    startDraft(inboxProject() ?? sidebarProject(), words, show);
   /**
    * A new chat a link from outside asked for, with its words: a draft of its
    * own beside any already open, so nothing the person wrote is replaced,

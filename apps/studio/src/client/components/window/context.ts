@@ -93,8 +93,13 @@ export type OpenAllTab =
 
 /** What every screen of the window shares. */
 export interface WindowContextValue {
-  /** Opens a draft of a new chat with the line already in it, to be read and sent by the person; inside a chat, sends the line there. */
-  ask: (prompt: string) => void;
+  /**
+   * Opens a draft of a new chat with the line already in it, to be read and
+   * sent by the person; inside a chat, sends the line there. Asked from a
+   * group's tab (`from`), the draft opens beside that tab, as a click in a
+   * chat opens what it names (`openBesideChat`).
+   */
+  ask: (prompt: string, options?: { from?: string }) => void;
   /** The window's browser, mounted once by the layout and kept across screens; null until it is. */
   browser: BrowserTabsHandle | null;
   /**

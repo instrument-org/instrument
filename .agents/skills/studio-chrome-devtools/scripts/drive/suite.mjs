@@ -98,7 +98,7 @@ const checks = [
     assert(groupItems.length > 2, `items in the group's menu: ${groupItems}`);
     await w.press("Meta+t");
     const tabItems = await w.tab().menu();
-    assert(tabItems.some((item) => /^Close/.test(item)), `Close in the tab's menu: ${tabItems}`);
+    assert(tabItems.some((item) => item.startsWith('Close')), `Close in the tab's menu: ${tabItems}`);
   }],
   ["settings open and a switch flips back", async (w) => {
     await w.settings.open();

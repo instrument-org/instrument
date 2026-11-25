@@ -83,7 +83,7 @@ export function parseChord(chord) {
     keyCode = last.toUpperCase();
     key = keyCode;
     code = keyCode;
-  } else if ([...last].length === 1) {
+  } else if (Array.from(last).length === 1) {
     keyCode = last;
     key = modifiers.includes("shift") ? last.toUpperCase() : last.toLowerCase();
     code = /[a-z]/i.test(last)

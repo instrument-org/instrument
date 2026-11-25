@@ -36,11 +36,11 @@ const sleep = (ms) =>
   });
 
 /**
- * Builds the words over a connection from studio-app.mjs. `options.workspaceDir`
- * is the folder `seed.file` writes into; `options.allowReload` lets a run go
+ * Builds the words over a connection from studio-app.mjs. `config.workspaceDir`
+ * is the folder `seed.file` writes into; `config.allowReload` lets a run go
  * on across a reload of the renderer.
  */
-export function createWords(app, options = {}) {
+export function createWords(app, config = {}) {
   const { cdp } = app;
   let pictureCount = 0;
   let load;
@@ -135,7 +135,7 @@ export function createWords(app, options = {}) {
     ]);
     isDone = true;
     const now = outcome?.load;
-    if (now && load && now.id !== load.id && !options.allowReload) {
+    if (now && load && now.id !== load.id && !config.allowReload) {
       throw new WordError(
         "The app reloaded during this step, so what was open or typed is gone. Run again, or pass --allow-reload when the run expects one.",
       );
@@ -755,9 +755,7 @@ export function createWords(app, options = {}) {
         }));
       }
       await settle();
-      return {
-        ...(taken ? { by: "the window" } : pageTook ? { by: "the page" } : menuItem ? { by: `menu: ${menuItem}` } : {}),
-      };
+      return (taken ? { by: "the window" } : pageTook ? { by: "the page" } : menuItem ? { by: `menu: ${menuItem}` } : {});
     });
 
   /** @word type(text): types into what has the keyboard; fails when nothing has it */
@@ -847,7 +845,7 @@ export function createWords(app, options = {}) {
       const bar = await rpc("debug.drive.menuBar");
       const pathTo = findMenuPath(bar, labels);
       if (!pathTo) {
-        const all = bar.flatMap((top) => (top.submenu ?? []).map((row) => `${top.label} › ${row.label}`));
+        const all = bar.flatMap((top) => (top.submenu ?? []).map((entry) => `${top.label} › ${entry.label}`));
         throw await missing(
           `No menu is open, and the menu bar has no ${labels.map(quote).join(" › ")}. Nearest: ${nearest(all, labels.at(-1)).join("; ")}`,
         );
@@ -1243,34 +1241,34 @@ export function createWords(app, options = {}) {
       },
       /** Clicks a link, button or field in the page by its name, with the mouse the app's window has. */
       /** Clicks a control in the page by name (the page's middle with no name). */
-      click: (name, { button = "left", count = 1 } = {}) =>
-        step(`page ${button === "right" ? "right-click" : "click"} ${name === undefined ? "" : quote(name)}`.trim(), async () => {
-          const guest = await connection();
+      click: (name, { button: which = "left", count = 1 } = {}) =>
+        step(`page ${which === "right" ? "right-click" : "click"} ${name === undefined ? "" : quote(name)}`.trim(), async () => {
+          const target = await connection();
           let inner;
           if (name === undefined) {
-            inner = await evaluate("({ x: innerWidth / 2, y: innerHeight / 2 })", guest);
+            inner = await evaluate("({ x: innerWidth / 2, y: innerHeight / 2 })", target);
           } else {
-            await guest.send("Accessibility.enable");
-            const { nodes } = await guest.send("Accessibility.getFullAXTree");
+            await target.send("Accessibility.enable");
+            const { nodes } = await target.send("Accessibility.getFullAXTree");
             const index = indexTree(nodes);
             const { matches, pool } = findNodes(index, { name, roles: [...ROLES.control, "StaticText", "heading"] });
             if (matches.length === 0) {
               throw await missing(`The page has nothing named ${quote(name)}.`, { pool, wanted: name });
             }
             const node = matches[0];
-            await guest.send("DOM.scrollIntoViewIfNeeded", { backendNodeId: node.backend }).catch(() => {});
-            const { quads } = await guest.send("DOM.getContentQuads", { backendNodeId: node.backend });
+            await target.send("DOM.scrollIntoViewIfNeeded", { backendNodeId: node.backend }).catch(() => {});
+            const { quads } = await target.send("DOM.getContentQuads", { backendNodeId: node.backend });
             const quad = quads[0];
             inner = { x: (quad[0] + quad[4]) / 2, y: (quad[1] + quad[5]) / 2 };
           }
           // Sent to the page itself: input sent to the app's window at the
           // page's place stops at the <webview> and never reaches it.
           const point = { x: Math.round(inner.x), y: Math.round(inner.y) };
-          const press = (type, extra) => guest.send("Input.dispatchMouseEvent", { type, ...point, ...extra });
+          const press = (type, extra) => target.send("Input.dispatchMouseEvent", { type, ...point, ...extra });
           await press("mouseMoved", {});
           for (let at = 1; at <= count; at++) {
-            await press("mousePressed", { button, buttons: button === "right" ? 2 : 1, clickCount: at });
-            await press("mouseReleased", { button, buttons: 0, clickCount: at });
+            await press("mousePressed", { button: which, buttons: which === "right" ? 2 : 1, clickCount: at });
+            await press("mouseReleased", { button: which, buttons: 0, clickCount: at });
           }
           await settle();
           return { at: point };
@@ -1287,13 +1285,13 @@ export function createWords(app, options = {}) {
         return menuWord(...items);
       },
       async type(text) {
-        const guest = await connection();
-        await guest.send("Input.insertText", { text });
+        const target = await connection();
+        await target.send("Input.insertText", { text });
         await settle();
       },
       async shot(file) {
-        const guest = await connection();
-        const { data } = await guest.send("Page.captureScreenshot", { format: "png" });
+        const target = await connection();
+        const { data } = await target.send("Page.captureScreenshot", { format: "png" });
         const out = file ?? path.join(PICTURES, `page-${++pictureCount}.png`);
         mkdirSync(path.dirname(out), { recursive: true });
         writeFileSync(out, Buffer.from(data, "base64"));
@@ -1550,7 +1548,7 @@ export function createWords(app, options = {}) {
   const windowWord = async (at) => {
     const { connect } = await import("../studio-app.mjs");
     const other = await connect({ page: `window:${at}`, port: app.port, workspace: app.workspace });
-    const made = createWords(other, options);
+    const made = createWords(other, config);
     await made.begin();
     others.push({ connection: other, made });
     return made.words;
@@ -1563,10 +1561,10 @@ export function createWords(app, options = {}) {
    */
   const seed = {
     file(relative, content = "") {
-      if (!options.workspaceDir) {
+      if (!config.workspaceDir) {
         throw new WordError("seed.file needs a fixture workspace: boot with --workspace <fixture>.");
       }
-      const file = path.join(options.workspaceDir, relative);
+      const file = path.join(config.workspaceDir, relative);
       mkdirSync(path.dirname(file), { recursive: true });
       writeFileSync(file, content);
       return file;
@@ -1586,8 +1584,8 @@ export function createWords(app, options = {}) {
       stubs.push(stub);
       const name = "Studio drive stand-in";
       const configs = await rpc("providerConfig.list", {});
-      for (const config of configs.filter((each) => each.displayName === name)) {
-        await rpc("providerConfig.remove", { id: config.id });
+      for (const old of configs.filter((each) => each.displayName === name)) {
+        await rpc("providerConfig.remove", { id: old.id });
       }
       await rpc("providerConfig.create", {
         config: { apiKey: "stand-in", baseURL: stub.baseURL, displayName: name, type: "openai-compatible" },

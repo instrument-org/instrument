@@ -27,6 +27,9 @@
     // Script fragments build.mjs concatenates into one page script, so each
     // one's globals come from its siblings and read as unused or untyped alone.
     ".agents/wireframe-kit/**/*.js",
+    // Scenes are a run's statements, with the words in scope from studio-drive,
+    // so alone they read as top-level await on undeclared names.
+    ".agents/skills/studio-chrome-devtools/scripts/drive/scenes",
     // The walkthrough skill's browser code. The player and the capture entry
     // are bundled against a replay library and recorder from another
     // repository, vendor/ holds those bundles, and in-page.js runs inside

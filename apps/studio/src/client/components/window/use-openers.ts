@@ -26,7 +26,7 @@ import { safe } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStore } from "jotai";
 import { sleep } from "radashi";
-import { useEffect, useRef } from "react";
+import { useEffect, useEffectEvent, useRef } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { isSiteGroup, type useAppTabs } from "./app-tabs";
@@ -50,7 +50,13 @@ import {
 } from "./placement";
 import { visitInTab } from "./tab-history";
 import { taskHref, tasksOfHref } from "./tab-location";
-import { isChatTab, isFreshTab, isSplit, sideIndexOf } from "./tab-model";
+import {
+  isChatTab,
+  isFreshTab,
+  isSplit,
+  isTabNamed,
+  sideIndexOf,
+} from "./tab-model";
 import {
   chatHref,
   chatOfHref,
@@ -816,7 +822,9 @@ export function useOpeners({
    */
   const showTabWhereItIs = (tabId: string): { error?: string } => {
     // A file tab's page names the file tab.
-    const named = windowTabs.allTabs.find((entry) => entry.id === tabId);
+    const named =
+      windowTabs.allTabs.find((entry) => entry.id === tabId) ??
+      windowTabs.allTabs.find((entry) => isTabNamed(entry, tabId));
     const owner = ownerOfHostGroup(named?.group);
     const tab =
       owner === undefined
@@ -831,32 +839,39 @@ export function useOpeners({
     }
     return {};
   };
+  /** The tab a link named in what it reopened, brought up once it is back. */
+  const linkedTab = useRef<string>(undefined);
   /**
    * What a link to a tab group or a tab does: brings it up, as `show` does,
-   * or says it closed, with Reopen where this window's closed list has it.
+   * reopening it first when it is on this window's closed list.
    */
   const showLinked = (kind: "group" | "tab", id: string) => {
+    linkedTab.current = undefined;
     const shown = kind === "group" ? showWholeGroup(id) : showTabWhereItIs(id);
     if (shown.error === undefined) {
       return;
     }
     const entry = closedEntryOf(kind, id);
-    const what = kind === "group" ? "tab group" : "tab";
     if (entry === undefined) {
-      toast(`That ${what} is gone`, {
+      toast(`That ${kind === "group" ? "tab group" : "tab"} is gone`, {
         description: `It was closed, and it's no longer in History.`,
       });
       return;
     }
-    toast(`That ${what} is closed`, {
-      action: {
-        label: "Reopen",
-        onClick: () => {
-          reopenClosed(entry);
-        },
-      },
-    });
+    if (kind === "tab") {
+      linkedTab.current = id;
+    }
+    reopenClosed(entry);
   };
+  const showReopened = useEffectEvent(() => {
+    const id = linkedTab.current;
+    if (id !== undefined && showTabWhereItIs(id).error === undefined) {
+      linkedTab.current = undefined;
+    }
+  });
+  useEffect(() => {
+    showReopened();
+  }, [windowTabs.allTabs]);
   /**
    * Opens what an agent asked for in a tab group it named, not the one its
    * chat is in: after the tab up on the side with the keyboard, up there

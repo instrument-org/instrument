@@ -881,6 +881,16 @@ export function closedTabGroupOf({
     : undefined;
 }
 
+/** Whether a tab is the one an id names: its own, or one it had before it was reopened. */
+export function isTabNamed(tab: WindowTab, id: string): boolean {
+  return tab.id === id || tab.reopenedFrom?.includes(id) === true;
+}
+
+/** A closed tab as it comes back: under an id of its own, remembering the ones it had. */
+export function reopenedTab<T extends WindowTab>(tab: T, id: string): T {
+  return { ...tab, id, reopenedFrom: [...(tab.reopenedFrom ?? []), tab.id] };
+}
+
 /** Every tab a closed entry brings back: a group's, a side's, or the lone tab; none for an entry holding no group's tabs. */
 export function closedTabsOf(entry: {
   groupTab?: unknown;

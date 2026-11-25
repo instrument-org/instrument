@@ -5,6 +5,7 @@ import { StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it, vi } from "vitest";
 import { page, userEvent } from "vitest/browser";
 
+import { LinkedTabsContext } from "./transcript/linked-tabs-context";
 import { Markdown } from "./markdown";
 import { UserMessage } from "./user-message";
 
@@ -394,4 +395,23 @@ describe("An inline link in a browser", () => {
       "giro.com/product/fixture-mips-ii-youth…",
     );
   });
+});
+
+it("draws a tab that is gone as a link to the page it was on", async () => {
+  await renderInBrowser(
+    <LinkedTabsContext
+      value={
+        new Map([
+          ["tab_gone", { title: "Returns", url: "https://shop.test/returns" }],
+        ])
+      }
+    >
+      <Markdown markdown="[Your return](instrument://tab/tab_gone)" />
+    </LinkedTabsContext>,
+  );
+  const link = page.getByRole("link", { name: "Your return" });
+  await expect
+    .element(link)
+    .toHaveAttribute("href", "https://shop.test/returns");
+  expect(link.element().querySelector("img")).not.toBeNull();
 });

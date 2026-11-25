@@ -143,6 +143,8 @@ import {
   isHomeTab,
   isSplit,
   isNewChatTab,
+  isTabNamed,
+  reopenedTab,
   selectedTabIn,
   sideIndexOf,
   upsAmong,
@@ -770,7 +772,7 @@ function WindowShell({
       store.get(appTabsAtom).recentlyClosed.find((entry) => {
         const closedTabs = closedTabsOf(entry);
         return closedTabs.some((each) =>
-          kind === "group" ? each.group === id : each.id === id,
+          kind === "group" ? each.group === id : isTabNamed(each, id),
         );
       })?.id,
     // The sidebar's X: onto the closed list whole, unless it was only the
@@ -1077,7 +1079,7 @@ function WindowShell({
     ) {
       windowTabs.reopenSide({
         ...side,
-        tabs: side.tabs.map((each) => ({ ...each, id: newScreenId() })),
+        tabs: side.tabs.map((each) => reopenedTab(each, newScreenId())),
       });
       showGroup(side.group, { from });
       return;
@@ -1088,7 +1090,7 @@ function WindowShell({
       groupList.open.some((each) => each.group === tab.group);
     if (tab && isOpen) {
       windowTabs.reopen(
-        { ...tab, id: newScreenId() },
+        reopenedTab(tab, newScreenId()),
         entry.index ?? Number.POSITIVE_INFINITY,
       );
       showGroup(tab.group, { from });
@@ -1104,7 +1106,10 @@ function WindowShell({
       fill: (group) => {
         windowTabs.restoreGroup(
           group,
-          reopened.map((each) => ({ ...each, group, id: newScreenId() })),
+          reopened.map((each) => ({
+            ...reopenedTab(each, newScreenId()),
+            group,
+          })),
           side ? { active: side.up } : entry.ups,
         );
       },

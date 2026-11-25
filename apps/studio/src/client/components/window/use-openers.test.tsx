@@ -577,21 +577,46 @@ describe("a link to a tab group or a tab", () => {
     );
   });
 
-  it("offers to reopen a closed group from the closed list", () => {
+  it("reopens a closed group from the closed list", () => {
     windowOnTwoSides();
     spies.closedEntry.current = "entry_1";
     act(() => {
       openLinkAddress("/tab-groups/group_closed");
     });
-    expect(spies.toast).toHaveBeenCalledWith("That tab group is closed", {
-      action: { label: "Reopen", onClick: expect.any(Function) },
-    });
-    const [, options] = spies.toast.mock.calls[0] as [
-      string,
-      { action: { onClick: () => void } },
-    ];
-    options.action.onClick();
     expect(spies.reopenClosed).toHaveBeenCalledWith("entry_1");
+    expect(spies.toast).not.toHaveBeenCalled();
+  });
+
+  it("reopens a closed tab, then brings it up by the id the link has", () => {
+    const { result } = windowOnTwoSides();
+    spies.closedEntry.current = "entry_1";
+    spies.showGroup.mockClear();
+    act(() => {
+      openLinkAddress("/window-tabs/tab_before");
+    });
+    expect(spies.reopenClosed).toHaveBeenCalledWith("entry_1");
+    expect(spies.showGroup).not.toHaveBeenCalled();
+    act(() => {
+      result.current.seed({
+        activeByGroup: { [GROUP]: CHAT_TAB, [OTHER_GROUP]: OTHER_UP },
+        besideByGroup: { [GROUP]: RIGHT_UP },
+        groups: {},
+        tabs: result.current.windowTabs.allTabs.map((tab) =>
+          tab.id === OTHER_BEHIND
+            ? { ...tab, reopenedFrom: ["tab_before"] }
+            : tab,
+        ),
+      });
+    });
+    expect(spies.showGroup).toHaveBeenCalledWith(OTHER_GROUP);
+    expect(result.current.windowTabs.layoutOf(OTHER_GROUP).sides[0]?.up).toBe(
+      OTHER_BEHIND,
+    );
+    spies.closedEntry.current = undefined;
+    act(() => {
+      openLinkAddress("/window-tabs/tab_before");
+    });
+    expect(spies.toast).not.toHaveBeenCalled();
   });
 
   it("says a tab no closed list has is gone", () => {

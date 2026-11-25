@@ -128,6 +128,11 @@ interface TabHistory {
    * joined, or left, that it moved rather than opened or closed.
    */
   movedFrom?: string;
+  /**
+   * The ids it had before each time it was closed and reopened, which a link
+   * to it still names.
+   */
+  reopenedFrom?: string[];
   /** The chat whose agent opened it; absent for a tab the person opened. */
   openedBy?: ChatId;
   /**

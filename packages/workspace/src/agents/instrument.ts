@@ -10,6 +10,7 @@ import { chatModelURI } from "../lib/chat-settings";
 import { ChatWrites } from "../lib/chat-writes";
 import { folderReach } from "../lib/chat/folder-reach";
 import { endOfTurnNote } from "../lib/end-of-turn-checks";
+import { keepTurnLinkedTabs } from "../lib/chat/turn-linked-tabs";
 import { keepTurnFileVersions } from "../lib/chat/turn-file-versions";
 import { beginTurnFileVersions } from "../lib/chat/turn-originals";
 import { keptReader } from "../lib/chat/version-records";
@@ -243,8 +244,8 @@ export const instrumentAgent = setupAgent({
     beginTurnFileVersions(sessionId, keptReader(chatId));
   },
   // A reply whose links open nothing gets one step more to correct them. A
-  // turn that ends keeps a version of each file its reply handed over, before
-  // the session can start the next.
+  // turn that ends keeps a version of each file its reply handed over and the page of each tab
+  // it linked, before the session can start the next.
   shouldContinue: async (options) => {
     const goesOn =
       (await shouldContinueAfterHandingOff(options)) ||
@@ -254,6 +255,9 @@ export const instrumentAgent = setupAgent({
         getWorkspaceConfig().captureException(error, {
           area: "file-versions",
         });
+      });
+      await keepTurnLinkedTabs(options).catch((error: unknown) => {
+        getWorkspaceConfig().captureException(error, { area: "linked-tabs" });
       });
     }
     return goesOn;

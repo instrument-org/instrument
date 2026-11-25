@@ -236,6 +236,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
     case "data-stepFacts": {
       return `<data-stepFacts step="${part.data.step}" />`;
     }
+    case "data-linkedTabs": {
+      return `<data-linkedTabs tabs="${String(part.data.tabs.length)}" />`;
+    }
     case "data-fileVersions": {
       return `<data-fileVersions files="${String(part.data.files.length)}" />`;
     }

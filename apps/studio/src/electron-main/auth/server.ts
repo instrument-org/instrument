@@ -274,7 +274,7 @@ export function createAuthCallbackApp() {
         focusAppWindow();
         return c.html(
           renderAuthPage({
-            headline: `${name} won’t let Instrument connect directly`,
+            headline: `Direct connections aren’t available for ${name}`,
             kind: "declined",
             service,
           }),

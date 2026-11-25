@@ -380,9 +380,7 @@ describe("problem reports", () => {
         surface: "rail",
         title: "The list jumps.",
       }),
-    ).rejects.toThrow(
-      "We couldn't be reached, so it didn't send. Check your connection and try again.",
-    );
+    ).rejects.toThrow("Error sending. Check your connection and try again.");
   });
 
   it("holds a problem back from sending automatically while the account is unknown", async () => {
@@ -837,7 +835,7 @@ describe("feedback images", () => {
         },
       ]),
     ).rejects.toThrow(
-      "“notes.pdf” isn't an image, so we left it out. You can attach PNG, JPEG, WebP or GIF.",
+      "“notes.pdf” wasn't attached because it isn't an image. You can attach PNG, JPEG, WebP or GIF.",
     );
     await expect(
       reports.readFeedbackImages(

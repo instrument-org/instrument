@@ -198,8 +198,7 @@ export function FileVersionsButton({
       <PopoverContent align="end" className="w-87 overflow-y-auto p-1">
         {isTooBig ? (
           <p className="p-2 text-[13px]">
-            This file is too big to keep versions of, so each reply’s card shows
-            it as it is now.
+            Versions aren’t available for files this large.
           </p>
         ) : (
           history.data && (

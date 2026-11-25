@@ -236,7 +236,8 @@ function StopKeepingDialog({
       <DialogContent maxWidth="28rem">
         <DialogTitle>Stop keeping a history?</DialogTitle>
         <DialogDescription>
-          {`${APP_NAME} will stop keeping the pages, files and chats you open, and the AI your chats use. Chats won't be able to tell which file you mean, and the address bar won't suggest pages you've been to.`}
+          New activity won't be saved. Chats won't have it for context, and the
+          address bar won't suggest pages you visit.
         </DialogDescription>
         <label className="flex items-center gap-2.5 text-sm" htmlFor={boxId}>
           <Checkbox

@@ -1526,9 +1526,8 @@ function WindowShell({
             description: "Try the link again in a moment.",
           });
         } else {
-          toast(`Couldn't keep a copy of ${host}`, {
-            description:
-              "Instrument saves a page it opens into your Downloads folder, which didn't take it.",
+          toast(`Error saving the page from ${host}`, {
+            description: "It couldn't be saved to your Downloads folder.",
           });
         }
       },

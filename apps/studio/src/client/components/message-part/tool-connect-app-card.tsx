@@ -297,7 +297,7 @@ function rowLine(
         : `${row.name} didn’t connect.`;
     }
     case "refused": {
-      return `${row.name} won’t let Instrument connect directly.`;
+      return `Direct connections aren’t available for ${row.name}.`;
     }
     case "removed": {
       return "This app was removed.";

@@ -658,7 +658,7 @@ function ToolSheet({ appName, tool }: { appName: string; tool: Tool }) {
         </p>
         <p className="truncate text-[11px] text-muted-foreground">
           {tool.isRead
-            ? "Reads something you name. Ask in a chat to use it."
+            ? "To use this, ask for it in a chat."
             : `Changes things in ${appName}. Runs only when you ask in a chat.`}
         </p>
       </div>

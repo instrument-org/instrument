@@ -802,9 +802,9 @@ export function FilesScreen({
         return;
       }
       if (response.status === 403) {
-        toast(`Instrument keeps “${name}” private`, {
+        toast(`“${name}” is protected`, {
           description:
-            "It’s part of Instrument’s own data, so you can’t open it here.",
+            "It’s part of Instrument’s data and can’t be opened here.",
         });
         putAway();
       } else if (response.status === 404) {

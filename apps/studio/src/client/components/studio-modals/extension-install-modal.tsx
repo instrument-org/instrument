@@ -93,7 +93,7 @@ export function ExtensionInstallModal() {
                 <DialogDescription>
                   {content.lines.length > 0
                     ? "It will be able to:"
-                    : "It asks for nothing beyond running in the browser."}
+                    : "It doesn't require any special permissions."}
                 </DialogDescription>
                 {content.lines.length > 0 && (
                   <ul className="list-disc space-y-1 pl-5 text-sm">

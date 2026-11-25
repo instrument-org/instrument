@@ -65,7 +65,7 @@ describe("the apps a session starts with", () => {
     expect(text).not.toContain("app_instructions");
   });
 
-  it("has a web app waiting on its sign-in checked in a tab before the user is asked again", async () => {
+  it("has a web app waiting on its sign-in said to be maybe signed in already", async () => {
     await seedApp("shopify", {
       guide: "",
       name: "Shopify",
@@ -77,8 +77,84 @@ describe("the apps a session starts with", () => {
     });
 
     expect(await buildAppsContextText()).toContain(
-      "- shopify (Shopify, web at https://admin.shopify.com): not marked signed in. Open its site in a tab first: if it loads signed in, call connect_app (unless its card is open) and tell the user they are already signed in, so they only press Sign in on the card, then Done on the page it opens; otherwise connect_app",
+      "- shopify (Shopify, web at https://admin.shopify.com): not marked signed in, though the user may already be signed in on the site in Instrument's browser",
     );
+  });
+
+  it.each([
+    ["external", "connected, signed in from the user's own browser, 202 tools"],
+    ["app", "connected, signed in from Instrument's browser, 202 tools"],
+    [undefined, "connected, 202 tools"],
+  ] as const)(
+    "states where a connected app signed in: %s",
+    async (signedInFrom, standing) => {
+      await seedApp("tella", {
+        guide: "",
+        name: "Tella",
+        setup: {
+          auth: { kind: "oauth" },
+          type: "mcp",
+          url: "https://api.tella.com/mcp",
+        },
+      });
+      const app = (await loadApp("tella"))._unsafeUnwrap();
+      await getWorkspaceConfig().apps.connections.set("tella", {
+        manifestHash: app.manifestHash,
+        ...(signedInFrom && { signedInFrom }),
+        status: "connected",
+        toolCount: 202,
+        updatedAt: 0,
+      });
+
+      expect((await buildAppsContextText()).split("\n")).toContain(
+        `- tella (Tella, mcp): ${standing}`,
+      );
+    },
+  );
+
+  it.each([
+    undefined,
+    "declined",
+    "failed",
+    "needs-approval",
+    "needs-key",
+    "needs-sign-in",
+    "connected",
+  ] as const)("gives no step to run for an app that is %s", async (status) => {
+    await writeApp("Linear", "linear", "");
+    if (status) {
+      // Connected on another manifest than the app has, so it wants testing.
+      await getWorkspaceConfig().apps.connections.set("linear", {
+        manifestHash: "another",
+        status,
+        updatedAt: 0,
+      });
+    }
+
+    const row = (await buildAppsContextText())
+      .split("\n")
+      .find((line) => line.startsWith("- linear"));
+    expect(row).toBeDefined();
+    expect(row).not.toMatch(/connect_app|instrument app|run `/);
+  });
+
+  it("states nowhere for an app whose sign-in is gone", async () => {
+    await seedApp("tella", {
+      guide: "",
+      name: "Tella",
+      setup: {
+        auth: { kind: "oauth" },
+        type: "mcp",
+        url: "https://api.tella.com/mcp",
+      },
+    });
+    await getWorkspaceConfig().apps.connections.set("tella", {
+      signedInFrom: "external",
+      status: "needs-sign-in",
+      updatedAt: 0,
+    });
+
+    expect(await buildAppsContextText()).not.toContain("signed in from");
   });
 
   it("says nothing for a connected app whose file holds a manifest and no words", async () => {

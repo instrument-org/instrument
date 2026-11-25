@@ -8,18 +8,26 @@ import { serveRegisteredClient } from "../../test/helpers/serve-registered-clien
 import { getWorkspaceConfig, setWorkspaceConfig } from "../workspace-config";
 import { performSignedInRequest } from "./api-oauth";
 import { resetServedAppCatalog } from "./catalog";
-import { type ApiAppManifest } from "./manifest";
 import { createMemoryAppsConfig } from "./memory-config";
 import { publisher } from "../../rpc/publisher";
 import {
   beginMcpOAuth,
+  cancelMcpOAuth,
   completeMcpOAuth,
+  pendingAppUpdate,
   PENDING_FLOW_TTL_MS,
 } from "./mcp/oauth-flow";
 import { type McpOAuthStore } from "./mcp/oauth-provider";
 import { type OriginBound } from "./origin-bound";
 import { setUpFromDirectory } from "./set-up";
-import { loadApp } from "./store";
+import { recordConnection } from "./connection";
+import {
+  type ApiAppManifest,
+  type AppManifest,
+  AppSlugSchema,
+} from "./manifest";
+import { loadApp, readAppGuide, writeApp } from "./store";
+import { appUpdate, endedAppUpdate } from "./update-connection";
 
 const MICROSOFT_CLIENT_ID = "eb827d4c-f05a-4857-be47-496124fa5c50";
 const LOOPBACK = "http://127.0.0.1:49200/auth/callback/app";
@@ -248,7 +256,7 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
     });
     expect(completed._unsafeUnwrap()).toEqual({ opensIn: "app", slug });
     expect(await getWorkspaceConfig().apps.connections.get(slug)).toMatchObject(
-      { status: "connected" },
+      { signedInFrom: "app", status: "connected" },
     );
     expect(await store.getCodeVerifier(slug)).toBeUndefined();
 
@@ -418,6 +426,161 @@ describe("an API app signed in with Instrument's Microsoft client", () => {
       stop();
       vi.useRealTimers();
     }
+  });
+
+  describe("updating an app that is on the web", () => {
+    const slug = AppSlugSchema.parse("outlook");
+    const onTheWeb = {
+      account: "mac-user@outlook.com",
+      service: "outlook",
+      type: "web",
+      url: "https://outlook.live.com",
+    } satisfies AppManifest;
+
+    beforeEach(async () => {
+      await writeApp({
+        guide: "Worked in a tab.",
+        manifest: onTheWeb,
+        name: "Outlook",
+        replacesGuide: true,
+        slug,
+      });
+      const { manifestHash } = (await loadApp(slug))._unsafeUnwrap();
+      await recordConnection(slug, {
+        connectedAt: 1,
+        manifestHash,
+        status: "connected",
+      });
+    });
+
+    async function begin() {
+      const update = appUpdate((await loadApp(slug))._unsafeUnwrap());
+      const begun = (
+        await beginMcpOAuth({
+          opensIn: "external",
+          redirectUrl: LOOPBACK,
+          relayRedirectUrl,
+          relayTokenUrl,
+          slug,
+          store,
+          updatesTo: update?.manifest,
+        })
+      )._unsafeUnwrap();
+      if (begun.alreadyConnected) {
+        throw new Error("Expected a sign-in to start");
+      }
+      return begun;
+    }
+
+    async function standing() {
+      const app = (await loadApp(slug))._unsafeUnwrap();
+      const connection = await getWorkspaceConfig().apps.connections.get(slug);
+      return {
+        connectedOnIt: connection?.manifestHash === app.manifestHash,
+        guide: (await readAppGuide(slug))?.trim(),
+        manifest: app.manifest,
+        signedIn: (await store.getTokens(slug)) !== undefined,
+        status: connection?.status,
+      };
+    }
+
+    const untouched = {
+      connectedOnIt: true,
+      guide: "Worked in a tab.",
+      manifest: onTheWeb,
+      signedIn: false,
+      status: "connected",
+    };
+
+    it("leaves it on the web until the new sign-in has been checked", async () => {
+      serveMicrosoft();
+      const { state } = await begin();
+      expect(await standing()).toEqual(untouched);
+      expect(pendingAppUpdate(slug)).toBe("external");
+
+      (await completeMcpOAuth({ code: "the-code", state }))._unsafeUnwrap();
+
+      const { guide, ...updated } = await standing();
+      expect(updated).toEqual({
+        connectedOnIt: true,
+        manifest: {
+          account: "mac-user@outlook.com",
+          auth: { kind: "oauth" },
+          service: "outlook",
+          test: { path: "/me" },
+          type: "api",
+          url: "https://graph.microsoft.com/v1.0",
+        },
+        signedIn: true,
+        status: "connected",
+      });
+      expect(guide).toContain("https://graph.microsoft.com/v1.0");
+      expect(
+        await getWorkspaceConfig().apps.connections.get(slug),
+      ).toMatchObject({ signedInFrom: "external" });
+      expect(pendingAppUpdate(slug)).toBeUndefined();
+    });
+
+    it.each([
+      ["a code that is refused", { accepts: "at-1", code: "a-wrong-code" }],
+      ["a sign-in the API refuses", { accepts: "at-none", code: "the-code" }],
+    ])("changes nothing on %s", async (_, { accepts, code }) => {
+      const microsoft = serveMicrosoft();
+      microsoft.graph.accepts = accepts;
+      microsoft.refreshTokens.clear();
+      const { state } = await begin();
+      expect((await completeMcpOAuth({ code, state })).isErr()).toBe(true);
+      expect(await standing()).toEqual(untouched);
+    });
+
+    it("changes nothing when it is stopped", async () => {
+      const { state } = await begin();
+      await cancelMcpOAuth(state);
+      expect(await standing()).toEqual(untouched);
+      expect(pendingAppUpdate(slug)).toBeUndefined();
+    });
+
+    it("changes nothing when nobody finishes it", async () => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      try {
+        await begin();
+        await vi.advanceTimersByTimeAsync(PENDING_FLOW_TTL_MS);
+        await vi.waitFor(() => {
+          expect(endedAppUpdate(slug)?.ended).toBe("expired");
+        });
+        expect(await standing()).toEqual(untouched);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("leaves an app alone that moved while the sign-in was open", async () => {
+      serveMicrosoft();
+      const { state } = await begin();
+      const moved = {
+        auth: { kind: "bearer" },
+        service: "outlook",
+        test: { path: "/me" },
+        type: "api",
+        url: "https://mail.example.com",
+      } satisfies AppManifest;
+      await writeApp({ guide: "", manifest: moved, name: "Outlook", slug });
+      const result = await completeMcpOAuth({ code: "the-code", state });
+      expect(result._unsafeUnwrapErr().message).toMatch(/left as it is/);
+      expect((await standing()).manifest).toEqual(moved);
+    });
+
+    it.each([
+      ["one put on the web on purpose", { ...onTheWeb, webChosen: true }],
+      [
+        "a service with no direct sign-in",
+        { type: "web", url: "https://intranet.example.com" },
+      ],
+    ] satisfies [string, AppManifest][])("offers none to %s", (_, manifest) => {
+      const at =
+        "service" in manifest ? slug : AppSlugSchema.parse("intranet-example");
+      expect(appUpdate({ manifest, slug: at })).toBeUndefined();
+    });
   });
 
   it("never sends a sign-in to another origin than the one it was given for", async () => {

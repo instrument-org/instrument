@@ -18,6 +18,10 @@ import {
   AskCard,
   ThingsToDo,
 } from "@/client/components/window/app-page-parts";
+import {
+  AppUpdateControls,
+  AppUpdateLine,
+} from "@/client/components/window/app-update";
 import { AppMenuButton } from "@/client/components/window/app-menu";
 import { AppKeys } from "@/client/components/window/app-keys";
 import { useAppsBySlug } from "@/client/components/window/apps-by-slug";
@@ -412,6 +416,7 @@ function AppAccountRow({
   const waitingIn = useAtomValue(signInsWaitingAtom).get(app.slug)?.where;
   const isConnected = app.status === "connected";
   const isSignedOut = asksForSignIn(app);
+  const update = app.type === "web" ? app.update : undefined;
   return (
     <AccountRow
       end={
@@ -424,6 +429,8 @@ function AppAccountRow({
               primary={false}
               slug={app.slug}
             />
+          ) : update ? (
+            <AppUpdateControls name={name} slug={app.slug} update={update} />
           ) : null}
           <AppMenuButton
             app={app}
@@ -437,6 +444,8 @@ function AppAccountRow({
       line={
         waitingIn !== undefined && !isConnected ? (
           <SignInWaitingLine where={waitingIn} />
+        ) : update ? (
+          <AppUpdateLine name={name} update={update} />
         ) : isConnected ? (
           "Connected"
         ) : isSignedOut ? (

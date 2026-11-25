@@ -3,6 +3,7 @@ import { recordAction } from "../actions/log";
 import { type SessionMessageDataPart } from "../../schemas/session/message-data-part";
 import { type SignInEnd } from "./connection";
 import { loadApp } from "./store";
+import { getWorkspaceConfig } from "../workspace-config";
 import { signsInDirectly, webInsteadUrl } from "./site";
 
 type AppEventPayload = Omit<
@@ -66,11 +67,18 @@ export async function appEventOf(
   const loaded = await loadApp(slug);
   const app = loaded.isOk() ? loaded.value : undefined;
   const manifest = app?.manifest;
+  const signedInFrom =
+    happened.event === "connected" &&
+    manifest !== undefined &&
+    signsInDirectly(manifest)
+      ? (await getWorkspaceConfig().apps.connections.get(slug))?.signedInFrom
+      : undefined;
   return {
     ...(manifest?.account === undefined ? {} : { account: manifest.account }),
     ...(happened.detail === undefined ? {} : { detail: happened.detail }),
     event: happened.event,
     name: app?.name ?? slug,
+    ...(signedInFrom === undefined ? {} : { signedInFrom }),
     slug,
     // A web app is worked on its own site, which the chat is told.
     ...(manifest?.type === "web" ? { web: manifest.url } : {}),

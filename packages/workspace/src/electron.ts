@@ -54,6 +54,7 @@ export {
   nameAppAccount,
   recordConnection,
   type SignInEnd,
+  type SignInOpensIn,
 } from "./lib/apps/connection";
 export { waitInChat } from "./lib/chat/asks";
 export { computerPlaces } from "./lib/chat/computer-places";
@@ -79,8 +80,9 @@ export {
   beginMcpOAuth,
   cancelMcpOAuth,
   completeMcpOAuth,
+  isPendingAppUpdate,
+  pendingAppUpdate,
   pendingMcpOAuthSlug,
-  type SignInOpensIn,
 } from "./lib/apps/mcp/oauth-flow";
 export { type McpOAuthStore } from "./lib/apps/mcp/oauth-provider";
 export { withAppMcpClient } from "./lib/apps/mcp/run";
@@ -103,6 +105,11 @@ export { findAppIcon } from "./lib/apps/icon";
 export { setUpFromDirectory } from "./lib/apps/set-up";
 export { listApps, loadApp, readAppGuide, removeApp } from "./lib/apps/store";
 export { type AppTestReport, runAppTest } from "./lib/apps/test-app";
+export {
+  appUpdate,
+  appUpdateEnded,
+  endedAppUpdate,
+} from "./lib/apps/update-connection";
 export {
   BACKGROUND_PROCESS_TEARDOWN_MS,
   killAllBackgroundProcesses,

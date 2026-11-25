@@ -24,10 +24,15 @@ import {
   credentialOrigin,
   appSiteFor,
   AppSlugSchema,
+  appUpdate,
+  appUpdateEnded,
   beginMcpOAuth,
   boundTo,
   cancelMcpOAuth,
   describeLocalLaunch,
+  endedAppUpdate,
+  isPendingAppUpdate,
+  pendingAppUpdate,
   catalogEntryMacApp,
   catalogEntryForApp,
   catalogKeyHelp,
@@ -152,6 +157,35 @@ const KeyHelpSchema = z
   .object({ page: z.string(), steps: z.string().optional() })
   .optional();
 
+const AppUpdateSchema = z.object({
+  /** How the last try ended, when it did not go through. */
+  ended: z
+    .object({
+      at: z.number(),
+      ended: z.enum(["declined", "expired", "failed", "refused"]),
+      error: z.string().optional(),
+    })
+    .optional(),
+  /** Where its sign-in is open, while it waits. */
+  opensIn: z.enum(["app", "external"]).optional(),
+});
+
+/** The update offered on an app's page; none for one with nothing to update to. */
+function updateOf(
+  app: Parameters<typeof appUpdate>[0],
+  status: z.output<typeof AppStatusSchema>,
+): { update?: z.output<typeof AppUpdateSchema> } {
+  if (status !== "connected" || appUpdate(app) === undefined) {
+    return {};
+  }
+  return {
+    update: {
+      ended: endedAppUpdate(app.slug),
+      opensIn: pendingAppUpdate(app.slug),
+    },
+  };
+}
+
 const AppListItemSchema = z.discriminatedUnion("type", [
   AppListItemBaseSchema.extend({
     authKind: z.enum([
@@ -184,6 +218,8 @@ const AppListItemSchema = z.discriminatedUnion("type", [
     /** The page its sign-in opens in the window's browser. */
     signIn: z.string(),
     type: z.literal("web"),
+    /** For a connected one whose service has a direct sign-in: how its update stands. */
+    update: AppUpdateSchema.optional(),
   }),
 ]);
 
@@ -341,6 +377,7 @@ const list = base.output(AppListSchema).handler(async () => {
               endpoint: manifest.url,
               signIn: manifest.signIn ?? manifest.url,
               type: manifest.type,
+              ...updateOf(app, listed.status),
             };
           }
         }
@@ -759,6 +796,60 @@ const startOAuth = base
   });
 
 /**
+ * Start moving an app worked on the web to its service's direct sign-in: the
+ * sign-in of `startOAuth` against the address the directory has, with the app
+ * left as it is until it lands.
+ */
+const startUpdate = base
+  .input(
+    z.object({
+      /** Where the page opens, so the callback can land the right way. */
+      opensIn: z.enum(["app", "external"]),
+      slug: AppSlugSchema,
+    }),
+  )
+  .output(z.object({ url: z.string() }))
+  .handler(async ({ errors, input: { opensIn, slug } }) => {
+    const loaded = await loadApp(slug);
+    if (loaded.isErr()) {
+      throw errors.NOT_FOUND({ message: loaded.error.message });
+    }
+    const update = appUpdate(loaded.value);
+    if (update === undefined) {
+      throw errors.API_ERROR({
+        message: `${loaded.value.name} has no update.`,
+      });
+    }
+    await startAuthCallbackServer();
+    const result = await beginMcpOAuth({
+      opensIn,
+      redirectUrl: appOAuthRedirectUrl(),
+      relayRedirectUrl: appOAuthRelayUrl,
+      relayTokenUrl: appOAuthTokenUrl,
+      slug,
+      store: appOAuthStore,
+      updatesTo: update.manifest,
+    });
+    if (result.isErr()) {
+      await appUpdateEnded(slug, "failed", result.error.message);
+      throw errors.API_ERROR({
+        cause: result.error.cause,
+        message: result.error.message,
+      });
+    }
+    if (result.value.alreadyConnected) {
+      throw errors.API_ERROR({
+        message: `${loaded.value.name} is already updated.`,
+      });
+    }
+    if (opensIn === "app") {
+      expectSignIn(slug, result.value.authorizationUrl);
+    }
+    await appChanged(slug);
+    return { url: result.value.authorizationUrl };
+  });
+
+/**
  * The user stopped a sign-in that was started: the flow is torn down, so its
  * callback is refused. A sign-in that was still waiting is recorded as
  * stopped, which wakes the chat that asked with the way on (the web, or
@@ -771,11 +862,16 @@ const cancelOAuth = base
     const state = await appOAuthStore.getState(input.slug);
     const waiting =
       state !== undefined && pendingMcpOAuthSlug(state) === input.slug;
+    // Read before the flow is torn down, which forgets it.
+    const isUpdate = waiting && isPendingAppUpdate(state);
     if (state !== undefined) {
       await cancelMcpOAuth(state);
     }
     await appOAuthStore.clearTransient(input.slug);
-    if (waiting) {
+    if (isUpdate) {
+      // The app works on as it did.
+      await appChanged(input.slug);
+    } else if (waiting) {
       // The user changed their mind, which nobody needs to hear about.
       await settleConnection(input.slug, { status: "needs-sign-in" });
     }
@@ -1079,5 +1175,6 @@ export const apps = {
   setCredential,
   setUp,
   startOAuth,
+  startUpdate,
   test,
 };

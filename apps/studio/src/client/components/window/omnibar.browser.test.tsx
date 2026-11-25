@@ -141,7 +141,7 @@ describe("words the field searches the web for", () => {
 
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toMatchTextContent(new RegExp(`^Search the web for “${words}”$`));
+      .toMatchTextContent(new RegExp(`^Search the web for “${words}”↵$`));
   });
 
   it("is offered after a path with nothing at it", async () => {
@@ -151,7 +151,7 @@ describe("words the field searches the web for", () => {
 
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toMatchTextContent(/^Search the web for “\/nowhere\/x”$/);
+      .toMatchTextContent(/^Search the web for “\/nowhere\/x”↵$/);
   });
 });
 
@@ -260,7 +260,7 @@ describe("words typed over any place", () => {
     await userEvent.fill(page.getByRole("combobox"), "settings");
     await expect
       .element(page.getByRole("option", { selected: true }))
-      .toMatchTextContent(/^Search the web for “settings”$/);
+      .toMatchTextContent(/^Search the web for “settings”↵$/);
     await expect
       .element(page.getByRole("option", { name: "Settings", exact: true }))
       .toBeInTheDocument();

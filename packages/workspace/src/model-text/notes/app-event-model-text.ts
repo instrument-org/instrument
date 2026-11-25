@@ -36,7 +36,7 @@ export function appEventModelNote(
         if (event.web !== undefined) {
           return `- The user says they are signed in to ${event.name} (${event.slug}) on the web, in ${APP_NAME}'s browser. It is connected. Work it there: open ${event.web} in a tab, where the sign-in holds, or use a tab already open there. No \`${APP_COMMAND.name}\` call reaches it.${nameIt(event)}`;
         }
-        return `- The user signed in to ${event.name} (${event.slug}). It is connected${detail ? `: ${detail}` : ""}. Use it now: \`${APP_COMMAND.name} tools ${event.slug}\`, then \`${APP_COMMAND.name} call\`.${nameIt(event)}`;
+        return `- The user signed in to ${event.name} (${event.slug})${signedInWhere(event.signedInFrom)}. It is connected${detail ? `: ${detail}` : ""}. Use it now: \`${APP_COMMAND.name} tools ${event.slug}\`, then \`${APP_COMMAND.name} call\`.${nameIt(event)}`;
       }
       case "declined": {
         return `- The user declined to connect ${event.name} (${event.slug}). Do not ask again unless they bring it up; say what you cannot do without it, in a line, and carry on with what you can.`;
@@ -75,6 +75,21 @@ export function appEventModelNote(
   return systemNote`
     ${said.join("\n")}
   `;
+}
+
+/** Which browser a sign-in went through, from which the agent can tell whose sessions it left. */
+function signedInWhere(from: AppEventLine["signedInFrom"]): string {
+  switch (from) {
+    case "app": {
+      return ` in ${APP_NAME}'s browser`;
+    }
+    case "external": {
+      return ` in their own browser, outside ${APP_NAME}`;
+    }
+    case undefined: {
+      return "";
+    }
+  }
 }
 
 type AppEventLine = SessionMessageDataPart.AppEventDataPart["events"][number];

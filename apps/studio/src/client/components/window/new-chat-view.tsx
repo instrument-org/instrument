@@ -46,7 +46,6 @@ import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { APP_NAME } from "@instrument-org/shared";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
-import { unique } from "radashi";
 import {
   type ReactNode,
   useEffect,
@@ -67,17 +66,16 @@ import { DraftLinkChips } from "./draft-link-chips";
 import { draftLinksOf } from "./draft-links";
 import { useShell } from "./shell-context";
 import { useGroupTab } from "./group-tab";
-import { useKnownPages } from "./known-pages";
-import { useCompletionPages } from "@/client/hooks/use-browser-history";
+import { useFieldPages } from "./known-pages";
 import {
   boxOpens,
   type BoxOpens,
   boxPageRows,
-  type BoxPageRow,
   boxSearchWords,
   siteToComplete,
 } from "./new-tab-box";
 import { NewTabPageList } from "./new-tab-page-list";
+import { type PageRow } from "./page-rows";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import {
@@ -330,21 +328,9 @@ export function NewChatView({
   // Whether the last key pressed in the box was a letter typed.
   const letterTyped = useRef(false);
   const typedPath = groupTab ? typedPathHere(words) : undefined;
-  const { bookmarkPages, recentPages } = useKnownPages({
+  const { completable, offered } = useFieldPages({
     enabled: groupTab !== undefined,
   });
-  // The web's pages among the bookmarks: the app's own places kept as
-  // bookmarks are not pages a word finishes to.
-  const bookmarkedPages = bookmarkPages.filter(
-    (page) => targetOfAddress(page.url)?.kind === "page",
-  );
-  // What the box finishes a word to, which is what the address field does:
-  // the bookmarks, then the pages history counts as significant.
-  const significant = useCompletionPages({ enabled: groupTab !== undefined });
-  const completable = unique(
-    [...bookmarkedPages, ...significant],
-    (page) => page.url,
-  );
   /**
    * The box's words as they change. A letter typed onto the end of one word
    * that starts a site the person goes to has the rest of the site's
@@ -388,10 +374,7 @@ export function NewChatView({
       ? []
       : boxPageRows({
           completedSite: ahead?.url,
-          pages: unique(
-            [...bookmarkedPages, ...recentPages],
-            (page) => page.url,
-          ),
+          pages: offered,
           path: typedPath,
           words,
         });
@@ -468,7 +451,7 @@ export function NewChatView({
       );
     }
   };
-  const openRow = (row: BoxPageRow) => {
+  const openRow = (row: PageRow) => {
     openAddress(row.page.url);
   };
   const searchWeb = () => {

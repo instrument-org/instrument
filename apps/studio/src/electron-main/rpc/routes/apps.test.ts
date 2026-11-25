@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   cancelMcpOAuth: vi.fn(() => Promise.resolve()),
   oauthState: undefined as string | undefined,
   pending: new Map<string, string>(),
+  updates: new Set<string>(),
   recordConnection: vi.fn(),
   requireAppKeys: vi.fn(() => Promise.resolve([])),
   runAppTest: vi.fn(),
@@ -65,6 +66,7 @@ vi.mock(
     loadApp: mocks.loadApp,
     beginMcpOAuth: mocks.beginMcpOAuth,
     cancelMcpOAuth: mocks.cancelMcpOAuth,
+    isPendingAppUpdate: (state: string) => mocks.updates.has(state),
     pendingMcpOAuthSlug: (state: string) => mocks.pending.get(state),
     recordConnection: mocks.recordConnection,
     requireAppKeys: mocks.requireAppKeys,
@@ -102,6 +104,7 @@ afterEach(() => {
   vi.clearAllMocks();
   mocks.oauthState = undefined;
   mocks.pending.clear();
+  mocks.updates.clear();
   mocks.apps.clear();
 });
 
@@ -370,6 +373,18 @@ describe("cancelOAuth", () => {
       ["signed-in", { status: "needs-sign-in" }],
     ]);
     expect(mocks.appChanged).not.toHaveBeenCalled();
+  });
+
+  it("leaves an app connected when its update is stopped", async () => {
+    mocks.oauthState = "open";
+    mocks.pending.set("open", "gmail");
+    mocks.updates.add("open");
+
+    await call(apps.cancelOAuth, { slug: "gmail" }, options);
+
+    expect(mocks.cancelMcpOAuth).toHaveBeenCalledWith("open");
+    expect(mocks.recordConnection).not.toHaveBeenCalled();
+    expect(mocks.appChanged).toHaveBeenCalledWith("gmail");
   });
 
   it("says nothing when no sign-in was waiting", async () => {

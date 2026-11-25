@@ -38,6 +38,7 @@ const MANIFEST_KEYS = [
   "test",
   "service",
   "account",
+  "webChosen",
 ] as const;
 
 /** The keys this build reads off the front matter, and so the ones that are nobody else's. */

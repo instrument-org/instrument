@@ -20,7 +20,7 @@ import {
 } from "@/client/lib/keyboard-home";
 import { SIDE_MOTION } from "@/client/lib/motion";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
-import { cn } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { noop } from "radashi";
 import { useAtom, useAtomValue } from "jotai";
@@ -419,6 +419,7 @@ function GroupSides({
                   hasKeyboard={isUp && layout.focused === each.at}
                   isFirst={each.at === 0}
                   isUp={isUp}
+                  isLast={each.at === layout.sides.length - 1}
                   layout={layout}
                   place={`${group}:${each.at}:${isTwo ? growOf(each.at) : 1}`}
                   side={each.side}
@@ -559,6 +560,7 @@ function SideCard({
   group,
   hasKeyboard,
   isFirst,
+  isLast,
   isUp,
   layout,
   place,
@@ -569,6 +571,7 @@ function SideCard({
   group: string;
   hasKeyboard: boolean;
   isFirst: boolean;
+  isLast: boolean;
   /** Whether the side's group is the one on screen. */
   isUp: boolean;
   layout: GroupLayout;
@@ -957,7 +960,15 @@ function SideCard({
           split={split}
           tabs={drawn.tabs}
           taskTitles={shell.childTitles}
-          trailing={splitControl}
+          trailing={
+            <>
+              {/* Room a full strip keeps to drag the window by. */}
+              {isLast && isMacOS() && (
+                <div aria-hidden className="w-10 shrink-0" />
+              )}
+              {splitControl}
+            </>
+          }
         />
       )}
       <div className="relative min-h-0 flex-1" data-side-page={sideIndex}>

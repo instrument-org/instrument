@@ -13,14 +13,20 @@ export type SignInDestination = "app" | "external";
 /**
  * The app sign-ins started from the window and not yet finished, by slug,
  * with when the app's connection record was last written as the sign-in
- * started and whether it started in a chat. Held by the window rather than by the controls that
+ * started (for an update, when its last try ended) and whether it started in
+ * a chat. Held by the window rather than by the controls that
  * started one, since opening the sign-in page in the window's browser can
  * take the screen those controls were on.
  */
 export const signInsWaitingAtom = atom<
   ReadonlyMap<
     string,
-    { from: number | undefined; inChat: boolean; where: SignInDestination }
+    {
+      from: number | undefined;
+      inChat: boolean;
+      isUpdate?: boolean;
+      where: SignInDestination;
+    }
   >
 >(new Map());
 
@@ -45,23 +51,38 @@ export function useSignInLanding(
     }
     const settled = new Set<string>();
     for (const [slug, started] of waiting) {
-      const { from, inChat } = started;
+      const { from, inChat, isUpdate = false } = started;
       const app = apps.data.apps.find((candidate) => candidate.slug === slug);
       const status = app?.status;
-      if (status === "connected") {
+      // An app being updated is connected all along, on the web until the
+      // sign-in lands.
+      if (isUpdate && app?.type === "web") {
+        const ended = app.update?.ended;
+        if (
+          status !== "connected" ||
+          (ended !== undefined && ended.at !== from)
+        ) {
+          settled.add(slug);
+        }
+      } else if (status === "connected") {
         settled.add(slug);
         const shown = appsBySlug.get(slug);
-        toast.success(`Connected ${shown?.name ?? slug}`, {
-          description: "Instrument can use it in your chats now.",
-          icon: (
-            <AppIcon
-              icon={shown?.icon}
-              name={shown?.name ?? slug}
-              site={shown?.site}
-              size="sm"
-            />
-          ),
-        });
+        toast.success(
+          `${isUpdate ? "Updated" : "Connected"} ${shown?.name ?? slug}`,
+          {
+            description: isUpdate
+              ? "Instrument can work in it without opening a tab now."
+              : "Instrument can use it in your chats now.",
+            icon: (
+              <AppIcon
+                icon={shown?.icon}
+                name={shown?.name ?? slug}
+                site={shown?.site}
+                size="sm"
+              />
+            ),
+          },
+        );
         if (!inChat) {
           // Nobody pressed anything, so the tab up goes there rather than
           // another window coming forward.

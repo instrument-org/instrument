@@ -5,7 +5,6 @@ import { AI_REQUESTS_EVALS } from "./ai-requests";
 import { APP_ACCOUNTS_EVALS } from "./app-accounts";
 import { APP_OWN_FOLDERS_EVALS } from "./app-own-folders";
 import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
-import { APP_OFF_THE_WEB_EVALS } from "./app-off-the-web";
 import { APP_OTHER_COMPUTER_EVALS } from "./app-other-computer";
 import { APP_GUIDANCE_EVALS } from "./app-guidance";
 import { APP_ACCOUNT_NAMING_EVALS } from "./app-account-naming";
@@ -14,6 +13,7 @@ import { NEXT_MESSAGE_EVALS } from "./next-message";
 import { APP_SCRIPTING_EVALS } from "./app-scripting";
 import { APP_SCRIPTING_API_EVALS } from "./app-scripting-api";
 import { APP_SIGN_IN_CARD_EVALS } from "./app-sign-in-card";
+import { APP_LINES_EVALS } from "./app-lines";
 import { APP_SIGN_IN_LOST_EVALS } from "./app-sign-in-lost";
 import { APP_SIGN_IN_REFUSED_EVALS } from "./app-sign-in-refused";
 import { APP_WEB_SIGNED_IN_EVALS } from "./app-web-signed-in";
@@ -91,7 +91,6 @@ export const EVALS = [
   ...APP_ACCOUNTS_EVALS,
   ...APP_OWN_FOLDERS_EVALS,
   ...APP_IMPORT_FILE_EVALS,
-  ...APP_OFF_THE_WEB_EVALS,
   ...APP_OTHER_COMPUTER_EVALS,
   ...APP_GUIDANCE_EVALS,
   ...APP_GUIDE_MEMORY_EVALS,
@@ -100,6 +99,7 @@ export const EVALS = [
   ...APP_SCRIPTING_EVALS,
   ...APP_SCRIPTING_API_EVALS,
   ...APP_SIGN_IN_CARD_EVALS,
+  ...APP_LINES_EVALS,
   ...APP_SIGN_IN_LOST_EVALS,
   ...APP_SIGN_IN_REFUSED_EVALS,
   ...APP_WEB_SIGNED_IN_EVALS,

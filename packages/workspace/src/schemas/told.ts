@@ -28,6 +28,8 @@ export const ToldAppsSchema = z.record(
     /** What its folder held (`folder-fingerprint.ts`). */
     fingerprint: z.string(),
     name: z.string(),
+    /** Where the app's own sign-in went through, as the app event tells it. */
+    signedInFrom: z.enum(["app", "external"]).optional(),
     web: z.string().optional(),
   }),
 );

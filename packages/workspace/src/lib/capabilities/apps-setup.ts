@@ -38,7 +38,6 @@ import {
 import { appKeySlots } from "../apps/keys";
 import { credentialOrigin } from "../apps/origin-bound";
 import {
-  type AppInfo,
   guidePlaceholdersLeft,
   guideSkeleton,
   listApps,
@@ -51,6 +50,7 @@ import {
 } from "../apps/store";
 import { checkAppIcon, setAppIcon } from "../apps/icon";
 import { mcpSignInSupport, packageExists } from "../apps/preflight";
+import { entrySignsInDirectly } from "../apps/update-connection";
 import { catalogWayIn, parseAuths } from "../apps/way-in";
 import { macAppNamed } from "../mac-apps/apps";
 import { bundledMacAppHere } from "../apps/mac-app";
@@ -88,39 +88,8 @@ const CATALOG_DETAIL_LIMIT = 10;
 /** What a setup word answers: what it did, in a line or a few. */
 const Said = z.string();
 
-/**
- * The line that moves an app worked on the web to the sign-in the directory
- * has for its service, or undefined where the directory's way in is no
- * sign-in. A directory that gains one leaves the apps already set up as they
- * are, and the set-up line alone is refused for an app that is already here.
- */
-function moveOffTheWeb(
-  entry: AppCatalogEntry,
-  app: AppInfo,
-): string | undefined {
-  const way = catalogWayIn(entry);
-  const reach =
-    way.kind === "mcp" && way.auth === undefined
-      ? `--mcp ${way.endpoint}`
-      : way.kind === "api" && way.auth === "oauth" && way.test !== undefined
-        ? `--api ${way.endpoint} --auth oauth --test ${way.test}`
-        : undefined;
-  if (reach === undefined) {
-    return undefined;
-  }
-  const service = app.slug === entry.slug ? "" : ` --service ${entry.slug}`;
-  const account = app.manifest.account ? ` (${app.manifest.account})` : "";
-  return `  already here: ${app.slug}${account}, set up on the web. With the user's yes, \`${APP_COMMAND.name} new ${app.slug} ${reach}${service} --force\` moves it to the direct sign-in above, then ${TOOL_NAMES.connectApp}: it keeps its name, its guide is written again, and the user signs in once more.`;
-}
-
-/**
- * The catalog, as lines: what each service is and how it is reached, with
- * the apps of it already set up on the web when it can be reached directly.
- */
-function describeCatalogEntry(
-  entry: AppCatalogEntry,
-  { onTheWeb, role }: { onTheWeb: AppInfo[]; role: Role },
-): string {
+/** The catalog, as lines: what each service is and how it is reached. */
+function describeCatalogEntry(entry: AppCatalogEntry, role: Role): string {
   const surfaces = entry.interfaces.map((surface) => {
     // Said in words, so the endpoint is not mistaken for one to set up.
     const auth = catalogInterfaceLacksClient(surface)
@@ -175,9 +144,6 @@ function describeCatalogEntry(
     ...(entry.docsUrl ? [`  docs: ${entry.docsUrl}`] : []),
     // A task sets nothing up, so it is given no line it cannot run.
     `  set up: ${role === "chat" ? howTo : "by the chat, named in your needs fence"}`,
-    ...(role === "chat"
-      ? onTheWeb.flatMap((app) => moveOffTheWeb(entry, app) ?? [])
-      : []),
     ...(entry.addAccount && role === "chat"
       ? [
           `  another account: on the web, \`${APP_COMMAND.name} new ${entry.slug}-2 --name '${entry.name}' --web ${entry.home ?? `https://${entry.domain}`}\` beside the one already here; its card opens ${entry.name}'s page for adding an account.`,
@@ -204,17 +170,8 @@ async function runCatalog(
   words: string,
   { role, signal }: Pick<CapabilityContext, "role" | "signal">,
 ) {
-  const web = (await listApps()).apps.filter(
-    (app) => app.manifest.type === "web",
-  );
   const describe = (entry: AppCatalogEntry) =>
-    describeCatalogEntry(entry, {
-      onTheWeb: web.filter(
-        (app) =>
-          catalogEntryForApp(app.slug, app.manifest)?.slug === entry.slug,
-      ),
-      role,
-    });
+    describeCatalogEntry(entry, role);
   const query = words.trim();
   const entries = searchAppCatalog(query);
   if (entries.length === 0) {
@@ -691,7 +648,13 @@ async function runNew(input: z.output<typeof NewInput>) {
   }
   const service = fromDirectory ? { service: fromDirectory.service } : {};
   const candidate: unknown = web
-    ? { ...service, ...(signIn ? { signIn } : {}), type: "web", url: web }
+    ? {
+        ...service,
+        ...(signIn ? { signIn } : {}),
+        type: "web",
+        url: web,
+        ...(entry && entrySignsInDirectly(entry) ? { webChosen: true } : {}),
+      }
     : local
       ? {
           ...(serverArgs.length > 0 ? { args: serverArgs } : {}),

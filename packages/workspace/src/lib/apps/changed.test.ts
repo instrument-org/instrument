@@ -3,7 +3,8 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { publisher } from "../../rpc/publisher";
 import { forgetApps, seedApp } from "../../test/helpers/seed-app";
 import { actionLog } from "../actions/log";
-import { appChanged } from "./changed";
+import { getWorkspaceConfig } from "../workspace-config";
+import { appChanged, appEventOf } from "./changed";
 
 beforeEach(async () => {
   await seedApp("drafts", {
@@ -51,6 +52,31 @@ describe("appChanged", () => {
       },
     ]);
   });
+
+  it.each([
+    ["oauth", "external"],
+    // A key the app uses has no sign-in, whatever its record kept of an earlier one.
+    ["none", undefined],
+  ] as const)(
+    "tells where an app with %s sign-in signed in: %s",
+    async (kind, from) => {
+      await seedApp("tella", {
+        name: "Tella",
+        setup: {
+          auth: { kind },
+          type: "mcp",
+          url: "https://api.tella.com/mcp",
+        },
+      });
+      await getWorkspaceConfig().apps.connections.set("tella", {
+        signedInFrom: "external",
+        status: "connected",
+        updatedAt: 0,
+      });
+      const event = await appEventOf("tella", { event: "connected" });
+      expect(event.signedInFrom).toBe(from);
+    },
+  );
 
   it("keeps a sign-in going through or failing in the action log, by the app's name", async () => {
     actionLog().clear();

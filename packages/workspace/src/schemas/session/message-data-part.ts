@@ -1137,6 +1137,11 @@ export namespace SessionMessageDataPart {
           ]),
           name: z.string(),
           /**
+           * For a sign-in of the app's own that connected, where its page was
+           * opened: the window's own browser, or the user's.
+           */
+          signedInFrom: z.enum(["app", "external"]).optional(),
+          /**
            * For a sign-in of the app's own that did not connect: how it
            * ended, and the service's site, where signing in on the web is
            * the next step.

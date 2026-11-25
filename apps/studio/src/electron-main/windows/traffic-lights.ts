@@ -31,7 +31,7 @@ export function setTrafficLightForZoom(
  * beside its sidebar, so a window whose sidebar is put away has its top left
  * to itself. Shown again, the system puts them back at the frame's own
  * place, so they are centered in the band again for the zoom given, level
- * with the sidebar's toggle beside them.
+ * with the sidebar's toggle beside them. Full screen places them itself.
  */
 export function setTrafficLightsShown(
   window: BrowserWindow | null,
@@ -43,7 +43,7 @@ export function setTrafficLightsShown(
     return;
   }
   window.setWindowButtonVisibility(isShown);
-  if (isShown) {
+  if (isShown && !window.isFullScreen()) {
     window.setWindowButtonPosition(trafficLightPositionForZoom(zoom, inset));
   }
 }

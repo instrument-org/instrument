@@ -1,5 +1,9 @@
-import { WEB_APP_NOT_SIGNED_IN } from "../../model-text/commands/app-command";
+import {
+  WEB_APP_NOT_SIGNED_IN,
+  WEB_APP_UNMARKED,
+} from "../../model-text/commands/app-command";
 import { TOOL_NAMES } from "../../tools/name";
+import { APP_NAME } from "@instrument-org/shared";
 import { z } from "zod";
 
 import { getWorkspaceConfig } from "../workspace-config";
@@ -35,6 +39,11 @@ const SignInEndSchema = z.enum(["canceled", "expired", "refused"]);
 
 export type SignInEnd = z.output<typeof SignInEndSchema>;
 
+/** Where a sign-in's page was opened: the window's own browser, or the user's. */
+const SignInOpensInSchema = z.enum(["app", "external"]);
+
+export type SignInOpensIn = z.output<typeof SignInOpensInSchema>;
+
 export const AppConnectionSchema = z.object({
   /** Whom the service says the connection belongs to, when it tells us. */
   account: z.string().optional(),
@@ -51,6 +60,11 @@ export const AppConnectionSchema = z.object({
   error: z.string().optional(),
   /** Whether the last test failed because the service refused the stored key. */
   keyRefused: z.boolean().optional(),
+  /**
+   * Where the app's own sign-in last went through. Absent for one that went
+   * through before this was recorded.
+   */
+  signedInFrom: SignInOpensInSchema.optional(),
   /**
    * The manifest that passed. A manifest edited since is not the one that was
    * tested, and a call refuses until it is tested again: this is what keeps
@@ -72,17 +86,31 @@ export interface AppConnectionStore {
   set: (slug: string, connection: AppConnection) => Promise<void>;
 }
 
-/** A line for a listing: the status in words, with the account when known. */
+/**
+ * A line for a listing: the status in words, with the account when known and,
+ * for an app with a sign-in of its own (`direct`), where that went through.
+ * Without `nextSteps` it says only where the app stands, for the context every
+ * chat starts with: a step there is one more thing to do in a chat about
+ * something else.
+ */
 export function describeConnection(
   connection: AppConnection | undefined,
   manifestHash: string,
   {
+    direct = false,
+    nextSteps = true,
     role = "chat",
     web = false,
-  }: { role?: "chat" | "task"; web?: boolean } = {},
+  }: {
+    direct?: boolean;
+    nextSteps?: boolean;
+    role?: "chat" | "task";
+    web?: boolean;
+  } = {},
 ): string {
   // What to run next, for the chat alone: a task neither tests nor connects.
-  const next = (step: string) => (role === "chat" ? ` (${step})` : "");
+  const next = (step: string) =>
+    nextSteps && role === "chat" ? ` (${step})` : "";
   if (!connection) {
     return `not connected${next("run `instrument app test`")}`;
   }
@@ -94,7 +122,7 @@ export function describeConnection(
           ? ""
           : `, ${connection.toolCount} tools`;
       return connection.manifestHash === manifestHash
-        ? `connected${who}${tools}`
+        ? `connected${who}${direct ? signedInWords(connection.signedInFrom) : ""}${tools}`
         : `connected, but the manifest changed since it was tested${next("run `instrument app test`")}`;
     }
     case "declined": {
@@ -112,9 +140,23 @@ export function describeConnection(
     case "needs-sign-in": {
       // A web app's sign-in may already be there, unsaid.
       if (web && role === "chat") {
-        return WEB_APP_NOT_SIGNED_IN;
+        return nextSteps ? WEB_APP_NOT_SIGNED_IN : WEB_APP_UNMARKED;
       }
       return `needs the user to sign in${next(TOOL_NAMES.connectApp)}`;
+    }
+  }
+}
+
+function signedInWords(from: SignInOpensIn | undefined): string {
+  switch (from) {
+    case "app": {
+      return `, signed in from ${APP_NAME}'s browser`;
+    }
+    case "external": {
+      return ", signed in from the user's own browser";
+    }
+    case undefined: {
+      return "";
     }
   }
 }

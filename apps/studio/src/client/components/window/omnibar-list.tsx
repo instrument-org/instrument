@@ -1,12 +1,13 @@
-import { cn } from "@/client/lib/utils";
 import { type ReactNode } from "react";
 
-import { RowText } from "./row-text";
+import { ResultRow } from "./result-row";
 
 /** One row under the address field: what the words in it could mean. */
 export interface OmniRow {
-  /** Muted after the name: where the row lives (a folder's name, a site, a project), in a word or two. */
+  /** Muted after the name: where the row lives (a folder's name, an address, a project). */
   detail?: string | undefined;
+  /** What to draw bold in `detail` and in `name`, as pairs of offsets, or null. */
+  detailRanges?: null | number[];
   /**
    * What the field says while the row is picked with the arrows, and what Tab
    * writes into it to go on typing from there: a page's address, a folder's
@@ -23,6 +24,7 @@ export interface OmniRow {
    */
   leavesItself?: boolean;
   name: string;
+  nameRanges?: null | number[];
   run: () => void;
 }
 
@@ -50,7 +52,7 @@ export function OmniList({
   }
   return (
     <div
-      className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover py-1 shadow-float-lg"
+      className="absolute inset-x-0 top-full z-20 mt-1.5 max-h-[calc(60vh/var(--app-zoom))] overflow-y-auto rounded-xl border border-border bg-popover p-1 shadow-float-lg"
       // A press on the tab strip puts the rows away rather than moving the
       // window (`globals.css`).
       data-no-window-drag
@@ -61,36 +63,22 @@ export function OmniList({
       role="listbox"
     >
       {notice ? (
-        <p className="px-3 py-2 text-sm text-muted-foreground">{notice}</p>
+        <p className="px-2.5 py-2 text-sm text-muted-foreground">{notice}</p>
       ) : null}
       {rows.map((row, index) => (
-        <button
-          aria-selected={index === current}
-          className={cn(
-            "flex h-8 w-full items-center gap-2.5 px-3 text-left text-sm",
-            index === current ? "bg-accent" : "hover:bg-accent/50",
-          )}
+        <ResultRow
+          icon={row.icon}
           id={`${id}-${index}`}
+          isLit={index === current}
           key={row.id}
-          onClick={() => {
+          name={row.name}
+          nameRanges={row.nameRanges ?? null}
+          onOpen={() => {
             onRun(row);
           }}
-          // The arrows move the highlight past the list's fold; the
-          // list follows, so the row picked is the row seen.
-          ref={(element) => {
-            if (index === current) {
-              element?.scrollIntoView({ block: "nearest" });
-            }
-          }}
-          role="option"
-          tabIndex={-1}
-          type="button"
-        >
-          <span className="flex size-4 shrink-0 items-center justify-center text-muted-foreground">
-            {row.icon}
-          </span>
-          <RowText name={row.name} where={row.detail} />
-        </button>
+          where={row.detail}
+          whereRanges={row.detailRanges ?? null}
+        />
       ))}
     </div>
   );

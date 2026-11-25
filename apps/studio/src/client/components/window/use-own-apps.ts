@@ -44,7 +44,6 @@ export function useOwnApps() {
   return [
     ...listed.map((app) => ({
       ...own(app.slug, app.type === "mcp-local"),
-      isAi: planOfApp(app) !== undefined,
       /** Where picking it goes when it is worked on its own site and signed in there. */
       opensAt:
         app.type === "web" && app.status === "connected"
@@ -53,7 +52,6 @@ export function useOwnApps() {
     })),
     ...plansOnly.map((entry) => ({
       ...own(entry.slug, false),
-      isAi: true,
       opensAt: undefined,
     })),
   ];

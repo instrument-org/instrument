@@ -8,7 +8,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
@@ -26,7 +25,7 @@ type OwnApp = ReturnType<typeof useOwnApps>[number];
 /**
  * Apps at the bookmarks bar's start: a press opens the Apps page, as a
  * bookmark opens (`bookmarkClicks`), and the caret beside it lists the
- * person's own apps, the AIs first. Only what they set up or started to is
+ * person's own apps by name, in one list. Only what they set up or started to is
  * there. A pick goes to the app's site where it is signed in, and to its page
  * in Instrument otherwise.
  */
@@ -41,19 +40,6 @@ export function AppsMark({
 }) {
   const [isOpen, setOpen] = useState(false);
   const apps = useOwnApps().toSorted((a, b) => a.name.localeCompare(b.name));
-  const ais = apps.filter((app) => app.isAi);
-  const others = apps.filter((app) => !app.isAi);
-  const row = (app: OwnApp) => (
-    <AppRow
-      app={app}
-      key={app.slug}
-      onDone={() => {
-        setOpen(false);
-      }}
-      open={open}
-      openSite={openSite}
-    />
-  );
   return (
     <div className="flex h-6 shrink-0 items-center rounded-md text-xs text-foreground/80 has-data-[state=open]:bg-foreground/8 has-[button:hover]:bg-foreground/5">
       <button
@@ -72,20 +58,18 @@ export function AppsMark({
           <CaretDownIcon className="size-2.5" weight="bold" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-72">
-          {ais.length > 0 && (
-            <>
-              <DropdownMenuLabel>Your AI</DropdownMenuLabel>
-              {ais.map(row)}
-              <DropdownMenuSeparator />
-            </>
-          )}
-          {others.length > 0 && (
-            <>
-              <DropdownMenuLabel>Your apps</DropdownMenuLabel>
-              {others.map(row)}
-              <DropdownMenuSeparator />
-            </>
-          )}
+          {apps.map((app) => (
+            <AppRow
+              app={app}
+              key={app.slug}
+              onDone={() => {
+                setOpen(false);
+              }}
+              open={open}
+              openSite={openSite}
+            />
+          ))}
+          {apps.length > 0 && <DropdownMenuSeparator />}
           <DropdownMenuItem {...bookmarkClicks(SCREENS.apps.href, open)}>
             <ShapesIcon className="size-4 text-foreground/70" />
             All apps

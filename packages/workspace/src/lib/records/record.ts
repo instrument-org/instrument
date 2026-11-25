@@ -134,6 +134,12 @@ const LogRecordSchema = z.discriminatedUnion("t", [
     t: z.literal("retract"),
     ...envelope,
     messages: z.array(StoreId.MessageSchema).min(1),
+    /**
+     * The message the person edited, when that is why these went: the
+     * earlier version, which the message that took its place names among its
+     * `earlierVersions` and the person can still look back at.
+     */
+    edited: StoreId.MessageSchema.optional(),
   }),
   z.object({
     t: z.literal("rollover"),

@@ -8,6 +8,9 @@ import { ChatReads } from "../../lib/chat-reads";
 import { ChatWrites } from "../../lib/chat-writes";
 import { withCopiesHere } from "../../lib/chat/turn-file-versions";
 import { withVersionNumbers } from "../../lib/chat/version-records";
+import { asNewVersion, beginEdit } from "../../lib/chat/edit-message";
+import { TypedError } from "../../lib/errors";
+import { asThoughTakenOut } from "../../lib/records/earlier-versions";
 import { ensureChatSession } from "../../lib/create-session";
 import { createWriteQueue } from "../../lib/create-write-queue";
 import { nameChat } from "../../lib/chat/chat-name";
@@ -21,6 +24,7 @@ import {
   type TurnMatches,
 } from "../../lib/transcript/find-in-transcript";
 import {
+  type TranscriptMessage,
   transcriptMessage,
   type WrittenOn,
 } from "../../lib/transcript/transcript-message";
@@ -98,6 +102,11 @@ const create = base
        */
       fromDraft: z.string().optional(),
       id: ChatIdSchema,
+      /**
+       * The message this one takes the place of, with everything after it:
+       * an edit, which keeps them as an earlier version.
+       */
+      edits: StoreId.MessageSchema.optional(),
       /** The tab group the chat works in, as the window read it at the send. */
       layout: LayoutReadSchema.optional(),
       modelURI: AIGatewayModelURI.Schema,
@@ -115,6 +124,7 @@ const create = base
       errors,
       input: {
         asks,
+        edits,
         files,
         folders,
         fromDraft,
@@ -159,6 +169,22 @@ const create = base
           await setChatProject(chatId, project);
         }
 
+        const edit =
+          edits === undefined
+            ? undefined
+            : await beginEdit({
+                chatId,
+                messageId: edits,
+                sessionId: finalSessionId,
+                workspaceRef: context.workspaceRef,
+              }).catch((error: unknown) => {
+                throw error instanceof TypedError.Conflict ||
+                  error instanceof TypedError.NotFound ||
+                  error instanceof TypedError.Storage
+                  ? toORPCError(error, errors)
+                  : error;
+              });
+
         const messageIdsBeforeResult = await ChatReads.messageIds({
           chatId,
           sessionId: finalSessionId,
@@ -177,24 +203,30 @@ const create = base
           fromDraft,
           rootDir: context.workspaceConfig.rootDir,
         });
-        const messageResult = await newMessage({
-          asks,
-          files: sending.files,
-          folders: sending.folders,
-          ...(fromDraft ? { fromDraft } : {}),
-          ...(layout ? { layout } : {}),
-          modelURI,
-          prompt,
-          sessionId: finalSessionId,
-          chatId,
-          viewing,
-        });
+        const messageResult = await asThoughTakenOut(
+          new Set(edit?.takesOut),
+          () =>
+            newMessage({
+              asks,
+              files: sending.files,
+              folders: sending.folders,
+              ...(fromDraft ? { fromDraft } : {}),
+              ...(layout ? { layout } : {}),
+              modelURI,
+              prompt,
+              sessionId: finalSessionId,
+              chatId,
+              viewing,
+            }),
+        );
 
         if (messageResult.isErr()) {
           throw toORPCError(messageResult.error, errors);
         }
 
-        const message = messageResult.value;
+        const message = edit
+          ? asNewVersion(messageResult.value, edit.edited)
+          : messageResult.value;
 
         if (isFirstMessageInSession) {
           // Titling is deliberately non-blocking, so the agent's turn never
@@ -220,9 +252,23 @@ const create = base
 
         // Written now, so the conversation shows it the moment it was sent; the
         // session runs it when its turn comes and never writes it again.
-        const written = await ChatWrites.saveMessageWithParts(message, chatId);
-        if (written.isErr()) {
-          throw toORPCError(written.error, errors);
+        // An edit's message goes in as the ones it replaces go out, so the
+        // words are never in neither.
+        const written = await Promise.all([
+          ChatWrites.saveMessageWithParts(message, chatId),
+          edit
+            ? ChatWrites.retract(
+                chatId,
+                finalSessionId,
+                edit.takesOut,
+                edit.edited.id,
+              )
+            : undefined,
+        ]);
+        for (const result of written) {
+          if (result?.isErr()) {
+            throw toORPCError(result.error, errors);
+          }
         }
         context.workspaceConfig.lookUpSentLinkTitles?.(prompt);
         context.workspaceRef.send({
@@ -385,6 +431,33 @@ const older = base
     });
   });
 
+/** An earlier version of an edited message, with all that followed it. */
+const version = base
+  .input(
+    z.object({
+      edited: StoreId.MessageSchema,
+      id: ChatIdSchema,
+      sessionId: StoreId.SessionSchema,
+    }),
+  )
+  .output(type<TranscriptMessage[]>())
+  .handler(async ({ errors, input }) => {
+    const messages = await ChatReads.versionTranscript({
+      chatId: input.id,
+      edited: input.edited,
+      sessionId: input.sessionId,
+    })
+      .map(withCopiesHere)
+      .map((each) => withVersionNumbers(input.id, each));
+    if (messages.isErr()) {
+      throw toORPCError(messages.error, errors);
+    }
+    return messages.value.flatMap((message) => {
+      const light = transcriptMessage(message);
+      return light ? [light] : [];
+    });
+  });
+
 /**
  * Which turns of the session have `query` in the words they show, and how
  * many times, oldest first: what a chat's find counts of the turns it has
@@ -437,6 +510,7 @@ const liveWhole = base
       const messages = await ChatReads.transcript({
         bytes: true,
         chatId: input.id,
+        earlierVersions: true,
         only,
         sessionId: input.sessionId,
       });
@@ -532,4 +606,5 @@ export const message = {
     whole: liveWhole,
   },
   older,
+  version,
 };

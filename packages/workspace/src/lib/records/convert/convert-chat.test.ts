@@ -356,6 +356,7 @@ describe("convertChat", () => {
           "app": "0.0.0-test",
           "chat": "every-kind",
           "createdAt": 2026-10-14T12:00:00.000Z,
+          "earlierVersions": Map {},
           "forked": false,
           "id": "ses_01K7A000000000000000000001",
           "rollover": {
@@ -442,6 +443,7 @@ describe("convertChat", () => {
           "app": "0.0.0-test",
           "chat": "every-kind",
           "createdAt": 2026-10-14T12:01:00.000Z,
+          "earlierVersions": Map {},
           "forked": false,
           "forkedAt": "msg_01K7A000000000000000000003",
           "handle": "t1",

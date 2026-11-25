@@ -1,4 +1,9 @@
 import {
+  type MessageEditing,
+  MessageEditingContext,
+  type ShownVersion,
+} from "@/client/components/transcript/message-editing";
+import {
   QuoteSelection,
   type QuoteSelectionRef,
 } from "@/client/components/transcript/quote-selection";
@@ -60,7 +65,7 @@ import {
   StoreId,
   type ChatId,
 } from "@instrument-org/workspace/client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { skipToken, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAtomValue, useSetAtom } from "jotai";
 import { noop } from "radashi";
 import {
@@ -416,10 +421,92 @@ export function ChatConversation({
     const { id: branch, listed } = await rpcClient.workspace.chats.branch.call({
       id: chatId,
       upTo,
+      ...(isLookingBack && { version: shownVersion.version }),
     });
     await chatListed(queryClient, listed);
     latestWindow.current?.openScreen(chatHref(branch), { newTab: true });
   };
+
+  // Editing a sent message, and looking back at one's earlier versions. Both
+  // are this view's alone: nothing is kept of where it was looking.
+  const [editingMessage, setEditingMessage] = useState<StoreId.Message>();
+  const [shownVersion, setShownVersion] = useState<ShownVersion>();
+  const versionQuery = useQuery(
+    rpcClient.workspace.message.version.queryOptions({
+      enabled: shownVersion !== undefined,
+      input: shownVersion
+        ? {
+            edited: shownVersion.version,
+            id,
+            sessionId: selectedSessionId,
+          }
+        : skipToken,
+    }),
+  );
+  const editMessage = useMutation(
+    createMessageOptions({
+      onError: (error) => {
+        toast.error("Couldn't send your edit", { cause: error });
+      },
+    }),
+  );
+  const isOwnSession = draftKey.scope === "chat";
+  const messageEditing: MessageEditing | undefined =
+    isOwnSession && !isArchived
+      ? {
+          editing: editingMessage,
+          isSending: editMessage.isPending,
+          modelURI: selectedModelURI,
+          onCancel: () => {
+            setEditingMessage(undefined);
+            promptEditor?.focus();
+          },
+          onEdit: setEditingMessage,
+          onModelChange: setSelectedModelURI,
+          onSend: (message, { files, folders, modelURI, prompt }) => {
+            const layout = layoutContext?.();
+            editMessage.mutate(
+              {
+                edits: message,
+                files,
+                folders,
+                id,
+                ...(layout ? { layout } : {}),
+                modelURI,
+                prompt,
+                sessionId: selectedSessionId,
+              },
+              {
+                onSuccess: () => {
+                  setEditingMessage(undefined);
+                  setIsFollowingSubmit(true);
+                  slideToSentRef.current();
+                  promptEditor?.focus();
+                },
+              },
+            );
+          },
+          onShowVersion: (versions, version) => {
+            setShownVersion(
+              version === versions.at(-1) ? undefined : { version, versions },
+            );
+          },
+          ...(shownVersion && { shown: shownVersion }),
+        }
+      : undefined;
+  const standing = shownVersion?.versions.at(-1);
+  const versionFrom = shownMessages.findIndex(({ id: at }) => at === standing);
+  // An edit made elsewhere while looking back takes the view to what stands.
+  if (shownVersion && messages.length > 0 && versionFrom === -1) {
+    setShownVersion(undefined);
+  }
+  const isLookingBack =
+    shownVersion !== undefined &&
+    versionFrom !== -1 &&
+    versionQuery.data !== undefined;
+  const transcriptMessages = isLookingBack
+    ? [...shownMessages.slice(0, versionFrom), ...versionQuery.data]
+    : shownMessages;
 
   const handleRetry = (prompt: string) => {
     if (!selectedModelURI) {
@@ -663,6 +750,8 @@ export function ChatConversation({
   const nextSteps =
     draftKey.scope === "chat" &&
     unsettled.length === 0 &&
+    !isLookingBack &&
+    editingMessage === undefined &&
     preferences?.suggestNextMessage !== false
       ? (nextMessages ?? [])
       : [];
@@ -780,6 +869,7 @@ export function ChatConversation({
           }
         };
         promptInputRef.current?.clear();
+        setShownVersion(undefined);
         // Submitting is a request to watch what happens next. The message's turn
         // is a scroll anchor, so the scroller brings it to the top of the window
         // from wherever the reader had scrolled, and the reply grows into the
@@ -950,6 +1040,7 @@ export function ChatConversation({
                       }}
                     >
                       <FoldsOpenedByFind value={foldsOpenedByFind}>
+                        <MessageEditingContext value={messageEditing}>
                         <TranscriptStream
                           chatId={chatId}
                           hasOlder={messagesQuery.data?.hasOlder ?? false}
@@ -958,14 +1049,15 @@ export function ChatConversation({
                           // Through the send too, so the turn does not read as finished
                           // between its message being stored and its session starting.
                           isRunning={
-                            isAgentRunning ||
-                            runTurn.isPending ||
-                            isAgentAlive ||
-                            isFollowingSubmit ||
-                            shownMessages.length > messages.length
+                            !isLookingBack &&
+                            (isAgentRunning ||
+                              runTurn.isPending ||
+                              isAgentAlive ||
+                              isFollowingSubmit ||
+                              shownMessages.length > messages.length)
                           }
                           messages={withSentSwitch(
-                            shownMessages,
+                            transcriptMessages,
                             isAgentAlive || isFollowingSubmit
                               ? sentSwitch
                               : undefined,
@@ -976,16 +1068,21 @@ export function ChatConversation({
                           onLoadOlder={messagesQuery.loadOlder}
                           slideToSentRef={slideToSentRef}
                           sessionId={selectedSessionId}
-                          onContinue={handleContinue}
+                          onContinue={isLookingBack ? undefined : handleContinue}
                           onModelChange={(modelURI) => {
                             setSelectedModelURI(modelURI);
                             handleRunAgain(modelURI);
                           }}
                           onRetry={handleRetry}
-                          onRunAgain={(options) => {
-                            handleRunAgain(undefined, options);
-                          }}
+                          onRunAgain={
+                            isLookingBack
+                              ? undefined
+                              : (options) => {
+                                  handleRunAgain(undefined, options);
+                                }
+                          }
                         />
+                        </MessageEditingContext>
                       </FoldsOpenedByFind>
                     </NextStepsContext>
                   )}

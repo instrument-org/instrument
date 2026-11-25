@@ -605,11 +605,16 @@ export class ChatRecords {
     });
   }
 
-  /** Takes messages and their parts out of the session; their ids are never used again. */
+  /**
+   * Takes messages and their parts out of the session; their ids are never
+   * used again. `edited` is the message the person edited, when that is why,
+   * which keeps them as an earlier version.
+   */
   retract(
     chatId: ChatId,
     sessionId: StoreId.Session,
     messages: StoreId.Message[],
+    edited?: StoreId.Message,
   ): Promise<void> {
     if (messages.length === 0) {
       return Promise.resolve();
@@ -635,7 +640,12 @@ export class ChatRecords {
             }
           };
         },
-        record: () => ({ t: "retract", at, messages }),
+        record: () => ({
+          t: "retract",
+          at,
+          messages,
+          ...(edited !== undefined && { edited }),
+        }),
       });
     });
   }
@@ -1965,6 +1975,7 @@ function startedSession(
     app,
     chat: chatId,
     createdAt,
+    earlierVersions: new Map(),
     forked: false,
     ...(forkedAt !== undefined && { forkedAt }),
     ...(handle !== undefined && { handle }),

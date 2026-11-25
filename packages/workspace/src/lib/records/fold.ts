@@ -31,7 +31,10 @@ import {
  *   thing a session was told wins, and so does an ask's.
  *   Messages are ordered by id, parts by id under their message. Every
  *   answer to an ask is kept, in place order, since the first one wins.
- * - A retract drops its messages and their parts, wherever it is read.
+ * - A retract drops its messages and their parts, wherever it is read. One
+ *   that names the message the person edited keeps them as an earlier
+ *   version (`earlierVersions`), and a rollover after one of them no longer
+ *   counts, so the newest rollover in what is left stands.
  * - A record is placed after everything its writer had read: within a log
  *   by `seq`, and across logs from the log's header, which lists every log
  *   of the session its writer had read and how far. A record's place starts
@@ -76,6 +79,11 @@ export interface FoldedSession {
   settings: FoldedSettings;
   /** The session's own messages, oldest first, each with its parts. */
   messages: SessionMessage.WithParts[];
+  /**
+   * What each edited message and everything after it was, by that message's
+   * id, oldest message first.
+   */
+  earlierVersions: ReadonlyMap<StoreId.Message, SessionMessage.WithParts[]>;
   parent?: StoreId.Session;
   rollover?: {
     after: StoreId.Message;
@@ -128,7 +136,13 @@ interface SessionState {
   messages: Map<string, Newest<Written<SessionMessage.Type>>>;
   parts: Map<string, Newest<Written<SessionMessagePart.Type>>>;
   retracted: Set<string>;
-  rollover?: Newest<NonNullable<FoldedSession["rollover"]>>;
+  /** What each edit took out, by the message edited. */
+  edits: Map<StoreId.Message, Set<StoreId.Message>>;
+  /** The newest rollover at each boundary. */
+  rollovers: Map<
+    StoreId.Message,
+    Newest<NonNullable<FoldedSession["rollover"]>>
+  >;
   /** The highest `seq` of each log, of any record and of records after its header. */
   seqs: Map<string, { data: number; last: number }>;
   sites?: Newest<string[]>;
@@ -351,10 +365,18 @@ export class ChatFold {
         for (const id of record.messages) {
           session.retracted.add(id);
         }
+        if (record.edited !== undefined) {
+          const taken = session.edits.get(record.edited) ?? new Set();
+          session.edits.set(record.edited, taken);
+          for (const id of record.messages) {
+            taken.add(id);
+          }
+        }
         break;
       case "rollover":
-        session.rollover = newer(
-          session.rollover,
+        keepNewest(
+          session.rollovers,
+          record.after,
           {
             after: record.after,
             ...(record.usableTokens === undefined
@@ -447,10 +469,12 @@ export class ChatFold {
     const session: SessionState = {
       answers: [],
       asks: new Map(),
+      edits: new Map(),
       headers: new Map(),
       messages: new Map(),
       parts: new Map(),
       retracted: new Set(),
+      rollovers: new Map(),
       seqs: new Map(),
       updatedAt: 0,
     };
@@ -557,7 +581,8 @@ function folded(
   session: SessionState,
   settings: SettingState,
 ): FoldedSession {
-  const { messages, writtenBy } = messagesOf(session);
+  const { earlierVersions, messages, writtenBy } = messagesOf(session);
+  const rollover = rolloverOf(session);
   return {
     app: header.app,
     ...(settings.appTitle && { appTitle: settings.appTitle.value }),
@@ -572,8 +597,9 @@ function folded(
     id: header.id,
     settings: foldedSettings(settings),
     messages,
+    earlierVersions,
     ...(header.parent === undefined ? {} : { parent: header.parent }),
-    ...(session.rollover && { rollover: session.rollover.value }),
+    ...(rollover && { rollover }),
     ...(session.sites && { sites: session.sites.value }),
     ...(session.asks.size > 0 && {
       asks: [...session.asks.values()].map(({ value }) => value),
@@ -590,7 +616,22 @@ function folded(
   };
 }
 
+/** The newest rollover the conversation as it stands still has the boundary of. */
+function rolloverOf(session: SessionState): FoldedSession["rollover"] {
+  let newest: Newest<NonNullable<FoldedSession["rollover"]>> | undefined;
+  for (const rollover of session.rollovers.values()) {
+    const isEditedAway = [...session.edits.values()].some((taken) =>
+      taken.has(rollover.value.after),
+    );
+    if (!isEditedAway) {
+      newest = newer(newest, rollover.value, rollover.place);
+    }
+  }
+  return newest?.value;
+}
+
 function messagesOf(session: SessionState): {
+  earlierVersions: Map<StoreId.Message, SessionMessage.WithParts[]>;
   messages: SessionMessage.WithParts[];
   writtenBy: Map<string, DeviceId>;
 } {
@@ -601,21 +642,41 @@ function messagesOf(session: SessionState): {
     parts.set(value.value.metadata.messageId, list);
   }
   const writtenBy = new Map<string, DeviceId>();
-  const messages = [...session.messages.values()]
+  const keptAside = new Set<string>(
+    [...session.edits.values()].flatMap((taken) => [...taken]),
+  );
+  const all = [...session.messages.values()]
     .map(({ value }) => value)
-    .filter(({ value }) => !session.retracted.has(value.id))
     .toSorted((a, b) => compare([a.value.id], [b.value.id]))
     .map(({ device, value: message }) => {
-      writtenBy.set(message.id, device);
+      // A message taken out is written by nobody, unless it can be looked
+      // back at.
+      const isKept =
+        !session.retracted.has(message.id) || keptAside.has(message.id);
+      if (isKept) {
+        writtenBy.set(message.id, device);
+      }
       const own = (parts.get(message.id) ?? []).toSorted((a, b) =>
         compare([a.value.metadata.id], [b.value.metadata.id]),
       );
       for (const part of own) {
-        writtenBy.set(part.value.metadata.id, part.device);
+        if (isKept) {
+          writtenBy.set(part.value.metadata.id, part.device);
+        }
       }
       return { ...message, parts: own.map(({ value }) => value) };
     });
-  return { messages, writtenBy };
+  const earlierVersions = new Map(
+    [...session.edits].map(([edited, taken]) => [
+      edited,
+      all.filter(({ id }) => taken.has(id)),
+    ]),
+  );
+  return {
+    earlierVersions,
+    messages: all.filter(({ id }) => !session.retracted.has(id)),
+    writtenBy,
+  };
 }
 
 function foldedSettings(settings: SettingState): FoldedSettings {

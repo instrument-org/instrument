@@ -399,14 +399,25 @@ const ensureChatRoute = base
  * being that reply's last message: see `branchChat`.
  */
 const branchChatRoute = base
-  .input(z.object({ id: ChatIdSchema, upTo: StoreId.MessageSchema }))
+  .input(
+    z.object({
+      id: ChatIdSchema,
+      upTo: StoreId.MessageSchema,
+      /** The edited message whose earlier version the reply is in. */
+      version: StoreId.MessageSchema.optional(),
+    }),
+  )
   .output(z.object({ id: ChatIdSchema, listed: ListedAtSchema }))
   .handler(async ({ errors, input }) => {
     const chatId = resolveChat(input.id);
     if (!chatId) {
       throw errors.NOT_FOUND({ message: `${input.id} is not a chat` });
     }
-    const id = await branchChat({ chatId, upTo: input.upTo });
+    const id = await branchChat({
+      chatId,
+      upTo: input.upTo,
+      version: input.version,
+    });
     // Where the list stands with the new chat in it, so a window can wait
     // for its row before opening it.
     return { id, listed: await refreshChatRow(id) };

@@ -149,6 +149,8 @@ export interface PromptInputRef {
   /** Writes the rest of what the words start after the caret, selected (`PromptEditorRef.completeAhead`). */
   completeAhead: (rest: string) => boolean;
   focus: () => void;
+  /** Focuses the box with the caret after its words. */
+  focusEnd: () => void;
   /** Insert at the caret, spaced off from whatever it lands between; a token's wire form becomes its chip. */
   insertText: (text: string) => void;
   /** Whether Down has nowhere left to move the caret (`PromptEditorRef.isCaretAtEnd`). */
@@ -235,6 +237,8 @@ interface PromptInputProps {
    * then points right, is named Go, and does this.
    */
   onGo?: (() => void) | undefined;
+  /** Escape in the words, when no menu of the box's own takes it. */
+  onEscape?: () => void;
   /** Stops the chat's work, offered in Send's place while the box is empty. */
   onStop?: () => void;
   /** Whether the box is dictating, from the press until the words land, each time that changes. */
@@ -305,6 +309,7 @@ export const PromptInput = ({
   onGo,
   onStop,
   onDictatingChange,
+  onEscape,
   onFolders,
   onItemsChange,
   onItemRemoved,
@@ -768,6 +773,10 @@ export const PromptInput = ({
       promptEditorRef.current?.completeAhead(rest) ?? false,
     focus: () => {
       promptEditorRef.current?.focus();
+    },
+    focusEnd: () => {
+      promptEditorRef.current?.focus();
+      promptEditorRef.current?.moveCaretToEnd();
     },
     insertText: (text) => {
       promptEditorRef.current?.insertText(text);
@@ -1323,6 +1332,7 @@ export const PromptInput = ({
             disabled={isLoading}
             key={draftKeyed}
             onChange={setValue}
+            onEscape={dictating ? undefined : onEscape}
             onCommandEnter={hasNothing ? onCommandEnterWhenEmpty : undefined}
             onPaste={handlePaste}
             onShowQuote={onShowQuote}

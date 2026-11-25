@@ -141,6 +141,10 @@ export function FilePathsGrid({
   // where they are. A file the task cannot reach, or one not yet translated,
   // is drawn as its line and nothing more.
   const hostPaths = useTranscriptHostPaths(filePaths, chatId);
+  const folderHostPaths = useTranscriptHostPaths(
+    folderPaths.map((path) => path.slice(0, -1)),
+    chatId,
+  );
   // Where a file with no place here is, when another computer has it.
   const holding = useComputersHolding(
     chatId,
@@ -316,6 +320,7 @@ export function FilePathsGrid({
                 key={path}
               >
                 <FolderRowCard
+                  hostPath={folderHostPaths[path.slice(0, -1)] ?? undefined}
                   onClick={() => {
                     showChatFile(path);
                   }}

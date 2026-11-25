@@ -47,7 +47,7 @@ import {
   videoStoryboard,
   videoStoryboardDeps,
 } from "@/electron-main/lib/video-storyboard";
-import { folderSize } from "@/electron-main/lib/folder-size";
+import { folderItemCount, folderSize } from "@/electron-main/lib/folder-size";
 import { probeMedia } from "@/electron-main/lib/media-probe";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
@@ -1146,6 +1146,22 @@ const folderSizeRoute = base
   });
 
 /**
+ * How many items a folder has directly in it, without the system's clutter,
+ * or null where it cannot be read: one read of the folder, cheap enough for
+ * every folder card a reply draws.
+ */
+const folderItemCountRoute = base
+  .input(z.object({ path: HostPathSchema }))
+  .output(z.number().nullable())
+  .handler(async ({ input }) => {
+    const folderPath = await followAliases(input.path);
+    if (await isClosed(input.path, folderPath)) {
+      return null;
+    }
+    return folderItemCount(folderPath);
+  });
+
+/**
  * Whether a file is the app's own data, which the person's views keep closed:
  * the editors read and write through here what the viewers read through the
  * file channel, which refuses it by the same rule (`refused-files.ts`), by
@@ -1220,6 +1236,7 @@ export const files = {
   read,
   rename,
   showInTrash,
+  folderItemCount: folderItemCountRoute,
   folderSize: folderSizeRoute,
   probeMedia: probeMediaRoute,
   storyboard,

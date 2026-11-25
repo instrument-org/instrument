@@ -3,7 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { folderSize, folderSizeSkips } from "./folder-size";
+import { folderItemCount, folderSize, folderSizeSkips } from "./folder-size";
 
 describe("folderSize", () => {
   let root: string;
@@ -126,5 +126,29 @@ describe("folderSizeSkips", () => {
     expect(
       folderSizeSkips({ home: "/home/linux-user", platform: "linux" }).size,
     ).toBe(0);
+  });
+});
+
+describe("folderItemCount", () => {
+  let root: string;
+  beforeEach(async () => {
+    root = await fs.mkdtemp(path.join(os.tmpdir(), "folder-count-"));
+  });
+  afterEach(async () => {
+    await fs.rm(root, { force: true, recursive: true });
+  });
+
+  it("counts what is directly inside, without the system's clutter", async () => {
+    await fs.mkdir(path.join(root, "inner"));
+    await fs.writeFile(path.join(root, "inner", "deep.txt"), "x");
+    await fs.writeFile(path.join(root, "a.txt"), "x");
+    await fs.writeFile(path.join(root, ".DS_Store"), "x");
+    await fs.writeFile(path.join(root, "._a.txt"), "x");
+    await fs.writeFile(path.join(root, "movie.mp4.crdownload"), "x");
+    expect(await folderItemCount(root)).toBe(2);
+  });
+
+  it("is null for a folder that is not there", async () => {
+    expect(await folderItemCount(path.join(root, "gone"))).toBeNull();
   });
 });

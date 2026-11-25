@@ -1,4 +1,5 @@
 import { MACOS_GUARDED_HOME_FOLDERS } from "@/shared/macos-guarded-folders";
+import { isSystemClutter } from "@instrument-org/workspace/drafts";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -154,4 +155,24 @@ export async function folderSize(
     }
   }
   return { bytes, complete };
+}
+
+/**
+ * How many items a folder has directly in it, as a file manager counts them:
+ * the system's and programs' clutter (`.DS_Store`, dotfiles, a download still
+ * arriving) left out. One read of the folder, never a walk; null where the
+ * folder cannot be read or the read stalls.
+ */
+export async function folderItemCount(
+  root: string,
+  { stallMs = STALL_MS }: { stallMs?: number } = {},
+): Promise<null | number> {
+  const names = await withinStall(
+    fs.readdir(root).catch(() => null),
+    stallMs,
+  );
+  if (names === STALLED || names === null) {
+    return null;
+  }
+  return names.filter((name) => !isSystemClutter(name)).length;
 }

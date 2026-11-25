@@ -18,9 +18,12 @@ import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PlayIcon } from "@phosphor-icons/react/Play";
+import { rpcClient } from "@/client/rpc/client";
+import { skipToken, useQuery } from "@tanstack/react-query";
 import { useContext, useRef, useState } from "react";
 
 import { usePrefetchFileOpenTarget } from "../hooks/use-file-open-target";
+import { useNearViewport } from "../hooks/use-near-viewport";
 import { useTimedFlag } from "../hooks/use-timed-flag";
 import { CardVersionContext } from "./card-version";
 import { DrawingPicture } from "./excalidraw-editor/drawing-picture";
@@ -170,15 +173,22 @@ export function FilePreviewCard({
  * folder and a file side by side read as the same kind of thing.
  */
 export function FolderRowCard({
+  hostPath,
   onClick,
   path,
 }: {
+  /** Where the folder is on this computer, once known: what its count and size are read from. */
+  hostPath?: string;
   onClick: () => void;
   path: string;
 }) {
   const name = nameOfPath(path);
+  const { count, ref, size } = useFolderSummary(hostPath);
   return (
-    <div className="group relative flex items-center gap-3 overflow-hidden rounded-2xl bg-card px-3 py-3 shadow-xs select-none hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40">
+    <div
+      className="group relative flex items-center gap-3 overflow-hidden rounded-2xl bg-card px-3 py-3 shadow-xs select-none hover:bg-muted/40 dark:border dark:border-black/5 dark:hover:bg-muted/40"
+      ref={ref}
+    >
       <button
         aria-label={`Open ${name}`}
         className="absolute inset-0 z-0 size-full rounded-2xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
@@ -195,13 +205,93 @@ export function FolderRowCard({
         >
           {name}
         </span>
-        <span className="truncate text-xs leading-[18px] font-medium text-muted-foreground">
-          Folder
+        {/* Wraps the size away when it has no room, as a file card does. */}
+        <span className="flex h-[18px] min-w-0 flex-wrap overflow-hidden text-xs leading-[18px] font-medium text-muted-foreground">
+          <span className="truncate">
+            {count === undefined
+              ? "Folder"
+              : count === 0
+                ? "Empty folder"
+                : `${count.toLocaleString()} ${count === 1 ? "item" : "items"}`}
+          </span>
+          {size !== undefined && count !== undefined && count > 0 && (
+            <span className="whitespace-pre" data-slot="file-size">
+              {" · "}
+              {formatByteSize(size)}
+            </span>
+          )}
         </span>
       </div>
     </div>
   );
 }
+
+/** Folder walks a reply's cards run at once; the rest wait their turn. */
+const FOLDER_WALKS_AT_ONCE = 2;
+let folderWalksRunning = 0;
+const folderWalksWaiting: (() => void)[] = [];
+
+/**
+ * Runs `walk` once fewer than `FOLDER_WALKS_AT_ONCE` are running, so a reply
+ * naming many folders walks a couple at a time. A walk given up on while it
+ * waits never starts.
+ */
+async function inFolderWalkQueue<T>(
+  signal: AbortSignal,
+  walk: () => Promise<T>,
+): Promise<T> {
+  if (folderWalksRunning >= FOLDER_WALKS_AT_ONCE) {
+    await new Promise<void>((resolve) => {
+      folderWalksWaiting.push(resolve);
+    });
+  }
+  folderWalksRunning += 1;
+  try {
+    signal.throwIfAborted();
+    return await walk();
+  } finally {
+    folderWalksRunning -= 1;
+    folderWalksWaiting.shift()?.();
+  }
+}
+
+/**
+ * What a folder card says of what is in it, read once the card comes near
+ * the viewport: how many items it has directly in it (one read of the folder),
+ * and how many bytes they come to, from a walk queued behind the other
+ * cards'. A size the walk could only floor is left unsaid.
+ */
+function useFolderSummary(hostPath: string | undefined) {
+  const { isNear, ref } = useNearViewport<HTMLDivElement>();
+  const input = isNear && hostPath ? { path: hostPath } : skipToken;
+  const count = useQuery({
+    ...rpcClient.files.folderItemCount.queryOptions({ input, retry: false }),
+    refetchOnWindowFocus: false,
+    staleTime: FOLDER_SUMMARY_STALE_MS,
+  });
+  const size = useQuery({
+    enabled: input !== skipToken,
+    queryFn:
+      input === skipToken
+        ? skipToken
+        : ({ signal }) =>
+            inFolderWalkQueue(signal, () =>
+              rpcClient.files.folderSize.call(input, { signal }),
+            ),
+    queryKey: rpcClient.files.folderSize.queryKey({ input }),
+    refetchOnWindowFocus: false,
+    retry: false,
+    staleTime: FOLDER_SUMMARY_STALE_MS,
+  });
+  return {
+    count: count.data ?? undefined,
+    ref,
+    size: size.data?.complete ? size.data.bytes : undefined,
+  };
+}
+
+/** How long a card's count and size stand before a card drawn again reads them afresh. */
+const FOLDER_SUMMARY_STALE_MS = 60_000;
 
 /**
  * A file a reply names that this computer has no place for: written on

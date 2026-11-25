@@ -398,7 +398,7 @@ beforeEach(() => {
     ...config,
     browser: {
       ...config.browser,
-      getTargetUrl: () =>
+      getLoadedDocumentUrl: () =>
         pageUrls.length > 1 ? pageUrls.shift() : pageUrls[0],
     },
   });

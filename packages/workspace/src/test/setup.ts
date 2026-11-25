@@ -72,7 +72,7 @@ setWorkspaceConfig({
       // No guest is ever live here, so there is no address to report.
       return;
     },
-    getTargetUrl: (): string | undefined => {
+    getLoadedDocumentUrl: (): string | undefined => {
       // No guest is ever live here, so there is no address to report.
       return;
     },

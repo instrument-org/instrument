@@ -200,7 +200,7 @@ function showsFileOutside(tabId: string, ctx: CapabilityContext): boolean {
   if (targetId === null) {
     return false;
   }
-  const url = getWorkspaceConfig().browser.getTargetUrl(targetId);
+  const url = getWorkspaceConfig().browser.getLoadedDocumentUrl(targetId);
   return (
     url !== undefined &&
     isLocalAddress(url) &&

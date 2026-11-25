@@ -183,7 +183,7 @@ function connect(sessionId: StoreId.Session = SESSION_ID) {
             windowList.find((entry) => entry.id === targetId)?.url ??
             "https://example.com/")
           : undefined,
-      getTargetUrl: (targetId: BrowserTargetId) =>
+      getLoadedDocumentUrl: (targetId: BrowserTargetId) =>
         live.has(targetId)
           ? (pages.get(targetId)?.url ??
             windowList.find((entry) => entry.id === targetId)?.url ??

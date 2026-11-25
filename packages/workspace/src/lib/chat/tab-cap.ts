@@ -10,6 +10,7 @@ import { chatDir, resolveChat, sessionOfChat } from "../record-folders";
 import { actsIn, forgetTab } from "../tab-activity";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type ChatPageTab, chatPageTabs } from "./chat-tabs";
+import { liveTabTitles, tabPage } from "./tab-page";
 import { askWindow } from "./window-tab";
 
 /**
@@ -164,14 +165,10 @@ async function closedTab(
   reason: ClosedTab["reason"],
 ): Promise<ClosedTab> {
   const { browser } = getWorkspaceConfig();
-  const live = browser.getTargetAddress(tab.id);
-  const kept =
-    live === undefined
-      ? listed?.find((entry) => entry.id === tab.id)
-      : undefined;
-  const title =
-    (await browser.listTargets()).find((target) => target.id === tab.id)
-      ?.title ?? kept?.title;
+  const { title, url } = tabPage(browser, tab.id, {
+    listed: listed?.find((entry) => entry.id === tab.id),
+    titles: await liveTabTitles(browser),
+  });
   const own = sessionOfChat(chatId);
   const session =
     actsIn(tab.id).find((act) => act.chatId === chatId)?.sessionId ??
@@ -181,6 +178,6 @@ async function closedTab(
     reason,
     ...(session !== undefined && session !== own ? { session } : {}),
     ...(title ? { title } : {}),
-    url: live ?? kept?.url ?? "",
+    url: url ?? "",
   };
 }

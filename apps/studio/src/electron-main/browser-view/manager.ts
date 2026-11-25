@@ -1297,7 +1297,7 @@ function createBrowserViewManager(): BrowserViewManager {
         ? guests.addressOf(guest.id, guest.mainFrame)
         : undefined;
     },
-    getTargetUrl: (targetId) => {
+    getLoadedDocumentUrl: (targetId) => {
       const entry = entries.get(targetId);
       const guest = entry?.webContents;
       return guest && !guest.isDestroyed()

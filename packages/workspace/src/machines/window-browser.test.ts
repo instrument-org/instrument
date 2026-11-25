@@ -41,7 +41,7 @@ function makeBrowser() {
     createTarget: () => Promise.resolve(),
     getTargetMeta: () => null,
     getTargetAddress: () => undefined,
-    getTargetUrl: () => undefined,
+    getLoadedDocumentUrl: () => undefined,
     hasNoWindow: false,
     guestCost: () => null,
     isGuestAsleep: (targetId) => asleep.has(targetId),

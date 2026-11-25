@@ -7,6 +7,7 @@ import { BLANK_PAGE_URL } from "./browser-state";
 import { agentSpellingOfFileUrls } from "./local-page-address";
 import { sessionLayout } from "./session-layout";
 import { chatPageTabs, takeClosedTabs } from "./chat/chat-tabs";
+import { liveTabTitles, tabPage } from "./chat/tab-page";
 import { getChatState } from "./chat-record";
 import { chatDir } from "./record-folders";
 import { tabLifetime } from "../machines/window-browser";
@@ -98,13 +99,10 @@ async function chatTabsStatus(
     return null;
   }
   // With no page up anywhere there is no window to ask.
-  const windowTargets = await browser.listTargets();
-  if (windowTargets.length === 0) {
+  const titles = await liveTabTitles(browser);
+  if (titles.size === 0) {
     return [];
   }
-  const titles = new Map(
-    windowTargets.map((target) => [target.id, target.title]),
-  );
   const [listed, { openedTabs }] = await Promise.all([
     chatPageTabs(chatId),
     getChatState(chatDir(chatId)),
@@ -112,8 +110,10 @@ async function chatTabsStatus(
   return (listed ?? []).map((tab) => {
     const { targetId } = tab;
     const loaded = browser.getTargetMeta(targetId) !== null;
-    const url = loaded ? browser.getTargetAddress(targetId) : tab.url;
-    const title = loaded ? titles.get(targetId) : tab.title;
+    const { title, url } = tabPage(browser, targetId, {
+      listed: loaded ? undefined : tab,
+      titles,
+    });
     return {
       id: targetId,
       ...(openedTabs.some((opened) => opened.id === targetId)

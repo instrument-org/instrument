@@ -9,6 +9,7 @@ import { ChatWrites } from "../chat-writes";
 import { linkTargetsIn } from "../link-targets";
 import { getWorkspaceConfig } from "../workspace-config";
 import { chatPageTabs } from "./chat-tabs";
+import { liveTabTitles, tabPage } from "./tab-page";
 
 /** The most tabs one reply's addresses are kept for. */
 const MOST_TABS = 20;
@@ -86,29 +87,21 @@ async function pagesOf(
   ids: readonly string[],
 ): Promise<LinkedTab[]> {
   const { browser } = getWorkspaceConfig();
-  const titles = new Map<string, string>(
-    (await browser.listTargets()).map(({ id, title }) => [id, title]),
-  );
-  const live = ids.map((id) => {
+  const [titles, listed] = await Promise.all([
+    liveTabTitles(browser),
+    chatPageTabs(chatId),
+  ]);
+  return ids.flatMap((id) => {
     const targetId = parseBrowserTargetId(id);
-    const url =
-      targetId === null ? undefined : browser.getTargetAddress(targetId);
-    return url === undefined || targetId === null
-      ? { id }
-      : { id, title: titles.get(targetId), url };
-  });
-  const listed = live.some((tab) => tab.url === undefined)
-    ? await chatPageTabs(chatId)
-    : undefined;
-  return live.flatMap((tab) => {
-    const page =
-      tab.url === undefined ? listed?.find(({ id }) => id === tab.id) : tab;
-    return page?.url !== undefined && /^https?:/i.test(page.url)
-      ? {
-          id: tab.id,
-          ...(page.title ? { title: page.title } : {}),
-          url: page.url,
-        }
+    if (targetId === null) {
+      return [];
+    }
+    const { title, url } = tabPage(browser, targetId, {
+      listed: listed?.find((tab) => tab.id === id),
+      titles,
+    });
+    return url !== undefined && /^https?:/i.test(url)
+      ? { id, ...(title ? { title } : {}), url }
       : [];
   });
 }

@@ -1644,7 +1644,7 @@ async function recordDrivenTabHosts({
     const urls = tabsActedInBy(sessionId)
       .filter((targetId) => (lastActOf(targetId, sessionId) ?? 0) >= since)
       .flatMap((targetId) => {
-        const url = browser.getTargetUrl(targetId);
+        const url = browser.getLoadedDocumentUrl(targetId);
         return url ? [url] : [];
       });
     if (callPartId !== undefined) {

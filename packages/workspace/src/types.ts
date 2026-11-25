@@ -46,7 +46,7 @@ export interface BrowserConfig {
    * The address the page in the target is at, moves a web page made without
    * loading another document included; undefined for a target with no live
    * guest. What the agent and the records are told. Never judge access by it:
-   * that is `getTargetUrl`.
+   * that is `getLoadedDocumentUrl`.
    */
   getTargetAddress: (targetId: BrowserTargetId) => string | undefined;
   getTargetMeta: (
@@ -59,7 +59,7 @@ export interface BrowserConfig {
    * happened to see, and never an address a page gave itself with
    * `history.pushState`.
    */
-  getTargetUrl: (targetId: BrowserTargetId) => string | undefined;
+  getLoadedDocumentUrl: (targetId: BrowserTargetId) => string | undefined;
   /**
    * True where there is no window behind this config, so a task should be left
    * to start a browser of its own rather than pointed at the CDP bridge.

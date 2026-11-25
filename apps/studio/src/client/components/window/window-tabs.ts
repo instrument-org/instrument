@@ -103,6 +103,9 @@ askedAtom.onMount = (set) =>
     set((asked) => asked.filter((each) => each.id !== id));
   });
 
+/** How many changes this window has asked of the tabs and not had answered. */
+export const tabChangesAskedAtom = atom((get) => get(askedAtom).length);
+
 let asks = 0;
 
 /** The tabs this window last showed, which the next ones share what is the same with. */

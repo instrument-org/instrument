@@ -27,6 +27,8 @@ import { app, shell } from "electron";
 import path from "node:path";
 import { z } from "zod";
 
+import { drive } from "./drive";
+
 const systemInfo = devOnly.handler(async ({ context }) => {
   const pnpmVersionValue = await pnpmVersion();
   return [
@@ -362,6 +364,7 @@ const setQuitGuardForced = devOnly
   });
 
 export const debug = {
+  drive,
   getAppEnvironment,
   getQuitGuardForced,
   openUserDataFolder,

@@ -118,9 +118,11 @@ import { PromptQuote } from "./prompt-quote";
 // keys are bound alongside the history plugin.
 const editorAttributes = (placeholder?: string) => ({
   "aria-label": placeholder ?? "Prompt",
+  "aria-multiline": "true",
   class:
     "prompt-editor min-h-12 flex-1 whitespace-pre-wrap break-words text-sm outline-none",
   "data-placeholder": placeholder ?? "",
+  role: "textbox",
 });
 
 const editorPlugins = () => [

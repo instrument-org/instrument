@@ -1,4 +1,5 @@
 import { OFFER_SNAPSHOT_OPTIONS } from "@/client/lib/billing-offer-snapshot";
+import { countCall } from "@/client/lib/calls-in-flight";
 import { captureException } from "@/client/lib/capture-exception";
 import { type router } from "@/electron-main/rpc/routes";
 import { createORPCClient } from "@orpc/client";
@@ -15,6 +16,7 @@ const { port1: clientPort, port2: serverPort } = new MessageChannel();
 window.postMessage("start-orpc-client", "*", [serverPort]);
 
 const link = new RPCLink({
+  interceptors: [countCall],
   port: clientPort,
 });
 

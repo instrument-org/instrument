@@ -1,20 +1,30 @@
 import { openLogin } from "@/client/atoms/login-modal";
 import { openSettings } from "@/client/atoms/settings-modal";
 import { resetStudioModals } from "@/client/atoms/studio-modal";
+import { sidebarOpenAtom, sidebarProjectAtom } from "@/client/atoms/tab-groups";
+import { type WindowTab } from "@/client/atoms/window";
+import { zoomAtom } from "@/client/atoms/zoom";
 import { appTabsAtom } from "@/client/components/window/app-tabs";
 import { currentDrag } from "@/client/components/window/drag/session";
+import { sidebarRowOrderAtom } from "@/client/components/window/held-chord-hints";
+import { windowTabGroupsAtom } from "@/client/components/window/open-groups";
 import {
   groupLayoutOf,
   type WindowTabs,
 } from "@/client/components/window/tab-model";
 import {
   groupOnScreenAtom,
+  tabChangesAskedAtom,
   windowTabsAtom,
 } from "@/client/components/window/window-tabs";
+import { getGuest } from "@/client/lib/browser-pool";
+import { callsInFlight } from "@/client/lib/calls-in-flight";
+import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { freshTabId, openTab } from "@/client/lib/tab-actions";
 import { getTabRouter } from "@/client/lib/tab-router-registry";
 import { reopenClosed } from "@/client/lib/tabs-model";
 import { APP_FLAVOR } from "@instrument-org/shared";
+import { browserTargetOf } from "@instrument-org/workspace/client";
 import { getDefaultStore } from "jotai";
 
 declare global {
@@ -38,15 +48,24 @@ const MODAL_OPENERS = {
  * to the page's URL; and the app-wide modals, by name.
  */
 interface StudioDrive {
+  /** What the window is still doing, each in a few words; empty once it has settled. */
+  busy: () => string[];
   closeModal: () => void;
   /** The drag the window has going, if any: what is held, how, and where letting go would land it. */
   drag: () => ReturnType<typeof currentDrag>;
   goto: (href: string, options?: { newTab?: boolean }) => void;
   load: () => StudioDriveLoad;
+  /** What the window shows: its tab groups, their sides and tabs, and what is up. */
+  look: () => StudioDriveLook;
   modals: () => StudioModalName[];
   openModal: (name: StudioModalName) => void;
   /** The tab closed last, back with its history, as Shift+Cmd+T brings it. */
   reopen: () => void;
+  /** Resolves once the window has been still for a moment, with what it was still doing when the time ran out. */
+  settled: (options?: {
+    capMs?: number;
+    quietMs?: number;
+  }) => Promise<{ busy: string[]; ms: number }>;
   state: () => {
     /** The open dialog's accessible title, or null when none is open. */
     dialog: null | string;
@@ -68,7 +87,65 @@ interface StudioDriveLoad {
   updates: number;
 }
 
+interface StudioDriveLook {
+  /** The window's groups as the sidebar lists them. */
+  groups: {
+    id: string;
+    isPinned: boolean;
+    isUp: boolean;
+    sides: {
+      hasKeyboard: boolean;
+      tabs: {
+        address: string;
+        id: string;
+        isUp: boolean;
+        kind: "page" | "screen";
+        title: string;
+      }[];
+    }[];
+  }[];
+  path: null | string;
+  /** The project the sidebar's list is narrowed to, by id. */
+  project: null | string;
+  sidebarOpen: boolean;
+  theme: "dark" | "light";
+  window: { height: number; width: number; zoom: number };
+}
+
 type StudioModalName = keyof typeof MODAL_OPENERS;
+
+/** How a tab is named, which the window says as it draws (`describeTabs`). */
+let titleOfTab: ((tab: WindowTab) => string) | undefined;
+
+/** Takes the window's own naming of a tab, for what `look` says of one. */
+export function describeTabs(titleOf: (tab: WindowTab) => string) {
+  titleOfTab = titleOf;
+}
+
+/** When the page last changed, once something has asked; a script asks only while it drives. */
+let lastChange: number | undefined;
+
+function watchChanges() {
+  if (lastChange !== undefined) {
+    return;
+  }
+  lastChange = performance.now();
+  new MutationObserver(() => {
+    lastChange = performance.now();
+  }).observe(document, {
+    attributes: true,
+    characterData: true,
+    childList: true,
+    subtree: true,
+  });
+}
+
+/** A request out this long is one that waits on something, not one the window is about to draw. */
+const LONG_CALL_MS = 5000;
+/** A live query with nothing yet after this long is a stream of events, which may never say one. */
+const LIVE_WAIT_MS = 1500;
+/** How long the page's own changes are waited on when nothing else is going: a reply being written, a ticking clock. */
+const QUIET_CAP_MS = 800;
 
 /**
  * Hands the app window's tabs and modals to `studio-drive`, for as long as
@@ -96,7 +173,96 @@ export function initStudioDrive() {
     load.updates++;
   });
 
+  const waitingSince = new Map<string, number>();
+
+  const layoutUp = () => {
+    const group = store.get(groupOnScreenAtom);
+    return group === undefined
+      ? undefined
+      : groupLayoutOf(store.get(windowTabsAtom), group);
+  };
+
+  const busy = () => {
+    const now = Date.now();
+    const doing: string[] = [];
+    if (store.get(tabChangesAskedAtom) > 0) {
+      doing.push("a change to the tabs");
+    }
+    const { selectedId } = store.get(appTabsAtom);
+    const windowRouter = getTabRouter(selectedId);
+    const layout = layoutUp();
+    const up = layout?.sides.flatMap((side) => side.up ?? []) ?? [];
+    for (const router of [
+      windowRouter,
+      ...up.map((id) => getGroupTabRouter(id)),
+    ]) {
+      if (
+        router &&
+        (router.state.isLoading || router.state.status === "pending")
+      ) {
+        doing.push(`a screen loading (${router.state.location.pathname})`);
+      }
+    }
+    for (const tab of layout?.sides.flatMap((side) => side.tabs) ?? []) {
+      if (tab.kind === "page" && up.includes(tab.id)) {
+        const stage = getGuest(browserTargetOf(tab.id))?.loadStage();
+        // A page still fetching after it can be read is left to itself.
+        if (stage === "waiting" || stage === "committed") {
+          doing.push(`a page loading (${tab.url ?? tab.openedUrl ?? ""})`);
+        }
+      }
+    }
+    const waiting = new Set<string>();
+    for (const query of windowRouter?.options.context.queryClient
+      .getQueryCache()
+      .getAll() ?? []) {
+      if (
+        query.getObserversCount() === 0 ||
+        query.state.fetchStatus !== "fetching"
+      ) {
+        continue;
+      }
+      const isLive = JSON.stringify(query.queryKey).includes('"type":"live"');
+      if (query.state.status !== "pending") {
+        continue;
+      }
+      const since = waitingSince.get(query.queryHash) ?? now;
+      waiting.add(query.queryHash);
+      waitingSince.set(query.queryHash, since);
+      if (now - since < (isLive ? LIVE_WAIT_MS : LONG_CALL_MS)) {
+        doing.push(`a first read (${nameOfQuery(query.queryKey)})`);
+      }
+    }
+    for (const hash of waitingSince.keys()) {
+      if (!waiting.has(hash)) {
+        waitingSince.delete(hash);
+      }
+    }
+    for (const { path, startedAt } of callsInFlight()) {
+      if (now - startedAt < LONG_CALL_MS && !isOwnCall(path)) {
+        doing.push(`a request (${path})`);
+      }
+    }
+    for (const animation of document.getAnimations()) {
+      const end = animation.effect?.getComputedTiming().endTime;
+      if (
+        animation.playState === "running" &&
+        animation.timeline === document.timeline &&
+        typeof end === "number" &&
+        Number.isFinite(end)
+      ) {
+        doing.push("an animation");
+        break;
+      }
+    }
+    if (currentDrag()) {
+      doing.push("a drag");
+    }
+    return doing;
+  };
+
   window.__studioDrive = {
+    busy,
     closeModal: resetStudioModals,
     drag: currentDrag,
     goto: (href, options) => {
@@ -109,6 +275,50 @@ export function initStudioDrive() {
       getTabRouter(store.get(appTabsAtom).selectedId)?.history.push(href);
     },
     load: () => ({ ...load }),
+    look: () => {
+      const tabs = store.get(windowTabsAtom);
+      const up = store.get(groupOnScreenAtom);
+      const open = store.get(windowTabGroupsAtom) ?? [];
+      const order = store.get(sidebarRowOrderAtom) ?? open;
+      const shown =
+        up !== undefined && !order.includes(up) ? [...order, up] : order;
+      return {
+        groups: shown.map((id) => {
+          const layout = groupLayoutOf(tabs, id);
+          return {
+            id,
+            isPinned: tabs.groups?.[id]?.pinned === true,
+            isUp: id === up,
+            sides: layout.sides.map((side, index) => ({
+              hasKeyboard: layout.focused === index,
+              tabs: side.tabs.map((tab) => ({
+                address:
+                  tab.kind === "page"
+                    ? (tab.url ?? tab.openedUrl ?? "")
+                    : tab.href,
+                id: tab.id,
+                isUp: tab.id === side.up,
+                kind: tab.kind,
+                title: titleOfTab?.(tab) ?? "",
+              })),
+            })),
+          };
+        }),
+        path:
+          getTabRouter(store.get(appTabsAtom).selectedId)?.history.location
+            .href ?? null,
+        project: store.get(sidebarProjectAtom) ?? null,
+        sidebarOpen: store.get(sidebarOpenAtom),
+        theme: document.documentElement.classList.contains("dark")
+          ? "dark"
+          : "light",
+        window: {
+          height: innerHeight,
+          width: innerWidth,
+          zoom: store.get(zoomAtom),
+        },
+      };
+    },
     modals: () => Object.keys(MODAL_OPENERS) as StudioModalName[],
     openModal: (name) => {
       MODAL_OPENERS[name]();
@@ -117,6 +327,40 @@ export function initStudioDrive() {
       store.set(appTabsAtom, (model) =>
         reopenClosed(model, { id: freshTabId() }),
       );
+    },
+    settled: async ({ capMs = 8000, quietMs = 60 } = {}) => {
+      watchChanges();
+      const start = performance.now();
+      const frame = () =>
+        // A window the system stopped drawing gives no frames.
+        Promise.race([
+          new Promise((resolve) => requestAnimationFrame(resolve)),
+          new Promise((resolve) => setTimeout(resolve, 100)),
+        ]);
+      // What the last input set off has had its handlers and effects.
+      await frame();
+      await frame();
+      let calmAt: number | undefined;
+      for (;;) {
+        const now = performance.now();
+        const doing = busy();
+        if (doing.length > 0) {
+          calmAt = undefined;
+        } else {
+          calmAt ??= now;
+        }
+        const ms = Math.round(now - start);
+        const isStill =
+          now - Math.max(lastChange ?? start, start) >= quietMs ||
+          (calmAt !== undefined && now - calmAt >= QUIET_CAP_MS);
+        if (calmAt !== undefined && now - calmAt >= quietMs / 2 && isStill) {
+          return { busy: [], ms };
+        }
+        if (now - start > capMs) {
+          return { busy: doing, ms };
+        }
+        await frame();
+      }
     },
     state: () => {
       const model = store.get(appTabsAtom);
@@ -139,6 +383,17 @@ export function initStudioDrive() {
       };
     },
   };
+}
+
+/** A query's route, from the key oRPC gives it. */
+function nameOfQuery(key: readonly unknown[]) {
+  const [path] = key;
+  return Array.isArray(path) ? path.join(".") : String(path);
+}
+
+/** Calls the driving script makes itself, which the window is not waiting on. */
+function isOwnCall(path: string) {
+  return path.startsWith("debug.drive.");
 }
 
 /**

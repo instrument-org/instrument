@@ -1054,6 +1054,8 @@ function Tab({
 
   const handlers = {
     "aria-hidden": isClosing || undefined,
+    // Its title alone: its icon and its X would be read into the name.
+    ...(tab.field ? {} : { "aria-label": tab.title }),
     "aria-selected": isSelected,
     className,
     "data-density": density,

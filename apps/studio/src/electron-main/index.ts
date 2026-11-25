@@ -61,6 +61,7 @@ import {
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { ensureForegroundWindowVisible } from "@/electron-main/windows/ensure-foreground-visible";
 import { getForegroundWindow } from "@/electron-main/windows/foreground";
+import { holdNativeForDriving } from "@/electron-main/windows/held-native";
 import { startLaunch } from "@/electron-main/windows/launch";
 import {
   comeBackAsLeft,
@@ -279,6 +280,7 @@ async function bootstrapPrimaryInstance() {
   logBootMark("bootstrapPrimaryInstance");
   keepTrapFatal();
   registerUnattendedQuit();
+  holdNativeForDriving();
 
   // A workspace this build will not open is said in a window of its own, and
   // nothing else starts: no stores, no workspace, no other window.

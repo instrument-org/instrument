@@ -878,6 +878,10 @@ function SideCard({
         layout.sides.length === 2 && hasKeyboard && FOCUSED_SIDE,
       )}
       data-group-side={sideIndex}
+      {...(layout.sides.length === 2 && {
+        "aria-label": sideIndex === 0 ? "Left side" : "Right side",
+        role: "region",
+      })}
       {...(hasKeyboard ? { "data-keyboard": "" } : {})}
       {...(isUp && up?.kind === "page" ? { "data-page-tab": up.id } : {})}
       data-tab-up={up?.id}

@@ -1,4 +1,5 @@
 import { showScreenFieldWithKeyboard } from "@/client/lib/screen-fields";
+import { describeTabs } from "@/client/lib/studio-drive";
 import { keyboardSide } from "@/client/lib/keyboard-place";
 import { OUTSIDE_FILES_MAX } from "@instrument-org/shared";
 import {
@@ -770,6 +771,9 @@ function WindowShell({
 
   const appsBySlug = useAppsBySlug();
   const tabTitle = useTabTitle(chatTitles);
+  useEffect(() => {
+    describeTabs(tabTitle);
+  });
   const { openAll, openNamedPath, openPage, openScreen } = useOpeners({
     appsBySlug,
     appTabs,

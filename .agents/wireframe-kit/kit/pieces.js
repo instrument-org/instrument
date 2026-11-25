@@ -26,6 +26,9 @@ const win = (children, opts = {}) => {
   </div>`;
 };
 
+/** Grey bars for incidental text, one per width: `bars("100%", "62%")`, wrapped in `space-y-2.5`. */
+const bars = (...widths) => widths.map((w) => `<div class="h-2.5 rounded-full bg-gray-300" style="width:${w}"></div>`).join("");
+
 /**
  * A card as the chat draws its own (the permission and question cards): `title` and an
  * `icon` head it with `end` at the head's right, a `line` under the title, `children`

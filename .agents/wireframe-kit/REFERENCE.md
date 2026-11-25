@@ -1,6 +1,8 @@
 # The kit's files and functions
 
-Every file in `kit/` and every function it defines, with what each draws and takes. [`KIT.md`](KIT.md) is the method: how a page is drawn with these, the scenario, the baseline and what rounds keep correcting. Read it first, then search this file for the surface you draw, or read one section, rather than all of it.
+Every file in `kit/` and every function it defines, with what each draws and takes. [`KIT.md`](KIT.md) is how a page is made with these. Search this file for the surface you draw rather than reading it.
+
+The shared scenario is the chat "Help desk pricing against competitors" (`PRICING_TITLE`, `pricing(stage)` for its transcript): someone at a help desk company lining up competitors' list prices against their own plans, filed under the Pricing project. The other `ROWS`, the `PROJECTS`, the Instrument folder's `FOLDER_ROWS`, the competitors' `PAGES` and the `RELEASES` all come from it, prices invented. Keep new data to work people do for a business, and add to it rather than renaming what is there. A third party's logo is inlined in `brands.js`, never a runtime URL.
 
 ## The files
 
@@ -158,7 +160,7 @@ These frames are the desktop's size, so a state that uses them spreads `DESKTOP`
 
 ## Pieces (`pieces.js` and the skill's)
 
-A part of frames has these besides the kit, each taking what goes inside first and options second. `win`, `card` and `composer` are Studio's (`kit/pieces.js`); `bar`, `chip`, `pill`, `crop` and `box` are the skill's neutral ones. A part may define its own under any of these names, and its own wins.
+A part of frames has these besides the kit, each taking what goes inside first and options second. `win`, `card`, `composer` and `bars` are the kit's (`kit/pieces.js`); `bar`, `chip`, `pill`, `crop` and `box` are the skill's neutral ones. A part may define its own under any of these names, and its own wins.
 
 | Function | Draws |
 | --- | --- |
@@ -169,3 +171,4 @@ A part of frames has these besides the kit, each taking what goes inside first a
 | `chip(label, { cls, icon, on })`, `pill(label, { icon, on, end })` | A small status label; a rounded label a person presses. These two take full icon classes (`icon: "ph-clock"`) |
 | `crop(html, { x, y, w, h })` | A `w` by `h` window onto a true-size drawing, for a frame about one control; give the frame the same `w` and `h` |
 | `box(cls, children)` | A grey block standing in for a picture or anything incidental, sized by its classes |
+| `bars(...widths)` | Grey bars for incidental text, `bars("100%", "62%")`, wrapped in `space-y-2.5` |

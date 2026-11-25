@@ -1,6 +1,6 @@
 # Maintaining the Studio wireframe kit
 
-The kit is meant to be edited by whoever draws with it. This is how to keep it true to the app.
+The kit is meant to be edited by whoever draws with it. This is how to keep it true to the app. `RAW=3` or `RAW=all` on `build.mjs` also writes frames alone at true size to the temp folder, and a part written as a JS file with `META` and `states` builds as one of frames does.
 
 ## Measuring against the app
 

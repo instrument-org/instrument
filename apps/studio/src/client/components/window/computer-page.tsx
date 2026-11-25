@@ -4069,7 +4069,6 @@ function protectionOf(
     : undefined;
 }
 
-// oxlint-disable studio/no-os-words -- Windows' ransomware protection exists on Windows alone
 /**
  * Says Windows' ransomware protection kept Instrument out of a folder, with
  * Allow: Windows' own prompt for an administrator's yes, which lets the
@@ -4111,7 +4110,6 @@ function protectionBlocked({
       "Ransomware protection only lets programs it trusts change this folder.",
   });
 }
-// oxlint-enable studio/no-os-words
 
 /** A folder's own glyph as an item's field, when it has one. */
 function withGlyph(glyphSrc: string | undefined) {

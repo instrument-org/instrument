@@ -115,7 +115,6 @@ export function newestFullRelease(
     if (typeof asset !== "object" || asset === null) {
       continue;
     }
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- checked field by field below
     const { Type, Version } = asset as Partial<FeedAsset>;
     if (
       Type !== "Full" ||
@@ -150,7 +149,6 @@ async function openFeedFile(
   return {
     // The DOM's ReadableStream and Node's are the same object at runtime and
     // differ only in their declared types.
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above
     body: Readable.fromWeb(response.body as WebReadableStream<Uint8Array>),
     size: Number(response.headers.get("content-length") ?? 0),
   };

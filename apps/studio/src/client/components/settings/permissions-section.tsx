@@ -585,7 +585,6 @@ function EveryChatCanUse({
   );
 }
 
-// oxlint-disable-next-line studio/no-os-words -- macOS alone keeps a folder or app from the app this way, so this shows only there
 /** The line under a row macOS keeps out though the person allowed it, with the way to its pane. */
 function BlockedByMacos({
   pane,

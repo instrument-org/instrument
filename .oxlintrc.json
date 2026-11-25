@@ -36,6 +36,7 @@
     ".agents/skills/studio-walkthrough/scripts/in-page.js"
   ],
   "options": {
+    "reportUnusedDisableDirectives": "error",
     "typeAware": true
   },
   "overrides": [

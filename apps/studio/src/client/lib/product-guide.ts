@@ -111,7 +111,6 @@ function menuBarSection(menus: MenuItemConstructorOptions[]) {
   const lines = [
     "## Menu bar",
     "",
-    // oxlint-disable-next-line studio/no-os-words -- tells the agent where each system shows the menus
     `On a Mac these are the menu bar's menus, the first named for ${APP_NAME}; on Windows and Linux the same menus open from the Menu button in the window's bar, with Settings and Quit at the end of File and updates and About at the end of Help.`,
     "",
   ];

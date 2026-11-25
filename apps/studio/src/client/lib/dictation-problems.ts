@@ -160,8 +160,7 @@ export function describeDictationProblem(
               os === "mac"
                 ? // oxlint-disable-next-line studio/no-os-words -- only on macOS
                   `You can let ${APP_NAME} use the microphone in System Settings.`
-                : // oxlint-disable-next-line studio/no-os-words -- only on Windows
-                  `You can let ${APP_NAME} use the microphone in Windows privacy settings.`,
+                : `You can let ${APP_NAME} use the microphone in Windows privacy settings.`,
             keepsRecording: false,
             title: "Couldn't use the microphone",
             tone: "error",

@@ -176,7 +176,6 @@ export function FolderTrail({
                     {first}
                   </span>
                   {rest.map((chunk, index) => (
-                    // oxlint-disable-next-line react/no-array-index-key -- a name's pieces never move
                     <Fragment key={index}>
                       <wbr />
                       {chunk}

@@ -287,8 +287,7 @@ function MicrophoneAccessCard({
     denied: mac
       ? // oxlint-disable-next-line studio/no-os-words -- only on macOS
         "Turned off in System Settings."
-      : // oxlint-disable-next-line studio/no-os-words -- only on Windows
-        "Turned off in Windows privacy settings.",
+      : "Turned off in Windows privacy settings.",
     "not-determined": "Needed for dictation.",
     reopen: `Reopen ${APP_NAME} to start using it.`,
     restricted: `${thisComputer.charAt(0).toUpperCase()}${thisComputer.slice(1)} doesn't allow it.`,

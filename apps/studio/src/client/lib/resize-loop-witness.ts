@@ -23,7 +23,6 @@ const ran: Ran[] = [];
 /** Wraps the window's `ResizeObserver` so every callback is noted as it runs. */
 export function watchResizeObservers() {
   const Native = window.ResizeObserver;
-  // oxlint-disable-next-line typescript/no-unnecessary-condition -- absent under jsdom
   if (!Native) {
     return;
   }

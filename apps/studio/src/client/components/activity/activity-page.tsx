@@ -1227,7 +1227,6 @@ function RowMenu({
 }) {
   return items.map((item, index) =>
     item === "separator" ? (
-      // oxlint-disable-next-line react/no-array-index-key -- a rule has nothing else to go by
       <Separator key={`rule-${index}`} />
     ) : (
       <Item

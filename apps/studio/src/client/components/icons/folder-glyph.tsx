@@ -183,7 +183,6 @@ export function instrumentFolderGlyphUrl(
  */
 export function SystemFolderIcon({ className }: { className?: string }) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- The folder glyph is an inline SVG data URL.
     <img
       alt=""
       aria-hidden="true"

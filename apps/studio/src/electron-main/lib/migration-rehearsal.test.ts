@@ -133,7 +133,6 @@ describe.skipIf(!SOURCE)("the launch migrations on a real workspace", () => {
     await runLaunchMigrations();
     after = await inventory(clone);
     machine = await inventory(machineDir);
-    // eslint-disable-next-line no-console
     console.log(
       `rehearsed ${SOURCE}\n  on ${clone}\n  ${before.size} files in, ${after.size} in the workspace and ${machine.size} in its folder on this computer`,
     );

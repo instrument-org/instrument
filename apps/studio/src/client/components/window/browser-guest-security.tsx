@@ -65,7 +65,6 @@ export function SignInSheet({ signIn }: { signIn: GuestSignIn }) {
           <Label htmlFor={`${ids}-username`}>Username</Label>
           <Input
             autoComplete="username"
-            // oxlint-disable-next-line jsx-a11y/no-autofocus -- the sheet is the one thing asked of the person
             autoFocus
             id={`${ids}-username`}
             onChange={(event) => {

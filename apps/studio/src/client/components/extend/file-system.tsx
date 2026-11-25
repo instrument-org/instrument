@@ -1229,7 +1229,6 @@ export function FileSystemFolderGlyph({
   src?: string;
 }) {
   return (
-    // eslint-disable-next-line @next/next/no-img-element -- The folder glyph is an inline SVG data URL.
     <img
       alt=""
       aria-hidden="true"
@@ -3873,7 +3872,6 @@ export function FileSystem({
           >
             <DialogTitle className="sr-only">{openedFileName}</DialogTitle>
             {openedFile.kind === "image" ? (
-              // eslint-disable-next-line @next/next/no-img-element -- File previews render caller-provided URLs that may be object or presigned URLs.
               <img
                 alt={openedFileName}
                 className="max-h-[88vh] w-auto max-w-full rounded-2xl object-contain"
@@ -6651,7 +6649,6 @@ export function FileSystemRowGlyph({
   }
   if (entry.previewIsIcon) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs.
       <img
         alt=""
         className="size-4 shrink-0 object-contain"
@@ -6679,7 +6676,6 @@ export function FileSystemRowGlyph({
           fileName={entry.name}
         />
       )}
-      {/* eslint-disable-next-line @next/next/no-img-element -- Cover thumbnails come from caller-provided file preview URLs. */}
       <img
         alt=""
         className={cn(
@@ -7664,7 +7660,6 @@ function FileSystemGalleryStage({
   const url = viewerKind ? (file.url ?? null) : null;
   if (viewerKind === "image" && url) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- Image file previews render caller-provided URLs that may be object or presigned URLs.
       <img
         alt={file.name}
         className="max-h-full max-w-full rounded-lg object-contain"

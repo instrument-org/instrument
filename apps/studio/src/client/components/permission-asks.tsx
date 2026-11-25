@@ -566,7 +566,6 @@ function MacFixes({
 }
 // oxlint-enable studio/no-os-words
 
-// oxlint-disable studio/no-os-words -- Windows' ransomware protection blocks this way, so these show only there
 /**
  * The ways past Windows' ransomware protection keeping the app's programs
  * out of a folder: let exactly those through, behind Windows' own prompt
@@ -640,7 +639,6 @@ function WindowsFixes({
     </>
   );
 }
-// oxlint-enable studio/no-os-words
 
 /**
  * One answer. Pressed, it keeps its label and every answer stops taking

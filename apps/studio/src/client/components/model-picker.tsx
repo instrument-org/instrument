@@ -733,7 +733,6 @@ function VirtualRows({
   const scrolledToChosen = useRef(false);
   // Every render until it lands: the panel measures itself after its first
   // paint, and a scroll asked of a box with no height yet goes nowhere.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
     if (

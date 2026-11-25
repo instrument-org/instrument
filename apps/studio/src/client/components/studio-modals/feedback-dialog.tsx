@@ -980,7 +980,6 @@ function ActionsReview({
         return (
           <div
             className="flex h-7 items-center gap-2.5 rounded-md px-3 text-[13px] select-text"
-            // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
             key={index}
           >
             <span className="w-14 shrink-0 text-xs text-muted-foreground tabular-nums">
@@ -1033,7 +1032,6 @@ function Group({ group }: { group: RecordGroup }) {
       {open && (
         <div className="divide-y divide-border/60">
           {group.items.map((item, index) => (
-            // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
             <Item item={item} key={index} />
           ))}
         </div>
@@ -1080,7 +1078,6 @@ function StepsLine({ steps }: { steps: readonly RecordRow[] }) {
       {open && (
         <div className="rounded-md bg-muted/40">
           {steps.map((step, index) => (
-            // oxlint-disable-next-line react/no-array-index-key -- a file's records never move
             <RecordLine key={index} row={step} />
           ))}
         </div>
@@ -1155,7 +1152,6 @@ function FieldList({ fields }: { fields: readonly RecordField[] }) {
               <Redacted />
             ) : (
               field.value.split(REDACTION).map((piece, index) => (
-                // oxlint-disable-next-line react/no-array-index-key -- a value's pieces never move
                 <Fragment key={index}>
                   {index > 0 && <Redacted />}
                   {piece}

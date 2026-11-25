@@ -37,7 +37,6 @@ export function velopackRoot(): string | undefined {
 
 // A CommonJS package with a native addon, loaded only on a Velopack install.
 export function loadVelopack(): typeof Velopack {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- require returns any
   return createRequire(import.meta.url)("velopack") as typeof Velopack;
 }
 

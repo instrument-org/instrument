@@ -32,7 +32,6 @@ const x64 = (version: string) =>
     `Instrument-mac-${version}-x64.dmg`,
   );
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test fixtures in the manifest shape
 const parseFeed = (text: string) => parse(text) as never;
 const merge = (texts: Record<string, string>) =>
   mergeMacFeedFiles(texts, parseFeed);

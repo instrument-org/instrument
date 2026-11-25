@@ -93,7 +93,6 @@ export function mergeMacFeedFiles(
 }
 
 function parseWithYq(text: string): Feed {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- yq's JSON, checked below
   const feed = JSON.parse(
     execFileSync("yq", ["-p=yaml", "-o=json", "-"], {
       encoding: "utf8",

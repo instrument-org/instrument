@@ -195,7 +195,6 @@ export function LostFolderPage({
                       });
                   },
                 }}
-                // oxlint-disable-next-line studio/no-os-words -- shown only on macOS
                 line={`Turn on ${iCloud ? "iCloud Drive" : "access"} for ${APP_NAME} in Privacy & Security › Files & Folders${stillFailing ? ", then press Continue" : ""}.`}
                 title={
                   stillFailing

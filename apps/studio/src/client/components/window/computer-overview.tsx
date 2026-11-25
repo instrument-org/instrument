@@ -127,7 +127,6 @@ export function ComputerOverview({
               folder.path === home ? (
                 <HouseIcon className="size-9 text-muted-foreground" />
               ) : (
-                // oxlint-disable-next-line @next/next/no-img-element -- The folder glyph is an inline SVG data URL.
                 <img
                   alt=""
                   className="h-8 w-auto"

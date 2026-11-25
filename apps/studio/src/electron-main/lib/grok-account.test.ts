@@ -42,7 +42,6 @@ vi.mock("@/electron-main/windows/foreground", () => ({
 vi.mock("electron-store", () => ({
   default: class {
     delete(key: string) {
-      // oxlint-disable-next-line typescript/no-dynamic-delete -- the in-memory stand-in for a keyed store
       delete stored[key];
     }
     get(key: string) {

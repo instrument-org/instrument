@@ -247,7 +247,6 @@ function TrailLine({
                 "max-w-full",
                 index === last ? "truncate" : "shrink-0 whitespace-pre",
               )}
-              // oxlint-disable-next-line react/no-array-index-key -- a folder's place in the trail is what it is
               key={index}
             >
               {index === last ? name : `${name} › `}

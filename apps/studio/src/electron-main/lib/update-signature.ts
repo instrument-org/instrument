@@ -291,7 +291,6 @@ export async function readSignatures(
       windowsHide: true,
     },
   );
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the script's own JSON, shaped above
   const parsed = JSON.parse(stdout.trim() || "[]") as SignatureReport[];
   return parsed.map((report) => ({
     file: report.file.replaceAll("\\", "/"),

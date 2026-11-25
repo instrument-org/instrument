@@ -30,7 +30,6 @@ export function boundedFuzzy(options?: uFuzzy.Options) {
   return {
     filter(haystack: string[], needle: string): null | uFuzzy.HaystackIdxs {
       const { head, rest } = bound(needle);
-      // oxlint-disable-next-line unicorn/no-array-method-this-argument
       const indexes = fuzzy.filter(haystack, head);
       if (!indexes || rest.length === 0) {
         return indexes;

@@ -480,7 +480,6 @@ function GroupSides({
 
 /** A side's place in the row: its share of the room, and the gap it carries. */
 // A type rather than an interface, which motion's targets need indexable.
-// oxlint-disable-next-line typescript/consistent-type-definitions
 type SidePlace = { flexBasis: string; flexGrow: number };
 
 /**

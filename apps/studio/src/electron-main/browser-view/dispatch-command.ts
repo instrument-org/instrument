@@ -626,7 +626,6 @@ async function forwardToDebugger({
           : `CDP command timed out: ${method}. The browser tab is not responding. The page may be unresponsive or still loading. Try navigating directly to a URL or ask the user to reload the app if the problem persists.`;
       return new CdpCommandTimeoutError(method, detail);
     };
-    // oxlint-disable-next-line typescript/no-unsafe-assignment
     const result = await Promise.race([
       method === "Page.captureScreenshot" || method.startsWith("Input.")
         ? whileEmbedderComposites(wc, sent)

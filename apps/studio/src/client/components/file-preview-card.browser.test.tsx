@@ -161,3 +161,38 @@ test("gives the name the row until the pointer or focus asks for the menu", asyn
   expect(document.activeElement).toBe(menu());
   expect(menuWidth()).toBeGreaterThan(0);
 });
+
+// A size cut short reads as a kind that ran out of room, so it is there whole
+// or not at all.
+test.each([
+  { isShown: true, width: 420 },
+  { isShown: false, width: 172 },
+])("says the size of the file at $width wide: $isShown", async (row) => {
+  const fetchFile = vi
+    .spyOn(window, "fetch")
+    .mockResolvedValue(
+      new Response(null, { headers: { "content-length": "2140" } }),
+    );
+  await renderInBrowser(
+    <div style={{ width: row.width }}>
+      <FilePreviewCard
+        file={{ ...FILE, filename: "notes.ipynb", mimeType: undefined }}
+        onClick={vi.fn()}
+      />
+    </div>,
+  );
+
+  const size = await vi.waitFor(() => {
+    const element = document.querySelector("[data-slot=file-size]");
+    if (!element?.parentElement) {
+      throw new Error("no size");
+    }
+    return element;
+  });
+  const line = size.parentElement?.getBoundingClientRect();
+  expect(size.textContent).toMatch(/^ · 2\.\d+ KB$/);
+  expect(size.getBoundingClientRect().bottom <= (line?.bottom ?? 0)).toBe(
+    row.isShown,
+  );
+  fetchFile.mockRestore();
+});

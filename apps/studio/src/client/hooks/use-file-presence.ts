@@ -9,7 +9,8 @@ import { useNearViewport } from "./use-near-viewport";
 export const FILE_MISSING_LABEL = "Missing";
 
 /**
- * Whether the file a card stands for is still where the card says.
+ * Whether the file a card stands for is still where the card says, and how
+ * big it is once the origin has said.
  *
  * A transcript is a record of what a reply handed over, so the card stays
  * whatever became of the file; what changes is how it is drawn. The origin is
@@ -23,18 +24,18 @@ export const FILE_MISSING_LABEL = "Missing";
  */
 export function useFilePresence<T extends HTMLElement>(
   url: string | undefined,
-): { isMissing: boolean; ref: React.RefObject<null | T> } {
+): { isMissing: boolean; ref: React.RefObject<null | T>; size?: number } {
   const { isNear, ref } = useNearViewport<T>();
-  const [missingUrl, setMissingUrl] = useState<string | undefined>();
+  const [found, setFound] = useState<FoundFile & { url?: string }>({});
 
   useEffect(() => {
     if (!isNear || url === undefined) {
       return;
     }
     const controller = new AbortController();
-    void isGone(url, controller.signal).then((gone) => {
-      if (gone) {
-        setMissingUrl(url);
+    void findFile(url, controller.signal).then((answer) => {
+      if (!controller.signal.aborted) {
+        setFound({ ...answer, url });
       }
     });
     return () => {
@@ -42,16 +43,30 @@ export function useFilePresence<T extends HTMLElement>(
     };
   }, [isNear, url]);
 
-  return { isMissing: url !== undefined && missingUrl === url, ref };
+  const isAnswered = url !== undefined && found.url === url;
+  return {
+    isMissing: isAnswered && found.isGone === true,
+    ref,
+    size: isAnswered ? found.size : undefined,
+  };
 }
 
-/** Whether the origin answers `url` with a 404, the one answer that means gone. */
-async function isGone(url: string, signal: AbortSignal): Promise<boolean> {
+/** What the origin says of a file: nothing, when it could not be asked. */
+interface FoundFile {
+  isGone?: boolean;
+  size?: number;
+}
+
+async function findFile(url: string, signal: AbortSignal): Promise<FoundFile> {
   try {
     const response = await fetch(url, { method: "HEAD", signal });
-    return response.status === 404 && !signal.aborted;
+    const length = response.headers.get("content-length");
+    return {
+      isGone: response.status === 404,
+      size: response.ok && length !== null ? Number(length) : undefined,
+    };
   } catch {
     // Not the file's absence.
-    return false;
+    return {};
   }
 }

@@ -59,6 +59,7 @@ import { projectTint } from "./project-tint";
 import { ProjectsSection } from "./projects-section";
 import { SoftKey } from "@/client/components/soft-key";
 import { SidebarSearch } from "./sidebar-search";
+import { groupLeadsAtom, rowSidesOf } from "./group-leads";
 import { GroupRowLines } from "./group-row-lines";
 import { RowLinesView } from "./row-half";
 import { quiet } from "./row-lines";
@@ -618,12 +619,9 @@ export function GroupRow({
 }) {
   const { layoutOf } = useWindowTabs();
   const titleOf = useTabTitle(chatTitles);
-  const layout = layoutOf(entry.group);
-  const sides = layout.sides.flatMap((side) => {
-    const up = side.tabs.find((tab) => tab.id === side.up) ?? side.tabs[0];
-    return up ? [{ tabs: side.tabs, up }] : [];
-  });
-  const ups = sides.map((side) => side.up);
+  const held = useAtomValue(groupLeadsAtom).get(entry.group);
+  const sides = rowSidesOf(layoutOf(entry.group));
+  const ups = sides?.map((side) => side.up) ?? [];
   // Named as a group, so a row whose tab is a page the sidebar also has a
   // button for (Activity) is told apart from that button.
   const label = `${ups.length > 0 ? ups.map(titleOf).join(" and ") : entry.title} tab group`;
@@ -633,14 +631,14 @@ export function GroupRow({
       onClose(entry.group);
     },
   };
-  const [first, ...rest] = sides;
-  const inner = first ? (
+  const inner = sides ? (
     <GroupRowLines
       chatTitles={chatTitles}
       close={close}
+      held={held}
       isCloseShown={isCloseShown}
       isOnScreen={isUp}
-      sides={[first, ...rest]}
+      sides={sides}
     />
   ) : (
     // A group whose tabs are not in yet goes by its own title.

@@ -1,52 +1,24 @@
 import { type WindowTab } from "@/client/atoms/window";
+import { FuzzyHighlight } from "@/client/components/fuzzy-highlight";
 import { ShimmerSweep } from "@/client/components/shimmer-sweep";
 import { hostPathOfFileUrl } from "@/client/lib/file-url";
 import { cn } from "@/client/lib/utils";
 import { extensionOf } from "@/shared/rendered-kinds";
 import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
-import { useState } from "react";
+import { type ReactNode } from "react";
 
 import { useProjectsById } from "./projects-by-id";
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { FadeTitle } from "./fade-title";
+import { leadTabOf, type RowSides } from "./group-leads";
 import { RowActionBar } from "./row-action-bar";
 import { type RowLines, siteOf, tabsBesideLead } from "./row-lines";
 import { TabMark, TONE_INK, useRowLines, useRowSources } from "./row-half";
 import { screenLocation } from "./screen-presentation";
 import { chatOfTab } from "./tab-model";
 import { useTaskTitles } from "./task-titles";
-
-/** A group's sides as its row reads them: each side's tabs and the one in front, the left side first. */
-type RowSides = readonly [RowSide, ...RowSide[]];
-type RowSide = { tabs: readonly WindowTab[]; up: WindowTab };
-
-/**
- * The tab a group's row goes by: its first chat, else the left side's tab
- * that was in front when the group was last left. While the group is up, the
- * row keeps that tab, so picking another tab in it does not rename it; the
- * front tab at the moment the group goes out of sight becomes the new one.
- * A tab since closed gives way to the front tab.
- */
-function useLeadTab(sides: RowSides, isOnScreen: boolean): WindowTab {
-  const front = sides[0].up;
-  const [held, setHeld] = useState(front.id);
-  const [wasOnScreen, setWasOnScreen] = useState(isOnScreen);
-  if (wasOnScreen !== isOnScreen) {
-    setWasOnScreen(isOnScreen);
-    if (!isOnScreen) {
-      setHeld(front.id);
-    }
-  }
-  return (
-    sides
-      .flatMap((side) => side.tabs)
-      .find((tab) => chatOfTab(tab) !== undefined) ??
-    sides[0].tabs.find((tab) => tab.id === held) ??
-    front
-  );
-}
 
 /** How many marks a row draws after its title. */
 const MOST_MARKS = 5;
@@ -65,7 +37,7 @@ interface MarkRun {
  * title, then every other tab's mark at the line's far end, in tab order
  * whichever side each is in. No mark stands under the lead tab's. The
  * lead tab is the group's first chat, else the left side's tab in front
- * when the group was last left (`useLeadTab`), so a group with a chat goes by
+ * when the group was last left (`leadTabOf`), so a group with a chat goes by
  * that chat wherever it sits. Tabs beside each
  * other that wear the same mark (five pages of one site, three wireframes)
  * are one mark and their count, and a tab on the very thing the lead tab is
@@ -76,22 +48,31 @@ interface MarkRun {
 export function GroupRowLines({
   chatTitles,
   close,
-  isCloseShown,
+  end,
+  held,
+  isCloseShown = false,
   isOnScreen,
   sides,
+  titleRanges = null,
 }: {
   chatTitles: Map<ChatId, string>;
   close?: { label: string; run: () => void } | undefined;
-  isCloseShown: boolean;
+  /** What stands at the first line's end. */
+  end?: ReactNode;
+  /** The tab held for the group to go by (`groupLeadsAtom`); none for one that is not open. */
+  held?: string | undefined;
+  isCloseShown?: boolean;
   /** Whether the group is up: the tabs in front then wear no unread dot, as in their strips. */
   isOnScreen: boolean;
   sides: RowSides;
+  /** What a search matched in the title. */
+  titleRanges?: null | number[];
 }) {
   const appsBySlug = useAppsBySlug();
   const projects = useProjectsById();
   const taskTitles = useTaskTitles();
   const { chats } = useRowSources();
-  const lead = useLeadTab(sides, isOnScreen);
+  const lead = leadTabOf(sides, held);
   const lines = useRowLines(lead, chatTitles);
   const keyOf = (tab: WindowTab): string => {
     if (tab.kind === "page") {
@@ -181,7 +162,7 @@ export function GroupRowLines({
               : "font-medium text-foreground/85",
           )}
         >
-          {lines.title}
+          <FuzzyHighlight ranges={titleRanges} text={lines.title} />
         </FadeTitle>
         {close && (
           <RowActionBar
@@ -196,6 +177,7 @@ export function GroupRowLines({
             isHeld={isCloseShown}
           />
         )}
+        {end}
       </div>
       {(lines.line !== "" || otherMarks) && (
         <div className="flex h-5 min-w-0 items-center gap-2 pl-6 text-[12px] leading-5">

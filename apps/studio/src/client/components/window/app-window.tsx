@@ -179,6 +179,7 @@ import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
+import { useGroupLeadUpkeep } from "./group-leads";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
 import { TrafficLightsWithSidebar } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
@@ -501,6 +502,10 @@ function WindowShell({
     select: (routerState) => routerState.location.href,
   });
   useTabGroupUpkeep(appTabHref, groupList.open);
+  useGroupLeadUpkeep(
+    groupUp,
+    groupList.open.map((entry) => entry.group),
+  );
   useCloseStrandedHostedPages();
   // Closing a group stops none of its chats here: the person's close has
   // stopped them once asked (`askToCloseGroups`), and an agent's leaves them

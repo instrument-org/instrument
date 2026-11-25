@@ -289,7 +289,7 @@ export function chatsWithNoTab(
 }
 
 /** Groups in the order the sidebar lists them: pinned ones first, whatever their places in the window's own list. */
-function inSidebarOrder(open: readonly TabGroup[]): TabGroup[] {
+export function inSidebarOrder(open: readonly TabGroup[]): TabGroup[] {
   return [
     ...open.filter((entry) => isPinnedGroup(entry)),
     ...open.filter((entry) => !isPinnedGroup(entry)),

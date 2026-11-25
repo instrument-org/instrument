@@ -337,7 +337,11 @@ describe("project folders", () => {
         {
           at: Date.UTC(2026, 0, 1),
           id,
-          record: { color: "blue", created: "2026-01-01T00:00:00Z", emoji: "🧳" },
+          record: {
+            color: "blue",
+            created: "2026-01-01T00:00:00Z",
+            emoji: "🧳",
+          },
         },
       ],
     );
@@ -531,7 +535,6 @@ async function projectFile(
     : text;
 }
 
-/** A project's record as the projects store has it. */
 /** The id a project folder's `.instrument-project` names. */
 function idFileOf(folder: string): string | undefined {
   try {
@@ -546,6 +549,7 @@ function idFileOf(folder: string): string | undefined {
   }
 }
 
+/** A project's record as the projects store has it. */
 function storeOf(id: string) {
   return readProjectRecords(getWorkspaceConfig().rootDir).get(id);
 }

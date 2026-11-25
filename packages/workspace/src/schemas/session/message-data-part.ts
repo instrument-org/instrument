@@ -434,14 +434,6 @@ export namespace SessionMessageDataPart {
   export type AsksDataPart = z.output<typeof AsksDataPartSchema>;
 
   /**
-   * What a turn did to the person's setup: the skills, apps and memories it
-   * added, changed or removed, read off the turn's own writes
-   * (`setup-changes.ts`), so each is the turn's doing and none is another
-   * chat's or the person's. Attached to the turn's last assistant message,
-   * where the chat tells the person, and where the skill catalog's
-   * correction for the model comes from.
-   */
-  /**
    * One thing about a project a command set, with what it was before: its
    * name, its mark, its color, its line about what goes there, whether it is
    * retired. `null` is none.
@@ -502,6 +494,14 @@ export namespace SessionMessageDataPart {
 
   export type CardUndone = z.output<typeof CardUndoneSchema>;
 
+  /**
+   * What a turn did to the person's setup: the skills, apps and memories it
+   * added, changed or removed, read off the turn's own writes
+   * (`setup-changes.ts`), so each is the turn's doing and none is another
+   * chat's or the person's. Attached to the turn's last assistant message,
+   * where the chat tells the person, and where the skill catalog's
+   * correction for the model comes from.
+   */
   export const SetupChangesDataPartSchema = z.object({
     changes: z
       .array(
@@ -1249,12 +1249,6 @@ export namespace SessionMessageDataPart {
     typeof QuestionAnswerDataPartSchema
   >;
 
-  /**
-   * What the user was looking at when they sent the message: the folder open
-   * in the window's folder view and what was selected in it.
-   * Event cadence, written by the surface that sent the message and only when
-   * it had a folder on screen.
-   */
   /** The task at work in a tab, stamped when the message is stored. */
   const TabHolderSchema = z.object({ id: z.string(), title: z.string() });
 

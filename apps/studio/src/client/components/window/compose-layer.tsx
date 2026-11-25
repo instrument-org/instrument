@@ -63,9 +63,9 @@ export function ComposeLayer({
   /** A draft's window expanded: the window goes and the draft comes up in the Chat screen, written there in full. */
   onExpandDraft: (id: string) => void;
   onModelChange: (modelURI: AIGatewayModelURI.Type) => void;
-  /** A project asked for from a draft's head, with what was typed: the project it makes files that draft. */
   /** Makes a project from a popped-out chat's head, filing that chat under it. */
   onNewChatProject: (chatId: ChatId, name?: string) => void;
+  /** A project asked for from a draft's head, with what was typed: the project it makes files that draft. */
   onNewProject: (draftId: string, name: string) => void;
   onSetChatProject: (chatId: ChatId, project: null | string) => void;
   onStart: (id: string, send: DraftSend) => void;

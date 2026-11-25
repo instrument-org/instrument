@@ -561,17 +561,14 @@ export class ChatRecords {
   }
 
   /**
-   * Hands `updater` the part as it stands, pending writes included, and
-   * appends what it gives back, in the same tick: two updates asked for
-   * together each build on the other, so a guard in the second sees the
-   * first. A part given back unchanged writes nothing. Answers with the
-   * part as it then is, or nothing for a part the chat does not have.
-   */
-  /**
-   * The part as it stands, pending writes and the running turn included,
-   * handed to `updater`, and what it gives back written. A result still
-   * arriving goes to the turn's memory rather than to a record, so an output
-   * a tool offered before its own is shown without being written.
+   * Hands `updater` the part as it stands, pending writes and the running
+   * turn included, and writes what it gives back, in the same tick: two
+   * updates asked for together each build on the other, so a guard in the
+   * second sees the first. A part given back unchanged writes nothing, and a
+   * result still arriving goes to the turn's memory rather than to a record,
+   * so an output a tool offered before its own is shown without being
+   * written. Answers with the part as it then is, or nothing for a part the
+   * chat does not have.
    */
   updatePart(
     chatId: ChatId,

@@ -694,13 +694,6 @@ function DiagnosticLog() {
 }
 
 /**
- * Icon only, in both the card and the viewer.
- *
- * The action needs no label: a download glyph says it, and the words for it
- * ("save a copy", "export") each read as something slightly different from what
- * happens. The tooltip carries the name for anyone who wants one.
- */
-/**
  * Whether crashes and app errors are sent without asking. It's turned on from
  * a report's own checkbox, so this is where it's turned off.
  */
@@ -814,6 +807,13 @@ function NextMessageSuggestions() {
   );
 }
 
+/**
+ * Icon only, in both the card and the viewer.
+ *
+ * The action needs no label: a download glyph says it, and the words for it
+ * ("save a copy", "export") each read as something slightly different from what
+ * happens. The tooltip carries the name for anyone who wants one.
+ */
 function DownloadLogButton({
   disabled,
   onDownload,

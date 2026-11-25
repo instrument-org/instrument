@@ -692,7 +692,6 @@ function TileSkeletons({ count = SKELETONS_SHOWN }: { count?: number }) {
   );
 }
 
-/** The directory with the services most people know brought to the front, the rest in its own order. */
 /**
  * A service the directory does not list, as a tile beside the ones it does:
  * what was typed, and the promise that Instrument finds it and connects it.

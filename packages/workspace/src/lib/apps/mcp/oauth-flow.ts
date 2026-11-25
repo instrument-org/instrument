@@ -45,6 +45,7 @@ import {
  * service (`api-oauth.ts`): what is parked is how to redeem its code, and
  * the app's own test is what connects it.
  */
+
 /** Where the authorization page was opened: the window's own browser, or the user's. */
 export type SignInOpensIn = "app" | "external";
 

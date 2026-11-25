@@ -13,6 +13,15 @@ import {
 } from "motion/react";
 import { type ReactNode, useEffect, useEffectEvent, useRef } from "react";
 
+/** How wide a rail may be, where a drag lets go of it, and where it opens. */
+export interface RailBounds {
+  /** Dragged narrower than this, the rail slides shut; with none, a drag stops at the min. */
+  collapse?: number;
+  initial: number;
+  max: number;
+  min: number;
+}
+
 /**
  * The resizable sidebar rail. Width is driven imperatively so dragging tracks
  * the cursor 1:1 with no transition. Open/close is a slide: the panel keeps its
@@ -26,15 +35,6 @@ import { type ReactNode, useEffect, useEffectEvent, useRef } from "react";
  *   sliding out, which is what prevents the squish.
  * - `panelX`: how far the panel is translated out of its clip.
  */
-/** How wide a rail may be, where a drag lets go of it, and where it opens. */
-export interface RailBounds {
-  /** Dragged narrower than this, the rail slides shut; with none, a drag stops at the min. */
-  collapse?: number;
-  initial: number;
-  max: number;
-  min: number;
-}
-
 export function StudioSidebarRail({
   bounds,
   children,

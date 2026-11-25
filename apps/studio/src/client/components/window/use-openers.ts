@@ -440,11 +440,6 @@ export function useOpeners({
     });
   };
   /**
-   * Does what an agent asked of the tabs, and says what came of it: the tab
-   * it made or acted on, or why it did nothing. An id is looked up among the
-   * tabs of the chat that asked, since those are the tabs its note named.
-   */
-  /**
    * The page an agent drives in a tab, by the id it names the tab by: a page
    * tab's own, or, for a tab standing on a page's file, the page its viewer
    * draws, opened now when the tab has none yet (one opened behind and never
@@ -457,6 +452,11 @@ export function useOpeners({
       : browser?.openOrFocus(page.open.url, { group: page.open.group });
   };
 
+  /**
+   * Does what an agent asked of the tabs, and says what came of it: the tab
+   * it made or acted on, or why it did nothing. An id is looked up among the
+   * tabs of the chat that asked, since those are the tabs its note named.
+   */
   const actOnTab = async ({
     action,
     chatId: group,

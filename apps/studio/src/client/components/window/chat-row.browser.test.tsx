@@ -250,7 +250,6 @@ function peekOf(row: HTMLElement) {
   return row.querySelector<HTMLElement>('[class*="text-[12px]"]');
 }
 
-/** The name of the project the chat is filed under: a label, not a control. */
 /** The time at the end of the title's line. */
 function timeOf(row: HTMLElement) {
   const time = row.querySelector<HTMLElement>(".tabular-nums");
@@ -260,6 +259,7 @@ function timeOf(row: HTMLElement) {
   return time;
 }
 
+/** The name of the project the chat is filed under: a label, not a control. */
 function pillOf(row: HTMLElement) {
   return row.querySelector<HTMLElement>('[data-slot="project-words"]');
 }

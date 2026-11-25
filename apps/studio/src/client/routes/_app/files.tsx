@@ -25,13 +25,13 @@ export const Route = createFileRoute("/_app/files")({
     file: z.string().optional(),
     /** The folder open under the root, as a prefix: `Documents/Instrument/`. */
     path: z.string().default(""),
-    /** Where the browser is rooted: `~` for the home folder, or a folder's own path. */
     /**
      * What the folder is searched for in this step of the tab's history,
      * kept as it is typed, so back to the step finds the folder searched as
      * it was left.
      */
     query: z.string().optional().catch(undefined),
+    /** Where the browser is rooted: `~` for the home folder, or a folder's own path. */
     root: z.string().default("~"),
     /**
      * What the folder opens with selected, as a path under the root:

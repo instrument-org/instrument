@@ -436,12 +436,6 @@ export function showsPageText(args: string[]): boolean {
   }
 }
 
-/**
- * One bash call's record of whether the page still needs showing. Each
- * successful command that changes the page replaces what is pending with a way
- * to snapshot it; each read clears it; everything else leaves it alone, so the
- * last change wins and a chain ending in a read attaches nothing.
- */
 /** What one follow-up read of the page came back with. */
 interface PageRead {
   /** What the page announced with the step, from {@link liveRegionText}. */
@@ -516,6 +510,12 @@ export function failureLine(stderr: string, stdout: string): string {
   return (first(stderr) ?? first(stdout) ?? "").replace(/^✗\s*/u, "").trim();
 }
 
+/**
+ * One bash call's record of whether the page still needs showing. Each
+ * successful command that changes the page replaces what is pending with a way
+ * to snapshot it; each read clears it; everything else leaves it alone, so the
+ * last change wins and a chain ending in a read attaches nothing.
+ */
 export class BrowserFollowUp {
   /** The call's failed commands, the earliest first, up to {@link MAX_BROWSER_FAILURES}. */
   #failures: BrowserFailure[] = [];

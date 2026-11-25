@@ -307,8 +307,6 @@ async function changedAt(file: string): Promise<number> {
   return Math.floor((await fs.stat(file)).mtimeMs);
 }
 
-/** The folders in `dir`, by name; nothing where there is no such folder. */
-/** Whether every entry left in `dir` is the system's, such as a `.DS_Store`. */
 /** The files an app folder's app is taken in from. */
 const TAKEN_IN: readonly string[] = [
   APP_FILE_NAME,
@@ -365,6 +363,7 @@ async function readOwnFile(
   return readOldFile(file);
 }
 
+/** Whether every entry left in `dir` is the system's, such as a `.DS_Store`. */
 async function holdsNothingOfAnyones(dir: string): Promise<boolean> {
   try {
     return (await fs.readdir(dir)).every((name) => isSystemClutter(name));
@@ -373,6 +372,7 @@ async function holdsNothingOfAnyones(dir: string): Promise<boolean> {
   }
 }
 
+/** The folders in `dir`, by name; nothing where there is no such folder. */
 async function folderNames(dir: string): Promise<string[] | undefined> {
   try {
     return (await fs.readdir(dir, { withFileTypes: true }))

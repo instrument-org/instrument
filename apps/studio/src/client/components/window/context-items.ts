@@ -466,11 +466,6 @@ export function chatSuggestionOf({
     : item;
 }
 
-/**
- * The key a tab's chip is left out by. A screen of the window's own keeps
- * its tab's id wherever it walks, so it is keyed by where it stands too, and
- * a chip left out comes back once that screen is somewhere else.
- */
 /** Whether two tabs show the same thing: the same page, or the same screen. */
 function sameTarget(one: WindowTab, other: WindowTab): boolean {
   if (one.kind === "page" && other.kind === "page") {
@@ -481,6 +476,11 @@ function sameTarget(one: WindowTab, other: WindowTab): boolean {
   );
 }
 
+/**
+ * The key a tab's chip is left out by. A screen of the window's own keeps
+ * its tab's id wherever it walks, so it is keyed by where it stands too, and
+ * a chip left out comes back once that screen is somewhere else.
+ */
 function keyOfTab(tab: undefined | WindowTab): string {
   if (!tab) {
     return "";

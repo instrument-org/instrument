@@ -730,13 +730,6 @@ function atEntry(
 }
 
 /**
- * Run `run` holding the workspace's move lock: a file in its machine folder
- * naming this process. A live launch of this app holding it is waited for,
- * however long its move takes, since going ahead would move the records
- * from under it; one that ended without removing it no longer counts.
- * Where the lock cannot be written at all, `run` goes ahead without it.
- */
-/**
  * Take `lock` for this process, failing with EEXIST where another launch
  * holds it. The pid goes into a file of its own and that file is linked into
  * place, so the lock is never there with nothing in it yet: a launch that
@@ -754,6 +747,13 @@ function takeMoveLock(lock: string): void {
   }
 }
 
+/**
+ * Run `run` holding the workspace's move lock: a file in its machine folder
+ * naming this process. A live launch of this app holding it is waited for,
+ * however long its move takes, since going ahead would move the records
+ * from under it; one that ended without removing it no longer counts.
+ * Where the lock cannot be written at all, `run` goes ahead without it.
+ */
 function withMoveLock<T>(machineDir: string, run: () => T): T {
   const lock = path.join(machineDir, WORKSPACE_MACHINE_ENTRIES.moveLock);
   let held = false;

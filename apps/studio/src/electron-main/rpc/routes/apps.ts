@@ -627,11 +627,6 @@ async function requireShownOrigin({
   }
 }
 
-/**
- * Start a sign-in. Hands the authorization page's address back rather than
- * opening it: the window opens it in its own browser, where the callback
- * lands too.
- */
 /** An app answered on a card or a page: the chat, for a card, which hears the answer. */
 const AnsweredOnCardSchema = z.object({
   /** The chat whose card this was answered on, which hears the answer. */
@@ -639,6 +634,11 @@ const AnsweredOnCardSchema = z.object({
   slug: AppSlugSchema,
 });
 
+/**
+ * Start a sign-in. Hands the authorization page's address back rather than
+ * opening it: the window opens it in its own browser, where the callback
+ * lands too.
+ */
 const startOAuth = base
   .input(
     z.object({

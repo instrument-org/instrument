@@ -165,7 +165,6 @@ const QuestionAskSchema = z.object({
 
 export type QuestionAsk = z.output<typeof QuestionAskSchema>;
 
-/** Anything a chat is waiting on the person to answer on a card. */
 /**
  * A sign-in card the chat's agent put up with `connect_app`, as its
  * computer last wrote its rows. Signing in happens on that computer alone,

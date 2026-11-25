@@ -970,7 +970,6 @@ function useRows({
   };
 }
 
-/** The row that opens a path on the computer, which says it before looking. */
 /** The row that opens a path; a file it names by an extension takes that file's icon. */
 function pathRow(name: string, run: () => void, fileName?: string) {
   return {

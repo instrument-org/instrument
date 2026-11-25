@@ -297,17 +297,17 @@ const rememberPageIcon = base
     ),
   }));
 
-/**
- * A browser tab's page as a picture, for the tiles that stand for it: taken
- * of the guest by its contents id while it is on screen, and read back by the
- * tab's id whenever the tile is drawn, including after a relaunch.
- */
 /** A page's picture, and the address of the page it shows when known. */
 const PagePictureOutput = z.object({
   page: z.string().optional(),
   url: z.string().nullable(),
 });
 
+/**
+ * A browser tab's page as a picture, for the tiles that stand for it: taken
+ * of the guest by its contents id while it is on screen, and read back by the
+ * tab's id whenever the tile is drawn, including after a relaunch.
+ */
 const thumbnails = {
   capture: base
     .input(z.object({ key: z.string(), webContentsId: z.number() }))

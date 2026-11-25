@@ -611,12 +611,12 @@ function ItemMark({ item }: { item: Pick<ChosenItem, "kind" | "path"> }) {
   );
 }
 
-/** What a chip calls the thing it names. */
 /** Whether a chip names one file or folder, by its name. */
 function isOnePath(chip: SentChip) {
   return chip.kind === "paths" && chip.items.length === 1;
 }
 
+/** What a chip calls the thing it names. */
 function nameOfChip(chip: SentChip) {
   if (chip.kind !== "paths") {
     return chip.title;

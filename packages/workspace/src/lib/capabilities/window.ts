@@ -387,13 +387,6 @@ export const windowClose = defineCapability({
   where: CHATS,
 });
 
-/**
- * Hands the user a page of the chat's to do there what only they can (a
- * sign-in, a check that they are a person) and waits on them: a card says
- * why, with Done and Skip, the page shows that it waits on them, and the
- * turn ends. Nothing watches the page for them finishing, since no signal
- * says so for every site; Done is how the agent hears it.
- */
 /** The form `wait` takes, as its errors spell it. */
 const WAIT_FORM =
   "<id> --title '<what to do, a few words>' --reason '<why, one short sentence>'";
@@ -401,6 +394,13 @@ const WAIT_TITLE = "--title '<what to do, a few words>', the card's title";
 const WAIT_REASON =
   "--reason '<why, one short sentence>', which the card shows under the title";
 
+/**
+ * Hands the user a page of the chat's to do there what only they can (a
+ * sign-in, a check that they are a person) and waits on them: a card says
+ * why, with Done and Skip, the page shows that it waits on them, and the
+ * turn ends. Nothing watches the page for them finishing, since no signal
+ * says so for every site; Done is how the agent hears it.
+ */
 export const windowWait = defineCapability({
   input: z.object({
     tab: TabField("wait", WAIT_FORM),

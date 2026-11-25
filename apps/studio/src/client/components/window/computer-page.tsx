@@ -3832,10 +3832,6 @@ function picturelessPaths(
 }
 
 /**
- * Where up from the top of a tab's tree goes: the folder the root sits in,
- * with the root selected in it. Nothing is above a disk.
- */
-/**
  * What a folder's layout and order are kept under: where it is on the
  * computer, a root under `~` spelled out below the home folder, or the
  * recents' own root for the recents.
@@ -3866,6 +3862,10 @@ export function arrivalViewOf(root: string, prefix: string) {
   );
 }
 
+/**
+ * Where up from the top of a tab's tree goes: the folder the root sits in,
+ * with the root selected in it. Nothing is above a disk.
+ */
 export function rootParentSearch(
   rootHostPath: string | undefined,
   /** Whether the root is the top of a disk, though a folder is above it: `/Volumes/Backup`. */
@@ -4123,11 +4123,6 @@ export function placedMessage({
   return `${verb} ${placed.length.toString()} items into “${folderName}”${inTrash ? `.${inTrash}` : ""}`;
 }
 
-/**
- * What a paste in the Finder copies: the computer's own list of the files
- * on the clipboard where it has one, else the files the paste event carried.
- * Only files: text on the clipboard beside them, or alone, is never pasted.
- */
 /** What can move into `folder`: nothing already there, and no folder into itself. */
 function movableInto<T extends { hostPath: string }>(
   sources: readonly T[],
@@ -4187,6 +4182,11 @@ function isSamePathSet(left: readonly string[], right: readonly string[]) {
   );
 }
 
+/**
+ * What a paste in the Finder copies: the computer's own list of the files
+ * on the clipboard where it has one, else the files the paste event carried.
+ * Only files: text on the clipboard beside them, or alone, is never pasted.
+ */
 export function filesToPaste(
   fromComputer: readonly { isFolder: boolean; path: string }[],
   fromEvent: readonly { hostPath: string; isFolder: boolean }[],
@@ -4477,7 +4477,6 @@ const THUMBNAIL_EXTENSIONS = new Set([
   "xlsx",
 ]);
 
-/** The tab a file opens in: the file by where it is on the computer. */
 /** The selected row the keyboard is on, of several. */
 function selectedRowIn(browser: HTMLElement | null) {
   return (
@@ -4557,6 +4556,7 @@ function lookTargetOf(item: FileSystemItem): LookTarget | undefined {
   };
 }
 
+/** The tab a file opens in: the file by where it is on the computer. */
 function fileTabOf(file: FileSystemFileItem): FileTab | undefined {
   const hostPath = file.metadata?.hostPath;
   if (typeof hostPath !== "string") {

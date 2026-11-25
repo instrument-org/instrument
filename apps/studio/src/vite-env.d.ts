@@ -90,11 +90,6 @@ declare namespace NodeJS {
        */
       INSTRUMENT_DATA_HOME: string | undefined;
       /**
-       * Linux only: which display protocol Electron talks. `x11`, `wayland`, or
-       * `auto`; anything else is ignored. See
-       * docs/findings/drag-out-does-not-cross-xwayland.md.
-       */
-      /**
        * Where finished work goes for a workspace in the app's own data, in
        * place of the flavor's folder in the home folder: studio-drive sets it
        * for a fixture. See create-workspace-actor.ts.
@@ -163,11 +158,11 @@ declare namespace NodeJS {
       /** Set by Windows: its own folder, such as `C:\Windows`. */
       SystemRoot: string | undefined;
       TARGET_PLATFORM: string | undefined;
-      /** Set by a Wayland compositor. The signal Chromium reads for `auto`. */
       /** How many threads Node's file I/O pool has; read once, when the pool starts (`thread-pool.ts`). */
       UV_THREADPOOL_SIZE: string | undefined;
       /** scripts/velopack-pack.ts on a test host: the command that signs the files vpk puts, quoted, in place of `{{file}}`, with a stand-in certificate. */
       VELOPACK_TEST_SIGN_TEMPLATE: string | undefined;
+      /** Set by a Wayland compositor; the first sign of a Wayland session. */
       WAYLAND_DISPLAY: string | undefined;
       WIN_CERT_PATH: string | undefined;
       WIN_GCP_KMS_KEY_VERSION: string | undefined;

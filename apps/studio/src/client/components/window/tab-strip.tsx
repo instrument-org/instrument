@@ -186,7 +186,6 @@ export function TabStrip({
   /** A tab in the pointer's hand, from this strip or another, drawn with its left edge at this on-screen point. */
   heldAt?: { key: string; left: number } | undefined;
   className?: string;
-  /** Drawn as a plus at the end of the row when given. */
   /** The set these tabs belong to; when it changes the strip adopts them silently. */
   groupKey?: string;
   /** The tabs are changing with nobody to see it, so nothing comes or goes with a motion. */
@@ -200,6 +199,7 @@ export function TabStrip({
   onContextMenu?: (key: string, event: React.MouseEvent) => void;
   /** What a right click on the plus offers: a menu's content, the tabs closed lately. */
   newMenu?: ReactNode;
+  /** Drawn as a plus at the end of the row when given. */
   onNew?: () => void;
   /** Where the strip's own reorder puts a dragged tab, for an owner that has it place them. */
   onReorder?: (keys: string[]) => void;

@@ -349,7 +349,6 @@ function handPages(pages: readonly BrowserTargetId[], to: BrowserWindow) {
   }
 }
 
-/** On screen and drawing, and nothing to press or see until it is wanted. */
 /**
  * Gives the spare window its place. On Windows the first bounds a window is
  * given on a display of another scale than the one it was on come out the
@@ -362,6 +361,7 @@ function placeSpare(window: BrowserWindow, bounds: Bounds) {
   }
 }
 
+/** On screen and drawing, and nothing to press or see until it is wanted. */
 function showSpare({ from, spare }: Carry) {
   if (!spare || spare.window.isVisible()) {
     return;

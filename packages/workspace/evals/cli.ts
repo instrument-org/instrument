@@ -171,15 +171,15 @@ const models = (values.model ?? []).map((model) => {
   return modelURI.openRouter(model);
 });
 
+/** The house floor on the signed-in Claude account, spelled as `--model` takes it. */
+const houseFloorModel = `'${HOUSE_FLOOR}?provider=claude-account&providerConfigId=claude-account'`;
+
 /**
  * No model, no run. There is no default set to fall back on, because a default
  * is what an unattended agent takes, and a list in a source file goes stale
  * between the day it was written and the day it decides what a change was
  * tested against.
  */
-/** The house floor on the signed-in Claude account, spelled as `--model` takes it. */
-const houseFloorModel = `'${HOUSE_FLOOR}?provider=claude-account&providerConfigId=claude-account'`;
-
 if (subcommand === "run" && models.length === 0) {
   write(`${c.red}--model is required.${c.reset}\n\n`);
   write(

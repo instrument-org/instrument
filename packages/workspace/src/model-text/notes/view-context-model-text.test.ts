@@ -145,7 +145,7 @@ describe("viewContextModelNote", () => {
     ).toMatchInlineSnapshot(`
       "
       <instrument-system-note>
-      When the user sent this, the browser showed "Amazon.com. Spend less. Smile more." at https://www.amazon.com/?ref_=nav_signin, in their own tab tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA, outside their tab group. "This page", "this site", "this" and "here" refer to it. Act in this very tab when they ask you to; for work that needs only the site, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to.
+      When the user sent this, the browser showed "Amazon.com. Spend less. Smile more." at https://www.amazon.com/?ref_=nav_signin, in their own tab tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA, outside their tab group. "This page", "this site", "this" and "here" refer to it. agent-browser drives only your tab group's tabs, so to act in this very tab when they ask you to, move it into your group first (\`instrument window move tab_01M5Q1ZK8AAAAAAAAAAAAAAAAA --group <your group>\`); for work that needs only the site, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to.
       </instrument-system-note>"
     `);
   });

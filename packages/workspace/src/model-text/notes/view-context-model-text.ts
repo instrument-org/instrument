@@ -169,7 +169,7 @@ function pageNote(data: ViewContext) {
         : ` (tab ${page.tab}${heldClause(shown?.heldBy)})`;
   const ways =
     theirs && page.tab !== undefined
-      ? " Act in this very tab when they ask you to; for work that needs only the site, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to."
+      ? ` agent-browser drives only your tab group's tabs, so to act in this very tab when they ask you to, move it into your group first (\`instrument window move ${page.tab} --group <your group>\`); for work that needs only the site, open its address in a tab of your own, which has their sign-ins but not what they typed or scrolled to.`
       : "";
   // The group's other pages, which only notes earlier builds wrote list
   // here: the tab group note names every tab now.

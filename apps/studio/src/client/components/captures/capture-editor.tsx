@@ -596,7 +596,11 @@ export function CaptureEditor({ capture }: { capture: Capture }) {
             aria-label={showInFileManager}
             className="mr-1"
             onClick={() => {
-              void rpcClient.captures.show.call({ name: capture.name });
+              void rpcClient.captures.show
+                .call({ name: capture.name })
+                .catch((error: unknown) => {
+                  toast.error("Couldn't show the capture", { cause: error });
+                });
             }}
             size="icon-sm"
             title={showInFileManager}

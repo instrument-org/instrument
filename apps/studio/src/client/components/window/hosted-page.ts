@@ -240,7 +240,9 @@ function keepHistoryOf(id: string, group: string) {
       targetId: target,
       url,
     })
-    .catch(noop);
+    .catch(() => {
+      // The page comes back without its history, which nobody asked for.
+    });
 }
 
 /** How long a page put away for a file of another kind is kept for the next page. */

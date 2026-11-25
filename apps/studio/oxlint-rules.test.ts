@@ -88,6 +88,14 @@ new RuleTester({
   ],
 });
 
+/** A line that lists a folder or copies synchronously through `name`. */
+const listsSync = (code: string, name: string) => ({
+  code,
+  errors: [
+    { data: { allowed: "0", count: "1", name }, messageId: "syncListing" },
+  ],
+});
+
 const syncReadRule = plugin.rules["no-sync-content-read"];
 if (!syncReadRule) {
   throw new Error("The plugin has no studio/no-sync-content-read rule");
@@ -119,10 +127,46 @@ new RuleTester({
     readsSync(`fs.openSync(file, flags);`, "openSync"),
     readsSync(`readJsonRecordSync(file);`, "readJsonRecordSync"),
     readsSync(`updateJsonRecordSync(file, change);`, "updateJsonRecordSync"),
+    listsSync(`fs.readdirSync(dir);`, "readdirSync"),
+    listsSync(
+      `import fsSync from "fs"; fsSync.readdirSync(dir);`,
+      "readdirSync",
+    ),
+    listsSync(
+      `import { readdirSync as list } from "node:fs"; list(dir);`,
+      "readdirSync",
+    ),
+    listsSync(`const { readdirSync } = fs; readdirSync(dir);`, "readdirSync"),
+    listsSync(`fs.opendirSync(dir);`, "opendirSync"),
+    listsSync(`fs.globSync("*.md", { cwd });`, "globSync"),
+    listsSync(`globSync("*.md");`, "globSync"),
+    listsSync(`fs.copyFileSync(from, to);`, "copyFileSync"),
+    listsSync(`fs.cpSync(from, to, { recursive: true });`, "cpSync"),
+    // A read in a file with listings recorded is a read all the same.
+    {
+      ...readsSync(
+        `fs.readdirSync(dir); fs.readFileSync(file);`,
+        "readFileSync",
+      ),
+      filename: "/repo/src/lib/listed.ts",
+      options: [{ "lib/listed.ts": 1 }],
+    },
+    {
+      code: `await fs.promises.readdir(dir);`,
+      errors: [{ messageId: "fewer" }],
+      filename: "/repo/src/lib/listed.ts",
+      options: [{ "lib/listed.ts": 1 }],
+    },
   ],
   valid: [
     `fs.statSync(file);`,
-    `fs.readdirSync(dir);`,
+    `await fs.promises.readdir(dir);`,
+    `await fs.promises.cp(from, to);`,
+    {
+      code: `fs.readdirSync(dir);`,
+      filename: "/repo/src/lib/listed.ts",
+      options: [{ "lib/listed.ts": 1 }],
+    },
     `fs.existsSync(file);`,
     `fs.realpathSync(file);`,
     `fs.lstatSync(file);`,
@@ -232,5 +276,94 @@ new RuleTester({
     "/* oxlint-disable no-console */\n/** Here. */\nfunction here() {}",
     "// A note.\n/** Here. */\nfunction here() {}",
     "/** One. */\nfunction one() {}\n/** Two. */\nfunction two() {}",
+  ],
+});
+
+const silentRule = plugin.rules["no-silent-rpc"];
+if (!silentRule) {
+  throw new Error("The plugin has no studio/no-silent-rpc rule");
+}
+
+const CALL = "rpcClient.files.paste.call({})";
+const unheard = (code: string) => ({
+  code,
+  errors: [{ messageId: "unheard" }],
+});
+const silenced = (code: string) => ({
+  code,
+  errors: [{ messageId: "silenced" }],
+});
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "tsx" } },
+}).run("no-silent-rpc", silentRule, {
+  invalid: [
+    unheard(`void ${CALL};`),
+    unheard(`${CALL};`),
+    unheard(`void (${CALL});`),
+    unheard(`void rpcClient.files?.paste.call({});`),
+    unheard(`void rpcClient.files.paste?.call({});`),
+    unheard(`void rpcClient[area].paste.call({});`),
+    unheard(`void ${CALL}.then(show);`),
+    unheard(`void ${CALL}.then(show, undefined);`),
+    unheard(`void ${CALL}.then(show, null);`),
+    unheard(`void ${CALL}.catch(undefined);`),
+    unheard(`void ${CALL}.finally(done);`),
+    unheard(`void ${CALL}.then(show).finally(done);`),
+    unheard(`void (isMac ? ${CALL} : other());`),
+    unheard(`void (ready && ${CALL});`),
+    unheard(`ready && void ${CALL};`),
+    unheard(`void Promise.all([${CALL}, other()]);`),
+    unheard(`useEffect(() => { void ${CALL}; }, []);`),
+    unheard(`const run = () => void ${CALL};`),
+    unheard(`void (async () => { await ${CALL}; })();`),
+    unheard(`(async () => { show(await ${CALL}); })();`),
+    unheard(`const b = <button onClick={() => ${CALL}} />;`),
+    unheard(`const b = <button onClick={async () => { await ${CALL}; }} />;`),
+    unheard(`const b = <button onClick={() => { return ${CALL}; }} />;`),
+    unheard(`const b = <p onPointerDown={async () => show(await ${CALL})} />;`),
+    unheard(`toast("Moved", { action: { onClick: () => ${CALL} } });`),
+    unheard(
+      `toast("Moved", { action: { async onClick() { await ${CALL}; } } });`,
+    ),
+    // A finally has no say in a failure, and a catch around it does.
+    unheard(
+      `void (async () => { try { await ${CALL}; } finally { done(); } })();`,
+    ),
+    silenced(`void ${CALL}.catch(() => {});`),
+    silenced(`void ${CALL}.catch(() => null);`),
+    silenced(`void ${CALL}.catch(() => undefined);`),
+    silenced(`void ${CALL}.catch(() => void 0);`),
+    silenced(`void ${CALL}.catch(function () {});`),
+    silenced(`void ${CALL}.catch(noop);`),
+    silenced(`void ${CALL}.then(show, () => {});`),
+    silenced(`const list = await ${CALL}.catch(() => null);`),
+    silenced(`async function load() { try { await ${CALL}; } catch {} }`),
+    silenced(
+      `async function load() { try { await ${CALL}; } catch (error) {} }`,
+    ),
+  ],
+  valid: [
+    `void ${CALL}.catch((error) => toast.error("Couldn't paste", { cause: error }));`,
+    `void ${CALL}.then(show).catch(say);`,
+    `void ${CALL}.then(show, say);`,
+    `void ${CALL}.catch(say).finally(done);`,
+    `void Promise.all([${CALL}, other()]).catch(say);`,
+    `void Promise.allSettled([${CALL}]);`,
+    `void ${CALL}.catch(() => { /* Only a hint, so nothing is missing. */ });`,
+    `async function load() { try { await ${CALL}; } catch { /* Gone already. */ } }`,
+    `async function load() { try { await ${CALL}; } catch (error) { say(error); } }`,
+    `const b = <button onClick={async () => { try { await ${CALL}; } catch (error) { say(error); } }} />;`,
+    `void (async () => { await ${CALL}; })().catch(say);`,
+    // Handed on, and so its receiver's.
+    `const load = () => ${CALL};`,
+    `async function load() { return await ${CALL}; }`,
+    `const query = { queryFn: () => ${CALL} };`,
+    `const dialog = <Confirm onStop={async () => { await ${CALL}; }} />;`,
+    `const files = await ${CALL};`,
+    // No call to the main process.
+    `void fn.call(self);`,
+    `void rpcClient.files.paste.mutationOptions();`,
+    { code: `void ${CALL};`, filename: held, options: recorded },
   ],
 });

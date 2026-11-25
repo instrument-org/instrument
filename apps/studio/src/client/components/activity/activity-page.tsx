@@ -518,6 +518,11 @@ export function ActivityPage({
                       if (status === "failed") {
                         toast.error("The file couldn't be saved.");
                       }
+                    })
+                    .catch((error: unknown) => {
+                      toast.error("The file couldn't be saved.", {
+                        cause: error,
+                      });
                     });
                 }
           }

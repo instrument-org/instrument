@@ -997,9 +997,13 @@ export function ComputerPage({
           ? {
               label: "Show in Trash",
               onClick: () => {
-                void rpcClient.files.showInTrash.call({
-                  inTrash: firstTrashed.inTrash,
-                });
+                void rpcClient.files.showInTrash
+                  .call({
+                    inTrash: firstTrashed.inTrash,
+                  })
+                  .catch((error: unknown) => {
+                    toast.error("Couldn't show the Trash", { cause: error });
+                  });
               },
             }
           : undefined,
@@ -2313,7 +2317,9 @@ export function ComputerPage({
               afterMenu.current = () => {
                 focusBrowser();
                 pasteTarget.name(onScreen);
-                void rpcClient.files.paste.call();
+                void rpcClient.files.paste.call().catch((error: unknown) => {
+                  toast.error("Couldn't paste", { cause: error });
+                });
               };
             },
             onMove: () => {
@@ -4093,6 +4099,11 @@ function protectionBlocked({
                   "You can allow it under Ransomware protection in Windows Security.",
               });
             }
+          })
+          .catch((error: unknown) => {
+            toast.error(`Couldn't let Instrument into “${name}”`, {
+              cause: error,
+            });
           });
       },
     },

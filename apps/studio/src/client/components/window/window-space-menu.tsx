@@ -1,3 +1,4 @@
+import { toast } from "@/client/lib/toast";
 import { type WindowTab } from "@/client/atoms/window";
 import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { dropdownMenuComponents } from "@/client/components/ui/menu-components";
@@ -143,7 +144,9 @@ export function WindowSpaceMenu({
       <Separator />
       <Item
         onClick={() => {
-          void rpcClient.window.openNew.call();
+          void rpcClient.window.openNew.call().catch((error: unknown) => {
+            toast.error("Couldn't open a new window", { cause: error });
+          });
         }}
       >
         <AppWindowIcon className="size-4" />
@@ -155,7 +158,9 @@ export function WindowSpaceMenu({
       {others && others.length > 0 ? (
         <Item
           onClick={() => {
-            void rpcClient.window.mergeAll.call();
+            void rpcClient.window.mergeAll.call().catch((error: unknown) => {
+              toast.error("Couldn't merge the windows", { cause: error });
+            });
           }}
         >
           <ArrowsMergeIcon className="size-4" />

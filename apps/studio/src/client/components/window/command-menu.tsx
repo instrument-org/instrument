@@ -364,7 +364,9 @@ export function useCommandMenuRows({
       id: "new-window",
       label: "New window",
       run: () => {
-        void rpcClient.window.openNew.call();
+        void rpcClient.window.openNew.call().catch((error: unknown) => {
+          toast.error("Couldn't open a new window", { cause: error });
+        });
       },
     },
     {
@@ -372,7 +374,9 @@ export function useCommandMenuRows({
       id: "merge-windows",
       label: "Merge all windows",
       run: () => {
-        void rpcClient.window.mergeAll.call();
+        void rpcClient.window.mergeAll.call().catch((error: unknown) => {
+          toast.error("Couldn't merge the windows", { cause: error });
+        });
       },
     },
     {

@@ -354,7 +354,13 @@ export function CaptureLayer() {
                   aria-label={showInFileManager}
                   className="grid size-6 place-items-center rounded-full bg-white/90 text-black hover:bg-white"
                   onClick={() => {
-                    void rpcClient.captures.show.call({ name: thumbnail.name });
+                    void rpcClient.captures.show
+                      .call({ name: thumbnail.name })
+                      .catch((error: unknown) => {
+                        toast.error("Couldn't show the capture", {
+                          cause: error,
+                        });
+                      });
                   }}
                   title={showInFileManager}
                   type="button"

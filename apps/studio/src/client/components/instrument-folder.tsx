@@ -191,7 +191,11 @@ function ShowButton({ path }: { path: string }) {
   return (
     <Button
       onClick={() => {
-        void rpcClient.utils.openFolder.call({ folderPath: path });
+        void rpcClient.utils.openFolder
+          .call({ folderPath: path })
+          .catch((error: unknown) => {
+            toast.error("Couldn't show the folder", { cause: error });
+          });
       }}
       size="sm"
       variant="outline"

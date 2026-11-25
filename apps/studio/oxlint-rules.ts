@@ -1,4 +1,10 @@
-import { definePlugin, defineRule, type ESTree } from "@oxlint/plugins";
+import {
+  type Context,
+  definePlugin,
+  defineRule,
+  type ESTree,
+  type RuleOptionsSchema,
+} from "@oxlint/plugins";
 
 /**
  * Bans that describe the shape of the running app. Each one names the
@@ -290,6 +296,9 @@ function isCode(node: ESTree.Node): boolean {
       }
       break;
     }
+    default: {
+      break;
+    }
   }
   let carried: ESTree.Node = node;
   while (carried.parent && passThrough.has(carried.parent.type)) {
@@ -450,6 +459,65 @@ const noEitherCommandKey = defineRule({
 });
 
 /**
+ * What a rule finds in a file, held to the count recorded for the file in the
+ * package's `.oxlintrc.json`. The places written before the rule are counted
+ * there by file, and a count only falls: one over it reports every place in
+ * the file, since which is new is not known here, and one under it asks for
+ * the lower count.
+ */
+function ratchet(context: Context, rule: string) {
+  const path = context.filename.replaceAll("\\", "/");
+  // `as`: the rule's own schema, which `context.options` does not carry.
+  const [recorded = {}] = context.options as [Record<string, number>?];
+  const allowed =
+    Object.entries(recorded).find(([file]) => path.endsWith(`/${file}`))?.[1] ??
+    0;
+  const found: {
+    data?: Record<string, string>;
+    messageId: string;
+    node: ESTree.Node;
+  }[] = [];
+  return {
+    add(messageId: string, node: ESTree.Node, data?: Record<string, string>) {
+      found.push({ data, messageId, node });
+    },
+    report: (node: ESTree.Node) => {
+      const disable = new RegExp(
+        `oxlint-disable-next-line .*studio/${rule}(?![\\w-])`,
+      );
+      const excused = new Set(
+        context.sourceCode
+          .getAllComments()
+          .filter((comment) => disable.test(comment.value))
+          .map((comment) => comment.loc.end.line + 1),
+      );
+      // A line excused by a comment is reported for the comment to hide, and
+      // takes none of the file's count.
+      const counted = found.filter(
+        (each) => !excused.has(each.node.loc.start.line),
+      );
+      const data = {
+        allowed: String(allowed),
+        count: String(counted.length),
+      };
+      for (const each of found) {
+        if (counted.length > allowed || !counted.includes(each)) {
+          context.report({ ...each, data: { ...each.data, ...data } });
+        }
+      }
+      if (counted.length < allowed) {
+        context.report({ data, messageId: "fewer", node });
+      }
+    },
+  };
+}
+
+/** A count for each file that has places from before the rule. */
+const RATCHET_SCHEMA = [
+  { additionalProperties: { minimum: 1, type: "integer" }, type: "object" },
+] as const satisfies RuleOptionsSchema;
+
+/**
  * Sync calls that read a file's contents, by the name `node:fs` gives them,
  * and the repo's wrappers over them. On a file a sync service keeps by name
  * only, each one blocks the calling thread until the file downloads.
@@ -461,6 +529,18 @@ const SYNC_CONTENT_READS = new Set([
   "readJsonRecordSync",
   "readSync",
   "updateJsonRecordSync",
+]);
+/**
+ * Sync calls that list a folder, or read every file in what they copy. One the
+ * service keeps by name only is downloaded to be listed, and the listing may
+ * wait on macOS's approval.
+ */
+const SYNC_LISTINGS = new Set([
+  "copyFileSync",
+  "cpSync",
+  "globSync",
+  "opendirSync",
+  "readdirSync",
 ]);
 const FS_MODULES = new Set(["fs", "node:fs"]);
 
@@ -483,12 +563,21 @@ const opensForWriting = (args: ESTree.CallExpression["arguments"]) => {
  * thread reads them through `lib/workspace-files.ts`. A file that is only
  * ever on local disk, or a read that has to stay synchronous, is turned off
  * by file in the package's `.oxlintrc.json`, or by line, with its reason.
+ * Listings and copies from before the rule covered them are a ratchet.
  */
 const noSyncContentRead = defineRule({
   create(context) {
     // Local names `node:fs` imports go by, to the name it exports them as.
     const fsImports = new Map<string, string>();
+    const listings = ratchet(context, "no-sync-content-read");
     const report = (node: ESTree.CallExpression, name: string) => {
+      if (SYNC_LISTINGS.has(name)) {
+        listings.add("syncListing", node, { name });
+        return;
+      }
+      if (!SYNC_CONTENT_READS.has(name)) {
+        return;
+      }
       if (name === "openSync" && opensForWriting(node.arguments)) {
         return;
       }
@@ -499,18 +588,16 @@ const noSyncContentRead = defineRule({
         const { callee } = node;
         if (callee.type === "Identifier") {
           const name = fsImports.get(callee.name) ?? callee.name;
-          if (SYNC_CONTENT_READS.has(name)) {
-            report(node, name);
-          }
+          report(node, name);
         } else if (
           callee.type === "MemberExpression" &&
           !callee.computed &&
-          callee.property.type === "Identifier" &&
-          SYNC_CONTENT_READS.has(callee.property.name)
+          callee.property.type === "Identifier"
         ) {
           report(node, callee.property.name);
         }
       },
+      "Program:exit": listings.report,
       ImportDeclaration(node) {
         if (!FS_MODULES.has(node.source.value)) {
           return;
@@ -528,10 +615,14 @@ const noSyncContentRead = defineRule({
   },
   meta: {
     messages: {
+      fewer:
+        "This file has {{count}} synchronous listings and copies where {{allowed}} are recorded. Lower its count under studio/no-sync-content-read in the package's .oxlintrc.json, or drop the entry at none.",
+      syncListing:
+        "{{name}} lists a folder, or reads what it copies, on the calling thread ({{count}} here, {{allowed}} recorded), and one in a synced workspace folder may have to be downloaded or wait on macOS's approval first, which freezes the app. Use fs.promises. A folder only ever on local disk, or a call that has to stay synchronous, takes `// oxlint-disable-next-line studio/no-sync-content-read -- <why>`, or puts its file on the allowlist in the package's .oxlintrc.json.",
       syncContentRead:
         "{{name}} reads a file's contents on the calling thread, and a file in a synced workspace folder may not be downloaded yet, which freezes the app until it is. Read workspace files with lib/workspace-files.ts (packages/workspace). A file only ever on local disk, or a read that has to stay synchronous, goes on the allowlist in the package's .oxlintrc.json, or takes `// oxlint-disable-next-line studio/no-sync-content-read -- <why>`.",
     },
-    schema: [],
+    schema: RATCHET_SCHEMA,
     type: "problem",
   },
 });
@@ -641,20 +732,11 @@ const isZeroDelay = (node: ESTree.CallExpression, timer: string) => {
 /**
  * A timer whose handle nothing keeps cannot be canceled, so it acts on
  * whatever is there when it goes off, and one of no delay waits only for
- * whatever happens to be queued. The places written before the rule are
- * counted by file in the package's `.oxlintrc.json`, and a file's count only
- * falls: one over it reports every place in the file, since which is new is
- * not known here, and one under it asks for the lower count.
+ * whatever happens to be queued. The places from before the rule are a ratchet.
  */
 const noLooseTimers = defineRule({
   create(context) {
-    const path = context.filename.replaceAll("\\", "/");
-    const [recorded = {}] = context.options as [Record<string, number>?];
-    const allowed =
-      Object.entries(recorded).find(([file]) =>
-        path.endsWith(`/${file}`),
-      )?.[1] ?? 0;
-    const found: { messageId: string; node: ESTree.CallExpression }[] = [];
+    const sites = ratchet(context, "no-loose-timers");
     return {
       CallExpression(node) {
         const timer = timerStarted(node);
@@ -662,40 +744,12 @@ const noLooseTimers = defineRule({
           return;
         }
         if (isZeroDelay(node, timer)) {
-          found.push({ messageId: "zeroDelay", node });
+          sites.add("zeroDelay", node);
         } else if (isDiscarded(node)) {
-          found.push({ messageId: timer, node });
+          sites.add(timer, node);
         }
       },
-      "Program:exit"(node) {
-        const excused = new Set(
-          context.sourceCode
-            .getAllComments()
-            .filter((comment) =>
-              /oxlint-disable-next-line .*studio\/no-loose-timers/.test(
-                comment.value,
-              ),
-            )
-            .map((comment) => comment.loc.end.line + 1),
-        );
-        // A line excused by a comment is reported for the comment to hide, and
-        // takes none of the file's count.
-        const counted = found.filter(
-          (each) => !excused.has(each.node.loc.start.line),
-        );
-        const data = {
-          allowed: String(allowed),
-          count: String(counted.length),
-        };
-        for (const each of found) {
-          if (counted.length > allowed || !counted.includes(each)) {
-            context.report({ ...each, data });
-          }
-        }
-        if (counted.length < allowed) {
-          context.report({ data, messageId: "fewer", node });
-        }
-      },
+      "Program:exit": sites.report,
     };
   },
   meta: {
@@ -711,9 +765,256 @@ const noLooseTimers = defineRule({
       zeroDelay:
         "A timer of no delay runs after whatever happens to be queued ({{count}} loose timers here, {{allowed}} recorded). Put the work in the layout effect that follows the state change, in the handler that causes it, or in a menu's onCloseAutoFocus. Work that must leave the event it is in takes `// oxlint-disable-next-line studio/no-loose-timers -- <why>`.",
     },
-    schema: [
-      { additionalProperties: { minimum: 1, type: "integer" }, type: "object" },
-    ],
+    schema: RATCHET_SCHEMA,
+    type: "problem",
+  },
+});
+
+/** The names the two ends of a chain go by: `rpcClient` in `rpcClient.a.b.call`. */
+const chainOf = (node: ESTree.Node): string[] => {
+  switch (node.type) {
+    case "ChainExpression":
+    case "ParenthesizedExpression":
+    case "TSNonNullExpression": {
+      return chainOf(node.expression);
+    }
+    case "Identifier": {
+      return [node.name];
+    }
+    case "MemberExpression": {
+      const name =
+        !node.computed && node.property.type === "Identifier"
+          ? node.property.name
+          : "";
+      return [...chainOf(node.object), name];
+    }
+    default: {
+      return [];
+    }
+  }
+};
+
+const isRpcCall = (node: ESTree.CallExpression) => {
+  const chain = chainOf(node.callee);
+  return chain[0] === "rpcClient" && chain.at(-1) === "call";
+};
+
+const isFunction = (
+  node: ESTree.Node | null | undefined,
+): node is FunctionNode =>
+  node?.type === "ArrowFunctionExpression" ||
+  node?.type === "FunctionDeclaration" ||
+  node?.type === "FunctionExpression";
+
+type Fate = "handled" | "silenced" | "unheard";
+
+/**
+ * What a `.catch` handler makes of a failure. One that does nothing silences
+ * it, unless a comment in it says why nothing is what should happen.
+ */
+const handlerFate = (
+  handler: ESTree.Node | undefined,
+  hasComment: (node: ESTree.Node) => boolean,
+): Fate => {
+  if (!handler) {
+    return "unheard";
+  }
+  if (handler.type === "Identifier") {
+    return handler.name === "undefined"
+      ? "unheard"
+      : handler.name === "noop"
+        ? "silenced"
+        : "handled";
+  }
+  if (handler.type === "Literal") {
+    return "unheard";
+  }
+  if (!isFunction(handler)) {
+    return "handled";
+  }
+  const body: ESTree.Node | null = handler.body;
+  const empty =
+    body?.type === "BlockStatement"
+      ? body.body.length === 0
+      : body?.type === "Identifier"
+        ? body.name === "undefined"
+        : (body?.type === "UnaryExpression" && body.operator === "void") ||
+          (body?.type === "Literal" && body.value === null);
+  return empty && !hasComment(handler) ? "silenced" : "handled";
+};
+
+/**
+ * Handlers of events, which read nothing from what they are answered, by the
+ * names this client's elements give them. A component's own `onSave` may wait
+ * for the promise it is answered, so only these count.
+ */
+const EVENT_HANDLER =
+  /^on(?:Blur|Change|CheckedChange|Click|ContextMenu|Copy|DoubleClick|Drag\w*|Drop|Focus|Input|Key(?:Down|Up)|Mouse\w+|OpenChange|Paste|Pointer\w+|Select|Submit|ValueChange)$/;
+
+/** Whether a function is an event's, as an attribute or in an object of them. */
+const isEventHandler = (fn: ESTree.Node): boolean => {
+  const { parent } = fn;
+  const name =
+    parent?.type === "JSXExpressionContainer" &&
+    parent.parent.type === "JSXAttribute"
+      ? parent.parent.name
+      : parent?.type === "Property"
+        ? parent.key
+        : undefined;
+  return (
+    (name?.type === "JSXIdentifier" || name?.type === "Identifier") &&
+    EVENT_HANDLER.test(name.name)
+  );
+};
+
+/** What becomes of a failure thrown at `node`, inside its function. */
+const thrownFate = (
+  node: ESTree.Node,
+  hasComment: (node: ESTree.Node) => boolean,
+): Fate => {
+  let inner: ESTree.Node = node;
+  for (let outer = node.parent; outer; outer = outer.parent) {
+    if (
+      outer.type === "TryStatement" &&
+      outer.block === inner &&
+      outer.handler
+    ) {
+      return outer.handler.body.body.length === 0 && !hasComment(outer.handler)
+        ? "silenced"
+        : "handled";
+    }
+    if (isFunction(outer)) {
+      if (isEventHandler(outer)) {
+        return "unheard";
+      }
+      const called = outer.parent;
+      const isCalled =
+        called?.type === "ParenthesizedExpression" ? called.parent : called;
+      return isCalled?.type === "CallExpression" &&
+        isCalled.callee === (called === isCalled ? outer : called)
+        ? promiseFate(isCalled, hasComment)
+        : "handled";
+    }
+    inner = outer;
+  }
+  return "handled";
+};
+
+/** What becomes of a failure in the promise `node` answers. */
+const promiseFate = (
+  node: ESTree.Node,
+  hasComment: (node: ESTree.Node) => boolean,
+): Fate => {
+  const { parent } = node;
+  switch (parent?.type) {
+    case "ArrayExpression": {
+      const call = parent.parent;
+      return call.type === "CallExpression" &&
+        ["all", "any", "race"].includes(chainOf(call.callee).at(-1) ?? "") &&
+        chainOf(call.callee)[0] === "Promise"
+        ? promiseFate(call, hasComment)
+        : "handled";
+    }
+    case "ArrowFunctionExpression": {
+      if (parent.body !== node) {
+        return "handled";
+      }
+      if (isEventHandler(parent)) {
+        return "unheard";
+      }
+      return "handled";
+    }
+    case "AwaitExpression": {
+      return thrownFate(parent, hasComment);
+    }
+    case "ChainExpression":
+    case "ConditionalExpression":
+    case "LogicalExpression":
+    case "ParenthesizedExpression":
+    case "TSAsExpression":
+    case "TSNonNullExpression":
+    case "TSSatisfiesExpression": {
+      return promiseFate(parent, hasComment);
+    }
+    case "ExpressionStatement": {
+      return "unheard";
+    }
+    case "MemberExpression": {
+      const call = parent.parent;
+      if (
+        parent.object !== node ||
+        call.type !== "CallExpression" ||
+        call.callee !== parent ||
+        parent.computed ||
+        parent.property.type !== "Identifier"
+      ) {
+        return "handled";
+      }
+      const handler =
+        parent.property.name === "catch"
+          ? call.arguments[0]
+          : parent.property.name === "then"
+            ? call.arguments[1]
+            : undefined;
+      const fate = handlerFate(handler, hasComment);
+      return fate === "unheard" ? promiseFate(call, hasComment) : fate;
+    }
+    case "ReturnStatement": {
+      let fn: ESTree.Node | null = parent.parent;
+      while (fn && !isFunction(fn)) {
+        fn = fn.parent;
+      }
+      return fn && isEventHandler(fn) ? "unheard" : "handled";
+    }
+    case "UnaryExpression": {
+      return parent.operator === "void" ? "unheard" : "handled";
+    }
+    default: {
+      return "handled";
+    }
+  }
+};
+
+/**
+ * A call to the main process whose failure goes nowhere: the person did
+ * something, nothing happened, and nothing said so. It follows the promise
+ * through `then` and `finally`, `&&` and `?:`, `Promise.all`, an awaited line
+ * with no `catch` around it in an event handler or a function run on the spot,
+ * and a `catch` that does nothing. A promise handed on is its receiver's.
+ */
+const noSilentRpc = defineRule({
+  create(context) {
+    const sites = ratchet(context, "no-silent-rpc");
+    const comments = context.sourceCode.getAllComments();
+    const hasComment = (node: ESTree.Node) =>
+      comments.some(
+        (comment) =>
+          comment.range[0] >= node.range[0] &&
+          comment.range[1] <= node.range[1],
+      );
+    return {
+      CallExpression(node) {
+        if (!isRpcCall(node)) {
+          return;
+        }
+        const fate = promiseFate(node, hasComment);
+        if (fate !== "handled") {
+          sites.add(fate, node);
+        }
+      },
+      "Program:exit": sites.report,
+    };
+  },
+  meta: {
+    messages: {
+      fewer:
+        "This file has {{count}} main-process calls whose failure goes nowhere, where {{allowed}} are recorded. Lower its count under studio/no-silent-rpc in apps/studio/.oxlintrc.json, or drop the entry at none.",
+      silenced:
+        "This call's failure is caught and dropped ({{count}} silent calls here, {{allowed}} recorded). Say so to the person (`toast.error(\"Couldn't …\", { cause: error })`), or write in the catch why nothing should happen.",
+      unheard:
+        'Nothing hears this call fail, so the person sees nothing happen ({{count}} silent calls here, {{allowed}} recorded). For something they did, `.catch((error: unknown) => toast.error("Couldn\'t …", { cause: error }))`. For work they did not ask for, a catch with a comment saying why nothing should happen.',
+    },
+    schema: RATCHET_SCHEMA,
     type: "problem",
   },
 });
@@ -769,6 +1070,7 @@ export default definePlugin({
     "no-router-link": noRouterLink,
     "no-shared-shadow-on-float": noSharedShadowOnFloat,
     "no-shell-open-path": noShellOpenPath,
+    "no-silent-rpc": noSilentRpc,
     "no-stacked-doc-comments": noStackedDocComments,
     "no-sync-content-read": noSyncContentRead,
     "no-transition-colors": noTransitionColors,

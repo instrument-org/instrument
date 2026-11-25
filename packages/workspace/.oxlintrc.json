@@ -10,7 +10,33 @@
     {
       "files": ["src/**"],
       "rules": {
-        "studio/no-sync-content-read": "error"
+        // Listings and copies from before the rule covered them. A count only falls.
+        "studio/no-sync-content-read": [
+          "error",
+          {
+            "src/lib/actions/log.ts": 1,
+            "src/lib/activity/log-file.ts": 1,
+            "src/lib/background-processes.ts": 1,
+            "src/lib/chat/work-dir-reap.ts": 2,
+            "src/lib/drafts/draft-folder.ts": 5,
+            "src/lib/drafts/move-in.ts": 1,
+            "src/lib/drafts/send-from-folder.ts": 1,
+            "src/lib/folder-watch.ts": 1,
+            "src/lib/key-folder-case.ts": 1,
+            "src/lib/legacy-outputs.ts": 2,
+            "src/lib/move-app-folders.ts": 2,
+            "src/lib/move-entry.ts": 5,
+            "src/lib/native-sandbox/disk.ts": 2,
+            "src/lib/permissions/chat-rules.ts": 1,
+            "src/lib/read-store-copy.ts": 2,
+            "src/lib/record-folders.ts": 2,
+            "src/lib/settle-workspace-db.ts": 2,
+            "src/lib/shell-commands/rg.ts": 1,
+            "src/lib/split-chat-records.ts": 2,
+            "src/lib/synced-store/watch-devices.ts": 1,
+            "src/lib/system-clutter.ts": 1
+          }
+        ]
       }
     },
     {

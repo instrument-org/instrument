@@ -1,3 +1,4 @@
+import { toast } from "@/client/lib/toast";
 import {
   requestCapture,
   openCaptureEditor,
@@ -54,7 +55,13 @@ export function StripCaptures({ cellClass }: { cellClass: string }) {
               <button
                 className="hover:text-foreground"
                 onClick={() => {
-                  void rpcClient.captures.show.call({});
+                  void rpcClient.captures.show
+                    .call({})
+                    .catch((error: unknown) => {
+                      toast.error("Couldn't show the captures", {
+                        cause: error,
+                      });
+                    });
                 }}
                 type="button"
               >

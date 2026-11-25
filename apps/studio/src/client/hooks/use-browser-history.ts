@@ -1,3 +1,4 @@
+import { toast } from "@/client/lib/toast";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { rpcClient } from "@/client/rpc/client";
 import { keepPreviousData, skipToken, useQuery } from "@tanstack/react-query";
@@ -72,5 +73,7 @@ export function noteTypedPage(url: string) {
 
 /** Takes a page off the person's history. */
 export function removeFromHistory(url: string) {
-  void rpcClient.history.remove.call({ url }).catch(() => null);
+  void rpcClient.history.remove.call({ url }).catch((error: unknown) => {
+    toast.error("Couldn't remove that from History", { cause: error });
+  });
 }

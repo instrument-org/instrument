@@ -186,9 +186,13 @@ export function LostFolderPage({
                 action={{
                   label: "Open Settings",
                   onClick: () => {
-                    void rpcClient.features.openPrivacySettings.call({
-                      pane: "FilesAndFolders",
-                    });
+                    void rpcClient.features.openPrivacySettings
+                      .call({
+                        pane: "FilesAndFolders",
+                      })
+                      .catch((error: unknown) => {
+                        toast.error("Couldn't open Settings", { cause: error });
+                      });
                   },
                 }}
                 // oxlint-disable-next-line studio/no-os-words -- shown only on macOS

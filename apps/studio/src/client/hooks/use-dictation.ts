@@ -370,14 +370,24 @@ export function useDictation({
                     "Open System Settings"
                   : "Open settings",
                 onClick: () => {
-                  void rpcClient.dictation.access.openSettings.call();
+                  void rpcClient.dictation.access.openSettings
+                    .call()
+                    .catch((error: unknown) => {
+                      toast.error("Couldn't open settings", { cause: error });
+                    });
                 },
               }
             : notice.action === "reopen"
               ? {
                   label: "Reopen",
                   onClick: () => {
-                    void rpcClient.dictation.access.reopen.call();
+                    void rpcClient.dictation.access.reopen
+                      .call()
+                      .catch((error: unknown) => {
+                        toast.error(`Couldn't reopen ${APP_NAME}`, {
+                          cause: error,
+                        });
+                      });
                   },
                 }
               : undefined;

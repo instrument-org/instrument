@@ -1,3 +1,4 @@
+import { toast } from "@/client/lib/toast";
 import { extensionInstallModalAtom } from "@/client/atoms/extension-install-modal";
 import { Button } from "@/client/components/ui/button";
 import {
@@ -51,7 +52,9 @@ export function ExtensionInstallModal() {
     return () => {
       void rpcClient.browserExtensions.answerInstall
         .call({ allow: false, askId })
-        .catch(() => {});
+        .catch(() => {
+          // The ask is over already, or the main process is gone with it.
+        });
     };
   }, [askId]);
 
@@ -59,7 +62,12 @@ export function ExtensionInstallModal() {
     if (state) {
       void rpcClient.browserExtensions.answerInstall
         .call({ allow, askId: state.askId })
-        .catch(() => {});
+        .catch((error: unknown) => {
+          toast.error(
+            allow ? "Couldn't add the extension" : "Couldn't send your answer",
+            { cause: error },
+          );
+        });
     }
     setState(null);
   };

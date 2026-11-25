@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import routeTreeSource from "../../routeTree.gen.ts?raw";
 import { screenLocation, screenPresentation } from "./screen-presentation";
-import { newChatHref } from "./window-href";
+import { newChatHref, projectHref } from "./window-href";
 
 const CONTEXT = { appsBySlug: new Map() };
 
@@ -25,6 +25,18 @@ describe("screenPresentation", () => {
     ["on its draft", newChatHref("01M7BVSPAMVP4SR3P07E7PFGCQ")],
   ])("names a new chat's tab New Tab, %s", (_case, href) => {
     expect(screenPresentation(href, CONTEXT).title).toBe("New Tab");
+  });
+
+  it("names a project's page by the project, and every chat's once it is gone", () => {
+    const href = projectHref("house");
+    const projects = new Map([["house", { name: "House" }]]);
+    const known = { ...CONTEXT, projects };
+    expect(screenPresentation(href, known).title).toBe("House");
+    expect(screenPresentation(href, CONTEXT).title).toBe("Chats");
+    expect(screenLocation(href, known)).toEqual({
+      kind: "chats",
+      project: { name: "House" },
+    });
   });
 
   it("names a task's tab by its title once known", () => {

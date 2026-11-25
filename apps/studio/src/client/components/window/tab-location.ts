@@ -10,6 +10,7 @@ import {
 } from "@instrument-org/workspace/client";
 
 import type { BuiltInApp } from "./app-chip";
+import { type ProjectMarkSpec } from "./project-mark";
 import { isInside, segmentsOf, separatorOf } from "./host-path";
 import {
   chatHref,
@@ -93,8 +94,8 @@ export type TabLocation =
   | { address: string; kind: "debug" }
   /** A page that doesn't exist, at the address it was asked for (`askedAddressOf`). */
   | { address: string; kind: "missing" }
-  /** Every chat, open or not: the index Chat's chip goes to. */
-  | { kind: "chats" }
+  /** Every chat, open or not: the index Chat's chip goes to; or one project's. */
+  | { kind: "chats"; project?: ProjectMarkSpec & { name: string } }
   /**
    * A chat not started yet: a new tab, which is nowhere yet. It becomes the
    * chat once something is sent from it, or the page or file put in it.
@@ -165,7 +166,13 @@ export function locationCrumbs(
             count,
           ];
     }
-    case "chats":
+    // A project is under every chat, which the field's chip says, and every
+    // chat is the chip alone.
+    case "chats": {
+      return location.project === undefined
+        ? []
+        : [{ label: location.project.name }];
+    }
     case "debug":
     case "missing":
     case "newChat":

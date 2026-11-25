@@ -58,9 +58,8 @@ export function ChatTabItems({
         onNew: (name) => {
           shell.onNewProject(chat.id, name);
         },
-        // Picking the project it is under takes it off.
         onPick: (id) => {
-          shell.setChatProject(chat.id, chat.project === id ? null : id);
+          shell.setChatProject(chat.id, id);
         },
         projects: shell.projects,
       }}
@@ -89,17 +88,14 @@ export function DraftTabItems({
         onNew: (name) => {
           shell.onNewDraftProject(draft.id, name);
         },
-        // Picking the project it is under takes it off.
         onPick: (id) => {
           updateDraft({
             id: draft.id,
-            update: (current) => {
-              if (current.projectId !== id) {
-                return { ...current, projectId: id, projectSource: "chosen" };
-              }
-              const { projectId: _dropped, ...unfiled } = current;
-              return { ...unfiled, projectSource: "chosen" };
-            },
+            update: ({ projectId: _was, ...current }) => ({
+              ...current,
+              ...(id === null ? {} : { projectId: id }),
+              projectSource: "chosen",
+            }),
           });
         },
         projects: shell.projects,

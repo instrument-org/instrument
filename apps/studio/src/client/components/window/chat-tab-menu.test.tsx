@@ -183,7 +183,7 @@ describe("a chat tab's menu", () => {
 
     await openSubmenu(first, "Project");
     fireEvent.click(
-      await screen.findByRole("menuitemcheckbox", { name: "House" }),
+      await screen.findByRole("menuitemradio", { name: "House" }),
     );
     await openSubmenu(first, "Project");
     fireEvent.click(
@@ -205,7 +205,7 @@ describe("a chat tab's menu", () => {
 
     await openSubmenu(draft, "Project");
     fireEvent.click(
-      await screen.findByRole("menuitemcheckbox", { name: "House" }),
+      await screen.findByRole("menuitemradio", { name: "House" }),
     );
     await openSubmenu(draft, "Project");
     fireEvent.click(
@@ -224,5 +224,16 @@ describe("a chat tab's menu", () => {
       DRAFT.id,
       undefined,
     );
+  });
+
+  it("leaves a new chat's draft alone when the project it is in is picked", async () => {
+    const [, , draft] = strip();
+
+    await openSubmenu(draft, "Project");
+    fireEvent.click(
+      await screen.findByRole("menuitemradio", { name: "No project" }),
+    );
+
+    expect(calls.updateDraft).not.toHaveBeenCalled();
   });
 });

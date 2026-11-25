@@ -9,16 +9,11 @@ import { NewTabIcon } from "@/client/components/icons/new-tab-icon";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import {
   ContextMenu,
-  ContextMenuCheckboxItem,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuSub,
-  ContextMenuSubContent,
-  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
-import { MenuScrollArea } from "@/client/components/ui/menu-scroll-area";
 import { openClickGestures } from "@/client/hooks/use-open-target";
 import { withoutPathQuotes } from "@/client/lib/path-text";
 import { formatAbsoluteTime } from "@/client/lib/relative-time";
@@ -26,7 +21,6 @@ import { cn } from "@/client/lib/utils";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { chatAddressOf } from "@instrument-org/shared";
 import { PencilSimpleIcon } from "@phosphor-icons/react/PencilSimple";
-import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
@@ -36,6 +30,7 @@ import { type ReactNode, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
+import { ProjectMenuItems } from "./chat-header";
 import { ChatCopyMenu } from "./chat-copy-menu";
 import { chatMenuGroups } from "./chat-actions";
 import { type RowDensity } from "./chat-list-view";
@@ -197,17 +192,13 @@ export function ChatRow({
     chat.holds.apps.length > 0 ||
     chat.holds.files.length > 0 ||
     chat.holds.sites.length > 0;
-  // Picking the project the chat is under takes it off; any other moves it.
-  const pickProject = (id: string) => {
-    onSetProject(chat.project === id ? null : id);
-  };
-  const tagControl = (
-    <TagControl
+  const projectControl = (
+    <ProjectControl
       chat={chat}
       isOpen={isPicking}
       onNewProject={onNewProject}
       onOpenChange={pickProjects}
-      onToggle={pickProject}
+      onPick={onSetProject}
       projects={projects}
     />
   );
@@ -290,7 +281,6 @@ export function ChatRow({
   );
   // The same groups, in the same order, as the menu in the chat's head.
   const groups = chatMenuGroups(actions);
-  const live = projects.filter((entry) => !entry.retired);
   const item = (action: RowAction) => (
     <ContextMenuItem
       key={action.id}
@@ -354,7 +344,7 @@ export function ChatRow({
                 <RowActionBar
                   actions={actions}
                   isHeld={isPickerLeaving}
-                  leading={tagControl}
+                  leading={projectControl}
                   resting={
                     <>
                       {time}
@@ -460,45 +450,11 @@ export function ChatRow({
           <PencilSimpleIcon className="size-4" />
           Rename
         </ContextMenuItem>
-        <ContextMenuSub>
-          <ContextMenuSubTrigger>
-            <CardsThreeIcon className="size-4" />
-            Project
-          </ContextMenuSubTrigger>
-          <ContextMenuSubContent className="flex w-56 flex-col p-0">
-            {live.length > 0 && (
-              <MenuScrollArea className="max-h-80">
-                {live.map((entry) => (
-                  <ContextMenuCheckboxItem
-                    checked={chat.project === entry.id}
-                    key={entry.id}
-                    onSelect={() => {
-                      pickProject(entry.id);
-                    }}
-                  >
-                    <ProjectMark project={entry} />
-                    <span className="truncate">{entry.name}</span>
-                  </ContextMenuCheckboxItem>
-                ))}
-              </MenuScrollArea>
-            )}
-            <div
-              className={cn(
-                "shrink-0 p-1",
-                live.length > 0 && "border-t border-border",
-              )}
-            >
-              <ContextMenuItem
-                onSelect={() => {
-                  onNewProject();
-                }}
-              >
-                <PlusIcon className="size-4" />
-                New project…
-              </ContextMenuItem>
-            </div>
-          </ContextMenuSubContent>
-        </ContextMenuSub>
+        <ProjectMenuItems
+          chosen={chat.project}
+          components={contextMenuComponents}
+          projectMenu={{ onNew: onNewProject, onPick: onSetProject, projects }}
+        />
         <ContextMenuSeparator />
         {groups.files.map(item)}
         <ChatCopyMenu chat={chat} menu={contextMenuComponents} />
@@ -559,16 +515,12 @@ export function ProjectWords({ project }: { project: Project }) {
 /**
  * A project the chat is filed under, as a pill in its tint no taller than
  * the line it sits on: its emoji, or its mark's tile where it has none, then
- * its name, or the mark alone on a narrow chat head, where the name is its
- * tooltip.
+ * its name.
  */
 export function ProjectPill({
-  compact,
   quiet = false,
   project,
 }: {
-  /** The mark alone on a narrow chat head. */
-  compact?: "narrow";
   /** A faint wash with the name in the project's ink, for a list where the pill is a label beside the words rather than a thing to look at. */
   quiet?: boolean;
   project: Project;
@@ -581,7 +533,7 @@ export function ProjectPill({
     quiet
       ? "bg-(--project-tint-surface)/40 font-medium text-(--project-tint-ink)"
       : "bg-(--project-tint-surface) text-foreground/90",
-    compact === "narrow" ? "pr-1.5 @max-sm/chathead:pr-1" : "pr-1.5",
+    "pr-1.5",
     // A little more room in a list, where the label sits among the words.
     quiet && "pr-2 pl-1.5",
   );
@@ -593,14 +545,7 @@ export function ProjectPill({
       ) : (
         <ProjectMark className="size-3.5 text-[10px]" project={project} />
       )}
-      <span
-        className={cn(
-          "truncate",
-          compact === "narrow" && "@max-sm/chathead:hidden",
-        )}
-      >
-        {project.name}
-      </span>
+      <span className="truncate">{project.name}</span>
     </>
   );
   return (
@@ -608,7 +553,6 @@ export function ProjectPill({
       className={className}
       data-slot="project-pill"
       style={projectTint(projectColor(project))}
-      title={compact ? project.name : undefined}
     >
       {inside}
     </span>
@@ -748,19 +692,19 @@ function Marked({ search, text }: { search: string; text: string }) {
  * in the flow while the list is up and the list keeps its anchor as it
  * closes.
  */
-function TagControl({
+function ProjectControl({
   chat,
   isOpen,
   onNewProject,
   onOpenChange,
-  onToggle,
+  onPick,
   projects,
 }: {
   chat: Chat;
   isOpen: boolean;
   onNewProject: (name: string) => void;
   onOpenChange: (open: boolean) => void;
-  onToggle: (id: string) => void;
+  onPick: (id: string | null) => void;
   projects: Project[];
 }) {
   return (
@@ -771,11 +715,11 @@ function TagControl({
     <span className="flex shrink-0" onAuxClick={stopHere} onClick={stopHere}>
       <ProjectPicker
         align="end"
-        chosen={new Set(chat.project ? [chat.project] : [])}
+        chosen={chat.project}
         isOpen={isOpen}
         onNew={onNewProject}
         onOpenChange={onOpenChange}
-        onToggle={onToggle}
+        onPick={onPick}
         projects={projects}
       >
         <button

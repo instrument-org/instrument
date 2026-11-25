@@ -60,20 +60,17 @@ function renderHead({
   project?: Project;
 } = {}) {
   const onFiltersChange = vi.fn();
-  const onLeaveProject = vi.fn();
   const { store } = renderWithProviders(
     <FilterHead
       chats={chats}
       filters={filters}
       onFiltersChange={onFiltersChange}
-      onLeaveProject={onLeaveProject}
       project={project}
     />,
   );
   return {
     head: within(screen.getByRole("group", { name: "Filters" })),
     onFiltersChange,
-    onLeaveProject,
     store,
   };
 }
@@ -145,14 +142,14 @@ describe("FilterHead", () => {
     });
   });
 
-  it("inside a project, steps back out to the inbox, with no tabs", () => {
-    const { head, onLeaveProject } = renderHead({
+  it("inside a project, has no tabs and its search folded", () => {
+    const { head } = renderHead({
       filters: { ...NO_FILTERS, projects: ["house"] },
       project: HOUSE,
     });
     expect(head.queryAllByRole("tab")).toEqual([]);
-    fireEvent.click(head.getByRole("button", { name: "Inbox" }));
-    expect(onLeaveProject).toHaveBeenCalledOnce();
+    expect(head.queryByRole("combobox")).toBeNull();
+    expect(head.getByRole("button", { name: "Search" })).toBeDefined();
   });
 
   it("unfolds the search and gives it the keyboard when Search Chats is asked for", async () => {

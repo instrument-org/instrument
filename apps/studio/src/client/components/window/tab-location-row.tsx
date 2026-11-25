@@ -14,6 +14,7 @@ import {
   ContextMenu,
   ContextMenuTrigger,
 } from "@/client/components/ui/context-menu";
+import { ProjectMark } from "./project-mark";
 import { AppIcon } from "@/client/components/window/app-icon";
 import { FoldingTrail } from "@/client/components/window/folding-trail";
 import {
@@ -802,7 +803,7 @@ function FieldChip({
 function locationItemMark(location: TabLocation): ReactNode {
   if (
     location.kind === "chat" ||
-    location.kind === "chats" ||
+    (location.kind === "chats" && location.project === undefined) ||
     location.kind === "builtin" ||
     location.kind === "apps" ||
     location.kind === "newChat"
@@ -864,8 +865,14 @@ function locationMark(location: TabLocation): ReactNode {
     case "builtin": {
       return <AppMark app={location.screen} />;
     }
+    case "chats": {
+      return location.project ? (
+        <ProjectMark project={location.project} />
+      ) : (
+        <AppMark app="chat" />
+      );
+    }
     case "chat":
-    case "chats":
     case "newChat": {
       return <AppMark app="chat" />;
     }

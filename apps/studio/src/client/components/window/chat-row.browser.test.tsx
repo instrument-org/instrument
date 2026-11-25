@@ -725,7 +725,7 @@ describe("ChatRow", () => {
       (span) => span.textContent === "8:46 AM",
     );
     if (!control || !pill) {
-      throw new Error("no tag control or time");
+      throw new Error("no project control or time");
     }
     // The pointer is shared across test files, so it may sit wherever another
     // file left it, over the row just drawn. Move it off before reading rest.
@@ -1017,13 +1017,13 @@ describe("ChatRow", () => {
     expect(openScreen).not.toHaveBeenCalled();
   });
 
-  it("opens the chat's project list from the corner's tag control, which files the chat rather than opening it, and holds the corner while the list leaves", async () => {
+  it("opens the chat's project list from the corner's project control, which files the chat rather than opening it, and holds the corner while the list leaves", async () => {
     const { onOpen, onSetProject, row } = await renderRow(
       chat({ project: "house" }),
     );
     const control = row.querySelector<HTMLElement>('[aria-label="Project"]');
     if (!control) {
-      throw new Error("no tag control");
+      throw new Error("no project control");
     }
     // The control is in the flow only while the pointer is on the row.
     await userEvent.hover(titleOf(row));
@@ -1095,7 +1095,7 @@ describe("the row's actions", () => {
     expect(box.right).toBeLessThanOrEqual(edge.right);
     expect(box.right).toBeGreaterThan(edge.right - 80);
     expect(box.top).toBeGreaterThanOrEqual(edge.top);
-    // Nothing on the row moved for them but the tag control's arrival in
+    // Nothing on the row moved for them but the project control's arrival in
     // front of the title.
     expect(titleOf(row).getBoundingClientRect().top).toBeCloseTo(before.top, 0);
     await userEvent.unhover(titleOf(row));
@@ -1184,7 +1184,7 @@ describe("the row's actions", () => {
 
     await userEvent.click(titleOf(row), { button: "right" });
     await userEvent.hover(page.getByRole("menuitem", { name: "Project" }));
-    const house = page.getByRole("menuitemcheckbox", { name: "House" });
+    const house = page.getByRole("menuitemradio", { name: "House" });
     await expect.element(house).toBeVisible();
     await userEvent.click(house);
     expect(onSetProject).toHaveBeenCalledWith("house");

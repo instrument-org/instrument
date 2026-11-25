@@ -59,8 +59,9 @@ export function GroupChatScreen({ chatId }: { chatId: ChatId }) {
 }
 
 /**
- * The head over a chat in its tab: its title, which renames it, and the
- * caret that opens its menu at the left; at the right, the folders the
+ * The head over a chat in its tab: the project it is in, which opens in a tab
+ * after it, its title, which renames it, and the caret that opens its menu at
+ * the left; at the right, the folders the
  * chat saved files in, each opened beside the chat as a click in the chat
  * opens a folder.
  */
@@ -87,6 +88,17 @@ function ChatTabHead({ chatId }: { chatId: ChatId }) {
       }}
       onNewProject={(name) => {
         shell.onNewProject(chatId, name);
+      }}
+      onOpenPage={(href, { behind }) => {
+        if (groupTab === null) {
+          return;
+        }
+        windowTabs.openOrFocusScreen(href, {
+          after: groupTab.id,
+          from: { reason: "link", tab: groupTab.id },
+          group: groupTab.group,
+          select: !behind,
+        });
       }}
       onSetProject={(next) => {
         shell.setChatProject(chatId, next);

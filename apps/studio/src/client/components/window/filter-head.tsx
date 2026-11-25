@@ -9,7 +9,6 @@ import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { cn } from "@/client/lib/utils";
-import { CaretLeftIcon } from "@phosphor-icons/react/CaretLeft";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { NotificationIcon } from "@phosphor-icons/react/Notification";
@@ -68,7 +67,7 @@ const PLACES: { id: ChatPlace | undefined; label: string }[] = [
 /**
  * The lines over the list. Outside a project: the search, with the view
  * button at its end, and under them the places a chat can be as tabs, Inbox,
- * Drafts and Archived. Inside one: the way back to the inbox, with the search
+ * Drafts and Archived. Inside one: the view button, with the search
  * folded to its glass until it is asked for or holds something. The marks the
  * search narrows by (Unread, Starred) are offered as tokens on clicking into
  * it, each only while the view has any, and narrow whatever view the column
@@ -79,14 +78,11 @@ export function FilterHead({
   chats,
   filters,
   onFiltersChange,
-  onLeaveProject,
   project,
 }: {
   chats: Filterable[];
   filters: ChatFilters;
   onFiltersChange: (filters: ChatFilters) => void;
-  /** Steps out of the project the column stands in, back to the inbox. */
-  onLeaveProject: () => void;
   /** The project the column stands in, if it stands in one. */
   project: Project | undefined;
 }) {
@@ -172,16 +168,6 @@ export function FilterHead({
         className="flex h-13 shrink-0 items-center gap-1.5 px-2 pb-1"
         role="group"
       >
-        {!isFieldShown && (
-          <button
-            className="flex h-8 items-center gap-1 rounded-lg pr-2.5 pl-1.5 text-[13px] text-foreground/70 hover:bg-foreground/5 hover:text-foreground"
-            onClick={onLeaveProject}
-            type="button"
-          >
-            <CaretLeftIcon className="size-3.5" weight="bold" />
-            Inbox
-          </button>
-        )}
         <span className="flex-1" hidden={isFieldShown} />
         {isFieldShown ? (
           // Grows out of the glass it stood in for.

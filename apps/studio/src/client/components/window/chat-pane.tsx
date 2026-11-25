@@ -19,9 +19,7 @@ import {
   type ChatFilters,
   draftTitle,
   hasWords,
-  inPlace,
   matchesFilters,
-  NO_FILTERS,
   outsideFilters,
   type Project,
 } from "./chats";
@@ -44,9 +42,8 @@ import { backfillCandidates } from "./use-project-backfill";
  * chat can be. Nothing is composed here: New in the rail opens a new chat,
  * and the chat it starts lands at the top of the list; a draft saved and left
  * is a row of the Drafts place, which lists the drafts where the chats
- * otherwise go. In the inbox the projects stand above the chats, and
- * stepping into one makes the list that project, under its own head, in its
- * tint.
+ * otherwise go. In the inbox the projects stand above the chats, each opening
+ * its page, where the list is that project, under its own head, in its tint.
  */
 export function ChatPane({
   arrivedId,
@@ -57,6 +54,7 @@ export function ChatPane({
   onListed,
   onOpenChat,
   onOpenDraft,
+  onOpenProject,
   openChatId,
 }: {
   /** The chat that just started from a draft, whose row arrives with a motion of its own. */
@@ -74,6 +72,8 @@ export function ChatPane({
   onOpenChat: (chat: Chat) => void;
   /** Opens a draft to go on writing it. */
   onOpenDraft: (id: string) => void;
+  /** Opens a project's page, this list standing in it. */
+  onOpenProject: (id: string) => void;
   /** The chat open beside the list, if one is. */
   openChatId: string | undefined;
 }) {
@@ -105,10 +105,6 @@ export function ChatPane({
   const [filters, setFilters] = useAtom(
     tabChatFiltersAtom(useGroupTab()?.id ?? ""),
   );
-  /** The list standing in one project, under its own head, in its tint. */
-  const enterProject = (projectId: string) => {
-    setFilters({ ...NO_FILTERS, projects: [projectId] });
-  };
   const density = useAtomValue(rowDensityAtom);
   const groupByDay = useAtomValue(groupByDayAtom);
   // A change of filter is a change of subject, and the newest of the new
@@ -274,9 +270,6 @@ export function ChatPane({
           chats={chats}
           filters={filters}
           onFiltersChange={setFilters}
-          onLeaveProject={() => {
-            setFilters((current) => inPlace(current, undefined));
-          }}
           project={chosenProject}
         />
         {isAISearch && (
@@ -314,7 +307,7 @@ export function ChatPane({
                       <ProjectsSection
                         chats={chats}
                         onChoose={(project) => {
-                          enterProject(project.id);
+                          onOpenProject(project.id);
                         }}
                         onDetails={(project) => {
                           openProjectDetails(project.id);
@@ -396,7 +389,7 @@ export function ChatPane({
                 setChatProject(forChat.id, created.id);
                 return;
               }
-              enterProject(created.id);
+              onOpenProject(created.id);
             },
           });
         }}

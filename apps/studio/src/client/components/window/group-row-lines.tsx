@@ -7,6 +7,7 @@ import { XIcon } from "@phosphor-icons/react/X";
 import { type ChatId } from "@instrument-org/workspace/client";
 import { useState } from "react";
 
+import { useProjectsById } from "./projects-by-id";
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatDotOf, ChatMarkIcon } from "./chat-mark";
 import { FadeTitle } from "./fade-title";
@@ -87,6 +88,7 @@ export function GroupRowLines({
   sides: RowSides;
 }) {
   const appsBySlug = useAppsBySlug();
+  const projects = useProjectsById();
   const taskTitles = useTaskTitles();
   const { chats } = useRowSources();
   const lead = useLeadTab(sides, isOnScreen);
@@ -101,10 +103,14 @@ export function GroupRowLines({
     const location = screenLocation(tab.href, {
       appsBySlug,
       chatTitles,
+      projects,
       taskTitles,
     });
     if (location.kind === "file") {
       return `file:${extensionOf(location.path)}`;
+    }
+    if (location.kind === "chats" && location.project) {
+      return `project:${tab.id}`;
     }
     return location.kind === "chat" ? `chat:${tab.id}` : location.kind;
   };

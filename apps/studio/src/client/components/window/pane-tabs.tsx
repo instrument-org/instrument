@@ -20,6 +20,7 @@ import { useAtomValue } from "jotai";
 import { type ReactNode, useRef, useState } from "react";
 
 import { tabTooltip } from "./app-tab-strip";
+import { useProjectsById } from "./projects-by-id";
 import { useAppsBySlug } from "./apps-by-slug";
 import {
   ChatTabItems,
@@ -122,6 +123,7 @@ export function PaneTabs({
   trailing?: ReactNode;
 }) {
   const appsBySlug = useAppsBySlug();
+  const projects = useProjectsById();
   // The chat whose versions of a file a tab may have up: the one its group
   // has up, as the tab's row reads it.
   const { chatUpIn } = useWindowTabs();
@@ -171,6 +173,7 @@ export function PaneTabs({
         appsBySlug,
         chatTitles,
         ...(fileTitles ? { fileTitles } : {}),
+        projects,
         taskTitles,
         ...(volumes ? { volumes } : {}),
       }).title,
@@ -584,6 +587,7 @@ export function ScreenMark({
   chatTitles: Presentation["chatTitles"];
   href: string;
 }) {
+  const projects = useProjectsById();
   const location = screenLocation(href, { appsBySlug, chatTitles });
   if (location.kind === "file") {
     const icon = <FileTypeIcon className="size-3.5" fileName={location.name} />;
@@ -600,5 +604,5 @@ export function ScreenMark({
   if (location.kind === "folder") {
     return <FileSystemFolderGlyph className="h-3 w-auto" />;
   }
-  return screenPresentation(href, { appsBySlug, chatTitles }).icon;
+  return screenPresentation(href, { appsBySlug, chatTitles, projects }).icon;
 }

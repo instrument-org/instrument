@@ -31,7 +31,7 @@ import {
   useChatActions,
 } from "./chat-actions";
 import { type ChatHeadAsk, listChatHead } from "./chat-head-requests";
-import { ProjectPill } from "./chat-row";
+import { ChatCrumb } from "./chat-crumb";
 import {
   CHAT_TITLE_GROUP,
   ChatMenuCaret,
@@ -43,15 +43,15 @@ import { DeleteChatDialog } from "./delete-chat-dialog";
 import { useGroupTab } from "./group-tab";
 import { type RowAction } from "./row-shell";
 import { ProjectMark } from "./project-mark";
-import { ProjectPicker } from "./project-picker";
+import { NoProjectMark } from "./project-menu";
 import { type ChatRename, useChatRename } from "./use-chat-rename";
 import { useTitleArrival } from "./use-title-arrival";
 import { PANE_TOP_ROW, usePaneTop } from "./pane-top";
 
 /**
- * The head over a chat's conversation. Its title at the left, which renames
- * the chat, and the caret that opens its menu, with the project it is filed
- * under after them. At the right, the commands the chat and its tasks left
+ * The head over a chat's conversation. At the left, the project it is filed
+ * under, then its title, which renames the chat, and the caret that opens its
+ * menu. At the right, the commands the chat and its tasks left
  * running, then whatever the place it is shown in adds.
  */
 export function ChatHeader({
@@ -61,6 +61,7 @@ export function ChatHeader({
   onArchived,
   onDeleted,
   onNewProject,
+  onOpenPage,
   onSetProject,
   projects,
   trailing,
@@ -76,6 +77,8 @@ export function ChatHeader({
   onDeleted: () => void;
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
+  /** Opens the page of what the chat is under, behind when asked. */
+  onOpenPage: (href: string, options: { behind: boolean }) => void;
   onSetProject: (project: null | string) => void;
   projects: Project[];
   /** What sits at the head's right. */
@@ -112,6 +115,7 @@ export function ChatHeader({
                 setDeleting(true);
               }}
               onNewProject={onNewProject}
+              onOpenPage={onOpenPage}
               onSetProject={onSetProject}
               titleClassName="text-sm font-medium"
               projects={projects}
@@ -142,37 +146,37 @@ function layoutWidthOf(element: HTMLElement | null) {
 }
 
 /**
- * A chat's title and the project it is filed under, as the chat's head
- * draws them: a press on the title puts a field in
- * its place, the caret after it opens the chat's menu, and the
- * project follows them the way mail puts a label after a subject. The title
- * gives way first, truncating; on a narrow head the project stands as its
- * mark alone.
+ * What a chat is under and its title, as the chat's head draws them: the
+ * project leads to its page and is changed there (`ChatCrumb`), a press on the
+ * title puts a field in its place, and the caret after it opens the chat's
+ * menu.
  */
 function ChatHeading({
   chat,
-  children,
   menu,
   onDelete,
   onNewProject,
+  onOpenPage,
   onSetProject,
   titleClassName,
   projects,
 }: {
   chat: Chat;
-  /** What follows the title and its project. */
-  children?: ReactNode;
   /** What the menu offers beyond what every head's does. */
   menu: Pick<ComponentProps<typeof ChatMenu>, "onArchived">;
   onDelete: () => void;
   /** Makes a project, named for what was typed in the picker when anything was, and files the chat under it. */
   onNewProject: (name?: string) => void;
+  /** Opens the page of what the chat is under, behind when asked. */
+  onOpenPage: (href: string, options: { behind: boolean }) => void;
   onSetProject: (project: null | string) => void;
   /** The type the title is set in, which its rename field takes too. */
   titleClassName: string;
   projects: Project[];
 }) {
-  const filed = projects.find((entry) => entry.id === chat.project);
+  const filed = projects.find(
+    (entry) => entry.id === chat.project && !entry.retired,
+  );
   const chatRename = useChatRename(chat);
   const titleArrival = useTitleArrival(chat);
   // The title's width as renaming begins, which the field opens at, read
@@ -188,11 +192,7 @@ function ChatHeading({
       chatRename.start();
     },
   };
-  // Picking the project the chat is under takes it off; any other moves it.
-  const pickProject = (id: string) => {
-    onSetProject(chat.project === id ? null : id);
-  };
-  // The project picker, open from the project after the title or asked for
+  // The project picker, open from the caret before the title or asked for
   // from outside the head.
   const [isPickingProject, setPickingProject] = useState(false);
   // What the head does when asked from outside it, by the tab it is in
@@ -223,7 +223,16 @@ function ChatHeading({
     [tabId],
   );
   return (
-    <div className="@container/chathead flex min-w-0 flex-1 items-center gap-x-2">
+    <div className="@container/chathead flex min-w-0 flex-1 items-center">
+      <ChatCrumb
+        isPicking={isPickingProject}
+        onNewProject={onNewProject}
+        onOpenPage={onOpenPage}
+        onPickingChange={setPickingProject}
+        onSetProject={onSetProject}
+        project={filed}
+        projects={projects}
+      />
       <h2 className="flex min-w-0">
         {rename.isEditing ? (
           // Pulled out and padded in by what the title's own segment takes, so
@@ -251,7 +260,7 @@ function ChatHeading({
               rename={rename}
               projectMenu={{
                 onNew: onNewProject,
-                onPick: pickProject,
+                onPick: onSetProject,
                 projects,
               }}
               trigger={<ChatMenuCaret />}
@@ -259,33 +268,6 @@ function ChatHeading({
           </div>
         )}
       </h2>
-      {/* Pressing it opens the project picker every filing shares. No
-          dashed slot in the head: a chat with no project is filed from the
-          menu, and the picker asked for from outside the head opens after
-          the title. */}
-      {(filed || isPickingProject) && (
-        <ProjectPicker
-          chosen={new Set(filed ? [filed.id] : [])}
-          isOpen={isPickingProject}
-          onNew={onNewProject}
-          onOpenChange={setPickingProject}
-          onToggle={pickProject}
-          projects={projects}
-        >
-          {filed ? (
-            <button
-              aria-label="Project"
-              className="flex shrink-0 items-center gap-1"
-              type="button"
-            >
-              <ProjectPill compact="narrow" project={filed} />
-            </button>
-          ) : (
-            <span aria-hidden className="h-4 w-0 shrink-0" />
-          )}
-        </ProjectPicker>
-      )}
-      {children}
     </div>
   );
 }
@@ -347,7 +329,7 @@ function ChatMenu({
 /** The projects a chat's menu files it under. */
 export interface ChatProjectMenu {
   onNew: (name?: string) => void;
-  onPick: (id: string) => void;
+  onPick: (id: string | null) => void;
   projects: Project[];
 }
 
@@ -449,7 +431,7 @@ export function ChatMenuItems({
 
 /**
  * Project, as a submenu of a chat's menu or a new chat's: the projects to
- * file it under, the one it is under ticked, and New project….
+ * file it under or none, the one it is under ticked, and New project….
  */
 export function ProjectMenuItems({
   chosen,
@@ -471,18 +453,28 @@ export function ProjectMenuItems({
       <menu.SubContent className="flex w-56 flex-col p-0">
         {live.length > 0 && (
           <MenuScrollArea className="max-h-80">
-            {live.map((entry) => (
-              <menu.CheckboxItem
-                checked={chosen === entry.id}
-                key={entry.id}
-                onSelect={() => {
-                  projectMenu.onPick(entry.id);
-                }}
-              >
-                <ProjectMark project={entry} />
-                <span className="truncate">{entry.name}</span>
-              </menu.CheckboxItem>
-            ))}
+            {[undefined, ...live].map((entry) => {
+              const isChosen = entry
+                ? chosen === entry.id
+                : !live.some((each) => each.id === chosen);
+              return (
+                <menu.CheckboxItem
+                  checked={isChosen}
+                  key={entry?.id ?? ""}
+                  onSelect={() => {
+                    if (!isChosen) {
+                      projectMenu.onPick(entry?.id ?? null);
+                    }
+                  }}
+                  role="menuitemradio"
+                >
+                  {entry ? <ProjectMark project={entry} /> : <NoProjectMark />}
+                  <span className="truncate">
+                    {entry?.name ?? "No project"}
+                  </span>
+                </menu.CheckboxItem>
+              );
+            })}
           </MenuScrollArea>
         )}
         <div

@@ -6,7 +6,7 @@ import { useShowChatGroup } from "./chat-group";
 import { ChatPane } from "./chat-pane";
 import { useGroupTab } from "./group-tab";
 import { useShell } from "./shell-context";
-import { chatHref, newChatHref } from "./window-href";
+import { chatHref, newChatHref, projectHref } from "./window-href";
 
 /**
  * The Chats page: the inbox, its projects, search, drafts and places, in one
@@ -41,6 +41,9 @@ export function ChatsPage() {
             shell.showDraft(id, () => {
               router.history.push(newChatHref(id));
             });
+          }}
+          onOpenProject={(id) => {
+            router.history.push(projectHref(id));
           }}
           openChatId={undefined}
         />

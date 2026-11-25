@@ -33,8 +33,8 @@ export type Screen =
   | { kind: "bookmarks" }
   /** A tab group, by its key: the window's tab showing it. */
   | { group: string; kind: "group" }
-  /** Every chat there is, open or not: the index Chat's chip goes to. */
-  | { kind: "chats" }
+  /** Every chat there is, open or not: the index Chat's chip goes to. One project's, when its id is named. */
+  | { kind: "chats"; project?: string }
   /** The chat with no chat open: a new chat beside the inbox, written into the draft named when there is one. */
   | { draft?: string; kind: "inbox" }
   /** What Instrument remembers, as a page of its own. */
@@ -252,7 +252,8 @@ export function matchScreen(href: string): Screen {
     return { kind: "debug", pathname };
   }
   if (at(SCREEN_ROUTES.chats)) {
-    return { kind: "chats" };
+    const project = search.get("project");
+    return { kind: "chats", ...(project ? { project } : {}) };
   }
   if (at(SCREEN_ROUTES.settingsStart)) {
     return { kind: "settings" };
@@ -280,6 +281,11 @@ export function matchScreen(href: string): Screen {
 
 /** The index of every chat, open or not: the Chats page. */
 export const CHATS_INDEX_HREF: string = SCREEN_ROUTES.chats;
+
+/** The page of one project: its instructions and its chats. */
+export function projectHref(project: string): string {
+  return `${CHATS_INDEX_HREF}?${new URLSearchParams({ project }).toString()}`;
+}
 
 /**
  * The address of a chat's screen, or of a chat named by its session, which

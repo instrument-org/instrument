@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { createContext, type ReactNode, use, useEffect, useState } from "react";
 
+import { useProjectsById } from "./projects-by-id";
 import { useAppsBySlug } from "./apps-by-slug";
 import { chatListOptions } from "./chat-list-query";
 import { isAsking } from "./chat-mark";
@@ -173,6 +174,7 @@ export function useRowLines(
 ): RowLines {
   const { chats, drafts } = useRowSources();
   const appsBySlug = useAppsBySlug();
+  const projects = useProjectsById();
   const taskTitles = useTaskTitles();
   const load = usePageLoad(tab);
   const places = useQuery(rpcClient.workspace.computer.places.queryOptions());
@@ -195,6 +197,7 @@ export function useRowLines(
     appsBySlug,
     chatTitles,
     ...(fileTitles ? { fileTitles } : {}),
+    projects,
     taskTitles,
   };
   const location = screenLocation(tab.href, names);
@@ -219,7 +222,9 @@ export function useRowLines(
     case "builtin": {
       return quiet(title, location.part ?? PAGE_START_LINES[location.screen]);
     }
-    case "chats":
+    case "chats": {
+      return quiet(title, location.project ? "Project" : "");
+    }
     case "debug": {
       return quiet(title, "");
     }

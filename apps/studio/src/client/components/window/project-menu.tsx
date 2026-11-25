@@ -89,33 +89,55 @@ export function ProjectContextMenu({
   );
 }
 
+/** The list's id for no project, which no project has. */
+const NO_PROJECT_ID = "";
+
+/** What stands for being in no project, where a project's mark would be. */
+export function NoProjectMark() {
+  return (
+    <span
+      aria-hidden
+      className="size-3 shrink-0 rounded-full border border-dashed border-foreground/40"
+    />
+  );
+}
+
 /**
- * Every project, a check on the one that is on, and a new one at the foot: the
- * list behind a row's tag control, a draft's project and a chat's head alike,
- * so filing is learned once. It opens on a find field whose words the foot
- * offers to make into a project.
+ * No project, then every project, a check on the one that is on, and a new
+ * one at the foot: the list behind a row's project control and a chat's head
+ * alike, so filing is learned once. It opens on a find field whose words the
+ * foot offers to make into a project.
  */
 export function ProjectPickList({
   chosen,
   onNew,
-  onToggle,
+  onPick,
   projects,
 }: {
-  chosen: ReadonlySet<string>;
+  /** The id of the project that is on; No project is without it. */
+  chosen: string | undefined;
   /** Makes a project, named for what was typed in the find field when anything was. */
   onNew: (name: string) => void;
-  onToggle: (id: string) => void;
+  onPick: (id: string | null) => void;
   projects: Project[];
 }) {
   const live = projects.filter((project) => !project.retired);
   return (
     <PickList
-      chosen={chosen}
-      entries={live.map((project) => ({
-        icon: <ProjectMark project={project} />,
-        id: project.id,
-        label: project.name,
-      }))}
+      chosen={chosen ?? NO_PROJECT_ID}
+      entries={[
+        {
+          icon: <NoProjectMark />,
+          id: NO_PROJECT_ID,
+          isNone: true,
+          label: "No project",
+        },
+        ...live.map((project) => ({
+          icon: <ProjectMark project={project} />,
+          id: project.id,
+          label: project.name,
+        })),
+      ]}
       findPlaceholder="Find or make a project"
       foot={(find) => (
         <PickListAction
@@ -129,7 +151,9 @@ export function ProjectPickList({
           </span>
         </PickListAction>
       )}
-      onToggle={onToggle}
+      onPick={(id) => {
+        onPick(id === NO_PROJECT_ID ? null : id);
+      }}
     />
   );
 }

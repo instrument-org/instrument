@@ -26,6 +26,7 @@ import {
   useState,
 } from "react";
 
+import { useProjectsById } from "./projects-by-id";
 import { useAppsBySlug } from "./apps-by-slug";
 import { BookmarksBar } from "./bookmarks-bar";
 import { type PageChromeSlots } from "./browser-tabs";
@@ -97,6 +98,7 @@ export function GroupItem({
 }) {
   const windowTabs = useWindowTabs();
   const appsBySlug = useAppsBySlug();
+  const projects = useProjectsById();
   const appWindow = useWindow();
   const { browser } = appWindow;
   // What is up draws its own controls into the rows: a page its reload, zoom
@@ -423,7 +425,7 @@ export function GroupItem({
   // A new chat is a new tab, nowhere yet: its field is empty, with the chord
   // that takes the caret there, since the caret starts in the composer.
   const location = surfaceLocation(
-    screenLocation(up.href, { appsBySlug, chatTitles, taskTitles }),
+    screenLocation(up.href, { appsBySlug, chatTitles, projects, taskTitles }),
     surface,
   );
   // A new tab hints at a browser with bare, quiet controls and no field,

@@ -10,10 +10,11 @@ import { stopHere } from "./row-shell";
 import { ProjectPickList } from "./project-menu";
 
 /**
- * The one way a chat, a draft or a row is filed: a find field that also
- * makes a project of what was typed, every project with a check on the one that
- * is on, and New project at the foot, opening under whatever the caller hands
- * in as its trigger. A pick closes it, since a chat is filed under one.
+ * The one way a chat is filed: a find field that also makes a project of what
+ * was typed, No project and every project with a check on the one it is
+ * under, and New project at the foot, opening under whatever the caller hands
+ * in as its trigger. A pick closes it, since a chat is under one project or
+ * none.
  */
 export function ProjectPicker({
   align = "start",
@@ -22,19 +23,21 @@ export function ProjectPicker({
   isOpen,
   onNew,
   onOpenChange,
-  onToggle,
+  onPick,
   projects,
 }: {
   align?: "center" | "end" | "start";
   /** The trigger, which the list opens under. */
   children: ReactNode;
-  chosen: ReadonlySet<string>;
+  /** The id of the project it is under, when it is under one. */
+  chosen: string | undefined;
   /** The open state, for a caller that keeps it; the picker keeps its own otherwise. */
   isOpen?: boolean;
   /** Makes a project, named for what was typed when anything was. */
   onNew: (name: string) => void;
   onOpenChange?: (open: boolean) => void;
-  onToggle: (id: string) => void;
+  /** Files it under a project, or under none with `null`. The one it is under already only closes the list. */
+  onPick: (id: string | null) => void;
   projects: Project[];
 }) {
   const [ownOpen, setOwnOpen] = useState(false);
@@ -68,8 +71,10 @@ export function ProjectPicker({
             setOpen(false);
             onNew(name);
           }}
-          onToggle={(id) => {
-            onToggle(id);
+          onPick={(id) => {
+            if (id !== (chosen ?? null)) {
+              onPick(id);
+            }
             setOpen(false);
           }}
           projects={projects}

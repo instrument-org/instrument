@@ -65,6 +65,8 @@ export function createBookmarkStore({
   const acks: Record<string, number> = {};
   /** Changes the store is making for a batch, told with the batch's ack instead. */
   let applying = 0;
+  /** The batch being applied, which the next waits for. */
+  let queue: Promise<void> = Promise.resolve();
 
   const read = (): Bookmarks => ({
     bookmarks: inOrder(
@@ -121,25 +123,33 @@ export function createBookmarkStore({
      * Applies a window's batch and writes what it changed, answering once it
      * is on disk; every window then hears the bookmarks with the batch acked.
      */
-    apply: async (batch: BookmarkOpBatch): Promise<void> => {
-      const before = read();
-      const after = applyBookmarkOps(before, batch.ops);
-      const ops = [
-        ...changesBetween(store, "bookmark", before.bookmarks, after.bookmarks),
-        ...changesBetween(store, "folder", before.folders, after.folders),
-      ];
-      applying += 1;
-      try {
-        await store.apply(ops);
-      } finally {
-        applying -= 1;
-        acks[batch.client] = Math.max(acks[batch.client] ?? 0, batch.seq);
-        onChange(snapshot());
-      }
+    apply: (batch: BookmarkOpBatch): Promise<void> => {
+      // One batch at a time: each is applied to what the one before wrote,
+      // so two sent together never both build on the same read.
+      const applied = queue.then(() => applyNow(batch));
+      queue = applied.catch(() => undefined);
+      return applied;
     },
     close: stop,
     snapshot,
   };
+
+  async function applyNow(batch: BookmarkOpBatch): Promise<void> {
+    const before = read();
+    const after = applyBookmarkOps(before, batch.ops);
+    const ops = [
+      ...changesBetween(store, "bookmark", before.bookmarks, after.bookmarks),
+      ...changesBetween(store, "folder", before.folders, after.folders),
+    ];
+    applying += 1;
+    try {
+      await store.apply(ops);
+    } finally {
+      applying -= 1;
+      acks[batch.client] = Math.max(acks[batch.client] ?? 0, batch.seq);
+      onChange(snapshot());
+    }
+  }
 }
 
 /**

@@ -113,6 +113,31 @@ describe("createBookmarkStore", () => {
     ]);
   });
 
+  it("applies batches sent together each to what the one before wrote", async () => {
+    const { bookmarks } = await bookmarksOf(HERE);
+    await bookmarks.apply({
+      client: "w1",
+      ops: [{ bookmark: page("a", 0), type: "add" }],
+      seq: 1,
+    });
+    await Promise.all([
+      bookmarks.apply({
+        client: "w1",
+        ops: [{ id: "a", title: "Docs", type: "rename" }],
+        seq: 2,
+      }),
+      bookmarks.apply({
+        client: "w1",
+        ops: [{ id: "a", order: 5, type: "move" }],
+        seq: 3,
+      }),
+    ]);
+    const reread = await bookmarksOf(HERE);
+    expect(reread.bookmarks.snapshot().bookmarks).toEqual([
+      { ...page("a", 5), title: "Docs" },
+    ]);
+  });
+
   it("writes a bookmark's new address over its key, keeping its name and place", async () => {
     const { bookmarks } = await bookmarksOf(HERE);
     await bookmarks.apply({

@@ -1,4 +1,9 @@
 {
+  "activecampaign": {
+    "source": "app-store",
+    "id": 1239908329,
+    "license": "trademark"
+  },
   "ahrefs": {
     "source": "svgl",
     "path": "ahrefs.svg",
@@ -77,6 +82,16 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "basecamp": {
+    "source": "app-store",
+    "id": 1015603248,
+    "license": "trademark"
+  },
+  "beehiiv": {
+    "source": "site",
+    "url": "https://beehiiv-marketing-images.s3.amazonaws.com/Redesign2023/favicon.png",
+    "license": "trademark"
+  },
   "bitly": {
     "source": "thesvg",
     "path": "icons/bitly/default.svg",
@@ -100,11 +115,21 @@
     "url": "https://browserbase.com/favicon.svg",
     "license": "trademark"
   },
+  "buffer": {
+    "source": "app-store",
+    "id": 490474324,
+    "license": "trademark"
+  },
   "buildkite": {
     "source": "logos",
     "path": "buildkite-icon.svg",
     "version": "37a6b807fd71c622efea27a9309b5d4edc792969",
     "license": "CC0-1.0"
+  },
+  "cal-com": {
+    "source": "app-store",
+    "id": 6757157271,
+    "license": "trademark"
   },
   "calendly": {
     "source": "svgl",
@@ -119,12 +144,22 @@
     "license": "MIT",
     "override": "the sets match Canvas LMS by name; Canva is the service listed"
   },
+  "capacities": {
+    "source": "app-store",
+    "id": 1670188548,
+    "license": "trademark"
+  },
   "chatgpt": {
     "source": "svgl",
     "path": "openai.svg",
     "dark": "openai_dark.svg",
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
+  },
+  "circleback": {
+    "source": "app-store",
+    "id": 6738971048,
+    "license": "trademark"
   },
   "claude": {
     "source": "svgl",
@@ -169,6 +204,11 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "coda": {
+    "source": "app-store",
+    "id": 1397968110,
+    "license": "trademark"
+  },
   "consensus": {
     "source": "site",
     "url": "https://consensus.app/images/icon-384.png",
@@ -190,11 +230,21 @@
     "url": "https://cdn.prod.website-files.com/66955639e4d4a6eebd7168b9/669c18d1da1ae90bdf183976_crossbeam_icon256.png",
     "license": "trademark"
   },
+  "deepl": {
+    "source": "app-store",
+    "id": 1552407475,
+    "license": "trademark"
+  },
   "deepseek": {
     "source": "svgl",
     "path": "deepseek.svg",
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
+  },
+  "descript": {
+    "source": "site",
+    "url": "https://static-cdn.descript.com/web/icons/apple-touch-icon.png",
+    "license": "trademark"
   },
   "dovetail": {
     "source": "logos",
@@ -221,6 +271,11 @@
     "license": "trademark",
     "override": "logos and thesvg draw the bare black mark, which vanishes on a dark plate"
   },
+  "evernote": {
+    "source": "app-store",
+    "id": 281796108,
+    "license": "trademark"
+  },
   "exa": {
     "source": "logos",
     "path": "exa-icon.svg",
@@ -233,6 +288,11 @@
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
   },
+  "expensify": {
+    "source": "app-store",
+    "id": 471713959,
+    "license": "trademark"
+  },
   "expo": {
     "source": "svgl",
     "path": "expo.svg",
@@ -244,6 +304,11 @@
     "path": "icons/fal/color.svg",
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "MIT"
+  },
+  "fastmail": {
+    "source": "app-store",
+    "id": 931370077,
+    "license": "trademark"
   },
   "fathom": {
     "source": "app-store",
@@ -266,6 +331,11 @@
   "fireflies": {
     "source": "app-store",
     "id": 6463164203,
+    "license": "trademark"
+  },
+  "framer": {
+    "source": "site",
+    "url": "https://framerusercontent.com/images/aXvo6HfUhqvR7oFjFL8b4AcyGfg.png",
     "license": "trademark"
   },
   "front": {
@@ -366,6 +436,11 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "habitify": {
+    "source": "app-store",
+    "id": 1111447047,
+    "license": "trademark"
+  },
   "heroku": {
     "source": "svgl",
     "path": "heroku.svg",
@@ -433,6 +508,11 @@
     "id": 1485646310,
     "license": "trademark"
   },
+  "kit": {
+    "source": "site",
+    "url": "https://kit.com/apple-touch-icon.png",
+    "license": "trademark"
+  },
   "kiwi": {
     "source": "app-store",
     "id": 657843853,
@@ -441,6 +521,11 @@
   "klaviyo": {
     "source": "site",
     "url": "https://www.klaviyo.com/icons/icon-512x512.png",
+    "license": "trademark"
+  },
+  "krisp": {
+    "source": "app-store",
+    "id": 6740535865,
     "license": "trademark"
   },
   "linear": {
@@ -490,6 +575,11 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "metricool": {
+    "source": "app-store",
+    "id": 1072510529,
+    "license": "trademark"
+  },
   "microsoft-copilot": {
     "source": "svgl",
     "path": "microsoft-copilot.svg",
@@ -513,6 +603,11 @@
     "path": "icons/mixpanel/default.svg",
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
+  },
+  "monarch": {
+    "source": "app-store",
+    "id": 1459319842,
+    "license": "trademark"
   },
   "monday": {
     "source": "logos",
@@ -629,6 +724,11 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "pocketsmith": {
+    "source": "app-store",
+    "id": 1159515083,
+    "license": "trademark"
+  },
   "posthog": {
     "source": "svgl",
     "path": "posthog.svg",
@@ -667,6 +767,11 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "raindrop": {
+    "source": "app-store",
+    "id": 1021913807,
+    "license": "trademark"
+  },
   "ramp": {
     "source": "dashboard-icons",
     "path": "svg/ramp.svg",
@@ -678,6 +783,11 @@
     "path": "icons/razorpay/default.svg",
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
+  },
+  "readwise": {
+    "source": "app-store",
+    "id": 1476885528,
+    "license": "trademark"
   },
   "render": {
     "source": "svgl",
@@ -693,12 +803,22 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "replit": {
+    "source": "app-store",
+    "id": 1614022293,
+    "license": "trademark"
+  },
   "resend": {
     "source": "svgl",
     "path": "resend-icon-black.svg",
     "dark": "resend-icon-white.svg",
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
+  },
+  "roam-research": {
+    "source": "app-store",
+    "id": 1609277273,
+    "license": "trademark"
   },
   "sanity": {
     "source": "thesvg",
@@ -756,6 +876,11 @@
     "path": "slack.svg",
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
+  },
+  "sonos": {
+    "source": "app-store",
+    "id": 1488977981,
+    "license": "trademark"
   },
   "spotify": {
     "source": "svgl",
@@ -815,6 +940,11 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "tana": {
+    "source": "app-store",
+    "id": 6756723785,
+    "license": "trademark"
+  },
   "tavily": {
     "source": "thesvg",
     "path": "icons/tavily/color.svg",
@@ -832,6 +962,21 @@
     "path": "icons/thumbtack/default.svg",
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
+  },
+  "ticktick": {
+    "source": "app-store",
+    "id": 626144601,
+    "license": "trademark"
+  },
+  "tiller": {
+    "source": "site",
+    "url": "https://tiller.com/wp-content/uploads/2022/11/cropped-tiller-icon-180x180.png",
+    "license": "trademark"
+  },
+  "tldv": {
+    "source": "app-store",
+    "id": 6753818538,
+    "license": "trademark"
   },
   "todoist": {
     "source": "svgl",
@@ -862,6 +1007,11 @@
     "url": "https://typefully.com/icon/apple-icon.png",
     "license": "trademark"
   },
+  "upwork": {
+    "source": "app-store",
+    "id": 1446736499,
+    "license": "trademark"
+  },
   "vanta": {
     "source": "site",
     "url": "https://cdn.prod.website-files.com/64009032676f24f376f002fc/6a8611e0bb23845c59b54179_ilma-favicon.png",
@@ -887,6 +1037,11 @@
     "version": "ecb9adaafe41c578742e94fce90e6cc03c48a574",
     "license": "MIT"
   },
+  "wetransfer": {
+    "source": "app-store",
+    "id": 1569379048,
+    "license": "trademark"
+  },
   "wix": {
     "source": "logos",
     "path": "wix.svg",
@@ -898,6 +1053,11 @@
     "path": "icons/wolfram/default.svg",
     "version": "3cc8a0fe7a277de5bf60c61e2c9090d72fae6ba2",
     "license": "CC0-1.0"
+  },
+  "wordpress-com": {
+    "source": "app-store",
+    "id": 335703880,
+    "license": "trademark"
   },
   "workos": {
     "source": "svgl",

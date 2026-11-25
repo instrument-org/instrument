@@ -1,18 +1,31 @@
 import { AskButton } from "@/client/components/document-viewers/ask-selection";
 import { type VirtualElement } from "@floating-ui/dom";
-import { useEffect, useState } from "react";
+import { useMessageScroller } from "@/client/components/ui/message-scroller";
+import { centeringJump } from "@/client/components/task/chat-find";
+import { useEffect, useId, useImperativeHandle, useState } from "react";
+
+export interface QuoteSelectionRef {
+  /** Brings quoted words into view, where the transcript still has them. */
+  show: (words: string) => void;
+}
 
 /**
  * Offers to quote words selected in a reply: a Quote button by the selection,
- * which hands the words to the box. Only words within one of the chat's
+ * which hands the words to the box, and paints the words the box has quoted
+ * for as long as it has them. Only words within one of the chat's
  * replies, since a tool's output or the person's own message is not something
  * to answer.
  */
 export function QuoteSelection({
   onQuote,
+  quoted,
+  ref,
   rootRef,
 }: {
   onQuote: (words: string) => void;
+  /** The quotes the box has, as a JSON list. */
+  quoted: string;
+  ref?: React.Ref<QuoteSelectionRef>;
   rootRef: React.RefObject<HTMLElement | null>;
 }) {
   const [picked, setPicked] = useState<null | {
@@ -60,7 +73,60 @@ export function QuoteSelection({
     };
   }, [rootRef]);
 
-  return picked ? (
+  const { releaseAutoScroll, scrollToMessage } = useMessageScroller();
+  useImperativeHandle(ref, () => ({
+    show: (words) => {
+      const root = rootRef.current;
+      const range = root && findQuoted(root, words);
+      const viewport = root?.closest<HTMLElement>(
+        '[data-slot="message-scroller-viewport"]',
+      );
+      const jump = range && viewport && centeringJump(range, viewport);
+      if (jump) {
+        releaseAutoScroll();
+        scrollToMessage(jump.messageId, {
+          align: "start",
+          scrollMargin: jump.margin,
+        });
+      }
+    },
+  }));
+
+  const highlight = `chat-quoted-${useId().replaceAll(/[^\da-z]/gi, "")}`;
+  useEffect(() => {
+    const root = rootRef.current;
+    // Only this app's own list of words is ever handed in.
+    const quotes = JSON.parse(quoted) as string[];
+    if (!root || quotes.length === 0) {
+      return;
+    }
+    let frame = 0;
+    const paint = () => {
+      CSS.highlights.set(
+        highlight,
+        new Highlight(
+          ...quotes.flatMap((words) => findQuoted(root, words) ?? []),
+        ),
+      );
+    };
+    paint();
+    const observer = new MutationObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(paint);
+    });
+    observer.observe(root, {
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+      CSS.highlights.delete(highlight);
+    };
+  }, [highlight, quoted, rootRef]);
+
+  const button = picked ? (
     <AskButton
       label="Quote"
       onAsk={() => {
@@ -74,6 +140,55 @@ export function QuoteSelection({
       reference={picked.reference}
     />
   ) : null;
+  return (
+    <>
+      <style>
+        {`::highlight(${highlight}) { background-color: color-mix(in oklab, var(--color-brand-500) 15%, transparent); }`}
+      </style>
+      {button}
+    </>
+  );
+}
+
+/**
+ * Where quoted words are in the newest reply that has them. Compared without
+ * spaces, since a selection's line breaks are the layout's and the page's text
+ * has none between its paragraphs.
+ */
+function findQuoted(root: HTMLElement, words: string): Range | undefined {
+  const needle = words.replaceAll(/\s/g, "");
+  if (!needle) {
+    return undefined;
+  }
+  for (const reply of [
+    ...root.querySelectorAll("[data-reply-row]"),
+  ].reverse()) {
+    const at: { node: Text; offset: number }[] = [];
+    let text = "";
+    const walker = document.createTreeWalker(reply, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!(node instanceof Text)) {
+        continue;
+      }
+      for (let offset = 0; offset < node.data.length; offset++) {
+        const char = node.data.charAt(offset);
+        if (!/\s/.test(char)) {
+          text += char;
+          at.push({ node, offset });
+        }
+      }
+    }
+    const from = text.indexOf(needle);
+    const start = at[from];
+    const end = at[from + needle.length - 1];
+    if (from !== -1 && start && end) {
+      const range = document.createRange();
+      range.setStart(start.node, start.offset);
+      range.setEnd(end.node, end.offset + 1);
+      return range;
+    }
+  }
+  return undefined;
 }
 
 function readSelection(root: HTMLElement) {

@@ -1,4 +1,8 @@
-import { QuoteSelection } from "@/client/components/transcript/quote-selection";
+import {
+  QuoteSelection,
+  type QuoteSelectionRef,
+} from "@/client/components/transcript/quote-selection";
+import { splitLeadingQuotes } from "@/client/lib/leading-quotes";
 import {
   type PromptDraftKey,
   promptDraftRefAtom,
@@ -196,6 +200,9 @@ export function ChatConversation({
   const id = chatId;
 
   const promptInputRef = useRef<PromptInputRef>(null);
+  const quoteSelectionRef = useRef<QuoteSelectionRef>(null);
+  // As text, so typing that leaves the quotes as they are draws nothing new.
+  const [quoted, setQuoted] = useState("[]");
   // Change model on a failed reply opens the reply box's picker. While the box
   // is away, the picker opens as soon as it is back.
   const pickerWanted = useRef(false);
@@ -736,6 +743,12 @@ export function ChatConversation({
       onItemRemoved={draftKey.scope === "chat" ? staging.removeItem : undefined}
       onItemsChange={draftKey.scope === "chat" ? staging.keepItems : undefined}
       onModelChange={setSelectedModelURI}
+      onShowQuote={(words) => {
+        quoteSelectionRef.current?.show(words);
+      }}
+      onWordsChange={(words) => {
+        setQuoted(JSON.stringify(splitLeadingQuotes(words).quotes));
+      }}
       // Stop reaches the chat's own turn and every task it started, so it is
       // offered while any of them is working.
       {...(isChatRunning && {
@@ -986,6 +999,8 @@ export function ChatConversation({
                   onQuote={(words) => {
                     promptInputRef.current?.appendQuote(words);
                   }}
+                  quoted={quoted}
+                  ref={quoteSelectionRef}
                   rootRef={contentRef}
                 />
               )}

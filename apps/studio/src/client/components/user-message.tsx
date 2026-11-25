@@ -13,6 +13,8 @@ import { debounce } from "radashi";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { CopyButton } from "./copy-button";
+import { splitLeadingQuotes } from "@/client/lib/leading-quotes";
+
 import { SkillMentionText } from "./skill-mention-text";
 import { useReleaseAutoScroll } from "./transcript-scroll-context";
 import {
@@ -80,6 +82,7 @@ export function MessageBubble({
   const [isExpanded, setIsExpanded] = useState(false);
   const [isOverflowing, setIsOverflowing] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
+  const { quotes, words } = splitLeadingQuotes(messageText);
 
   const handleCopy = async () => {
     // Copy what is on screen. Neither form round trips back into the composer
@@ -148,6 +151,8 @@ export function MessageBubble({
                   which the window's zoom would throw off. */}
               <div
                 className={cn(
+                  // A quote's card sits past the words on three sides.
+                  "has-data-quote:-mx-2 has-data-quote:-mt-0.5 has-data-quote:px-2",
                   isExpanded ? "max-h-400 overflow-y-auto" : "overflow-hidden",
                 )}
                 data-slot="user-message-content"
@@ -159,7 +164,22 @@ export function MessageBubble({
                 }
               >
                 <div className="text-sm break-words whitespace-pre-wrap">
-                  <SkillMentionText text={messageText} />
+                  {quotes.map((quote, index) => (
+                    <div
+                      className={cn(
+                        "-mx-2 flex gap-2.5 rounded-[10px] bg-black/6 p-2.5 text-[13px] leading-[22px] text-foreground/75 dark:bg-black/20",
+                        words === "" && index === quotes.length - 1
+                          ? "mb-0.5"
+                          : "mb-2",
+                      )}
+                      data-quote=""
+                      key={index}
+                    >
+                      <span className="w-[3px] shrink-0 rounded-full bg-foreground/25" />
+                      <span className="min-w-0">{quote}</span>
+                    </div>
+                  ))}
+                  {words !== "" && <SkillMentionText text={words} />}
                 </div>
               </div>
 

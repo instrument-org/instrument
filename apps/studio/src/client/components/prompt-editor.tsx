@@ -93,12 +93,15 @@ import {
   appOfNode,
   appendDictated,
   appendQuote,
+  deleteQuoteBackward,
   deleteTokenBackward,
   deleteTokenForward,
   promptDocFromPastedText,
   promptDocFromText,
+  promptDocFromWords,
   promptSchema,
   promptTextFromDoc,
+  quoteOfNode,
 } from "./prompt-editor-model";
 import {
   closeSlashMenu,
@@ -109,6 +112,7 @@ import {
   type SlashMenuState,
 } from "./slash-menu";
 import { PromptLinkBar } from "./prompt-link-bar";
+import { PromptQuote } from "./prompt-quote";
 
 // `baseKeymap` deliberately leaves history out, so undo/redo only work once the
 // keys are bound alongside the history plugin.
@@ -137,6 +141,7 @@ const editorPlugins = () => [
     "Shift-Tab": indentListItem(-1),
     Tab: indentListItem(1),
   }),
+  keymap({ Backspace: deleteQuoteBackward }),
   keymap({
     Backspace: deleteTokenBackward,
     Delete: deleteTokenForward,
@@ -174,7 +179,7 @@ export interface PromptEditorRef {
   completeAhead: (rest: string) => boolean;
   focus: () => void;
   getValue: () => string;
-  /** Adds words after what is written, as a quote, with the caret below it. */
+  /** Adds words as a quote over what is written, with the caret after it. */
   appendQuote: (words: string) => void;
   /** Insert at the caret, spaced off from whatever it lands between. */
   insertText: (text: string) => void;
@@ -201,7 +206,10 @@ type MenuEntry =
 interface TokenChip {
   id: number;
   target: HTMLElement;
-  token: { app: AppMentionRef; type: "app" } | { name: string; type: "skill" };
+  token:
+    | { app: AppMentionRef; type: "app" }
+    | { name: string; type: "skill" }
+    | { remove: () => void; type: "quote"; words: string };
 }
 
 // Generous rather than tight: the list scrolls, so a long query that still
@@ -299,6 +307,7 @@ export function PromptEditor({
   onChange,
   onCommandEnter,
   onPaste,
+  onShowQuote,
   onSubmit,
   placeholder,
   ref,
@@ -334,6 +343,8 @@ export function PromptEditor({
    * first of its suggested next messages.
    */
   onCommandEnter?: () => void;
+  /** Shows where a quote's words are, when its card is pressed. */
+  onShowQuote?: (words: string) => void;
   onSubmit: () => void;
   placeholder?: string;
   ref?: React.Ref<PromptEditorRef>;
@@ -610,6 +621,39 @@ export function PromptEditor({
             stopEvent: () => true,
           };
         },
+        quote: (node, editorView, getPos) => {
+          const target = document.createElement("div");
+          target.contentEditable = "false";
+          target.dataset.quote = "";
+          const id = (chipIdRef.current += 1);
+          const remove = () => {
+            const pos = getPos();
+            if (pos !== undefined) {
+              editorView.dispatch(
+                closeHistory(
+                  editorView.state.tr.delete(pos, pos + node.nodeSize),
+                ),
+              );
+            }
+            editorView.focus();
+          };
+          setChips((current) => [
+            ...current,
+            {
+              id,
+              target,
+              token: { remove, type: "quote", words: quoteOfNode(node) ?? "" },
+            },
+          ]);
+          return {
+            destroy: () => {
+              setChips((current) => current.filter((chip) => chip.id !== id));
+            },
+            dom: target,
+            ignoreMutation: () => true,
+            stopEvent: () => true,
+          };
+        },
         skill: (node) => {
           const name = String(node.attrs.name);
           const target = document.createElement("span");
@@ -711,6 +755,16 @@ export function PromptEditor({
     }
   }, [dictating, settledWords, interimWords]);
 
+  // A quote's card takes its height only once drawn, after the edit that added
+  // it brought the caret into view, so the caret is brought back.
+  const quoteCount = chips.filter(({ token }) => token.type === "quote").length;
+  useLayoutEffect(() => {
+    const view = viewRef.current;
+    if (view && quoteCount > 0) {
+      view.dispatch(view.state.tr.scrollIntoView());
+    }
+  }, [quoteCount]);
+
   // Navigating between skills reuses this view, so the placeholder has to track
   // the prop rather than the value captured when the view was constructed.
   useEffect(() => {
@@ -779,7 +833,7 @@ export function PromptEditor({
     // outside becomes a chip rather than its own markup.
     view.dispatch(
       view.state.tr.replaceSelection(
-        Slice.maxOpen(promptDocFromText(leading + text + trailing).content),
+        Slice.maxOpen(promptDocFromWords(leading + text + trailing).content),
       ),
     );
   };
@@ -917,6 +971,8 @@ export function PromptEditor({
             <div
               className={cn(
                 "min-h-0 flex-1 overflow-y-auto",
+                // A quote's card sits 6px past the words on three sides.
+                "has-data-quote:-mx-1.5 has-data-quote:-mt-1.5 has-data-quote:px-1.5",
                 overflowing && "scroll-fade-y",
               )}
               ref={mountRef}
@@ -925,6 +981,12 @@ export function PromptEditor({
               createPortal(
                 chip.token.type === "app" ? (
                   <AppMention app={chip.token.app} />
+                ) : chip.token.type === "quote" ? (
+                  <PromptQuote
+                    onRemove={chip.token.remove}
+                    onShow={onShowQuote}
+                    words={chip.token.words}
+                  />
                 ) : (
                   <SkillMentionByName
                     name={chip.token.name}

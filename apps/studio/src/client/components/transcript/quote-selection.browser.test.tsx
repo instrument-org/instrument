@@ -9,6 +9,13 @@ import { userEvent } from "vitest/browser";
 
 import { QuoteSelection } from "./quote-selection";
 
+vi.mock("@/client/components/ui/message-scroller", () => ({
+  useMessageScroller: () => ({
+    releaseAutoScroll: noop,
+    scrollToMessage: noop,
+  }),
+}));
+
 vi.mock("@/client/components/skill-mention", () => ({
   SkillMentionByName: ({ name }: { name: string }) => <span>/{name}</span>,
 }));
@@ -19,6 +26,7 @@ const noop = () => {
 
 async function draw(words = "") {
   const editor = createRef<PromptEditorRef>();
+  const onShow = vi.fn();
   const root: RefObject<HTMLDivElement | null> = createRef();
   const screen = await render(
     <div>
@@ -37,6 +45,7 @@ async function draw(words = "") {
         onQuote={(quoted) => {
           editor.current?.appendQuote(quoted);
         }}
+        quoted="[]"
         rootRef={root}
       />
       <PromptEditor
@@ -48,6 +57,7 @@ async function draw(words = "") {
         disabled={false}
         onChange={noop}
         onPaste={() => false}
+        onShowQuote={onShow}
         onSubmit={noop}
         placeholder=""
         ref={editor}
@@ -64,6 +74,10 @@ async function draw(words = "") {
     const range = document.createRange();
     range.setStart(start, 0);
     range.setEnd(end, toOffset ?? end.childNodes.length);
+    // A drag over a reply takes the keyboard from the box.
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     const selection = document.getSelection();
     selection?.removeAllRanges();
     selection?.addRange(range);
@@ -71,6 +85,8 @@ async function draw(words = "") {
   };
   return {
     button: screen.getByRole("button", { exact: true, name: "Quote" }),
+    onShow,
+    screen,
     select,
     value: () => editor.current?.getValue(),
   };
@@ -91,16 +107,41 @@ it("puts the words in the box as a quote, ready to answer", async () => {
   expect(document.getSelection()?.toString()).toBe("");
 });
 
-it("goes after what is already written", async () => {
+it("goes over what is already written, under an earlier quote", async () => {
   const { button, select, value } = await draw("Thanks.");
   await select("first", "first");
   await button.click();
+  await select("second", "second");
+  await button.click();
+  await userEvent.keyboard(" Why?");
   expect(value()).toMatchInlineSnapshot(`
-    "Thanks.
-    > Make soup.
+    "> Make soup.
 
-    "
+    > Or bake bread.
+
+    Thanks. Why?"
   `);
+});
+
+it("takes a quote out with its button, Backspace or undo", async () => {
+  const { button, screen, select, value } = await draw();
+  await select("first", "first");
+  await button.click();
+  await select("second", "second");
+  await button.click();
+  await userEvent.keyboard("{Backspace}");
+  expect(value()).toBe("> Make soup.\n\n");
+  await screen.getByRole("button", { name: "Remove quote" }).click();
+  expect(value()).toBe("");
+  await userEvent.keyboard("{ControlOrMeta>}z{/ControlOrMeta}");
+  expect(value()).toBe("> Make soup.\n\n");
+});
+
+it("reads a draft's quotes back as cards, and shows where one is from", async () => {
+  const { onShow, screen, value } = await draw("> Make soup.\n\nWhy?");
+  expect(value()).toBe("> Make soup.\n\nWhy?");
+  await screen.getByRole("button", { name: "Show quote in chat" }).click();
+  expect(onShow).toHaveBeenCalledWith("Make soup.");
 });
 
 it("takes a selection that ends at the start of what follows the reply", async () => {

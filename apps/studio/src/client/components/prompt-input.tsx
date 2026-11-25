@@ -143,7 +143,7 @@ export interface PromptInputDraft {
 }
 
 export interface PromptInputRef {
-  /** Adds words after what is written, as a quote, with the caret below it. */
+  /** Adds words as a quote over what is written, with the caret after it. */
   appendQuote: (words: string) => void;
   clear: () => void;
   /** Writes the rest of what the words start after the caret, selected (`PromptEditorRef.completeAhead`). */
@@ -270,6 +270,8 @@ interface PromptInputProps {
   onEmptyChange?: (empty: boolean) => void;
   /** The box's words, as it opens and each time they change. */
   onWordsChange?: (words: string) => void;
+  /** Shows where a quote's words are, when its card is pressed. */
+  onShowQuote?: (words: string) => void;
 }
 
 /**
@@ -312,6 +314,7 @@ export const PromptInput = ({
   onCommandEnterWhenEmpty,
   onEmptyChange,
   onWordsChange,
+  onShowQuote,
 }: PromptInputProps) => {
   const features = useAtomValue(featuresAtom);
   const isActiveTab = useIsActiveTab();
@@ -1316,6 +1319,7 @@ export const PromptInput = ({
             onChange={setValue}
             onCommandEnter={hasNothing ? onCommandEnterWhenEmpty : undefined}
             onPaste={handlePaste}
+            onShowQuote={onShowQuote}
             onSubmit={send}
             placeholder={placeholder}
             ref={promptEditorRef}

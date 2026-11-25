@@ -5,6 +5,10 @@ import {
 } from "@/client/lib/app-mention";
 import { type SkillTextSegment, splitSkillText } from "@/client/lib/skill-text";
 import { SKILL_TOKEN_CLASS_NAME } from "@/client/lib/skill-tokens";
+import {
+  joinLeadingQuotes,
+  splitLeadingQuotes,
+} from "@/client/lib/leading-quotes";
 import { isWebPage } from "@/client/lib/open-target";
 import { markdownLinkText, splitMarkdownLinks } from "@/shared/link-text";
 import {
@@ -32,7 +36,14 @@ import {
 
 export const promptSchema = new Schema({
   nodes: {
-    doc: { content: "paragraph+" },
+    doc: { content: "quote* paragraph+" },
+    /** Words of a reply being answered, a card over what is written. */
+    quote: {
+      atom: true,
+      attrs: { words: {} },
+      selectable: false,
+      toDOM: (node) => ["blockquote", String(node.attrs.words)],
+    },
     paragraph: {
       content: "inline*",
       group: "block",
@@ -106,6 +117,15 @@ export function linkOfNode(node: ProseMirrorNode): string | undefined {
   const mark = promptSchema.marks.link.isInSet(node.marks);
   return mark ? String(mark.attrs.href) : undefined;
 }
+
+/** The words a node quotes, when it is a quote. */
+export function quoteOfNode(node: ProseMirrorNode): string | undefined {
+  return node.type === promptSchema.nodes.quote
+    ? String(node.attrs.words)
+    : undefined;
+}
+
+const quoteNode = (words: string) => promptSchema.nodes.quote.create({ words });
 
 /** The app a node names, when it is an app node. */
 export function appOfNode(node: ProseMirrorNode): AppMention | undefined {
@@ -187,7 +207,17 @@ export function promptDocFromPastedText(
   return promptSchema.nodes.doc.create(null, paragraphs);
 }
 
+/** A whole prompt's document: its quotes as cards, then its words. */
 export function promptDocFromText(value: string) {
+  const { quotes, words } = splitLeadingQuotes(value);
+  return promptSchema.nodes.doc.create(null, [
+    ...quotes.map(quoteNode),
+    ...promptDocFromWords(words).content.content,
+  ]);
+}
+
+/** Words going in among others, where a quote's marks are only characters. */
+export function promptDocFromWords(value: string) {
   const paragraphs = value.split("\n").map((line) => {
     const nodes = splitSkillMention(line).flatMap(
       (segment: SkillMentionSegment): ProseMirrorNode[] =>
@@ -200,31 +230,37 @@ export function promptDocFromText(value: string) {
   return promptSchema.nodes.doc.create(null, paragraphs);
 }
 
-/**
- * Puts `words` at the end of the document as a quote, a `> ` before each
- * line, with a blank line after it, since a line right under a Markdown quote
- * reads as more of it, and the caret on the line below that. The words go in
- * as plain text: what looks like a token in them is something being quoted.
- */
+/** Where a document's quotes end and its words start. */
+function quotesEnd(doc: ProseMirrorNode): number {
+  let end = 0;
+  doc.forEach((node, offset) => {
+    if (quoteOfNode(node) !== undefined) {
+      end = offset + node.nodeSize;
+    }
+  });
+  return end;
+}
+
+/** Adds `words` as a quote under the ones already there, with the caret after what is written. */
 export function appendQuote(state: EditorState, words: string): Transaction {
-  const { paragraph } = promptSchema.nodes;
-  const lines = words
+  const quoted = words
     .trim()
-    .replaceAll(/\n{3,}/g, "\n\n")
-    .split("\n")
-    .map((line) => `> ${line}`.trimEnd());
-  const added = [...lines, "", ""].map((line) =>
-    paragraph.create(null, line ? textNodes(line) : []),
-  );
-  const { doc } = state;
-  const last = doc.lastChild;
-  const end = doc.content.size;
-  const tr =
-    last?.content.size === 0
-      ? state.tr.replaceWith(end - last.nodeSize, end, added)
-      : state.tr.insert(end, added);
+    .replaceAll(/[^\S\n]+$/gm, "")
+    .replaceAll(/\n{3,}/g, "\n\n");
+  const tr = state.tr.insert(quotesEnd(state.doc), quoteNode(quoted));
   return tr.setSelection(TextSelection.atEnd(tr.doc)).scrollIntoView();
 }
+
+/** Backspace before the first word takes out the quote above it. */
+export const deleteQuoteBackward: Command = (state, dispatch) => {
+  const { $cursor } = state.selection as TextSelection;
+  const end = quotesEnd(state.doc);
+  if (!$cursor || end === 0 || $cursor.pos !== end + 1) {
+    return false;
+  }
+  dispatch?.(state.tr.delete(end - 1, end));
+  return true;
+};
 
 /**
  * Puts dictated words at the end of the document, after a space on its last
@@ -273,8 +309,14 @@ export function appendDictated(state: EditorState, text: string): Transaction {
 
 export function promptTextFromDoc(doc: ProseMirrorNode) {
   const paragraphs: string[] = [];
+  const quotes: string[] = [];
   for (let index = 0; index < doc.childCount; index++) {
     const paragraph = doc.child(index);
+    const quote = quoteOfNode(paragraph);
+    if (quote !== undefined) {
+      quotes.push(quote);
+      continue;
+    }
     let value = "";
     for (let childIndex = 0; childIndex < paragraph.childCount; childIndex++) {
       const node = paragraph.child(childIndex);
@@ -309,7 +351,7 @@ export function promptTextFromDoc(doc: ProseMirrorNode) {
     }
     paragraphs.push(value);
   }
-  return paragraphs.join("\n");
+  return joinLeadingQuotes(quotes, paragraphs.join("\n"));
 }
 
 /** The text of a line as nodes: its apps as tokens, the rest as text with `marks`. */

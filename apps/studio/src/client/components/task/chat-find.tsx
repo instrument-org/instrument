@@ -461,7 +461,7 @@ async function drawn(content: HTMLElement, id: string) {
  * on-screen px and margins layout px, so distances are divided by the zoom
  * the viewport is drawn at.
  */
-function centeringJump(
+export function centeringJump(
   range: Range,
   viewport: HTMLElement,
 ): undefined | { margin: number; messageId: string } {

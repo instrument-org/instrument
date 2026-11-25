@@ -59,6 +59,19 @@
   text-indent: calc(-1 * var(--prompt-hang));
 }
 
+.prompt-editor [data-quote] + [data-quote] {
+  margin-top: 0.5rem;
+}
+
+/* Set back by the box's 6px, so the last card ends 12px over the words. */
+.prompt-editor [data-quote] {
+  margin-inline: -0.375rem;
+}
+
+.prompt-editor [data-quote] + p {
+  margin-top: 0.75rem;
+}
+
 /* The words being heard, where they will land: at the end of the last line,
    the stretch still being heard fainter, then a short bar marking the spot.
    Not part of the text, so the caret never enters it. */

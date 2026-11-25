@@ -578,6 +578,33 @@ describe("resolveAgentBrowserPathArgs", () => {
     await fs.writeFile(`${shell}/work/image.png`, "image");
   });
 
+  it.each([
+    [["screenshot", "img", "--path", "out.png"]],
+    [["screenshot", "--output=out.png"]],
+    [["pdf", "--path", "out.pdf"]],
+    [["download", "@e1", "--out", "file.zip"]],
+  ])("refuses a flag where the file goes: %j", async (args) => {
+    expect(
+      await resolveAgentBrowserPathArgs(
+        args,
+        { cwd: `${shell}/work`, fs },
+        layout,
+      ),
+    ).toEqual({ error: expect.stringContaining("unknown flag '--") });
+  });
+
+  it.each([
+    [["screenshot", "img", "--", "--path"], `${chat}/work/--path`],
+    [["screenshot", "--threshold=0.1", "out.png"], `${chat}/work/out.png`],
+  ])("takes the file %j names", async (args, file) => {
+    const result = await resolveAgentBrowserPathArgs(
+      args,
+      { cwd: `${shell}/work`, fs },
+      layout,
+    );
+    expect(result).toEqual({ args: [...args.slice(0, -1), file] });
+  });
+
   it("hands upload files to the daemon absolute, against the shell's cwd", async () => {
     const result = await resolveAgentBrowserPathArgs(
       [

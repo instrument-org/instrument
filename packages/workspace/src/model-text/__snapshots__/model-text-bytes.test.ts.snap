@@ -18,7 +18,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 - Open a file by the path you would give any other tool: \`agent-browser open site/report.html\`, or the full path of a file in one of your folders. A \`file://\` URL outside your folders is refused.
 - An HTML file you made is done only once it is loaded and checked: \`open\` it, then \`get text body\`, \`errors\`, \`screenshot\`, and \`a11y\`. Check that computed values appear as text, that controls do what they claim, that \`errors\` is empty, and that \`a11y\` reports nothing critical or serious.
-- Screenshots without a path go to \`screenshots/\`. The last screenshot a call takes comes back in its result as an image, so there is no need to read the file; take one when how the page looks matters, such as a layout, a chart, or a control the snapshot does not name. \`screenshot --full\` captures the whole page as it is laid out now, without scrolling it: content that loads on scroll is missing, and a page that scrolls inside an element of its own comes out one screen tall, so capture that element (\`screenshot <selector>\`). It stops at 16384 pixels tall and says so. A tall capture is shown small; read a region of the file for detail.
+- Screenshots without a path go to \`screenshots/\`. The last screenshot a call takes comes back in its result as an image, so there is no need to read the file; take one when how the page looks matters, such as a layout, a chart, or a control the snapshot does not name. \`screenshot --full\` captures the whole page as it is laid out now, without scrolling it: content that loads on scroll is missing, and a page that scrolls inside an element of its own comes out one screen tall, so capture that element (\`screenshot <selector> [path]\`). It stops at 16384 pixels tall and says so. A tall capture is shown small; read a region of the file for detail.
 
 ## Habits that work here
 
@@ -201,7 +201,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 - Open a file by the path you would give any other tool: \`agent-browser open site/report.html\`, or the full path of a file in one of your folders. A \`file://\` URL outside your folders is refused.
 - An HTML file you made is done only once it is loaded and checked: \`open\` it, then \`get text body\`, \`errors\`, \`screenshot\`, and \`a11y\`. Check that computed values appear as text, that controls do what they claim, that \`errors\` is empty, and that \`a11y\` reports nothing critical or serious.
-- Screenshots without a path go to \`screenshots/\`. The last screenshot a call takes comes back in its result as an image, so there is no need to read the file; take one when how the page looks matters, such as a layout, a chart, or a control the snapshot does not name. \`screenshot --full\` captures the whole page as it is laid out now, without scrolling it: content that loads on scroll is missing, and a page that scrolls inside an element of its own comes out one screen tall, so capture that element (\`screenshot <selector>\`). It stops at 16384 pixels tall and says so. A tall capture is shown small; read a region of the file for detail.
+- Screenshots without a path go to \`screenshots/\`. The last screenshot a call takes comes back in its result as an image, so there is no need to read the file; take one when how the page looks matters, such as a layout, a chart, or a control the snapshot does not name. \`screenshot --full\` captures the whole page as it is laid out now, without scrolling it: content that loads on scroll is missing, and a page that scrolls inside an element of its own comes out one screen tall, so capture that element (\`screenshot <selector> [path]\`). It stops at 16384 pixels tall and says so. A tall capture is shown small; read a region of the file for detail.
 
 ## Habits that work here
 
@@ -2010,7 +2010,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 
 - Open a file by the path you would give any other tool: \`agent-browser open site/report.html\`, or the full path of a file in one of your folders. A \`file://\` URL outside your folders is refused.
 - An HTML file you made is done only once it is loaded and checked: \`open\` it, then \`get text body\`, \`errors\`, \`screenshot\`, and \`a11y\`. Check that computed values appear as text, that controls do what they claim, that \`errors\` is empty, and that \`a11y\` reports nothing critical or serious.
-- Screenshots without a path go to \`screenshots/\`. The last screenshot a call takes comes back in its result as an image, so there is no need to read the file; take one when how the page looks matters, such as a layout, a chart, or a control the snapshot does not name. \`screenshot --full\` captures the whole page as it is laid out now, without scrolling it: content that loads on scroll is missing, and a page that scrolls inside an element of its own comes out one screen tall, so capture that element (\`screenshot <selector>\`). It stops at 16384 pixels tall and says so. A tall capture is shown small; read a region of the file for detail.
+- Screenshots without a path go to \`screenshots/\`. The last screenshot a call takes comes back in its result as an image, so there is no need to read the file; take one when how the page looks matters, such as a layout, a chart, or a control the snapshot does not name. \`screenshot --full\` captures the whole page as it is laid out now, without scrolling it: content that loads on scroll is missing, and a page that scrolls inside an element of its own comes out one screen tall, so capture that element (\`screenshot <selector> [path]\`). It stops at 16384 pixels tall and says so. A tall capture is shown small; read a region of the file for detail.
 
 ## Habits that work here
 
@@ -2533,6 +2533,15 @@ exports[`the notes a stored data part renders > layoutChanges 1`] = `
 <instrument-system-note>
 Tab group changes: opened zendesk.com/pricing [tab_01M0000000000000000000000T] on the left.
 </instrument-system-note>",
+  ],
+]
+`;
+
+exports[`the notes a stored data part renders > linkedTabs 1`] = `
+[
+  [
+    "First",
+    "data-linkedTabs",
   ],
 ]
 `;

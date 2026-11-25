@@ -1,5 +1,7 @@
 {
   "extends": "@instrument-org/typescript-config/base.json",
+  // The scripts run under node, which imports a TypeScript file by its name.
+  "compilerOptions": { "allowImportingTsExtensions": true, "noEmit": true },
   "include": ["*.ts", "scripts"],
   // A probe run with node's type stripping, importing workspace sources by
   // their .ts paths, which this config does not resolve.

@@ -1,3 +1,5 @@
+import { EventEmitter } from "node:events";
+import { writeSync } from "node:fs";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -23,6 +25,10 @@ import { AGENT_BROWSER_STUB_MESSAGE } from "./stub";
 
 // The agent-browser CLI is answered here; `node` and everything else the
 // shell starts run for real.
+vi.mock("node:child_process", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:child_process")>();
+  return { ...actual, spawn: vi.fn(actual.spawn) };
+});
 vi.mock("execa", async (importOriginal) => {
   const actual = await importOriginal<typeof import("execa")>();
   return { ...actual, execa: vi.fn(actual.execa) };
@@ -59,6 +65,31 @@ const NO_MESSAGES = JSON.stringify({
   data: { result: { loadedAt: 0, regions: [], url: "https://example.com/" } },
   success: true,
 });
+
+/** Records a run of the CLI and says how it ends. */
+function standIn(
+  words: string[],
+  env: Record<string, string | undefined> | undefined,
+  input: Buffer | string | undefined,
+) {
+  const at = words.indexOf("--session");
+  const args = at === -1 ? words : words.slice(at + 2);
+  runs.push({
+    args,
+    env: env ?? {},
+    input: input?.toString("utf8"),
+    session: at === -1 ? undefined : words[at + 1],
+  });
+  return args[0] === "--json" && args[1] === "eval"
+    ? { exitCode: 0, stderr: "", stdout: NO_MESSAGES }
+    : args[0] === "tab"
+      ? { exitCode: 0, stderr: "", stdout: TABS }
+      : args[0] === "snapshot"
+        ? { exitCode: 0, stderr: "", stdout: '- link "Next" [ref=e1]\n' }
+        : args[0] === "wait"
+          ? { exitCode: 0, stderr: "", stdout: "" }
+          : answer(args);
+}
 
 beforeEach(async () => {
   knowChat(chatId);
@@ -98,28 +129,59 @@ beforeEach(async () => {
         { once: () => undefined },
       );
     }
-    const at = words.indexOf("--session");
-    const args = at === -1 ? words : words.slice(at + 2);
-    runs.push({
-      args,
-      env: options.env ?? {},
-      input: options.input?.toString("utf8"),
-      session: at === -1 ? undefined : words[at + 1],
-    });
-    const ended =
-      args[0] === "--json" && args[1] === "eval"
-        ? { exitCode: 0, stderr: "", stdout: NO_MESSAGES }
-        : args[0] === "tab"
-          ? { exitCode: 0, stderr: "", stdout: TABS }
-          : args[0] === "snapshot"
-            ? { exitCode: 0, stderr: "", stdout: '- link "Next" [ref=e1]\n' }
-            : args[0] === "wait"
-              ? { exitCode: 0, stderr: "", stdout: "" }
-              : answer(args);
+    const ended = standIn(words, options.env, options.input);
     return Object.assign(
       sleep(cliMs).then(() => ended),
       { once: () => undefined },
     );
+  }) as never);
+  // On Windows the CLI is spawned with its output going to two files, which
+  // are written as it starts, since the caller closes them once it has.
+  const { spawn } = await import("node:child_process");
+  const real =
+    await vi.importActual<typeof import("node:child_process")>(
+      "node:child_process",
+    );
+  vi.mocked(spawn).mockImplementation(((
+    file: string,
+    given: string[],
+    options: {
+      env?: Record<string, string | undefined>;
+      stdio: [unknown, number, number];
+    },
+  ) => {
+    if (file !== agentBrowserPath()) {
+      return real.spawn(file, given, options as never);
+    }
+    const run = runs.length;
+    const ended = standIn(given, options.env, undefined);
+    writeSync(options.stdio[1], ended.stdout);
+    writeSync(options.stdio[2], ended.stderr);
+    const child = new EventEmitter();
+    let exited = false;
+    const exit = (code: number | null) => {
+      if (!exited) {
+        exited = true;
+        child.emit("exit", code);
+      }
+    };
+    const timer = setTimeout(() => {
+      exit(ended.exitCode);
+    }, cliMs);
+    return Object.assign(child, {
+      kill: () => {
+        clearTimeout(timer);
+        exit(null);
+      },
+      stdin: {
+        end: (input?: Buffer | string) => {
+          const started = runs[run];
+          if (started && input !== undefined) {
+            started.input = input.toString("utf8");
+          }
+        },
+      },
+    });
   }) as never);
 });
 

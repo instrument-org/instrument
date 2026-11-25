@@ -30,6 +30,7 @@ import {
   chatsProject,
   chatsRename,
   chatsStar,
+  chatsStop,
   chatsUnarchive,
   chatsUnstar,
 } from "./chats";
@@ -101,6 +102,7 @@ export const CAPABILITIES: readonly Capability[] = [
   chatsUnstar,
   chatsMarkRead,
   chatsMarkUnread,
+  chatsStop,
   generateImageCapability,
   memoryList,
   memorySave,

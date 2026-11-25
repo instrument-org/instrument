@@ -7,17 +7,12 @@ import { call, type } from "@orpc/server";
 import { sleep } from "radashi";
 import { z } from "zod";
 
-import { stopRunningProcesses } from "../../lib/background-processes";
 import { changedMessageBatches } from "../../lib/changed-message-batches";
 import { isWorking } from "../../lib/chat/activity";
-import { markChatStopped } from "../../lib/chat/chats";
-import { listChildTasks } from "../../lib/chat/children";
-import { type TakenBack, takeBackUnanswered } from "../../lib/chat/take-back";
-import { noteTaskStoppedOnCard } from "../../lib/chat/wake";
+import { stopChat } from "../../lib/chat/stop-chat";
+import { type TakenBack } from "../../lib/chat/take-back";
 import { enqueueWake, saveNote } from "../../lib/chat/wake-queue";
 import { askWindow } from "../../lib/chat/window-tab";
-import { closeAsksOf } from "../../lib/chat/asks";
-import { openAsksOf, openQuestions } from "../../lib/chat/open-asks";
 import { sessionOfChat } from "../../lib/record-folders";
 import { ChatReads } from "../../lib/chat-reads";
 import { type SessionMessage } from "../../schemas/session/message";
@@ -100,17 +95,9 @@ function endsOnFinishedReply(messages: readonly SessionMessage.WithParts[]) {
 }
 
 /**
- * Stops a record's agents: a chat's, which is its own conversation and every
- * task it started; or with `sessionId`, that one session alone, a task's
- * from its row or page, with everything it has running in the background,
- * or the chat's own turn alone, which leaves its tasks working and its
- * processes running.
- *
- * With `takeBack`, a Stop that reaches the chat's own turn before the model
- * has answered the person's message takes that message back
- * (`takeBackUnanswered`): it goes from the chat, the Stop is not recorded,
- * since what it stopped is gone, and what it was sent with is answered for
- * the reply box.
+ * The person's Stop (`stopChat`). With `takeBack`, a Stop that reaches the
+ * chat's own turn before the model has answered the person's message takes
+ * that message back, and what it was sent with is answered for the reply box.
  */
 export const stop = base
   .input(
@@ -122,90 +109,12 @@ export const stop = base
   )
   .output(type<{ takenBack?: TakenBack }>())
   .handler(async ({ context, input }) => {
-    // When the user pressed Stop, on the clock a message is dated by, and
-    // whether it reaches a turn of the chat's own, read before the stop
-    // lands on it.
-    const pressedAt = new Date();
-    const chatSessionId = sessionOfChat(input.id);
-    const reachesChat =
-      chatSessionId !== undefined &&
-      (input.sessionId === undefined || input.sessionId === chatSessionId);
-    const stopsOwnTurn = reachesChat && isWorking(input.id, chatSessionId);
-    // A question the chat asked closes with the Stop, which its record says,
-    // so a chat waiting on one is marked stopped even with no turn to end.
-    const closesQuestions =
-      reachesChat && (await openQuestions(input.id)).length > 0;
-    // A task whose turn ended with a card still up has no turn for the stop
-    // to end, so nothing would say it stopped; read before its cards go.
-    // The whole chat's Stop reaches every task of it.
-    const stopsTasks =
-      input.sessionId === undefined
-        ? (await listChildTasks(input.id)).map((task) => task.id)
-        : input.sessionId === chatSessionId
-          ? []
-          : [input.sessionId];
-    const waitingOnCard = (
-      await Promise.all(
-        stopsTasks.map(async (sessionId) =>
-          !isWorking(input.id, sessionId) &&
-          (await openAsksOf(input.id, sessionId)).length > 0
-            ? sessionId
-            : undefined,
-        ),
-      )
-    ).filter((sessionId) => sessionId !== undefined);
-    // A task the person stops ends what it runs in the background too, as
-    // the agent's `instrument task stop --all` does. A job handed to the task is the
-    // task's, so this reaches it. A process can take seconds to go, so the
-    // turn is not kept waiting on it; the note the stop leaves the chat waits
-    // instead (`wake.ts`), so it names nothing as still running.
-    if (input.sessionId !== undefined && input.sessionId !== chatSessionId) {
-      stopRunningProcesses({ by: "user", sessionId: input.sessionId }).catch(
-        context.workspaceConfig.captureException,
-      );
-    }
-    // The user's stop, which the task's page ends on. Every task it ends,
-    // one stopped alone or all of them with the whole chat, is written into
-    // the chat as a note that starts no turn, so its agent does not wait on a
-    // task nobody is running; the chat's own session tells it nothing, since
-    // only a task reports to its chat.
-    context.workspaceRef.send({
-      type: "stopSessions",
-      value: {
-        id: input.id,
-        notice: { by: "person", wakesChat: true },
-        ...(input.sessionId ? { sessionId: input.sessionId } : {}),
-      },
+    const { takenBack } = await stopChat(input.id, {
+      captureException: context.workspaceConfig.captureException,
+      workspaceRef: context.workspaceRef,
+      ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+      ...(input.takeBack ? { takeBack: true } : {}),
     });
-    // What the stopped sessions were waiting on the person to allow goes
-    // with them, unanswered, so it neither keeps the chat waiting nor
-    // starts them again when answered.
-    const closing = closeAsksOf(input.id, input.sessionId);
-    const takenBack =
-      input.takeBack && stopsOwnTurn && chatSessionId !== undefined
-        ? await takeBackUnanswered({
-            chatId: input.id,
-            sessionId: chatSessionId,
-          })
-        : undefined;
-    await Promise.all([
-      closing,
-      // The chat says the user stopped it until a turn starts after the
-      // Stop, however far its turn had got, before it began included.
-      (stopsOwnTurn || closesQuestions) && takenBack === undefined
-        ? markChatStopped(input.id, pressedAt)
-        : undefined,
-    ]);
-    // Not waited on, as a turn's end is not: its note waits out the
-    // processes the stop ends.
-    for (const sessionId of waitingOnCard) {
-      noteTaskStoppedOnCard(
-        input.id,
-        sessionId,
-        context.workspaceRef,
-        "person",
-      ).catch(context.workspaceConfig.captureException);
-    }
     return takenBack ? { takenBack } : {};
   });
 

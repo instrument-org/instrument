@@ -1,3 +1,4 @@
+import { sleep } from "radashi";
 import { z } from "zod";
 
 import {
@@ -10,6 +11,7 @@ import { cappedTitle } from "../folder-name";
 import {
   type Chat,
   chatById,
+  chatIsWorking,
   chatRecordTitle,
   listChats,
   markChatRead,
@@ -27,7 +29,11 @@ import {
   chatStandingWords,
 } from "../../model-text/notes/chat-state-model-text";
 import { PROJECTS_COMMAND } from "../../model-text/commands/projects-command";
+import { stopChat } from "../chat/stop-chat";
 import { resolveChat } from "../record-folders";
+import { getWorkspaceActorRef } from "../workspace-actor-ref";
+import { getWorkspaceConfig } from "../workspace-config";
+import { TASK_COMMAND } from "../../model-text/commands/task-command";
 import { defineCapability } from "./define";
 import { projectsInUse } from "./projects";
 
@@ -403,6 +409,52 @@ export const chatsMarkUnread = markCapability({
     "Mark chats as unread, as the user's own Mark as Unread does: it holds until they come back to the chat.",
   to: true,
   word: "mark-unread",
+});
+
+/** How long `stop` waits to see the chats it stopped come to rest. */
+const STOP_CONFIRM_MS = 3000;
+const STOP_POLL_MS = 100;
+
+export const chatsStop = defineCapability({
+  input: z.object({ ids }),
+  name: "chats.stop",
+  output: Outcomes,
+  render: renderOutcomes,
+  async run({ ids: named }, ctx) {
+    const stopped: ChatId[] = [];
+    const outcomes = await eachChat(named, async (chat) => {
+      if (chat.id === ctx.chatId) {
+        return {
+          couldNot: `stop: ${chat.id} is this chat; ending your turn ends it, and \`${TASK_COMMAND.name} stop\` a task of yours.`,
+        };
+      }
+      if (!chat.working) {
+        return `${chat.id} was not working: ${chat.title}`;
+      }
+      await stopChat(chat.id, {
+        captureException: getWorkspaceConfig().captureException,
+        workspaceRef: getWorkspaceActorRef(),
+      });
+      stopped.push(chat.id);
+      return `Stopped ${chat.id}: ${chat.title}`;
+    });
+    // So a list read right after shows them as they are.
+    const until =
+      Date.now() + Math.min(STOP_CONFIRM_MS, ctx.remainingYieldMs() / 2);
+    for (const id of stopped) {
+      while ((await chatIsWorking(id)) && Date.now() < until) {
+        await sleep(STOP_POLL_MS);
+      }
+    }
+    return outcomes;
+  },
+  summary:
+    "Stop chats that are working, only ones the user asked to stop, as their own Stop does: the chat's turn and its tasks end where they are, and what they did stays.",
+  surfaces: {
+    cli: { help: "", positional: ["ids"], words: ["chats", "stop"] },
+  },
+  text: outcomesText,
+  where: CHATS,
 });
 
 export const chatsProject = defineCapability({

@@ -31,6 +31,8 @@ const running = vi.hoisted(() => {
   const value: ChatActivity["running"] = [];
   return { value };
 });
+/** What reached the workspace machine; a stop ends the work it names. */
+const sent = vi.hoisted(() => ({ value: [] as unknown[] }));
 const closedTabs = vi.hoisted(() => ({ value: [] as string[] }));
 
 // Which tasks are at work is the machine's to say, so it is a dial here.
@@ -50,6 +52,12 @@ vi.mock(import("../workspace-actor-ref"), () => ({
       getSnapshot: () => ({
         context: { sessionRefsByChatId: { get: () => [] } },
       }),
+      send: (event: { value: { id: ChatId } }) => {
+        sent.value.push(event);
+        running.value = running.value.filter(
+          (task) => task.chat !== sessionOfChat(event.value.id),
+        );
+      },
     }) as never,
   setWorkspaceActorRef: vi.fn(),
 }));
@@ -146,6 +154,7 @@ async function reply(chatId: ChatId, text: string) {
 beforeEach(async () => {
   running.value = [];
   closedTabs.value = [];
+  sent.value = [];
   createMockChatConfig(
     ChatIdSchema.parse(`chats-command-${Date.now()}-${(counter += 1)}`),
   );
@@ -581,6 +590,48 @@ describe("instrument chats mark-read and mark-unread", () => {
   });
 });
 
+describe("instrument chats stop", () => {
+  it("stops the working chats named as the person's Stop does, and never its own", async () => {
+    const taskOf = (name: string) => ({
+      chat: sessionOfChat(ChatIdSchema.parse(name)),
+      sessionId: StoreId.newSessionId(),
+      title: "A task",
+      updatedAt: 0,
+    });
+    running.value = [taskOf("lisbon"), taskOf("porto"), taskOf("organizer")];
+    const stop = await one(
+      "instrument chats stop lisbon groceries organizer nowhere",
+    );
+    expect(stop.exitCode).toBe(1);
+    expect(stop.stdout).toMatchInlineSnapshot(`
+      "Stopped lisbon: Trip to Lisbon
+      groceries was not working: Groceries for the week
+      "
+    `);
+    expect(stop.stderr).toMatchInlineSnapshot(`
+      "instrument chats: stop: organizer is this chat; ending your turn ends it, and \`instrument task stop\` a task of yours.
+      instrument chats: no chat with the id nowhere. instrument chats list names them.
+      "
+    `);
+    expect(sent.value).toMatchInlineSnapshot(`
+      [
+        {
+          "type": "stopSessions",
+          "value": {
+            "id": "lisbon",
+            "notice": {
+              "by": "person",
+              "wakesChat": true,
+            },
+          },
+        },
+      ]
+    `);
+    expect((await chatById(ChatIdSchema.parse("porto")))?.working).toBe(true);
+    expect(stop.changes).toEqual([]);
+  });
+});
+
 describe("instrument chats project", () => {
   it("files chats under a project by name, and under none", async () => {
     const travel = await createProject({ name: "Travel" });
@@ -632,7 +683,7 @@ describe("a task's instrument chats", () => {
     const refused = await bash.exec("instrument chats archive lisbon");
     expect(refused.exitCode).toBe(1);
     expect(refused.stderr).toMatchInlineSnapshot(`
-      "instrument chats: only the chat organizes the user's chats. Say in your report what the chat should rename, archive, file, star or mark read.
+      "instrument chats: only the chat organizes the user's chats. Say in your report what the chat should rename, archive, file, star, mark read or stop.
       "
     `);
     expect((await chatById(ChatIdSchema.parse("lisbon")))?.archived).toBe(

@@ -5,6 +5,7 @@ import { AI_REQUESTS_EVALS } from "./ai-requests";
 import { APP_ACCOUNTS_EVALS } from "./app-accounts";
 import { APP_OWN_FOLDERS_EVALS } from "./app-own-folders";
 import { APP_IMPORT_FILE_EVALS } from "./app-import-file";
+import { APP_OFF_THE_WEB_EVALS } from "./app-off-the-web";
 import { APP_OTHER_COMPUTER_EVALS } from "./app-other-computer";
 import { APP_GUIDANCE_EVALS } from "./app-guidance";
 import { APP_ACCOUNT_NAMING_EVALS } from "./app-account-naming";
@@ -89,6 +90,7 @@ export const EVALS = [
   ...APP_ACCOUNTS_EVALS,
   ...APP_OWN_FOLDERS_EVALS,
   ...APP_IMPORT_FILE_EVALS,
+  ...APP_OFF_THE_WEB_EVALS,
   ...APP_OTHER_COMPUTER_EVALS,
   ...APP_GUIDANCE_EVALS,
   ...APP_GUIDE_MEMORY_EVALS,

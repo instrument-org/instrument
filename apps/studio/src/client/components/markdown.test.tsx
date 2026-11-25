@@ -1451,3 +1451,54 @@ describe("Markdown file chips", () => {
     expect(screen.queryByRole("button", { name: "Add to chat" })).toBeNull();
   });
 });
+
+describe("a timeline fence", () => {
+  const rows = (markdown: string, isStreaming?: boolean) => {
+    const { container } = renderWithProviders(
+      <Markdown
+        chatId={TASK_ID}
+        isStreaming={isStreaming}
+        markdown={markdown}
+      />,
+    );
+    return [...container.querySelectorAll("[role=listitem]")].map((row) =>
+      [...row.children]
+        .map((cell) => cell.textContent.trim())
+        .filter((text) => text !== ""),
+    );
+  };
+
+  it("sets each date beside what happened", () => {
+    expect(
+      rows(
+        "```timeline\n2 Aug: You tell the landlord.\nFri 10:15 AM: **It leaks.**\n```",
+      ),
+    ).toEqual([
+      ["2 Aug", "You tell the landlord."],
+      ["Fri 10:15 AM", "It leaks."],
+    ]);
+    expect(screen.getByText("It leaks.").tagName).toBe("STRONG");
+  });
+
+  it("draws a link to a file as its chip", () => {
+    rows("```timeline\n2 Aug: [The letter](letters/one.pdf)\n```");
+
+    expect(screen.getByRole("button", { name: /The letter/ })).toBeTruthy();
+  });
+
+  it.each([
+    ["a date", "13 Au", [["2 Aug", "First."]]],
+    [
+      "the words",
+      "13 Aug: **Sec",
+      [
+        ["2 Aug", "First."],
+        ["13 Aug", "Sec"],
+      ],
+    ],
+  ])("waits for %s still being typed", (_case, typed, expected) => {
+    expect(
+      rows(`Here.\n\n\`\`\`timeline\n2 Aug: First.\n${typed}`, true),
+    ).toEqual(expected);
+  });
+});

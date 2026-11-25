@@ -7,6 +7,7 @@ export {
 export {
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
+  AGENT_TIMELINE_LANGUAGE,
   CHAT_FOLDER_NAMES,
   INTERRUPTED_TOOL_CALL_ERROR_TEXT,
   KEY_FOLDER_NAMES,
@@ -138,6 +139,7 @@ export { latestStepIn } from "./lib/chat/step-label";
 export { taskSlices } from "./lib/chat/task-slices";
 export type { Memory } from "./lib/memory/store";
 export { FILES_FENCE, parseFilesBlock } from "./lib/parse-files-block";
+export { isTimelineEntry, parseTimeline } from "./lib/parse-timeline";
 export {
   isMessageDocument,
   MESSAGE_FENCE,

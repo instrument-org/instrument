@@ -156,6 +156,12 @@ export const AGENT_FILES_LANGUAGE = "files";
 export const AGENT_MESSAGE_LANGUAGE = "message";
 
 /**
+ * Info string of the fenced block an agent writes to lay out dated things in
+ * order: one `date: what happened` per line.
+ */
+export const AGENT_TIMELINE_LANGUAGE = "timeline";
+
+/**
  * Info string of the fenced block a task started by the chat ends its turn
  * with when it cannot go on without something from the user or the chat: one
  * need per line, `<kind>: <what, and what for>`. A contract between the task's

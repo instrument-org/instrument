@@ -286,8 +286,18 @@ const ROLE_KEYS: Record<string, string> = {
   undo: "CmdOrCtrl+Z",
 };
 
-/** The Edit menu's rows, which the system runs for a menu it draws. */
-const ROLE_RUNS: Record<string, (contents: WebContents) => void> = {
+/**
+ * The rows that name a role alone (the Edit menu's, and the window's own),
+ * which the system runs for a menu it draws on the key window, and no window
+ * held off screen ever is.
+ */
+const ROLE_RUNS: Record<
+  string,
+  (contents: WebContents, window: BrowserWindow) => void
+> = {
+  close: (_contents, window) => {
+    window.close();
+  },
   copy: (contents) => {
     contents.copy();
   },
@@ -296,6 +306,9 @@ const ROLE_RUNS: Record<string, (contents: WebContents) => void> = {
   },
   delete: (contents) => {
     contents.delete();
+  },
+  minimize: (_contents, window) => {
+    window.minimize();
   },
   paste: (contents) => {
     contents.paste();
@@ -309,8 +322,18 @@ const ROLE_RUNS: Record<string, (contents: WebContents) => void> = {
   selectall: (contents) => {
     contents.selectAll();
   },
+  togglefullscreen: (_contents, window) => {
+    window.setFullScreen(!window.isFullScreen());
+  },
   undo: (contents) => {
     contents.undo();
+  },
+  zoom: (_contents, window) => {
+    if (window.isMaximized()) {
+      window.unmaximize();
+    } else {
+      window.maximize();
+    }
   },
 };
 
@@ -321,7 +344,7 @@ function pressItem(
 ) {
   const role = ROLE_RUNS[item.role?.toLowerCase() ?? ""];
   if (role) {
-    role(contents);
+    role(contents, window);
     return;
   }
   actingIn = window;

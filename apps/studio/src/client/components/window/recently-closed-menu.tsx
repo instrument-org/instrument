@@ -160,6 +160,7 @@ export function HistoryButton() {
           ground, so it reads as the sidebar's list growing up from its foot. */}
       <PopoverContent
         align="start"
+        aria-label="Recently Closed"
         className="flex flex-col bg-ground p-1.5 ring-1 ring-foreground/8"
         maxHeight="520px"
         onCloseAutoFocus={(event) => {

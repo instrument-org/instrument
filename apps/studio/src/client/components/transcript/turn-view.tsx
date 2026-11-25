@@ -67,6 +67,7 @@ import {
 import { BranchedFromLine } from "./branched-from-line";
 import { FoldsOpenedByFind } from "./folds-opened-by-find";
 import { NextStepRows, useHasNextSteps } from "./next-steps";
+import { StoppedLine } from "./stopped-line";
 import { useStage } from "./stage/stage-context";
 import { renderDataPart } from "./note-part";
 import { PageTakeoverNote } from "./page-takeover-note";
@@ -486,6 +487,7 @@ function TurnBody({
       {turn.phase !== "working" && !isHolding && (
         <CommandCards sessionId={sessionId} turn={turn} />
       )}
+      {isLast && turn.phase !== "working" && !isHolding && <StoppedLine />}
       {replyEnd?.hasFooter && !isHolding && (
         <ReplyFoot
           chatId={chatId}

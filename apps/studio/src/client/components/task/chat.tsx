@@ -1,3 +1,5 @@
+import { openReportDialog } from "@/client/atoms/report-dialog";
+import { feedbackReport } from "@/client/lib/problem-reports";
 import {
   type MessageEditing,
   MessageEditingContext,
@@ -111,6 +113,7 @@ import {
 import { Spinner } from "../ui/spinner";
 import { LiveTranscriptSurface } from "../transcript/live-surface";
 import { NextStepsContext } from "../transcript/next-steps";
+import { StoppedContext } from "../transcript/stopped-line";
 import { Transcript } from "../transcript/transcript";
 import { ThinkingRow } from "../transcript/turn-view";
 import { useTranscriptFeed } from "../transcript/use-transcript-feed";
@@ -401,6 +404,17 @@ export function ChatConversation({
     select: (chats) =>
       chats.find((chat) => chat.id === id)?.status === "waiting",
   });
+  const { data: isStopped = false } = useQuery({
+    ...chatListOptions(),
+    select: (chats) =>
+      chats.find((chat) => chat.id === id)?.status === "stopped",
+  });
+  const sendStopFeedback =
+    preferences?.offerFeedback === false
+      ? undefined
+      : () => {
+          openReportDialog(feedbackReport({ chatId: id, surface: "stopped" }));
+        };
   const { data: isArchived = false } = useQuery({
     ...chatListOptions(),
     select: (chats) => chats.find((chat) => chat.id === id)?.archived === true,
@@ -1076,53 +1090,63 @@ export function ChatConversation({
                         onSend: sendNextStep,
                       }}
                     >
-                      <FoldsOpenedByFind value={foldsOpenedByFind}>
-                        <MessageEditingContext value={messageEditing}>
-                          <TranscriptStream
-                            chatId={chatId}
-                            hasOlder={messagesQuery.data?.hasOlder ?? false}
-                            isDeveloperMode={isDeveloperMode}
-                            isLoadingOlder={messagesQuery.isLoadingOlder}
-                            // Through the send too, so the turn does not read as finished
-                            // between its message being stored and its session starting.
-                            isRunning={
-                              !isLookingBack &&
-                              (isAgentRunning ||
-                                runTurn.isPending ||
-                                isAgentAlive ||
-                                isFollowingSubmit ||
-                                shownMessages.length > messages.length)
-                            }
-                            messages={withSentSwitch(
-                              transcriptMessages,
-                              isAgentAlive || isFollowingSubmit
-                                ? sentSwitch
-                                : undefined,
-                            )}
-                            onBranch={handleBranch}
-                            // An archived chat has no reply box, so no picker.
-                            onChooseModel={isArchived ? undefined : chooseModel}
-                            onLoadOlder={messagesQuery.loadOlder}
-                            slideToSentRef={slideToSentRef}
-                            sessionId={selectedSessionId}
-                            onContinue={
-                              isLookingBack ? undefined : handleContinue
-                            }
-                            onModelChange={(modelURI) => {
-                              setSelectedModelURI(modelURI);
-                              handleRunAgain(modelURI);
-                            }}
-                            onRetry={handleRetry}
-                            onRunAgain={
-                              isLookingBack
-                                ? undefined
-                                : (options) => {
-                                    handleRunAgain(undefined, options);
-                                  }
-                            }
-                          />
-                        </MessageEditingContext>
-                      </FoldsOpenedByFind>
+                      <StoppedContext
+                        value={
+                          isStopped && !isLookingBack
+                            ? { onSendFeedback: sendStopFeedback }
+                            : undefined
+                        }
+                      >
+                        <FoldsOpenedByFind value={foldsOpenedByFind}>
+                          <MessageEditingContext value={messageEditing}>
+                            <TranscriptStream
+                              chatId={chatId}
+                              hasOlder={messagesQuery.data?.hasOlder ?? false}
+                              isDeveloperMode={isDeveloperMode}
+                              isLoadingOlder={messagesQuery.isLoadingOlder}
+                              // Through the send too, so the turn does not read as finished
+                              // between its message being stored and its session starting.
+                              isRunning={
+                                !isLookingBack &&
+                                (isAgentRunning ||
+                                  runTurn.isPending ||
+                                  isAgentAlive ||
+                                  isFollowingSubmit ||
+                                  shownMessages.length > messages.length)
+                              }
+                              messages={withSentSwitch(
+                                transcriptMessages,
+                                isAgentAlive || isFollowingSubmit
+                                  ? sentSwitch
+                                  : undefined,
+                              )}
+                              onBranch={handleBranch}
+                              // An archived chat has no reply box, so no picker.
+                              onChooseModel={
+                                isArchived ? undefined : chooseModel
+                              }
+                              onLoadOlder={messagesQuery.loadOlder}
+                              slideToSentRef={slideToSentRef}
+                              sessionId={selectedSessionId}
+                              onContinue={
+                                isLookingBack ? undefined : handleContinue
+                              }
+                              onModelChange={(modelURI) => {
+                                setSelectedModelURI(modelURI);
+                                handleRunAgain(modelURI);
+                              }}
+                              onRetry={handleRetry}
+                              onRunAgain={
+                                isLookingBack
+                                  ? undefined
+                                  : (options) => {
+                                      handleRunAgain(undefined, options);
+                                    }
+                              }
+                            />
+                          </MessageEditingContext>
+                        </FoldsOpenedByFind>
+                      </StoppedContext>
                     </NextStepsContext>
                   )}
                 </MessageScrollerContent>

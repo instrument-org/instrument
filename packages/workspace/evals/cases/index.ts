@@ -21,6 +21,7 @@ import { BACKGROUND_PROCESS_EVALS } from "./background-processes";
 import { PROCESS_CONTROL_EVALS } from "./process-control";
 import { BROWSER_DATA_EVALS } from "./browser-data";
 import { BROWSER_DROPDOWN_EVALS } from "./browser-dropdowns";
+import { BROWSER_IN_PLACE_EVALS } from "./browser-in-place";
 import { BROWSER_PAGED_ORDERS_EVALS } from "./browser-paged-orders";
 import { BROWSER_SELECTION_EVALS } from "./browser-selection";
 import { BROWSER_TYPING_EVALS } from "./browser-typing";
@@ -106,6 +107,7 @@ export const EVALS = [
   ...PROCESS_CONTROL_EVALS,
   ...BROWSER_DATA_EVALS,
   ...BROWSER_DROPDOWN_EVALS,
+  ...BROWSER_IN_PLACE_EVALS,
   ...BROWSER_PAGED_ORDERS_EVALS,
   ...BROWSER_SELECTION_EVALS,
   ...BROWSER_TYPING_EVALS,

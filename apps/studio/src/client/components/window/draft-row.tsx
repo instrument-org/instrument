@@ -16,7 +16,7 @@ import { useAppsBySlug } from "./apps-by-slug";
 
 import { ProjectWords } from "./chat-row";
 import { activityLabel, draftTitle, type Project } from "./chats";
-import { screenPresentation } from "./screen-presentation";
+import { screenIdentity } from "./screen-presentation";
 import { RowActionBar } from "./row-action-bar";
 import { type RowAction, rowClassName } from "./row-shell";
 
@@ -136,7 +136,7 @@ function DraftMarks({ draft }: { draft: Draft }) {
     ),
     ...(draft.attached ?? []),
   ].map((item) => ({
-    icon: screenPresentation(
+    icon: screenIdentity(
       item.kind === "folder" ? folderHref(item.path) : fileHref(item.path),
       { appsBySlug },
     ).icon,

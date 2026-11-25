@@ -18,7 +18,7 @@ import { PaneTabs } from "@/client/components/window/pane-tabs";
 import { useRowSlots } from "@/client/components/window/row-slots";
 import { RowSourcesContext } from "@/client/components/window/row-half";
 import { type PageLoad } from "@/client/components/window/row-lines";
-import { screenLocation } from "@/client/components/window/screen-presentation";
+import { screenIdentity } from "@/client/components/window/screen-presentation";
 import {
   ShellContext,
   useShell,
@@ -652,7 +652,7 @@ function SidePage({
     );
   } else {
     const location = surfaceLocation(
-      screenLocation(up.href, { appsBySlug, chatTitles, taskTitles }),
+      screenIdentity(up.href, { appsBySlug, chatTitles, taskTitles }).location,
       surface,
     );
     head = (

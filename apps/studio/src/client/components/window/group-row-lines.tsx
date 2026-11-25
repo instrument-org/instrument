@@ -16,7 +16,7 @@ import { leadTabOf, type RowSides } from "./group-leads";
 import { RowActionBar } from "./row-action-bar";
 import { type RowLines, siteOf, tabsBesideLead } from "./row-lines";
 import { TabMark, TONE_INK, useRowLines, useRowSources } from "./row-half";
-import { screenLocation } from "./screen-presentation";
+import { screenIdentity } from "./screen-presentation";
 import { chatOfTab } from "./tab-model";
 import { useTaskTitles } from "./task-titles";
 
@@ -81,7 +81,7 @@ export function GroupRowLines({
         ? `site:${siteOf(tab.url ?? tab.openedUrl)}`
         : `file:${extensionOf(path)}`;
     }
-    const location = screenLocation(tab.href, {
+    const { location } = screenIdentity(tab.href, {
       appsBySlug,
       chatTitles,
       projects,

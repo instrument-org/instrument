@@ -16,7 +16,7 @@ import { chatContextItems, type ContextItem } from "./context-items";
 import { tabInView } from "./draft-context";
 import { computerTabOf, reachablePath } from "./file-tabs";
 import { joinHostPath, segmentsOf } from "./host-path";
-import { type ScreenNames, screenLocation } from "./screen-presentation";
+import { type ScreenNames, screenIdentity } from "./screen-presentation";
 import { tabTitle } from "./tab-title";
 import { chatOfTab, draftOfTab, isFreshTab, isNewChatTab } from "./tab-model";
 import { type TabSurface } from "./tab-surface";
@@ -195,7 +195,7 @@ export function contextReaders({
       };
     }
     const screen = matchScreen(tab.href);
-    const where = screenLocation(tab.href, { appsBySlug, chatTitles });
+    const where = screenIdentity(tab.href, { appsBySlug, chatTitles }).location;
     if (screen.kind === "app" && where.kind === "app") {
       const { slug } = screen;
       return {

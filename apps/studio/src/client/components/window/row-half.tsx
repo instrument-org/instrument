@@ -44,7 +44,7 @@ import {
   siteOf,
   taskLines,
 } from "./row-lines";
-import { screenLocation } from "./screen-presentation";
+import { screenIdentity } from "./screen-presentation";
 import { chatOfTab, draftOfTab } from "./tab-model";
 import { tabTitle } from "./tab-title";
 import { useTaskTitles } from "./task-titles";
@@ -201,7 +201,7 @@ export function useRowLines(
       ? pageLines(title, tab.url, load)
       : placeLines(title, foldersOf(path, volumes));
   }
-  const location = screenLocation(tab.href, names);
+  const { location } = screenIdentity(tab.href, names);
   switch (location.kind) {
     case "chat": {
       const id = chatOfTab(tab);

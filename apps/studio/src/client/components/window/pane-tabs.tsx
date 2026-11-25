@@ -41,9 +41,10 @@ import {
 } from "./hover-pictures";
 import { useFileTabTitles } from "./file-tab-titles";
 import { CaptureTabIcon, usePageCaptures } from "./page-capture-mark";
-import { computerTabOf, pageTabTitle } from "./file-tabs";
+import { computerTabOf } from "./file-tabs";
 import { isInVersionsFolder, VersionTabMark } from "./file-versions";
-import { screenPresentation, screenLocation } from "./screen-presentation";
+import { type ScreenNames, screenIdentity } from "./screen-presentation";
+import { tabTitle } from "./tab-title";
 import { siteTabTitles } from "./site-tab-titles";
 import { tasksOfHref } from "./tab-location";
 import { useTabActionsFor } from "./tab-actions";
@@ -52,8 +53,6 @@ import { TabMenuAtPoint, TabMenuItems } from "./tab-menu-items";
 import { type StripTab, TabStrip } from "./tab-strip";
 import { useWindowTabs } from "./window-tabs";
 import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
-
-type Presentation = Parameters<typeof screenPresentation>[1];
 
 /** A tab as the strip orders it. */
 export function stripKeyOf(tab: WindowTab): string {
@@ -90,7 +89,7 @@ export function PaneTabs({
 }: {
   /** A tab being carried off the row, by its strip key, which gives its place up to the tabs beside it. */
   carriedKey?: string | undefined;
-  chatTitles: Presentation["chatTitles"];
+  chatTitles: ScreenNames["chatTitles"];
   /** The keys that pick each tab, by tab id, while their modifier is held. */
   chords?: ReadonlyMap<string, string> | undefined;
   chosenId: string | undefined;
@@ -117,7 +116,7 @@ export function PaneTabs({
   /** What a tab's menu does with the group's sides; none for a strip of no group's. */
   split?: SplitMenuActions;
   tabs: WindowTab[];
-  taskTitles: Presentation["taskTitles"];
+  taskTitles: ScreenNames["taskTitles"];
   /** What the row keeps at its right end: the room for the caption buttons off the Mac. */
   trailing?: ReactNode;
 }) {
@@ -130,6 +129,14 @@ export function PaneTabs({
   const fileTitles = useFileTabTitles(
     tabs.map((tab) => (tab.kind === "page" ? undefined : tab.href)),
   );
+  const names = {
+    appsBySlug,
+    chatTitles,
+    ...(fileTitles ? { fileTitles } : {}),
+    projects,
+    taskTitles,
+    ...(volumes ? { volumes } : {}),
+  };
   const captures = usePageCaptures();
   const pictures = useAtomValue(hoverPicturesAtom);
   const { data: chats } = useQuery(chatListOptions());
@@ -165,19 +172,9 @@ export function PaneTabs({
     const key = stripKeyOf(tab);
     if (tab.kind === "page") {
       const url = tab.url ?? tab.openedUrl;
-      return { key, title: pageTabTitle(tab), url };
+      return { key, title: tabTitle(tab, names), url };
     }
-    return {
-      key,
-      title: screenPresentation(tab.href, {
-        appsBySlug,
-        chatTitles,
-        ...(fileTitles ? { fileTitles } : {}),
-        projects,
-        taskTitles,
-        ...(volumes ? { volumes } : {}),
-      }).title,
-    };
+    return { key, title: tabTitle(tab, names) };
   });
   // Pages of one site say only what tells them apart, as the window's do.
   const short = siteTabTitles(whole);
@@ -595,13 +592,19 @@ export function ScreenMark({
   chatTitles,
   href,
 }: {
-  appsBySlug: Presentation["appsBySlug"];
+  appsBySlug: ScreenNames["appsBySlug"];
   chatId: ChatId | undefined;
-  chatTitles: Presentation["chatTitles"];
+  chatTitles: ScreenNames["chatTitles"];
   href: string;
 }) {
   const projects = useProjectsById();
-  const location = screenLocation(href, { appsBySlug, chatTitles });
+  // The strip and the sidebar draw a file by its type alone, with the number
+  // of the version a chat's tab has up over it, and a folder as a folder.
+  const { icon: own, location } = screenIdentity(href, {
+    appsBySlug,
+    chatTitles,
+    projects,
+  });
   if (location.kind === "file") {
     const icon = <FileTypeIcon className="size-3.5" fileName={location.name} />;
     // A copy is over its file, or in its place for a page's file.
@@ -617,5 +620,5 @@ export function ScreenMark({
   if (location.kind === "folder") {
     return <FileSystemFolderGlyph className="h-3 w-auto" />;
   }
-  return screenPresentation(href, { appsBySlug, chatTitles, projects }).icon;
+  return own;
 }

@@ -68,7 +68,7 @@ import {
 } from "@/client/components/window/search-sources";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { useShell } from "@/client/components/window/shell-context";
-import { screenPresentation } from "@/client/components/window/screen-presentation";
+import { screenIdentity } from "@/client/components/window/screen-presentation";
 import { ScreenMark } from "@/client/components/window/app-chip";
 import { RailMegaphoneIcon } from "@/client/components/icons/rail-megaphone-icon";
 import { openReportDialog } from "@/client/atoms/report-dialog";
@@ -1169,7 +1169,7 @@ export function useCommandMenuRows({
             url={tab.url ?? tab.openedUrl ?? ""}
           />
         ) : (
-          screenPresentation(tab.href, { appsBySlug, chatTitles }).icon
+          screenIdentity(tab.href, { appsBySlug, chatTitles }).icon
         ),
       id: `tab:${tab.id}`,
       label: titleOfTab(tab),

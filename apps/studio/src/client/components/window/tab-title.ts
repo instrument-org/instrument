@@ -5,7 +5,7 @@ import { useProjectsById } from "./projects-by-id";
 import { useAppsBySlug } from "./apps-by-slug";
 import { useComputerVolumes } from "./computer-volumes";
 import { pageTabTitle } from "./file-tabs";
-import { type ScreenNames, screenPresentation } from "./screen-presentation";
+import { type ScreenNames, screenIdentity } from "./screen-presentation";
 import { useTaskTitles } from "./task-titles";
 
 /**
@@ -16,7 +16,7 @@ import { useTaskTitles } from "./task-titles";
 export function tabTitle(tab: WindowTab, names: ScreenNames): string {
   return tab.kind === "page"
     ? pageTabTitle(tab)
-    : screenPresentation(tab.href, names).title;
+    : screenIdentity(tab.href, names).title;
 }
 
 /** The names a tab's address alone can't say, but the titles files give themselves (`useFileTabTitles`). */

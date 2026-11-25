@@ -54,7 +54,7 @@ import { isKeptScreen, keptScreensAtom, withScreenUp } from "./kept-screens";
 import { keepFolderShown } from "./folder-fold";
 import { folderOf, segmentsOf } from "./host-path";
 import { editField } from "./omnibar-field";
-import { screenLocation } from "./screen-presentation";
+import { screenIdentity } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
 import { TabLocationRow, TabRowControl } from "./tab-location-row";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
@@ -441,7 +441,8 @@ export function GroupItem({
   // A new chat is a new tab, nowhere yet: its field is empty, with the chord
   // that takes the caret there, since the caret starts in the composer.
   const location = surfaceLocation(
-    screenLocation(up.href, { appsBySlug, chatTitles, projects, taskTitles }),
+    screenIdentity(up.href, { appsBySlug, chatTitles, projects, taskTitles })
+      .location,
     surface,
   );
   // A new tab hints at a browser with bare, quiet controls and no field,

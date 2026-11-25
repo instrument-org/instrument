@@ -39,7 +39,7 @@ import { contentOfAddress, useContentDrag } from "./drag/content-drag";
 import { pageTabTitle } from "./file-tabs";
 import { useVersionNamed } from "./file-versions";
 import { segmentsOf } from "./host-path";
-import { screenPresentation, type ScreenNames } from "./screen-presentation";
+import { screenIdentity, type ScreenNames } from "./screen-presentation";
 import { chatHref } from "./window-href";
 
 type SentChip = SessionMessageDataPart.SentChip;
@@ -72,7 +72,7 @@ export function heldChipOf(
   }
   return {
     kind: "screen",
-    title: screenPresentation(tab.href, names).title,
+    title: screenIdentity(tab.href, names).title,
     url: tab.href,
   };
 }
@@ -155,7 +155,7 @@ export function SentChips({
             ) : chip.kind === "page" ? (
               <TabIcon favicon={undefined} url={chip.url} />
             ) : chip.kind === "screen" ? (
-              screenPresentation(chip.url, { appsBySlug }).icon
+              screenIdentity(chip.url, { appsBySlug }).icon
             ) : chip.items.length === 1 && chip.items[0] ? (
               <ItemMark item={chip.items[0]} />
             ) : (

@@ -6,7 +6,7 @@ import { type TypedAddress } from "@/client/lib/typed-address";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
 
 import { AddressMark } from "./app-chip";
-import { screenPresentation, type ScreenNames } from "./screen-presentation";
+import { screenIdentity, type ScreenNames } from "./screen-presentation";
 
 /**
  * What the row for a typed address calls it, in every field that offers
@@ -23,7 +23,7 @@ export function typedAddressName(
   }
   const target = targetOfAddress(address.address);
   return target && target.kind !== "page"
-    ? screenPresentation(hrefOfTarget(target), names).title
+    ? screenIdentity(hrefOfTarget(target), names).title
     : address.address;
 }
 

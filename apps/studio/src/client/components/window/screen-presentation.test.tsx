@@ -3,7 +3,7 @@ import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { describe, expect, it } from "vitest";
 
 import routeTreeSource from "../../routeTree.gen.ts?raw";
-import { screenLocation, screenPresentation } from "./screen-presentation";
+import { screenIdentity } from "./screen-presentation";
 import { newChatHref, projectHref } from "./window-href";
 
 const CONTEXT = { appsBySlug: new Map() };
@@ -11,29 +11,29 @@ const CONTEXT = { appsBySlug: new Map() };
 const CHAT_ID = ChatIdSchema.parse("2026-10-01-caffeine-mixes");
 const INBOX_HREF = `/chats/${CHAT_ID}`;
 
-describe("screenPresentation", () => {
+describe("screenIdentity", () => {
   it("names a chat tab by the chat's title, and by kind until it is known", () => {
     const chatTitles = new Map([[CHAT_ID, "Caffeine mixes, plus Zevia"]]);
-    expect(
-      screenPresentation(INBOX_HREF, { ...CONTEXT, chatTitles }).title,
-    ).toBe("Caffeine mixes, plus Zevia");
-    expect(screenPresentation(INBOX_HREF, CONTEXT).title).toBe("Chat");
+    expect(screenIdentity(INBOX_HREF, { ...CONTEXT, chatTitles }).title).toBe(
+      "Caffeine mixes, plus Zevia",
+    );
+    expect(screenIdentity(INBOX_HREF, CONTEXT).title).toBe("Chat");
   });
 
   it.each([
     ["with no draft yet", newChatHref()],
     ["on its draft", newChatHref("01M7BVSPAMVP4SR3P07E7PFGCQ")],
   ])("names a new chat's tab New Tab, %s", (_case, href) => {
-    expect(screenPresentation(href, CONTEXT).title).toBe("New Tab");
+    expect(screenIdentity(href, CONTEXT).title).toBe("New Tab");
   });
 
   it("names a project's page by the project, and every chat's once it is gone", () => {
     const href = projectHref("house");
     const projects = new Map([["house", { name: "House" }]]);
     const known = { ...CONTEXT, projects };
-    expect(screenPresentation(href, known).title).toBe("House");
-    expect(screenPresentation(href, CONTEXT).title).toBe("Chats");
-    expect(screenLocation(href, known)).toEqual({
+    expect(screenIdentity(href, known).title).toBe("House");
+    expect(screenIdentity(href, CONTEXT).title).toBe("Chats");
+    expect(screenIdentity(href, known).location).toEqual({
       kind: "chats",
       project: { name: "House" },
     });
@@ -43,11 +43,11 @@ describe("screenPresentation", () => {
     const task = StoreId.newSessionId();
     const taskTitles = new Map([[task, "Book the hotel"]]);
     const href = `/tasks/${task}?chat=${CHAT_ID}`;
-    expect(screenPresentation(href, { ...CONTEXT, taskTitles }).title).toBe(
+    expect(screenIdentity(href, { ...CONTEXT, taskTitles }).title).toBe(
       "Book the hotel",
     );
-    expect(screenPresentation(href, CONTEXT).title).toBe("Task");
-    expect(screenLocation(href, { ...CONTEXT, taskTitles })).toEqual({
+    expect(screenIdentity(href, CONTEXT).title).toBe("Task");
+    expect(screenIdentity(href, { ...CONTEXT, taskTitles }).location).toEqual({
       chat: { id: CHAT_ID, title: "Chat" },
       kind: "task",
       title: "Book the hotel",
@@ -80,7 +80,7 @@ describe("screenPresentation", () => {
     ["the top of the disk", "/files?path=&root=%2F", "This Mac"],
     ["the recents", "/files?path=&root=recents%3A", "Recents"],
   ])("names a folder tab at %s", (_, href, title) => {
-    expect(screenPresentation(href, CONTEXT).title).toBe(title);
+    expect(screenIdentity(href, CONTEXT).title).toBe(title);
   });
 
   it("names the top of a disk the way the location bar does once the disks are known", () => {
@@ -89,8 +89,7 @@ describe("screenPresentation", () => {
       { name: "Backup", path: "/Volumes/Backup" },
     ];
     expect(
-      screenPresentation("/files?path=&root=%2F", { ...CONTEXT, volumes })
-        .title,
+      screenIdentity("/files?path=&root=%2F", { ...CONTEXT, volumes }).title,
     ).toBe("Macintosh HD");
   });
 
@@ -104,7 +103,7 @@ describe("screenPresentation", () => {
       "Page not found",
     ],
   ])("names %s", (_, href, title) => {
-    expect(screenPresentation(href, CONTEXT).title).toBe(title);
+    expect(screenIdentity(href, CONTEXT).title).toBe(title);
   });
 
   // Every route a window tab can stand on, from the generated tree, so a new
@@ -131,12 +130,12 @@ describe("screenPresentation", () => {
             ? "general"
             : "x",
       );
-      expect(screenPresentation(href, CONTEXT).title).not.toBe("Tab");
+      expect(screenIdentity(href, CONTEXT).title).not.toBe("Tab");
     },
   );
 });
 
-describe("screenLocation", () => {
+describe("screenIdentity location", () => {
   it.each([
     ["the home folder", "/files?path=&root=~", "~"],
     [
@@ -161,7 +160,10 @@ describe("screenLocation", () => {
     ],
     ["the recents", "/files?path=&root=recents%3A", ""],
   ])("places a folder tab at %s", (_, href, path) => {
-    expect(screenLocation(href, CONTEXT)).toEqual({ kind: "folder", path });
+    expect(screenIdentity(href, CONTEXT).location).toEqual({
+      kind: "folder",
+      path,
+    });
   });
 
   it.each([
@@ -204,16 +206,18 @@ describe("screenLocation", () => {
       { address: "instrument://nowhere/x", kind: "missing" },
     ],
   ])("places a tab at %s", (_, href, location) => {
-    expect(screenLocation(href, CONTEXT)).toEqual(location);
+    expect(screenIdentity(href, CONTEXT).location).toEqual(location);
   });
 
   it("names the chats' index Chats", () => {
-    expect(screenPresentation("/chat-list", CONTEXT).title).toBe("Chats");
+    expect(screenIdentity("/chat-list", CONTEXT).title).toBe("Chats");
   });
 
   it("places a chat tab on its chat", () => {
     const chatTitles = new Map([[CHAT_ID, "Caffeine mixes"]]);
-    expect(screenLocation(INBOX_HREF, { ...CONTEXT, chatTitles })).toEqual({
+    expect(
+      screenIdentity(INBOX_HREF, { ...CONTEXT, chatTitles }).location,
+    ).toEqual({
       kind: "chat",
       title: "Caffeine mixes",
     });

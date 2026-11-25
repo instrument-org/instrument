@@ -137,6 +137,12 @@ export function NewChatView({
   const setSnapshots = useSetAtom(draftSnapshotsAtom);
   const inputRef = useRef<PromptInputRef>(null);
   const draft = draftInNewChatBox(drafts, boxes, tabId);
+  // What was marked in files and moved here, which shows as pills and is
+  // enough to send.
+  const markedCount = useComposerAsks({
+    draftId: draft?.id ?? "",
+    kind: "draft",
+  }).length;
   const boundId = boxes[tabId]?.draftId ?? null;
   const key = { scope: "newChat" as const, tabId };
   const [glints, setGlints] = useState(() =>
@@ -608,7 +614,9 @@ export function NewChatView({
           autoFocus={takesCaret}
           commands={commands}
           draftKey={key}
-          hasAttachmentsLead={draftLinksOf(draft).length > 0}
+          hasAttachmentsLead={
+            markedCount > 0 || draftLinksOf(draft).length > 0
+          }
           isLoading={false}
           keyboardHome
           besidePlus={

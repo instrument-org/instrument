@@ -3,7 +3,11 @@ import { Button } from "@/client/components/ui/button";
 import { useTargetsAgentActivity } from "@/client/hooks/use-target-agent-activity";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
-import { browserTargetOf, type ChatId } from "@instrument-org/workspace/client";
+import {
+  browserTargetOf,
+  type ChatId,
+  TAKEOVER_WORDS,
+} from "@instrument-org/workspace/client";
 import { CursorClickIcon } from "@phosphor-icons/react/CursorClick";
 import { HandIcon } from "@phosphor-icons/react/Hand";
 import { QuestionIcon } from "@phosphor-icons/react/Question";
@@ -106,7 +110,7 @@ function Overlay({
             variant="ghost"
           >
             <HandIcon className="size-3.5" />
-            Take over
+            {TAKEOVER_WORDS.take}
           </Button>
         </div>
       </div>

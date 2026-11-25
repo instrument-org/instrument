@@ -12,6 +12,7 @@ import {
 import { defineCapability } from "../lib/capabilities/define";
 import { recordQuestion } from "../lib/chat/asks";
 import { modelTool } from "../lib/capabilities/tool";
+import { ABOVE_REPLY_BOX, QUESTION_SKIP } from "../lib/screen-words";
 
 // A task runs the chat's agent, questions included, where nobody sees a card.
 const ROLE_REFUSAL =
@@ -40,8 +41,7 @@ const chooseCapability = defineCapability({
   summary: "Puts questions with choices to the person on a card.",
   surfaces: {
     tool: {
-      description:
-        "Put one to four questions with multiple choice options to the user on one card in the chat. The card shows them one question at a time, each with your choices numbered from 1, a row for an answer in their own words, and Skip, so the card is the whole of the ask and never needs an 'Other' or 'Skip' choice of yours. They send every answer together, or reply in the chat instead, which may name a choice by its number. When the choices differ in a way easier seen than read (a layout, code, a mockup, a few facts side by side), give every choice a `detail` showing it; leave `detail` out for plain preferences and yes/no. Questions you need answered before going on go on one card, never a card each; ask a later card only for a question that depends on an earlier answer. Your turn ends on this call, and their answers reach you later as a message of their own, so do what does not depend on them first. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.",
+      description: `Put one to four questions with multiple choice options to the user on one card in the chat. The card shows them one question at a time, each with your choices numbered from 1, a row for an answer in their own words, and ${QUESTION_SKIP}, so the card is the whole of the ask and never needs an 'Other' or '${QUESTION_SKIP}' choice of yours. They send every answer together, or reply in the chat instead, which may name a choice by its number. When the choices differ in a way easier seen than read (a layout, code, a mockup, a few facts side by side), give every choice a \`detail\` showing it; leave \`detail\` out for plain preferences and yes/no. Questions you need answered before going on go on one card, never a card each; ask a later card only for a question that depends on an earlier answer. Your turn ends on this call, and their answers reach you later as a message of their own, so do what does not depend on them first. Only the chat's card reaches the user: in a task, name the choice in your needs fence instead.`,
       execute: async ({ chatId, input, messageId, partId, sessionId }) => {
         // Asked during the turn, so held until the session is at rest.
         await recordQuestion(
@@ -57,8 +57,7 @@ const chooseCapability = defineCapability({
         if ("asked" in output) {
           return {
             type: "text",
-            value:
-              "The user now sees your questions and their choices on a card above the reply box, and answers there. Their answers reach you together as a message of their own.",
+            value: `The user now sees your questions and their choices on a card ${ABOVE_REPLY_BOX}, and answers there. Their answers reach you together as a message of their own.`,
           };
         }
         const answer = chooseAnswer(output);

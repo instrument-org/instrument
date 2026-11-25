@@ -22,6 +22,7 @@ import { XSquareIcon } from "@phosphor-icons/react/XSquare";
 import { type ReactNode } from "react";
 
 import { type TabAction } from "./tab-actions";
+import { MOVE_TO_NEW_TAB_GROUP } from "@instrument-org/workspace/client";
 
 /**
  * The menu a right click on a tab raises, anchored at the pointer, in the
@@ -199,7 +200,7 @@ export function TabMenuItems({
       {onMoveToNewGroup && (
         <Item onClick={onMoveToNewGroup}>
           <StackIcon className="size-4" />
-          <span>Move to New Tab Group</span>
+          <span>{MOVE_TO_NEW_TAB_GROUP}</span>
         </Item>
       )}
       {moveToWindow ? (

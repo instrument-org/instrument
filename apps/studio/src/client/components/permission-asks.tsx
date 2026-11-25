@@ -8,6 +8,7 @@ import {
   askTargetName,
   type ChatId,
   type SessionMessageDataPart,
+  WAIT_CARD_WORDS,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useEffect, useEffectEvent, useState } from "react";
@@ -405,13 +406,13 @@ function PageWaitCard({
             <ArrowRightIcon className="size-3.5 shrink-0" />
             Finish on the page beside the chat.
           </span>
-          <AnswerButton {...done}>Done</AnswerButton>
+          <AnswerButton {...done}>{WAIT_CARD_WORDS.done}</AnswerButton>
           <AnswerButton
             {...skip}
             className="text-muted-foreground"
             variant="ghost"
           >
-            Skip
+            {WAIT_CARD_WORDS.skip}
           </AnswerButton>
         </div>
       )}

@@ -30,6 +30,7 @@ import {
 import { defineCapability } from "../lib/capabilities/define";
 import { recordSignIn } from "../lib/chat/asks";
 import { modelTool } from "../lib/capabilities/tool";
+import { SITE_SIGN_IN_WORDS } from "../lib/screen-words";
 
 // A task runs the chat's agent where no card is seen.
 const ROLE_REFUSAL =
@@ -66,7 +67,7 @@ const connectAppCapability = defineCapability({
   surfaces: {
     tool: {
       description: dedent`
-    Ask the user to connect apps you have set up with \`${APP_COMMAND.name} new\`. One card appears in the conversation with a row for each app: sign-in buttons for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a Sign in button that opens its sign-in in the window's browser, where the user presses Done once signed in (at once, when already signed in). Name every app the work needs in one call: several calls make several cards. Your turn ends on this call, so do what does not depend on the connection first. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
+    Ask the user to connect apps you have set up with \`${APP_COMMAND.name} new\`. One card appears in the conversation with a row for each app: sign-in buttons for an OAuth app, a secure field for a key, for an app whose server runs on this machine, what would run and a button to allow it, and for a web app, a ${SITE_SIGN_IN_WORDS.signIn} button that opens its sign-in in the window's browser, where the user presses ${SITE_SIGN_IN_WORDS.done} once signed in (at once, when already signed in). Name every app the work needs in one call: several calls make several cards. Your turn ends on this call, so do what does not depend on the connection first. You are woken once, with a note, when the user has answered every row: signed in, saved a key, or declined. Never ask for a key in prose instead.
   `,
       execute: async ({ input, messageId, partId, sessionId, chatId }) => {
         const slugs = [...new Set(input.slugs)];

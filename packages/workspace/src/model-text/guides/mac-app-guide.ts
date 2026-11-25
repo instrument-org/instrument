@@ -2,6 +2,7 @@ import { APP_NAME } from "@instrument-org/shared";
 
 import { type MacAppDefinition } from "../../lib/mac-apps/tool";
 import { APP_COMMAND } from "../commands/app-command";
+import { ABOVE_REPLY_BOX } from "../../lib/screen-words";
 
 /**
  * A Mac app's guide, from its tools' own descriptions: what it is for, how a
@@ -19,6 +20,6 @@ export function macAppGuide(app: MacAppDefinition, slug: string): string {
     app.about,
     `\`${APP_COMMAND.name} call ${slug} <tool> '<json>'\` runs a tool, and \`${APP_COMMAND.name} tool ${slug} <tool>\` shows the JSON it takes.`,
     tools.join("\n"),
-    `The first time a chat uses ${app.name}, macOS may ask the person. Exit code 2 means macOS keeps ${APP_NAME} out of ${app.name}: the person now sees a card above the reply box that lets them change it, and their answer wakes you, so stop there and say what you're waiting for.`,
+    `The first time a chat uses ${app.name}, macOS may ask the person. Exit code 2 means macOS keeps ${APP_NAME} out of ${app.name}: the person now sees a card ${ABOVE_REPLY_BOX} that lets them change it, and their answer wakes you, so stop there and say what you're waiting for.`,
   ].join("\n\n");
 }

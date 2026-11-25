@@ -66,17 +66,14 @@ import { PlusIcon } from "@phosphor-icons/react/Plus";
 import { ShieldWarningIcon } from "@phosphor-icons/react/ShieldWarning";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
+import { PERMISSION_LEVEL_WORDS } from "@instrument-org/workspace/client";
 
 type View = RPCOutput["workspace"]["permissions"]["get"];
 type Level = View["folders"][number]["level"];
 type Place = View["places"][number];
 type Folder = View["folders"][number];
 
-const LEVEL_LABELS = {
-  allow: "Allowed",
-  ask: "Ask first",
-  never: "Not allowed",
-} satisfies Record<Level, string>;
+const LEVEL_LABELS = PERMISSION_LEVEL_WORDS satisfies Record<Level, string>;
 
 const LEVELS = ["allow", "ask", "never"] satisfies Level[];
 
@@ -340,8 +337,9 @@ export function PermissionsSection() {
                 Instrument uses folders without asking
               </p>
               <p className="text-xs text-muted-foreground">
-                It reads and changes any folder that isn’t marked Not allowed.
-                It still asks before using your passwords and keys.
+                It reads and changes any folder that isn’t marked{" "}
+                {LEVEL_LABELS.never}. It still asks before using your passwords
+                and keys.
               </p>
             </div>
             <Button
@@ -527,7 +525,8 @@ function EveryChatCanUse({
             mark: <FoldersMark />,
             name: "Caches",
             path: places.caches[0] ?? "",
-            status: appFiles === "never" ? "Not allowed" : "Always allowed",
+            status:
+              appFiles === "never" ? LEVEL_LABELS.never : "Always allowed",
           },
         ]
       : []),

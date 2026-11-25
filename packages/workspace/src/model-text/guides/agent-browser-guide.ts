@@ -7,6 +7,7 @@ import {
 } from "./agent-browser-core-guide.generated";
 import { APP_COMMAND } from "../commands/app-command";
 import { WINDOW_COMMAND } from "../commands/window-command";
+import { WAIT_CARD_WORDS } from "../../lib/screen-words";
 
 /**
  * How to use `agent-browser` here: the CLI's own core guide, as the release
@@ -54,7 +55,7 @@ Read this first. The guide after it is agent-browser's own, and where the two di
 - Never set or clear cookies: every tab shares the user's browser profile, so it changes their sign-ins on every site.
 - A human-verification or access-denied page is the site's judgment, and repeating the command repeats it. Do not try to solve the challenge; the user clears it in the browser.
 - When a page needs an account, the user signs in there. Never ask for a password in chat or pass one in a command.
-- For either, in a chat hand the user the tab with \`${WINDOW_COMMAND.name} wait <tab> --title '<what to do>' --reason '<why>'\` rather than asking in your reply: it brings the page to the front, shows them Done and Skip, and ends your turn until they answer. A task cannot ask the user; end with what you need, and the chat asks for it.
+- For either, in a chat hand the user the tab with \`${WINDOW_COMMAND.name} wait <tab> --title '<what to do>' --reason '<why>'\` rather than asking in your reply: it brings the page to the front, shows them ${WAIT_CARD_WORDS.done} and ${WAIT_CARD_WORDS.skip}, and ends your turn until they answer. A task cannot ask the user; end with what you need, and the chat asks for it.
 
 ## Not available here
 

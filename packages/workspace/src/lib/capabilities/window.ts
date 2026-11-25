@@ -47,6 +47,12 @@ import {
 import { getWorkspaceConfig } from "../workspace-config";
 import { type CapabilityContext, defineCapability } from "./define";
 import { projectsInUse } from "./projects";
+import {
+  ABOVE_REPLY_BOX,
+  MOVE_TO_NEW_TAB_GROUP,
+  RECENTLY_CLOSED,
+  WAIT_CARD_WORDS,
+} from "../screen-words";
 
 const NAME = WINDOW_COMMAND.name;
 
@@ -645,8 +651,7 @@ export const windowClose = defineCapability({
     }
     return outcomes;
   },
-  summary:
-    "Close tabs, or a tab group whole by its id; the user can bring back from Recently Closed what was theirs or a pinned group, not an agent's tab they never used; closing leaves its chats working. A pinned group whose last tab closes gets a new tab; its id closes it.",
+  summary: `Close tabs, or a tab group whole by its id; the user can bring back from ${RECENTLY_CLOSED} what was theirs or a pinned group, not an agent's tab they never used; closing leaves its chats working. A pinned group whose last tab closes gets a new tab; its id closes it.`,
   surfaces: {
     cli: { help: "", positional: ["tabs"], words: ["window", "close"] },
   },
@@ -725,7 +730,7 @@ async function closeGroup(
   const count = layout?.sides.reduce((sum, side) => sum + side.tabs.length, 0);
   return {
     failed: false,
-    said: `Closed the tab group ${layout ? groupWords(layout) : group}${count === undefined ? "" : count === 1 ? ", its one tab" : `, its ${count} tabs`}.${answer?.isListed === false ? "" : " The user can bring it back with Undo or from Recently Closed."}`,
+    said: `Closed the tab group ${layout ? groupWords(layout) : group}${count === undefined ? "" : count === 1 ? ", its one tab" : `, its ${count} tabs`}.${answer?.isListed === false ? "" : ` The user can bring it back with Undo or from ${RECENTLY_CLOSED}.`}`,
     target: group,
   };
 }
@@ -796,10 +801,9 @@ export const windowWait = defineCapability({
       { page: { title: page.title, url: page.url } },
     );
     recordRaisedAsk(askId);
-    return `Showed the user tab ${tab} ("${page.title || page.url}") with a card above the reply box titled "${title.trim()}", your reason, Done and Skip.${place ? ` Tab ${tab}: ${place}.` : ""} Your turn ends here; their answer wakes you.`;
+    return `Showed the user tab ${tab} ("${page.title || page.url}") with a card ${ABOVE_REPLY_BOX} titled "${title.trim()}", your reason, ${WAIT_CARD_WORDS.done} and ${WAIT_CARD_WORDS.skip}.${place ? ` Tab ${tab}: ${place}.` : ""} Your turn ends here; their answer wakes you.`;
   },
-  summary:
-    "Hand the user a page of this chat's for what only they can do there (sign in, prove they are a person) and wait: a card shows your title and reason with Done and Skip, your turn ends, and their answer wakes you.",
+  summary: `Hand the user a page of this chat's for what only they can do there (sign in, prove they are a person) and wait: a card shows your title and reason with ${WAIT_CARD_WORDS.done} and ${WAIT_CARD_WORDS.skip}, your turn ends, and their answer wakes you.`,
   surfaces: {
     cli: { help: "", positional: ["tab"], words: ["window", "wait"] },
   },
@@ -842,8 +846,7 @@ export const windowGroup = defineCapability({
         : "it is on screen, since the group the window showed had no tab left";
     return `Made the tab group ${words} of ${ids.join(", ")}; ${shown}.`;
   },
-  summary:
-    "Make a new tab group of tabs, moved out of their groups as Move to New Tab Group moves one, in the window the chat works in; the window stays on the group it shows. The sidebar titles a group by its tabs.",
+  summary: `Make a new tab group of tabs, moved out of their groups as ${MOVE_TO_NEW_TAB_GROUP} moves one, in the window the chat works in; the window stays on the group it shows. The sidebar titles a group by its tabs.`,
   surfaces: {
     cli: { help: "", positional: ["tabs"], words: ["window", "group"] },
   },

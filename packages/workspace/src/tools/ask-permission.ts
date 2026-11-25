@@ -33,6 +33,7 @@ import { hostPathOf, shellPath } from "../lib/workspace-fs-layout";
 import { WINDOW_ID } from "../schemas/window-id";
 import { defineCapability, type Role } from "../lib/capabilities/define";
 import { modelTool } from "../lib/capabilities/tool";
+import { ABOVE_REPLY_BOX, PERMISSION_LEVEL_WORDS } from "../lib/screen-words";
 
 /**
  * Ask the person to let this chat use a folder or a Mac app, the one way a
@@ -112,7 +113,7 @@ const askPermissionCapability = defineCapability({
           case "asked": {
             return {
               type: "text",
-              value: `The user now sees a card above the reply box asking for ${JSON.stringify(output.agentTarget ?? shellPath(output.target))}. Their answer reaches you as a message of its own.`,
+              value: `The user now sees a card ${ABOVE_REPLY_BOX} asking for ${JSON.stringify(output.agentTarget ?? shellPath(output.target))}. Their answer reaches you as a message of its own.`,
             };
           }
           case "allowed": {
@@ -314,7 +315,7 @@ async function appToAsk(
       state: "refused",
       why: saidNotNow
         ? "You said not now to this app in this chat."
-        : `${app.name} is set to Not allowed in Settings.`,
+        : `${app.name} is set to ${PERMISSION_LEVEL_WORDS.never} in Settings.`,
     };
   }
   return { state: "ask", target: given };

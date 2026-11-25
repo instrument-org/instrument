@@ -17,6 +17,7 @@ import {
   FAILED_SIGN_IN_LABELS,
   FAILED_SIGN_IN_OFFERS,
   type FailedSignIn,
+  SITE_SIGN_IN_WORDS,
 } from "@instrument-org/workspace/client";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAtom } from "jotai";
@@ -259,7 +260,7 @@ export function ConnectControls({
           size="sm"
           variant={!site.isWaiting && primary ? "brand" : "outline"}
         >
-          {site.isWaiting ? "Show page" : (label ?? "Sign in")}
+          {site.isWaiting ? "Show page" : (label ?? SITE_SIGN_IN_WORDS.signIn)}
         </Button>
       </div>
     );
@@ -291,7 +292,7 @@ export function ConnectControls({
           {...(offersFix && fixInMenu ? { fix } : {})}
           label={
             failure === undefined
-              ? (label ?? "Sign in")
+              ? (label ?? SITE_SIGN_IN_WORDS.signIn)
               : FAILED_SIGN_IN_LABELS.retry
           }
           onCancel={cancelSignIn}

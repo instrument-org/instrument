@@ -10,6 +10,7 @@ import { type Asker, recordAsk } from "../chat/asks";
 import { listFolder } from "../chat/folder-look";
 import { getWorkspaceConfig } from "../workspace-config";
 import { type MacApp } from "./apps";
+import { ABOVE_REPLY_BOX } from "../screen-words";
 
 /**
  * How often the window list is read while a look macOS may be asking about
@@ -258,8 +259,8 @@ export async function macosAppCard(
     askId,
     message:
       macStatus === "denied"
-        ? `macOS itself keeps ${APP_NAME} out of ${app.name}, not the person's settings. They now see a card above the reply box that opens the setting, and their answer wakes you; stop here and say what you're waiting for.`
-        : `macOS asks the person before ${APP_NAME} first uses ${app.name}. They now see a card above the reply box, beside the system's prompt, and their answer wakes you; stop here and say what you're waiting for.`,
+        ? `macOS itself keeps ${APP_NAME} out of ${app.name}, not the person's settings. They now see a card ${ABOVE_REPLY_BOX} that opens the setting, and their answer wakes you; stop here and say what you're waiting for.`
+        : `macOS asks the person before ${APP_NAME} first uses ${app.name}. They now see a card ${ABOVE_REPLY_BOX}, beside the system's prompt, and their answer wakes you; stop here and say what you're waiting for.`,
   };
 }
 

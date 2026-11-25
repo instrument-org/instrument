@@ -1,6 +1,7 @@
 import { APP_NAME } from "@instrument-org/shared";
 import { TOOL_NAMES } from "../../tools/name";
 import { INSTRUMENT_COMMAND } from "./instrument-command";
+import { SITE_SIGN_IN_WORDS } from "../../lib/screen-words";
 
 /**
  * The name and one-line description of the `instrument app` command, kept apart from the
@@ -40,4 +41,4 @@ export const WEB_APP_UNMARKED = `not marked signed in, though the user may alrea
  * signed in: nothing sees a session in the browser, so the site is checked
  * before the user is asked to sign in again.
  */
-export const WEB_APP_NOT_SIGNED_IN = `not marked signed in. Open its site in a tab first: if it loads signed in, call ${TOOL_NAMES.connectApp} (unless its card is open) and tell the user they are already signed in, so they only press Sign in on the card, then Done on the page it opens; otherwise ${TOOL_NAMES.connectApp}`;
+export const WEB_APP_NOT_SIGNED_IN = `not marked signed in. Open its site in a tab first: if it loads signed in, call ${TOOL_NAMES.connectApp} (unless its card is open) and tell the user they are already signed in, so they only press ${SITE_SIGN_IN_WORDS.signIn} on the card, then ${SITE_SIGN_IN_WORDS.done} on the page it opens; otherwise ${TOOL_NAMES.connectApp}`;

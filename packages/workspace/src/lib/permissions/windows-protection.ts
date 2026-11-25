@@ -8,6 +8,7 @@ import { APP_NAME } from "@instrument-org/shared";
 
 import { type Asker, recordAsk } from "../chat/asks";
 import { getWorkspaceConfig } from "../workspace-config";
+import { ABOVE_REPLY_BOX } from "../screen-words";
 
 // Windows' ransomware protection (Controlled folder access) keeps programs
 // it does not trust from changing the folders it guards, and a blocked
@@ -366,7 +367,7 @@ export async function reportBlocks(
       `Windows ransomware protection (Controlled folder access) kept ${names.join(", ")} from changing ${shown}: that is what the error above is, not a missing file. ${
         asker === undefined
           ? `Only the person can let ${APP_NAME} through, under Windows Security › Ransomware protection › Allow an app through Controlled folder access.`
-          : "The person now sees a card above the reply box to let it through, and their answer wakes you; stop here and say what you're waiting for."
+          : `The person now sees a card ${ABOVE_REPLY_BOX} to let it through, and their answer wakes you; stop here and say what you're waiting for.`
       }`,
     );
   }

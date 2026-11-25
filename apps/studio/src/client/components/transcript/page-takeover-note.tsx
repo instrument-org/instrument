@@ -5,6 +5,7 @@ import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
   type SessionMessageDataPart,
+  TAKEOVER_WORDS,
 } from "@instrument-org/workspace/client";
 import { PauseIcon } from "@phosphor-icons/react/Pause";
 import { useMutation } from "@tanstack/react-query";
@@ -97,7 +98,7 @@ export function PageTakeoverNote({
         }}
         size="sm"
       >
-        Continue
+        {TAKEOVER_WORDS.giveBack}
       </Button>
     </div>
   );

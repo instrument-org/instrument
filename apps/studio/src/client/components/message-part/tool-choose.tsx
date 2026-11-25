@@ -7,6 +7,7 @@ import {
   chooseQuestions,
   type SessionMessageDataPart,
   type SessionMessagePart,
+  QUESTION_SKIP,
 } from "@instrument-org/workspace/client";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
@@ -416,7 +417,7 @@ export function QuestionCard({
             size="xs"
             variant="ghost"
           >
-            Skip
+            {QUESTION_SKIP}
           </Button>
           <Button
             aria-label={sends ? "Send" : "Next"}

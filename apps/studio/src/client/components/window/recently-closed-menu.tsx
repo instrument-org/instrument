@@ -34,6 +34,7 @@ import {
 } from "./sidebar-popover";
 import { useTabTitle } from "./tab-title";
 import { useRecentlyClosed } from "./window-space-menu";
+import { RECENTLY_CLOSED } from "@instrument-org/workspace/client";
 
 /** How many closes a menu lists, newest first; History's page has every one. */
 const MOST_LISTED = 10;
@@ -67,7 +68,7 @@ export function RecentlyClosedMenu() {
   const hasPicked = useRef(false);
   const rows = (
     <>
-      <ContextMenuLabel>Recently Closed</ContextMenuLabel>
+      <ContextMenuLabel>{RECENTLY_CLOSED}</ContextMenuLabel>
       {closed.length === 0 ? (
         <ContextMenuItem disabled>No closed tabs</ContextMenuItem>
       ) : (
@@ -171,7 +172,7 @@ export function HistoryButton() {
         style={{ width: SIDEBAR_POPOVER_WIDTH }}
       >
         <p className="shrink-0 px-2.5 pt-1 pb-1.5 text-[12px] font-medium text-muted-foreground">
-          Recently Closed
+          {RECENTLY_CLOSED}
         </p>
         {closed.length === 0 ? (
           <p className="px-2.5 pb-2 text-[13px] text-muted-foreground">

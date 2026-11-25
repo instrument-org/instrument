@@ -14,6 +14,7 @@ import {
   updateChatPermissions,
 } from "./rules";
 import { readPermissionSettings } from "./rules";
+import { PERMISSION_LEVEL_WORDS } from "../screen-words";
 
 const execFileAsync = promisify(execFile);
 
@@ -158,7 +159,7 @@ export async function appRefusal(
     return (await appDenied(chatId, app.name)) ||
       (await appDenied(chatId, app.bundleId))
       ? `the person said not now to ${app.name} in this chat. Don't look for another way to use it; say what you skipped without it.`
-      : `${app.name} is marked Not allowed in Settings › Permissions, so ${APP_NAME} won't use it. Tell the person what you skipped.`;
+      : `${app.name} is marked ${PERMISSION_LEVEL_WORDS.never} in Settings › Permissions, so ${APP_NAME} won't use it. Tell the person what you skipped.`;
   }
   if (!asker) {
     return `using ${app.name} needs the person's yes first.`;

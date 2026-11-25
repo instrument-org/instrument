@@ -2,7 +2,10 @@ import { Button } from "@/client/components/ui/button";
 import { InstrumentGlyph } from "@/client/components/wordmark";
 import { toast } from "@/client/lib/toast";
 import { rpcClient } from "@/client/rpc/client";
-import { type ChatId } from "@instrument-org/workspace/client";
+import {
+  type ChatId,
+  SITE_SIGN_IN_WORDS,
+} from "@instrument-org/workspace/client";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { type WindowTab } from "@/client/atoms/window";
@@ -199,7 +202,7 @@ export function SiteSignInBar({ tabId }: { tabId: string }) {
         size={18}
       />
       <span className="min-w-0 flex-1 truncate">
-        When you’re signed in to {name}, press Done.
+        When you’re signed in to {name}, press {SITE_SIGN_IN_WORDS.done}.
       </span>
       <Button
         className="min-w-18"
@@ -215,7 +218,7 @@ export function SiteSignInBar({ tabId }: { tabId: string }) {
         size="sm"
         variant="brand"
       >
-        Done
+        {SITE_SIGN_IN_WORDS.done}
       </Button>
     </div>
   );

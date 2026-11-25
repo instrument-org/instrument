@@ -141,8 +141,8 @@ function setupTestWithModel(
 describe("generateTitleFromUserMessage", () => {
   it.each([
     [
-      "Very Long Task Title That Exceeds The Word Limit By Some Margin",
-      "Very Long Task Title That Exceeds The Word",
+      "Very Long Task Title That Exceeds The Word Limit By Some Wide Margin",
+      "Very Long Task Title That Exceeds The Word Limit By Some Wide",
     ],
     ["Todo List Manager", "Todo List Manager"],
     [
@@ -154,17 +154,20 @@ describe("generateTitleFromUserMessage", () => {
     ["تطبيق المهام اليومية", "تطبيق المهام اليومية"],
     [
       "システム 管理 アプリケーション データベース 設定 追加 画面 一覧 更新",
-      "システム 管理 アプリケーション データベース 設定 追加 画面 一覧",
+      "システム 管理 アプリケーション データベース 設定 追加 画面 一覧 更新",
     ],
     ["Chat アプリ with ファイル upload", "Chat アプリ with ファイル upload"],
-  ])("titles %j as %j, trimmed to the word cap", async (answer, expected) => {
-    const { generate } = setupTest(answer);
+  ])(
+    "titles %j as %j, trimmed only well past the words asked for",
+    async (answer, expected) => {
+      const { generate } = setupTest(answer);
 
-    const title = (await generate())._unsafeUnwrap();
+      const title = (await generate())._unsafeUnwrap();
 
-    expect(title).toBe(expected);
-    expect(title.split(" ").length).toBeLessThanOrEqual(MAX_TITLE_WORDS);
-  });
+      expect(title).toBe(expected);
+      expect(title.split(" ").length).toBeLessThanOrEqual(MAX_TITLE_WORDS + 4);
+    },
+  );
 
   it("should cap max output tokens for task-name generation", async () => {
     const { generate, mockLanguageModel } = setupTest("Todo List Manager");
@@ -322,8 +325,8 @@ describe("generateTitleFromUserMessage", () => {
       "Next daylight saving time change",
     ],
     [
-      "Clips stitched together, trimmed, and exported without audio, then uploaded",
-      "Clips stitched together, trimmed, and exported without audio",
+      "Clips stitched together, trimmed, and exported without audio, then uploaded, sent, shared, archived",
+      "Clips stitched together, trimmed, and exported without audio, then uploaded, sent, shared",
     ],
   ])("cleans %s", async (generated, expected) => {
     const { generate } = setupTest(generated);

@@ -1,6 +1,6 @@
 ---
 name: monitored-release
-description: Cut, watch, and publish an Instrument release end to end — tag, push, monitor CI, handle a failed leg, write the notes, verify the update feed. Use when asked to ship a release or a beta, or to carry one that is already building through to published.
+description: Cut, watch, and publish an Instrument release end to end — tag, push, monitor CI, handle a failed leg, write the notes, check what the agent is told about the app, verify the update feed. Use when asked to ship a release or a beta, or to carry one that is already building through to published.
 ---
 
 # A monitored release
@@ -24,7 +24,7 @@ Add `--version <x.y.z[-beta.n]>` to any of them to tag that exact version instea
 
 ## Before you tag
 
-Four checks. Skipping one is how a release ships another agent's work, or fails twelve minutes in.
+Five checks. Skipping one is how a release ships another agent's work, or fails twelve minutes in.
 
 **1. Other agents are working in this checkout.** `ListAgents`, then message whoever is busy: how long, and is their work shippable. Expect at least one to ask to be tagged around, and honor it. The tag takes HEAD's tree, so uncommitted work stays out on its own and you never touch their files. If an agent lands work in stages, ask it to tell you which commit is a shippable point; you cannot tell a coherent stage from a half-finished one by reading the log.
 
@@ -45,6 +45,26 @@ cd <scratch>/verify && pnpm check-and-test:ci --force
 ```
 
 **4. Know the baseline before calling anything broken.** `check:unused` (knip) has failed across several releases in a row. Check the previous tag out in the same worktree and run `pnpm knip` there before reporting a regression. `--output-logs errors-only` prints nothing for a passing task, so read the final `Tasks: N successful, M total` line rather than reading a quiet log as a full run.
+
+**5. Check what the agent is told about the app.** Start this while step 3 runs. It never holds the tag: what it finds goes in the release report, and only a finding that would have the agent tell people to do something harmful waits for a person. Take the range the notes use, from the last published release (`gh release list`) to HEAD.
+
+- **Claims.** Read the range's diff of `packages/workspace/system-skills/instrument-guide/SKILL.md`, `packages/workspace/src/model-text/`, and the app code those touch. Check each claim the changed lines make against the code as it stands. Then turn it around: for each change in the range a person would notice (a new menu item, a moved button, a setting), find the guide or prompt line that describes it, and say which ones no line covers or a line now gets wrong. `reference.md` is generated, so only the hand-written files can drift.
+- **Gains the agent lacks.** For each thing a person can now do in the app, say whether the agent can do it or see it too: an `instrument` command (`packages/workspace/src/lib/capabilities/`), or a fact in what `instrument window list` prints. One the person has and the agent does not is a gap to name, not a bug.
+- **The 30 questions.** `ui-truth/questions.json` holds questions people ask about the app, each with the answer read off the code and the text it was read off. First keep the key current:
+
+  ```bash
+  node scripts/ui-truth.ts check --since <last release tag>
+  ```
+
+  An answer whose text is gone is out of date, and one whose files changed is listed. Read each listed answer against the code and correct it (and its `readOff`) in a commit of its own before asking, so the key never grades against the app as it was. Then ask a small model that has only the guide, one question at a time (about 3 seconds each):
+
+  ```bash
+  node scripts/ui-truth.ts ask --out <outside the repo>/ui-truth.md
+  ```
+
+  Grade each reply against the key: correct, partly, doesn't know, or wrong (a wrong place or name, or saying something isn't there when it is). For each wrong reply, ask that question again with `--guide-from <last release tag> --only <ids>`, which says whether this release made it wrong. Report every wrong reply, the ones new in this release first, with the guide line that misled it or the gap it fell into. "Doesn't know" is the guide being silent: count those, and name any that were answered before.
+
+When a change adds something people will ask about, add a question in the same shape. Keep the set to questions a person would ask, with answers that can be read off the code.
 
 Booting the packaged app is CI's job, not yours. Boot locally only when the release turns on something a boot would expose, and then use `studio-drive.mjs boot --purpose <purpose> --workspace <fixture>` for a disposable instance. Never drive an instance you did not start; someone is using it.
 
@@ -141,4 +161,4 @@ The channel you cut shows the new version. Every other channel shows what it sho
 
 ## Reporting it
 
-Name the sha you verified and where you verified it, which checks passed, and which failed against the baseline you compared them to. "Tests pass" from the shared checkout is not a claim about the tag. Say plainly what you left out and why, especially any agent's work you tagged around.
+Name the sha you verified and where you verified it, which checks passed, and which failed against the baseline you compared them to. "Tests pass" from the shared checkout is not a claim about the tag. Say plainly what you left out and why, especially any agent's work you tagged around. Then what step 5 found: claims the code no longer bears out, changes the guide doesn't cover, what the person gained that the agent did not, and the 30 questions' tally with every wrong reply, the ones new in this release first.

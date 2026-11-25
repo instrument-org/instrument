@@ -1,0 +1,416 @@
+[
+  {
+    "id": 1,
+    "question": "I downloaded a PDF from a website in Instrument. Where do I see my downloads, and where did the file go?",
+    "answer": "Files go to the computer's Downloads folder (a normal browser download). The list is behind a Downloads button (down-arrow icon) in the toolbar of a website's tab; it only appears once there is a download. There is no Downloads page, and it is not in the ⋮ menu.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/browser-downloads.tsx",
+        "text": "label=\"Downloads\""
+      },
+      {
+        "file": "apps/studio/src/electron-main/browser-view/downloads.ts",
+        "text": "app.getPath(\"downloads\")"
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "question": "How do I pin a tab group so it stays at the top of the sidebar?",
+    "answer": "Right-click the group's row in the sidebar and choose Pin (or drag the row above the line among the pinned ones). It then sits above New.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/group-row-menu.tsx",
+        "text": "\"Unpin\" : \"Pin\""
+      },
+      {
+        "file": "apps/studio/src/client/components/window/group-sidebar.tsx",
+        "text": "pinned above the line"
+      }
+    ]
+  },
+  {
+    "id": 3,
+    "question": "How do I rename a tab group?",
+    "answer": "You can't; there is no rename for a group (its menu has Open in New Window, Duplicate, Pin, Close...). The row takes its name from its first chat, or else the tab in front. Renaming that chat (press its title, or chat menu › Rename) changes the row.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/group-row-menu.tsx",
+        "text": "Duplicate Tab Group"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/group-row-lines.tsx",
+        "text": "lead tab is the group's first chat"
+      }
+    ]
+  },
+  {
+    "id": 4,
+    "question": "Can I pin a single tab inside the tab strip like in Chrome?",
+    "answer": "No. A tab's right-click menu has no Pin. Alternatives: pin the whole tab group in the sidebar (right-click row › Pin), or bookmark the tab.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/tab-menu-items.tsx",
+        "text": "New Tab in Split"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/group-row-menu.tsx",
+        "text": "\"Unpin\" : \"Pin\""
+      }
+    ]
+  },
+  {
+    "id": 5,
+    "question": "Is there an incognito or private window?",
+    "answer": "No private or incognito window. Closest: Clear Browsing Data…, or turning off Keep a history in Settings › History. (Saying not available is enough.)",
+    "readOff": [
+      {
+        "file": "apps/studio/src/electron-main/menus/app-window.ts",
+        "text": "label: \"Clear Browsing Data…\""
+      }
+    ]
+  },
+  {
+    "id": 6,
+    "question": "How do I make just this one website bigger without making the whole app bigger?",
+    "answer": "The page's ⋮ (More actions) menu at the right end of its toolbar, Zoom − / +. (Keyboard ⌘+ / ⌘- with the page in focus also acceptable.) Settings › General › Zoom is the whole app and is the wrong answer.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/browser-page-menu.tsx",
+        "text": "<ZoomMenuRow>"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/page-menu-items.tsx",
+        "text": ">Zoom</span>"
+      }
+    ]
+  },
+  {
+    "id": 7,
+    "question": "How do I turn off ad blocking for a website that's broken?",
+    "answer": "⋮ (More actions) menu on the website's toolbar, untick Block ads; or ask Instrument to turn it off. It is one switch for all sites, not per site. It is not in Settings.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/browser-page-menu.tsx",
+        "text": "Block ads"
+      },
+      {
+        "file": "apps/studio/src/shared/agent-settings.ts",
+        "text": "\"block-ads\""
+      }
+    ]
+  },
+  {
+    "id": 8,
+    "question": "I bookmarked a page but there's no bookmarks bar when I'm on a website. How do I make it show all the time?",
+    "answer": "The bar is off by default and then shows only on a new tab. Turn it on with ⇧⌘B, View › Show Bookmarks Bar, or right-click the bar on a new tab › Show Bookmarks Bar (the ⋮ › Bookmarks submenu also has it, and Instrument can be asked to). Any one way is correct.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/bookmark-menu.tsx",
+        "text": "Show Bookmarks Bar"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/bookmarks-submenu.tsx",
+        "text": "toggleBookmarksBar"
+      },
+      {
+        "file": "apps/studio/src/electron-main/stores/workspace/preferences.ts",
+        "text": "showBookmarksBar: z.boolean().catch(false)"
+      }
+    ]
+  },
+  {
+    "id": 9,
+    "question": "How do I open the page I'm looking at in Safari instead?",
+    "answer": "The default browser's icon button at the end of the address field, beside the star, or ⋮ (More actions) › Open in Safari. Either is correct (it opens the computer's default browser).",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/hooks/use-open-in-app.ts",
+        "text": "`Open in ${appName}` : \"Open in browser\""
+      },
+      {
+        "file": "apps/studio/src/client/components/window/browser-page-menu.tsx",
+        "text": "<OpenInAppMenuItems"
+      }
+    ]
+  },
+  {
+    "id": 10,
+    "question": "Can I save a web page to my computer, and how?",
+    "answer": "Yes: ⋮ (More actions) menu › Save page as….",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/browser-page-menu.tsx",
+        "text": "Save page as…"
+      }
+    ]
+  },
+  {
+    "id": 11,
+    "question": "How can I see what a website looks like on a phone?",
+    "answer": "⋮ (More actions) menu › View as, and pick a phone/device size.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/page-menu-items.tsx",
+        "text": "View as"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/browser-page-menu.tsx",
+        "text": "<PageViewAsMenu"
+      }
+    ]
+  },
+  {
+    "id": 12,
+    "question": "How do I make the address field search with DuckDuckGo?",
+    "answer": "Settings › General › Search engine. Google is the default. (Asking Instrument to change it is also correct.)",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/settings/general-section.tsx",
+        "text": ">Search engine<"
+      },
+      {
+        "file": "apps/studio/src/shared/search-engines.ts",
+        "text": "DEFAULT_SEARCH_ENGINE: SearchEngineId = \"google\""
+      },
+      {
+        "file": "apps/studio/src/shared/agent-settings.ts",
+        "text": "\"search-engine\""
+      }
+    ]
+  },
+  {
+    "id": 13,
+    "question": "Instrument changed one of my files and I liked the old version better. How do I get it back?",
+    "answer": "Open the file beside the chat and use the Versions button in the row over it, pick a version and Restore; or Undo changes under the reply. Either is correct. (Asking Instrument to restore it is only partly.)",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/file-versions.tsx",
+        "text": "aria-label=\"Versions\""
+      },
+      {
+        "file": "apps/studio/src/client/components/undo-reply-files.tsx",
+        "text": "aria-label=\"Undo changes\""
+      }
+    ]
+  },
+  {
+    "id": 14,
+    "question": "How do I stop Instrument in the middle of a reply?",
+    "answer": "The Stop button, which takes Send's place in the reply box while it works and the box is empty; or Stop in the chat's menu. Either is correct.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/prompt-input.tsx",
+        "text": "aria-label=\"Stop\""
+      },
+      {
+        "file": "apps/studio/src/client/components/window/chat-header.tsx",
+        "text": "Stop, which ends its turn"
+      }
+    ]
+  },
+  {
+    "id": 15,
+    "question": "I made a typo in a message I already sent. How do I edit it?",
+    "answer": "Point at the message and press Edit message (the pencil beside it), change it and send; the earlier version stays, to look back at. Not offered while the message waits to be read. (Sending a correction is only partly.)",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/user-message.tsx",
+        "text": "aria-label=\"Edit message\""
+      },
+      {
+        "file": "apps/studio/src/client/components/transcript/turn-view.tsx",
+        "text": "const canEdit"
+      }
+    ]
+  },
+  {
+    "id": 16,
+    "question": "If I send another message while Instrument is still working, does it stop what it's doing?",
+    "answer": "No; the message joins the turn in progress and is read at its next step. It does not stop the work, unless you switched the chat's model before sending, which replaces the turn.",
+    "readOff": [
+      {
+        "file": "packages/workspace/src/machines/session.ts",
+        "text": "event.interrupt || switchesModel"
+      }
+    ]
+  },
+  {
+    "id": 17,
+    "question": "How do I import my bookmarks from Chrome?",
+    "answer": "There is no bookmark import. The Bookmarks page's ⋯ has only Sort by name, Add new bookmark…, Add new folder…. You add pages yourself (star / ⌘D / ⇧⌘D).",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/bookmarks/bookmarks-page.tsx",
+        "text": "Add new folder…"
+      }
+    ]
+  },
+  {
+    "id": 18,
+    "question": "Where did the chat I archived go?",
+    "answer": "Chats page (⇧⌘F, or Chats on the bookmarks bar), Archived tab.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/filter-head.tsx",
+        "text": "label: \"Archived\""
+      }
+    ]
+  },
+  {
+    "id": 19,
+    "question": "How do I delete a project, and what happens to the chats in it?",
+    "answer": "Project row in the sidebar (⋯ on hover or right-click) › View project details › Delete project (or ask Instrument). Chats are kept, just no longer filed; the folder stays.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/project-menu.tsx",
+        "text": "View project details"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/project-dialog.tsx",
+        "text": "Your chats will stay."
+      }
+    ]
+  },
+  {
+    "id": 20,
+    "question": "The chat list shows too much for each chat. Can I make it show only the titles?",
+    "answer": "Yes: Chats page, View options button at the top right beside search, pick One line.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/filter-head.tsx",
+        "text": "label: \"One line\""
+      },
+      {
+        "file": "apps/studio/src/client/components/window/filter-head.tsx",
+        "text": "aria-label=\"View options\""
+      }
+    ]
+  },
+  {
+    "id": 21,
+    "question": "What is the bell at the top of the sidebar for?",
+    "answer": "Notifications: notices from Instrument (for example being signed out of a plan) and problems such as errors or crashes it can report. A dot means something new. (It is not the list of finished chats/tasks.)",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/notifications-bell.tsx",
+        "text": "Notifications, something new"
+      }
+    ]
+  },
+  {
+    "id": 22,
+    "question": "Where do I turn off automatic crash reports?",
+    "answer": "Settings › Support › Send error reports automatically.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/settings/support-section.tsx",
+        "text": "Send error reports automatically"
+      }
+    ]
+  },
+  {
+    "id": 23,
+    "question": "How do I make sure Instrument can never read one particular folder?",
+    "answer": "Settings › Permissions: Add folder… if it isn't listed, then set its menu (Ask first) to Not allowed.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/settings/permissions-section.tsx",
+        "text": "never: \"Not allowed\""
+      },
+      {
+        "file": "apps/studio/src/client/components/settings/permissions-section.tsx",
+        "text": "Add folder…"
+      }
+    ]
+  },
+  {
+    "id": 24,
+    "question": "How do I get notifications only when I'm in another app?",
+    "answer": "Settings › General › Notify when tasks finish › Only when not focused (the default). (Asking Instrument to set it is also fine.)",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/settings/general-section.tsx",
+        "text": "menuLabel: \"Only when not focused\""
+      }
+    ]
+  },
+  {
+    "id": 25,
+    "question": "Where can I see how much AI I've used?",
+    "answer": "History page (⌘Y or the clock button at the sidebar's foot) › AI usage. (Settings › Account for plan limits on Instrument's own plan is also right.)",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/activity/history-places.tsx",
+        "text": "show: \"ai\""
+      },
+      {
+        "file": "apps/studio/src/client/components/activity/activity-timeline.ts",
+        "text": "ai: \"AI usage\""
+      }
+    ]
+  },
+  {
+    "id": 26,
+    "question": "Can Instrument save my website passwords like Chrome does?",
+    "answer": "No password manager of its own. Use an extension such as 1Password from the Chrome Web Store (Extensions page).",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/extensions-page.tsx",
+        "text": "Chrome Web Store"
+      }
+    ]
+  },
+  {
+    "id": 27,
+    "question": "How do I send someone a link to one of my chats so they can read it?",
+    "answer": "There is no share link for a chat. Export as Markdown… in the chat's menu and send that file.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/chat-actions.tsx",
+        "text": "label: \"Export as Markdown…\""
+      }
+    ]
+  },
+  {
+    "id": 28,
+    "question": "Can I see three pages side by side in one window?",
+    "answer": "No, a tab group has at most two sides. Use another window for a third.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/window/tab-model.ts",
+        "text": "group's one or two sides"
+      }
+    ]
+  },
+  {
+    "id": 29,
+    "question": "Can I stop Instrument from using my ChatGPT plan for a while without signing out of it?",
+    "answer": "Yes: Settings › Providers, the ⋯ on the ChatGPT account › Disable (Enable brings it back).",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/components/settings/chatgpt-account-card.tsx",
+        "text": "<DisableItem"
+      },
+      {
+        "file": "apps/studio/src/client/components/settings/provider-switch.tsx",
+        "text": ">Disable<"
+      }
+    ]
+  },
+  {
+    "id": 30,
+    "question": "If I switch the model in this chat, do my other chats change too?",
+    "answer": "No; a model is the chat's own. Picking one in a new chat becomes the default for new chats; existing chats keep theirs. Picked at the bottom right of the reply box.",
+    "readOff": [
+      {
+        "file": "apps/studio/src/client/hooks/use-default-model-uri.ts",
+        "text": "saveModelURI"
+      },
+      {
+        "file": "apps/studio/src/client/components/window/new-chat-view.tsx",
+        "text": "setDefaultModelURI"
+      }
+    ]
+  }
+]

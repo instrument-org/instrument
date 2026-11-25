@@ -125,7 +125,7 @@ export const generateImageCapability = defineCapability({
 
     Use it for a picture that has to look like something: a photo, a scene, an illustration, art, a product shot, or a change to a photo the user has (things added to it or put inside it, another style, color or light). A request for a picture is enough, worded however the user words it; they do not have to say "AI".
 
-    Draw with code when the result is exact, not pictured: a chart or plot from data, a diagram, a wireframe, a layout to given sizes, text set on an image, a resize, crop or format change, an SVG or HTML asset.
+    Draw with code when the result is exact, not pictured: a chart or plot from data, a diagram, a wireframe, a layout to given sizes, text set on an image, a resize, crop or format change, an SVG or HTML asset. A picture passed in comes back redrawn, never copied: its pixels, lines and lettering shift. When the result has to keep a picture exact (pixel art on its grid, a sprite's frames, a logo), change it with code.
 
     Pasting cut-outs onto a photo with code gives a flat collage. When the user wants things in a photo's scene (in, on, behind or spilling out of something there), use this tool. When they call a picture you drew with code flat, fake or pasted on, make the next one with this tool; do not refine the script.
 

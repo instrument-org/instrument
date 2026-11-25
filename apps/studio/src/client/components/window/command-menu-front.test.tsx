@@ -82,6 +82,7 @@ vi.mock("@/client/components/window/window-tabs", async (importOriginal) => ({
   useWindowTabs: () => ({
     active: front.tab,
     allTabs: front.all,
+    groupOwn: {},
     layoutOf: (group: string) =>
       groupLayoutOf(
         {

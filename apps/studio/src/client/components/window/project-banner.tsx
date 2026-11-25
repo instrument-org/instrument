@@ -3,15 +3,13 @@ import { stripMarkdown } from "@instrument-org/shared/strip-markdown";
 import { useQuery } from "@tanstack/react-query";
 
 import { type Project } from "./chats";
-import { ProjectMark } from "./project-mark";
 
 /**
- * The top of the list while it is one project, in the tint the column wears
- * then: the project's mark on a white tile, its name in its ink, and the
- * start of the instructions every chat under it follows, so what Instrument
- * knows about the project is in view without opening it. Under them, Edit
- * for its details, and Open in Files for its folder, where the agent's work
- * for it is kept.
+ * What scrolls in under a project's name over its chats: the start of the
+ * instructions every chat under it follows, so what Instrument knows about
+ * the project is in view without opening it. Under them, Edit for its
+ * details, and Open in Files for its folder, where the agent's work for it is
+ * kept.
  */
 export function ProjectBanner({
   onDetails,
@@ -31,24 +29,13 @@ export function ProjectBanner({
   );
   const instructions = stripMarkdown(whole?.instructions ?? "").trim();
   return (
-    <div className="flex shrink-0 flex-col items-start px-2.5 pt-1 pb-4">
-      <span className="grid size-11 place-items-center rounded-xl bg-background shadow-xs dark:bg-background/80">
-        <ProjectMark
-          className="size-7 text-[22px]"
-          plain
-          project={project}
-          size="lg"
-        />
-      </span>
-      <h2 className="mt-3 max-w-full truncate text-xl font-semibold text-(--project-tint-ink)">
-        {project.name}
-      </h2>
+    <div className="flex shrink-0 flex-col items-start px-3 pt-1 pb-5">
       {instructions && (
-        <p className="mt-1 line-clamp-3 max-w-full text-[13px] leading-5 wrap-break-word text-foreground/65">
+        <p className="mb-3 line-clamp-3 max-w-full text-[13px] leading-5 wrap-break-word text-foreground/65">
           {instructions}
         </p>
       )}
-      <div className="mt-3 flex gap-1.5">
+      <div className="flex gap-1.5">
         <button
           className={BANNER_BUTTON}
           onClick={() => {

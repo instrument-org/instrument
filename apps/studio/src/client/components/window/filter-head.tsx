@@ -38,6 +38,7 @@ import {
   rowDensityAtom,
 } from "./chat-list-view";
 import { useGroupTab } from "./group-tab";
+import { ProjectMark } from "./project-mark";
 import { type SearchToken, SearchField } from "./search-field";
 
 /** How long Search Chats waits for the Chats page to come up. */
@@ -67,7 +68,7 @@ const PLACES: { id: ChatPlace | undefined; label: string }[] = [
 /**
  * The lines over the list. Outside a project: the search, with the view
  * button at its end, and under them the places a chat can be as tabs, Inbox,
- * Drafts and Archived. Inside one: the view button, with the search
+ * Drafts and Archived. Inside one: its mark and name, with the search
  * folded to its glass until it is asked for or holds something. The marks the
  * search narrows by (Unread, Starred) are offered as tokens on clicking into
  * it, each only while the view has any, and narrow whatever view the column
@@ -161,17 +162,29 @@ export function FilterHead({
   if (project) {
     const isFieldShown = isSearchAsked || isSearched;
     return (
-      // Its controls center 24px down, on the line of the chat head's
-      // 48px row across the divider.
       <div
         aria-label="Filters"
-        className="flex h-13 shrink-0 items-center gap-1.5 px-2 pb-1"
+        className="flex h-13 shrink-0 items-center gap-1.5 pl-3"
         role="group"
       >
-        <span className="flex-1" hidden={isFieldShown} />
+        {!isFieldShown && (
+          <h2 className="flex min-w-0 flex-1 items-center gap-2.5 text-xl font-semibold text-(--project-tint-ink)">
+            <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-background shadow-xs dark:bg-background/80">
+              <ProjectMark
+                className="size-6 text-xl"
+                plain
+                project={project}
+                size="lg"
+              />
+            </span>
+            <span className="truncate">{project.name}</span>
+          </h2>
+        )}
         {isFieldShown ? (
           // Grows out of the glass it stood in for.
-          <div className="head-field-in flex min-w-0 flex-1">{search}</div>
+          <div className="-ml-3 head-field-in flex min-w-0 flex-1">
+            {search}
+          </div>
         ) : (
           <button
             aria-label="Search"
@@ -193,11 +206,9 @@ export function FilterHead({
     );
   }
   return (
-    // The search row centers 24px down, on the line of the chat head's 48px
-    // row across the divider.
     <div
       aria-label="Filters"
-      className="flex shrink-0 flex-col gap-1.5 px-2 pt-1.5 pb-2.5"
+      className="flex shrink-0 flex-col gap-1.5 pt-1.5 pb-2.5"
       role="group"
     >
       <div className="flex items-center gap-1.5">

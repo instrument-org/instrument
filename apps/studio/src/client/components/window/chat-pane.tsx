@@ -237,43 +237,39 @@ export function ChatPane({
 
   return (
     // Its own stacking context, so the project's wash can sit under the rows
-    // without going under the card. The rows stop a pixel short of the
-    // column's edge, where its line is drawn over them, so two see-through
-    // hairlines never cross; the wash, placed against the padding box,
-    // still reaches under the line.
+    // without going under the page.
     <div
       className={cn(
-        "relative isolate flex h-full min-h-0 min-w-0 flex-col pr-px",
+        "relative isolate flex h-full min-h-0 min-w-0 flex-col pt-3",
         chosenProject && "project-tint",
       )}
-      data-project={chosenProject ? "" : undefined}
       style={
         chosenProject ? projectTint(projectColor(chosenProject)) : undefined
       }
     >
-      {/* While the list is one project, its tint washes down from the
-          card's edge and fades out past the head, behind the first rows;
-          sized against the whole column, so a taller window washes further
-          down it. */}
+      {/* While the list is one project, its tint washes down the whole width
+          of the page fading in under the address row and out behind the first rows. */}
       {washProject && (
         <div
           aria-hidden
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 -z-10 h-[calc(20%+14rem)] bg-linear-to-b from-(--project-tint-surface)/50 to-transparent transition-opacity duration-300 ease-out project-tint motion-reduce:transition-none dark:from-(--project-tint-surface)/25 starting:opacity-0",
+            "pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 bg-linear-to-b from-transparent via-(--project-tint-surface)/50 via-25% to-transparent transition-opacity duration-300 ease-out project-tint motion-reduce:transition-none dark:via-(--project-tint-surface)/25 starting:opacity-0",
             !chosenProject && "opacity-0",
           )}
           style={projectTint(projectColor(washProject))}
         />
       )}
       <div className="flex min-h-0 flex-1 flex-col" ref={shiftRef}>
-        <FilterHead
-          chats={chats}
-          filters={filters}
-          onFiltersChange={setFilters}
-          project={chosenProject}
-        />
+        <div className="mx-auto w-full max-w-170 px-4">
+          <FilterHead
+            chats={chats}
+            filters={filters}
+            onFiltersChange={setFilters}
+            project={chosenProject}
+          />
+        </div>
         {isAISearch && (
-          <p className="shrink-0 px-4 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+          <p className="mx-auto w-full max-w-170 shrink-0 px-7 pt-2 pb-1 text-xs font-medium text-muted-foreground">
             AI results
           </p>
         )}

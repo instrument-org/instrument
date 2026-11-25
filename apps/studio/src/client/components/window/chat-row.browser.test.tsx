@@ -745,14 +745,10 @@ describe("ChatRow", () => {
     const edge = row.getBoundingClientRect();
     expect(box.top).toBeLessThan(titleBefore.bottom);
     expect(box.right).toBeLessThanOrEqual(edge.right);
-    // The tint is a square bar across the row's full width, the open row's
-    // bar in grey, rather than a rounded field inside the row.
-    expect(getComputedStyle(row).backgroundColor).toBe("rgba(0, 0, 0, 0)");
-    const tint = getComputedStyle(row, "::before");
-    expect(tint.opacity).toBe("1");
-    expect(tint.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
-    expect(tint.borderRadius).toBe("0px");
-    expect([tint.left, tint.right]).toEqual(["0px", "0px"]);
+    // The fill is a rounded one across the row's full width.
+    const face = getComputedStyle(row);
+    expect(face.backgroundColor).not.toBe("rgba(0, 0, 0, 0)");
+    expect(face.borderRadius).not.toBe("0px");
     // Nothing on the row moves with the pointer.
     expect(titleOf(row).getBoundingClientRect()).toEqual(titleBefore);
     expect(marksOf(row)[0]?.getBoundingClientRect()).toEqual(chipBefore);

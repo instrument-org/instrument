@@ -1,7 +1,10 @@
 import { sleep } from "radashi";
 
 import { type WorkspaceActorRef } from "../../machines/workspace";
-import { EDITED_MESSAGE_NOTE } from "../../model-text/notes/edited-message-model-text";
+import {
+  editedMessageNote,
+  type EditedAwayTask,
+} from "../../model-text/notes/edited-message-model-text";
 import { type ChatId } from "../../schemas/chat-id";
 import { type SessionMessage } from "../../schemas/session/message";
 import { type SessionMessagePart } from "../../schemas/session/message-part";
@@ -21,6 +24,8 @@ export interface MessageEdit {
   edited: SessionMessage.UserWithParts;
   /** The edited message and all that followed it, oldest first. */
   takesOut: StoreId.Message[];
+  /** The tasks started after it, oldest first, as they were before the edit. */
+  tasks: EditedAwayTask[];
 }
 
 /**
@@ -44,9 +49,14 @@ export async function beginEdit({
   // Before anything is stopped, so an edit that can't be made costs nothing.
   await editedIn(chatId, sessionId, messageId);
 
-  const tasks = (await listChildTasks(chatId)).filter(
-    (task) => ulidOf(task.id) > ulidOf(messageId),
-  );
+  const tasks = (await listChildTasks(chatId))
+    .filter((task) => ulidOf(task.id) > ulidOf(messageId))
+    .toSorted((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  const told = tasks.map(({ handle, id, title }) => ({
+    handle,
+    title,
+    wasRunning: isWorking(chatId, id),
+  }));
   const stopped = [sessionId, ...tasks.map((task) => task.id)];
   for (const each of stopped) {
     workspaceRef.send({
@@ -66,13 +76,13 @@ export async function beginEdit({
     }
     await sleep(50);
   }
-  return editedIn(chatId, sessionId, messageId);
+  return { ...(await editedIn(chatId, sessionId, messageId)), tasks: told };
 }
 
 /** The new version of an edited message: what it was sent with that the box doesn't hold, its earlier versions, and the note for the agent. */
 export function asNewVersion(
   message: SessionMessage.UserWithParts,
-  edited: SessionMessage.UserWithParts,
+  { edited, tasks }: Pick<MessageEdit, "edited" | "tasks">,
 ): SessionMessage.UserWithParts {
   const has = new Set(message.parts.map(({ type }) => type));
   const { createdAt, sessionId } = message.metadata;
@@ -92,16 +102,13 @@ export function asNewVersion(
     ...message,
     metadata: {
       ...message.metadata,
-      earlierVersions: [
-        ...(edited.metadata.earlierVersions ?? []),
-        edited.id,
-      ],
+      earlierVersions: [...(edited.metadata.earlierVersions ?? []), edited.id],
     },
     parts: [
       ...message.parts,
       ...carried,
       {
-        data: { text: EDITED_MESSAGE_NOTE },
+        data: { text: editedMessageNote(tasks) },
         metadata: metadata(),
         type: "data-intent",
       },
@@ -113,7 +120,7 @@ async function editedIn(
   chatId: ChatId,
   sessionId: StoreId.Session,
   messageId: StoreId.Message,
-): Promise<MessageEdit> {
+): Promise<Omit<MessageEdit, "tasks">> {
   const history = await ChatReads.history({ chatId, sessionId });
   if (history.isErr()) {
     throw history.error;

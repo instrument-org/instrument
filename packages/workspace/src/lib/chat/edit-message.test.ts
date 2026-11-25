@@ -14,11 +14,14 @@ import { branchChat } from "./branch-chat";
 import { ensureChat } from "./chat-records";
 import { asNewVersion, beginEdit } from "./edit-message";
 
+/** The sessions the edit is told are running. */
+const working = new Set<StoreId.Session>();
+
 // Nothing runs in a test, which the edit waits on the machine about.
 vi.mock(import("./activity"), async (importOriginal) => ({
   ...(await importOriginal()),
   chatActivity: () => Promise.resolve({ running: [] }),
-  isWorking: () => false,
+  isWorking: (_chatId, id) => id !== undefined && working.has(id),
 }));
 
 function said(
@@ -81,6 +84,7 @@ const sent: unknown[] = [];
 const workspaceRef = {
   send: (event: unknown) => {
     sent.push(event);
+    working.clear();
   },
   // Only `send` is asked of it.
 } as unknown as WorkspaceActorRef;
@@ -92,7 +96,7 @@ async function edit(
   messageId: StoreId.Message,
   text: string,
 ) {
-  const { edited, takesOut } = await beginEdit({
+  const { edited, takesOut, tasks } = await beginEdit({
     chatId,
     messageId,
     sessionId,
@@ -102,7 +106,7 @@ async function edit(
   if (draft.role !== "user") {
     throw new Error("expected a user message");
   }
-  const message = asNewVersion(draft, edited);
+  const message = asNewVersion(draft, { edited, tasks });
   (await ChatWrites.saveMessageWithParts(message, chatId))._unsafeUnwrap();
   (
     await ChatWrites.retract(chatId, sessionId, takesOut, edited.id)
@@ -175,6 +179,28 @@ describe("editing a message", () => {
       sessionId,
       task,
     ]);
+  });
+
+  it("names the tasks it started and whether the edit stopped them", async () => {
+    const { chatId, messages, sessionId } = await chat();
+    await chatTaskFor(chatId, { title: "Done already" });
+    const running = await chatTaskFor(chatId, { title: "Waiter" });
+    working.add(running);
+    const edited = messages[2]?.id ?? StoreId.newMessageId();
+
+    const version = await edit(chatId, sessionId, edited, "two, again");
+
+    expect(
+      version.parts.flatMap((part) =>
+        part.type === "data-intent" ? [part.data.text] : [],
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        "<instrument-system-note>
+      The user edited an earlier message, and this replaces it and everything that came after it, which you no longer see. What was done there still stands: files made or changed, messages sent, commands left running. Check the current state before you repeat any of it. Tasks you started there, oldest first: t1 "Done already" (was not running), t2 "Waiter" (stopped by the edit).
+      </instrument-system-note>",
+      ]
+    `);
   });
 
   it("builds the new version from what the agent will have been told", async () => {

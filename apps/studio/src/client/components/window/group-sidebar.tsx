@@ -66,8 +66,8 @@ import {
 } from "@/client/components/ui/tooltip";
 import { HoverPicture } from "./hover-picture";
 import {
+  GROUP_SHOWS,
   groupPictureKey,
-  groupShows,
   hoverPicturesAtom,
   pictureUrl,
 } from "./hover-pictures";
@@ -747,11 +747,10 @@ function GroupRowPicture({
   label: string;
   wrap: (trigger: ReactNode) => ReactNode;
 }) {
-  const { layoutOf } = useWindowTabs();
   const pictures = useAtomValue(hoverPicturesAtom);
   const picture = isUp
     ? undefined
-    : pictureUrl(pictures, groupPictureKey(group), groupShows(layoutOf(group)));
+    : pictureUrl(pictures, groupPictureKey(group), GROUP_SHOWS);
   return (
     <Tooltip delayDuration={PICTURE_DELAY_MS} disableHoverableContent>
       {wrap(

@@ -3,7 +3,7 @@ import { atom } from "jotai";
 
 import { type GroupLayout } from "./tab-model";
 
-/** A picture on hand: when it was taken and what was up in it. */
+/** A picture on hand: when it was taken and what it is shown of. */
 export interface HoverPicture {
   at: number;
   shows: string;
@@ -24,8 +24,15 @@ export function tabShows(tab: WindowTab): string {
 }
 
 /**
- * What a group has up, which its picture is of: the tab up on each side.
- * Tabs that come and go behind them leave the picture as it is.
+ * What a group's picture is shown of: the group, whatever its tabs have moved
+ * on to since. A page whose address changes behind the group would otherwise
+ * leave it without one.
+ */
+export const GROUP_SHOWS = "group";
+
+/**
+ * What a group has up: the tab up on each side. A capture that began with
+ * one thing up and came back with another is told by it.
  */
 export function groupShows(layout: GroupLayout): string {
   return JSON.stringify(

@@ -5,6 +5,7 @@ import { useAtomValue, useStore } from "jotai";
 import { useEffect, useRef } from "react";
 
 import {
+  GROUP_SHOWS,
   groupPictureKey,
   groupShows,
   hoverPicturesAtom,
@@ -280,7 +281,7 @@ function wantedOf(state: WindowTabs) {
   return [
     ...[...groups].map((group) => ({
       key: groupPictureKey(group),
-      shows: groupShows(groupLayoutOf(state, group)),
+      shows: GROUP_SHOWS,
     })),
     ...state.tabs.map((tab) => ({
       key: tabPictureKey(tab.id),
@@ -312,7 +313,7 @@ function partsOf({ group, layout }: Up) {
     {
       element: row,
       key: groupPictureKey(group),
-      shows: groupShows(layout),
+      shows: GROUP_SHOWS,
     },
     ...layout.sides.flatMap((side, at) => {
       const tab = side.tabs.find((each) => each.id === side.up);

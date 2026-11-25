@@ -16,7 +16,7 @@ describe("describeSignInFailure", () => {
         status: 400,
       }),
     ).toMatchInlineSnapshot(
-      `"the server refuses to register Instrument as a client (HTTP 400, invalid_redirect_uri), as servers that take only clients they approved in advance do, so this sign-in cannot start. The server said: Redirect URI is not supported."`,
+      `"the server refuses to register Instrument as a client (HTTP 400, invalid_redirect_uri), as servers that take only clients they approved in advance do, so this sign-in cannot start. Approval is for Instrument's makers to ask for, not the user. The server said: Redirect URI is not supported."`,
     );
   });
 

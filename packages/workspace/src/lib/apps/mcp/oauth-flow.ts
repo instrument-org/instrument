@@ -532,7 +532,7 @@ export function describeSignInFailure(
 ): string {
   if (refusal !== undefined) {
     const code = refusal.error === undefined ? "" : `, ${refusal.error}`;
-    return `the server refuses to register ${APP_NAME} as a client (HTTP ${refusal.status}${code}), as servers that take only clients they approved in advance do, so this sign-in cannot start${refusal.said === undefined ? "" : `. The server said: ${refusal.said}`}`;
+    return `the server refuses to register ${APP_NAME} as a client (HTTP ${refusal.status}${code}), as servers that take only clients they approved in advance do, so this sign-in cannot start. Approval is for ${APP_NAME}'s makers to ask for, not the user${refusal.said === undefined ? "" : `. The server said: ${refusal.said}`}`;
   }
   if (failure === undefined) {
     return "the server asked for no authorization";

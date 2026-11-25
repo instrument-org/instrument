@@ -746,6 +746,7 @@ const startOAuth = base
   .output(
     z.discriminatedUnion("status", [
       z.object({ status: z.literal("connected") }),
+      z.object({ status: z.literal("refused") }),
       z.object({ status: z.literal("started"), url: z.string() }),
     ]),
   )
@@ -777,6 +778,10 @@ const startOAuth = base
         error: result.error.message,
         status: "failed",
       });
+      // The card says it, from the record just written.
+      if (result.error.reason === "client-refused") {
+        return { status: "refused" as const };
+      }
       // Carried as the cause so a sign-in that could not start because the
       // network is down is not captured as a fault.
       throw errors.API_ERROR({

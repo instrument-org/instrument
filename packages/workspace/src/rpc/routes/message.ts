@@ -221,7 +221,7 @@ const create = base
         }
 
         const message = edit
-          ? asNewVersion(messageResult.value, edit.edited)
+          ? asNewVersion(messageResult.value, edit)
           : messageResult.value;
 
         if (isFirstMessageInSession) {

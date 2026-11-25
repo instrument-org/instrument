@@ -154,3 +154,29 @@ new RuleTester({
     `function useOther() { const stage = useStageName(); return stage; }`,
   ],
 });
+
+const stackedRule = plugin.rules["no-stacked-doc-comments"];
+if (!stackedRule) {
+  throw new Error("The plugin has no studio/no-stacked-doc-comments rule");
+}
+
+new RuleTester({
+  languageOptions: { parserOptions: { lang: "ts" } },
+}).run("no-stacked-doc-comments", stackedRule, {
+  invalid: [
+    {
+      code: "/** Gone. */\n/** Here. */\nfunction here() {}",
+      errors: [{ messageId: "stacked" }],
+    },
+    {
+      code: "type T = {\n  /** Gone. */\n  /**\n   * Here.\n   */\n  here: string;\n};",
+      errors: [{ messageId: "stacked" }],
+    },
+  ],
+  valid: [
+    "/** The file. */\n\n/** Here. */\nfunction here() {}",
+    "/* oxlint-disable no-console */\n/** Here. */\nfunction here() {}",
+    "// A note.\n/** Here. */\nfunction here() {}",
+    "/** One. */\nfunction one() {}\n/** Two. */\nfunction two() {}",
+  ],
+});

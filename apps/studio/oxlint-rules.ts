@@ -593,6 +593,46 @@ const stageReaderOptsOut = defineRule({
   },
 });
 
+/**
+ * Two doc comments with no line between them: code that moved or was replaced
+ * leaves its comment behind, on top of the comment of whatever took its
+ * place. A doc comment set off by a blank line is a file's or a section's,
+ * and passes.
+ */
+const noStackedDocComments = defineRule({
+  create(context) {
+    return {
+      Program() {
+        const { sourceCode } = context;
+        const comments = sourceCode.getAllComments();
+        for (const [index, comment] of comments.entries()) {
+          const next = comments[index + 1];
+          if (
+            next &&
+            comment.type === "Block" &&
+            next.type === "Block" &&
+            comment.value.startsWith("*") &&
+            next.value.startsWith("*") &&
+            /^[ \t]*\r?\n[ \t]*$/u.test(
+              sourceCode.text.slice(comment.range[1], next.range[0]),
+            )
+          ) {
+            context.report({ messageId: "stacked", node: comment });
+          }
+        }
+      },
+    };
+  },
+  meta: {
+    messages: {
+      stacked:
+        "Two doc comments in a row: the first describes code that moved or was replaced. Keep the one that describes the code below, fold anything still true into it, and delete the other.",
+    },
+    schema: [],
+    type: "problem",
+  },
+});
+
 export default definePlugin({
   meta: { name: "studio" },
   rules: {
@@ -603,6 +643,7 @@ export default definePlugin({
     "no-router-link": noRouterLink,
     "no-shared-shadow-on-float": noSharedShadowOnFloat,
     "no-shell-open-path": noShellOpenPath,
+    "no-stacked-doc-comments": noStackedDocComments,
     "no-sync-content-read": noSyncContentRead,
     "no-transition-colors": noTransitionColors,
     "one-tooltip-provider": oneTooltipProvider,

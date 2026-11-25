@@ -220,6 +220,7 @@
     "studio/no-router-link": "error",
     "studio/no-shared-shadow-on-float": "error",
     "studio/no-shell-open-path": "error",
+    "studio/no-stacked-doc-comments": "error",
     "studio/no-transition-colors": "error",
     "studio/one-tooltip-provider": "error",
     "react/error-boundaries": "warn",

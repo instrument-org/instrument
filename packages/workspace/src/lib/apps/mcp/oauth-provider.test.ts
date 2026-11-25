@@ -76,6 +76,92 @@ describe("createMcpOAuthProvider", () => {
     expect(provider.clientMetadata.redirect_uris).toEqual([base.redirectUrl]);
     expect(provider.clientMetadata.token_endpoint_auth_method).toBe("none");
     expect(provider.clientMetadata.grant_types).toContain("refresh_token");
+    expect(provider.clientMetadata).toMatchObject({
+      application_type: "native",
+    });
+  });
+
+  describe("a client metadata document", () => {
+    const loopback = "http://127.0.0.1:48757/auth/callback/app";
+    const relay = "https://api.example/oauth/pitch/callback";
+
+    it.each([
+      { offered: true, registers: false, redirectUrl: loopback },
+      { offered: false, registers: true, redirectUrl: loopback },
+      // The document names the loopback callback alone.
+      { offered: false, registers: false, redirectUrl: relay },
+    ])(
+      "is offered: $offered to a server that registers: $registers, back to $redirectUrl",
+      async ({ offered, redirectUrl, registers }) => {
+        const requested: string[] = [];
+        vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+          const url = input instanceof Request ? input.url : input.toString();
+          requested.push(url);
+          if (url.endsWith("/.well-known/oauth-protected-resource")) {
+            return Promise.resolve(
+              Response.json({
+                authorization_servers: ["https://auth.example"],
+                resource: "https://mcp.example/",
+              }),
+            );
+          }
+          if (url.endsWith("/.well-known/oauth-authorization-server")) {
+            return Promise.resolve(
+              Response.json({
+                authorization_endpoint: "https://auth.example/authorize",
+                client_id_metadata_document_supported: true,
+                code_challenge_methods_supported: ["S256"],
+                issuer: "https://auth.example",
+                ...(registers && {
+                  registration_endpoint: "https://auth.example/register",
+                }),
+                response_types_supported: ["code"],
+                token_endpoint: "https://auth.example/token",
+              }),
+            );
+          }
+          if (url === "https://auth.example/register") {
+            return Promise.resolve(
+              Response.json(
+                { client_id: "registered", redirect_uris: [redirectUrl] },
+                { status: 201 },
+              ),
+            );
+          }
+          return Promise.resolve(new Response(null, { status: 404 }));
+        });
+        const openAuthorization = vi.fn<(url: URL) => void>();
+        const provider = createMcpOAuthProvider({
+          ...base,
+          openAuthorization,
+          redirectUrl,
+          store: inMemoryStore(),
+        });
+        const started = auth(provider, {
+          fetchFn: fetchForMcp,
+          serverUrl: "https://mcp.example",
+        });
+        const ended = await started.catch(String);
+        expect(ended).toBe(
+          offered || registers
+            ? "REDIRECT"
+            : "Error: Incompatible auth server: does not support dynamic client registration",
+        );
+        expect(requested.includes("https://auth.example/register")).toBe(
+          registers,
+        );
+        if (offered || registers) {
+          expect(
+            openAuthorization.mock.calls[0]?.[0].searchParams.get("client_id"),
+          ).toBe(
+            offered
+              ? "https://tryinstrument.com/oauth/client-metadata.json"
+              : "registered",
+          );
+        }
+        vi.restoreAllMocks();
+      },
+    );
   });
 
   it("round-trips client info, tokens, and the code verifier through the store", async () => {
@@ -296,6 +382,39 @@ describe("mcpSignInClient", () => {
     ).toMatchInlineSnapshot(`
       {
         "redirectUrl": "http://127.0.0.1:49200/auth/callback/app",
+      }
+    `);
+  });
+
+  it("registers through the relay where the vendor approves that callback", () => {
+    applyServedAppCatalog({
+      ...seed,
+      entries: [
+        {
+          ...seed.entries.find((entry) => entry.slug === "linear"),
+          interfaces: [
+            {
+              auth: "oauth",
+              callback: "relay",
+              endpoint: "https://mcp.linear.app/mcp",
+              format: "mcp",
+              name: "Linear MCP",
+            },
+          ],
+        },
+      ],
+    });
+    expect(
+      mcpSignInClient({
+        loopbackRedirectUrl,
+        relayRedirectUrl,
+        relayTokenUrl,
+        serverUrl: "https://mcp.linear.app/mcp",
+      }),
+    ).toMatchInlineSnapshot(`
+      {
+        "redirectUrl": "https://api.example/oauth/linear/callback",
+        "statePrefix": "49200",
       }
     `);
   });

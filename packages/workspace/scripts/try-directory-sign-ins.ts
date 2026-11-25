@@ -43,7 +43,7 @@ const targets = [
     .flatMap((entry) =>
       entry.interfaces.flatMap((surface) =>
         surface.format === "mcp" &&
-        surface.auth === "oauth" &&
+        (surface.auth === "oauth" || surface.clientDocument === true) &&
         surface.endpoint !== undefined
           ? [{ endpoint: surface.endpoint, name: entry.slug }]
           : [],

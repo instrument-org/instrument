@@ -9,11 +9,11 @@
 const CHECK_TIMEOUT_MS = 8000;
 
 /**
- * Whether a hosted MCP server's sign-in lets a client register itself, which
+ * Whether a hosted MCP server's sign-in lets a client introduce itself, which
  * is the only kind the sign-in card can be: `registers` when its
- * authorization server publishes a registration endpoint, `needs-client` when
- * it publishes metadata without one (only clients the vendor issued ahead of
- * time sign in), `open` when the server answers without any sign-in.
+ * authorization server publishes a registration endpoint or reads a client
+ * metadata document, `needs-client` when it publishes metadata with neither
+ * (only clients the vendor issued ahead of time sign in), `open` when the server answers without any sign-in.
  */
 export async function mcpSignInSupport(
   url: string,
@@ -61,7 +61,8 @@ export async function mcpSignInSupport(
   if (metadata === undefined) {
     return "unknown";
   }
-  return typeof metadata["registration_endpoint"] === "string"
+  return typeof metadata["registration_endpoint"] === "string" ||
+    metadata["client_id_metadata_document_supported"] === true
     ? "registers"
     : "needs-client";
 }

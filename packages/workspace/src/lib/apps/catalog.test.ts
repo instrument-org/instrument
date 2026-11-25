@@ -8,7 +8,7 @@ import {
   builtInAppCatalogRevision,
   catalogEntryAt,
   catalogEntryForApp,
-  catalogRegisteredClient,
+  catalogRelayedSignIn,
   getAppCatalog,
   resetServedAppCatalog,
   applyServedAppCatalog,
@@ -224,7 +224,7 @@ describe("HubSpot's and Asana's MCP sign-in", () => {
         endpoint,
         kind: "mcp",
       });
-      expect(catalogRegisteredClient(endpoint)).toMatchObject({
+      expect(catalogRelayedSignIn(endpoint)).toMatchObject({
         clientId,
         tokenExchange: "api",
       });
@@ -239,7 +239,7 @@ describe("HubSpot's and Asana's MCP sign-in", () => {
         endpoint,
         kind: "mcp",
       });
-      expect(catalogRegisteredClient(endpoint)).toEqual({
+      expect(catalogRelayedSignIn(endpoint)).toEqual({
         authorizationParams: undefined,
         clientId: `${slug}-client`,
         scope: undefined,

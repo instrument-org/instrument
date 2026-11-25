@@ -78,6 +78,7 @@ describe("trySignIn", () => {
     expect(calls.find((call) => call.path === "/register")?.body)
       .toMatchInlineSnapshot(`
       {
+        "application_type": "native",
         "client_name": "Instrument",
         "grant_types": [
           "authorization_code",

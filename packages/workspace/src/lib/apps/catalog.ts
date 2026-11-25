@@ -92,6 +92,26 @@ const AppCatalogEntrySchema = z.object({
        */
       clientId: z.string().optional(),
       /**
+       * For a vendor that lets a client register on the spot only with a
+       * callback it has approved: Instrument gives our API's relay, at
+       * `/oauth/<slug>/callback`. With `auth: "oauth-client"`, the address
+       * the vendor was asked to approve and has not yet.
+       */
+      callback: z.literal("relay").optional(),
+      /**
+       * For `auth: "oauth-client"`, that the vendor reads Instrument's client
+       * metadata document, which stands in for a client it issued.
+       */
+      clientDocument: z.literal(true).optional(),
+      /**
+       * Why a service Instrument has no client for takes only a client it
+       * issued or approved, and where one is asked for, when there is such a
+       * place.
+       */
+      approval: z
+        .object({ askAt: z.string().optional(), why: z.string() })
+        .optional(),
+      /**
        * For a `clientId` whose vendor wants the client's secret at its token
        * endpoint even with PKCE, where the code is redeemed and the token
        * refreshed: `"api"` is our API's `/oauth/<slug>/token`, which adds
@@ -265,13 +285,18 @@ type CatalogInterface = AppCatalogEntry["interfaces"][number];
 /**
  * Whether an interface's sign-in needs an OAuth client registered with the
  * vendor ahead of time (`auth: "oauth-client"`) and Instrument has none for
- * it: the server registers no client on the spot, so the sign-in card cannot
- * make one. Such a server is skipped for the next way in.
+ * it: the server registers no client on the spot, or refuses Instrument's, and
+ * reads no client metadata document, so the sign-in card cannot make one. Such
+ * a server is skipped for the next way in.
  */
 export function catalogInterfaceLacksClient(
   surface: CatalogInterface,
 ): boolean {
-  return surface.auth === "oauth-client" && surface.clientId === undefined;
+  return (
+    surface.auth === "oauth-client" &&
+    surface.clientId === undefined &&
+    surface.clientDocument !== true
+  );
 }
 
 /**
@@ -306,26 +331,27 @@ export function catalogEndpointNeedsClient(endpoint: string): boolean {
 }
 
 /**
- * Instrument's own sign-in client for an MCP server, when the directory has
- * one for exactly that endpoint, with the service whose relay route the
- * sign-in comes back through and what the directory says of its sign-in.
+ * The sign-in through our API's relay for an MCP server, when the directory
+ * has one for exactly that endpoint: the service whose relay route it comes
+ * back through, Instrument's own client where it is signed in to with one,
+ * and what the directory says of its sign-in.
  * Matched on the endpoint rather than the app's slug, so the client is only
  * ever offered to the server it was issued for.
  */
-export function catalogRegisteredClient(
+export function catalogRelayedSignIn(
   endpoint: string,
 ):
   | undefined
   | (Pick<
       CatalogInterface,
       "authorizationParams" | "scope" | "tokenExchange"
-    > & { clientId: string; service: string }) {
+    > & { clientId?: string; service: string }) {
   for (const entry of getAppCatalog()) {
     for (const surface of entry.interfaces) {
       if (
         surface.format === "mcp" &&
-        surface.auth === "oauth-client" &&
-        surface.clientId !== undefined &&
+        ((surface.auth === "oauth-client" && surface.clientId !== undefined) ||
+          (surface.auth === "oauth" && surface.callback === "relay")) &&
         sameEndpoint(endpoint, surface.endpoint)
       ) {
         return {

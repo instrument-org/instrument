@@ -518,6 +518,7 @@ export function useWindowCommands(
     void listen();
     return () => {
       controller.abort();
+      window.removeEventListener("keydown", onBackspace);
       window.removeEventListener("keydown", onKeyDown, { capture: true });
       window.removeEventListener("mousedown", swallow, { capture: true });
       window.removeEventListener("mouseup", onMouseUp, { capture: true });

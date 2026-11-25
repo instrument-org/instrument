@@ -157,10 +157,14 @@ export function CaptureLayer() {
   const busy = useRef(false);
 
   useEffect(() => {
-    if (request === handled.current || busy.current) {
+    if (request === handled.current) {
       return;
     }
+    // One asked for while one is being taken is dropped.
     handled.current = request;
+    if (busy.current) {
+      return;
+    }
     busy.current = true;
     // Read before anything moves; what the capture UI draws is left out.
     const context = captureContext({

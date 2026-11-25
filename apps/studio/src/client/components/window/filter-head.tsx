@@ -187,10 +187,10 @@ export function FilterHead({
             aria-label="Search"
             className={HEAD_ICON_BUTTON}
             onClick={() => {
-              setSearchAsked(true);
-              requestAnimationFrame(() => {
-                searchRef.current?.focus();
+              flushSync(() => {
+                setSearchAsked(true);
               });
+              searchRef.current?.focus();
             }}
             title={`Search (${formatAcceleratorText(WINDOW_SHORTCUTS.searchChats.accelerator)})`}
             type="button"

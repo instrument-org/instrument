@@ -15,6 +15,7 @@ import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useMutation } from "@tanstack/react-query";
 import { useAtomValue } from "jotai";
 import { type ReactNode, useReducer, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { ProviderPicker } from "../provider-picker";
 import {
@@ -360,8 +361,10 @@ export function AddProviderForm({
                   <button
                     className="self-center text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
                     onClick={() => {
-                      setPasteKey(true);
-                      setTimeout(() => apiKeyInputRef.current?.focus(), 0);
+                      flushSync(() => {
+                        setPasteKey(true);
+                      });
+                      apiKeyInputRef.current?.focus();
                     }}
                     type="button"
                   >

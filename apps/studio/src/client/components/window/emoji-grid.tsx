@@ -1,6 +1,7 @@
 import { Input } from "@/client/components/ui/input";
 import { cn } from "@/client/lib/utils";
 import { useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 
 import { type Emoji, useEmojiSet } from "./emoji-set";
 import { useEmojiSuggestions } from "./emoji-suggestions";
@@ -118,15 +119,15 @@ export function EmojiGrid({
   };
 
   const jumpTo = (group: Category["group"]) => {
-    setQuery("");
-    setCurrent(group);
-    // After the query clears, the sections are back in the tree.
-    requestAnimationFrame(() => {
-      const section = sections.current.get(group);
-      if (scroller.current && section) {
-        scroller.current.scrollTop = section.offsetTop;
-      }
+    // Drawn with the query cleared, which puts the sections back in the tree.
+    flushSync(() => {
+      setQuery("");
+      setCurrent(group);
     });
+    const section = sections.current.get(group);
+    if (scroller.current && section) {
+      scroller.current.scrollTop = section.offsetTop;
+    }
   };
 
   return (

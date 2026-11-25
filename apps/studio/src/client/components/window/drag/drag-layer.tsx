@@ -181,6 +181,7 @@ function AtPointer({
   const { layoutOf } = useWindowTabs();
   const ref = useRef<HTMLDivElement>(null);
   const mode = useRef<string>(undefined);
+  const gliding = useRef<number>(undefined);
   const { held, landing } = drag;
   // A whole group over the bookmarks rides as a chip of the tab it keeps,
   // so the bar shows where it would stand.
@@ -221,7 +222,8 @@ function AtPointer({
           : "free";
     if (mode.current !== undefined && mode.current !== now) {
       element.style.transition = `left ${PULL_FREE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1), top ${PULL_FREE_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`;
-      window.setTimeout(() => {
+      window.clearTimeout(gliding.current);
+      gliding.current = window.setTimeout(() => {
         element.style.transition = "";
       }, PULL_FREE_MS);
     }

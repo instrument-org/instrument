@@ -2544,7 +2544,7 @@ export function FileSystem({
   const [headerLayout, setHeaderLayout] = React.useState<
     "compact" | "full" | "minimal"
   >("full");
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     const root = rootRef.current;
     if (!root || typeof ResizeObserver === "undefined") return;
     const applyWidth = (width: number | undefined) => {

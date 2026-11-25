@@ -200,8 +200,9 @@ function LiveCodeDocument({
           });
         }
         // Measured once the editor has laid the change out.
-        requestAnimationFrame(() => {
-          setOffscreen(offscreenOf(created.view, change.at));
+        created.view.requestMeasure({
+          read: (view) => offscreenOf(view, change.at),
+          write: setOffscreen,
         });
       },
       onStatus: (next, detail) => {

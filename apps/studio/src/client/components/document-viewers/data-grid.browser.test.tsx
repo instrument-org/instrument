@@ -114,3 +114,42 @@ it("resizes a column by dragging its header's edge", async () => {
     .poll(() => header("name").getBoundingClientRect().width)
     .toBeCloseTo(before + 60, 0);
 });
+
+it("types after a line break in a cell where the break is", async () => {
+  const nothing = () => {
+    // Only the cell being typed in matters here.
+  };
+  await renderInBrowser(
+    <div className="flex h-96 w-[48rem] flex-col">
+      <DataGrid
+        columns={columns}
+        editing={{
+          flashed: new Set(),
+          onAddColumn: nothing,
+          onChange: nothing,
+          onDeleteRows: nothing,
+          onInsertRow: nothing,
+          onRedo: nothing,
+          onRenameColumn: nothing,
+          onUndo: nothing,
+        }}
+        rows={rows}
+      />
+    </div>,
+  );
+  await userEvent.dblClick(page.getByText("apple"));
+  await expect.element(page.getByLabelText("Cell")).toHaveFocus();
+  const cell = page.getByLabelText("Cell").element() as HTMLTextAreaElement;
+  cell.setSelectionRange(2, 2);
+  cell.dispatchEvent(
+    new KeyboardEvent("keydown", {
+      altKey: true,
+      bubbles: true,
+      cancelable: true,
+      key: "Enter",
+    }),
+  );
+  // The next key, before another frame, as a dictation or an agent types it.
+  document.execCommand("insertText", false, "X");
+  await expect.poll(() => cell.value).toBe("ap\nXple");
+});

@@ -36,6 +36,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 
 import { Button } from "../ui/button";
 import {
@@ -1157,12 +1158,13 @@ function CellEditor({
           event.preventDefault();
           const element = event.currentTarget;
           const { selectionEnd, selectionStart, value } = element;
-          onChange(
-            `${value.slice(0, selectionStart)}\n${value.slice(selectionEnd)}`,
-          );
-          requestAnimationFrame(() => {
-            element.setSelectionRange(selectionStart + 1, selectionStart + 1);
+          // Written before the caret moves, so a key right after lands at it.
+          flushSync(() => {
+            onChange(
+              `${value.slice(0, selectionStart)}\n${value.slice(selectionEnd)}`,
+            );
           });
+          element.setSelectionRange(selectionStart + 1, selectionStart + 1);
           return;
         }
         if (event.key === "Enter" || event.key === "Tab") {

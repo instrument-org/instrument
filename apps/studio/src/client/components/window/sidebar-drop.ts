@@ -51,6 +51,8 @@ export function showDrop(drop: SidebarDrop | undefined) {
 /** How long a group that filled a room goes on not arriving. */
 const FILLED_MS = 500;
 
+let filledTimer: ReturnType<typeof setTimeout> | undefined;
+
 /**
  * Shuts the sidebar's room at once, for what was let go in it, which
  * stands where the room was: a lifted row back in the list, or a group new
@@ -64,10 +66,9 @@ export function fillRoom(group: string | undefined) {
     return;
   }
   store.set(filledRoomAtom, group);
-  setTimeout(() => {
-    if (store.get(filledRoomAtom) === group) {
-      store.set(filledRoomAtom, undefined);
-    }
+  clearTimeout(filledTimer);
+  filledTimer = setTimeout(() => {
+    store.set(filledRoomAtom, undefined);
   }, FILLED_MS);
 }
 

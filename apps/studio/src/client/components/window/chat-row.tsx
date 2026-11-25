@@ -26,7 +26,7 @@ import { CardsThreeIcon } from "@phosphor-icons/react/CardsThree";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
 import { useAtomValue } from "jotai";
-import { type ReactNode, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { type AppsBySlug } from "./apps-by-slug";
 import { contextMenuComponents } from "@/client/components/ui/menu-components";
@@ -166,13 +166,21 @@ export function ChatRow({
   // out anchored to the control, and a control that vanished with the
   // pointer already gone left the list to fly to the window's corner.
   const [isPickerLeaving, setPickerLeaving] = useState(false);
+  useEffect(() => {
+    if (!isPickerLeaving || isPicking) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPickerLeaving(false);
+    }, PICKER_LEAVE_MS);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [isPicking, isPickerLeaving]);
   const pickProjects = (open: boolean) => {
     setPicking(open);
     if (!open) {
       setPickerLeaving(true);
-      setTimeout(() => {
-        setPickerLeaving(false);
-      }, PICKER_LEAVE_MS);
     }
   };
   const isUnseen = chat.unread;

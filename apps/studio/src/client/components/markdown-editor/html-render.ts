@@ -636,9 +636,7 @@ export function openSourcePopover(
   });
   cancel.addEventListener("click", closeSourcePopover);
   ok.addEventListener("click", commit);
-  setTimeout(() => {
-    document.addEventListener("mousedown", outside, true);
-  });
+  document.addEventListener("mousedown", outside, true);
   popover = { box, outside, stopPlacing };
   area.focus();
 }

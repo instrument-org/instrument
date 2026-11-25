@@ -595,8 +595,8 @@ describe("resolveAgentBrowserPathArgs", () => {
   });
 
   it.each([
-    [["screenshot", "img", "--", "--path"], `${chat}/work/--path`],
-    [["screenshot", "--threshold=0.1", "out.png"], `${chat}/work/out.png`],
+    [["screenshot", "img", "--", "--path"], host("work", "--path")],
+    [["screenshot", "--threshold=0.1", "out.png"], host("work", "out.png")],
   ])("takes the file %j names", async (args, file) => {
     const result = await resolveAgentBrowserPathArgs(
       args,

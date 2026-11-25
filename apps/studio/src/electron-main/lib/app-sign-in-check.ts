@@ -1,8 +1,9 @@
 import { checkAppSignIns } from "@instrument-org/workspace/electron";
-import { app, net } from "electron";
+import { app } from "electron";
 
 import { appsReady } from "./apps";
 import { createScopedLogger } from "./electron-logger";
+import { getNetworkStatus } from "./network-status";
 
 const log = createScopedLogger("AppSignIns");
 
@@ -35,7 +36,7 @@ export function startAppSignInChecks(): void {
 }
 
 function checkNow(): Promise<void> {
-  if (!appsReady() || !net.isOnline()) {
+  if (!appsReady() || getNetworkStatus() === "offline") {
     return Promise.resolve();
   }
   inFlight ??= (async () => {

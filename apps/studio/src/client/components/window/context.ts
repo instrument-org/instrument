@@ -140,6 +140,8 @@ export interface WindowContextValue {
   rowTail?: HTMLElement | null;
   /** The end of the view's own row under the bookmarks bar, where a screen draws what acts on the file it shows; absent where the tab has no such row, and null until it is up. */
   rowView?: HTMLElement | null;
+  /** The room in that row ahead of its end, where a file's format draws its own controls; as `rowView` otherwise. */
+  rowViewTools?: HTMLElement | null;
   /** The chat a surface is drawn inside, when it is one; absent at the top level, where `ask` opens a draft. */
   chatId?: ChatId;
 }

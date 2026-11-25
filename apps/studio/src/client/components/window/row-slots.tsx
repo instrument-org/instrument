@@ -6,7 +6,8 @@ import { type ReactNode, useState } from "react";
  * folder's sidebar toggle); beside the arrows (a page's reload); the end of the field (a
  * page's zoom, "Updated"); and the tail (a web page's controls). Then the
  * end of the view's own row under the bookmarks bar (`view`), where a file's
- * controls go. Null until the row is up.
+ * controls go, and the rest of that row before it (`viewTools`), where its
+ * format's own go. Null until the row is up.
  */
 interface RowSlots {
   field: HTMLElement | null;
@@ -14,6 +15,7 @@ interface RowSlots {
   reload: HTMLElement | null;
   tail: HTMLElement | null;
   view: HTMLElement | null;
+  viewTools: HTMLElement | null;
 }
 
 /**
@@ -27,6 +29,7 @@ export function useRowSlots() {
   const [reload, setReload] = useState<HTMLDivElement | null>(null);
   const [tail, setTail] = useState<HTMLDivElement | null>(null);
   const [view, setView] = useState<HTMLDivElement | null>(null);
+  const [viewTools, setViewTools] = useState<HTMLDivElement | null>(null);
   return {
     rowProps: {
       // No box of its own, so a page's load line inside it is drawn against
@@ -52,13 +55,17 @@ export function useRowSlots() {
         />
       ),
     },
-    slots: { field, lead, reload, tail, view } satisfies RowSlots,
+    slots: { field, lead, reload, tail, view, viewTools } satisfies RowSlots,
     /** The `view` slot, for the end of a `ScreenToolsRow`. */
     viewEnd: (
       <div
         className="flex shrink-0 items-center gap-1.5 empty:hidden"
         ref={setView}
       />
+    ),
+    /** The `viewTools` slot, for the middle of a `ScreenToolsRow`. */
+    viewTools: (
+      <div className="flex min-w-0 flex-1 items-center" ref={setViewTools} />
     ),
   };
 }
@@ -76,14 +83,17 @@ export function useRowSlots() {
 export function ScreenToolsRow({
   end,
   lead,
+  tools,
 }: {
   end?: ReactNode;
   lead?: ReactNode;
+  /** What fills the room between the two: the slot a file's format draws its controls into. */
+  tools?: ReactNode;
 }) {
   return (
     <div className="@container/tabrow hidden h-11 shrink-0 items-center gap-1.5 border-b border-border bg-background px-1.5 has-[>:not(:empty)]:flex">
       {lead}
-      <div className="flex-1" />
+      {tools ?? <div className="flex-1" />}
       {end}
     </div>
   );

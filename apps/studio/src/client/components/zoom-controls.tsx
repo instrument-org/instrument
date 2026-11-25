@@ -241,6 +241,7 @@ export function ZoomStepperControl({
   percent,
   readout,
   size = "default",
+  stepClassName,
 }: {
   canZoomIn?: boolean;
   canZoomOut?: boolean;
@@ -251,6 +252,8 @@ export function ZoomStepperControl({
   percent?: number;
   readout?: ReactNode;
   size?: "default" | "sm";
+  /** Styles the two step buttons, which a narrow row may hide where the readout opens every level. */
+  stepClassName?: string;
 }) {
   const compact = size === "sm";
 
@@ -268,6 +271,7 @@ export function ZoomStepperControl({
           "flex items-center justify-center text-muted-foreground hover:text-foreground",
           zoomStepperSegmentClassName,
           compact ? "w-7" : "w-9",
+          stepClassName,
         )}
         disabled={!canZoomOut}
         onClick={onZoomOut}
@@ -295,6 +299,7 @@ export function ZoomStepperControl({
           "flex items-center justify-center text-muted-foreground hover:text-foreground",
           zoomStepperSegmentClassName,
           compact ? "w-7" : "w-9",
+          stepClassName,
         )}
         disabled={!canZoomIn}
         onClick={onZoomIn}

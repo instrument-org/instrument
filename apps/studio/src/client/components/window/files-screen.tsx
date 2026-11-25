@@ -1,7 +1,8 @@
 import { type ChosenItem } from "@/shared/drafts";
 import { type FileTab, finderBesideWidthAtom } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { FileViewer } from "@/client/components/file-viewer";
+import { FileViewer, hasFormatToolbar } from "@/client/components/file-viewer";
+import { lookAtAtom } from "@/client/components/window/look-at";
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { type RailBounds } from "@/client/components/studio-sidebar-rail";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
@@ -40,7 +41,7 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useAtom } from "jotai";
+import { useAtom, useSetAtom } from "jotai";
 import {
   AnimatePresence,
   motion,
@@ -120,6 +121,10 @@ const BESIDE_BOUNDS: RailBounds = {
  * folds the folder away, and the folder's edge stops short of taking it.
  */
 const FILE_ROOM = 420;
+/** The least room a file has for its format's controls to share the view's row. */
+const SHARED_ROW_ROOM = 400;
+/** The room a file needs for Expand to stay in that row beside them. */
+const EXPAND_ROOM = 520;
 /** How long a held arrow rests on a file before it shows, as the chat list does. */
 const HELD_SHOW_REST_MS = 150;
 
@@ -175,8 +180,15 @@ export function FilesScreen({
   const { arrivals, go, step: here } = useFilesStep(routed);
   const { file, path, query, root, select, tree, version, view } = here;
   const source = here.source ?? false;
-  const { openScreen, rowField, rowReload, rowTail, rowView, takeFolderPress } =
-    useWindow();
+  const {
+    openScreen,
+    rowField,
+    rowReload,
+    rowTail,
+    rowView,
+    rowViewTools,
+    takeFolderPress,
+  } = useWindow();
   const { moveToGroup, pageTakesOver, stepVisitOf } = useWindowTabs();
   // The window's tab this screen is in, when it is the tab's own route, and
   // whether that tab is the one up.
@@ -907,9 +919,24 @@ export function FilesScreen({
   // row for its actions alone; `rowTail` here puts them back in the address
   // row and drops that row.
   const ownTabActionsInto = fileActionsInto;
+  // The room the file has beside its folder. Short of its least, as with the
+  // folder summoned into a narrow split, its format's controls keep a row of
+  // their own; short of a little more, they share the view's row with Expand
+  // in the menu.
+  const fileRoom =
+    (layoutWidth ?? Number.POSITIVE_INFINITY) -
+    (isFileOpen && isFolderShown ? besideWidth : 0);
+  const sharesRow =
+    isBesideLayout && rowViewTools !== undefined && fileRoom >= SHARED_ROW_ROOM;
+  const isExpandInMenu =
+    sharesRow &&
+    activeFile !== undefined &&
+    fileRoom < EXPAND_ROOM &&
+    hasFormatToolbar(activeFile.name);
+  const setLookAt = useSetAtom(lookAtAtom);
   const actionsLead = (
     <>
-      {rowView !== undefined && activeFile && (
+      {rowView !== undefined && activeFile && !isExpandInMenu && (
         <ExpandFileControl
           file={{ hostPath: activeFile.hostPath, name: activeFile.name }}
         />
@@ -1245,6 +1272,27 @@ export function FilesScreen({
                                       actionsTrail={
                                         isFolderShown ? closeButton : null
                                       }
+                                      {...(sharesRow
+                                        ? {
+                                            toolbarInto:
+                                              isPresent && !isVersionOver
+                                                ? rowViewTools
+                                                : null,
+                                          }
+                                        : {})}
+                                      {...(isExpandInMenu
+                                        ? {
+                                            onExpand: () => {
+                                              setLookAt({
+                                                kind: "file",
+                                                tab: {
+                                                  hostPath: activeFile.hostPath,
+                                                  name: activeFile.name,
+                                                },
+                                              });
+                                            },
+                                          }
+                                        : {})}
                                       // A tab opened behind waits to be looked at.
                                       autoPlay={isActiveTab}
                                       className={FULL_BLEED}

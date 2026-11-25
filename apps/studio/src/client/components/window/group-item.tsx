@@ -105,7 +105,7 @@ export function GroupItem({
   // What is up draws its own controls into the rows: a page its reload, zoom
   // and controls, a file screen its folder toggle and, under the bookmarks
   // bar, the file's actions.
-  const { rowProps, slots, viewEnd } = useRowSlots();
+  const { rowProps, slots, viewEnd, viewTools } = useRowSlots();
   const taskTitles = useTaskTitles();
   const { chatTitles } = useShell();
   // What the file's screen does when its folder is pressed in the address.
@@ -526,7 +526,9 @@ export function GroupItem({
                     {viewEnd}
                   </>
                 }
-                {...(isFiles ? { lead: rowProps.leading } : {})}
+                {...(isFiles
+                  ? { lead: rowProps.leading, tools: viewTools }
+                  : {})}
               />
             )}
           </>
@@ -575,7 +577,9 @@ export function GroupItem({
             rowLead: slots.lead,
             rowReload: slots.reload,
             rowTail: slots.tail,
-            ...(isFiles && !isFileAlone ? { rowView: slots.view } : {}),
+            ...(isFiles && !isFileAlone
+              ? { rowView: slots.view, rowViewTools: slots.viewTools }
+              : {}),
           }}
         >
           {/* A chat opens at its end, as it always does, rather than where

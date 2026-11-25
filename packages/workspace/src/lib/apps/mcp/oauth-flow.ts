@@ -212,6 +212,12 @@ export async function beginMcpOAuth({
   // was obtained from: one saved for another origin is a sign-in the user
   // gave somewhere else, so this server gets a sign-in of its own.
   const signedIn = boundTo(await store.getTokens(slug), origin) !== undefined;
+  if (!signedIn) {
+    // A client registered for a sign-in nobody finished may be gone by now:
+    // some services drop those within hours, and say so only on their own
+    // page, where nothing comes back to tell it. So each try registers its own.
+    await store.clearClientInformation(slug);
+  }
 
   let failure: unknown;
   try {

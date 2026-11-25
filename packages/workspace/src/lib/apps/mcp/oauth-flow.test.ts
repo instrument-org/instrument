@@ -53,7 +53,7 @@ describe("describeSignInFailure", () => {
   });
 });
 
-describe("a service that gives a sign-in and then refuses it", () => {
+describe("trying a sign-in again", () => {
   const originalApps = getWorkspaceConfig().apps;
   const slug = "refuses-after";
   let server: http.Server | undefined;
@@ -64,7 +64,7 @@ describe("a service that gives a sign-in and then refuses it", () => {
     server?.close();
   });
 
-  it("says the sign-in worked, and asks for a new one on the next try", async () => {
+  const setUp = async () => {
     const origin = await serveRefusing((started) => {
       server = started;
     });
@@ -79,7 +79,7 @@ describe("a service that gives a sign-in and then refuses it", () => {
       name: "Refuses",
       slug: AppSlugSchema.parse(slug),
     });
-    const begin = async () => {
+    return async () => {
       const begun = (
         await beginMcpOAuth({
           redirectUrl: "http://127.0.0.1:1/auth/callback/app",
@@ -96,7 +96,10 @@ describe("a service that gives a sign-in and then refuses it", () => {
       }
       return begun;
     };
+  };
 
+  it("says the sign-in worked, and asks for a new one on the next try", async () => {
+    const begin = await setUp();
     const { state } = await begin();
     const completed = await completeMcpOAuth({ code: "the-code", state });
     expect(completed._unsafeUnwrapErr().message).toMatchInlineSnapshot(
@@ -106,10 +109,24 @@ describe("a service that gives a sign-in and then refuses it", () => {
     const again = await begin();
     expect(new URL(again.authorizationUrl).pathname).toBe("/authorize");
   });
+
+  // A service may drop a client nobody finished a sign-in with, and only its
+  // own page says so.
+  it("registers again when the last sign-in was never finished", async () => {
+    const begin = await setUp();
+    const clientOf = ({ authorizationUrl }: { authorizationUrl: string }) =>
+      new URL(authorizationUrl).searchParams.get("client_id");
+
+    const unfinished = clientOf(await begin());
+    const next = clientOf(await begin());
+
+    expect([unfinished, next]).toEqual(["client-1", "client-2"]);
+  });
 });
 
 /** An MCP server that registers anyone, issues and refreshes tokens, and then takes none of them. */
 async function serveRefusing(onServer: (server: http.Server) => void) {
+  let registered = 0;
   const server = http.createServer((req, res) => {
     const origin = `http://${req.headers.host ?? ""}`;
     const json = (status: number, body: unknown) => {
@@ -136,7 +153,7 @@ async function serveRefusing(onServer: (server: http.Server) => void) {
       });
     } else if (path === "/register") {
       json(201, {
-        client_id: "client",
+        client_id: `client-${++registered}`,
         redirect_uris: ["http://127.0.0.1:1/auth/callback/app"],
       });
     } else if (path === "/token") {

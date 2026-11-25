@@ -332,8 +332,12 @@ export function readWorkspaceIdentityToChange(
   try {
     raw = JSON.parse(text);
   } catch {
-    // Damaged rather than unreadable: what it said is gone either way, and
-    // the registry still has the workspace's id.
+    // Damaged rather than unreadable: the registry still has the workspace's
+    // id, and what is left of the file is kept beside the one written over it.
+    fs.copyFileSync(
+      identityPath(workspacePath),
+      `${identityPath(workspacePath)}.unreadable-${Date.now().toString()}`,
+    );
   }
   return identityFrom(raw);
 }

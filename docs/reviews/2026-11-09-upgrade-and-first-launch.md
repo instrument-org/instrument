@@ -85,12 +85,14 @@ Ordered by what to fix first.
 - Status: open
 - Where: [workspace-refusal.ts:183](/apps/studio/src/electron-main/lib/workspace-refusal.ts#L183), [workspaces.ts:319](/apps/studio/src/electron-main/lib/workspaces.ts#L319)
 - What: two readers reached this separately. The format, layout and settings versions go back to zero, the migrations run again, and the newer-build guard is lost for every device. `apps/studio/AGENTS.md` says such a record is never opened. Not checked.
+- Note: a damaged record is copied beside the one written over it. The version marks and the newer-build guard are still lost with it.
 
 ### M. Permission rules read an unreadable file as no rules, and one bad entry empties a list for good
 
 - Status: open
 - Where: [rules.ts:199](/packages/workspace/src/lib/permissions/rules.ts#L199), [:66](/packages/workspace/src/lib/permissions/rules.ts#L66)
 - What: every "never" becomes "ask" while the file cannot be read, and a list with one entry that fails to parse reads as empty and is written back empty. The same `.catch([])` drops all of a chat's grants on conversion when one path is not absolute on this system. Not checked.
+- Note: lists and places are read an entry at a time, so a bad entry costs only itself. A file that cannot be read still reads as no rules.
 
 ### N. Setup's wait on the website reports its timeout as ready
 

@@ -388,8 +388,11 @@ function mergeFeaturesIntoPreferences({
     machineDir,
     WORKSPACE_MACHINE_ENTRIES.preferences,
   );
-  const preferences = readJsonObject(preferencesFile) ?? {};
-  const features = preferences.features;
+  const preferences = readJsonObject(preferencesFile);
+  if (!preferences && fs.existsSync(preferencesFile)) {
+    throw new Error(`${preferencesFile} is there and not a JSON object`);
+  }
+  const features = preferences?.features;
   writeJsonAtomic(preferencesFile, {
     ...preferences,
     features: {
@@ -407,12 +410,22 @@ function isJsonObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+/** A read that fails on a file that is there throws, so it is not taken for an empty one. */
 function readJsonObject(file: string): Record<string, unknown> | undefined {
+  let text: string;
   try {
-    const parsed: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+    text = fs.readFileSync(file, "utf8");
+  } catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") {
+      return undefined;
+    }
+    throw error;
+  }
+  try {
+    const parsed: unknown = JSON.parse(text);
     return isJsonObject(parsed) ? parsed : undefined;
   } catch {
-    // Not there, or not a file the app wrote: nothing to take from it.
+    // Not a file the app wrote: nothing to take from it.
     return undefined;
   }
 }

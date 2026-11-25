@@ -294,6 +294,22 @@ describe("workspace ids", () => {
     });
   });
 
+  it("keeps a damaged record beside the one it writes", () => {
+    const dir = defaultWorkspacePath(userDataDir);
+    const { dataDir } = workspaceLayout(dir);
+    fs.mkdirSync(dataDir, { recursive: true });
+    const damaged = '{ "name": "Mine", "formatVersion": 9';
+    fs.writeFileSync(path.join(dataDir, "workspace.json"), damaged);
+    openDefault(() => "01MINTED");
+    const kept = fs
+      .readdirSync(dataDir)
+      .filter((name) => name.startsWith("workspace.json.unreadable-"));
+    expect(
+      kept.map((name) => fs.readFileSync(path.join(dataDir, name), "utf8")),
+    ).toEqual([damaged]);
+    expect(readWorkspaceIdentity(dir).id).toBe("01MINTED");
+  });
+
   it("reads an id that could name a folder elsewhere as none", () => {
     const dir = defaultWorkspacePath(userDataDir);
     fs.mkdirSync(workspaceLayout(dir).dataDir, { recursive: true });

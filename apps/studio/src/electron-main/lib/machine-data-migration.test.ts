@@ -219,6 +219,26 @@ describe("moveMachineData", () => {
     expect(done).toContain(`merged 1 feature flag into ${preferencesFile}`);
   });
 
+  it("leaves preferences it cannot parse as they are, for the next launch", () => {
+    seedBeta();
+    const settings = path.join(workspace().path, ".instrument", "settings");
+    write(path.join(settings, "preferences.json"), '{ "theme": "dark"');
+    write(
+      path.join(settings, "features.json"),
+      JSON.stringify({ context_ring: true }),
+    );
+
+    const { machineDir } = moveMachineData({
+      userDataDir,
+      workspace: workspace(),
+    });
+
+    expect(
+      fs.readFileSync(path.join(machineDir, "preferences.json"), "utf8"),
+    ).toBe('{ "theme": "dark"');
+    expect(fs.existsSync(path.join(settings, "features.json"))).toBe(true);
+  });
+
   // A folder the person picked, or pinned, that no build made a workspace
   // of: what is at its top level is theirs, whatever it is called.
   it("leaves a newly picked folder's own permissions.json and .app-servers where they are", () => {

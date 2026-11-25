@@ -822,11 +822,16 @@ function WindowShell({
     },
     windowTabs,
   });
-  // Show in Folder, from anywhere in the window, opens Files as a tab of the
-  // tab group up, read at the moment it is asked.
+  // Show in Folder, from anywhere in the window, opens Files beside the tab
+  // up in the group on screen, read at the moment it is asked, as a click in
+  // a chat opens what it names; with no group up, as a tab of its own.
   useLayoutEffect(() => {
     setFilesTabOpener((href) => {
-      openScreen(href, { newTab: true });
+      const from = windowTabs.active;
+      openScreen(
+        href,
+        from?.group === undefined ? { newTab: true } : { beside: from.id },
+      );
     });
   });
 

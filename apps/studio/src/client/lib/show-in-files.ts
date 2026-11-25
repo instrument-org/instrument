@@ -40,17 +40,17 @@ export async function revealInFileManager(hostPath: string) {
 /** How the app window opens a screen in a tab of its own, which the window sets as it draws. */
 let openTabInWindow: ((href: string) => void) | undefined;
 
-/** Sets how `showInFolder` opens Files in this window: the window's own opener, as a tab of the tab group up. */
+/** Sets how `showInFolder` opens Files in this window: the window's own opener, beside the tab up in the group on screen. */
 export function setFilesTabOpener(open: (href: string) => void) {
   openTabInWindow = open;
 }
 
 /**
  * Shows a file or folder on the computer where it lives: in the app window, a
- * tab of its own in Files, in the tab group up, standing in the folder, or in
+ * tab of its own in Files beside the tab up, standing in the folder, or in
  * the one a file is in with the file selected; elsewhere, in the Finder or its
- * counterpart. A tab of its own rather than the one up, so the person gets a
- * clean place to work from and whatever they were looking at stays put.
+ * counterpart. Beside rather than in place of the tab up, so the person gets
+ * a clean place to work from and whatever they were looking at stays in view.
  */
 export async function showInFolder(
   hostPath: string,

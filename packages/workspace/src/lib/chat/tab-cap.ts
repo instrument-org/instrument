@@ -164,7 +164,7 @@ async function closedTab(
   reason: ClosedTab["reason"],
 ): Promise<ClosedTab> {
   const { browser } = getWorkspaceConfig();
-  const live = browser.getTargetUrl(tab.id);
+  const live = browser.getTargetAddress(tab.id);
   const kept =
     live === undefined
       ? listed?.find((entry) => entry.id === tab.id)

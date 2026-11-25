@@ -112,7 +112,7 @@ async function chatTabsStatus(
   return (listed ?? []).map((tab) => {
     const { targetId } = tab;
     const loaded = browser.getTargetMeta(targetId) !== null;
-    const url = loaded ? browser.getTargetUrl(targetId) : tab.url;
+    const url = loaded ? browser.getTargetAddress(targetId) : tab.url;
     const title = loaded ? titles.get(targetId) : tab.title;
     return {
       id: targetId,

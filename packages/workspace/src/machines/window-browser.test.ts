@@ -40,6 +40,7 @@ function makeBrowser() {
     contentBlocking: () => ({ task: true, workspace: true }),
     createTarget: () => Promise.resolve(),
     getTargetMeta: () => null,
+    getTargetAddress: () => undefined,
     getTargetUrl: () => undefined,
     hasNoWindow: false,
     guestCost: () => null,

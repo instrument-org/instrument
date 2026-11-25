@@ -284,6 +284,7 @@ describe("openTargetSession on a local page", () => {
                 partitionDir: "/tmp/profile",
                 sessionId: "ses_00000000018888888888888888",
               },
+        getTargetAddress: () => guest.url,
         getTargetUrl: () => guest.url,
         listTargets: () => Promise.resolve([]),
         sendCommand,
@@ -920,6 +921,7 @@ describe("openTargetSession with a frame in a process of its own", () => {
     const config = {
       browser: {
         getTargetMeta: () => ({ partitionDir: "/tmp/profile" }),
+        getTargetAddress: () => guest.url,
         getTargetUrl: () => guest.url,
         sendCommand,
         setAgentFileRoots: vi.fn(),

@@ -70,7 +70,17 @@ export interface GuestRecord {
    * judged as though it sat in `/etc`. This moves only when a frame commits a
    * new document (`did-frame-navigate`).
    */
-  readonly frames: Map<string, FrameId & { url: string }>;
+  readonly frames: Map<
+    string,
+    FrameId & {
+      /**
+       * The address the frame's page gave itself without loading another
+       * document. For saying where the page is, never for judging it.
+       */
+      shown?: string;
+      url: string;
+    }
+  >;
   /**
    * Whether a person entered something into the page since its document
    * loaded (`page-edits.ts`), which unloading the page would lose.
@@ -160,6 +170,15 @@ export function createGuestRegistry() {
         });
       },
     );
+    contents.on(
+      "did-navigate-in-page",
+      (_event, url, _isMainFrame, processId, routingId) => {
+        const frame = record.frames.get(keyOf({ processId, routingId }));
+        if (frame) {
+          frame.shown = url;
+        }
+      },
+    );
     // A load that fails puts an error page in the document's place, which
     // `did-frame-navigate` does not report. A load called off (-3) leaves
     // the document where it was.
@@ -180,6 +199,24 @@ export function createGuestRegistry() {
   }
 
   return {
+    /**
+     * The address `frame` of contents `id` is at, as a person sees it: a web
+     * page's own moves within its document included. Any other document is
+     * at the address it loaded, since a file's page can name itself any
+     * other file.
+     */
+    addressOf(
+      id: number | undefined,
+      frame: FrameId | null | undefined,
+    ): string | undefined {
+      if (id === undefined || !frame) {
+        return;
+      }
+      const found = records.get(id)?.frames.get(keyOf(frame));
+      return found && /^https?:/i.test(found.url)
+        ? (found.shown ?? found.url)
+        : found?.url;
+    },
     /** The guest bound to a tab's entry, from `did-attach-webview` on. */
     bind(id: number, entry: BrowserEntry) {
       const record = records.get(id);

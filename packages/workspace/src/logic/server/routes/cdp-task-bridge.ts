@@ -182,7 +182,7 @@ export function handleTaskCdpClient(
             tabId: tab.id,
             targetId: tab.targetId,
             title: tab.title,
-            url: browser.getTargetUrl(tab.targetId) ?? tab.url,
+            url: browser.getTargetAddress(tab.targetId) ?? tab.url,
           })),
         ]
       : [...announced.values()].filter(
@@ -232,7 +232,7 @@ export function handleTaskCdpClient(
     targetId: tab.tabId,
     title: titleOf.get(tab.targetId) ?? tab.title,
     type: "page",
-    url: browser.getTargetUrl(tab.targetId) ?? tab.url,
+    url: browser.getTargetAddress(tab.targetId) ?? tab.url,
   });
 
   const detach = (tabId: string) => {
@@ -374,7 +374,7 @@ export function handleTaskCdpClient(
       action: {
         kind: "adopt",
         tabId: tab.tabId,
-        url: browser.getTargetUrl(tab.targetId) ?? tab.url,
+        url: browser.getTargetAddress(tab.targetId) ?? tab.url,
       },
       askedBy: chatId,
       group: resolveChat(chatId),

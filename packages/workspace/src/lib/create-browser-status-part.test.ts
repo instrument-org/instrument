@@ -43,6 +43,7 @@ vi.mock("./workspace-config", () => ({
       browser: {
         getTargetMeta: (id: string) =>
           loaded.has(id) ? { partitionDir: "/tmp/profile" } : null,
+        getTargetAddress: (id: string) => loaded.get(id)?.url,
         getTargetUrl: (id: string) => loaded.get(id)?.url,
         guestCost: () => null,
         hasNoWindow: false,

@@ -7,7 +7,7 @@ import vm from "node:vm";
 
 import { loadState } from "./snap/lib.mjs";
 
-export const here = path.dirname(new URL(import.meta.url).pathname);
+export const here = import.meta.dirname;
 
 export const SKILL =
   process.env.WIREFRAME_SKILL_DIR ??

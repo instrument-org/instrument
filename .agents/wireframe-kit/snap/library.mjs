@@ -92,7 +92,7 @@ for (const file of fs.readdirSync(raw).filter((f) => f.endsWith(".json")).sort()
 
 let commit = "";
 try {
-  commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: path.dirname(new URL(import.meta.url).pathname), encoding: "utf8" }).trim();
+  commit = execFileSync("git", ["rev-parse", "--short", "HEAD"], { cwd: import.meta.dirname, encoding: "utf8" }).trim();
 } catch {}
 const now = new Date().toISOString();
 const listFile = path.join(LIBRARY, "library.json");

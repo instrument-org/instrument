@@ -14,7 +14,7 @@ import { execFileSync } from "node:child_process";
 import { parseArgs } from "node:util";
 import { recordsToTimeline } from "./records-to-timeline.mjs";
 
-const here = path.dirname(new URL(import.meta.url).pathname);
+const here = import.meta.dirname;
 const { positionals, values } = parseArgs({
   allowPositionals: true,
   options: {

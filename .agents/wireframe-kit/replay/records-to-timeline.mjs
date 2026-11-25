@@ -182,7 +182,7 @@ export function recordsToTimeline(dir) {
   return { duration, chat, tasks };
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
   const dir = process.argv[2];
   if (!dir) throw new Error("usage: node records-to-timeline.mjs <records-dir>");
   process.stdout.write(JSON.stringify(recordsToTimeline(dir), null, 2) + "\n");

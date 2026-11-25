@@ -21,7 +21,7 @@ import path from "node:path";
 
 import { SKILL } from "../kit.mjs";
 
-const here = path.dirname(new URL(import.meta.url).pathname);
+const here = import.meta.dirname;
 const IN_PAGE = fs.readFileSync(path.join(here, "../../skills/studio-walkthrough/scripts/in-page.js"), "utf8");
 const SNAPSHOT = fs.readFileSync(path.join(SKILL, "snapshot.js"), "utf8");
 const wait = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
@@ -535,7 +535,7 @@ async function captureStates(/** @type {string[]} */ names) {
       .filter((dir) => fs.existsSync(path.join(dir, "seed.json")))
       .sort((a, b) => fs.statSync(path.join(b, "seed.json")).mtimeMs - fs.statSync(path.join(a, "seed.json")).mtimeMs)[0];
     if (theirs) fs.cpSync(theirs, mine, { recursive: true });
-    else node([WALK, "seed", path.join(path.dirname(new URL(import.meta.url).pathname), "seed", `${SEED}.seed.json`)]);
+    else node([WALK, "seed", path.join(import.meta.dirname, "seed", `${SEED}.seed.json`)]);
   }
 
   /** Stops the room and waits for its port to come free, so a boot straight after finds it free. */
@@ -577,7 +577,7 @@ async function captureStates(/** @type {string[]} */ names) {
     };
     const argsFile = path.join(os.tmpdir(), `snap-capture-${process.pid}.json`);
     fs.writeFileSync(argsFile, JSON.stringify(args));
-    const result = JSON.parse(node([DRIVE, "run", new URL(import.meta.url).pathname, "--quiet", "--clean-room", ROOM, "--args", `@${argsFile}`]));
+    const result = JSON.parse(node([DRIVE, "run", import.meta.filename, "--quiet", "--clean-room", ROOM, "--args", `@${argsFile}`]));
     fs.rmSync(argsFile, { force: true });
     if (result.ok === false) throw new Error(`capture stopped at ${result.stoppedAt}: ${result.error}`);
     /** @type {string[]} */
@@ -592,7 +592,7 @@ async function captureStates(/** @type {string[]} */ names) {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === new URL(import.meta.url).pathname)
+if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename)
   await captureStates(process.argv.slice(2)).catch((error) => {
     console.error(`capture: ${error instanceof Error ? error.message : error}`);
     process.exit(1);

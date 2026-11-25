@@ -37,6 +37,9 @@ import { type SharedChrome } from "./shared-chrome";
 
 export type ListedBookmark = NonNullable<WindowTabAnswer["bookmarks"]>[number];
 
+/** The group of the window `window new` opens. */
+const NEW_WINDOW_GROUP = "group:stand-in-new-window";
+
 export interface StandInTab {
   at: string;
   id: string;
@@ -181,6 +184,47 @@ export function createStandInWindow(chrome?: SharedChrome) {
     };
   };
 
+  /** The tabs `window new` took to a window of their own. */
+  const apart = new Map<string, StandInTab>();
+
+  /** A list's answer, with the window `window new` opened behind the case's own, once there is one. */
+  const withApart = (
+    answer: Omit<WindowTabAnswer, "requestId">,
+  ): Omit<WindowTabAnswer, "requestId"> => {
+    const own = answer.read?.layout;
+    if (apart.size === 0 || !own) {
+      return answer;
+    }
+    return {
+      ...answer,
+      windows: [
+        { groups: [own], isThisWindow: true },
+        {
+          groups: [
+            {
+              focused: 0,
+              group: { id: NEW_WINDOW_GROUP },
+              sides: [
+                {
+                  tabs: [...apart.values()].map((tab, at) => ({
+                    address: tab.at,
+                    id: tab.id,
+                    ...(at === 0 && { isUp: true }),
+                    kind:
+                      tab.kind === "page"
+                        ? ("website" as const)
+                        : ("builtIn" as const),
+                    title: "",
+                  })),
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  };
+
   const sideOf = (id: string) =>
     layout?.sides.findIndex((side) => side.tabs.some((tab) => tab.id === id));
 
@@ -283,15 +327,15 @@ export function createStandInWindow(chrome?: SharedChrome) {
       return { tabId: action.tabId };
     }
     if (action.kind === "list" && layout) {
-      return {
+      return withApart({
         pages: [...tabs.values()].flatMap((tab) =>
           tab.kind === "page" ? [{ id: tab.id, title: "", url: tab.at }] : [],
         ),
         read: { layout: structuredClone(layout), movedIn: {}, movedOut: {} },
-      };
+      });
     }
     if (action.kind === "list") {
-      return {
+      return withApart({
         pages: [...tabs.values()].flatMap((tab) =>
           tab.kind === "page" ? [{ id: tab.id, title: "", url: tab.at }] : [],
         ),
@@ -317,7 +361,7 @@ export function createStandInWindow(chrome?: SharedChrome) {
           movedIn: {},
           movedOut: {},
         },
-      };
+      });
     }
     if (
       action.kind === "showGroup" ||
@@ -352,7 +396,22 @@ export function createStandInWindow(chrome?: SharedChrome) {
       return { error: "the stand-in window has no tab group to move them to." };
     }
     if (action.kind === "newWindow") {
-      return { group: action.group ?? "group_new_window" };
+      // Its tabs leave the case's group for a window of their own, which a
+      // list then names, so the chat can see the window it opened.
+      for (const id of action.tabIds) {
+        const tab = tabs.get(id);
+        if (tab) {
+          apart.set(id, tab);
+          tabs.delete(id);
+          for (const side of layout?.sides ?? []) {
+            side.tabs = side.tabs.filter((each) => each.id !== id);
+          }
+        }
+      }
+      if (front !== undefined && apart.has(front)) {
+        front = undefined;
+      }
+      return { group: action.group ?? NEW_WINDOW_GROUP };
     }
     if (action.kind === "groupTabs" || action.kind === "reopenClosed") {
       return { error: "the stand-in window has one tab group." };

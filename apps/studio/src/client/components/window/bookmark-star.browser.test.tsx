@@ -59,6 +59,56 @@ describe("the star at the end of the address", () => {
     ]);
   });
 
+  it.each(["apps", "chats"])(
+    "is out of sight on %s until ⌘D keeps that page, with a site beside it",
+    async (name) => {
+      const address = `instrument://screen/${name}`;
+      const { store } = await renderInBrowser(
+        <>
+          <div>
+            <input aria-label="fixed field" />
+            <BookmarkStar address={address} title="Fixed" />
+          </div>
+          <div>
+            <BookmarkStar address="https://beside.example/" title="Beside" />
+          </div>
+        </>,
+      );
+      const kept = () =>
+        store
+          .get(bookmarksAtom)
+          .map((bookmark) => bookmark.url)
+          .filter((url) => url === address || url.includes("beside"));
+      // The site's star is the only one there to press.
+      expect(
+        page.getByRole("button", { name: "Bookmark this tab" }).all(),
+      ).toHaveLength(1);
+
+      await userEvent.click(page.getByLabelText("fixed field"));
+      requestBookmarkTab();
+      await expect.element(page.getByText("Bookmark added")).toBeVisible();
+      expect(kept()).toEqual([address]);
+      const star = document.querySelector('[data-bookmark-star="kept"]');
+      expect(star && getComputedStyle(star).opacity).toBe("1");
+
+      await userEvent.click(page.getByRole("button", { name: "Remove" }));
+      await expect.poll(kept).toEqual([]);
+    },
+  );
+
+  it("keeps the star on one app's page, a chat and a folder", async () => {
+    await renderInBrowser(
+      <>
+        <BookmarkStar address="instrument://app/slack" title="Slack" />
+        <BookmarkStar address="instrument://chat/one" title="Trip plans" />
+        <BookmarkStar address="file:///Users/mac-user/" title="Home" />
+      </>,
+    );
+    expect(
+      page.getByRole("button", { name: "Bookmark this tab" }).all(),
+    ).toHaveLength(3);
+  });
+
   it("files the bookmark in the folder picked, and opens the editor for another", async () => {
     const { store } = await renderInBrowser(
       <BookmarkStar address="https://third.example/" title="Third" />,

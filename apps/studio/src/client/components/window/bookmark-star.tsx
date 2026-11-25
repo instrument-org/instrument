@@ -1,4 +1,5 @@
 import { useBookmarkActions } from "@/client/bookmarks/actions";
+import { sameAddress } from "@/client/bookmarks/address";
 import { useBookmarkFolders } from "@/client/bookmarks/folders";
 import {
   bookmarksStateAtom,
@@ -24,6 +25,7 @@ import {
 } from "@/client/components/ui/select";
 import { cn } from "@/client/lib/utils";
 import { bookmarkPlaces, keyOfPlace, placeOf } from "@/shared/bookmarks";
+import { instrumentAddressOf, SCREENS } from "@/shared/instrument-screens";
 import { BookmarksSimpleIcon } from "@phosphor-icons/react/BookmarksSimple";
 import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { useAtomValue, useSetAtom } from "jotai";
@@ -70,12 +72,22 @@ export function requestBookmarkTab() {
   best?.press();
 }
 
+/** Apps and Chats, which the bookmarks bar always starts with. */
+function isFixedOnBar(address: string) {
+  return [SCREENS.apps.href, SCREENS.chats.href].some((href) => {
+    const fixed = instrumentAddressOf(href);
+    return fixed !== undefined && sameAddress(fixed, address);
+  });
+}
+
 /**
  * The star at the end of the address field: hollow until the address is
  * kept, filled once it is. A press keeps it where a new bookmark goes (the
  * folder picked last, or the bar) and opens its card, where it can be
  * renamed, filed or removed; pressed again, the card opens on the bookmark
- * kept. ⌘D does the same.
+ * kept. ⌘D does the same. Hollow, it is out of sight on a page the bar
+ * always has (`isFixedOnBar`), and stays laid out there so that ⌘D still
+ * means that page and not one beside it.
  */
 export function BookmarkStar({
   address,
@@ -88,6 +100,7 @@ export function BookmarkStar({
 }) {
   const actions = useBookmarkActions();
   const kept = actions.bookmarkOf(address);
+  const isOutOfSight = kept === undefined && isFixedOnBar(address);
   const state = useAtomValue(bookmarksStateAtom);
   const folders = useBookmarkFolders();
   const setLastFolder = useSetAtom(lastBookmarkFolderAtom);
@@ -153,11 +166,13 @@ export function BookmarkStar({
         >
           <PopoverAnchor asChild>
             <button
+              {...(isOutOfSight ? { "aria-hidden": true, tabIndex: -1 } : {})}
               className={cn(
                 "-mr-1 grid size-6 shrink-0 cursor-default place-items-center rounded-md hover:bg-foreground/8",
                 kept
                   ? "text-warning-500"
                   : "text-foreground/45 hover:text-foreground",
+                isOutOfSight && "pointer-events-none opacity-0",
               )}
               data-bookmark-star={kept ? "kept" : ""}
               onClick={press}

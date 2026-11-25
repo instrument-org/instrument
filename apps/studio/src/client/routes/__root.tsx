@@ -65,8 +65,8 @@ function RootComponent() {
   // `document.title` (the OS window title / accessible window name) would follow
   // whichever tab resolved last rather than the visible one. `useIsActiveTab`
   // defaults to true outside the tab host, so a page outside the app window
-  // still renders its head. The app window names itself from its tab bar instead
-  // (`AppTabStrip`), since most of its screens declare no head of their own.
+  // still renders its head. The app window names itself after its tab group
+  // instead (`AppWindow`), since most of its screens declare no head of their own.
   const isActiveTab = useIsActiveTab();
   return (
     <Root>

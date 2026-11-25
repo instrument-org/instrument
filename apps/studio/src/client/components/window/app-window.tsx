@@ -1,7 +1,7 @@
 import { showScreenFieldWithKeyboard } from "@/client/lib/screen-fields";
 import { describeTabs } from "@/client/lib/studio-drive";
 import { keyboardSide } from "@/client/lib/keyboard-place";
-import { OUTSIDE_FILES_MAX } from "@instrument-org/shared";
+import { APP_NAME, OUTSIDE_FILES_MAX } from "@instrument-org/shared";
 import {
   setFilesTabOpener,
   showProjectInFiles,
@@ -177,7 +177,7 @@ import { backfillCandidates } from "./use-project-backfill";
 import { useWindowCommands } from "./use-window-commands";
 import { useWindowDropFallback } from "./use-window-drop-fallback";
 import { WindowFrame } from "./window-frame";
-import { useGroupLeadUpkeep } from "./group-leads";
+import { groupNameOf, useGroupLeadUpkeep } from "./group-leads";
 import { GroupSidebar, sidebarBounds } from "./group-sidebar";
 import { WindowCorner } from "./inbox-toggle";
 import { isGroupScreenHref } from "./group-screen";
@@ -769,6 +769,19 @@ function WindowShell({
   useEffect(() => {
     describeTabs((tab) => tabTitle(tab, names));
   });
+  // The window is called what its tab group's row is, which is how Mission
+  // Control, the Window menu and Move to Window tell windows apart.
+  const windowTitle =
+    (groupUp === undefined
+      ? undefined
+      : groupNameOf(
+          windowTabs.layoutOf(groupUp),
+          windowTabs.groupOwn[groupUp]?.lead,
+          names,
+        )) ?? APP_NAME;
+  useEffect(() => {
+    document.title = windowTitle;
+  }, [windowTitle]);
   const { openAll, openNamedPath, openPage, openScreen } = useOpeners({
     appTabs,
     browser,

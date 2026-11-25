@@ -67,6 +67,15 @@ const iconOf = async (
   host = "example.com",
 ) => (await siteIconFor(host, theme, deps))?.bytes.toString();
 
+/** Once the service's icon has been asked for again and its answer is kept. */
+const refreshed = () =>
+  vi.waitFor(async () => {
+    const kept = path.join(dir, "example.com_served-light.kept.json");
+    expect(JSON.parse(await fs.readFile(kept, "utf8"))).toMatchObject({
+      at: now,
+    });
+  });
+
 describe("siteIconFor", () => {
   it("asks the service once for each theme, by the host alone, and answers from disk after", async () => {
     site.light = image("for light");
@@ -94,9 +103,8 @@ describe("siteIconFor", () => {
     now += 2 * DAY_MS;
     site.light = image("new");
     await iconOf();
-    await vi.waitFor(async () => {
-      expect(await iconOf()).toBe("new");
-    });
+    await refreshed();
+    expect(await iconOf()).toBe("new");
   });
 
   it("serves a stale copy while it asks again, and keeps it when that fails", async () => {
@@ -108,9 +116,13 @@ describe("siteIconFor", () => {
     expect(await iconOf()).toBe("old");
     expect(fetch).toHaveBeenCalledTimes(2);
     site.light = image("new");
+    // The failed request is asked again once it has ended.
     await vi.waitFor(async () => {
-      expect(await iconOf()).toBe("new");
+      await iconOf();
+      expect(fetch).toHaveBeenCalledTimes(3);
     });
+    await refreshed();
+    expect(await iconOf()).toBe("new");
   });
 
   it("shows Google's for minutes when the service cannot be asked", async () => {
@@ -121,9 +133,8 @@ describe("siteIconFor", () => {
     now += 6 * MINUTE_MS;
     site.light = image("the service's");
     await iconOf();
-    await vi.waitFor(async () => {
-      expect(await iconOf()).toBe("the service's");
-    });
+    await refreshed();
+    expect(await iconOf()).toBe("the service's");
   });
 
   it("keeps nothing when neither can be asked, and asks again next time", async () => {

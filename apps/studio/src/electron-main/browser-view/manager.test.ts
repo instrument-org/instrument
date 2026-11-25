@@ -86,12 +86,11 @@ describe("getBrowserViewManager", () => {
       }: { entries?: { title: string; url: string }[]; index?: number } = {},
     ) => {
       const restore = vi.fn(() => Promise.resolve());
-      host.emit(
-        "will-attach-webview",
-        { preventDefault: vi.fn() },
-        {},
-        { partition: browserPartition(targetId) },
-      );
+      const params = {
+        partition: browserPartition(targetId),
+        src: "about:blank",
+      };
+      host.emit("will-attach-webview", { preventDefault: vi.fn() }, {}, params);
       const guest = new Proxy(
         Object.assign(new EventEmitter(), {
           id: guestId,
@@ -111,7 +110,7 @@ describe("getBrowserViewManager", () => {
         },
       );
       host.emit("did-attach-webview", {}, guest);
-      return { restore };
+      return { params, restore };
     };
 
     it("mounts a guest only in the window that asked for it", () => {
@@ -283,6 +282,32 @@ describe("getBrowserViewManager", () => {
         });
       },
     );
+
+    it("gives a page a tab steps back to the history it left with, whole", async () => {
+      const host = hostWith(321);
+      const manager = getBrowserViewManager();
+      const [targetId, as] = [StoreId.newTabId(), StoreId.newTabId()].map(
+        (id) => browserTargetOf(id),
+      );
+      if (!targetId || !as) {
+        throw new Error("no targets");
+      }
+      const open = (id: typeof targetId, url?: string) =>
+        void manager.browser
+          .createTarget(id, partition, { webContentsId: 321 }, url)
+          .catch(() => undefined);
+      open(targetId);
+      attachGuest(host, targetId, 3210, visited);
+      const url = "https://b.example/";
+      await manager.keepHistoryFor({ as, leaving: false, targetId, url });
+      open(as, url);
+      const { params, restore } = attachGuest(host, as, 3211);
+      expect(restore.mock.calls).toEqual([
+        [{ entries: visited.entries.slice(0, 2), index: 1 }],
+      ]);
+      // An address of the element's own would load over the history.
+      expect(params).not.toHaveProperty("src");
+    });
 
     it("moves a parked guest to the window showing it, as a new guest", () => {
       hostWith(301);

@@ -1,3 +1,5 @@
+import { isPageEditAddress } from "@instrument-org/shared";
+
 /**
  * What a guest's history comes back as in another window: the page it stood
  * on and the pages behind it, without the blank page every guest starts on.
@@ -19,4 +21,42 @@ export function historyToRestore<Entry extends { url: string }>(
       .filter((entry) => entry.url !== "about:blank"),
     url,
   };
+}
+
+/**
+ * A guest's history as another guest can be given it whole, standing on the
+ * last entry of `url`'s document at or behind `index`, with what Chromium
+ * keeps of each page (where it was scrolled, what its fields had). The pages
+ * ahead of that entry are left out. None where the guest has not been there.
+ */
+export function historyStandingOn<Entry extends { url: string }>(
+  entries: readonly Entry[],
+  index: number,
+  url: string,
+): { entries: Entry[]; index: number } | null {
+  const at = entries
+    .slice(0, index + 1)
+    .findLastIndex((entry) => documentOf(entry.url) === documentOf(url));
+  if (at === -1 || isPageEditAddress(entries[at]?.url ?? "")) {
+    return null;
+  }
+  const kept = entries
+    .slice(0, at + 1)
+    .filter(
+      (entry) => entry.url !== "about:blank" && !isPageEditAddress(entry.url),
+    );
+  return kept.length === 0 ? null : { entries: kept, index: kept.length - 1 };
+}
+
+/** What tells one document from another: the address without its fragment, or a file however its path was escaped. */
+function documentOf(url: string): string {
+  const parsed = URL.parse(url);
+  if (parsed?.protocol !== "file:") {
+    return url.replace(/#.*$/, "");
+  }
+  try {
+    return `file://${parsed.host}${decodeURIComponent(parsed.pathname)}`;
+  } catch {
+    return `file://${parsed.host}${parsed.pathname}`;
+  }
 }

@@ -17,7 +17,7 @@ import {
 } from "@/client/lib/browser-pool";
 import { siteIconChanged } from "@/client/lib/favicon-url";
 import { flushFileWrites } from "@/client/lib/file-flush";
-import { hostPathOfFileUrl } from "@/client/lib/file-url";
+import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
 import { getFileType } from "@/client/lib/get-file-type";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
@@ -47,7 +47,11 @@ import {
   putAwayGuests,
   reconcileGuests,
 } from "./reconcile-guests";
-import { undrawnHostedStep } from "./hosted-page";
+import {
+  pageComingBack,
+  pageFileOfTab,
+  undrawnHostedStep,
+} from "./hosted-page";
 import { visitInTab } from "./tab-history";
 import { type Opening } from "./tab-openers";
 import {
@@ -239,6 +243,8 @@ interface OpenOptions {
   /** A tab of its own right after the one its group has up, as a link opened in a new tab lands. */
   newTab?: boolean;
   replacing?: WindowTab;
+  /** The id it comes back under, where its history may have been kept (`pageComingBack`). */
+  returnAs?: StoreId.Tab;
   /** Brings the group on screen at the page, rather than leaving it behind: for what the user asked for by name. */
   show?: boolean;
   /** The side of the group it opens on (`Placing`). */
@@ -256,11 +262,12 @@ function openTab(
     group: into,
     newTab = false,
     replacing,
+    returnAs,
     show = false,
     side,
   }: OpenOptions = {},
 ) {
-  const id = StoreId.newTabId();
+  const id = returnAs ?? StoreId.newTabId();
   const page = {
     id,
     openedAt: Date.now(),
@@ -288,7 +295,7 @@ function openTab(
   void rpcClient.workspace.browser.open
     .call({
       targetId: browserTargetOf(id),
-      ...(url ? { url } : {}),
+      ...(url ? (returnAs ? { restoreUrl: url } : { url }) : {}),
     })
     .then(() => {
       if (audible) {
@@ -516,7 +523,14 @@ export function BrowserTabs({
                   url: leftUrl,
                 }
               : undefined;
-          guest.clearHistory();
+          if (left) {
+            guest.leaveHistory({
+              as: browserTargetOf(left.id),
+              url: left.url,
+            });
+          } else {
+            guest.clearHistory();
+          }
           change("pageBecomesFile", {
             file: { href: fileHref(filePath), id: fileTab },
             hostGroup: hostGroupOf(fileTab),
@@ -532,7 +546,19 @@ export function BrowserTabs({
           url,
         });
         if (undrawn?.step.kind === "site") {
-          guest.clearHistory();
+          const leftFile = latest.current.allTabs.find(
+            (tab) => tab.id === undrawn.owner,
+          );
+          const path = pageFileOfTab(leftFile);
+          if (path === undefined) {
+            guest.clearHistory();
+          } else {
+            const leftUrl = fileUrlOf(path);
+            guest.leaveHistory({
+              as: pageComingBack(hostGroupOf(undrawn.owner), leftUrl),
+              url: leftUrl,
+            });
+          }
           const { url: siteUrl } = undrawn.step;
           change("pageTakesOver", {
             page: id,

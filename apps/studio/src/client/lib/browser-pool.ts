@@ -162,6 +162,8 @@ export interface GuestEventMap {
   "ipc-message": { args: unknown[]; channel: string };
   "page-favicon-updated": { favicons: string[] };
   "page-title-updated": { title: string };
+  /** The pool's own, fired once `leaveHistory` has cleared the guest's history. */
+  "history-left": object;
   /** The pool's own, fired after `setZoom`: Electron says nothing when a guest's zoom changes. */
   "zoom-set": object;
 }
@@ -185,6 +187,12 @@ export interface GuestHandle {
   capture(): Promise<null | string>;
   /** Forgets every entry but the one the guest is at. */
   clearHistory(): void;
+  /**
+   * Starts the guest's history at the page it is on, as the page it came from
+   * at `url` becomes a step of its tab's own: what is behind is kept for the
+   * guest that comes back there, as `as`. The guest has no steps meanwhile.
+   */
+  leaveHistory(left: { as: BrowserTargetId; url: string }): void;
   find(text: string, options?: { findNext?: boolean; forward?: boolean }): void;
   /** Whether the page, or a frame in it, is still loading. */
   isLoading(): boolean;
@@ -1471,6 +1479,7 @@ function guestHandle(
       return otherwise;
     }
   };
+  let isLeaving = false;
   const allowSound = () => {
     if (document.hasFocus()) {
       guard(() => {
@@ -1480,14 +1489,29 @@ function guestHandle(
   };
   return {
     allowSound,
-    canGoBack: () => guard(() => webview.canGoBack(), false),
-    canGoForward: () => guard(() => webview.canGoForward(), false),
+    canGoBack: () => !isLeaving && guard(() => webview.canGoBack(), false),
+    canGoForward: () =>
+      !isLeaving && guard(() => webview.canGoForward(), false),
     capture: async () => {
       try {
         return (await webview.capturePage()).toDataURL();
       } catch {
         return null;
       }
+    },
+    leaveHistory: (left) => {
+      isLeaving = true;
+      void rpcClient.browser.keepHistory
+        .call({ ...left, leaving: true, targetId })
+        .catch(() => {
+          guard(() => {
+            webview.clearHistory();
+          }, undefined);
+        })
+        .finally(() => {
+          isLeaving = false;
+          webview.dispatchEvent(new Event("history-left"));
+        });
     },
     clearHistory: () => {
       guard(() => {

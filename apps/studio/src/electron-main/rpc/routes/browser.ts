@@ -253,6 +253,23 @@ const zoomGuestAlone = base
     }
   });
 
+// A page whose place in its tab's history another guest takes up later keeps
+// its history for that guest, named by the target it will come back as.
+const keepHistory = base
+  .input(
+    z.object({
+      as: BrowserTargetIdSchema,
+      leaving: z.boolean(),
+      targetId: BrowserTargetIdSchema,
+      url: z.string().min(1),
+    }),
+  )
+  .handler(async ({ context, input }) => {
+    if (isForHost(context.webContentsId, input.targetId)) {
+      await getBrowserViewManager().keepHistoryFor(input);
+    }
+  });
+
 // The window's pages it holds only as a step of a tab's history, back or
 // forward from what the tab shows, reported whole on each change. Main closes
 // one of them that makes sound.
@@ -585,6 +602,7 @@ export const browser = {
   syncFocus,
   syncGuestShown,
   zoomGuestAlone,
+  keepHistory,
   syncGuestsPutAway,
   syncGuestSurface,
   returnsKeyboard,

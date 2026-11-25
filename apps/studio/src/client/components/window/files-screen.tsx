@@ -597,6 +597,7 @@ export function FilesScreen({
   useHostedPageNavigation(
     hostedTabId === undefined ? undefined : browserTargetOf(hostedTabId),
     hostedFile === undefined ? undefined : fileUrlOf(hostedFile),
+    hostGroup,
     (step) => {
       if (step.kind === "back") {
         leaveFile();

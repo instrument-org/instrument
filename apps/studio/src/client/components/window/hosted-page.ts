@@ -2,6 +2,7 @@ import { type WindowTab } from "@/client/atoms/window";
 import { useGuest } from "@/client/hooks/use-browser-targets";
 import { getGuest, goGuest, onPageThumb } from "@/client/lib/browser-pool";
 import { fileUrlOf, hostPathOfFileUrl } from "@/client/lib/file-url";
+import { rpcClient } from "@/client/rpc/client";
 import {
   expandHomePath,
   isPageEditAddress,
@@ -10,6 +11,7 @@ import {
 import {
   browserTargetOf,
   type BrowserTargetId,
+  StoreId,
 } from "@instrument-org/workspace/client";
 import { getFileType } from "@/client/lib/get-file-type";
 import { useStore } from "jotai";
@@ -98,12 +100,13 @@ export function liveHostedFileAddress(
 export function useHostedPageNavigation(
   target: BrowserTargetId | undefined,
   fileUrl: string | undefined,
+  group: string,
   onStep: (step: NonNullable<HostedPageStep>) => void,
 ) {
   const guest = useGuest(target);
-  const latest = useRef({ fileUrl, onStep });
+  const latest = useRef({ fileUrl, group, onStep });
   useEffect(() => {
-    latest.current = { fileUrl, onStep };
+    latest.current = { fileUrl, group, onStep };
   });
   useEffect(() => {
     if (target === undefined || !guest) {
@@ -130,7 +133,10 @@ export function useHostedPageNavigation(
       // The tab's own history holds the file now, behind the page; the
       // guest's would hold it a second time.
       if (next.kind === "site") {
-        guest.clearHistory();
+        guest.leaveHistory({
+          as: pageComingBack(latest.current.group, shown),
+          url: shown,
+        });
       }
       step(next);
     };
@@ -154,6 +160,65 @@ export function useHostedPageNavigation(
  */
 const hostLoads = new Map<BrowserTargetId, string[]>();
 const HOST_LOADS_KEPT = 8;
+/**
+ * The page each group's surface comes back to its file as, by group: made up
+ * as the page before it left, so that page's history is kept under it
+ * (`GuestHandle.leaveHistory`).
+ */
+const pagesComingBack = new Map<
+  string,
+  { closed?: string; id: StoreId.Tab; url: string }
+>();
+
+/** The target a group's page comes back at `url` as, for the history of the one leaving to be kept under. */
+export function pageComingBack(
+  group: string,
+  url: string,
+  closed?: string,
+): BrowserTargetId {
+  const id = StoreId.newTabId();
+  pagesComingBack.set(group, {
+    id,
+    url,
+    ...(closed === undefined ? {} : { closed }),
+  });
+  return browserTargetOf(id);
+}
+
+/** Takes the page a group comes back as, if it comes back at `url`. */
+function takePageComingBack(group: string, url: string) {
+  const page = pagesComingBack.get(group);
+  pagesComingBack.delete(group);
+  return page?.url === url ? page.id : undefined;
+}
+
+/**
+ * Keeps what a page's history is before it closes, for its surface coming
+ * back to the file: a step back and forward, or the tab reopened.
+ */
+function keepHistoryOf(id: string, group: string) {
+  const target = browserTargetOf(id);
+  const path = hostPathOfFileUrl(getGuest(target)?.url() ?? "");
+  // Only a tab's own page comes back (Quick Look's does not), and one whose
+  // surface and tab both close it is kept once.
+  if (
+    path === undefined ||
+    ownerOfHostGroup(group) === undefined ||
+    pagesComingBack.get(group)?.closed === id
+  ) {
+    return;
+  }
+  const url = fileUrlOf(path);
+  void rpcClient.browser.keepHistory
+    .call({
+      as: pageComingBack(group, url, id),
+      leaving: false,
+      targetId: target,
+      url,
+    })
+    .catch(noop);
+}
+
 /** How long a page put away for a file of another kind is kept for the next page. */
 const PARKED_PAGE_MS = 30_000;
 
@@ -262,7 +327,11 @@ export function useHostedPage({
     let kept: string | undefined;
     if (url !== undefined && browser) {
       if (current?.kind !== "page") {
-        kept = browser.openOrFocus(url, { group });
+        const returnAs = takePageComingBack(group, url);
+        kept = browser.openOrFocus(url, {
+          group,
+          ...(returnAs === undefined ? {} : { returnAs }),
+        });
       } else {
         // A page kept from the last launch at this address is taken up as
         // it is. The guest's own address goes first, since one kept while
@@ -316,6 +385,7 @@ export function useHostedPage({
     }
     window.clearTimeout(parked.current);
     for (const id of tabIdsNow.current) {
+      keepHistoryOf(id, group);
       hostLoads.delete(browserTargetOf(id));
       close(id);
     }
@@ -419,6 +489,10 @@ export function useCloseStrandedHostedPages() {
       }
     }
     for (const id of strandedHostedPages(tabs, seen.current)) {
+      const group = tabs.find((tab) => tab.id === id)?.group;
+      if (group !== undefined) {
+        keepHistoryOf(id, group);
+      }
       hostLoads.delete(browserTargetOf(id));
       close(id);
     }

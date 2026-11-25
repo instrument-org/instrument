@@ -140,6 +140,10 @@ export interface BrowserEntry {
   // What the guest was showing in the window it left, or as it was discarded,
   // to come back to, the pages behind it with it. Spent as the guest attaches.
   restoreHistory: null | { behind: NavigationEntry[]; url: string };
+  // The history the guest is given whole, coming up on the page at its index
+  // as Chromium kept it: one a tab's step back or forward returns to. Its
+  // element loads nothing, since that load would land on top.
+  returnTo: null | { entries: NavigationEntry[]; index: number };
   // The page the guest's element opens on: its own blank page, or the one a
   // guest brought over from another window, or discarded, stood on.
   src: string | undefined;
@@ -192,12 +196,14 @@ export function createEntry({
   hostId = null,
   partitionDir,
   restoreHistory = null,
+  returnTo = null,
   src,
   targetId,
 }: {
   hostId?: null | number;
   partitionDir: AbsolutePath;
   restoreHistory?: BrowserEntry["restoreHistory"];
+  returnTo?: BrowserEntry["returnTo"];
   src?: string;
   targetId: BrowserTargetId;
 }): BrowserEntry {
@@ -227,6 +233,7 @@ export function createEntry({
     phase: "pending",
     putAway: false,
     restoreHistory,
+    returnTo,
     src,
     screencastInterval: null,
     screencastSessionId: 0,

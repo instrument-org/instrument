@@ -7,25 +7,24 @@ description: Use when working with Chrome DevTools against the Studio Electron a
 
 How to drive and inspect the Studio Electron app.
 
-`studio-drive.mjs` is the way in. The generic `chrome-devtools` / `chrome-devtools-cli` skills describe a tool that has never heard of Studio: it cannot derive this checkout's port, cannot tell a restart from a crash, and reports both as "Could not connect to Chrome. Check if Chrome is running", which sends a run off to hunt for a browser that was never involved. Read them when you need the profiler's own syntax ([The CLI, for what it alone can do](#the-cli-for-what-it-alone-can-do)), not to decide how to reach the app.
-
-The shape to reach for is a sequence, not a command:
+`studio-drive.mjs` is the way in, and a script in the product's words is the way to use it: tabs, groups, sides, the composer, the omnibar, menus by item name, dialogs. Every word finds its target by role and accessible name, acts with real input, and returns once the app has settled, so a script never sleeps; a miss fails with what is on screen, the nearest names and a picture.
 
 ```bash
-node $DRIVE boot --purpose "skills dialog"    # once
-node $DRIVE run sequence.mjs                  # everything you came to do
-node $DRIVE stop                              # once
+DRIVE=$(git rev-parse --show-toplevel)/.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
+F="--workspace documents --as mine"
+
+node $DRIVE boot --purpose "split" $F                 # once; off screen
+node $DRIVE run $F -e 'await menu("New Tab in Split"); await composer.type("hi"); return state()'
+node $DRIVE run $F sequence.js --args '{"chat":"red-and-blue-squares"}'
+node $DRIVE run $F split                              # a scene: scripts/drive/scenes/split.js
+node $DRIVE stop $F                                   # once
 ```
 
-`boot` and `stop` bracket the work and [`run`](#a-sequence-run) is the work. One `studio-drive` invocation is one process and one connection, which is right for a single question and wrong for anything else: a primitive costs milliseconds over a held connection while deciding the next command costs seconds, so twelve steps measure at 1.2s as one `run` against roughly two minutes as twelve commands. Write the sequence first, and drop to single commands only when you have exactly one thing to ask. The per-command reference comes first below because `boot` lives in it, not because it is the default.
+`run --purpose <p>` boots first when nothing is up. One `run` is one held connection, so twelve steps take about a second where twelve commands take minutes: write the sequence, and reach for a single command only for one question. The generic `chrome-devtools` skills know nothing of Studio (the port, a restart from a crash); read them only for the profiler ([The CLI](#the-cli-for-what-it-alone-can-do)).
 
 ## Words
 
-`run` takes a script written in the product's words: tabs, groups, sides, the composer, the omnibar, menus by item name, dialogs. Every word finds its target by role and accessible name, acts with real input, and resolves once the app has settled, so a script never sleeps; a miss says what is on screen instead, with the nearest names and a picture.
-
-```bash
-node $DRIVE run -e 'await press("Meta+t"); await composer.send("hello"); return state()'
-```
+A script is statements with every word in scope, `args` for `--args`, and a `return` for what to print; each step prints one line with its time. The same body runs from `-e`, a file, stdin (`run -`) or a scene name, so an inline script that earned its keep becomes a scene by saving it to `scripts/drive/scenes/<name>.js`. A file that default-exports `(app, args)` gets the lower-level `app` ([A module](#a-module-run-with-app)) with the words at `app.words`. `node $DRIVE words` prints this list from the code:
 
 <!-- words:start -->
 - `thing.nth(i)`: the i-th of several things with one name (0 first, -1 last)
@@ -91,69 +90,17 @@ node $DRIVE run -e 'await press("Meta+t"); await composer.send("hello"); return 
 - `js(expression)`: evaluates in the app window's page and returns its JSON value
 <!-- words:end -->
 
-## Driving: `studio-drive.mjs`
+## Single commands and booting
 
-Resolve the path from the repo root rather than writing it relative, so a later `cd` into a package does not turn every command in the run into `MODULE_NOT_FOUND`:
+`goto`, `state`, `snapshot`, `click`, `press`, `type`, `wait`, `modal`, `eval` (also `js`), `shot`, `rpc`, `bash`, `port` and `status` each run one thing over a connection of their own; `help` lists them with their flags. `snapshot` prints the accessibility tree as `role "name"` lines, the names the words match on. A control that shows as a bare `button` with no name is a labeling bug a screen reader meets too: give it an `aria-label` in the app rather than marking it from a script.
 
-```bash
-DRIVE=$(git rev-parse --show-toplevel)/.agents/skills/studio-chrome-devtools/scripts/studio-drive.mjs
+`boot --purpose <one or two words>` (24 characters at most) labels the instance for its life: on macOS the app is `Instrument <purpose>` in Cmd-Tab, the Dock and the menu bar, with a `color` (in boot's output) as a dot on its Dock icon, kept across boots unless another live instance wears it; tell the person which color to look for. Reusing an instance with a different purpose is refused until it is stopped.
 
-node $DRIVE boot --purpose "skills dialog"           # your own instance
-node $DRIVE goto /release-notes
-node $DRIVE state
-node $DRIVE snapshot --selector '[role=dialog]'
-node $DRIVE click --text "New skill"
-node $DRIVE shot out.png --selector '[role=dialog]' --pad 8
-node $DRIVE rpc workspace.chats.tasks '{"id":"<chat-id>"}'
-node $DRIVE stop
-```
+A booted instance never comes on screen, since a window put up can land on another Space and take the person's focus. It renders, takes input and answers pictures off screen, in-app browser pages included, so never raise it (`osascript … frontmost`); the person takes one over from its Dock icon. `--visible` puts it up without focus, for a run that needs real pixels (`screencapture -l`), and marks it as a person's: Checkout and the billing portal open in the system browser and replies post notifications, both held back off screen.
 
-Also `press`, `type`, `wait`, `modal`, `eval` (also spelled `js`, for a harness that refuses command lines containing "eval"), `run`, and `port` (the bare number, for pointing another tool at this instance). `click <name> --right` opens a context menu and `--double` double-clicks; put either last, since every flag takes the word after it. `--selector` and `--text` together click the element the selector matches that carries that name, for a name the page shows in more than one place (a project's name on a row and in a menu). Every lookup takes only what is showing: each window tab stays mounted, and the copies in the tabs that are not up never match. `click` fails when something else in the page is on top of its target. When the page stops drawing or closes after the click (a native dialog the click opened, a window in front, onboarding finishing), the click still happened, and its result says so in `afterInput` instead of hanging. To open Files at a folder, `goto "/files?path=&root=<encoded host path>&select=<name>"` (`folderHref` in `apps/studio/src/shared/computer-href.ts`); a toast's text is `[data-sonner-toast]`'s `innerText`. `run --args @args.json` and `bash --file cmd.txt` read their input from a file, for text a shell would mangle (Windows backslashes, quotes inside a prompt). It speaks CDP directly, so there is no daemon to go stale and no reconnect to invalidate page ids, and it handles the things that otherwise fail quietly: real input, visible-only element matching, browser-side screenshot cropping, and a check that something is mounted before capturing.
+Every command after `boot` takes the same `--workspace`, `--clean-room`, `--scenario` or `--as`, which pick the port and the instance record; a flag it does not know is refused. When another session in the checkout already runs the instance you want, boot your own with `--as <name>` (the refusal names one). The port comes from the checkout, never 48160, which is almost always a person's window; `--port` targets one on purpose. `stop` returns once the port is free. `status` lists the checkout's instances.
 
-One command is one process and one connection. That is the right shape for a single question and the wrong one for a sequence, so as soon as you know two things you want to do, reach for [`run`](#a-sequence-run) instead.
-
-`snapshot` is the read to reach for before deciding how to address anything. It prints the accessibility tree as indented `role "name"` lines, in the same terms `click --text` matches on and at a fraction of the size of the DOM, so one call answers what is on screen and what each thing is called. Scope it with `--selector` and go deeper with `--depth` (12 by default); an unscoped app page is a few hundred lines.
-
-A control that comes back as a bare `button`, with no name after it, cannot be reached by text at all. That is a labeling bug rather than a fact about the tool, and a screen reader gets the same nothing, so it is worth reporting. To get past one in the meantime, mark it in an `eval` and click the mark, which keeps the real input path rather than falling back to `element.click()`:
-
-```bash
-node $DRIVE eval 'document.querySelectorAll("button[aria-haspopup=menu]")[3].setAttribute("data-probe", "kebab")'
-node $DRIVE click --selector '[data-probe=kebab]'
-```
-
-`boot` requires `--purpose` with a terse description of what this instance is testing, such as `"hotkeys"` or `"document viewer"`. Keep it to one or two short words; the launcher rejects anything over 24 characters. The purpose labels the instance for its lifetime so a person can distinguish agent-driven windows at a glance: on macOS the app is named `Instrument <purpose>` in Cmd-Tab, the Dock, and the menu bar, and `boot` hands it a `color` (in its output) worn as a dot on the Dock icon and the dev pill. A purpose keeps its color across boots unless another live instance already wears it, so tell the person which color to look for. Reusing the instance with the same purpose works normally; asking to reuse it with a different purpose fails and tells you to stop it first so the window never carries a stale label.
-
-A booted instance never comes on screen by itself, because a window put up, even without focus, can land on a Space its display is not showing, and macOS then scrolls the display there and takes the person's focus with it. Its windows render, take input and answer screenshots off screen, and keep drawing once covered, minimized, or on another Space, in-app browser pages included. `shot`, `click`, `press` and `agent-browser` all work with nothing in view, so never raise the window (`osascript ... set frontmost` takes the person's focus). The person takes an instance over by clicking its Dock icon, which is what the color is for. `--visible` puts the window up without focus, for a run that needs its real pixels on screen (`screencapture -l`). It also marks the instance as a person's: Checkout and the billing portal open in the system browser for real, where an instance booted without it holds them back for the run to finish headless, and a chat's reply posts a notification, which an instance off screen never does (each instance is its own app to macOS, so its first one would put up the permission prompt). In-app browser typing (`fill`, `type`, `press`) goes to the page without the window's focus, so it works off screen; a chord or IME composition still needs the page to hold keyboard focus, which a page in an inactive window only gets from a click: when one is refused, click the field and send it again.
-
-Every command after `boot` takes the same `--workspace`, `--clean-room`, `--scenario` or `--as` the boot did. A flag held in a shell variable (`F="--workspace documents"; … $F`) arrives as one argument in zsh, which `studio-drive` splits, and a flag it does not know is refused rather than dropped. `status` lists this checkout's instances, other sessions' included, each with the flags that reach it, and `help` the commands.
-
-When another session in the same checkout already runs the instance you want (a boot refuses, naming its purpose, or finds the port taken), leave it running and boot one of your own with `--as <name>`: a port, record and, for a fixture, seeded copy of its own. The refusal names one to pass. `stop` returns once the instance is gone and its port free, so a boot can follow it at once.
-
-The port is derived from the checkout you are standing in. `boot` will not fall back to 48160 because that is the conventional port and almost always a window a person is using, so driving it means their clicks fight yours and their quit ends your run. Pass `--port` to target one deliberately.
-
-It also clears `ELECTRON_RUN_AS_NODE` from the app's environment, so there is no need to unset it first. Some editor integrations set it, and with it set Electron runs as plain Node and exits without ever opening a window.
-
-`modal` takes its names from the running app (`modal` with none prints them), so the list cannot drift from the openers the renderer has.
-
-Route and modal commands go through `window.__studioDrive`, a handle the renderer attaches (`client/lib/studio-drive.ts`) in a development run and in a preview build. A release build, and any checkout without that file, will not have it.
-
-`boot` returns as soon as that handle exists, which is when the app can be driven — not when the restored route has finished loading. A `shot` fired straight after `boot` can therefore catch a chat still filling in. When a command depends on route content rather than on the chrome, wait for the thing itself:
-
-```bash
-node $DRIVE wait 'document.querySelectorAll("[data-slot]").length > 40'
-```
-
-An instance this boots holds its main process and preload scripts at the bytes it started with, so another agent's edit under `electron-main/` or `packages/` no longer relaunches the app underneath a run. The cost is that a change you make there does not reach it: stop and boot again, or add `--hot` to the boot for a run that is iterating on main or testing reload behavior. A hand-started instance (`pnpm studio`, the VS Code launch configs, port 48160) is unaffected and hot reloads everything.
-
-Renderer HMR stays on, so any write under `src/client` — another agent's edit, a commit, a formatter — still rebuilds component state, and a change HMR cannot apply reloads the page and takes the state a run navigated to with it. When that has happened since the previous command, the next one says so on stderr:
-
-```plaintext
-studio-drive: the app reloaded since the last command. Whatever was navigated to, opened, or typed is gone; ...
-```
-
-Believe it. A result that disagrees with the one before it, after that line, is describing the reload and not the code. Re-establish the state and take the reading again rather than explaining the difference.
-
-A command that arrives while the app is still restarting waits for it to come back, so a rebuild landing mid-run costs a pause rather than a failure. "Nothing is running for this checkout" means the instance is gone, not that it is busy.
+`boot` returns once `window.__studioDrive` (`client/lib/studio-drive.ts`, in a development run and a preview build) is up and the restored window has settled. It holds main and preload at the bytes it started with, so another agent's edit under `electron-main/` or `packages/` does not relaunch it, and neither does yours: stop and boot again, or boot with `--hot`. Renderer HMR stays on, and a write HMR cannot apply reloads the page and takes the run's state with it; the next command says so on stderr (`the app reloaded since the last command`). Believe it, and take the reading again. A command that arrives mid-restart waits for the app; "Nothing is running for this checkout" means the instance is gone. `boot` clears `ELECTRON_RUN_AS_NODE`, which some editors set and which makes Electron exit as plain Node, and `modal` with no name lists the openers the running app has.
 
 A plain `boot` uses the shared dev application-data directory, so what a run can reach depends on what that machine did last. `--workspace <fixture>` boots against a disposable one built from a committed description:
 
@@ -188,41 +135,9 @@ An instance started from a terminal answers to the terminal's macOS privacy gran
 
 Reach for a fixture when the run needs known content, a clean room when it needs an empty workspace that can talk to a model, and `ELECTRON_USER_DATA_DIR=<empty dir>` when it needs a first launch on a fresh machine. Never switch the developer's instance (`workspaces.switch`) to get isolation: that restarts the window they are using.
 
-## A sequence: `run`
+## A module: `run` with `app`
 
-`run` hands a script the app from `scripts/studio-app.mjs` over one held connection. The script default-exports `(app, args)` and returns whatever is worth reporting:
-
-```bash
-node $DRIVE run sequence.mjs --args '{"chat":"…"}'
-cat sequence.mjs | node $DRIVE run -          # or on stdin, no quoting to get wrong
-```
-
-```javascript
-export default async (app, args) => {
-  await app.openModal("settings");
-  await app.waitFor('document.querySelector("[role=dialog]")');
-  await app.expect(
-    'window.__studioDrive.state().dialog === "Settings"',
-    "the dialog to open",
-  );
-
-  // branch on what you found, which a shell chain cannot do
-  const tasks = await app.rpc("workspace.chats.tasks", { id: args.chat });
-  if (tasks.length > 0)
-    await app.goto(`/tasks/${tasks[0].id}?chat=${args.chat}`);
-
-  return { taskCount: tasks.length };
-};
-```
-
-`app` carries `state`, `goto`, `click`, `press`, `type`, `openModal`, `closeModal`, `rpc`, `eval`, `snapshot`, `shot`, `waitFor`, `waitForIdle`, and `expect`. `click` and `shot` take a string (text), `{ selector }`, `{ text }` or both; a right or double click is `click(target, label, { button: "right" })` or `{ count: 2 }`, and any other key in the target is refused rather than dropped. Anything it has no verb for is reachable through `app.cdp`, so a sequence is limited by what CDP can do rather than by what the CLI has been taught to parse. A promoted helper imports the same module and takes `app` as its first argument, so turning a sequence you have now written twice into a reusable function is a refactor rather than a rewrite.
-
-Why this and not a command apiece: a primitive costs 0.3ms to 30ms over a held connection, while deciding the next command costs seconds. A twelve-step sequence measured at 1.2s in total, against roughly two minutes as twelve commands.
-
-- **Every call is traced.** The result is `{ok, steps, trace}` plus your return value, and a failure keeps the trace: `ok: false`, `stoppedAt`, and the failing step's own error. A run that dies at step 7 still reports the six that worked, so there is nothing to reconstruct.
-- **`waitFor` replaces `sleep`.** A string is evaluated in the page, a function runs in Node. It reports `waitedMs`, which is usually a fraction of the sleep it replaces.
-- **`expect` fails on the step that was wrong**, with your message, rather than surfacing three steps later as something unrelated.
-- **A reload stops the run.** A write under `src/client` hot-updates the renderer, and one HMR cannot apply reloads the page; a long sequence is a larger thing to lose that way than one command is. If the load changes mid-run the step is marked `reloaded` and the run stops there. Pass `--allow-reload` when the sequence expects one, or is testing one.
+A file that default-exports `async (app, args) => …` gets `scripts/studio-app.mjs`'s app over the same held connection: `rpc`, `eval`, `waitFor`, `waitForIdle`, `snapshot`, `shot`, `cdp` (anything CDP can do, with `cdp.on` for events) and the words at `app.words`. The helper scripts below are written that way. The result carries every step's trace, and a failure keeps the steps before it. A write under `src/client` that HMR cannot apply reloads the window, which stops the run at that step; `--allow-reload` lets a run that expects one carry on.
 
 ## Asking the app instead of reading the page
 
@@ -358,13 +273,19 @@ Dictation needs a microphone, and a real one raises the system's permission prom
 
 ## Traps
 
-- `element.click()` from an evaluated script dispatches a bare `click`, so it misses a handler mounted on an ancestor (how file cards and list rows are built) and every menu, popover and select, whose Radix triggers open on `pointerdown` and carry no click handler at all. It returns normally either way, so the run carries on against an unchanged UI. Use real input.
-- A control scrolled out of a long list is brought into view and then clicked, and the step reports `scrolledIntoView` so a capture taken afterward is not read as the same viewport. One still clipped after that (inside a collapsed pane, behind an overlay) fails saying so, with the coordinate, rather than dispatching at a point the window does not cover.
-- `press` takes combinations: `press 'Meta+a'`, `press Escape`, `press ArrowDown`. A modifier changes what gets sent, so `Meta+a` does not also type an `a`.
-- A chord the main process binds (Cmd+T, Cmd+W, Cmd+R, Cmd+,, the Developer chords) does nothing over CDP: injected keys never pass through `before-input-event` or the native menu. Drive what the chord does instead (`goto`, `modal`, `rpc`), and check the chord itself by hand.
-- `use-stick-to-bottom` releases auto-follow on `wheel`, so assigning `scrollTop` is overridden immediately, and UI that only appears when scrolled off the live edge stays unreachable.
-- After a main-process edit, the relaunched Electron can lose the debug port to the dying instance (`bind() failed: Address already in use`) and come back with no endpoint. Restart the dev server.
-- Studio sets Chromium's `allow-pre-commit-input` so CDP mouse input works against `<webview>` guests.
+The words handle these, so they matter for a module or a single command:
+
+- `element.click()` from an evaluated script misses handlers on an ancestor and every Radix menu, popover and select (they open on `pointerdown`), and returns normally either way. Use real input.
+- Keys sent over CDP never reach `before-input-event` or the menu bar, so Cmd+T, Cmd+W and the other main-process chords do nothing that way. `press` sends them through the window (`webContents.sendInputEvent`) and falls back to the menu item the chord belongs to.
+- Mouse events sent to the app's page do not reach a `<webview>` guest; `page()` drives the guest on its own CDP target.
+- A native menu or dialog (a context menu, the folder picker, a message box) is held in main for a driven instance, and `menu(…)` and `dialog` answer it.
+- A side with one tab draws no tab strip, so `tab(name)` finds nothing there; `tab()` still means the tab up.
+- `use-stick-to-bottom` releases auto-follow on `wheel`, so assigning `scrollTop` is overridden immediately.
+- After a main-process edit, stop and boot again: a booted instance keeps main at the bytes it started with (`--hot` for one that should reload).
+
+## Checking the words
+
+`node scripts/drive/suite.mjs` boots an instance of its own off screen on the documents fixture, runs one check per word family against it with a minute's cap each, prints a line per check and stops it (`--only <name>`, `--keep`). Run it after changing `words.mjs` or a name the app gives a control. `node --test scripts/drive/*.test.mjs` covers the pure parts and checks the list above against the code.
 
 ## The CLI, for what it alone can do
 

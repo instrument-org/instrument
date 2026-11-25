@@ -129,12 +129,12 @@ words that identify what you are checking. `boot` reuses the instance already
 running for this checkout instead of adding a second one, takes a debug port
 derived from the checkout path so two checkouts never contend for one, and
 records what it started so it can be stopped again. It runs the same
-`electron-vite dev`
-underneath, so main-process edits still relaunch the app and renderer edits
-still hot reload: an edit landing mid-run resets the state you navigated to.
+`electron-vite dev` underneath with main held at the bytes it booted with, so
+a main-process edit needs a fresh boot, and renderer edits still hot reload:
+an edit landing mid-run resets the state you navigated to.
 
-- Drive it, inspect the DOM, or call an RPC route: `studio-chrome-devtools`
-  skill.
+- Drive it in the product's words (`studio-drive.mjs run -e '…'`), inspect
+  it, or call an RPC route: `studio-chrome-devtools` skill.
 - Read main-process logs: `studio-dev-logs` skill.
 - Headless or in a VM: `.agents/cloud-dev.md`.
 - `studio-drive.mjs stop` when the check is done, unless you booted it for

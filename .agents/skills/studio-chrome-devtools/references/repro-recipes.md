@@ -17,14 +17,10 @@ Only type into the composer when the composer _is_ the thing under test. To get 
 
 `chrome-devtools fill <uid> <text>` writes the DOM directly. Studio's composer is a ProseMirror editor (`prompt-editor.tsx`) that owns its document, so a raw DOM write is not a reliable way in: the send button can stay disabled even though the editor visually shows your text. Symptom: `fill` "succeeds" but nothing is sent and the button reports `disabled: true`.
 
-Working recipe (real keyboard events, so the editor sees the change):
+`composer.type(text)`, `composer.send(text)` and `composer.clear()` in a `run` use real keys, so the editor sees the change:
 
 ```bash
-node $DRIVE click --selector '[contenteditable=true]'
-node $DRIVE press 'Meta+a'
-node $DRIVE press Backspace
-node $DRIVE type "your message here"
-node $DRIVE press Enter
+node $DRIVE run -e 'await composer.send("your message here")'
 ```
 
 Other CLI gotchas hit along the way:

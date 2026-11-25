@@ -1,5 +1,5 @@
 import { useGroupTab } from "@/client/components/window/group-tab";
-import { SoftKey } from "@/client/components/window/sidebar-search";
+import { SoftKey } from "@/client/components/soft-key";
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { cn } from "@/client/lib/utils";
 import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";

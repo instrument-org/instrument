@@ -9,9 +9,9 @@ import { fastModeDisabledReason } from "./reported-fast-mode";
 
 /**
  * What a person may choose about a model (how hard it thinks, and a faster
- * mode), and the request that asks for it. An account's levels come from its
- * own models list, and Instrument's and an API key's from our API. A model
- * nothing is known about offers nothing.
+ * mode), and the request that asks for it. A Claude or ChatGPT account's levels
+ * and OpenRouter's come from their own models lists, and Instrument's and an
+ * API key's from our API. A model nothing is known about offers nothing.
  */
 
 const ServedSchema = z.object({
@@ -63,6 +63,7 @@ const SENDABLE: Partial<Record<AIProviderType, readonly string[]>> = {
   "claude-account": ["low", "medium", "high", "xhigh", "max"],
   google: ["low", "medium", "high"],
   openai: ["low", "medium", "high", "xhigh", "max"],
+  openrouter: ["low", "medium", "high", "xhigh", "max"],
   [OUR_MODELS.providerType]: ["low", "medium", "high", "xhigh", "max"],
   "x-ai": ["low", "medium", "high", "xhigh"],
 };
@@ -87,19 +88,42 @@ const FAST_OFF_OTHERWISE = {
   row: "Not available",
 };
 
+type ServedModels = Served["connections"][string]["models"];
+
+/** A snapshot's date, as OpenAI (`-2025-08-07`) and Anthropic (`-20250929`) write it. */
+const SNAPSHOT_DATE = /-20\d{2}(?:-\d{2}-\d{2}|\d{4})$/;
+
+/**
+ * What our API serves for a provider's model id, which Google's own list
+ * prefixes with `models/`. A dated snapshot not served by its own id is the
+ * model it is a snapshot of.
+ */
+function servedModel(models: ServedModels, providerId: string) {
+  const id = providerId.replace(/^models\//, "");
+  return models?.[id] ?? models?.[id.replace(SNAPSHOT_DATE, "")];
+}
+
+/** The level OpenRouter runs a model at unasked, for one that reasons unasked. */
+function openRouterDefault({ reasoning }: AIGatewayModel.Type) {
+  return reasoning?.enabledByDefault || reasoning?.mandatory
+    ? reasoning.defaultEffort
+    : undefined;
+}
+
 export function modelChoicesFor(
   model: AIGatewayModel.Type,
 ): AIGatewayModel.Choices | undefined {
   const provider = model.params.provider;
   const connection = served.connections[provider];
-  const keyed = connection?.models?.[model.providerId];
+  const keyed = servedModel(connection?.models, model.providerId);
   const sendable = SENDABLE[provider];
   if (!sendable) {
     return undefined;
   }
   const isAccount =
     provider === "chatgpt-account" || provider === "claude-account";
-  const listed = isAccount
+  const listsOwn = isAccount || provider === "openrouter";
+  const listed = listsOwn
     ? (model.reasoning?.efforts ?? [])
     : provider === OUR_MODELS.providerType
       ? (model.offeredEfforts ?? [])
@@ -122,7 +146,9 @@ export function modelChoicesFor(
   const runsAt =
     provider === "claude-account"
       ? model.reasoning?.defaultEffort
-      : (keyed?.defaultEffort ?? catalogEffort(model));
+      : provider === "openrouter"
+        ? openRouterDefault(model)
+        : (keyed?.defaultEffort ?? catalogEffort(model));
   const fast = isAccount ? model.fast : keyed?.fast && {};
   const reason = fastModeDisabledReason(model.params.providerConfigId);
   if (efforts.length < 2 && !fast) {

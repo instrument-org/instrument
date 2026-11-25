@@ -367,3 +367,18 @@ describe("CommandRuns", () => {
     ]);
   });
 });
+
+it.each([
+  ["if true; then echo a; else cat a; fi", ["true", "echo", "cat"]],
+  ["case x in x) echo a ;; *) cat a ;; esac", ["echo", "cat"]],
+  ["for ((i = 0; i < 1; i++)); do echo a; done", ["echo"]],
+  ["while false; do echo a; done", ["false", "echo"]],
+  ["f() { cat a; }; f", ["cat", "f"]],
+  ["[[ -f a ]] && (( 1 )) && echo a", ["echo"]],
+])("names the commands in %s", async (command, commands) => {
+  const bash = await createBashEnv({ chatId, sessionId });
+  const { metadata } = await bash.exec(command, {
+    signal: AbortSignal.timeout(30_000),
+  });
+  expect(metadata?.commands).toEqual(commands);
+});

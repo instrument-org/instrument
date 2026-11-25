@@ -295,6 +295,25 @@ function forEachCommandName(
 
   function walkCommand(node: CommandNode) {
     switch (node.type) {
+      // Neither has commands in it, only words and numbers.
+      case "ArithmeticCommand":
+      case "ConditionalCommand": {
+        break;
+      }
+      case "Case": {
+        for (const item of node.items) {
+          for (const stmt of item.body) {
+            walkStatement(stmt);
+          }
+        }
+        break;
+      }
+      case "CStyleFor": {
+        for (const stmt of node.body) {
+          walkStatement(stmt);
+        }
+        break;
+      }
       case "For":
       case "Group":
       case "Subshell":

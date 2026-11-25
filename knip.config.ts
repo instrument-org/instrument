@@ -92,6 +92,8 @@ const config: KnipConfig = {
       // modules into each child it starts with `--import`.
       entry: [
         "__mocks__/*",
+        // vitest.config.ts lists it only when INSTRUMENT_BASH_WORKER=1.
+        "src/test/setup-bash-worker.ts",
         "evals/cli.ts!",
         "evals/handoff-matrix.ts!",
         "evals/user-view-grade.ts!",

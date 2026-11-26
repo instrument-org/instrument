@@ -40,6 +40,7 @@ export {
   type PageMark,
   type LayoutTab,
   type LayoutTabKind,
+  type ListedGroup,
 } from "./schemas/group-layout";
 export {
   type WindowBox,
@@ -252,3 +253,5 @@ export {
 } from "./types";
 export type { ChildTask } from "./rpc/routes/chats";
 export type { SignInAsk } from "./schemas/chat-state";
+export type { ChatState } from "./lib/chat/chat-state";
+export type { ListFacts } from "./model-text/notes/window-list-model-text";

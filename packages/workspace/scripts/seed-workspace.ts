@@ -21,7 +21,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";
 
-import { type SeededTask, seedWorkspace } from "./lib/seed-workspace";
+import type { SeededTask } from "./lib/seed-workspace";
 import {
   fixtureKeys,
   listFixtureNames,
@@ -163,6 +163,9 @@ async function main() {
   await writeMarker(userDataDir, { fixtures: fixtureNames, home, tasks: [] });
   await writeMarker(home, { fixtures: fixtureNames, home, tasks: [] });
 
+  // Loaded only to seed: a boot that finds its workspace current, which is
+  // most of them, never needs the chat store it writes through.
+  const { seedWorkspace } = await import("./lib/seed-workspace");
   const tasks = [];
   for (const fixture of fixtures) {
     process.stderr.write(`Seeding ${fixture.name}...\n`);

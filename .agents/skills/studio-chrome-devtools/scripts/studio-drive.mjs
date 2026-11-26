@@ -334,10 +334,14 @@ function runSeeder(name, flags, dirName = name) {
   const { home, userDataDir } = fixtureDirs(dirName);
   let output;
   try {
+    // What `pnpm workspace:seed` runs, without the two pnpm processes and
+    // cross-env in front of it, which cost about three seconds a boot.
     output = execFileSync(
-      "pnpm",
+      process.execPath,
       [
-        "workspace:seed",
+        "--import",
+        "tsx",
+        "scripts/seed-workspace.ts",
         "--out",
         userDataDir,
         "--home",
@@ -347,8 +351,9 @@ function runSeeder(name, flags, dirName = name) {
         ...flags,
       ],
       {
-        cwd: REPO_ROOT,
+        cwd: path.join(REPO_ROOT, "packages/workspace"),
         encoding: "utf8",
+        env: { ...process.env, NODE_ENV: "development" },
         stdio: ["ignore", "pipe", "inherit"],
       },
     );
@@ -356,7 +361,7 @@ function runSeeder(name, flags, dirName = name) {
     fail(`Could not seed workspace "${name}". See the seeder output above.`);
   }
 
-  // The seeder prints its summary last; pnpm's own banner precedes it.
+  // The seeder prints its summary last.
   const start = output.indexOf("{");
   if (start === -1) {
     fail(`The seeder printed no summary for "${name}":\n${output}`);

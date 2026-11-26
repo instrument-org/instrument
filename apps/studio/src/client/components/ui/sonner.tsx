@@ -19,7 +19,8 @@ export const BELL_TOASTER = "bell";
 // Toasts sit low in the window's bottom-left corner, where the pointer rarely
 // is, over the sidebar when it is open (`window/window-frame.tsx`).
 // A toast with only a title is a one-line pill as wide as its words; one with
-// a description is a card at the stack's full width. Sonner
+// a description is a card at the stack's full width, its buttons on a row
+// under the words, starting where the words start. Sonner
 // keeps the stacking and swiping; `unstyled` hands every surface to these
 // classes. How long each one stays is decided in `client/lib/toast.tsx`.
 const Toaster = ({ ...props }: ToasterProps) => {
@@ -51,22 +52,25 @@ const Toaster = ({ ...props }: ToasterProps) => {
       // overlay, dismissing the dialog. Keep toasts interactive.
       toastOptions={{
         classNames: {
-          // The secondary Button: a subtle control beside the words.
+          // The secondary Button at its xs size, round in a pill. A card lays
+          // out on a grid (icon, words, close; then cancel and action under
+          // the words), placed by the classes that start `in-[…]`.
           actionButton:
-            "shrink-0 rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground shadow-xs hover:bg-muted dark:bg-gray-800 dark:text-foreground dark:hover:bg-gray-700",
+            "inline-flex h-6 shrink-0 items-center rounded-full bg-secondary px-2.5 text-xs font-medium text-secondary-foreground shadow-xs hover:bg-muted dark:bg-white/9 dark:text-foreground dark:inset-ring dark:inset-ring-white/8 dark:hover:bg-white/12 in-[[data-sonner-toast]:has([data-description])]:col-start-3 in-[[data-sonner-toast]:has([data-description])]:row-start-2 in-[[data-sonner-toast]:has([data-description])]:mt-2 in-[[data-sonner-toast]:has([data-description])]:rounded-lg",
           cancelButton:
-            "shrink-0 rounded-md bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground shadow-xs hover:bg-muted dark:bg-gray-800 dark:text-foreground dark:hover:bg-gray-700",
+            "inline-flex h-6 shrink-0 items-center rounded-full bg-secondary px-2.5 text-xs font-medium text-secondary-foreground shadow-xs hover:bg-muted dark:bg-white/9 dark:text-foreground dark:inset-ring dark:inset-ring-white/8 dark:hover:bg-white/12 in-[[data-sonner-toast]:has([data-description])]:col-start-2 in-[[data-sonner-toast]:has([data-description])]:row-start-2 in-[[data-sonner-toast]:has([data-description])]:mt-2 in-[[data-sonner-toast]:has([data-description])]:mr-1.5 in-[[data-sonner-toast]:has([data-description])]:rounded-lg",
           closeButton:
-            "order-last grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground in-[[data-sonner-toast]:has([data-description])]:-mt-0.5 in-[[data-sonner-toast]:has([data-description])]:self-start",
-          content: "min-w-0 flex-1",
+            "order-last grid size-6 shrink-0 place-items-center rounded-full text-muted-foreground hover:bg-accent hover:text-foreground in-[[data-sonner-toast]:has([data-description])]:col-start-5 in-[[data-sonner-toast]:has([data-description])]:row-start-1 in-[[data-sonner-toast]:has([data-description])]:-mt-0.5 in-[[data-sonner-toast]:has([data-description])]:ml-2 in-[[data-sonner-toast]:has([data-description])]:self-start",
+          content:
+            "min-w-0 flex-1 in-[[data-sonner-toast]:has([data-description])]:col-start-2 in-[[data-sonner-toast]:has([data-description])]:col-end-5 in-[[data-sonner-toast]:has([data-description])]:row-start-1",
           description:
             "mt-0.5 line-clamp-3 text-xs text-muted-foreground select-text",
           // Sonner's own stylesheet centers the loading spinner absolutely, so
           // the slot is its box, kept a glyph wide while the spinner is alone.
-          icon: "relative flex min-h-4 min-w-4 shrink-0 in-[[data-sonner-toast]:has([data-description])]:mt-px in-[[data-sonner-toast]:has([data-description])]:self-start",
+          icon: "relative flex min-h-4 min-w-4 shrink-0 in-[[data-sonner-toast]:has([data-description])]:col-start-1 in-[[data-sonner-toast]:has([data-description])]:row-start-1 in-[[data-sonner-toast]:has([data-description])]:mt-0.5 in-[[data-sonner-toast]:has([data-description])]:mr-2 in-[[data-sonner-toast]:has([data-description])]:self-start",
           title: "leading-5 select-text",
           toast:
-            "flex w-fit max-w-(--width) items-center gap-2 rounded-2xl bg-popover py-1.5 pr-1.5 pl-3 text-[13px] text-popover-foreground shadow-float-md has-[[data-description]]:w-(--width) has-[[data-description]]:items-start has-[[data-description]]:rounded-xl has-[[data-description]]:py-2.5 data-[expanded=false]:data-[front=false]:*:opacity-0",
+            "flex w-fit max-w-(--width) items-center gap-2 rounded-full bg-popover py-1 pr-1 pl-4 text-[13px] text-popover-foreground shadow-float-md has-[[data-description]]:grid has-[[data-description]]:w-(--width) has-[[data-description]]:grid-cols-[auto_auto_auto_minmax(0,1fr)_auto] has-[[data-description]]:items-start has-[[data-description]]:gap-0 has-[[data-description]]:rounded-xl has-[[data-description]]:py-2.5 has-[[data-description]]:pr-1.5 has-[[data-description]]:pl-3 data-[expanded=false]:data-[front=false]:*:opacity-0",
         },
         style: { pointerEvents: "auto" },
         unstyled: true,

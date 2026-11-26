@@ -471,9 +471,10 @@ body {
   --elevation-xl: var(--elevation-xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
   --elevation-2xl: var(--elevation-2xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
   --elevation-3xl: var(--elevation-3xl-soft), 0 0 0 1px rgb(10 13 18 / 0.06);
-  --elevation-float-sm: var(--elevation-sm);
-  --elevation-float-md: var(--elevation-md);
-  --elevation-float-lg: var(--elevation-lg);
+  /* A firmer hairline than the ramp's, since a float often sits on white. */
+  --elevation-float-sm: var(--elevation-sm-soft), 0 0 0 1px rgb(10 13 18 / 0.1);
+  --elevation-float-md: var(--elevation-md-soft), 0 0 0 1px rgb(10 13 18 / 0.1);
+  --elevation-float-lg: var(--elevation-lg-soft), 0 0 0 1px rgb(10 13 18 / 0.1);
 
   /* Status ramps — 6 stops (50/100/300/500/700/900) per Figma. */
   --error-50: #fbeef0;
@@ -590,7 +591,8 @@ body {
   --foreground: #ffffff;
   --card: var(--gray-800);
   --card-foreground: #ffffff;
-  --popover: var(--gray-800);
+  /* A step above the card, so what floats over the window shows its edge. */
+  --popover: color-mix(in oklab, var(--gray-800) 65%, var(--gray-700));
   --popover-foreground: #ffffff;
   --primary: #ffffff;
   --primary-foreground: var(--gray-950);
@@ -645,13 +647,13 @@ body {
    * ring is that white already composited over `--background`: the same pixel
    * over the window, and a steady edge over anything else. */
   --elevation-float-sm:
-    0 0 0 1px color-mix(in srgb, #fff 8%, var(--background)),
+    0 0 0 1px color-mix(in srgb, #fff 14%, var(--background)),
     var(--elevation-sm-soft);
   --elevation-float-md:
-    0 0 0 1px color-mix(in srgb, #fff 10%, var(--background)),
+    0 0 0 1px color-mix(in srgb, #fff 16%, var(--background)),
     var(--elevation-md-soft);
   --elevation-float-lg:
-    0 0 0 1px color-mix(in srgb, #fff 11%, var(--background)),
+    0 0 0 1px color-mix(in srgb, #fff 17%, var(--background)),
     var(--elevation-lg-soft);
 }
 

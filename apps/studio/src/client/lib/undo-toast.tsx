@@ -1,4 +1,4 @@
-import { ShortcutKeys } from "@/client/components/shortcut-keys";
+import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { windowHoldsAtom } from "@/client/atoms/tab-navigation-block";
 import { commandKeyHeld } from "@/client/lib/utils";
 import { isTypingInto } from "@/client/lib/is-typing-into";
@@ -116,8 +116,13 @@ function UndoLabel() {
     <span className="inline-flex items-center gap-1.5">
       Undo
       {isKeyFree && (
-        <span aria-hidden className="-mr-1" data-undo-keys>
-          <ShortcutKeys accelerator="CmdOrCtrl+Z" />
+        <span
+          aria-hidden
+          className="text-[11px] font-normal tracking-wide text-muted-foreground"
+          data-undo-keys
+        >
+          {/* As text (`⌘Z`, `Ctrl+Z`): caps would be a box in the button's box. */}
+          {formatAcceleratorText("CmdOrCtrl+Z")}
         </span>
       )}
     </span>

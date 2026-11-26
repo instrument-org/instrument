@@ -116,10 +116,7 @@ export function NotificationsBell() {
     >
       <PopoverTrigger asChild>
         <button
-          aria-label={
-            dot ? "Notifications, something new"
-              : "Notifications"
-          }
+          aria-label={dot ? "Notifications, something new" : "Notifications"}
           className={cn("relative", SIDEBAR_ICON_BUTTON)}
           type="button"
         >
@@ -152,7 +149,7 @@ export function NotificationsBell() {
         }}
         style={{ width: SIDEBAR_POPOVER_WIDTH }}
       >
-        <div className="flex h-11 items-center px-4 text-[13px] font-semibold">
+        <div className="flex h-10 items-center px-4 text-[13px] font-semibold">
           Notifications
         </div>
         {empty ? (
@@ -165,7 +162,7 @@ export function NotificationsBell() {
             </p>
           </div>
         ) : (
-          <div className="flex max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] flex-col gap-px overflow-y-auto px-1.5 pb-1.5">
+          <div className="flex max-h-[min(480px,calc(var(--radix-popover-content-available-height)/var(--content-zoom)))] flex-col gap-0.5 overflow-y-auto px-1 pb-1">
             {problems.map((problem) => (
               <ProblemItem
                 key={problem.fingerprint}
@@ -491,22 +488,17 @@ function BellRow({
   return (
     <div
       className={cn(
-        "group/row relative flex gap-3 rounded-xl pr-3 pl-2",
-        // The list's rows stand further apart, for the hairline between them.
-        inList ? "py-3.5" : "py-2.5",
-        // A hairline above each row after the first, which a highlighted
-        // row hides on both its edges so the highlight stands on its own.
-        inList &&
-          "before:pointer-events-none before:absolute before:inset-x-2 before:top-0 before:h-px before:bg-foreground/6 first:before:hidden hover:bg-foreground/4 hover:before:opacity-0 has-focus-visible:bg-foreground/4 has-focus-visible:before:opacity-0 [:has(:focus-visible)+&]:before:opacity-0 [:hover+&]:before:opacity-0",
+        "group/row relative flex gap-3 rounded-lg p-2.5",
+        inList && "hover:bg-foreground/5 has-focus-visible:bg-foreground/5",
       )}
     >
       <span
         className={cn(
-          "relative grid size-8 shrink-0 place-items-center rounded-full",
+          "relative grid size-7 shrink-0 place-items-center rounded-full",
           TONE_CLASS[tone],
         )}
       >
-        {mark ?? <Icon className="size-4" weight="bold" />}
+        {mark ?? <Icon className="size-3.5" weight="bold" />}
         {alert && (
           <span className="absolute -right-0.5 -bottom-0.5 grid size-3.5 place-items-center rounded-full bg-warning-500 text-warning-900 ring-2 ring-popover">
             <ExclamationMarkIcon className="size-2.5" weight="bold" />
@@ -520,14 +512,14 @@ function BellRow({
           </span>
           {inList && (
             <span
-              className="shrink-0 text-[11px] leading-4.5 text-muted-foreground/50 tabular-nums group-hover/row:invisible group-has-focus-visible/row:invisible"
+              className="shrink-0 text-[11px] leading-5 text-muted-foreground tabular-nums group-hover/row:invisible group-has-focus-visible/row:invisible"
               title={formatAbsoluteTime(new Date(at))}
             >
               {formatWhen(at)}
             </span>
           )}
         </div>
-        <p className="mt-0.5 text-[13px] leading-5 text-pretty text-muted-foreground">
+        <p className="text-xs leading-4.5 text-pretty text-muted-foreground">
           {body}
         </p>
         {action && (
@@ -544,9 +536,8 @@ function BellRow({
       <Button
         aria-label={inList ? "Dismiss" : "Close"}
         className={cn(
-          "absolute right-2 size-6 text-muted-foreground/60 not-disabled:hover:text-muted-foreground",
-          // Centered on the title's first line, whichever padding the row has.
-          inList ? "top-3" : "top-2",
+          // Centered on the title's first line.
+          "absolute top-2 right-2 size-6 text-muted-foreground/60 not-disabled:hover:text-muted-foreground",
           inList &&
             "opacity-0 group-hover/row:opacity-100 group-has-focus-visible/row:opacity-100",
         )}

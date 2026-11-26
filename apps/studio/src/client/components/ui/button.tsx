@@ -49,7 +49,7 @@ export const buttonVariants = tv({
       "outline-opaque":
         "border border-black/5 bg-background button-veil text-muted-foreground button-press not-disabled:hover:text-foreground dark:border-white/10",
       secondary:
-        "bg-secondary button-sheen text-secondary-foreground shadow-xs button-press dark:bg-gray-800 dark:text-foreground/75 dark:not-disabled:hover:text-foreground",
+        "bg-secondary button-sheen text-secondary-foreground shadow-xs button-press dark:bg-white/9 dark:text-foreground/75 dark:inset-ring dark:inset-ring-white/8 dark:not-disabled:hover:text-foreground",
     },
   },
 });

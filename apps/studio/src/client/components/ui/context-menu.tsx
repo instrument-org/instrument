@@ -28,7 +28,7 @@ function ContextMenuCheckboxItem({
       // item sits in menus beside plain ones with a leading icon, and a check
       // in that gutter puts the state where those items keep their icon.
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-lg py-1.5 pr-8 pl-3 text-sm text-foreground outline-hidden select-none focus:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60",
+        "relative flex cursor-default items-center gap-2 rounded-lg py-1.5 pr-8 pl-3 text-sm text-foreground outline-hidden select-none focus:bg-foreground/6 dark:focus:bg-foreground/8 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60",
         className,
       )}
       data-slot="context-menu-checkbox-item"
@@ -155,7 +155,7 @@ function ContextMenuItem({
   return (
     <ContextMenuPrimitive.Item
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground outline-hidden select-none focus:bg-accent data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive data-[variant=developer]:text-dev-700 dark:data-[variant=destructive]:focus:bg-destructive/20 dark:data-[variant=developer]:text-dev-300 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60 data-[variant=destructive]:*:[svg]:!text-destructive data-[variant=developer]:*:[svg]:text-dev-700! dark:data-[variant=developer]:*:[svg]:text-dev-300!",
+        "relative flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground outline-hidden select-none focus:bg-foreground/6 dark:focus:bg-foreground/8 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 data-[inset]:pl-8 data-[variant=destructive]:text-destructive data-[variant=destructive]:focus:bg-destructive/10 data-[variant=destructive]:focus:text-destructive data-[variant=developer]:text-dev-700 dark:data-[variant=destructive]:focus:bg-destructive/20 dark:data-[variant=developer]:text-dev-300 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60 data-[variant=destructive]:*:[svg]:!text-destructive data-[variant=developer]:*:[svg]:text-dev-700! dark:data-[variant=developer]:*:[svg]:text-dev-300!",
         className,
       )}
       data-inset={inset}
@@ -220,7 +220,7 @@ function ContextMenuRadioItem({
   return (
     <ContextMenuPrimitive.RadioItem
       className={cn(
-        "relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "relative flex cursor-default items-center gap-2 rounded-sm py-1.5 pr-2 pl-8 text-sm outline-hidden select-none focus:bg-foreground/6 dark:focus:bg-foreground/8 focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className,
       )}
       data-slot="context-menu-radio-item"
@@ -304,7 +304,7 @@ function ContextMenuSubTrigger({
   return (
     <ContextMenuPrimitive.SubTrigger
       className={cn(
-        "flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground outline-hidden select-none focus:bg-accent data-[inset]:pl-8 data-[state=open]:bg-accent [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60",
+        "flex cursor-default items-center gap-2 rounded-lg px-3 py-1.5 text-sm text-foreground outline-hidden select-none focus:bg-foreground/6 dark:focus:bg-foreground/8 data-[inset]:pl-8 data-[state=open]:bg-foreground/6 dark:data-[state=open]:bg-foreground/8 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-foreground/60",
         className,
       )}
       data-inset={inset}

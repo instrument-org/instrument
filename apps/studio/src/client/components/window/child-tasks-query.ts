@@ -5,7 +5,13 @@ import {
   type ChildTask,
   type StoreId,
 } from "@instrument-org/workspace/client";
-import { skipToken, useQueries, useQuery } from "@tanstack/react-query";
+import { safe } from "@orpc/client";
+import {
+  type QueryClient,
+  skipToken,
+  useQueries,
+  useQuery,
+} from "@tanstack/react-query";
 
 /**
  * The tasks one chat has started, by the chat's record id, kept current by
@@ -81,4 +87,24 @@ export function useTaskTitlesOf(
         ),
       ),
   });
+}
+
+/**
+ * The tasks of each chat named, by session, read outside a render: the list
+ * a row on one already holds, else read once. A chat whose tasks can't be
+ * read has none here.
+ */
+export async function readTasksOf(
+  queryClient: QueryClient,
+  chats: readonly ChatId[],
+): Promise<Map<StoreId.Session, ChildTask>> {
+  const lists = await Promise.all(
+    [...new Set(chats)].map(
+      async (chat) =>
+        queryClient.getQueryData(childTasksOptions(chat).queryKey) ??
+        (await safe(rpcClient.workspace.chats.tasks.call({ id: chat }))).data ??
+        [],
+    ),
+  );
+  return new Map(lists.flat().map((task) => [task.id, task] as const));
 }

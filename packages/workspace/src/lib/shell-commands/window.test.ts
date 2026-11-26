@@ -7,7 +7,10 @@ import { publisher } from "../../rpc/publisher";
 import { ChatIdSchema, type ChatId } from "../../schemas/chat-id";
 import { WorkDirSchema } from "../../schemas/paths";
 import { StoreId } from "../../schemas/store-id";
-import { type LayoutSnapshot } from "../../schemas/group-layout";
+import {
+  type LayoutSnapshot,
+  type ListedGroup,
+} from "../../schemas/group-layout";
 import { type WindowTabAction } from "../../schemas/window-tab";
 import { type Chat } from "../chat/chats";
 import { type Project } from "../chat/projects";
@@ -93,6 +96,9 @@ vi.mock(import("../chat/asks"), async (importOriginal) => ({
 
 // A tab of the user's own, outside the chat, which a note named.
 
+/** A task's tab whose task stopped, as its row says Stopped. */
+const STOPPED_TASK: ListedGroup["marks"] = { tab_stopped: { stopped: true } };
+
 /** The window's other groups: one of a tab, behind the chat's, and a split one. */
 const OTHER_GROUPS = [
   {
@@ -101,6 +107,7 @@ const OTHER_GROUPS = [
     name: "report.md",
     isShown: false,
     drafts: { tab_new: "Ask about rent" },
+    marks: STOPPED_TASK,
     pinned: true,
     project: "project_launch",
     shownAt: Date.UTC(2026, 10, 24, 9, 12),
@@ -132,6 +139,13 @@ const OTHER_GROUPS = [
             id: "tab_task",
             kind: "builtIn" as const,
             title: "Read the menu",
+          },
+          {
+            address:
+              "instrument://task/ses_01ARZ3NDEKTSV4RRFFQ69G5FAW?chat=notes",
+            id: "tab_stopped",
+            kind: "builtIn" as const,
+            title: "Book a table",
           },
         ],
       },
@@ -910,6 +924,7 @@ describe("window list, of other groups", () => {
           tab_settings  hidden   [app] Settings · instrument://screen/settings  instrument://tab/tab_settings
           tab_new  hidden   New Tab  instrument://tab/tab_new  (unsent: "Ask about rent", kept in Drafts if closed)
           tab_task  hidden   [app] Read the menu · instrument://task/ses_01ARZ3NDEKTSV4RRFFQ69G5FAV?chat=notes  instrument://tab/tab_task  (working: "Reading the menu")
+          tab_stopped  hidden   [app] Book a table · instrument://task/ses_01ARZ3NDEKTSV4RRFFQ69G5FAW?chat=notes  instrument://tab/tab_stopped  (its task stopped before finishing)
         Tab group "Meeting notes" instrument://group/group:notes, split, not on screen:
           left (keyboard):
             tab_notes  left     [chat] Meeting notes  instrument://chat/notes  (waiting on the user, still working, unread, latest: "Which **one** first?", last active 2026-11-23)
@@ -1021,7 +1036,7 @@ describe("window show and close, of a group", () => {
 
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchInlineSnapshot(`
-      "Closed the tab group "report.md" instrument://group/group:docs, its 4 tabs.
+      "Closed the tab group "report.md" instrument://group/group:docs, its 5 tabs.
       "
     `);
   });

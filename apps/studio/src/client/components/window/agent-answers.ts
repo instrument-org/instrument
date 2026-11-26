@@ -138,9 +138,7 @@ export const ROW_FACT_ANSWERS = {
   "dot.working": "chat.working",
   "line.ask": ["chat.status", "chat.latest"],
   "line.draft": "group.drafts",
-  // A task tab's Stopped is the one fail the list leaves out: it names a
-  // task only while it works (`facts.steps`).
-  "line.fail": ["chat.status", "mark.failed"],
+  "line.fail": ["chat.status", "mark.failed", "mark.stopped"],
   "line.news": ["chat.latest", "chat.unread"],
   "line.quiet": ["tab.address", "chat.latest", "chat.stopped_for"],
   "line.work": ["chat.latest", "facts.steps"],

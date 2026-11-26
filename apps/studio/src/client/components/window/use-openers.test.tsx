@@ -19,6 +19,7 @@ import { windowTabGroupsAtom } from "./open-groups";
 import { type OpenOptions } from "./context";
 import { openLinkAddress } from "./open-link-address";
 import { useOpeners } from "./use-openers";
+import { taskHref } from "./tab-location";
 import { chatHref, groupHref } from "./window-href";
 import {
   useWindowTabs,
@@ -86,6 +87,8 @@ const spies = vi.hoisted(() => ({
   },
   closedEntry: { current: undefined as string | undefined },
   reopenClosed: vi.fn((_entry: string) => {}),
+  /** The tasks a chat's list has, as the workspace reads them. */
+  tasks: [] as unknown[],
   showGroup: vi.fn((_group: string) => {}),
   toast: vi.fn(),
 }));
@@ -134,6 +137,16 @@ vi.mock("@/client/rpc/client", () => ({
       },
     },
     workspace: {
+      chats: {
+        live: {
+          tasks: {
+            experimental_liveOptions: ({ input }: { input: unknown }) => ({
+              queryKey: ["tasks", input],
+            }),
+          },
+        },
+        tasks: { call: async () => spies.tasks },
+      },
       window: {
         events: {
           tab: {
@@ -525,6 +538,37 @@ describe("an agent and the window's other tab groups", () => {
     spies.pageMarks = { unreached: [], using: [] };
   });
 
+  it("marks a task's tab whose task stopped, as its row says Stopped", async () => {
+    const chat = ChatIdSchema.parse("2026-11-26-plans");
+    const [stopped, done] = [StoreId.newSessionId(), StoreId.newSessionId()];
+    const { result } = windowOnTwoSides();
+    act(() => {
+      for (const [id, task] of [
+        [OTHER_UP, stopped],
+        [OTHER_BEHIND, done],
+      ] as const) {
+        result.current.windowTabs.replace(id, {
+          group: OTHER_GROUP,
+          href: taskHref(task, chat),
+          id,
+          kind: "screen",
+        });
+      }
+    });
+    spies.tasks = [
+      { id: stopped, status: { kind: "failed", line: "" }, working: false },
+      { id: done, status: { kind: "done", line: "" }, working: false },
+    ];
+    const answer = await answerTo({ kind: "list" }, "l4");
+    const windows = (answer as { windows?: unknown }).windows as {
+      groups: { marks?: unknown }[];
+    }[];
+    expect(windows[0]?.groups.map(({ marks }) => marks)).toEqual([
+      undefined,
+      { [OTHER_UP]: { stopped: true } },
+    ]);
+    spies.tasks = [];
+  });
 
   it("switches the window to a group by its id", async () => {
     windowOnTwoSides();

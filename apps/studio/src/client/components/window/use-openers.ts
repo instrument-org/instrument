@@ -55,6 +55,8 @@ import {
 import { visitInTab } from "./tab-history";
 import { stepTabNow } from "./use-tab-steps";
 import { taskHref, tasksOfHref } from "./tab-location";
+import { readTasksOf } from "./child-tasks-query";
+import { isTaskStopped } from "./row-lines";
 import {
   isChatTab,
   isFreshTab,
@@ -1040,18 +1042,36 @@ export function useOpeners({
   const windowsRead = async (
     chatTab: string | undefined,
   ): Promise<NonNullable<WindowTabAnswer["windows"]>> => {
-    const [[, windows], [, pageMarks]] = await Promise.all([
+    // The task each task's tab stands on, by the tab's id, for the rows
+    // that say a task stopped.
+    const taskTabs = new Map(
+      windowTabs.allTabs.flatMap((tab) => {
+        const named = tab.kind === "screen" ? tasksOfHref(tab.href) : undefined;
+        return named?.chat === undefined
+          ? []
+          : [[tab.id, { chat: named.chat, task: named.task }] as const];
+      }),
+    );
+    const [[, windows], [, pageMarks], tasks] = await Promise.all([
       safe(rpcClient.window.tabGroupsByWindow.call()),
       safe(rpcClient.browser.pageMarks.call()),
+      readTasksOf(
+        queryClient,
+        [...taskTabs.values()].map(({ chat }) => chat),
+      ),
     ]);
     const markOf = (id: string): PageMark | undefined => {
       const target = parseBrowserTargetId(id);
       const using = pageMarks?.using.find((each) => each.targetId === target);
       const failed = pageMarks?.unreached.some((each) => each === target);
-      return target === null || (!using && !failed)
+      const named = taskTabs.get(id);
+      const task = named && tasks.get(named.task);
+      const stopped = task !== undefined && isTaskStopped(task);
+      return (target === null || (!using && !failed)) && !stopped
         ? undefined
         : {
             ...(failed ? { failed: true as const } : {}),
+            ...(stopped ? { stopped: true as const } : {}),
             ...(using
               ? {
                   using: {

@@ -90,9 +90,16 @@ export function taskLines(
     const step = task.status.kind === "running" ? task.status.line : "";
     return quiet(title, step || "Working", "work");
   }
-  return task?.status.kind === "failed"
+  return task !== undefined && isTaskStopped(task)
     ? quiet(title, "Stopped", "fail")
     : quiet(title, line);
+}
+
+/** Whether a task's row says Stopped: no agent of its at work, and its last turn failed. */
+export function isTaskStopped(
+  task: Pick<ChildTask, "status" | "working">,
+): boolean {
+  return !task.working && task.status.kind === "failed";
 }
 
 /**

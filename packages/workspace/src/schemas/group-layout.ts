@@ -56,6 +56,8 @@ export type LayoutSnapshot = z.output<typeof LayoutSnapshotSchema>;
 const PageMarkSchema = z.object({
   /** Its page could not be reached, so its row says it can't connect. */
   failed: z.literal(true).optional(),
+  /** Its task's last turn failed with no agent of its at work, so its row says Stopped. */
+  stopped: z.literal(true).optional(),
   /** What it is using of the two, and whether the person paused that. */
   using: z
     .object({

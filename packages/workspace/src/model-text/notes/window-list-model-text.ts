@@ -118,13 +118,14 @@ function tabLine(
 }
 
 /** What a page's tab is marked with, as the clauses after its line. */
-function pageNotes({ failed, using }: PageMark): string[] {
+function pageNotes({ failed, stopped, using }: PageMark): string[] {
   const devices = [
     ...(using?.camera ? ["camera"] : []),
     ...(using?.microphone ? ["microphone"] : []),
   ].join(" and ");
   return [
     ...(failed ? ["can't connect"] : []),
+    ...(stopped ? ["its task stopped before finishing"] : []),
     ...(devices === ""
       ? []
       : [

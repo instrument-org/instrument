@@ -10,7 +10,7 @@ import { generateModelName } from "../../generate-model-name";
 import { getModelFeatures } from "../../get-model-features";
 import { reportedContextLength } from "../../reported-context-windows";
 import { getProviderMetadata } from "../metadata";
-import { ClaudeCodeSession } from "./session";
+import { ClaudeCodeSession, loadAgentSdk } from "./session";
 
 /** The CLI's short names, which stand for whichever model is current. */
 const ALIASES = new Set(["haiku", "opus", "sonnet"]);
@@ -32,6 +32,7 @@ export function fetchClaudeAccountModels(config: AIGatewayProviderConfig.Type) {
       if (!config.executablePath) {
         throw new Error("No Claude Code executable is configured.");
       }
+      await loadAgentSdk();
       const session = new ClaudeCodeSession(
         "models",
         {

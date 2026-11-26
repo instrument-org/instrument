@@ -12,10 +12,10 @@ import {
 import { type McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
-import { expect, it, vi } from "vitest";
+import { beforeAll, expect, it, vi } from "vitest";
 
 import { transientPrintsOf } from "./continuation";
-import { ClaudeCodeSession } from "./session";
+import { ClaudeCodeSession, loadAgentSdk } from "./session";
 
 /** What the fake Claude Code below was started with, and what it was sent. */
 const cli = vi.hoisted(() => ({
@@ -62,6 +62,10 @@ vi.mock("@anthropic-ai/claude-agent-sdk", () => ({
     };
   },
 }));
+
+beforeAll(async () => {
+  await loadAgentSdk();
+});
 
 /** Reports `message`, which carries only the fields the session reads. */
 function emit(message: { type: SDKMessage["type"] } & Record<string, unknown>) {

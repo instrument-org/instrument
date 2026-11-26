@@ -2,13 +2,12 @@ import {
   type LanguageModelV4FunctionTool,
   type LanguageModelV4Message,
 } from "@ai-sdk/provider";
-import {
-  type EffortLevel,
-  query,
-  type Query,
-  type SDKMessage,
-  type SDKRateLimitInfo,
-  type SDKUserMessage,
+import type {
+  EffortLevel,
+  Query,
+  SDKMessage,
+  SDKRateLimitInfo,
+  SDKUserMessage,
 } from "@anthropic-ai/claude-agent-sdk";
 import { type ContentBlockParam } from "@anthropic-ai/sdk/resources/messages";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -42,6 +41,17 @@ const TOOL_USE_ID_META = "claudecode/toolUseId";
  * message it promises comes right after the results, in the same user turn.
  */
 const END_TURN_REASON = "A new message follows these results.";
+
+/**
+ * The Agent SDK's `query`, loaded the first time a session starts rather
+ * than with the gateway, which the app loads before its first window.
+ */
+let query: typeof import("@anthropic-ai/claude-agent-sdk").query | undefined;
+
+/** Loads the Agent SDK, which a session needs before it is made. */
+export async function loadAgentSdk() {
+  ({ query } = await import("@anthropic-ai/claude-agent-sdk"));
+}
 
 /** A session nobody has asked for in this long is closed, ending its process. */
 const IDLE_MS = 30 * 60 * 1000;
@@ -160,6 +170,9 @@ export class ClaudeCodeSession implements MessageSource {
     this.fast = shape.fast ?? false;
     this.modelId = shape.modelId;
     const env = claudeCodeEnvironment(shape.configDir);
+    if (!query) {
+      throw new Error("A session was made before `loadAgentSdk` finished");
+    }
     this.query = query({
       options: {
         allowedTools: [`mcp__${SERVER_NAME}`, ...shape.builtInTools],

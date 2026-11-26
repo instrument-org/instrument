@@ -35,6 +35,7 @@ import {
 } from "./resume-record";
 import {
   ClaudeCodeSession,
+  loadAgentSdk,
   type SessionShape,
   sessionShapeKey,
   TOOL_PREFIX,
@@ -353,6 +354,7 @@ function streamStep({
           // finished step.
           existing?.close();
         }
+        await loadAgentSdk();
         const session = startOn(plan, persistent, slot, shape);
         running = session;
         session.beginStep(prompt.keptPrints);

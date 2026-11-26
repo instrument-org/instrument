@@ -32,6 +32,7 @@ vi.mock(import("./session"), () => ({
       }
     }
   } as never,
+  loadAgentSdk: () => Promise.resolve(),
 }));
 
 describe("splitPastedCode", () => {

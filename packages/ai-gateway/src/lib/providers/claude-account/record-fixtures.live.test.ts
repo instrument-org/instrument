@@ -5,10 +5,10 @@ import {
 import { type SDKMessage } from "@anthropic-ai/claude-agent-sdk";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { expect, it } from "vitest";
+import { beforeAll, expect, it } from "vitest";
 
 import { pumpStep, type StepSession } from "./step-stream";
-import { ClaudeCodeSession } from "./session";
+import { ClaudeCodeSession, loadAgentSdk } from "./session";
 import { type RecordedStep, scrubMessage } from "./step-fixtures";
 import { shippedClaudeCode } from "./shipped-claude-code";
 
@@ -67,6 +67,10 @@ async function recordStep(session: ClaudeCodeSession): Promise<RecordedStep> {
     messages: messages.flatMap((message) => scrubMessage(message) ?? []),
   };
 }
+
+beforeAll(async () => {
+  await loadAgentSdk();
+});
 
 function open(
   key: string,

@@ -58,6 +58,7 @@ import { QUESTIONS_EVALS } from "./questions";
 import { REACH_EVALS } from "./reach";
 import { REPLY_LINKS_EVALS } from "./reply-links";
 import { REPLY_LINKS_HARD_EVALS } from "./reply-links-hard";
+import { REPLY_LANGUAGE_EVALS } from "./reply-language";
 import { SANDBOXED_PYTHON_EVALS } from "./sandboxed-python";
 import { SHEET_ROLLOVER_EVALS } from "./sheet-rollover";
 import { SCENARIO_EVALS } from "./scenarios";
@@ -149,6 +150,7 @@ export const EVALS = [
   ...REACH_EVALS,
   ...REPLY_LINKS_EVALS,
   ...REPLY_LINKS_HARD_EVALS,
+  ...REPLY_LANGUAGE_EVALS,
   ...SANDBOXED_PYTHON_EVALS,
   ...SHEET_ROLLOVER_EVALS,
   ...SCENARIO_EVALS,

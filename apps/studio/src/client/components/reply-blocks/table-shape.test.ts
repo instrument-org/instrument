@@ -187,6 +187,14 @@ describe("tableShape", () => {
     expect(shapeOf(markdown).bars).toBeUndefined();
   });
 
+  it("bars a bold pick in the middle like any other row", () => {
+    expect(
+      shapeOf(
+        "| Where | Amount |\n|---|---|\n| Rent | $1,850 |\n| **Groceries** | $612 |\n| Gas | $148 |\n| **Total** | **$2,610** |",
+      ).bars?.shares,
+    ).toEqual([1, 0.3308, 0.08, undefined]);
+  });
+
   it("makes records of a few rows of figures, the deciding column last", () => {
     expect(shapeOf(MORTGAGE)).toMatchInlineSnapshot(`
       {
@@ -208,6 +216,13 @@ describe("tableShape", () => {
       "| **Sum** | **4** | **$9,000** |",
       [4],
     ],
+    ["a last row labeled All alone", "| All | | $9,000 |", [4]],
+    [
+      "a last row whose name starts with All",
+      "| All-in-one plan | 2 | $900 |",
+      undefined,
+    ],
+    ["a last row named for All Saints", "| All Saints | 2 | $900 |", undefined],
     [
       "a bold last row over plain words",
       "| **Delah** | Plenty | $9,000 |",

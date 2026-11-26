@@ -199,14 +199,12 @@ const labelWidthOf = (rows: ShapeCell[][], most: number) => {
   return Number(Math.min(most, widest * 1.1).toFixed(1));
 };
 
-/** Whether a row sums the others: its label bold, or starting "Total". */
-const isTotal = (row: ShapeCell[]) =>
-  row[0]?.bold === true || /^total\b/i.test((row[0]?.text ?? "").trim());
-
-const TOTAL_LABEL = /^(total|grand total|sum|all)\b/i;
+// "Total", "Grand total", "Sum" and what follows them ("Total sales"), and
+// "All" alone or over a count ("All 8"), never "All-in-one plan".
+const TOTAL_LABEL = /^(?:(?:grand )?total|sum)\b|^all(?:\s+\d+)?$/i;
 
 /**
- * The rows that sum the others in a table of records: one labeled as a
+ * The rows that sum the others: one labeled as a
  * total ("Total", "All 8"), or a last row whose bold label stands over empty
  * cells or bold figures alone. A bold label anywhere else marks a pick, as
  * often as not, so it is no total by itself.
@@ -237,9 +235,10 @@ const barsOf = (head: ShapeCell[], rows: ShapeCell[][]) => {
   if (head.length !== 2 || rows.length < 3 || rows.length > 24) {
     return undefined;
   }
+  const totals = totalsOf(rows);
   const units = new Set<string>();
-  const amounts = rows.map((row) => {
-    if (isTotal(row)) {
+  const amounts = rows.map((row, index) => {
+    if (totals.includes(index)) {
       return undefined;
     }
     const parsed = parseValue(row[1]?.text ?? "");

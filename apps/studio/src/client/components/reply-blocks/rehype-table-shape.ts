@@ -15,6 +15,11 @@ import { isShortCell, tableShape } from "./table-shape";
  *   label, and each total row `data-total`, which draws it as one line;
  * - in a table ranked by its first column, the cell after each rank that
  *   rank as `data-rank`, which titles the record;
+ * - in a label and amount table, each amount but a total's its share of the
+ *   largest as `--bar`, and every cell of the amount column the room the
+ *   widest amount takes as `--bar-room` and the width the labels keep to one
+ *   line up to as `--label-width`, from which the column sizes the bars'
+ *   track;
  * - in a table that scrolls, each first cell the width its column stays
  *   before its labels wrap as `--label-width`.
  */
@@ -87,7 +92,10 @@ function shape(table: HastNode) {
   );
   const cells = rows.map((row) => elementsOf(row, "td"));
   const read = cells.map((row) => row.map(readCell));
-  const { fit, labelWidth, narrow, ranks, totals } = tableShape(headRead, read);
+  const { bars, fit, labelWidth, narrow, ranks, totals } = tableShape(
+    headRead,
+    read,
+  );
 
   for (const [column, cell] of headCells.entries()) {
     const { chips = [], text = "" } = headRead[column] ?? {};
@@ -103,15 +111,24 @@ function shape(table: HastNode) {
       dataNarrow: narrow,
     };
   }
-  if (labelWidth !== undefined) {
+  const labelStyle =
+    labelWidth === undefined ? undefined : `--label-width: ${labelWidth}ch`;
+  // With bars the amount column sizes itself from the labels' width; without
+  // them the first column is the one held to it.
+  const amountStyle =
+    bars && labelStyle
+      ? `--bar-room: ${bars.room}ch; ${labelStyle}`
+      : undefined;
+  if (labelStyle) {
     for (const row of [...elementsOf(head, "tr"), ...rows]) {
-      const cell = (row.children ?? []).find(
+      const rowCells = (row.children ?? []).filter(
         (child) => child.type === "element",
       );
+      const cell = amountStyle ? rowCells.at(-1) : rowCells[0];
       if (cell) {
         cell.properties = {
           ...cell.properties,
-          style: `--label-width: ${labelWidth}ch`,
+          style: amountStyle ?? labelStyle,
         };
       }
     }
@@ -147,6 +164,15 @@ function shape(table: HastNode) {
     const rank = ranks?.[index];
     if (titled && rank !== undefined) {
       titled.properties = { ...titled.properties, dataRank: rank };
+    }
+    const amount = row[1];
+    const share = bars?.shares[index];
+    if (amountStyle && amount && share !== undefined) {
+      amount.properties = {
+        ...amount.properties,
+        dataBar: "",
+        style: `--bar: ${share}; ${amountStyle}`,
+      };
     }
   }
 }

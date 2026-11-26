@@ -55,6 +55,14 @@ const INVOICES = `| Invoice | Client | Sent | Due | Amount | Status |
 | 1042 | Riverbend Coffee Roasters | Jul 9 | Aug 8 | $4,550 | Paid |
 | 1043 | Oakline Builders | Jul 20 | Aug 19 | $6,850 | Paid |`;
 
+const SPENDING = `| Where it went | Amount |
+|---|---|
+| Rent | $1,850.00 |
+| Groceries | $612.40 |
+| Gas | $148.20 |
+| Pharmacy | $0 |
+| **Total** | **$2,610.60** |`;
+
 describe("tableShape", () => {
   it("fits a table of short figures in a narrow column, and scrolls it under that", () => {
     expect(shapeOf(PROFIT)).toMatchInlineSnapshot(`
@@ -109,6 +117,62 @@ describe("tableShape", () => {
     ["an empty header over labels", PROFIT],
   ])("ranks nothing by %s", (_, markdown) => {
     expect(shapeOf(markdown).ranks).toBeUndefined();
+  });
+
+  it("bars each amount by the largest, leaving the total out", () => {
+    expect(shapeOf(SPENDING).bars).toMatchInlineSnapshot(`
+      {
+        "room": 7.8,
+        "shares": [
+          1,
+          0.331,
+          0.0801,
+          0,
+          undefined,
+        ],
+      }
+    `);
+  });
+
+  it.each([
+    [
+      "a row starting Total",
+      "| Trip | Distance |\n|---|---|\n| Commute | 412 km |\n| Hamilton | 638 km |\n| Errands | 96 km |\n| Total | 1,146 km |",
+      [0.6458, 1, 0.1505, undefined],
+    ],
+    [
+      "percentages",
+      "| Where | Share |\n|---|---|\n| Work | 38% |\n| Sleep | 33% |\n| Rest | 29% |",
+      [1, 0.8684, 0.7632],
+    ],
+  ])("bars %s", (_, markdown, shares) => {
+    expect(shapeOf(markdown).bars?.shares).toEqual(shares);
+  });
+
+  it.each([
+    [
+      "mixed units",
+      "| a | b |\n|---|---|\n| x | $1 |\n| y | 2 km |\n| z | $3 |",
+    ],
+    [
+      "a negative amount",
+      "| a | b |\n|---|---|\n| x | $1 |\n| y | -$2 |\n| z | $3 |",
+    ],
+    ["two rows", "| a | b |\n|---|---|\n| x | $1 |\n| y | $2 |"],
+    [
+      "words for an amount",
+      "| a | b |\n|---|---|\n| x | $1 |\n| y | about $2 |\n| z | $3 |",
+    ],
+    [
+      "three columns",
+      "| a | b | c |\n|---|---|---|\n| x | $1 | $1 |\n| y | $2 | $2 |\n| z | $3 | $3 |",
+    ],
+    [
+      "more than 24 rows",
+      `| a | b |\n|---|---|\n${Array.from({ length: 25 }, (_, n) => `| r${n} | ${n} |`).join("\n")}`,
+    ],
+  ])("draws no bars with %s", (_, markdown) => {
+    expect(shapeOf(markdown).bars).toBeUndefined();
   });
 
   it("makes records of a few rows of figures, the deciding column last", () => {

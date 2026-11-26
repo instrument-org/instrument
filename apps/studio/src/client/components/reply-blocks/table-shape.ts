@@ -1,3 +1,4 @@
+import { parseValue } from "./parse-value";
 import { UNBROKEN_LABEL_MAX } from "./rehype-unbroken-inline";
 
 /**
@@ -16,11 +17,17 @@ export interface ShapeCell {
  * globals.css) with nothing measured.
  */
 export interface TableShape {
+  /**
+   * A bar per row beside its amount, for a label column and an amount
+   * column: each row's share of the largest amount, undefined for a total.
+   */
+  bars?: { room: number; shares: (number | undefined)[] };
   /** The block width in rem under which the table no longer reads as one. */
   fit?: number;
   /**
    * How wide, in the table's `ch`, the first column stays before its labels
-   * wrap, for a table that scrolls under its fit, where the column is held.
+   * wrap, for a table whose other columns take the rest: one with bars, or
+   * one that scrolls under its fit, where the column is held.
    */
   labelWidth?: number;
   /**
@@ -87,9 +94,12 @@ const RECORDS_MAX_ROWS = 6;
 // The table sets at `min(1em, 0.875rem)`, where a `ch` is 0.63em.
 const REM_PER_CH = 0.875 * 0.63;
 
-// The most the first column is held open for its labels where the table
-// scrolls, so the held column leaves room for the figures.
+// The most the first column is held open for its labels: where the table
+// scrolls, so the held column leaves room for the figures; and beside bars,
+// where the labels take up to this much before the bars take any, so a
+// narrow block with long labels shows the amounts alone.
 const SCROLL_LABEL_MAX_CH = 18;
+const BARS_LABEL_MAX_CH = 30;
 
 // The widths a table's fit is rounded up to, in rem; each has its
 // container query in globals.css. Under the first, every table fits.
@@ -189,6 +199,10 @@ const labelWidthOf = (rows: ShapeCell[][], most: number) => {
   return Number(Math.min(most, widest * 1.1).toFixed(1));
 };
 
+/** Whether a row sums the others: its label bold, or starting "Total". */
+const isTotal = (row: ShapeCell[]) =>
+  row[0]?.bold === true || /^total\b/i.test((row[0]?.text ?? "").trim());
+
 const TOTAL_LABEL = /^(total|grand total|sum|all)\b/i;
 
 /**
@@ -213,6 +227,46 @@ const totalsOf = (rows: ShapeCell[][]) =>
   });
 
 /**
+ * A bar beside each amount, for exactly a label column and an amount column
+ * of three to 24 rows, every amount a number in one unit and none below zero.
+ * A total row is drawn without one and left out of the scale.
+ */
+const barsOf = (head: ShapeCell[], rows: ShapeCell[][]) => {
+  if (head.length !== 2 || rows.length < 3 || rows.length > 24) {
+    return undefined;
+  }
+  const units = new Set<string>();
+  const amounts = rows.map((row) => {
+    if (isTotal(row)) {
+      return undefined;
+    }
+    const parsed = parseValue(row[1]?.text ?? "");
+    if (parsed) {
+      units.add(`${parsed.prefix}|${parsed.suffix}`);
+    }
+    return parsed?.value ?? Number.NaN;
+  });
+  const scaled = amounts.filter((amount) => amount !== undefined);
+  const top = Math.max(...scaled);
+  if (
+    scaled.length < 3 ||
+    units.size !== 1 ||
+    scaled.some((amount) => Number.isNaN(amount) || amount < 0) ||
+    !(top > 0)
+  ) {
+    return undefined;
+  }
+  return {
+    room: Number(
+      Math.max(...rows.map((row) => textWidth(row[1]?.text ?? ""))).toFixed(1),
+    ),
+    shares: amounts.map((amount) =>
+      amount === undefined ? undefined : Number((amount / top).toFixed(4)),
+    ),
+  };
+};
+
+/**
  * Reads how a table is best drawn from its cells. A table of three or more
  * columns gets a fit: the narrowest block it reads well in, every column at
  * the narrowest its cells allow (`cellNeed`), rounded up to a tier. Under
@@ -222,7 +276,13 @@ const totalsOf = (rows: ShapeCell[][]) =>
  */
 export function tableShape(head: ShapeCell[], rows: ShapeCell[][]): TableShape {
   const ranks = ranksOf(head, rows);
-  const shape: TableShape = ranks ? { ranks } : {};
+  const bars = barsOf(head, rows);
+  const shape: TableShape = {
+    ...(ranks ? { ranks } : {}),
+    ...(bars
+      ? { bars, labelWidth: labelWidthOf(rows, BARS_LABEL_MAX_CH) }
+      : {}),
+  };
   if (head.length < 3) {
     return shape;
   }

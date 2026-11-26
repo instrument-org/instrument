@@ -2962,3 +2962,57 @@ span[data-unbroken] > * {
 .dark .markdown-table-frame {
   --table-shade: oklch(0 0 0 / 0.45);
 }
+
+/* A label column and an amount column: a thin bar beside each amount, its
+   length the amount's share of the largest, in a neutral gray
+   (`tableShape`). The labels come first: the amount column is the widest
+   amount (`--bar-room`) and a track for the bars ahead of it, which takes
+   what is left once the labels keep to one line up to `--label-width`, and
+   30% of the block or 10rem at most. Under 3rem there is no track and no
+   bars, only the amounts. A total row has no bar. */
+.markdown-table-frame > table:has(td[data-bar]) :is(th, td):last-child {
+  --bar-inset: 0.5714286em;
+  --bar-gap: 1em;
+  /* The block less the labels, the widest amount, the padding either side
+     of the line between the columns, and the gap before the amount. */
+  --bar-want: min(
+    30cqi,
+    10rem,
+    100cqi - var(--label-width) - var(--bar-room) - 2 * var(--bar-inset) -
+      var(--bar-gap)
+  );
+  /* The scaled difference is past any track from 3rem up, and below zero
+     under it. */
+  --bar-track: min(var(--bar-want), max(0px, (var(--bar-want) - 3rem) * 1000));
+
+  width: calc(
+    var(--bar-inset) + var(--bar-room) +
+      min(var(--bar-track) + var(--bar-gap), var(--bar-track) * 1000)
+  );
+  padding-inline-start: var(--bar-inset);
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.markdown-table-frame > table td[data-bar] {
+  position: relative;
+}
+
+.markdown-table-frame > table td[data-bar]::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: var(--bar-inset);
+  width: calc(var(--bar-track) * var(--bar));
+  height: 0.375em;
+  /* Left at its static top, the top of the cell's first line, and centered
+     on that line from there, so a label that wraps keeps it level with the
+     amount. */
+  margin-top: calc(0.5lh - 0.1875em);
+  border-start-end-radius: 2px;
+  border-end-end-radius: 2px;
+  background-color: var(--gray-300);
+}
+
+.dark .markdown-table-frame > table td[data-bar]::before {
+  background-color: var(--gray-600);
+}

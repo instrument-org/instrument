@@ -166,7 +166,8 @@
     },
     "//#check:types": {},
     "check:build": {
-      "dependsOn": ["transit"]
+      "dependsOn": ["transit"],
+      "env": ["MAIN_VITE_APP_API_BASE_URL"]
     },
     "//#check:build": {},
     "test:ci": { "dependsOn": ["transit"] },

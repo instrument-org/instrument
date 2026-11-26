@@ -189,6 +189,8 @@ const config: Configuration = {
     // Build-time records of what each bundle holds, read by afterPack to
     // write the third-party notices (electron-builder/bundled-packages.ts).
     "!out/**/*.bundled-packages.json",
+    // Read by the startup budget check (scripts/check-startup-bundle.ts).
+    "!out/**/*.startup-bundle.json",
     "resources/**/*",
     "node_modules/**",
     "!**/node_modules/**/*.md",

@@ -14,6 +14,7 @@ import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
 
 import { recordBundledPackages } from "./electron-builder/bundled-packages";
+import { recordStartupBundle } from "./electron-builder/startup-bundle";
 import { projectIconFill } from "./scripts/project-icon-fill";
 import { contentSecurityPolicyMeta } from "./src/content-security-policy";
 
@@ -509,7 +510,18 @@ export default defineConfig(({ command }) => {
         ...(command === "serve" ? [externalizeJustBashInDev()] : []),
         copyVendorAssets(),
         buildPageEditorGuest({ minify: isProduction, record: isProduction }),
-        ...(isProduction ? [recordBundledPackages("main")] : []),
+        ...(isProduction
+          ? [
+              recordBundledPackages("main"),
+              // `boot.ts` awaits `index.ts` before `ready`, so both are startup.
+              recordStartupBundle("main", {
+                roots: [
+                  /electron-main\/boot\.ts$/,
+                  /electron-main\/index\.ts$/,
+                ],
+              }),
+            ]
+          : []),
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("main"),
         ValidateEnv({ configFile: "./validate-env" }),
@@ -530,7 +542,9 @@ export default defineConfig(({ command }) => {
       plugins: [
         ...(isAnalyzing ? [analyzer({ analyzerMode: "json" })] : []),
         createValidateProductionEnv("preload"),
-        ...(isProduction ? [recordBundledPackages("preload")] : []),
+        ...(isProduction
+          ? [recordBundledPackages("preload"), recordStartupBundle("preload")]
+          : []),
       ],
       define: previewDefine,
       resolve,
@@ -608,7 +622,9 @@ export default defineConfig(({ command }) => {
         xlsxWorkerDom(),
         dropViewerWasmCopies(),
         excalidrawFonts(),
-        ...(isProduction ? [recordBundledPackages("renderer")] : []),
+        ...(isProduction
+          ? [recordBundledPackages("renderer"), recordStartupBundle("renderer")]
+          : []),
       ],
       resolve,
       root: path.resolve("src"),

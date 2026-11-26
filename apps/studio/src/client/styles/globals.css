@@ -799,7 +799,7 @@ body {
      fence's own `code` is the block's business, and `not-prose` opts out here
      as it does from Typography. */
   code:not(:where(pre code, .not-prose *)) {
-    padding: 0.125em 0.3125em;
+    padding: 0.125em 0.25em;
     border: 1px solid var(--border);
     border-radius: calc(var(--radius) - 2px);
     background-color: var(--muted);
@@ -2624,4 +2624,20 @@ a.cursor-pointer {
   --tab-selected: var(--background);
 
   background-color: var(--group-strip);
+}
+
+/* Reply blocks (`components/reply-blocks/`). Unlayered for the same reason
+   as the table rules above: Typography's table rules live in the utilities
+   layer. */
+
+/* A short code span kept on one line, and an opening bracket kept on the
+   line of the link it opens, whose own label wraps as it would anywhere
+   (`rehypeUnbrokenInline`). */
+code[data-unbroken],
+span[data-unbroken] {
+  white-space: nowrap;
+}
+
+span[data-unbroken] > * {
+  white-space: normal;
 }

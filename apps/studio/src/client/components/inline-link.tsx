@@ -29,7 +29,13 @@ import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { KeyboardIcon } from "@phosphor-icons/react/Keyboard";
 import { skipToken, useQuery } from "@tanstack/react-query";
 import { atom, useAtomValue } from "jotai";
-import { Children, type ReactNode, useContext, useMemo } from "react";
+import {
+  Children,
+  isValidElement,
+  type ReactNode,
+  useContext,
+  useMemo,
+} from "react";
 
 import { EmailLink } from "./email-link";
 import { ExternalLink } from "./external-link";
@@ -43,6 +49,7 @@ import { contentOfAddress, useContentDrag } from "./window/drag/content-drag";
 import { closedTabsOf, isTabNamed } from "./window/tab-model";
 import { windowTabsAtom } from "./window/window-tabs";
 import { InstrumentGlyph } from "./wordmark";
+import { UNBROKEN_LABEL_MAX } from "./reply-blocks/rehype-unbroken-inline";
 
 /**
  * A chip drawn inside a sentence: a small icon, then a short label naming what
@@ -53,25 +60,27 @@ import { InstrumentGlyph } from "./wordmark";
  * because a box around one says only that it is a link, which the underline
  * and the site's own icon already said.
  *
- * Inline like the words around it, so a label too long for what is left of
- * a line breaks across it the way the sentence does, each piece in its own
- * frame, rather than the whole chip jumping to the next line and leaving a
- * ragged gap behind. That is also why a clickable chip is a span acting as a
- * button ({@link ChipButton}) rather than a button: a button is always one
- * box and never breaks.
+ * Inline like the words around it. A short label keeps to one line, so the
+ * chip moves to the next line whole ({@link ChipBody}); a long one breaks
+ * across lines the way the sentence does, each piece in its own frame,
+ * rather than jumping to the next line and leaving a ragged gap behind. That
+ * is also why a clickable chip is a span acting as a button
+ * ({@link ChipButton}) rather than a button: a button is always one box and
+ * never breaks.
  *
  * Its padding and border are drawn around the text without adding to the
  * line, which is what keeps a paragraph that mentions a file as tight as the
  * one under it; a table cell, whose line box is exactly twenty pixels, is
- * where that binds hardest. Only the right side is wider than the left, where
- * the label ends rather than an icon.
+ * where that binds hardest. The right side is a little wider than the left,
+ * where the label ends rather than an icon, and no wider, so a comma or a
+ * closing parenthesis after the chip sits against it.
  *
  * No font size of its own: the label is the size of the sentence it sits in,
  * which the surface around it set (a reply's 14px, a card's 12px). See the
  * sizing note on `Markdown`.
  */
 export const INLINE_CHIP_CLASS_NAME =
-  "inline rounded-md border border-border bg-muted/50 py-px pr-1.5 pl-[3px] box-decoration-clone leading-4 font-medium text-foreground no-underline! hover:bg-muted";
+  "inline rounded-md border border-border bg-muted/50 py-px pr-1 pl-[3px] box-decoration-clone leading-4 font-medium text-foreground no-underline! hover:bg-muted";
 
 /**
  * The box a chip's icon sits in, ahead of its label. Joined to the label's
@@ -116,8 +125,10 @@ const INLINE_LINK_UNDERLINE_CLASS_NAME =
   "underline decoration-foreground/40 underline-offset-3 [a:hover_&]:decoration-foreground";
 
 /**
- * A chip's insides: its icon, then its label. The icon is held to the label's
- * first word when the label is text, so a line never ends on an icon alone.
+ * A chip's insides: its icon, then its label. A short label keeps to one
+ * line with its icon; a longer one wraps, with the icon held to its first
+ * word when the label is text, so a line never ends on an icon alone. Either
+ * way it sets its own wrapping rather than taking it from around the chip.
  */
 export function ChipBody({
   children,
@@ -127,23 +138,45 @@ export function ChipBody({
   icon: ReactNode;
 }) {
   const slot = <span className={INLINE_CHIP_ICON_SLOT_CLASS_NAME}>{icon}</span>;
+  if (labelLength(children) <= UNBROKEN_LABEL_MAX) {
+    return (
+      <span className="whitespace-nowrap">
+        {slot}
+        {children}
+      </span>
+    );
+  }
   const [first, rest] = splitFirstWord(children);
   if (first === undefined) {
     return (
-      <>
+      <span className="whitespace-normal">
         {slot}
         {children}
-      </>
+      </span>
     );
   }
   return (
-    <>
+    <span className="whitespace-normal">
       <span className="whitespace-nowrap">
         {slot}
         {first}
       </span>
       {rest}
-    </>
+    </span>
+  );
+}
+
+/** How many characters of text a label shows, through any markup in it. */
+function labelLength(children: ReactNode): number {
+  return Children.toArray(children).reduce<number>(
+    (length, child) =>
+      length +
+      (typeof child === "string" || typeof child === "number"
+        ? String(child).length
+        : isValidElement<{ children?: ReactNode }>(child)
+          ? labelLength(child.props.children)
+          : 0),
+    0,
   );
 }
 

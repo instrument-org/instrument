@@ -109,6 +109,7 @@ import { PictureCard, PictureRows } from "./picture-card";
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { MessageFence } from "./message-card";
+import { rehypeUnbrokenInline } from "./reply-blocks/rehype-unbroken-inline";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -246,7 +247,7 @@ const rawHtmlPattern = new RegExp(
 // `rehype-slug` is what makes a link to a heading resolve to anything, so it
 // runs for every document rather than waiting on the effect below -- an id that
 // only appears on the second render is one a reader can click through first.
-const baseRehypePlugins: PluginList = [rehypeSlug];
+const baseRehypePlugins: PluginList = [rehypeSlug, rehypeUnbrokenInline];
 
 const nodeText = (node: FenceNode["children"][number]): string => {
   if (node.type === "text") {

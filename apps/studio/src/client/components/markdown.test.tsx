@@ -561,9 +561,7 @@ describe("Markdown images", () => {
     // picture would be.
     expect(container.querySelector("img")).toBeNull();
     expect(screen.getByText("chart.png")).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: "Open chart.png" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open chart.png" })).toBeTruthy();
   });
 
   it("names an image from elsewhere that could not be drawn, rather than breaking", () => {
@@ -763,6 +761,33 @@ describe("Markdown section labels", () => {
     );
 
     expect(container.querySelector("p")?.className).toBe("");
+  });
+});
+
+describe("Markdown unbroken inline runs", () => {
+  it("keeps a short code span whole and lets a long one wrap", () => {
+    const { container } = renderMarkdown(
+      "From `fern-street-bakery-2026-monthly.csv` or `a-name-far-too-long-to-keep-on-one-line.csv`.",
+    );
+
+    expect(
+      [...container.querySelectorAll("code")].map((code) =>
+        code.hasAttribute("data-unbroken"),
+      ),
+    ).toEqual([true, false]);
+  });
+
+  it("keeps an opening parenthesis on the line of the link it opens", () => {
+    const { container } = renderMarkdown(
+      "Section 12 of your lease ([Lease 2026](</work/Lease 2026.pdf>)) allows it.",
+    );
+
+    const kept = container.querySelector("span[data-unbroken]");
+    expect(kept?.firstChild?.textContent).toBe("(");
+    expect(kept?.textContent).toContain("Lease 2026");
+    expect(container.querySelector("p")?.textContent).toBe(
+      "Section 12 of your lease (Lease 2026) allows it.",
+    );
   });
 });
 

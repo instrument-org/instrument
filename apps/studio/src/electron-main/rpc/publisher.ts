@@ -3,6 +3,7 @@ import { type AppUpdaterStatus } from "@/electron-main/lib/update-status";
 import { type AppWindowAsk } from "@/electron-main/windows/app-window-asks";
 import { type AppCommand } from "@/shared/app-command";
 import { type ConnectProvider } from "@/shared/connect-outcome";
+import { type PageKey } from "@/shared/page-key";
 import {
   type GroupTabLanding,
   type Tab,
@@ -216,7 +217,8 @@ export type WindowCommand =
   /** Another window asked for what a tab here shows: bring it up and say so (`window.tabShown`). */
   | { href: string; requestId: string; type: "showTab" }
   | { index: number; type: "selectTab" }
-  | { index: number; type: "selectGroup" };
+  | { index: number; type: "selectGroup" }
+  | { key: PageKey; type: "pageKey" };
 
 // Per subscription, starting empty when it subscribes: what a subscriber that
 // is still busy with one event holds of the ones after it. Several of these

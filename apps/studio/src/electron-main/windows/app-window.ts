@@ -1215,6 +1215,11 @@ function createAppWindow(
   };
   window.on("focus", syncCaption);
   window.on("blur", syncCaption);
+  // Another app took the keyboard, which a page that had it never tells the
+  // window of: no modifier stays held there.
+  window.on("blur", () => {
+    commandWindow(window, { key: { type: "blur" }, type: "pageKey" });
+  });
 
   // Center the lights in the window bar for the zoom the renderer last
   // reported, so they are in place for the first paint instead of jumping once

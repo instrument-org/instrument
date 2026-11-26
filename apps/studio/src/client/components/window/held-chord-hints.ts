@@ -1,5 +1,6 @@
 import { formatAcceleratorText } from "@/client/lib/format-accelerator";
 import { currentOs } from "@/client/lib/utils";
+import { type PageKey } from "@/shared/page-key";
 import { atom, useSetAtom } from "jotai";
 import { useEffect } from "react";
 
@@ -169,6 +170,17 @@ let windowHold: ReturnType<typeof createModifierHold> | undefined;
  */
 export function interruptHeldHints() {
   windowHold?.blur();
+}
+
+/** Hands the window's hold a key a browser page had the keyboard for (`PageKey`). */
+export function holdPageKey(key: PageKey) {
+  if (key.type === "blur") {
+    windowHold?.blur();
+  } else if (key.type === "keyDown") {
+    windowHold?.keydown(key);
+  } else {
+    windowHold?.keyup();
+  }
 }
 
 /** Puts the held modifier's numbers up and down as the window's keys go (`heldHintAtom`). */

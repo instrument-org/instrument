@@ -31,6 +31,7 @@ import { noop } from "radashi";
 import { applyProductBrandedMetadata } from "../lib/user-agent";
 import { pageEditorPreloadPath } from "../page-editor/sessions";
 import { isDrivenInstance } from "../windows/on-screen";
+import { commandWindow } from "../windows/window-command";
 import { carryAgentPointer } from "./agent-pointer";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
@@ -93,6 +94,7 @@ import {
   notePersonEdit,
   typedIntoFrame,
 } from "./page-edits";
+import { pageKeyOfInput } from "./page-key";
 import { createPutAwaySound } from "./put-away-sound";
 import { stopScreencast } from "./screencast";
 import {
@@ -666,6 +668,18 @@ function createBrowserViewManager(): BrowserViewManager {
         typedIntoFrame(guest)
       ) {
         notePersonEdit(record, "frame");
+      }
+      // A page with the keyboard keeps every key from its window, which
+      // still puts up the numbers a held modifier shows.
+      const pageKey = pageKeyOfInput(input);
+      const host = hostOf(targetId);
+      if (pageKey && !focusGuard.isGuarded(targetId) && host) {
+        const window = host.isDestroyed()
+          ? null
+          : BrowserWindow.fromWebContents(host);
+        if (window) {
+          commandWindow(window, { key: pageKey, type: "pageKey" });
+        }
       }
     });
     guest.on("input-event", (_event, input) => {

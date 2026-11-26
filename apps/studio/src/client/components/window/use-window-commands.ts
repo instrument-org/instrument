@@ -19,7 +19,10 @@ import { appZoomAfter, zoomAtom } from "@/client/atoms/zoom";
 import { requestBookmarkTab } from "@/client/components/window/bookmark-star";
 import { requestBookmarkAllTabs } from "./bookmark-all-tabs";
 import { requestFileInfo } from "@/client/components/window/file-info";
-import { interruptHeldHints } from "@/client/components/window/held-chord-hints";
+import {
+  holdPageKey,
+  interruptHeldHints,
+} from "@/client/components/window/held-chord-hints";
 import { requestPageEditToggle } from "@/client/components/window/page-edit-state";
 import { SCREEN_ROUTES } from "@/client/components/window/window-href";
 import {
@@ -448,6 +451,10 @@ export function useWindowCommands(
           signal: controller.signal,
         });
         for await (const command of commands) {
+          if (typeof command === "object" && command.type === "pageKey") {
+            holdPageKey(command.key);
+            continue;
+          }
           // A chord the main process answered is a key the window never
           // saw, which puts a held modifier's numbers away all the same.
           interruptHeldHints();

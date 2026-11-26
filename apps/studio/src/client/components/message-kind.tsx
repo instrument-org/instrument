@@ -14,6 +14,7 @@ const KIND: Record<MessageKind, { icon: ReactNode; label: string }> = {
   email: { icon: <EnvelopeSimpleIcon />, label: "Email" },
   other: { icon: <NoteIcon />, label: "Text" },
   post: { icon: <MegaphoneIcon />, label: "Post" },
+  prompt: { icon: <ChatCircleIcon />, label: "Prompt" },
   text: { icon: <ChatCircleIcon />, label: "Text" },
 };
 

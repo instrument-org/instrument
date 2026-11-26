@@ -13,13 +13,25 @@ import {
 } from "@/client/components/ui/tooltip";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
 import { useOpenInApp } from "@/client/hooks/use-open-in-app";
+import {
+  useGesturesFor,
+  wantsNewTab,
+  wantsNewWindow,
+} from "@/client/hooks/use-open-target";
+import { formatAbsoluteTime } from "@/client/lib/relative-time";
+import { toast } from "@/client/lib/toast";
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
 import { isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
+  type ChatId,
+  ChatIdSchema,
+  isSendablePrompt,
   type MessageDraft,
   type MessageKind,
   parseMessage,
+  promptFenceOf,
+  promptSentAt,
 } from "@instrument-org/workspace/client";
 import { ArrowUpRightIcon } from "@phosphor-icons/react/ArrowUpRight";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
@@ -27,11 +39,22 @@ import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { EnvelopeSimpleIcon } from "@phosphor-icons/react/EnvelopeSimple";
 import { ExportIcon } from "@phosphor-icons/react/Export";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns/format";
+import { isSameDay } from "date-fns/isSameDay";
+import { isSameYear } from "date-fns/isSameYear";
 import { type ReactNode, useContext, useState } from "react";
 
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { messageKindOf } from "./message-kind";
+import { ReplyPartContext } from "./reply-part-context";
+import { chatListed } from "./window/chat-list-query";
+import { useListedChat } from "./window/chat-tab-menu";
+import { projectColor } from "./window/project-colors";
+import { projectTint } from "./window/project-tint";
+import { useProjectsById } from "./window/projects-by-id";
+import { chatHref } from "./window/window-href";
 
 const ADDRESS = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 
@@ -68,7 +91,6 @@ export function MessageActions({
   const browser = useOpenInApp(
     kind === "email" ? { url: GMAIL_HOME } : undefined,
   );
-  const { active: copied, trigger: showCopied } = useTimedFlag();
   const canShare = isMacOS();
   const userSends = sender !== "agent";
 
@@ -76,22 +98,9 @@ export function MessageActions({
     share.mutate({ text: getMessage().body });
   };
 
-  const copyWhole = async () => {
-    await navigator.clipboard.writeText(wholeOf(getMessage()));
-    showCopied();
-  };
-
   return (
     <>
-      <Button
-        disabled={disabled}
-        onClick={() => void copyWhole()}
-        size="xs"
-        variant="outline"
-      >
-        {copied ? <CheckIcon /> : <CopyIcon />}
-        {copied ? "Copied" : "Copy"}
-      </Button>
+      <CopyWholeButton disabled={disabled} getMessage={getMessage} />
       {!userSends ? null : kind === "email" ? (
         // Not modal: a modal menu takes focus and the page from under it, and
         // a card drawn inside the Markdown editor is redrawn when the editor
@@ -179,13 +188,19 @@ export function MessageCard({
       <div className="flex min-w-0 items-center gap-2 border-b border-border px-3.5 py-2 text-xs text-muted-foreground [&_svg]:size-3.5">
         {kind.icon}
         <span className="min-w-0 truncate">
-          {message.via
-            ? `${message.via} ${kind.label.toLowerCase()}`
-            : kind.label}
-          {message.to && (
+          {message.kind === "prompt" ? (
+            <PromptFor to={message.to} />
+          ) : (
             <>
-              {" to "}
-              <Recipient to={message.to} />
+              {message.via
+                ? `${message.via} ${kind.label.toLowerCase()}`
+                : kind.label}
+              {message.to && (
+                <>
+                  {" to "}
+                  <Recipient to={message.to} />
+                </>
+              )}
             </>
           )}
         </span>
@@ -218,12 +233,16 @@ export function MessageCard({
         </CopyablePart>
       </div>
       <div className="flex items-center justify-end gap-1.5 px-3.5 pb-3">
-        <MessageActions
-          disabled={!settled}
-          getMessage={() => message}
-          kind={message.kind}
-          sender={message.sender}
-        />
+        {message.kind === "prompt" ? (
+          <PromptActions disabled={!settled} message={message} />
+        ) : (
+          <MessageActions
+            disabled={!settled}
+            getMessage={() => message}
+            kind={message.kind}
+            sender={message.sender}
+          />
+        )}
       </div>
     </div>
   );
@@ -233,6 +252,213 @@ export function MessageCard({
 export function MessageFence({ code }: { code: string }) {
   const { isStreaming } = useContext(MarkdownChatContext);
   return <MessageCard isStreaming={isStreaming} message={parseMessage(code)} />;
+}
+
+/** Copy, taking the whole message as it pastes, and saying so for a moment. */
+function CopyWholeButton({
+  disabled,
+  getMessage,
+  variant = "outline",
+}: {
+  disabled: boolean;
+  getMessage: () => MessageDraft;
+  variant?: "brand" | "outline";
+}) {
+  const { active: copied, trigger: showCopied } = useTimedFlag();
+  const copyWhole = async () => {
+    await navigator.clipboard.writeText(wholeOf(getMessage()));
+    showCopied();
+  };
+  return (
+    <Button
+      disabled={disabled}
+      onClick={() => void copyWhole()}
+      size="xs"
+      variant={variant}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+      {copied ? "Copied" : "Copy"}
+    </Button>
+  );
+}
+
+/**
+ * Where a prompt goes, as the head of its card says it: another app's agent
+ * by name, or a new chat, in the project of the chat it is in when that chat
+ * has one.
+ */
+function PromptFor({ to }: { to?: string }) {
+  const { chatId } = useContext(MarkdownChatContext);
+  const projectId = useListedChat(chatId ?? NO_CHAT)?.project;
+  const project = useProjectsById().get(projectId ?? "");
+  return (
+    <>
+      {"Prompt for "}
+      <span className="text-foreground">{to ?? "a new chat"}</span>
+      {to === undefined && project && (
+        <>
+          {" in "}
+          <span
+            className="font-medium text-(--project-tint-ink) project-tint"
+            style={projectTint(projectColor(project))}
+          >
+            {project.emoji ? `${project.emoji} ` : ""}
+            {project.name}
+          </span>
+        </>
+      )}
+    </>
+  );
+}
+
+/** No chat, for a card outside one, which no listed chat matches. */
+const NO_CHAT = ChatIdSchema.parse("no-chat");
+
+/**
+ * A prompt's ways out. One for a new chat, in a reply, has Send, which starts
+ * that chat on these words in this chat's project and model and opens it the
+ * way a link to a chat opens; once sent, the card says when and has Open chat
+ * in its place, on every device, so it is never sent twice by accident. A
+ * prompt for another app's agent, or one outside a reply, only copies, and
+ * Copy is then the filled button.
+ */
+function PromptActions({
+  disabled,
+  message,
+}: {
+  disabled: boolean;
+  message: MessageDraft;
+}) {
+  const part = useContext(ReplyPartContext);
+  const { chatId } = useContext(MarkdownChatContext);
+  const gesturesFor = useGesturesFor();
+  const queryClient = useQueryClient();
+  const send = useMutation(
+    rpcClient.workspace.chats.sendPrompt.mutationOptions(),
+  );
+  const fence =
+    part && isSendablePrompt(message)
+      ? promptFenceOf(part.text, message.body)
+      : undefined;
+  const getMessage = () => message;
+  if (!part || !chatId || fence === undefined) {
+    return (
+      <CopyWholeButton
+        disabled={disabled}
+        getMessage={getMessage}
+        variant="brand"
+      />
+    );
+  }
+  const sent = promptSentAt(part.metadata, fence);
+
+  // Opened as a link to the chat in a reply opens: beside on a plain click,
+  // in a tab of its own on a modified one.
+  const openChat = (chat: ChatId, event: ClickModifiers) => {
+    const gestures = gesturesFor(
+      { href: chatHref(chat), kind: "screen" },
+      { isLink: true },
+    );
+    const open = gestures.destinations.find((entry) => entry.id === "open");
+    const inFront = gestures.destinations.find(
+      (entry) => entry.id === "openNewTab",
+    );
+    if (wantsNewWindow(event) && inFront) {
+      inFront.run();
+    } else if (wantsNewTab(event) && gestures.separate) {
+      gestures.separate.run();
+    } else {
+      open?.run();
+    }
+  };
+
+  const sendIt = async (event: ClickModifiers) => {
+    let started;
+    try {
+      started = await send.mutateAsync({
+        body: message.body,
+        id: chatId,
+        messageId: part.metadata.messageId,
+        partId: part.metadata.id,
+        sessionId: part.metadata.sessionId,
+      });
+    } catch (error) {
+      toast.error("Couldn't start the chat", { cause: error });
+      return;
+    }
+    if (started.sessionId) {
+      // Known at once to the chat's screen, which asks for its session.
+      queryClient.setQueryData(
+        rpcClient.workspace.chats.session.queryKey({
+          input: { id: started.chat },
+        }),
+        { sessionId: started.sessionId },
+      );
+    }
+    // The window opens only a chat its list has.
+    await chatListed(queryClient, started.listed);
+    openChat(started.chat, event);
+  };
+
+  if (sent) {
+    const at = new Date(sent.at);
+    return (
+      <>
+        <span
+          className="mr-auto text-xs text-muted-foreground"
+          title={formatAbsoluteTime(at)}
+        >
+          Sent {sentTime(at)}
+        </span>
+        <CopyWholeButton disabled={disabled} getMessage={getMessage} />
+        <Button
+          onClick={(event) => {
+            openChat(sent.chat, modifiersOf(event));
+          }}
+          size="xs"
+          variant="default"
+        >
+          <ChatCircleIcon />
+          Open chat
+        </Button>
+      </>
+    );
+  }
+  return (
+    <>
+      <CopyWholeButton disabled={disabled} getMessage={getMessage} />
+      <Button
+        disabled={disabled || send.isPending}
+        onClick={(event) => void sendIt(modifiersOf(event))}
+        size="xs"
+        variant="brand"
+      >
+        Send
+      </Button>
+    </>
+  );
+}
+
+type ClickModifiers = {
+  altKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  shiftKey: boolean;
+};
+
+/** The keys held at a click, kept past the click for an open that comes later. */
+function modifiersOf(event: ClickModifiers): ClickModifiers {
+  const { altKey, ctrlKey, metaKey, shiftKey } = event;
+  return { altKey, ctrlKey, metaKey, shiftKey };
+}
+
+/** When a prompt was sent: its time today, its date before that. */
+function sentTime(at: Date): string {
+  const now = new Date();
+  if (isSameDay(at, now)) {
+    return format(at, "p");
+  }
+  return format(at, isSameYear(at, now) ? "MMM d" : "MMM d, yyyy");
 }
 
 /** The icon of the app a Send row opens, or a glyph where there is none. */

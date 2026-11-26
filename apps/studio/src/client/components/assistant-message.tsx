@@ -4,6 +4,7 @@ import {
 } from "@instrument-org/workspace/client";
 import { memo } from "react";
 
+import { ReplyPartContext } from "./reply-part-context";
 import { SessionMarkdown } from "./session-markdown";
 import { useRevealedText } from "./transcript/stage/use-revealed-text";
 
@@ -25,14 +26,16 @@ export const AssistantMessage = memo(function AssistantMessage({
       // Words still to come out, which the rows after it wait for.
       data-revealing={revealed.text.length < part.text.length || undefined}
     >
-      <SessionMarkdown
-        assetVersion={part.metadata.id}
-        className="w-full"
-        isStreaming={isStreaming || revealed.isRevealing}
-        markdown={revealed.text}
-        size="md"
-        chatId={chatId}
-      />
+      <ReplyPartContext value={part}>
+        <SessionMarkdown
+          assetVersion={part.metadata.id}
+          className="w-full"
+          isStreaming={isStreaming || revealed.isRevealing}
+          markdown={revealed.text}
+          size="md"
+          chatId={chatId}
+        />
+      </ReplyPartContext>
     </div>
   );
 });

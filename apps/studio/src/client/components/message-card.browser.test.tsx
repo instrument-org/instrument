@@ -148,3 +148,96 @@ test("a message the agent sends itself keeps Copy and drops Share", async () => 
     - button "Copy""
   `);
 });
+
+const PROMPT = [
+  "What their AI costs.",
+  "",
+  "```message",
+  "---",
+  "message: prompt",
+  "---",
+  "Find what Zendesk, Intercom and Freshdesk charge for each conversation their AI resolves.",
+  "```",
+].join("\n");
+
+test("a prompt for a new chat has Copy and Send", async () => {
+  const screen = await renderInBrowser(
+    <div style={{ width: 560 }}>
+      <AssistantMessage part={textPart(PROMPT)} chatId={chatId} />
+    </div>,
+  );
+
+  await expect.element(screen.getByText("a new chat")).toBeVisible();
+  await expect(ariaSnapshot(screen.locator)).resolves.toMatchInlineSnapshot(`
+    "- paragraph: What their AI costs.
+    - text: Prompt for a new chat
+    - paragraph: Find what Zendesk, Intercom and Freshdesk charge for each conversation their AI resolves.
+    - button "Copy body"
+    - button "Copy"
+    - button "Send""
+  `);
+});
+
+test("a prompt already sent says when, and opens its chat", async () => {
+  const part = textPart(PROMPT);
+  const screen = await renderInBrowser(
+    <div style={{ width: 560 }}>
+      <AssistantMessage
+        chatId={chatId}
+        part={{
+          ...part,
+          metadata: {
+            ...part.metadata,
+            promptsSent: [
+              {
+                at: "2024-03-05T11:31:00.000Z",
+                chat: "2024-03-05-prices",
+                fence: 0,
+              },
+            ],
+          },
+        }}
+      />
+    </div>,
+  );
+
+  await expect.element(screen.getByText("Sent Mar 5, 2024")).toBeVisible();
+  await expect(ariaSnapshot(screen.locator)).resolves.toMatchInlineSnapshot(`
+    "- paragraph: What their AI costs.
+    - text: Prompt for a new chat
+    - paragraph: Find what Zendesk, Intercom and Freshdesk charge for each conversation their AI resolves.
+    - button "Copy body"
+    - text: Sent Mar 5, 2024
+    - button "Copy"
+    - button "Open chat""
+  `);
+});
+
+test("a prompt for another app's agent only copies", async () => {
+  const screen = await renderInBrowser(
+    <div style={{ width: 560 }}>
+      <AssistantMessage
+        chatId={chatId}
+        part={textPart(
+          [
+            "```message",
+            "---",
+            "message: prompt",
+            "to: Claude Code",
+            "---",
+            "Add a comparison table under the plan cards.",
+            "```",
+          ].join("\n"),
+        )}
+      />
+    </div>,
+  );
+
+  await expect.element(screen.getByText("Claude Code")).toBeVisible();
+  await expect(ariaSnapshot(screen.locator)).resolves.toMatchInlineSnapshot(`
+    "- text: Prompt for Claude Code
+    - paragraph: Add a comparison table under the plan cards.
+    - button "Copy body"
+    - button "Copy""
+  `);
+});

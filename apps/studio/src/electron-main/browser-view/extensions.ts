@@ -945,6 +945,18 @@ export function selectExtensionTab(guest: WebContents): void {
 }
 
 /**
+ * Marks a tab active in its own window for the extensions, without making it
+ * the tab a person is looking at (`selectExtensionTab`) unless none is yet:
+ * a tab shown in a window in the background is active there all the same.
+ */
+export function activateExtensionTab(guest: WebContents): void {
+  if (!currentTab || currentTab.isDestroyed()) {
+    currentTab = guest;
+  }
+  asApp(() => extensions?.selectTab(guest));
+}
+
+/**
  * A tab an extension asked for (`chrome.tabs.create`) opens the way a page's
  * own new-tab link does, beside the tab a person is looking at, and resolves
  * with the guest the window mounts for it.

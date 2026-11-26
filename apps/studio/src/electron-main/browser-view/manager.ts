@@ -36,7 +36,11 @@ import { carryAgentPointer } from "./agent-pointer";
 import { type DeviceEmulation, setDeviceEmulation } from "./device-emulation";
 import { sendCommand } from "./dispatch-command";
 import { captureDownloadWillBeginGuid, holdsDownloadEvent } from "./downloads";
-import { registerExtensionTab, selectExtensionTab } from "./extensions";
+import {
+  activateExtensionTab,
+  registerExtensionTab,
+  selectExtensionTab,
+} from "./extensions";
 import {
   advanceEntry,
   type BrowserEntry,
@@ -778,9 +782,21 @@ function createBrowserViewManager(): BrowserViewManager {
     });
 
     entry.disposers.add(registerExtensionTab(guest));
-    // A tab shown before its guest came is the one a person is looking at.
+    // A tab shown before its guest came is the active one in its window, and
+    // the one a person is looking at when that window is in front, or when
+    // there is none yet: a tab in a window in the background never takes
+    // over as the one an extension's new tab opens beside.
     if (entry.shown) {
-      selectExtensionTab(guest);
+      const host = hostOf(targetId);
+      const window =
+        host && !host.isDestroyed()
+          ? BrowserWindow.fromWebContents(host)
+          : null;
+      if (window?.isFocused()) {
+        selectExtensionTab(guest);
+      } else {
+        activateExtensionTab(guest);
+      }
     }
     entry.disposers.add(() => {
       stopScreencast(entry);

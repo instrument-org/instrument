@@ -484,11 +484,6 @@ export type FileSystemProps = {
   /** What the toolbar search says, when the caller holds it, changed through `onSearchChange`. */
   search?: string;
   /**
-   * Searching beyond the folder, offered beside Clear search where a search
-   * finds nothing: the keys that do it, and what pressing it does.
-   */
-  searchEverywhere?: { keys: React.ReactNode; onPress: () => void };
-  /**
    * Everything under the folder the browser lists from, which a search by
    * name matches against, as items with paths the way `items` has them:
    * `truncated` when that is not all of it, and `notSearched` the names of
@@ -2064,7 +2059,6 @@ export function FileSystem({
   renderHeaderLead,
   renderUnreadable,
   search: searchProp,
-  searchEverywhere,
   searchResults,
   searchResultsPending = false,
   selectedPath: selectedPathProp,
@@ -3949,29 +3943,15 @@ export function FileSystem({
         ) : currentEntries.length === 0 &&
           (view !== "columns" || isSearching) ? (
           <FileSystemEmptyState
-            actions={
+            action={
               isSearching
-                ? [
-                    {
-                      label: "Clear search",
-                      onPress: () => {
-                        clearSearch();
-                        setIsSearchExpanded(false);
-                      },
+                ? {
+                    label: "Clear search",
+                    onPress: () => {
+                      clearSearch();
+                      setIsSearchExpanded(false);
                     },
-                    ...(isNameSearch && searchEverywhere
-                      ? [
-                          {
-                            label: (
-                              <>
-                                Search everywhere {searchEverywhere.keys}
-                              </>
-                            ),
-                            onPress: searchEverywhere.onPress,
-                          },
-                        ]
-                      : []),
-                  ]
+                  }
                 : undefined
             }
             label={
@@ -4777,28 +4757,19 @@ function FileSystemStatusBar({
   );
 }
 function FileSystemEmptyState({
-  actions,
+  action,
   label,
 }: {
-  actions?: { label: React.ReactNode; onPress: () => void }[];
+  action?: { label: string; onPress: () => void };
   label: string;
 }) {
   return (
     <div className="flex size-full flex-col items-center justify-center gap-3 px-6 text-center text-sm text-muted-foreground">
       <p className="max-w-80 break-words">{label}</p>
-      {actions ? (
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {actions.map((action, index) => (
-            <Button
-              key={index}
-              onClick={action.onPress}
-              size="sm"
-              variant="outline"
-            >
-              {action.label}
-            </Button>
-          ))}
-        </div>
+      {action ? (
+        <Button onClick={action.onPress} size="sm" variant="outline">
+          {action.label}
+        </Button>
       ) : null}
     </div>
   );

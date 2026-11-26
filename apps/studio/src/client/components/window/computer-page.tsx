@@ -179,9 +179,6 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
-import { ShortcutKeys } from "@/client/components/shortcut-keys";
-import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import {
   drivePage,
@@ -2911,16 +2908,6 @@ export function ComputerPage({
                   onRenameCommit={rename}
                   canRenameItem={(item) => keptInPlace(item) === undefined}
                   search={query ?? ""}
-                  searchEverywhere={{
-                    keys: (
-                      <ShortcutKeys
-                        accelerator={WINDOW_SHORTCUTS.commandMenu.accelerator}
-                      />
-                    ),
-                    onPress: () => {
-                      getDefaultStore().set(commandMenuOpenAtom, true);
-                    },
-                  }}
                   {...(folderWalk.data
                     ? {
                         searchResults: {

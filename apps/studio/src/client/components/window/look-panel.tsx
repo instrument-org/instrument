@@ -11,7 +11,13 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/client/components/ui/dialog";
+import { useGuest } from "@/client/hooks/use-browser-targets";
 import { useWatchedFileUrl } from "@/client/hooks/use-watched-file-url";
+import {
+  getGuestElement,
+  onPageEdge,
+  pageOfPress,
+} from "@/client/lib/browser-pool";
 import { fileUrlOf } from "@/client/lib/file-url";
 import { currentOs } from "@/client/lib/utils";
 import { getFileType } from "@/client/lib/get-file-type";
@@ -20,11 +26,23 @@ import { dialogMaxSize } from "@/client/hooks/use-app-zoom";
 import { cn } from "@/client/lib/utils";
 import { computerFolderOptions } from "@/client/lib/live-computer-folder";
 import { HOSTED_PAGE_GROUP_PREFIX } from "@/shared/kept-state";
-import { WINDOW_ID } from "@instrument-org/workspace/client";
+import {
+  browserTargetOf,
+  type BrowserTargetId,
+  WINDOW_ID,
+} from "@instrument-org/workspace/client";
 import { XIcon } from "@phosphor-icons/react/X";
+import { useFocusScopeBranch } from "@radix-ui/react-focus-scope";
 import { useQuery } from "@tanstack/react-query";
 import { useAtom, useAtomValue } from "jotai";
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 import { type LookFolder, lookAtAtom, type LookTarget } from "./look-at";
 import { useHostedPage } from "./hosted-page";
@@ -85,7 +103,7 @@ export function LookPanel({
     file && open && isPageFile(file.name)
       ? fileUrlOf(file.hostPath)
       : undefined;
-  const page = useLookedAtPage(pageUrl);
+  const { page, pageTarget } = useLookedAtPage(pageUrl);
 
   const [video, setVideo] = useState<VideoShape | null>(null);
   const videoShape = video && video.hostPath === file?.hostPath ? video : null;
@@ -210,6 +228,16 @@ export function LookPanel({
             }
           }
         }}
+        // A press in the page drawn over the panel reaches the window as a
+        // press on nothing (`pagePressed`), which is the panel's own.
+        onPointerDownOutside={(event) => {
+          if (
+            pageTarget !== undefined &&
+            pageOfPress(event.detail.originalEvent) === pageTarget
+          ) {
+            event.preventDefault();
+          }
+        }}
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           if (event.currentTarget instanceof HTMLElement) {
@@ -220,6 +248,7 @@ export function LookPanel({
         // The viewer's own head closes it, beside the file's actions.
         showCloseButton={false}
       >
+        <PageInPanel onClose={onClose} target={pageTarget} />
         <DialogTitle className="sr-only">
           {(file ?? folder)?.name ?? picture?.filename ?? "Preview"}
         </DialogTitle>
@@ -412,8 +441,11 @@ export function WindowLook() {
  * in a group of its own, drawn into the slot the viewer gives it on the layer over the panel,
  * and closed as the panel moves off it or goes.
  */
-function useLookedAtPage(url: string | undefined): ReactNode {
-  const { setSlot } = useHostedPage({
+function useLookedAtPage(url: string | undefined): {
+  page: ReactNode;
+  pageTarget: BrowserTargetId | undefined;
+} {
+  const { setSlot, tabId } = useHostedPage({
     group: QUICK_LOOK_GROUP,
     host: {
       chrome: false,
@@ -423,7 +455,41 @@ function useLookedAtPage(url: string | undefined): ReactNode {
     },
     url,
   });
-  return url === undefined ? undefined : (
-    <div className="h-full" ref={setSlot} />
+  return {
+    page:
+      url === undefined ? undefined : <div className="h-full" ref={setSlot} />,
+    pageTarget: tabId === undefined ? undefined : browserTargetOf(tabId),
+  };
+}
+
+/**
+ * The page drawn over the panel counted as part of it, so the keyboard stays
+ * in the page once a press puts it there. Its guest stands on the body,
+ * outside the panel, where the panel's focus trap would take the keyboard
+ * straight back. Escape the page has no use for puts the panel away, as it
+ * does with the keyboard on the panel.
+ */
+function PageInPanel({
+  onClose,
+  target,
+}: {
+  onClose: () => void;
+  target: BrowserTargetId | undefined;
+}) {
+  const guest = useGuest(target);
+  useFocusScopeBranch(
+    guest && target !== undefined ? getGuestElement(target) : null,
   );
+  const close = useEffectEvent(onClose);
+  useEffect(() => {
+    if (target === undefined) {
+      return;
+    }
+    return onPageEdge(target, (edge) => {
+      if (edge === "escape") {
+        close();
+      }
+    });
+  }, [target]);
+  return null;
 }

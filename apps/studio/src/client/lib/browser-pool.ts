@@ -640,6 +640,15 @@ export function getGuest(targetId: BrowserTargetId): GuestHandle | null {
 }
 
 /**
+ * The element a target's guest stands in on the body, for an overlay drawing
+ * the page to count as its own; null until the guest is mounted and once it
+ * is gone.
+ */
+export function getGuestElement(targetId: BrowserTargetId): HTMLElement | null {
+  return pool.get(targetId)?.container ?? null;
+}
+
+/**
  * Subscribe to the main process's desired-targets stream and reconcile the pool
  * to it. Call once at startup; returns an unsubscribe function. This is the pool's
  * only lifeline, so it must survive a dropped stream: if the subscription errors
@@ -851,6 +860,18 @@ export function onShownPageLoaded(listener: () => void) {
 /** When the person last pressed the pointer in each page, which main reports since the host document never sees it. */
 const pagePressedAt = new Map<BrowserTargetId, number>();
 
+/** The page each pointerdown `pagePressed` passes on to the window was made in. */
+const pagePressEvents = new WeakMap<Event, BrowserTargetId>();
+
+/**
+ * The page a press on the window was made in, when it is one a page passed
+ * on (`pagePressed`): an overlay drawing that page over itself takes the
+ * press as its own rather than as one outside it.
+ */
+export function pageOfPress(event: Event): BrowserTargetId | undefined {
+  return pagePressEvents.get(event);
+}
+
 /**
  * Calls `listener` with a page each time the person presses the pointer in
  * it: a press the host document never sees, since it goes to the guest.
@@ -894,13 +915,13 @@ function pagePressed(targetId: BrowserTargetId) {
       composed: true,
     };
     const root = document.documentElement;
-    root.dispatchEvent(
-      new PointerEvent("pointerdown", {
-        ...press,
-        isPrimary: true,
-        pointerType: "mouse",
-      }),
-    );
+    const down = new PointerEvent("pointerdown", {
+      ...press,
+      isPrimary: true,
+      pointerType: "mouse",
+    });
+    pagePressEvents.set(down, targetId);
+    root.dispatchEvent(down);
     root.dispatchEvent(new MouseEvent("click", press));
   }
   for (const listener of pagePressListeners) {

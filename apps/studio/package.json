@@ -73,6 +73,7 @@
     "@orpc/server": "catalog:",
     "@orpc/shared": "catalog:",
     "@orpc/tanstack-query": "catalog:",
+    "@radix-ui/react-focus-scope": "^1.2.0",
     "@tanstack/query-core": "^5.104.5",
     "@vscode/ripgrep": "^1.18.0",
     "@zkochan/cmd-shim": "^7.0.0",

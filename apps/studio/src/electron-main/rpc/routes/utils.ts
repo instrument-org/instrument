@@ -453,6 +453,16 @@ const restoreClearedExceptions = base.input(z.void()).handler(() => {
   restoreClearedExceptionEvents();
 });
 
+/**
+ * The problems captured since this process started, whole, for the
+ * developer indicator's list: read when it opens and at each `version` the
+ * live count names.
+ */
+const exceptionEvents = base
+  .input(z.object({ version: z.number() }))
+  .output(z.array(ExceptionEventSchema))
+  .handler(() => [...listSessionExceptionEvents()]);
+
 // The renderer owns the app zoom (CSS `zoom`); it reports the current level so
 // the main process can keep the system's window buttons centered in the band of
 // chrome above the UI, whose visual height scales with that zoom. One setting
@@ -525,15 +535,25 @@ const events = {
 };
 
 const live = {
-  // The problems captured since this process started, each its last event
-  // counted with every capture of its fingerprint, for the developer
-  // indicator. The store also keeps earlier sessions', for reports.
+  // How many problems were captured since this process started, every
+  // capture of a fingerprint counted, for the developer indicator, and a
+  // version that moves with each change, at which its list reads the events
+  // themselves (`exceptionEvents`). An event carries its stack and up to 100
+  // breadcrumbs, tens of kilobytes, so the list is not sent on each capture.
+  // The store also keeps earlier sessions', for reports.
   exceptions: base
-    .output(eventIterator(z.array(ExceptionEventSchema)))
+    .output(eventIterator(z.object({ total: z.number(), version: z.number() })))
     .handler(async function* ({ signal }) {
+      let version = 0;
       yield* liveRead({
         changes: [publisher.subscribe("exceptions.updated", { signal })],
-        read: () => [...listSessionExceptionEvents()],
+        read: () => ({
+          total: listSessionExceptionEvents().reduce(
+            (sum, event) => sum + event.count,
+            0,
+          ),
+          version: (version += 1),
+        }),
       });
     }),
   // What the renderer needs to draw window chrome for itself: the Linux window
@@ -706,6 +726,7 @@ export const utils = {
   computerFileBase,
   copyFileToClipboard,
   events,
+  exceptionEvents,
   fileManagerApp,
   fileOpenCandidates,
   fileOpenTarget,

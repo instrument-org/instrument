@@ -29,7 +29,7 @@ import { DotsThreeIcon } from "@phosphor-icons/react/DotsThree";
 import { FileTextIcon } from "@phosphor-icons/react/FileText";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
 import { WarningCircleIcon } from "@phosphor-icons/react/WarningCircle";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
 import {
@@ -53,8 +53,7 @@ export function DeveloperErrors() {
   );
   const [open, setOpen] = useState(false);
   const isSetupUp = useIsSetupUp();
-  const events = (data ?? []).toReversed();
-  const total = events.reduce((sum, event) => sum + event.count, 0);
+  const total = data?.total ?? 0;
 
   if (total === 0) {
     // Stays closed when the next error arrives, once the last one is cleared.
@@ -82,7 +81,6 @@ export function DeveloperErrors() {
         style={{ maxWidth: "calc(90vw / var(--content-zoom))" }}
       >
         <ErrorsPanel
-          events={events}
           label={label}
           onViewLog={
             isSetupUp
@@ -92,6 +90,7 @@ export function DeveloperErrors() {
                   openSettings({ diagnosticLog: true, tab: "Support" });
                 }
           }
+          version={data?.version ?? 0}
         />
       </StripPopover>
     </Popover>
@@ -99,15 +98,21 @@ export function DeveloperErrors() {
 }
 
 function ErrorsPanel({
-  events,
   label,
   onViewLog,
+  version,
 }: {
-  events: ExceptionEvent[];
   label: string;
   /** Opens the log, where the window can show Settings. */
   onViewLog?: () => void;
+  /** Where the live count stands, read again as it moves. */
+  version: number;
 }) {
+  const { data } = useQuery({
+    ...rpcClient.utils.exceptionEvents.queryOptions({ input: { version } }),
+    placeholderData: keepPreviousData,
+  });
+  const events = (data ?? []).toReversed();
   const now = useMinuteClock().getTime();
   const [picked, setPicked] = useState<string>();
   const { mutate: clearAll } = useMutation(

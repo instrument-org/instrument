@@ -30,6 +30,13 @@ import { ReplyNote } from "@/client/components/reply-note";
 import { ModelNoticeRow } from "@/client/components/model-notice";
 import { ModelPicker } from "@/client/components/model-picker";
 import { Button } from "@/client/components/ui/button";
+import { ShortcutKeys } from "@/client/components/shortcut-keys";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/client/components/ui/tooltip";
+import { STOP_CHAT } from "@/shared/shortcut-guide";
 import { useIsActiveTab } from "@/client/hooks/use-active-tab";
 import { openPlans } from "@/client/lib/billing-website";
 import { useProviderSwitch } from "@/client/components/settings/provider-switch";
@@ -1255,14 +1262,22 @@ export const PromptInput = ({
                     disabled={isLoading}
                   />
                   {!dictating && onStop && !canSubmit && !isLoading && (
-                    <Button
-                      aria-label="Stop"
-                      className="size-8 shrink-0 rounded-full p-0"
-                      onClick={onStop}
-                      variant="brand"
-                    >
-                      <StopIcon className="size-4" weight="fill" />
-                    </Button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          aria-label="Stop"
+                          className="size-8 shrink-0 rounded-full p-0"
+                          onClick={onStop}
+                          variant="brand"
+                        >
+                          <StopIcon className="size-4" weight="fill" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="flex items-center gap-2">
+                        Stop
+                        <ShortcutKeys accelerator={STOP_CHAT.accelerator} />
+                      </TooltipContent>
+                    </Tooltip>
                   )}
                   {!dictating && (!onStop || canSubmit || isLoading) && (
                     <Button

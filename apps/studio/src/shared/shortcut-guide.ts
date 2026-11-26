@@ -111,6 +111,16 @@ const PASTE_AS_TEXT = {
 } as const;
 
 /**
+ * Stops a running chat, as its Stop button does, while the keyboard is in
+ * that chat and nothing in it (a menu, a field, a find) takes Escape first.
+ * Answered by the chat (`task/chat.tsx`), not a menu or the window.
+ */
+export const STOP_CHAT = {
+  accelerator: "Escape",
+  label: "Stop Chat",
+} as const;
+
+/**
  * The keys of a page open beside a folder, which the folder answers while it
  * has the keyboard (`computer-page.tsx`), not a menu or the window.
  */
@@ -181,6 +191,7 @@ const PICTURE_KEYS: ShortcutGuideEntry[] = [
 export const SHORTCUT_GUIDE_ENTRIES: ShortcutGuideEntry[] = [
   { ...SHORTCUT_GUIDE, group: "General", id: "shortcutGuide" },
   { ...PASTE_AS_TEXT, group: "General", id: "pasteAsText" },
+  { ...STOP_CHAT, group: "General", id: "stopChat" },
   ...LIST_KEYS,
   ...PICTURE_KEYS,
   ...Object.entries(WINDOW_CHORDS).map(

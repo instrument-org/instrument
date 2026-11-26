@@ -23,6 +23,8 @@ import { ShellContext } from "@/client/components/window/shell-context";
 import { useStagedAskActions } from "@/client/components/window/staged-asks";
 import { projectCommand } from "@/client/lib/app-commands";
 import { mayTakeKeyboard } from "@/client/lib/keyboard-home";
+import { keyboardPlace } from "@/client/lib/keyboard-place";
+import { isTypingTarget } from "@/client/lib/is-typing-target";
 import {
   beginReplySendAtom,
   chatBoxesAtom,
@@ -909,6 +911,83 @@ export function ChatConversation({
     );
   };
 
+  const stop = () => {
+    // Before the model has answered, Stop takes the message back into the
+    // box: the likeliest reason to stop that early is to change what was
+    // just sent. Not while another send is on its way, or with something in
+    // the box, both of which say the person moved on.
+    const takeBack =
+      draftKey.scope === "chat" &&
+      isBoxEmpty &&
+      unsettled.length === 0 &&
+      !createMessage.isPending;
+    stopChat.mutate(
+      { id, ...(takeBack && { takeBack }) },
+      {
+        onSuccess: ({ takenBack }) => {
+          if (takenBack) {
+            giveBack(takenBack);
+          }
+        },
+      },
+    );
+  };
+
+  // Escape is Stop while the keyboard is in this chat: its side of the tab
+  // group has the keyboard, and the caret is in the chat or on nothing
+  // there. The box answers its own Escape (`onEscape`), ahead of the
+  // editor's, which takes it to select what holds the caret. Whatever takes
+  // Escape first keeps it: a menu, popover or dialog up as the press began,
+  // a field, a handler that prevented it. A page's own Escape never comes
+  // here, since a page is drawn by a guest of its own.
+  const stopOnEscape = useEffectEvent(
+    (event: KeyboardEvent, wasLayerUp: boolean) => {
+      const root = conversationRef.current;
+      const place = keyboardPlace();
+      if (
+        event.key !== "Escape" ||
+        event.repeat ||
+        event.isComposing ||
+        event.defaultPrevented ||
+        event.altKey ||
+        event.ctrlKey ||
+        event.metaKey ||
+        event.shiftKey ||
+        wasLayerUp ||
+        root === null ||
+        place === null ||
+        !(root.contains(place) || place.contains(root)) ||
+        isTypingTarget(event.target)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      stop();
+    },
+  );
+  useEffect(() => {
+    if (!isChatRunning) {
+      return;
+    }
+    // Read before any layer's own listener closes it on the same press.
+    let wasLayerUp = false;
+    const onPress = () => {
+      wasLayerUp =
+        document.querySelector(
+          ':is([role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"])[data-state="open"], [data-radix-focus-guard]',
+        ) !== null;
+    };
+    const onEscape = (event: KeyboardEvent) => {
+      stopOnEscape(event, wasLayerUp);
+    };
+    window.addEventListener("keydown", onPress, { capture: true });
+    window.addEventListener("keydown", onEscape);
+    return () => {
+      window.removeEventListener("keydown", onPress, { capture: true });
+      window.removeEventListener("keydown", onEscape);
+    };
+  }, [isChatRunning]);
+
   const promptInput = (
     <PromptInput
       attachmentsLead={
@@ -957,29 +1036,7 @@ export function ChatConversation({
       }}
       // Stop reaches the chat's own turn and every task it started, so it is
       // offered while any of them is working.
-      {...(isChatRunning && {
-        onStop: () => {
-          // Before the model has answered, Stop takes the message back into
-          // the box: the likeliest reason to stop that early is to change what
-          // was just sent. Not while another send is on its way, or with
-          // something in the box, both of which say the person moved on.
-          const takeBack =
-            draftKey.scope === "chat" &&
-            isBoxEmpty &&
-            unsettled.length === 0 &&
-            !createMessage.isPending;
-          stopChat.mutate(
-            { id, ...(takeBack && { takeBack }) },
-            {
-              onSuccess: ({ takenBack }) => {
-                if (takenBack) {
-                  giveBack(takenBack);
-                }
-              },
-            },
-          );
-        },
-      })}
+      {...(isChatRunning && { onEscape: stop, onStop: stop })}
       onSubmit={(sending) => {
         const {
           files,

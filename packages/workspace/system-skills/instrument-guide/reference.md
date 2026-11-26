@@ -150,6 +150,7 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Search Chats: ⇧⌘F / Ctrl+Shift+F
 - Settings…: ⌘, / Ctrl+,
 - Show History: ⌘Y / Ctrl+H
+- Stop Chat: Esc / Esc
 
 ### Tab Groups
 

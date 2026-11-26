@@ -100,6 +100,7 @@ describe("formatAcceleratorFor", () => {
       [
         "shortcutGuide: ?  /  ?  /  ?",
         "pasteAsText: ⇧ ⌘ V  /  Ctrl Shift V  /  Ctrl Shift V",
+        "stopChat: Esc  /  Esc  /  Esc",
         "pageForward: →  /  →  /  →",
         "pageBack: ←  /  ←  /  ←",
         "pageScroll: Space  /  Space  /  Space",

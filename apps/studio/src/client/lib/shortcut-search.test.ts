@@ -54,6 +54,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "General: Search Chats  ⇧⌘F",
         "General: Settings…  ⌘,",
         "General: Show History  ⌘Y",
+        "General: Stop Chat  Esc",
         "Tab Groups: Next Tab Group  ⌥⌘↓",
         "Tab Groups: Previous Tab Group  ⌥⌘↑",
         "Tab Groups: Tab Group 1 to 9  ⌃1…9",

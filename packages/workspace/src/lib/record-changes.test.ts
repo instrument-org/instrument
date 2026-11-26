@@ -5,8 +5,15 @@ import { describe, expect, it } from "vitest";
 
 import { TASKS_DIR_NAME } from "../constants";
 import { ChatIdSchema } from "../schemas/chat-id";
+import { StoreId } from "../schemas/store-id";
 import { createMockChatConfigForDir } from "../test/helpers/mock-chat-config";
-import { recordChanged, recordChanges, recordRemoved } from "./record-changes";
+import { cacheByChatGeneration } from "./chat-generation";
+import {
+  recordChanged,
+  recordChanges,
+  recordMessageChanged,
+  recordRemoved,
+} from "./record-changes";
 import { setChatState } from "./chat-record";
 import { chatDir } from "./record-folders";
 
@@ -56,6 +63,25 @@ describe("recordChanges", () => {
     const next = changes.next();
     controller.abort();
     expect(await next).toEqual({ done: true, value: undefined });
+  });
+});
+
+describe("recordMessageChanged", () => {
+  // The chat list's digest and a task's settled status are kept by the
+  // chat's generation; a reply streaming in moves none of what they read.
+  it("keeps what was derived from the session through a change in memory alone, not a written one", async () => {
+    const sessionId = StoreId.newSessionId();
+    const derived = cacheByChatGeneration<number>();
+    let computed = 0;
+    const read = () =>
+      derived(one, sessionId, () => Promise.resolve((computed += 1)));
+    const message = { id: StoreId.newMessageId(), removed: false, sessionId };
+
+    expect(await read()).toBe(1);
+    recordMessageChanged(one, message, { live: true });
+    expect(await read()).toBe(1);
+    recordMessageChanged(one, message);
+    expect(await read()).toBe(2);
   });
 });
 

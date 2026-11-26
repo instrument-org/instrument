@@ -64,14 +64,18 @@ export function recordChanged(
 /**
  * Says that a message of a transcript, or one of its parts, changed, naming
  * the message and whether it was taken out, and with `live` that the change
- * was to the running turn's memory alone.
+ * was to the running turn's memory alone. A `live` change leaves the chat's
+ * generation where it was: what is kept by it is derived from written
+ * records, as the index keeps it under a stamp of the files.
  */
 export function recordMessageChanged(
   id: ChatId,
   message: NonNullable<RecordChanged["message"]>,
   { live = false }: { live?: boolean } = {},
 ): void {
-  bumpChatGeneration(id, message.sessionId);
+  if (!live) {
+    bumpChatGeneration(id, message.sessionId);
+  }
   publisher.publish("record.changed", {
     id,
     kind: "messages",

@@ -5,11 +5,14 @@ import {
   StoreId,
   ChatIdSchema,
 } from "@instrument-org/workspace/client";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import { AgentFilesBlock } from "./agent-files-block";
 import { AssistantMessage } from "./assistant-message";
 import { MarkdownChatContext } from "./markdown-chat-context";
+import { type EditSource } from "./reply-blocks/message-edits";
+import { MessageEditSourcesContext } from "./transcript/message-edit-sources";
 
 vi.mock("@/client/hooks/use-host-paths", () => ({
   useHostPaths: (_chatId: unknown, filePaths: readonly string[]) =>
@@ -59,6 +62,7 @@ function textPart(text: string): SessionMessagePart.TextPart {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 test("a reply's message fence stands in its words as a card", async () => {
@@ -240,4 +244,116 @@ test("a prompt for another app's agent only copies", async () => {
     - button "Copy body"
     - button "Copy""
   `);
+});
+
+describe("a message that is a new version of earlier text", () => {
+  const WORDY =
+    "I am writing to you today in order to express my very strong interest in the Marketing Coordinator position that I saw posted on your website. I truly believe that I would be a really great fit for this role because of the fact that I have basically spent the last four years working in marketing at a small nonprofit organization.";
+  const TIGHT =
+    "I am writing to express my strong interest in the Marketing Coordinator position posted on your website. I would be a great fit for this role because I have spent the last four years working in marketing at a small nonprofit organization.";
+  const LANDLORD =
+    "Hi, this is Marcus from Alder Street Properties. We need to do the annual smoke detector inspection in your unit. Would Thursday between 10 and 2 work for you? If not, let me know a day that does. Thanks, Marcus";
+
+  const reply = (body: string) =>
+    textPart(
+      ["Here it is.", "", "```message", "message: other", "", body, "```"].join(
+        "\n",
+      ),
+    );
+
+  const renderReply = (body: string, sources: readonly EditSource[]) =>
+    renderInBrowser(
+      <div style={{ width: 560 }}>
+        <MessageEditSourcesContext value={sources}>
+          <AssistantMessage chatId={chatId} part={reply(body)} />
+        </MessageEditSourcesContext>
+      </div>,
+    );
+
+  const pasted: EditSource = {
+    from: "person",
+    text: `Can you tighten this paragraph?\n\n${WORDY}`,
+  };
+
+  test("switches between the original and the revision, tinting new words while pointed at", async () => {
+    const screen = await renderReply(
+      "I am writing to express my strong interest in the Marketing Coordinator role on your website. I would be a great fit for this role because I have spent four years working in marketing at a small nonprofit organization.",
+      [pasted],
+    );
+
+    await expect
+      .element(screen.getByRole("tab", { name: "Revised" }))
+      .toHaveAttribute("aria-selected", "true");
+    const edits = screen.container.querySelectorAll(".message-edit");
+    expect([...edits].map((edit) => edit.textContent)).toMatchInlineSnapshot(`
+      [
+        "role",
+      ]
+    `);
+    const tint = () => getComputedStyle(edits[0] as Element).backgroundColor;
+    expect(tint()).toBe("rgba(0, 0, 0, 0)");
+
+    await userEvent.hover(screen.getByText("Here it is."));
+    await userEvent.hover(edits[0] as HTMLElement);
+    expect(tint()).not.toBe("rgba(0, 0, 0, 0)");
+    await expect
+      .element(screen.getByRole("tooltip"))
+      .toMatchTextContent(/^Was\s*position that I saw posted$/);
+
+    const writeText = vi
+      .spyOn(navigator.clipboard, "writeText")
+      .mockResolvedValue();
+    await userEvent.click(screen.getByRole("tab", { name: "Original" }));
+    await expect.element(screen.getByText(WORDY)).toBeVisible();
+    expect(screen.container.querySelector(".message-edit")).toBeNull();
+    await expect
+      .element(screen.getByRole("button", { name: /^(Send|Share)$/ }))
+      .not.toBeInTheDocument();
+    await userEvent.click(
+      screen.getByRole("button", { name: "Copy original" }),
+    );
+    expect(writeText).toHaveBeenCalledWith(WORDY);
+  });
+
+  test("takes the agent's last draft on a second pass", async () => {
+    const second =
+      "I would love to join you as Marketing Coordinator. I have spent the last four years working in marketing at a small nonprofit organization.";
+    const screen = await renderReply(second, [
+      { from: "person", text: "Shorter please, and warmer." },
+      { from: "draft", text: TIGHT },
+      pasted,
+    ]);
+
+    await userEvent.click(screen.getByRole("tab", { name: "Original" }));
+    await expect.element(screen.getByText(TIGHT)).toBeVisible();
+  });
+
+  test("is drawn as any message when it replies to a pasted email", async () => {
+    const screen = await renderReply(
+      "Hi Marcus, Thursday works for me, but I'm only home after noon. Could the inspection be between 12 and 2? Thanks, Sam",
+      [
+        {
+          from: "person",
+          text: `My landlord sent this. Can you write a reply saying Thursday works but I'll be home only after noon?\n\n${LANDLORD}`,
+        },
+      ],
+    );
+
+    await expect.element(screen.getByText(/^Hi Marcus/)).toBeVisible();
+    await expect
+      .element(screen.getByRole("tab", { name: "Original" }))
+      .not.toBeInTheDocument();
+  });
+
+  test("keeps the original but marks no words in a rewrite", async () => {
+    const screen = await renderReply(
+      "Your Marketing Coordinator opening caught my eye. For the last four years working in marketing at a small nonprofit organization, I ran every social account and doubled what we raised each spring, which is the work I want to keep doing.",
+      [pasted],
+    );
+
+    await expect
+      .element(screen.getByRole("tab", { name: "Original" }))
+      .toBeVisible();
+    expect(screen.container.querySelector(".message-edit")).toBeNull();
+  });
 });

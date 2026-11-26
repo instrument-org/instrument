@@ -168,14 +168,27 @@ body {
   [data-pressing] :is(webview, iframe),
   [data-tab-held] :is(webview, iframe),
   [data-tab-held] body,
-  [data-tab-held] :is(.overflow-auto, .overflow-x-auto, .overflow-y-auto, [data-radix-scroll-area-viewport]) > * {
+  [data-tab-held]
+    :is(
+      .overflow-auto,
+      .overflow-x-auto,
+      .overflow-y-auto,
+      [data-radix-scroll-area-viewport]
+    )
+    > * {
     pointer-events: none;
   }
 
   /* Except a scroller itself, so a wheel or a trackpad's swipe over it still
      scrolls it the browser's own way while something is held; what is in it
      stays out of the pointer's way. */
-  [data-tab-held] :is(.overflow-auto, .overflow-x-auto, .overflow-y-auto, [data-radix-scroll-area-viewport]) {
+  [data-tab-held]
+    :is(
+      .overflow-auto,
+      .overflow-x-auto,
+      .overflow-y-auto,
+      [data-radix-scroll-area-viewport]
+    ) {
     pointer-events: auto;
   }
 
@@ -3054,6 +3067,26 @@ span[data-unbroken] > * {
   line-height: 1.6;
   vertical-align: 0.1em;
   white-space: nowrap;
+}
+
+/* A revised message's new words. Where a pointer hovers, the card rests on
+   the clean text and tints them only while it is pointed at; where none
+   does, they are always tinted. */
+.message-edit {
+  border-radius: 0.25em;
+  background-color: color-mix(in oklab, var(--brand-500) 12%, transparent);
+  box-decoration-break: clone;
+  transition: background-color 120ms ease-out;
+}
+
+.dark .message-edit {
+  background-color: color-mix(in oklab, var(--brand-400) 20%, transparent);
+}
+
+@media (hover: hover) {
+  .message-edits:not(:hover) .message-edit {
+    background-color: transparent;
+  }
 }
 
 /* An options table marks its pick with a faint tint across the row. The

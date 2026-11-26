@@ -36,6 +36,7 @@ import {
 } from "react";
 
 import { MessageEditingContext } from "./message-editing";
+import { type EditSource } from "../reply-blocks/message-edits";
 
 import { cn } from "@/client/lib/utils";
 import { type RunAgain } from "../message-error";
@@ -49,6 +50,10 @@ import {
 } from "./transcript-actions";
 import { CardFileVersionsContext } from "./card-file-versions-context";
 import { LinkedTabsContext } from "./linked-tabs-context";
+import {
+  keptEditSources,
+  MessageEditSourcesContext,
+} from "./message-edit-sources";
 import { useIsCardAway } from "./transcript-data";
 import { TurnView } from "./turn-view";
 
@@ -105,6 +110,7 @@ export function Transcript({
   // token streaming into the last reply leaves every other turn's memo whole.
   const [kept] = useState<KeptPerTurn>(() => ({
     changes: new Map(),
+    editSources: new Map(),
     separators: new Map(),
     versions: new Map(),
   }));
@@ -120,6 +126,10 @@ export function Transcript({
   const versions = useMemo(
     () => keptTurnVersions(kept.versions, fileVersions, turns),
     [kept, fileVersions, turns],
+  );
+  const editSources = useMemo(
+    () => keptEditSources(kept.editSources, turns),
+    [kept, turns],
   );
   const actions = useStableActions({
     isRunning,
@@ -147,29 +157,31 @@ export function Transcript({
     !isRunning && last?.replies.at(-1)?.metadata.finishReason === "max-steps";
   const drawTurn = (turn: Turn) => (
     <CardFileVersionsContext key={turn.id} value={versions.get(turn.id)}>
-      <LinkedTabsContext value={turnLinkedTabs(turn)}>
-        <TurnView
-          chatId={chatId}
-          changes={turn.opener && changes.get(turn.opener.message.id)}
-          hasCard={turn.id === cardTurn}
-          isCardAway={turn.id === cardTurn && isCardAway}
-          isFaded={
-            editedAt === -1 || turns.indexOf(turn) < editedAt
-              ? undefined
-              : turns[editedAt] === turn
-                ? "work"
-                : "all"
-          }
-          isLast={turn === last}
+      <MessageEditSourcesContext value={editSources.get(turn.id)}>
+        <LinkedTabsContext value={turnLinkedTabs(turn)}>
+          <TurnView
+            chatId={chatId}
+            changes={turn.opener && changes.get(turn.opener.message.id)}
+            hasCard={turn.id === cardTurn}
+            isCardAway={turn.id === cardTurn && isCardAway}
+            isFaded={
+              editedAt === -1 || turns.indexOf(turn) < editedAt
+                ? undefined
+                : turns[editedAt] === turn
+                  ? "work"
+                  : "all"
+            }
+            isLast={turn === last}
 
-          carriesOn={replies.carriedOn.has(turn.id)}
-          replyEnd={replies.ends.get(turn.id)}
-          separator={turn.opener && separators.get(turn.opener.message.id)}
-          sessionId={sessionId}
-          turn={turn}
-          waitsForStep={turn === last && waitsForStep(turns)}
-        />
-      </LinkedTabsContext>
+            carriesOn={replies.carriedOn.has(turn.id)}
+            replyEnd={replies.ends.get(turn.id)}
+            separator={turn.opener && separators.get(turn.opener.message.id)}
+            sessionId={sessionId}
+            turn={turn}
+            waitsForStep={turn === last && waitsForStep(turns)}
+          />
+        </LinkedTabsContext>
+      </MessageEditSourcesContext>
     </CardFileVersionsContext>
   );
   return (
@@ -348,6 +360,7 @@ type TurnVersions = ReadonlyMap<string, CardFileVersion>;
  */
 interface KeptPerTurn {
   changes: Map<StoreId.Message, InstructionsChange[]>;
+  editSources: Map<StoreId.Message, readonly EditSource[]>;
   separators: Map<StoreId.Message, ChatSeparator>;
   versions: Map<StoreId.Message, TurnVersions>;
 }

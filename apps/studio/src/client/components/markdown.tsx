@@ -409,12 +409,12 @@ const MarkdownPre: Components["pre"] = ({ children, node }) => {
     return <AgentFilesBlock content={fence.code} />;
   }
 
-  if (fence.language === AGENT_MESSAGE_LANGUAGE) {
-    return <MessageFence code={fence.code} />;
-  }
-
   const isArriving =
     arrivingSource !== undefined && isFenceOpen(arrivingSource, node);
+
+  if (fence.language === AGENT_MESSAGE_LANGUAGE) {
+    return <MessageFence code={fence.code} isArriving={isArriving} />;
+  }
 
   if (fence.language === AGENT_TIMELINE_LANGUAGE) {
     return <TimelineBlock content={fence.code} isArriving={isArriving} />;

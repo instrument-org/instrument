@@ -6,6 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/client/components/ui/dropdown-menu";
+import { Tabs, TabsList, TabsTrigger } from "@/client/components/ui/tabs";
 import {
   Tooltip,
   TooltipContent,
@@ -21,7 +22,7 @@ import {
 import { formatAbsoluteTime } from "@/client/lib/relative-time";
 import { toast } from "@/client/lib/toast";
 import { useTimedFlag } from "@/client/hooks/use-timed-flag";
-import { isMacOS } from "@/client/lib/utils";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import {
   type ChatId,
@@ -48,7 +49,13 @@ import { type ReactNode, useContext, useState } from "react";
 
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { messageKindOf } from "./message-kind";
+import {
+  type EditStretch,
+  findMessageEdit,
+  type MessageEdit,
+} from "./reply-blocks/message-edits";
 import { ReplyPartContext } from "./reply-part-context";
+import { MessageEditSourcesContext } from "./transcript/message-edit-sources";
 import { chatListed } from "./window/chat-list-query";
 import { useListedChat } from "./window/chat-tab-menu";
 import { projectColor } from "./window/project-colors";
@@ -169,22 +176,44 @@ export function MessageActions({
  * Gmail in the browser, each named with its icon, and on macOS anything shares
  * to Messages or wherever the user picks. One the agent sends itself only
  * shows the words and copies.
+ *
+ * A message that is a new version of earlier text (`edit`) switches between
+ * the two, Revised first. Revised shows the new words tinted, while the card
+ * is pointed at or always where nothing points, each saying what it replaced;
+ * Original only copies.
  */
 export function MessageCard({
+  edit,
   file,
   isStreaming = false,
-  message,
+  message: revised,
 }: {
+  edit?: MessageEdit;
   /** The file the message lives in, when it has one, opened from the head. */
   file?: { name: string; open: () => void };
   isStreaming?: boolean;
   message: MessageDraft;
 }) {
+  const [isOriginal, setIsOriginal] = useState(false);
+  const showsOriginal = edit !== undefined && isOriginal;
+  const message: MessageDraft = showsOriginal
+    ? {
+        ...revised,
+        body: edit.original.body,
+        subject: edit.original.subject,
+      }
+    : revised;
+  const stretches = showsOriginal ? undefined : edit?.stretches;
   const kind = messageKindOf(message.kind);
   const settled = !isStreaming && message.body !== "";
 
   return (
-    <div className="not-prose my-2 w-full min-w-0 rounded-xl border border-border bg-card text-card-foreground shadow-xs first:mt-0 last:mb-0">
+    <div
+      className={cn(
+        "not-prose my-2 w-full min-w-0 rounded-xl border border-border bg-card text-card-foreground shadow-xs first:mt-0 last:mb-0",
+        stretches && "message-edits",
+      )}
+    >
       <div className="flex min-w-0 items-center gap-2 border-b border-border px-3.5 py-2 text-xs text-muted-foreground [&_svg]:size-3.5">
         {kind.icon}
         <span className="min-w-0 truncate">
@@ -230,12 +259,42 @@ export function MessageCard({
       <div className="px-1.5 py-1.5">
         <CopyablePart label="Copy body" value={message.body}>
           <p className="text-sm/[1.55] whitespace-pre-wrap">
-            {message.body ? <WithPlaceholders text={message.body} /> : " "}
+            {stretches ? (
+              <EditedBody stretches={stretches} />
+            ) : message.body ? (
+              <WithPlaceholders text={message.body} />
+            ) : (
+              " "
+            )}
           </p>
         </CopyablePart>
       </div>
       <div className="flex items-center justify-end gap-1.5 px-3.5 pb-3">
-        {message.kind === "prompt" ? (
+        {edit && (
+          <Tabs
+            className="mr-auto"
+            onValueChange={(value) => {
+              setIsOriginal(value === "original");
+            }}
+            value={showsOriginal ? "original" : "revised"}
+          >
+            <TabsList className="h-7 rounded-lg p-0.5">
+              <TabsTrigger className="px-2 text-xs" value="original">
+                Original
+              </TabsTrigger>
+              <TabsTrigger className="px-2 text-xs" value="revised">
+                Revised
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        )}
+        {showsOriginal ? (
+          <CopyWholeButton
+            disabled={!settled}
+            getMessage={() => message}
+            label="Copy original"
+          />
+        ) : message.kind === "prompt" ? (
           <PromptActions disabled={!settled} message={message} />
         ) : (
           <MessageActions
@@ -250,20 +309,68 @@ export function MessageCard({
   );
 }
 
-/** A ```message fence in a reply, drawn as the card while it streams in. */
-export function MessageFence({ code }: { code: string }) {
+/**
+ * A ```message fence in a reply, drawn as the card while it streams in. Once
+ * the fence is closed, a message that is a new version of text earlier in the
+ * chat shows what changed (`findMessageEdit`).
+ */
+export function MessageFence({
+  code,
+  isArriving,
+}: {
+  code: string;
+  isArriving: boolean;
+}) {
   const { isStreaming } = useContext(MarkdownChatContext);
-  return <MessageCard isStreaming={isStreaming} message={parseMessage(code)} />;
+  const sources = useContext(MessageEditSourcesContext);
+  const message = parseMessage(code);
+  const edit =
+    sources && !isArriving ? findMessageEdit(message.body, sources) : undefined;
+  return (
+    <MessageCard edit={edit} isStreaming={isStreaming} message={message} />
+  );
+}
+
+/**
+ * A revised body with its new words tinted (`.message-edit`), each pointed at
+ * saying what it replaced, when anything was there.
+ */
+function EditedBody({ stretches }: { stretches: readonly EditStretch[] }) {
+  return stretches.map((stretch, index) =>
+    stretch.kind === "kept" ? (
+      <WithPlaceholders key={index} text={stretch.text} />
+    ) : stretch.was ? (
+      <Tooltip key={index}>
+        <TooltipTrigger asChild>
+          <span className="message-edit">
+            <WithPlaceholders text={stretch.text} />
+          </span>
+        </TooltipTrigger>
+        <TooltipContent>
+          <span className="block font-medium text-muted-foreground">Was</span>
+          <span className="line-clamp-6 whitespace-pre-wrap">
+            {stretch.was}
+          </span>
+        </TooltipContent>
+      </Tooltip>
+    ) : (
+      <span className="message-edit" key={index}>
+        <WithPlaceholders text={stretch.text} />
+      </span>
+    ),
+  );
 }
 
 /** Copy, taking the whole message as it pastes, and saying so for a moment. */
 function CopyWholeButton({
   disabled,
   getMessage,
+  label = "Copy",
   variant = "outline",
 }: {
   disabled: boolean;
   getMessage: () => MessageDraft;
+  label?: string;
   variant?: "brand" | "outline";
 }) {
   const { active: copied, trigger: showCopied } = useTimedFlag();
@@ -279,7 +386,7 @@ function CopyWholeButton({
       variant={variant}
     >
       {copied ? <CheckIcon /> : <CopyIcon />}
-      {copied ? "Copied" : "Copy"}
+      {copied ? "Copied" : label}
     </Button>
   );
 }

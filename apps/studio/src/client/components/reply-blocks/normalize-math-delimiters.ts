@@ -1,3 +1,6 @@
+import remarkParse from "remark-parse";
+import { unified } from "unified";
+
 /**
  * Rewrites the ways a reply writes TeX math that `remark-math` does not read
  * into the ones it does, so math is drawn however the agent delimited it:
@@ -12,13 +15,83 @@
  *   own around math, as a display block between `$$` lines. `\[` inside a
  *   sentence is an escaped bracket and stays one.
  *
- * Fenced code, inline code, a `$` escaped with a backslash and a display
- * block's own lines are left as written.
+ * Code of every kind (fenced or indented, in a list item or a quote, inline)
+ * and raw HTML, a `$` escaped with a backslash and a display block's own lines
+ * are left as written. A text with nothing to rewrite is returned without
+ * being parsed; one with something is parsed once to find its code, which is
+ * held out of the rewrite.
  */
 export function normalizeMathDelimiters(markdown: string): string {
   if (!markdown.includes("$") && !markdown.includes("\\")) {
     return markdown;
   }
+  const rewritten = rewriteMath(markdown);
+  if (rewritten === markdown) {
+    return markdown;
+  }
+  const code = codeRangesOf(markdown);
+  if (code.length === 0) {
+    return rewritten;
+  }
+  // Each run of code stands in as a token with no `$`, `\` or space in it,
+  // and goes back once the rest is rewritten.
+  let masked = "";
+  let last = 0;
+  for (const [index, [start, end]] of code.entries()) {
+    masked += `${markdown.slice(last, start)}${TOKEN_START}${index.toString(36)}${TOKEN_END}`;
+    last = end;
+  }
+  masked += markdown.slice(last);
+  return rewriteMath(masked).replaceAll(TOKEN, (_whole, index: string) => {
+    const [start, end] = code[Number.parseInt(index, 36)] ?? [0, 0];
+    return markdown.slice(start, end);
+  });
+}
+
+const TOKEN_START = "\uE000";
+const TOKEN_END = "\uE001";
+const TOKEN = /\uE000([0-9a-z]+)\uE001/g;
+
+const parser = unified().use(remarkParse);
+
+/** Where code and raw HTML are in a Markdown text, as source offsets in order. */
+const codeRangesOf = (markdown: string) => {
+  const ranges: [number, number][] = [];
+  const visit = (node: MdastNode) => {
+    const start = node.position?.start.offset;
+    const end = node.position?.end.offset;
+    if (
+      (node.type === "code" ||
+        node.type === "inlineCode" ||
+        node.type === "html") &&
+      start !== undefined &&
+      end !== undefined
+    ) {
+      ranges.push([start, end]);
+      return;
+    }
+    for (const child of node.children ?? []) {
+      visit(child);
+    }
+  };
+  visit(parser.parse(markdown));
+  return ranges;
+};
+
+// `@types/mdast` is not a dependency here; this reads a handful of fields.
+interface MdastNode {
+  children?: MdastNode[];
+  position?: { end: { offset?: number }; start: { offset?: number } };
+  type: string;
+}
+
+/**
+ * The rewrite itself, line by line. It knows a fence only at the start of a
+ * line and inline code only within one, which is enough to tell whether a
+ * text has anything to rewrite at all; `normalizeMathDelimiters` holds out
+ * the rest of the code before the rewrite that counts.
+ */
+function rewriteMath(markdown: string): string {
   const out: string[] = [];
   let fence: string | undefined;
   // The line that closes the display block this line is in.

@@ -931,6 +931,39 @@ describe("a numbers block", () => {
   });
 });
 
+describe("Markdown math", () => {
+  it.each([
+    ["a single-dollar formula", "Solve $x + 1 = 3$ first.", ".katex"],
+    ["a display line", "\\[ A = \\pi r^2 \\]", ".katex-display"],
+  ])("draws %s in a message", async (_case, markdown, selector) => {
+    const { container } = renderMarkdown(markdown);
+
+    await waitFor(
+      () => {
+        expect(container.querySelector(selector)).not.toBeNull();
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
+  });
+
+  it("draws a settled block's formula while the message streams", async () => {
+    const { container } = renderWithProviders(
+      <Markdown
+        chatId={TASK_ID}
+        isStreaming
+        markdown={"Solve $x + 1 = 3$ first.\n\nThen the next"}
+      />,
+    );
+
+    await waitFor(
+      () => {
+        expect(container.querySelector(".katex")).not.toBeNull();
+      },
+      { timeout: RAW_HTML_TIMEOUT },
+    );
+  });
+});
+
 describe("Markdown table shape", () => {
   it("marks a table with the width it fits and what it does under it", () => {
     const { container } = renderMarkdown(

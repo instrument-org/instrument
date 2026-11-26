@@ -91,4 +91,33 @@ describe("normalizeMathDelimiters", () => {
     const text = String.raw`Read a\[0\] first.`;
     expect(normalizeMathDelimiters(text)).toBe(text);
   });
+
+  it.each([
+    [
+      "a fence in a list item",
+      '1. Run:\n    ```bash\n    echo "$HOME/$USER"\n    ```',
+    ],
+    ["a fence in a quote", "> ```sh\n> echo ${A}${B}\n> ```"],
+    ["an indented code block", "Then:\n\n    a $x/$y"],
+    ["a pattern in a fence", "```sh\ngrep '\\(a\\)' $x$\n```"],
+    ["raw HTML", '<span title="$a$">b</span>'],
+  ])("never touches code: %s", (_name, text) => {
+    expect(normalizeMathDelimiters(text)).toBe(text);
+  });
+
+  it("reads math beside code it holds out", () => {
+    expect(
+      normalizeMathDelimiters(
+        "- Set $x = 2$ first:\n\n  ```sh\n  echo $A$B\n  ```\n\n  then `$y$` and $z$.",
+      ),
+    ).toMatchInlineSnapshot(`
+      "- Set $$x = 2$$ first:
+
+        \`\`\`sh
+        echo $A$B
+        \`\`\`
+
+        then \`$y$\` and $$z$$."
+    `);
+  });
 });

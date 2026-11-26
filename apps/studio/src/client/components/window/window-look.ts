@@ -1,4 +1,5 @@
 import { hostPathOfComputerFileUrl } from "@/client/lib/computer-file-url";
+import { targetIdFromPartition } from "@/shared/browser";
 import {
   type LayoutTab,
   type WindowBox,
@@ -10,6 +11,18 @@ import {
 const DRAW_TIMEOUT_MS = 600;
 /** The longest side of a picture that is only an icon, in CSS px. */
 const ICON_PX = 40;
+
+/**
+ * Fields whose text is a secret whatever is typed there: passwords, one-time
+ * codes, and Instrument's own fields for keys, tokens and sign-in codes.
+ */
+export const SECRET_FIELDS = [
+  "input[type=password]",
+  'input[autocomplete~="current-password"]',
+  'input[autocomplete~="new-password"]',
+  'input[autocomplete~="one-time-code"]',
+  "[data-secret-field]",
+].join(", ");
 
 /** What draws something other than the document's own words and shapes. */
 const PICTURED = "img, video, canvas, iframe, object, embed, picture";
@@ -56,10 +69,37 @@ export function readWindowLook(
     const up = tabId === null ? undefined : tabUp(tabId);
     const [box] = page ? seenBox(page) : [];
     if (up !== undefined && box !== undefined) {
-      sideOfCard.set(card, sides.push({ box, ...up }) - 1);
+      const [guest] = [...card.querySelectorAll("webview")].flatMap(
+        (webview) =>
+          targetIdFromPartition(
+            webview.getAttribute("partition") ?? undefined,
+          ) === tabId
+            ? seenBox(webview)
+            : [],
+      );
+      sideOfCard.set(
+        card,
+        sides.push({ box, ...(guest === undefined ? {} : { guest }), ...up }) -
+          1,
+      );
     }
   }
+  const typing = typingField();
   return {
+    fields: [
+      ...[...document.querySelectorAll(SECRET_FIELDS)].flatMap((field) =>
+        seenBox(field).map((box) => ({ box })),
+      ),
+      ...(typing === undefined
+        ? []
+        : seenBox(typing).map((box) => {
+            const card = typing
+              .closest('[data-slot="composer-frame"]')
+              ?.closest("[data-group-side]");
+            const side = card ? sideOfCard.get(card) : undefined;
+            return { box, ...(side === undefined ? {} : { replyBoxOf: side }) };
+          })),
+    ],
     pictures: [...document.querySelectorAll(PICTURED)].flatMap((element) => {
       const [box] = seenBox(element);
       if (box === undefined) {
@@ -87,6 +127,19 @@ export function readWindowLook(
     }),
     sides,
   };
+}
+
+/** The field the person is typing in, where the keyboard is in one. */
+function typingField(): Element | undefined {
+  const field = document.activeElement;
+  return field instanceof HTMLTextAreaElement ||
+    (field instanceof HTMLInputElement &&
+      !["button", "checkbox", "radio", "range", "reset", "submit"].includes(
+        field.type,
+      )) ||
+    (field instanceof HTMLElement && field.isContentEditable)
+    ? field
+    : undefined;
 }
 
 /** What of an element can be seen, as a part of the window; nothing for one out of sight. */

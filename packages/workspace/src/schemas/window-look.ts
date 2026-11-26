@@ -18,6 +18,8 @@ export type WindowBox = z.output<typeof WindowBoxSchema>;
  */
 const WindowSideSchema = z.object({
   box: WindowBoxSchema,
+  /** For a website: where its guest is drawn, which its own fields are placed in. */
+  guest: WindowBoxSchema.optional(),
   /** For a folder: the folder its view starts from, whose folders down to this one it may list. */
   root: z.string().optional(),
   tab: LayoutTabSchema,
@@ -32,6 +34,17 @@ export type WindowSide = z.output<typeof WindowSideSchema>;
  * the chat may not read.
  */
 export const WindowLookSchema = z.object({
+  /**
+   * Fields of the window's own whose text is a secret (passwords, keys,
+   * tokens, sign-in codes), and the field the keyboard is in.
+   */
+  fields: z.array(
+    z.object({
+      box: WindowBoxSchema,
+      /** The side whose chat's reply box the field is, by its place in `sides`. */
+      replyBoxOf: z.number().int().min(0).optional(),
+    }),
+  ),
   /** Pictures, players and frames drawn in the window, outside a web page's own. */
   pictures: z.array(
     z.object({

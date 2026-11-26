@@ -242,12 +242,16 @@ export interface WindowCamera {
   capture: (window: number) => Promise<undefined | WindowFrame>;
   /**
    * What a page's guest shows: the document of every frame in it, as the
-   * main process saw each load, and whether any has a field for a password
-   * or a one-time code on screen. Undefined where any of that cannot be told.
+   * main process saw each load, where its main frame's password, one-time
+   * code and typing fields are (as fractions of the guest), and whether a
+   * frame in it has one. Undefined where any of that cannot be told.
    */
   pageShows: (
     tabId: string,
-  ) => Promise<undefined | { documents: string[]; isSigningIn: boolean }>;
+  ) => Promise<
+    | undefined
+    | { documents: string[]; fields: WindowBox[]; hasFrameField: boolean }
+  >;
 }
 
 export interface WorkspaceConfig {

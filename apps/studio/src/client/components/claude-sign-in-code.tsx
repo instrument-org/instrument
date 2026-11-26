@@ -103,6 +103,7 @@ export function ClaudeSignInCode({
           <Input
             aria-label="Code from Claude"
             autoComplete="off"
+            data-secret-field=""
             className="min-w-0 flex-1"
             onChange={(event) => {
               setCode(event.target.value);

@@ -56,7 +56,10 @@ vi.mock(import("./chat/window-tab"), async (importOriginal) => ({
   },
 }));
 
-let pages: Record<string, { documents: string[]; isSigningIn: boolean }>;
+let pages: Record<
+  string,
+  { documents: string[]; fields: WindowBox[]; hasFrameField: boolean }
+>;
 let masks: WindowMask[];
 let captures: number;
 const config = getWorkspaceConfig();
@@ -106,7 +109,7 @@ const page = (tabId = "tab_page") =>
 
 /** The window with one side, the one under test. */
 function lookAt(one: WindowSide, more: Partial<WindowLook> = {}): WindowLook {
-  return { pictures: [], sides: [one], ...more };
+  return { fields: [], pictures: [], sides: [one], ...more };
 }
 
 async function take(layout = layoutWith()) {
@@ -191,7 +194,12 @@ describe("what a picture shows of a side or a page", () => {
       false,
       true,
     ],
-    ["a page asking for a password", ["https://example.com/"], true, false],
+    [
+      "a page with a password field in a frame",
+      ["https://example.com/", "https://login.example.com/"],
+      true,
+      false,
+    ],
     [
       "a page with a password manager's frame in it",
       ["https://example.com/", "chrome-extension://abc/menu.html"],
@@ -221,14 +229,14 @@ describe("what a picture shows of a side or a page", () => {
     ],
     ["view-source of anything", ["view-source:file:///a"], false, false],
     ["a page that loaded nothing", [], false, false],
-  ])("%s", async (_name, documents, isSigningIn, isShown) => {
-    pages = { tab_page: { documents, isSigningIn } };
+  ])("%s", async (_name, documents, hasFrameField, isShown) => {
+    pages = { tab_page: { documents, fields: [], hasFrameField } };
     answers = [{ look: lookAt(page()) }];
     expect(await take()).toMatchObject({ blanked: isShown ? SHOWN : BLANK });
   });
 
   it("shows everything outside the sides as drawn", async () => {
-    answers = [{ look: { pictures: [], sides: [] } }];
+    answers = [{ look: { fields: [], pictures: [], sides: [] } }];
     expect(await take()).toEqual({ blanked: [], hidden: [] });
   });
 });
@@ -278,6 +286,7 @@ describe("pictures", () => {
     answers = [
       {
         look: {
+          fields: [],
           pictures: [
             { box, file: path.join(hidden, "a.png"), isIcon: false },
             { box: PAGE, file: path.join(docs, "a.png"), isIcon: false },
@@ -298,6 +307,84 @@ describe("pictures", () => {
         file: path.join(hidden, "a.png"),
       }),
     ).toEqual([PAGE]);
+  });
+});
+
+describe("fields", () => {
+  /** Where the guest is drawn: the right half, below the page's own bar. */
+  const GUEST: WindowBox = { height: 0.5, width: 0.5, x: 0.5, y: 0.25 };
+  const field: WindowBox = { height: 0.25, width: 0.5, x: 0.25, y: 0.5 };
+  const onGuest = (tabId = "tab_page"): WindowSide => ({
+    ...page(tabId),
+    guest: GUEST,
+  });
+
+  it("blanks a page's password or typing field where its guest draws it, and shows the rest", async () => {
+    pages = {
+      tab_page: {
+        documents: ["https://example.com/login"],
+        fields: [field],
+        hasFrameField: false,
+      },
+    };
+    answers = [{ look: lookAt(onGuest()) }];
+    expect(await take()).toEqual({
+      blanked: [{ height: 0.125, width: 0.25, x: 0.625, y: 0.5 }],
+      hidden: [
+        { why: "password and key fields, and the field being typed in" },
+      ],
+    });
+  });
+
+  it("blanks the page whole where its fields can't be placed", async () => {
+    pages = {
+      tab_page: {
+        documents: ["https://example.com/login"],
+        fields: [field],
+        hasFrameField: false,
+      },
+    };
+    answers = [{ look: lookAt(page()) }];
+    expect(await take()).toMatchObject({ blanked: BLANK });
+    pages = {
+      tab_page: {
+        documents: ["https://example.com/", "https://pay.example.net/"],
+        fields: [],
+        hasFrameField: true,
+      },
+    };
+    answers = [{ look: lookAt(onGuest()) }];
+    expect(await take()).toMatchObject({
+      blanked: BLANK,
+      hidden: [{ why: "a password or typing field on it can't be placed" }],
+    });
+  });
+
+  it("blanks the window's own key fields and the field being typed in, but for the chat's own reply box", async () => {
+    const own = side({
+      ...tab("chat", `instrument://chat/${chatId}`),
+      id: "tab_own",
+    });
+    const other = side({
+      ...tab("chat", "instrument://chat/another"),
+      id: "tab_other",
+    });
+    const key: WindowBox = { height: 0.05, width: 0.3, x: 0.1, y: 0.1 };
+    const typing: WindowBox = { height: 0.1, width: 0.4, x: 0.5, y: 0.85 };
+    answers = [
+      {
+        look: {
+          fields: [
+            { box: key },
+            { box: typing, replyBoxOf: 0 },
+            { box: field, replyBoxOf: 1 },
+          ],
+          pictures: [],
+          sides: [own, other],
+        },
+      },
+    ];
+    expect(await take()).toMatchObject({ blanked: [key, field] });
   });
 });
 

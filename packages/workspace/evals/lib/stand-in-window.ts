@@ -84,7 +84,7 @@ export function createStandInWindow(chrome?: SharedChrome) {
    * blanked here.
    */
   let picture: Buffer | undefined;
-  const look: WindowLook = { pictures: [], sides: [] };
+  const look: WindowLook = { fields: [], pictures: [], sides: [] };
   /** The chat's last page in the group, which its next one goes right after. */
   let previous: string | undefined;
 

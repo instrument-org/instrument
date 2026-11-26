@@ -383,6 +383,7 @@ export function AddProviderForm({
               <>
                 <Input
                   className="font-mono"
+                  data-secret-field=""
                   id="api-key"
                   onChange={(e) => {
                     handleApiKeyChange(e.target.value);

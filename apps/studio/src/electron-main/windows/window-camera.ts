@@ -3,6 +3,7 @@ import {
   type WindowMask,
 } from "@instrument-org/workspace/electron";
 import { BrowserWindow, nativeImage, webContents } from "electron";
+import { z } from "zod";
 
 import { captureFrame } from "../browser-view/capture-frame";
 import { guests } from "../browser-view/guest-registry";
@@ -17,18 +18,41 @@ const DEADLINE_MS = 2000;
 const FRAME_ANSWER_MS = 1000;
 
 /**
- * Runs in each frame of a page: whether a field for a password, a new one, or
- * a one-time code is on screen. A page that shows its password as text keeps
- * the field's `autocomplete`.
+ * Runs in each frame of a page: where each field whose text is a secret is
+ * on screen (a password, a new one, a one-time code; a page that shows its
+ * password as text keeps the field's `autocomplete`), and the field the
+ * keyboard is in, as fractions of the frame's viewport.
  */
-const SIGN_IN_UP = `(() => [...document.querySelectorAll(
-  'input[type=password], input[autocomplete~="current-password"], input[autocomplete~="new-password"], input[autocomplete~="one-time-code"]'
-)].some((field) => {
-  const box = field.getBoundingClientRect();
-  return box.width > 1 && box.height > 1 && box.bottom > 0 && box.right > 0 &&
-    box.top < innerHeight && box.left < innerWidth &&
-    getComputedStyle(field).visibility !== "hidden";
-}))()`;
+const SECRET_FIELDS_UP = `(() => {
+  const secret = [...document.querySelectorAll(
+    'input[type=password], input[autocomplete~="current-password"], input[autocomplete~="new-password"], input[autocomplete~="one-time-code"]'
+  )];
+  const typing = document.activeElement;
+  const isTyping = typing instanceof HTMLTextAreaElement ||
+    (typing instanceof HTMLInputElement &&
+      !["button", "checkbox", "radio", "range", "reset", "submit"].includes(typing.type)) ||
+    (typing instanceof HTMLElement && typing.isContentEditable);
+  return [...secret, ...(isTyping ? [typing] : [])].flatMap((field) => {
+    const box = field.getBoundingClientRect();
+    const left = Math.max(0, box.left), top = Math.max(0, box.top);
+    const right = Math.min(innerWidth, box.right), bottom = Math.min(innerHeight, box.bottom);
+    return right - left > 1 && bottom - top > 1 &&
+      getComputedStyle(field).visibility !== "hidden"
+      ? [{ height: (bottom - top) / innerHeight, width: (right - left) / innerWidth,
+           x: left / innerWidth, y: top / innerHeight }]
+      : [];
+  });
+})()`;
+
+/** What a frame's script answers, held to its shape since a page can change what it returns. */
+const WindowBoxesSchema = z.array(
+  z.object({
+    height: z.number(),
+    width: z.number(),
+    x: z.number(),
+    y: z.number(),
+  }),
+);
 
 /** Looks at windows and their pages for `instrument window look`. */
 export const windowCamera: WindowCamera = {
@@ -76,7 +100,8 @@ export const windowCamera: WindowCamera = {
     }
     const { contents } = record;
     try {
-      const frames = contents.mainFrame.framesInSubtree;
+      const { mainFrame } = contents;
+      const frames = mainFrame.framesInSubtree;
       const read = await Promise.all(
         frames.map(async (frame) => {
           const loaded = guests.documentOf(contents.id, frame);
@@ -85,17 +110,26 @@ export const windowCamera: WindowCamera = {
           const document =
             loaded ??
             (/^about:|^$/.test(frame.url) ? "about:blank" : undefined);
-          const isSigningIn: unknown = await withDeadline(
-            frame.executeJavaScript(SIGN_IN_UP),
-          );
-          return { document, isSigningIn };
+          const answer: Promise<unknown> =
+            frame.executeJavaScript(SECRET_FIELDS_UP);
+          const fields = await withDeadline(answer).catch(() => undefined);
+          return { document, fields, frame };
         }),
       );
       const documents = read.flatMap(({ document }) => document ?? []);
-      return documents.length === frames.length
+      const main = read.find(({ frame }) => frame === mainFrame);
+      const fields = WindowBoxesSchema.safeParse(main?.fields);
+      return documents.length === frames.length && fields.success
         ? {
             documents,
-            isSigningIn: read.some(({ isSigningIn }) => isSigningIn !== false),
+            fields: fields.data,
+            // A frame's own fields can't be placed in the page, nor can
+            // those of a frame that would not say.
+            hasFrameField: read.some(
+              ({ fields: each, frame }) =>
+                frame !== mainFrame &&
+                !(Array.isArray(each) && each.length === 0),
+            ),
           }
         : undefined;
     } catch (error) {

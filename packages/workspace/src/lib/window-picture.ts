@@ -20,8 +20,10 @@ import { type WorkspaceFsLayout } from "./workspace-fs-layout";
 /**
  * A picture of the person's window as they see it, with each part the chat
  * may not read blanked: a side's page in a file or frame the chat cannot
- * read, with a password field up, or a screen not listed here, and a picture
- * of a file out of the chat's reach. Everything else (the sidebar, the rows
+ * read or a screen not listed here, a picture of a file out of the chat's
+ * reach, and every field whose text is a secret (a password, a one-time
+ * code, a key or token of Instrument's own) or that the person is typing in,
+ * but for the chat's own reply box. Everything else (the sidebar, the rows
  * of tabs, the gaps between sides, menus and dialogs) stays as drawn.
  */
 
@@ -107,7 +109,7 @@ export async function takeWindowPicture({
     }
     const shows = await decide(answer.look, reading);
     return {
-      blanked: blankedBoxes(answer.look, shows, layout),
+      blanked: blankedBoxes(answer.look, shows, reading),
       look: answer.look,
       shows,
     };
@@ -137,25 +139,30 @@ export async function takeWindowPicture({
     }
     return {
       hidden: hiddenParts(after),
-      png: frame.masked({ blanked: after.blanked }),
+      png: frame.masked({
+        blanked: [...after.blanked.parts, ...after.blanked.fields],
+      }),
     };
   }
   return { error: "the window kept changing, so no picture was taken." };
 }
 
 /** What is left out, each tab once. */
-function hiddenParts({ blanked, look, shows }: Looked): HiddenPart[] {
+function hiddenParts({ blanked, shows }: Looked): HiddenPart[] {
   const parts = shows.flatMap(({ hidden }) =>
     hidden === undefined ? [] : [hidden],
   );
-  const sidesBlanked = shows.filter((each) => each.hidden).length;
   return [
     ...parts.filter(
       (part, index) =>
         parts.findIndex((each) => each.tab === part.tab) === index,
     ),
-    ...(blanked.length > sidesBlanked && look.pictures.length > 0
+    ...(blanked.parts.length >
+    shows.filter((each) => each.hidden !== undefined).length
       ? [{ why: "pictures of files you can't read" }]
+      : []),
+    ...(blanked.fields.length > 0
+      ? [{ why: "password and key fields, and the field being typed in" }]
       : []),
   ];
 }
@@ -164,12 +171,14 @@ function hiddenParts({ blanked, look, shows }: Looked): HiddenPart[] {
 interface Shows {
   /** The document a page is on, for telling whether it changed; its frames come and go, each judged at each reading. */
   document?: string;
+  /** The fields on a page to blank, placed in the window. */
+  fields?: WindowBox[];
   hidden?: HiddenPart;
 }
 
 interface Looked {
-  /** The parts blanked. */
-  blanked: WindowBox[];
+  /** The parts blanked, and apart from them the fields. */
+  blanked: { fields: WindowBox[]; parts: WindowBox[] };
   look: WindowLook;
   shows: Shows[];
 }
@@ -200,20 +209,31 @@ async function decide(look: WindowLook, reading: Reading): Promise<Shows[]> {
   return Promise.all(look.sides.map((side) => sideShows(side, reading)));
 }
 
-/** A page, by every document in it: a frame can show what its page does not. */
-async function pageShows(tabId: string, reading: Reading): Promise<Shows> {
+/**
+ * A page, by every document in it: a frame can show what its page does not.
+ * Its secret and typing fields are placed in the window by where its guest
+ * is drawn; a page whose fields can't be placed is blanked whole.
+ */
+async function pageShows(
+  tabId: string,
+  guest: undefined | WindowBox,
+  reading: Reading,
+): Promise<Shows> {
   const hidden = (why: string) => ({ tab: tabId, why });
   const shows = await reading.camera.pageShows(tabId);
   if (!shows) {
     return { hidden: hidden("what it shows can't be told") };
   }
-  const { documents, isSigningIn } = shows;
+  const { documents, fields, hasFrameField } = shows;
   const [document] = documents;
   if (document === undefined) {
     return { hidden: hidden("what it shows can't be told") };
   }
-  if (isSigningIn) {
-    return { document, hidden: hidden("a sign-in is up on it") };
+  if (hasFrameField || (fields.length > 0 && guest === undefined)) {
+    return {
+      document,
+      hidden: hidden("a password or typing field on it can't be placed"),
+    };
   }
   const isOpen = (url: string) => {
     let scheme: string;
@@ -226,16 +246,27 @@ async function pageShows(tabId: string, reading: Reading): Promise<Shows> {
       ? agentPathOfFileUrl(reading.layout, url) !== null
       : ["about:", "blob:", "data:", "http:", "https:"].includes(scheme);
   };
-  return documents.every(isOpen)
+  if (!documents.every(isOpen)) {
+    return {
+      document,
+      hidden: hidden("it shows a file or an extension you can't read"),
+    };
+  }
+  return guest === undefined
     ? { document }
     : {
         document,
-        hidden: hidden("it shows a file or an extension you can't read"),
+        fields: fields.map((field) => ({
+          height: field.height * guest.height,
+          width: field.width * guest.width,
+          x: guest.x + field.x * guest.width,
+          y: guest.y + field.y * guest.height,
+        })),
       };
 }
 
 async function sideShows(
-  { root, tab }: WindowSide,
+  { guest, root, tab }: WindowSide,
   reading: Reading,
 ): Promise<Shows> {
   const { layout } = reading;
@@ -248,7 +279,7 @@ async function sideShows(
     case "newChat":
       return shown;
     case "website":
-      return pageShows(tab.id, reading);
+      return pageShows(tab.id, guest, reading);
     case "file":
       return agentPathOfHostFile(layout, tab.address) === null
         ? hidden("a file outside your folders")
@@ -310,13 +341,29 @@ function foldersDown(root: string, folder: string): string[] | undefined {
   return folders;
 }
 
-/** The pages of the sides the chat may not read, and the pictures of files it may not read wherever they are drawn. */
+/**
+ * The pages of the sides the chat may not read, the secret and typing fields
+ * on the rest, and the pictures of files it may not read wherever they are
+ * drawn.
+ */
 function blankedBoxes(
   look: WindowLook,
   shows: readonly Shows[],
-  layout: WorkspaceFsLayout,
-): WindowBox[] {
-  return [
+  { chatId, layout }: Reading,
+): { fields: WindowBox[]; parts: WindowBox[] } {
+  const fields = [
+    ...shows.flatMap((each) =>
+      each.hidden === undefined ? (each.fields ?? []) : [],
+    ),
+    ...look.fields.flatMap(({ box, replyBoxOf }) => {
+      const tab = look.sides[replyBoxOf ?? -1]?.tab;
+      return tab?.kind === "chat" &&
+        tab.address === `instrument://chat/${chatId}`
+        ? []
+        : [box];
+    }),
+  ];
+  const parts = [
     ...look.sides.flatMap((side, index) =>
       shows[index]?.hidden === undefined ? [] : [side.box],
     ),
@@ -328,6 +375,7 @@ function blankedBoxes(
         : [picture.box],
     ),
   ];
+  return { fields, parts };
 }
 
 /**

@@ -1,6 +1,6 @@
 # Which RPC procedures send a window megabytes
 
-**Status:** open · **Check after:** 2026-11-29, after a week or more on a beta that carries the payload warnings · **Last checked:** never
+**Status:** open · **Check after:** 2026-12-10, once the stream limits are checked against real stream counts · **Last checked:** 2026-11-26
 
 ## What we're waiting to learn
 
@@ -36,6 +36,18 @@ The installed app's main log on the primary Mac and on the test hosts, and probl
 - **Only `(unknown)`:** the meter lost track of calls. Read how many calls the window had open and whether the frames still open as `readFrameHead` expects.
 - **No warnings at all after real agent turns:** the limits may be too high to catch the next case. Lower them before closing this, rather than closing it as quiet.
 
-## Result
+## Result, 2026-11-26
 
-Not checked yet.
+Read the installed main logs on the primary Mac (November 9 to 26) and a laptop (November 17 to 26), plus development logs from about twenty checkouts.
+
+- `workspace.computer.list` warned 63 times on the primary Mac through 2.0.6, 11 to 15 messages of about 300 KB a minute: Files resending its listing. Silent since 2.0.8, which sends only what changed in each folder Files shows (59b98b213). The meter works.
+- `captures.list`, a development-only route, sent 10 MB in 20 messages within a minute while tabs closed and switched, each message up to 502 KB because it carries every capture's metadata. Once in an installed preview, once in development.
+- `workspace.message.list` sent one message of 1.0 to 1.3 MB, a long chat's messages whole on open, 14 times, all in development builds.
+- `problems.describeFeedback` sent 1.3 MB once, feedback with attachments.
+- Nothing on the laptop, and no `RPC streams` line on any build.
+
+No procedure resends in installed builds today. The silence of the stream lines is the open question: this follow-up says to check the 50 and 200 limits before calling it quiet.
+
+## Next check
+
+Count a real window's open streams (the meter's own counts, or the renderer perf probe) during an agent turn with several tabs, and lower the limits if the busiest window sits far below them. Then close this, with `workspace.message.list` moved to a plan if long chats keep sending a megabyte on open.

@@ -1,6 +1,6 @@
 # Whether the chat list reads rows again it did not need to
 
-**Status:** open · **Check after:** 2026-11-29, after a week or more on a beta that carries the re-read warnings · **Last checked:** never
+**Status:** open · **Check after:** 2026-12-10, after a week on a beta that times reads without the time the computer slept · **Last checked:** 2026-11-26
 
 ## What we're waiting to learn
 
@@ -29,6 +29,18 @@ The installed app's main log on the primary Mac and on the test hosts, and probl
 - **The first-read line:** launch waits on the list. Measure the first read on that workspace and decide whether rows need a cheaper first read.
 - **No warnings after real agent turns and app edits:** the limits may be too high. Lower them before closing this, rather than closing it as quiet.
 
-## Result
+## Result, 2026-11-26
 
-Not checked yet.
+Read the installed main logs on the primary Mac (November 9 to 26) and a laptop (November 17 to 26), about two weeks on betas carrying the warnings.
+
+- **First read:** five lines on the primary Mac, one per cold launch after a restart, 441 to 477 rows in 2.6 to 44.3 s (the longest the first launch after a reboot, with the workspace in a sync engine's folder). Each finished within about a second of the bookmarks store opening, which took as long, and windows wait on both. So launch waits on the list: cold I/O shared with the bookmarks read, not the rows themselves. None on the laptop.
+- **A change to the apps:** five on each Mac, every row read (430 to 724) with none new, in 5 to 315 ms. Expected while the set of apps moves, since a row shows its apps; on the laptop the set moved three times within a minute once, which is worth explaining.
+- **Record changes:** 14 lines of one row, a chat new to the list, in 0.2 to 1.5 s, which is a new chat arriving by sync; on the laptop most landed on a dark wake. One of them read 217 s: the read spanned a sleep, since Node's clock counts the time the computer sleeps. The commit that adds `packages/shared/src/process-holds.ts` times reads without the time the process was held.
+- **Minute line:** once, on the laptop: 1,389 rows in 21 reads within a minute, three of them whole re-reads for the apps.
+- No `a refresh` or `held memory-only changes` line.
+
+The limits caught real cases, so they are not too high. Nothing reads every row for a change to one chat.
+
+## Next check
+
+After a week on a beta carrying the held-time fix: a one-row record-change line over a few seconds would now be a slow read, not a sleep. Read why the apps set moves back and forth within a minute, and whether first reads still match the bookmarks step at cold launch.

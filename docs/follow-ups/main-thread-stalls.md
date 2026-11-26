@@ -1,6 +1,6 @@
 # How often and how long the main thread stalls in real use
 
-**Status:** open · **Check after:** 2026-11-22, with OS wake periods separated from foreground stalls · **Last checked:** 2026-11-08
+**Status:** open · **Check after:** 2026-12-10, after a week on a laptop beta that leaves held time out of stalls · **Last checked:** 2026-11-26
 
 ## What we're waiting to learn
 
@@ -46,6 +46,21 @@ November 1 accounts for 2,719 laptop warnings, including 2,499 between 3 and 10 
 
 The recent evidence does not show sustained multi-second stalls attributed to agent turns. It does show startup pauses worth tracking and a wake-related limitation in the timer monitor. Keep this open: compare warnings against OS wake and foreground-use evidence before using their rate to prioritize the process split. No controlled menu/dialog check or stack capture was performed.
 
+## Result, 2026-11-26
+
+Read the installed main logs on the primary Mac (since November 8, betas 134 to 2.1.0-beta.5) and the laptop (November 17 to 26), with the laptop's power log for wakes.
+
+| Computer | Under 1 s | 1 to under 3 s | 3 to under 10 s | 10 s or more | Total |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Primary Mac | 147 | 9 | 2 | 0 | 158 |
+| Laptop | 60 | 63 | 113 | 925 | 1,161 |
+
+On the primary Mac, 10 of the 11 stalls of a second or more were outside RPC; the one inside was 1.5 s during a browser focus call. The worst cluster (4.9 and 5.9 s outside RPC) came minutes before a system memory-pressure event caused by development tools, not the app. No stall was attributed to workspace calls during an agent turn.
+
+The laptop's numbers are not stalls. Node's clock on macOS (`performance.now()` and every timer, libuv's `uv_hrtime` on `CLOCK_MONOTONIC_RAW`) keeps counting while the computer sleeps, so the first tick after a wake is late by the whole sleep. The monitor left out only the time between the power monitor's `suspend` and `resume`, which Chromium sends for full sleeps and wakes, never for dark wakes. A process launched while the computer sleeps, which is every unattended update install overnight, therefore never saw a `suspend`, and logged the sleep before each dark wake as a stall until the next full wake: 996 of the 1,012 stalls inside the power log's coverage came from such a process before its first `resume`, up to 17.9 minutes. The freeze watchdog stayed silent through the same nights, because it treats a check of its own that comes late as the whole process held. Without those, the laptop had 8 stalls in a week, the longest 2.1 s.
+
+By the plan's own reading ("only short stalls, or mostly outside RPC"), step 2 of [`agent-turn-off-the-main-thread.md`](../plans/agent-turn-off-the-main-thread.md) loses its urgency. The commit that adds `packages/shared/src/process-holds.ts` has the freeze watchdog add up the time the process was held, and the stall monitor judges a late tick a second and a half later, once the watchdog has checked, logging only the lateness no hold accounts for. It no longer relies on the power monitor at all. Holding a development build's main process with `SIGSTOP` for 20 and 40 s logged two stalls of that length before the change and none after. No menu or dialog check was done.
+
 ## Next check
 
-Separate wake-related timer delays from foreground stalls and inspect startup pauses before drawing a conclusion about the process split. No action on the person's computers is needed for this follow-up.
+On the laptop, after a week on a beta carrying that commit: expect a handful of stalls a week, none of minutes. Many long stalls clustered on dark wakes would mean holds the watchdog does not see (under 2 s each, or a watchdog that failed to start: look for `Could not start the freeze watchdog`). Then close this, unless the primary Mac starts showing stalls of a second or more during agent turns.

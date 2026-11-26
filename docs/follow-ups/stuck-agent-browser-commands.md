@@ -1,6 +1,6 @@
 # Why an agent-browser command sometimes never comes back
 
-**Status:** open · **Check after:** 2026-11-21, or once a beta carrying cd075493c has run on the Linux and Windows test hosts for a week, whichever is later · **Last checked:** never
+**Status:** open · **Check after:** 2026-12-10, or the next time the Linux or Windows test host is up, whichever is later · **Last checked:** 2026-11-26
 
 ## What we're waiting to learn
 
@@ -41,3 +41,11 @@ A hang that someone saw but that left none of these lines means the command fini
 ## Result
 
 _Filled in when closed: what the log showed, on which platforms, how often, and the commit that fixed or closed it._
+
+## Checked 2026-11-26
+
+The installed app's main log on the primary Mac (two months, every build since 2.0.0 carries cd075493c) and on a laptop (ten days): no line of the four above, on either. Neither test host was up, so the platforms where the hang was seen are still unread.
+
+Both Macs do log a different symptom: bursts of `CDP command timed out: <method>. The browser tab is not responding` from `BrowserViewManager`, six to eight commands at once for one tab, about seven bursts on the laptop between November 23 and 26 and one on the primary Mac on November 26. That is a guest tab that stopped answering, which the command timeout already ends; nothing in it says a command never came back.
+
+Next: read the test hosts' logs when they are next up. If they are clean too, close this as not recurring.

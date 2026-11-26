@@ -35,25 +35,25 @@ Each entry is the follow-up's title and the opening of its own `Status:` line.
 - [How much agent typing still takes the person's caret](agent-typing-without-focus.md): open · Check after: 2026-11-26 · Last checked: never
 - [How often the app restarts itself to install an update, and whether anyone notices](automatic-update-restarts.md): closed as answered: automatic installs reached their requested builds on all three computers · Last checked: 2026-11-08
 - [When the beta-only workspace migrations can be deleted](beta-workspace-migrations.md): open · Check after: 2026-12-15, and only once a build that runs these migrations has been the newest release for four weeks · Last checked: never
-- [Whether the chat list reads rows again it did not need to](chat-list-rereads.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the re-read warnings · Last checked: never
+- [Whether the chat list reads rows again it did not need to](chat-list-rereads.md): open · Check after: 2026-12-10, after a week on a beta that times reads without the time the computer slept · Last checked: 2026-11-26
 - [Whether ChatGPT citation markers have become common enough to strip](chatgpt-citation-marker-rate.md): open · Check after: 2026-11-21 · Last checked: 2026-10-24
 - [Whether CI stays near four minutes a run](ci-wall-clock.md): open · Check after: 2026-11-24 · Last checked: 2026-11-10
 - [Why Claude account sessions cold-start, counted over real use](claude-account-cold-starts.md): open · Check after: a week of real chats on a Claude account · Last checked: 2026-11-08 (no Claude account requests in the inspected activity)
 - [Why reply streams drop partway](dropped-reply-streams.md): open · Check after: 2026-11-22, or when production exception reports are accessible · Last checked: 2026-11-08
 - [Whether agents choose from a closed select's folded options as well as from option lines](folded-select-options.md): open · Check after: 2026-12-15, or at the next agent-browser upgrade · Last checked: never
-- [Which parts of the app write their log too fast](log-volume.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the log volume warnings · Last checked: never
+- [Which parts of the app write their log too fast](log-volume.md): open · Check after: 2026-12-10, after a week or more on a beta that carries the day warning · Last checked: 2026-11-26
 - [How often the main thread freezes in real use, and whether the watchdog tells the truth](main-thread-freezes.md): open · Check after: 2026-12-05 · Last checked: never
-- [How often and how long the main thread stalls in real use](main-thread-stalls.md): open · Check after: 2026-11-22, with OS wake periods separated from foreground stalls · Last checked: 2026-11-08
+- [How often and how long the main thread stalls in real use](main-thread-stalls.md): open · Check after: 2026-12-10, after a week on a laptop beta that leaves held time out of stalls · Last checked: 2026-11-26
 - [What a second computer shows of a chat whose task waits on a card](multi-computer-sync-audit.md): open (cards resolved, see Result) · Check after: when using one workspace from more than one computer is taken on · Last checked: 2026-10-30
 - [Whether page links without a link token can stop opening](page-links-without-a-token.md): open · Check after: 2026-12-13, 30 days after the pages worker began giving every new page a link token, plus a day for its bucket's lifecycle rule · Last ch...
 - [A third sighting of the quit-teardown livelock](quit-teardown-livelock.md): open, passive · Check after: 2026-12-01, or at once after an update that left the app spinning with no window · Last checked: 2026-10-24
 - [Where app windows freeze, from the stacks their hangs record](renderer-hangs.md): open · Check after: 2026-12-07, or once a build carrying the `unresponsive` events has run two weeks of daily use on macOS and Windows · Last checked: never
 - [Why Responses streams end without a terminal event](responses-streams-ending-early.md): open · Check after: 2026-11-22, or when production exception reports are accessible · Last checked: 2026-11-08
-- [Which RPC procedures send a window megabytes](rpc-payload-sizes.md): open · Check after: 2026-11-29, after a week or more on a beta that carries the payload warnings · Last checked: never
+- [Which RPC procedures send a window megabytes](rpc-payload-sizes.md): open · Check after: 2026-12-10, once the stream limits are checked against real stream counts · Last checked: 2026-11-26
 - [Whether the unattended-step and output-limit caps ever trip](step-and-output-caps.md): open · Check after: 2026-11-21 · Last checked: 2026-10-24
 - [Why the stopped-reply test fails on Linux CI](stopped-reply-words-on-disk.md): closed 2026-10-26 · Check after: 2026-11-08, or the next CI failure of the test · Last checked: 2026-10-26
 - [Pages that keep playing after their tab steps away](stray-sound.md): open · Check after: 2026-12-03, after a week or more on a beta that closes put-away pages for their sound · Last checked: never
-- [Why an agent-browser command sometimes never comes back](stuck-agent-browser-commands.md): open · Check after: 2026-11-21, or once a beta carrying cd075493c has run on the Linux and Windows test hosts for a week, whichever is later · Last checked:...
+- [Why an agent-browser command sometimes never comes back](stuck-agent-browser-commands.md): open · Check after: 2026-12-10, or the next time the Linux or Windows test host is up, whichever is later · Last checked: 2026-11-26
 - [Which processes stay busy in real use, and whether tab sleep ended the hidden-tab cost](sustained-cpu-and-tab-sleep.md): closed as answered: no sustained-CPU episode in about two weeks of daily use, and tab sleep holds (see Result) · Last checked: 2026-11-08
 - [Whether a task's page card still shows only the site's icon](task-card-page-pictures.md): open · Check after: 2026-11-22, after a week on a beta carrying the fix below · Last checked: never
 - [Whether chats use instrument window look, and whether its pictures help](window-look-use.md): open · Check after: 2027-01-06 · Last checked: never

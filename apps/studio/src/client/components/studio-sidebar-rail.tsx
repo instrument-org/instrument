@@ -11,7 +11,13 @@ import {
   motion,
   useMotionValue,
 } from "motion/react";
-import { type ReactNode, useEffect, useEffectEvent, useRef } from "react";
+import {
+  type ReactNode,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 
 /** How wide a rail may be, where a drag lets go of it, and where it opens. */
 export interface RailBounds {
@@ -38,20 +44,28 @@ export interface RailBounds {
  * Laid over the content (`isOverlay`), it reserves no width: the panel slides
  * in over what is beside it on the same motion, and a press anywhere outside
  * it, or Escape, puts it away through `onCollapse`.
+ *
+ * `side` is the window edge it stands at, which it slides out past and is
+ * resized away from.
  */
 export function StudioSidebarRail({
   bounds,
   children,
+  contentKey,
   isAtOnce = false,
   isOpen,
   isOverlay = false,
   label = "Resize sidebar",
   onCollapse,
   panelClassName,
+  side = "left",
+  unmountsWhenClosed = false,
   widthAtom,
 }: {
   bounds: RailBounds;
   children: ReactNode;
+  /** Whose content it shows: when this changes, an open or close lands at once, since it comes of a switch to other content rather than of the person opening or closing it. */
+  contentKey?: string;
   /** Whether the next open or close happens at once rather than sliding: one the window made for want of room, in the middle of a resize the slide would fight. */
   isAtOnce?: boolean;
   isOpen: boolean;
@@ -60,6 +74,9 @@ export function StudioSidebarRail({
   label?: string;
   onCollapse: () => void;
   panelClassName?: string;
+  side?: "left" | "right";
+  /** Whether its children go once it has slid shut, and come back as it opens. */
+  unmountsWhenClosed?: boolean;
   /** Where its width is kept. */
   widthAtom: WritableAtom<number, [number], void>;
 }) {
@@ -68,9 +85,23 @@ export function StudioSidebarRail({
   const clampWidth = (value: number) =>
     Math.min(bounds.max, Math.max(bounds.min, Math.round(value)));
 
+  /** Which way along x it slides out of sight. */
+  const away = side === "left" ? -1 : 1;
   const layoutWidth = useMotionValue(isOpen ? storedWidth : 0);
   const panelWidth = useMotionValue(storedWidth);
-  const panelX = useMotionValue(isOpen ? 0 : -storedWidth);
+  const panelX = useMotionValue(isOpen ? 0 : away * storedWidth);
+
+  // Whether it is sliding shut, so children it drops once closed stay for
+  // the slide. Set as the close is rendered, so they never leave for a frame
+  // before it, and cleared once the slide lands.
+  const [shown, setShown] = useState({ contentKey, isOpen });
+  const [isSlidingShut, setSlidingShut] = useState(false);
+  if (shown.isOpen !== isOpen || shown.contentKey !== contentKey) {
+    setShown({ contentKey, isOpen });
+    setSlidingShut(
+      !isOpen && shown.isOpen && shown.contentKey === contentKey && !isAtOnce,
+    );
+  }
   const opacity = useMotionValue(isOpen ? 1 : 0);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -126,9 +157,12 @@ export function StudioSidebarRail({
   // is measured starts beside the content, and one in a narrow box then
   // switches over it, already in the state that width gives it.
   const shownOverlayRef = useRef(isOverlay);
+  const shownKeyRef = useRef(contentKey);
   useEffect(() => {
     const isOverlaySwitch = shownOverlayRef.current !== isOverlay;
     shownOverlayRef.current = isOverlay;
+    const isContentSwitch = shownKeyRef.current !== contentKey;
+    shownKeyRef.current = contentKey;
     if (isOpen) {
       collapsingRef.current = false;
     }
@@ -136,7 +170,7 @@ export function StudioSidebarRail({
       return;
     }
 
-    if (currentIsAtOnce() || isOverlaySwitch) {
+    if (currentIsAtOnce() || isOverlaySwitch || isContentSwitch) {
       for (const control of widthAnimationsRef.current) {
         control.stop();
       }
@@ -144,7 +178,7 @@ export function StudioSidebarRail({
       const width = currentStoredWidth();
       layoutWidth.set(isOpen && !isOverlay ? width : 0);
       panelWidth.set(width);
-      panelX.set(isOpen ? 0 : -width);
+      panelX.set(isOpen ? 0 : away * width);
       opacity.set(isOpen ? 1 : 0);
       return;
     }
@@ -167,9 +201,12 @@ export function StudioSidebarRail({
     } else {
       controls.push(
         animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION),
-        animate(panelX, -panelWidth.get(), RAIL_SLIDE_TRANSITION),
+        animate(panelX, away * panelWidth.get(), RAIL_SLIDE_TRANSITION),
         animate(opacity, 0, RAIL_FADE_TRANSITION),
       );
+      void Promise.all(controls.map((control) => control.finished)).then(() => {
+        setSlidingShut(false);
+      });
     }
     widthAnimationsRef.current = controls;
     return () => {
@@ -178,7 +215,16 @@ export function StudioSidebarRail({
       }
       widthAnimationsRef.current = [];
     };
-  }, [isOpen, isOverlay, layoutWidth, opacity, panelWidth, panelX]);
+  }, [
+    away,
+    contentKey,
+    isOpen,
+    isOverlay,
+    layoutWidth,
+    opacity,
+    panelWidth,
+    panelX,
+  ]);
 
   return (
     <motion.div
@@ -201,7 +247,11 @@ export function StudioSidebarRail({
       <motion.div
         className={cn(
           "h-full overflow-hidden",
-          isOverlay ? "absolute inset-y-0 left-0" : "relative",
+          isOverlay &&
+            (side === "left"
+              ? "absolute inset-y-0 left-0"
+              : "absolute inset-y-0 right-0"),
+          !isOverlay && "relative",
         )}
         style={{ width: isOverlay ? panelWidth : "100%" }}
       >
@@ -210,7 +260,7 @@ export function StudioSidebarRail({
         <motion.div
           className={cn(
             "absolute inset-y-0 flex h-full flex-col border-border bg-sidebar select-none",
-            "left-0 border-r",
+            side === "left" ? "left-0 border-r" : "right-0 border-l",
             panelClassName,
             isOverlay && "pointer-events-auto shadow-xl-soft",
           )}
@@ -229,16 +279,20 @@ export function StudioSidebarRail({
           }
           style={{ width: panelWidth, x: panelX }}
         >
-          {children}
+          {(!unmountsWhenClosed || isOpen || isSlidingShut) && children}
         </motion.div>
       </motion.div>
       {isOpen && !isOverlay && (
         <ResizeHandle
           anchor={() => {
             const rect = containerRef.current?.getBoundingClientRect();
-            return rect?.left;
+            return side === "left" ? rect?.left : rect?.right;
           }}
-          className="right-0 translate-x-full"
+          className={
+            side === "left"
+              ? "right-0 translate-x-full"
+              : "left-0 -translate-x-full"
+          }
           collapse={
             bounds.collapse === undefined
               ? undefined
@@ -248,15 +302,25 @@ export function StudioSidebarRail({
                     collapsingRef.current = true;
                     draggingRef.current = false;
                     const frozenWidth = panelWidth.get();
-                    void animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION);
-                    void animate(panelX, -frozenWidth, RAIL_SLIDE_TRANSITION);
-                    void animate(opacity, 0, RAIL_FADE_TRANSITION);
+                    void Promise.all(
+                      [
+                        animate(layoutWidth, 0, RAIL_SLIDE_TRANSITION),
+                        animate(
+                          panelX,
+                          away * frozenWidth,
+                          RAIL_SLIDE_TRANSITION,
+                        ),
+                        animate(opacity, 0, RAIL_FADE_TRANSITION),
+                      ].map((control) => control.finished),
+                    ).then(() => {
+                      setSlidingShut(false);
+                    });
                     onCollapse();
                   },
                 }
           }
           getWidth={() => panelWidth.get()}
-          grows="right"
+          grows={side === "left" ? "right" : "left"}
           label={label}
           max={bounds.max}
           min={bounds.min}

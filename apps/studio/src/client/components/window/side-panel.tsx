@@ -65,16 +65,17 @@ const sidePanelSlotAtom = atom<HTMLElement | null>(null);
 
 /**
  * The window's column for the side panel, on its own ground at the right
- * edge as the sidebar is at the left, outside the card. The tab with the
- * keyboard in the group up draws the panel into it (`SidePanelHere`), so a
- * pick goes to that tab.
+ * edge as the sidebar is at the left, outside the card, inside the rail that
+ * slides and sizes it. The tab with the keyboard in the group up draws the
+ * panel into it (`SidePanelHere`), so a pick goes to that tab. It is there
+ * while the panel is open or sliding shut.
  */
 export function SidePanelSlot() {
   const setSlot = useSetAtom(sidePanelSlotAtom);
   return (
     <aside
       aria-label="Side Panel"
-      className="flex w-72 shrink-0 flex-col pr-2 pb-2 pl-1"
+      className="flex min-h-0 flex-1 flex-col pr-2 pb-2 pl-1"
       ref={setSlot}
       style={{ paddingTop: windowCardTop(isMacOS()) }}
     />
@@ -96,8 +97,9 @@ export function ShowSidePanelControl({ onClick }: { onClick: () => void }) {
 
 /**
  * The side panel of the group this tab is in, drawn into the window's
- * column for it while it is open there. `onOpen` puts a site in this tab
- * and `onVisit` a place of the app's own, as the bookmarks bar does.
+ * column for it while that column is there: open, or sliding shut. `onOpen`
+ * puts a site in this tab and `onVisit` a place of the app's own, as the
+ * bookmarks bar does.
  */
 export function SidePanelHere({
   group,
@@ -109,8 +111,7 @@ export function SidePanelHere({
   onVisit: (href: string) => void;
 }) {
   const slot = useAtomValue(sidePanelSlotAtom);
-  const { isOpen } = useSidePanel(group);
-  if (!slot || !isOpen) {
+  if (!slot) {
     return null;
   }
   return createPortal(

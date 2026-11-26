@@ -6,7 +6,7 @@ A tab group's corner had one control that split it: unnamed on a new tab or a ch
 
 ## The panel
 
-- 288pt wide, on the window's ground at the right edge, outside the card (`WindowFrame`'s `aside`, `SidePanelSlot`). Its top row has only an X.
+- 288pt wide until dragged by its left edge (240 to 420, kept across launches; dragged under 180 it slides shut), on the window's ground at the right edge, outside the card (`WindowFrame`'s `aside`, `SidePanelSlot`). It opens and closes on the left sidebar's slide (`StudioSidebarRail` with `side="right"`), keeping its contents until the slide ends; a switch to another group's panel lands at once. Its top row has only an X.
 - Apps (icons only), Chats (four recent, then All chats, a searchable list in the panel), Files (the project folder and the Files sidebar's places), Bookmarks (the bar as a folder, the bookmarks kept off it, then All bookmarks).
 - The tab up on the keyboard side draws it (`SidePanelHere`, portaled into the slot), so a pick uses that tab's own way in: it replaces the tab as a bookmark does, Back returns, and Cmd-click, right-click and drag work as they do on the bar. It never opens a new tab by itself.
 - A chat already open in another group brings that group up and opens the panel there.

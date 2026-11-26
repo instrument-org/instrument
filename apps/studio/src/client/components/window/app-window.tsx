@@ -233,7 +233,12 @@ import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 import { useBootMarks } from "./boot-marks";
 import { setStudioDriveOpenPage } from "@/client/lib/studio-drive";
 import { SidePanelSlot } from "./side-panel";
-import { useSidePanel, useSidePanelUpkeep } from "./side-panel-state";
+import {
+  sidePanelBounds,
+  sidePanelWidthAtom,
+  useSidePanel,
+  useSidePanelUpkeep,
+} from "./side-panel-state";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -550,6 +555,7 @@ function WindowShell({
   useHeldChordHints();
   const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
   const sidebarWidth = useAtomValue(sidebarWidthAtom);
+  const sidePanelWidth = useAtomValue(sidePanelWidthAtom);
   const groupUp = useRouterState({
     select: (routerState) => groupOfHref(routerState.location.href),
   });
@@ -2054,7 +2060,25 @@ function WindowShell({
       <FileOpenContext value={ways.openPath}>
         <PageOpenContext value={ways.openPage}>
           <WindowFrame
-            aside={sidePanel.isOpen ? <SidePanelSlot /> : undefined}
+            aside={
+              <StudioSidebarRail
+                bounds={sidePanelBounds(
+                  rowWidth + (sidePanel.isOpen ? sidePanelWidth : 0),
+                )}
+                contentKey={groupUp}
+                isOpen={sidePanel.isOpen}
+                label="Resize the side panel"
+                onCollapse={() => {
+                  sidePanel.setOpen(false);
+                }}
+                panelClassName="border-l-0 bg-transparent"
+                side="right"
+                unmountsWhenClosed
+                widthAtom={sidePanelWidthAtom}
+              >
+                <SidePanelSlot />
+              </StudioSidebarRail>
+            }
             corner={<WindowCorner />}
             hasBar={false}
             rail={

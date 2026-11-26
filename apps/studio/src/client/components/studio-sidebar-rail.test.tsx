@@ -115,3 +115,53 @@ it("lets a drag take the width back from the double-click reset's springs", asyn
 
   expect(rail.style.width).toBe("400px");
 });
+
+function droppingRail(isOpen: boolean, contentKey = "first") {
+  return (
+    <StudioSidebarRail
+      bounds={BOUNDS}
+      contentKey={contentKey}
+      isOpen={isOpen}
+      label="Resize sidebar"
+      onCollapse={vi.fn()}
+      side="right"
+      unmountsWhenClosed
+      widthAtom={widthAtom}
+    >
+      <div data-testid="inside" />
+    </StudioSidebarRail>
+  );
+}
+
+it("keeps children it drops once closed through the slide shut", async () => {
+  const { rerender } = renderWithProviders(droppingRail(true));
+  rerender(droppingRail(false));
+
+  expect(screen.getByTestId("inside")).toBeTruthy();
+  await vi.waitFor(
+    () => {
+      expect(screen.queryByTestId("inside")).toBeNull();
+    },
+    { timeout: 2000 },
+  );
+});
+
+it("closes at once on a switch to other content", () => {
+  const { rerender } = renderWithProviders(droppingRail(true));
+  rerender(droppingRail(false, "second"));
+
+  expect(screen.queryByTestId("inside")).toBeNull();
+});
+
+it("slides out past the right edge on the right", async () => {
+  const { container, rerender } = renderWithProviders(droppingRail(true));
+  const panel = container.querySelector<HTMLElement>("[inert], .border-l");
+  rerender(droppingRail(false));
+
+  await vi.waitFor(
+    () => {
+      expect(panel?.style.transform).toBe(`translateX(${BOUNDS.initial}px)`);
+    },
+    { timeout: 2000 },
+  );
+});

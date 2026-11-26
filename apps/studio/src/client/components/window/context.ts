@@ -128,8 +128,8 @@ export interface WindowContextValue {
   openPath: (path: string, options?: OpenOptions) => void;
   /** As `openPage`, for a screen of the app. */
   openScreen: (href: string, options?: OpenOptions) => void;
-  /** Where a screen showing a file says what a press on the file's own folder in the tab's address does; absent where the address has no such press. */
-  takeFolderPress?: (press: (() => void) | undefined) => void;
+  /** Where a screen showing a file says what a press on the file's own folder in the tab's address does, false when it leaves the press to go to the folder; absent where the address has no such press. */
+  takeFolderPress?: (press: (() => boolean) | undefined) => void;
   /** Brings a tab the window has up in its group, and its group on screen; false when no such tab is open. */
   showTab?: (id: string) => boolean;
   /** The head of the tab's row, ahead of back and forward, where a screen draws the toggle for a panel along its left edge; null until the row is up. */

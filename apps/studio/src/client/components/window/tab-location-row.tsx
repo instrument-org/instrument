@@ -156,8 +156,8 @@ export function TabLocationRow({
   /** Back through what the thing up has been at, drawn with forward; a row over a screen that is the tab's own route leaves both to the window's bar. */
   onBack?: () => void;
   onForward?: () => void;
-  /** What a press on the folder a file is in does: shows it beside the file, or puts it away. Going to the folder, unless given. */
-  onFolder?: () => void;
+  /** What a press on the folder a file is in does: shows it beside the file, false when the press goes to the folder as any other part's does. */
+  onFolder?: () => boolean;
   /** Where a site typed into the field goes on this tab, when not a new tab of its own. */
   onSite?: (url: string) => void;
   /** Where a screen typed into the field goes, for a row over a tab the router does not follow. */
@@ -431,7 +431,7 @@ function Field({
   onVisit,
 }: {
   location: TabLocation;
-  onFolder?: () => void;
+  onFolder?: () => boolean;
   onVisit?: (href: string) => void;
 }) {
   // The disks the sidebar lists, which name where a path outside the home
@@ -561,9 +561,10 @@ function Field({
               // this tab, the way a folder above a file is: the window would
               // only bring up the page's tab as it is, the one tab it keeps
               // for it.
-              if (isFolderOfFile && onFolder) {
-                onFolder();
-              } else if (
+              if (isFolderOfFile && onFolder?.()) {
+                return;
+              }
+              if (
                 onVisit &&
                 crumb.to?.kind === "screen" &&
                 crumb.path === undefined

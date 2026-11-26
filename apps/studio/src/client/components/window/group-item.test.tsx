@@ -20,7 +20,7 @@ vi.mock("./tab-location-row", () => ({
     onFolder,
     onVisit,
   }: {
-    onFolder?: () => void;
+    onFolder?: () => boolean;
     onVisit?: (href: string) => void;
   }) => (
     <>

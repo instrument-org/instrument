@@ -396,10 +396,11 @@ export function FilesScreen({
     go({ type: "closeFile" });
   };
   // A press on the file's own folder in the address shows the folder beside
-  // the file, the file kept open, and pressed again puts it away.
-  const pressFolder = useEffectEvent(() => {
+  // the file, the file kept open. Pressed while it shows there, it leaves the
+  // press to go to the folder, the file closed.
+  const pressFolder = useEffectEvent((): boolean => {
     if (file === undefined) {
-      return;
+      return false;
     }
     const parent = folderOf(file);
     if (!isBesideLayout) {
@@ -412,7 +413,10 @@ export function FilesScreen({
         }),
       );
     } else if (folder?.hostPath === parent) {
-      setFold(togglePanel);
+      if (isFolderShown) {
+        return false;
+      }
+      setFold(showPanel);
     } else {
       // Walked to another folder, or folded away in one: the file's own comes up.
       setFold(showPanel);
@@ -423,11 +427,10 @@ export function FilesScreen({
         type: "walk",
       });
     }
+    return true;
   });
   useEffect(() => {
-    takeFolderPress?.(() => {
-      pressFolder();
-    });
+    takeFolderPress?.(() => pressFolder());
     return () => {
       takeFolderPress?.(undefined);
     };

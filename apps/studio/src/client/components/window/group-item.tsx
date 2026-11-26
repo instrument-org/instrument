@@ -109,7 +109,7 @@ export function GroupItem({
   const taskTitles = useTaskTitles();
   const { chatTitles } = useShell();
   // What the file's screen does when its folder is pressed in the address.
-  const folderPress = useRef<(() => void) | undefined>(undefined);
+  const folderPress = useRef<(() => boolean) | undefined>(undefined);
   // What the screen up says it shows, which the row reads a folder's place off.
   const surface = useAtomValue(tabSurfaceAtom)[up.id];
 
@@ -196,11 +196,11 @@ export function GroupItem({
   // turns into the file's screen, as a page's file opened from Files is.
   const onFolder = () => {
     if (pageFilePath === undefined) {
-      folderPress.current?.();
-    } else {
-      keepFolderShown(up.id, pageFilePath);
-      visitHere(fileHref(pageFilePath, { tree: folderOf(pageFilePath) }));
+      return folderPress.current?.() ?? false;
     }
+    keepFolderShown(up.id, pageFilePath);
+    visitHere(fileHref(pageFilePath, { tree: folderOf(pageFilePath) }));
+    return true;
   };
   /** An open from the screen in this tab, which says so; a chat's names its own. */
   const openedHere = (options: OpenOptions = {}): OpenOptions =>

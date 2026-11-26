@@ -542,6 +542,15 @@ export default defineConfig(({ command }) => {
           input: {
             browser: path.join(process.cwd(), "src/index.html"),
           },
+          output: {
+            // What the window loads before it can draw, as one file. Left to
+            // itself, the build cuts the startup graph into a few hundred
+            // chunks by which lazy screens share them, and every one is a
+            // request main answers before the first paint.
+            codeSplitting: {
+              groups: [{ name: "startup", tags: ["$initial"] }],
+            },
+          },
         },
         sourcemap: isProduction,
         watch: {}, // Enable hot reloading

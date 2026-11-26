@@ -1,14 +1,18 @@
 // Fails when what the app loads before its first window grows past its
-// budget, or takes in a package that belongs behind a dynamic import. Reads
-// the startup manifests a production build writes
-// (`electron-builder/startup-bundle.ts`), so run it after one:
+// budget, or takes in a package that belongs behind a dynamic import. Makes a
+// production build and reads the startup manifests it writes
+// (`electron-builder/startup-bundle.ts`):
 //
-//   pnpm --filter @instrument-org/studio check:build
+//   pnpm --filter @instrument-org/studio check:startup
+//
+// The build goes to `out/startup-check/`, so a dev instance running from
+// `out/` in the same checkout keeps its files.
 //
 // A budget is raised on purpose, in the change that needs the room, with the
 // reason in its commit. A banned package is moved behind an `import()` where
 // it is first used rather than unbanned.
 
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 
 import { type BundleName } from "../electron-builder/bundled-packages.ts";
@@ -17,7 +21,9 @@ import {
   type StartupBundle,
 } from "../electron-builder/startup-bundle.ts";
 
-const OUT_DIR = path.resolve(import.meta.dirname, "..", "out");
+const STUDIO_DIR = path.resolve(import.meta.dirname, "..");
+// Absolute: the renderer's build resolves a relative one against its root.
+const OUT_DIR = path.join(STUDIO_DIR, "out", "startup-check");
 
 const MB = 1024 * 1024;
 
@@ -88,13 +94,18 @@ export function startupProblems(
 }
 
 if (import.meta.main) {
+  execFileSync("pnpm", ["run", "build", "--outDir", OUT_DIR], {
+    cwd: STUDIO_DIR,
+    shell: process.platform === "win32",
+    stdio: "inherit",
+  });
   const problems: string[] = [];
   for (const name of ["main", "preload", "renderer"] as const) {
     const limits = STARTUP[name];
     const startup = readStartupBundle(name, OUT_DIR);
     if (!startup) {
       problems.push(
-        `${name}: no startup manifest under ${OUT_DIR}. Build first (\`pnpm --filter @instrument-org/studio build\`), and keep recordStartupBundle("${name}") in electron.vite.config.ts.`,
+        `${name}: no startup manifest under ${OUT_DIR}. Keep recordStartupBundle("${name}") in electron.vite.config.ts.`,
       );
       continue;
     }

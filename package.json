@@ -17,7 +17,7 @@
     "check-and-test:ci": "pnpm check:ci test:ci",
     "check-test-and-push": "pnpm check-and-test && git push",
     "check:actions": "node scripts/check-actions.ts",
-    "check:ci": "turbo run check:actions check:docs check:electron-node-version check:unused check:packages:install check:packages:dedupe check:types check:lint check:build --ui tui --continue=dependencies-successful --output-logs errors-only",
+    "check:ci": "turbo run check:actions check:docs check:electron-node-version check:unused check:packages:install check:packages:dedupe check:types check:lint check:build check:startup --ui tui --continue=dependencies-successful --output-logs errors-only",
     "check:docs": "node scripts/docs.ts",
     "check:electron-node-version": "node scripts/check-electron-node-version.ts",
     "check:format": "oxfmt --check --disable-nested-config .",

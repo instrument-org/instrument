@@ -52,7 +52,7 @@ import { chatOfTab, draftOfTab } from "./tab-model";
 import { tabTitle } from "./tab-title";
 import { useTaskTitles } from "./task-titles";
 import { locationCrumbs, tasksOfHref } from "./tab-location";
-import { useWindowTabs } from "./window-tabs";
+import { useChatsUpIn } from "./window-tabs";
 
 /**
  * What the sidebar's rows read beyond the window's tabs: every chat, every
@@ -377,7 +377,7 @@ export function TabMark({
   chatTitles: Map<ChatId, string>;
   tab: WindowTab;
 }) {
-  const { chatUpIn } = useWindowTabs();
+  const [chatUp] = useChatsUpIn(tab.group ?? "");
   const { chats } = useRowSources();
   const chat = chatOfTab(tab);
   const capture = usePageCaptures().find(
@@ -410,7 +410,7 @@ export function TabMark({
     <span className="grid size-3.5 shrink-0 place-items-center [&_svg]:size-3.5">
       <ScreenMark
         appsBySlug={appsBySlug}
-        chatId={tab.group === undefined ? undefined : chatUpIn(tab.group)}
+        chatId={chatUp}
         chatTitles={chatTitles}
         href={tab.href}
       />

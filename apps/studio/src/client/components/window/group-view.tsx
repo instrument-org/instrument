@@ -27,10 +27,12 @@ import { motion, useReducedMotion } from "motion/react";
 import {
   type ComponentProps,
   type CSSProperties,
+  memo,
   type ReactNode,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -53,7 +55,7 @@ import {
 } from "./drag/use-group-drag";
 import { RecentlyClosedMenu } from "./recently-closed-menu";
 import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
-import { useShell } from "./shell-context";
+import { ShellContext, useShell } from "./shell-context";
 import { useSideCaret } from "./use-side-caret";
 import { useSideMotion } from "./side-motion";
 import { windowTabGroupsAtom } from "./open-groups";
@@ -73,6 +75,8 @@ import { useTabSurface } from "./tab-surface";
 import { WINDOW_CARD, WINDOW_CARD_GAP } from "./window-frame";
 import {
   groupOnScreenAtom,
+  HeldTabsContext,
+  heldTabsAtomOf,
   newScreenId,
   useGroupLayout,
   useWindowTabs,
@@ -149,15 +153,51 @@ export function GroupView({ group }: { group: string | undefined }) {
             key={each}
             {...(isUp ? { "data-group-up": "" } : {})}
           >
-            <ActiveTabProvider isActive={isActive && isUp}>
-              <GroupSides group={each} isUp={isUp} />
-            </ActiveTabProvider>
+            <DrawnGroup group={each} isActive={isActive} isUp={isUp} />
           </div>
         );
       })}
     </div>
   );
 }
+
+/**
+ * A group as it is drawn: the one up reads the window as it is, and one kept
+ * drawn behind it reads the window as it stood for that group, its tabs
+ * changing only as its own do (`heldTabsAtomOf`) and the window's shell as it
+ * was when the group was last up. Nothing done in another group draws a
+ * group out of sight again, as a browser draws nothing of a tab behind the
+ * one in front.
+ *
+ * Kept by hand (`memo`): the window draws one per group in a loop the React
+ * Compiler keeps nothing of, on every change to its tabs.
+ */
+const DrawnGroup = memo(function DrawnGroup({
+  group,
+  isActive,
+  isUp,
+}: {
+  group: string;
+  /** Whether the window's tab is the one in front. */
+  isActive: boolean;
+  isUp: boolean;
+}) {
+  const held = useMemo(() => heldTabsAtomOf(group), [group]);
+  const shell = useShell();
+  const [shellWhenUp, setShellWhenUp] = useState(shell);
+  if (isUp && shellWhenUp !== shell) {
+    setShellWhenUp(shell);
+  }
+  return (
+    <HeldTabsContext value={isUp ? null : held}>
+      <ShellContext value={isUp ? shell : shellWhenUp}>
+        <ActiveTabProvider isActive={isActive && isUp}>
+          <GroupSides group={group} isUp={isUp} />
+        </ActiveTabProvider>
+      </ShellContext>
+    </HeldTabsContext>
+  );
+});
 
 /** Scrolls a group's row the least that shows the side with the keyboard. */
 function showSideWithKeyboard(scroller: HTMLElement) {

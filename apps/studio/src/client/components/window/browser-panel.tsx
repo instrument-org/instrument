@@ -72,7 +72,7 @@ import {
 } from "@/client/lib/failed-load-copy";
 import { segmentsOf } from "@/client/components/window/host-path";
 import { isSiteGroup } from "@/client/components/window/app-tabs";
-import { windowTabsAtom } from "@/client/components/window/window-tabs";
+import { useTabsAtom } from "@/client/components/window/window-tabs";
 import { type TypedPath } from "@/client/lib/typed-path";
 import { fileHref } from "@/shared/computer-href";
 import { displayHostPath } from "@instrument-org/shared";
@@ -614,7 +614,7 @@ export function BrowserPanel({
   // A page of a chat's or a draft's opens again in a browser tab of the
   // window's own, as a copy at its address; the chat keeps its page. A
   // browser tab has Duplicate Tab in the bar for the same.
-  const group = useAtomValue(windowTabsAtom).tabs.find(
+  const group = useAtomValue(useTabsAtom()).tabs.find(
     (tab) => tab.id === tabId,
   )?.group;
   const openInBrowserTab =

@@ -3,10 +3,16 @@ import {
   tabChatFiltersAtom,
   type WindowTab,
 } from "@/client/atoms/window";
-import { atom, type SetStateAction, useAtomValue, useSetAtom } from "jotai";
+import {
+  atom,
+  type Atom,
+  type SetStateAction,
+  useAtomValue,
+  useSetAtom,
+} from "jotai";
 import { selectAtom } from "jotai/utils";
 import { isEqual } from "radashi";
-import { useCallback, useMemo } from "react";
+import { createContext, useCallback, useContext, useMemo } from "react";
 import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import {
   askTabs,
@@ -185,6 +191,30 @@ export const windowTabsAtom = atom(
 );
 
 /**
+ * The window's tabs as a group drawn out of sight reads them, where one is
+ * (`useTabsAtom`): the same object until something of that group's own
+ * changes, so a change anywhere else in the window draws nothing of it. The
+ * window's own tabs (`windowTabsAtom`) elsewhere.
+ */
+export const HeldTabsContext = createContext<Atom<WindowTabs> | null>(null);
+
+/** The window's tabs as this part of the window reads them (`HeldTabsContext`). */
+export function useTabsAtom(): Atom<WindowTabs> {
+  return useContext(HeldTabsContext) ?? windowTabsAtom;
+}
+
+/** The window's tabs, changing only as something of `group`'s own does. */
+export function heldTabsAtomOf(group: string): Atom<WindowTabs> {
+  return selectAtom(
+    windowTabsAtom,
+    (state) => state,
+    (a, b) =>
+      sameLayout(groupLayoutOf(a, group), groupLayoutOf(b, group)) &&
+      isEqual(a.groups?.[group], b.groups?.[group]),
+  );
+}
+
+/**
  * The group on screen: the group the window's tab up stands on, or none for
  * a screen that is its own route. Derived from where that tab is, never kept
  * beside it.
@@ -314,23 +344,21 @@ export function useWindowTabsChange(): TabsChange {
  * it everything the group draws from it.
  */
 export function useGroupLayout(group: string): GroupLayout {
+  const tabs = useTabsAtom();
   const layout = useMemo(
     () =>
-      selectAtom(
-        windowTabsAtom,
-        (state) => groupLayoutOf(state, group),
-        sameLayout,
-      ),
-    [group],
+      selectAtom(tabs, (state) => groupLayoutOf(state, group), sameLayout),
+    [group, tabs],
   );
   return useAtomValue(layout);
 }
 
 /** The tab a group is held to go by (`GroupOwn.lead`), read for the group alone. */
 export function useGroupLead(group: string): string | undefined {
+  const tabs = useTabsAtom();
   const lead = useMemo(
-    () => selectAtom(windowTabsAtom, (state) => state.groups?.[group]?.lead),
-    [group],
+    () => selectAtom(tabs, (state) => state.groups?.[group]?.lead),
+    [group, tabs],
   );
   return useAtomValue(lead);
 }
@@ -366,10 +394,11 @@ function sameLayout(a: GroupLayout, b: GroupLayout) {
  * group per line: the same array until one of them changes.
  */
 export function useChatsUpIn(groups: string): readonly (ChatId | undefined)[] {
+  const tabs = useTabsAtom();
   const chats = useMemo(
     () =>
       selectAtom(
-        windowTabsAtom,
+        tabs,
         (state) =>
           groups === ""
             ? []
@@ -377,7 +406,7 @@ export function useChatsUpIn(groups: string): readonly (ChatId | undefined)[] {
         (a, b) =>
           a.length === b.length && a.every((chat, at) => chat === b[at]),
       ),
-    [groups],
+    [groups, tabs],
   );
   return useAtomValue(chats);
 }
@@ -401,7 +430,7 @@ export function newScreenId() {
  * other's.
  */
 export function useWindowTabs() {
-  const state = useAtomValue(windowTabsAtom);
+  const state = useAtomValue(useTabsAtom());
   const groupOnScreen = useAtomValue(groupOnScreenAtom);
   const run = useWindowTabsChange();
   const isOpen = useIsGroupOpen();

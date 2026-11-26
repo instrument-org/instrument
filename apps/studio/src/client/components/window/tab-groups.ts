@@ -60,6 +60,7 @@ import {
 import {
   glintingNewChatTabsAtom,
   newScreenId,
+  useTabsAtom,
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
@@ -243,7 +244,7 @@ export function useOpenGroups(): GroupLists {
     drafts: useAtomValue(draftsAtom),
     elsewhere: useTabGroupsElsewhere(),
     listed: useAtomValue(windowTabGroupsAtom) ?? [],
-    state: useAtomValue(windowTabsAtom),
+    state: useAtomValue(useTabsAtom()),
   });
 }
 

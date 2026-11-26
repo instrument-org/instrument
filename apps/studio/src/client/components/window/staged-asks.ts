@@ -14,7 +14,7 @@ import {
 } from "jotai";
 import { useContext, useEffect, useRef } from "react";
 
-import { groupOnScreenAtom, windowTabsAtom } from "./window-tabs";
+import { groupOnScreenAtom, useTabsAtom } from "./window-tabs";
 
 import { WindowContext } from "./context";
 import { segmentsOf } from "./host-path";
@@ -278,6 +278,6 @@ export function useMoveAsks(from?: string) {
  */
 function useChatBeside(): ChatId | undefined {
   const group = useAtomValue(groupOnScreenAtom);
-  const state = useAtomValue(windowTabsAtom);
+  const state = useAtomValue(useTabsAtom());
   return group === undefined ? undefined : chatUpIn(state, group);
 }

@@ -83,8 +83,8 @@ import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import {
   glintingNewChatTabsAtom,
+  useTabsAtom,
   useWindowTabs,
-  windowTabsAtom,
 } from "./window-tabs";
 
 /**
@@ -194,7 +194,7 @@ export function NewChatView({
   // A new chat that has been filed nowhere yet starts filed under the
   // project its tab group is in, or the one the sidebar stands in.
   const ownProject =
-    useAtomValue(windowTabsAtom).groups?.[
+    useAtomValue(useTabsAtom()).groups?.[
       windowTabs.allTabs.find((tab) => tab.id === tabId)?.group ?? ""
     ]?.project;
   const startFiled = useEffectEvent(() => {

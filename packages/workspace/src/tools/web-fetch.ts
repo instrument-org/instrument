@@ -1,6 +1,5 @@
 import ms from "ms";
 import { ok } from "neverthrow";
-import { NodeHtmlMarkdown } from "node-html-markdown";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { dedent } from "radashi";
@@ -313,10 +312,16 @@ type GuardedFetchResult =
   | { error: string; ok: false }
   | { ok: true; response: Response };
 
-function convert(content: string, mime: string, format: FetchFormat): string {
+async function convert(
+  content: string,
+  mime: string,
+  format: FetchFormat,
+): Promise<string> {
   if (!isHtmlMime(mime) || format === "html") {
     return content;
   }
+  // Loaded with the first page converted rather than with the app.
+  const { NodeHtmlMarkdown } = await import("node-html-markdown");
   try {
     return NodeHtmlMarkdown.translate(content);
   } catch {
@@ -345,7 +350,7 @@ async function fetchTextual({
     cached &&
     (maxAgeSeconds === undefined || cached.ageMs < maxAgeSeconds * 1000)
   ) {
-    return renderBody({
+    return await renderBody({
       cachedAgeMs: cached.ageMs,
       contentType: cached.contentType,
       decoded: cached.body,
@@ -402,7 +407,7 @@ async function fetchTextual({
   const finalUrl = response.url || url;
   cachePage({ body: body.text, contentType, finalUrl, url });
 
-  return renderBody({
+  return await renderBody({
     contentType,
     decoded: body.text,
     finalUrl,
@@ -455,7 +460,7 @@ async function guardedFetch({
  * cache holds one body per URL, and a later fetch asking for raw HTML or a
  * bigger prefix is served from it rather than missing.
  */
-function renderBody({
+async function renderBody({
   cachedAgeMs,
   contentType,
   decoded,
@@ -469,9 +474,9 @@ function renderBody({
   finalUrl: string;
   format: FetchFormat;
   maxCharacters: number;
-}): FetchTextualResult {
+}): Promise<FetchTextualResult> {
   const mime = mimeType(contentType);
-  const converted = convert(decoded, mime, format);
+  const converted = await convert(decoded, mime, format);
   const truncated = converted.length > maxCharacters;
   const title = isHtmlMime(mime) ? pageTitle(decoded) : undefined;
   return {
@@ -545,7 +550,7 @@ async function failureBody(response: Response): Promise<string | undefined> {
   }
   // Always via markdown, whatever the caller asked for: nobody wants a deny
   // page's raw markup, and the sentence that matters survives the conversion.
-  const text = convert(body.text, mime, "markdown")
+  const text = (await convert(body.text, mime, "markdown"))
     .replaceAll(/\s+/g, " ")
     .trim();
   if (text === "") {

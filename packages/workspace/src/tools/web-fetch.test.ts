@@ -1,4 +1,7 @@
 import mockFs from "mock-fs";
+// Loaded ahead of mock-fs, which hides node_modules from the tool's own
+// `import()` of it.
+import "node-html-markdown";
 import fs from "node:fs/promises";
 import { afterEach, describe, expect, it, vi } from "vitest";
 

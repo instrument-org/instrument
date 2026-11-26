@@ -152,6 +152,8 @@ import { ScrollToEndBridge } from "./scroll-to-end-bridge";
 // that a submit that never becomes one hands the idle transcript back.
 const SUBMIT_FOLLOW_TIMEOUT_MS = 5000;
 
+const NO_NEXT_STEPS: readonly string[] = [];
+
 // Layout px: the composer's whole box, notes inside it and buttons included.
 const CONVERSATION_COMPOSER_MAX_HEIGHT = 280;
 
@@ -168,12 +170,12 @@ export function ChatConversation({
   asks,
   composerLead,
   draftKey,
-  layoutContext,
+  layoutContext: givenLayoutContext,
   selectedModelChoice: initialModelChoice,
   selectedModelURI: initialSelectedModelURI,
   onSentStored,
   selectedSessionId,
-  sendContext,
+  sendContext: givenSendContext,
   sentPrompt,
   takesCaret = true,
   chatId,
@@ -233,26 +235,14 @@ export function ChatConversation({
   const id = chatId;
 
   const promptInputRef = useRef<PromptInputRef>(null);
+  // Hooks the handlers below read go above them: the compiler memoizes no
+  // function that reads a value a later hook call gives.
+  const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
   const quoteSelectionRef = useRef<QuoteSelectionRef>(null);
   // As text, so typing that leaves the quotes as they are draws nothing new.
   const [quoted, setQuoted] = useState("[]");
-  // Change model on a failed reply opens the reply box's picker. While the box
-  // is away, the picker opens as soon as it is back.
-  const pickerWanted = useRef(false);
-  const chooseModel = () => {
-    if (promptInputRef.current) {
-      promptInputRef.current.openModelPicker();
-    } else {
-      pickerWanted.current = true;
-    }
-  };
-  const attachPromptInput = (input: PromptInputRef | null) => {
-    promptInputRef.current = input;
-    if (input && pickerWanted.current) {
-      pickerWanted.current = false;
-      input.openModelPicker();
-    }
-  };
+  const { attach: attachPromptInput, choose: chooseModel } =
+    useModelPickerOpener(promptInputRef);
   const [composerDictating, setComposerDictating] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
   const conversationRef = useRef<HTMLDivElement>(null);
@@ -282,14 +272,16 @@ export function ChatConversation({
   const [isFollowingSubmit, setIsFollowingSubmit] = useState(false);
   const slideToSentRef = useRef<() => void>(noop);
 
-  const createMessage = useMutation(
+  // Taken apart, since the result is a new object every render and `mutate`
+  // is the same function throughout.
+  const { isPending: isSending, mutate: sendMessage } = useMutation(
     createMessageOptions({
       onError: (error) => {
         toast.error("Couldn't send your message", { cause: error });
       },
     }),
   );
-  const runTurn = useMutation(
+  const { isPending: isRunningAgain, mutate: runAgain } = useMutation(
     rpcClient.workspace.session.run.mutationOptions({
       onError: (error) => {
         toast.error("Couldn't try again", { cause: error });
@@ -322,7 +314,12 @@ export function ChatConversation({
     id,
     sessionId: selectedSessionId,
   });
-  const stopChat = useMutation(
+  const { isAgentAlive, isAgentRunning, isChatAlive, isChatRunning } =
+    useAgentSessionStatus({
+      id,
+      sessionId: selectedSessionId,
+    });
+  const { mutate: stopChat } = useMutation(
     rpcClient.workspace.session.stop.mutationOptions(),
   );
 
@@ -334,6 +331,7 @@ export function ChatConversation({
   if (unsettled.length !== pending.length) {
     setPending(unsettled);
   }
+  const isWaitingToSettle = unsettled.length > 0;
   const { data: modelsData } = useQuery(
     rpcClient.gateway.models.live.list.experimental_liveOptions(),
   );
@@ -350,38 +348,77 @@ export function ChatConversation({
   const { data: preferences } = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
-  const shownMessages = [
-    ...messages,
-    ...unsettled
-      .filter((entry) => entry.message.metadata.sessionId === selectedSessionId)
-      .map((entry) => entry.message),
-  ];
-  /** Draws the prompt at once, and hands back how to take it away again should the send fail. */
-  const showPending = (prompt: string, modelURI: AIGatewayModelURI.Type) => {
-    // A message on another model runs as a turn of its own, stopping the one
-    // going on. With another message still waiting, the turn that one starts
-    // records the switch, so the line is left to it.
-    const isFirstWaiting =
-      unsettled.length === 0 &&
-      (!isAgentAlive || messages.at(-1)?.role === "assistant");
-    const model = isFirstWaiting
-      ? reachModel(modelsData, modelURI).model
-      : undefined;
-    const entry = pendingPrompt({
-      change: model && modelChangeSincePreviousTurn({ messages, model }),
+  const unsettledHere = unsettled.filter(
+    (entry) => entry.message.metadata.sessionId === selectedSessionId,
+  );
+  // The stored messages themselves while nothing waits, so the transcript
+  // redraws only when they change.
+  const shownMessages =
+    unsettledHere.length === 0
+      ? messages
+      : [...messages, ...unsettledHere.map((entry) => entry.message)];
+  // What a send reads as it is made, current as of the last render.
+  const atSend = useRef({
+    isAgentAlive,
+    layoutContext: givenLayoutContext,
+    messages,
+    modelsData,
+    selectedSessionId,
+    sendContext: givenSendContext,
+    unsettled,
+  });
+  useLayoutEffect(() => {
+    atSend.current = {
+      isAgentAlive,
+      layoutContext: givenLayoutContext,
       messages,
-      prompt,
-      sessionId: selectedSessionId,
-    });
-    if (entry) {
-      setPending((current) => [...current, entry]);
-      setSentSwitch(entry);
-    }
-    return () => {
-      setPending((current) => current.filter((other) => other !== entry));
-      setSentSwitch((current) => (current === entry ? undefined : current));
+      modelsData,
+      selectedSessionId,
+      sendContext: givenSendContext,
+      unsettled,
     };
-  };
+  });
+  // The window's reads at the press, made once: the window hands new ones
+  // each time it redraws, which would redraw the transcript with it.
+  const [{ layoutContext, sendContext }] = useState(() => ({
+    layoutContext: () => atSend.current.layoutContext?.(),
+    sendContext: () => atSend.current.sendContext(),
+  }));
+  /**
+   * Draws the prompt at once, and hands back how to take it away again should
+   * the send fail. Made once, reading what the last render saw, so the
+   * handlers that send keep their identity while a reply streams in.
+   */
+  const [showPending] = useState(
+    () => (prompt: string, modelURI: AIGatewayModelURI.Type) => {
+      const now = atSend.current;
+      // A message on another model runs as a turn of its own, stopping the one
+      // going on. With another message still waiting, the turn that one starts
+      // records the switch, so the line is left to it.
+      const isFirstWaiting =
+        now.unsettled.length === 0 &&
+        (!now.isAgentAlive || now.messages.at(-1)?.role === "assistant");
+      const model = isFirstWaiting
+        ? reachModel(now.modelsData, modelURI).model
+        : undefined;
+      const entry = pendingPrompt({
+        change:
+          model &&
+          modelChangeSincePreviousTurn({ messages: now.messages, model }),
+        messages: now.messages,
+        prompt,
+        sessionId: now.selectedSessionId,
+      });
+      if (entry) {
+        setPending((current) => [...current, entry]);
+        setSentSwitch(entry);
+      }
+      return () => {
+        setPending((current) => current.filter((other) => other !== entry));
+        setSentSwitch((current) => (current === entry ? undefined : current));
+      };
+    },
+  );
   const isSentStored = sentPrompt !== undefined && messages.length > 0;
   const noteSentStored = useEffectEvent(() => {
     onSentStored?.();
@@ -394,12 +431,6 @@ export function ChatConversation({
   const messageError = messagesQuery.error;
   const isLoadingMessages = messagesQuery.isLoading;
   const refetch = messagesQuery.refetch;
-
-  const { isAgentAlive, isAgentRunning, isChatAlive, isChatRunning } =
-    useAgentSessionStatus({
-      id,
-      sessionId: selectedSessionId,
-    });
 
   // The live session takes over following the transcript as soon as it reports
   // itself alive, so the submit's own reason to follow ends there.
@@ -457,23 +488,11 @@ export function ChatConversation({
     sessionId: selectedSessionId,
   });
 
-  // A new chat up to the reply, opened in a tab of its own beside this one.
-  // The window opens only a chat its list has, so the branch's row goes in
-  // the list first, and the open waits for the window drawn with it.
   const queryClient = useQueryClient();
   const latestWindow = useRef(appWindow);
   useLayoutEffect(() => {
     latestWindow.current = appWindow;
   });
-  const handleBranch = async (upTo: StoreId.Message) => {
-    const { id: branch, listed } = await rpcClient.workspace.chats.branch.call({
-      id: chatId,
-      upTo,
-      ...(isLookingBack && { version: shownVersion.version }),
-    });
-    await chatListed(queryClient, listed);
-    latestWindow.current?.openScreen(chatHref(branch), { newTab: true });
-  };
 
   // Editing a sent message, and looking back at one's earlier versions. Both
   // are this view's alone: nothing is kept of where it was looking.
@@ -491,7 +510,7 @@ export function ChatConversation({
         : skipToken,
     }),
   );
-  const editMessage = useMutation(
+  const { isPending: isSendingEdit, mutate: sendEdit } = useMutation(
     createMessageOptions({
       onError: (error) => {
         toast.error("Couldn't send your edit", { cause: error });
@@ -503,7 +522,7 @@ export function ChatConversation({
     isOwnSession && !isArchived
       ? {
           editing: editingMessage,
-          isSending: editMessage.isPending,
+          isSending: isSendingEdit,
           modelChoice,
           modelURI: selectedModelURI,
           onCancel: () => {
@@ -517,8 +536,8 @@ export function ChatConversation({
             message,
             { files, folders, modelChoice: chosen, modelURI, prompt },
           ) => {
-            const layout = layoutContext?.();
-            editMessage.mutate(
+            const layout = layoutContext();
+            sendEdit(
               {
                 edits: message,
                 files,
@@ -558,9 +577,24 @@ export function ChatConversation({
     shownVersion !== undefined &&
     versionFrom !== -1 &&
     versionQuery.data !== undefined;
-  const transcriptMessages = isLookingBack
-    ? [...shownMessages.slice(0, versionFrom), ...versionQuery.data]
-    : shownMessages;
+  const transcriptMessages = withSentSwitch(
+    isLookingBack
+      ? [...shownMessages.slice(0, versionFrom), ...versionQuery.data]
+      : shownMessages,
+    isAgentAlive || isFollowingSubmit ? sentSwitch : undefined,
+  );
+  // A new chat up to the reply, opened in a tab of its own beside this one.
+  // The window opens only a chat its list has, so the branch's row goes in
+  // the list first, and the open waits for the window drawn with it.
+  const handleBranch = async (upTo: StoreId.Message) => {
+    const { id: branch, listed } = await rpcClient.workspace.chats.branch.call({
+      id: chatId,
+      upTo,
+      ...(isLookingBack && { version: shownVersion.version }),
+    });
+    await chatListed(queryClient, listed);
+    latestWindow.current?.openScreen(chatHref(branch), { newTab: true });
+  };
 
   const handleRetry = (prompt: string) => {
     if (!selectedModelURI) {
@@ -570,7 +604,7 @@ export function ChatConversation({
       });
       return;
     }
-    createMessage.mutate({
+    sendMessage({
       id,
       modelChoice: sentChoice,
       modelURI: selectedModelURI,
@@ -592,7 +626,7 @@ export function ChatConversation({
       });
       return;
     }
-    runTurn.mutate({
+    runAgain({
       id,
       ifIdle: options?.ifIdle,
       modelChoice: sentChoice,
@@ -611,7 +645,6 @@ export function ChatConversation({
 
   const isActiveTab = useIsActiveTab();
   const filesHref = useFilesStartHref();
-  const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
   const composerRef = useRef<HTMLDivElement>(null);
   // The chat's height, for the question's choices to stop at a share of it
   // and scroll: a length the composer's own column, which grows with them,
@@ -865,12 +898,12 @@ export function ChatConversation({
   // setting turned off, takes them away at once.
   const nextSteps =
     draftKey.scope === "chat" &&
-    unsettled.length === 0 &&
+    !isWaitingToSettle &&
     !isLookingBack &&
     editingMessage === undefined &&
     preferences?.suggestNextMessage !== false
-      ? (nextMessages ?? [])
-      : [];
+      ? (nextMessages ?? NO_NEXT_STEPS)
+      : NO_NEXT_STEPS;
   const firstNextStep = nextSteps[0];
   /**
    * Sends a suggested message as the person's own. The reply in the box is
@@ -888,10 +921,10 @@ export function ChatConversation({
     setIsFollowingSubmit(true);
     slideToSentRef.current();
     const dropPending = showPending(prompt, selectedModelURI);
-    const layout = layoutContext?.();
+    const layout = layoutContext();
     void sendContext().then(
       (viewing) => {
-        createMessage.mutate(
+        sendMessage(
           {
             id,
             ...(layout ? { layout } : {}),
@@ -919,9 +952,9 @@ export function ChatConversation({
     const takeBack =
       draftKey.scope === "chat" &&
       isBoxEmpty &&
-      unsettled.length === 0 &&
-      !createMessage.isPending;
-    stopChat.mutate(
+      !isWaitingToSettle &&
+      !isSending;
+    stopChat(
       { id, ...(takeBack && { takeBack }) },
       {
         onSuccess: ({ takenBack }) => {
@@ -1018,7 +1051,7 @@ export function ChatConversation({
         asks?.pills != null || draftLinksOf(replyDraft).length > 0
       }
       id={id}
-      isLoading={createMessage.isPending}
+      isLoading={isSending}
       lead={composerLead}
       modelChoice={modelChoice}
       modelURI={selectedModelURI}
@@ -1079,13 +1112,13 @@ export function ChatConversation({
         // Drawn before what goes with it is read: reading a page can take a
         // moment, and the send is only stored once that is in.
         const dropPending = showPending(prompt, modelURI);
-        const layout = layoutContext?.();
+        const layout = layoutContext();
         // The message names the draft it came from, so the draft names the
         // chat on disk before the message is written: a launch after a crash
         // finds the message by the chat its draft names.
         void Promise.all([sendContext(), outgoing?.claimed]).then(
           ([viewing]) => {
-            createMessage.mutate(
+            sendMessage(
               {
                 ...(taken ? { asks: taken.part } : {}),
                 files,
@@ -1143,6 +1176,20 @@ export function ChatConversation({
       selectedSessionId={selectedSessionId}
     />
   );
+
+  // Built apart from the tree below, each its own memo for the compiler: a
+  // new object every turn of the feed would redraw every turn reading it, and
+  // the set inline in the tree keeps the compiler from memoizing any of it.
+  const nextStepsShown = {
+    isBoxEmpty,
+    lines: nextSteps,
+    onSend: sendNextStep,
+  };
+  const stopped =
+    isStopped && !isLookingBack
+      ? { onSendFeedback: sendStopFeedback }
+      : undefined;
+  const loadedIds = new Set(shownMessages.map((message) => message.id));
 
   // The composer is a plain flex sibling below the scroller: normal flow
   // reserves its height (no measuring), and the scroll viewport holds only the
@@ -1229,20 +1276,8 @@ export function ChatConversation({
                   ) : !isAgentRunning && shownMessages.length === 0 ? (
                     <NoMessages />
                   ) : (
-                    <NextStepsContext
-                      value={{
-                        isBoxEmpty,
-                        lines: nextSteps,
-                        onSend: sendNextStep,
-                      }}
-                    >
-                      <StoppedContext
-                        value={
-                          isStopped && !isLookingBack
-                            ? { onSendFeedback: sendStopFeedback }
-                            : undefined
-                        }
-                      >
+                    <NextStepsContext value={nextStepsShown}>
+                      <StoppedContext value={stopped}>
                         <FoldsOpenedByFind value={foldsOpenedByFind}>
                           <MessageEditingContext value={messageEditing}>
                             <TranscriptStream
@@ -1255,17 +1290,12 @@ export function ChatConversation({
                               isRunning={
                                 !isLookingBack &&
                                 (isAgentRunning ||
-                                  runTurn.isPending ||
+                                  isRunningAgain ||
                                   isAgentAlive ||
                                   isFollowingSubmit ||
                                   shownMessages.length > messages.length)
                               }
-                              messages={withSentSwitch(
-                                transcriptMessages,
-                                isAgentAlive || isFollowingSubmit
-                                  ? sentSwitch
-                                  : undefined,
-                              )}
+                              messages={transcriptMessages}
                               onBranch={handleBranch}
                               // An archived chat has no reply box, so no picker.
                               onChooseModel={
@@ -1316,7 +1346,7 @@ export function ChatConversation({
                 contentRef={contentRef}
                 hasOlder={messagesQuery.data?.hasOlder ?? false}
                 loadOlderThrough={messagesQuery.loadOlderThrough}
-                loadedIds={new Set(shownMessages.map((message) => message.id))}
+                loadedIds={loadedIds}
                 onClose={() => {
                   promptInputRef.current?.focus();
                 }}
@@ -1368,6 +1398,34 @@ export function ChatConversation({
       </LiveTranscriptSurface>
     </ComposerDraftContext>
   );
+}
+
+/**
+ * Change model on a failed reply opens the reply box's picker. While the box
+ * is away, the picker opens as soon as it is back.
+ *
+ * A hook of its own, so the compiler takes what it returns as fixed: a
+ * function that reaches into a ref, handed to a toast from inside the
+ * component, would keep every handler that does so from being memoized.
+ */
+function useModelPickerOpener(inputRef: RefObject<PromptInputRef | null>) {
+  const wanted = useRef(false);
+  return {
+    attach: (input: PromptInputRef | null) => {
+      inputRef.current = input;
+      if (input && wanted.current) {
+        wanted.current = false;
+        input.openModelPicker();
+      }
+    },
+    choose: () => {
+      if (inputRef.current) {
+        inputRef.current.openModelPicker();
+      } else {
+        wanted.current = true;
+      }
+    },
+  };
 }
 
 /**

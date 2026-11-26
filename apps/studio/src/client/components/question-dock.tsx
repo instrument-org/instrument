@@ -28,7 +28,7 @@ export function useQuestionDock(chatId: ChatId) {
   // card comes up on the click. One given while the computer that asked was
   // away comes back asking again, and shows.
   const [sent, setSent] = useState<ReadonlySet<string>>(new Set());
-  const answer = useMutation(
+  const { mutate: sendAnswer } = useMutation(
     rpcClient.workspace.chats.answerQuestion.mutationOptions(),
   );
   const docked = (asks ?? []).flatMap((ask) =>
@@ -41,7 +41,7 @@ export function useQuestionDock(chatId: ChatId) {
   );
   const send = (askId: string, answered: ChooseOutput) => {
     setSent((all) => new Set(all).add(askId));
-    answer.mutate(
+    sendAnswer(
       { answer: answered, askId, id: chatId },
       {
         onError: (error) => {

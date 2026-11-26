@@ -116,14 +116,15 @@ const textOf = (message: Shown) =>
  * The pending prompts still waiting, in the order sent: each one gives way to
  * the first stored user message with its words that was not there when it was
  * sent, and no stored message stands in for two, so the same words sent twice
- * wait for two.
+ * wait for two. `pending` itself while none has, so a render that settles
+ * nothing hands on the same array.
  */
 export function unsettledPrompts(
   pending: PendingPrompt[],
   messages: readonly Shown[],
 ): PendingPrompt[] {
   const claimed = new Set<StoreId.Message>();
-  return pending.filter((entry) => {
+  const waiting = pending.filter((entry) => {
     const text = textOf(entry.message);
     const stored = messages.find(
       (message) =>
@@ -139,4 +140,5 @@ export function unsettledPrompts(
     }
     return true;
   });
+  return waiting.length === pending.length ? pending : waiting;
 }

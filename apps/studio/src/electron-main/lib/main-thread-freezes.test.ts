@@ -39,6 +39,7 @@ function drive() {
         now: START + at,
       });
     },
+    heldMs: () => watch.heldMs(),
   };
 }
 
@@ -95,6 +96,18 @@ describe("createFreezeWatch", () => {
     for (let second = 0; second < 9; second++) {
       expect(watch.check()).toBeUndefined();
     }
+  });
+
+  it("adds up the time the process was held, whether main beat first or not", () => {
+    const watch = drive();
+    watch.check();
+    watch.check(3_600_000);
+    watch.check();
+    watch.beat();
+    watch.check(600_000);
+    watch.check(1_500);
+
+    expect(watch.heldMs()).toBe(4_200_000);
   });
 
   it("says how long a freeze lasted once main moves its counter again, then starts over", () => {
@@ -180,6 +193,7 @@ describe("runFreezeWatchdog", () => {
     runFreezeWatchdog(
       {
         beats: buffer,
+        held: new SharedArrayBuffer(BigInt64Array.BYTES_PER_ELEMENT),
         logFile: { format: "text", path: logPath },
         markerPath,
         pid: 4242,
@@ -233,6 +247,7 @@ describe("runFreezeWatchdog", () => {
     runFreezeWatchdog(
       {
         beats: new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT),
+        held: new SharedArrayBuffer(BigInt64Array.BYTES_PER_ELEMENT),
         logFile: { format: "json", path: logPath },
         markerPath: path.join(dir, FREEZE_MARKER_FILE),
         pid: 4242,

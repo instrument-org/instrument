@@ -9,7 +9,9 @@ import fs from "node:fs";
  * timer kept time is main stuck: a loop that never yields, or a synchronous
  * call that never returns. A worker check that came late was the whole
  * process held (the computer sleeping, the system napping the app), and that
- * time is not counted.
+ * time is not counted. The watchdog adds it up for main, which reads it as
+ * `heldMs` (`@instrument-org/shared/process-holds`) to leave holds out of
+ * what it measures.
  *
  * A freeze is written down from the worker, since main's own logger appends
  * from main's event loop and so writes nothing while main is stuck: one log
@@ -77,6 +79,7 @@ export type FreezeCheck =
  */
 export function createFreezeWatch() {
   let last: { at: number; beats: number } | undefined;
+  let heldMs = 0;
   // When the counter last moved, as the worker saw it.
   let since = { cpu: { system: 0, user: 0 }, now: 0 };
   let stuckMs = 0;
@@ -84,6 +87,8 @@ export function createFreezeWatch() {
   let markedAtMs = 0;
 
   return {
+    /** Total time between checks that came late, the whole process held. */
+    heldMs: () => heldMs,
     check({
       at,
       beats,
@@ -97,6 +102,11 @@ export function createFreezeWatch() {
     }): FreezeCheck | undefined {
       const previous = last;
       last = { at, beats };
+      // Before the counter, since main may beat first after a hold.
+      const gap = previous ? at - previous.at : 0;
+      if (gap > HELD_AFTER_MS) {
+        heldMs += gap;
+      }
       if (!previous || beats !== previous.beats) {
         const ended = frozen;
         frozen = undefined;
@@ -104,7 +114,6 @@ export function createFreezeWatch() {
         since = { cpu, now };
         return ended && { freeze: ended, kind: "recovered" };
       }
-      const gap = at - previous.at;
       if (gap > HELD_AFTER_MS) {
         return undefined;
       }
@@ -198,6 +207,8 @@ export type FreezeLogFile = { format: "json" | "text"; path: string };
 export type FreezeWatchdogData = {
   /** One `Int32Array` slot main adds one to from its timer. */
   beats: SharedArrayBuffer;
+  /** One `BigInt64Array` slot the worker keeps the process's total held milliseconds in. */
+  held: SharedArrayBuffer;
   logFile: FreezeLogFile | undefined;
   markerPath: string;
   pid: number;
@@ -217,6 +228,7 @@ export function runFreezeWatchdog(
   post: (message: FreezeRecovered) => void,
 ) {
   const beats = new Int32Array(data.beats);
+  const held = new BigInt64Array(data.held);
   const watch = createFreezeWatch();
   let logged = 0;
 
@@ -243,6 +255,7 @@ export function runFreezeWatchdog(
       cpu: process.cpuUsage(),
       now: Date.now(),
     });
+    Atomics.store(held, 0, BigInt(Math.round(watch.heldMs())));
     if (!found) {
       return;
     }

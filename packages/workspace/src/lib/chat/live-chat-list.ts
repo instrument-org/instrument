@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { mergeGenerators } from "@instrument-org/shared/merge-generators";
+import { awakeMsSince, awakeNow } from "@instrument-org/shared/process-holds";
 import { isEqual, unique } from "radashi";
 
 import { collapsed, everyOne } from "../../rpc/live-read";
@@ -306,12 +307,13 @@ async function readChatList(
     ];
   };
   try {
-    const firstStarted = performance.now();
+    // Durations leave out the computer sleeping mid-read.
+    const firstStarted = awakeNow();
     knownApps = await knownAppSlugs();
     const first = listChatIds();
     await readAgain(first);
     rereads.first({
-      ms: performance.now() - firstStarted,
+      ms: awakeMsSince(firstStarted),
       read: first.length,
     });
     let rev = 0;
@@ -325,7 +327,7 @@ async function readChatList(
       refreshes,
       held.due,
     ])) {
-      const started = performance.now();
+      const started = awakeNow();
       let appsMoved = false;
       if (moved === null) {
         const now = await knownAppSlugs();
@@ -362,7 +364,7 @@ async function readChatList(
         cause: causeOf(moved),
         fresh: fresh.length,
         listed: listed.length,
-        ms: performance.now() - started,
+        ms: awakeMsSince(started),
         read: ids.length,
       });
       if (upserts.length > 0 || removed.length > 0) {

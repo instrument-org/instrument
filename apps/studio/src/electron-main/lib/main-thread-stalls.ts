@@ -1,11 +1,16 @@
 import { createScopedLogger } from "@/electron-main/lib/electron-logger";
-import { powerMonitor } from "electron";
+import { heldMs } from "@instrument-org/shared/process-holds";
 
 const log = createScopedLogger("mainThread");
 
 /** How often the clock is checked; a tick this late or later is a stall. */
 const TICK_MS = 100;
 const STALL_MS = 250;
+/**
+ * How long a late tick waits before it is judged, so the freeze watchdog,
+ * which checks every second, has counted a hold the tick spans.
+ */
+const HOLD_SETTLED_MS = 1_500;
 
 /** RPC procedures in flight now, by call, so two calls of one path count twice. */
 const running = new Map<symbol, string>();
@@ -46,19 +51,17 @@ export async function trackRPCForStalls<T>(options: {
  * The main thread is also the one that hands every click and key to the
  * windows, so a stall here is a window that does not answer, even when the
  * renderer is free. Measured as the lateness of a repeating timer, which costs
- * nothing between stalls; a sleeping computer is not a stall. `onTick` runs on
- * every tick, late or not, as the freeze watchdog's heartbeat.
+ * nothing between stalls. A sleeping computer is not a stall: the time the
+ * whole process was held (`heldMs`) is left out of a late tick, each hold
+ * once. That covers full sleeps and a Mac's dark wakes alike: the power
+ * monitor's `suspend` and `resume` never mark a dark wake, and a process
+ * started during one never sees a `suspend` at all. `onTick` runs on every
+ * tick, late or not, as the freeze watchdog's heartbeat.
  */
 export function watchMainThreadStalls({ onTick }: { onTick: () => void }) {
   let last = performance.now();
-  let isSuspended = false;
-  powerMonitor.on("suspend", () => {
-    isSuspended = true;
-  });
-  powerMonitor.on("resume", () => {
-    isSuspended = false;
-    last = performance.now();
-  });
+  /** Held time already taken out of a late tick, so each hold is taken once. */
+  let claimed = heldMs();
   const timer = setInterval(() => {
     onTick();
     const now = performance.now();
@@ -66,13 +69,19 @@ export function watchMainThreadStalls({ onTick }: { onTick: () => void }) {
     last = now;
     const ran = ranSinceTick;
     ranSinceTick = new Set();
-    if (isSuspended || late < STALL_MS) {
+    if (late < STALL_MS) {
       return;
     }
-    log.warn(
-      `Main thread stalled for ${Math.round(late)}ms`,
-      describeStall(ran, running.values()),
-    );
+    const during = describeStall(ran, running.values());
+    const judge = setTimeout(() => {
+      const held = Math.min(late, Math.max(0, heldMs() - claimed));
+      claimed += held;
+      const stalled = late - held;
+      if (stalled >= STALL_MS) {
+        log.warn(`Main thread stalled for ${Math.round(stalled)}ms`, during);
+      }
+    }, HOLD_SETTLED_MS);
+    judge.unref();
   }, TICK_MS);
   timer.unref();
 }

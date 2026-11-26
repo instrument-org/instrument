@@ -26,6 +26,7 @@
     "./merge-generators": "./src/merge-generators.ts",
     "./page-distill": "./src/page-distill.ts",
     "./page-text": "./src/page-text.ts",
+    "./process-holds": "./src/process-holds.ts",
     "./project-marks": "./src/project-marks.ts",
     "./secrets": "./src/secrets.ts",
     "./skill-mention": "./src/skill-mention.ts",

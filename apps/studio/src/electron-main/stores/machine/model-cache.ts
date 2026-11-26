@@ -15,6 +15,9 @@ const ModelCacheStoreSchema = z.object({
   models: z
     .record(z.string(), AIGatewayModel.Schema.array().catch([]))
     .default({}),
+  // When each provider's list was last written, by the same key, so the lists
+  // of providers no longer listed anywhere are dropped.
+  written: z.record(z.string(), z.number()).default({}).catch({}),
 });
 
 type ModelCacheStore = z.output<typeof ModelCacheStoreSchema>;
@@ -51,6 +54,11 @@ function getModelCacheStore(): Store<ModelCacheStore> {
   return MODEL_CACHE_STORE;
 }
 
+// How long a provider's list is kept after it was last written: one written
+// before writes were dated, or by a connection since removed or a workspace
+// not opened in that time, is dropped at the next write.
+const KEEP_UNWRITTEN_MS = 30 * 24 * 60 * 60 * 1000;
+
 // Last value persisted per provider in this process, used to skip redundant
 // disk writes. Every surface that mounts the model picker refetches the list
 // (via a network response that fetchJson caches in-memory for an hour), so
@@ -72,9 +80,22 @@ export const diskModelCache: ModelCache = {
         return;
       }
       const store = getModelCacheStore();
-      store.set("models", {
-        ...store.get("models"),
-        [cacheIdentifier]: models,
+      const now = Date.now();
+      const written = Object.fromEntries(
+        Object.entries(store.get("written")).filter(
+          ([, at]) => now - at < KEEP_UNWRITTEN_MS,
+        ),
+      );
+      written[cacheIdentifier] = now;
+      const kept = store.get("models");
+      store.set({
+        models: Object.fromEntries(
+          Object.keys(written).flatMap((key) => {
+            const list = key === cacheIdentifier ? models : kept[key];
+            return list ? [[key, list]] : [];
+          }),
+        ),
+        written,
       });
       lastWrittenByIdentifier.set(cacheIdentifier, serialized);
     } catch (error) {

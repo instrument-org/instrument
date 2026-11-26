@@ -1287,6 +1287,38 @@ const escapeBlockStart = (text: string) =>
     .replace(/^(\s*)([-*+#>])(?=\s|#)/, "$1\\$2");
 
 /**
+ * A table drawn in the shape `rehypeTableShape` read off its cells, once it
+ * is whole. A table still arriving is the last thing in the block still
+ * growing, and its shape would change with each row (records turning into a
+ * scroller at the seventh, a fit that grows with a wider cell, a bold last
+ * row read as a total until the next one lands), so until then it is the
+ * plain table, and the shape is applied once the block closes.
+ */
+const MarkdownShapedTable: Components["table"] = ({ children, node }) => {
+  const arrivingSource = useContext(ArrivingBlockContext);
+  const end = node?.position?.end.offset;
+  const isArriving =
+    arrivingSource !== undefined &&
+    end !== undefined &&
+    arrivingSource.slice(end).trim() === "";
+  const fit = Number(node?.properties.dataFit ?? 0);
+  const narrow = node?.properties.dataNarrow;
+  return (
+    <MarkdownTable
+      hasBars={!isArriving && node?.properties.dataBars !== undefined}
+      isPictures={isPictureTable(node)}
+      narrow={
+        !isArriving && fit > 0 && (narrow === "records" || narrow === "scroll")
+          ? { fit, shape: narrow }
+          : undefined
+      }
+    >
+      {children}
+    </MarkdownTable>
+  );
+};
+
+/**
  * One block of a message, or a whole document when it is not being split.
  *
  * Memoized on its own text, which is the point of the whole arrangement: a
@@ -1592,23 +1624,7 @@ export const Markdown = memo(
         ol: markdownOrderedList,
         p: documentUrl ? markdownParagraph : messageParagraph,
         pre: MarkdownPre,
-        table: ({ children, node }) => {
-          // Read off the table by `rehypeTableShape`.
-          const fit = Number(node?.properties.dataFit ?? 0);
-          const narrow = node?.properties.dataNarrow;
-          return (
-            <MarkdownTable
-              isPictures={isPictureTable(node)}
-              narrow={
-                fit > 0 && (narrow === "records" || narrow === "scroll")
-                  ? { fit, shape: narrow }
-                  : undefined
-              }
-            >
-              {children}
-            </MarkdownTable>
-          );
-        },
+        table: MarkdownShapedTable,
       }),
       [documentUrl, handleImageClick, hideImages, imageKinds],
     );

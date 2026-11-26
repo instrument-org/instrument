@@ -9,7 +9,8 @@ import { isShortCell, tableShape } from "./table-shape";
  * - a short cell, and a column name that is a short file chip, `data-short`,
  *   which keeps it on one line; an empty body cell `data-blank`;
  * - the table its fit and what it does under it as `data-fit` and
- *   `data-narrow`, which `MarkdownTable` puts on its frame and table;
+ *   `data-narrow`, and whether it has bars as `data-bars`, which
+ *   `MarkdownTable` puts on its frame and table once the table is whole;
  * - in a table that becomes records, each body cell's contents wrapped in
  *   one element, so a value of several parts stays one value beside its
  *   label, and each total row `data-total`, which draws it as one line;
@@ -110,6 +111,9 @@ function shape(table: HastNode) {
       dataFit: fit,
       dataNarrow: narrow,
     };
+  }
+  if (bars) {
+    table.properties = { ...table.properties, dataBars: "" };
   }
   const labelStyle =
     labelWidth === undefined ? undefined : `--label-width: ${labelWidth}ch`;

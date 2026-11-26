@@ -172,6 +172,7 @@ const copy = (rows: string[][], format?: TableCopyFormat) => {
 export const MarkdownTable = ({
   children,
   expandable = true,
+  hasBars = false,
   isPictures = false,
   narrow,
   stack,
@@ -179,6 +180,8 @@ export const MarkdownTable = ({
   children?: ReactNode;
   /** False inside Quick Look, which is already this table with room. */
   expandable?: boolean;
+  /** Whether to show the bars `rehypeTableShape` measured beside its amounts. */
+  hasBars?: boolean;
   /** Whether every body cell is a picture alone, which takes columns of one width. */
   isPictures?: boolean;
   /**
@@ -455,6 +458,7 @@ export const MarkdownTable = ({
         <span aria-hidden className="markdown-table-fade" data-edge="start" />
         <span aria-hidden className="markdown-table-lead" />
         <table
+          data-bars={hasBars || undefined}
           data-narrow={narrow?.shape}
           data-pictures={isPictures || undefined}
           data-stack={stack}
@@ -565,7 +569,12 @@ export const MarkdownTable = ({
 
       {expandable && (
         <LookedAtContent id={lookId}>
-          <MarkdownTable expandable={false} narrow={narrow} stack={stack}>
+          <MarkdownTable
+            expandable={false}
+            hasBars={hasBars}
+            narrow={narrow}
+            stack={stack}
+          >
             {children}
           </MarkdownTable>
         </LookedAtContent>

@@ -993,6 +993,58 @@ describe("Markdown table shape", () => {
       container.querySelector("td")?.getAttribute("data-label"),
     ]).toEqual(["24", "records", "Lender"]);
   });
+
+  const MORTGAGE = [
+    "| Lender | Rate | Points | Monthly | 7-year cost with points |",
+    "|---|---|---|---|---|",
+    "| Lakeview Bank | 6.125% | 0.5 | $2,734 | $188,928 |",
+    "| First Harbor | 6.190% | 0.25 | $2,752 | $190,418 |",
+  ].join("\n");
+  const SPENDING = [
+    "| Where | Amount |",
+    "|---|---|",
+    "| Rent | $1,850 |",
+    "| Groceries | $612 |",
+    "| Gas | $148 |",
+  ].join("\n");
+
+  it.each([
+    ["still arriving", false, "", [null, null, null]],
+    [
+      "closed by the next block",
+      true,
+      "\n\nThen more",
+      ["24", "records", "true"],
+    ],
+    ["in a settled message", false, "\n\nThen more", ["24", "records", "true"]],
+  ])(
+    "shapes a table only once it is whole: %s",
+    (_case, isStreaming, after, expected) => {
+      const { container } = renderWithProviders(
+        <>
+          <Markdown
+            chatId={TASK_ID}
+            isStreaming={isStreaming || after === ""}
+            markdown={MORTGAGE + after}
+          />
+          <Markdown
+            chatId={TASK_ID}
+            isStreaming={isStreaming || after === ""}
+            markdown={SPENDING + after}
+          />
+        </>,
+      );
+
+      const [first, second] = container.querySelectorAll(
+        ".markdown-table-frame",
+      );
+      expect([
+        first?.getAttribute("data-fit") ?? null,
+        first?.querySelector("table")?.getAttribute("data-narrow") ?? null,
+        second?.querySelector("table")?.getAttribute("data-bars") ?? null,
+      ]).toEqual(expected);
+    },
+  );
 });
 
 describe("Markdown unbroken inline runs", () => {

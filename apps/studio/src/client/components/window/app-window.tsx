@@ -74,6 +74,7 @@ import { type TabId, TabIdSchema } from "@/shared/tabs";
 import { spokenMessage, toast } from "@/client/lib/toast";
 import { captureComponentError } from "@/client/lib/capture-exception";
 import { cn } from "@/client/lib/utils";
+import { keepListening } from "@/client/lib/keep-listening";
 import { rpcClient } from "@/client/rpc/client";
 import { fileHref } from "@/shared/computer-href";
 import { type Tab } from "@/shared/tabs";
@@ -885,6 +886,32 @@ function WindowShell({
     void queryClient.prefetchQuery(storageLocationQueryOptions());
     void queryClient.prefetchQuery(rpcClient.billing.offer.queryOptions());
   }, [opened, queryClient]);
+  // The computer's places are read again when a folder disks and cloud
+  // folders are mounted in changes, which main says, and when the window
+  // comes forward, for what no watch reports (Windows' drives, a known folder
+  // made). A screen mounting as its group comes up reads them from the cache
+  // rather than asking main to list the mounts again.
+  useEffect(() => {
+    const places = rpcClient.workspace.computer.places.key();
+    queryClient.setQueryDefaults(places, {
+      staleTime: Number.POSITIVE_INFINITY,
+    });
+    const readAgain = () => {
+      void queryClient.invalidateQueries({ queryKey: places });
+    };
+    window.addEventListener("focus", readAgain);
+    const controller = new AbortController();
+    void keepListening({
+      onEach: readAgain,
+      signal: controller.signal,
+      start: (signal) =>
+        rpcClient.workspace.computer.live.volumes.call(undefined, { signal }),
+    });
+    return () => {
+      window.removeEventListener("focus", readAgain);
+      controller.abort();
+    };
+  }, [queryClient]);
 
   /**
    * A new chat's tab as it closes, at the address of the draft words typed

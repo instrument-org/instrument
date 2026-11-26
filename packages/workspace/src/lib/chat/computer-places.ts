@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { watch as fsWatch } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -116,6 +117,77 @@ export async function computerPlaces(): Promise<ComputerPlaces> {
     // its Locations.
     volumes: [...(iCloudDrive ? [iCloudDrive] : []), ...clouds, ...drives],
   };
+}
+
+/** How long the mounts stay still before a change to them is said. */
+const VOLUMES_SETTLE_MS = 300;
+
+/**
+ * Yields once each time a folder the system mounts disks or cloud folders in
+ * changes, until `signal` ends it: `/Volumes` and the file provider's folder
+ * on a Mac, the desktop's media folders on Linux, each as it was there when
+ * the watch began. Windows has no such folder, and nothing is yielded there.
+ * It says much of what changes `computerPlaces`, not all of it.
+ */
+export async function* volumeChanges(
+  signal: AbortSignal,
+): AsyncGenerator<true> {
+  const home = os.homedir();
+  const user = path.basename(home);
+  let changed = false;
+  let wake: (() => void) | undefined;
+  let settle: ReturnType<typeof setTimeout> | undefined;
+  const heard = () => {
+    clearTimeout(settle);
+    settle = setTimeout(() => {
+      changed = true;
+      wake?.();
+    }, VOLUMES_SETTLE_MS);
+  };
+  const folders =
+    process.platform === "darwin"
+      ? ["/Volumes", path.join(home, "Library", "CloudStorage")]
+      : process.platform === "linux"
+        ? [
+            "/media",
+            path.join("/media", user),
+            "/run/media",
+            path.join("/run/media", user),
+          ]
+        : [];
+  const watches = folders.flatMap((folder) => {
+    try {
+      const watch = fsWatch(folder, heard);
+      watch.on("error", () => {
+        watch.close();
+      });
+      return [watch];
+    } catch {
+      // A folder that is not there has nothing mounted in it yet.
+      return [];
+    }
+  });
+  const stop = () => wake?.();
+  signal.addEventListener("abort", stop);
+  try {
+    while (!signal.aborted) {
+      if (changed) {
+        changed = false;
+        yield true;
+        continue;
+      }
+      await new Promise<void>((resolve) => {
+        wake = resolve;
+      });
+      wake = undefined;
+    }
+  } finally {
+    signal.removeEventListener("abort", stop);
+    clearTimeout(settle);
+    for (const watch of watches) {
+      watch.close();
+    }
+  }
 }
 
 /**

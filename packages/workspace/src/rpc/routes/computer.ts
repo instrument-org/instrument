@@ -7,6 +7,7 @@ import {
   ComputerDriveSchema,
   computerPlaces,
   ComputerPlacesSchema,
+  volumeChanges,
 } from "../../lib/chat/computer-places";
 import {
   ComputerFileEntrySchema,
@@ -119,6 +120,16 @@ const places = base
   .output(ComputerPlacesSchema)
   .handler(() => computerPlaces());
 
+/**
+ * Says each time the disks or cloud folders `places` lists may have changed,
+ * for as long as the caller listens, so the places can be kept until then.
+ */
+const liveVolumes = base
+  .output(eventIterator(z.literal(true)))
+  .handler(async function* ({ signal }) {
+    yield* volumeChanges(signal ?? new AbortController().signal);
+  });
+
 /** The disks, with how much of each is free. */
 const drives = base
   .output(ComputerDriveSchema.array())
@@ -149,7 +160,7 @@ export const computer = {
   describe,
   drives,
   list,
-  live: { list: liveList },
+  live: { list: liveList, volumes: liveVolumes },
   locate,
   places,
   titles,

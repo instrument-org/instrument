@@ -14,6 +14,7 @@ import { build as viteBuild } from "vite";
 import { analyzer } from "vite-bundle-analyzer";
 
 import { recordBundledPackages } from "./electron-builder/bundled-packages";
+import { projectIconFill } from "./scripts/project-icon-fill";
 import { contentSecurityPolicyMeta } from "./src/content-security-policy";
 
 const isAnalyzing = process.env.ANALYZE_BUILD === "true";
@@ -591,6 +592,7 @@ export default defineConfig(({ command }) => {
           generatedRouteTree: "./client/routeTree.gen.ts",
           routesDirectory: "./client/routes",
         }),
+        projectIconFill(),
         react(),
         babel({ presets: [reactCompilerPreset()] }),
         tailwindcss(),

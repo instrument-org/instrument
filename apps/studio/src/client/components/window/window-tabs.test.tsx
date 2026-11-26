@@ -15,7 +15,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { appTabsAtom } from "./app-tabs";
 import {
-  arrivingNewChatTabsAtom,
+  glintingNewChatTabsAtom,
   groupOnScreenAtom,
   useWindowTabs,
   windowTabsAtom,
@@ -119,22 +119,14 @@ describe("opening into a group", () => {
   });
 });
 
-describe("a new chat tab arriving", () => {
-  it("marks only an empty new chat this window opened, for its composer's one glint", () => {
+describe("a new chat tab opened", () => {
+  it("marks nothing for its composer's glint, which only a new tab or New asks for", () => {
     const { result, store } = at(ON_GROUP);
-    let fresh: string | undefined;
-    let kept: string | undefined;
-    let page: string | undefined;
     act(() => {
-      fresh = result.current.openScreen(newChatHref());
-      kept = result.current.openScreen(newChatHref("d1"));
-      page = result.current.openScreen(BROWSER_HREF);
+      result.current.openScreen(newChatHref(), { select: true });
+      result.current.openScreen(newChatHref(), { select: true });
     });
-    const arriving = store.get(arrivingNewChatTabsAtom);
-    expect(fresh && arriving.has(fresh)).toBe(true);
-    expect(kept && arriving.has(kept)).toBe(false);
-    expect(page && arriving.has(page)).toBe(false);
-    expect(arriving.size).toBe(1);
+    expect(store.get(glintingNewChatTabsAtom).size).toBe(0);
   });
 });
 

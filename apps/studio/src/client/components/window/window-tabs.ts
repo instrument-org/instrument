@@ -31,9 +31,7 @@ import {
   chatUpIn,
   groupLayoutOf,
   type GroupLayout,
-  draftOfTab,
   everyTabId,
-  isNewChatTab,
   type GroupOwn,
   moveTabTo,
   patchPage,
@@ -222,12 +220,12 @@ export const everyTabIdAtom = atom((get) => everyTabId(get(shownTabsAtom)));
 const NO_TAB_IDS: ReadonlySet<string> = new Set();
 
 /**
- * Empty new chat tabs this window opened since it loaded whose composer has
- * not come up yet. Their arrival is the one moment a new chat's composer
- * glints (`NewChatView`, which takes its tab out as it comes up), so a tab
- * restored at launch, one shown again, and one naming a kept draft never do.
+ * Empty new chat tabs whose composer glints once: one a new tab or New asked
+ * for while an empty new chat tab was up, where nothing else on screen would
+ * change (`useTabGroups`). `NewChatView` takes its tab out as the glint ends
+ * or the composer goes, so a tab shown again never glints.
  */
-export const arrivingNewChatTabsAtom = atom(NO_TAB_IDS);
+export const glintingNewChatTabsAtom = atom(NO_TAB_IDS);
 
 /**
  * One change to the tabs, by its name (`tab-ops.ts`), applied to them as they
@@ -272,17 +270,6 @@ const applyAtom = atom(null, (get, set, command: TabCommand): unknown => {
       // With no one to ask, as in a test, the window keeps them itself.
       set(keptTabsAtom, kept);
     }
-  }
-  const before = new Set(current.tabs.map((tab) => tab.id));
-  const arriving = next.tabs.filter(
-    (tab) =>
-      !before.has(tab.id) && isNewChatTab(tab) && draftOfTab(tab) === undefined,
-  );
-  if (arriving.length > 0) {
-    set(
-      arrivingNewChatTabsAtom,
-      (ids) => new Set([...ids, ...arriving.map((tab) => tab.id)]),
-    );
   }
   return value;
 });

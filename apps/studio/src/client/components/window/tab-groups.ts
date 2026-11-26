@@ -57,7 +57,12 @@ import {
   newChatHref,
   newGroupKey,
 } from "./window-href";
-import { newScreenId, useWindowTabs, windowTabsAtom } from "./window-tabs";
+import {
+  glintingNewChatTabsAtom,
+  newScreenId,
+  useWindowTabs,
+  windowTabsAtom,
+} from "./window-tabs";
 
 /**
  * One tab group as the sidebar lists it. Its row is titled by the tab up on
@@ -402,6 +407,17 @@ export function copiedTabs(
   return { beside: besideCopy, tabs: copies, up: upCopy };
 }
 
+/** The group's tab up when it is an empty new chat, where a new tab or New changes nothing on screen. */
+export function emptyNewChatUp(
+  state: WindowTabs,
+  group: string | undefined,
+): WindowTab | undefined {
+  const up = group === undefined ? undefined : selectedTabIn(state, group);
+  return up !== undefined && isNewChatTab(up) && draftOfTab(up) === undefined
+    ? up
+    : undefined;
+}
+
 /** A screen tab at an address, in a group. */
 function screenTab(group: string, href: string): WindowTab {
   return { group, href, id: newScreenId(), kind: "screen" };
@@ -429,6 +445,13 @@ export function useTabGroupActions() {
       up &&
       groupOfHref(getTabRouter(up.id)?.history.location.href ?? up.pathname)
     );
+  };
+
+  /** Glints the composer of a tab (`glintingNewChatTabsAtom`). */
+  const glint = (tab: string | undefined) => {
+    if (tab !== undefined) {
+      store.set(glintingNewChatTabsAtom, (ids) => new Set([...ids, tab]));
+    }
   };
 
   /** Changes this window's list of groups, as it stands at the call. */
@@ -618,9 +641,7 @@ export function useTabGroupActions() {
     const to = groupUp();
     store.set(
       groupReturnAtom,
-      to === undefined
-        ? undefined
-        : { group, once: returns === "once", to },
+      to === undefined ? undefined : { group, once: returns === "once", to },
     );
   };
 
@@ -700,7 +721,8 @@ export function useTabGroupActions() {
    * New, as the person asks for it: the empty group this window already
    * has in the project the sidebar stands in comes up, its box with the
    * keyboard, and a group is made only when there is none, so the window
-   * never has two of them.
+   * never has two of them. Asked over an empty new chat, where nothing on
+   * screen would change, the composer that comes up glints.
    */
   const openNew = () => {
     const state = store.get(windowTabsAtom);
@@ -710,12 +732,17 @@ export function useTabGroupActions() {
         isEmptyGroup(state, group) &&
         state.groups?.[group]?.project === project,
     );
+    const over = emptyNewChatUp(state, groupUp());
     if (empty === undefined) {
-      make({ returns: "once" });
+      const group = make({ returns: "once" });
+      if (over !== undefined) {
+        glint(selectedTabIn(store.get(windowTabsAtom), group)?.id);
+      }
     } else if (empty === groupUp()) {
       // The keyboard may be elsewhere on the group, on a row under its box,
       // where the home would leave it.
       leaveField(document.activeElement);
+      glint(over?.id);
     } else {
       setReturn(empty, "once");
       appTabs.navigate(groupHref(empty));
@@ -1070,18 +1097,22 @@ export function useTabGroupActions() {
   /**
    * A new chat in a group, up at once with the keyboard: at the end of the
    * side with the keyboard, as a browser's new tab is. In a new group when
-   * none is up.
+   * none is up. Opened over an empty new chat, its composer glints.
    */
   const newTab = (group = groupUp()) => {
     if (group === undefined) {
       make();
       return;
     }
-    windowTabs.openScreen(NEW_TAB_HREF, {
+    const over = emptyNewChatUp(store.get(windowTabsAtom), group);
+    const tab = windowTabs.openScreen(NEW_TAB_HREF, {
       from: { reason: "newTab" },
       group,
       select: true,
     });
+    if (over !== undefined) {
+      glint(tab);
+    }
   };
 
   /** Whether a group has tabs, read now. */

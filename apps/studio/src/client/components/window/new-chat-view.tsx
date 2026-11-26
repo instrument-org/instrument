@@ -47,11 +47,13 @@ import { hrefOfTarget } from "@/client/bookmarks/open-address";
 import { APP_NAME } from "@instrument-org/shared";
 import { useRouter } from "@tanstack/react-router";
 import { useAtomValue, useSetAtom, useStore } from "jotai";
+import { selectAtom } from "jotai/utils";
 import {
   type ReactNode,
   useEffect,
   useEffectEvent,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -80,7 +82,7 @@ import { type PageRow } from "./page-rows";
 import { useComposerAsks } from "./staged-asks";
 import { useDraftProjectSuggestion } from "./use-draft-project-suggestion";
 import {
-  arrivingNewChatTabsAtom,
+  glintingNewChatTabsAtom,
   useWindowTabs,
   windowTabsAtom,
 } from "./window-tabs";
@@ -90,7 +92,7 @@ import {
  * chat's own composer and nothing made until something is written in it.
  * Filling the group, it opens as a new chat did in 1.0: the composer at the
  * middle, under the Instrument mark and a line, a pale glint crossing it
- * once as a new tab opens on it. In the column
+ * once as a new tab or New is asked for over an empty new tab. In the column
  * beside the group's tabs, the composer is at the foot. The draft its first words make is named in the tab's address, so a
  * draft opened from the Chats page's Drafts comes up here. What it carries besides its words
  * is what a chat's composer carries: its group's tabs and what the person
@@ -146,17 +148,19 @@ export function NewChatView({
   }).length;
   const boundId = boxes[tabId]?.draftId ?? null;
   const key = { scope: "newChat" as const, tabId };
-  const [glints, setGlints] = useState(() =>
-    store.get(arrivingNewChatTabsAtom).has(tabId),
+  const glints = useAtomValue(
+    useMemo(
+      () => selectAtom(glintingNewChatTabsAtom, (ids) => ids.has(tabId)),
+      [tabId],
+    ),
   );
-  useEffect(() => {
-    const ids = store.get(arrivingNewChatTabsAtom);
-    if (ids.has(tabId)) {
-      const rest = new Set(ids);
-      rest.delete(tabId);
-      store.set(arrivingNewChatTabsAtom, rest);
-    }
-  }, [store, tabId]);
+  const endGlint = () =>
+    store.set(glintingNewChatTabsAtom, (ids) => withoutTab(ids, tabId));
+  useEffect(
+    () => () =>
+      store.set(glintingNewChatTabsAtom, (ids) => withoutTab(ids, tabId)),
+    [store, tabId],
+  );
 
   // The address says which draft is written here: one arriving there (from
   // a window expanded, from Drafts, from back) is taken up, its words and
@@ -671,9 +675,10 @@ export function NewChatView({
           onModelChange={shell.setDefaultModelURI}
           onModelChoiceChange={shell.setDefaultModelChoice}
           onWordsChange={takeWords}
-          // Once, as a new tab's composer first comes up: never as the tab
-          // is shown again or its first words name a draft. Over the box
-          // alone, so a note docked above it stays out of the ring.
+          // Once, as a new tab or New is asked for over an empty new tab
+          // (`glintingNewChatTabsAtom`): never as the tab is shown again or
+          // its first words name a draft. Over the box alone, so a note
+          // docked above it stays out of the ring.
           overlay={
             isCentered &&
             glints && (
@@ -683,7 +688,7 @@ export function NewChatView({
                 data-slot="composer-glint"
                 onAnimationEnd={(event) => {
                   if (event.animationName === "field-glint-ring") {
-                    setGlints(false);
+                    endGlint();
                   }
                 }}
               />
@@ -823,4 +828,14 @@ function ProjectSuggestion({ draft }: { draft: Draft }) {
     words: draft.words,
   });
   return null;
+}
+
+/** The tabs without one, the same set when it was not among them. */
+function withoutTab(ids: ReadonlySet<string>, tab: string) {
+  if (!ids.has(tab)) {
+    return ids;
+  }
+  const rest = new Set(ids);
+  rest.delete(tab);
+  return rest;
 }

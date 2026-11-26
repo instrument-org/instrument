@@ -10,6 +10,7 @@ import {
   asksForDraft,
   copiedTabs,
   chatsWithNoTab,
+  emptyNewChatUp,
   groupLists,
   groupsInProject,
   isWorthKeeping,
@@ -230,6 +231,35 @@ describe("the groups of a project", () => {
     expect(
       groupsInProject(open, id, projects).map((entry) => entry.group),
     ).toEqual(groups);
+  });
+});
+
+describe("the empty new chat a new tab or New glints over", () => {
+  const tab = (id: string, href: string): WindowTab => ({
+    group: "g",
+    href,
+    id,
+    kind: "screen",
+  });
+  const state: WindowTabs = {
+    activeByGroup: {},
+    tabs: [
+      tab("blank", newChatHref()),
+      tab("draft", newChatHref("d1")),
+      tab("files", "/files"),
+    ],
+  };
+
+  it.each([
+    ["an empty new chat", "blank", "blank"],
+    ["a new chat writing a draft", "draft", undefined],
+    ["another screen", "files", undefined],
+  ])("is the tab up when it is %s", (_case, up, expected) => {
+    expect(emptyNewChatUp(selectTab(state, up), "g")?.id).toBe(expected);
+  });
+
+  it("is none with no group up", () => {
+    expect(emptyNewChatUp(state, undefined)).toBeUndefined();
   });
 });
 

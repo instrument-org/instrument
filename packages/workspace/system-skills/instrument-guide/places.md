@@ -6,7 +6,7 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 
 ## Sidebar
 
-- Top to bottom: Menu (Windows and Linux only), Notifications, Search (⌘K / Ctrl+K), Projects, New project, <project>, Actions for <project>, New (⌘N / Ctrl+N), Settings, History, Help
+- Top to bottom: Search (⌘K / Ctrl+K), Projects, New project, <project>, Actions for <project>, New (⌘N / Ctrl+N), Settings, Notifications, History, Help
 - Right-click a tab group: Open in New Window, Duplicate Tab Group; Pin; Close Tab Group, Close Other Tab Groups, Close Tab Groups Above, Close Tab Groups Below
 - Right-click the empty space: New Tab Group (⌘N / Ctrl+N), Reopen Closed Tab (⇧⌘T / Ctrl+Shift+T); New Window (⇧⌘N / Ctrl+Shift+N), Merge All Windows
 - Right-click a project, or its ⋯: View project details

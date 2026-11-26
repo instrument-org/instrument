@@ -1585,6 +1585,13 @@ describe("a timeline fence", () => {
     expect(screen.getByText("It leaks.").tagName).toBe("STRONG");
   });
 
+  it.each([
+    ["a directive", ":::timeline\n2 Aug: First.\n:::"],
+    ["a tag", "<timeline>\n2 Aug: First.\n</timeline>"],
+  ])("reads one written as %s", (_case, markdown) => {
+    expect(rows(markdown)).toEqual([["2 Aug", "First."]]);
+  });
+
   it("draws a link to a file as its chip", () => {
     rows("```timeline\n2 Aug: [The letter](letters/one.pdf)\n```");
 

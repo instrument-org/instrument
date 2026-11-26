@@ -110,6 +110,7 @@ import { MarkdownChatContext } from "./markdown-chat-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { MessageFence } from "./message-card";
 import { normalizeMathDelimiters } from "./reply-blocks/normalize-math-delimiters";
+import { normalizeReplyBlocks } from "./reply-blocks/normalize-reply-blocks";
 import { rehypeTableShape } from "./reply-blocks/rehype-table-shape";
 import { rehypeUnbrokenInline } from "./reply-blocks/rehype-unbroken-inline";
 import {
@@ -1394,12 +1395,20 @@ export const Markdown = memo(
     markdown: written,
     chatId,
   }: MarkdownProps) => {
+    // A message's blocks may be wrapped as a directive or a tag, which are
+    // read as the fence the renderer draws; a document is drawn as written.
     const markdown = useMemo(
       () =>
         numberedListsAfterText(
-          bracketPathLinkDestinations(normalizeMathDelimiters(written)),
+          bracketPathLinkDestinations(
+            normalizeMathDelimiters(
+              documentUrl
+                ? written
+                : normalizeReplyBlocks(written, { streaming: isStreaming }),
+            ),
+          ),
         ),
-      [written],
+      [documentUrl, isStreaming, written],
     );
     const setLookAt = useSetAtom(lookAtAtom);
     const [rehypePlugins, setRehypePlugins] =

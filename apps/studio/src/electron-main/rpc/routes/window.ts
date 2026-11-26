@@ -36,7 +36,11 @@ import {
   setKeptState,
 } from "@/electron-main/stores/workspace/kept-state";
 import { RECENT_CHATS_KEY } from "@/shared/kept-state";
-import { ChatIdSchema, liveRead } from "@instrument-org/workspace/electron";
+import {
+  ChatIdSchema,
+  distinct,
+  liveRead,
+} from "@instrument-org/workspace/electron";
 import { Menu } from "electron";
 import { z } from "zod";
 
@@ -126,13 +130,17 @@ const others = base.handler(async function* ({ context, signal }) {
 
 /** The tab groups the other open windows have open, as they change. */
 const tabGroupsElsewhere = base.handler(async function* ({ context, signal }) {
-  yield* liveRead({
-    changes: [
-      publisher.subscribe("windows.changed", { signal }),
-      publisher.subscribe("window.tab-groups-changed", { signal }),
-    ],
-    read: () => tabGroupsInOtherWindows(context.webContentsId),
-  });
+  // Every tab change in any window says the groups changed; only a change to
+  // which groups are open elsewhere goes out.
+  yield* distinct(
+    liveRead({
+      changes: [
+        publisher.subscribe("windows.changed", { signal }),
+        publisher.subscribe("window.tab-groups-changed", { signal }),
+      ],
+      read: () => tabGroupsInOtherWindows(context.webContentsId),
+    }),
+  );
 });
 
 /**

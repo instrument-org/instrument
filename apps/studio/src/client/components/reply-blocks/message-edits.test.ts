@@ -18,6 +18,24 @@ const person = (text: string): EditSource => ({ from: "person", text });
 const draft = (text: string): EditSource => ({ from: "draft", text });
 
 describe("findMessageEdit", () => {
+  it("reads a draft that grew on another pass as made from the draft before it", () => {
+    const shorter =
+      "Hi Dana, starting March 1, the Team plan goes from $49 to $59 per seat per month. The new price covers what we added this year, including the reporting dashboard and priority support. Any questions, just reply here. Thanks, Sam";
+    const warmer =
+      "Hi Dana, I hope you and the team had a good fall, and thank you so much for sticking with us through a busy year of changes. I wanted you to hear this from me first: starting March 1, the Team plan goes from $49 to $59 per seat per month. The new price covers what we added this year, including the reporting dashboard and priority support, both of which we shaped around feedback from teams like yours. If it would help to talk any of it through, I'd be glad to set up a quick call at whatever time suits you, or answer anything over email. Warmly, Sam";
+    const pasted =
+      "Hi Dana, I just wanted to reach out and let you know that, starting on March 1, the price of the Team plan is going to be going up from $49 to $59 per seat per month. If you have any questions at all about this, please don't hesitate to reach out to me. Thanks so much, Sam";
+    const edit = findMessageEdit(warmer, [
+      person("Make it a bit warmer."),
+      draft(shorter),
+      person(`Can you tighten this before I send it to Dana? ${pasted}`),
+    ]);
+    expect(edit?.original.body).toBe(shorter);
+    expect(edit?.stretches?.some((stretch) => stretch.kind === "new")).toBe(
+      true,
+    );
+  });
+
   it("takes only the pasted text from the person's message", () => {
     const edit = findMessageEdit(TIGHT, [
       person(`Can you tighten this paragraph?\n\n${WORDY}`),

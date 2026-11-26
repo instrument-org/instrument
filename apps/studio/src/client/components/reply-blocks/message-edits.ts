@@ -38,13 +38,17 @@ interface Word {
   text: string;
 }
 
-/** Of the revised words, the share that must sit in shared runs of {@link RUN} or more. */
+/** Of the shorter text's words, the share that must sit in shared runs of {@link RUN} or more. */
 const IN_RUNS = 0.15;
-/** Of the revised words, the share that must match at all. */
+/** Of the shorter text's words, the share that must match at all. */
 const MATCHED = 0.35;
 /** The shortest run of shared words that says one text was made from another. */
 const RUN = 3;
-/** Past this share of new words, a revision is a rewrite and shows no marks. */
+/**
+ * Past this share of new words in the revision, and of the original's words
+ * gone from it, a revision is a rewrite and shows no marks. A draft that only
+ * grew keeps the original's words, so its additions are still marked.
+ */
 const REWRITE = 0.6;
 /** Comparisons past this many word pairs are skipped rather than paid for. */
 const MAX_CELLS = 2_000_000;
@@ -70,7 +74,7 @@ export function findMessageEdit(
   for (const source of sources) {
     const theirs = wordsOf(source.text);
     const pairs = sharedWords(words, theirs, (word) => word.key);
-    if (!pairs || !madeFrom(pairs, words.length)) {
+    if (!pairs || !madeFrom(pairs, Math.min(words.length, theirs.length))) {
       continue;
     }
     const body =
@@ -177,8 +181,10 @@ function runsOf(pairs: readonly [number, number][]): [number, number][][] {
 
 /**
  * Whether the shared words say the revision was made from the text: enough
- * of its words match, and enough of them in runs too long to share by chance.
- * A reply to a pasted email shares words but almost never a run.
+ * of the shorter one's words match, and enough of them in runs too long to
+ * share by chance. Measured on the shorter, so a draft that grew (a warmer
+ * second pass) still reads as made from the one before. A reply to a pasted
+ * email shares words but almost never a run.
  */
 function madeFrom(pairs: readonly [number, number][], count: number): boolean {
   const inRuns = runsOf(pairs)
@@ -291,7 +297,10 @@ function stretchesOf(
       }
     }
   }
-  if ((words.length - partner.size) / words.length > REWRITE) {
+  if (
+    (words.length - partner.size) / words.length > REWRITE &&
+    (theirs.length - partner.size) / theirs.length > REWRITE
+  ) {
     return {};
   }
   const stretches: EditStretch[] = [];

@@ -2,7 +2,12 @@ import {
   type WindowCamera,
   type WindowMask,
 } from "@instrument-org/workspace/electron";
-import { BrowserWindow, nativeImage, webContents } from "electron";
+import {
+  BrowserWindow,
+  nativeImage,
+  type WebFrameMain,
+  webContents,
+} from "electron";
 import { z } from "zod";
 
 import { captureFrame } from "../browser-view/capture-frame";
@@ -18,26 +23,46 @@ const DEADLINE_MS = 2000;
 const FRAME_ANSWER_MS = 1000;
 
 /**
- * Runs in each frame of a page: where each field whose text is a secret is
- * on screen (a password, a new one, a one-time code; a page that shows its
- * password as text keeps the field's `autocomplete`), and the field the
- * keyboard is in, as fractions of the frame's viewport.
+ * The world the field script runs in: one of its own, apart from the page's,
+ * so a page's scripts neither see it run nor change what the DOM tells it.
+ */
+const FIELDS_WORLD = 1079;
+
+/**
+ * Where each field whose text is a secret is on screen (a password, a new
+ * one, a one-time code; a page that shows its password as text keeps the
+ * field's `autocomplete`), and the field the keyboard is in, as fractions of
+ * the viewport. Run in a page's main frame, it reads the frames of the same
+ * origin inside it too, placing their fields through each frame's box.
  */
 const SECRET_FIELDS_UP = `(() => {
-  const secret = [...document.querySelectorAll(
-    'input[type=password], input[autocomplete~="current-password"], input[autocomplete~="new-password"], input[autocomplete~="one-time-code"]'
-  )];
-  const typing = document.activeElement;
-  const isTyping = typing instanceof HTMLTextAreaElement ||
-    (typing instanceof HTMLInputElement &&
-      !["button", "checkbox", "radio", "range", "reset", "submit"].includes(typing.type)) ||
-    (typing instanceof HTMLElement && typing.isContentEditable);
-  return [...secret, ...(isTyping ? [typing] : [])].flatMap((field) => {
-    const box = field.getBoundingClientRect();
+  const SECRET = 'input[type=password], input[autocomplete~="current-password"], input[autocomplete~="new-password"], input[autocomplete~="one-time-code"]';
+  const NOT_TYPED = ["button", "checkbox", "color", "file", "image", "radio", "range", "reset", "submit"];
+  const isTyping = (field) => field !== null && (field.tagName === "TEXTAREA" ||
+    (field.tagName === "INPUT" && !NOT_TYPED.includes(field.type)) ||
+    field.isContentEditable === true);
+  const boxes = [];
+  const visit = (doc, dx, dy) => {
+    const typing = doc.activeElement;
+    for (const field of [...doc.querySelectorAll(SECRET), ...(isTyping(typing) ? [typing] : [])]) {
+      if (doc.defaultView.getComputedStyle(field).visibility === "hidden") continue;
+      const box = field.getBoundingClientRect();
+      boxes.push({ bottom: box.bottom + dy, left: box.left + dx, right: box.right + dx, top: box.top + dy });
+    }
+    for (const frame of doc.querySelectorAll("iframe, frame")) {
+      let inner = null;
+      try { inner = frame.contentDocument; } catch {}
+      if (inner) {
+        const box = frame.getBoundingClientRect();
+        visit(inner, dx + box.left + frame.clientLeft, dy + box.top + frame.clientTop);
+      }
+    }
+  };
+  visit(document, 0, 0);
+  return boxes.flatMap((box) => {
     const left = Math.max(0, box.left), top = Math.max(0, box.top);
     const right = Math.min(innerWidth, box.right), bottom = Math.min(innerHeight, box.bottom);
-    return right - left > 1 && bottom - top > 1 &&
-      getComputedStyle(field).visibility !== "hidden"
+    return right - left > 1 && bottom - top > 1
       ? [{ height: (bottom - top) / innerHeight, width: (right - left) / innerWidth,
            x: left / innerWidth, y: top / innerHeight }]
       : [];
@@ -110,9 +135,19 @@ export const windowCamera: WindowCamera = {
           const document =
             loaded ??
             (/^about:|^$/.test(frame.url) ? "about:blank" : undefined);
-          const answer: Promise<unknown> =
-            frame.executeJavaScript(SECRET_FIELDS_UP);
-          const fields = await withDeadline(answer).catch(() => undefined);
+          const fields = isReadFromMain(frame, mainFrame)
+            ? []
+            : await withDeadline(
+                frame === mainFrame
+                  ? // Cast: Electron types the script's answer as `any`.
+                    (contents.executeJavaScriptInIsolatedWorld(FIELDS_WORLD, [
+                      { code: SECRET_FIELDS_UP },
+                    ]) as Promise<unknown>)
+                  : // Electron runs a script in a world of its own only in
+                    // a page's main frame, so a frame of another origin is
+                    // asked in its own.
+                    frame.executeJavaScript(SECRET_FIELDS_UP),
+              ).catch(() => undefined);
           return { document, fields, frame };
         }),
       );
@@ -140,6 +175,23 @@ export const windowCamera: WindowCamera = {
     }
   },
 };
+
+/**
+ * Whether the main frame's script reads a frame's fields itself: a frame
+ * below it whose every frame up to the main one is of the main one's origin,
+ * which an opaque origin never is.
+ */
+function isReadFromMain(frame: WebFrameMain, mainFrame: WebFrameMain) {
+  if (frame === mainFrame || mainFrame.origin === "null") {
+    return false;
+  }
+  for (let up: WebFrameMain | null = frame; up !== mainFrame; up = up.parent) {
+    if (up === null || up.origin !== mainFrame.origin) {
+      return false;
+    }
+  }
+  return true;
+}
 
 /** Four bytes a pixel, the same gray in each color channel, so their order does not matter. */
 const GRAY = Buffer.from([0x80, 0x80, 0x80, 0xff]).readUInt32LE();

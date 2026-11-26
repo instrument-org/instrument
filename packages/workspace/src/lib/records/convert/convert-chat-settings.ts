@@ -41,7 +41,11 @@ import { openSettingsFile } from "../open-log";
 interface ChatSettingsConverted {
   /** One line per chat whose `settings.json` was converted, for the log. */
   done: string[];
-  /** Chats whose `settings.json` could not be carried yet, each with why. */
+  /**
+   * Chats whose `settings.json` could not be carried yet, each with why, or
+   * the chats folder itself where it could not be listed. None means every
+   * chat's file is carried.
+   */
   left: { reason: string; where: string }[];
 }
 
@@ -63,7 +67,15 @@ export async function convertChatSettingsFiles({
   let entries;
   try {
     entries = await fs.readdir(chatsDir, { withFileTypes: true });
-  } catch {
+  } catch (error) {
+    // A workspace with no chats has none to carry; one whose chats could not
+    // be listed is left whole, so the launch does not take it as done.
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) {
+      converted.left.push({
+        reason: String(error),
+        where: path.basename(chatsDir),
+      });
+    }
     return converted;
   }
   const dirs = entries

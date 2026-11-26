@@ -42,7 +42,14 @@ import {
   workspaceWorkFoldersDir,
 } from "./get-workspace-folder";
 import { getOpenedWithoutRecords } from "./workspace-run";
-import { appDataOutputFolder, workspaceLayoutMarks } from "./workspaces";
+import {
+  appDataOutputFolder,
+  readWorkspaceIdentity,
+  readWorkspaceIdentityToChange,
+  WORKSPACE_FORMAT_VERSION,
+  workspaceLayoutMarks,
+  writeWorkspaceIdentity,
+} from "./workspaces";
 
 /**
  * The launch's upgrades of the workspace folder, in order, before the
@@ -65,13 +72,22 @@ export async function upgradeWorkspace({
   inAppData: boolean;
   rootDir: string;
 }): Promise<void> {
+  // What the steps over every chat below have already done for good, read
+  // before any of them runs. Once a launch has put every chat on its records
+  // and carried every `settings.json`, the next launches read no chat's
+  // folder for them, unless the layout sweep made chats from 1.x tasks.
+  const settled = settledChats(rootDir);
+
   // Which database a chat opens is settled for every workspace, before
   // anything reads one: a chat whose own store holds none of its conversation
   // opens empty while the whole of it sits in the file beside it, and nothing
   // else names them. The launch names them again once it has moved the app's
   // folders in, where a chat an earlier build left at the workspace's top
-  // level is not in its place yet when this runs.
-  nameChatDatabases(rootDir);
+  // level is not in its place yet when this runs. A workspace whose every
+  // chat is on its records has no database left to name.
+  if (!settled.records) {
+    nameChatDatabases(rootDir);
+  }
 
   const startedOver = getOpenedWithoutRecords();
   if (startedOver !== undefined) {
@@ -95,8 +111,12 @@ export async function upgradeWorkspace({
   // before the steps below, which write them.
   markProjectFoldersSeen();
   let layoutSettled = true;
+  let swept = false;
   if (inAppData) {
-    layoutSettled = await upgradeAppDataLayout(deviceId, rootDir);
+    ({ settled: layoutSettled, swept } = await upgradeAppDataLayout(
+      deviceId,
+      rootDir,
+    ));
   } else {
     logger.info(
       "Workspace layout migration: none for a folder the person picked",
@@ -108,14 +128,20 @@ export async function upgradeWorkspace({
   // Before the workspace starts, which puts in place the writer every write
   // to a chat's store appends through: a chat whose conversation is still in
   // its `chat.db` has to be on its records before one can reach them.
-  await timeBootStep("upgrade.convertChatDatabases", () =>
-    convertChatDatabases(deviceId, rootDir),
-  );
+  if (settled.records && !swept) {
+    withholdChats([]);
+  } else {
+    await timeBootStep("upgrade.convertChatDatabases", () =>
+      convertChatDatabases(deviceId, rootDir),
+    );
+  }
   // Then what each chat's `settings.json` held goes where this build keeps
   // it, from the records just converted, before anything reads a chat.
-  await timeBootStep("upgrade.convertChatSettings", () =>
-    convertChatSettings(deviceId, rootDir),
-  );
+  if (!settled.settings || swept) {
+    await timeBootStep("upgrade.convertChatSettings", () =>
+      convertChatSettings(deviceId, rootDir),
+    );
+  }
   // A folder of the six under another case (`skills/`, which a build before
   // kept there) is the one each step below finds under the app's name on a
   // file system that reads both as one, so it takes that name first. Not
@@ -219,6 +245,25 @@ function nameChatDatabases(rootDir: string) {
   } catch (error) {
     captureServerException(error);
   }
+}
+
+/**
+ * Which of the steps over every chat a launch before this one finished for
+ * the whole workspace, as `workspace.json` says. A chat folder with a
+ * `chat.db` or a `settings.json` that comes back afterwards (put back from
+ * the Trash or a backup) is left as it is: no build that opens a workspace
+ * at this format writes either. A file that cannot be read reads as nothing
+ * finished, so the steps run.
+ */
+function settledChats(rootDir: string): { records: boolean; settings: boolean } {
+  const identity = readWorkspaceIdentity(rootDir);
+  const records =
+    identity.chatRecordsConverted === true &&
+    identity.formatVersion >= WORKSPACE_FORMAT_VERSION;
+  return {
+    records,
+    settings: records && identity.chatSettingsConverted === true,
+  };
 }
 
 /** What naming a chat's database, or splitting its records, did. */
@@ -333,9 +378,31 @@ async function convertChatSettings(deviceId: DeviceId, rootDir: string) {
         `Chat settings: left ${where} for the next launch: ${reason}`,
       );
     }
+    if (converted.left.length === 0) {
+      markChatSettingsConverted(rootDir);
+    }
   } catch (error) {
     captureServerException(error);
   }
+}
+
+/**
+ * Says in `workspace.json` that no chat has a `settings.json` left, once
+ * every chat is on its records too, so later launches skip reading every
+ * chat's folder for one. Written once.
+ */
+function markChatSettingsConverted(rootDir: string) {
+  const identity = readWorkspaceIdentityToChange(rootDir);
+  if (
+    identity.chatRecordsConverted !== true ||
+    identity.chatSettingsConverted === true
+  ) {
+    return;
+  }
+  writeWorkspaceIdentity(rootDir, {
+    ...identity,
+    chatSettingsConverted: true,
+  });
 }
 
 /**
@@ -577,13 +644,15 @@ async function moveAppsToStore(deviceId: DeviceId, rootDir: string) {
  * Move the app's folders into the workspace's `.instrument/`, normalize the
  * on-disk layout of any legacy tasks, and take each chat's work out of its
  * records, before the workspace reads them. Idempotent; a failure must not
- * block boot. Says whether every app folder is where this build reads it,
- * which is false when a move was left for the next boot or the upgrade threw.
+ * block boot. Says whether every app folder is where this build reads it
+ * (`settled`), which is false when a move was left for the next boot or the
+ * upgrade threw, and whether the sweep ran (`swept`), which can make chats
+ * from 1.x tasks that the steps over every chat have yet to convert.
  */
 async function upgradeAppDataLayout(
   deviceId: DeviceId,
   rootDir: string,
-): Promise<boolean> {
+): Promise<{ settled: boolean; swept: boolean }> {
   try {
     const migrationStartedAt = performance.now();
     const migration = await migrateWorkspaceLayout({
@@ -641,9 +710,13 @@ async function upgradeAppDataLayout(
         { conflictedTaskIds: migration.conflictedTaskIds },
       );
     }
-    return migration.appFolders.failed === 0;
+    return {
+      settled: migration.appFolders.failed === 0,
+      swept: migration.swept,
+    };
   } catch (error) {
     captureServerException(error);
-    return false;
+    // How far it got is unknown, so the steps over every chat run.
+    return { settled: false, swept: true };
   }
 }

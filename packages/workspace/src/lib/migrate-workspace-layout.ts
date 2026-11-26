@@ -137,6 +137,9 @@ export interface WorkspaceLayoutMigration {
   // on the chat that owns the window. Reported so a boot that stalls on one
   // says so rather than looking like a hang.
   removedBrowserProfileCloneCount: number;
+  // Whether the sweep of pass 2 ran, which can make chats from 1.x tasks
+  // that are still on a `chat.db` and a `settings.json`.
+  swept: boolean;
 }
 
 // Boot migration: two passes.
@@ -178,7 +181,7 @@ export async function migrateWorkspaceLayout({
 }): Promise<WorkspaceLayoutMigration> {
   let migration: Omit<
     WorkspaceLayoutMigration,
-    "appFolders" | "chatRecords" | "legacyTasks"
+    "appFolders" | "chatRecords" | "legacyTasks" | "swept"
   > = {
     conflictedTaskIds: [],
     movedTaskCount: 0,
@@ -208,6 +211,7 @@ export async function migrateWorkspaceLayout({
         projectCount: 0,
         unreadable: [],
       },
+      swept: false,
     };
   }
 
@@ -270,6 +274,7 @@ export async function migrateWorkspaceLayout({
     chatRecords,
     legacyTasks,
     removedBrowserProfileCloneCount,
+    swept: true,
   };
 }
 
@@ -367,12 +372,12 @@ function migrateLegacyProjectsDir(
   rootDir: string,
 ): Omit<
   WorkspaceLayoutMigration,
-  "appFolders" | "chatRecords" | "legacyTasks"
+  "appFolders" | "chatRecords" | "legacyTasks" | "swept"
 > {
   const legacyDir = legacyProjectsDir(rootDir);
   const migration: Omit<
     WorkspaceLayoutMigration,
-    "appFolders" | "chatRecords" | "legacyTasks"
+    "appFolders" | "chatRecords" | "legacyTasks" | "swept"
   > = {
     conflictedTaskIds: [],
     movedTaskCount: 0,

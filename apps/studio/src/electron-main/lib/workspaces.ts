@@ -118,6 +118,11 @@ export const WorkspaceIdentitySchema = z.object({
   /** Set once every chat in the workspace is on its records rather than a `chat.db`. */
   chatRecordsConverted: z.boolean().optional().catch(undefined),
   /**
+   * Set once no chat in the workspace has a `settings.json` left, every one
+   * carried to where this build keeps a chat's settings.
+   */
+  chatSettingsConverted: z.boolean().optional().catch(undefined),
+  /**
    * The format the workspace folder is in. 1: what is this computer's own
    * (keys, browser profiles, window state, folder rules) lives in its
    * machine folder, not here. 2: each chat's conversation is in its records.

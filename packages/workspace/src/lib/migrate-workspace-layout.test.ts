@@ -153,6 +153,7 @@ describe("migrateWorkspaceLayout", () => {
       },
       movedTaskCount: 0,
       removedBrowserProfileCloneCount: 0,
+      swept: true,
     });
     expect(exists("tasks")).toBe(false);
     // Fresh install: the mark is set on first boot so a later project in

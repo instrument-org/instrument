@@ -321,7 +321,7 @@ describe("session.stop with takeBack", () => {
         {
           mediaType: "image/png",
           name: "receipt.png",
-          path: expect.stringMatching(/attachments\/receipt\.png$/),
+          path: expect.stringMatching(/attachments[\\/]receipt\.png$/),
           size: 3,
         },
       ],

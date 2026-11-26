@@ -13,7 +13,13 @@ import {
 import { NoteIcon } from "@phosphor-icons/react/Note";
 import { createStore, Provider } from "jotai";
 import { noop } from "radashi";
-import { Fragment, type RefObject, useRef, useState } from "react";
+import {
+  Fragment,
+  type RefObject,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { expect, it, vi } from "vitest";
 
 import {
@@ -47,7 +53,9 @@ const noteOn = (at: number): DeveloperNote => ({
 
 function Slide({ armRef }: { armRef: RefObject<() => void> }) {
   const { armSlide } = useMessageScroller();
-  armRef.current = armSlide;
+  useLayoutEffect(() => {
+    armRef.current = armSlide;
+  });
   return null;
 }
 
@@ -55,10 +63,12 @@ function Harness({ hasLayer }: { hasLayer: boolean }) {
   const armRef = useRef<() => void>(noop);
   const contentRef = useRef<HTMLDivElement>(null);
   const [sent, setSent] = useState(2);
-  send = () => {
-    armRef.current();
-    setSent((count) => count + 1);
-  };
+  useLayoutEffect(() => {
+    send = () => {
+      armRef.current();
+      setSent((count) => count + 1);
+    };
+  });
   const indexes = Array.from({ length: sent }, (_, index) => index);
   const records = transcriptRecords({
     developerNotes: { bodies: {}, notes: indexes.map(noteOn) },

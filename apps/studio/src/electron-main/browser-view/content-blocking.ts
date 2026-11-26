@@ -287,22 +287,32 @@ export function isBlocking() {
  * nothing on disk either, pages load unblocked until the next launch.
  */
 async function loadEngine() {
-  const { fetchResources, FiltersEngine } = (adblocker ??=
-    await import("@ghostery/adblocker"));
   const cachePath = path.join(
     app.getPath("userData"),
     "content-blocking-engine.bin",
   );
+  // The library and the engine on disk are read at once.
+  const [library, cached] = await Promise.all([
+    import("@ghostery/adblocker").catch((error: unknown) => {
+      log.warn("could not load the blocking library", error);
+      return null;
+    }),
+    Promise.all([fs.readFile(cachePath), fs.stat(cachePath)]).catch(() => null),
+  ]);
+  if (!library) {
+    return;
+  }
+  adblocker = library;
+  const { fetchResources, FiltersEngine } = library;
   let age = Number.POSITIVE_INFINITY;
   try {
-    const [buffer, stat] = await Promise.all([
-      fs.readFile(cachePath),
-      fs.stat(cachePath),
-    ]);
-    engine = FiltersEngine.deserialize(buffer);
-    age = Date.now() - stat.mtimeMs;
+    if (cached) {
+      const [buffer, stat] = cached;
+      engine = FiltersEngine.deserialize(buffer);
+      age = Date.now() - stat.mtimeMs;
+    }
   } catch {
-    // No engine on disk, or one an older version of the engine wrote.
+    // An engine an older version of the engine wrote.
   }
   if (age < REFRESH_AFTER_MS) {
     return;

@@ -1,4 +1,5 @@
 import { coveringOverlayCountAtom } from "@/client/atoms/guest-coverage";
+import { onShownPageLoaded } from "@/client/lib/browser-pool";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { useAtomValue, useStore } from "jotai";
@@ -51,7 +52,9 @@ interface Up {
  * - as the pointer comes to the sidebar or a strip, where the next thing it
  *   does may be to leave what is up, and before any card is over it;
  * - as a modifier key goes down, which may begin a chord that leaves it;
- * - and a moment after something comes up, so whatever was seen has one.
+ * - a moment after something comes up, so whatever was seen has one;
+ * - and a moment after a page on screen finishes loading, so a picture
+ *   taken while it was still drawing is replaced.
  *
  * A frame asked for as something is left can come back showing what came up
  * instead, so one is kept only when what is up never changed between asking
@@ -199,6 +202,9 @@ function watchForPictures(store: ReturnType<typeof useStore>) {
   const stops = [
     store.sub(groupOnScreenAtom, onChange),
     store.sub(windowTabsAtom, onChange),
+    onShownPageLoaded(() => {
+      soon(SETTLE_MS, RETRIES);
+    }),
   ];
   soon(SETTLE_MS, RETRIES);
 

@@ -838,6 +838,16 @@ export function pageHoldingKeyboard(): BrowserTargetId | null {
 
 const pagePressListeners = new Set<(targetId: BrowserTargetId) => void>();
 
+const shownPageLoadedListeners = new Set<() => void>();
+
+/** Calls `listener` each time a page a slot shows finishes loading. */
+export function onShownPageLoaded(listener: () => void) {
+  shownPageLoadedListeners.add(listener);
+  return () => {
+    shownPageLoadedListeners.delete(listener);
+  };
+}
+
 /** When the person last pressed the pointer in each page, which main reports since the host document never sees it. */
 const pagePressedAt = new Map<BrowserTargetId, number>();
 
@@ -1394,6 +1404,11 @@ function ensureWebview(
   });
   webview.addEventListener("did-stop-loading", () => {
     follow({ type: "did-stop-loading" });
+    if (pool.get(targetId)?.lastReportedShown === true) {
+      for (const listener of shownPageLoadedListeners) {
+        listener();
+      }
+    }
   });
 
   // A file's page keeps the color it paints behind itself on its element, so

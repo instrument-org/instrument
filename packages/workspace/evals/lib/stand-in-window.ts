@@ -198,12 +198,14 @@ export function createStandInWindow(chrome?: SharedChrome) {
     return {
       ...answer,
       windows: [
-        { groups: [own], isThisWindow: true },
+        // A stand-in group goes by its id, as a list names one it has no row for.
+        { groups: [{ ...own, name: own.group.id }], isThisWindow: true },
         {
           groups: [
             {
               focused: 0,
               group: { id: NEW_WINDOW_GROUP },
+              name: NEW_WINDOW_GROUP,
               sides: [
                 {
                   tabs: [...apart.values()].map((tab, at) => ({

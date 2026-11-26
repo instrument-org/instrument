@@ -718,6 +718,66 @@ export const STATES = {
       h.after(() => h.oneGroup());
     },
   },
+  "tg-files-wide": {
+    about: "Tab groups: Files alone in a group on the Instrument folder in Table view, with folders a few levels deep (Research, Archive), search folded to the toolbar's magnifying glass.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      h.deepFolders();
+      await h.files("Table view");
+    },
+  },
+  "tg-files-wide-search": {
+    about: "tg-files-wide with search opened from the magnifying glass and \"pricing\" typed: matches from every folder under Instrument.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      h.deepFolders();
+      await h.files("Table view");
+      await h.app.click({ selector: 'button[aria-label="Search"]' });
+      await wait(300);
+      await h.app.type("pricing");
+      await wait(1500);
+    },
+  },
+  "tg-files-narrow": {
+    about: "Tab groups: Files on the left of a split with a new tab on the right, so its toolbar folds to icons (sidebar, view, sort, more, search).",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      h.deepFolders();
+      await h.files("Table view");
+      await h.app.words.click("New Tab in Split");
+      await wait(800);
+    },
+  },
+  "tg-files-narrow-search": {
+    about: "tg-files-narrow with its search opened from the magnifying glass and \"pricing\" typed.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      h.deepFolders();
+      await h.files("Table view");
+      await h.app.words.click("New Tab in Split");
+      await wait(800);
+      await h.app.click({ selector: 'button[aria-label="Search"]' });
+      await wait(300);
+      await h.app.type("pricing");
+      await wait(1500);
+    },
+  },
+  "tg-files-narrow-searched": {
+    about: "tg-files-narrow-search after the keyboard moved to the new tab: the search folded back into a button naming \"pricing\", results still filtered.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      h.deepFolders();
+      await h.files("Table view");
+      await h.app.words.click("New Tab in Split");
+      await wait(800);
+      await h.app.click({ selector: 'button[aria-label="Search"]' });
+      await wait(300);
+      await h.app.type("pricing");
+      await wait(1500);
+      await h.app.click({ text: "How can I help?" });
+      await wait(500);
+    },
+  },
   "tg-new-tab-bar": {
     about: "tg-new-tab with bookmarks: the side panel's Bookmarks shows the Bookmarks bar folder with its three (the Competitors folder, Notion pricing and Hacker News).",
     themes: ["light", "dark"],
@@ -767,6 +827,23 @@ export default async (app, args) => {
       await h.sidePanel();
       await app.words.button("Instrument").click();
       await wait(800);
+    },
+    // Folders a few levels under the Instrument folder, for a search that reaches past
+    // its own listing. Outside Projects/, so none of them becomes a project.
+    deepFolders: () => {
+      const files = {
+        "Research/Help desk pricing/pricing-tiers.md": "# Pricing tiers\n",
+        "Research/Help desk pricing/drafts/pricing-email-draft.md": "# Pricing email\n",
+        "Research/Help desk pricing/data/agents.csv": "agent,seats\n",
+        "Research/Q3 board update/notes.md": "# Notes\n",
+        "Research/SOC 2 audit/quotes/ridgeline-quote.md": "# Ridgeline quote\n",
+        "Archive/2025/old-pricing-2025.md": "# 2025 pricing\n",
+      };
+      for (const [name, text] of Object.entries(files)) {
+        const file = path.join(h.folder, name);
+        fs.mkdirSync(path.dirname(file), { recursive: true });
+        if (!fs.existsSync(file)) fs.writeFileSync(file, text);
+      }
     },
     oneTab: async () => {
       for (let i = 0; i < 20; i++) {

@@ -11,7 +11,7 @@ import {
 import { buildDefaultPlatformApiBaseUrl } from "@/electron-main/platform-api/base-url";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { platformApiOriginOf } from "@/shared/platform-api-server";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";

@@ -48,6 +48,8 @@ import {
   checkRecentVersionBump,
   takeRelaunchMarker,
 } from "@/electron-main/stores/machine/state";
+import { canSaveKeys, KEY_FILE_EXTENSION } from "@/electron-main/lib/key-file";
+import { rememberStoreReads } from "@/electron-main/stores/store";
 import { getDefaultModelURI } from "@/electron-main/stores/workspace/preferences";
 import {
   asksOfAppFiles,
@@ -278,6 +280,11 @@ if (gotTheLock) {
 
 async function bootstrapPrimaryInstance() {
   logBootMark("bootstrapPrimaryInstance");
+  // A key store whose file this launch can't decrypt answers empty, which
+  // must not outlast the keyring coming back.
+  rememberStoreReads(
+    (file) => !file.endsWith(`.${KEY_FILE_EXTENSION}`) || canSaveKeys(),
+  );
   keepTrapFatal();
   registerUnattendedQuit();
   holdNativeForDriving();

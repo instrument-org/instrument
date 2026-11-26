@@ -1,7 +1,7 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
 import { storeJson } from "@/electron-main/stores/store-json";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 const AccessSchema = z.object({

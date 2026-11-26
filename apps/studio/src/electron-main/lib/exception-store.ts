@@ -7,7 +7,7 @@ import {
   ExceptionEventSchema,
 } from "@instrument-org/shared/exceptions";
 import { app } from "electron";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 /** How many distinct problems are kept, the least recently seen dropped first. */

@@ -4,7 +4,7 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { PendingProblemSchema } from "@/shared/problem-reports";
 import { app } from "electron";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 /**

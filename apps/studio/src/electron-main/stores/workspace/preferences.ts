@@ -17,7 +17,7 @@ import {
   DEFAULT_SEARCH_ENGINE,
   SearchEngineIdSchema,
 } from "@/shared/search-engines";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 // "unfocused" notifies only when Instrument is not the active window.

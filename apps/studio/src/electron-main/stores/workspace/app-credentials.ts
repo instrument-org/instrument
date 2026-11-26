@@ -8,7 +8,7 @@ import {
   requireSavableKeys,
 } from "@/electron-main/lib/key-file";
 import { type StoredAppKey } from "@instrument-org/workspace/electron";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 // An app's keys, each a record of its own with the origin it was saved for:

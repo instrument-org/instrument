@@ -9,7 +9,7 @@ import {
 } from "@/shared/remembered-picks";
 import { type SetupRecord, SetupRecordSchema } from "@/shared/setup";
 import { type ModelRoutes } from "@instrument-org/ai-gateway";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 /**

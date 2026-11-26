@@ -1,6 +1,6 @@
 import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import { screen } from "electron";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 
 import { getKeptState } from "./kept-state";
 

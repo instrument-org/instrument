@@ -1,6 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { AIGatewayModel, type ModelCache } from "@instrument-org/ai-gateway";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 // Model lists are provider-scoped, and providers are app-global (their configs

@@ -11,7 +11,7 @@ import {
   FavoriteChangesSchema,
   withFavoriteChanges,
 } from "@/shared/favorite-places";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 import { MACHINE_PREFERENCES_NAME } from "./names";

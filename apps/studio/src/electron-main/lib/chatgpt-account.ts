@@ -21,7 +21,7 @@ import {
   CHATGPT_ACCOUNT_PROVIDER_CONFIG,
 } from "@instrument-org/shared";
 import { type SignInOutcome } from "@/shared/sign-in-outcome";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import {
   createHash,
   createPublicKey,

@@ -13,7 +13,7 @@ import {
   type OAuthTokens,
   type OriginBound,
 } from "@instrument-org/workspace/electron";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 
 interface AppOAuthStoreShape {
   flows: Record<string, OAuthFlowRecord>;

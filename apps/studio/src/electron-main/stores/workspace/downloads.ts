@@ -1,7 +1,7 @@
 import { storeJson } from "@/electron-main/stores/store-json";
 import { logger } from "@/electron-main/lib/electron-logger";
 import { workspaceBrowserDir } from "@/electron-main/lib/get-workspace-folder";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 /** A download a person started in the in-app browser, as its list keeps it. */

@@ -12,7 +12,7 @@ import { launchOutcome } from "@/electron-main/lib/update-status";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { SetupRecordSchema } from "@/shared/setup";
 import { app } from "electron";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 import { MACHINE_STATE_NAME } from "./names";

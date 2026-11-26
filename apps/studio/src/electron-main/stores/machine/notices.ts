@@ -3,7 +3,7 @@ import { logger } from "@/electron-main/lib/electron-logger";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { NoticeSchema } from "@/shared/notices";
 import { app } from "electron";
-import Store from "electron-store";
+import Store from "@/electron-main/stores/store";
 import { z } from "zod";
 
 /** How often to ask when the service doesn't say. */

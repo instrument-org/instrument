@@ -588,16 +588,16 @@ export default async (app, args) => {
     const targets = (await (await fetch(`http://127.0.0.1:${app.port}/json/list`)).json()).filter((/** @type {any} */ t) => t.type === "webview");
     for (const target of targets) {
       const socket = new WebSocket(target.webSocketDebuggerUrl);
-      await new Promise((done, fail) => ((socket.onopen = done), (socket.onerror = fail)));
+      await new Promise((open, fail) => ((socket.onopen = open), (socket.onerror = fail)));
       let id = 0;
       const send = (/** @type {string} */ method, params = {}) =>
-        new Promise((done) => {
+        new Promise((answer) => {
           const n = ++id;
           socket.addEventListener("message", function reply(m) {
             const msg = JSON.parse(String(m.data));
             if (msg.id !== n) return;
             socket.removeEventListener("message", reply);
-            done(msg.result);
+            answer(msg.result);
           });
           socket.send(JSON.stringify({ id: n, method, params }));
         });

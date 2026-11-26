@@ -1,6 +1,7 @@
 import { SHOW_LABELS } from "@/client/components/activity/activity-timeline";
 import { type Show, SHOWS } from "@/shared/history-show";
 import { PlaceIcon } from "@/client/components/window/place-icons";
+import { BrandIconGlyph } from "@/client/components/brand-icon";
 import { debugPageTitle } from "@/client/routes/debug/-debug-routes";
 import {
   type ScreenName,
@@ -11,7 +12,6 @@ import {
 import { type ChatId, type StoreId } from "@instrument-org/workspace/client";
 import { AppWindowIcon } from "@phosphor-icons/react/AppWindow";
 import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
-import { NotePencilIcon } from "@phosphor-icons/react/NotePencil";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { LinkBreakIcon } from "@phosphor-icons/react/LinkBreak";
@@ -122,12 +122,13 @@ export function screenIdentity(
         title,
       };
     }
-    // A new tab is a chat about to start, marked as one being written, in
-    // its strip tab and its sidebar row alike. Its tab is the New Tab, and the
-    // place it is at is a new chat, which the location bar writes into.
+    // A new tab wears the glyph its page shows in the middle, faint, so in
+    // its strip tab and its sidebar row alike it reads as a place rather than
+    // as a button beside New. Its tab is the New Tab, and the place it is at
+    // is a new chat, which the location bar writes into.
     case "inbox": {
       return {
-        icon: <NotePencilIcon className="size-3.5" />,
+        icon: <BrandIconGlyph className="size-3.5 text-foreground/40" />,
         location: { kind: "newChat" },
         title: "New Tab",
       };

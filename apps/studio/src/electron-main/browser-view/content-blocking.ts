@@ -1,6 +1,6 @@
 import { logger } from "@/electron-main/lib/electron-logger";
 import { getWorkspacePreferences } from "@/electron-main/stores/workspace/preferences";
-import { fetchResources, FiltersEngine, Request } from "@ghostery/adblocker";
+import type * as Adblocker from "@ghostery/adblocker";
 import type { IBackgroundCallback } from "@ghostery/adblocker-electron-preload";
 import {
   app,
@@ -70,7 +70,12 @@ const MUTATION_OBSERVER_CHANNEL =
 
 const log = logger.scope("content-blocking");
 
-let engine: FiltersEngine | null = null;
+let engine: Adblocker.FiltersEngine | null = null;
+/**
+ * The blocking library, loaded with the engine rather than with the app, so
+ * it is set whenever `engine` is.
+ */
+let adblocker: typeof Adblocker | null = null;
 let loading: Promise<void> | null = null;
 let blockAds: boolean | null = null;
 let isExempt: (webContentsId: number) => boolean = () => false;
@@ -111,12 +116,13 @@ export function blockedRequestResponse(
 ): CallbackResponse {
   if (
     !engine ||
+    !adblocker ||
     !isBlocking() ||
     (details.webContentsId !== undefined && isExempt(details.webContentsId))
   ) {
     return {};
   }
-  const request = requestFrom(details);
+  const request = requestFrom(adblocker, details);
   if (request.isMainFrame()) {
     return {};
   }
@@ -133,6 +139,7 @@ export function cspResponse(
 ): HeadersReceivedResponse {
   if (
     !engine ||
+    !adblocker ||
     !isBlocking() ||
     (details.webContentsId !== undefined && isExempt(details.webContentsId)) ||
     (details.resourceType !== "mainFrame" &&
@@ -140,7 +147,7 @@ export function cspResponse(
   ) {
     return {};
   }
-  const directives = engine.getCSPDirectives(requestFrom(details));
+  const directives = engine.getCSPDirectives(requestFrom(adblocker, details));
   if (directives === undefined) {
     return {};
   }
@@ -157,6 +164,7 @@ export function cspResponse(
 }
 
 function requestFrom(
+  { Request }: typeof Adblocker,
   details: OnBeforeRequestListenerDetails | OnHeadersReceivedListenerDetails,
 ) {
   return Request.fromRawDetails({
@@ -279,6 +287,8 @@ export function isBlocking() {
  * nothing on disk either, pages load unblocked until the next launch.
  */
 async function loadEngine() {
+  const { fetchResources, FiltersEngine } = (adblocker ??=
+    await import("@ghostery/adblocker"));
   const cachePath = path.join(
     app.getPath("userData"),
     "content-blocking-engine.bin",

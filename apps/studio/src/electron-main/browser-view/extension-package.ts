@@ -1,4 +1,3 @@
-import { Uint8ArrayReader, Uint8ArrayWriter, ZipReader } from "@zip.js/zip.js";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -156,6 +155,9 @@ export async function unpackPackage(
   { archive, key }: { archive: Buffer; key: Buffer },
   dir: string,
 ): Promise<void> {
+  // Loaded with the first install rather than with the app.
+  const { Uint8ArrayReader, Uint8ArrayWriter, ZipReader } =
+    await import("@zip.js/zip.js");
   const reader = new ZipReader(new Uint8ArrayReader(new Uint8Array(archive)), {
     useWebWorkers: false,
   });

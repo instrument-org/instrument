@@ -4,9 +4,20 @@ import path from "node:path";
 
 import { createScopedLogger } from "./electron-logger";
 import { getRegistryDir } from "./registry-dir";
-import { PAGE_HOSTS } from "./rendered-pictures";
 
 const log = createScopedLogger("LivePage");
+
+/**
+ * The hosts a page from the page skill draws from: its web fonts and the
+ * framework and icons it takes from jsDelivr. Everything else a page asks the
+ * network for goes unanswered, so looking at a folder is not a page's cue to
+ * call home.
+ */
+export const PAGE_HOSTS = new Set([
+  "cdn.jsdelivr.net",
+  "fonts.googleapis.com",
+  "fonts.gstatic.com",
+]);
 
 /**
  * The web fonts `page.mjs` links into a page it builds (`FONTS` in the page

@@ -7,7 +7,6 @@ import { createScopedLogger } from "./electron-logger";
 import { fileIcon } from "./mac-native";
 import { isInMacosAppContainer } from "@/shared/macos-guarded-folders";
 import { renderedKindOf } from "@/shared/rendered-kinds";
-import { renderPicture } from "./rendered-pictures";
 
 const log = createScopedLogger("FileThumbnails");
 
@@ -400,6 +399,8 @@ async function renderedAt(
         };
       }
       try {
+        // Loaded with the first picture: it carries the syntax highlighter.
+        const { renderPicture } = await import("./rendered-pictures");
         const { complete, image } = await renderPicture(hostPath, theme);
         if (complete) {
           const encoded = encode(image);

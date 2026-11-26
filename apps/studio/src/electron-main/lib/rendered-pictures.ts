@@ -20,6 +20,7 @@ import { captureFrame } from "../browser-view/capture-frame";
 import { guests } from "../browser-view/guest-registry";
 import { confineLocalPagesToTheirFolder } from "../browser-view/local-file-policy";
 import { createScopedLogger } from "./electron-logger";
+import { PAGE_HOSTS } from "./live-page-frame";
 import {
   extensionOf,
   type RenderedKind,
@@ -97,18 +98,6 @@ const TABLE_ROWS = 40;
 const TABLE_COLUMNS = 12;
 /** A JSON file small enough to be parsed and laid out, when it came minified. */
 const JSON_PRETTY_MAX = 2 * 1024 * 1024;
-
-/**
- * The hosts a page from the page skill draws from: its web fonts and the
- * framework and icons it takes from jsDelivr. Everything else a page asks the
- * network for goes unanswered, so looking at a folder is not a page's cue to
- * call home.
- */
-export const PAGE_HOSTS = new Set([
-  "cdn.jsdelivr.net",
-  "fonts.googleapis.com",
-  "fonts.gstatic.com",
-]);
 
 /** Resolves once the page's fonts are in and a frame has been drawn with them. */
 const SETTLE_SCRIPT = `document.fonts.ready.then(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))).then(() => undefined)`;

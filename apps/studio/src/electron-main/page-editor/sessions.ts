@@ -5,7 +5,6 @@ import {
 import { utf8Text } from "@/electron-main/lib/utf8-text";
 import { osOf } from "@/shared/os-conventions";
 import { PAGE_EDITOR_BOOT_CHANNEL } from "@/shared/page-editor-channels";
-import { stampPageSource } from "@/shared/page-source";
 import { is } from "@electron-toolkit/utils";
 import {
   isPageEditAddress,
@@ -93,6 +92,8 @@ export async function loadEditablePage({
     );
   }
   const src = text ?? disk;
+  // Loaded with the first Edit: it carries an HTML parser.
+  const { stampPageSource } = await import("@/shared/page-source");
   const url = editAddress(guest.contents, filePath);
   generations += 1;
   const generation = generations;

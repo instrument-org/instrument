@@ -232,6 +232,8 @@ import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
 import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
 import { useBootMarks } from "./boot-marks";
 import { setStudioDriveOpenPage } from "@/client/lib/studio-drive";
+import { SidePanelSlot } from "./side-panel";
+import { useSidePanel, useSidePanelUpkeep } from "./side-panel-state";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -555,6 +557,8 @@ function WindowShell({
     select: (routerState) => routerState.location.href,
   });
   useTabGroupUpkeep(appTabHref, groupList.open);
+  const sidePanel = useSidePanel(groupUp);
+  useSidePanelUpkeep(groupUp);
   useGroupLeadUpkeep(
     groupUp,
     groupList.open.map((entry) => entry.group),
@@ -1826,6 +1830,9 @@ function WindowShell({
       toggleSidebar: () => {
         setSidebarOpen((isOpen) => !isOpen);
       },
+      toggleSidePanel: () => {
+        sidePanel.setOpen(!sidePanel.isOpen);
+      },
       selectChat: (direction) => {
         const next = groupAlong(groupsHere(), groupUp, direction);
         if (next !== undefined) {
@@ -2047,6 +2054,7 @@ function WindowShell({
       <FileOpenContext value={ways.openPath}>
         <PageOpenContext value={ways.openPage}>
           <WindowFrame
+            aside={sidePanel.isOpen ? <SidePanelSlot /> : undefined}
             corner={<WindowCorner />}
             hasBar={false}
             rail={

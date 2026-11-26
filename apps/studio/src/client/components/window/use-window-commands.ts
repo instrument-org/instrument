@@ -162,6 +162,8 @@ export function useWindowCommands(
     selectTab: (index: number) => void;
     /** The inbox column put away or brought back. */
     toggleSidebar: () => void;
+    /** The side panel of the group up opened or closed. */
+    toggleSidePanel: () => void;
   },
   {
     isReady,
@@ -430,6 +432,10 @@ export function useWindowCommands(
         }
         case "toggleSidebar": {
           latest.current.toggleSidebar();
+          break;
+        }
+        case "toggleSidePanel": {
+          latest.current.toggleSidePanel();
           break;
         }
         case "zoomIn":

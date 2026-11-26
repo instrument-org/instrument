@@ -123,6 +123,12 @@ export const WINDOW_SHORTCUTS = {
     label: "Show Bookmarks Bar",
   },
   toggleSidebar: { accelerator: "CmdOrCtrl+B", label: "Toggle Sidebar" },
+  // The right-hand twin of the sidebar's chord, on a key no page or editor
+  // takes: Control with Command on a Mac, as full screen is.
+  toggleSidePanel: {
+    accelerator: { darwin: "Control+Command+S", default: "Ctrl+Shift+S" },
+    label: "Toggle Side Panel",
+  },
 } as const satisfies Record<string, WindowShortcut>;
 
 export type WindowShortcutId = keyof typeof WINDOW_SHORTCUTS;

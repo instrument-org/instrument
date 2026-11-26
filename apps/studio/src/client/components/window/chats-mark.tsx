@@ -123,7 +123,7 @@ export function ChatsMark({ open }: { open: OpenAddress }) {
 }
 
 /** One chat of the menu: the chat list's row at one line, with no controls, led by the chat's mark. */
-function RecentChatRow({
+export function RecentChatRow({
   chat,
   onDelete,
   onOpen,

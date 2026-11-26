@@ -16,6 +16,7 @@ const calls = vi.hoisted(() => ({
 
 // The row's field, as a press that names the Downloads folder.
 vi.mock("./tab-location-row", () => ({
+  ChatBesideChip: () => null,
   TabLocationRow: ({
     onFolder,
     onVisit,
@@ -59,6 +60,7 @@ vi.mock("./use-tab-steps", () => ({
 
 // The bar under the row, which these cases press nothing on.
 vi.mock("./bookmarks-bar", () => ({ BookmarksBar: () => null }));
+vi.mock("./side-panel", () => ({ SidePanelHere: () => null }));
 
 vi.mock("./apps-by-slug", () => ({ useAppsBySlug: () => new Map() }));
 vi.mock("./shell-context", () => ({

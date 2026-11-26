@@ -163,7 +163,7 @@ export function AppChip({
   }
   return (
     <button
-      className={cn(className, "hover:bg-accent")}
+      className={cn(className, "hover:bg-foreground/10")}
       data-app-chip={app}
       onClick={onPress}
       type="button"
@@ -190,7 +190,10 @@ export function SiteAppChip({
 }) {
   return (
     <button
-      className={cn(CHIP, "max-w-40 hover:bg-accent @max-[18rem]/field:pr-1.5")}
+      className={cn(
+        CHIP,
+        "max-w-40 hover:bg-foreground/10 @max-[18rem]/field:pr-1.5",
+      )}
       onClick={onPress}
       type="button"
     >
@@ -201,8 +204,10 @@ export function SiteAppChip({
 }
 
 /** A chip's card, at the start of the address field. */
+// Quieter than Chat at the field's other end (`ChatBesideChip`): a shade of
+// the field's own fill, with no card or edge of its own.
 const CHIP =
-  "-ml-1.5 flex h-6 shrink-0 cursor-default items-center gap-1.5 rounded-lg bg-card pr-2 pl-1.5 text-[13px] font-medium text-foreground shadow-xs ring-1 ring-foreground/8";
+  "-ml-1.5 flex h-6 shrink-0 cursor-default items-center gap-1.5 rounded-lg bg-foreground/6 pr-2 pl-1.5 text-[13px] font-medium text-foreground/80";
 
 /**
  * The mark an address wears wherever it is kept, the mark its tab wears: a

@@ -57,7 +57,7 @@ export interface WindowTabs {
   tabs: WindowTab[];
 }
 
-/** What a group keeps of its own: its pin, the project it was made in, the group word a link named it by, how its two sides are sized (`sideShare`), and when it last came up. */
+/** What a group keeps of its own: its pin, the project it was made in, the group word a link named it by, how its two sides are sized (`sideShare`), whether its side panel was opened or closed, and when it last came up. */
 export interface GroupOwn {
   /** The side sized as a chat while the group has two, set as it gets them (`withChatSides`). */
   chatSide?: 0 | 1;
@@ -73,6 +73,8 @@ export interface GroupOwn {
   project?: string;
   /** The left side's share of the row past the gutter, as the person dragged it. */
   share?: number;
+  /** The side panel opened (true) or closed (false) by the person; none follows the tab up (`isSidePanelOpen`). */
+  sidePanel?: boolean;
   /** When a window last came to stand on it, in ms, which the agent's list says. */
   shownAt?: number;
 }
@@ -94,6 +96,7 @@ export function withGroupOwn(
     ...(merged.project === undefined ? {} : { project: merged.project }),
     ...(merged.share === undefined ? {} : { share: merged.share }),
     ...(merged.shownAt === undefined ? {} : { shownAt: merged.shownAt }),
+    ...(merged.sidePanel === undefined ? {} : { sidePanel: merged.sidePanel }),
   };
   const { [group]: _was, ...others } = state.groups ?? {};
   return {

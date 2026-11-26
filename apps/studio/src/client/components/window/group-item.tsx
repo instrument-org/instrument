@@ -58,7 +58,12 @@ import { folderOf, segmentsOf } from "./host-path";
 import { editField } from "./omnibar-field";
 import { screenIdentity } from "./screen-presentation";
 import { type TabLocation, tasksOfHref } from "./tab-location";
-import { TabLocationRow, TabRowControl } from "./tab-location-row";
+import {
+  ChatBesideChip,
+  TabLocationRow,
+  TabRowControl,
+} from "./tab-location-row";
+import { SidePanelHere } from "./side-panel";
 import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { chatOfTab } from "./tab-model";
@@ -81,6 +86,7 @@ export function GroupItem({
   group,
   hasKeyboard = true,
   isShown = true,
+  onChatBeside,
   onPageChrome,
   onPageHost,
   up,
@@ -93,6 +99,8 @@ export function GroupItem({
   hasKeyboard?: boolean;
   /** Whether it is on screen; false while the pane it stands in is put away, which keeps it mounted. */
   isShown?: boolean;
+  /** A new chat beside it, for a group of one side; a page, a folder or a file offers it in its field. */
+  onChatBeside?: () => void;
   /** Where the address row takes the page's reload and controls while a page is up; nothing otherwise. */
   onPageChrome: (slots: PageChromeSlots | undefined) => void;
   /** The element the page is drawn into, while a page is up. */
@@ -146,8 +154,7 @@ export function GroupItem({
   const screenKind =
     up.kind === "screen" ? matchScreen(up.href).kind : undefined;
   const isNewChat = screenKind === "inbox";
-  // The web's start, which the bookmarks bar always stands over, as a new
-  // tab's does.
+  // The web's start, which the bookmarks bar always stands over.
   const isWebStart = screenKind === "browser";
   // Files keeps the row every tab shares, with its own controls (the
   // sidebar, the view, the sort, search) in a row of their own under it.
@@ -366,6 +373,9 @@ export function GroupItem({
           {...(location.kind === "file"
             ? { liveAddress: () => liveAddressOf(location.path) }
             : {})}
+          {...(onChatBeside && (isPage || isFiles)
+            ? { chat: <ChatBesideChip onClick={onChatBeside} /> }
+            : {})}
           className="border-b-0"
           location={location}
           {...(before ? {} : { onBack: goBack, onForward: goForward })}
@@ -410,10 +420,7 @@ export function GroupItem({
   // screen reads them.
   const tabWays = useSteadyCallbacks<
     Pick<GroupTab, "close" | "showPage" | "step"> &
-      Pick<
-        WindowContextValue,
-        "openPage" | "openScreen" | "takeFolderPress"
-      >
+      Pick<WindowContextValue, "openPage" | "openScreen" | "takeFolderPress">
   >({
     close: () => {
       closeTab(up.id);
@@ -437,6 +444,13 @@ export function GroupItem({
     },
   });
 
+  // The group's side panel, drawn by the tab up on the side with the
+  // keyboard, so a pick in it goes to this tab as a bookmark's does.
+  const sidePanel =
+    isShown && hasKeyboard ? (
+      <SidePanelHere group={group} onOpen={openHere} onVisit={takeOver} />
+    ) : null;
+
   if (up.kind === "page") {
     const filePath = pageFilePath;
     const pageLocation: TabLocation =
@@ -459,6 +473,7 @@ export function GroupItem({
               onOpen={openHere}
               onVisit={takeOver}
             />
+            {sidePanel}
             <SiteSignInBar tabId={up.id} />
             <PlanSignInBar tabId={up.id} />
           </>
@@ -541,16 +556,18 @@ export function GroupItem({
         isShown && (
           <>
             {head}
-            {/* A chat is the app's own page, which the bar never sits over. */}
-            {chatOfTab(up) === undefined && (
+            {/* The bar belongs to the web: a page's, and the web's start,
+              which it always stands over. */}
+            {isWebStart && (
               <BookmarksBar
-                bleeds={isNewChat || isWebStart}
+                bleeds
                 files={{ group }}
-                isAlwaysShown={isNewChat || isWebStart}
+                isAlwaysShown
                 onOpen={openHere}
                 onVisit={takeOver}
               />
             )}
+            {sidePanel}
             {/* Files' own row: the folder's controls over the folder, the
               file's (its versions, then what it draws into `viewEnd`) over
               the file beside it. */}

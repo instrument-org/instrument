@@ -202,6 +202,7 @@ export type WindowCommand =
   | "showBookmarks"
   | "toggleBookmarksBar"
   | "toggleSidebar"
+  | "toggleSidePanel"
   | "zoomIn"
   | "zoomOut"
   | "zoomReset"

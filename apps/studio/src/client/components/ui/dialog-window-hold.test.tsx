@@ -64,6 +64,7 @@ function Commands({
       showActivity: vi.fn(),
       showBookmarks: vi.fn(),
       toggleSidebar: vi.fn(),
+      toggleSidePanel: vi.fn(),
     },
     { isReady: false },
   );

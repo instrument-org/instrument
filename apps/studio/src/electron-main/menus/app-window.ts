@@ -88,6 +88,7 @@ const CHORD_SYMBOLS: Record<WindowShortcutId, string> = {
   showBookmarks: "book.closed",
   toggleBookmarksBar: "book",
   toggleSidebar: "sidebar.left",
+  toggleSidePanel: "sidebar.right",
 };
 
 /** Sends a command to the window's renderer, which holds the tabs and the tab groups: every chord's id is one. */
@@ -171,9 +172,10 @@ const BOOKMARKS_BAR_CHORD = chord("toggleBookmarksBar", () => {
   toggleBookmarksBar();
 });
 
-/** The sidebar of tab groups put away and brought back, on the usual sidebar chord. */
+/** The sidebar of tab groups put away and brought back, on the usual sidebar chord, and the side panel at the right edge. */
 const VIEW_CHORDS: WindowChord[] = [
   chord("toggleSidebar"),
+  chord("toggleSidePanel"),
   chord("editPage"),
   // The page in front of the user, never the window: reloading the window
   // takes every browser guest down with its document. The window decides
@@ -474,14 +476,14 @@ export function createAppWindowMenu(
   const viewMenu: MenuItemConstructorOptions = {
     ...shared,
     submenu: [
-      ...menuItems(VIEW_CHORDS.slice(0, 1), windows),
+      ...menuItems(VIEW_CHORDS.slice(0, 2), windows),
       // Ticked while the bar shows, as Chrome's View menu has it.
       ...menuItems([BOOKMARKS_BAR_CHORD], windows).map((item) => ({
         ...item,
         checked: showsBookmarksBar(),
         type: "checkbox" as const,
       })),
-      ...menuItems(VIEW_CHORDS.slice(1), windows),
+      ...menuItems(VIEW_CHORDS.slice(2), windows),
       ...menuItems(VIEW_ALIAS_CHORDS, windows),
       { type: "separator" },
       ...menuItems(CHAT_CHORDS, windows),

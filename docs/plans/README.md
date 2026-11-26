@@ -140,6 +140,7 @@ Each entry is the plan's title and the opening of its status.
 - [Sandbox and workspace adjustments](sandbox-and-workspace-adjustments.md): Landed.
 - [Sandboxed script runtimes as the default](sandboxed-script-runtimes.md): Landed 2026-09-10, all phases, in the end state the plan recommends: `python`/`python3` are the sandboxed CPython, `python-native` is the virtualenv interpre...
 - [Recovering a session whose history the provider will not accept](session-recovery-from-unsendable-content.md): Every phase has landed.
+- [A side panel down the window's right edge](side-panel.md): The panel, its open state per tab group, the corner controls, the Chat chip and the bookmarks bar's move to web pages are built.
 - [One window browser](single-window-browser.md): Landed.
 - [Weight the skill catalog so a named skill keeps its trigger](skill-catalog-weighting.md): Complete for the code half.
 - [Skill creation flow](skill-creation-flow.md): Complete.

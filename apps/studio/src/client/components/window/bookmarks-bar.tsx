@@ -95,8 +95,9 @@ import { bookmarkName } from "./bookmark-edits";
  * lands, a copy on the pointer and a line where it would go
  * (`BarDropLine`), so the bar never shifts under the pointer. A right
  * click on the bar itself offers to hide it; hidden, it is not drawn in any
- * tab of any window but a new tab (`isAlwaysShown`), where it is the way to
- * Files and the sites kept, and nothing can be dropped onto it. Shown or hidden
+ * tab of any window but the web's start (`isAlwaysShown`), where it is the
+ * way to the sites kept, and nothing can be dropped onto it. Only a web
+ * page and the web's start draw it at all; the side panel has the rest. Shown or hidden
  * while a tab is open, it grows in or folds away and fades (`BAR_MOTION`),
  * the page under it moving with it; a tab opening draws it as it stands.
  */
@@ -124,7 +125,7 @@ export function BookmarksBar({
 }
 
 type BarProps = {
-  /** Drawn on the page's own ground with no line under it, where the page carries on from it: a new tab's. */
+  /** Drawn on the page's own ground with no line under it, where the page carries on from it: the web's start. */
   bleeds?: boolean;
   /** Apps, Chats and Files at the bar's start, Files with the places of this group's Files sidebar. */
   files?: { group: string };

@@ -92,9 +92,9 @@ export const WorkspacePreferencesSchema = z.object({
   // Chats may read what the person did in the app, from the action log in
   // the machine folder; see `mayShareActions` in the workspace's config.
   shareActionsWithChats: z.boolean().catch(true),
-  // The bookmarks bar under every tab's address row but a chat's, in every
-  // window, brought out and put away from the View menu or the bar's own
-  // menu. Off, it shows on a new tab alone.
+  // The bookmarks bar under a web page's address row, in every window,
+  // brought out and put away from the View menu or the bar's own menu. Off,
+  // it shows on the web's start alone.
   showBookmarksBar: z.boolean().catch(false),
   // Where words typed into the address field are searched.
   searchEngine: SearchEngineIdSchema.catch(DEFAULT_SEARCH_ENGINE),

@@ -35,6 +35,7 @@ export { WINDOW_CARD_GAP } from "@/shared/constants";
  * which is the chat pane's top, past the traffic lights.
  */
 export function WindowFrame({
+  aside,
   bar,
   children,
   corner,
@@ -42,6 +43,8 @@ export function WindowFrame({
   rail,
   rowRef,
 }: {
+  /** The column down the window's right edge, past the card, on the window's own ground as the rail is. */
+  aside?: ReactNode;
   bar?: ReactNode;
   children: ReactNode;
   /** Laid over the window's top left corner, where it stays whatever comes and goes under it. */
@@ -129,6 +132,7 @@ export function WindowFrame({
               </div>
             </div>
           </div>
+          {aside}
         </div>
         {corner}
         {!isSetupUp && (

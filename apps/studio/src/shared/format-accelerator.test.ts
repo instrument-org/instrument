@@ -139,6 +139,7 @@ describe("formatAcceleratorFor", () => {
         "showActivity: ⌘ Y  /  Ctrl H  /  Ctrl H",
         "toggleBookmarksBar: ⇧ ⌘ B  /  Ctrl Shift B  /  Ctrl Shift B",
         "toggleSidebar: ⌘ B  /  Ctrl B  /  Ctrl B",
+        "toggleSidePanel: ⌃ ⌘ S  /  Ctrl Shift S  /  Ctrl Shift S",
         "actualSize: ⌘ 0  /  Ctrl 0  /  Ctrl 0",
         "closeWindow: ⇧ ⌘ W  /  Ctrl Shift W  /  Ctrl Shift W",
         "groupByPlace: ⌃ 1…9  /  Alt 1…9  /  Alt 1…9",

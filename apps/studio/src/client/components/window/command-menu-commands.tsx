@@ -25,6 +25,7 @@ import { PushPinSlashIcon } from "@phosphor-icons/react/PushPinSlash";
 import { RectangleIcon } from "@phosphor-icons/react/Rectangle";
 import { ShareIcon } from "@phosphor-icons/react/Share";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
+import { useSidePanel } from "./side-panel-state";
 import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
 import { StackIcon } from "@phosphor-icons/react/Stack";
 import { StopIcon } from "@phosphor-icons/react/Stop";
@@ -80,6 +81,7 @@ export function useMenuCommands({
   const moves = useGroupTabMoves();
   const { open } = useOpenGroups();
   const [isSidebarOpen, setSidebarOpen] = useAtom(sidebarOpenAtom);
+  const sidePanel = useSidePanel(tab?.group);
   const preferences = useQuery(
     rpcClient.preferences.live.get.experimental_liveOptions(),
   );
@@ -113,6 +115,19 @@ export function useMenuCommands({
         setSidebarOpen(!isSidebarOpen);
       },
     },
+    ...(tab?.group === undefined
+      ? []
+      : [
+          {
+            chord: WINDOW_SHORTCUTS.toggleSidePanel.accelerator,
+            icon: <SidebarSimpleIcon className="size-4 -scale-x-100" />,
+            id: "toggle-side-panel",
+            label: sidePanel.isOpen ? "Hide Side Panel" : "Show Side Panel",
+            run: () => {
+              sidePanel.setOpen(!sidePanel.isOpen);
+            },
+          },
+        ]),
     {
       chord: WINDOW_SHORTCUTS.toggleBookmarksBar.accelerator,
       icon: <BookmarksIcon className={ICON} />,

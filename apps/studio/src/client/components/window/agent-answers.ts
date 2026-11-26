@@ -109,6 +109,9 @@ export const WINDOW_CHANGE_ANSWERS = {
     not: "how wide each side of a split is, which is the person's to drag",
   },
   "group.shownAt": FOLLOWING,
+  "group.sidePanel": {
+    not: "the side panel open or closed, which is the person's to choose",
+  },
 
   "bookmark.add": "addBookmark",
   "bookmark.addFolder": "changeBookmarks",

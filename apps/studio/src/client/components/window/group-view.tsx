@@ -1,6 +1,5 @@
 import { NEW_TAB_HREF, type WindowTab } from "@/client/atoms/window";
 import { PlusIcon } from "@phosphor-icons/react/Plus";
-import { SquareSplitHorizontalIcon } from "@phosphor-icons/react/SquareSplitHorizontal";
 import { XIcon } from "@phosphor-icons/react/X";
 import { ResizeHandle } from "@/client/components/resize-handle";
 import {
@@ -60,12 +59,9 @@ import { useSideMotion } from "./side-motion";
 import { windowTabGroupsAtom } from "./open-groups";
 import { useTabGroupActions } from "./tab-groups";
 import { useGroupTabMoves } from "./tab-drag";
-import {
-  type GroupLayout,
-  type GroupSide,
-  isChatTab,
-  isNewChatTab,
-} from "./tab-model";
+import { type GroupLayout, type GroupSide } from "./tab-model";
+import { ShowSidePanelControl } from "./side-panel";
+import { useSidePanel } from "./side-panel-state";
 import {
   leftWidthAt,
   scrollToShow,
@@ -886,10 +882,12 @@ function SideCard({
       side: sideIndex,
     });
   };
-  // Split for a group of one side, named Chat beside a tab that is not a
-  // chat, since it opens one; in a split, each side's × in its place, since
-  // the window shows two sides at most.
-  const isUpChat = up !== undefined && (isChatTab(up) || isNewChatTab(up));
+  // The side panel's button for a group of one side while the panel is
+  // closed there, since its own × closes it; in a split, each side's × in
+  // its place, since the window shows two sides at most and a split shows
+  // the panel only when it was open first. A page, a folder or a file opens
+  // a chat beside it from its field instead (`onChatBeside`).
+  const sidePanel = useSidePanel(group);
   const splitControl =
     layout.sides.length === 2 ? (
       <TabRowControl
@@ -901,14 +899,11 @@ function SideCard({
           split.onCloseSplit?.();
         }}
       />
-    ) : (
-      <TabRowControl
-        chord="newTabInSplit"
-        disabled={false}
-        icon={<SquareSplitHorizontalIcon className="size-4" />}
-        label="New Tab in Split"
-        onClick={split.onNewChatInSplit}
-        word={isUpChat ? undefined : "Chat"}
+    ) : sidePanel.isOpen ? null : (
+      <ShowSidePanelControl
+        onClick={() => {
+          sidePanel.setOpen(true);
+        }}
       />
     );
 
@@ -1036,6 +1031,9 @@ function SideCard({
                 <GroupItem
                   closeTab={shell.requestClose}
                   group={group}
+                  {...(layout.sides.length === 1
+                    ? { onChatBeside: split.onNewChatInSplit }
+                    : {})}
                   hasKeyboard={hasKeyboard && isTabUp}
                   isShown={isTabUp}
                   onPageChrome={isTabUp ? setPageChrome : noop}

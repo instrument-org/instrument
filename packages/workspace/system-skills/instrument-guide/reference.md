@@ -122,7 +122,7 @@ On a Mac these are the menu bar's menus, the first named for Instrument; on Wind
 
 - **Instrument**: Check for Updates…, Settings…
 - **File**: New Tab Group, Command Menu, Open Location…, Find, Find Next, Find Previous, Search Chats, Print…, Info, New Window, New Tab, Close Tab, Reopen Closed Tab, Reopen Closed Window, Close Window
-- **View**: Toggle Sidebar, Show Bookmarks Bar, Edit Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
+- **View**: Toggle Sidebar, Toggle Side Panel, Show Bookmarks Bar, Edit Page, Reload Page, Next Tab Group, Previous Tab Group, Actual Size, Zoom In, Zoom Out
 - **History**: Back, Forward, Show History, Clear Browsing Data…
 - **Bookmarks**: Bookmark Manager, Bookmark This Tab…, Bookmark All Tabs…
 - **Tab**: Show Next Tab, Show Previous Tab, New Tab in Split, Close Split, Focus Left Side, Focus Right Side, Move Tab to New Window
@@ -200,5 +200,6 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Actual Size: ⌘0 / Ctrl+0
 - Show Bookmarks Bar: ⇧⌘B / Ctrl+Shift+B
 - Toggle Full Screen: ⌃⌘F / F11
+- Toggle Side Panel: ⌃⌘S / Ctrl+Shift+S
 - Zoom In: ⌘+ / Ctrl+=
 - Zoom Out: ⌘- / Ctrl+-

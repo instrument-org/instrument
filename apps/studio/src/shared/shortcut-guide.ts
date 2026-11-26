@@ -91,6 +91,7 @@ const WINDOW_GROUPS: Record<
   toggleBookmarksBar: "View",
   toggleFullScreen: "View",
   toggleSidebar: "Tab Groups",
+  toggleSidePanel: "View",
   zoomIn: "View",
   zoomOut: "View",
 };

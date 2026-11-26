@@ -89,6 +89,7 @@ describe("SHORTCUT_GUIDE_ENTRIES", () => {
         "View: Actual Size  ⌘0",
         "View: Show Bookmarks Bar  ⇧⌘B",
         "View: Toggle Full Screen  ⌃⌘F",
+        "View: Toggle Side Panel  ⌃⌘S",
         "View: Zoom In  ⌘+",
         "View: Zoom Out  ⌘-",
         "Developer: Capture Window  ⇧⌘2",

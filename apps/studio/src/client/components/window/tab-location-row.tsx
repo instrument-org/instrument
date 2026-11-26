@@ -1,5 +1,6 @@
 import { PlaceIcon } from "@/client/components/window/place-icons";
 import { OpenInAppButton } from "@/client/components/open-in-app";
+import { ChatCircleIcon } from "@phosphor-icons/react/ChatCircle";
 import { FileMark } from "./file-mark";
 import { FolderMark } from "@/client/components/window/folder-mark";
 import { fileAddressOf } from "@/client/bookmarks/address";
@@ -100,6 +101,7 @@ export function TabLocationRow({
   address,
   canGoBack,
   canGoForward,
+  chat,
   className,
   fieldEnd,
   fieldHint,
@@ -125,6 +127,8 @@ export function TabLocationRow({
   address?: string | undefined;
   canGoBack?: boolean;
   canGoForward?: boolean;
+  /** What opens a chat beside the tab, inside the field ahead of the app that opens it and the star (`ChatBesideChip`). */
+  chat?: ReactNode;
   className?: string;
   /** What the page says about itself inside the field, at its end, ahead of the app that opens it: its zoom while not 100%. */
   fieldEnd?: ReactNode;
@@ -324,6 +328,7 @@ export function TabLocationRow({
             }
           />
           {fieldEnd}
+          {chat}
           {openIn && <OpenInAppButton target={openIn} />}
           {address && !isWebStart && (
             <BookmarkStar
@@ -338,6 +343,31 @@ export function TabLocationRow({
       {trailing}
       {top?.corner}
     </div>
+  );
+}
+
+/**
+ * Chat at the end of a page's, a folder's or a file's field, before the
+ * app that opens it and the star: a new chat beside the tab, the one way the
+ * row offers to split. Its bubble is the brand's green, the only color in
+ * the field, and a narrow field (`@container/field`) keeps the bubble alone.
+ */
+export function ChatBesideChip({ onClick }: { onClick: () => void }) {
+  return (
+    <ToolbarTooltip chord="newTabInSplit" label="New Chat in Split">
+      <button
+        aria-label="Chat"
+        className="flex h-6 shrink-0 cursor-default items-center gap-1.5 rounded-lg bg-card pr-2 pl-1.5 text-[13px] font-medium text-foreground/80 ring-1 ring-foreground/8 hover:text-foreground hover:ring-foreground/15 @max-[18rem]/field:pr-1.5"
+        onClick={onClick}
+        type="button"
+      >
+        <ChatCircleIcon
+          className="size-3.5 shrink-0 text-brand-400 dark:text-brand-300"
+          weight="fill"
+        />
+        <span className="@max-[18rem]/field:sr-only">Chat</span>
+      </button>
+    </ToolbarTooltip>
   );
 }
 

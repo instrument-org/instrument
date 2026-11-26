@@ -70,6 +70,7 @@ const handlers = {
   showActivity: vi.fn(),
   showBookmarks: vi.fn(),
   toggleSidebar: vi.fn(),
+  toggleSidePanel: vi.fn(),
 };
 
 function Window() {

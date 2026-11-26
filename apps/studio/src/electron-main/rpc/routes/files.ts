@@ -49,6 +49,7 @@ import {
   videoStoryboardDeps,
 } from "@/electron-main/lib/video-storyboard";
 import { folderItemCount, folderSize } from "@/electron-main/lib/folder-size";
+import { walkFolder } from "@/electron-main/lib/folder-walk";
 import { probeMedia } from "@/electron-main/lib/media-probe";
 import { watchHostFile } from "@/electron-main/lib/watch-host-file";
 import { base } from "@/electron-main/rpc/base";
@@ -1166,6 +1167,41 @@ const folderSizeRoute = base
   });
 
 /**
+ * Everything under a folder, nearest first and capped, for a search of it
+ * (`walkFolder`), or null where it cannot be read. The query going away
+ * aborts the walk.
+ */
+const walkFolderRoute = base
+  .input(z.object({ path: HostPathSchema }))
+  .output(
+    z
+      .object({
+        entries: z.array(
+          z.object({
+            createdAt: z.number(),
+            folder: z.string(),
+            isFolder: z.boolean(),
+            modifiedAt: z.number(),
+            name: z.string(),
+            package: z.literal(true).optional(),
+            path: z.string(),
+            size: z.number().optional(),
+          }),
+        ),
+        notSearched: z.array(z.string()),
+        truncated: z.boolean(),
+      })
+      .nullable(),
+  )
+  .handler(async ({ input, signal }) => {
+    const folderPath = await followAliases(input.path);
+    if (await isClosed(input.path, folderPath)) {
+      return null;
+    }
+    return walkFolder(folderPath, { signal });
+  });
+
+/**
  * How many items a folder has directly in it, without the system's clutter,
  * or null where it cannot be read: one read of the folder, cheap enough for
  * every folder card a reply draws.
@@ -1263,5 +1299,6 @@ export const files = {
   storyboard,
   trash,
   undo,
+  walkFolder: walkFolderRoute,
   write,
 };

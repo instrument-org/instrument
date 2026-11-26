@@ -88,6 +88,7 @@ import { FileDashedIcon } from "@phosphor-icons/react/FileDashed";
 import { FolderDashedIcon } from "@phosphor-icons/react/FolderDashed";
 import {
   keepPreviousData,
+  skipToken,
   useMutation,
   useQueries,
   useQuery,
@@ -112,6 +113,9 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { commandMenuOpenAtom } from "@/client/atoms/command-menu";
+import { ShortcutKeys } from "@/client/components/shortcut-keys";
+import { WINDOW_SHORTCUTS } from "@/shared/window-shortcuts";
 import { toast } from "@/client/lib/toast";
 import { drivePage, onPageEdge, pageHasLayer } from "@/client/lib/browser-pool";
 import { giveKeyboardTo } from "@/client/lib/page-keyboard";
@@ -532,16 +536,65 @@ export function ComputerPage({
     showHiddenFiles,
     workspaceFolder,
   });
+  // A search by name reads everything under the folder the browser lists
+  // from, once as the search starts and again each time one starts: what
+  // it lists is that moment's, while the folders on screen stay current.
+  // Nothing is read for search opened with nothing typed in it.
+  const isNameSearch = (query ?? "").trim() !== "";
+  const folderWalk = useQuery(
+    rpcClient.files.walkFolder.queryOptions({
+      input:
+        isNameSearch && !isFolderless
+          ? { path: expandHomePath(hostPathOf(current), homePath) }
+          : skipToken,
+      refetchOnWindowFocus: false,
+      retry: false,
+    }),
+  );
+  const searchItems = (folderWalk.data?.entries ?? []).map(
+    (entry): FileSystemItem => {
+      const stamps = {
+        createdAt: new Date(entry.createdAt).toISOString(),
+        updatedAt: new Date(entry.modifiedAt).toISOString(),
+      };
+      const prefix =
+        entry.folder === "" ? current : `${current}${entry.folder}/`;
+      if (entry.isFolder) {
+        return {
+          ...stamps,
+          hasChildren: true,
+          kind: "folder",
+          metadata: { hostPath: entry.path },
+          path: `${prefix}${entry.name}/`,
+        };
+      }
+      return {
+        ...stamps,
+        kind: "file",
+        metadata: { hostPath: entry.path },
+        path: `${prefix}${entry.name}`,
+        ...previewOf(entry, resolvedTheme),
+        ...(entry.size === undefined ? {} : { size: entry.size }),
+      };
+    },
+  );
   // Listed as files and opened as one, but folders inside, which the menu's
   // Show Package Contents goes into.
-  const packagePaths = new Set(
-    listings.flatMap(({ data }) =>
+  const packagePaths = new Set([
+    ...listings.flatMap(({ data }) =>
       (data?.entries ?? []).flatMap((entry) =>
         entry.package ? [entry.path] : [],
       ),
     ),
+    ...(folderWalk.data?.entries ?? []).flatMap((entry) =>
+      entry.package ? [entry.path] : [],
+    ),
+  ]);
+  // A search's matches from beyond what is listed are found by path too, so
+  // what is done to the selection reaches them.
+  const itemsByPath = new Map(
+    [...searchItems, ...items].map((item) => [item.path, item]),
   );
-  const itemsByPath = new Map(items.map((item) => [item.path, item]));
   // The folders the list shows opened in place: every one listed here that
   // was left open anywhere. The recents open nothing.
   const openFolderSet = new Set(openFolderPaths);
@@ -2753,6 +2806,28 @@ export function ComputerPage({
                   onRenameCommit={rename}
                   canRenameItem={(item) => keptInPlace(item) === undefined}
                   search={query ?? ""}
+                  searchEverywhere={{
+                    keys: (
+                      <ShortcutKeys
+                        accelerator={WINDOW_SHORTCUTS.commandMenu.accelerator}
+                      />
+                    ),
+                    onPress: () => {
+                      getDefaultStore().set(commandMenuOpenAtom, true);
+                    },
+                  }}
+                  {...(folderWalk.data
+                    ? {
+                        searchResults: {
+                          items: searchItems,
+                          notSearched: folderWalk.data.notSearched.map(nameOf),
+                          truncated: folderWalk.data.truncated,
+                        },
+                      }
+                    : {})}
+                  searchResultsPending={
+                    isNameSearch && !isFolderless && folderWalk.isPending
+                  }
                   onSearchChange={(next) => {
                     go({ query: next, type: "search" });
                   }}

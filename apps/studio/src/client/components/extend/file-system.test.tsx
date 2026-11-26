@@ -929,6 +929,57 @@ describe("FileSystem", () => {
       expect(names()).toEqual(["drafts", "notes.txt"]);
     });
 
+    it.each([
+      // The folder's name, never the path of what is in it.
+      ["draft", ["drafts"]],
+      // A match in a folder below, listed flat rather than under its folder.
+      ["report", ["report.txt"]],
+    ])("lists what %j finds by name, flat", (search, found) => {
+      renderWithProviders(
+        <FileSystem
+          defaultSearch={search}
+          defaultView="table"
+          items={FOLDERS}
+        />,
+      );
+
+      expect(names()).toEqual(found);
+    });
+
+    it("matches what the caller read under the folder, and says what it left out", () => {
+      const onPress = vi.fn();
+      renderWithProviders(
+        <FileSystem
+          defaultSearch="plan"
+          defaultView="columns"
+          items={FOLDERS}
+          searchEverywhere={{ keys: null, onPress }}
+          searchResults={{
+            items: [
+              { kind: "file", path: "deep/down/plan.md" },
+              { kind: "file", path: "deep/plan.txt" },
+            ],
+            notSearched: ["Desktop", "Documents", "Downloads"],
+            truncated: true,
+          }}
+        />,
+      );
+
+      expect(names()).toEqual(["plan.md", "plan.txt"]);
+      expect(
+        document.querySelector("[data-file-system-status]")?.textContent,
+      ).toBe(
+        "2 itemsShowing the first 2 items · Desktop, Documents, and Downloads not searched",
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Search: plan" }));
+      fireEvent.change(screen.getByRole("searchbox"), {
+        target: { value: "zebra" },
+      });
+      fireEvent.click(screen.getByText("Search everywhere"));
+      expect(onPress).toHaveBeenCalledOnce();
+    });
+
     it("says the search is emptied by walking into a folder", () => {
       const onSearchChange = vi.fn();
       renderWithProviders(

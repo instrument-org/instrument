@@ -178,4 +178,5 @@ Durable, versioned docs are the system of record; prefer them over chat/history.
 - `.agents/skills/validate-changes/SKILL.md`: **how to check your work.** Read before concluding a change works.
 - `REVIEW.md`: repo-specific code review calibration.
 - `docs/architecture/README.md`: index of the subsystem maps; start at `system-overview.md`.
+- `apps/studio/AGENTS.md` and `packages/workspace/AGENTS.md`: the rules for work inside that package; read the one for the package you change.
 - `.agents/setup.md` (before the first `pnpm studio`), `.agents/env.md` (environment variables), `.agents/cloud-dev.md` (headless and CI dev).

@@ -173,16 +173,14 @@ export function RowLinesView({
  * loading says nothing rather than none.
  */
 function usePageStartLines(): Record<ScreenName, string> {
-  const apps = useQuery(
-    rpcClient.apps.live.list.experimental_liveOptions(),
-  ).data?.apps;
+  const apps = useQuery(rpcClient.apps.live.list.experimental_liveOptions())
+    .data?.apps;
   const bookmarks = useAtomValue(bookmarksAtom);
   const extensions = useQuery(
     rpcClient.browserExtensions.live.list.experimental_liveOptions(),
   ).data;
-  const version = useQuery(
-    rpcClient.preferences.getAppVersion.queryOptions(),
-  ).data?.version;
+  const version = useQuery(rpcClient.preferences.getAppVersion.queryOptions())
+    .data?.version;
   const count = (n: number | undefined, what: string) =>
     n === undefined ? "" : n === 0 ? `None ${what}` : `${n} ${what}`;
   return {

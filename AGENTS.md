@@ -35,22 +35,39 @@ Words a person reads in the app (subheads, descriptions, empty states, toasts, d
 
 In this order:
 
-- **Cut what the screen already says.** A title or button that explains itself needs no description, and a true clause that changes nothing ("then comes right back here"), spells out the obvious, or repeats another screen goes: "Drag a file here to add it to this folder you're looking at" is "Drag a file here to add it."
+- **Cut what the screen already says.** A title or button that explains itself needs no description, and a true clause that changes nothing ("then comes right back here") goes.
 - **Use the familiar phrase**: what macOS, Chrome or ChatGPT say for the same thing, or what the app's own sibling message says.
+- **State what happened or what the person can do.** A status or an error can be a fragment or passive: "Thanks! Feedback submitted.", "Error sending your feedback", "Icon updated". A description is a full sentence.
+- **Trust the reader with the ordinary word**: "Scale the app" over "Make the app larger or smaller". Data is stored, and a folder the app won't open is protected.
+- **Keep the app a tool.** It has no "we" or "us" and doesn't keep, want or hear, and a thing has no possessions ("model limits" over "the model's limit"). The people behind it are "the Instrument team".
+- **Echo the button.** A line beside Send again says "try sending again", and a link to Send feedback says "send feedback".
 - **Name a concept as familiar software does**: tab, window, tab group, chat, folder, page, with that convention's shortcut (⌘T a tab, ⌘N a window). Never coin a noun people haven't met in software.
-- **State what happened or what the person can do**, not the mechanism behind it. A status or an error can be a fragment or passive: "Thanks! Feedback submitted.", "Error sending your feedback", "Icon updated". A description is a full sentence.
-- **Trust the reader with the ordinary word**: "Scale the app" over "Make the app larger or smaller". Data is stored, and a folder the app won't open is protected. Say has, fits, continues, or shows over "can hold", "carries on" or "sends back"; agents reach for "hold" far more often than people do, so rewrite a line where it turns up. Name the real noun over "something like", or cut the clause.
-- **Keep the app a tool.** It has no "we" or "us" and doesn't keep, want, hear or know, and a thing has no possessions ("model limits" over "the model's limit"). The people behind it are "the Instrument team".
-- **Echo the button.** A line beside Send again says "try sending again".
-- **Put warmth in a word**: "Thanks!", "Please check your edits", "enjoy". "Create an account to enjoy free AI usage" says "enjoy" on purpose, so a cleanup pass leaves a word like that alone.
-
-A person who misread or missed something is not helped by a longer line, since people skim: change what is shown, where it lives, or a control's label or state, and keep any copy to a small part of that.
-
-Also avoid telegraphic descriptions that drop the subject or the small words ("Adds to what Instrument already knows"), negative contrast that denies what nobody claimed ("Adds to your memories, never replaces them"), clipped commands with a vague "it" ("Repeat it for each AI you use"), and a switch row's description that changes with the switch: it reads true on or off, and the switch alone shows the state. A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
+- **Put warmth in a word**: "Thanks!", "Please check your edits", "enjoy".
 
 An email from a person on the team is the other voice: "Hi Sam", "we", contractions, whole sentences the way you'd talk.
 
-These rules cover prose a person reads in the app and nothing else. Buttons, labels and placeholders are a word or a few that name the act ("Send", not "Stop and send what you said"), never an inventory ("Find tasks, files, people, and settings…"). Text written for the agent (system prompts, tool descriptions, skill and environment notes) is terse and direct. When a full sentence and a shorter matter-of-fact one both work, take the shorter.
+These rules cover prose a person reads in the app and nothing else. Buttons, labels and placeholders are a word or a few ("Send", not "Stop and send what you said"). Text written for the agent (system prompts, tool descriptions, skill and environment notes) is terse and direct, written the way an agent reads best. When a full sentence and a shorter matter-of-fact one both work, take the shorter.
+
+A person who misread or missed something is not helped by a longer line, since people skim: change what is shown, where it lives, or a control's label or state, and keep any copy to a small part of that.
+
+What to avoid:
+
+- **Telegraphic descriptions** that drop the subject or the small words to sound punchy: "Adds to what Instrument already knows." Say what does it: "Importing adds to what Instrument remembers."
+- **Negative contrast**, "X, never Y" or "not X but Y", which adds emphasis by denying something nobody claimed: "Adds to your memories, never replaces them."
+- **Clipped commands with a vague "it"**: "Repeat it for each AI you use."
+- **Narrating the mechanism** instead of saying what the person gets: "Instrument reads it in a new chat and keeps what is worth keeping."
+- **Spelling out the obvious**: a clause describing what the person can already see or would assume anyway, which makes a short line long and a little condescending. "Drag a file here to add it to this folder you're looking at" is "Drag a file here to add it."
+- **Inventories** in a label, button or placeholder that list every kind of thing it covers: "Find tasks, files, people, and settings…" The results show the range; the label names the act in a few plain words. Labels, buttons and placeholders are the one place copy is not a full sentence.
+- **Odd verbs** in place of everyday ones: a chat "can hold" so much, a folder "holds" your keys, a task "carries on", an app "sends back" an answer. Say has, fits, continues, or shows. Agents reach for "hold" far more often than people do, so when it turns up in your own draft, rewrite the line.
+
+- **Software that hears, knows or is told things**: "Before each message, a chat hears what you just did." Say what goes where: "Each message you send includes a short list of what you just did here."
+- **Vague nouns** standing in for the real one: "what kind of thing you did", "something like". Name it, or cut the clause.
+- **A switch row's description that changes with the switch**: it reads true on or off, and the switch alone shows the state.
+- **A clause another screen already says**: a caveat the send dialog or the report already covers makes this line longer and no clearer.
+
+A line that works: "Importing adds to what Instrument remembers, so you can bring in memories from every AI you use."
+
+Warm words are welcome. "Create an account to enjoy free AI usage" says "enjoy" on purpose, so a cleanup pass leaves a word like that alone.
 
 ## Comments
 

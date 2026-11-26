@@ -764,6 +764,26 @@ describe("Markdown section labels", () => {
   });
 });
 
+describe("Markdown table shape", () => {
+  it("marks a table with the width it fits and what it does under it", () => {
+    const { container } = renderMarkdown(
+      [
+        "| Lender | Rate | Points | Monthly | 7-year cost with points |",
+        "|---|---|---|---|---|",
+        "| Lakeview Bank | 6.125% | 0.5 | $2,734 | $188,928 |",
+        "| First Harbor | 6.190% | 0.25 | $2,752 | $190,418 |",
+      ].join("\n"),
+    );
+
+    const frame = container.querySelector(".markdown-table-frame");
+    expect([
+      frame?.getAttribute("data-fit"),
+      frame?.querySelector("table")?.getAttribute("data-narrow"),
+      container.querySelector("td")?.getAttribute("data-label"),
+    ]).toEqual(["24", "records", "Lender"]);
+  });
+});
+
 describe("Markdown unbroken inline runs", () => {
   it("keeps a short code span whole and lets a long one wrap", () => {
     const { container } = renderMarkdown(

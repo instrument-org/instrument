@@ -109,6 +109,7 @@ import { PictureCard, PictureRows } from "./picture-card";
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { MessageFence } from "./message-card";
+import { rehypeTableShape } from "./reply-blocks/rehype-table-shape";
 import { rehypeUnbrokenInline } from "./reply-blocks/rehype-unbroken-inline";
 import {
   ContextMenu,
@@ -247,7 +248,11 @@ const rawHtmlPattern = new RegExp(
 // `rehype-slug` is what makes a link to a heading resolve to anything, so it
 // runs for every document rather than waiting on the effect below -- an id that
 // only appears on the second render is one a reader can click through first.
-const baseRehypePlugins: PluginList = [rehypeSlug, rehypeUnbrokenInline];
+const baseRehypePlugins: PluginList = [
+  rehypeSlug,
+  rehypeTableShape,
+  rehypeUnbrokenInline,
+];
 
 const nodeText = (node: FenceNode["children"][number]): string => {
   if (node.type === "text") {
@@ -1560,11 +1565,23 @@ export const Markdown = memo(
         ol: markdownOrderedList,
         p: documentUrl ? markdownParagraph : messageParagraph,
         pre: MarkdownPre,
-        table: ({ children, node }) => (
-          <MarkdownTable isPictures={isPictureTable(node)}>
-            {children}
-          </MarkdownTable>
-        ),
+        table: ({ children, node }) => {
+          // Read off the table by `rehypeTableShape`.
+          const fit = Number(node?.properties.dataFit ?? 0);
+          const narrow = node?.properties.dataNarrow;
+          return (
+            <MarkdownTable
+              isPictures={isPictureTable(node)}
+              narrow={
+                fit > 0 && (narrow === "records" || narrow === "scroll")
+                  ? { fit, shape: narrow }
+                  : undefined
+              }
+            >
+              {children}
+            </MarkdownTable>
+          );
+        },
       }),
       [documentUrl, handleImageClick, hideImages, imageKinds],
     );

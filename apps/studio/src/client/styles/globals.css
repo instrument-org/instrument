@@ -1819,6 +1819,13 @@ a.cursor-pointer {
   margin: 0;
 }
 
+/* A short cell (a number, an amount, a date, a name of a few words) stays
+   on one line (`tableShape`): "Jul 8, / 2026" is no easier to read than
+   the line it wrapped. A column name wraps, unless it is a file chip. */
+.markdown-table-frame > table :is(th, td)[data-short] {
+  white-space: nowrap;
+}
+
 /* A picture in a table shrinks to its column. A table of pictures alone, as
    a before and after side by side, keeps to the prose measure with columns
    of one width: laid out at its own width, each picture's full size would
@@ -2640,4 +2647,318 @@ span[data-unbroken] {
 
 span[data-unbroken] > * {
   white-space: normal;
+}
+
+/* A table under its fit: the narrowest block it reads well in,
+   estimated from its cells and rounded to one of these widths
+   (`tableShape`). Each width flags the frame of a table with that fit, and
+   the forms below hang off the flag, so they are written once. */
+@container (width < 12rem) {
+  .markdown-table-frame[data-fit="12"] {
+    --table-narrow: true;
+    --table-fit: 12rem;
+  }
+}
+
+@container (width < 14rem) {
+  .markdown-table-frame[data-fit="14"] {
+    --table-narrow: true;
+    --table-fit: 14rem;
+  }
+}
+
+@container (width < 16rem) {
+  .markdown-table-frame[data-fit="16"] {
+    --table-narrow: true;
+    --table-fit: 16rem;
+  }
+}
+
+@container (width < 18rem) {
+  .markdown-table-frame[data-fit="18"] {
+    --table-narrow: true;
+    --table-fit: 18rem;
+  }
+}
+
+@container (width < 20rem) {
+  .markdown-table-frame[data-fit="20"] {
+    --table-narrow: true;
+    --table-fit: 20rem;
+  }
+}
+
+@container (width < 22rem) {
+  .markdown-table-frame[data-fit="22"] {
+    --table-narrow: true;
+    --table-fit: 22rem;
+  }
+}
+
+@container (width < 24rem) {
+  .markdown-table-frame[data-fit="24"] {
+    --table-narrow: true;
+    --table-fit: 24rem;
+  }
+}
+
+@container (width < 26rem) {
+  .markdown-table-frame[data-fit="26"] {
+    --table-narrow: true;
+    --table-fit: 26rem;
+  }
+}
+
+@container (width < 28rem) {
+  .markdown-table-frame[data-fit="28"] {
+    --table-narrow: true;
+    --table-fit: 28rem;
+  }
+}
+
+@container (width < 30rem) {
+  .markdown-table-frame[data-fit="30"] {
+    --table-narrow: true;
+    --table-fit: 30rem;
+  }
+}
+
+@container (width < 32rem) {
+  .markdown-table-frame[data-fit="32"] {
+    --table-narrow: true;
+    --table-fit: 32rem;
+  }
+}
+
+@container (width < 35rem) {
+  .markdown-table-frame[data-fit="35"] {
+    --table-narrow: true;
+    --table-fit: 35rem;
+  }
+}
+
+@container (width < 38rem) {
+  .markdown-table-frame[data-fit="38"] {
+    --table-narrow: true;
+    --table-fit: 38rem;
+  }
+}
+
+@container (width < 42rem) {
+  .markdown-table-frame[data-fit="42"] {
+    --table-narrow: true;
+    --table-fit: 42rem;
+  }
+}
+
+@container (width < 46rem) {
+  .markdown-table-frame[data-fit="46"] {
+    --table-narrow: true;
+    --table-fit: 46rem;
+  }
+}
+
+@container (width < 50rem) {
+  .markdown-table-frame[data-fit="50"] {
+    --table-narrow: true;
+    --table-fit: 50rem;
+  }
+}
+
+@container (width < 56rem) {
+  .markdown-table-frame[data-fit="56"] {
+    --table-narrow: true;
+    --table-fit: 56rem;
+  }
+}
+
+@container (width < 64rem) {
+  .markdown-table-frame[data-fit="64"] {
+    --table-narrow: true;
+    --table-fit: 64rem;
+  }
+}
+
+@container (width < 72rem) {
+  .markdown-table-frame[data-fit="72"] {
+    --table-narrow: true;
+    --table-fit: 72rem;
+  }
+}
+
+@container (width < 80rem) {
+  .markdown-table-frame[data-fit="80"] {
+    --table-narrow: true;
+    --table-fit: 80rem;
+  }
+}
+
+/* Under its fit, a table of a few rows becomes one record per row: the
+   first cell as its title, then each value beside its column's name, an
+   empty one left out, with one label column for the whole block on a
+   subgrid, so every record's values start at the same edge. A table ranked
+   by its first column is titled by the column after it, with the rank in
+   front: "1. Maple Heights 5C". A total row is one bold line where it
+   stands, each value after its column's name: "All 8  Total $16,225  Paid
+   $6,075". */
+@container style(--table-narrow: true) {
+  .markdown-table-frame > table[data-narrow="records"] {
+    display: block;
+    width: calc(100% - 2 * var(--table-bleed));
+    min-width: 0;
+    max-width: none;
+
+    & thead {
+      display: none;
+    }
+
+    & tbody {
+      display: grid;
+      grid-template-columns: fit-content(45%) minmax(0, 1fr);
+      column-gap: 1em;
+    }
+
+    & tr {
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+      row-gap: 0.25em;
+      padding-block: 0.875em;
+    }
+
+    & td {
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+      padding: 0 !important;
+      text-align: start !important;
+    }
+
+    & td::before {
+      content: attr(data-label);
+      color: var(--muted-foreground);
+    }
+
+    & td:first-child,
+    & td[data-rank] {
+      display: block;
+      margin-bottom: 0.25em;
+      font-weight: 500;
+    }
+
+    & td:first-child::before {
+      content: none;
+    }
+
+    & td:first-child:has(+ td[data-rank]) {
+      display: none;
+    }
+
+    & td[data-rank]::before {
+      content: attr(data-rank) ". ";
+      color: inherit;
+      font-variant-numeric: tabular-nums;
+    }
+
+    & td[data-blank] {
+      display: none;
+    }
+
+    & tr[data-total] {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      column-gap: 1.25em;
+      row-gap: 0.25em;
+      font-weight: 600;
+    }
+
+    & tr[data-total] > td:not([data-blank]) {
+      display: block;
+      margin: 0;
+      font-weight: inherit;
+    }
+
+    & tr[data-total] > td::before {
+      margin-inline-end: 0.4em;
+      font-weight: 400;
+    }
+
+    & tr:first-child {
+      padding-top: 0;
+    }
+
+    & tr:last-child {
+      padding-bottom: 0;
+    }
+  }
+
+  /* A longer table scrolls instead, laid out at its fit so a column of words
+     keeps the width it reads well at, with its first column held so each
+     row keeps its name in view. The edge with more past it says so with a
+     shadow, in CSS alone, in place of the measured fades: the held column's
+     here, the trailing one below. */
+  .markdown-table-frame:has(> table[data-narrow="scroll"])
+    > .markdown-table-fade {
+    display: none;
+  }
+
+  .markdown-table-frame > table[data-narrow="scroll"] {
+    min-width: max(var(--table-fit), calc(100% - 2 * var(--table-bleed)));
+
+    /* The held column keeps its labels on one line up to `--label-width`,
+       and to two in five of the block at most, where everything in it
+       wraps, a file chip too, its outline drawn around each line. */
+    & :is(th, td):first-child {
+      position: sticky;
+      inset-inline-start: 0;
+      z-index: 1;
+      width: min(var(--label-width), 40cqi);
+      min-width: min(var(--label-width), 40cqi);
+      max-width: 40cqi;
+      background-color: var(--markdown-surface, var(--background));
+
+      & * {
+        white-space: normal;
+      }
+    }
+  }
+
+  @container scroll-state(scrollable: inline-start) {
+    .markdown-table-frame
+      > table[data-narrow="scroll"]
+      :is(th, td):first-child {
+      box-shadow:
+        inset -1px 0 var(--border),
+        0.75rem 0 0.75rem -0.75rem var(--table-shade);
+    }
+  }
+}
+
+/* The shadows that say a table scrolling under its fit has more past an edge.
+   The trailing one is a background fixed to the frame, under a cover that
+   scrolls with the table and reaches the edge only at its end (`local`);
+   the held column's is a scroll-state query on the frame (above), there
+   once anything has gone under the column. On the frame whether or not it
+   is under its fit, since the frame cannot ask the flag on itself, and a
+   table that fits draws neither. */
+.markdown-table-frame {
+  --table-shade: oklch(0 0 0 / 0.1);
+}
+
+.markdown-table-frame:has(> table[data-narrow="scroll"]) {
+  container-type: scroll-state;
+  background:
+    linear-gradient(
+        to left,
+        var(--markdown-surface, var(--background)) 1rem,
+        transparent
+      )
+      100% 0 / 2rem 100% no-repeat local,
+    linear-gradient(to left, var(--table-shade), transparent) 100% 0 / 1rem 100%
+      no-repeat scroll;
+}
+
+.dark .markdown-table-frame {
+  --table-shade: oklch(0 0 0 / 0.45);
 }

@@ -148,11 +148,11 @@ const copy = (rows: string[][], format?: TableCopyFormat) => {
  *
  * The geometry is all in `markdown-table-row` / `markdown-table-frame`; what is
  * here is whether there is still table past either end, so a fade appears on
- * the side there is more on. That has to be measured: `scroll-state(scrollable:)`
- * container queries would answer it in CSS alone, but Chromium has not shipped
- * that half of scroll-state yet, and the scroll-timeline approach
- * `scroll-fade-y` uses holds its last value when a scroller stops being
- * scrollable -- which here is every time the browser pane closes.
+ * the side there is more on. That is measured here; the scroll-timeline
+ * approach `scroll-fade-y` uses holds its last value when a scroller stops
+ * being scrollable -- which here is every time the browser pane closes. A
+ * table that scrolls under its fit (`narrow` "scroll") draws its own shadows
+ * in CSS instead, a `scroll-state(scrollable:)` query among them.
  *
  * Both controls stand beside the table wherever the transcript is wide enough
  * to hold them there. Where it is not, they fall back differently, because they
@@ -161,21 +161,31 @@ const copy = (rows: string[][], format?: TableCopyFormat) => {
  * straight, and the row copy drops onto its own row's top edge, into the band
  * of cell padding between that row's text and the one above it.
  *
- * Nothing in the table is pinned while the rest of it scrolls. Holding the
- * first column still reads well until the first column is wide, and then it is
- * most of the width and there is nowhere left for the columns it was supposed
- * to be identifying.
+ * Mostly nothing in the table is pinned while the rest of it scrolls. Holding
+ * the first column still reads well until the first column is wide, and then
+ * it is most of the width and there is nowhere left for the columns it was
+ * supposed to be identifying. The exception is a table of more than a few
+ * rows in a block under its fit (`narrow` "scroll"): its first column names
+ * the rows, held to two in five of the block at most, and a row only reads
+ * while its name stays in view.
  */
 export const MarkdownTable = ({
   children,
   expandable = true,
   isPictures = false,
+  narrow,
 }: {
   children?: ReactNode;
   /** False inside Quick Look, which is already this table with room. */
   expandable?: boolean;
   /** Whether every body cell is a picture alone, which takes columns of one width. */
   isPictures?: boolean;
+  /**
+   * What a table does in a block narrower than `fit` rem, the narrowest it
+   * reads well in: one record per row, or scroll with its first column held.
+   * See `tableShape`.
+   */
+  narrow?: { fit: number; shape: "records" | "scroll" };
 }) => {
   const frameRef = useRef<HTMLDivElement>(null);
   const rowCopyRef = useRef<HTMLSpanElement>(null);
@@ -436,11 +446,17 @@ export const MarkdownTable = ({
     >
       <div
         className="markdown-table-frame scrollbar-thin scrollbar-color"
+        data-fit={narrow?.fit}
         ref={frameRef}
       >
         <span aria-hidden className="markdown-table-fade" data-edge="start" />
         <span aria-hidden className="markdown-table-lead" />
-        <table data-pictures={isPictures || undefined}>{children}</table>
+        <table
+          data-narrow={narrow?.shape}
+          data-pictures={isPictures || undefined}
+        >
+          {children}
+        </table>
         <span aria-hidden className="markdown-table-fade" data-edge="end" />
       </div>
 
@@ -545,7 +561,9 @@ export const MarkdownTable = ({
 
       {expandable && (
         <LookedAtContent id={lookId}>
-          <MarkdownTable expandable={false}>{children}</MarkdownTable>
+          <MarkdownTable expandable={false} narrow={narrow}>
+            {children}
+          </MarkdownTable>
         </LookedAtContent>
       )}
     </div>

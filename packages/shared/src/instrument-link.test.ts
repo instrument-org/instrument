@@ -8,6 +8,7 @@ import {
   instrumentUrlOf,
   isOutsideLinkHost,
   OUTSIDE_FILES_MAX,
+  OUTSIDE_GROUP_MAX,
   OUTSIDE_WORDS_MAX,
   outsideLinkOf,
   projectOfLink,
@@ -398,6 +399,29 @@ describe("outsideLinkOf", () => {
         notOpened: 3,
         paths: paths.slice(0, OUTSIDE_FILES_MAX),
       });
+    });
+
+    it("reads the group word the paths belong in, made plain", () => {
+      expect(
+        outsideLinkOf(
+          "instrument://files?path=%2Fa.md&group=%20New%20%20tab%E2%80%8B%20row%20",
+        ),
+      ).toEqual({
+        group: "New tab row",
+        kind: "files",
+        notOpened: 0,
+        paths: ["/a.md"],
+      });
+    });
+
+    it.each([
+      ["empty", ""],
+      ["only spaces", "%20%20"],
+      ["too long", "x".repeat(OUTSIDE_GROUP_MAX + 1)],
+    ])("names no group for a word %s", (_case, word) => {
+      expect(
+        outsideLinkOf(`instrument://files?path=%2Fa.md&group=${word}`),
+      ).toEqual({ kind: "files", notOpened: 0, paths: ["/a.md"] });
     });
 
     it.each([

@@ -103,8 +103,11 @@ export function filePathOfInstrumentLink(url: string): string | undefined {
 export type OutsideLink =
   | { href: string; kind: "screen" }
   | { kind: "file"; path: string }
-  /** The paths to open, in the order written, and how many past the cap were left. */
-  | { kind: "files"; notOpened: number; paths: string[] }
+  /**
+   * The paths to open, in the order written, and how many past the cap were
+   * left; `group` is the word the link names the tab group they belong in by.
+   */
+  | { group?: string; kind: "files"; notOpened: number; paths: string[] }
   | { kind: "new"; project?: string; words: string }
   /**
    * A hosted page by its id, the label of its `<id>.instrument.page` host,
@@ -135,6 +138,9 @@ export const OUTSIDE_WORDS_MAX = 2000;
 
 /** The most paths one `files` link opens; the rest are counted, not opened. */
 export const OUTSIDE_FILES_MAX = 20;
+
+/** The longest group word a `files` link may name; a longer one names none. */
+export const OUTSIDE_GROUP_MAX = 80;
 
 /** A web address, which a `files` link never opens: it takes only paths. */
 const WEB_ADDRESS = /^https?:/i;
@@ -244,7 +250,8 @@ function pageOf(
  * The paths a `files` link names, each written whole in a `path` parameter:
  * once each, in the order written, up to `OUTSIDE_FILES_MAX`. A web address
  * or an empty one is not a path and counts for nothing; what is past the cap
- * is counted for the person to be told.
+ * is counted for the person to be told. A `group` parameter names the tab
+ * group they belong in (`linkGroupOf`).
  */
 function filesOf(
   params: URLSearchParams,
@@ -259,11 +266,28 @@ function filesOf(
   if (paths.length === 0) {
     return undefined;
   }
+  const group = linkGroupOf(params.get("group") ?? "");
   return {
+    ...(group === undefined ? {} : { group }),
     kind: "files",
     notOpened: Math.max(0, paths.length - OUTSIDE_FILES_MAX),
     paths: paths.slice(0, OUTSIDE_FILES_MAX),
   };
+}
+
+/**
+ * A group word as a link writes it, made plain: the unseen characters out,
+ * each run of spaces one space, trimmed. Empty, or longer than
+ * `OUTSIDE_GROUP_MAX`, it names no group.
+ */
+export function linkGroupOf(word: string): string | undefined {
+  const plain = word.replaceAll(UNSEEN, "").replaceAll(/\s+/g, " ").trim();
+  return plain === "" || plain.length > OUTSIDE_GROUP_MAX ? undefined : plain;
+}
+
+/** Whether two group words name the same group: the same words, whatever their case. */
+export function isSameLinkGroup(a: string, b: string): boolean {
+  return a.toLocaleLowerCase() === b.toLocaleLowerCase();
 }
 
 /** A chat's address, which is how a file names the chat it belongs to. */

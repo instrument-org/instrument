@@ -1,4 +1,5 @@
 import { fileHref } from "@/shared/computer-href";
+import { isSameLinkGroup } from "@instrument-org/shared";
 import { isSameTabIdentity } from "@/shared/tab-identity";
 import { type TabsModel } from "@/shared/tabs";
 import { fileURLToPath } from "node:url";
@@ -76,6 +77,26 @@ export function windowListingGroup<W>(
 ): W | null {
   const listing = windows.filter(({ listed }) => listed.includes(group));
   return (listing.find(({ up }) => up === group) ?? listing[0])?.window ?? null;
+}
+
+/**
+ * Of the windows in the order given, the one listing the tab group a link's
+ * group word names (`isSameLinkGroup`): of several such groups, the one that
+ * came up last (`shownAt`). Null where no window lists one.
+ */
+export function windowWithLinkGroup<W>(
+  word: string,
+  windows: readonly { listed: readonly string[]; window: W }[],
+  named: readonly { group: string; linkGroup: string; shownAt?: number }[],
+): W | null {
+  const [last] = named
+    .filter(({ linkGroup }) => isSameLinkGroup(linkGroup, word))
+    .flatMap(({ group, shownAt }) => {
+      const holder = windows.find(({ listed }) => listed.includes(group));
+      return holder ? [{ shownAt: shownAt ?? 0, window: holder.window }] : [];
+    })
+    .toSorted((a, b) => b.shownAt - a.shownAt);
+  return last?.window ?? null;
 }
 
 /** A tab kept in a tab group, as main reads it: a screen at `href`, or a page at `url`. */

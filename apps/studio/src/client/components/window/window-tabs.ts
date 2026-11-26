@@ -335,6 +335,16 @@ export function useGroupLead(group: string): string | undefined {
   return useAtomValue(lead);
 }
 
+/** The word an outside link named a group by (`GroupOwn.linkGroup`), read for the group alone. */
+export function useLinkGroup(group: string): string | undefined {
+  const word = useMemo(
+    () =>
+      selectAtom(windowTabsAtom, (state) => state.groups?.[group]?.linkGroup),
+    [group],
+  );
+  return useAtomValue(word);
+}
+
 function sameLayout(a: GroupLayout, b: GroupLayout) {
   return (
     a.focused === b.focused &&

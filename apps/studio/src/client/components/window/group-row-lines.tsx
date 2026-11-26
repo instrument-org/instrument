@@ -44,6 +44,9 @@ interface MarkRun {
  * on (one file open twice) has none. Only the first few marks are drawn, so
  * a group of many tabs still shows its title. A chat that is not the lead
  * has no line to say it is at work, so its mark wears the working pulse.
+ * A group an outside link named by a word (`linkGroup`) shows the word on the
+ * second line, in place of the lead tab's folders or site, unless the lead
+ * is a chat, whose line says what it is doing.
  */
 export function GroupRowLines({
   chatTitles,
@@ -52,6 +55,7 @@ export function GroupRowLines({
   held,
   isCloseShown = false,
   isOnScreen,
+  linkGroup,
   sides,
   titleRanges = null,
 }: {
@@ -64,6 +68,8 @@ export function GroupRowLines({
   isCloseShown?: boolean;
   /** Whether the group is up: the tabs in front then wear no unread dot, as in their strips. */
   isOnScreen: boolean;
+  /** The word an outside link named the group by (`GroupOwn.linkGroup`). */
+  linkGroup?: string | undefined;
   sides: RowSides;
   /** What a search matched in the title. */
   titleRanges?: null | number[];
@@ -73,7 +79,16 @@ export function GroupRowLines({
   const taskTitles = useTaskTitles();
   const { chats } = useRowSources();
   const lead = leadTabOf(sides, held);
-  const lines = useRowLines(lead, chatTitles);
+  const leadLines = useRowLines(lead, chatTitles);
+  const lines: RowLines =
+    linkGroup === undefined || chatOfTab(lead) !== undefined
+      ? leadLines
+      : {
+          line: linkGroup,
+          strong: leadLines.strong,
+          title: leadLines.title,
+          tone: "quiet",
+        };
   const keyOf = (tab: WindowTab): string => {
     if (tab.kind === "page") {
       const path = hostPathOfFileUrl(tab.url);

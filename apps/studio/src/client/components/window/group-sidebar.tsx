@@ -88,7 +88,12 @@ import {
 import { useProjectShift } from "./use-project-shift";
 import { windowTabGroupsAtom } from "./open-groups";
 import { groupsInProject, isPinnedGroup, type TabGroup } from "./tab-groups";
-import { useGroupLayout, useGroupLead, useWindowTabs } from "./window-tabs";
+import {
+  useGroupLayout,
+  useGroupLead,
+  useLinkGroup,
+  useWindowTabs,
+} from "./window-tabs";
 import { TabMenuAtPoint } from "./tab-menu-items";
 import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
 
@@ -814,6 +819,7 @@ export function GroupRow({
 }) {
   const names = useTabNames(chatTitles);
   const held = useGroupLead(entry.group);
+  const linkGroup = useLinkGroup(entry.group);
   const layout = useGroupLayout(entry.group);
   const sides = rowSidesOf(layout);
   // Named as a group, by the name its row shows, so a row whose tab is a
@@ -833,6 +839,7 @@ export function GroupRow({
       held={held}
       isCloseShown={isCloseShown}
       isOnScreen={isUp}
+      linkGroup={linkGroup}
       sides={sides}
     />
   ) : (

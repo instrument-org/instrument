@@ -197,6 +197,52 @@ describe("outsideOpensOf", () => {
     `);
   });
 
+  it("keeps even one file in a group a link named by its word", () => {
+    expect(
+      outsideOpensOf(
+        [
+          { hostPath: "/a.md", type: "openFile" },
+          { folder: "/Work", name: "gone.md", type: "missingFile" },
+        ],
+        "New tab row",
+      ),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "group": "New tab row",
+          "hrefs": [
+            "/files?file=%2Fa.md&path=&root=~",
+            "/files?path=&root=%2FWork",
+          ],
+          "type": "openGroup",
+        },
+        {
+          "folder": "/Work",
+          "name": "gone.md",
+          "type": "missingFile",
+        },
+      ]
+    `);
+  });
+
+  it("carries the word of a group already folded", () => {
+    expect(
+      outsideOpensOf([
+        { group: "New tab row", hrefs: ["/files?path=&root=%2FWork"], type: "openGroup" },
+      ]),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "group": "New tab row",
+          "hrefs": [
+            "/files?path=&root=%2FWork",
+          ],
+          "type": "openGroup",
+        },
+      ]
+    `);
+  });
+
   it("leaves a chat out of the group", () => {
     expect(outsideOpensOf([{ href: "/chats/c1", type: "openScreen" }]))
       .toMatchInlineSnapshot(`

@@ -9,7 +9,7 @@ import path from "node:path";
 
 import { folderHref } from "@/shared/computer-href";
 
-import { type AppWindowAsk } from "../windows/app-window-asks";
+import { type AppWindowAsk, outsideOpensOf } from "../windows/app-window-asks";
 import { hostPathOfUrlPath } from "./computer-files";
 import { isFromInternet } from "./download-mark";
 import { logger } from "./electron-logger";
@@ -149,7 +149,7 @@ export async function asksOfOutsideLink(
       if (link.notOpened > 0) {
         all.push({ count: link.notOpened, type: "notOpened" });
       }
-      return all;
+      return link.group === undefined ? all : outsideOpensOf(all, link.group);
     }
     case "page": {
       return [await askOfPage(link, checks)];

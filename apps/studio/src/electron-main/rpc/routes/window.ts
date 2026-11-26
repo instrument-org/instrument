@@ -49,7 +49,11 @@ const PointSchema = z.object({ x: z.number(), y: z.number() });
 const AskSchema = z.discriminatedUnion("type", [
   z.object({ hostPath: z.string(), type: z.literal("openFile") }),
   z.object({ href: z.string(), type: z.literal("openScreen") }),
-  z.object({ hrefs: z.array(z.string()), type: z.literal("openGroup") }),
+  z.object({
+    group: z.string().optional(),
+    hrefs: z.array(z.string()),
+    type: z.literal("openGroup"),
+  }),
   z.object({
     folder: z.string().optional(),
     name: z.string(),

@@ -98,6 +98,9 @@ export const WINDOW_CHANGE_ANSWERS = {
 
   "group.chatSide": FOLLOWING,
   "group.lead": FOLLOWING,
+  "group.linkGroup": {
+    not: "set as an outside link makes a group, from the group word the link names",
+  },
   "group.pinned": "pinGroup",
   "group.project": {
     not: "set as a group is made, from the project the sidebar is in; a person moves a chat to a project (chats.project), never a group",

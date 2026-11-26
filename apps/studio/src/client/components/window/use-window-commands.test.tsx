@@ -107,10 +107,10 @@ describe("useWindowCommands", () => {
       "/files?file=%2FUsers%2Fmac-user%2Fa.md&path=&root=~",
       "/files?path=&root=%2FUsers%2Fmac-user%2FWork",
     ];
-    stream.push({ hrefs, type: "openGroup" });
+    stream.push({ group: "New tab row", hrefs, type: "openGroup" });
     await vi.waitFor(
       () => {
-        expect(handlers.openGroup).toHaveBeenCalledWith(hrefs);
+        expect(handlers.openGroup).toHaveBeenCalledWith(hrefs, "New tab row");
       },
       { interval: 1 },
     );

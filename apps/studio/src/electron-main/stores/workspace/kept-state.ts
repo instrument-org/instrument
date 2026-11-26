@@ -553,6 +553,32 @@ export const KeptTabGroupSchema = z.object({
   ),
 });
 
+/** What main reads of a kept tab group's own: its group word and when it last came up. */
+const KeptGroupOwnSchema = z.object({
+  linkGroup: z.string().optional(),
+  shownAt: z.number().optional(),
+});
+
+/** Every kept tab group a link named by a group word, with the word and when it last came up. */
+export function keptLinkGroups() {
+  const prefix = `${WINDOW_TABS_KEY}/`;
+  const groups = getStore().snapshot().groups ?? {};
+  return Object.entries(groups).flatMap(([key, value]) => {
+    const own = key.startsWith(prefix)
+      ? KeptGroupOwnSchema.safeParse(value).data
+      : undefined;
+    return own?.linkGroup === undefined
+      ? []
+      : [
+          {
+            group: key.slice(prefix.length),
+            linkGroup: own.linkGroup,
+            ...(own.shownAt === undefined ? {} : { shownAt: own.shownAt }),
+          },
+        ];
+  });
+}
+
 /** Every tab kept in a tab group, with its group's key. */
 export function keptGroupedTabs() {
   const prefix = `${WINDOW_TABS_KEY}/`;

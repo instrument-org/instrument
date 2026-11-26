@@ -1519,12 +1519,13 @@ function GroupRowText({
   row: OpenGroupRow;
 }) {
   const { chatTitles } = useShell();
-  const held = useWindowTabs().groupOwn[row.entry.group]?.lead;
+  const own = useWindowTabs().groupOwn[row.entry.group];
   return (
     <GroupRowLines
       chatTitles={chatTitles}
-      held={held}
+      held={own?.lead}
       isOnScreen={isHere}
+      linkGroup={own?.linkGroup}
       sides={row.sides}
       titleRanges={ranges}
     />

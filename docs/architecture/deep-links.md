@@ -18,7 +18,7 @@ Each build answers to its own scheme (`appProtocolOf` in [`constants.ts`](../../
 | `instrument://settings/<name>` | the settings section (`settings/models`) |
 | `instrument://screen/<name>` | one of `SCREENS` in [`instrument-screens.ts`](../../apps/studio/src/shared/instrument-screens.ts) |
 | `instrument://file/<absolute path>` | a file in its viewer, or a folder in Files |
-| `instrument://files?path=<path>&path=<path>` | each file or folder as `file/` opens one, up to 20, in tabs of their own |
+| `instrument://files?path=<path>&path=<path>&group=<word>` | each file or folder as `file/` opens one, up to 20, in tabs of their own; `group` names the tab group they belong in |
 | `instrument://page/<id>/<token>` | a copy of the page hosted at `https://<id>.instrument.page/<token>/`, kept in Downloads |
 | `instrument://new?text=<words>&project=<id>` | a new chat's draft with the words in it |
 
@@ -38,7 +38,15 @@ One thing alone (a file, a folder, a chat, a task, an app or Settings) comes up 
 
 Several things in one hand-over always open as one new tab group in the window in front (`outsideOpensOf` in [`app-window-asks.ts`](../../apps/studio/src/electron-main/windows/app-window-asks.ts)), even where a tab already shows one of them: a tab for each file, folder and page, in the order given, all on one side, with the first up. A link never says where in the group a tab goes, since the agent writing it may always guess wrong; the person moves tabs between sides themselves.
 
-Something from outside never joins a group the person has, except by bringing up a tab already there: a link taking over a group would be jarring, and making new groups is the model. A new group goes to the top of the window's list, so two hand-overs in a row leave the later one above the earlier. Files dropped on the window from outside are a drag, not a hand-over, and open as a new group in drop order.
+Something from outside never joins a group the person has, except by bringing up a tab already there or by naming a group a link made (below): a link taking over a group would be jarring, and making new groups is the model. A new group goes to the top of the window's list, so two hand-overs in a row leave the later one above the earlier.
+
+## A group a link names
+
+A `files` link may carry a `group` parameter, a word for the piece of work its files belong to (`group=New tab row`), so an agent that links each round of one piece of work lands them all in one group. The word is read plain (`linkGroupOf`: unseen characters out, runs of spaces one space, at most `OUTSIDE_GROUP_MAX` characters) and matched whatever its case (`isSameLinkGroup`). A link with one path and a group is still a group's link, never one thing alone.
+
+A group made by such a link keeps the word (`GroupOwn.linkGroup`), and its sidebar row shows it on the second line, where a file's folders or a page's site would be, unless the tab the row goes by is a chat. The person never sets or sees it as a name: it rides along with the links, and only a link sets it.
+
+A later link with the same word joins the group open under it in any window, the one up last of several (`windowWithLinkGroup` in [`tab-showing.ts`](../../apps/studio/src/electron-main/windows/tab-showing.ts) picks the window, which picks the group). A path already a tab there comes up; each other goes at the end of the group's right side, or its one side, and the first of them comes up and lights. The group comes up and keeps its place in the list. With no group open under the word (closed, or never made), the link makes a new group that goes by it. A build that predates the parameter ignores it and opens a new group, as it would without it. Files dropped on the window from outside are a drag, not a hand-over, and open as a new group in drop order.
 
 An agent usually links a file again because it has just rewritten it, and every viewer already follows its file. A page in its file tab is watched and reloads when written, keeping its place on the page. Markdown, text and code pull a write into the editor, watching only while their tab is up and catching up in one pull when it comes up. An image, a video, a PDF and the other viewers take the file at a URL carrying its modified time, which a tab behind another holds still until it comes up again, so coming up is when a write shows. Each watch looks about once a second, so a link sent the moment a file is written can show the old version for up to that second before the new one replaces it.
 
@@ -48,7 +56,7 @@ A link to a path with nothing at it opens the folder it was in as a tab of the l
 
 ## Several files at once
 
-Instrument's own website writes `files`, from its `/open` page: a `path` parameter for each file or folder, each value as `encodeURIComponent` writes it and read back with `URLSearchParams`, so a space, a `+`, a `&` or a `#` in a name comes through as it was. A value is the plain path, `/Users/mac-user/a.md` or `C:/Users/windows-user/a.md`, with no slash before a drive letter.
+Instrument's own website writes `files`, from its `/open` page: a `path` parameter for each file or folder, and `group` where the link it was handed names one, each value as `encodeURIComponent` writes it and read back with `URLSearchParams`, so a space, a `+`, a `&` or a `#` in a name comes through as it was. A value is the plain path, `/Users/mac-user/a.md` or `C:/Users/windows-user/a.md`, with no slash before a drive letter.
 
 Each path goes through everything a `file/` link's does and comes to the same thing: refused, a downloaded page shown in its folder, a folder in Files, a missing file said over its folder, or the file. They open as tabs of one new group, in the order written, and a path written twice, or two ways that lead to one place, opens once. A path is read as written, with no step up taken out of it first, so one with a `..` opens nothing. A web address opens nothing either: the link takes only paths. At most `OUTSIDE_FILES_MAX` (20) open, and the window says how many more the link named, the way it says a file is missing.
 

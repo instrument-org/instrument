@@ -17,9 +17,11 @@ export type AppWindowAsk =
    * A new tab group with a tab at each address, in the order given, all on
    * one side with the first up: what several files, folders and pages handed
    * over together from outside open as (`outsideOpensOf`), even where a tab
-   * already shows one of them.
+   * already shows one of them. With a `group`, the word a link named their
+   * group by, they join the group open under that word instead, where there
+   * is one, and a group they make goes by it.
    */
-  | { hrefs: string[]; type: "openGroup" }
+  | { group?: string; hrefs: string[]; type: "openGroup" }
   /**
    * A file a link named that is not there, said by its name, with the folder
    * it was in opened when that folder is there.
@@ -74,13 +76,28 @@ const isFilesHref = (href: string) => /^\/files(?:[?#]|$)/.test(href);
  * asks of the window. Several files, folders and pages are one new tab
  * group, a tab each in the order given, standing where the first of them
  * stood among the asks. One alone is a screen (`openScreen`), which a tab
- * already showing it brings forward. A missing file's folder counts among
- * them, and its ask stays to say the file is gone. Everything else stays as
- * it was: a chat is never in the group, and comes forward where it is open.
+ * already showing it brings forward, unless the link named a group word
+ * (`named`, or one an `openGroup` among the asks carries), which keeps even
+ * one in its group. A missing file's folder counts among them, and its ask
+ * stays to say the file is gone. Everything else stays as it was: a chat is
+ * never in the group, and comes forward where it is open.
  */
-export function outsideOpensOf(asked: readonly AppWindowAsk[]): AppWindowAsk[] {
+export function outsideOpensOf(
+  asked: readonly AppWindowAsk[],
+  named?: string,
+): AppWindowAsk[] {
   const hrefs: string[] = [];
-  const group: AppWindowAsk = { hrefs, type: "openGroup" };
+  const word =
+    named ??
+    asked.find(
+      (ask): ask is Extract<AppWindowAsk, { type: "openGroup" }> =>
+        ask.type === "openGroup" && ask.group !== undefined,
+    )?.group;
+  const group: AppWindowAsk = {
+    ...(word === undefined ? {} : { group: word }),
+    hrefs,
+    type: "openGroup",
+  };
   const opens: AppWindowAsk[] = [];
   const intoGroup = (href: string) => {
     if (hrefs.length === 0) {
@@ -108,7 +125,7 @@ export function outsideOpensOf(asked: readonly AppWindowAsk[]): AppWindowAsk[] {
     }
   }
   const [only] = hrefs;
-  return hrefs.length === 1 && only !== undefined
+  return hrefs.length === 1 && only !== undefined && word === undefined
     ? opens.map((ask) =>
         ask === group ? { href: only, type: "openScreen" } : ask,
       )

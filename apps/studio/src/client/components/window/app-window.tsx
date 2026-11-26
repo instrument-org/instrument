@@ -1,7 +1,11 @@
 import { showScreenFieldWithKeyboard } from "@/client/lib/screen-fields";
 import { describeTabs } from "@/client/lib/studio-drive";
 import { keyboardSide } from "@/client/lib/keyboard-place";
-import { APP_NAME, OUTSIDE_FILES_MAX } from "@instrument-org/shared";
+import {
+  APP_NAME,
+  isSameLinkGroup,
+  OUTSIDE_FILES_MAX,
+} from "@instrument-org/shared";
 import {
   setFilesTabOpener,
   showProjectInFiles,
@@ -147,6 +151,7 @@ import {
   reopenedTab,
   selectedTabIn,
   sideIndexOf,
+  tabShowingAmong,
 } from "./tab-model";
 import {
   bringForwardShowing,
@@ -1637,10 +1642,60 @@ function WindowShell({
       },
       // Several at once are always one new group, a tab each in the order
       // handed over, on one side, with the first up, even where a tab already
-      // shows one of them.
-      openGroup: (hrefs) => {
+      // shows one of them. A link that named a group word joins this
+      // window's group open under it, the one up last of several: each tab
+      // not in it yet goes at the end of its right side, or its one side, and
+      // the first of them comes up and lights, the group keeping its place.
+      openGroup: (hrefs, linkGroup) => {
+        const joined =
+          linkGroup === undefined
+            ? undefined
+            : (store.get(windowTabGroupsAtom) ?? [])
+                .filter((group) => {
+                  const word = windowTabs.groupOwn[group]?.linkGroup;
+                  return word !== undefined && isSameLinkGroup(word, linkGroup);
+                })
+                .toSorted(
+                  (a, b) =>
+                    (windowTabs.groupOwn[b]?.shownAt ?? 0) -
+                    (windowTabs.groupOwn[a]?.shownAt ?? 0),
+                )[0];
+        if (joined !== undefined) {
+          const { sides } = windowTabs.layoutOf(joined);
+          const side = sides.length > 1 ? 1 : 0;
+          let after = sides[side]?.tabs.at(-1)?.id;
+          const shown = hrefs.map((href) => {
+            const showing = tabShowingAmong(
+              store.get(windowTabsAtom),
+              [joined],
+              href,
+            );
+            if (showing) {
+              return showing.id;
+            }
+            const id = windowTabs.openScreen(href, {
+              after,
+              group: joined,
+              side,
+            });
+            after = id ?? after;
+            return id;
+          });
+          const first = shown.find((id) => id !== undefined);
+          groups.show(joined);
+          if (first !== undefined) {
+            windowTabs.select(first);
+            lightTab(
+              store.get(windowTabsAtom).tabs.find((tab) => tab.id === first),
+            );
+          }
+          return;
+        }
         groups.make({
           fill: (group) => {
+            if (linkGroup !== undefined) {
+              windowTabs.setGroupOwn(group, { linkGroup });
+            }
             const [first] = hrefs.map((href) =>
               windowTabs.openScreen(href, { group }),
             );

@@ -333,10 +333,13 @@ describe("MermaidDiagram", () => {
     expect(diagramSvg(container)).toBe(svg);
   });
 
-  it("turns a wide left-to-right flowchart vertical in a narrow column", async () => {
+  // A phone-width chat and the widest chat column's inside.
+  it.each([420, 736])(
+    "turns a wide left-to-right flowchart vertical in a %ipx column",
+    async (columnWidth) => {
     // Fitted to a chat column as drawn, a long left-to-right chain shrinks its
-    // labels to a few pixels. Below pele's breakpoint it is laid out top to
-    // bottom instead, at a size that can be read.
+    // labels to a few pixels. It is laid out top to bottom instead, at a size
+    // that can be read.
     const chain = [
       "flowchart LR",
       "  A[Collect the requirements] --> B[Draft the design]",
@@ -345,7 +348,7 @@ describe("MermaidDiagram", () => {
     ].join("\n");
     const { container } = await renderInBrowser(
       <ThemeProvider>
-        <div style={{ width: 420 }}>
+        <div style={{ width: columnWidth }}>
           <MermaidDiagram code={chain} language="mermaid" />
         </div>
       </ThemeProvider>,
@@ -357,7 +360,8 @@ describe("MermaidDiagram", () => {
       width: 0,
     };
     expect(height).toBeGreaterThan(width);
-  });
+    },
+  );
 
   it("draws no link that would run script", async () => {
     const { container } = await renderDiagram(

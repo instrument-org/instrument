@@ -29,9 +29,12 @@ export function isMermaidLanguage(language: string | undefined): boolean {
 
 /** Pele's options for every diagram the app draws. */
 const MOUNT_OPTIONS = {
-  // Turns a wide left-to-right flowchart vertical in a column narrower than
-  // 640px, where scaling it down to fit would shrink its labels past reading.
+  // Turns a left-to-right flowchart too wide for its column vertical, where
+  // scaling it down to fit would shrink its labels past reading. Pele does
+  // that only in a column narrower than the breakpoint; one past the widest
+  // chat column makes every chat column one.
   autoDirection: true,
+  directionBreakpoint: 800,
   // The toolbar's Open diagram is how a large one is read, so pele's own pan
   // and zoom controls stay off.
   zoom: false,

@@ -192,6 +192,12 @@ const BOOKMARKS = [
   { bookmark: { id: "snap-hn", order: 3, title: "Hacker News", url: "https://news.ycombinator.com" }, type: "add" },
 ];
 
+/** Two more kept in All Bookmarks rather than on the bar, for the states that show its chip. */
+const ALL_BOOKMARKS = [
+  { bookmark: { id: "snap-g2", order: 1, root: "other", title: "Help desk software on G2", url: "https://www.g2.com/categories/help-desk" }, type: "add" },
+  { bookmark: { id: "snap-soc2", order: 2, root: "other", title: "SOC 2 on Wikipedia", url: "https://en.wikipedia.org/wiki/System_and_Organization_Controls" }, type: "add" },
+];
+
 /**
  * Each state, by name: what it shows (INDEX.md's line for it), the themes it is taken in,
  * and how to get there from a window with one tab and nothing open (on the tab-groups
@@ -465,6 +471,43 @@ export const STATES = {
       await wait(400);
     },
   },
+  "tg-page-bar": {
+    about: "tg-page-beside-chat with the bookmarks bar turned on: under the page's toolbar, Apps, Chats and Files, the Competitors folder, Notion pricing and Hacker News, and the All Bookmarks chip at the bar's right end (G2 and Wikipedia kept there). The pages are a picture.",
+    themes: ["light"],
+    run: async (h) => {
+      const { omnibar, press } = h.app.words;
+      await h.bookmarksBar(true);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await omnibar.go("https://www.zendesk.com/pricing");
+      await press("Meta+t");
+      await omnibar.go("https://www.intercom.com/pricing");
+    },
+  },
+  "tg-page-bar-all-menu": {
+    about: "tg-page-bar with the All Bookmarks chip's menu open: what it lists and offers today.",
+    themes: ["light"],
+    run: async (h) => {
+      const { button, omnibar, press } = h.app.words;
+      await h.bookmarksBar(true);
+      await h.bookmarks({ all: true });
+      await h.chatAlone(h.chats.pricing);
+      await omnibar.go("https://www.zendesk.com/pricing");
+      await press("Meta+t");
+      await omnibar.go("https://www.intercom.com/pricing");
+      await button("All Bookmarks").click();
+      await wait(400);
+    },
+  },
+  "tg-chat-alone": {
+    about: "Tab groups: the pricing chat's group with the chat alone and no pages, bookmarks kept and the bookmarks bar off (a chat never shows it).",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+    },
+  },
   "tg-new-tab-bar": {
     about: "tg-new-tab with bookmarks: the new tab's bookmarks bar shows Apps, Chats and Files, then the Competitors folder, Notion pricing and Hacker News.",
     themes: ["light"],
@@ -530,11 +573,13 @@ export default async (app, args) => {
     // The bookmarks the tg-* states show, through the window's own bridge to main
     // (`shared/bookmarks.ts`), under fixed ids so a second add is a no-op, and taken
     // away again once the state is taken.
-    bookmarks: async () => {
+    // `all` adds the ones kept in All Bookmarks too.
+    bookmarks: async ({ all = false } = {}) => {
       const batch = (/** @type {unknown[]} */ ops) =>
         app.eval(`window.api.bookmarks.apply({ client: 'snapshot-capture', seq: Date.now(), ops: ${JSON.stringify(ops)} }).then(() => true)`);
-      await batch(BOOKMARKS);
-      h.after(() => batch(BOOKMARKS.filter((op) => op.type === "addFolder" || !op.bookmark.folder).map((op) => ({ id: op.type === "add" ? op.bookmark.id : op.folder.id, type: "remove" }))));
+      const kept = all ? [...BOOKMARKS, ...ALL_BOOKMARKS] : BOOKMARKS;
+      await batch(kept);
+      h.after(() => batch(kept.filter((op) => op.type === "addFolder" || !op.bookmark.folder).map((op) => ({ id: op.type === "add" ? op.bookmark.id : op.folder.id, type: "remove" }))));
       await wait(300);
     },
     // The bookmarks bar on pages shown or not (View › Show Bookmarks Bar), put back as it was.

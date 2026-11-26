@@ -311,7 +311,7 @@ function NoBookmarks() {
  * to begin with, Return or a press elsewhere keeping what was typed, Escape
  * putting the old name back.
  */
-export function BookmarkNameField({
+function BookmarkNameField({
   name,
   onCancel,
   onCommit,

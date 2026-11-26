@@ -33,7 +33,7 @@ Read one section, `sed -n '/^## Tabs/,/^## /p'` on this file; the sections are S
 - Left to right: Apps, Open an app, Chats, Open a recent chat, Files, Open Files at a place, <folder>, <bookmark>
 - Right-click the bar: New Folder…, Manage Bookmarks…; Show Bookmarks Bar
 - Right-click a bookmark: Open, Open in Split, Open in New Tab, Open in New Tab Group, Open in New Window; Edit…, Copy Address, Move To › [<folder>, All Bookmarks]; Delete; New Folder…, Manage Bookmarks…; Show Bookmarks Bar
-- Right-click a folder: Open All, Open All in New Window; Rename, Delete; New Folder…, Manage Bookmarks…; Show Bookmarks Bar
+- Right-click a folder: Open All, Open All in New Window; Rename…, Delete; New Folder…, Manage Bookmarks…; Show Bookmarks Bar
 
 ## A chat
 

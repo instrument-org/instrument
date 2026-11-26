@@ -27,11 +27,15 @@ import { noteTypedPage } from "@/client/hooks/use-browser-history";
 import { useFilesStartHref } from "@/client/hooks/use-files-start-href";
 import { BAR_MOTION } from "@/client/lib/motion";
 import { cn } from "@/client/lib/utils";
-import { barItems, OTHER_ROOT, rootItems } from "@/shared/bookmarks";
+import {
+  barItems,
+  type BookmarkFolder,
+  OTHER_ROOT,
+  rootItems,
+} from "@/shared/bookmarks";
 import { folderHref } from "@/shared/computer-href";
 import { FileSystemFolderGlyph } from "@/client/components/extend/file-system";
 import { CaretDownIcon } from "@phosphor-icons/react/CaretDown";
-import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { StarIcon } from "@phosphor-icons/react/Star";
 import { useAtomValue } from "jotai";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -70,7 +74,7 @@ import {
 import { AppsMark } from "./apps-mark";
 import { ChatsMark } from "./chats-mark";
 import { type Place, useFilesPlaces } from "./files-places";
-import { BookmarkNameField, bookmarkName } from "./web-start";
+import { bookmarkName } from "./web-start";
 
 /**
 /**
@@ -134,12 +138,13 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
   const others = rootItems(state, OTHER_ROOT);
   const folders = useBookmarkFolders();
   const bar = useRef<HTMLDivElement>(null);
-  // The folder whose name is being typed over, by id.
-  const [renamingId, setRenamingId] = useState<string>();
   const { chip, setOpenFolder } = useOpenFolder();
-  // A new folder being named in a dialog, placed after the item whose menu
-  // asked for it.
-  const [naming, setNaming] = useState<{ after?: string; kind: "folder" }>();
+  // A folder being named in a dialog: a new one, placed after the item whose
+  // menu asked for it, or one of the bar's under a new name.
+  const [naming, setNaming] = useState<
+    | { after?: string; kind: "folder" }
+    | { folder: BookmarkFolder; kind: "rename" }
+  >();
   const row = useRef<HTMLDivElement>(null);
   const start = useRef<HTMLDivElement>(null);
   // How many fit before the row's end, the rest under the chevron.
@@ -168,7 +173,7 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
     return () => {
       observer.disconnect();
     };
-  }, [items, renamingId]);
+  }, [items]);
   useFolderMenusInDrag(setOpenFolder);
   // A bookmark is an address the person chose, so opening a site's counts
   // the way typing it would.
@@ -245,24 +250,6 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
                   const isOver = index >= fitting;
                   if (item.kind === "folder") {
                     const { folder } = item;
-                    if (folder.id === renamingId) {
-                      return (
-                        <NameInPlace
-                          id={folder.id}
-                          key={folder.id}
-                          mark={
-                            <FolderSimpleIcon className="size-3.5 shrink-0 text-foreground/60" />
-                          }
-                          name={folder.title}
-                          onDone={(title) => {
-                            setRenamingId(undefined);
-                            if (title !== undefined) {
-                              folders.rename(folder, title);
-                            }
-                          }}
-                        />
-                      );
-                    }
                     return (
                       <FolderChip
                         {...chip(folder.id)}
@@ -275,7 +262,7 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
                           setNaming({ after: folder.id, kind: "folder" });
                         }}
                         onRename={() => {
-                          setRenamingId(folder.id);
+                          setNaming({ folder, kind: "rename" });
                         }}
                         open={open}
                       />
@@ -374,6 +361,19 @@ function Bar({ bleeds = false, files, onOpen, onVisit }: BarProps) {
           title="New folder"
         />
       )}
+      {naming?.kind === "rename" && (
+        <BookmarkNameDialog
+          action="Save"
+          name={naming.folder.title}
+          onClose={() => {
+            setNaming(undefined);
+          }}
+          onCommit={(title) => {
+            folders.rename(naming.folder, title);
+          }}
+          title="Rename folder"
+        />
+      )}
     </>
   );
 }
@@ -458,40 +458,6 @@ function useFolderMenusInDrag(
     }
     wasHolding.current = isHolding;
   }, [isHolding, setOpenFolder]);
-}
-
-/** A bookmark's or folder's name being typed over in its place on the bar. */
-function NameInPlace({
-  id,
-  mark,
-  name,
-  onDone,
-}: {
-  id: string;
-  mark: React.ReactNode;
-  name: string;
-  /** The name typed, or nothing where it was let go. */
-  onDone: (name: string | undefined) => void;
-}) {
-  return (
-    <div
-      className="flex h-6 w-40 shrink-0 items-center gap-1.5 px-1.5"
-      data-bookmark-id={id}
-      // The field's own text menu, not the bar's.
-      onContextMenu={(event) => {
-        event.stopPropagation();
-      }}
-    >
-      {mark}
-      <BookmarkNameField
-        name={name}
-        onCancel={() => {
-          onDone(undefined);
-        }}
-        onCommit={onDone}
-      />
-    </div>
-  );
 }
 
 /**

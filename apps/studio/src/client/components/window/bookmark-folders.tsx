@@ -97,7 +97,7 @@ export function FolderChip({
   onHover: () => void;
   onNewFolder: () => void;
   onOpenChange: (open: boolean) => void;
-  /** Starts naming the folder in its place, once the menu has let go of the keyboard. */
+  /** Opens the dialog that renames the folder. */
   onRename: () => void;
   open: OpenAddress;
 }) {
@@ -157,7 +157,7 @@ export function FolderChip({
             }}
           >
             <PencilSimpleIcon className="size-4" />
-            <span>Rename</span>
+            <span>Rename…</span>
           </ContextMenuItem>
           <ContextMenuItem
             onClick={() => {

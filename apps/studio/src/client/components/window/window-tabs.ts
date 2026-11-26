@@ -216,16 +216,17 @@ export const chatFiltersUpAtom = atom(
 /** Every tab id the window holds, past and future visits included, so nothing is opened twice. */
 export const everyTabIdAtom = atom((get) => everyTabId(get(shownTabsAtom)));
 
-/** No tabs, one set for every reader. */
-const NO_TAB_IDS: ReadonlySet<string> = new Set();
+/** No glints, one map for every reader. */
+const NO_GLINTS: ReadonlyMap<string, number> = new Map();
 
 /**
- * Empty new chat tabs whose composer glints once: one a new tab or New asked
- * for while an empty new chat tab was up, where nothing else on screen would
+ * Empty new chat tabs whose composer glints once, by how many times it was
+ * asked to, so asking again plays it again: one a new tab or New asked for
+ * while an empty new chat tab was up, where nothing else on screen would
  * change (`useTabGroups`). `NewChatView` takes its tab out as the glint ends
  * or the composer goes, so a tab shown again never glints.
  */
-export const glintingNewChatTabsAtom = atom(NO_TAB_IDS);
+export const glintingNewChatTabsAtom = atom(NO_GLINTS);
 
 /**
  * One change to the tabs, by its name (`tab-ops.ts`), applied to them as they

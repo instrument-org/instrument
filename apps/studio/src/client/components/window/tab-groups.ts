@@ -13,7 +13,7 @@ import { neighborAt, type SidebarPlace } from "@/shared/tabs";
 import { type ChatId, StoreId } from "@instrument-org/workspace/client";
 import { useQuery } from "@tanstack/react-query";
 import { unique } from "radashi";
-import { useAtomValue, useStore } from "jotai";
+import { atom, useAtomValue, useStore } from "jotai";
 import { useEffect, useEffectEvent, useRef } from "react";
 
 import {
@@ -407,6 +407,50 @@ export function copiedTabs(
   return { beside: besideCopy, tabs: copies, up: upCopy };
 }
 
+/** How soon after one New another is a held key's repeat. */
+const NEW_REPEAT_MS = 150;
+
+/** How long a tab New made counts as just made: as long as its glint runs. */
+const JUST_MADE_MS = 750;
+
+/** When New was last asked for in the window, and the tab it made, if it made one. */
+type LastNew = { at: number; made: string | undefined };
+
+const lastNewAtom = atom<LastNew | undefined>(undefined);
+
+/**
+ * Whether New, asked for over `over` (`emptyNewChatUp`), glints a composer:
+ * only over an empty new chat, where nothing else on screen would change,
+ * and never on a held key's repeat or over a tab New itself just made. New
+ * that opens a tab skips one still glinting too; New that brings up the tab
+ * already up plays its glint again.
+ */
+export function glintsForNew(
+  over: string | undefined,
+  {
+    glinting,
+    last,
+    now,
+    opensTab,
+  }: {
+    glinting: ReadonlyMap<string, number>;
+    last: LastNew | undefined;
+    now: number;
+    opensTab: boolean;
+  },
+): boolean {
+  if (over === undefined) {
+    return false;
+  }
+  if (last !== undefined) {
+    const since = now - last.at;
+    if (since < NEW_REPEAT_MS || (last.made === over && since < JUST_MADE_MS)) {
+      return false;
+    }
+  }
+  return !(opensTab && glinting.has(over));
+}
+
 /** The group's tab up when it is an empty new chat, where a new tab or New changes nothing on screen. */
 export function emptyNewChatUp(
   state: WindowTabs,
@@ -447,11 +491,36 @@ export function useTabGroupActions() {
     );
   };
 
-  /** Glints the composer of a tab (`glintingNewChatTabsAtom`). */
+  /** Glints the composer of a tab, again when it already is (`glintingNewChatTabsAtom`). */
   const glint = (tab: string | undefined) => {
     if (tab !== undefined) {
-      store.set(glintingNewChatTabsAtom, (ids) => new Set([...ids, tab]));
+      store.set(glintingNewChatTabsAtom, (ids) =>
+        new Map(ids).set(tab, (ids.get(tab) ?? 0) + 1),
+      );
     }
+  };
+
+  /**
+   * New asked for over `over`, the empty new chat up if any: whether it
+   * glints (`glintsForNew`), noted as the last New with the tab it made.
+   */
+  const askNew = (
+    over: string | undefined,
+    { opensTab }: { opensTab: boolean },
+  ) => {
+    const now = Date.now();
+    const glints = glintsForNew(over, {
+      glinting: store.get(glintingNewChatTabsAtom),
+      last: store.get(lastNewAtom),
+      now,
+      opensTab,
+    });
+    return {
+      glints,
+      made: (tab: string | undefined) => {
+        store.set(lastNewAtom, { at: now, made: tab });
+      },
+    };
   };
 
   /** Changes this window's list of groups, as it stands at the call. */
@@ -732,18 +801,26 @@ export function useTabGroupActions() {
         isEmptyGroup(state, group) &&
         state.groups?.[group]?.project === project,
     );
-    const over = emptyNewChatUp(state, groupUp());
+    const over = emptyNewChatUp(state, groupUp())?.id;
     if (empty === undefined) {
+      const asked = askNew(over, { opensTab: true });
       const group = make({ returns: "once" });
-      if (over !== undefined) {
-        glint(selectedTabIn(store.get(windowTabsAtom), group)?.id);
+      const tab = selectedTabIn(store.get(windowTabsAtom), group)?.id;
+      asked.made(tab);
+      if (asked.glints) {
+        glint(tab);
       }
     } else if (empty === groupUp()) {
+      const asked = askNew(over, { opensTab: false });
+      asked.made(undefined);
       // The keyboard may be elsewhere on the group, on a row under its box,
       // where the home would leave it.
       leaveField(document.activeElement);
-      glint(over?.id);
+      if (asked.glints) {
+        glint(over);
+      }
     } else {
+      askNew(undefined, { opensTab: false }).made(undefined);
       setReturn(empty, "once");
       appTabs.navigate(groupHref(empty));
     }
@@ -1101,16 +1178,21 @@ export function useTabGroupActions() {
    */
   const newTab = (group = groupUp()) => {
     if (group === undefined) {
-      make();
+      const asked = askNew(undefined, { opensTab: true });
+      const made = make();
+      asked.made(selectedTabIn(store.get(windowTabsAtom), made)?.id);
       return;
     }
-    const over = emptyNewChatUp(store.get(windowTabsAtom), group);
+    const asked = askNew(emptyNewChatUp(store.get(windowTabsAtom), group)?.id, {
+      opensTab: true,
+    });
     const tab = windowTabs.openScreen(NEW_TAB_HREF, {
       from: { reason: "newTab" },
       group,
       select: true,
     });
-    if (over !== undefined) {
+    asked.made(tab);
+    if (asked.glints) {
       glint(tab);
     }
   };

@@ -11,6 +11,7 @@ import {
   copiedTabs,
   chatsWithNoTab,
   emptyNewChatUp,
+  glintsForNew,
   groupLists,
   groupsInProject,
   isWorthKeeping,
@@ -260,6 +261,51 @@ describe("the empty new chat a new tab or New glints over", () => {
 
   it("is none with no group up", () => {
     expect(emptyNewChatUp(state, undefined)).toBeUndefined();
+  });
+});
+
+describe("whether New glints the composer it brings up", () => {
+  const none: ReadonlyMap<string, number> = new Map();
+  it.each([
+    ["over no empty new chat", undefined, undefined, none, true, false],
+    ["over an empty new chat", "a", undefined, none, true, true],
+    [
+      "a second after the last New",
+      "a",
+      { at: 0, made: "a" },
+      none,
+      true,
+      true,
+    ],
+    ["on a held key's repeat", "a", { at: 960, made: "b" }, none, true, false],
+    [
+      "over the tab New just made",
+      "a",
+      { at: 500, made: "a" },
+      none,
+      true,
+      false,
+    ],
+    [
+      "over a tab still glinting",
+      "a",
+      { at: 500, made: undefined },
+      new Map([["a", 1]]),
+      true,
+      false,
+    ],
+    [
+      "again over a tab still glinting, opening none",
+      "a",
+      { at: 500, made: undefined },
+      new Map([["a", 1]]),
+      false,
+      true,
+    ],
+  ])("%s", (_case, over, last, glinting, opensTab, expected) => {
+    expect(glintsForNew(over, { glinting, last, now: 1000, opensTab })).toBe(
+      expected,
+    );
   });
 });
 

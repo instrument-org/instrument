@@ -150,7 +150,7 @@ export function NewChatView({
   const key = { scope: "newChat" as const, tabId };
   const glints = useAtomValue(
     useMemo(
-      () => selectAtom(glintingNewChatTabsAtom, (ids) => ids.has(tabId)),
+      () => selectAtom(glintingNewChatTabsAtom, (ids) => ids.get(tabId)),
       [tabId],
     ),
   );
@@ -681,8 +681,10 @@ export function NewChatView({
           // docked above it stays out of the ring.
           overlay={
             isCentered &&
-            glints && (
+            glints !== undefined && (
               <span
+                // A new count is a new ring, which plays from the start.
+                key={glints}
                 aria-hidden
                 className="pointer-events-none absolute -inset-0.5 z-10 field-glint rounded-[20px]"
                 data-slot="composer-glint"
@@ -830,12 +832,12 @@ function ProjectSuggestion({ draft }: { draft: Draft }) {
   return null;
 }
 
-/** The tabs without one, the same set when it was not among them. */
-function withoutTab(ids: ReadonlySet<string>, tab: string) {
+/** The glints without a tab's, the same map when it had none. */
+function withoutTab(ids: ReadonlyMap<string, number>, tab: string) {
   if (!ids.has(tab)) {
     return ids;
   }
-  const rest = new Set(ids);
+  const rest = new Map(ids);
   rest.delete(tab);
   return rest;
 }

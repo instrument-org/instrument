@@ -87,6 +87,22 @@ let enabled: null | { extensionsDir: string; session: Session } = null;
  */
 let currentTab: WebContents | null = null;
 
+/**
+ * Whether the app itself is adding, selecting or removing a tab, which the
+ * library reports through the same callbacks as an extension's ask.
+ */
+let isAppActing = false;
+
+/** Runs the app's own change to the tabs the extensions see. */
+function asApp(act: () => void): void {
+  isAppActing = true;
+  try {
+    act();
+  } finally {
+    isAppActing = false;
+  }
+}
+
 /** Tabs extensions asked for and are waiting on, each taking the next guest registered. */
 const tabsAsked: ((tab: WebContents, window: BaseWindow) => void)[] = [];
 
@@ -155,11 +171,16 @@ export function enableBrowserExtensions(
   extensions = new ElectronChromeExtensions({
     createTab: openTabAsked,
     grantedPermissions: ({ id }) => extensionRecord(id)?.optional,
+    // Neither is carried out: the tab stays as the person left it.
     removeTab: (tab) => {
-      log.info(`an extension asked to close a tab guest=${tab.id}`);
+      if (!isAppActing && !tab.isDestroyed()) {
+        log.info(`an extension asked to close a tab guest=${tab.id}`);
+      }
     },
     selectTab: (tab) => {
-      log.info(`an extension asked to select a tab guest=${tab.id}`);
+      if (!isAppActing) {
+        log.info(`an extension asked to select a tab guest=${tab.id}`);
+      }
     },
     requestPermissions: confirmPermissions,
     session: guestSession,
@@ -887,11 +908,11 @@ export function registerExtensionTab(guest: WebContents): () => void {
     log.warn(`no window to register guest=${guest.id} with the extensions`);
     return noop;
   }
-  extensions.addTab(guest, window);
+  asApp(() => extensions?.addTab(guest, window));
   tabsAsked.shift()?.(guest, window);
   return () => {
     if (!guest.isDestroyed()) {
-      extensions?.removeTab(guest);
+      asApp(() => extensions?.removeTab(guest));
     }
   };
 }
@@ -906,16 +927,20 @@ export function registerExtensionWindow(window: BrowserWindow): void {
   if (!extensions) {
     return;
   }
-  extensions.addTab(window.webContents, window);
+  asApp(() => extensions?.addTab(window.webContents, window));
   log.info(
     `a window a page opened is a tab for the extensions guest=${window.webContents.id}`,
   );
 }
 
-/** Tells the extensions which tab a person is looking at. */
+/**
+ * Tells the extensions which tab a person is looking at, the one change to
+ * which tab is active, since a tab registered in the background stays as it
+ * is, as in Chrome.
+ */
 export function selectExtensionTab(guest: WebContents): void {
   currentTab = guest;
-  extensions?.selectTab(guest);
+  asApp(() => extensions?.selectTab(guest));
 }
 
 /**

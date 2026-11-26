@@ -778,6 +778,10 @@ function createBrowserViewManager(): BrowserViewManager {
     });
 
     entry.disposers.add(registerExtensionTab(guest));
+    // A tab shown before its guest came is the one a person is looking at.
+    if (entry.shown) {
+      selectExtensionTab(guest);
+    }
     entry.disposers.add(() => {
       stopScreencast(entry);
     });

@@ -135,6 +135,7 @@ const READ_THOUGH_HIDDEN = new Set<SessionMessagePart.DataPart["type"]>([
   "data-intent",
   "data-linkedTabs",
   "data-stepFacts",
+  "data-summarizing",
   "data-viewContext",
   "data-workSummary",
 ]);

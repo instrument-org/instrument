@@ -1,5 +1,6 @@
 import { type SessionMessage } from "../../schemas/session/message";
 import { isToolPart } from "../is-tool-part";
+import { isSummarizing, SUMMARIZING_LINE } from "../summarizing";
 import { isStillArriving } from "../transcript/transcript-message";
 
 /** How much of a step's label the conversation shows. */
@@ -16,10 +17,16 @@ const STEP_MAX_LENGTH = 80;
  * another has started after it (`isStillArriving`, the rule the transcript's
  * rows read a call by too); until then the line reads the call's other
  * field, or stays on the call before.
+ *
+ * While a summary of the conversation is written ahead of the next request,
+ * that is the line, since no call is going on.
  */
 export function latestStepIn(
   messages: SessionMessage.WithParts[],
 ): string | undefined {
+  if (isSummarizing(messages)) {
+    return SUMMARIZING_LINE;
+  }
   for (const message of messages.toReversed()) {
     if (message.role !== "assistant") {
       continue;

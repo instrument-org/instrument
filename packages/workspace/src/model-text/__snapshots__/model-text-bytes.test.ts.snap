@@ -2854,6 +2854,15 @@ exports[`the notes a stored data part renders > stepFacts 1`] = `
 ]
 `;
 
+exports[`the notes a stored data part renders > summarizing 1`] = `
+[
+  [
+    "First",
+    "data-summarizing",
+  ],
+]
+`;
+
 exports[`the notes a stored data part renders > taskEvent 1`] = `
 [
   [

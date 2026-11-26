@@ -311,15 +311,14 @@ export const llmRequestLogic = fromPromise<
         model: fetched.value,
         providerOptions: request.providerOptions,
         signal,
-        activity: activityTelemetry({
+        activity: {
           connection: connectionFor(
             workspaceConfig.getAIProviderConfigs(),
             input.model.params.providerConfigId,
           ),
           chatId: input.chatId,
-          purpose: turnPurpose(input.chatId, input.sessionId),
           sessionId: input.sessionId,
-        }),
+        },
         tools: request.tools,
       });
     },

@@ -3,7 +3,7 @@ import type { ModelMessage } from "ai";
 import { subMinutes } from "date-fns/subMinutes";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { errAsync } from "neverthrow";
+import { errAsync, ResultAsync } from "neverthrow";
 import { beforeEach, describe, expect, it, type Mock, vi } from "vitest";
 
 import type { SessionMessage } from "../schemas/session/message";
@@ -16,12 +16,15 @@ import { ChatIdSchema } from "../schemas/chat-id";
 import { noteReportedContextLength } from "@instrument-org/ai-gateway/context-windows";
 import { createMockAIGatewayModel } from "../test/helpers/mock-ai-gateway-model";
 import { createMockChatConfig } from "../test/helpers/mock-chat-config";
+import { latestStepIn } from "./chat/step-label";
+import { liveMessages } from "./chat/activity";
 import { ChatReads } from "./chat-reads";
 import { ChatWrites } from "./chat-writes";
 import { TypedError } from "./errors";
 import { prepareModelMessages } from "./prepare-model-messages";
 import { SESSION_CONTEXT_VERSION } from "./session-baseline";
 import { chatDir } from "./record-folders";
+import { SUMMARIZING_LINE } from "./summarizing";
 import { shellPath } from "./workspace-fs-layout";
 
 // Half of an emoji: the code unit left behind when text is cut mid-character.
@@ -1372,6 +1375,74 @@ describe("prepareModelMessages", () => {
         expect(
           modelTexts(messages).some((text) => text.includes("turn 0")),
         ).toBe(true);
+      });
+
+      describe("the working line while the summary is written", () => {
+        /** What the chat's row says from the session's running turn alone. */
+        const line = async () =>
+          latestStepIn(await liveMessages({ chatId, sessionId }));
+
+        async function fillToTheStep() {
+          await save(userMessage("First question"));
+          for (let index = 0; index < 4; index++) {
+            await save(assistantMessageWithUsage(`turn ${index}`, 900));
+          }
+        }
+
+        it("names it from the request until the rollover is written", async () => {
+          await fillToTheStep();
+          const seen: Record<string, string | undefined> = {};
+          const savePart = ChatWrites.savePart.bind(ChatWrites);
+          const spy = vi
+            .spyOn(ChatWrites, "savePart")
+            .mockImplementation((part, id) =>
+              part.type === "data-contextRollover"
+                ? new ResultAsync(
+                    line().then(async (said) => {
+                      seen.atRollover = said;
+                      return await savePart(part, id);
+                    }),
+                  )
+                : savePart(part, id),
+            );
+          try {
+            await prepareWith(async () => {
+              seen.whileAsked = await line();
+              return { summary: "The user asked a first question.", usage: {} };
+            });
+          } finally {
+            spy.mockRestore();
+          }
+
+          expect(await storedBoundary()).toBeDefined();
+          expect(seen).toEqual({
+            atRollover: SUMMARIZING_LINE,
+            whileAsked: SUMMARIZING_LINE,
+          });
+          expect(await line()).toBeUndefined();
+          // Never written: the session's records have no trace of it.
+          expect(
+            (await ChatReads.transcript({ chatId, sessionId }))
+              ._unsafeUnwrap()
+              .flatMap((message) => message.parts)
+              .some((part) => part.type === "data-summarizing"),
+          ).toBe(false);
+        });
+
+        it.each([
+          ["no summary comes back", () => Promise.resolve(undefined)],
+          [
+            "the summary request fails",
+            () => Promise.reject(new Error("Provider down")),
+          ],
+        ])("goes when %s", async (_, summarize) => {
+          await fillToTheStep();
+
+          await prepareWith(summarize).catch(() => undefined);
+
+          expect(await storedBoundary()).toBeUndefined();
+          expect(await line()).toBeUndefined();
+        });
       });
 
       it("waits four model turns before asking again after a summary came to nothing", async () => {

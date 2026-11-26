@@ -52,6 +52,7 @@ import { searchesAsOurOwn } from "./searches-as-our-own";
 import { sanitizeModelText } from "./sanitize-model-text";
 import { sessionBaseline } from "./session-baseline";
 import { splitMultipartToolResults } from "./split-multipart-tool-results";
+import { whileSummarizing } from "./while-summarizing";
 import { markRepeatSearchSources } from "./repeat-search-sources";
 import {
   clearOldToolResults,
@@ -720,18 +721,27 @@ export async function prepareModelMessages({
     contextRolloverWouldReclaim(nonContextMessages) &&
     turns >= (failedSummaryAt.get(sessionId) ?? 0) + SUMMARY_RETRY_TURNS
   ) {
-    const summary = await summarize(preparedMessages);
-    if (
-      summary !== undefined &&
-      (await recordRollover({
-        chatId,
-        history: allNonContextMessages,
-        model,
-        sessionId,
-        summary,
-        usable,
-      })) !== undefined
-    ) {
+    // Marked from the moment the summary is asked for until the rollover is
+    // written or it came to nothing, so the chat's working line says so for
+    // the seconds it takes.
+    const rolled = await whileSummarizing(
+      { chatId, messageId: allNonContextMessages.at(-1)?.id, sessionId },
+      async () => {
+        const summary = await summarize(preparedMessages);
+        return (
+          summary !== undefined &&
+          (await recordRollover({
+            chatId,
+            history: allNonContextMessages,
+            model,
+            sessionId,
+            summary,
+            usable,
+          })) !== undefined
+        );
+      },
+    );
+    if (rolled) {
       failedSummaryAt.delete(sessionId);
       return prepareModelMessages({ agent, chatId, model, sessionId, signal });
     }

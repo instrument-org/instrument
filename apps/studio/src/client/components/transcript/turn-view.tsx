@@ -10,6 +10,7 @@ import {
   type SessionMessagePart,
   type StepPart,
   type StoreId,
+  SUMMARIZING_LINE,
   type Turn,
   type TurnOpener,
   type TurnRow,
@@ -433,9 +434,10 @@ function TurnBody({
         >
           <RowView
             chatId={chatId}
-            isLive={live !== undefined}
             isLast={isLast}
+            isLive={live !== undefined}
             isNewest={isLast && index === turn.rows.length - 1}
+            isSummarizing={live?.summarizing === true}
             row={row}
             thought={live?.thought}
           />
@@ -476,6 +478,7 @@ function TurnBody({
       )}
       {turn.live?.kind === "thinking" && !waitsForStep && !isHolding && (
         <ThinkingRow
+          isSummarizing={turn.live.summarizing === true}
           since={turn.live.since}
           thought={
             turn.live.thought && (
@@ -718,17 +721,20 @@ function useIsFolded(turn: Turn): boolean {
  * before it shows and fades in, since the gaps between most of what an agent does
  * are too short to read, and then it stays until the row that follows it. A
  * model with words for what it is thinking can be opened to read them, for when
- * it has been at it a while.
+ * it has been at it a while. A summary of the conversation being written is
+ * named instead, at once, since it takes seconds.
  */
 export function ThinkingRow({
+  isSummarizing = false,
   since,
   thought,
 }: {
+  isSummarizing?: boolean;
   since: Date;
   thought?: ReactNode;
 }) {
   const now = useTicking(true);
-  const isDue = usePassed(since.getTime() + THINKING_AFTER_MS);
+  const isDue = usePassed(since.getTime() + THINKING_AFTER_MS) || isSummarizing;
   const [hasShown, setHasShown] = useState(isDue);
   const [isOpen, setIsOpen] = useState(false);
   const releaseAutoScroll = useReleaseAutoScroll();
@@ -743,7 +749,7 @@ export function ThinkingRow({
       <RowLine
         isLive
         isOpen={isOpen}
-        label="Thinking"
+        label={isSummarizing ? SUMMARIZING_LINE : "Thinking"}
         mark={<WorkingMark />}
         onClick={
           thought
@@ -877,6 +883,7 @@ function RowView({
   isLast,
   isLive,
   isNewest = false,
+  isSummarizing = false,
   row,
   thought,
 }: {
@@ -885,6 +892,7 @@ function RowView({
   isLive: boolean;
   /** Nothing comes after it in the chat. */
   isNewest?: boolean;
+  isSummarizing?: boolean;
   row: TurnRow;
   thought?: StepPart;
 }) {
@@ -895,6 +903,7 @@ function RowView({
         <ActivityRowView
           chatId={chatId}
           isLive={isLive}
+          isSummarizing={isSummarizing}
           row={row}
           thought={thought}
         />

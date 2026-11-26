@@ -37,6 +37,7 @@ const PURPOSE_LABELS: Record<ActivityRequest["purpose"], string> = {
   chat: "Chat",
   "chat-search": "Chat search",
   "chat-title": "Chat title",
+  "conversation-summary": "Conversation summary",
   "emoji-suggestion": "Emoji suggestion",
   "next-message": "Suggested reply",
   "ambient-ideas": "Tab ideas",

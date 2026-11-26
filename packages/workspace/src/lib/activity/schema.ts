@@ -17,6 +17,7 @@ const ACTIVITY_PURPOSES = [
   "next-message",
   "ambient-ideas",
   "work-summary",
+  "conversation-summary",
   "title-check",
   "web-search",
   "x-search",

@@ -1743,12 +1743,16 @@ function settingsBetween(was: Settled, now: Session.Type): SettingChange[] {
  * or thinking a reply had reached, done where it stopped, and a call whose
  * input never finished arriving, as interrupted. A preliminary output is
  * nothing on its own, so it is left behind with the call it was standing in
- * for, which the sweep on the next open finishes.
+ * for, which the sweep on the next open finishes. A summary being written
+ * was only ever a mark on the turn, and goes with it.
  */
 function asCutOff(
   part: SessionMessagePart.Type,
   now: Date,
 ): SessionMessagePart.Type | undefined {
+  if (part.type === "data-summarizing") {
+    return undefined;
+  }
   if (isToolPart(part)) {
     return part.state === "input-streaming"
       ? SessionMessagePart.coerce({

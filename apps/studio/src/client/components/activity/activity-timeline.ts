@@ -655,6 +655,7 @@ const DID: Record<Purpose, string> = {
   chat: "Answered",
   "chat-search": "Searched your chats",
   "chat-title": "Named a chat",
+  "conversation-summary": "Summarized the conversation",
   "emoji-suggestion": "Suggested an emoji",
   image: "Made an image",
   "next-message": "Suggested a reply",

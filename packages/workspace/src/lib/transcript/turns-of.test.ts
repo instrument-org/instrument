@@ -2241,3 +2241,48 @@ describe("a chat the app closed on", () => {
     expect(turn?.phase).toBe("interrupted");
   });
 });
+
+describe("a summary being written", () => {
+  /** The mark the running turn holds on the session's newest message. */
+  const summarizing = (id: StoreId.Message) =>
+    ({
+      data: {},
+      metadata: meta(id),
+      type: "data-summarizing",
+    }) as SessionMessagePart.Type;
+
+  it.each([
+    [
+      "before any work",
+      () => [message("user", (id) => [said(id, "Go on"), summarizing(id)])],
+      "thinking",
+    ],
+    [
+      "between an activity's calls",
+      () => [
+        typed("Go on"),
+        message("assistant", (id) => [
+          call(id, "web_search", { activity: "Looking", query: "x" }),
+          summarizing(id),
+        ]),
+      ],
+      "activity",
+    ],
+  ])("is named on the working line %s", (_, messages, kind) => {
+    const [turn] = turnsOf(messages(), { isRunning: true });
+    expect(turn?.live).toMatchObject({ kind, summarizing: true });
+  });
+
+  it("is not named once the mark has gone", () => {
+    const [turn] = turnsOf(
+      [
+        typed("Go on"),
+        message("assistant", (id) => [
+          call(id, "web_search", { activity: "Looking", query: "x" }),
+        ]),
+      ],
+      { isRunning: true },
+    );
+    expect(turn?.live).not.toHaveProperty("summarizing");
+  });
+});

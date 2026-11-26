@@ -136,6 +136,7 @@ export const DATA_PART_SAMPLES = {
   },
   signedIn: { waitedFor: "image" },
   skillMentions: { names: ["launch"] },
+  summarizing: {},
   stepFacts: {
     apps: [],
     counts: [],

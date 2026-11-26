@@ -2,7 +2,6 @@ import {
   generateText,
   type LanguageModel,
   type ModelMessage,
-  type TelemetryOptions,
   type ToolSet,
 } from "ai";
 import { mapValues } from "radashi";
@@ -14,6 +13,7 @@ import {
   SUMMARY_INSTRUCTION,
 } from "../model-text/request/summary-instruction";
 import { type SessionMessageDataPart } from "../schemas/session/message-data-part";
+import { type ActivityCall, activityTelemetry } from "./activity/record";
 import { getWorkspaceConfig } from "./workspace-config";
 
 /**
@@ -75,8 +75,12 @@ export async function summarizeBeforePriceStep({
   signal,
   tools,
 }: {
-  /** What the activity log records the call as (`activityTelemetry`). */
-  activity: TelemetryOptions;
+  /**
+   * The chat, session and connection the activity log records the call
+   * under; its purpose is always a conversation summary, so a summary is a
+   * row of its own rather than one more of the turn's requests.
+   */
+  activity: Omit<ActivityCall, "purpose">;
   headers: Record<string, string>;
   messages: ModelMessage[];
   model: LanguageModel;
@@ -100,7 +104,10 @@ export async function summarizeBeforePriceStep({
         messages: [...messages, { content: instruction, role: "user" }],
         model,
         providerOptions,
-        telemetry: activity,
+        telemetry: activityTelemetry({
+          ...activity,
+          purpose: "conversation-summary",
+        }),
         tools: mapValues(
           tools,
           ({ execute: _execute, ...definition }) => definition,

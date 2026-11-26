@@ -475,6 +475,12 @@
     "type": "data-stepFacts"
   },
   {
+    "data": {},
+    "note": "never written: held in a running turn's memory alone",
+    "reads": "data-summarizing",
+    "type": "data-summarizing"
+  },
+  {
     "data": {
       "events": [
         {

@@ -7,6 +7,7 @@ import { chooseAnswer, chooseInReply } from "../choose-call";
 import { MID_TURN_NOTE } from "../chat/mid-turn";
 import { dataPartVisibility } from "../data-part-visibility";
 import { isModelSwitch } from "../model-change";
+import { isSummarizing } from "../summarizing";
 import { type ErrorOutcome, errorOutcomeOf } from "./error-outcome";
 import { isSameChip, seenChipOf } from "./seen-with-message";
 import {
@@ -118,10 +119,17 @@ type BranchedFromPart = Extract<
 /**
  * What the working line says of a turn in flight. `thought` is the thought
  * nothing has followed yet, which the line opens onto, since no row draws one.
+ * `summarizing` is a summary of the conversation being written ahead of the
+ * next request, which the line names in place of Thinking.
  */
 export type TurnLive =
-  | { activityId: StoreId.Part; kind: "activity"; thought?: StepPart }
-  | { kind: "thinking"; since: Date; thought?: StepPart }
+  | {
+      activityId: StoreId.Part;
+      kind: "activity";
+      summarizing?: true;
+      thought?: StepPart;
+    }
+  | { kind: "thinking"; since: Date; summarizing?: true; thought?: StepPart }
   | { kind: "writing" };
 
 /**
@@ -1161,7 +1169,11 @@ function liveOf(
   first: TranscriptMessage,
 ): TurnLive | undefined {
   const thought = thoughtGoingOn(body);
-  const opens = thought && { thought };
+  const summarizing = isSummarizing([first, ...body]);
+  const opens = {
+    ...(thought && { thought }),
+    ...(summarizing && { summarizing }),
+  };
   // An activity stays the working line between its calls, which is most of
   // its time: a browser's commands take a fraction of a second, with seconds of
   // the model thinking between them, and a line flipping to Thinking for each
@@ -1169,8 +1181,9 @@ function liveOf(
   const last = rows.findLast((row) => row.kind !== "note");
   // A task's card is the turn's last work: what the chat runs after it is the
   // one line saying so (`shouldContinueAfterHandingOff`), which draws as its
-  // words when they come. Thinking under the card would read as more work.
-  if (last?.kind === "task") {
+  // words when they come. Thinking under the card would read as more work,
+  // which a summary being written is.
+  if (last?.kind === "task" && !summarizing) {
     return undefined;
   }
   if (last?.kind === "activity") {

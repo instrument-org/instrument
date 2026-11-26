@@ -1,7 +1,15 @@
 import { MockLanguageModelV4 } from "ai/test";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { StoreId } from "../schemas/store-id";
+import { ChatIdSchema } from "../schemas/chat-id";
+import { insertActivity } from "./activity/store";
 import { summarizeBeforePriceStep } from "./price-step-summary";
+
+vi.mock(import("./activity/store"), async (importOriginal) => ({
+  ...(await importOriginal()),
+  insertActivity: vi.fn(),
+}));
 
 const usage = {
   inputTokens: { cacheRead: 80, cacheWrite: 5, noCache: 15, total: 100 },
@@ -87,6 +95,27 @@ function carryingOn(calls: number, text: string) {
 }
 
 describe("summarizeBeforePriceStep", () => {
+  it("is one row of its own in the activity log, in the turn's chat and session", async () => {
+    const chatId = ChatIdSchema.parse("2026-11-25-summary-row");
+    const sessionId = StoreId.newSessionId();
+    await summarizeBeforePriceStep({
+      activity: { chatId, sessionId },
+      headers: {},
+      messages: [{ content: "Plan the move.", role: "user" }],
+      model: writing(SUMMARY, "stop"),
+      providerOptions: undefined,
+      signal: AbortSignal.timeout(5000),
+      tools: {},
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(
+      vi
+        .mocked(insertActivity)
+        .mock.calls.map(([row]) => [row.purpose, row.chatId, row.sessionId]),
+    ).toEqual([["conversation-summary", chatId, sessionId]]);
+  });
+
   it("keeps a summary the model finished as it wrote it", async () => {
     expect((await summarize(writing(` ${SUMMARY} `, "stop")))?.summary).toBe(
       SUMMARY,

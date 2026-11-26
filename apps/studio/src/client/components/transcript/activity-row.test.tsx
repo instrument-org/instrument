@@ -3,6 +3,7 @@ import {
   type ActivityRow,
   ChatIdSchema,
   StoreId,
+  SUMMARIZING_LINE,
   type TurnStep,
 } from "@instrument-org/workspace/client";
 import { fireEvent, screen } from "@testing-library/react";
@@ -140,6 +141,22 @@ describe("ActivityRowView", () => {
       expect(screen.getByText(detail)).toBeTruthy();
     },
   );
+
+  it("says a summary is being written between calls, over the last call's words", () => {
+    renderWithProviders(
+      <ActivityRowView
+        chatId={chatId}
+        isLive
+        isSummarizing
+        row={activity(
+          [call("Opening the plan sheet")],
+          "Reading your plan sheet",
+        )}
+      />,
+    );
+    expect(screen.getByText(SUMMARIZING_LINE)).toBeTruthy();
+    expect(screen.queryByText("Opening the plan sheet")).toBeNull();
+  });
 });
 
 describe("ActivityRowView", () => {

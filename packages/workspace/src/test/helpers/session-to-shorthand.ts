@@ -241,6 +241,9 @@ function messagePartToShorthand(part: SessionMessagePart.Type): string {
         .join(",");
       return `<setup-news changes="${changes}" />`;
     }
+    case "data-summarizing": {
+      return "<data-summarizing />";
+    }
     case "data-stepFacts": {
       return `<data-stepFacts step="${part.data.step}" />`;
     }

@@ -95,6 +95,7 @@ const NEVER_NOTES = new Set<SessionMessagePart.DataPart["type"]>([
   "data-linkedTabs",
   "data-ratingCard",
   "data-stepFacts",
+  "data-summarizing",
   "data-workSummary",
 ]);
 
@@ -149,6 +150,7 @@ const MARK_OF_PART: Record<
   "data-signedIn": "apps",
   "data-skillMentions": "skill",
   "data-stepFacts": "note",
+  "data-summarizing": "note",
   "data-taskEvent": "task",
   "data-toolResultsCleared": "cut",
   "data-unknown": "note",
@@ -364,6 +366,7 @@ function labelOfPart(part: SessionMessagePart.DataPart): string {
     case "data-linkedTabs":
     case "data-ratingCard":
     case "data-stepFacts":
+    case "data-summarizing":
     case "data-workSummary": {
       return noteName(part.type);
     }

@@ -24,12 +24,17 @@ describe("KINDS", () => {
     `);
   });
 
-  it("writes nothing under the three retired names", () => {
+  it("writes nothing under the three retired names, or the mark a running turn keeps", () => {
     const unwritten = Object.entries(SessionMessageDataPart.KINDS)
       .filter(([, { cadence }]) => cadence === "unwritten")
       .map(([name]) => name)
       .toSorted();
-    expect(unwritten).toEqual(["chatContext", "fileChanges", "unknown"]);
+    expect(unwritten).toEqual([
+      "chatContext",
+      "fileChanges",
+      "summarizing",
+      "unknown",
+    ]);
   });
 
   it.each(["person", "chat", "app"] as const)(

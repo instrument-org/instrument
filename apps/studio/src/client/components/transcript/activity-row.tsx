@@ -8,6 +8,7 @@ import {
   countsLine,
   foldedActivityLines,
   stepLine,
+  SUMMARIZING_LINE,
   thoughtText,
   type ToolName,
   type TurnStep,
@@ -263,11 +264,14 @@ function StepMark({
 export function ActivityRowView({
   chatId,
   isLive,
+  isSummarizing = false,
   row,
   thought,
 }: {
   chatId: ChatId;
   isLive: boolean;
+  /** A summary of the conversation is being written before the next call. */
+  isSummarizing?: boolean;
   row: ActivityRow;
   /** The thought going on, which the row's own steps leave out. */
   thought?: TurnStep;
@@ -350,7 +354,7 @@ export function ActivityRowView({
             exit={{ height: 0, opacity: 0 }}
             transition={isReduced ? { duration: 0 } : FOLD_TRANSITION}
           >
-            {liveDetail(label, current, lastStep)}
+            {liveDetail(label, current, lastStep, isSummarizing)}
           </motion.span>
         )}
       </AnimatePresence>
@@ -414,17 +418,22 @@ export function FoldedActivityView({
 /**
  * The line under a working activity, there for as long as it works so the row
  * keeps one height, its words changing in place: the current call's
- * explanation, or what the call in flight is doing, or Thinking between calls.
- * Never the row's own label again.
+ * explanation, or what the call in flight is doing, or Thinking between calls,
+ * or that a summary of the conversation is being written. Never the row's own
+ * label again.
  */
 function liveDetail(
   label: string,
   current: TurnStep | undefined,
   lastStep: TurnStep | undefined,
+  isSummarizing: boolean,
 ): string {
   const tool = lastStep && toolOf(lastStep);
   const isRunning =
     lastStep?.status === "running" || lastStep?.status === "writing";
+  if (isSummarizing && !isRunning) {
+    return SUMMARIZING_LINE;
+  }
   const said = [
     current?.explanation,
     tool && isRunning ? getToolStreamingLabel(tool) : undefined,

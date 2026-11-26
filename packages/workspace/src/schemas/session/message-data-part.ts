@@ -48,6 +48,7 @@ export namespace SessionMessageDataPart {
     "signedIn",
     "skillMentions",
     "stepFacts",
+    "summarizing",
     "maxSteps",
     "memory",
     "messageGap",
@@ -88,7 +89,8 @@ export namespace SessionMessageDataPart {
    *   said. Every message carrying the whole is what lets a fork or a
    *   rollover read the picture from the messages it kept.
    * - `unwritten`: nothing writes it. `fileChanges` and `chatContext` are
-   *   retired, and `unknown` is what an unreadable payload becomes.
+   *   retired, `summarizing` lives in a running turn's memory alone, and
+   *   `unknown` is what an unreadable payload becomes.
    */
   export type Cadence = "diff" | "event" | "state" | "unwritten";
 
@@ -234,6 +236,9 @@ export namespace SessionMessageDataPart {
     // What a shell call did, and the line a turn folds to: the transcript reads
     // both to draw its rows, and neither is a row of its own.
     stepFacts: { author: "any", cadence: "event", shown: "hidden" },
+    // A summary being written, which the working line names while it is; only
+    // ever held in a running turn's memory.
+    summarizing: { author: "any", cadence: "unwritten", shown: "hidden" },
     // Shown for the same reason the folder note is: the change was made in a
     // conversation the reader of this transcript is not looking at, and it is
     // usually what the task had stopped and waited for.
@@ -906,6 +911,17 @@ export namespace SessionMessageDataPart {
   });
 
   export type WorkSummaryDataPart = z.output<typeof WorkSummaryDataPartSchema>;
+
+  /**
+   * A summary of the conversation being written before the next request
+   * (`summarizeBeforePriceStep`), on the session's newest message. Held in
+   * the running turn's memory and never written: it marks that the turn is
+   * at it, for the working line, and goes once the summary has landed or
+   * come to nothing. Never sent to the model.
+   */
+  export const SummarizingDataPartSchema = z.object({});
+
+  export type SummarizingDataPart = z.output<typeof SummarizingDataPartSchema>;
 
   /**
    * The files a reply handed over, as they were when its turn ended: each
@@ -2038,6 +2054,7 @@ export namespace SessionMessageDataPart {
     [NameSchema.enum.signedIn]: SignedInDataPartSchema,
     [NameSchema.enum.skillMentions]: SkillMentionsDataPartSchema,
     [NameSchema.enum.stepFacts]: StepFactsDataPartSchema,
+    [NameSchema.enum.summarizing]: SummarizingDataPartSchema,
     [NameSchema.enum.taskEvent]: TaskEventDataPartSchema,
     [NameSchema.enum.toolResultsCleared]: ToolResultsClearedDataPartSchema,
     [NameSchema.enum.unknown]: UnknownDataPartSchema,

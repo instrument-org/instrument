@@ -9,6 +9,11 @@ export function appWindowIdOf(webContentsId: number): string | undefined {
   return idsByContents.get(webContentsId);
 }
 
+/** The ids of the app windows open now. */
+export function openAppWindowIds(): Set<string> {
+  return new Set(idsByContents.values());
+}
+
 export function nameAppWindow(webContentsId: number, windowId: string) {
   idsByContents.set(webContentsId, windowId);
 }

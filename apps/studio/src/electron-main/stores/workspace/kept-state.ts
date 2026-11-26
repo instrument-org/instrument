@@ -1,6 +1,9 @@
 import { workspaceWindowDir } from "@/electron-main/lib/get-workspace-folder";
 import { publisher } from "@/electron-main/rpc/publisher";
-import { appWindowIdOf } from "@/electron-main/windows/app-window-ids";
+import {
+  appWindowIdOf,
+  openAppWindowIds,
+} from "@/electron-main/windows/app-window-ids";
 import { movedFilesAddress } from "@/shared/computer-href";
 import {
   isKeptFile,
@@ -355,6 +358,29 @@ function otherWindowsValues(key: string, exceptId: string | undefined) {
 }
 
 /**
+ * Takes the groups an open window lists off every window closed to come
+ * back, so reopening one never brings up a group another window has open:
+ * a group is open in one window at a time.
+ */
+function takeOffClosedWindows(groups: readonly string[]) {
+  if (groups.length === 0) {
+    return;
+  }
+  const open = openAppWindowIds();
+  for (const id of everyWindowId()) {
+    const listed = keptTabGroupsOf(getWindowKeptState(id, TAB_GROUPS_KEY));
+    if (open.has(id) || !listed?.some((group) => groups.includes(group))) {
+      continue;
+    }
+    setWindowKeptState(
+      id,
+      TAB_GROUPS_KEY,
+      listed.filter((group) => !groups.includes(group)),
+    );
+  }
+}
+
+/**
  * Removes the tab groups no window lists any more, or with no tabs
  * (`unlistedTabGroups`), and tells the open windows they went.
  */
@@ -524,6 +550,9 @@ export function serveKeptState() {
         }
         // Every window lists what the others have open.
         if (key === TAB_GROUPS_KEY) {
+          if (windowId !== undefined) {
+            takeOffClosedWindows(keptTabGroupsOf(value) ?? []);
+          }
           publisher.publish("window.tab-groups-changed", null);
         }
         return;

@@ -208,6 +208,7 @@ export class Windows {
     if (label === undefined) {
       return [];
     }
+    this.takeOffClosedWindows();
     this.always();
     this.steps.push({ label, violations: this.violations });
     return this.violations;
@@ -566,6 +567,16 @@ export class Windows {
         this.sweep();
         this.same("relaunchKeeps", this.layouts(shown), was, "layouts");
         return "Quit and relaunch";
+      }
+    }
+  }
+
+  /** What main does as an open window keeps its list (`takeOffClosedWindows` in kept-state.ts). */
+  private takeOffClosedWindows() {
+    const open = new Set(this.openWins().flatMap((win) => win.list));
+    for (const win of this.wins) {
+      if (!win.open && win.list.some((group) => open.has(group))) {
+        win.list = win.list.filter((group) => !open.has(group));
       }
     }
   }

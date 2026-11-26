@@ -333,4 +333,36 @@ describe("a tab group's lifetime", () => {
     forgetWindowKeptState("closed");
     expect(getKeptState("groups", "tab-groups.v3/group:b")).toBeDefined();
   });
+
+  it("comes off a closed window's list once an open window lists it", async () => {
+    const handlers = new Map<string, (...args: unknown[]) => void>();
+    vi.resetModules();
+    vi.doMock("@/electron-main/lib/get-workspace-folder", () => ({
+      workspaceWindowDir: () => dir,
+    }));
+    vi.doMock("electron", () => ({
+      BrowserWindow: { getAllWindows: () => [] },
+      ipcMain: {
+        on: (channel: string, handler: (...args: unknown[]) => void) => {
+          handlers.set(channel, handler);
+        },
+      },
+    }));
+    const { getWindowKeptState, serveKeptState } = await import("./kept-state");
+    const { nameAppWindow } =
+      await import("@/electron-main/windows/app-window-ids");
+    nameAppWindow(1, "open");
+    serveKeptState();
+    handlers.get("kept-state:set")?.(
+      { sender: { id: 1 } },
+      "window",
+      "tab-group-list.v2",
+      ["group:a", "group:b"],
+    );
+    expect(getWindowKeptState("closed", "tab-group-list.v2")).toEqual([]);
+    expect(getWindowKeptState("open", "tab-group-list.v2")).toEqual([
+      "group:a",
+      "group:b",
+    ]);
+  });
 });

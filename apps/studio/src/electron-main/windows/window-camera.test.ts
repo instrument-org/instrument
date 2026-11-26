@@ -19,7 +19,7 @@ const guest = vi.hoisted(() => ({
 }));
 vi.mock("../browser-view/guest-registry", () => ({
   guests: {
-    documentOf: (_id: number, frame: unknown) => guest.documents.get(frame),
+    documentOf: (_id: number, of: unknown) => guest.documents.get(of),
     records: () =>
       [{ contents: guest.contents, entry: { targetId: "tab_page" } }].values(),
   },

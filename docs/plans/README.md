@@ -172,5 +172,6 @@ Each entry is the plan's title and the opening of its status.
 - [Browser popups as agent-drivable tabs](browser-popups-as-agent-drivable-tabs.md): Not built.
 - [External browsers behind a feature flag](external-browser-behind-a-flag.md): Abandoned.
 - [Stars and changed-since-you-looked marks in Files](files-stars-and-changes.md): Abandoned, nothing built.
+- [A cache folder every chat can write without asking](skill-cache-folder.md): Not built: the gap it set out to close is mostly not there.
 
 <!-- index:end -->

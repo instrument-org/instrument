@@ -738,6 +738,46 @@ export const STATES = {
       await wait(1500);
     },
   },
+  "tg-files-wide-search-open": {
+    about: "tg-files-wide with search opened from the magnifying glass and nothing typed yet.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      h.deepFolders();
+      await h.files("Table view");
+      await h.app.click({ selector: 'button[aria-label="Search"]' });
+      await wait(500);
+    },
+  },
+  "tg-files-search-opened-folder": {
+    about: "tg-files-wide-search with the Help desk pricing folder opened from the results (double-click): Files in that folder, Back lit.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      h.deepFolders();
+      await h.files("Table view");
+      await h.app.click({ selector: 'button[aria-label="Search"]' });
+      await wait(300);
+      await h.app.type("pricing");
+      await wait(1500);
+      await h.app.click({ text: "Help desk pricing" }, "result row", { count: 2 });
+      await wait(1000);
+    },
+  },
+  "tg-files-search-back": {
+    about: "tg-files-search-opened-folder after Back: what the tab returns to.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      h.deepFolders();
+      await h.files("Table view");
+      await h.app.click({ selector: 'button[aria-label="Search"]' });
+      await wait(300);
+      await h.app.type("pricing");
+      await wait(1500);
+      await h.app.click({ text: "Help desk pricing" }, "result row", { count: 2 });
+      await wait(1000);
+      await h.app.click({ selector: 'button[aria-label="Back"]' });
+      await wait(1500);
+    },
+  },
   "tg-files-narrow": {
     about: "Tab groups: Files on the left of a split with a new tab on the right, so its toolbar folds to icons (sidebar, view, sort, more, search).",
     themes: ["light", "dark"],

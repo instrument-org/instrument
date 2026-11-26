@@ -207,6 +207,32 @@ const ALL_BOOKMARKS = [
  * the Instrument folder, `h.after(fn)` to undo what the state left open, and for the
  * tab-groups window `h.chatAlone(id)`, `h.bookmarks()` and `h.bookmarksBar(on)`.
  */
+/** Closes the tabs of these chats in the group up, where an earlier state opened them. */
+const closeChatTabs = async (/** @type {any} */ h, /** @type {string[]} */ ids) => {
+  for (const id of ids) {
+    const { title } = await h.app.rpc("workspace.chats.byId", { id });
+    try {
+      await h.app.words.tab(title).close();
+    } catch {}
+  }
+};
+
+/** The SOC 2 quotes, the board update and the pricing chat, each alone in a group of its own, with `up`'s group up. */
+const threeGroups = async (/** @type {any} */ h, /** @type {string} */ up) => {
+  await h.bookmarksBar(false);
+  await h.bookmarks();
+  await h.chatAlone(h.chats.pricing);
+  await closeChatTabs(h, [h.chats.soc2, h.chats.board]);
+  for (const id of [h.chats.soc2, h.chats.board]) {
+    const { title } = await h.app.rpc("workspace.chats.byId", { id });
+    await h.app.words.press("Meta+n");
+    await h.app.words.chat(title).open();
+  }
+  const { title } = await h.app.rpc("workspace.chats.byId", { id: up });
+  await h.app.words.group(title).open();
+  h.after(() => h.oneGroup());
+};
+
 export const STATES = {
   chat: {
     about: "The pricing chat open: rail, the chat list (Search, View options, Inbox / Drafts / Archived, a Projects section, rows with project names), the chat's head, an answer with a table, the reply box.",
@@ -506,6 +532,53 @@ export const STATES = {
       await h.bookmarksBar(false);
       await h.bookmarks();
       await h.chatAlone(h.chats.pricing);
+    },
+  },
+  "tg-chat-tabs": {
+    about: "Tab groups: the pricing chat's group with two more chats opened from it, each a tab beside it (the SOC 2 quotes and the board update), the pricing chat's tab up. Bookmarks kept, the bookmarks bar off.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.soc2);
+      await h.chatAlone(h.chats.board);
+      await h.chatAlone(h.chats.pricing);
+      h.after(() => closeChatTabs(h, [h.chats.soc2, h.chats.board]));
+    },
+  },
+  "tg-three-groups": {
+    about: "Tab groups: three chats each alone in a group of its own, made with ⌘N (the SOC 2 quotes, the board update, then the pricing chat's group brought back up). Bookmarks kept, the bookmarks bar off.",
+    themes: ["light"],
+    run: async (h) => threeGroups(h, h.chats.pricing),
+  },
+  "tg-three-groups-soc2": {
+    about: "tg-three-groups with the SOC 2 quotes chat's group up.",
+    themes: ["light"],
+    run: async (h) => threeGroups(h, h.chats.soc2),
+  },
+  "tg-cmdk": {
+    about: "Tab groups: the pricing chat alone in its group with ⌘K open and nothing typed.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+k");
+      await wait(500);
+    },
+  },
+  "tg-files-beside-chat": {
+    about: "Tab groups: the pricing chat with Files open beside it, reached from a new tab's Files in the bookmarks bar.",
+    themes: ["light"],
+    run: async (h) => {
+      const { click, omnibar, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await omnibar.go("https://www.zendesk.com/pricing");
+      await press("Meta+t");
+      await click("Files");
+      await wait(800);
     },
   },
   "tg-new-tab-bar": {

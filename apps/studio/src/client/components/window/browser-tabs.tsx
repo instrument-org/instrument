@@ -33,7 +33,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { noop, omit } from "radashi";
 import { useAtomValue, useSetAtom } from "jotai";
-import { type Ref, useEffect, useImperativeHandle, useRef } from "react";
+import { memo, type Ref, useEffect, useImperativeHandle, useRef } from "react";
 import { createPortal } from "react-dom";
 import { z } from "zod";
 
@@ -387,12 +387,12 @@ export function BrowserTabs({
   // A tab closed anywhere takes its guest with it.
   const guestMemo = useRef(EMPTY_GUEST_MEMO);
   useEffect(() => {
-    const { close, memo } = reconcileGuests({
+    const { close, memo: reconciled } = reconcileGuests({
       attached,
       heldIds: everyTabId,
       memo: guestMemo.current,
     });
-    guestMemo.current = memo;
+    guestMemo.current = reconciled;
     for (const target of close) {
       // The guest stays attached until the close lands; one that fails is
       // asked for again on the next run.
@@ -1098,8 +1098,12 @@ function ComposePagePanel({
  * viewer of it rather than waiting for the person to reload. "Updated" floats
  * over the page for a moment after each one, since the part that changed is
  * often off screen and the page can look the same.
+ *
+ * Kept by hand (`memo`): the strip draws one per file page in the window, in
+ * a loop the React Compiler keeps nothing of, and draws them all again on
+ * every change to the window's tabs.
  */
-function FilePageReload({
+const FilePageReload = memo(function FilePageReload({
   isShown,
   path,
   target,
@@ -1139,7 +1143,7 @@ function FilePageReload({
   return isShown ? (
     <UpdatedNote ago={updated.ago} shown={updated.shown} turn={updated.turn} />
   ) : null;
-}
+});
 
 /**
  * Reloads the page and puts it back where the person had scrolled. Chromium

@@ -127,8 +127,9 @@ export function keyFileSerializer({
 /**
  * A key store's `deserialize`: `parse` reads the decoded JSON, and a file
  * that can't be decoded or parsed answers `fallback()`, empty. The store
- * reads its file again on every `get`, so a failed file is remembered by its
- * contents: the failure is logged once, with `lost` (what the person finds
+ * answers from memory while its file is unchanged (`stores/store.ts`), and
+ * a failed file is also remembered by its contents, for a read that memory
+ * does not answer: the failure is logged once, with `lost` (what the person finds
  * missing) in the line, and the same contents answer `fallback()` without
  * being decrypted again until the file changes, which saving to the store
  * (signing in again, adding the key again) does.

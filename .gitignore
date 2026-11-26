@@ -57,6 +57,11 @@ agent-reference.local.json
 # outlive the conversation that produced it.
 /docs/plans/**/wireframes-*.html
 
+# The wireframe kit's snapshot library (snaps/) and any kept beside it: captures of
+# this checkout's branch, made again with snap/capture.mjs, and too large and too
+# churny to commit or sync.
+/.agents/wireframe-kit/snaps*/
+
 # What an agent leaves at the checkout root while checking its own work: a
 # capture from `studio-drive shot`, whose file argument is resolved against the
 # working directory, and a task zip it exported or was handed to read. Named

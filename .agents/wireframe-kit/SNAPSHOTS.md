@@ -12,7 +12,7 @@ How snapshot frames work, every target and every edit is the skill's: read its `
 
 ## The library
 
-`~/wireframes/snaps/` (or `SNAP_LIBRARY`). Read its `INDEX.md` first: every state, whether it has a dark capture (`<name>.dark`), and what it shows. Each state has three files under `states/`: `<name>.png` (look at it before you write anything), `<name>.outline.txt` (every control by the name `$()` finds it by) and `<name>.json` (the snapshot; don't read it whole, use `peek`).
+`.agents/wireframe-kit/snaps/` in this checkout (or `SNAP_LIBRARY`), which git ignores, so each worktree keeps the screens of its own branch. A worktree without one starts from the main checkout's, which is quicker than capturing every state again: `cp -cR "$(git worktree list --porcelain | head -1 | cut -c10-)/.agents/wireframe-kit/snaps" .agents/wireframe-kit/snaps` (a clone on macOS, so it takes no room; leave out `-c` elsewhere). Never keep a library in a synced folder such as iCloud Drive: a capture rewrites hundreds of files. Read its `INDEX.md` first: every state, whether it has a dark capture (`<name>.dark`), and what it shows. Each state has three files under `states/`: `<name>.png` (look at it before you write anything), `<name>.outline.txt` (every control by the name `$()` finds it by) and `<name>.json` (the snapshot; don't read it whole, use `peek`).
 
 ```bash
 node .agents/wireframe-kit/snap/peek.mjs bell-update "What's new"                       # one element as compact HTML

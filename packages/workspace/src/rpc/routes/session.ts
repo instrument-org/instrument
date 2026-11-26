@@ -99,7 +99,7 @@ function endsOnFinishedReply(messages: readonly SessionMessage.WithParts[]) {
  * chat's own turn before the model has answered the person's message takes
  * that message back, and what it was sent with is answered for the reply box.
  */
-export const stop = base
+const stop = base
   .input(
     z.object({
       id: ChatIdSchema,

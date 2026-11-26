@@ -53,7 +53,7 @@ export const LayoutSnapshotSchema = z.object({
 export type LayoutSnapshot = z.output<typeof LayoutSnapshotSchema>;
 
 /** What a page's tab or its sidebar row is marked with, past what it shows. */
-export const PageMarkSchema = z.object({
+const PageMarkSchema = z.object({
   /** Its page could not be reached, so its row says it can't connect. */
   failed: z.literal(true).optional(),
   /** What it is using of the two, and whether the person paused that. */

@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** A bookmark or a folder as it stood on one side of a change. */
-export const BookmarkSideSchema = z.object({
+const BookmarkSideSchema = z.object({
   /** The folder a bookmark was filed in, by id. */
   folder: z.string().optional(),
   kind: z.enum(["bookmark", "folder"]),

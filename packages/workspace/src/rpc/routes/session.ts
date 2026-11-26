@@ -20,6 +20,7 @@ import { StoreId } from "../../schemas/store-id";
 import { type ChatId, ChatIdSchema } from "../../schemas/chat-id";
 import { setChatModelChoice } from "../../lib/chat-settings";
 import { base, toORPCError } from "../base";
+import { distinct, liveRead } from "../live-read";
 
 // Run the agent over the session as it stands, with nothing added to it. What
 // the agent answers is the request already in the transcript, so a turn that
@@ -267,18 +268,15 @@ const live = {
       }),
     )
     .handler(async function* ({ context, input, signal }) {
-      // Coalesce this session's message/part events into batches: the token
-      // count depends only on this session, and a streaming turn's event storm
-      // collapses into one recompute per batch instead of one per event.
-      const batches = changedMessageBatches(input, signal);
-      try {
-        yield call(contextTokens, input, { context, signal });
-        for await (const _batch of batches) {
-          yield call(contextTokens, input, { context, signal });
-        }
-      } finally {
-        await batches.return();
-      }
+      // The count is read from this session's written messages alone, so a
+      // streaming turn's memory wakes nothing, and a burst of writes is one
+      // read.
+      yield* distinct(
+        liveRead({
+          changes: [changedMessageBatches({ ...input, written: true }, signal)],
+          read: () => call(contextTokens, input, { context, signal }),
+        }),
+      );
     }),
 };
 

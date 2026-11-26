@@ -28,7 +28,11 @@ import {
   unarchiveChat,
 } from "../../lib/chat/chats";
 import { archiveChatAndTabs, undoChatChanges } from "../../lib/chat/organize";
-import { ChatTaskSchema, listChildTasks } from "../../lib/chat/children";
+import {
+  type ChatTask,
+  ChatTaskSchema,
+  listChildTasks,
+} from "../../lib/chat/children";
 import { chatRow, ChatRowSchema } from "../../lib/chat/chat-row";
 import { liveChatRows, refreshChatRow } from "../../lib/chat/live-chat-list";
 import { retitleChat } from "../../lib/chat/retitle";
@@ -38,7 +42,7 @@ import { openAsksOf, openAsksUntil } from "../../lib/chat/open-asks";
 import { AskSchema, SignInAskSchema } from "../../schemas/chat-state";
 import { signInOfCall } from "../../lib/chat/asks";
 import { SessionMessageDataPart } from "../../schemas/session/message-data-part";
-import { type RecordChanged, recordChanges } from "../../lib/record-changes";
+import { recordChanges } from "../../lib/record-changes";
 import {
   chatOfSession,
   resolveChat,
@@ -103,34 +107,85 @@ const ChildTaskSchema = ChatTaskSchema.extend({
 export type ChildTask = z.output<typeof ChildTaskSchema>;
 
 /** The tasks a chat created, newest activity first. */
-async function childTasks(id: ChatId) {
+async function childTasks(id: ChatId): Promise<ChildTask[]> {
   const tasks = await listChildTasks(id);
-  return await Promise.all(
-    tasks.map(async (task) => {
-      const ref = { sessionId: task.id, chatId: id };
-      const running = isWorking(id, task.id);
-      const messages = await ownMessages(ref);
-      const step = latestStepIn(messages);
-      return {
-        ...task,
-        slices: taskSlices(messages),
-        status: await taskStatus({ ...ref, isRunning: running }),
-        ...(step ? { step } : {}),
-        stoppable: running || (await openAsksOf(id, task.id)).length > 0,
-        working: running,
-      };
-    }),
-  );
+  return await Promise.all(tasks.map((task) => childTaskRow(id, task)));
+}
+
+/** One task's row, read from its own transcript and the chat's cards. */
+async function childTaskRow(id: ChatId, task: ChatTask): Promise<ChildTask> {
+  const ref = { sessionId: task.id, chatId: id };
+  const running = isWorking(id, task.id);
+  const messages = await ownMessages(ref);
+  const step = latestStepIn(messages);
+  return {
+    ...task,
+    slices: taskSlices(messages),
+    status: await taskStatus({ ...ref, isRunning: running }),
+    ...(step ? { step } : {}),
+    stoppable: running || (await openAsksOf(id, task.id)).length > 0,
+    working: running,
+  };
 }
 
 /**
- * Whether a change is to the chat whose tasks a list shows: what one of its
- * rows shows (its title, its status, its step) is in the chat's store and
- * the cards in its state, and whether it works is its session's agent.
+ * A chat's tasks, then again after each burst of changes to what a row
+ * shows: its title, its status and its step are in the chat's store and the
+ * cards in its state, and whether it works is its session's agent. A change
+ * to a running turn's memory alone moves only the step of the task it is
+ * to (a call still being typed), so only that task's row is read again, and
+ * one to the chat's own turn reads nothing.
  */
-function inChat(chatId: ChatId) {
-  return (change: RecordChanged) =>
-    change.id === chatId && change.kind !== "settings";
+async function* liveChildTasks(
+  chatId: ChatId,
+  signal: AbortSignal | undefined,
+): AsyncGenerator<ChildTask[]> {
+  const own = sessionOfChat(chatId);
+  let whole = false;
+  const named = new Set<StoreId.Session>();
+  // Heard at publish, ahead of the batch that carries it, so the batch that
+  // wakes the loop finds every session its changes named.
+  const changes = recordChanges(signal, (change) => {
+    if (change.id !== chatId || change.kind === "settings") {
+      return false;
+    }
+    if (change.live && change.message) {
+      if (change.message.sessionId === own) {
+        return false;
+      }
+      named.add(change.message.sessionId);
+    } else {
+      whole = true;
+    }
+    return true;
+  });
+  let tasks = await childTasks(chatId);
+  yield tasks;
+  for await (const _batch of changes) {
+    const readAll = whole;
+    const moved = new Set(named);
+    whole = false;
+    named.clear();
+    tasks = readAll
+      ? await childTasks(chatId)
+      : await Promise.all(
+          tasks.map((row) => {
+            if (!moved.has(row.id)) {
+              return Promise.resolve(row);
+            }
+            const {
+              slices: _slices,
+              status: _status,
+              step: _step,
+              stoppable: _stoppable,
+              working: _working,
+              ...task
+            } = row;
+            return childTaskRow(chatId, task);
+          }),
+        );
+    yield tasks;
+  }
 }
 
 /**
@@ -157,12 +212,7 @@ const liveChildTasksRoute = base
     if (!chatId) {
       throw errors.NOT_FOUND({ message: "That chat is not there any more." });
     }
-    yield* distinct(
-      liveRead({
-        changes: [recordChanges(signal, inChat(chatId))],
-        read: () => childTasks(chatId),
-      }),
-    );
+    yield* distinct(liveChildTasks(chatId, signal));
   });
 
 /**
@@ -656,9 +706,11 @@ const liveAsksRoute = base
           recordChanges(
             signal,
             // A card and its answers are session records; a question is in
-            // the transcript.
+            // the transcript, written once its call is. Nothing is read
+            // from a running turn's memory.
             (change) =>
               change.id === input.id &&
+              change.live !== true &&
               (change.kind === "messages" || change.kind === "session"),
           ),
           stale.fires,
@@ -689,8 +741,10 @@ const liveSignInRoute = base
         changes: [
           recordChanges(
             signal,
+            // Read from the asks' records alone, never a running turn's memory.
             (change) =>
               change.id === input.id &&
+              change.live !== true &&
               (change.kind === "messages" || change.kind === "session"),
           ),
         ],
@@ -715,9 +769,14 @@ const liveNextMessagesRoute = base
       yield* distinct(
         liveRead({
           changes: [
+            // A message written takes them away; a running turn's memory
+            // moves nothing they show.
             recordChanges(
               signal,
-              (change) => change.id === input.id && change.kind === "messages",
+              (change) =>
+                change.id === input.id &&
+                change.kind === "messages" &&
+                change.live !== true,
             ),
             where(
               publisher.subscribe("chat.nextMessage", { signal }),

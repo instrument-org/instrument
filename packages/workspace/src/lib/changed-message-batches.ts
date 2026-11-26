@@ -31,6 +31,11 @@ export function changedMessageBatches(
     /** One task, or a test every task's events are put to. */
     id: ((id: ChatId) => boolean) | ChatId;
     sessionId?: StoreId.Session;
+    /**
+     * Only changes written to the records, for a reader that reads none of
+     * a running turn's memory.
+     */
+    written?: boolean;
   },
   signal: AbortSignal | undefined,
 ) {
@@ -55,7 +60,10 @@ export function changedMessageBatches(
     input.sessionId === undefined || sessionId === input.sessionId;
 
   const unsubscribes = [
-    publisher.subscribe("record.changed", ({ id, kind, message }) => {
+    publisher.subscribe("record.changed", ({ id, kind, live, message }) => {
+      if (input.written === true && live === true) {
+        return;
+      }
       if (message && matchesTask(id) && matchesSession(message.sessionId)) {
         mark(message.id, message.removed ? "removed" : "updated");
       } else if (input.agent && kind === "agent" && matchesTask(id)) {

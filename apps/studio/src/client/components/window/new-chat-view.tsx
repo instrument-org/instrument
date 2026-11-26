@@ -31,6 +31,7 @@ import {
   updateDraftAtom,
 } from "@/client/drafts/store";
 import { type Draft, holdsSomething, isOnItsWay } from "@/shared/drafts";
+import { omit } from "radashi";
 import { cn, osConventions } from "@/client/lib/utils";
 import {
   locateTypedPath,
@@ -222,7 +223,7 @@ export function NewChatView({
       const bound = store.get(draftsAtom).find((entry) => entry.id === boundId);
       const kept = input?.snapshot();
       if (bound !== undefined && isOnItsWay(bound)) {
-        setSnapshots(({ [boundId]: _sent, ...current }) => current);
+        setSnapshots((current) => omit(current, [boundId]));
       } else if (kept) {
         setSnapshots((current) => ({ ...current, [boundId]: kept }));
       }

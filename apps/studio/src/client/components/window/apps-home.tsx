@@ -70,30 +70,20 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
   const { ask } = useWindow();
   // What is asked here opens its draft beside the page.
   const from = useGroupTab()?.id;
-  const list = useQuery(rpcClient.apps.live.list.experimental_liveOptions());
-  const catalog = useQuery(
-    rpcClient.apps.live.catalog.experimental_liveOptions(),
-  );
+  const {
+    ais,
+    catalog: catalogData,
+    categories,
+    list: listData,
+    listed,
+    mineOf,
+    more,
+    own,
+    popular,
+    rest,
+  } = useDirectory();
   const [query, setQuery] = useState("");
 
-  const apps = list.data?.apps ?? [];
-  // Connected first, since theirs are the fronts worth opening; the ones
-  // still being set up follow, each saying what it waits for.
-  const own = [
-    ...apps.filter((app) => app.status === "connected"),
-    ...apps.filter((app) => app.status !== "connected"),
-  ];
-  // An app of the workspace's is this service when the directory says it
-  // is, whatever its slug, so a second account set up beside the first
-  // (gmail-2 beside gmail) is the same service.
-  const mineOf = (entry: CatalogEntry) =>
-    own.filter((app) => app.service === entry.slug);
-  // Every service the directory lists stays in its place, the ones already
-  // here included, so a search finds an app whoever forgot it was set up;
-  // most used first, and the documentation servers and the like left out
-  // until a search names one.
-  const listed = catalog.data ?? [];
-  const more = directoryByUse(listed);
   // The field answers every key at once; the tiles follow a beat behind
   // when a keystroke's render would hold the next one up.
   const typed = useDeferredValue(query.trim());
@@ -107,27 +97,6 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
           (app) => !matches.some((entry) => entry.slug === app.service),
         );
   const isFound = matches.length > 0 || matchedOwn.length > 0;
-  // Unsearched, the AIs not yet here lead, then the featured services as
-  // Popular, and
-  // every other one follows under its category, so the whole directory is a scroll away.
-  const ais = more
-    .filter(
-      (entry) =>
-        entry.tier === "featured" &&
-        entry.category === "ai" &&
-        mineOf(entry).length === 0,
-    )
-    .toSorted((a, b) => aiOrder(a.slug) - aiOrder(b.slug));
-  const popular = more.filter(
-    (entry) =>
-      entry.tier === "featured" &&
-      entry.category !== "ai" &&
-      mineOf(entry).length === 0,
-  );
-  const rest = more.filter((entry) => entry.tier !== "featured");
-  const categories = APP_CATEGORIES.filter(({ id }) =>
-    rest.some((entry) => entry.category === id),
-  );
   // A hundred and more tiles below the fold: the page comes up without them
   // and they follow, so pressing Apps answers at once.
   const isRestDue = useDeferredValue(true, false);
@@ -183,6 +152,35 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
       />
     );
   };
+
+  // The whole directory, unsearched, built apart from the search's results:
+  // it reads only what the hooks answered, so the React Compiler keeps it,
+  // and its tiles, until one of those changes.
+  const directory = (
+    <>
+      {ais.length > 0 ? (
+        <PageSection title="AI">
+          <div className={THREE_COLUMNS}>{ais.map(tileFor)}</div>
+        </PageSection>
+      ) : null}
+      {popular.length > 0 ? (
+        <PageSection title="Popular">
+          <div className={TWO_COLUMNS}>{popular.map(tileFor)}</div>
+        </PageSection>
+      ) : null}
+      {isRestDue
+        ? categories.map(({ id, label }) => (
+            <div data-category={id} key={id}>
+              <PageSection title={categoryLabel(id, label)}>
+                <div className={THREE_COLUMNS}>
+                  {rest.filter((entry) => entry.category === id).map(tileFor)}
+                </div>
+              </PageSection>
+            </div>
+          ))
+        : null}
+    </>
+  );
 
   const pageRef = useRef<HTMLDivElement>(null);
   const headRef = useRef<HTMLDivElement>(null);
@@ -243,7 +241,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
           <h1 className="font-serif text-3xl leading-tight font-normal tracking-tight text-brand-600 dark:text-brand-300">
             Apps
           </h1>
-          {list.data !== undefined && own.length === 0 ? (
+          {listData !== undefined && own.length === 0 ? (
             <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
               Connect the apps you use, and Instrument can work in them for you.
             </p>
@@ -306,7 +304,7 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
         </div>
 
         <div className="mt-4 space-y-10">
-          {typed !== "" ? null : list.data === undefined ? (
+          {typed !== "" ? null : listData === undefined ? (
             <PageSection title="Your apps">
               <TileSkeletons columns={3} count={3} />
             </PageSection>
@@ -326,34 +324,10 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
               </div>
             </PageSection>
           ) : null}
-          {catalog.data === undefined ? (
+          {catalogData === undefined ? (
             <TileSkeletons />
           ) : typed === "" ? (
-            <>
-              {ais.length > 0 ? (
-                <PageSection title="AI">
-                  <div className={THREE_COLUMNS}>{ais.map(tileFor)}</div>
-                </PageSection>
-              ) : null}
-              {popular.length > 0 ? (
-                <PageSection title="Popular">
-                  <div className={TWO_COLUMNS}>{popular.map(tileFor)}</div>
-                </PageSection>
-              ) : null}
-              {isRestDue
-                ? categories.map(({ id, label }) => (
-                    <div data-category={id} key={id}>
-                      <PageSection title={categoryLabel(id, label)}>
-                        <div className={THREE_COLUMNS}>
-                          {rest
-                            .filter((entry) => entry.category === id)
-                            .map(tileFor)}
-                        </div>
-                      </PageSection>
-                    </div>
-                  ))
-                : null}
-            </>
+            directory
           ) : (
             <div className="space-y-6">
               {isFound ? (
@@ -401,11 +375,11 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
           )}
         </div>
 
-        {list.data && list.data.invalid.length > 0 ? (
+        {listData && listData.invalid.length > 0 ? (
           <div className="mt-10">
             <PageSection title="Broken">
               <div className="divide-y divide-border rounded-xl bg-card shadow-xs">
-                {list.data.invalid.map((entry) => (
+                {listData.invalid.map((entry) => (
                   <div className="flex items-center gap-3 p-4" key={entry.slug}>
                     <AppIcon />
                     <span className="min-w-0 flex-1">
@@ -439,6 +413,85 @@ export function AppsHome({ onOpenApp }: { onOpenApp: (slug: string) => void }) {
     </div>
   );
 }
+
+/** No apps, one array for every service with none. */
+const NO_APPS: App[] = [];
+
+/**
+ * The workspace's apps and the directory, laid out as the page shows them
+ * unsearched. A hook's answer is fixed for the page that reads it, so the
+ * React Compiler keeps the page's hundred tiles across its renders. Worked
+ * out in the page, among the hooks that follow, the compiler keeps none of it.
+ */
+function useDirectory() {
+  // The data alone: a query's own result is a new object on every render.
+  const list = useQuery(
+    rpcClient.apps.live.list.experimental_liveOptions(),
+  ).data;
+  const catalog = useQuery(
+    rpcClient.apps.live.catalog.experimental_liveOptions(),
+  ).data;
+  const apps = list?.apps ?? NO_APPS;
+  // Connected first, since theirs are the fronts worth opening; the ones
+  // still being set up follow, each saying what it waits for.
+  const own = [
+    ...apps.filter((app) => app.status === "connected"),
+    ...apps.filter((app) => app.status !== "connected"),
+  ];
+  // An app of the workspace's is this service when the directory says it
+  // is, whatever its slug, so a second account set up beside the first
+  // (gmail-2 beside gmail) is the same service.
+  const byService = new Map<string, App[]>();
+  for (const app of own) {
+    if (app.service !== undefined) {
+      byService.set(app.service, [...(byService.get(app.service) ?? []), app]);
+    }
+  }
+  const mineOf = (entry: CatalogEntry) =>
+    byService.get(entry.slug) ?? NO_APPS;
+  // Every service the directory lists stays in its place, the ones already
+  // here included, so a search finds an app whoever forgot it was set up;
+  // most used first, and the documentation servers and the like left out
+  // until a search names one.
+  const listed = catalog ?? NO_ENTRIES;
+  const more = directoryByUse(listed);
+  // Unsearched, the AIs not yet here lead, then the featured services as
+  // Popular, and
+  // every other one follows under its category, so the whole directory is a scroll away.
+  const ais = more
+    .filter(
+      (entry) =>
+        entry.tier === "featured" &&
+        entry.category === "ai" &&
+        mineOf(entry).length === 0,
+    )
+    .toSorted((a, b) => aiOrder(a.slug) - aiOrder(b.slug));
+  const popular = more.filter(
+    (entry) =>
+      entry.tier === "featured" &&
+      entry.category !== "ai" &&
+      mineOf(entry).length === 0,
+  );
+  const rest = more.filter((entry) => entry.tier !== "featured");
+  const categories = APP_CATEGORIES.filter(({ id }) =>
+    rest.some((entry) => entry.category === id),
+  );
+  return {
+    ais,
+    catalog,
+    categories,
+    list,
+    listed,
+    mineOf,
+    more,
+    own,
+    popular,
+    rest,
+  };
+}
+
+/** No directory entries, one array while the directory is on its way. */
+const NO_ENTRIES: CatalogEntry[] = [];
 
 /** The workspace's own apps matching every word typed, by name, slug, site or account. */
 function searchOwn(own: App[], typed: string): App[] {

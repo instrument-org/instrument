@@ -43,6 +43,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -286,7 +287,6 @@ export function GroupSidebar({
   );
   const body = (
     <>
-      <SidebarSearch />
       {project ? (
         <>
           <BackRow
@@ -381,6 +381,10 @@ export function GroupSidebar({
       <div className="relative flex min-h-0 flex-1 flex-col">
         <SidebarTop />
         <div className="flex min-h-0 flex-1 flex-col" ref={shiftRef}>
+          {/* Search stays put while the list under it scrolls. */}
+          <div className="shrink-0 pl-2">
+            <SidebarSearch />
+          </div>
           <GroupList>
             {body}
             {room?.gap === 0 && <ListDropLine top={room.top} />}
@@ -522,18 +526,61 @@ function ListItem({
 }
 
 /**
- * The list, which scrolls whole, New with it, and where a drag over it
- * shows where it lands (`sidebarDropAt`) and a lifted row stands.
+ * The list under search, which scrolls whole, projects and New with it,
+ * fading out at an end with more past it, and where a drag over it shows
+ * where it lands (`sidebarDropAt`) and a lifted row stands.
  */
 function GroupList({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const isScrollable = useIsScrollable(ref);
   return (
     <div
-      className="relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2 pl-2"
+      className={cn(
+        "relative flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pb-2 pl-2",
+        isScrollable && "scroll-fade-y",
+      )}
       data-group-list=""
+      ref={ref}
     >
       {children}
     </div>
   );
+}
+
+/**
+ * Whether a list runs past its own height, measured whenever it or any
+ * row in it changes size, and as rows come and go. The fade has to be
+ * taken off a list that stops scrolling, since its scroll timeline holds
+ * the last fade it drew once the list fits.
+ */
+function useIsScrollable(ref: React.RefObject<HTMLDivElement | null>) {
+  const [isScrollable, setScrollable] = useState(false);
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    const measure = () => {
+      setScrollable(element.scrollHeight > element.clientHeight);
+    };
+    const sizes = new ResizeObserver(measure);
+    const watch = () => {
+      sizes.disconnect();
+      sizes.observe(element);
+      for (const child of element.children) {
+        sizes.observe(child);
+      }
+      measure();
+    };
+    const rows = new MutationObserver(watch);
+    rows.observe(element, { childList: true });
+    watch();
+    return () => {
+      rows.disconnect();
+      sizes.disconnect();
+    };
+  }, [ref]);
+  return isScrollable;
 }
 
 /**

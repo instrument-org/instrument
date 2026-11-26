@@ -325,6 +325,15 @@ export function useGroupLayout(group: string): GroupLayout {
   return useAtomValue(layout);
 }
 
+/** The tab a group is held to go by (`GroupOwn.lead`), read for the group alone. */
+export function useGroupLead(group: string): string | undefined {
+  const lead = useMemo(
+    () => selectAtom(windowTabsAtom, (state) => state.groups?.[group]?.lead),
+    [group],
+  );
+  return useAtomValue(lead);
+}
+
 function sameLayout(a: GroupLayout, b: GroupLayout) {
   return (
     a.focused === b.focused &&

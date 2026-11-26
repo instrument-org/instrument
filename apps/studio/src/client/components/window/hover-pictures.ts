@@ -46,13 +46,28 @@ export function groupShows(layout: GroupLayout): string {
 }
 
 /** The address of a key's picture, where there is one of what it shows. */
-export function pictureUrl(
+function pictureUrl(
   pictures: ReadonlyMap<string, HoverPicture>,
   key: string,
   shows: string,
 ): string | undefined {
   const picture = pictures.get(key);
   return picture?.shows === shows ? picture.url : undefined;
+}
+
+/**
+ * A group's picture (`pictureUrl`), read for the group alone, so a picture
+ * taken of another group leaves its reader as it was.
+ */
+export function useGroupPicture(group: string): string | undefined {
+  const picture = useMemo(
+    () =>
+      selectAtom(hoverPicturesAtom, (held) =>
+        pictureUrl(held, groupPictureKey(group), GROUP_SHOWS),
+      ),
+    [group],
+  );
+  return useAtomValue(picture);
 }
 
 /**
@@ -77,8 +92,7 @@ export function useTabPictures(
             }),
           ),
         (a, b) =>
-          a.size === b.size &&
-          [...a].every(([id, url]) => b.get(id) === url),
+          a.size === b.size && [...a].every(([id, url]) => b.get(id) === url),
       ),
     [wanted],
   );

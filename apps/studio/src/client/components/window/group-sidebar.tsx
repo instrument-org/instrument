@@ -40,6 +40,7 @@ import {
   useReducedMotion,
 } from "motion/react";
 import {
+  memo,
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
   useEffect,
@@ -47,6 +48,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useSteadyCallbacks } from "@/client/hooks/use-steady-callbacks";
 
 import { GroupRowMenu, type GroupRowMenuActions } from "./group-row-menu";
 import { HelpMenu } from "./help-menu";
@@ -65,12 +67,7 @@ import {
   TooltipTrigger,
 } from "@/client/components/ui/tooltip";
 import { HoverPicture } from "./hover-picture";
-import {
-  GROUP_SHOWS,
-  groupPictureKey,
-  hoverPicturesAtom,
-  pictureUrl,
-} from "./hover-pictures";
+import { useGroupPicture } from "./hover-pictures";
 import { groupNameOf, rowSidesOf } from "./group-leads";
 import { GroupRowLines } from "./group-row-lines";
 import { RowLinesView } from "./row-half";
@@ -91,7 +88,7 @@ import {
 import { useProjectShift } from "./use-project-shift";
 import { windowTabGroupsAtom } from "./open-groups";
 import { groupsInProject, isPinnedGroup, type TabGroup } from "./tab-groups";
-import { useWindowTabs } from "./window-tabs";
+import { useGroupLayout, useGroupLead, useWindowTabs } from "./window-tabs";
 import { TabMenuAtPoint } from "./tab-menu-items";
 import { isOnEmptySpace, WindowSpaceMenu } from "./window-space-menu";
 
@@ -242,20 +239,14 @@ export function GroupSidebar({
     };
   };
 
-  const row = (entry: TabGroup) => (
-    <GroupRow
-      chatTitles={chatTitles}
-      chord={groupNumbers?.get(entry.group)}
-      entry={entry}
-      isDropInto={drop?.kind === "into" && drop.group === entry.group}
-      isUp={entry.group === groupUp}
-      key={entry.group}
-      menu={menuOf(entry)}
-      onClose={onClose}
-      onPress={pressGroupRow}
-      onShow={onShow}
-    />
-  );
+  // A row's menu acts through this, so a row that kept an earlier menu
+  // (`SidebarRow`) acts on the rows as they are when one is picked.
+  const latest = useSteadyCallbacks({
+    menuFor: (group: string) => {
+      const entry = shownRows.find((each) => each.group === group);
+      return entry === undefined ? undefined : menuOf(entry);
+    },
+  });
 
   // What the list shows in order, for the room a drag opens in it: the
   // items from the one it opens in front of on move aside.
@@ -274,16 +265,22 @@ export function GroupSidebar({
     snaps: roomSnaps,
   });
   const listItem = (entry: TabGroup, section: "pinned" | "rest") => (
-    <ListItem
-      group={entry.group}
+    <SidebarRow
+      chatTitles={chatTitles}
+      chord={groupNumbers?.get(entry.group)}
+      entry={entry}
       isArriving={arriving.has(entry.group) && entry.group !== filled}
+      isDropInto={drop?.kind === "into" && drop.group === entry.group}
       isLifted={lifted === entry.group}
+      isUp={entry.group === groupUp}
       key={`row:${entry.group}`}
+      menu={menuOf(entry)}
+      menuFor={latest.menuFor}
+      onClose={onClose}
+      onShow={onShow}
       section={section}
       {...place(`row:${entry.group}`)}
-    >
-      {row(entry)}
-    </ListItem>
+    />
   );
   const body = (
     <>
@@ -415,6 +412,146 @@ export function GroupSidebar({
 
 /** The list of a window that has none yet, one array for every render. */
 const NO_GROUPS: readonly string[] = [];
+
+/** Whether two entries for a group say the same, field by field. */
+function isSameEntry(a: TabGroup, b: TabGroup): boolean {
+  const was: Record<string, unknown> = a;
+  const now: Record<string, unknown> = b;
+  const keys = Object.keys(was);
+  return (
+    keys.length === Object.keys(now).length &&
+    keys.every((key) => key in now && was[key] === now[key])
+  );
+}
+
+/** A group's menu offering what `menu` offers, whose actions run the latest menu for the group. */
+function steadyMenu(
+  group: string,
+  menu: GroupRowMenuActions,
+  latest: (group: string) => GroupRowMenuActions | undefined,
+): GroupRowMenuActions {
+  const closer = (
+    pick: (now: GroupRowMenuActions) => (() => void) | undefined,
+  ) =>
+    pick(menu) === undefined
+      ? undefined
+      : () => {
+          const now = latest(group);
+          if (now) {
+            pick(now)?.();
+          }
+        };
+  return {
+    isPinned: menu.isPinned,
+    onClose: () => latest(group)?.onClose(),
+    onCloseAbove: closer((now) => now.onCloseAbove),
+    onCloseBelow: closer((now) => now.onCloseBelow),
+    onCloseOthers: closer((now) => now.onCloseOthers),
+    onDuplicate: () => latest(group)?.onDuplicate(),
+    onNewWindow: () => latest(group)?.onNewWindow(),
+    onTogglePin: () => latest(group)?.onTogglePin(),
+  };
+}
+
+/** What a group's menu offers, which a row is drawn again for. */
+function offersOf(menu: GroupRowMenuActions): string {
+  return [
+    menu.isPinned,
+    menu.onCloseAbove !== undefined,
+    menu.onCloseBelow !== undefined,
+    menu.onCloseOthers !== undefined,
+  ].join();
+}
+
+/**
+ * Whether a row would draw the same: its entry the same field by field,
+ * its menu offering the same, and the rest the same values.
+ */
+function isSameRow(a: SidebarRowProps, b: SidebarRowProps): boolean {
+  const was: Record<string, unknown> = a;
+  const now: Record<string, unknown> = b;
+  const keys = Object.keys(was);
+  return (
+    keys.length === Object.keys(now).length &&
+    keys.every((key) =>
+      key === "entry"
+        ? isSameEntry(a.entry, b.entry)
+        : key === "menu"
+          ? offersOf(a.menu) === offersOf(b.menu)
+          : key in now && Object.is(was[key], now[key]),
+    )
+  );
+}
+
+type SidebarRowProps = Parameters<typeof SidebarRowView>[0];
+
+/**
+ * One group's row in its place in the list. Kept by hand (`memo`, by
+ * `isSameRow`): the list draws its rows in a loop the React Compiler keeps
+ * nothing of, and draws them all again on every change to the window's
+ * tabs, which with dozens of groups is most of what a new tab or a tab
+ * switch costs. A row kept with an earlier menu acts through `menuFor`.
+ */
+const SidebarRow = memo(SidebarRowView, isSameRow);
+
+function SidebarRowView({
+  chatTitles,
+  chord,
+  entry,
+  isArriving,
+  isDropInto,
+  isLifted,
+  isUp,
+  item,
+  menu,
+  menuFor,
+  onClose,
+  onShow,
+  section,
+  shift,
+  snaps,
+}: {
+  chatTitles: Map<ChatId, string>;
+  chord: number | undefined;
+  entry: TabGroup;
+  isArriving: boolean;
+  isDropInto: boolean;
+  isLifted: boolean;
+  isUp: boolean;
+  item: string;
+  menu: GroupRowMenuActions;
+  /** The menu the list would make for a group now. */
+  menuFor: (group: string) => GroupRowMenuActions | undefined;
+  onClose: (group: string) => void;
+  onShow: (group: string, options: { newWindow: boolean }) => void;
+  section: "pinned" | "rest";
+  shift?: number;
+  snaps: boolean;
+}) {
+  return (
+    <ListItem
+      group={entry.group}
+      isArriving={isArriving}
+      isLifted={isLifted}
+      item={item}
+      section={section}
+      {...(shift === undefined ? {} : { shift })}
+      snaps={snaps}
+    >
+      <GroupRow
+        chatTitles={chatTitles}
+        chord={chord}
+        entry={entry}
+        isDropInto={isDropInto}
+        isUp={isUp}
+        menu={steadyMenu(entry.group, menu, menuFor)}
+        onClose={onClose}
+        onPress={pressGroupRow}
+        onShow={onShow}
+      />
+    </ListItem>
+  );
+}
 
 /** How long a row takes to open its room in the list, or to close it. */
 const ROW_MOTION_MS = 200;
@@ -675,10 +812,9 @@ export function GroupRow({
   onPress?: (group: string, event: ReactPointerEvent<HTMLElement>) => void;
   onShow?: (group: string, options: { newWindow: boolean }) => void;
 }) {
-  const { groupOwn, layoutOf } = useWindowTabs();
   const names = useTabNames(chatTitles);
-  const held = groupOwn[entry.group]?.lead;
-  const layout = layoutOf(entry.group);
+  const held = useGroupLead(entry.group);
+  const layout = useGroupLayout(entry.group);
   const sides = rowSidesOf(layout);
   // Named as a group, by the name its row shows, so a row whose tab is a
   // page the sidebar also has a button for (Activity) is told apart from
@@ -794,10 +930,8 @@ function GroupRowPicture({
   label: string;
   wrap: (trigger: ReactNode) => ReactNode;
 }) {
-  const pictures = useAtomValue(hoverPicturesAtom);
-  const picture = isUp
-    ? undefined
-    : pictureUrl(pictures, groupPictureKey(group), GROUP_SHOWS);
+  const groupPicture = useGroupPicture(group);
+  const picture = isUp ? undefined : groupPicture;
   return (
     <Tooltip delayDuration={PICTURE_DELAY_MS} disableHoverableContent>
       {wrap(

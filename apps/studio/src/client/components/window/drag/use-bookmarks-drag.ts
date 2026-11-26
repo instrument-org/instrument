@@ -233,6 +233,11 @@ export function useBookmarksTarget({
       if (shortcuts && holds(shortcuts.getBoundingClientRect(), point)) {
         return undefined;
       }
+      // A menu open under the bar takes what is held over it, where the
+      // bar's slack below it reaches over the menu's first rows.
+      if (isOnMenu(point)) {
+        return undefined;
+      }
       const isOn = (element: HTMLElement | null | undefined) =>
         element?.checkVisibility({ visibilityProperty: true }) === true &&
         holds(element.getBoundingClientRect(), point);
@@ -313,6 +318,18 @@ function folderAt(
 /** How much of a folder's chip or row, at each end, places what is held beside the folder rather than in it. */
 const FOLDER_EDGE = 0.2;
 
+/** The open menus under a point, in the order they opened, the last on top. */
+function menusAt(point: Point) {
+  return [...document.querySelectorAll<HTMLElement>("[role=menu]")].filter(
+    (menu) => holds(menu.getBoundingClientRect(), point),
+  );
+}
+
+/** Whether an open menu is under a point. */
+function isOnMenu(point: Point) {
+  return menusAt(point).length > 0;
+}
+
 /** Where something is kept: in a folder, or loose in a root, the bar without either. */
 type MenuPlace = { folder?: string; root?: BookmarkRoot };
 
@@ -347,11 +364,7 @@ export function useMenuTarget({
             // edge of the menu it opened from takes the pointer there. Open
             // menus are portalled in the order they opened, so the last one
             // under the pointer is on top.
-            const onTop = [
-              ...document.querySelectorAll<HTMLElement>("[role=menu]"),
-            ]
-              .filter((menu) => holds(menu.getBoundingClientRect(), point))
-              .at(-1);
+            const onTop = menusAt(point).at(-1);
             if (!element || onTop !== element) {
               return undefined;
             }
@@ -582,6 +595,7 @@ export function useMenuDropLine(
 ): { before: string; held: ReadonlySet<string> } | undefined {
   const drag = useAtomValue(dragAtom);
   const state = useAtomValue(bookmarksStateAtom);
+  const context = useKeptContext(() => "");
   const landing = drag?.landing;
   if (
     !drag ||
@@ -594,12 +608,14 @@ export function useMenuDropLine(
     return undefined;
   }
   const { held: what } = drag;
+  // What is held as the bookmarks it moves, a tab or link whose address is
+  // kept already included, as the landing's index counts without them.
   const held = new Set(
     what.kind === "folder"
       ? [what.folder]
-      : what.kind === "link" && what.bookmark !== undefined
-        ? [what.bookmark]
-        : [],
+      : keptAs(what, { ...context, bookmarks: state.bookmarks }).map(
+          (each) => each.id,
+        ),
   );
   const there = siblingsIn(state, place.folder, place.root).filter(
     (each) => !held.has(each.id),

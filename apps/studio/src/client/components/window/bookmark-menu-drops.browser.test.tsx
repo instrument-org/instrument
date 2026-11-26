@@ -197,6 +197,54 @@ describe("the bookmarks bar's end while something is held", () => {
     });
   });
 
+  it("leaves a bookmark held over a menu's first row to the menu, where the bar's slack below it reaches", async () => {
+    // A long menu, bigger than the bar's room, which a smaller target would
+    // otherwise answer for first.
+    const many = Array.from(
+      { length: 30 },
+      (_, index) => `many${String(index)}`,
+    );
+    await store.set(
+      applyBookmarkOpsAtom,
+      many.map((id, index) => ({
+        bookmark: {
+          id,
+          order: 10 + index,
+          root: OTHER_ROOT,
+          title: id,
+          url: `https://${id}.example/`,
+        },
+        type: "add" as const,
+      })),
+    );
+    await renderInBrowser(<BarEnd />, { store });
+    await userEvent.click(page.getByRole("button", { name: "All Bookmarks" }));
+    const folder = page.getByRole("menuitem", { name: /Reading/ }).element();
+    pressToDrag({ button: 0, clientX: 2, clientY: 2, isPrimary: true }, () => ({
+      grab: { x: 0, y: 0 },
+      held: {
+        bookmark: "bar1",
+        id: "held",
+        kind: "link",
+        title: "On bar",
+        url: "https://bar.example/",
+      },
+    }));
+    move({ x: 60, y: 60 });
+    move(center(folder, 0.1));
+    await frames(2);
+    expect(landing()).toEqual({
+      index: 0,
+      kind: "bookmarks",
+      root: OTHER_ROOT,
+    });
+    window.dispatchEvent(new PointerEvent("pointerup", { isPrimary: true }));
+    await store.set(
+      applyBookmarkOpsAtom,
+      many.map((id) => ({ id, type: "remove" as const })),
+    );
+  });
+
   it("holds a bookmark of All Bookmarks' menu, pressed and moved, as that bookmark", async () => {
     await renderInBrowser(<BarEnd />, { store });
     await userEvent.click(page.getByRole("button", { name: "All Bookmarks" }));

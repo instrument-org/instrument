@@ -9,9 +9,6 @@ import {
 import {
   type ClipItem,
   clipOf,
-  type DropTarget,
-  dropTargetAt,
-  moveOps,
   NOTHING_SELECTED,
   type OutlineRow,
   outlineRows,
@@ -48,7 +45,15 @@ import {
 import { AddressMark } from "@/client/components/window/app-chip";
 import { BookmarkEditor } from "@/client/components/window/bookmark-editor";
 import { BookmarkNameDialog } from "@/client/components/window/bookmark-folders";
-import { DROP_TONE, HELD_LOOK } from "@/client/components/window/drag/tone";
+import {
+  pressBookmark,
+  pressRows,
+} from "@/client/components/window/drag/press-bookmark";
+import { DROP_TONE } from "@/client/components/window/drag/tone";
+import {
+  useOutlineDrop,
+  useOutlineTarget,
+} from "@/client/components/window/drag/use-bookmarks-drag";
 import { bareAddress } from "@/client/components/window/omnibar-match";
 import { useFindTarget } from "@/client/hooks/use-find-target";
 import { SearchField } from "@/client/components/window/search-field";
@@ -77,9 +82,6 @@ import { type KeyboardEvent, useRef, useState } from "react";
 /** What Cut or Copy kept last, for Paste in any window's Bookmarks page. */
 const clipAtom = atom<ClipItem[]>([]);
 
-/** How far a press moves before it is a drag rather than a click, in px. */
-const DRAG_START_PX = 4;
-
 /**
  * The Bookmarks page, a browser's bookmark manager in History's clothes:
  * every bookmark and folder as one outline in the bar's order, then All
@@ -88,7 +90,9 @@ const DRAG_START_PX = 4;
  * ⌘-click and Shift-click pick more, and ⌘A all of them; a double click or
  * Return opens what is picked, Delete deletes it, and a drag moves it,
  * drawing a line where it would land or ringing the folder it would go
- * into, so nothing moves under the pointer until it lands. A row's ⋮ and
+ * into, so nothing moves under the pointer until it lands. A bookmark
+ * dragged alone goes wherever one of the bar does, and a tab or a link
+ * dragged here is kept where it lands. A row's ⋮ and
  * its right click have the same menu; the page's ⋯ sorts and adds.
  */
 export function BookmarksPage({
@@ -442,22 +446,51 @@ export function BookmarksPage({
     }
   };
 
-  const drag = useOutlineDrag({
-    container: () => list.current,
-    held: (id) =>
-      selection.ids.has(id)
-        ? order.filter((each) => selection.ids.has(each))
-        : [id],
-    isOff: isSearch,
-    onLand: (ids, target) => {
-      void apply(moveOps(store.get(bookmarksStateAtom), ids, target.place));
-    },
-    onStart: (ids) => {
+  useOutlineTarget({ isOff: isSearch, list: () => list.current, rows });
+  const drop = useOutlineDrop();
+  /**
+   * A press that past the start holds the rows picked, or its own row alone
+   * where it is not picked, and picks what it holds. A bookmark alone is
+   * held as the bar's are, landing anywhere one does; several rows, or a
+   * folder, are held as rows of the page, which move only on it.
+   */
+  const pressRow = (
+    event: React.PointerEvent<HTMLElement>,
+    row: OutlineRow,
+  ) => {
+    if (row.kind === "root") {
+      return;
+    }
+    const ids = selection.ids.has(row.id)
+      ? order.filter((each) => each !== OTHER_ROOT && selection.ids.has(each))
+      : [row.id];
+    const onHeld = () => {
       setSelection({ anchor: ids.at(-1), ids: new Set(ids) });
-    },
-    targetAt: (index, fraction, held) =>
-      dropTargetAt(store.get(bookmarksStateAtom), rows, index, fraction, held),
-  });
+    };
+    if (ids.length === 1 && row.kind === "bookmark") {
+      pressBookmark(
+        event,
+        {
+          id: row.bookmark.id,
+          title: titleOfRow(row),
+          url: row.bookmark.url,
+        },
+        onHeld,
+      );
+    } else if (!isSearch) {
+      pressRows(
+        event,
+        {
+          ids,
+          title:
+            ids.length === 1
+              ? titleOfRow(row)
+              : `${ids.length.toString()} bookmarks`,
+        },
+        onHeld,
+      );
+    }
+  };
 
   const searchRef = useRef<HTMLInputElement>(null);
   useFindTarget({
@@ -559,16 +592,13 @@ export function BookmarksPage({
           <div className="relative rounded-xl border border-border bg-card p-2">
             {rows.map((row) => (
               <OutlineRowView
-                drop={drag.target}
-                isHeld={drag.held.has(row.id)}
+                drop={drop.row}
+                isHeld={drop.held.has(row.id)}
                 isPicked={selection.ids.has(row.id)}
                 isSearch={isSearch}
                 key={`${row.id}${row.kind === "bookmark" && row.folder ? ":in" : ""}`}
                 menu={menuOf(row)}
                 onClick={(event) => {
-                  if (drag.wasDrag()) {
-                    return;
-                  }
                   setFocusId(row.id);
                   select(
                     selectionAfterClick(selection, order, row.id, {
@@ -586,9 +616,7 @@ export function BookmarksPage({
                   openRow(row);
                 }}
                 onPointerDown={(event) => {
-                  if (row.kind !== "root") {
-                    drag.press(event, row.id, titleOfRow(row));
-                  }
+                  pressRow(event, row);
                 }}
                 onToggle={() => {
                   toggleFolder(row.id);
@@ -597,7 +625,6 @@ export function BookmarksPage({
               />
             ))}
           </div>
-          {drag.ghost}
         </div>
       )}
       {editing?.kind === "bookmark" && (
@@ -727,8 +754,8 @@ function OutlineRowView({
   onToggle,
   row,
 }: {
-  /** Where what is dragged would land now, which this row draws if it is its. */
-  drop: DropTarget | undefined;
+  /** The row what is dragged would land at now, which this row draws if it is it. */
+  drop: { at: "after" | "before" | "into"; id: string } | undefined;
   isHeld: boolean;
   isPicked: boolean;
   isSearch: boolean;
@@ -737,17 +764,13 @@ function OutlineRowView({
   /** Its menu is opening, which picks it where it is not picked. */
   onMenu: () => void;
   onOpen: () => void;
-  onPointerDown: (event: React.PointerEvent) => void;
+  onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   onToggle: () => void;
   row: OutlineRow;
 }) {
-  const isInto = drop?.kind === "into" && drop.id === row.id;
-  const line =
-    drop?.kind === "between"
-      ? "before" in drop.line
-        ? drop.line.before === row.id && "top"
-        : drop.line.after === row.id && "bottom"
-      : false;
+  const at = drop?.id === row.id ? drop.at : undefined;
+  const isInto = at === "into";
+  const line = at === "before" ? "top" : at === "after" ? "bottom" : false;
   const depth = isSearch ? 0 : row.depth;
   const sub =
     row.kind !== "bookmark"
@@ -908,141 +931,4 @@ function RowMenu({
       </Item>
     ),
   );
-}
-
-/**
- * Dragging rows of the outline, on the pointer: past a few px a press takes
- * up the rows picked (or its own row alone, where it is not picked), which
- * stay dimmed in their places while a copy of the name rides the pointer,
- * and `target` says where letting go would land them. A press that never
- * moves stays a click.
- */
-function useOutlineDrag({
-  container,
-  held: heldFor,
-  isOff,
-  onLand,
-  onStart,
-  targetAt,
-}: {
-  container: () => HTMLElement | null;
-  held: (id: string) => string[];
-  /** No drag in a search's flat list, which has no places to land. */
-  isOff: boolean;
-  onLand: (ids: string[], target: DropTarget) => void;
-  onStart: (ids: string[]) => void;
-  targetAt: (
-    index: number,
-    fraction: number,
-    held: ReadonlySet<string>,
-  ) => DropTarget | undefined;
-}) {
-  const [state, setState] = useState<{
-    held: string[];
-    label: string;
-    point: { x: number; y: number };
-    target: DropTarget | undefined;
-  }>();
-  const justDragged = useRef(false);
-
-  const press = (event: React.PointerEvent, id: string, title: string) => {
-    if (isOff || event.button !== 0) {
-      return;
-    }
-    const start = { x: event.clientX, y: event.clientY };
-    let held: string[] | undefined;
-    let target: DropTarget | undefined;
-    const pointIn = (x: number, y: number) => {
-      const box = container();
-      if (!box) {
-        return { x, y };
-      }
-      // In the page's own px, which the window's zoom scales on screen.
-      const rect = box.getBoundingClientRect();
-      const scale = rect.width / (box.offsetWidth || rect.width);
-      return {
-        x: (x - rect.left) / scale + box.scrollLeft,
-        y: (y - rect.top) / scale + box.scrollTop,
-      };
-    };
-    const move = (moved: PointerEvent) => {
-      if (!held) {
-        if (
-          Math.hypot(moved.clientX - start.x, moved.clientY - start.y) <
-          DRAG_START_PX
-        ) {
-          return;
-        }
-        held = heldFor(id);
-        onStart(held);
-      }
-      const over = document
-        .elementFromPoint(moved.clientX, moved.clientY)
-        ?.closest<HTMLElement>("[data-outline-row]");
-      const rowIds = [
-        ...(container()?.querySelectorAll<HTMLElement>("[data-outline-row]") ??
-          []),
-      ];
-      const index = over ? rowIds.indexOf(over) : -1;
-      if (over && index !== -1) {
-        const rect = over.getBoundingClientRect();
-        target = targetAt(
-          index,
-          (moved.clientY - rect.top) / rect.height,
-          new Set(held),
-        );
-      } else {
-        target = undefined;
-      }
-      setState({
-        held,
-        label: held.length > 1 ? `${held.length.toString()} bookmarks` : title,
-        point: pointIn(moved.clientX, moved.clientY),
-        target,
-      });
-    };
-    const end = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", end);
-      window.removeEventListener("pointercancel", cancel);
-      if (held) {
-        justDragged.current = true;
-        if (target) {
-          onLand(held, target);
-        }
-      }
-      setState(undefined);
-    };
-    const cancel = () => {
-      held = undefined;
-      end();
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", end);
-    window.addEventListener("pointercancel", cancel);
-  };
-
-  return {
-    ghost: state ? (
-      <div
-        aria-hidden
-        className={cn(
-          "pointer-events-none absolute z-50 max-w-64 truncate rounded-lg px-2.5 py-1.5 text-sm",
-          HELD_LOOK,
-        )}
-        style={{ left: state.point.x + 12, top: state.point.y + 8 }}
-      >
-        {state.label}
-      </div>
-    ) : null,
-    held: new Set(state?.held ?? []),
-    press,
-    target: state?.target,
-    /** Whether the click now ending is a drag's release, which picks nothing. */
-    wasDrag: () => {
-      const was = justDragged.current;
-      justDragged.current = false;
-      return was;
-    },
-  };
 }

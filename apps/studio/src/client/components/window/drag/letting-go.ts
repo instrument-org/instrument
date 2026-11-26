@@ -78,7 +78,7 @@ export function outcomeOf(
       return {
         does: "keep",
         line:
-          isBookmark(held) || held.kind === "folder"
+          isBookmark(held) || held.kind === "folder" || held.kind === "rows"
             ? "Move here"
             : "Add to bookmarks",
       };

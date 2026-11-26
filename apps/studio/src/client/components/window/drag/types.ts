@@ -44,6 +44,17 @@ export type Held =
       title: string;
     }
   | {
+      /**
+       * Rows of the Bookmarks page held together, by id in the page's
+       * order: several picked, or a folder. They move among the page's rows
+       * and land nowhere else (`DropTarget.takesRows`).
+       */
+      ids: readonly string[];
+      kind: "rows";
+      /** What the rows are called while held: a folder's name, or how many. */
+      title: string;
+    }
+  | {
       /** How many, which the system's drag says from the start. */
       count: number;
       /** What they are, once main has read them off the system's drag. */
@@ -153,7 +164,10 @@ export type Landing =
       folder?: string;
       index: number;
       kind: "bookmarks";
+      /** The root it goes into loose, where it goes into no folder: All Bookmarks, or the bar without one. */
       root?: BookmarkRoot;
+      /** On the Bookmarks page, the row it is drawn at: a line before or after it, or the row ringed as what it goes into. */
+      row?: { at: "after" | "before" | "into"; id: string };
     }
   | { kind: "window" };
 
@@ -165,7 +179,7 @@ export type Landing =
  * carries a tab or a group.
  */
 export type WindowHeld =
-  | Extract<Held, { kind: "folder" | "group" | "tab" }>
+  | Extract<Held, { kind: "folder" | "group" | "rows" | "tab" }>
   | (Extract<Held, { kind: "link" }> & { bookmark: string })
   | (Extract<Held, { kind: "link" }> & { shortcut: true })
   | (Extract<Held, { kind: "link" }> & {

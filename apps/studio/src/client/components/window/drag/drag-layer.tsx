@@ -473,10 +473,14 @@ function HeldChip({
     const up = side?.tabs.find((tab) => tab.id === side.up);
     return up ? [up] : [];
   };
-  if (held.kind === "folder") {
+  if (held.kind === "folder" || held.kind === "rows") {
+    // Rows of the Bookmarks page held one at a time are a folder.
+    const isFolder = held.kind === "folder" || held.ids.length === 1;
     return (
       <>
-        <FolderSimpleIcon className="size-3.5 shrink-0 text-foreground/60" />
+        {isFolder && (
+          <FolderSimpleIcon className="size-3.5 shrink-0 text-foreground/60" />
+        )}
         <span className="min-w-0 truncate">{held.title}</span>
       </>
     );

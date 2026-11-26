@@ -4,21 +4,30 @@ import {
   fileAddressOf,
   sameAddress,
 } from "@/client/bookmarks/address";
-import { bookmarksAtom, bookmarksStateAtom } from "@/client/bookmarks/store";
+import {
+  dropTargetAt,
+  moveOps,
+  type OutlineRow,
+} from "@/client/bookmarks/outline";
+import {
+  applyBookmarkOpsAtom,
+  bookmarksAtom,
+  bookmarksStateAtom,
+} from "@/client/bookmarks/store";
 import {
   type Bookmark,
   type BookmarkRoot,
   OTHER_ROOT,
   siblingsIn,
 } from "@/shared/bookmarks";
-import { useAtomValue } from "jotai";
+import { useAtomValue, useSetAtom, useStore } from "jotai";
 
 import { segmentsOf } from "../host-path";
 import { bareAddress } from "../omnibar-match";
 import { useWindowTabs } from "../window-tabs";
 import { holds, type Point } from "./landing";
 import { dragAtom, useDropTarget } from "./session";
-import { type DroppedFile, type Held, isBookmark } from "./types";
+import { type DroppedFile, type Held, isBookmark, type Landing } from "./types";
 
 /** The id what is held is kept under, where nothing kept stands for it yet. */
 const STANDING_ID = ":standing";
@@ -68,7 +77,8 @@ export function keptAs(
       : [];
   };
   switch (held.kind) {
-    case "folder": {
+    case "folder":
+    case "rows": {
       return [];
     }
     case "tab": {
@@ -414,6 +424,153 @@ export function useMenuTarget({
 }
 
 /**
+ * The Bookmarks page's outline as a place to land (`rows`, as the page
+ * lists them, each drawn in `list` marked `data-outline-row`): what is held
+ * lands where the pointer is among the rows (`dropTargetAt`), before or after
+ * a row, or into the folder or All Bookmarks it is over. A bookmark moves
+ * there and anything else is kept there, as on the bar (`keptAs`); rows of
+ * the page held together move there and land nowhere else. Over a row that
+ * is held, letting go changes nothing. Nothing in a search's flat list.
+ */
+export function useOutlineTarget({
+  isOff,
+  list,
+  rows,
+}: {
+  isOff: boolean;
+  list: () => HTMLElement | null;
+  rows: readonly OutlineRow[];
+}) {
+  const context = useKeptContext(() => "");
+  const store = useStore();
+  const apply = useSetAtom(applyBookmarkOpsAtom);
+  const landingAt = (
+    point: Point,
+    held: Held,
+  ): Landing | "refused" | undefined => {
+    const state = store.get(bookmarksStateAtom);
+    const ids =
+      held.kind === "rows"
+        ? held.ids
+        : keptAs(held, { ...context, bookmarks: state.bookmarks }).map(
+            (each) => each.id,
+          );
+    const elements = [
+      ...(list()?.querySelectorAll<HTMLElement>("[data-outline-row]") ?? []),
+    ];
+    const card = elements[0]?.parentElement?.getBoundingClientRect();
+    if (
+      ids.length === 0 ||
+      !card ||
+      point.x < card.left ||
+      point.x > card.right
+    ) {
+      return undefined;
+    }
+    const index = elements.findIndex((element) => {
+      const { bottom, top } = element.getBoundingClientRect();
+      return point.y >= top && point.y < bottom;
+    });
+    const over = elements[index]?.getBoundingClientRect();
+    if (!over) {
+      return undefined;
+    }
+    const moving = new Set(ids);
+    const target = dropTargetAt(
+      state,
+      rows,
+      index,
+      (point.y - over.top) / over.height,
+      moving,
+    );
+    if (!target) {
+      return "refused";
+    }
+    const { before, folder, root } = target.place;
+    const there = siblingsIn(state, folder, root).filter(
+      (each) => !moving.has(each.id),
+    );
+    const at = there.findIndex((each) => each.id === before);
+    return {
+      ...(folder === undefined ? {} : { folder }),
+      index: at === -1 ? there.length : at,
+      kind: "bookmarks",
+      ...(root === undefined ? {} : { root }),
+      row:
+        target.kind === "into"
+          ? { at: "into", id: target.id }
+          : "before" in target.line
+            ? { at: "before", id: target.line.before }
+            : { at: "after", id: target.line.after },
+    };
+  };
+  // Two targets over the one outline: rows of the page land themselves, as
+  // nothing else takes them, and anything else lands as on the bar.
+  const targetOver = (isRows: boolean) => ({
+    rect: ({ held }: { held: Held }) =>
+      (held.kind === "rows") === isRows ? shownRect(list()) : undefined,
+    scrolls: { axis: "y" as const, element: list },
+  });
+  useDropTarget(
+    isOff
+      ? undefined
+      : {
+          ...targetOver(false),
+          landingAt: (point, { held }) => landingAt(point, held),
+        },
+  );
+  useDropTarget(
+    isOff
+      ? undefined
+      : {
+          ...targetOver(true),
+          land: (held, landing) => {
+            if (held.kind !== "rows" || landing.kind !== "bookmarks") {
+              return;
+            }
+            const state = store.get(bookmarksStateAtom);
+            const { folder, root } = landing;
+            const before = siblingsIn(state, folder, root).filter(
+              (each) => !held.ids.includes(each.id),
+            )[landing.index]?.id;
+            void apply(
+              moveOps(state, held.ids, {
+                ...(before === undefined ? {} : { before }),
+                ...(folder === undefined ? {} : { folder }),
+                ...(root === undefined ? {} : { root }),
+              }),
+            );
+          },
+          landingAt: (point, { held }) => landingAt(point, held),
+          takesRows: true,
+        },
+  );
+}
+
+/**
+ * What the Bookmarks page draws of a drag: the rows held, which stay
+ * dimmed in their places, and the row a landing on the page is drawn at.
+ */
+export function useOutlineDrop(): {
+  held: ReadonlySet<string>;
+  row: NonNullable<Extract<Landing, { kind: "bookmarks" }>["row"]> | undefined;
+} {
+  const drag = useAtomValue(dragAtom);
+  const held = drag?.held;
+  const landing = drag?.landing;
+  return {
+    held: new Set(
+      held?.kind === "rows"
+        ? held.ids
+        : held?.kind === "link" && held.bookmark !== undefined
+          ? [held.bookmark]
+          : [],
+    ),
+    row: landing?.kind === "bookmarks" ? landing.row : undefined,
+  };
+}
+
+/**
  * Where a drag over a menu of bookmarks would file what is held: before
  * the item named, or after the menu's last item (`"end"`), the menu's
  * items being `items` of what is kept in `place`; nothing while it would
@@ -431,7 +588,8 @@ export function useMenuDropLine(
     landing?.kind !== "bookmarks" ||
     landing.folder !== place.folder ||
     landing.root !== place.root ||
-    landing.chip !== undefined
+    landing.chip !== undefined ||
+    landing.row !== undefined
   ) {
     return undefined;
   }
@@ -463,7 +621,8 @@ export function useMenuDropLine(
  * Where a drag over the bar would put what is held, for the line the bar
  * draws there: its place among the bar's items other than what is held,
  * and the ids of those, which keep their places while it is held. Nothing
- * while it would go into a folder or anywhere off the bar.
+ * while it would go into a folder or anywhere off the bar, or while the
+ * Bookmarks page draws where it goes.
  */
 export function useBarDropLine():
   | { index: number; moving: readonly string[] }
@@ -477,7 +636,8 @@ export function useBarDropLine():
     landing?.kind !== "bookmarks" ||
     landing.folder !== undefined ||
     landing.root !== undefined ||
-    landing.chip !== undefined
+    landing.chip !== undefined ||
+    landing.row !== undefined
   ) {
     return undefined;
   }

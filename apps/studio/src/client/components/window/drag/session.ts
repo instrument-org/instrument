@@ -80,6 +80,8 @@ export interface DropTarget {
   rect: (drag: Pick<Drag, "held">) => Rect | undefined;
   /** A list in it that scrolls while something held nears its ends. */
   scrolls?: { axis: "x" | "y"; element: () => HTMLElement | null | undefined };
+  /** The Bookmarks page's outline, the one place rows of it held together land; every other target is passed over for them. */
+  takesRows?: true;
 }
 
 const targets = new Set<DropTarget>();
@@ -98,6 +100,7 @@ export function useDropTarget(target: DropTarget | undefined) {
   const isOn = target !== undefined && !isPicture;
   const scrolls = target?.scrolls !== undefined;
   const lands = target?.land !== undefined;
+  const takesRows = target?.takesRows === true;
   useEffect(() => {
     if (!isOn) {
       return;
@@ -120,12 +123,13 @@ export function useDropTarget(target: DropTarget | undefined) {
             },
           }
         : {}),
+      ...(takesRows ? { takesRows: true } : {}),
     };
     targets.add(registered);
     return () => {
       targets.delete(registered);
     };
-  }, [isOn, lands, scrolls]);
+  }, [isOn, lands, scrolls, takesRows]);
 }
 
 const frameListeners = new Set<() => void>();
@@ -248,8 +252,12 @@ function landingOverNothing(held: Held, isPast: boolean): Landing | undefined {
 
 /** Every target under a point for what is held, the innermost first. */
 function targetsAt(point: Point, drag: Pick<Drag, "held">) {
+  const isRows = drag.held.kind === "rows";
   return [...targets]
     .flatMap((target) => {
+      if (isRows && target.takesRows !== true) {
+        return [];
+      }
       const rect = target.rect(drag);
       return rect && holds(rect, point)
         ? [{ area: rect.width * rect.height, target }]

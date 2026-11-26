@@ -521,7 +521,7 @@ function useKeepBookmark() {
     const there = all.filter((each) => !moving.has(each.id));
     const orders = ordersAt(there, landing.index, what.length, all);
     const into =
-      folder === undefined ? (root === undefined ? {} : { root }) : { folder };
+      folder !== undefined ? { folder } : root === undefined ? {} : { root };
     void apply(
       what.map((each, index): BookmarkOp => {
         const order = orders[index] ?? orderAfter(all);

@@ -8,18 +8,41 @@ import { pressToHold } from "./session";
  * start becomes the bookmark held by the pointer, as a tab is: it moves
  * along the bar, opens as its tab wherever a tab lands, and goes from the
  * bar where nothing takes it. A press that goes nowhere stays a click.
+ * `onHeld` is told as it becomes a drag, for a list it is in to pick it.
  */
 export function pressBookmark(
   event: React.PointerEvent<HTMLElement>,
   bookmark: { id: string; title: string; url: string },
+  onHeld?: () => void,
 ) {
-  pressToHold(event, () => ({
-    bookmark: bookmark.id,
-    id: StoreId.newTabId(),
-    kind: "link",
-    title: bookmark.title,
-    url: bookmark.url,
-  }));
+  pressToHold(event, () => {
+    onHeld?.();
+    return {
+      bookmark: bookmark.id,
+      id: StoreId.newTabId(),
+      kind: "link",
+      title: bookmark.title,
+      url: bookmark.url,
+    };
+  });
+}
+
+/**
+ * A press on rows of the Bookmarks page held together, several picked or a
+ * folder (`ids`, in the page's order), which past the start become them
+ * held by the pointer: they move among the page's rows and land nowhere
+ * else. A press that goes nowhere stays a click. `onHeld` is told as it
+ * becomes a drag.
+ */
+export function pressRows(
+  event: React.PointerEvent<HTMLElement>,
+  rows: { ids: readonly string[]; title: string },
+  onHeld?: () => void,
+) {
+  pressToHold(event, () => {
+    onHeld?.();
+    return { ids: rows.ids, kind: "rows", title: rows.title };
+  });
 }
 
 /**

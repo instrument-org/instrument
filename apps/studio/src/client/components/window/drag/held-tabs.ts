@@ -60,6 +60,7 @@ export function opensOf(held: Held): { id: string; opens: Opens }[] {
     }
     case "folder":
     case "group":
+    case "rows":
     case "tab": {
       return [];
     }
@@ -107,7 +108,8 @@ export function heldKeysOf(held: Held): string[] {
       return [held.id];
     }
     case "folder":
-    case "group": {
+    case "group":
+    case "rows": {
       return [];
     }
   }

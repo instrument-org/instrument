@@ -6,6 +6,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { useOpenExternalLink } from "@/client/hooks/use-open-external-link";
+import { isUpdateOnItsWay } from "@/client/hooks/use-sidebar-alert";
 import {
   HoverCard,
   HoverCardContent,
@@ -206,12 +207,7 @@ export function UpdateStatusIndicator() {
   // A stuck build shows only while the updater isn't on its way to a newer
   // one: a download, even one nobody sees, or a build ready to install means
   // it may yet land by itself.
-  const onItsWay =
-    restarting ||
-    (!!updateState &&
-      ["available", "downloading", "downloaded", "installing"].includes(
-        updateState.type,
-      ));
+  const onItsWay = restarting || isUpdateOnItsWay(updateState?.type);
   const visibleBadge: null | UpdateStatusBadgeState =
     statusBadge ?? (stuckBuild && !onItsWay ? { type: "cant-update" } : null);
 
@@ -525,7 +521,7 @@ function UpdateReadyCard({
       >
         {children}
       </HoverCardTrigger>
-      <HoverCardContent align="end" className="w-85 p-4">
+      <HoverCardContent align="start" className="w-85 p-4">
         <UpdateReadyCardBody onRestart={onRestart} version={version} />
       </HoverCardContent>
     </HoverCard>
@@ -637,7 +633,7 @@ function CantUpdateCard({
   return (
     <Popover onOpenChange={setOpen} open={open}>
       <PopoverTrigger asChild>{children}</PopoverTrigger>
-      <PopoverContent align="end" className="w-85 p-4">
+      <PopoverContent align="start" className="w-85 p-4">
         <div className="flex flex-col gap-3">
           <div className="flex items-start gap-3">
             <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-warning-500/15 text-warning-700 dark:text-warning-300">

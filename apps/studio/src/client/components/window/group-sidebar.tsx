@@ -783,8 +783,8 @@ function GroupRowPicture({
 /**
  * The sidebar's top row, which drags the window, centered on a Mac on the tab
  * strips beside it, and elsewhere on the ground above their card: room for
- * the window's corner, then the update pill, the mark that Instrument is out
- * of reach while it is, and the bell at its end.
+ * the window's corner, then whatever stays until it is dealt with, the
+ * connection first and then the update, and empty ground otherwise.
  */
 function SidebarTop() {
   return (
@@ -795,17 +795,15 @@ function SidebarTop() {
       )}
       style={{ paddingLeft: sidebarTopInset() }}
     >
-      <span className="flex-1" />
+      <NetworkStatusIndicator isSlim />
       <UpdateStatusIndicator />
-      <NetworkStatusIndicator isIcon />
-      <NotificationsBell />
     </div>
   );
 }
 
 /**
  * The sidebar's foot: the person signed in, or Settings when nobody is,
- * either opening Settings; then History and Help. The space around them
+ * either opening Settings; then the bell, History and Help. The space around them
  * moves the window, as the top row's does.
  */
 function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
@@ -844,6 +842,7 @@ function SidebarFoot({ chatId }: { chatId: ChatId | undefined }) {
           )
         )}
       </button>
+      <NotificationsBell />
       <HistoryButton />
       <HelpMenu chatId={chatId} />
     </div>

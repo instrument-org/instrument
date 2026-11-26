@@ -2,7 +2,8 @@ import { sidebarOpenAtom } from "@/client/atoms/tab-groups";
 import { useIsSetupUp } from "@/client/components/setup/use-setup-state";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
 import { Button } from "@/client/components/ui/button";
-import { isMacOS } from "@/client/lib/utils";
+import { useSidebarAlert } from "@/client/hooks/use-sidebar-alert";
+import { cn, isMacOS } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
 import { safe } from "@orpc/client";
 import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
@@ -16,15 +17,26 @@ import { type ReactNode, useEffect, useRef } from "react";
  */
 const LIGHTS_AFTER_SLIDE_MS = 120;
 
-/** Puts the sidebar of tab groups away and brings it back. */
+const ALERT_DOT = {
+  new: "bg-brand-600",
+  problem: "bg-destructive",
+  warning: "bg-warning-500",
+} as const;
+
+/**
+ * Puts the sidebar of tab groups away and brings it back. While it is away
+ * the button carries one dot for what waits in it (a pill in its top row, the
+ * bell's dot), in that thing's color, so opening it shows what the dot meant.
+ */
 function InboxToggle() {
   const [isOpen, setOpen] = useAtom(sidebarOpenAtom);
+  const alert = useSidebarAlert();
   const label = isOpen ? "Hide the sidebar" : "Show the sidebar";
   return (
     <ToolbarTooltip chord="toggleSidebar" label={label}>
       <Button
         aria-label={label}
-        className="size-7 shrink-0 text-muted-foreground/70"
+        className="relative size-7 shrink-0 text-muted-foreground/70"
         onClick={() => {
           setOpen(!isOpen);
         }}
@@ -32,6 +44,15 @@ function InboxToggle() {
         variant="ghost-toolbar"
       >
         <SidebarSimpleIcon className="size-4" />
+        {!isOpen && alert && (
+          <span
+            className={cn(
+              // Ringed in the strip's own ground, which is the card's.
+              "absolute top-1 right-1 size-2 rounded-full ring-2 ring-background",
+              ALERT_DOT[alert],
+            )}
+          />
+        )}
       </Button>
     </ToolbarTooltip>
   );

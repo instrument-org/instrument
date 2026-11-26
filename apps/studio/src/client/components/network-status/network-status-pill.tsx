@@ -19,8 +19,9 @@ const START_COMMAND = "pnpm --filter @instrument/api dev";
 const PILL_CLASS =
   "h-6 cursor-default gap-1.5 border-transparent bg-warning-500/10 px-2.5 text-xs text-warning-700 ring-1 ring-warning-500/25 ring-inset dark:text-warning-300 [&>svg]:size-3.5";
 
-const ICON_CLASS =
-  "grid size-7 shrink-0 cursor-default place-items-center rounded-md text-warning-700 hover:bg-foreground/5 dark:text-warning-300 [&>svg]:size-4";
+// As tall as the update pill beside it in the sidebar's top row.
+const SLIM_PILL_CLASS =
+  "h-5 cursor-default gap-1 border-transparent bg-warning-500/10 px-1.5 text-xs leading-none font-semibold text-warning-700 ring-1 ring-warning-500/25 ring-inset dark:text-warning-300 [&>svg]:size-3";
 
 type Shown = Exclude<NetworkStatus, "online">;
 
@@ -50,20 +51,20 @@ export function SetupNetworkStatusPill() {
 
 /**
  * The app's word when the computer is offline or Instrument's servers don't
- * answer, opening a card that says what stops working: a pill, or its icon
- * alone in the sidebar's top row (`isIcon`). Goes away by itself. In developer
+ * answer, opening a card that says what stops working: a pill, slimmer in
+ * the sidebar's top row (`isSlim`). Goes away by itself. In developer
  * mode the unreachable card also names the API server it expected, and in a
  * development build the command that starts it.
  */
 export function NetworkStatusIndicator({
-  isIcon = false,
+  isSlim = false,
   labels = {
     "instrument-unreachable": "Can't reach Instrument",
     offline: "Offline",
   },
 }: {
-  /** The status's icon alone, named by its card, which opens under it. */
-  isIcon?: boolean;
+  /** As slim as the update pill, for the sidebar's top row. */
+  isSlim?: boolean;
   /** What the pill says for each status. */
   labels?: Record<Shown, string>;
 }) {
@@ -84,28 +85,17 @@ export function NetworkStatusIndicator({
       openDelay={150}
     >
       <HoverCardTrigger asChild>
-        {isIcon ? (
-          <button
-            aria-label={labels[status]}
-            className={ICON_CLASS}
-            onClick={() => setOpen(true)}
-            type="button"
-          >
+        <Badge asChild className={isSlim ? SLIM_PILL_CLASS : PILL_CLASS}>
+          {/* A button rather than a span: the bar is a drag region, and only
+            buttons are carved out of it to take the pointer. */}
+          <button onClick={() => setOpen(true)} type="button">
             <StatusIcon status={status} />
+            {labels[status]}
           </button>
-        ) : (
-          <Badge asChild className={PILL_CLASS}>
-            {/* A button rather than a span: the bar is a drag region, and only
-              buttons are carved out of it to take the pointer. */}
-            <button onClick={() => setOpen(true)} type="button">
-              <StatusIcon status={status} />
-              {labels[status]}
-            </button>
-          </Badge>
-        )}
+        </Badge>
       </HoverCardTrigger>
       <HoverCardContent
-        align={isIcon ? "start" : "end"}
+        align={isSlim ? "start" : "end"}
         className="w-80 p-4 select-text"
         side="bottom"
       >

@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from "@/client/components/ui/popover";
 import { useWindow } from "@/client/components/window/context";
+import { bellDotOf } from "@/client/hooks/use-sidebar-alert";
 import { chatOfHref } from "@/client/components/window/window-href";
 import {
   SIDEBAR_ICON_BUTTON,
@@ -44,7 +45,7 @@ import {
 } from "react";
 
 /**
- * The window's notifications, in its corner: what needs the person, and what
+ * The window's notifications, in the sidebar's foot: what needs the person, and what
  * we have to tell them, and nothing else. A crash or hang from an earlier
  * session waits here to be sent or dismissed, under a red dot, and never
  * toasts, so someone whose app keeps crashing can let it wait. Notices from
@@ -91,9 +92,7 @@ export function NotificationsBell() {
   };
   // A critical notice keeps the dot red until its cause is gone, seen or
   // not, as a problem does: there is nothing to do but act on it.
-  const hasProblems =
-    problems.length > 0 ||
-    notices.some((notice) => notice.severity === "critical");
+  const dot = bellDotOf({ notices, problemCount: problems.length });
   const unseen = notices.filter((notice) => !notice.seen);
   const empty = problems.length === 0 && notices.length === 0;
 
@@ -118,27 +117,28 @@ export function NotificationsBell() {
       <PopoverTrigger asChild>
         <button
           aria-label={
-            hasProblems || unseen.length > 0
-              ? "Notifications, something new"
+            dot ? "Notifications, something new"
               : "Notifications"
           }
           className={cn("relative", SIDEBAR_ICON_BUTTON)}
           type="button"
         >
           <BellIcon className="size-4" />
-          {(hasProblems || unseen.length > 0) && (
+          {dot && (
             <span
               className={cn(
                 "absolute top-1 right-1 size-2 rounded-full ring-2 ring-ground",
-                hasProblems ? "bg-destructive" : "bg-brand-600",
+                dot === "problem" ? "bg-destructive" : "bg-brand-600",
               )}
             />
           )}
         </button>
       </PopoverTrigger>
-      <SidebarPopoverAnchor side="bottom" />
+      <SidebarPopoverAnchor side="top" />
       <PopoverContent
         align="start"
+        side="top"
+        sideOffset={6}
         // A narrow sidebar's width breaks a notice's words, so there it runs
         // out past the sidebar.
         className="min-w-72 overflow-hidden p-0"

@@ -12,7 +12,7 @@ import { setToastDeveloperMode } from "@/client/lib/toast";
 import { useTheme } from "../theme-provider";
 import { Spinner } from "./spinner";
 
-// The bell's notices toast from a second Toaster hung under the bell
+// The bell's notices toast from a second Toaster just over the sidebar's foot
 // (`window/window-frame.tsx`), so a notice turns up where it waits afterward.
 export const BELL_TOASTER = "bell";
 

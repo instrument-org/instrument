@@ -8,7 +8,7 @@ import { StudioModals } from "@/client/components/studio-modals/studio-modals";
 import { BELL_TOASTER, Toaster } from "@/client/components/ui/sonner";
 import { PageOpenContext } from "@/client/components/page-open-context";
 import { ChromeInsetProvider } from "@/client/hooks/use-chrome-inset";
-import { stripBand, TOOLBAR_HEIGHT, windowCardTop } from "@/shared/constants";
+import { TOOLBAR_HEIGHT, windowCardTop } from "@/shared/constants";
 import { type CSSProperties, type ReactNode, type Ref } from "react";
 
 import { cn, isMacOS } from "@/client/lib/utils";
@@ -20,6 +20,8 @@ import { LinkSurface } from "./link-surface";
 const WINDOW_CORNER = { bottom: 12, left: 12 };
 // The bell's popover's width (`w-95`), so a toast is the row it becomes.
 const BELL_WIDTH = 380;
+/** The sidebar's foot, `h-11` in `group-sidebar.tsx`, which the bell sits in. */
+const SIDEBAR_FOOT_HEIGHT = 44;
 
 /** The card everything past the rail stands on: rounded, lifted off the window's ground. */
 export const WINDOW_CARD =
@@ -56,14 +58,17 @@ export function WindowFrame({
   // waits rather than landing over setup.
   const isSetupUp = useIsSetupUp();
   const isStripShown = useDeveloperStripShown();
-  // Just under the bell, 4px inside the card's top right corner on both
-  // sides: the card stands 8px in from the window's right edge (`mr-2`).
-  const bellCorner = { right: 8 + 4, top: stripBand(isMacOS()) + 4 };
   const cardTop = windowCardTop(isMacOS());
   // Toasts are placed from the viewport's foot, which the developer band sits on.
   const toastCorner = {
     ...WINDOW_CORNER,
     bottom: WINDOW_CORNER.bottom + (isStripShown ? DEVELOPER_STRIP_HEIGHT : 0),
+  };
+  // Just over the sidebar's foot, where the bell is, in line with its rows.
+  const bellCorner = {
+    bottom:
+      (isStripShown ? DEVELOPER_STRIP_HEIGHT : 0) + SIDEBAR_FOOT_HEIGHT + 4,
+    left: 8,
   };
   return (
     // The band across the top is the window's, so every menu, popover and
@@ -145,7 +150,7 @@ export function WindowFrame({
               id={BELL_TOASTER}
               mobileOffset={bellCorner}
               offset={bellCorner}
-              position="top-right"
+              position="bottom-left"
               // React's style type has no custom properties; Sonner sizes
               // its stack and every toast in it from this one.
               style={{ "--width": `${BELL_WIDTH}px` } as CSSProperties}

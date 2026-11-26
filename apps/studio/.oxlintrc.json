@@ -103,7 +103,7 @@
             "src/client/components/window/browser-tabs.tsx": 7,
             "src/client/components/window/computer-page.tsx": 1,
             "src/client/components/window/drag/use-drag-system.ts": 4,
-            "src/client/components/window/group-sidebar.tsx": 1,
+            "src/client/components/window/inbox-toggle.tsx": 1,
             "src/client/components/window/page-capture-mark.tsx": 1,
             "src/client/components/window/projects-section.tsx": 1,
             "src/client/components/window/recent-chat-groups.ts": 1,

@@ -304,3 +304,16 @@ export function setArchived(
     },
   );
 }
+
+/**
+ * Puts a chat in the trash with every task it started, as Delete does: the
+ * row stays out of the list until the list has it gone, and the chat's
+ * session is no longer read. Throws where the trash refused it.
+ */
+export async function trashChat(queryClient: QueryClient, id: ChatId) {
+  const at = await rpcClient.workspace.chats.trash.call({ id });
+  paintChatRow(queryClient, id, "gone").landed(at);
+  queryClient.removeQueries({
+    queryKey: rpcClient.workspace.chats.session.queryKey({ input: { id } }),
+  });
+}

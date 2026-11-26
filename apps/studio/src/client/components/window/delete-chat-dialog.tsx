@@ -1,10 +1,9 @@
 import { DeleteWithProgressDialog } from "@/client/components/delete-with-progress-dialog";
 import { osConventions } from "@/client/lib/utils";
-import { rpcClient } from "@/client/rpc/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/client/lib/toast";
 
-import { paintChatRow } from "./chat-list-query";
+import { trashChat } from "./chat-actions";
 import { type Chat } from "./chats";
 import { childTasksOptions } from "./child-tasks-query";
 
@@ -77,11 +76,7 @@ export function DeleteChatDialog({
       items={[chat]}
       onDelete={async () => {
         try {
-          const at = await rpcClient.workspace.chats.trash.call({
-            id: chat.id,
-          });
-          // Kept out of the list until the list has it gone.
-          paintChatRow(queryClient, chat.id, "gone").landed(at);
+          await trashChat(queryClient, chat.id);
         } catch (error) {
           toast.error("Couldn't delete the chat", {
             cause: error,
@@ -90,11 +85,6 @@ export function DeleteChatDialog({
           });
           throw error;
         }
-        queryClient.removeQueries({
-          queryKey: rpcClient.workspace.chats.session.queryKey({
-            input: { id: chat.id },
-          }),
-        });
         onDeleted();
       }}
       onOpenChange={onOpenChange}

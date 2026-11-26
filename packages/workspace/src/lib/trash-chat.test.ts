@@ -4,6 +4,7 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AbsolutePathSchema, WorkspaceDirSchema } from "../schemas/paths";
+import { StoreId } from "../schemas/store-id";
 import { chatFor } from "../test/helpers/chat-record";
 import { chatTaskFor, writtenIn } from "../test/helpers/chat-task";
 import { grantFolder } from "./chat/grants";
@@ -12,6 +13,7 @@ import { setDenied } from "./permissions/denials";
 import { readPermissionSettings } from "./permissions/rules";
 import { forgetChatFolders, resolveChat, chatDir } from "./record-folders";
 import { trashChat } from "./trash-chat";
+import { updateSessionTitle } from "./update-session-title";
 import { workDir } from "./work-dir";
 import { getWorkspaceConfig, setWorkspaceConfig } from "./workspace-config";
 import { ChatIdSchema } from "../schemas/chat-id";
@@ -77,6 +79,28 @@ afterEach(async () => {
 });
 
 describe("trashChat", () => {
+  it("leaves nowhere for a title still being made to land", async () => {
+    const sessionId = StoreId.newSessionId();
+    const chat = await chatFor(sessionId);
+    const folder = chatDir(chat);
+
+    await trashChat({
+      id: chat,
+      workspaceConfig: getWorkspaceConfig(),
+      workspaceRef,
+    });
+    // The title its first message was being named with, arriving late.
+    const titled = await updateSessionTitle({
+      chatId: chat,
+      sessionId,
+      title: "Which dishwasher",
+    });
+
+    expect(titled).toBe(false);
+    await expect(fs.access(folder)).rejects.toThrow();
+    expect(resolveChat(chat)).toBeUndefined();
+  });
+
   it("trashes the chat's record folder once, with the tasks in its store", async () => {
     const chat = await chatFor();
     await chatTaskFor(chat, { title: "First task" });

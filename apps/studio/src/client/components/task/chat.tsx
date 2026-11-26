@@ -37,7 +37,13 @@ import {
 } from "@/client/drafts/chat-box";
 import { hasWaitingWords } from "@/client/drafts/settle-words";
 import { repliesOf } from "@/shared/drafts";
-import { draftsAtom, updateDraftAtom } from "@/client/drafts/store";
+import {
+  draftsAtom,
+  releaseDraftAtom,
+  updateDraftAtom,
+} from "@/client/drafts/store";
+import { captureException } from "@/client/lib/capture-exception";
+import { getGroupTabRouter } from "@/client/lib/group-tab-router-registry";
 import { APPS_HREF, BROWSER_HREF } from "@/client/atoms/window";
 import { useTabDeveloperMode } from "@/client/hooks/use-developer-mode";
 import { useFilesStartHref } from "@/client/hooks/use-files-start-href";
@@ -122,12 +128,12 @@ import { ThinkingRow } from "../transcript/turn-view";
 import { useTranscriptFeed } from "../transcript/use-transcript-feed";
 import { UserMessage } from "../user-message";
 import { ChatSeparatorRow } from "../chat-separator";
-import { setArchived } from "../window/chat-actions";
+import { setArchived, trashChat } from "../window/chat-actions";
 import { chatListed, chatListOptions } from "../window/chat-list-query";
 import { askChatHead } from "../window/chat-head-requests";
 import { WindowContext } from "../window/context";
 import { useGroupTab } from "../window/group-tab";
-import { chatHref } from "../window/window-href";
+import { chatHref, newChatHref } from "../window/window-href";
 import {
   type PendingPrompt,
   pendingPrompt,
@@ -636,6 +642,7 @@ export function ChatConversation({
   const updateDraft = useSetAtom(updateDraftAtom);
   const beginReplySend = useSetAtom(beginReplySendAtom);
   const failReplySend = useSetAtom(failReplySendAtom);
+  const releaseDraft = useSetAtom(releaseDraftAtom);
   const swapInReplyDraft = useSetAtom(swapInReplyAtom);
   const takeBackReply = useSetAtom(takeBackReplyAtom);
   const { moveTo: moveAsks } = useStagedAskActions();
@@ -702,7 +709,10 @@ export function ChatConversation({
    * A message the Stop took back: the draft it was sent from is the
    * person's again, exactly as it was. A reply goes in the box where the box
    * is still empty, and otherwise waits beside it; its marked places go back
-   * over the box either way.
+   * over the box either way. A chat's opening draft, with nothing typed
+   * since and no reply waiting, turns the tab back into the new chat it was
+   * sent from, and the chat, left with nothing, goes to the trash as Delete
+   * sends it.
    */
   const giveBack = ({ draftId }: TakenBack) => {
     const draft = store.get(draftsAtom).find((each) => each.id === draftId);
@@ -716,6 +726,19 @@ export function ChatConversation({
       shown?.prompt.trim() === "" &&
       shown.items.length === 0 &&
       !hasWaitingWords(chatBoxWordsKey(replyChatId));
+    const router =
+      tabId === undefined ? undefined : getGroupTabRouter(tabId);
+    if (
+      draft.chatId === undefined &&
+      isEmptyNow &&
+      router !== undefined &&
+      repliesOf(store.get(draftsAtom), replyChatId).length === 0
+    ) {
+      releaseDraft(draftId);
+      router.history.replace(newChatHref(draftId));
+      trashChat(queryClient, replyChatId).catch(captureException);
+      return;
+    }
     const taken = takeBackReply({
       chatId: replyChatId,
       draftId,

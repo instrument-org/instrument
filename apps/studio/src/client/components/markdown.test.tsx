@@ -62,6 +62,12 @@ vi.mock("./file-actions-menu", () => ({
     ) : null,
 }));
 
+// What opens a picture card's file asks the main process, which is the card's
+// own tests' business.
+vi.mock("@/client/hooks/use-file-open-control", () => ({
+  useFileOpenControl: () => ({ open: vi.fn(), showOpen: false }),
+}));
+
 // A chip is drawn from its path, so nothing under `workspace` may be reached
 // while rendering one. `utils` stays real enough for the external-link path,
 // which is a different question and still needs the main process.
@@ -546,14 +552,29 @@ describe("Markdown fences", () => {
 // What the transform does to a tree has its own tests; these are about the
 // attribute surviving the trip through the rehype pipeline and out of
 describe("Markdown images", () => {
-  it("names the image that could not be drawn, rather than breaking", () => {
+  it("names the picture of a chat file that could not be drawn, rather than breaking", () => {
     const { container } = renderMarkdown("![The chart](output/chart.png)");
+
+    fireEvent.error(screen.getByRole("img"));
+
+    // The card stays, by the file's name, with nothing drawn where the
+    // picture would be.
+    expect(container.querySelector("img")).toBeNull();
+    expect(screen.getByText("chart.png")).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open chart.png" }),
+    ).toBeTruthy();
+  });
+
+  it("names an image from elsewhere that could not be drawn, rather than breaking", () => {
+    const { container } = renderMarkdown(
+      "![The chart](data:image/png;base64,AAAA)",
+    );
 
     fireEvent.error(screen.getByRole("img"));
 
     expect(container.querySelector("img")).toBeNull();
     expect(screen.getByText("The chart")).toBeTruthy();
-    expect(screen.getByText("output/chart.png")).toBeTruthy();
     // A failed image is a fact rather than an offer, so the chip is no button.
     expect(screen.queryByRole("button", { name: /The chart/ })).toBeNull();
   });

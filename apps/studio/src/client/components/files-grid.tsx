@@ -17,6 +17,7 @@ import { type CardVersion, CardVersionContext } from "./card-version";
 import { FilePreviewCard } from "./file-preview-card";
 import { FilePreviewListItem } from "./file-preview-list-item";
 import { MEDIA_CARD_ASPECT } from "./media-card-shape";
+import { PictureCard, PicturePlaceholder, PictureRows } from "./picture-card";
 import { Skeleton } from "./ui/skeleton";
 
 /**
@@ -110,7 +111,10 @@ export function FilesGrid({
 
   const mainFiles = preserveOrder ? files : bucketByChatFolder(files);
 
-  const mediaFiles = compact ? [] : mainFiles.filter(isMediaFile);
+  const [pictureFiles, mediaFiles] = fork(
+    compact ? [] : mainFiles.filter(isMediaFile),
+    isPictureFile,
+  );
   const listFiles = compact
     ? mainFiles
     : mainFiles.filter((file) => !isMediaFile(file));
@@ -120,10 +124,13 @@ export function FilesGrid({
     : listFiles.filter((file) => !hasRowCardPreview(file));
 
   // See `pendingFilePath`.
-  const hasPendingMediaTile =
+  const hasPendingMedia =
     !compact &&
     pendingFilePath !== undefined &&
     isMediaFile({ filename: pendingFilePath });
+  const hasPendingPicture =
+    hasPendingMedia && isPictureFile({ filename: pendingFilePath });
+  const hasPendingMediaTile = hasPendingMedia && !hasPendingPicture;
 
   const mediaTileCount = mediaFiles.length + (hasPendingMediaTile ? 1 : 0);
   const isSingleMediaFile = mediaTileCount === 1;
@@ -157,6 +164,33 @@ export function FilesGrid({
 
   const gridSections = (
     <>
+      {/* Pictures stand at their own shapes, in rows that share a height. */}
+      {(pictureFiles.length > 0 || hasPendingPicture) && (
+        <PictureRows
+          order={[
+            ...pictureFiles.map((file) => file.hostPath),
+            ...(hasPendingPicture ? [PENDING_PICTURE] : []),
+          ]}
+        >
+          {pictureFiles.map((file) => (
+            <CardVersionContext
+              key={file.hostPath}
+              value={versions?.get(file.hostPath)}
+            >
+              <PictureCard
+                file={file}
+                onOpen={() => {
+                  handleFileClick(file);
+                }}
+              />
+            </CardVersionContext>
+          ))}
+          {hasPendingPicture && (
+            <PicturePlaceholder layoutKey={PENDING_PICTURE} />
+          )}
+        </PictureRows>
+      )}
+
       {mediaTileCount > 0 && (
         <div className="@container">
           <div
@@ -248,7 +282,7 @@ export function FilesGrid({
 
   // Every path was filtered out above, so the grid has nothing to draw. Render
   // nothing rather than an empty box, which a flex parent still gives a gap.
-  if (mainFiles.length === 0 && !hasPendingMediaTile) {
+  if (mainFiles.length === 0 && !hasPendingMedia) {
     return null;
   }
 
@@ -281,7 +315,8 @@ function bucketByChatFolder(files: ViewerFile[]) {
 }
 
 // Which types get a full-width preview row rather than a compact chip. Images
-// and video are the exceptions: they have their own square media section above.
+// and video are the exceptions: pictures have their rows above, and video its
+// media tiles.
 //
 // Exhaustive rather than a list of matches, so a new `FileType` has to say
 // which it is. As a list, adding the document types silently moved Word, Excel,
@@ -310,6 +345,13 @@ const ROW_CARD_PREVIEW: Record<FileType, boolean> = {
   video: false,
   xlsx: true,
 };
+
+/** The key the room for a picture still being named takes in its rows. */
+const PENDING_PICTURE = "pending";
+
+function isPictureFile(file: { filename: string; mimeType?: string }) {
+  return getFileType(file) === "image";
+}
 
 function hasRowCardPreview(file: ViewerFile) {
   return ROW_CARD_PREVIEW[getFileType(file)];

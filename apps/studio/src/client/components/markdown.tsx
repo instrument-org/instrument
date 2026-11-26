@@ -32,6 +32,7 @@ import {
   chatFilePathFromHref,
   isDriveHref,
   isTimelineEntry,
+  nameOfPath,
   parseTimeline,
   type ChatId,
 } from "@instrument-org/workspace/client";
@@ -39,8 +40,10 @@ import { ArrowSquareOutIcon } from "@phosphor-icons/react/ArrowSquareOut";
 import { ImageIcon } from "@phosphor-icons/react/Image";
 import { useSetAtom } from "jotai";
 import {
+  Children,
   type ComponentProps,
   createContext,
+  isValidElement,
   memo,
   type ReactNode,
   useCallback,
@@ -102,6 +105,7 @@ import {
   InlineLink,
 } from "./inline-link";
 import { MarkdownTable } from "./markdown-table";
+import { PictureCard, PictureRows } from "./picture-card";
 import { MarkdownChatContext } from "./markdown-chat-context";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { MessageFence } from "./message-card";
@@ -545,7 +549,11 @@ const markdownOrderedList: Components["ol"] = ({
 // node: `:only-child` only counts element siblings. Mark the exact parsed shape
 // here so prose rhythm never promotes `**Priority:** ordinary text` into a
 // section label.
-const markdownParagraph: Components["p"] = ({ className, node, ...props }) => {
+const markdownParagraph = ({
+  className,
+  node,
+  ...props
+}: ComponentProps<"p"> & ExtraProps) => {
   const onlyChild = node?.children.length === 1 ? node.children[0] : undefined;
   const isSectionLabel =
     onlyChild?.type === "element" && onlyChild.tagName === "strong";
@@ -556,6 +564,60 @@ const markdownParagraph: Components["p"] = ({ className, node, ...props }) => {
       className={cn(className, isSectionLabel && "markdown-section-label")}
     />
   );
+};
+
+/**
+ * The paragraph of a message: one that is pictures of the chat's files and
+ * nothing else lays them out in rows that share a height, as a reply's files
+ * block does, keyed by the source each was written with.
+ */
+const messageParagraph = (props: ComponentProps<"p"> & ExtraProps) => {
+  const sources = picturesOnlyOf(props.node);
+  if (sources === undefined) {
+    return markdownParagraph(props);
+  }
+  const { children, className, node: _node, ...rest } = props;
+  return (
+    <p {...rest} className={className}>
+      <PictureRows order={sources}>
+        {/* The breaks between the pictures go: the rows say where a line ends. */}
+        {Children.toArray(children).filter(
+          (child) =>
+            (typeof child !== "string" || child.trim() !== "") &&
+            !(isValidElement(child) && child.type === "br"),
+        )}
+      </PictureRows>
+    </p>
+  );
+};
+
+/**
+ * The sources of a paragraph that is pictures of the chat's files alone,
+ * between line breaks and spaces; undefined for any other paragraph.
+ */
+const picturesOnlyOf = (node: MarkdownNode | undefined) => {
+  const sources: string[] = [];
+  for (const child of node?.children ?? []) {
+    if (child.type === "text" && child.value.trim() === "") {
+      continue;
+    }
+    if (child.type !== "element") {
+      return;
+    }
+    if (child.tagName === "br") {
+      continue;
+    }
+    const src = child.properties.src;
+    if (
+      child.tagName !== "img" ||
+      typeof src !== "string" ||
+      chatFilePathFromImageSrc(src) === undefined
+    ) {
+      return;
+    }
+    sources.push(src);
+  }
+  return sources.length > 0 ? sources : undefined;
 };
 
 // Renders a link to a file the agent produced as an interactive chip that opens
@@ -1080,6 +1142,7 @@ const MarkdownImage = ({
   alt,
   className,
   filePath,
+  layoutKey,
   onClick,
   src,
   ...props
@@ -1089,6 +1152,8 @@ const MarkdownImage = ({
   // embed can just as well point at a real URL, which names no file to hand
   // anyone, and arrives as `src` alone.
   filePath?: string;
+  /** The source as written, which the picture's rows know it by. */
+  layoutKey?: string;
   onClick?: (
     event: React.MouseEvent<HTMLImageElement>,
     hostPath?: string,
@@ -1100,6 +1165,7 @@ const MarkdownImage = ({
     filePath ?? ""
   ];
   const dragProps = useFileDrag(hostPath ? { hostPath } : undefined);
+  const showChatFile = useShowChatFile();
   const resolvedSrc =
     filePath === undefined
       ? src
@@ -1111,6 +1177,27 @@ const MarkdownImage = ({
     // A task path not yet placed on the computer, or one the task cannot
     // reach: nothing to draw yet, and nothing to fail on.
     return null;
+  }
+  if (filePath !== undefined && hostPath && chatId !== undefined) {
+    // A picture of one of the chat's files is the card a files block draws
+    // for it, and opens the same way, in a tab beside the chat.
+    const file: ViewerFile = {
+      chatFile: { chatId, filePath },
+      filename: nameOfPath(filePath),
+      hostPath,
+      url: resolvedSrc,
+    };
+    return (
+      <PictureCard
+        alt={alt}
+        file={file}
+        isStreaming={isStreaming}
+        layoutKey={layoutKey ?? filePath}
+        onOpen={() => {
+          showChatFile(filePath);
+        }}
+      />
+    );
   }
   if (resolvedSrc === failedSrc) {
     // Half a URL fails the same way a missing file does, and until the text
@@ -1463,13 +1550,14 @@ export const Markdown = memo(
               alt={alt}
               className={className}
               filePath={filePath}
+              layoutKey={src}
               onClick={handleImageClick}
               src={image.src}
             />
           );
         },
         ol: markdownOrderedList,
-        p: markdownParagraph,
+        p: documentUrl ? markdownParagraph : messageParagraph,
         pre: MarkdownPre,
         table: ({ children, node }) => (
           <MarkdownTable isPictures={isPictureTable(node)}>

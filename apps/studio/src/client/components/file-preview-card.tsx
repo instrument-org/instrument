@@ -8,15 +8,13 @@ import {
   FILE_MISSING_LABEL,
   useFilePresence,
 } from "@/client/hooks/use-file-presence";
-import { copyFileToClipboard, downloadFile } from "@/client/lib/file-actions";
+import { downloadFile } from "@/client/lib/file-actions";
 import { getFileKindLabel, getFileType } from "@/client/lib/get-file-type";
 import { readUnknownDuration } from "@/client/lib/media-duration";
 import { displayPath } from "@/client/lib/path-utils";
 import { cn } from "@/client/lib/utils";
 import { nameOfPath } from "@instrument-org/workspace/client";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
-import { CheckIcon } from "@phosphor-icons/react/Check";
-import { CopyIcon } from "@phosphor-icons/react/Copy";
 import { PlayIcon } from "@phosphor-icons/react/Play";
 import { rpcClient } from "@/client/rpc/client";
 import { skipToken, useQuery } from "@tanstack/react-query";
@@ -24,18 +22,17 @@ import { useContext, useRef, useState } from "react";
 
 import { usePrefetchFileOpenTarget } from "../hooks/use-file-open-target";
 import { useNearViewport } from "../hooks/use-near-viewport";
-import { useTimedFlag } from "../hooks/use-timed-flag";
 import { CardVersionContext } from "./card-version";
 import { DrawingPicture } from "./excalidraw-editor/drawing-picture";
 import { FileTypeIcon, formatByteSize } from "./extend/file-system";
 import { FileActionsMenu, FileActionsMenuItems } from "./file-actions-menu";
 import { FileThumbnail } from "./file-thumbnail";
 import { SystemFolderIcon } from "./icons/folder-glyph";
-import { ImageWithFallback } from "./image-with-fallback";
 import { type MediaCardShape } from "./media-card-shape";
 import { MediaCardShell } from "./media-card-shell";
 import { MediaOverlayButton } from "./media-overlay-button";
 import { OpenFileButton } from "./open-file-button";
+import { PictureCard } from "./picture-card";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -104,12 +101,7 @@ export function FilePreviewCard({
 
   const card =
     fileType === "image" ? (
-      <ImagePreviewCard
-        file={file}
-        isMissing={isMissing}
-        onClick={onClick}
-        shape={shape}
-      />
+      <PictureCard file={file} onOpen={onClick} />
     ) : fileType === "excalidraw" ? (
       <DrawingPreviewCard
         file={file}
@@ -467,115 +459,6 @@ function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
   return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
-
-function ImagePreviewCard({
-  file,
-  isMissing,
-  onClick,
-  shape,
-}: {
-  file: ViewerFile;
-  isMissing?: boolean;
-  onClick: () => void;
-  shape?: MediaCardShape;
-}) {
-  const { filename, url } = file;
-  const fileActions = useFileActionVisibility(file);
-  const [resolveOpenTarget, setResolveOpenTarget] = useState(false);
-  const [imageLoadError, setImageLoadError] = useState(false);
-  const openControl = useFileOpenControl(resolveOpenTarget ? file : undefined);
-  const { active: copied, trigger: triggerCopied } = useTimedFlag();
-  const showCopy = fileActions.showCopy && !imageLoadError;
-
-  const handleCopy = async () => {
-    try {
-      await copyFileToClipboard({
-        hostPath: file.hostPath,
-        isImage: getFileType(file) === "image",
-      });
-      triggerCopied();
-    } catch {
-      // copyFileToClipboard already toasts on error
-    }
-  };
-
-  const hasActions =
-    showCopy || fileActions.showDownload || openControl.showOpen;
-
-  return (
-    <MediaCardShell
-      bottomBar={isMissing ? <MissingBadge /> : undefined}
-      canCopy={!imageLoadError}
-      className={cn(isMissing && "opacity-60")}
-      disabled={isMissing}
-      file={file}
-      onClick={onClick}
-      onMouseEnter={() => {
-        setResolveOpenTarget(true);
-      }}
-      overlayActions={
-        hasActions && !isMissing ? (
-          <>
-            {showCopy && (
-              <MediaOverlayButton
-                icon={
-                  copied ? (
-                    <CheckIcon className="size-3.5 shrink-0" />
-                  ) : (
-                    <CopyIcon className="size-3.5 shrink-0" />
-                  )
-                }
-                label="Copy"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleCopy();
-                }}
-              />
-            )}
-            {fileActions.showDownload && (
-              <MediaOverlayButton
-                icon={<ArrowLineDownIcon className="size-3.5 shrink-0" />}
-                label="Save as…"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void downloadFile(file);
-                }}
-              />
-            )}
-            <OpenFileButton
-              className="max-w-44"
-              control={openControl}
-              dropdownClassName="h-6 rounded-lg"
-              file={file}
-              iconClassName="size-3.5 shrink-0"
-              labelClassName="truncate"
-              onClick={(e) => {
-                e.stopPropagation();
-              }}
-              size="xs"
-            />
-          </>
-        ) : undefined
-      }
-      scrim={<div className="absolute inset-0 bg-black/20" />}
-      shape={shape}
-    >
-      <div className="flex size-full items-center justify-center">
-        <ImageWithFallback
-          alt={filename}
-          className="max-h-full max-w-full object-contain"
-          fallbackClassName="size-full"
-          filename={filename}
-          onError={() => {
-            setImageLoadError(true);
-          }}
-          showCheckerboard
-          src={url}
-        />
-      </div>
-    </MediaCardShell>
-  );
 }
 
 /**

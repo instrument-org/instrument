@@ -144,13 +144,14 @@ test("names every file it draws, in the tree and not just on screen", async () =
     "output/revenue.png\noutput/notes.md\noutput/clip.mp4",
   );
 
-  // The thumbnail's host never resolves, so the image is in the tree until its
-  // load fails and the tile falls back to the icon. Snapshot after that.
+  // The picture's host never resolves, so the image is in the tree until its
+  // load fails and the card draws its mark instead. Snapshot after that.
   await expect
     .poll(() => locator.element().querySelector("img"), { timeout: 10_000 })
     .toBeNull();
   await expect(ariaSnapshot(locator)).resolves.toMatchInlineSnapshot(`
     "- button "Open revenue.png"
+    - text: revenue.png
     - button "Open clip.mp4"
     - button "Open notes.md"
     - text: notes.md Markdown
@@ -242,7 +243,7 @@ test("lands a lone tile's edge on the column its file cards are laid out on", as
   // its own: the picture ends where a card below it ends, instead of at a
   // measurement nothing else in the grid shares.
   const { container } = await drawFence(
-    "output/chart.png\noutput/report.md\noutput/data.csv\noutput/notes.txt",
+    "output/clip.mp4\noutput/report.md\noutput/data.csv\noutput/notes.txt",
     { width: WIDE },
   );
 
@@ -268,18 +269,19 @@ test("keeps a row of media the same height as its last card lands", async () => 
   expect(streaming).toBe(settled);
 });
 
-test("keeps a lone file the same size as its card lands", async () => {
-  const fence = "output/chart.png";
+test.each(["output/chart.png", "output/clip.mp4"])(
+  "keeps a lone file the same size as its card lands: %s",
+  async (fence) => {
+    const streaming = await fenceHeight(fence, true);
+    const settled = await fenceHeight(fence, false);
 
-  const streaming = await fenceHeight(fence, true);
-  const settled = await fenceHeight(fence, false);
+    expect(streaming).toBe(settled);
+  },
+);
 
-  expect(streaming).toBe(settled);
-});
-
-test("gives one file the column and a set of them a grid", async () => {
-  const alone = "output/chart.png";
-  const several = "output/one.png\noutput/two.png\noutput/three.png";
+test("gives one video the column and a set of them a grid", async () => {
+  const alone = "output/clip.mp4";
+  const several = "output/one.mp4\noutput/two.mp4\noutput/three.mp4";
 
   expect({
     alone: {

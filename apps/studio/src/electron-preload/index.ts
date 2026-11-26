@@ -1,5 +1,6 @@
 import { RECORD_ACTION_CHANNEL } from "@/shared/actions";
 import {
+  BOOT_MARK_CHANNEL,
   CAPTURE_EXCEPTION_CHANNEL,
   CODE_EDITOR_FOCUS_CHANNEL,
   RESOLVE_THEME_CHANNEL,
@@ -262,6 +263,9 @@ const api: Window["api"] = {
         ipcRenderer.off(BOOKMARKS_CHANNEL.changed, forward);
       };
     },
+  },
+  bootMark: (mark) => {
+    ipcRenderer.send(BOOT_MARK_CHANNEL, mark);
   },
   captureException: async (payload) => {
     const answer: unknown = await ipcRenderer.invoke(

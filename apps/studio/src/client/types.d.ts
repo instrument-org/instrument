@@ -1,6 +1,7 @@
 import type { WindowAction } from "@/client/lib/actions";
 import type { DraftsBridge } from "@/shared/drafts";
 import type { BookmarksBridge } from "@/shared/bookmarks";
+import type { BootMark } from "@/shared/constants";
 import type { KeptFile, KeptSnapshot } from "@/shared/kept-state";
 import type { SetupState } from "@/shared/setup";
 import type { ElectronAPI } from "@electron-toolkit/preload";
@@ -32,6 +33,9 @@ declare global {
       // window loaded, ops sent back, and every change from anywhere. Absent
       // outside Electron.
       bookmarks?: BookmarksBridge;
+      // Tells the main process the window reached a point of its launch,
+      // for the boot log. Absent outside Electron.
+      bootMark?: (mark: BootMark) => void;
       // Hands a captured exception to the main process, which keeps it as an
       // event and answers how a report names it. Absent outside Electron.
       captureException?: (payload: {

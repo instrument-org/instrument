@@ -22,6 +22,15 @@ export const CODE_EDITOR_FOCUS_CHANNEL = "code-editor-focus";
 // still arrives when RPC is what broke. See electron-main/lib/renderer-exceptions.
 export const CAPTURE_EXCEPTION_CHANNEL = "capture-exception";
 
+// One-way word that a window reached a point of its launch, which the main
+// process logs beside its own boot steps (`electron-main/lib/boot-timing`), so
+// a launch is timed to when the window is usable, not only to its first paint.
+export const BOOT_MARK_CHANNEL = "boot-mark";
+
+/** The points a window's launch reaches that it tells the main process of. */
+export const BOOT_MARKS = ["first render", "chat list read"] as const;
+export type BootMark = (typeof BOOT_MARKS)[number];
+
 export const TOOLBAR_HEIGHT = 40;
 /** The ground an app window leaves above its card, in layout px: the tab strips stand under it, and the window's top row with them. */
 export const WINDOW_CARD_GAP = 8;

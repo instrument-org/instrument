@@ -1,4 +1,8 @@
-import { WINDOW_CARD_GAP } from "@/shared/constants";
+import {
+  BOOT_MARK_CHANNEL,
+  BOOT_MARKS,
+  WINDOW_CARD_GAP,
+} from "@/shared/constants";
 import { getBrowserViewManager } from "@/electron-main/browser-view/manager";
 import { captureServerException } from "@/electron-main/lib/capture-server-exception";
 import { logBootMark } from "@/electron-main/lib/boot-timing";
@@ -652,6 +656,12 @@ export function restoreAppWindows() {
     const window = createAppWindow(id);
     window.once("ready-to-show", () => {
       logBootMark(`window ${id} ready-to-show`);
+    });
+    // Then the page's own: its first render, and the chat list read.
+    window.webContents.ipc.on(BOOT_MARK_CHANNEL, (_event, mark: unknown) => {
+      if (BOOT_MARKS.some((known) => known === mark)) {
+        logBootMark(`window ${id} ${String(mark)}`);
+      }
     });
     return window;
   });

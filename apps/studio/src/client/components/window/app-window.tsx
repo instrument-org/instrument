@@ -223,6 +223,7 @@ import { stripKeyOf } from "./pane-tabs";
 import { flashStripTab, flashStripTabOnceDrawn } from "./tab-strip";
 import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
 import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
+import { useBootMarks } from "./boot-marks";
 import { setStudioDriveOpenPage } from "@/client/lib/studio-drive";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
@@ -287,6 +288,7 @@ function SetupWindow() {
 }
 
 function WorkspaceWindow() {
+  useBootMarks();
   // Before the tabs are read, so a window that has kept no tab groups opens
   // on none of what an earlier build left in them.
   const store = useStore();

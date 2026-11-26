@@ -19,9 +19,10 @@ const START_COMMAND = "pnpm --filter @instrument/api dev";
 const PILL_CLASS =
   "h-6 cursor-default gap-1.5 border-transparent bg-warning-500/10 px-2.5 text-xs text-warning-700 ring-1 ring-warning-500/25 ring-inset dark:text-warning-300 [&>svg]:size-3.5";
 
-// As tall as the update pill beside it in the sidebar's top row.
+// As tall as the update pill beside it in the sidebar's top row, and
+// shortened with an ellipsis where a narrow sidebar has no room for its words.
 const SLIM_PILL_CLASS =
-  "h-5 cursor-default gap-1 border-transparent bg-warning-500/10 px-1.5 text-xs leading-none font-semibold text-warning-700 ring-1 ring-warning-500/25 ring-inset dark:text-warning-300 [&>svg]:size-3";
+  "h-5 min-w-0 shrink cursor-default gap-1 border-transparent bg-warning-500/10 px-1.5 text-xs leading-none font-semibold text-warning-700 ring-1 ring-warning-500/25 ring-inset dark:text-warning-300 [&>svg]:size-3 [&>svg]:shrink-0";
 
 type Shown = Exclude<NetworkStatus, "online">;
 
@@ -90,7 +91,7 @@ export function NetworkStatusIndicator({
             buttons are carved out of it to take the pointer. */}
           <button onClick={() => setOpen(true)} type="button">
             <StatusIcon status={status} />
-            {labels[status]}
+            <span className="min-w-0 truncate">{labels[status]}</span>
           </button>
         </Badge>
       </HoverCardTrigger>

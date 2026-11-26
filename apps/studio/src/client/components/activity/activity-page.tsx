@@ -65,6 +65,14 @@ import { useGesturesFor } from "@/client/hooks/use-open-target";
 import { PAGE_FOLD_PX, useIsNarrower } from "@/client/hooks/use-is-narrower";
 import { displayLocale } from "@/client/lib/display-locale";
 import { type OpenTarget } from "@/client/lib/open-target";
+import { addressOfTab } from "@/client/bookmarks/address";
+import {
+  type Content,
+  contentOfAddress,
+  useContentDrag,
+} from "@/client/components/window/drag/content-drag";
+import { pressPlace } from "@/client/components/window/drag/press-bookmark";
+import { nameOf } from "@/client/components/window/host-path";
 import { toast } from "@/client/lib/toast";
 import { cn, commandKeyHeld, osConventions } from "@/client/lib/utils";
 import { rpcClient } from "@/client/rpc/client";
@@ -766,6 +774,37 @@ function targetOf(entry: TimelineEntry): OpenTarget | undefined {
 }
 
 /**
+ * What a row drags as: the link or the file its target's address names, or
+ * a folder as its place, held by the pointer the way Files' sidebar holds
+ * one (`pressPlace`), so the folder itself is never handed out of the app.
+ * Nothing for a row whose target has no address.
+ */
+function heldOf(
+  target: OpenTarget | undefined,
+  title: string,
+):
+  | { content: Content }
+  | { place: { name: string; path: string } }
+  | undefined {
+  const address =
+    target?.kind === "page"
+      ? target.url
+      : target?.kind === "screen"
+        ? addressOfTab({ href: target.href, kind: "screen" })
+        : undefined;
+  if (address === undefined) {
+    return undefined;
+  }
+  const content = contentOfAddress(address, title);
+  if (content.kind === "file" && address.endsWith("/")) {
+    return {
+      place: { name: nameOf(content.hostPath), path: content.hostPath },
+    };
+  }
+  return { content };
+}
+
+/**
  * The days, each a card of rows, drawn only where the list is scrolled to.
  * Each item is measured as it is drawn, so a day's head and its rows take
  * the room they really have.
@@ -1012,6 +1051,7 @@ function ActivityList({
                   at={item.at}
                   checked={checked.has(item.id)}
                   context={context}
+                  held={heldOf(target, text.title)}
                   icon={<EntryIcon entry={item} isMixed={isMixed} />}
                   isPicked={picked === item.id}
                   onCheck={(on) => {
@@ -1046,12 +1086,14 @@ function ActivityList({
 /**
  * One thing on one line, the way a browser's history lists a page: a box
  * to pick it with, the time, its mark, what it names, what was done with
- * it, and its ⋮. A click shows its details and a double click opens it.
+ * it, and its ⋮. A click shows its details and a double click opens it,
+ * and a drag carries what it names (`heldOf`).
  */
 function ActivityRow({
   at,
   checked,
   context,
+  held,
   icon,
   isPicked,
   menu,
@@ -1063,6 +1105,8 @@ function ActivityRow({
   at: number;
   checked: boolean;
   context: React.ReactNode;
+  /** What a drag of the row carries, when it names anything. */
+  held: ReturnType<typeof heldOf>;
   icon: React.ReactNode;
   isPicked: boolean;
   /** What its ⋮ and a right click offer. */
@@ -1073,10 +1117,14 @@ function ActivityRow({
   onPick: () => void;
   title: string;
 }) {
+  const dragProps = useContentDrag(
+    held && "content" in held ? held.content : undefined,
+  );
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>
         <div
+          {...dragProps}
           aria-selected={isPicked}
           className={cn(
             "group/row flex min-h-10 cursor-default items-center gap-3 rounded-lg px-2.5 select-none",
@@ -1098,6 +1146,12 @@ function ActivityRow({
           }}
           onDoubleClick={() => {
             onOpen({ newTab: false });
+          }}
+          onPointerDown={(event) => {
+            dragProps.onPointerDown?.(event);
+            if (held && "place" in held) {
+              pressPlace(event, held.place);
+            }
           }}
           role="option"
         >

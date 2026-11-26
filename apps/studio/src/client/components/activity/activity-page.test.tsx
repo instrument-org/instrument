@@ -16,6 +16,11 @@ const { calls, data, reads } = vi.hoisted(() => ({
  * its input with, or `data`'s entry, and as a call or a mutation answered by
  * `calls`' entry, so the section reads and asks what each test sets.
  */
+const { pressPlace } = vi.hoisted(() => ({ pressPlace: vi.fn() }));
+vi.mock("@/client/components/window/drag/press-bookmark", () => ({
+  pressPlace,
+}));
+
 vi.mock("@/client/components/theme-provider", () => ({
   useTheme: () => ({ resolvedTheme: "light" }),
 }));
@@ -250,6 +255,46 @@ describe("ActivityPage", () => {
     expect(
       await screen.findByText("Instrument isn't keeping a history right now."),
     ).toBeTruthy();
+  });
+
+  it("drags a row as what it names, a folder as its place, and the rest not at all", async () => {
+    calls.set("actions.list", () => ({
+      actions: [
+        {
+          at: minutesAgo(1),
+          kind: "page",
+          title: "Where's My Refund?",
+          url: "https://www.irs.gov/refunds",
+        },
+        { at: minutesAgo(2), kind: "folder", path: "/Users/sam/Taxes" },
+        {
+          at: minutesAgo(3),
+          kind: "trash",
+          paths: ["/Users/sam/old draft.docx"],
+        },
+      ],
+      next: null,
+      until: NOW,
+    }));
+    page();
+    const rowOf = (text: string) =>
+      screen.getByText(text).closest("[role=option]");
+    await screen.findByText("Where's My Refund?");
+    expect(rowOf("Where's My Refund?")?.getAttribute("draggable")).toBe("true");
+    expect(rowOf("Taxes")?.hasAttribute("draggable")).toBe(false);
+    expect(rowOf("old draft.docx")?.hasAttribute("draggable")).toBe(false);
+
+    fireEvent.pointerDown(rowOf("Taxes")!, { button: 0, isPrimary: true });
+    expect(pressPlace).toHaveBeenCalledWith(expect.anything(), {
+      name: "Taxes",
+      path: "/Users/sam/Taxes",
+    });
+    pressPlace.mockClear();
+    fireEvent.pointerDown(rowOf("old draft.docx")!, {
+      button: 0,
+      isPrimary: true,
+    });
+    expect(pressPlace).not.toHaveBeenCalled();
   });
 });
 

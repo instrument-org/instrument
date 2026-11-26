@@ -24,7 +24,11 @@ import {
   openInNewWindow,
   useAppTabs,
 } from "./app-tabs";
-import { groupReturnAtom, returnAfterArrival } from "./group-return";
+import {
+  groupReturnAtom,
+  type GroupReturns,
+  returnAfterArrival,
+} from "./group-return";
 import { chatListOptions } from "./chat-list-query";
 import { type Chat, draftTitle, type Project } from "./chats";
 import { isGroupScreenHref } from "./group-screen";
@@ -610,11 +614,13 @@ export function useTabGroupActions() {
     }
   };
 
-  const setReturn = (group: string, returns: "once" | "untilUnrelated") => {
+  const setReturn = (group: string, returns: GroupReturns) => {
     const to = groupUp();
     store.set(
       groupReturnAtom,
-      to === undefined ? undefined : { group, once: returns === "once", to },
+      to === undefined
+        ? undefined
+        : { group, once: returns === "once", to },
     );
   };
 
@@ -653,7 +659,7 @@ export function useTabGroupActions() {
     /** Takes the place of the window's address rather than stepping on from it. */
     replace?: boolean;
     /** Closing it goes back to the group up now (`GroupReturn`): until the person goes on to another, or, for `once`, switches away at all. */
-    returns?: "once" | "untilUnrelated";
+    returns?: GroupReturns;
   } = {}) => {
     const group = newGroupKey();
     if (returns !== undefined && isShownHere) {
@@ -984,9 +990,13 @@ export function useTabGroupActions() {
    * asked for where it stands elsewhere in it (another part of Settings),
    * and is given back for the window to light. Otherwise it opens as a new
    * group of its own, since something from outside never joins a group the
-   * person has.
+   * person has; `returns` says how long a group made goes back to the one up
+   * now (`GroupReturn`).
    */
-  const showOrMake = (href: string): undefined | WindowTab => {
+  const showOrMake = (
+    href: string,
+    { returns }: { returns?: GroupReturns } = {},
+  ): undefined | WindowTab => {
     const tab = tabShowingAmong(
       store.get(windowTabsAtom),
       store.get(windowTabGroupsAtom) ?? [],
@@ -994,7 +1004,7 @@ export function useTabGroupActions() {
       groupUp(),
     );
     if (tab?.group === undefined) {
-      make({ href });
+      make({ href, ...(returns === undefined ? {} : { returns }) });
       return undefined;
     }
     windowTabs.select(tab.id);

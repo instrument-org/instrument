@@ -66,6 +66,27 @@ describe("which history a step walks", () => {
       undefined,
     ],
     [
+      "the group it was opened from, past the start of a group's one tab",
+      { ...SCREEN, history: { entries: ["/settings/general"], index: 0 } },
+      { guest: undefined, returnsToGroup: true },
+      "back",
+      "group",
+    ],
+    [
+      "the screen's own history ahead of the group it was opened from",
+      SCREEN,
+      { guest: undefined, returnsToGroup: true },
+      "back",
+      "screen",
+    ],
+    [
+      "nothing forward to the group it was opened from",
+      { ...SCREEN, history: { entries: ["/settings/general"], index: 0 } },
+      { guest: undefined, returnsToGroup: true },
+      "forward",
+      undefined,
+    ],
+    [
       "nothing forward to the tab a link was in",
       PAGE,
       { guest: NO_HISTORY, hasOpener: true },

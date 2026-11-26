@@ -1429,7 +1429,8 @@ function WindowShell({
   // Extensions, the sidebar's pages) is a group of its own, as New Tab Group
   // makes one: the tab of a group already showing it comes up there, and a
   // blank new tab up takes it in place, as a browser's own pages do, whatever
-  // else its group has, unless the group is a split.
+  // else its group has, unless the group is a split. It goes back to the
+  // group it was opened from, as Back or closing it.
   const openBuiltInApart = useEffectEvent((href: string) => {
     const up = windowTabs.active;
     if (
@@ -1440,7 +1441,7 @@ function WindowShell({
       openScreen(href, { newTab: "reuseBlank" });
       return;
     }
-    lightTab(groups.showOrMake(href));
+    lightTab(groups.showOrMake(href, { returns: "untilUnrelated" }));
   });
   useLayoutEffect(
     () =>

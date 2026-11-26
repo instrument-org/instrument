@@ -14,6 +14,8 @@ import {
 import { useAtomValue } from "jotai";
 
 import { appTabsAtom, groupOfHref, isSiteGroup } from "./app-tabs";
+import { groupReturnAtom, groupToStepBackTo } from "./group-return";
+import { windowTabGroupsAtom } from "./open-groups";
 import { hostGroupOf } from "./window-tabs";
 import {
   NOWHERE,
@@ -24,7 +26,7 @@ import {
 } from "./tab-steps";
 import { useWindowTabs } from "./window-tabs";
 
-type CloseTab = (id: string, options: { up: string }) => void;
+type CloseTab = (id: string, options?: { up?: string }) => void;
 
 /** Back and forward for one tab, and whether each has anywhere to go. */
 export interface TabSteps {
@@ -56,10 +58,15 @@ export function useTabSteps(
     up?.kind === "page" ? up : up && hostedPageOf(allTabs, up.id),
   );
   const opener = up && backToOpenerOf(up.id);
+  const groupBack = groupToStepBackTo(useAtomValue(groupReturnAtom), up, {
+    listed: useAtomValue(windowTabGroupsAtom) ?? [],
+    tabs: allTabs,
+  });
   const stack = stepStackOf(up, {
     guest,
     hasOpener: opener !== undefined,
     ...(outer ? { outer } : {}),
+    returnsToGroup: groupBack !== undefined,
   });
   return {
     canGoBack: stepOf(stack, "back") !== undefined,
@@ -76,6 +83,12 @@ export function useTabSteps(
         case "opener": {
           if (up && opener) {
             closeTab(up.id, { up: opener.id });
+          }
+          break;
+        }
+        case "group": {
+          if (up) {
+            closeTab(up.id);
           }
           break;
         }
@@ -148,6 +161,7 @@ export function useWindowSteps({ closeTab }: { closeTab: CloseTab }): TabSteps {
     return page;
   }
   const stack: StepStack = {
+    group: NOWHERE,
     opener: NOWHERE,
     guest: hosted.guest
       ? { back: hosted.guest.canGoBack, forward: hosted.guest.canGoForward }

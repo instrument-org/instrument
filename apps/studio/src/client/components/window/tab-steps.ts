@@ -12,9 +12,18 @@ export type StepDirection = "back" | "forward";
  * and screens, and, for a site standing at the window's own level, the
  * window tab's history before the site. Past them all, back from a tab a
  * link opened closes it and returns to the tab the link was in
- * (`backToOpenerOf`).
+ * (`backToOpenerOf`), and back from the one tab of a group made to step back
+ * from closes the group and returns to the group it was opened from
+ * (`groupToStepBackTo`).
  */
-const STEP_LAYERS = ["guest", "screen", "visits", "outer", "opener"] as const;
+const STEP_LAYERS = [
+  "guest",
+  "screen",
+  "visits",
+  "outer",
+  "opener",
+  "group",
+] as const;
 
 export type StepLayer = (typeof STEP_LAYERS)[number];
 
@@ -50,6 +59,7 @@ export function stepStackOf(
     guest,
     hasOpener = false,
     outer,
+    returnsToGroup = false,
   }: {
     /**
      * What the page's guest reports; nothing while it has not attached, or
@@ -60,10 +70,13 @@ export function stepStackOf(
     hasOpener?: boolean;
     /** The window tab's own history, for a site standing at its level. */
     outer?: { canGoBack: boolean };
+    /** Whether closing the tab's group returns to the group it was opened from. */
+    returnsToGroup?: boolean;
   },
 ): StepStack {
   if (!tab) {
     return {
+      group: NOWHERE,
       guest: NOWHERE,
       opener: NOWHERE,
       outer: { back: outer?.canGoBack ?? false, forward: false },
@@ -72,15 +85,14 @@ export function stepStackOf(
     };
   }
   const history = tab.kind === "screen" ? historyOf(tab) : undefined;
+  // A page whose guest is not here may have a history it cannot say.
+  const isKnownStart = tab.kind === "screen" || guest !== undefined;
   return {
+    group: { back: returnsToGroup && isKnownStart, forward: false },
     guest: guest
       ? { back: guest.canGoBack, forward: guest.canGoForward }
       : NOWHERE,
-    // A page whose guest is not here may have a history it cannot say.
-    opener: {
-      back: hasOpener && (tab.kind === "screen" || guest !== undefined),
-      forward: false,
-    },
+    opener: { back: hasOpener && isKnownStart, forward: false },
     outer: { back: outer?.canGoBack ?? false, forward: false },
     screen: history
       ? {

@@ -619,6 +619,53 @@ export const STATES = {
       h.after(() => h.oneGroup());
     },
   },
+  "tg-page-alone": {
+    about: "Tab groups: a new group from ⌘N that went to Intercom's pricing page, a page alone with no chat beside it.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Meta+n");
+      await h.app.words.omnibar.go("https://www.intercom.com/pricing");
+      await wait(800);
+      h.after(() => h.oneGroup());
+    },
+  },
+  "tg-three-tabs": {
+    about: "Tab groups: a new group with three tabs, Files, example.com and a new tab, the new tab up.",
+    themes: ["light"],
+    run: async (h) => {
+      const { click, omnibar, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await press("Meta+n");
+      await click("Files");
+      await press("Meta+t");
+      await omnibar.go("https://example.com");
+      await press("Meta+t");
+      await wait(800);
+      h.after(() => h.oneGroup());
+    },
+  },
+  "tg-three-tabs-files": {
+    about: "Tab groups: a new group with three tabs, example.com, a new tab and Files, Files up.",
+    themes: ["light"],
+    run: async (h) => {
+      const { click, omnibar, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await press("Meta+n");
+      await omnibar.go("https://example.com");
+      await press("Meta+t");
+      await press("Meta+t");
+      await click("Files");
+      await wait(800);
+      h.after(() => h.oneGroup());
+    },
+  },
   "tg-new-tab-bar": {
     about: "tg-new-tab with bookmarks: the new tab's bookmarks bar shows Apps, Chats and Files, then the Competitors folder, Notion pricing and Hacker News.",
     themes: ["light"],

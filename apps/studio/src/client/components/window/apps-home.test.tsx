@@ -34,6 +34,10 @@ vi.mock("@/client/rpc/client", () => {
     },
   };
 });
+const { pressShortcut } = vi.hoisted(() => ({ pressShortcut: vi.fn() }));
+vi.mock("@/client/components/window/drag/press-bookmark", () => ({
+  pressShortcut,
+}));
 vi.mock("@/client/hooks/use-decision", () => ({
   useDecisionModelAvailable: () => false,
 }));
@@ -147,5 +151,19 @@ describe("AppsHome search", () => {
     expect(await screen.findByText("Add another account")).toBeTruthy();
     // Its account, and the tile that adds one.
     expect(screen.getAllByText("Figma")).toHaveLength(2);
+  });
+
+  it("holds a link to the app's page from a tile that opens one, and nothing from one that connects", async () => {
+    served.apps = [
+      { ...monarch, name: "Figma", service: "figma", slug: "figma" },
+    ];
+    await search("figma");
+    fireEvent.pointerDown(await screen.findByText("Add another account"));
+    expect(pressShortcut).not.toHaveBeenCalled();
+    fireEvent.pointerDown(screen.getAllByText("Figma")[0]!);
+    expect(pressShortcut).toHaveBeenCalledWith(expect.anything(), {
+      href: "/apps/figma",
+      title: "Figma",
+    });
   });
 });

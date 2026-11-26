@@ -7,6 +7,7 @@ import { useWindow } from "@/client/components/window/context";
 import { useGroupTab } from "@/client/components/window/group-tab";
 import { useConnectFromDirectory } from "@/client/components/window/use-connect-from-directory";
 import { AppContextMenu } from "@/client/components/window/app-menu";
+import { pressShortcut } from "@/client/components/window/drag/press-bookmark";
 import { PageSection } from "@/client/components/window/page-section";
 import { useDebouncedValue } from "@/client/hooks/use-debounced-value";
 import { useFindTarget } from "@/client/hooks/use-find-target";
@@ -599,7 +600,8 @@ function AccountTiles({
 /**
  * The card every directory tile is: the service's icon, a name and a line
  * under it. Pressing it opens `target`'s page, or does `onOpen` where there
- * is no page to open.
+ * is no page to open. Dragged, it is a link to that page, as an app's row
+ * in the Apps menu is (`pressShortcut`).
  */
 function Tile({
   icon,
@@ -632,6 +634,11 @@ function Tile({
       onContextMenu={
         onContextMenu ?? (target === undefined ? undefined : openMenu)
       }
+      onPointerDown={(event) => {
+        if (target !== undefined) {
+          pressShortcut(event, { href: `/apps/${target}`, title: name });
+        }
+      }}
       type="button"
     >
       {/* No inset: the mark fills its box, and the tile is its surface. */}

@@ -45,8 +45,9 @@ export function timeBootStepSync<T>(name: string, run: () => T): T {
 /**
  * A point the launch reached, in ms since the process started, which also
  * counts what no step times: Electron's own start and loading the main
- * bundle before the first step, and the gaps between steps.
+ * bundle before the first step, and the gaps between steps. `at` is a point
+ * reached before the logger was up.
  */
-export function logBootMark(name: string): void {
-  scopedLogger.info(`${name} at ${Math.round(performance.now())}ms`);
+export function logBootMark(name: string, at = performance.now()): void {
+  scopedLogger.info(`${name} at ${Math.round(at)}ms`);
 }

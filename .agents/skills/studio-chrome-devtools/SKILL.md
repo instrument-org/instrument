@@ -274,6 +274,23 @@ A packaged build refuses `--inspect` (a fuse), and `NODE_OPTIONS=--cpu-prof` wri
 
 To measure at a real workspace's scale, boot against a copy of it. `cp -cR` makes an instant copy-on-write clone of an Application Support `workspace` folder into a directory of your own, and `boot` hands its environment to the app, so `ELECTRON_USER_DATA_DIR=<that directory> INSTRUMENT_WORKSPACE=<that directory>/workspace SKIP_ONBOARDING=true node $DRIVE boot …` opens the copy (a run that skips setup names its workspace, or the app refuses to start). A copy has no provider credentials, so it measures the app, not a model turn.
 
+## Measuring a launch
+
+A launch change is timed against the build before it, never guessed from one run: `launch-ab.mjs` launches two production builds in turn (A B B A, repeated) against copies of one seeded fixture, off screen, each from the warm state its own earlier launches left, and reads every boot mark the main log writes (`(boot) <name> at <n>ms`, `electron-main/lib/boot-timing.ts`) plus the window's first contentful paint over CDP:
+
+```bash
+LAB=$(dirname $DRIVE)/launch-ab.mjs
+INSTRUMENT_PREVIEW_NAME=launchab pnpm --filter @instrument-org/studio build
+node $LAB snapshot before                     # keeps apps/studio/out by name
+# ...make the change, build again the same way...
+node $LAB --a before --b . --runs 10          # a snapshot, an out folder or a built checkout
+node $LAB --a origin/main --b HEAD            # two revisions, each built once in a detached worktree
+```
+
+Build in a worktree of your own, since a build replaces the `out/` every dev instance of its checkout runs from. A lone `out` folder runs with this checkout's Electron, `node_modules` and `resources`, so both builds must share a lockfile. A revision's worktree and the snapshots stay in the fixture cache (`launch-ab/`) for the next run; `git worktree remove` one when done. An unpackaged build counts as development to the app, which is what lets the script hold its windows off screen.
+
+It prints, per mark, each build's median, quartiles and range in ms from spawning Electron, and the paired difference of launches taken side by side, with how many pairs B won. The marks: `main entry` (the main bundle starts), `app ready`, `bootstrapPrimaryInstance`, `restoreAppWindows`, a window's `on screen` (when it comes up, or would, since the launch holds it off screen), `ready-to-show` (its first layout), `first render` and `chat list read` from its page, and `first contentful paint`. A new `logBootMark` shows up on its own. The paired quartiles of an A/A run on a busy machine sit within about 20 ms, so a paired difference inside that is noise; `--json <file>` keeps every launch's readings. A build without a preview name would register the installed app's link scheme with the system, so the script refuses one. It measures timings only: counts are what a check can gate on, never these.
+
 ## States a dev build otherwise cannot reach
 
 Both have a control on the App states debug page (`/debug/app-states`):

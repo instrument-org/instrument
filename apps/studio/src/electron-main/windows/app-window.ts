@@ -653,7 +653,12 @@ export function restoreAppWindows() {
   // Ready to show is the window's first paint: past here a slow launch is
   // the renderer's.
   const windows = ids.map((id) => {
-    const window = createAppWindow(id);
+    const window = createAppWindow(id, {
+      // When it comes up, or would: a driven instance holds it off screen.
+      onScreen: () => {
+        logBootMark(`window ${id} on screen`);
+      },
+    });
     window.once("ready-to-show", () => {
       logBootMark(`window ${id} ready-to-show`);
     });
@@ -1109,10 +1114,13 @@ function createAppWindow(
     behindOtherApps = false,
     bounds,
     isSpare = false,
+    onScreen,
   }: {
     behindOtherApps?: boolean;
     bounds?: ReturnType<typeof cascadedBounds>;
     isSpare?: boolean;
+    /** Called once it is put on screen. */
+    onScreen?: () => void;
   } = {},
 ): BrowserWindow {
   // A window already open comes forward rather than opening twice.
@@ -1237,6 +1245,7 @@ function createAppWindow(
             behindOtherApps && BrowserWindow.getFocusedWindow() === null,
           maximized: !bounds && remembered.isMaximized,
         });
+        onScreen?.();
       }
     });
   }

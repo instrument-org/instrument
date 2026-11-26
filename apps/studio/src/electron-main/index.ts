@@ -106,6 +106,7 @@ import {
 } from "./lib/app-session";
 import { warnIfRunningX64BuildUnderARM64Translation } from "./lib/arm64-translation-warning";
 import { logBootMark, timeBootStep, timeBootStepSync } from "./lib/boot-timing";
+import { mainEnteredAt, readyAt } from "./lib/launch-clock";
 import { registerFileDragHandler } from "./lib/file-drag";
 import { warmCommonFileOpenTargets } from "./lib/file-open-target";
 import { filesInArgv } from "./lib/files-in-argv";
@@ -279,6 +280,10 @@ if (gotTheLock) {
 }
 
 async function bootstrapPrimaryInstance() {
+  logBootMark("main entry", mainEnteredAt);
+  if (readyAt !== undefined) {
+    logBootMark("app ready", readyAt);
+  }
   logBootMark("bootstrapPrimaryInstance");
   // A key store whose file this launch can't decrypt answers empty, which
   // must not outlast the keyring coming back.

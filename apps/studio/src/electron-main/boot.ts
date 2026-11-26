@@ -2,12 +2,16 @@
 
 // The main process's entry. It turns on Node's compile cache and then loads the
 // app, so the cache covers the app's own bundle. Whatever this file imports
-// statically loads before the cache is on, so it imports nothing of the app's.
+// statically loads before the cache is on, so it imports nothing of the app's
+// but the launch's clock.
 import { app } from "electron";
 import module from "node:module";
 import path from "node:path";
 
+import { noteReady } from "./lib/launch-clock";
+
 enableCompileCache();
+void app.whenReady().then(noteReady);
 
 // Velopack starts the Windows app to run its install and update hooks, which
 // end the process; they are answered before anything of the app loads.

@@ -114,6 +114,26 @@ export const STOP_CHAT = {
 } as const;
 
 /**
+ * The arrow keys through a chat's messages: Up from the empty box goes to
+ * the last message, and Down from the last back to the box. Answered by the
+ * box and the transcript (`message-keys.tsx`), not a menu or the window.
+ */
+const MESSAGE_KEYS: ShortcutGuideEntry[] = [
+  {
+    accelerator: "Up",
+    group: "General",
+    id: "previousMessage",
+    label: "Previous Message",
+  },
+  {
+    accelerator: "Down",
+    group: "General",
+    id: "nextMessage",
+    label: "Next Message",
+  },
+];
+
+/**
  * The keys of a page open beside a folder, which the folder answers while it
  * has the keyboard (`computer-page.tsx`), not a menu or the window.
  */
@@ -184,6 +204,7 @@ const PICTURE_KEYS: ShortcutGuideEntry[] = [
 export const SHORTCUT_GUIDE_ENTRIES: ShortcutGuideEntry[] = [
   { ...PASTE_AS_TEXT, group: "General", id: "pasteAsText" },
   { ...STOP_CHAT, group: "General", id: "stopChat" },
+  ...MESSAGE_KEYS,
   ...LIST_KEYS,
   ...PICTURE_KEYS,
   ...Object.entries(WINDOW_CHORDS).map(

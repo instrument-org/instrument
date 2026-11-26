@@ -100,6 +100,8 @@ describe("formatAcceleratorFor", () => {
       [
         "pasteAsText: ⇧ ⌘ V  /  Ctrl Shift V  /  Ctrl Shift V",
         "stopChat: Esc  /  Esc  /  Esc",
+        "previousMessage: ↑  /  ↑  /  ↑",
+        "nextMessage: ↓  /  ↓  /  ↓",
         "pageForward: →  /  →  /  →",
         "pageBack: ←  /  ←  /  ←",
         "pageScroll: Space  /  Space  /  Space",

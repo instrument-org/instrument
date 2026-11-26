@@ -203,9 +203,11 @@ export const TurnView = memo(function TurnView({
       {turn.opener && (
         <MessageScrollerItem
           className={cn(
-            "flex flex-col gap-1 pb-2",
+            // The arrow keys draw their own ring (`message-keys.tsx`).
+            "flex flex-col gap-1 pb-2 outline-none",
             isFaded === "all" && "opacity-40",
           )}
+          data-message-stop="message"
           data-transcript-row={`message:${turn.id}`}
           messageId={turn.opener.message.id}
           scrollAnchor
@@ -221,9 +223,12 @@ export const TurnView = memo(function TurnView({
       )}
       <MessageScrollerItem
         className={cn(
-          "group/assistant-turn flex flex-col gap-2",
+          "group/assistant-turn flex flex-col gap-2 outline-none",
           isFaded && "opacity-40",
         )}
+        // A turn with no message of its own that runs on from the one above
+        // is one reply with it, so one stop (`message-keys.tsx`).
+        data-message-stop={carriesOn && !turn.opener ? "continues" : "reply"}
         ref={floorRef}
         style={carriesOn ? { marginTop: ROW_GAP - TURN_GAP } : undefined}
         {...(turn.opener ? {} : { messageId: turn.id })}

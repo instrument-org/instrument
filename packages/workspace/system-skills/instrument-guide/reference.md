@@ -144,8 +144,10 @@ Each is written as on a Mac, then as on Windows and Linux.
 - Keyboard Shortcuts: ⌘/ / Ctrl+/
 - New Tab Group: ⌘N / Ctrl+N
 - New Window: ⇧⌘N / Ctrl+Shift+N
+- Next Message: ↓ / ↓
 - Open Location…: ⌘L / Ctrl+L
 - Paste as Text: ⇧⌘V / Ctrl+Shift+V
+- Previous Message: ↑ / ↑
 - Quit: ⌘Q / Ctrl+Q (not on Windows)
 - Search Chats: ⇧⌘F / Ctrl+Shift+F
 - Settings…: ⌘, / Ctrl+,

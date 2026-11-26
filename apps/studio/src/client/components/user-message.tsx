@@ -147,6 +147,7 @@ export function MessageBubble({
           )}
           <CopyButton
             className={SHARED.messageFooterButton}
+            data-copy-message=""
             iconSize={MESSAGE_FOOTER_ICON_SIZE}
             label="Copy message"
             onCopy={handleCopy}

@@ -123,6 +123,10 @@ import {
 } from "../ui/message-scroller";
 import { Spinner } from "../ui/spinner";
 import { LiveTranscriptSurface } from "../transcript/live-surface";
+import {
+  MessageKeys,
+  type MessageKeysHandle,
+} from "../transcript/message-keys";
 import { NextStepsContext } from "../transcript/next-steps";
 import { StoppedContext } from "../transcript/stopped-line";
 import { Transcript } from "../transcript/transcript";
@@ -238,6 +242,7 @@ export function ChatConversation({
   // Hooks the handlers below read go above them: the compiler memoizes no
   // function that reads a value a later hook call gives.
   const promptEditor = useAtomValue(promptDraftRefAtom(draftKey));
+  const messageKeysRef = useRef<MessageKeysHandle>(null);
   const quoteSelectionRef = useRef<QuoteSelectionRef>(null);
   // As text, so typing that leaves the quotes as they are draws nothing new.
   const [quoted, setQuoted] = useState("[]");
@@ -1070,6 +1075,9 @@ export function ChatConversation({
       // Stop reaches the chat's own turn and every task it started, so it is
       // offered while any of them is working.
       {...(isChatRunning && { onEscape: stop, onStop: stop })}
+      onUpFromEmpty={() => {
+        messageKeysRef.current?.enterFromBox();
+      }}
       onSubmit={(sending) => {
         const {
           files,
@@ -1220,6 +1228,13 @@ export function ChatConversation({
         previous chat happened to leave behind. The messages landing is the
         other part: they are read after the conversation mounts, and the end
         of a spinner is not the end of the chat. */}
+          <MessageKeys
+            contentRef={contentRef}
+            onLeave={() => {
+              promptInputRef.current?.focus();
+            }}
+            ref={messageKeysRef}
+          />
           <ScrollToEndBridge
             signal={`${selectedSessionId}:${isLoadingMessages ? "loading" : "loaded"}`}
           />
@@ -1239,7 +1254,8 @@ export function ChatConversation({
               >
                 <MessageScrollerContent
                   className={cn(
-                    "mx-auto w-full max-w-3xl p-4 pb-8 [--transcript-room:100cqi]",
+                    // Positioned for the ring the arrow keys draw (`MessageKeys`).
+                    "relative mx-auto w-full max-w-3xl p-4 pb-8 [--transcript-room:100cqi]",
                     // Room for the find card over the top of the transcript,
                     // so the chat's first lines can be read below it.
                     isFindOpen && "pt-15",

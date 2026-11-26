@@ -315,6 +315,7 @@ export function PromptEditor({
   onEscape,
   onPaste,
   onShowQuote,
+  onUpFromEmpty,
   onSubmit,
   placeholder,
   ref,
@@ -355,6 +356,8 @@ export function PromptEditor({
   /** Shows where a quote's words are, when its card is pressed. */
   onShowQuote?: (words: string) => void;
   onSubmit: () => void;
+  /** Up in the box while it is empty, when no menu of its own takes it. */
+  onUpFromEmpty?: () => void;
   placeholder?: string;
   ref?: React.Ref<PromptEditorRef>;
   skills: ComposerSkill[];
@@ -392,6 +395,8 @@ export function PromptEditor({
   const onSubmitEvent = useEffectEvent(onSubmit);
   const hasOnEscape = useEffectEvent(() => onEscape !== undefined);
   const onEscapeEvent = useEffectEvent(() => onEscape?.());
+  const hasOnUpFromEmpty = useEffectEvent(() => onUpFromEmpty !== undefined);
+  const onUpFromEmptyEvent = useEffectEvent(() => onUpFromEmpty?.());
   const onCommandEnterEvent = useEffectEvent(() => {
     if (!onCommandEnter) {
       return false;
@@ -569,6 +574,20 @@ export function PromptEditor({
           event.preventDefault();
           event.stopPropagation();
           onEscapeEvent();
+          return true;
+        }
+        if (
+          event.key === "ArrowUp" &&
+          !event.altKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.shiftKey &&
+          // One empty paragraph: no words, and no chip either.
+          view.state.doc.content.size <= 2 &&
+          hasOnUpFromEmpty()
+        ) {
+          event.preventDefault();
+          onUpFromEmptyEvent();
           return true;
         }
         if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {

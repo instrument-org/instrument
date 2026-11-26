@@ -182,6 +182,7 @@ export function AssistantMessagesFooter({
               <TooltipTrigger asChild>
                 <CopyButton
                   className={SHARED.messageFooterButton}
+                  data-copy-message=""
                   iconSize={MESSAGE_FOOTER_ICON_SIZE}
                   onCopy={handleCopy}
                 />

@@ -256,6 +256,8 @@ interface PromptInputProps {
   onGo?: (() => void) | undefined;
   /** Escape in the words, when no menu of the box's own takes it. */
   onEscape?: () => void;
+  /** Up in the box while it has nothing in it, when no menu of its own takes it. */
+  onUpFromEmpty?: () => void;
   /** Stops the chat's work, offered in Send's place while the box is empty. */
   onStop?: () => void;
   /** Whether the box is dictating, from the press until the words land, each time that changes. */
@@ -331,6 +333,7 @@ export const PromptInput = ({
   onStop,
   onDictatingChange,
   onEscape,
+  onUpFromEmpty,
   onFolders,
   onItemsChange,
   onItemRemoved,
@@ -1408,6 +1411,7 @@ export const PromptInput = ({
             key={draftKeyed}
             onChange={setValue}
             onEscape={dictating ? undefined : onEscape}
+            onUpFromEmpty={dictating ? undefined : onUpFromEmpty}
             onCommandEnter={hasNothing ? onCommandEnterWhenEmpty : undefined}
             onPaste={handlePaste}
             onShowQuote={onShowQuote}

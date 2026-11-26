@@ -45,7 +45,7 @@ import { type ReactElement, useRef, useState } from "react";
 
 import { BookmarkEditor, PlaceIndent } from "./bookmark-editor";
 import { PlaceItems } from "./place-items";
-import { useBookmarkEdits } from "./web-start";
+import { useBookmarkEdits } from "./bookmark-edits";
 
 /** Whether the bookmarks bar shows beyond a new tab, a preference of the workspace's: only once it is turned on. */
 export function useShowsBookmarksBar() {

@@ -28,7 +28,7 @@ import { askChatHead } from "./chat-head-requests";
 import { type Chat } from "./chats";
 import { type RowAction } from "./row-shell";
 import { chatOfTab } from "./tab-model";
-import { useBookmarkEdits } from "./web-start";
+import { useBookmarkEdits } from "./bookmark-edits";
 import { matchScreen } from "./window-href";
 
 /** One thing a tab offers, in its own menu and in the command menu alike. */

@@ -103,7 +103,7 @@ import { pageRows } from "./page-rows";
 import { pageRowText } from "./result-row";
 import { whereOfAddress } from "./row-text";
 import { chatListOptions } from "./chat-list-query";
-import { bookmarkName } from "./web-start";
+import { bookmarkName } from "./bookmark-edits";
 
 /** Rows of each kind past the one Enter takes: three, as the command menu lists. */
 const PER_KIND_SHOWN = 3;

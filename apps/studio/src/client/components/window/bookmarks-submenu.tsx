@@ -38,7 +38,7 @@ import { AddressMark } from "./app-chip";
 import { requestBookmarkAllTabs } from "./bookmark-all-tabs";
 import { useShowsBookmarksBar } from "./bookmark-menu";
 import { requestBookmarkTab } from "./bookmark-star";
-import { bookmarkName } from "./web-start";
+import { bookmarkName } from "./bookmark-edits";
 
 /**
  * The browser's ⋮ Bookmarks, under History as in Chrome: bookmarking the

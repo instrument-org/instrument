@@ -1,10 +1,20 @@
 import { UNDO_LABEL } from "@/client/lib/undo-toast";
 import { openClearBrowsingData } from "@/client/atoms/clear-browsing-data-modal";
+import { targetOfAddress } from "@/client/bookmarks/address";
+import { useOpenAddress } from "@/client/bookmarks/open-address";
+import { bookmarksStateAtom } from "@/client/bookmarks/store";
 import {
-  applyBookmarkOpsAtom,
-  bookmarksStateAtom,
-} from "@/client/bookmarks/store";
-import { type Bookmark, inBarOrder } from "@/shared/bookmarks";
+  DropdownMenu,
+  DropdownMenuTrigger,
+} from "@/client/components/ui/dropdown-menu";
+import {
+  type BarItem,
+  barItems,
+  type Bookmark,
+  OTHER_ROOT,
+  OTHER_ROOT_TITLE,
+  rootItems,
+} from "@/shared/bookmarks";
 import { PageFavicon } from "@/client/components/favicon";
 import {
   noteTypedPage,
@@ -13,20 +23,28 @@ import {
 import { rpcClient } from "@/client/rpc/client";
 import { BroomIcon } from "@phosphor-icons/react/Broom";
 import { DotsThreeVerticalIcon } from "@phosphor-icons/react/DotsThreeVertical";
+import { FolderSimpleIcon } from "@phosphor-icons/react/FolderSimple";
 import { GlobeIcon } from "@phosphor-icons/react/Globe";
-import { useAtomValue, useSetAtom } from "jotai";
-import { useState } from "react";
+import { useAtomValue } from "jotai";
+import { type ReactNode, useState } from "react";
 import { toast } from "@/client/lib/toast";
 
 import { AppIcon } from "./app-icon";
+import { BookmarksMenuContent, type MenuPlace } from "./bookmark-folders";
+import { type OpenAddress } from "./bookmark-menu";
+import { bookmarkName, hostOf, useBookmarkEdits } from "./bookmark-edits";
+import { contentOfAddress, useContentDrag } from "./drag/content-drag";
 import { PageContextMenu, usePageClicks } from "./page-menu";
 import { PageSection } from "./page-section";
 import { VisitedPageRows } from "./visited-page-rows";
 
 /**
- * The web's starting view, laid out as a browser's new tab: the sites kept
- * as large marks with their names under them, the way apps are, and the
- * pages lately seen under those as a list. The tab's own address row, over
+ * The web's starting view, laid out as a browser's new tab: the bookmarks
+ * bar as large marks with their names under them, the way apps are, each
+ * folder a mark whose press opens its menu as the bar's does and All
+ * Bookmarks last, then the sites visited most and the pages lately seen,
+ * all from the stores the bar and History read. Every mark and row drags
+ * out as its link, to a tab group or anywhere a link goes. The tab's own address row, over
  * it wherever it is drawn, is where an address goes. Anywhere it goes
  * arrives as a tab. A page is bookmarked from its own menu; a right click on
  * its mark here offers to rename it or remove it, and a middle click or a
@@ -37,11 +55,21 @@ export function WebStart({
 }: {
   onOpenPage: (url: string) => void;
 }) {
-  // In the bar's order, so the two read alike.
-  const bookmarks = inBarOrder(useAtomValue(bookmarksStateAtom));
+  // The bar's own items in its order, so the two read alike.
+  const state = useAtomValue(bookmarksStateAtom);
+  const items = barItems(state);
+  const others = rootItems(state, OTHER_ROOT);
   const { recent, frequent } = useBrowserStartPages(
-    bookmarks.map((bookmark) => bookmark.url),
+    state.bookmarks.map((bookmark) => bookmark.url),
   );
+  const openAddress = useOpenAddress({ loadHere: onOpenPage });
+  // A folder's menu opens what it lists as the bar's does.
+  const openFromMenu: OpenAddress = (address, asked) => {
+    if (targetOfAddress(address)?.kind === "page") {
+      noteTypedPage(address);
+    }
+    openAddress(address, asked);
+  };
   const clicksFor = usePageClicks();
   const edits = useBookmarkEdits();
   // The bookmark whose name is being typed over, by id.
@@ -85,13 +113,25 @@ export function WebStart({
           moves the edges the page is read against. */}
       <div className="mx-auto w-full max-w-5xl space-y-10 px-10 pt-20 pb-14">
         <PageSection title="Bookmarks">
-          {bookmarks.length === 0 ? (
+          {items.length === 0 && others.length === 0 ? (
             <NoBookmarks />
           ) : (
             // Pulled in by the gap between a mark's box and its icon, so the
             // icons line up under the heading.
             <div className="-ml-4 flex flex-wrap gap-x-2 gap-y-3">
-              {bookmarks.map((bookmark) => {
+              {items.map((item) => {
+                if (item.kind === "folder") {
+                  return (
+                    <FolderTile
+                      items={item.items}
+                      key={item.folder.id}
+                      name={item.folder.title}
+                      open={openFromMenu}
+                      place={{ folder: item.folder.id }}
+                    />
+                  );
+                }
+                const { bookmark } = item;
                 const name = bookmarkName(bookmark);
                 // The site's mark drawn the way Apps draws every app's.
                 const mark = (
@@ -133,22 +173,31 @@ export function WebStart({
                     removeLabel="Remove from Bookmarks"
                     url={bookmark.url}
                   >
-                    <button
-                      className="group flex w-24 flex-col items-center gap-2 rounded-xl py-2 text-center hover:bg-accent/50 data-[state=open]:bg-accent/50"
-                      {...clicksFor(bookmark.url, openShortcut)}
-                      title={`${name}\n${bookmark.url}`}
-                      type="button"
-                    >
-                      {mark}
-                      {/* As wide as the mark's box, on two lines at most, the
-                        way a browser's favorites name theirs. */}
-                      <span className="line-clamp-2 w-full px-1.5 text-[13px] leading-4 font-medium break-words">
-                        {name}
-                      </span>
-                    </button>
+                    <LinkDrag title={name} url={bookmark.url}>
+                      {(dragProps) => (
+                        <button
+                          className={TILE}
+                          {...clicksFor(bookmark.url, openShortcut)}
+                          {...dragProps}
+                          title={`${name}\n${bookmark.url}`}
+                          type="button"
+                        >
+                          {mark}
+                          <TileName>{name}</TileName>
+                        </button>
+                      )}
+                    </LinkDrag>
                   </PageContextMenu>
                 );
               })}
+              {others.length > 0 && (
+                <FolderTile
+                  items={others}
+                  name={OTHER_ROOT_TITLE}
+                  open={openFromMenu}
+                  place={{ root: OTHER_ROOT }}
+                />
+              )}
             </div>
           )}
         </PageSection>
@@ -165,9 +214,12 @@ export function WebStart({
                   removeLabel="Remove from Frequently visited"
                   url={page.url}
                 >
+                  <LinkDrag title={page.title} url={page.url}>
+                    {(dragProps) => (
                   <button
                     className="group flex min-w-0 flex-col items-start gap-3 rounded-xl border border-border bg-card p-4 text-left hover:bg-accent/50 data-[state=open]:bg-accent/50"
                     {...clicksFor(page.url, openShortcut)}
+                    {...dragProps}
                     title={`${page.title || hostOf(page.url)}\n${page.url}`}
                     type="button"
                   >
@@ -186,6 +238,8 @@ export function WebStart({
                       </span>
                     </span>
                   </button>
+                    )}
+                  </LinkDrag>
                 </PageContextMenu>
               ))}
             </div>
@@ -213,42 +267,64 @@ export function WebStart({
   );
 }
 
-/** What a bookmark is called where it is shown: its own title, or its site's. */
-export function bookmarkName(bookmark: Bookmark): string {
-  return bookmark.title || hostOf(bookmark.url);
+/** A mark on the page: as wide as the mark's box, its name under it. */
+const TILE =
+  "group flex w-24 flex-col items-center gap-2 rounded-xl py-2 text-center hover:bg-accent/50 data-[state=open]:bg-accent/50";
+
+/** A mark's name: on two lines at most, the way a browser's favorites name theirs. */
+function TileName({ children }: { children: ReactNode }) {
+  return (
+    <span className="line-clamp-2 w-full px-1.5 text-[13px] leading-4 font-medium break-words">
+      {children}
+    </span>
+  );
 }
 
 /**
- * Renaming a bookmark and removing one, wherever bookmarks are shown: a
- * name left empty is kept empty, as Chrome keeps it, and a removal says so
- * with a way to undo it.
+ * A folder of the bar, or All Bookmarks, as a mark: a press opens the menu
+ * of what is in it that the bar's chip opens, where each bookmark opens,
+ * drags and has its menu as on the bar.
  */
-export function useBookmarkEdits() {
-  const applyBookmarkOps = useSetAtom(applyBookmarkOpsAtom);
-  return {
-    remove: (bookmark: Bookmark) => {
-      void applyBookmarkOps([{ id: bookmark.id, type: "remove" }]);
-      toast("Removed from Bookmarks", {
-        action: {
-          label: UNDO_LABEL,
-          // Back where it was, by the order it had.
-          onClick: () => {
-            void applyBookmarkOps([{ bookmark, type: "add" }]);
-          },
-        },
-        description: bookmarkName(bookmark),
-      });
-    },
-    rename: (bookmark: Bookmark, title: string) => {
-      const named = title.trim();
-      if (named === bookmark.title) {
-        return;
-      }
-      void applyBookmarkOps([
-        { id: bookmark.id, title: named, type: "rename" },
-      ]);
-    },
-  };
+function FolderTile({
+  items,
+  name,
+  open,
+  place,
+}: {
+  items: readonly BarItem[];
+  name: string;
+  open: OpenAddress;
+  place: MenuPlace;
+}) {
+  return (
+    <DropdownMenu modal={false}>
+      <DropdownMenuTrigger className={TILE} title={name}>
+        <span className="grid size-16 place-items-center rounded-2xl bg-card shadow-xs ring-1 ring-border">
+          <FolderSimpleIcon className="size-7 text-foreground/60" />
+        </span>
+        <TileName>{name}</TileName>
+      </DropdownMenuTrigger>
+      <BookmarksMenuContent
+        align="start"
+        items={items}
+        open={open}
+        place={place}
+      />
+    </DropdownMenu>
+  );
+}
+
+/** A mark or a card, given the props that drag it out as its page's link (`useContentDrag`). */
+function LinkDrag({
+  children,
+  title,
+  url,
+}: {
+  children: (dragProps: ReturnType<typeof useContentDrag>) => ReactNode;
+  title: string;
+  url: string;
+}) {
+  return children(useContentDrag(contentOfAddress(url, title)));
 }
 
 /**
@@ -347,14 +423,6 @@ function BookmarkNameField({
       value={value}
     />
   );
-}
-
-/** The site a page is on, as its bar would name it. */
-function hostOf(url: string): string {
-  if (!URL.canParse(url)) {
-    return url;
-  }
-  return new URL(url).hostname.replace(/^www\./, "") || url;
 }
 
 function originOf(url: string): string {

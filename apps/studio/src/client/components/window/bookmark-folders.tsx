@@ -64,7 +64,7 @@ import {
   useMenuDropLine,
   useMenuTarget,
 } from "./drag/use-bookmarks-drag";
-import { bookmarkName } from "./web-start";
+import { bookmarkName } from "./bookmark-edits";
 
 /**
  * A folder on the bookmarks bar, as a browser's bar has them: a press opens
@@ -206,7 +206,7 @@ function FolderMenuContent({
 }
 
 /** Where a menu's items are kept: in a folder, or loose in a root, the bar without either. */
-type MenuPlace = { folder?: string; root?: BookmarkRoot };
+export type MenuPlace = { folder?: string; root?: BookmarkRoot };
 
 /**
  * A menu of bookmarks, a folder's, All Bookmarks' or the chevron's over the
@@ -215,7 +215,7 @@ type MenuPlace = { folder?: string; root?: BookmarkRoot };
  * (`useMenuTarget`), a line showing where, and in a folder whose row it is
  * on the middle of. A submenu takes the place of the menu it is in.
  */
-function BookmarksMenuContent({
+export function BookmarksMenuContent({
   align,
   isSub = false,
   items,

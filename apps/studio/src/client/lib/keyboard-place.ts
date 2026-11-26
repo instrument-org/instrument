@@ -14,10 +14,18 @@ export function keyboardSide(): HTMLElement | null {
   );
 }
 
-/** The page up on a side of a tab group, which the side names while it shows one. */
+/**
+ * The page up on a side of a tab group: the page tab the side names while it
+ * shows one, or the page a file tab draws its file as (an HTML file), whose
+ * slot names it.
+ */
 export function pageOfSide(side: Element): BrowserTargetId | null {
-  const tab = side.getAttribute("data-page-tab");
-  return tab === null ? null : browserTargetOf(tab);
+  const tab =
+    side.getAttribute("data-page-tab") ??
+    side
+      .querySelector("[data-hosted-page-tab]")
+      ?.getAttribute("data-hosted-page-tab");
+  return tab == null ? null : browserTargetOf(tab);
 }
 
 /**

@@ -975,6 +975,10 @@ export function FilesScreen({
               // After the file list: the page has the keyboard when the
               // folder beside it is put away.
               data-keyboard-home="2"
+              // The page a side's chords mean (`pageOfSide`).
+              {...(hostedTabId === undefined
+                ? {}
+                : { "data-hosted-page-tab": hostedTabId })}
               ref={(element) => {
                 setSlot(element);
                 setPageSlot(element);

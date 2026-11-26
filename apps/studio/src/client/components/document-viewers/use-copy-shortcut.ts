@@ -10,7 +10,7 @@ import { useEffect, useEffectEvent } from "react";
  * clipboard at all.
  *
  * Intercepting it means deciding which viewer owns it. Focus is the arbiter:
- * the same file can be open in the artifact panel and the expand modal at once,
+ * the same file can be open in a tab and in Quick Look at once,
  * and an engine-held selection is not cleared by focus moving away, so a
  * viewer left holding one would otherwise answer for a copy made in the chat.
  *

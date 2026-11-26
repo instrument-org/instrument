@@ -4,7 +4,11 @@ import {
   formatTimestamp,
 } from "@/client/components/extend/file-system";
 import { isQuickLookPress } from "@/client/components/extend/file-system-keys";
-import { FileViewer, PictureViewer } from "@/client/components/file-viewer";
+import {
+  ContentViewer,
+  FileViewer,
+  PictureViewer,
+} from "@/client/components/file-viewer";
 import { Button } from "@/client/components/ui/button";
 import {
   Dialog,
@@ -34,7 +38,7 @@ import {
 import { XIcon } from "@phosphor-icons/react/X";
 import { useFocusScopeBranch } from "@radix-ui/react-focus-scope";
 import { useQuery } from "@tanstack/react-query";
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
   type ReactNode,
   useEffect,
@@ -44,7 +48,13 @@ import {
   useState,
 } from "react";
 
-import { type LookFolder, lookAtAtom, type LookTarget } from "./look-at";
+import {
+  type LookContent,
+  lookAtAtom,
+  lookContentSlotAtom,
+  type LookFolder,
+  type LookTarget,
+} from "./look-at";
 import { useHostedPage } from "./hosted-page";
 
 /** The group a page looked at is kept under while the panel is up, off every strip. */
@@ -97,6 +107,7 @@ export function LookPanel({
   const file = shown?.kind === "file" ? shown.tab : null;
   const folder = shown?.kind === "folder" ? shown.folder : null;
   const picture = shown?.kind === "picture" ? shown.picture : null;
+  const part = shown?.kind === "content" ? shown.content : null;
   // Watched while the panel is up, so a write shows in it.
   const fileUrl = useWatchedFileUrl(file?.hostPath);
   const pageUrl =
@@ -173,8 +184,9 @@ export function LookPanel({
         // page where the panel is not yet.
         className={cn(
           "z-45 gap-0 p-0 ease-[cubic-bezier(0.2,0.8,0.2,1)] outline-none [--guest-bottom-radius:var(--radius-3xl)] data-[state=closed]:zoom-out-100 data-[state=open]:zoom-in-100",
-          // A folder's card is as tall as what it says.
-          !folder && "h-full",
+          // A folder's card and a part of a message are as tall as what they
+          // say, and a part too long for the panel scrolls under its title.
+          folder ? null : part ? "flex flex-col" : "h-full",
         )}
         // Most of the window, the way Quick Look fills it, whatever the zoom.
         maxHeight={LOOK_HEIGHT}
@@ -250,7 +262,10 @@ export function LookPanel({
       >
         <PageInPanel onClose={onClose} target={pageTarget} />
         <DialogTitle className="sr-only">
-          {(file ?? folder)?.name ?? picture?.filename ?? "Preview"}
+          {(file ?? folder)?.name ??
+            picture?.filename ??
+            part?.title ??
+            "Preview"}
         </DialogTitle>
         {folder ? <FolderCard folder={folder} onClose={onClose} /> : null}
         {picture ? (
@@ -258,6 +273,13 @@ export function LookPanel({
             key={picture.url}
             onClose={onClose}
             picture={picture}
+          />
+        ) : null}
+        {part ? (
+          <ContentInPanel
+            content={part}
+            key={part.id}
+            onClose={onClose}
           />
         ) : null}
         {file && fileUrl !== undefined ? (
@@ -285,6 +307,32 @@ export function LookPanel({
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Room for a part of a message, which the message fills (`LookedAtContent`). */
+function ContentInPanel({
+  content,
+  onClose,
+}: {
+  content: LookContent;
+  onClose: () => void;
+}) {
+  const setSlot = useSetAtom(lookContentSlotAtom);
+  return (
+    <ContentViewer
+      bodyRef={(node) => {
+        if (!node) {
+          return undefined;
+        }
+        setSlot({ element: node, id: content.id });
+        return () => {
+          setSlot(null);
+        };
+      }}
+      onClose={onClose}
+      title={content.title}
+    />
   );
 }
 

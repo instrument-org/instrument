@@ -250,10 +250,10 @@ function DocxThumbnailRail({
  * document that changes page size mid-way would otherwise land near the target
  * rather than on it.
  *
- * Scoped to the viewer's own scroll container rather than the document: the
- * artifact panel keeps its viewer mounted while the expand modal renders a
- * second one for the same file, so a global lookup always resolves to the
- * panel's copy and the modal's navigation would scroll the hidden viewer.
+ * Scoped to the viewer's own scroll container rather than the document: a tab
+ * keeps its viewer mounted while Quick Look renders a second one for the same
+ * file, so a global lookup always resolves to the tab's copy and Quick Look's
+ * navigation would scroll the hidden viewer.
  */
 function revealPage({
   layout,

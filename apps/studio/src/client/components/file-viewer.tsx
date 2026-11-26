@@ -360,7 +360,7 @@ async function fileLooksLikeText(
   return looksLikeText(value.subarray(0, TEXT_SNIFF_BYTES));
 }
 
-// Both hosts (the artifact panel and the expand modal) give the viewer the
+// Both hosts (a tab and Quick Look) give the viewer the
 // space they have, so there is no intrinsic-size variant left to pick. Exported
 // for the panel's placeholder frame, which stands in while a file is being
 // looked up and has to be the same card.
@@ -1450,6 +1450,31 @@ export function PictureViewer({
 }
 
 /**
+ * A part of a message in Quick Look under its title. The panel only makes
+ * room for it: the message draws it into `bodyRef`'s element.
+ */
+export function ContentViewer({
+  bodyRef,
+  onClose,
+  title,
+}: {
+  bodyRef: (node: HTMLDivElement | null) => (() => void) | undefined;
+  onClose: () => void;
+  title: string;
+}) {
+  return (
+    <div className={cn(fileViewerClassName, "min-h-0")}>
+      <FileViewerHeader filename={title} onClose={onClose} path={title} />
+      <div
+        className="look-content-body @container/transcript min-h-0 flex-1 overflow-y-auto px-5 pb-5"
+        data-transcript
+        ref={bodyRef}
+      />
+    </div>
+  );
+}
+
+/**
  * The file viewer's title row: the name on the left, the file's actions and the
  * close button on the right.
  *
@@ -1477,8 +1502,7 @@ function FileViewerHeader({
   // there is no file to hand anyone yet.
   hostPath?: string;
   mimeType?: string;
-  // Absent in the pane, where the tab strip owns closing. Present in the
-  // expanded modal, whose close is a collapse back to the pane.
+  // Absent in a tab, where the tab strip owns closing. Present in Quick Look.
   onClose?: () => void;
   /** What the name stands for, in full: the path the tooltip says. */
   path: string;
@@ -1540,7 +1564,3 @@ function FileViewerHeader({
   );
 }
 
-/** Whether a file by this name is viewed under a toolbar of its format's own. */
-export function hasFormatToolbar(filename: string) {
-  return VIEWERS[getFileType({ filename })].hasToolbar;
-}

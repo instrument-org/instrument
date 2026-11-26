@@ -1756,12 +1756,12 @@ a.cursor-pointer {
   margin-bottom: 0;
 }
 
-/* A transcript needs paragraph rhythm around an inline table; its dedicated
-   modal already provides that structure. Keep a small separation from the
-   title and let the shell's padding finish immediately after the last row.
-   Enough of one for the toolbar, which stands above the table and would
-   otherwise be clipped by the body's own scroll origin. */
-.markdown-table-modal-body .markdown-table-row {
+/* A transcript needs paragraph rhythm around an inline table; Quick Look
+   already provides that structure. Keep a small separation from the title and
+   let the panel's padding finish immediately after the last row. Enough of one
+   for the toolbar, which stands above the table and would otherwise be clipped
+   by the body's own scroll origin. */
+.look-content-body .markdown-table-row {
   margin-block: 2rem 0;
 }
 

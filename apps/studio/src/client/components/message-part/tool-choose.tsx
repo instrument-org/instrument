@@ -20,10 +20,12 @@ import {
   type ReactNode,
   useEffect,
   useEffectEvent,
+  useId,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
+import { useSetAtom } from "jotai";
 import { toast } from "@/client/lib/toast";
 
 import { cn } from "../../lib/utils";
@@ -38,7 +40,8 @@ import { type Dictation, isDictating } from "@/client/hooks/use-dictation";
 import { focusDockedCard } from "../composer-dock";
 import { CodeBlockWrapContext } from "../code-block";
 import { Markdown } from "../markdown";
-import { MarkdownTableModal } from "../markdown-table-modal";
+import { lookAtAtom } from "../window/look-at";
+import { LookedAtContent } from "../window/looked-at-content";
 import { SessionMarkdown } from "../session-markdown";
 import { ToolCard, ToolCardEmpty } from "./tool-card";
 
@@ -602,11 +605,12 @@ function QuestionStep({
 /**
  * What the choice being looked at means: its detail as Markdown, drawn as a
  * reply is, scrolling inside the area; or, for a choice without any, its own
- * label and description, so the area never stands empty. An expand opens the
- * detail with room to read it.
+ * label and description, so the area never stands empty. Its open button
+ * shows the detail in Quick Look, with room to read it.
  */
 function DetailArea({ choice }: { choice: Choice }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const lookId = useId();
+  const setLookAt = useSetAtom(lookAtAtom);
   return (
     <div
       className="group/detail relative min-w-0 rounded-xl bg-background ring-1 ring-border/70 @2xl/question:min-h-40 @2xl/question:flex-1"
@@ -638,10 +642,13 @@ function DetailArea({ choice }: { choice: Choice }) {
       </div>
       {choice.detail ? (
         <Button
-          aria-label="Expand detail"
+          aria-label="Open detail"
           className="absolute top-2 right-2 size-7 bg-card text-muted-foreground ring-1 ring-border/70"
           onClick={() => {
-            setIsExpanded(true);
+            setLookAt({
+              content: { id: lookId, title: choice.label },
+              kind: "content",
+            });
           }}
           size="icon"
           variant="ghost"
@@ -649,16 +656,12 @@ function DetailArea({ choice }: { choice: Choice }) {
           <ArrowsOutSimpleIcon className="size-3.5" />
         </Button>
       ) : null}
-      {isExpanded && choice.detail ? (
-        <MarkdownTableModal
-          onOpenChange={setIsExpanded}
-          open
-          title={choice.label}
-        >
+      {choice.detail ? (
+        <LookedAtContent id={lookId}>
           <CodeBlockWrapContext value={false}>
             <Markdown markdown={choice.detail} />
           </CodeBlockWrapContext>
-        </MarkdownTableModal>
+        </LookedAtContent>
       ) : null}
     </div>
   );

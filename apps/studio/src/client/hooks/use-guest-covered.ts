@@ -9,8 +9,7 @@ import { useAtomValue } from "jotai";
  *
  * Every overlay registers itself through `useCoversGuests`, so this answers for
  * the app-wide studio modals, the command palette, the contextual dialogs that
- * live on local state, the file viewer's expand modal, and the chat's
- * image/diagram preview alike, without knowing that any of them exist.
+ * live on local state, and Quick Look alike, without knowing that any of them exist.
  */
 export function useIsGuestCovered({
   insideOverlay = false,

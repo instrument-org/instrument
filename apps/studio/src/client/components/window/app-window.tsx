@@ -2144,7 +2144,7 @@ function WindowShell({
               )}
             />
           </WindowFrame>
-          {/* What a tab's Expand asks to see large, over the window. */}
+          {/* Quick Look for what a message or the reply box asks to see large. */}
           <WindowLook />
           {stopping.dialog}
         </PageOpenContext>

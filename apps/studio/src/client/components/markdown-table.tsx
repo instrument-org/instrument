@@ -2,10 +2,12 @@ import { logger } from "@/client/lib/logger";
 import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
+import { useSetAtom } from "jotai";
 import {
   type ReactNode,
   type RefObject,
   useEffect,
+  useId,
   useRef,
   useState,
 } from "react";
@@ -15,7 +17,6 @@ import {
   type TableCopyFormat,
 } from "./document-viewers/table-clipboard";
 import { TABLE_COPY_ALTERNATES } from "./document-viewers/table-copy-formats";
-import { MarkdownTableModal } from "./markdown-table-modal";
 import { readTableContents, tableRows } from "./markdown-table-rows";
 import {
   DropdownMenu,
@@ -24,6 +25,8 @@ import {
   DropdownMenuTrigger,
 } from "./ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { lookAtAtom } from "./window/look-at";
+import { LookedAtContent } from "./window/looked-at-content";
 
 /**
  * The block-relative top of the table, or of a row in it.
@@ -169,7 +172,7 @@ export const MarkdownTable = ({
   isPictures = false,
 }: {
   children?: ReactNode;
-  /** False inside the expanded view, which is already this table with room. */
+  /** False inside Quick Look, which is already this table with room. */
   expandable?: boolean;
   /** Whether every body cell is a picture alone, which takes columns of one width. */
   isPictures?: boolean;
@@ -185,7 +188,8 @@ export const MarkdownTable = ({
   // take the control out from under it. Controlled rather than left to Radix,
   // which is also what lets the freeze read it.
   const [rowMenuOpen, setRowMenuOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const lookId = useId();
+  const setLookAt = useSetAtom(lookAtAtom);
   // The toolbar has to stay up while the menu it opened is, and neither hover
   // nor `:focus-within` still holds: the pointer is over portalled content and
   // so is the focus. The trigger's own `data-state` cannot answer it either --
@@ -482,17 +486,20 @@ export const MarkdownTable = ({
           <Tooltip>
             <TooltipTrigger asChild>
               <button
-                aria-label="Expand table"
+                aria-label="Open table"
                 className="markdown-table-control"
                 onClick={() => {
-                  setExpanded(true);
+                  setLookAt({
+                    content: { id: lookId, title: "Table" },
+                    kind: "content",
+                  });
                 }}
                 type="button"
               >
                 <ArrowsOutSimpleIcon size={12} />
               </button>
             </TooltipTrigger>
-            <TooltipContent>Expand table</TooltipContent>
+            <TooltipContent>Open table</TooltipContent>
           </Tooltip>
         )}
       </div>
@@ -536,13 +543,10 @@ export const MarkdownTable = ({
         </DropdownMenu>
       </span>
 
-      {expandable && expanded && (
-        <MarkdownTableModal onOpenChange={setExpanded} open>
-          {/* The same block again, only wider, and without an expand of its
-              own. Built here rather than inside the modal, which would close a
-              cycle between the two files. */}
+      {expandable && (
+        <LookedAtContent id={lookId}>
           <MarkdownTable expandable={false}>{children}</MarkdownTable>
-        </MarkdownTableModal>
+        </LookedAtContent>
       )}
     </div>
   );

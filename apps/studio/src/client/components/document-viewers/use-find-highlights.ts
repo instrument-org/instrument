@@ -57,8 +57,8 @@ export function useFindHighlights({
   containerRef: RefObject<HTMLElement | null>;
   query: string;
 }) {
-  // The highlight registry is global and keyed by name, so the artifact panel
-  // and the expand modal -- which can hold a viewer each, on the same file --
+  // The highlight registry is global and keyed by name, so a tab and Quick
+  // Look -- which can hold a viewer each, on the same file --
   // would otherwise overwrite each other's matches. `useId` is per instance;
   // the strip is because its value carries delimiters that are not valid in a
   // CSS identifier.

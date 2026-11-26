@@ -5,6 +5,8 @@ import { type CSSProperties } from "react";
 import { expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 
+import { WindowContext } from "../window/context";
+import { WindowLook } from "../window/look-panel";
 import { DETAIL_HOVER_REST_MS, QuestionCard } from "./tool-choose";
 
 // Steps of different heights: two choices, five with descriptions, and one.
@@ -412,15 +414,28 @@ it("keeps a narrow chat's detail short until the pointer is on it", async () => 
     .toBeGreaterThan(short);
 });
 
-it("opens a choice's detail large in the markdown dialog, titled with the choice", async () => {
-  const { screen } = await renderDetail(800);
-  await screen.getByRole("button", { name: "Expand detail" }).click();
+it("opens a choice's detail in Quick Look, titled with the choice", async () => {
+  const screen = await renderInBrowser(
+    <WindowContext
+      value={{
+        ask: vi.fn(),
+        browser: null,
+        openPage: vi.fn(),
+        openPath: vi.fn(),
+        openScreen: vi.fn(),
+      }}
+    >
+      <div style={{ width: 800 }}>
+        <QuestionCard onAnswer={noop} questions={[LAYOUT]} status="open" />
+      </div>
+      <WindowLook />
+    </WindowContext>,
+  );
+  await screen.getByRole("button", { name: "Open detail" }).click();
 
-  const dialog = screen.getByRole("dialog");
-  await expect
-    .element(dialog.getByRole("heading", { name: "Table" }))
-    .toBeVisible();
+  const dialog = screen.getByRole("dialog", { name: "Table" });
   await expect.element(dialog.getByRole("table")).toBeVisible();
+  await expect.element(dialog.getByText("$45")).toBeVisible();
 });
 
 it("keeps the answered card inline and whole, each question over its answer", async () => {

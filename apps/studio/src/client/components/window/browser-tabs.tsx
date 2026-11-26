@@ -7,7 +7,10 @@ import { UpdatedNote, useUpdatedNote } from "@/client/components/updated-note";
 import { PageFavicon } from "@/client/components/favicon";
 import { BrowserPanel } from "@/client/components/window/browser-panel";
 import { ActiveTabProvider } from "@/client/hooks/use-active-tab";
-import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import {
+  useBrowserTargets,
+  useGuestShown,
+} from "@/client/hooks/use-browser-targets";
 import {
   getGuest,
   type GuestHandle,
@@ -33,7 +36,14 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { noop, omit } from "radashi";
 import { useAtomValue, useSetAtom } from "jotai";
-import { memo, type Ref, useEffect, useImperativeHandle, useRef } from "react";
+import {
+  memo,
+  type Ref,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
 import { createPortal } from "react-dom";
 import { z } from "zod";
 
@@ -1112,10 +1122,8 @@ const FilePageReload = memo(function FilePageReload({
   path: string;
   target: BrowserTargetId;
 }) {
-  const watched = useQuery(
-    rpcClient.files.live.info.experimental_liveOptions({ input: { path } }),
-  );
-  const modifiedAt = watched.data?.modifiedAt;
+  const onScreen = useGuestShown(target);
+  const [modifiedAt, setModifiedAt] = useState<number>();
   // The version the guest is showing. The first the watch reports is taken as
   // that one, since the guest loaded the file on its own; a missing file is
   // left as it was shown, so a save that replaces the file is one reload.
@@ -1140,10 +1148,44 @@ const FilePageReload = memo(function FilePageReload({
     shown.current = modifiedAt;
   }, [markUpdated, modifiedAt, target]);
 
-  return isShown ? (
-    <UpdatedNote ago={updated.ago} shown={updated.shown} turn={updated.turn} />
-  ) : null;
+  return (
+    <>
+      {onScreen ? (
+        <FileWatch onModified={setModifiedAt} path={path} />
+      ) : null}
+      {isShown ? (
+        <UpdatedNote
+          ago={updated.ago}
+          shown={updated.shown}
+          turn={updated.turn}
+        />
+      ) : null}
+    </>
+  );
 });
+
+/**
+ * Watches a shown page's file. Mounted only while a slot shows the page, so a
+ * page out of sight holds no watch, and the first look on showing it again is
+ * the one check it needs.
+ */
+function FileWatch({
+  onModified,
+  path,
+}: {
+  onModified: (modifiedAt: number) => void;
+  path: string;
+}) {
+  const modifiedAt = useQuery(
+    rpcClient.files.live.info.experimental_liveOptions({ input: { path } }),
+  ).data?.modifiedAt;
+  useEffect(() => {
+    if (modifiedAt !== undefined) {
+      onModified(modifiedAt);
+    }
+  }, [modifiedAt, onModified]);
+  return null;
+}
 
 /**
  * Reloads the page and puts it back where the person had scrolled. Chromium

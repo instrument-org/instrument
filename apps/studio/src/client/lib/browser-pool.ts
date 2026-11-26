@@ -1165,6 +1165,31 @@ export function showOverSlot(
   placeGuest(targetId);
 }
 
+const shownListeners = new Set<() => void>();
+
+function notifyShown() {
+  for (const listener of shownListeners) {
+    listener();
+  }
+}
+
+/**
+ * Whether a slot shows the guest: in a group that is up, in a pane on
+ * screen. Live work for a page (a watch on its file) hangs off this, so a
+ * page out of sight costs nothing until it is shown again.
+ */
+export function isGuestShown(targetId: BrowserTargetId): boolean {
+  return pool.get(targetId)?.lastReportedShown === true;
+}
+
+/** useSyncExternalStore glue for {@link isGuestShown}. */
+export function subscribeGuestShown(listener: () => void): () => void {
+  shownListeners.add(listener);
+  return () => {
+    shownListeners.delete(listener);
+  };
+}
+
 /** useSyncExternalStore glue for {@link attachedTargets} (see use-browser-targets). */
 export function subscribeAttachedTargets(listener: () => void): () => void {
   targetListeners.add(listener);
@@ -1318,6 +1343,9 @@ function disposeWebview(targetId: BrowserTargetId) {
   agentZooms.delete(targetId);
   pendingLayouts.delete(targetId);
   shownOnce.delete(targetId);
+  if (pooled.lastReportedShown === true) {
+    notifyShown();
+  }
 }
 
 // Guest creation happens only here, driven by `reconcile` off the main
@@ -1969,6 +1997,7 @@ function reportShown(pooled: PooledWebview, shown: boolean) {
     return;
   }
   pooled.lastReportedShown = shown;
+  notifyShown();
   void rpcClient.browser.syncGuestShown.call({
     shown,
     targetId: pooled.targetId,

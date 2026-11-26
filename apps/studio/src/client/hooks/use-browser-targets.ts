@@ -2,7 +2,9 @@ import {
   getAttachedTargetsSnapshot,
   getGuest,
   type GuestHandle,
+  isGuestShown,
   subscribeAttachedTargets,
+  subscribeGuestShown,
 } from "@/client/lib/browser-pool";
 import { type BrowserTargetId } from "@instrument-org/workspace/client";
 import { useSyncExternalStore } from "react";
@@ -44,3 +46,9 @@ export function useIsAttached(
   );
 }
 
+/** Whether a slot shows a target's guest, read for that target alone. */
+export function useGuestShown(targetId: BrowserTargetId): boolean {
+  return useSyncExternalStore(subscribeGuestShown, () =>
+    isGuestShown(targetId),
+  );
+}

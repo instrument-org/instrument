@@ -14,6 +14,8 @@ import { HouseIcon } from "@phosphor-icons/react/House";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useState } from "react";
 
+import { pressPlace } from "./drag/press-bookmark";
+
 /** How full a disk is before its bar turns red, as File Explorer's does. */
 const NEARLY_FULL = 0.9;
 
@@ -23,7 +25,9 @@ type Place = { name: string; path: string };
  * The computer from the top: the person's own folders, every disk with how
  * much of it is free, and the folders cloud services keep in step. This PC on
  * Windows, the Finder's Computer, GNOME's Other Locations. A click selects a
- * place and a double-click or Return opens it, as in the file managers.
+ * place and a double-click or Return opens it, as in the file managers. A
+ * place drags as it does in Files' sidebar: a link to Files at its folder,
+ * never the folder itself (`pressPlace`).
  */
 export function ComputerOverview({
   clouds,
@@ -75,6 +79,9 @@ export function ComputerOverview({
             }}
             onDoubleClick={() => {
               onOpen(place.path);
+            }}
+            onPointerDown={(event) => {
+              pressPlace(event, place);
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter") {

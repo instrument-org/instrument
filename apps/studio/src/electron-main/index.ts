@@ -424,7 +424,7 @@ async function bootstrapPrimaryInstance() {
   void closeAgentBrowserSessionsOfEndedApps().catch(captureServerException);
 
   // A workspace with a folder starts before any window, whose preload reads
-  // its drafts and bookmarks as it loads. A first launch's starts once
+  // its drafts as it loads. A first launch's starts once
   // setup's first step places it (`workspaces.place`).
   if (getWorkspaceRun().kind === "placed") {
     await startWorkspace();

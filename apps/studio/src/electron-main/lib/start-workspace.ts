@@ -49,9 +49,11 @@ export function startWorkspace(): Promise<void> {
       "createWorkspaceActor",
       () => createWorkspaceActor(deviceId),
     );
-    // Before any window that shows the app, whose preload reads them as it
-    // loads.
-    await timeBootStep("serveBookmarks", () => openBookmarks(deviceId));
+    // Not waited for: a window that loads before they are read starts with
+    // none and is sent them once they are, and a change it makes meanwhile
+    // waits for them. On a synced folder after a restart, reading them has
+    // taken most of a minute.
+    void timeBootStep("serveBookmarks", () => openBookmarks(deviceId));
     await timeBootStep("adoptFinderView", adoptFinderViewOnce);
     timeBootStepSync("openDrafts", openDrafts);
     // Their session is in the workspace's machine folder, and a window's

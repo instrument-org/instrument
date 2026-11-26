@@ -194,6 +194,22 @@ function loadBookmarks(): BookmarksSnapshot {
   return { acks: {}, bookmarks: [], folders: [] };
 }
 
+/** The bookmarks as the preload first read them. */
+const initialBookmarks = loadBookmarks();
+
+/**
+ * The bookmarks as main last sent them, heard from the moment the preload
+ * runs: a window opens before main has read them, and the snapshot main
+ * sends once it has can come before the page's own code listens.
+ */
+let latestBookmarks = initialBookmarks;
+ipcRenderer.on(
+  BOOKMARKS_CHANNEL.changed,
+  (_event: unknown, snapshot: BookmarksSnapshot) => {
+    latestBookmarks = snapshot;
+  },
+);
+
 const keptInitial = loadKeptState();
 const keptChanges = keptChangeFeed(ipcRenderer);
 const tabsChanged = tabsChangedFeed(ipcRenderer);
@@ -232,12 +248,16 @@ const api: Window["api"] = {
     apply: async (batch: BookmarkOpBatch) => {
       await ipcRenderer.invoke(BOOKMARKS_CHANNEL.apply, batch);
     },
-    initial: loadBookmarks(),
+    initial: initialBookmarks,
     onChange: (listener) => {
       const forward = (_event: unknown, snapshot: BookmarksSnapshot) => {
         listener(snapshot);
       };
       ipcRenderer.on(BOOKMARKS_CHANNEL.changed, forward);
+      // What main sent before anything here listened.
+      if (latestBookmarks !== initialBookmarks) {
+        listener(latestBookmarks);
+      }
       return () => {
         ipcRenderer.off(BOOKMARKS_CHANNEL.changed, forward);
       };

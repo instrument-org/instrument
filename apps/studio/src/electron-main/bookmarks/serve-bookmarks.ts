@@ -20,6 +20,10 @@ const RETRY_MS = 60_000;
 
 let store: null | ReturnType<typeof createBookmarkStore> = null;
 
+/** The read of the workspace's bookmarks under way, which a change waits for. */
+let opening: Promise<void> | undefined;
+let isReading = false;
+
 /** What a window loading before the workspace opens reads. */
 const NO_BOOKMARKS: BookmarksSnapshot = {
   acks: {},
@@ -38,10 +42,13 @@ export function serveBookmarks(): void {
   ipcMain.on(BOOKMARKS_CHANNEL.load, (event) => {
     event.returnValue = store?.snapshot() ?? NO_BOOKMARKS;
   });
-  ipcMain.handle(BOOKMARKS_CHANNEL.apply, (_event, batch: unknown) => {
+  ipcMain.handle(BOOKMARKS_CHANNEL.apply, async (_event, batch: unknown) => {
     if (!isBatch(batch)) {
       throw new Error("Not a batch of bookmark changes");
     }
+    // A window opens before the bookmarks are read, and one changed that
+    // soon is applied once they are.
+    await opening;
     if (!store) {
       throw new Error("The bookmarks were changed before the workspace opened");
     }
@@ -54,15 +61,26 @@ export function serveBookmarks(): void {
  * setup's first step places it. A `bookmarks.json` an earlier build left is
  * taken in first.
  */
-export async function openBookmarks(device: DeviceId): Promise<void> {
-  try {
-    await open(device);
-  } catch (error) {
-    // This device's own file could not be read. The windows have no bookmarks
-    // and take no change to them until it can.
-    logger.error("Bookmarks: could not open them, and will try again", error);
-    setTimeout(() => void openBookmarks(device), RETRY_MS).unref();
+export function openBookmarks(device: DeviceId): Promise<void> {
+  // Opened once: a start of the workspace asked for again finds them open or
+  // being read.
+  if (store || isReading) {
+    return opening ?? Promise.resolve();
   }
+  isReading = true;
+  opening = (async () => {
+    try {
+      await open(device);
+    } catch (error) {
+      // This device's own file could not be read. The windows have no
+      // bookmarks and take no change to them until it can.
+      logger.error("Bookmarks: could not open them, and will try again", error);
+      setTimeout(() => void openBookmarks(device), RETRY_MS).unref();
+    } finally {
+      isReading = false;
+    }
+  })();
+  return opening;
 }
 
 async function open(device: DeviceId): Promise<void> {

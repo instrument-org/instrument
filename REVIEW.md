@@ -34,3 +34,7 @@ Naming, structure, refactors, prose, and test layout are Nits at most.
 - Keep it to five Nits; mention the rest as "plus N similar".
 - On a second pass over the same work, raise only new Important findings and Nits in code added since.
 - Past reviews and what came of each finding are in [`docs/reviews/`](docs/reviews/README.md). A finding that reverses a declined one there, a `Rejected:` or `Commits-to:` trailer on the lines it cites, or a record in `docs/decisions/` names that record and says why its reason no longer holds.
+
+## Review bots on a pull request
+
+Copilot reviews only when requested (`gh api -X POST repos/instrument-org/instrument/pulls/<n>/requested_reviewers -f 'reviewers[]=copilot-pull-request-reviewer[bot]'`) and can answer with a quota notice that reads as a review, so read its body. CodeRabbit reviews automatically but is rate limited; after a "Review limit reached" comment, comment `@coderabbitai review`. Check every bot finding against the source. A PR's CI also runs the Windows shards, which a branch never sees until it has a PR.

@@ -93,6 +93,7 @@ APP_CLAUDE_CODE_PATH=$HOME/.local/bin/claude pnpm eval run --yes --prompt "<task
 - Each run prints the path to a rendered `session.md`, filed under
   `<case>/<model>`. **Read it.** The tool sequence is the result; the agent's
   closing summary is not.
+- A proposed prompt rule, note or refusal cites the transcripts that show the failure (an eval's `session.md` checked against its commit, or real chats). A prompt read or a tally of failed assertion names is speculation; say so or don't raise it.
 - Check the summary's failed-request line before trusting anything: a run that
   dies on a rate limit still produces a task and a transcript. A run reported as
   `Stopped` is not that: the harness or the case ended it on purpose.
@@ -102,6 +103,7 @@ APP_CLAUDE_CODE_PATH=$HOME/.local/bin/claude pnpm eval run --yes --prompt "<task
 - Changing an assertion costs nothing to re-check: `pnpm eval report <workspace
 dir>` re-runs every assertion against the sessions already recorded. The run
   prints the exact command to use.
+- **How a model reads one tool result** is cheaper than a harness run: render the result with the repo's real function, send it to the provider as a `tool` message after a synthetic `tool_calls` turn, and compare conditions over a few samples each. Classify on the reply text too, since tool calls against a hand-written schema often come back as prose.
 
 Committed cases live in `packages/workspace/evals/cases/` (`pnpm eval list
 [pattern]` names them, `pnpm eval run <pattern>` runs them); add one when a
@@ -140,7 +142,9 @@ an edit landing mid-run resets the state you navigated to.
 - `studio-drive.mjs stop` when the check is done, unless you booted it for
   someone to look at.
 
-Two things not to do, each of which costs someone else their session:
+A scripted drag holds still and moves in clean steps, so it passes drags a hand cannot hit (a target that arms after a rest, say). Run it again with no rests and a jittered path, and report drag and hover behavior from a script as a scripted pass, not as working.
+
+Three things not to do, each of which costs someone else their session:
 
 - **`pnpm studio` or `pnpm dev` with a `REMOTE_DEBUGGING_PORT` you picked.**
   A hand-picked port is either already a window someone is using, and you will
@@ -150,6 +154,7 @@ Two things not to do, each of which costs someone else their session:
 - **`pkill -f electron-vite`, `pkill -f Electron`, or any sweep naming neither a
   pid nor a checkout.** Agents and a human share this machine, and those
   patterns kill every instance on it. `stop` targets the one it started.
+- **Input or a reload sent to a window someone is using.** Whatever is under the coordinates gets clicked (an Allow button, say), and a reload drops their pages and work in flight. Screenshots and read-only `eval` are fine there; for anything else, boot your own instance.
 
 ## Inspecting a run afterwards
 

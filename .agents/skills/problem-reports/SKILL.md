@@ -14,6 +14,7 @@ A fix is tied to its report by the commit alone:
 - The commit carries `Report: <fingerprint>`, one line per report it fixes; `Report: <fingerprint> (partly)` when it leaves part of the report open, and `Related-report: <fingerprint>` for a change that fixes nothing. A squash-merged pull request carries the lines in its description, which becomes the commit's message.
 - Once the commit is on `main`, the reports worker ties it to the issue within seconds of the push (within ten minutes when GitHub's webhook delivery fails), resolves it, and tells its Slack card; when a published release contains it, the issue records the version, and only a report from that version or later reopens it. Nothing is resolved by hand for a fix.
 - What you learned that no commit records goes into the issue's history with `reports note <fingerprint> "<text>" --finding`: a cause, a report artifact that is not a bug, a complaint the fix leaves open. A commit that went out without its line is tied with `reports link <fingerprint> instrument <sha>`.
+- A fingerprint pasted from someone's local `main.log` may never have reached the reports database. Run `reports show <fingerprint>` first, and leave the `Report:` line off when no issue comes back.
 
 ## Writing back
 

@@ -120,6 +120,8 @@ node $DRIVE boot --purpose "first chat" --clean-room first-chat --with-sign-ins
 node $DRIVE rpc workspaces.current '{}' --clean-room first-chat
 ```
 
+To show a real chat in a clean room, copy its records into the clean room's `.instrument/chats/<chat id>/` before booting: an eval run's `record/` folder from `eval-results.local`, or the `chat/` folder `reports files <id>` downloads. The id is the `chat` field on the session log's first line. A report's records show redacted inputs as `<N chars>`.
+
 `--account <file>` on `boot` signs a fixture, a clean room or a scenario in as a given Instrument account and points that instance at the account's API, so a run can start as an account in a particular state instead of signing in and working up to it. The file is JSON with the API's address (`api`) and a session token on it (`token`); the platform's own tooling writes them, and how is documented there. It replaces whatever session the workspace held, and an instance already running signed in as someone else is refused rather than reused, since the API it talks to is fixed when it boots.
 
 ```bash
@@ -134,6 +136,8 @@ node $DRIVE eval '(async () => { const it = await window.__studioDebug.rpc("setu
 ```
 
 An instance started from a terminal answers to the terminal's macOS privacy grants, so it usually has Full Disk Access and never sees a protected folder refuse it or ask. `boot --own-privacy` (macOS) starts Electron through a launcher that makes it responsible for its own grants, so Documents asks on first read and a Full Disk Access folder (`~/Library/Mail`) comes back refused, the way an installed app's would. Electron stays in the instance's process group, so `stop` ends it like any other. The grants belong to the instance's dev Electron clone, not a signed build: each clone has its own bundle identifier, `com.github.Electron.<checkout folder>.<instance name>` (`devBundleId` in `apps/studio/scripts/dev-supervisor.ts`), and they outlive the instance: an answer given to a prompt holds for every later `--own-privacy` run of that checkout and purpose until `tccutil reset All <that identifier>` clears it. Reading a protected folder from one opens a system prompt on the developer's screen, so say so before a run that will.
+
+Launching an installed or locally packaged build's window from a shell asks for the login keychain password for the installed app's `Instrument Safe Storage` item, on the person's screen, and its CDP port accepts connections but never answers until someone does. Say so before such a launch. `ELECTRON_RUN_AS_NODE=1` runs do not touch the keychain, and `gh workflow run smoke-test.yml --ref <branch>` checks a packaged launch on all three systems.
 
 Reach for a fixture when the run needs known content, a clean room when it needs an empty workspace that can talk to a model, and `ELECTRON_USER_DATA_DIR=<empty dir>` when it needs a first launch on a fresh machine. Never switch the developer's instance (`workspaces.switch`) to get isolation: that restarts the window they are using.
 
@@ -260,6 +264,8 @@ node $(dirname $DRIVE)/main-stalls.mjs --port 9339 --seconds 15 --profile main.c
 
 It drives nothing, so it is safe while someone is at the machine. Read `stallsOver.60` first: a paste-based dictation tool that restores the clipboard after 60 ms loses text on any stall past about 40 ms. A quiet main thread has none over 30 ms. `--profile` writes a CPU profile of the same window for DevTools' Performance panel, which names what held the thread.
 
+A packaged build refuses `--inspect` (a fuse), and `NODE_OPTIONS=--cpu-prof` writes nothing. Profile its launch with Chromium's own tracing instead: `--trace-startup=devtools.timeline,v8,v8.execute,disabled-by-default-v8.cpu_profiler,toplevel --trace-startup-file=<file> --trace-startup-duration=10`, whose CPU samples cover main's JS too, named but without script URLs. The file is Perfetto protobuf unless `--trace-startup-format=json`; read it with `uv run --with perfetto python` and `TraceProcessor`.
+
 To measure at a real workspace's scale, boot against a copy of it. `cp -cR` makes an instant copy-on-write clone of an Application Support `workspace` folder into a directory of your own, and `boot` hands its environment to the app, so `ELECTRON_USER_DATA_DIR=<that directory> INSTRUMENT_WORKSPACE=<that directory>/workspace SKIP_ONBOARDING=true node $DRIVE boot …` opens the copy (a run that skips setup names its workspace, or the app refuses to start). A copy has no provider credentials, so it measures the app, not a model turn.
 
 ## States a dev build otherwise cannot reach
@@ -272,6 +278,8 @@ Both have a control on the App states debug page (`/debug/app-states`):
 The quit prompt is a native `showMessageBox`, outside the web contents. CDP cannot capture it.
 
 Dictation needs a microphone, and a real one raises the system's permission prompt in front of whoever is at the machine. Boot with `FAKE_MICROPHONE=true node $DRIVE boot …` and the app records Chromium's test tone instead, with access reported as granted. To dictate real words, set it to the path of a WAV file instead (`FAKE_MICROPHONE=/path/speech.wav`), which the fake device plays on a loop; `say -o speech.wav --data-format=LEI16@16000 "…"` makes one. Main reads it at launch, so it takes a fresh boot.
+
+Offline is two states. A scenario's `network` (`INSTRUMENT_NETWORK_STATUS`) moves only main's status; to take the page offline too, send `Network.emulateNetworkConditions` with `offline: true` from a `run` script, which fires the page's `offline` event and pauses remote queries while main's own requests still go through. A dead API is `INSTRUMENT_PLATFORM_API=http://localhost:<unused port>` on `boot`, which wins over the API server set in Settings (a plain boot otherwise talks to whatever the developer picked there).
 
 ## Traps
 

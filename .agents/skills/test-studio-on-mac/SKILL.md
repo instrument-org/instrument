@@ -35,6 +35,10 @@ node "$MAC_HOST" release --host "$HOST"                                    # whe
 - `start` launches with `open -n -g -a <app> --env DISABLE_AUTO_UPDATE_POLLING=true --args --remote-debugging-port=48183`. Through `open`, the app is its own responsible process, so privacy prompts name it; launched from a shell, they would name the shell or never appear.
 - `stop` sends SIGTERM to the app's main process, kills what is left after ten seconds, and kills whatever still holds the CDP port.
 
+## Local builds without CI
+
+For a check that iterates faster than `preview.yml`: `INSTRUMENT_PREVIEW_NAME=<name> TARGET_PLATFORM=darwin pnpm run build`, then `electron-builder --mac dir --arm64 --config.mac.identity=null`, which gives the build its own bundle id and data. A privacy grant follows the designated requirement, so an ad-hoc signature asks again on every rebuild; sign it in the VM with a self-signed identity made in a keychain there (`codesign --options runtime` with the inherit entitlements, every Mach-O deepest first, the app last), which keeps one requirement across rebuilds. Each rebuild still stops at a keychain prompt for `<product> Safe Storage` before its window opens, with CDP listening and silent: `security delete-generic-password -s "<product> Safe Storage"` before launch clears it, at the cost of the stored provider key.
+
 ## Privacy prompts
 
 macOS asks once per app for Desktop, Documents, Downloads, removable volumes, Automation of another app, and the rest, and remembers the answer per bundle id. The dialogs are drawn by the system; read and answer them with `drive-host-desktop` (`get_desktop_state` to see them, `get_window_state` / `click` on the dialog's window, or `desk.mjs <host> input` for keys). Record the order dialogs appear in: the app's own card first, then macOS's dialog.

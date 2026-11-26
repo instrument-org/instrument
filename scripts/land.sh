@@ -11,7 +11,8 @@
 # files it changed, unused code (knip) anywhere, the tests that import what it
 # changed (vitest related), and the tests marked `// land: every landing`
 # (ones that read source as text, which vitest related cannot trace). It also
-# lists the Commits-to: contracts of the commits whose lines the branch changes.
+# lists the Commits-to: contracts of the commits whose lines the branch changes,
+# and the architecture docs that describe files it changes but left as they were.
 # When the target moves during the checks it rebases and checks again, and it
 # waits for another session's uncommitted edits to files the branch changes
 # rather than touch them; those are that session's work, so never discard or
@@ -173,6 +174,10 @@ node -e '
     console.log("land: commits whose lines this branch changes made these contracts; check it keeps them:\n" + found.join("\n"));
   }
 ' "$target"
+
+# The architecture docs that describe what the branch changed, for a look
+# before landing. Shown, never enforced.
+node scripts/docs-citing.ts "$target...HEAD" || true
 
 # What CI would fail on for what the branch changed. The target moving under a
 # landing runs it again, all of it when the target changed a file the branch did

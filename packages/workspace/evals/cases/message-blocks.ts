@@ -10,7 +10,9 @@
  * block, because what is measured is whether a model reaches for it unprompted:
  * the conversation writing it directly, reading a connected app first, and
  * working something out before it drafts, in the chat or in a fork. Two
- * mirror cases ask for no message at all.
+ * mirror cases ask for no message at all. A prompt is written only when the
+ * person asks for work set up as its own chat or for another app's agent,
+ * and a third mirror asks for work that could be one without asking for it.
  */
 import fs from "node:fs";
 import os from "node:os";
@@ -249,6 +251,55 @@ function revisedAsAMessage(atLeast: number): Assertion {
   };
 }
 
+/** A prompt card for a new chat here, or with `to` for another app's agent. */
+function wrotePrompt({ to }: { to: boolean }): Assertion {
+  const text = to
+    ? "wrote a prompt for another app's agent"
+    : "wrote a prompt for a new chat";
+  return {
+    check: (context) => {
+      const all = fencedMessages(context.sessions);
+      const evidence = all.map(describe).join(" | ") || "none";
+      const found = all.some(
+        (message) =>
+          message.kind === "prompt" && (message.to !== undefined) === to,
+      );
+      return Promise.resolve(
+        found ? pass(text, evidence) : fail(text, evidence),
+      );
+    },
+    text,
+  };
+}
+
+/** Nothing asked for a prompt, so none was written. */
+const wroteNoPrompt: Assertion = {
+  check: (context) => {
+    const text = "wrote no prompt";
+    const prompts = fencedMessages(context.sessions).filter(
+      (message) => message.kind === "prompt",
+    );
+    return Promise.resolve(
+      prompts.length === 0
+        ? pass(text, "none")
+        : fail(text, prompts.map(describe).join(" | ")),
+    );
+  },
+  text: "wrote no prompt",
+};
+
+/** A prompt card starts its chat from the card's Send, never from the agent. */
+const startedNothing: Assertion = {
+  check: async (context) => {
+    const text = "started no task itself";
+    const children = await context.childSessions();
+    return children.length === 0
+      ? pass(text, "none")
+      : fail(text, `${children.length} tasks`);
+  },
+  text: "started no task itself",
+};
+
 export const MESSAGE_BLOCK_EVALS = [
   defineEval({
     assertions: [handedOverAMessage(["text"]), readyToSend],
@@ -326,5 +377,30 @@ export const MESSAGE_BLOCK_EVALS = [
     name: "message-mirror-a-document",
     prompt:
       "Write a one-page markdown explainer on what a CDN is, in my Instrument folder.",
+  }),
+
+  defineEval({
+    assertions: [wrotePrompt({ to: false }), readyToSend, startedNothing],
+    kind: "chat",
+    name: "message-prompt-for-a-new-chat",
+    prompt:
+      "We charge $0.79 per AI-resolved conversation. I want someone to dig into what Zendesk, Intercom and Freshdesk charge for the same thing, but not here. Set it up so I can start it as its own chat.",
+  }),
+
+  defineEval({
+    assertions: [wrotePrompt({ to: true }), readyToSend],
+    kind: "chat",
+    name: "message-prompt-for-claude-code",
+    prompt:
+      "Write me the prompt for Claude Code to add a comparison table under the plan cards on our pricing page: Zendesk Suite 55/89/115, Intercom 39/99/139, Freshdesk 15/49/79, per agent per month.",
+  }),
+
+  defineEval({
+    // Work that could be its own chat, with nothing asking for one.
+    assertions: [wroteNoPrompt],
+    kind: "chat",
+    name: "message-mirror-next-steps-without-a-prompt",
+    prompt:
+      "We charge $0.79 per AI-resolved conversation and want to raise it. What three things should I look into before we do?",
   }),
 ];

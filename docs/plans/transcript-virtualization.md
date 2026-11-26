@@ -1,67 +1,49 @@
 # Plan: virtualize the transcript
 
-Status: open. Proposed. Phase 0 (tail-first rendering) has landed (`5c745cfd0`); phases 1 through 3 are not started (checked 2026-10-29: no long-chat fixture, no placeholders).
+Status: open. Not started (checked 2026-11-26). Phase 0's tail-first rendering is gone: a chat now opens on its last 20 turns from the server (`lastTurnsOf`) and loads older pages as the reader nears the top. The per-update render cost raised alongside this plan (every loaded turn redrawing per streamed token or draft write) is fixed without it (the commits "keep earlier turns' separators and file maps while a reply streams" and "hold a chat's transcript props steady while it streams and settles"); phases 1 and 2 below are not built.
 
-## Why
+## Why, and what is left to win
 
-Opening a chat draws its whole transcript, and in the 2.0 window every switch between chats opens one, since a tab keeps only the chat it shows. The cost is mounting and laying out every turn, not scrolling: in a dev build, an 80-message chat held the window for 206-278ms per switch, a 30-message one for 120-140ms, and a CPU profile of the switch was mostly native style and layout rather than JavaScript. It grows with the conversation, so the long chats people actually keep are the ones that feel stuck.
+A chat opens on its last 20 turns (`TURNS_PER_PAGE`, [feed.ts](../../packages/workspace/src/lib/transcript/feed.ts)), and `OlderTurns` asks for the page before as the reader nears the top. Nothing unmounts a turn after that: a reader who scrolls back through a long chat ends with every turn mounted, each with its folded work, cards and Markdown, for as long as the tab is open, and a kept tab stays open across switches.
 
-`chat-stream-turn-model-refactor.md` rules out a custom virtualizer on the grounds that the scroller "stays fast into the thousands of turns". That holds for scrolling a transcript already on screen. It does not hold for putting one on screen, which is the cost measured here.
-
-## What landed: phase 0, tail-first rendering
-
-`TailFirst` in `chat-stream.tsx` mounts a transcript's last 12 turns on arrival and puts the older ones back above them 6 at a time on idle callbacks. The scroller's prepend handling (`preserveScrollOnPrepend`, on by default in the primitive) keeps whatever is on screen still while they arrive. The 80-message chat went to 93-103ms per switch, most of it the rest of the screen, and filled in within about 600ms.
-
-What it does not fix: once filled, every turn is mounted, so a very long transcript still costs its full layout, just spread over idle time, and keeps all of it in the DOM for as long as the chat is open.
+What virtualizing buys is DOM size, memory and layout for a chat scrolled far back. It is not a per-token render win: React skips every turn but the one changing (`memo(TurnView)` with identity-stable props), so a streamed token renders the last turn whatever the chat's length. On the `long-chat` fixture after those fixes: 27-30 fibers per commit while streaming into a 60-turn chat, 24 in a new one; 1,150 transcript DOM nodes for the first page of 20 short turns and 2,350 with 40 loaded. A chat of tool-heavy turns is several times that per turn, which is where this plan pays.
 
 ## The shape: placeholders, not a virtual list
 
-Two ways to virtualize, and the choice decides most of the risk:
+- **A virtual list** (`@tanstack/react-virtual`, as opencode and the chat list use): rows positioned by the virtualizer, only a range in the DOM, the browser's scroll anchoring turned off (`overflow-anchor: none`) because it fights the virtualizer's own offset corrections. The transcript already has one writer of its scroll position, `ScrollOwner` ([scroll-owner.ts](../../apps/studio/src/client/components/ui/scroll-owner/scroll-owner.ts)), which follows the end, holds a sent message with room under it (the spacer), slides the content on a send, holds a turn's answer still while its work folds (`ScrollPin`), and leaves the reader's place to the browser's anchoring. A virtual list would make the virtualizer a second writer and take anchoring away: everything the owner leaves to the browser it would have to do itself. Note `virtual-core` keeps the reader's place on a prepend only with `anchorTo: 'end'`, and corrects a resize above the fold only for rows wholly above it; opencode patches the first and wraps it in 1,300 lines of its own (`packages/app/src/session/timeline/virtualizer.tsx`), and t3code uses a different list (`@legendapp/list`) for `maintainVisibleContentPosition`.
+- **Placeholders** (recommended): every turn stays a `MessageScrollerItem` in document order, so the owner and the browser see what they see today. A turn far from the viewport renders a box of its last measured height in place of its content. The owner's logic is untouched; only what is inside a far item changes, and the browser's anchoring absorbs a placeholder turning back into content of a slightly different height above the viewport.
 
-- **A virtual list** (TanStack Virtual): rows absolutely positioned inside a spacer, only the visible range in the DOM. It fights the scroller. The primitive walks the content element's direct children for `data-message-scroller-item` rows, in document order, to follow the end, anchor a submitted turn (`scrollAnchor`), restore position on prepend, and track what is visible. Absolute rows and a range that changes under it break all four, and the fork we carry for `releaseAutoScroll` would grow into a rewrite.
-- **Placeholders** (recommended): every turn stays a `MessageScrollerItem` in document order, so the scroller sees exactly what it sees today. A turn far from the viewport renders a box of its last measured height instead of its content. The scroller's logic is untouched; only what is inside a far item changes.
-
-The placeholder shape is also what phase 0 already is, taken to its end: `TailFirst` decides which turns are mounted by position from the end, and this decides it by distance from the viewport.
+Rows deliberately avoid `content-visibility` (it clips what overflows a row sideways, see `MessageScrollerItem`), which is why the placeholder is an explicit box rather than the CSS property.
 
 ## Phases
 
-### Phase 1: a fixture to measure against
+### Phase 1: a fixture that costs what real chats cost
 
-A seeded workspace (`fixtures/workspaces/`) holding one chat with several hundred turns of realistic content: long replies with tables and code, file cards, grouped steps, images. Without it every number depends on whichever chats a dev workspace happens to have, which is how this plan's numbers come from 80 messages. Add a `studio-drive` sequence that switches into it and reports long tasks and landing position, the one `long.mjs`/`switch2.mjs` pair used for phase 0, committed beside the skill.
+`long-chat` is sixty short text turns, built for find. Add a fixture of a few hundred turns with tool work, file cards, tables and code, and a `studio-drive` probe that reports, for opening it, scrolling to the top and streaming into it: DOM nodes, heap, fibers per commit and long animation frames. The perf audit's probes (a paced stand-in model on loopback, CDP key events) are the starting point.
 
-Exit: the fixture seeds, and the sequence reports numbers for the current build to compare against.
+Exit: numbers for the current build to compare against.
 
 ### Phase 2: far turns become placeholders
 
 - One `IntersectionObserver` on the viewport, `rootMargin` about two viewport heights, observing each item. Only a turn outside that band is a candidate.
-- A turn's height is recorded while it is mounted with `offsetHeight` or a `ResizeObserver` box size, never `getBoundingClientRect`: the window is scaled with CSS `zoom`, and a rect is on-screen px while the scroller works in layout px (`docs/findings/css-zoom-rect-vs-layout-px.md`).
-- A far turn renders `<div style={{ height }} />` inside its item, with the item's key, `data-message-id` and `scrollAnchor` unchanged.
-- Always mounted, whatever the distance: the last turn (it streams, and follow-bottom reads it), a turn holding an anchor the scroller is settling on, any turn containing the current selection or focus, and any turn with an open popover or menu.
-- Native scroll anchoring (`overflow-anchor`, which the scroller does not disable) absorbs a placeholder turning back into content of a slightly different height above the viewport. Verify that under zoom rather than assume it.
+- A turn's height is recorded while mounted from `offsetHeight` or a `ResizeObserver` box size, never a rect: the window is scaled with CSS `zoom`, and a rect is on-screen px while the owner works in layout px.
+- A far turn renders `<div style={{ height }} />` inside its item, with the item's key, `data-message-id` and `scrollAnchor` unchanged, so `scrollToMessage` still finds it.
+- Always mounted, whatever the distance: the last turn (it streams, and following the end reads it), the turn a `ScrollPin` holds, the turn a sent message's slide is settling on, any turn holding the selection, focus, an open popover or menu, and while the find is up, the turns with matches near the active one.
 
-Exit: in the fixture, switching into the long chat costs what switching into a short one does; scrolling top to bottom and back shows no jumps at 1x, 0.75x, and 1.5x zoom; follow-bottom, jump-to-end, turn anchoring, and opening a step (`useHoldRowInPlace`) all still work.
+Exit: scrolling top to bottom and back shows no jumps at 0.75x, 1x and 1.5x zoom; the checks below pass.
 
-### Phase 3: arrive without drawing what is off screen
+## What it has to keep
 
-With placeholders in place, the far turns a chat opens with need never mount at all. Replace `TailFirst`'s idle fill with placeholders sized from a height cache:
-
-- Heights cached per message id in a module-level map bounded by an LRU, so a chat come back to opens with real heights and an accurate scrollbar.
-- A turn never measured gets an estimate from its content (a short user message, a reply's length in characters, a group's step count), refined when it first mounts.
-- A reader who drags the scrollbar to the top of a never-seen chat gets placeholders mounting as they arrive, corrected by scroll anchoring.
-
-Exit: switching into the fixture's longest chat is flat in its length; the cache survives switching between chats.
-
-## What each phase must not break
-
-- **Open state.** Which groups and steps are open is already held above the rows, in `ChatStream` (`TranscriptExpansion`), so it survives a turn unmounting. Anything a turn keeps in its own state does not survive: an image's loaded flag, a reply quote's hover, a Markdown source popover. Audit for state the reader would notice losing, and lift it the way expansion was lifted.
-- **Self-opening steps.** `selfOpenedRowIds` is also held in `ChatStream`, so a step that opened itself does not open again when its turn remounts. Keep it there.
-- **Links into a turn.** `use-hash-link-scroll` finds a heading by id in the DOM. A heading in a placeholder is not there. Route it through the message id: `scrollToMessage` in the primitive already waits for a message that has not registered yet, and placeholders keep their registration.
-- **Selecting and copying.** A selection that runs through turns keeps them mounted (above), but a selection made by Select All or a drag across the whole transcript would copy placeholders as nothing. Decide whether Select All in the transcript is worth supporting; today it selects the window.
-- **Find.** There is no find in the transcript today (Cmd+F reaches only a browser guest). A future one has to search the messages, not the DOM, and scroll to the match by message id.
-- **Screen readers.** The transcript is a `role="log"`; far turns stop being readable in place. Acceptable for a log, since new content is what is announced, but say so where accessibility is reviewed.
-- **Tests.** jsdom has no layout, no `IntersectionObserver` and no `ResizeObserver` sizes, so every assertion about which turns are mounted and where the view lands belongs in `*.browser.test.tsx`.
+- **Following the end while a reply streams**, with no frame drawn off it: the transcript debug page's trace of moves the reader did not ask for stays at zero.
+- **The reader's place** while a reply streams below and while an older page loads above.
+- **Folded work changing height**: a fold closing at a turn's end holds the answer still (`ScrollPin` reads where it was in `getSnapshotBeforeUpdate`, so the pinned turn is mounted), and a Worked row the reader opens is on screen and mounted.
+- **Scroll position across tab switches.** A kept tab is `invisible opacity-0` ([group-view.tsx](../../apps/studio/src/client/components/window/group-view.tsx)), so its viewport keeps its size and offset and nothing re-measures. A hidden transcript must not turn rows into placeholders because its observer reads nothing as intersecting: freeze the set while the tab is not up.
+- **Jumping to a turn**, from the chat list, a link or a find step: `scrollToMessage` lands on the placeholder's item, which mounts as it comes into the band, and the owner corrects once when it measures.
+- **Find.** `ChatFind` searches the drawn DOM and paints with the CSS Custom Highlight API, and turns not loaded are searched in the records (`message.find`) and loaded when a step reaches one. A placeholder joins "not loaded" for counting: matches in it come from the records search, a step to one scrolls to its item first, and `FindScrollMarks` places its marks from the item's offset. opencode and t3code both search data, scroll to the row, then find the range in the mounted DOM.
+- **What else reads rows from the DOM.** The developer notes layer anchors each note with CSS anchor positioning on `data-transcript-row` (a note for a placeholder is not drawn until it mounts); quote selection and copy work on a DOM selection (a drag across placeholders copies them as nothing, as Select All does in any virtualized reader); `use-hash-link-scroll` finds a heading by id (route a link into a placeholder through its message id).
+- **State a turn keeps itself.** A turn's Worked row open state is `useState` in `TurnBody`; anything like it is lost when the turn becomes a placeholder. Lift what a reader would notice losing above the rows, the way `FoldsOpenedByFind` is.
+- **Tests.** jsdom has no layout, observers or sizes, so which turns are mounted and where the view lands belong in `*.browser.test.tsx`.
 
 ## Not in this plan
 
-- **The pane beside the chat.** A chat's tab pane is rebuilt on every switch too, and a very large Markdown file open in it is drawn whole each time. That is the document viewer's cost, and its own plan: keep a chat's pane mounted per chat, or render long Markdown incrementally the way `block-split-markdown.md` does for streaming.
-- **Keeping recent chats mounted.** Removed on purpose: a tab keeps what it shows and nothing more. Revisit only if phase 3 leaves switching slow.
+Virtualizing inside a turn (a long run of activity rows): its work folds once the turn ends, and a turn the reader opens is the one they are reading.

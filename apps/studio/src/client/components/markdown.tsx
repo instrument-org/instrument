@@ -22,8 +22,11 @@ import {
   instrumentLinkOf,
 } from "@instrument-org/shared";
 import {
+  AGENT_CHART_LANGUAGE,
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
+  AGENT_NUMBERS_LANGUAGE,
+  AGENT_OPTIONS_LANGUAGE,
   AGENT_TIMELINE_LANGUAGE,
   isAddressableChatFilePath,
   isChatFileHref,
@@ -417,15 +420,15 @@ const MarkdownPre: Components["pre"] = ({ children, node }) => {
     return <TimelineBlock content={fence.code} isArriving={isArriving} />;
   }
 
-  if (fence.language === "options") {
+  if (fence.language === AGENT_OPTIONS_LANGUAGE) {
     return <OptionsBlock code={fence.code} isArriving={isArriving} />;
   }
 
-  if (fence.language === "chart") {
+  if (fence.language === AGENT_CHART_LANGUAGE) {
     return <ChartBlock code={fence.code} isArriving={isArriving} />;
   }
 
-  if (fence.language === "numbers") {
+  if (fence.language === AGENT_NUMBERS_LANGUAGE) {
     return <NumbersBlock code={fence.code} isArriving={isArriving} />;
   }
 

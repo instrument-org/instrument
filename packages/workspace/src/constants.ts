@@ -162,6 +162,24 @@ export const AGENT_MESSAGE_LANGUAGE = "message";
 export const AGENT_TIMELINE_LANGUAGE = "timeline";
 
 /**
+ * Info string of the fenced block an agent writes to compare the options the
+ * user is choosing between: a table, one row per option, under a `pick:` line.
+ */
+export const AGENT_OPTIONS_LANGUAGE = "options";
+
+/**
+ * Info string of the fenced block an agent writes to chart numbers over time
+ * or the parts of a total: a table under `type:`, `unit:` and `highlight:`.
+ */
+export const AGENT_CHART_LANGUAGE = "chart";
+
+/**
+ * Info string of the fenced block an agent writes for the few figures the
+ * user came for: one `Label: value` per line.
+ */
+export const AGENT_NUMBERS_LANGUAGE = "numbers";
+
+/**
  * Info string of the fenced block a task started by the chat ends its turn
  * with when it cannot go on without something from the user or the chat: one
  * need per line, `<kind>: <what, and what for>`. A contract between the task's

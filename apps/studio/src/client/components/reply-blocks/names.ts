@@ -1,6 +1,9 @@
 import {
+  AGENT_CHART_LANGUAGE,
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
+  AGENT_NUMBERS_LANGUAGE,
+  AGENT_OPTIONS_LANGUAGE,
   AGENT_TIMELINE_LANGUAGE,
 } from "@instrument-org/workspace/client";
 
@@ -13,9 +16,9 @@ const REPLY_BLOCK_NAMES = [
   AGENT_FILES_LANGUAGE,
   AGENT_MESSAGE_LANGUAGE,
   AGENT_TIMELINE_LANGUAGE,
-  "options",
-  "chart",
-  "numbers",
+  AGENT_OPTIONS_LANGUAGE,
+  AGENT_CHART_LANGUAGE,
+  AGENT_NUMBERS_LANGUAGE,
 ] as const;
 
 export type ReplyBlockName = (typeof REPLY_BLOCK_NAMES)[number];

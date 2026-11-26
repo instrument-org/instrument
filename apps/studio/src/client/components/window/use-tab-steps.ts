@@ -1,5 +1,5 @@
 import { type WindowTab } from "@/client/atoms/window";
-import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
+import { useIsAttached } from "@/client/hooks/use-browser-targets";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
 import { getGuest, goGuest } from "@/client/lib/browser-pool";
 import {
@@ -260,9 +260,8 @@ function usePageGuest(page: undefined | WindowTab): {
   guest: { canGoBack: boolean; canGoForward: boolean } | undefined;
   target: BrowserTargetId | undefined;
 } {
-  const attached = useBrowserTargets();
   const target = page?.kind === "page" ? browserTargetOf(page.id) : undefined;
-  const isAttached = target !== undefined && attached.has(target);
-  const guest = useGuestNavigation(isAttached ? target : null);
+  const isAttached = useIsAttached(target);
+  const guest = useGuestNavigation(isAttached ? (target ?? null) : null);
   return { guest: isAttached ? guest : undefined, target };
 }

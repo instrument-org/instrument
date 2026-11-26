@@ -26,6 +26,21 @@ export function useBrowserTargets(): ReadonlySet<BrowserTargetId> {
 export function useGuest(
   targetId: BrowserTargetId | null | undefined,
 ): GuestHandle | null {
-  const attached = useBrowserTargets();
-  return targetId && attached.has(targetId) ? getGuest(targetId) : null;
+  // The guest alone, so another page's guest coming or going draws nothing here.
+  return useSyncExternalStore(subscribeAttachedTargets, () =>
+    targetId && getAttachedTargetsSnapshot().has(targetId)
+      ? getGuest(targetId)
+      : null,
+  );
 }
+
+/** Whether a target's guest has attached, read for that target alone. */
+export function useIsAttached(
+  targetId: BrowserTargetId | null | undefined,
+): boolean {
+  return useSyncExternalStore(
+    subscribeAttachedTargets,
+    () => !!targetId && getAttachedTargetsSnapshot().has(targetId),
+  );
+}
+

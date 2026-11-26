@@ -16,7 +16,7 @@ import {
   ActiveTabProvider,
   useIsActiveTab,
 } from "@/client/hooks/use-active-tab";
-import { useAtomValue, useSetAtom } from "jotai";
+import { useSetAtom } from "jotai";
 import {
   type ReactNode,
   type Ref,
@@ -64,7 +64,7 @@ import {
   TabRowControl,
 } from "./tab-location-row";
 import { SidePanelHere } from "./side-panel";
-import { surfaceLocation, tabSurfaceAtom } from "./tab-surface";
+import { surfaceLocation, useTabSurfaceOf } from "./tab-surface";
 import { useTaskTitles } from "./task-titles";
 import { chatOfTab } from "./tab-model";
 import { useTabSteps } from "./use-tab-steps";
@@ -121,7 +121,7 @@ export function GroupItem({
   // What the file's screen does when its folder is pressed in the address.
   const folderPress = useRef<(() => boolean) | undefined>(undefined);
   // What the screen up says it shows, which the row reads a folder's place off.
-  const surface = useAtomValue(tabSurfaceAtom)[up.id];
+  const surface = useTabSurfaceOf(up.id);
 
   // The page's reload and controls go into the address row, the way they do
   // in the pane beside a chat, rather than into a bar of the page's own; a

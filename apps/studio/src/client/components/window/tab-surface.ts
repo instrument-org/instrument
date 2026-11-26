@@ -1,7 +1,8 @@
 import { type FinderShown, type ScreenView } from "@/client/atoms/window";
 import { useTabId } from "@/client/hooks/use-active-tab";
-import { atom, useSetAtom } from "jotai";
-import { useEffect, useState } from "react";
+import { atom, useAtomValue, useSetAtom } from "jotai";
+import { selectAtom } from "jotai/utils";
+import { useEffect, useMemo, useState } from "react";
 
 import { type PageChromeSlots } from "./browser-tabs";
 import { useGroupTab } from "./group-tab";
@@ -95,6 +96,16 @@ export const tabSurfaceAtom = atom<Readonly<Record<string, TabSurface>>>({});
 type Surfaces = Readonly<Record<string, TabSurface>>;
 /** Each fact as said, for a screen saying it. */
 type Facts = Required<TabSurface>;
+
+/** One tab's surface, read for that tab alone: another tab's changing draws nothing here. */
+export function useTabSurfaceOf(tabId: string): TabSurface | undefined {
+  return useAtomValue(
+    useMemo(
+      () => selectAtom(tabSurfaceAtom, (surfaces) => surfaces[tabId]),
+      [tabId],
+    ),
+  );
+}
 
 /** The surfaces with one tab's fact set, or the same surfaces when it already is that value. */
 export function putSurface<K extends keyof TabSurface>(

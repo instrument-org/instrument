@@ -665,9 +665,11 @@ export function FilesScreen({
       return;
     }
     return () => {
-      setEditTabs((current) => {
-        return omit(current, [hostedTabId]);
-      });
+      // Left as it was when the file was never in Edit, so the window's other
+      // screens, which read which pages are, have nothing to draw again.
+      setEditTabs((current) =>
+        hostedTabId in current ? omit(current, [hostedTabId]) : current,
+      );
     };
   }, [hostedTabId, hostedFile, setEditTabs]);
   // How the agent reaches the file, when a granted folder covers it: the one

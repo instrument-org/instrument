@@ -15,6 +15,7 @@ import { analyzer } from "vite-bundle-analyzer";
 
 import { recordBundledPackages } from "./electron-builder/bundled-packages";
 import { recordStartupBundle } from "./electron-builder/startup-bundle";
+import { cacheTransforms, transformSalt } from "./scripts/dev-transform-cache";
 import { projectIconFill } from "./scripts/project-icon-fill";
 import { contentSecurityPolicyMeta } from "./src/content-security-policy";
 
@@ -617,7 +618,23 @@ export default defineConfig(({ command }) => {
         }),
         projectIconFill(),
         react(),
-        babel({ presets: [reactCompilerPreset()] }),
+        command === "serve"
+          ? cacheTransforms(babel({ presets: [reactCompilerPreset()] }), {
+              root: path.resolve(import.meta.dirname, "../.."),
+              // Read from disk: the config runs from a bundled copy beside it.
+              salt: transformSalt(import.meta.dirname, {
+                files: [
+                  path.join(import.meta.dirname, "electron.vite.config.ts"),
+                ],
+                packages: [
+                  "@babel/core",
+                  "@rolldown/plugin-babel",
+                  "@vitejs/plugin-react",
+                  "babel-plugin-react-compiler",
+                ],
+              }),
+            })
+          : babel({ presets: [reactCompilerPreset()] }),
         tailwindcss(),
         xlsxWorkerDom(),
         dropViewerWasmCopies(),

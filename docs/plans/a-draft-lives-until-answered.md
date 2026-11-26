@@ -1,6 +1,6 @@
 # Plan: a draft lives until its message is answered
 
-Status: open.
+Status: done.
 
 A sent draft is removed the moment its message is written: the message route copies what the draft's folder had into the chat's `attachments/`, takes it out of the folder (`removeSentFromDraft`), and the window's `sent` op removes the draft. Everything that wants the message back before the agent has answered it (Stop taking back an unanswered message, a first message turning its chat back into a new chat) then has to rebuild a draft from the chat's records: its words from the message, its files from the attachments (copied back out where the chat kept its own copy), its asks and chips from the message's parts, its project from the chat. That rebuild is most of the code take-back needs, and it can never be exact.
 
@@ -43,3 +43,12 @@ The file keeps `send:` and `sending:` as they are, and a draft in `sent` writes 
 ## Later, on the same property
 
 A message queued behind a running turn is a draft in a stage of its own on its chat, sent when the turn ends; a draft list that shows what is on its way reads the same property. Neither is part of this plan.
+
+## As built
+
+- The stage is `send` on a draft (`DraftSend` in `shared/drafts.ts`). A `sent` draft writes `sent:` beside `sending:` rather than in place of it, so a build or a phone that knows only `sending:` leaves it alone.
+- The message route marks the draft `sent` through a host hook (`draftSent` in `WorkspaceConfig`) before the message's turn starts, so a turn that errors at once cannot end ahead of it.
+- The turn's end is `session.done`, which `turnEnds` (`lib/host-events.ts`) hands main; `electron-main/drafts/finish-answered-drafts.ts` settles the drafts sent into the chat. Stop with take-back sets `takesBack` on its notice, so the finisher leaves the unanswered message's draft to the take-back, whose retract would otherwise land after `session.done`.
+- What the send took from the folder is kept in memory only, so a draft finished by a launch moves everything its folder still has to the Trash; the chat has its own copy of each file.
+- A first message's chat is trashed by the window that took it back. When a crash cuts that take-back short, the launch releases the draft as the new chat's draft it was, and the chat, empty, is left in place.
+- Sends with no draft behind them, which Stop cannot take back: Retry, the suggested next message, "Continue.", and a message a settings, memory or skills screen asks a chat to send (`appWindow.ask`).

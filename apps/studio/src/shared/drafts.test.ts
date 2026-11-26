@@ -121,8 +121,16 @@ describe("a draft's send, one stage at a time", () => {
       { chatId: CHAT, messageId: "m1", stage: "sent" },
     ],
     ["written with no claim, which no send makes", [sent], undefined],
-    ["taken back once its message is written", [claim, sent, { id: "a", type: "release" }], undefined],
-    ["released after a failed send", [claim, { id: "a", type: "release" }], undefined],
+    [
+      "taken back once its message is written",
+      [claim, sent, { id: "a", type: "release" }],
+      undefined,
+    ],
+    [
+      "released after a failed send",
+      [claim, { id: "a", type: "release" }],
+      undefined,
+    ],
   ])("is %s", (_name, ops, stage) => {
     expect(stageAfter(...ops)).toEqual(stage);
   });

@@ -57,9 +57,7 @@ export const stagedAsksAtom = atom(
       ...get(draftsAtom)
         .filter((draft) => !isOnItsWay(draft))
         .flatMap(asksMovedInto),
-    ].toSorted(
-      (one, other) => one.createdAt - other.createdAt,
-    ),
+    ].toSorted((one, other) => one.createdAt - other.createdAt),
   (get, set, update: SetStateAction<StagedAsk[]>) => {
     const before = get(stagedAsksAtom);
     const next = typeof update === "function" ? update(before) : update;

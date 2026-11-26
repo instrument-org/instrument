@@ -157,7 +157,10 @@ export interface DraftCarried {
 }
 
 /** The fields an update may set; the draft's identity, its send and its folder are not among them. */
-type DraftFields = Omit<Draft, "createdAt" | "folder" | "id" | "inFolder" | "send">;
+type DraftFields = Omit<
+  Draft,
+  "createdAt" | "folder" | "id" | "inFolder" | "send"
+>;
 
 /**
  * One change to the drafts. Each names the draft it changes and carries

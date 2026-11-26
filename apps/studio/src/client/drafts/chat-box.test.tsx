@@ -169,8 +169,9 @@ describe("a reply's send", () => {
     expect(
       repliesOf(store.get(draftsAtom), CHAT).map((draft) => draft.words),
     ).toEqual(["One more thing"]);
-    expect(replies().find((draft) => draft.id === sending.draftId)?.send)
-      .toEqual({ chatId: CHAT, messageId: "m1", stage: "sent" });
+    expect(
+      replies().find((draft) => draft.id === sending.draftId)?.send,
+    ).toEqual({ chatId: CHAT, messageId: "m1", stage: "sent" });
   });
 
   it("is the person's again where it fails, back in the box it left", () => {
@@ -492,7 +493,11 @@ describe("a reply whose message a Stop took back", () => {
     const { inBox, store } = window([
       { createdAt: 1, id: "opening", updatedAt: 1, words: "hi" },
     ]);
-    await store.set(claimDraftAtom, { chatId: CHAT, id: "opening", words: "hi" });
+    await store.set(claimDraftAtom, {
+      chatId: CHAT,
+      id: "opening",
+      words: "hi",
+    });
 
     store.set(takeBackReplyAtom, {
       chatId: CHAT,

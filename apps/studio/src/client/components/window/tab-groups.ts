@@ -155,9 +155,7 @@ function draftWordsTitle(draft: Draft): string {
  */
 export function isWorthKeeping(draft: Draft): boolean {
   return (
-    draft.chatId === undefined &&
-    !isOnItsWay(draft) &&
-    holdsSomething(draft)
+    draft.chatId === undefined && !isOnItsWay(draft) && holdsSomething(draft)
   );
 }
 

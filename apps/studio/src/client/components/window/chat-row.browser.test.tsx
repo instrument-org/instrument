@@ -3,6 +3,7 @@ import type * as FaviconUrl from "@/client/lib/favicon-url";
 import { resetDrafts } from "@/client/drafts/store";
 import { siteIconChanged } from "@/client/lib/favicon-url";
 import { isMacOS } from "@/client/lib/utils";
+import { type Draft } from "@/shared/drafts";
 import { renderInBrowser } from "@/tests/render-browser";
 import { ChatIdSchema, StoreId } from "@instrument-org/workspace/client";
 import { createStore } from "jotai";
@@ -552,7 +553,7 @@ describe("ChatRow", () => {
   });
 
   /** A reply of this chat's waiting, with these words. */
-  const reply = (words: string, more: { sendingTo?: typeof CHAT_ID } = {}) => ({
+  const reply = (words: string, more: Pick<Draft, "send"> = {}) => ({
     chatId: CHAT_ID,
     createdAt: 1,
     id: "reply",
@@ -582,7 +583,9 @@ describe("ChatRow", () => {
     ["a reply that is only whitespace", reply("  \n")],
     [
       "a draft on its way into the chat",
-      reply("what's my latest tweet", { sendingTo: CHAT_ID }),
+      reply("what's my latest tweet", {
+        send: { chatId: CHAT_ID, stage: "sending" },
+      }),
     ],
   ])("says nothing of %s", async (_case, draft) => {
     resetDrafts([draft]);

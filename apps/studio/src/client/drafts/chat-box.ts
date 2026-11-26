@@ -237,11 +237,7 @@ export const beginReplySendAtom = atom(
  */
 export const failReplySendAtom = atom(
   null,
-  (
-    get,
-    set,
-    { chatId, draftId }: { chatId: ChatId; draftId: string },
-  ) => {
+  (get, set, { chatId, draftId }: { chatId: ChatId; draftId: string }) => {
     set(releaseDraftAtom, draftId);
     // Words typed since the press, written now, are a reply of their own and
     // take the box; only a box still writing into nothing takes this one back.

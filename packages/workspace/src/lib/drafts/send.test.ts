@@ -398,9 +398,9 @@ describe("where a draft's message stands in its chat", () => {
     takeBack();
 
     expect(await draftMessagesInFolder(chatFolder())).toEqual(new Map());
-    expect(
-      await draftMessagesInFolder(path.join(chatsDir(), "gone")),
-    ).toEqual(new Map());
+    expect(await draftMessagesInFolder(path.join(chatsDir(), "gone"))).toEqual(
+      new Map(),
+    );
   });
 });
 

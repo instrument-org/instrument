@@ -830,9 +830,7 @@ describe("a draft's folder as what goes with it", () => {
     await settle();
 
     expect(fs.existsSync(sent)).toBe(true);
-    expect(read()).toContain(
-      `sending: instrument://chat/${CHAT}\nsent: "m1"`,
-    );
+    expect(read()).toContain(`sending: instrument://chat/${CHAT}\nsent: "m1"`);
   });
 
   it("takes what a finished draft's message carried out of its folder, and moves what came later to the Trash", async () => {

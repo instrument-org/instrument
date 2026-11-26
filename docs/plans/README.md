@@ -85,6 +85,7 @@ Each entry is the plan's title and the opening of its status.
 ### Done
 
 - [A 1.x task becomes the chat](1x-task-becomes-the-chat.md): Built.
+- [A draft lives until its message is answered](a-draft-lives-until-answered.md): done
 - [Agent browser ad blocking](agent-browser-ad-blocking.md): Landed in 2699ce60e and its follow-ups.
 - [Agent browsing across several tabs](agent-browser-multiple-tabs.md): Landed.
 - [One agent-browser Command via an Instrument Browser Provider Plugin](agent-browser-provider-unification.md): Complete.

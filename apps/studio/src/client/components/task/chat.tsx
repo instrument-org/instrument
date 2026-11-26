@@ -728,8 +728,7 @@ export function ChatConversation({
       !composerDictating &&
       shown?.prompt.trim() === "" &&
       shown.items.length === 0;
-    const router =
-      tabId === undefined ? undefined : getGroupTabRouter(tabId);
+    const router = tabId === undefined ? undefined : getGroupTabRouter(tabId);
     if (
       draft.chatId === undefined &&
       isEmptyNow &&

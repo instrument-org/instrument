@@ -947,13 +947,11 @@ describe("FileSystem", () => {
     });
 
     it("matches what the caller read under the folder, and says what it left out", () => {
-      const onPress = vi.fn();
       renderWithProviders(
         <FileSystem
           defaultSearch="plan"
           defaultView="columns"
           items={FOLDERS}
-          searchEverywhere={{ keys: null, onPress }}
           searchResults={{
             items: [
               { kind: "file", path: "deep/down/plan.md" },
@@ -976,8 +974,8 @@ describe("FileSystem", () => {
       fireEvent.change(screen.getByRole("searchbox"), {
         target: { value: "zebra" },
       });
-      fireEvent.click(screen.getByText("Search everywhere"));
-      expect(onPress).toHaveBeenCalledOnce();
+      expect(screen.getByText("Nothing here matches “zebra”.")).toBeTruthy();
+      expect(screen.queryByText(/Search everywhere/)).toBeNull();
     });
 
     it("says the search is emptied by walking into a folder", () => {

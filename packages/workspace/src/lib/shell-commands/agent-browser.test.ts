@@ -838,7 +838,7 @@ describe("agent-browser file operands and the folder rules", () => {
 
     expect(result).toEqual({
       error: expect.stringContaining(
-        "is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.",
+        "is marked Not allowed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.",
       ),
     });
   });
@@ -848,7 +848,7 @@ describe("agent-browser file operands and the folder rules", () => {
       .toMatchInlineSnapshot(`
       {
         "error": "../closed/secret.txt: Permission denied
-      "<root>/closed/secret.txt" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.",
+      "<root>/closed/secret.txt" is marked Not allowed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.",
       }
     `);
   });

@@ -126,8 +126,8 @@ it("fails a redirect into a closed folder with its refusal note", async () => {
       {
         "exitCode": 0,
         "stderr": "bash: <tmp>/closed/file: Read-only file system
-      "<tmp>/closed" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
-      "<tmp>/closed/file" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      "<tmp>/closed" is marked Not allowed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      "<tmp>/closed/file" is marked Not allowed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
       ",
         "stdout": "before
       after rc=1
@@ -139,7 +139,7 @@ it("fails a redirect into a closed folder with its refusal note", async () => {
       {
         "exitCode": 0,
         "stderr": "bash: <tmp>/closed/file: Read-only file system
-      "<tmp>/closed/file" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      "<tmp>/closed/file" is marked Not allowed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
       ",
         "stdout": "before
       after rc=1
@@ -192,7 +192,7 @@ it("reports tee and cp into a refused place and goes on", async () => {
         "stderr": "tee: <tmp>/outside/tee.txt: Read-only file system
       cp: cannot safely determine whether 'copy.txt' and '<tmp>/closed' are the same file
       "<tmp>/outside/tee.txt" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
-      "<tmp>/closed" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      "<tmp>/closed" is marked Not allowed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
       ",
         "stdout": "x
       rc=1
@@ -207,7 +207,7 @@ it("reports tee and cp into a refused place and goes on", async () => {
         "stderr": "tee: <tmp>/outside/tee.txt: Read-only file system
       cp: cannot copy 'copy.txt': EROFS: read-only file system, writeFile '<tmp>/closed/copy.txt'
       "<tmp>/outside/tee.txt" needs the person's yes. If the work needs it, ask for "<tmp>/outside" with ask_permission.
-      "<tmp>/closed/copy.txt" is closed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
+      "<tmp>/closed/copy.txt" is marked Not allowed in Settings › Permissions. Don't look for another way in; tell the person what you needed it for.
       ",
         "stdout": "x
       rc=1

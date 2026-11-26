@@ -254,7 +254,7 @@ describe("a list scrolling under a pointer near its end", () => {
   const list = { end: 800, start: 0 };
   it.each([
     ["in the middle", 400, 1000, 0],
-    ["just inside the top zone", 170, 1000, -100],
+    ["just inside the top zone", 56, 1000, -225],
     ["deep in the top zone", 20, 1000, -900],
     ["past the top", -30, 1000, -900],
     ["deep in the bottom zone", 790, 1000, 900],

@@ -391,3 +391,41 @@ it("lets a target that lands its own drops take them in place of the lander", as
   expect([own.mock.calls, landed.mock.calls]).toEqual([[[HELD, favorite]], []]);
   setLander(undefined);
 });
+
+/** A list 400px tall at the window's top left, scrolled to the middle of rows 2000px tall, as a target that scrolls it. */
+const scrollingList = async () => {
+  const list = document.createElement("div");
+  list.style.cssText =
+    "position: fixed; top: 0; left: 0; width: 400px; height: 400px; overflow-y: auto";
+  const rows = document.createElement("div");
+  rows.style.height = "2000px";
+  list.append(rows);
+  document.body.append(list);
+  list.scrollTop = 1000;
+  await renderInBrowser(
+    <Target
+      target={{
+        landingAt: () => undefined,
+        rect: () => ({ height: 400, left: 0, top: 0, width: 400 }),
+        scrolls: { axis: "y", element: () => list },
+      }}
+    />,
+  );
+  return list;
+};
+
+it("scrolls a list held near its top, easing in from the first frame there", async () => {
+  const list = await scrollingList();
+  pressTab();
+  window.dispatchEvent(
+    new PointerEvent("pointermove", {
+      buttons: 1,
+      clientX: AT.x,
+      clientY: 4,
+      isPrimary: true,
+    }),
+  );
+  await frames(30);
+
+  expect(list.scrollTop).toBeLessThan(1000);
+});

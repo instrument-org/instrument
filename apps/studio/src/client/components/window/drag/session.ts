@@ -399,20 +399,23 @@ function scrollLists(current: Session, now: number) {
     const first = isX ? bounds.left : bounds.top;
     const last = isX ? bounds.right : bounds.bottom;
     const at = isX ? dragPoint.x : dragPoint.y;
-    const was = current.scrolling.get(element);
-    const speed = scrollSpeed({
-      at,
-      end: last,
-      heldFor: was ? now - was.since : 0,
-      start: first,
-    });
-    if (speed === 0) {
+    // Whether the pointer is in an end's zone at all, read at full speed,
+    // since the ease-in starts at nothing and the time in the zone counts
+    // from the first frame there.
+    if (scrollSpeed({ at, end: last, heldFor: Infinity, start: first }) === 0) {
       continue;
     }
     near.add(element);
+    const was = current.scrolling.get(element);
     const since = was?.since ?? now;
     const elapsed = was ? now - was.last : 0;
     current.scrolling.set(element, { last: now, since });
+    const speed = scrollSpeed({
+      at,
+      end: last,
+      heldFor: now - since,
+      start: first,
+    });
     // In the list's own px, which the window's zoom scales.
     const zoom = isX
       ? bounds.width / (element.offsetWidth || 1)

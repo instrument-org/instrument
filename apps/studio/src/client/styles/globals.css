@@ -167,8 +167,16 @@ body {
      hovering. */
   [data-pressing] :is(webview, iframe),
   [data-tab-held] :is(webview, iframe),
-  [data-tab-held] body {
+  [data-tab-held] body,
+  [data-tab-held] :is(.overflow-auto, .overflow-x-auto, .overflow-y-auto, [data-radix-scroll-area-viewport]) > * {
     pointer-events: none;
+  }
+
+  /* Except a scroller itself, so a wheel or a trackpad's swipe over it still
+     scrolls it the browser's own way while something is held; what is in it
+     stays out of the pointer's way. */
+  [data-tab-held] :is(.overflow-auto, .overflow-x-auto, .overflow-y-auto, [data-radix-scroll-area-viewport]) {
+    pointer-events: auto;
   }
 
   /* Something held by the pointer over a place where letting go would change

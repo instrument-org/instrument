@@ -274,7 +274,7 @@ export function sideZoneAt({
 }
 
 /** How far into a list from its edge the pointer starts it scrolling: a quarter of it, at most this. */
-const SCROLL_ZONE_MAX_PX = 180;
+const SCROLL_ZONE_MAX_PX = 64;
 /** How fast a list scrolls at most, in px a second. */
 const SCROLL_TOP_SPEED = 900;
 /** How long a pointer near the edge takes to bring the scroll up to speed. */
@@ -283,7 +283,7 @@ const SCROLL_EASE_IN_MS = 400;
 /**
  * How fast a list scrolls with something held near one of its ends, in px a
  * second along it, negative toward its start: nothing outside a zone a
- * quarter of its length deep (at most 180px), full speed from halfway into
+ * quarter of its length deep (at most 64px), full speed from halfway into
  * that zone to the edge and past it, and eased in over the first 400ms the
  * pointer spends there, so passing over the edge does not throw the list.
  */

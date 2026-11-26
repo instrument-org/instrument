@@ -235,7 +235,13 @@ function AtPointer({
       // Kept to the list, it gives a little as the pointer pulls away.
       const past = Math.max(dragPoint.x - list.right, 0);
       element.style.left = `${(list.left + 8 + past * 0.3) / zoom}px`;
-      element.style.top = `${(dragPoint.y - drag.grab.y) / zoom}px`;
+      // Within the list, never over the window's corner above it.
+      const top = clamp(
+        dragPoint.y - drag.grab.y,
+        list.top,
+        Math.max(list.bottom - element.offsetHeight * zoom, list.top),
+      );
+      element.style.top = `${top / zoom}px`;
       element.style.width = `${list.width / zoom - 16}px`;
       return;
     }

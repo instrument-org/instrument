@@ -27,12 +27,7 @@ let started = false;
  * reached says nothing about its sign-in.
  */
 export function startAppSignInChecks(): void {
-  // Where each app stands here, for the workspace's other computers to
-  // read: written on every change, and once as the workspace starts for
-  // what a build before this one recorded.
-  void publishAppSignIns().catch((error: unknown) => {
-    log.warn(new Error("Could not publish app sign-ins", { cause: error }));
-  });
+  publishNow();
   void checkNow();
   if (started) {
     return;
@@ -40,8 +35,20 @@ export function startAppSignInChecks(): void {
   started = true;
   app.on("browser-window-focus", () => {
     if (Date.now() - checkedAt > STALE_MS) {
+      publishNow();
       void checkNow();
     }
+  });
+}
+
+/**
+ * Where each app stands here, for the workspace's other computers to read:
+ * written on every change, and here for what a build before this one
+ * recorded and for the weekly write that shows this computer is in use.
+ */
+function publishNow(): void {
+  void publishAppSignIns().catch((error: unknown) => {
+    log.warn(new Error("Could not publish app sign-ins", { cause: error }));
   });
 }
 

@@ -450,12 +450,18 @@ export async function writeApp({
   });
 }
 
-/** Takes the app and its icon out of the store. */
+/** Takes the app, its icon and every computer's sign-in for it out of the store. */
 export async function removeApp(slug: AppSlug): Promise<void> {
-  await setKeys([
-    { key: appKey(slug), t: "del" },
-    { key: appIconKey(slug), t: "del" },
-  ]);
+  await writeApps((store) => ({
+    ops: [
+      { key: appKey(slug), t: "del" },
+      { key: appIconKey(slug), t: "del" },
+      ...[...store.entries(SIGN_IN_PREFIX)].flatMap(([key]) =>
+        key.endsWith(`/${slug}`) ? [{ key, t: "del" as const }] : [],
+      ),
+    ],
+    result: undefined,
+  }));
 }
 
 /**
@@ -469,9 +475,17 @@ export async function removeApp(slug: AppSlug): Promise<void> {
 const PublishedSignInSchema = z.looseObject({
   account: z.string().optional(),
   manifestHash: z.string().optional(),
+  /** When the computer last wrote it, changed or not, so its age says the computer is still in use. */
+  publishedAt: z.number().optional(),
   status: z.string(),
   updatedAt: z.number(),
 });
+
+/** How often a computer writes a standing that has not changed, so its readers see it is still in use. */
+const SIGN_IN_REFRESH_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** How long a standing counts after its computer last wrote it; a computer gone this long is set aside. */
+const SIGN_IN_TRUST_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type PublishedSignIn = z.output<typeof PublishedSignInSchema>;
 
@@ -481,13 +495,14 @@ function signInKey(device: DeviceId, slug: string): string {
 
 /**
  * Writes where an app stands on this computer, for the others to read; a
- * standing the store already has is left alone, so a launch that writes
- * every app's writes only what changed.
+ * standing the store already has is written again only once a week, so a
+ * launch that writes every app's writes only what changed or went stale.
  */
 export async function publishSignIn(
   device: DeviceId,
   slug: string,
-  standing: PublishedSignIn,
+  standing: Omit<PublishedSignIn, "publishedAt">,
+  now = Date.now(),
 ): Promise<void> {
   const key = signInKey(device, slug);
   const store = await appsStore();
@@ -497,17 +512,28 @@ export async function publishSignIn(
       current.success &&
       current.data.status === standing.status &&
       current.data.account === standing.account &&
-      current.data.manifestHash === standing.manifestHash
+      current.data.manifestHash === standing.manifestHash &&
+      now - publishedAt(current.data) < SIGN_IN_REFRESH_MS
     ) {
       return;
     }
-    await store.apply([{ key, t: "set", value: standing }]);
+    await store.apply([
+      { key, t: "set", value: { ...standing, publishedAt: now } },
+    ]);
   });
 }
 
-/** Where each app stands on every computer but this one, by slug. */
+function publishedAt(standing: PublishedSignIn): number {
+  return standing.publishedAt ?? standing.updatedAt;
+}
+
+/**
+ * Where each app stands on every computer but this one, by slug, leaving out
+ * a computer that has written nothing for a month.
+ */
 export async function signInsElsewhere(
   device: DeviceId,
+  now = Date.now(),
 ): Promise<Map<string, (PublishedSignIn & { device: DeviceId })[]>> {
   const bySlug = new Map<string, (PublishedSignIn & { device: DeviceId })[]>();
   for (const [key, raw] of (await appsStore()).entries(SIGN_IN_PREFIX)) {
@@ -518,7 +544,8 @@ export async function signInsElsewhere(
       slug === undefined ||
       !parsed.success ||
       !known.success ||
-      known.data === device
+      known.data === device ||
+      now - publishedAt(parsed.data) > SIGN_IN_TRUST_MS
     ) {
       continue;
     }

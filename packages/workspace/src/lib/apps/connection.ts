@@ -9,11 +9,11 @@ import { z } from "zod";
 import { getWorkspaceConfig } from "../workspace-config";
 import { appChanged } from "./changed";
 import { type AppManifest, type AppSlug } from "./manifest";
-import { loadApp, publishSignIn, setAppAccount } from "./store";
+import { listApps, loadApp, publishSignIn, setAppAccount } from "./store";
 
 /**
- * Where an app stands, as the app (never the agent) records it. `connected`
- * is the only state a call goes through; the other three say what is missing,
+ * Where an app stands on this computer. `connected` is the only state a call
+ * goes through; the others say what is missing,
  * and the card in the conversation and the Apps screen draw them.
  */
 const AppConnectionStatusSchema = z.enum([
@@ -248,14 +248,20 @@ export async function recordConnection(
 }
 
 /**
- * Writes where every app stands on this computer into the apps store, for
- * the other computers to read: at launch, since a record written by a build
- * before this one was never published.
+ * Writes where every app in the store stands on this computer, for the other
+ * computers to read: at launch, since a record written by a build before
+ * this one was never published, and whenever the host looks again, so a
+ * standing that has not changed is still written once a week and its
+ * readers see this computer is in use.
  */
 export async function publishAppSignIns(): Promise<void> {
   const connections = await getWorkspaceConfig().apps.connections.list();
-  for (const [slug, connection] of Object.entries(connections)) {
-    await publishStanding(slug, connection);
+  const { apps } = await listApps();
+  for (const app of apps) {
+    const connection = connections[app.slug];
+    if (connection !== undefined) {
+      await publishStanding(app.slug, connection);
+    }
   }
 }
 

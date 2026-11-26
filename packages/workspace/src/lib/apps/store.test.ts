@@ -3,7 +3,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { forgetApps, seedApp } from "../../test/helpers/seed-app";
-import { newDeviceId } from "../records/device-id";
+import { DeviceIdSchema, newDeviceId } from "../records/device-id";
 import { getWorkspaceConfig } from "../workspace-config";
 import { workspaceLayout } from "../workspace-layout";
 import { findAppIcon, setAppIcon } from "./icon";
@@ -14,10 +14,12 @@ import {
   appsStore,
   listApps,
   loadApp,
+  publishSignIn,
   readAppGuide,
   readAppSetup,
   removeApp,
   setAppAccount,
+  signInsElsewhere,
   writeApp,
   writeAppGuide,
   writeAppSetup,
@@ -320,5 +322,51 @@ describe("setAppAccount", () => {
       "https://inbox.example/",
     );
     expect((await loadApp(inbox))._unsafeUnwrap().manifestHash).toBe(before);
+  });
+});
+
+describe("each computer's sign-ins", () => {
+  const here = DeviceIdSchema.parse("dev_HERE2345");
+  const other = DeviceIdSchema.parse("dev_7Q2M4K9X");
+  const day = 24 * 60 * 60 * 1000;
+  const standing = { status: "connected", updatedAt: 0 };
+
+  async function publishedOn(device: typeof here) {
+    const store = await appsStore();
+    return store.get(`sign-in/${device}/drafts`);
+  }
+
+  it("leaves out this computer and one that has written nothing for a month", async () => {
+    await publishSignIn(here, "drafts", standing, 0);
+    await publishSignIn(other, "drafts", standing, 0);
+
+    expect(
+      [...(await signInsElsewhere(here, 29 * day)).keys()],
+    ).toEqual(["drafts"]);
+    expect((await signInsElsewhere(here, 31 * day)).size).toBe(0);
+  });
+
+  it("writes an unchanged standing again only once a week has passed", async () => {
+    await publishSignIn(other, "drafts", standing, 0);
+    await publishSignIn(other, "drafts", standing, 6 * day);
+
+    expect(await publishedOn(other)).toMatchObject({ publishedAt: 0 });
+
+    await publishSignIn(other, "drafts", standing, 8 * day);
+
+    expect(await publishedOn(other)).toMatchObject({ publishedAt: 8 * day });
+  });
+
+  it("go when the app does", async () => {
+    await seedApp("drafts", { name: "Drafts", setup: drafts });
+    await publishSignIn(here, "drafts", standing);
+    await publishSignIn(other, "drafts", standing);
+    await publishSignIn(other, "drafts-2", standing);
+
+    await removeApp(slug);
+
+    expect(await publishedOn(here)).toBeUndefined();
+    expect(await publishedOn(other)).toBeUndefined();
+    expect((await signInsElsewhere(here)).has("drafts-2")).toBe(true);
   });
 });

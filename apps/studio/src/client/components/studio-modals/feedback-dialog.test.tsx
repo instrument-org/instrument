@@ -261,7 +261,13 @@ describe("FeedbackDialogContent", () => {
       getDefaultStore().set(
         reportDialogAtom,
         feedbackReport({
-          captures: [{ name: "capture-1.png", stamp: 1 }],
+          captures: [
+            {
+              name: "capture-1.png",
+              path: "/Users/mac-user/.instrument/captures/capture-1.png",
+              stamp: 1,
+            },
+          ],
           surface: "capture",
         }),
       );

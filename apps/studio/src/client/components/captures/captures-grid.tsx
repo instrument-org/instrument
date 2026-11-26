@@ -1,7 +1,9 @@
+import { useFileDrag } from "@/client/hooks/use-file-drag";
 import { cn, osConventions } from "@/client/lib/utils";
 import { buildLabel, type Capture, captureUrl } from "@/shared/captures";
 import { CheckIcon } from "@phosphor-icons/react/Check";
 import { TrashIcon } from "@phosphor-icons/react/Trash";
+import { type ComponentProps } from "react";
 
 const dayFormat = new Intl.DateTimeFormat(undefined, {
   day: "numeric",
@@ -31,6 +33,15 @@ function dayName(time: number) {
     : days === 1
       ? "Yesterday"
       : dayFormat.format(day);
+}
+
+/** A capture's tile, which drags its file out as a file in Files does (`useFileDrag`). */
+function CaptureButton({
+  capture,
+  ...props
+}: { capture: Capture } & Omit<ComponentProps<"button">, "type">) {
+  const dragProps = useFileDrag({ hostPath: capture.path });
+  return <button {...props} {...dragProps} type="button" />;
 }
 
 /** The captures, newest first and a heading per day, each with the build that took it. */
@@ -69,14 +80,14 @@ export function CapturesGrid({
             {day.captures.map((capture) => {
               const on = selected?.has(capture.name) === true;
               const tile = (
-                <button
+                <CaptureButton
                   aria-pressed={selected ? on : undefined}
+                  capture={capture}
                   className="group flex min-w-0 flex-col gap-1 rounded-lg text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
                   key={capture.name}
                   onClick={() => {
                     onPick(capture);
                   }}
-                  type="button"
                 >
                   <span
                     className={cn(
@@ -114,7 +125,7 @@ export function CapturesGrid({
                       {buildLabel(capture.meta.build)}
                     </span>
                   )}
-                </button>
+                </CaptureButton>
               );
               return onTrash ? (
                 <div className="group/tile relative min-w-0" key={capture.name}>

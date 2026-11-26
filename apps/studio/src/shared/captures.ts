@@ -80,6 +80,8 @@ const CaptureSchema = z.object({
   meta: CaptureMetaSchema.optional(),
   /** Its file name in the captures folder. */
   name: z.string(),
+  /** Where its file is on this computer, which a drag of it hands out. */
+  path: z.string(),
   /** Changes whenever the file does, so a picture shown is never a stale one. */
   stamp: z.number(),
 });

@@ -47,7 +47,11 @@ describe("CaptureLayer's corner thumbnail", () => {
       .spyOn(navigator.clipboard, "writeText")
       .mockResolvedValue();
     const store = createStore();
-    store.set(captureThumbnailAtom, { name: "capture.png", stamp: 1 });
+    store.set(captureThumbnailAtom, {
+      name: "capture.png",
+      path: "/Users/mac-user/.instrument/captures/capture.png",
+      stamp: 1,
+    });
     await renderInBrowser(<CaptureLayer />, { store });
 
     await userEvent.click(

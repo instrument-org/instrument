@@ -175,8 +175,9 @@ export async function takeCapture(
   for (let attempt = 0; ; attempt += 1) {
     const name = nameFor(date, attempt);
     try {
-      await fs.writeFile(path.join(capturesDir(), name), png, { flag: "wx" });
-      return { meta, name, stamp: meta.takenAt };
+      const file = path.join(capturesDir(), name);
+      await fs.writeFile(file, png, { flag: "wx" });
+      return { meta, name, path: file, stamp: meta.takenAt };
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "EEXIST" || attempt > 50) {
         throw error;
@@ -202,7 +203,12 @@ export async function listCaptures(): Promise<Capture[]> {
         try {
           const stat = await fs.stat(file);
           const meta = await readMeta(file);
-          return { ...(meta && { meta }), name, stamp: stat.mtimeMs };
+          return {
+            ...(meta && { meta }),
+            name,
+            path: file,
+            stamp: stat.mtimeMs,
+          };
         } catch {
           return undefined;
         }
@@ -241,7 +247,12 @@ export async function saveCaptureEdit(
   const edited = meta ? { ...meta, edited: true, elements: [] } : undefined;
   await fs.writeFile(file, edited ? withCaptureText(png, edited) : png);
   const stat = await fs.stat(file);
-  return { ...(edited && { meta: edited }), name, stamp: stat.mtimeMs };
+  return {
+    ...(edited && { meta: edited }),
+    name,
+    path: file,
+    stamp: stat.mtimeMs,
+  };
 }
 
 /** Puts back the picture a capture had before it was edited. */
@@ -252,7 +263,7 @@ export async function revertCapture(name: string): Promise<Capture> {
   await fs.rm(original, { force: true });
   const stat = await fs.stat(file);
   const meta = await readMeta(file);
-  return { ...(meta && { meta }), name, stamp: stat.mtimeMs };
+  return { ...(meta && { meta }), name, path: file, stamp: stat.mtimeMs };
 }
 
 /** Whether a capture has a picture from before an edit to go back to. */

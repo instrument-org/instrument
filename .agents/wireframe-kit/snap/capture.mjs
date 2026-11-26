@@ -592,8 +592,11 @@ async function captureStates(/** @type {string[]} */ names) {
   }
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename)
-  await captureStates(process.argv.slice(2)).catch((error) => {
+if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
+  try {
+    await captureStates(process.argv.slice(2));
+  } catch (error) {
     console.error(`capture: ${error instanceof Error ? error.message : error}`);
     process.exit(1);
-  });
+  }
+}

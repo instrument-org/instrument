@@ -133,11 +133,11 @@ const ManifestWordsSchema = z.object({
  * looks at as the active one (`selectExtensionTab`); the Chrome Web Store's
  * own install button, asking first (`confirmInstall`) and keeping what it
  * installs in `extensionsDir` beside the profile; loading what is installed
- * and turned on, and keeping it current (`checkForExtensionUpdates`); and
- * what the extensions' workers log, in the log. The action buttons' icons are served to the window by
- * the `crx:` handler the app session registers as it is made
- * (`lib/app-session.ts`), which finds this session by the name the buttons
- * give it.
+ * and turned on, and keeping it current (`checkForExtensionUpdates`). What
+ * the extensions' workers log stays in their DevTools, as in Chrome. The
+ * action buttons' icons are served to the window by the `crx:` handler the
+ * app session registers as it is made (`lib/app-session.ts`), which finds
+ * this session by the name the buttons give it.
  */
 export function enableBrowserExtensions(
   guestSession: Session,
@@ -189,13 +189,6 @@ export function enableBrowserExtensions(
     log.info(`extension unloaded ${extension.name} id=${extension.id}`);
     connections.delete(extension.id);
     publisher.publish("browser.extensions-changed", null);
-  });
-  guestSession.serviceWorkers.on("console-message", (_event, details) => {
-    if (details.sourceUrl.startsWith("chrome-extension://")) {
-      log.info(
-        `extension worker [${details.sourceUrl}:${details.lineNumber}] ${details.message}`,
-      );
-    }
   });
   // A worker that stopped may leave its extension idle, which is when an
   // update it was too busy for can load.

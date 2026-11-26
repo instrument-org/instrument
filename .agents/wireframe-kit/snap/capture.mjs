@@ -666,6 +666,23 @@ export const STATES = {
       h.after(() => h.oneGroup());
     },
   },
+  "tg-file-alone": {
+    about: "Tab groups: a new group from ⌘N whose new tab's Files went to the workspace folder and opened q3-board-update.md, a file alone in its tab.",
+    themes: ["light"],
+    run: async (h) => {
+      const { button, click, files, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await press("Meta+n");
+      await click("Files");
+      await button("Instrument").click();
+      await wait(600);
+      await files.item("q3-board-update.md").dblclick();
+      await wait(1200);
+      h.after(() => h.oneGroup());
+    },
+  },
   "tg-new-tab-bar": {
     about: "tg-new-tab with bookmarks: the new tab's bookmarks bar shows Apps, Chats and Files, then the Competitors folder, Notion pricing and Hacker News.",
     themes: ["light"],

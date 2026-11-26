@@ -246,4 +246,79 @@ describe("normalizeReplyBlocks", () => {
       After."
     `);
   });
+
+  it("ends a block whose closer was left out at its first blank line, once finished", () => {
+    const cases = {
+      "a block with a fence of its own":
+        "<message to=Dana>\nRun:\n```sh\nls\n\nls -a\n```\n\nThe rest of the reply.",
+      "a directive":
+        ":::timeline\n2 Aug: Leak found\n13 Aug: Plumber came\n\nThe rest of the reply.\n\n:::message\nHi\n:::",
+      "a tag":
+        "<timeline>\n2 Aug: Leak found\n13 Aug: Plumber came\n\nThe rest of the reply.",
+    };
+    expect(
+      Object.fromEntries(
+        Object.entries(cases).map(([name, text]) => [
+          name,
+          normalizeReplyBlocks(text),
+        ]),
+      ),
+    ).toMatchInlineSnapshot(`
+      {
+        "a block with a fence of its own": "\`\`\`\`message
+      to: Dana
+      Run:
+      \`\`\`sh
+      ls
+
+      ls -a
+      \`\`\`
+      \`\`\`\`
+
+      The rest of the reply.",
+        "a directive": "\`\`\`timeline
+      2 Aug: Leak found
+      13 Aug: Plumber came
+      \`\`\`
+
+      The rest of the reply.
+
+      \`\`\`message
+      Hi
+      \`\`\`",
+        "a tag": "\`\`\`timeline
+      2 Aug: Leak found
+      13 Aug: Plumber came
+      \`\`\`
+
+      The rest of the reply.",
+      }
+    `);
+  });
+
+  it("keeps an unknown directive's closer inside a block for that directive", () => {
+    expect(
+      normalizeReplyBlocks(
+        ":::message{to=Dana}\nHi Dana,\n:::note\nA side note.\n:::\nSee you.\n:::\nAfter.",
+      ),
+    ).toMatchInlineSnapshot(`
+      "\`\`\`message
+      to: Dana
+      Hi Dana,
+      :::note
+      A side note.
+      :::
+      See you.
+      \`\`\`
+      After."
+    `);
+  });
+
+  it("keeps a block without its closer open while the text arrives", () => {
+    expect(
+      normalizeReplyBlocks(":::timeline\n2 Aug: a\n\n13 Aug: b\n", {
+        streaming: true,
+      }),
+    ).toBe("```timeline\n2 Aug: a\n\n13 Aug: b\n");
+  });
 });

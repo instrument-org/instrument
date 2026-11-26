@@ -17,10 +17,13 @@ import {
  * - a tag on its own line, `<message to="Dana">` ... `</message>`.
  *
  * Attributes become `key: value` lines at the top of the body, for the keys
- * the block reads. A wrapper still open at the end of the text stays an open
- * fence, which is how a block still arriving is drawn. Lines inside a code
- * fence or an inline code span are never read, nor is an unknown name, which
- * stays the text it was.
+ * the block reads. A wrapper still open at the end of a text still arriving
+ * stays an open fence, which is how a block still arriving is drawn; in a
+ * finished text, one whose closer was left out ends at the first blank line
+ * after its content, and what follows is the reply's again. A directive of a
+ * name we do not know, inside a block, keeps its own `:::` closer. Lines
+ * inside a code fence or an inline code span are never read, nor is an
+ * unknown name, which stays the text it was.
  *
  * While the text is arriving (`streaming`), a last line that could still turn
  * out to open or close a wrapper is held back until its line ends, as a fence's
@@ -45,6 +48,19 @@ export function normalizeReplyBlocks(
       out.push(...fenceLinesOf(wrapper, closed));
       wrapper = undefined;
     }
+  };
+  // A block whose closer was left out ends at its first blank line after its
+  // content, and what follows is read again as the reply's own.
+  const finishLeftOpen = () => {
+    const cut = wrapper?.firstBlank;
+    if (!wrapper || cut === undefined) {
+      finish(true);
+      return;
+    }
+    const rest = wrapper.body.slice(cut);
+    wrapper.body = wrapper.body.slice(0, cut);
+    finish(true);
+    out.push(normalizeReplyBlocks(rest.join("\n")));
   };
 
   for (const [index, line] of lines.entries()) {
@@ -72,6 +88,18 @@ export function normalizeReplyBlocks(
     const opener = codeRun === 0 ? wrapperOpenerOf(line) : undefined;
 
     if (wrapper) {
+      // Another writer's directive inside ours, `:::note` ... `:::`: its
+      // closer is its own.
+      if (DIRECTIVE_CLOSER.test(line) && wrapper.unknownOpen > 0) {
+        wrapper.unknownOpen -= 1;
+        wrapper.body.push(line);
+        continue;
+      }
+      if (!opener && DIRECTIVE_OPENER.test(line)) {
+        wrapper.unknownOpen += 1;
+        wrapper.body.push(line);
+        continue;
+      }
       const closer = wrapperCloserOf(line, wrapper.name);
       if (closer !== undefined) {
         if (closer !== "") {
@@ -82,11 +110,19 @@ export function normalizeReplyBlocks(
       }
       if (opener) {
         // A new block before this one closed: the closer was left out.
-        finish(true);
+        finishLeftOpen();
       } else {
         const nested = FENCE_OPENER.exec(line)?.[2];
         if (nested !== undefined) {
           wrapper.fence = nested;
+        }
+        if (
+          line.trim() === "" &&
+          wrapper.firstBlank === undefined &&
+          wrapper.unknownOpen === 0 &&
+          wrapper.body.some((written) => written.trim() !== "")
+        ) {
+          wrapper.firstBlank = wrapper.body.length;
         }
         wrapper.body.push(line);
         continue;
@@ -114,7 +150,12 @@ export function normalizeReplyBlocks(
     codeRun = line.trim() === "" ? 0 : codeRunAfter(line, codeRun);
   }
 
-  finish(false);
+  // A block still open at the end of a text still arriving is arriving.
+  if (streaming || wrapper?.firstBlank === undefined) {
+    finish(false);
+  } else {
+    finishLeftOpen();
+  }
   return out.join("\n");
 }
 
@@ -123,7 +164,11 @@ interface Wrapper {
   body: string[];
   /** A code fence opened inside the body, which no closer of ours ends. */
   fence?: string;
+  /** Where the body's first blank line after its content is, outside code. */
+  firstBlank?: number;
   name: ReplyBlockName;
+  /** Directives of names we do not know opened in the body and not yet closed. */
+  unknownOpen: number;
 }
 
 type Attribute = [key: string, value: string];
@@ -191,7 +236,12 @@ const wrapperOpenerOf = (line: string): undefined | Wrapper => {
   if (directive) {
     const name = replyBlockNameOf(directive[1] ?? "");
     return name
-      ? { attributes: attributesOf(directive[2] ?? ""), body: [], name }
+      ? {
+          attributes: attributesOf(directive[2] ?? ""),
+          body: [],
+          name,
+          unknownOpen: 0,
+        }
       : undefined;
   }
   const tag = TAG_OPENER.exec(line);
@@ -206,6 +256,7 @@ const wrapperOpenerOf = (line: string): undefined | Wrapper => {
     attributes: attributesOf(tag[2] ?? ""),
     body: [],
     name,
+    unknownOpen: 0,
   };
   // Words written on the tag's own line are the body's first line.
   const rest = tag[3] ?? "";

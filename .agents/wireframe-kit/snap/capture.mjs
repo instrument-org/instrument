@@ -778,6 +778,30 @@ export const STATES = {
       await wait(1500);
     },
   },
+  "tg-files-beside": {
+    about: "Tab groups: pricing-comparison.html opened (double-click) from the Instrument folder in a Files tab on its own, so it shows beside the folder, which narrows to the left of it.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      h.deepFolders();
+      await h.files("Table view");
+      await h.app.click({ text: "pricing-comparison.html" }, "file row", { count: 2 });
+      await wait(1800);
+    },
+  },
+  "tg-files-beside-search": {
+    about: "tg-files-beside with the narrowed folder's search opened and \"pricing\" typed.",
+    themes: ["light", "dark"],
+    run: async (h) => {
+      h.deepFolders();
+      await h.files("Table view");
+      await h.app.click({ text: "pricing-comparison.html" }, "file row", { count: 2 });
+      await wait(1800);
+      await h.app.click({ selector: 'button[aria-label="Search"]' });
+      await wait(300);
+      await h.app.type("pricing");
+      await wait(1500);
+    },
+  },
   "tg-files-narrow": {
     about: "Tab groups: Files on the left of a split with a new tab on the right, so its toolbar folds to icons (sidebar, view, sort, more, search).",
     themes: ["light", "dark"],

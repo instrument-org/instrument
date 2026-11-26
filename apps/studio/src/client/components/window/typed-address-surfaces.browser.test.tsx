@@ -5,6 +5,7 @@ import { page, userEvent } from "vitest/browser";
 
 import { useCommandMenuRows } from "./command-menu";
 import { boxOpens } from "./new-tab-box";
+import { NewTabPageList } from "./new-tab-page-list";
 import { Omnibar } from "./omnibar";
 
 /** What a surface opened, in the order it opened it. */
@@ -210,21 +211,40 @@ async function fieldFor(words: string) {
   return `${said}${search}; Return: ${did}`;
 }
 
-/** What Return does with the words in a new tab's box, which shows no row for them. */
-function boxFor(words: string) {
+/** The first row under a new tab's box for the words, and what Return does. */
+async function boxFor(words: string) {
   const opens = boxOpens({ path: typedPathOf(words, "darwin"), words });
+  const did =
+    opens === undefined
+      ? "sends a message"
+      : opens.kind === "path"
+        ? `path ${opens.path.shown}`
+        : opens.kind === "site"
+          ? `page ${opens.url}`
+          : opens.address.kind === "page"
+            ? `page ${opens.address.url}`
+            : `app ${opens.address.address}`;
   if (opens === undefined) {
-    return "Return: sends a message";
+    return `no row; Return: ${did}`;
   }
-  if (opens.kind === "path") {
-    return `Return: path ${opens.path.shown}`;
-  }
-  if (opens.kind === "site") {
-    return `Return: page ${opens.url}`;
-  }
-  return opens.address.kind === "page"
-    ? `Return: page ${opens.address.url}`
-    : `Return: app ${opens.address.address}`;
+  const screen = await renderInBrowser(
+    <NewTabPageList
+      lit={-1}
+      onGo={() => undefined}
+      onOpen={() => undefined}
+      onSearch={() => undefined}
+      opens={opens}
+      pages={HISTORY}
+      rows={[]}
+      searchWords={undefined}
+    />,
+  );
+  const lit = page.getByRole("option", { selected: true });
+  await expect.element(lit).toBeInTheDocument();
+  const row = lit.element();
+  const said = `“${row.textContent.replace(/↵$/, "")}” (${asksForIcon(row)})`;
+  await screen.unmount();
+  return `${said}; Return: ${did}`;
 }
 
 const WORDS = [
@@ -243,6 +263,9 @@ const WORDS = [
   "/tmp",
   "/Users",
   "/Applications",
+  "file:///tmp/notes.md",
+  "file:///Users/mac-user/My%20Folder/",
+  "file:///tmp/page.html#top",
   "git",
   "github.com",
 ];
@@ -259,7 +282,7 @@ describe("typed words across the menu, the field and the box", () => {
         words,
         `  menu:  ${await menuFor(words)}`,
         `  field: ${await fieldFor(words)}`,
-        `  box:   ${boxFor(words)}`,
+        `  box:   ${await boxFor(words)}`,
       );
     }
     expect(`\n${table.join("\n")}\n`).toMatchInlineSnapshot(`
@@ -267,71 +290,83 @@ describe("typed words across the menu, the field and the box", () => {
       https://example.com/a
         menu:  “Go to example.com/a” (no site icon); Return: page https://example.com/a
         field: “Go to example.com/a” (no site icon); Return: page https://example.com/a
-        box:   Return: page https://example.com/a
+        box:   “Go to example.com/a” (no site icon); Return: page https://example.com/a
       example.com
         menu:  “Go to example.com” (no site icon); Return: page https://example.com/
         field: “Go to example.com” (no site icon); Return: page https://example.com/
-        box:   Return: page https://example.com/
+        box:   “Go to example.com” (no site icon); Return: page https://example.com/
       instrument://chat/x
         menu:  “Go to Chat” (no site icon); Return: screen /chats/x
         field: “Go to Chat” (no site icon); Return: screen /chats/x
-        box:   Return: app instrument://chat/x
+        box:   “Go to Chat” (no site icon); Return: app instrument://chat/x
       instrument://settings/general
         menu:  “Go to Settings” (no site icon); Return: screen /settings/general
         field: “Go to Settings” (no site icon); Return: screen /settings/general
-        box:   Return: app instrument://settings/general
+        box:   “Go to Settings” (no site icon); Return: app instrument://settings/general
       localhost:3000
         menu:  “Go to localhost:3000” (no site icon); Return: page http://localhost:3000/
         field: “Go to localhost:3000” (no site icon); Return: page http://localhost:3000/
-        box:   Return: page http://localhost:3000/
+        box:   “Go to localhost:3000” (no site icon); Return: page http://localhost:3000/
       myserver:8080
         menu:  “Go to myserver:8080” (no site icon); Return: page https://myserver:8080/
         field: “Go to myserver:8080” (no site icon); Return: page https://myserver:8080/
-        box:   Return: page https://myserver:8080/
+        box:   “Go to myserver:8080” (no site icon); Return: page https://myserver:8080/
       127.0.0.1:3000
         menu:  “Go to 127.0.0.1:3000” (no site icon); Return: page http://127.0.0.1:3000/
         field: “Go to 127.0.0.1:3000” (no site icon); Return: page http://127.0.0.1:3000/
-        box:   Return: page http://127.0.0.1:3000/
+        box:   “Go to 127.0.0.1:3000” (no site icon); Return: page http://127.0.0.1:3000/
       foo.localhost
         menu:  “Go to foo.localhost” (no site icon); Return: page http://foo.localhost/
         field: “Go to foo.localhost” (no site icon); Return: page http://foo.localhost/
-        box:   Return: page http://foo.localhost/
+        box:   “Go to foo.localhost” (no site icon); Return: page http://foo.localhost/
       node.js
         menu:  “Go to node.js” (no site icon), web search offered; Return: page https://node.js/
         field: “Go to node.js” (no site icon), web search offered; Return: page https://node.js/
-        box:   Return: sends a message
+        box:   no row; Return: sends a message
       foo.zzzzz
         menu:  “Go to foo.zzzzz” (no site icon), web search offered; Return: page https://foo.zzzzz/
         field: “Go to foo.zzzzz” (no site icon), web search offered; Return: page https://foo.zzzzz/
-        box:   Return: sends a message
+        box:   no row; Return: sends a message
       ftp://example.com
         menu:  “Go to ftp://example.com” (no site icon); Return: page ftp://example.com/
         field: “Go to ftp://example.com” (no site icon); Return: page ftp://example.com/
-        box:   Return: sends a message
+        box:   no row; Return: sends a message
       chrome://extensions
         menu:  “Go to chrome://extensions” (no site icon); Return: page chrome://extensions/
         field: “Go to chrome://extensions” (no site icon); Return: page chrome://extensions/
-        box:   Return: sends a message
+        box:   no row; Return: sends a message
       /tmp
         menu:  “/tmp” (no site icon); Return: path /tmp
         field: “/tmp” (no site icon); Return: path /tmp
-        box:   Return: path /tmp
+        box:   “/tmp” (no site icon); Return: path /tmp
       /Users
         menu:  “/Users” (no site icon); Return: path /Users
         field: “/Users” (no site icon); Return: path /Users
-        box:   Return: path /Users
+        box:   “/Users” (no site icon); Return: path /Users
       /Applications
         menu:  “/Applications” (no site icon); Return: path /Applications
         field: “/Applications” (no site icon); Return: path /Applications
-        box:   Return: path /Applications
+        box:   “/Applications” (no site icon); Return: path /Applications
+      file:///tmp/notes.md
+        menu:  “/tmp/notes.md” (no site icon); Return: path /tmp/notes.md
+        field: “/tmp/notes.md” (no site icon); Return: path /tmp/notes.md
+        box:   “/tmp/notes.md” (no site icon); Return: path /tmp/notes.md
+      file:///Users/mac-user/My%20Folder/
+        menu:  “/Users/mac-user/My Folder” (no site icon); Return: path /Users/mac-user/My Folder
+        field: “/Users/mac-user/My Folder” (no site icon); Return: path /Users/mac-user/My Folder
+        box:   “/Users/mac-user/My Folder” (no site icon); Return: path /Users/mac-user/My Folder
+      file:///tmp/page.html#top
+        menu:  “Go to /tmp/page.html#top” (no site icon); Return: page file:///tmp/page.html#top
+        field: “Go to /tmp/page.html#top” (no site icon); Return: page file:///tmp/page.html#top
+        box:   “Go to /tmp/page.html#top” (no site icon); Return: page file:///tmp/page.html#top
       git
         menu:  “Pull requests · github.com” (site icon), web search offered; Return: page https://github.com/acme/app/pulls
         field: “Go to github.com” (site icon); Return: page https://github.com/
-        box:   Return: sends a message
+        box:   no row; Return: sends a message
       github.com
         menu:  “Go to github.com” (site icon); Return: page https://github.com/
         field: “Go to github.com” (site icon); Return: page https://github.com/
-        box:   Return: page https://github.com/
+        box:   “Go to github.com” (site icon); Return: page https://github.com/
       "
     `);
   });

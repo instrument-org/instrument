@@ -384,6 +384,9 @@ export function NewChatView({
       ? undefined
       : boxSearchWords(words, typedPath);
   const rowCount = pageRows.length + (searchWords === undefined ? 0 : 1);
+  // What Return opens, as the list's first row, lit while no other row is.
+  const goRow = groupTab === undefined || isListPutAway ? undefined : opens;
+  const isListed = rowCount > 0 || goRow !== undefined;
   // The row the arrows moved to for these words. No row is lit until Down
   // goes into the list; -1 is the box, where Return does what Send shows.
   const [litFor, setLitFor] = useState<{ index: number; words: string }>();
@@ -565,7 +568,7 @@ export function NewChatView({
             !event.ctrlKey &&
             !event.shiftKey &&
             !event.nativeEvent.isComposing;
-          if (rowCount > 0 && isPlain) {
+          if (isListed && isPlain) {
             // Down and Up move the caret until it stands at the end of the
             // words, where Down goes into the list.
             if (
@@ -695,15 +698,22 @@ export function NewChatView({
         />
         {/* Under the box without moving it, so the box stays where it was
             as the list comes and goes; over it for a box at the foot. */}
-        {rowCount > 0 && (
+        {isListed && (
           <NewTabPageList
             className={cn(
               "absolute inset-x-3",
               isCentered ? "top-full mt-2" : "bottom-full mb-2",
             )}
             lit={lit}
+            onGo={() => {
+              if (opens !== undefined) {
+                go(opens);
+              }
+            }}
             onOpen={openRow}
             onSearch={searchWeb}
+            opens={goRow}
+            pages={offered}
             rows={pageRows}
             searchWords={searchWords}
           />

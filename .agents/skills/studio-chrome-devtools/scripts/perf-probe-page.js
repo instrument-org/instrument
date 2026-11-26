@@ -11,8 +11,9 @@
 // them only between runs taken side by side.
 //
 // `watch(names)` also records why each named component rendered: the props
-// that changed, its own state, or neither (a context or a parent that does
-// not memoize).
+// that changed, a hook whose value changed (`state`), a context whose value
+// changed (`context:<its displayName, or its value's first keys>`), or none
+// of those (a parent that does not memoize).
 
 /**
  * The part of a React fiber this reads. React does not export the type, and
@@ -21,7 +22,7 @@
  * @typedef {{
  *   alternate: Fiber | null;
  *   child: Fiber | null;
- *   dependencies: { firstContext: unknown } | null;
+ *   dependencies: { firstContext: ContextRead | null } | null;
  *   flags: number;
  *   memoizedProps: Record<string, unknown> | null;
  *   memoizedState: unknown;
@@ -29,6 +30,14 @@
  *   tag: number;
  *   type: ComponentType | string | null;
  * }} Fiber
+ *
+ * @typedef {{
+ *   context: { displayName?: string };
+ *   memoizedValue: unknown;
+ *   next: ContextRead | null;
+ * }} ContextRead
+ *
+ * @typedef {{ memoizedState: unknown; next: Hook | null }} Hook
  *
  * @typedef {{
  *   displayName?: string;
@@ -76,6 +85,7 @@
   const PERFORMED_WORK = 1;
   /** Function, class, forwardRef, memo and simple memo components. */
   const COMPONENT_TAGS = new Set([0, 1, 11, 14, 15]);
+  const CLASS_COMPONENT = 1;
 
   const state = {
     t0: performance.now(),
@@ -136,6 +146,22 @@
     );
   };
 
+  /**
+   * Whether a hook's value changed. An effect's record is made again on every
+   * render, whether or not it runs, so it never counts.
+   *
+   * @param {unknown} value @param {unknown} was
+   */
+  const hookChanged = (value, was) =>
+    value !== was &&
+    !(typeof value === "object" && value !== null && "create" in value);
+
+  /** @param {unknown} value */
+  const labelOf = (value) =>
+    typeof value === "object" && value !== null
+      ? Object.keys(value).sort().slice(0, 3).join(",") || "{}"
+      : typeof value;
+
   /** @param {Fiber} fiber @param {Fiber} before */
   const reasonsFor = (fiber, before) => {
     const previous = before.memoizedProps ?? {};
@@ -143,13 +169,32 @@
     const reasons = Object.keys({ ...previous, ...next })
       .filter((key) => previous[key] !== next[key])
       .map((key) => `prop:${key}`);
-    if (fiber.memoizedState !== before.memoizedState) {
-      reasons.push("state");
+    // A class keeps its state whole; a function component, a list of hooks.
+    if (fiber.tag === CLASS_COMPONENT) {
+      if (fiber.memoizedState !== before.memoizedState) {
+        reasons.push("state");
+      }
+    } else {
+      let hook = /** @type {Hook | null} */ (fiber.memoizedState);
+      let was = /** @type {Hook | null} */ (before.memoizedState);
+      for (; hook && was; hook = hook.next, was = was.next) {
+        if (hookChanged(hook.memoizedState, was.memoizedState)) {
+          reasons.push("state");
+          break;
+        }
+      }
+    }
+    let read = fiber.dependencies?.firstContext ?? null;
+    let readBefore = before.dependencies?.firstContext ?? null;
+    for (; read && readBefore; read = read.next, readBefore = readBefore.next) {
+      if (read.memoizedValue !== readBefore.memoizedValue) {
+        reasons.push(
+          `context:${read.context.displayName ?? labelOf(read.memoizedValue)}`,
+        );
+      }
     }
     if (reasons.length === 0) {
-      reasons.push(
-        fiber.dependencies?.firstContext ? "context-or-forced" : "none-visible",
-      );
+      reasons.push("none-visible");
     }
     return reasons;
   };

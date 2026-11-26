@@ -40,13 +40,17 @@ const WATCH = [
   "WindowShell",
   "GroupView",
   "GroupSides",
+  "GroupItem",
   "SideCard",
+  "PaneTabs",
   "SideMotion",
   "TabStrip",
   "GroupSidebar",
   "FilesScreen",
+  "FinderPlaces",
   "PlaceMenu",
   "CatalogTile",
+  "Tile",
   "AppsHome",
 ];
 
@@ -71,6 +75,15 @@ export default async (app, args = {}) => {
   const notes = [];
 
   // --- the scene ---
+  // A fixture's window opens on a new chat and the group of the chat it last
+  // had up, and keeps the groups a run makes, so a second run in one
+  // instance would build its scene on top of the first's.
+  const already = (await look()).groups.length;
+  if (already > 2) {
+    throw new Error(
+      `The window already has ${already} tab groups. Stop the instance and boot it again on the fixture, which opens with none of a run's.`,
+    );
+  }
   const chat = args.chat ?? "red-and-blue-squares";
   const task = (await app.rpc("workspace.chats.tasks", { id: chat }))[0]?.id;
   const newGroup = async (label) => {

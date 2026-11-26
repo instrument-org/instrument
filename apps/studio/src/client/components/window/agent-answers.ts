@@ -103,7 +103,7 @@ export const WINDOW_CHANGE_ANSWERS = {
     not: "set as a group is made, from the project the sidebar is in; a person moves a chat to a project (chats.project), never a group",
   },
   "group.share": {
-    gap: "how wide each side of a split is, which the person drags",
+    not: "how wide each side of a split is, which is the person's to drag",
   },
   "group.shownAt": FOLLOWING,
 

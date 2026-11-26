@@ -19,11 +19,7 @@ const gapsOf = (table: Record<string, AgentAnswer<string>>) =>
 // no agent command covers yet, so closing one shows here.
 describe("agent answers", () => {
   it("lists the window's gaps", () => {
-    expect(gapsOf(WINDOW_CHANGE_ANSWERS)).toMatchInlineSnapshot(`
-      [
-        "group.share: how wide each side of a split is, which the person drags",
-      ]
-    `);
+    expect(gapsOf(WINDOW_CHANGE_ANSWERS)).toMatchInlineSnapshot(`[]`);
   });
 
   it("lists no gap in what a sidebar row shows or in Settings", () => {

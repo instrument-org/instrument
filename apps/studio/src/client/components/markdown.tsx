@@ -1499,8 +1499,8 @@ export const Markdown = memo(
       };
     }, [needsMath, needsRawHtml]);
 
-    // Mermaid is not a plugin, so it loads on its own schedule — but on the
-    // same terms as the math bundle above: multiple megabytes that only
+    // The diagram renderer is not a plugin, so it loads on its own schedule —
+    // but on the same terms as the math bundle above: a chunk that only
     // markdown carrying a diagram is allowed to pull in. Starting here rather
     // than waiting for `MermaidDiagram` to mount overlaps the download with the
     // rest of the fence streaming in.

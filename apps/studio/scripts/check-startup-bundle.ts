@@ -55,6 +55,7 @@ const STARTUP = {
       "just-bash",
       "katex",
       "mermaid",
+      "pele",
       "prosemirror-view",
     ],
     budgetBytes: 10.8 * MB,

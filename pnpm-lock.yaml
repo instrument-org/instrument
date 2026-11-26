@@ -585,6 +585,9 @@ importers:
       diff-match-patch-es:
         specifier: 2.0.1
         version: 2.0.1
+      dompurify:
+        specifier: ^3.4.16
+        version: 3.4.16
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -639,9 +642,6 @@ importers:
       marked:
         specifier: ^18.1.0
         version: 18.1.0
-      mermaid:
-        specifier: ^11.17.2
-        version: 11.17.2
       motion:
         specifier: ^14.6.0
         version: 14.6.0(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -654,6 +654,9 @@ importers:
       parse5:
         specifier: 8.0.1
         version: 8.0.1
+      pele:
+        specifier: 1.13.0
+        version: 1.13.0
       playwright:
         specifier: ^1.64.1
         version: 1.65.0
@@ -8270,6 +8273,10 @@ packages:
   pe-library@0.4.1:
     resolution: {integrity: sha512-eRWB5LBz7PpDu4PUlwT0PhnQfTQJlDDdPa35urV4Osrm0t0AqQFGn+UIkU3klZvwJ8KPO3VbBFsXquA6p6kqZw==}
     engines: {node: '>=12', npm: '>=6'}
+
+  pele@1.13.0:
+    resolution: {integrity: sha512-Ie8UKY9x00MsuR3jO6AzUwzK2Z6MIV3Tf4EDdITiuk8Uaz8K7g0R082WqsqNaSU8DdgkrRvZThzhit83mi/uiw==}
+    engines: {node: '>=20'}
 
   perfect-freehand@1.2.0:
     resolution: {integrity: sha512-h/0ikF1M3phW7CwpZ5MMvKnfpHficWoOEyr//KVNTxV4F6deRK1eYMtHyBKEAKFK0aXIEUK9oBvlF6PNXMDsAw==}
@@ -17504,6 +17511,8 @@ snapshots:
       resolve-protobuf-schema: 2.1.0
 
   pe-library@0.4.1: {}
+
+  pele@1.13.0: {}
 
   perfect-freehand@1.2.0: {}
 

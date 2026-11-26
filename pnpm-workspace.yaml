@@ -85,7 +85,7 @@ overrides:
   # vite variants, making Plugin types "unrelated" and breaking the type check on
   # electron.vite.config.ts.
   jiti: 2.7.0
-  # mermaid sanitizes agent-written diagrams through DOMPurify, and Milkdown
+  # Studio sanitizes agent-written diagrams through DOMPurify, and Milkdown
   # bundles it too; 3.4.5 carries several sanitizer-bypass advisories.
   dompurify: ^3.4.16
   # better-auth merges options with defu; 6.1.4 lets a __proto__ key in the

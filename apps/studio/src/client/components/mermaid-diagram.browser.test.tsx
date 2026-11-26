@@ -6,11 +6,12 @@ import { MermaidDiagram } from "./mermaid-diagram";
 import { ThemeProvider } from "./theme-provider";
 import { TranscriptScrollContext } from "./transcript-scroll-context";
 
-// Mermaid lays a diagram out by measuring the text it is about to draw, so it
-// needs `getBBox` and a font — neither of which jsdom has. A test there sees no
-// SVG whether the component works or not, which is exactly the shape of test
-// that passes forever while the feature is broken. So every assertion about a
-// diagram actually appearing lives here, in a real browser.
+// Pele lays a diagram out by measuring the text it is about to draw, and fits
+// it to the width of the element it draws into, neither of which jsdom can
+// give it. A test there passes whether the layout is right or not, which is
+// exactly the shape of test that passes forever while the feature is broken.
+// So every assertion about a diagram actually appearing lives here, in a real
+// browser.
 
 const GRAPH = "graph TD\n  A[Start] --> B[End]";
 // Half of the graph above, the way it looks a few tokens into a stream.
@@ -32,17 +33,17 @@ async function renderDiagram(code: string) {
   return screen;
 }
 
-// Mermaid stamps the id it was rendered under onto the SVG root, which makes it
-// distinguishable from the icon SVGs the toolbar buttons are built from.
+// Pele classes the SVG root `pele`, which makes it distinguishable from the
+// icon SVGs the toolbar buttons are built from.
 const diagramSvg = (container: HTMLElement) =>
-  container.querySelector("svg[id^='mermaid-diagram-']");
+  container.querySelector<SVGSVGElement>("svg.pele");
 
 describe("MermaidDiagram", () => {
   it("renders a diagram once the source parses", async () => {
     const { container } = await renderDiagram(GRAPH);
 
     await expect.poll(() => diagramSvg(container)).toBeTruthy();
-    // The labels are the proof mermaid got far enough to lay the graph out,
+    // The labels are the proof pele got far enough to lay the graph out,
     // rather than having emitted an empty root element.
     expect(diagramSvg(container)?.textContent).toContain("Start");
     expect(diagramSvg(container)?.textContent).toContain("End");
@@ -53,11 +54,14 @@ describe("MermaidDiagram", () => {
 
     // Give the render a chance to happen before concluding it did not.
     await expect.poll(() => container.textContent).toContain("A --> ((((");
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
     expect(diagramSvg(container)).toBeNull();
-    // `suppressErrorRendering` is the setting that keeps mermaid from putting
-    // its own "Syntax error in text" graphic on the page. It renders into the
-    // document body rather than into our subtree, so check the whole page.
-    expect(document.body.textContent).not.toContain("Syntax error");
+    // Pele draws its own red error, in its parser's terms, into an element it
+    // is handed source it cannot read. Not one word of it reaches the reader.
+    expect(container.querySelector(".pele-error")).toBeNull();
+    expect(document.body.textContent).not.toContain("Parse error");
   });
 
   it("holds the source while a graph is still streaming in", async () => {
@@ -185,11 +189,11 @@ describe("MermaidDiagram", () => {
   });
 
   it("draws nodes the reader can tell apart from the surface in dark mode", async () => {
-    // Mermaid's own dark theme fills a node with a near-black a shade off our
-    // background, which reads as an outline drawn on nothing. The palette we
-    // hand it makes a node a card on a surface, the same as the rest of the
-    // app, and this is the property that has to hold for it to be legible at
-    // all — asserting the exact color would only restate the token.
+    // A node filled a shade off the background reads as an outline drawn on
+    // nothing. The palette the app hands pele makes a node a card on a
+    // surface, the same as the rest of the app, and this is the property that
+    // has to hold for it to be legible at all — asserting the exact color
+    // would only restate the token.
     const { container } = await renderInBrowser(
       <ThemeProvider defaultTheme="dark">
         <div className="bg-background">
@@ -298,6 +302,70 @@ describe("MermaidDiagram", () => {
     }
     expect(svg.closest("button")).toBeNull();
     expect(globalThis.getComputedStyle(svg).userSelect).not.toBe("none");
+  });
+
+  it("recolors a drawn diagram for a new theme without drawing it again", async () => {
+    // Pele colors a diagram from CSS variables, so a theme switch is the
+    // stylesheet's work alone. Drawing every diagram on screen again for it
+    // is main-thread time spent on a picture that has not changed.
+    const { container, rerender } = await renderInBrowser(
+      <ThemeProvider defaultTheme="light">
+        <MermaidDiagram code={GRAPH} language="mermaid" />
+      </ThemeProvider>,
+    );
+    await expect.poll(() => diagramSvg(container)).toBeTruthy();
+    const svg = diagramSvg(container);
+    const node = svg?.querySelector("rect");
+    if (!node) {
+      throw new Error("diagram did not render");
+    }
+    const lightFill = globalThis.getComputedStyle(node).fill;
+
+    await rerender(
+      <ThemeProvider defaultTheme="dark">
+        <MermaidDiagram code={GRAPH} language="mermaid" />
+      </ThemeProvider>,
+    );
+
+    await expect
+      .poll(() => globalThis.getComputedStyle(node).fill)
+      .not.toBe(lightFill);
+    expect(diagramSvg(container)).toBe(svg);
+  });
+
+  it("turns a wide left-to-right flowchart vertical in a narrow column", async () => {
+    // Fitted to a chat column as drawn, a long left-to-right chain shrinks its
+    // labels to a few pixels. Below pele's breakpoint it is laid out top to
+    // bottom instead, at a size that can be read.
+    const chain = [
+      "flowchart LR",
+      "  A[Collect the requirements] --> B[Draft the design]",
+      "  B --> C[Review it with the team] --> D[Build the feature]",
+      "  D --> E[Test it end to end] --> F[Ship the release]",
+    ].join("\n");
+    const { container } = await renderInBrowser(
+      <ThemeProvider>
+        <div style={{ width: 420 }}>
+          <MermaidDiagram code={chain} language="mermaid" />
+        </div>
+      </ThemeProvider>,
+    );
+    await expect.poll(() => diagramSvg(container)).toBeTruthy();
+
+    const { height, width } = diagramSvg(container)?.getBoundingClientRect() ?? {
+      height: 0,
+      width: 0,
+    };
+    expect(height).toBeGreaterThan(width);
+  });
+
+  it("draws no link that would run script", async () => {
+    const { container } = await renderDiagram(
+      'graph TD\n  A[Start] --> B[End]\n  click A "javascript:alert(1)"',
+    );
+    await expect.poll(() => diagramSvg(container)).toBeTruthy();
+
+    expect(container.querySelector("[href^='javascript']")).toBeNull();
   });
 
   it("keeps a wide diagram inside its column", async () => {

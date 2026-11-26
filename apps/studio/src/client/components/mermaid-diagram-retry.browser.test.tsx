@@ -6,49 +6,45 @@ import type * as MermaidLib from "../lib/mermaid";
 import { MermaidDiagram } from "./mermaid-diagram";
 import { ThemeProvider } from "./theme-provider";
 
-// `loadMermaid` drops a rejected import so the chunk can be fetched again, but
+// The loaders drop a rejected import so the chunk can be fetched again, but
 // that only helps a caller who calls again. A diagram in a finished message
-// never does: its source, theme and visibility have all settled, so nothing
-// re-runs its render effect. This covers the diagram that actually failed.
+// never does: its source and visibility have both settled, so nothing re-runs
+// its effect. This covers the diagram that actually failed.
 //
 // The module is mocked rather than driven for real because a dropped chunk
 // fetch is not something a passing network can be asked to produce, and the
-// subject here is the component's own recovery, not mermaid's output. It lives
-// in its own file so the module-level mock stays clear of the tests next door
-// that render real diagrams.
+// subject here is the component's own recovery, not pele's output. It lives in
+// its own file so the module-level mock stays clear of the tests next door
+// that draw real diagrams.
 
-const { renderMermaid } = vi.hoisted(() => ({ renderMermaid: vi.fn() }));
+const { loadDiagram } = vi.hoisted(() => ({ loadDiagram: vi.fn() }));
 
-vi.mock("../lib/mermaid", async (importOriginal) => ({
-  ...(await importOriginal<typeof MermaidLib>()),
-  renderMermaid,
-}));
+vi.mock("../lib/mermaid", async (importOriginal) => {
+  const actual = await importOriginal<typeof MermaidLib>();
+  loadDiagram.mockImplementation(actual.loadDiagram);
+  return { ...actual, loadDiagram };
+});
 
 describe("MermaidDiagram chunk-load failure", () => {
-  it("retries the diagram whose own render threw", async () => {
-    renderMermaid
-      .mockRejectedValueOnce(
-        new Error("Failed to fetch dynamically imported module"),
-      )
-      .mockResolvedValue('<svg id="mermaid-diagram-1" />');
+  it("retries the diagram whose own load threw", async () => {
+    loadDiagram.mockRejectedValueOnce(
+      new Error("Failed to fetch dynamically imported module"),
+    );
 
     const { container } = await renderInBrowser(
       <ThemeProvider>
         <MermaidDiagram
-          code="graph TD\n  A[Start] --> B[End]"
+          code={"graph TD\n  A[Start] --> B[End]"}
           language="mermaid"
         />
       </ThemeProvider>,
     );
 
     // Nothing about this diagram changes after the first render: no new
-    // tokens, no theme flip, no scrolling. Recovery has to come from the
-    // component.
+    // tokens, no scrolling. Recovery has to come from the component.
     await expect
-      .poll(() => container.querySelector("svg[id^='mermaid-diagram-']"), {
-        timeout: 5000,
-      })
+      .poll(() => container.querySelector("svg.pele"), { timeout: 5000 })
       .toBeTruthy();
-    expect(renderMermaid).toHaveBeenCalledTimes(2);
+    expect(loadDiagram).toHaveBeenCalledTimes(2);
   });
 });

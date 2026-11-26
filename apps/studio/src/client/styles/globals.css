@@ -2088,6 +2088,37 @@ a.cursor-pointer {
 }
 
 @layer components {
+  /* The app's colors for a Mermaid diagram (`MermaidDiagram`), which pele
+   * draws from these variables, so a theme change recolors a drawn diagram
+   * without drawing it again. A diagram is a card on a surface, the same as
+   * everything else in the app: a node takes the card fill and the surface
+   * takes the background, which is what gives a shape its edge. A node's
+   * outline is chrome at card-border weight, but the edges between nodes are
+   * the diagram's content, a step darker so the arrows do not fade out
+   * between the boxes. The accent fills a gantt's bars, where the ink would
+   * be a row of solid black; pele writes their labels in the background color,
+   * so it is a dark teal in light mode and a light one in dark mode. */
+  .mermaid-diagram {
+    --pele-bg: var(--background);
+    --pele-fg: var(--foreground);
+    --pele-muted: var(--muted-foreground);
+    --pele-line: var(--gray-500);
+    --pele-surface: var(--card);
+    --pele-surface-alt: var(--gray-100);
+    --pele-border: var(--gray-300);
+    --pele-accent: var(--brand-500);
+    --pele-critical: var(--destructive);
+    --pele-font: var(--font-sans);
+    --pele-font-mono: var(--font-mono);
+  }
+
+  .dark .mermaid-diagram {
+    --pele-line: var(--gray-400);
+    --pele-surface-alt: var(--gray-700);
+    --pele-border: var(--gray-700);
+    --pele-accent: var(--brand-300);
+  }
+
   /* Keyed off the theme class rather than the OS preference: the theme is a
    * setting, and `system` resolves to the same class, so the media query read
    * the wrong one for anyone whose app and desktop disagree. */

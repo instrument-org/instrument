@@ -1,37 +1,56 @@
 import { describe, expect, it } from "vitest";
 
-import { renderMermaid, toDiagramImageUrl } from "./mermaid";
+import { loadDiagram, toDiagramImageUrl } from "./mermaid";
 
-// Mermaid writes `xlink:href` without ever declaring that namespace, so its own
-// output is not well-formed XML. Reading it back with a strict parse gives a
-// parser-error document rather than a diagram, and since the full-window
-// preview is reached by re-reading the rendered SVG, every diagram carrying a
-// link quietly stopped being openable at all. A `click` directive is the way to
-// get mermaid to emit one.
+// The full-window preview shows a diagram in an `img`, which reads it as a file
+// of its own: it has to be well-formed XML, links included, and it has none of
+// the page's CSS, which is where pele's colors come from. A `click` directive
+// is the way to get pele to emit a link.
 const LINKED = `flowchart LR
   F[[Worker service]] --> G[Generate result]
-  click F "https://mermaid.js.org/" "Open Mermaid documentation"
+  click F "https://pele.run/" "Open the pele documentation"
 `;
 
 const PLAIN = "graph TD\n  A[Start] --> B[End]";
+
+async function draw(code: string) {
+  const host = document.createElement("div");
+  // A color no fallback of pele's could produce, standing in for a theme's.
+  host.style.setProperty("--pele-bg", "rgb(1, 2, 3)");
+  document.body.append(host);
+  const drawDiagram = await loadDiagram(code);
+  drawDiagram?.(host, {});
+  const svg = host.querySelector("svg");
+  if (!svg) {
+    throw new Error("diagram did not render");
+  }
+  return svg;
+}
 
 describe("toDiagramImageUrl", () => {
   it.each([
     ["a diagram that declares a link", LINKED],
     ["an ordinary diagram", PLAIN],
   ])("opens %s", async (_case, code) => {
-    const svg = await renderMermaid({ code, theme: "light" });
-    if (!svg) {
-      throw new Error("diagram did not render");
-    }
-
-    const url = toDiagramImageUrl({ background: "rgb(255, 255, 255)", svg });
+    const url = toDiagramImageUrl(await draw(code));
 
     expect(url?.startsWith("data:image/svg+xml")).toBe(true);
-    // The namespace has to survive the round trip, or the `img` the preview
-    // puts this in renders nothing at all.
-    expect(decodeURIComponent(url ?? "")).toContain(
-      'xmlns="http://www.w3.org/2000/svg"',
+    const xml = decodeURIComponent(url?.split(",")[1] ?? "");
+    const image = new DOMParser().parseFromString(xml, "image/svg+xml");
+    expect(image.querySelector("parsererror")).toBeNull();
+    expect(image.documentElement.namespaceURI).toBe(
+      "http://www.w3.org/2000/svg",
     );
+  });
+
+  it("carries the colors the diagram was drawn in", async () => {
+    const url = toDiagramImageUrl(await draw(PLAIN));
+    const xml = decodeURIComponent(url?.split(",")[1] ?? "");
+    const style = new DOMParser()
+      .parseFromString(xml, "image/svg+xml")
+      .documentElement.getAttribute("style");
+
+    expect(style).toContain("--pele-bg: rgb(1, 2, 3)");
+    expect(style).toContain("background-color: var(--pele-bg)");
   });
 });

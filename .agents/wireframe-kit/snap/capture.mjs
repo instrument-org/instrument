@@ -594,6 +594,31 @@ export const STATES = {
       await wait(800);
     },
   },
+  "tg-chat-new-split": {
+    about: "Tab groups: the pricing chat alone in its group, then New Tab in Split, so a narrow new tab sits beside the chat with the keyboard in it.",
+    themes: ["light"],
+    run: async (h) => {
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await h.app.words.press("Alt+Meta+n");
+      await wait(800);
+    },
+  },
+  "tg-files-in-place": {
+    about: "Tab groups: a new group from ⌘N whose new tab's Files in the bookmarks bar opened Files in that same tab, so the group has one tab and Back goes to the new tab.",
+    themes: ["light"],
+    run: async (h) => {
+      const { click, press } = h.app.words;
+      await h.bookmarksBar(false);
+      await h.bookmarks();
+      await h.chatAlone(h.chats.pricing);
+      await press("Meta+n");
+      await click("Files");
+      await wait(800);
+      h.after(() => h.oneGroup());
+    },
+  },
   "tg-new-tab-bar": {
     about: "tg-new-tab with bookmarks: the new tab's bookmarks bar shows Apps, Chats and Files, then the Competitors folder, Notion pricing and Hacker News.",
     themes: ["light"],

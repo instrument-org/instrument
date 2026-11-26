@@ -20,6 +20,7 @@ import {
 import { SIDE_MOTION } from "@/client/lib/motion";
 import { afterNextPaint } from "@/client/lib/tab-view-state";
 import { cn, isMacOS } from "@/client/lib/utils";
+import { rpcClient } from "@/client/rpc/client";
 import { browserTargetOf } from "@instrument-org/workspace/client";
 import { noop } from "radashi";
 import { useAtom, useAtomValue } from "jotai";
@@ -128,6 +129,13 @@ export function GroupView({ group }: { group: string | undefined }) {
   ) {
     setDrawn(wanted);
   }
+  useEffect(() => {
+    rpcClient.window.noteDrawn
+      .call({ drawnGroups: wanted.length, keptScreens: kept.length })
+      .catch(() => {
+        // A count for the log alone; the next change sends a fresh one.
+      });
+  }, [wanted.length, kept.length]);
   return (
     <div
       className={

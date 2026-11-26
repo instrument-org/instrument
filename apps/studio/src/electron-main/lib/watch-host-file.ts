@@ -7,6 +7,13 @@ import fs from "node:fs/promises";
  */
 const WATCH_INTERVAL_MS = 1000;
 
+let watching = 0;
+
+/** How many watches are open, for the load line. */
+export function liveFileWatches(): number {
+  return watching;
+}
+
 /** What a watched file is at a moment: when it was last written, or nothing while it is not there. */
 export interface HostFileInfo {
   modifiedAt: number;
@@ -81,6 +88,7 @@ export async function* watchHostFile({
     : undefined;
 
   signal?.addEventListener("abort", notify, { once: true });
+  watching++;
   if (polled) {
     await poll();
   } else {
@@ -93,6 +101,7 @@ export async function* watchHostFile({
       await next;
     }
   } finally {
+    watching--;
     clearInterval(timer);
     if (!polled) {
       fsSync.unwatchFile(path, listener);

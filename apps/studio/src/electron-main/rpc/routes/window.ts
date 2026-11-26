@@ -1,3 +1,4 @@
+import { noteDrawn as noteLoadDrawn } from "@/electron-main/lib/load-note";
 import { base } from "@/electron-main/rpc/base";
 import { publisher } from "@/electron-main/rpc/publisher";
 import { getCallingWindow } from "@/electron-main/windows/calling-window";
@@ -214,6 +215,18 @@ const tabShown = base
     noteTabShown(input.requestId, input.shown);
   });
 
+/** How many groups the calling window draws and screens it keeps, for the load line. */
+const noteDrawn = base
+  .input(
+    z.object({
+      drawnGroups: z.number().int().nonnegative(),
+      keptScreens: z.number().int().nonnegative(),
+    }),
+  )
+  .handler(({ context, input }) => {
+    noteLoadDrawn(context.webContentsId, input);
+  });
+
 /** This window's answer to a `listChat` command: the chat is in a tab group. */
 const phoneChatListed = base
   .input(z.object({ chat: ChatIdSchema }))
@@ -342,6 +355,7 @@ export const window = {
   live: { others, tabGroupsElsewhere },
   mergeAll,
   moveTab,
+  noteDrawn,
   noteTabCarry,
   placeGroupTabCarry,
   placeTabCarry,

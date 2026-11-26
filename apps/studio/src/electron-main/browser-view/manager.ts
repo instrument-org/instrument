@@ -98,6 +98,7 @@ import {
   notePersonEdit,
   typedIntoFrame,
 } from "./page-edits";
+import { countGuestsWith, noteLoad } from "../lib/load-note";
 import { pageKeyOfInput } from "./page-key";
 import { createPutAwaySound } from "./put-away-sound";
 import { stopScreencast } from "./screencast";
@@ -272,6 +273,19 @@ const describeTabScript = (guestId: number) => `(() => {
 
 function createBrowserViewManager(): BrowserViewManager {
   const entries = new Map<BrowserTargetId, BrowserEntry>();
+  countGuestsWith(() => {
+    const counts = { asleep: 0, live: 0, shown: 0 };
+    for (const entry of entries.values()) {
+      if (!entry.webContents || entry.webContents.isDestroyed()) {
+        continue;
+      }
+      counts[entry.asleep ? "asleep" : "live"]++;
+      if (entry.shown) {
+        counts.shown++;
+      }
+    }
+    return counts;
+  });
   // The window a guest nothing asked for in particular goes to: the one last
   // in front.
   let frontHost: null | WebContents = null;
@@ -1769,4 +1783,5 @@ function markNavigated(entry: BrowserEntry, url: string) {
 // every add (createTarget) and removal (destroyEntry / handleDetach) site.
 function notifyEntriesChanged() {
   publisher.publish("browser.targets-changed", null);
+  noteLoad();
 }

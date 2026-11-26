@@ -223,6 +223,7 @@ import { stripKeyOf } from "./pane-tabs";
 import { flashStripTab, flashStripTabOnceDrawn } from "./tab-strip";
 import { forgetMovedAway, hasMovedAway, receiveTab } from "./move-tab";
 import { sitesLeaving, sitesNoLongerHere, sitesPutAway } from "./site-let-go";
+import { setStudioDriveOpenPage } from "@/client/lib/studio-drive";
 
 // Resolve the computer file channel once at boot so file URLs derive locally
 // from a host path; not awaited, so it never holds up the first render.
@@ -843,6 +844,15 @@ function WindowShell({
       }
     },
     windowTabs,
+  });
+  // A driving script opens its pages the way an address typed here would.
+  useEffect(() => {
+    setStudioDriveOpenPage((url) => {
+      openPage(url);
+    });
+    return () => {
+      setStudioDriveOpenPage(undefined);
+    };
   });
   // Show in Folder, from anywhere in the window, opens Files beside the tab
   // up in the group on screen, read at the moment it is asked, as a click in

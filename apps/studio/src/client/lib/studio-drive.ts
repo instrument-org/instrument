@@ -61,6 +61,8 @@ interface StudioDrive {
   openModal: (name: StudioModalName) => void;
   /** The web contents of the page a tab shows, by the tab's id; null for a screen or a page not loaded yet. */
   pageOf: (tabId: string) => null | number;
+  /** Opens an address as the window opens one asked of it, with nothing typed; false before the window has mounted. */
+  openPage: (url: string) => boolean;
   /** The tab closed last, back with its history, as Shift+Cmd+T brings it. */
   reopen: () => void;
   /** Resolves once the window has been still for a moment, with what it was still doing when the time ran out. */
@@ -148,6 +150,15 @@ const LONG_CALL_MS = 5000;
 const LIVE_WAIT_MS = 1500;
 /** How long the page's own changes are waited on when nothing else is going: a reply being written, a ticking clock. */
 const QUIET_CAP_MS = 800;
+
+let windowOpenPage: ((url: string) => void) | undefined;
+
+/** The app window's own open, which `__studioDrive.openPage` calls; the window sets it while mounted. */
+export function setStudioDriveOpenPage(
+  open: ((url: string) => void) | undefined,
+) {
+  windowOpenPage = open;
+}
 
 /**
  * Hands the app window's tabs and modals to `studio-drive`, for as long as
@@ -326,6 +337,10 @@ export function initStudioDrive() {
       MODAL_OPENERS[name]();
     },
     pageOf: (tabId) => getGuest(browserTargetOf(tabId))?.webContentsId ?? null,
+    openPage: (url) => {
+      windowOpenPage?.(url);
+      return windowOpenPage !== undefined;
+    },
     reopen: () => {
       store.set(appTabsAtom, (model) =>
         reopenClosed(model, { id: freshTabId() }),

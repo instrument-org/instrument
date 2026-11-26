@@ -11,8 +11,7 @@ import fs from "node:fs";
 import { z } from "zod";
 
 const J = JSON.stringify;
-const sleep = (ms: number) =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** What `studio-drive run` hands a sequence, as far as this one uses it. */
 type App = {
@@ -41,7 +40,9 @@ const LookSchema = z.object({
   sides: z.array(
     z.object({ tabs: z.array(z.string()), up: z.string().optional() }),
   ),
-  strips: z.array(z.array(z.object({ k: z.string().nullable(), on: z.boolean() }))),
+  strips: z.array(
+    z.array(z.object({ k: z.string().nullable(), on: z.boolean() })),
+  ),
   want: z.object({
     panes: z.array(z.string().nullable().optional()),
     strips: z.array(z.array(z.object({ k: z.string(), on: z.boolean() }))),
@@ -69,9 +70,7 @@ async function drive(
 ) {
   const [target] = z
     .array(z.object({ webSocketDebuggerUrl: z.string() }))
-    .parse(
-      await (await fetch(`http://127.0.0.1:${args.inspect}/json`)).json(),
-    );
+    .parse(await (await fetch(`http://127.0.0.1:${args.inspect}/json`)).json());
   if (!target) {
     throw new Error(`nothing to inspect on port ${args.inspect}`);
   }
@@ -83,7 +82,9 @@ async function drive(
   let nextId = 0;
   const MessageSchema = z.object({
     id: z.number().optional(),
-    result: z.object({ result: z.object({ value: z.unknown() }).optional() }).optional(),
+    result: z
+      .object({ result: z.object({ value: z.unknown() }).optional() })
+      .optional(),
   });
   const waiting = new Map<number, (value: unknown) => void>();
   socket.onmessage = (event: MessageEvent<string>) => {
@@ -98,7 +99,11 @@ async function drive(
       const id = ++nextId;
       const timer = setTimeout(() => {
         waiting.delete(id);
-        reject(new Error(`the main process did not answer: ${expression.slice(0, 120)}`));
+        reject(
+          new Error(
+            `the main process did not answer: ${expression.slice(0, 120)}`,
+          ),
+        );
       }, 10_000);
       waiting.set(id, (value) => {
         clearTimeout(timer);
@@ -340,15 +345,57 @@ async function drive(
     return bad;
   };
 
+  // A sequence's first page, opened through the window's own open: a new
+  // group's screen has the keyboard in a box only some of the time, and an
+  // address typed with nothing focused opens the keyboard shortcuts with its
+  // `?`, which hold the window so every step after it does nothing.
+  const openFirst = async () => {
+    page++;
+    const end = Date.now() + 4000;
+    while (
+      !(await app.eval(
+        `__studioDrive.openPage(${J(`${args.site}?x=${page}`)})`,
+      ))
+    ) {
+      if (Date.now() > end)
+        throw new Error("the window never took the first page");
+      await sleep(40);
+    }
+    while (Date.now() < end) {
+      const l = await look();
+      if (l.sides.some((s) => s.tabs.includes(`p${page}`))) {
+        return settle();
+      }
+      await sleep(40);
+    }
+    throw new Error(
+      `the first page of a sequence never opened: ${J(seen(await look()))}`,
+    );
+  };
+
   let sequences = 0;
   let steps = 0;
   // Each sequence starts in a new group with one page, and closes what it
   // made afterward so the next starts the same way.
   const play = async (names: string[]) => {
     sequences++;
-    await menu("New Tab Group");
+    const groupBefore = (await look()).g;
+    // Opened before the new group is on screen, the page joins the old one.
+    // Right after a launch the window can miss the first menu command, so it
+    // is asked again; a third miss is a finding of its own.
+    for (let asked = 1; ; asked++) {
+      const result = await menu("New Tab Group");
+      const shown = Date.now() + 1500;
+      while ((await look()).g === groupBefore && Date.now() < shown)
+        await sleep(40);
+      if ((await look()).g !== groupBefore) break;
+      if (asked === 3)
+        throw new Error(
+          `New Tab Group put no new group on screen (menu: ${String(result)})`,
+        );
+    }
     await settle();
-    await go();
+    await openFirst();
     const story: string[] = [];
     let bad: Broken = [];
     for (const name of names) {
@@ -360,7 +407,10 @@ async function drive(
       steps++;
       const after = await settle();
       if (args.progress) {
-        fs.appendFileSync(args.progress, `${String(sequences)} ${name} ${J(seen(after))}\n`);
+        fs.appendFileSync(
+          args.progress,
+          `${String(sequences)} ${name} ${J(seen(after))}\n`,
+        );
       }
       bad = [...broken, ...always(after)];
       story.push(`${name} ${J(seen(after))}`);
@@ -390,7 +440,9 @@ async function drive(
     const names = args.replay.filter((name) => name in STEPS);
     const played = await play(names);
     const [first] = played.bad;
-    return report({ found: first ? { [first.rule]: { ...played, names } } : {} });
+    return report({
+      found: first ? { [first.rule]: { ...played, names } } : {},
+    });
   }
 
   // One finding per rule. Shrunk by dropping one step at a time while the
@@ -399,13 +451,14 @@ async function drive(
   const until = Date.now() + args.seconds * 1000;
   let seed = args.seed;
   while (Date.now() < until && Object.keys(found).length < 3) {
-    const names = fc.sample(
-      fc.array(fc.constantFrom(...Object.keys(STEPS)), {
-        maxLength: 9,
-        minLength: 4,
-      }),
-      { numRuns: 1, seed },
-    )[0] ?? [];
+    const names =
+      fc.sample(
+        fc.array(fc.constantFrom(...Object.keys(STEPS)), {
+          maxLength: 9,
+          minLength: 4,
+        }),
+        { numRuns: 1, seed },
+      )[0] ?? [];
     const first = await play(names);
     const rule = first.bad[0]?.rule;
     if (rule && !found[rule]) {

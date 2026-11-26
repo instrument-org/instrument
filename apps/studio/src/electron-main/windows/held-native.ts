@@ -68,6 +68,7 @@ export function holdNativeForDriving() {
   if (!isDrivenInstance()) {
     return;
   }
+  // oxlint-disable-next-line typescript/unbound-method -- kept to call on each menu with `.call`, past the wrapper
   const popup = Menu.prototype.popup;
   Menu.prototype.popup = function holdPopup(this: Menu, options) {
     if (!keepsOffScreen()) {
@@ -90,7 +91,9 @@ export function holdNativeForDriving() {
   const optionsOf = <T>(args: unknown[]) =>
     // The last argument either way, as each method's own overloads have it.
     args.at(-1) as T;
-  const { showMessageBox, showOpenDialog, showSaveDialog } = dialog;
+  const showMessageBox = dialog.showMessageBox.bind(dialog);
+  const showOpenDialog = dialog.showOpenDialog.bind(dialog);
+  const showSaveDialog = dialog.showSaveDialog.bind(dialog);
   dialog.showMessageBox = async (
     ...args: unknown[]
   ): Promise<MessageBoxReturnValue> => {
@@ -353,6 +356,7 @@ function pressItem(
     if (item.type === "checkbox") {
       item.checked = !item.checked;
     }
+    // oxlint-disable-next-line typescript/no-unsafe-call -- Electron types a menu item's click as Function
     item.click(undefined, window, contents);
   } finally {
     actingIn = undefined;

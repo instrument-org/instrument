@@ -325,8 +325,7 @@ export function initStudioDrive() {
     openModal: (name) => {
       MODAL_OPENERS[name]();
     },
-    pageOf: (tabId) =>
-      getGuest(browserTargetOf(tabId))?.webContentsId ?? null,
+    pageOf: (tabId) => getGuest(browserTargetOf(tabId))?.webContentsId ?? null,
     reopen: () => {
       store.set(appTabsAtom, (model) =>
         reopenClosed(model, { id: freshTabId() }),
@@ -338,7 +337,9 @@ export function initStudioDrive() {
       const frame = () =>
         // A window the system stopped drawing gives no frames.
         Promise.race([
+          // oxlint-disable-next-line studio/no-loose-timers -- a wait for the next frame, which resolves at most once and draws nothing
           new Promise((resolve) => requestAnimationFrame(resolve)),
+          // oxlint-disable-next-line studio/no-loose-timers -- the cap on that wait; resolving it late does nothing
           new Promise((resolve) => setTimeout(resolve, 100)),
         ]);
       // What the last input set off has had its handlers and effects.

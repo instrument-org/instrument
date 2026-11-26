@@ -366,3 +366,63 @@ describe("a tab group's lifetime", () => {
     ]);
   });
 });
+
+describe("writing a beat later", () => {
+  /** Once no write is left on its way, by the temporary files beside the kept ones. */
+  const settled = () =>
+    vi.waitFor(() => {
+      expect(
+        fs.readdirSync(dir).filter((name) => name.endsWith(".tmp")),
+      ).toEqual([]);
+    });
+
+  /** A write a beat later, started and still on its way. */
+  const startWrite = (store: ReturnType<typeof createKeptStateStore>) => {
+    vi.useFakeTimers();
+    store.set("layout", "a", "on its way");
+    vi.advanceTimersByTime(250);
+    vi.useRealTimers();
+  };
+
+  it("writes a burst of changes once, as compact JSON", async () => {
+    const store = createKeptStateStore(() => dir);
+    store.set("layout", "a", 1);
+    store.set("layout", "b", [2]);
+
+    await vi.waitFor(() => {
+      expect(fs.readFileSync(path.join(dir, "layout.json"), "utf8")).toBe(
+        '{"a":1,"b":[2]}\n',
+      );
+    });
+  });
+
+  it("never lands a write over one made after it", async () => {
+    const store = createKeptStateStore(() => dir);
+    startWrite(store);
+    store.set("layout", "a", "later");
+    store.flush();
+    await settled();
+
+    expect(read("layout.json")).toEqual({ a: "later" });
+  });
+
+  it("writes at once, for a quit, what was on its way", async () => {
+    const store = createKeptStateStore(() => dir);
+    startWrite(store);
+    store.flush();
+
+    expect(read("layout.json")).toEqual({ a: "on its way" });
+    await settled();
+    expect(read("layout.json")).toEqual({ a: "on its way" });
+  });
+
+  it("lands nothing on its way for a file that was dropped", async () => {
+    const store = createKeptStateStore(() => dir);
+    startWrite(store);
+    store.discard();
+    await settled();
+
+    expect(fs.existsSync(path.join(dir, "layout.json"))).toBe(false);
+    expect(fs.readdirSync(dir)).toEqual([]);
+  });
+});

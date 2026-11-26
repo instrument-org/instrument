@@ -32,8 +32,9 @@ const WRITE_DELAY_MS = 250;
 /**
  * The windows' kept state as JSON files, one object of keys per file, each in
  * the folder `dirOf` names for it. Read whole on first use; a write lands in memory
- * at once and on disk a beat later, each file replaced by rename so a crash
- * mid-write leaves the old file rather than half of the new one.
+ * at once and on disk a beat later, off the main thread, each file replaced by
+ * rename so a crash mid-write leaves the old file rather than half of the new
+ * one. `flush` writes at once, for a quit.
  */
 export function createKeptStateStore(
   dirOf: (file: KeptFile) => string,
@@ -50,6 +51,15 @@ export function createKeptStateStore(
   /** Files that are there and could not be read, left as they are on disk. */
   const unreadable = new Set<KeptFile>();
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** Each file's latest write, so an earlier one still on its way never lands over it. */
+  const latest = new Map<KeptFile, number>();
+  const nextWrite = (file: KeptFile) => {
+    const write = (latest.get(file) ?? 0) + 1;
+    latest.set(file, write);
+    return write;
+  };
+  /** Files whose latest write is still on its way, which a quit's flush writes again. */
+  const writing = new Set<KeptFile>();
 
   const pathOf = (file: KeptFile) => path.join(dirOf(file), nameOf(file));
 
@@ -68,37 +78,72 @@ export function createKeptStateStore(
     return files;
   };
 
-  /** Writes what is waiting, and says whether all of it reached the disk. */
-  const flush = () => {
+  /** The files waiting to be written that can be, each with its write. */
+  const takeWaiting = () => {
     clearTimeout(timer);
     timer = undefined;
-    let isWritten = true;
-    for (const file of dirty) {
+    const waiting = [...dirty].flatMap((file) => {
       const target = pathOf(file);
       if (unreadable.has(file)) {
         logger.warn(
           `Not writing kept state over ${target}, which could not be read`,
         );
-        isWritten = false;
-        continue;
+        return [];
       }
+      return [{ file, keys: loaded().get(file) ?? {}, target }];
+    });
+    const isWhole = waiting.length === dirty.size;
+    dirty.clear();
+    return { isWhole, waiting };
+  };
+
+  /** Writes what is waiting at once, and says whether all of it reached the disk. */
+  const flush = () => {
+    for (const file of writing) {
+      dirty.add(file);
+    }
+    writing.clear();
+    const { isWhole, waiting } = takeWaiting();
+    let isWritten = isWhole;
+    for (const { file, keys, target } of waiting) {
+      nextWrite(file);
       try {
-        writeObject(target, loaded().get(file) ?? {});
+        writeObject(target, keys);
       } catch (error) {
         logger.error(`Could not write kept state to ${target}`, error);
         isWritten = false;
       }
     }
-    dirty.clear();
     return isWritten;
   };
 
+  /** Writes what is waiting without holding up the main thread. */
+  const flushLater = () => {
+    for (const { file, keys, target } of takeWaiting().waiting) {
+      const write = nextWrite(file);
+      writing.add(file);
+      writeObjectLater(target, keys, () => latest.get(file) === write)
+        .catch((error: unknown) => {
+          logger.error(`Could not write kept state to ${target}`, error);
+        })
+        .finally(() => {
+          if (latest.get(file) === write) {
+            writing.delete(file);
+          }
+        });
+    }
+  };
+
   return {
-    /** Drops what is waiting to be written, for a file about to be removed. */
+    /** Drops what is waiting to be written, and any write on its way, for a file about to be removed. */
     discard: () => {
       clearTimeout(timer);
       timer = undefined;
       dirty.clear();
+      writing.clear();
+      for (const file of keptFiles) {
+        nextWrite(file);
+      }
     },
     flush,
     get: (file: KeptFile, key: string): unknown => loaded().get(file)?.[key],
@@ -111,7 +156,7 @@ export function createKeptStateStore(
         loaded().set(file, { ...current, [key]: value });
       }
       dirty.add(file);
-      timer ??= setTimeout(flush, WRITE_DELAY_MS);
+      timer ??= setTimeout(flushLater, WRITE_DELAY_MS);
     },
     /** Every file's keys, for a window loading. */
     snapshot: (): KeptSnapshot => Object.fromEntries(loaded()),
@@ -131,10 +176,39 @@ function keptFileName(file: KeptFile): string {
  * the old file rather than half of the new one.
  */
 function writeObject(target: string, keys: Record<string, unknown>) {
-  const temporary = `${target}.${process.pid}.tmp`;
+  const temporary = temporaryOf(target);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  fs.writeFileSync(temporary, `${JSON.stringify(keys, null, 2)}\n`);
+  fs.writeFileSync(temporary, `${JSON.stringify(keys)}\n`);
   fs.renameSync(temporary, target);
+}
+
+/**
+ * {@link writeObject} off the main thread. The rename happens only while
+ * `isLatest` says no later write has started, and in the same turn as that
+ * check, so a later write, synchronous or not, is never overtaken.
+ */
+async function writeObjectLater(
+  target: string,
+  keys: Record<string, unknown>,
+  isLatest: () => boolean,
+) {
+  const text = `${JSON.stringify(keys)}\n`;
+  const temporary = temporaryOf(target);
+  await fs.promises.mkdir(path.dirname(target), { recursive: true });
+  await fs.promises.writeFile(temporary, text);
+  if (isLatest()) {
+    fs.renameSync(temporary, target);
+  } else {
+    await fs.promises.rm(temporary, { force: true });
+  }
+}
+
+let temporaries = 0;
+
+/** A file beside `target` that no other write is using. */
+function temporaryOf(target: string) {
+  temporaries += 1;
+  return `${target}.${process.pid.toString()}.${temporaries.toString()}.tmp`;
 }
 
 /**

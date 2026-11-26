@@ -26,6 +26,7 @@
  *   flags: number;
  *   memoizedProps: Record<string, unknown> | null;
  *   memoizedState: unknown;
+ *   return: Fiber | null;
  *   sibling: Fiber | null;
  *   tag: number;
  *   type: ComponentType | string | null;
@@ -177,9 +178,13 @@
     } else {
       let hook = /** @type {Hook | null} */ (fiber.memoizedState);
       let was = /** @type {Hook | null} */ (before.memoizedState);
-      for (; hook && was; hook = hook.next, was = was.next) {
+      for (
+        let index = 0;
+        hook && was;
+        hook = hook.next, was = was.next, index++
+      ) {
         if (hookChanged(hook.memoizedState, was.memoizedState)) {
-          reasons.push("state");
+          reasons.push(`state#${index}:${labelOf(hook.memoizedState)}`);
           break;
         }
       }
@@ -214,8 +219,16 @@
           const counts =
             state.why.get(name) ??
             /** @type {Map<string, number>} */ (new Map());
+          // Where it stands: in a group drawn out of sight, when it is.
+          let place = "";
+          for (let up = fiber.return; up; up = up.return) {
+            if (nameOf(up) === "DrawnGroup") {
+              place = up.memoizedProps?.isUp === false ? "@hidden" : "";
+              break;
+            }
+          }
           for (const reason of reasonsFor(fiber, before)) {
-            count(counts, reason);
+            count(counts, reason + place);
           }
           state.why.set(name, counts);
         }

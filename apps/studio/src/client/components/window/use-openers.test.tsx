@@ -525,6 +525,7 @@ describe("an agent and the window's other tab groups", () => {
     spies.pageMarks = { unreached: [], using: [] };
   });
 
+
   it("switches the window to a group by its id", async () => {
     windowOnTwoSides();
     await answerTo({ group: OTHER_GROUP, kind: "showGroup" }, "g1");
@@ -605,6 +606,44 @@ describe("an agent and the window's other tab groups", () => {
     windowOnTwoSides();
     await answerTo({ kind: "close", tabId: OTHER_BEHIND }, "c2");
     expect(spies.closeTab).toHaveBeenCalledWith(OTHER_BEHIND);
+  });
+
+  it("steps a tab back and forward between what it showed, as its arrows do", async () => {
+    const { result } = windowOnTwoSides();
+    // A page's id is one its guest can be found by.
+    const page = StoreId.newTabId();
+    act(() => {
+      result.current.windowTabs.replace(RIGHT_BEHIND, {
+        group: GROUP,
+        id: page,
+        kind: "page",
+        openedAt: 3,
+        past: [{ href: "/apps", id: "tab_apps", kind: "screen" }],
+        side: 1,
+      });
+    });
+    const tabs = () =>
+      result.current.windowTabs.allTabs
+        .filter((tab) => tab.side === 1)
+        .map((tab) => `${tab.id} ${tab.kind}`);
+
+    expect(
+      await answerTo({ direction: "back", kind: "step", tabId: page }, "s1"),
+    ).toEqual({ requestId: "s1", stepped: "tab", tabId: "tab_apps" });
+    expect(tabs()).toEqual([`${RIGHT_UP} page`, "tab_apps screen"]);
+    expect(
+      await answerTo(
+        { direction: "forward", kind: "step", tabId: "tab_apps" },
+        "s2",
+      ),
+    ).toEqual({ requestId: "s2", stepped: "tab", tabId: page });
+    expect(tabs()).toEqual([`${RIGHT_UP} page`, `${page} page`]);
+    expect(
+      await answerTo({ direction: "forward", kind: "step", tabId: page }, "s3"),
+    ).toEqual({
+      error: `tab ${page} has nothing to go forward to.`,
+      requestId: "s3",
+    });
   });
 });
 

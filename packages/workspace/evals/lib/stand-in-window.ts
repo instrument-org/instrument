@@ -461,6 +461,11 @@ export function createStandInWindow(chrome?: SharedChrome) {
         raise(tab.id);
         return { tabId: tab.id };
       }
+      case "step": {
+        return {
+          error: `tab ${tab.id} has nothing to go ${action.direction} to.`,
+        };
+      }
     }
   };
 

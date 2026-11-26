@@ -21,8 +21,6 @@ describe("agent answers", () => {
   it("lists the window's gaps", () => {
     expect(gapsOf(WINDOW_CHANGE_ANSWERS)).toMatchInlineSnapshot(`
       [
-        "stepTrail: Back and Forward on a tab: agent-browser steps a page's own history, and nothing steps a tab between the screens and pages it showed",
-        "stepVisit: Back and Forward on a tab: agent-browser steps a page's own history, and nothing steps a tab between the screens and pages it showed",
         "group.share: how wide each side of a split is, which the person drags",
       ]
     `);

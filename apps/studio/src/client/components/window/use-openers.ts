@@ -53,6 +53,7 @@ import {
   screenPlacementOf,
 } from "./placement";
 import { visitInTab } from "./tab-history";
+import { stepTabNow } from "./use-tab-steps";
 import { taskHref, tasksOfHref } from "./tab-location";
 import {
   isChatTab,
@@ -1598,6 +1599,24 @@ export function useOpeners({
         // window shows another; which side has the keyboard stays.
         const shown = showTabWhereItIs(tab.id);
         return shown.error === undefined ? { tabId: action.tabId } : shown;
+      }
+      case "step": {
+        const stepped = stepTabNow(windowTabs, tab, action.direction);
+        if (stepped !== undefined) {
+          return {
+            stepped: stepped.layer === "guest" ? "page" : "tab",
+            tabId: stepped.tab.id,
+          };
+        }
+        const opener =
+          action.direction === "back"
+            ? windowTabs.backToOpenerOf(tab.id)
+            : undefined;
+        return {
+          error: opener
+            ? `tab ${tab.id} is at its start; a link in tab ${opener.id} opened it, and closing it (\`instrument window close ${tab.id}\`) returns there.`
+            : `tab ${tab.id} has nothing to go ${action.direction} to.`,
+        };
       }
     }
   };

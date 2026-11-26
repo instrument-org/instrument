@@ -1,7 +1,7 @@
 import { type WindowTab } from "@/client/atoms/window";
 import { useBrowserTargets } from "@/client/hooks/use-browser-targets";
 import { useGuestNavigation } from "@/client/hooks/use-guest-navigation";
-import { goGuest } from "@/client/lib/browser-pool";
+import { getGuest, goGuest } from "@/client/lib/browser-pool";
 import {
   type BrowserTargetId,
   browserTargetOf,
@@ -180,6 +180,56 @@ export function useWindowSteps({ closeTab }: { closeTab: CloseTab }): TabSteps {
       }
     },
   };
+}
+
+/**
+ * One step for a tab, outside a render, as an agent asks for it: the
+ * history its Back and Forward buttons would step (`stepOf`), read from the
+ * tab and its page's guest as they are now. Back from a tab's start into the
+ * tab a link opened it from is a close, which an agent asks for as one, so
+ * it is not taken here. Answers the history stepped and the tab as it is
+ * then, or nothing when it has nowhere to go that way.
+ */
+export function stepTabNow(
+  windowTabs: Pick<
+    ReturnType<typeof useWindowTabs>,
+    "allTabs" | "stepTab" | "stepVisitOf"
+  >,
+  tab: WindowTab,
+  direction: StepDirection,
+): undefined | { layer: "guest" | "screen" | "visits"; tab: WindowTab } {
+  const page =
+    tab.kind === "page" ? tab : hostedPageOf(windowTabs.allTabs, tab.id);
+  const target = page === undefined ? undefined : browserTargetOf(page.id);
+  const guest = target === undefined ? null : getGuest(target);
+  const layer = stepOf(
+    stepStackOf(tab, {
+      guest: guest
+        ? { canGoBack: guest.canGoBack(), canGoForward: guest.canGoForward() }
+        : undefined,
+    }),
+    direction,
+  );
+  const sign = direction === "back" ? -1 : 1;
+  switch (layer) {
+    case "guest": {
+      return target !== undefined && goGuest(target, direction)
+        ? { layer, tab }
+        : undefined;
+    }
+    case "screen": {
+      return windowTabs.stepTab(tab.id, sign) === undefined
+        ? undefined
+        : { layer, tab };
+    }
+    case "visits": {
+      const next = windowTabs.stepVisitOf(tab.id, sign);
+      return next && { layer, tab: next };
+    }
+    default: {
+      return undefined;
+    }
+  }
 }
 
 /** The page a file screen in the tab with that id draws in its viewer, if any. */

@@ -59,7 +59,9 @@ import { taskLog } from "./task/log";
 import { taskSend } from "./task/send";
 import { taskStop } from "./task/stop";
 import {
+  windowBack,
   windowClose,
+  windowForward,
   windowGroup,
   windowHistory,
   windowJoin,
@@ -145,6 +147,8 @@ export const CAPABILITIES: readonly Capability[] = [
   windowRead,
   windowLook,
   windowClose,
+  windowBack,
+  windowForward,
   windowGroup,
   windowMove,
   windowNew,

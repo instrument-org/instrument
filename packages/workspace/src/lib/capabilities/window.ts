@@ -714,6 +714,65 @@ export const windowClose = defineCapability({
   where: CHATS,
 });
 
+/**
+ * Steps a tab back or forward as its Back and Forward buttons do, saying
+ * what it shows then: its page's own history first, then the pages and
+ * screens it showed.
+ */
+async function stepTab(
+  tabId: string,
+  direction: "back" | "forward",
+  ctx: CapabilityContext,
+): Promise<string> {
+  const answer = await ask({ direction, kind: "step", tabId }, ctx);
+  if (!answer) {
+    throw new Error(NO_WINDOW);
+  }
+  if (answer.error !== undefined) {
+    throw new Error(answer.error);
+  }
+  const now = answer.tabId ?? tabId;
+  const as = now === tabId ? "" : `, as tab ${now}`;
+  if (answer.stepped === "page") {
+    return `Tab ${tabId} went ${direction} a page in its own history${as}; \`${NAME} list\` says where it landed once it loads.`;
+  }
+  const tab = (await windowsOf(ctx))
+    .flatMap((window) => window.groups)
+    .flatMap((layout) => layout.sides.flatMap((side) => side.tabs))
+    .find((each) => each.id === now);
+  const place = await placeOf(now, ctx);
+  return `Tab ${tabId} went ${direction}${as}${tab ? `, to ${layoutTabName(tab)}` : ""}${place ? `: ${place}` : ""}.`;
+}
+
+const STEP_FORM = "<id>";
+
+export const windowBack = defineCapability({
+  input: z.object({ tab: TabField("back", STEP_FORM) }),
+  name: "window.back",
+  output: z.string(),
+  run: ({ tab }, ctx) => stepTab(idOf(tab), "back", ctx),
+  summary:
+    "Take a tab back, as its Back button does: through its page's own history, then to the page or screen it showed before.",
+  surfaces: {
+    cli: { help: "", positional: ["tab"], words: ["window", "back"] },
+  },
+  text: (said) => said,
+  where: CHATS,
+});
+
+export const windowForward = defineCapability({
+  input: z.object({ tab: TabField("forward", STEP_FORM) }),
+  name: "window.forward",
+  output: z.string(),
+  run: ({ tab }, ctx) => stepTab(idOf(tab), "forward", ctx),
+  summary: "Take a tab forward, as its Forward button does.",
+  surfaces: {
+    cli: { help: "", positional: ["tab"], words: ["window", "forward"] },
+  },
+  text: (said) => said,
+  where: CHATS,
+});
+
 /** The group a tab is in and the other tabs on its side, read before it closes. */
 function sideOf(windows: WindowGroups, tabId: string) {
   for (const layout of windows.flatMap((window) => window.groups)) {

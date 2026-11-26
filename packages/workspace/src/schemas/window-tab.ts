@@ -47,6 +47,17 @@ const WindowTabActionSchema = z.discriminatedUnion("kind", [
   }),
   z.object({ kind: z.literal("close"), tabId: z.string() }),
   z.object({ kind: z.literal("show"), tabId: z.string() }),
+  /**
+   * Steps a tab back or forward as its Back and Forward buttons do: through
+   * its page's own history first, then its screen's, then between the pages
+   * and screens it showed. Never past a tab's start into the tab a link
+   * opened it from, which closing it returns to.
+   */
+  z.object({
+    direction: z.enum(["back", "forward"]),
+    kind: z.literal("step"),
+    tabId: z.string(),
+  }),
   /** Brings a tab group's window forward, showing that group. */
   z.object({ group: z.string(), kind: z.literal("showGroup") }),
   /** Closes a tab group whole, as the sidebar's X does: onto the closed list, with an Undo, unless it is unpinned and every tab is an agent's own the person never used. */
@@ -220,6 +231,8 @@ export const WindowTabAnswerSchema = z.object({
     )
     .optional(),
   requestId: z.string(),
+  /** For a step: whether the page stepped through its own history, which lands after the answer, or the tab moved to another page or screen. */
+  stepped: z.enum(["page", "tab"]).optional(),
   tabId: z.string().optional(),
   /** For a list: the group as the chat reads it, the shape of its log's layout part. */
   read: LayoutReadSchema.optional(),

@@ -386,6 +386,16 @@ function answeringWindow() {
                                 ...(action.kind === "read"
                                   ? { text: "Jar\nA rigid container." }
                                   : {}),
+                                // The page steps its own history; a tab
+                                // in another group steps to what it showed.
+                                ...(action.kind === "step"
+                                  ? {
+                                      stepped:
+                                        action.tabId === pageTab
+                                          ? ("page" as const)
+                                          : ("tab" as const),
+                                    }
+                                  : {}),
                               }
                             : {
                                 error: `no tab ${action.tabId} is open in this chat.`,
@@ -692,6 +702,46 @@ describe("window close, show and read on a tab", () => {
       "Tab <page>: showing on the right side, beside you.\n",
     );
     expect(asked[0]?.action).toEqual({ kind: "show", tabId: pageTab });
+  });
+
+  it("steps a tab back and forward, saying where it went", async () => {
+    const results = [
+      await run({}, "back", pageTab),
+      await run({}, "forward", "instrument://tab/tab_hn"),
+      await run({}, "back", "tab_gone"),
+    ];
+
+    expect(
+      asked.map(({ action }) => action).filter(({ kind }) => kind === "step"),
+    ).toEqual([
+      { direction: "back", kind: "step", tabId: pageTab },
+      { direction: "forward", kind: "step", tabId: "tab_hn" },
+      { direction: "back", kind: "step", tabId: "tab_gone" },
+    ]);
+    expect(
+      results.map(({ exitCode, stderr, stdout }) => ({
+        exitCode,
+        said: (stderr || stdout).replaceAll(pageTab, "<page>"),
+      })),
+    ).toMatchInlineSnapshot(`
+      [
+        {
+          "exitCode": 0,
+          "said": "Tab <page> went back a page in its own history; \`instrument window list\` says where it landed once it loads.
+      ",
+        },
+        {
+          "exitCode": 0,
+          "said": "Tab tab_hn went forward, to news.ycombinator.com: in the tab group "Meeting notes" instrument://group/group:notes, showing on the right side; the window shows another tab group now, so it is not on screen.
+      ",
+        },
+        {
+          "exitCode": 1,
+          "said": "instrument window: no tab tab_gone is open in this chat.
+      ",
+        },
+      ]
+    `);
   });
 
   it("prints the text of the page in a tab", async () => {
@@ -1327,6 +1377,7 @@ describe("in a task", () => {
     ["show", "tab_known"],
     ["show", "https://example.com/", "--in", "tab_known"],
     ["close", "tab_known"],
+    ["back", "tab_known"],
     ["group", "tab_known"],
     ["move", "tab_known", "--group", "group:docs"],
     ["restore", "tab_closed1"],

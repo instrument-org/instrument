@@ -43,10 +43,6 @@ const AGENTS_OWN = {
   not: "where a task's pages or an agent's own land, which the agent asks for by opening them",
 } as const;
 
-const BACK_AND_FORWARD = {
-  gap: "Back and Forward on a tab: agent-browser steps a page's own history, and nothing steps a tab between the screens and pages it showed",
-} as const;
-
 /**
  * Every change a window can make to its tabs, groups and bookmarks, answered
  * by the agent's window action (`WindowTabAction["kind"]`) that makes it.
@@ -95,8 +91,8 @@ export const WINDOW_CHANGE_ANSWERS = {
   selectShowing: "show",
   selectTab: "show",
   startedOver: FOLLOWING,
-  stepTrail: BACK_AND_FORWARD,
-  stepVisit: BACK_AND_FORWARD,
+  stepTrail: "step",
+  stepVisit: "step",
   tabToScreen: "replace",
   withGroupOwn: { not: "each field it sets has its own row, group.<field>" },
 

@@ -1,8 +1,7 @@
 import { type ChosenItem } from "@/shared/drafts";
 import { type FileTab, finderBesideWidthAtom } from "@/client/atoms/window";
 import { FileOpenContext } from "@/client/components/file-open-context";
-import { FileViewer, hasFormatToolbar } from "@/client/components/file-viewer";
-import { lookAtAtom } from "@/client/components/window/look-at";
+import { FileViewer } from "@/client/components/file-viewer";
 import { ResizeHandle } from "@/client/components/resize-handle";
 import { type RailBounds } from "@/client/components/studio-sidebar-rail";
 import { ToolbarTooltip } from "@/client/components/toolbar-tooltip";
@@ -41,7 +40,7 @@ import { SidebarSimpleIcon } from "@phosphor-icons/react/SidebarSimple";
 import { XIcon } from "@phosphor-icons/react/X";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useAtom, useSetAtom } from "jotai";
+import { useAtom } from "jotai";
 import {
   AnimatePresence,
   motion,
@@ -94,7 +93,6 @@ import {
 import { LinkSurface } from "./link-surface";
 import { PageEditMenuItem } from "./page-edit";
 import { PageMenuItems } from "./page-menu-items";
-import { ExpandFileControl } from "./tab-location-row";
 import { pageEditTabsAtom, usePageEditToggleOnScreen } from "./page-edit-state";
 import { useFileInfo } from "./file-info";
 import { useQuickLook } from "./quick-look";
@@ -123,8 +121,6 @@ const BESIDE_BOUNDS: RailBounds = {
 const FILE_ROOM = 420;
 /** The least room a file has for its format's controls to share the view's row. */
 const SHARED_ROW_ROOM = 400;
-/** The room a file needs for Expand to stay in that row beside them. */
-const EXPAND_ROOM = 520;
 /** How long a held arrow rests on a file before it shows, as the chat list does. */
 const HELD_SHOW_REST_MS = 150;
 
@@ -924,38 +920,20 @@ export function FilesScreen({
     ) : null;
 
   // Every control for the file goes where its actions do: in the view's row
-  // under the bookmarks bar, or its format's own toolbar, where the tab has
-  // that row, and the address row's tail where it does not. Expand is one of
-  // them there; the address row draws its own otherwise.
+  // under the bookmarks bar, where the tab has that row, and the address
+  // row's tail where it does not.
   const fileActionsInto = rowView === undefined ? rowTail : rowView;
-  // A file in a tab of its own with no toolbar of its own wears the view's
-  // row for its actions alone; `rowTail` here puts them back in the address
-  // row and drops that row.
+  // A file in a tab of its own wears the view's row for its actions alone;
+  // `rowTail` here puts them back in the address row and drops that row.
   const ownTabActionsInto = fileActionsInto;
   // The room the file has beside its folder. Short of its least, as with the
   // folder summoned into a narrow split, its format's controls keep a row of
-  // their own; short of a little more, they share the view's row with Expand
-  // in the menu.
+  // their own.
   const fileRoom =
     (layoutWidth ?? Number.POSITIVE_INFINITY) -
     (isFileOpen && isFolderShown ? besideWidth : 0);
   const sharesRow =
     isBesideLayout && rowViewTools !== undefined && fileRoom >= SHARED_ROW_ROOM;
-  const isExpandInMenu =
-    sharesRow &&
-    activeFile !== undefined &&
-    fileRoom < EXPAND_ROOM &&
-    hasFormatToolbar(activeFile.name);
-  const setLookAt = useSetAtom(lookAtAtom);
-  const actionsLead = (
-    <>
-      {rowView !== undefined && activeFile && !isExpandInMenu && (
-        <ExpandFileControl
-          file={{ hostPath: activeFile.hostPath, name: activeFile.name }}
-        />
-      )}
-    </>
-  );
   // The page's file drawn into the slot the viewer gives it: square at the
   // bottom left while something stands against it, and at the right
   // whatever the pane's own corner is; the pane's corners when nothing does.
@@ -1285,7 +1263,6 @@ export function FilesScreen({
                                           ? fileActionsInto
                                           : null
                                       }
-                                      actionsLead={actionsLead}
                                       actionsTrail={
                                         isFolderShown ? closeButton : null
                                       }
@@ -1295,19 +1272,6 @@ export function FilesScreen({
                                               isPresent && !isVersionOver
                                                 ? rowViewTools
                                                 : null,
-                                          }
-                                        : {})}
-                                      {...(isExpandInMenu
-                                        ? {
-                                            onExpand: () => {
-                                              setLookAt({
-                                                kind: "file",
-                                                tab: {
-                                                  hostPath: activeFile.hostPath,
-                                                  name: activeFile.name,
-                                                },
-                                              });
-                                            },
                                           }
                                         : {})}
                                       // A tab opened behind waits to be looked at.
@@ -1363,9 +1327,7 @@ export function FilesScreen({
             <div className="contents" inert={isVersionOver}>
               {refusedView ?? (
                 <FileViewer
-                  actionsInToolbar
                   actionsInto={isVersionOver ? null : ownTabActionsInto}
-                  actionsLead={actionsLead}
                   className={FULL_BLEED}
                   editable
                   file={viewerFile}

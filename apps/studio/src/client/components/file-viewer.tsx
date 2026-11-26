@@ -41,7 +41,6 @@ import {
 } from "@instrument-org/workspace/client";
 import { ArrowElbowDownLeftIcon } from "@phosphor-icons/react/ArrowElbowDownLeft";
 import { ArrowLineDownIcon } from "@phosphor-icons/react/ArrowLineDown";
-import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { ArrowUUpLeftIcon } from "@phosphor-icons/react/ArrowUUpLeft";
 import { CodeIcon } from "@phosphor-icons/react/Code";
 import { CopyIcon } from "@phosphor-icons/react/Copy";
@@ -67,7 +66,6 @@ import { useFileOpenControl } from "../hooks/use-file-open-control";
 import { useSyntaxHighlighting } from "../hooks/use-syntax-highlighting";
 import { AskSelection } from "./document-viewers/ask-selection";
 import { ViewerSurface } from "./document-viewers/viewer-surface";
-import { ViewerToolbarEndContext } from "./document-viewers/viewer-toolbar-end";
 import { ViewerToolbarIntoContext } from "./document-viewers/viewer-toolbar-into";
 import { FileActionsMenuItems } from "./file-actions-menu";
 import { FileLoading } from "./file-loading";
@@ -936,8 +934,6 @@ const fileViewerHeaderOpenWithTriggerClassName = toolbarClassName({
 export function FileViewer({
   atPage,
   actionsInto,
-  actionsInToolbar = false,
-  actionsLead,
   actionsTrail,
   autoPlay = false,
   className,
@@ -945,8 +941,8 @@ export function FileViewer({
   file,
   keyboardHome = false,
   onClose,
-  onExpand,
   onInfo,
+  onOpen,
   onLeaveSource,
   page,
   pageEdit,
@@ -962,15 +958,6 @@ export function FileViewer({
    * there once the element is up.
    */
   actionsInto?: HTMLElement | null;
-  /**
-   * Whether a format with a toolbar of its own (a PDF, a document, a
-   * notebook, an archive) takes the actions at that toolbar's end in place
-   * of `actionsInto`, for a file in a tab of its own, so its controls are one
-   * row. The actions show once the toolbar is up.
-   */
-  actionsInToolbar?: boolean;
-  /** Buttons of the caller's own, ahead of the viewer's in its head. */
-  actionsLead?: ReactNode;
   /** Buttons of the caller's own, after the viewer's in the row it draws them into. */
   actionsTrail?: ReactNode;
   /**
@@ -999,9 +986,10 @@ export function FileViewer({
    */
   keyboardHome?: boolean;
   onClose?: () => void;
-  onExpand?: () => void;
   /** The file's info card, where the screen holding the viewer has one. */
   onInfo?: () => void;
+  /** Opens the file where its folder opens files, for a glance at it from that folder (Quick Look). */
+  onOpen?: () => void;
   /**
    * Set by a surface showing a page's file as its source because it was
    * asked to, where the page is shown elsewhere: the menu's way back from
@@ -1032,7 +1020,6 @@ export function FileViewer({
   const [mediaLoadError, setMediaLoadError] = useState(false);
   const [imageControlsInto, setImageControlsInto] =
     useState<HTMLElement | null>(null);
-  const [toolbarEnd, setToolbarEnd] = useState<HTMLDivElement | null>(null);
   const [mediaErrorType, setMediaErrorType] = useState<string | undefined>();
   const [imageErrorUrl, setImageErrorUrl] = useState<null | string>(null);
   const imageLoadError = imageErrorUrl === url;
@@ -1101,7 +1088,6 @@ export function FileViewer({
   // take a place in the head beside opening it.
   const canCopy = fileActions.showCopy && !imageLoadError;
   const hasHeaderMenuActions =
-    onExpand != null ||
     onInfo != null ||
     canCopy ||
     fileActions.showDownload ||
@@ -1112,8 +1098,7 @@ export function FileViewer({
     fileActions.showDownload ||
     fileActions.showReveal ||
     richView !== undefined ||
-    showsFileText ||
-    Boolean(onExpand);
+    showsFileText;
 
   const handleDownload = async () => {
     await downloadFile(file);
@@ -1156,9 +1141,6 @@ export function FileViewer({
     : readType === undefined
       ? READING_VIEWER
       : VIEWERS[fileType];
-  const takesToolbarEnd =
-    actionsInToolbar && viewer.hasToolbar && !mediaLoadError;
-  const actionsTarget = takesToolbarEnd ? toolbarEnd : actionsInto;
   const viewerContext: ViewerContext = {
     ...(atPage === undefined ? {} : { atPage }),
     editable,
@@ -1191,11 +1173,9 @@ export function FileViewer({
   };
 
   const rendered = (
-    <ViewerToolbarEndContext value={takesToolbarEnd ? setToolbarEnd : null}>
-      <ViewerToolbarIntoContext value={toolbarInto}>
-        {viewer.render(viewerContext)}
-      </ViewerToolbarIntoContext>
-    </ViewerToolbarEndContext>
+    <ViewerToolbarIntoContext value={toolbarInto}>
+      {viewer.render(viewerContext)}
+    </ViewerToolbarIntoContext>
   );
 
   const note = (
@@ -1207,7 +1187,6 @@ export function FileViewer({
       {(fileType === "image" || fileType === "photoshop") && (
         <span className="contents" ref={setImageControlsInto} />
       )}
-      {actionsLead}
       {showsSource && (
         // Where the source was left from: the menu took the person here, and
         // this takes them back without a trip through it.
@@ -1226,6 +1205,16 @@ export function FileViewer({
             <XIcon className="size-3" />
           </Button>
         </ToolbarTooltip>
+      )}
+      {onOpen && (
+        <Button
+          className={fileViewerHeaderActionClassName}
+          onClick={onOpen}
+          size="sm"
+          variant="ghost"
+        >
+          Open
+        </Button>
       )}
       {!isInRow && (
         <OpenFileButton
@@ -1269,12 +1258,6 @@ export function FileViewer({
                   richView !== undefined ||
                   showsFileText) && <DropdownMenuSeparator />}
               </>
-            )}
-            {onExpand && (
-              <DropdownMenuItem onClick={onExpand}>
-                <ArrowsOutSimpleIcon className="size-4" />
-                <span>Expand</span>
-              </DropdownMenuItem>
             )}
             {fileActions.showDownload && (
               <DropdownMenuItem onClick={() => void handleDownload()}>
@@ -1367,13 +1350,13 @@ export function FileViewer({
           path={hostPath}
         />
       ) : (
-        actionsTarget &&
+        actionsInto &&
         createPortal(
           <div className="flex shrink-0 items-center gap-1">
             {actions}
             {actionsTrail}
           </div>,
-          actionsTarget,
+          actionsInto,
         )
       )}
 

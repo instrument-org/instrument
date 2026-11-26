@@ -22,10 +22,6 @@ import {
   usePlaceMenuProps,
 } from "@/client/components/window/place-menu";
 import {
-  lookAtAtom,
-  type LookTarget,
-} from "@/client/components/window/look-at";
-import {
   ExtensionPageBadge,
   isExtensionPageUrl,
 } from "@/client/components/window/browser-extensions";
@@ -50,7 +46,6 @@ import { expandHomePath } from "@instrument-org/shared";
 import { TOOLBAR_GROUP_CLASSNAME } from "@/client/components/toolbar-control";
 import { ArrowLeftIcon } from "@phosphor-icons/react/ArrowLeft";
 import { ArrowRightIcon } from "@phosphor-icons/react/ArrowRight";
-import { ArrowsOutSimpleIcon } from "@phosphor-icons/react/ArrowsOutSimple";
 import { CaretRightIcon } from "@phosphor-icons/react/CaretRight";
 import { FilesIcon } from "@phosphor-icons/react/Files";
 import { CheckSquareIcon } from "@phosphor-icons/react/CheckSquare";
@@ -60,7 +55,6 @@ import { LinkBreakIcon } from "@phosphor-icons/react/LinkBreak";
 import { MagnifyingGlassIcon } from "@phosphor-icons/react/MagnifyingGlass";
 import { WarningIcon } from "@phosphor-icons/react/Warning";
 import { useQuery } from "@tanstack/react-query";
-import { useSetAtom } from "jotai";
 import { type ReactNode, useContext, useState } from "react";
 
 import {
@@ -109,9 +103,7 @@ export function TabLocationRow({
   className,
   fieldEnd,
   fieldHint,
-  expandsFile = true,
   fieldTakesCaret,
-  fillsTab = false,
   hasField = true,
   isBare = false,
   leading,
@@ -138,12 +130,8 @@ export function TabLocationRow({
   fieldEnd?: ReactNode;
   /** What an empty field shows until it has the caret: the keys that put it there. */
   fieldHint?: ReactNode;
-  /** Whether the row draws Expand for a file; false where the view's own row under the bookmarks bar draws it (`ExpandFileControl`). */
-  expandsFile?: boolean;
   /** Whether an empty field takes the caret as it arrives (see `Omnibar`). */
   fieldTakesCaret?: boolean;
-  /** Whether the row is over a screen that has the whole tab, where Quick Look's view of a file would be smaller than the one already up. */
-  fillsTab?: boolean;
   /** Whether the row has the field that says where you are; a tab whose own page takes addresses has only the arrows and reload. */
   hasField?: boolean;
   /** Whether back, forward and reload stand as bare marks, out of their framed group: a new tab's, which only hints at a browser. */
@@ -186,15 +174,6 @@ export function TabLocationRow({
       : undefined,
     { isOff: isEditing },
   );
-  // A file is drawn larger over the window; a page is already as large as
-  // the tab, and a live site does not survive being lifted out of it.
-  const lookTarget: LookTarget | undefined =
-    hasField && expandsFile && location.kind === "file" && !fillsTab
-      ? {
-          kind: "file",
-          tab: { hostPath: location.path, name: location.name },
-        }
-      : undefined;
   return (
     <div
       // A container, so what a screen or a page draws into the row can give
@@ -351,32 +330,8 @@ export function TabLocationRow({
       ) : (
         <div className="flex-1" />
       )}
-      {/* The file up at the size Quick Look gives it, over the window. Ahead
-          of the file's own controls, so the × that closes it stays last. */}
-      {lookTarget && <ExpandFileControl file={lookTarget.tab} />}
       {trailing}
       {top?.corner}
-    </div>
-  );
-}
-
-/** The file at the size Quick Look gives it, over the window. */
-export function ExpandFileControl({
-  file,
-}: {
-  file: { hostPath: string; name: string };
-}) {
-  const setLookAt = useSetAtom(lookAtAtom);
-  return (
-    <div className={TOOLBAR_GROUP_CLASSNAME}>
-      <TabRowControl
-        disabled={false}
-        icon={<ArrowsOutSimpleIcon className="size-4" />}
-        label="Expand"
-        onClick={() => {
-          setLookAt({ kind: "file", tab: file });
-        }}
-      />
     </div>
   );
 }

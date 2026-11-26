@@ -19,7 +19,6 @@ import { createPortal } from "react-dom";
 
 import { FindRow } from "../find-row";
 import { ThumbnailsIcon } from "../icons/thumbnails-icon";
-import { ViewerToolbarEndContext } from "./viewer-toolbar-end";
 import { ViewerToolbarIntoContext } from "./viewer-toolbar-into";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -281,15 +280,12 @@ export function ViewerRailToggle({
  * own width. The artifact panel is resizable and the window is zoomable, so a
  * viewport breakpoint would be measuring the wrong thing.
  *
- * Under a file viewer that asks for it (`ViewerToolbarEndContext`), its end
- * takes the file's own actions, so a file in a tab of its own has one row of
- * controls rather than a row for its actions over this one. Under one that
- * has a row to draw into (`ViewerToolbarIntoContext`), the controls go there
- * and this is no row at all; a mark stays in the viewer, so the search in the
- * controls is still the viewer's.
+ * Under a file viewer that has a row to draw into
+ * (`ViewerToolbarIntoContext`), the controls go there and this is no row at
+ * all; a mark stays in the viewer, so the search in the controls is still the
+ * viewer's.
  */
 export function ViewerToolbar({ children }: { children: ReactNode }) {
-  const setEnd = useContext(ViewerToolbarEndContext);
   const into = useContext(ViewerToolbarIntoContext);
   const markId = useId();
   if (into !== undefined) {
@@ -312,12 +308,6 @@ export function ViewerToolbar({ children }: { children: ReactNode }) {
   return (
     <div className="@container/viewer-toolbar flex h-10 shrink-0 items-center gap-3 px-2 pb-3 viewer-chrome-stroke select-none in-data-headless:pb-0">
       {children}
-      {setEnd && (
-        <div
-          className="ml-auto flex shrink-0 items-center gap-1 empty:hidden"
-          ref={setEnd}
-        />
-      )}
     </div>
   );
 }

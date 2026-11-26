@@ -48,7 +48,7 @@ export function useQuickLook({
         onClosed={() => {
           origin.current?.focus();
         }}
-        onExpand={(tab) => {
+        onOpen={(tab) => {
           setTarget(null);
           openFile(tab);
         }}

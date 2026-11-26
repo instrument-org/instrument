@@ -151,7 +151,7 @@ export function GroupItem({
   const isFiles = screenKind === "computer";
   const isChat = screenKind === "chat";
   const computerTab = up.kind === "screen" ? computerTabOf(up.href) : undefined;
-  // A file with no folder beside it has one row: its controls (Expand, its
+  // A file with no folder beside it has one row: its controls (its
   // versions, its menu) at the address row's end, where a folder's go in a
   // row of their own under it.
   const isFileAlone =
@@ -364,9 +364,6 @@ export function GroupItem({
             ? { liveAddress: () => liveAddressOf(location.path) }
             : {})}
           className="border-b-0"
-          // A file beside a folder has its Expand in the view's row under the
-          // bookmarks bar; a file alone has it here.
-          expandsFile={isFileAlone}
           location={location}
           {...(before ? {} : { onBack: goBack, onForward: goForward })}
           {...(hasFolderPress ? { onFolder } : {})}

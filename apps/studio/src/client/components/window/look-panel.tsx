@@ -65,7 +65,7 @@ export function LookPanel({
   from,
   onClose,
   onClosed,
-  onExpand,
+  onOpen,
   target,
 }: {
   /**
@@ -77,8 +77,8 @@ export function LookPanel({
   onClose: () => void;
   /** Once the panel has gone: where the keyboard goes back to. */
   onClosed?: () => void;
-  /** Opens the file in a tab of its own, for a panel opened from a folder. */
-  onExpand?: (tab: FileTab) => void;
+  /** Opens the file where its folder opens files, for a panel opened from a folder. */
+  onOpen?: (tab: FileTab) => void;
   target: LookTarget | null;
 }) {
   const open = target !== null;
@@ -271,10 +271,10 @@ export function LookPanel({
             }}
             key={file.hostPath}
             onClose={onClose}
-            {...(onExpand
+            {...(onOpen
               ? {
-                  onExpand: () => {
-                    onExpand(file);
+                  onOpen: () => {
+                    onOpen(file);
                   },
                 }
               : {})}

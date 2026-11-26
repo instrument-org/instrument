@@ -9,9 +9,11 @@ input=$(cat)
 # A string field of the hook's JSON input, still JSON-escaped.
 field() { grep -oE "\"$1\" *: *\"([^\"\\\\]|\\\\.)*\"" <<< "$input" | head -1 | sed -E "s/^\"$1\" *: *\"(.*)\"$/\1/"; }
 
-sep='(^|[[:space:];&|(]|\\n)'
-commit="${sep}git([[:space:]]+-[cC][[:space:]]+[^[:space:]]+)*[[:space:]]+commit(-tree)?([^[:alnum:]_-]|$)"
-commit+="|${sep}([^[:space:]]*/)?scripts/commit\.sh([^[:alnum:]_.-]|$)"
+# Where a command starts: the start, or after ; & | ( or a newline, past any
+# VAR=value prefixes. A path or word named as an argument (ls, rg, sed) is not one.
+start='(^|[;&|(]|\\n)[[:space:]]*([[:alpha:]_][[:alnum:]_]*=[^[:space:]]*[[:space:]]+)*'
+commit="${start}git([[:space:]]+-[cC][[:space:]]+[^[:space:]]+)*[[:space:]]+commit(-tree)?([^[:alnum:]_-]|$)"
+commit+="|${start}((ba)?sh[[:space:]]+)?([^[:space:]]*/)?scripts/commit\.sh([^[:alnum:]_.-]|$)"
 grep -Eq -- "$commit" <<< "$(field command)" || exit 0
 
 transcript=$(field transcript_path)
@@ -22,4 +24,4 @@ agent=$(field agent_id)
 [[ -f "$transcript" ]] || exit 0
 grep -Eq '"skill":"([^"]*:)?instrument-commit-message"|"file_path":"[^"]*instrument-commit-message/SKILL\.md"' "$transcript" && exit 0
 
-printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Load the instrument-commit-message skill (or Read .agents/skills/instrument-commit-message/SKILL.md), check this commit message against it, then commit again. git log has older subjects that break its rules; do not copy them. Asked once per session."}}'
+printf '%s' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"Load the instrument-commit-message skill (or Read .agents/skills/instrument-commit-message/SKILL.md), check this commit message against it, then commit again. git log has older subjects that break its rules; do not copy them. Once it is loaded, later commits in this session go through."}}'

@@ -46,17 +46,17 @@ class FakeContents extends EventEmitter {
 // The library keeps one instance per session, so each test has its own.
 const makeSession = () =>
   Object.assign(new EventEmitter(), {
-  cookies: new EventEmitter(),
-  extensions: Object.assign(new EventEmitter(), {
-    getAllExtensions: () => [],
-  }),
-  getPreloads: () => [],
-  isPersistent: () => true,
-  protocol: { handle() {}, isProtocolHandled: () => false },
-  registerPreloadScript() {},
-  serviceWorkers: Object.assign(new EventEmitter(), {
-    startWorkerForScope: () => Promise.resolve({ send() {} }),
-  }),
+    cookies: new EventEmitter(),
+    extensions: Object.assign(new EventEmitter(), {
+      getAllExtensions: () => [],
+    }),
+    getPreloads: () => [],
+    isPersistent: () => true,
+    protocol: { handle() {}, isProtocolHandled: () => false },
+    registerPreloadScript() {},
+    serviceWorkers: Object.assign(new EventEmitter(), {
+      startWorkerForScope: () => Promise.resolve({ send() {} }),
+    }),
   });
 
 const electron = {
@@ -71,9 +71,13 @@ const electron = {
 type Library = {
   ElectronChromeExtensions: new (options: object) => {
     addTab(tab: FakeContents, window: FakeWindow): void;
+    removeTab(tab: FakeContents): void;
     selectTab(tab: FakeContents): void;
     api: {
-      tabs: { query(event: object, info: object): { id: number }[] };
+      tabs: {
+        getCurrent(event: object): { id: number } | undefined;
+        query(event: object, info: object): { id: number }[];
+      };
       windows: { getLastFocused(event: object): { id: number } | null };
     };
     ctx: {
@@ -126,24 +130,43 @@ function setUp() {
 describe("the tabs the extensions are told of", () => {
   it("activates only the tab the app selects, as Chrome does", () => {
     const { activeTabs, asked, extensions, newTab, sent } = setUp();
+    const activations = () =>
+      sent.filter((name) => name === "tabs.onActivated").length;
     const window = new FakeWindow();
+    // Tabs agents open out of sight, and discarded tabs' guests coming back.
+    const later = newTab();
+    extensions.addTab(later, window);
+    for (let i = 0; i < 19; i++) {
+      extensions.addTab(newTab(), window);
+    }
+    expect(activeTabs()).toEqual([]);
+    expect(activations()).toBe(0);
+    expect(sent.filter((name) => name === "tabs.onCreated")).toHaveLength(20);
+
     const shown = newTab();
     extensions.addTab(shown, window);
     extensions.selectTab(shown);
-    // Tabs agents open out of sight, and discarded tabs' guests coming back.
-    for (let i = 0; i < 20; i++) {
-      extensions.addTab(newTab(), window);
-    }
+    extensions.addTab(newTab(), window);
     expect(activeTabs()).toEqual([shown.id]);
-    expect(sent.filter((name) => name === "tabs.onActivated")).toHaveLength(0);
-    expect(sent.filter((name) => name === "tabs.onCreated")).toHaveLength(21);
-    expect(asked.selectTab).toBe(1);
+    expect(activations()).toBe(1);
 
-    const next = newTab();
-    extensions.addTab(next, window);
-    extensions.selectTab(next);
-    expect(activeTabs()).toEqual([next.id]);
-    expect(sent.filter((name) => name === "tabs.onActivated")).toHaveLength(1);
+    // A tab registered in the background, shown later.
+    extensions.selectTab(later);
+    expect(activeTabs()).toEqual([later.id]);
+    expect(activations()).toBe(2);
+    expect(asked.selectTab).toBe(2);
+  });
+
+  it("leaves a window no active tab once its shown tab moves away", () => {
+    const { extensions, newTab } = setUp();
+    const window = new FakeWindow();
+    const tab = newTab();
+    extensions.addTab(tab, window);
+    extensions.selectTab(tab);
+    window.emit("focus");
+    // A guest handed to another window leaves this one while it lives on.
+    extensions.removeTab(tab);
+    expect(extensions.api.tabs.getCurrent({})).toBeUndefined();
   });
 
   it("keeps a window whose tabs all closed as the last focused", () => {

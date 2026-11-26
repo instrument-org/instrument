@@ -95,11 +95,12 @@ let isAppActing = false;
 
 /** Runs the app's own change to the tabs the extensions see. */
 function asApp(act: () => void): void {
+  const was = isAppActing;
   isAppActing = true;
   try {
     act();
   } finally {
-    isAppActing = false;
+    isAppActing = was;
   }
 }
 

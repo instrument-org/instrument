@@ -11,7 +11,7 @@ Each build answers to its own scheme (`appProtocolOf` in [`constants.ts`](../../
 | Address | Opens |
 | --- | --- |
 | `instrument://chat/<id>` | the chat |
-| `instrument://task/<id>` | the task |
+| `instrument://task/<id>?chat=<id>` | the task, in the chat it was started in; without `chat`, only a tab already showing the task comes up |
 | `instrument://app/<id>` | the app's page |
 | `instrument://skill/<name>` | the skill (`skill/instrument:create-page`) |
 | `instrument://memory/<name>` | the memory |
@@ -26,9 +26,9 @@ A noun names one thing by one path segment and only takes the person to it. `new
 
 ## How a link arrives
 
-Three roads, all into `handleDeepLink` in [`index.ts`](../../apps/studio/src/electron-main/index.ts): `open-url` on macOS, the launch's own arguments on Windows and Linux, and `second-instance` when the app is already running there. The first two are listened for before `ready`, because the link that launches the app arrives before it. None runs while the workspace is refused.
+Three roads, all into the launch's `receive` ([`launch.ts`](../../apps/studio/src/electron-main/windows/launch.ts)), which hands a link to `handleDeepLink` in [`index.ts`](../../apps/studio/src/electron-main/index.ts): `open-url` on macOS, the launch's own arguments on Windows and Linux, and `second-instance` when the app is already running there. The first two are listened for before `ready`, because the link that launches the app arrives before it. None runs while the workspace is refused.
 
-[`outside-links.ts`](../../apps/studio/src/electron-main/lib/outside-links.ts) reads the link (`outsideLinkOf` in [`instrument-link.ts`](../../packages/shared/src/instrument-link.ts)) into an ask, and the window's asks queue ([`app-window-asks.ts`](../../apps/studio/src/electron-main/windows/app-window-asks.ts)) holds it until the window can show it: while its page loads and while setup is up. The window comes forward only for a link that opens something or says why it can't, and only boot opens the first window, since a link's ask can arrive after `ready` while boot still waits on setup.
+[`outside-links.ts`](../../apps/studio/src/electron-main/lib/outside-links.ts) reads the link (`outsideLinkOf` in [`instrument-link.ts`](../../packages/shared/src/instrument-link.ts)) into an ask, and the window's asks queue ([`app-window-asks.ts`](../../apps/studio/src/electron-main/windows/app-window-asks.ts)) holds it until the window can show it: while its page loads and while setup is up. The window comes forward only for a link that opens something or says why it can't, and no window opens until boot has restored the ones the workspace was left with (`windowsMayOpen`), so a link arriving before then waits for those, and brings them up in front of the person.
 
 ## A new tab group
 

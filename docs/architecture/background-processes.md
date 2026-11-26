@@ -98,7 +98,7 @@ Ownership moves in one case: when the chat hands work to a task partway, `instru
 |---|---|---|
 | `kill bg_1`, or the pid of a program it runs | one process | [`background-jobs.ts`](../../packages/workspace/src/lib/shell-commands/background-jobs.ts) |
 | `kill <pid>` of a child inside a job | that one program; the job runs on | the same |
-| Task stopped (the person's stop on its row or page, or `instrument task stop --all`) | that task's processes, handed-over jobs included; the chat's own Stop ends only its turn | `stopRunningProcesses`, from `session.stop` in [`rpc/routes/session.ts`](../../packages/workspace/src/rpc/routes/session.ts) and [`task/stop.ts`](../../packages/workspace/src/lib/capabilities/task/stop.ts) |
+| Task stopped (the person's stop on its row or page, or `instrument task stop --all`) | that task's processes, handed-over jobs included; the chat's own Stop ends only its turn | `stopRunningProcesses`, from `stopChat` in [`lib/chat/stop-chat.ts`](../../packages/workspace/src/lib/chat/stop-chat.ts), which `session.stop` calls, and [`task/stop.ts`](../../packages/workspace/src/lib/capabilities/task/stop.ts) |
 | Chat trashed | every process of the chat and its tasks | `killChatBackgroundProcesses` in [`lib/trash-chat.ts`](../../packages/workspace/src/lib/trash-chat.ts) |
 | App quits | everything | `killAllBackgroundProcesses` in [`create-workspace-actor.ts`](../../apps/studio/src/electron-main/lib/create-workspace-actor.ts) |
 | 2 hours old | that process | `ageTimer` in `promoteBackgroundProcess` |
@@ -160,7 +160,7 @@ Quitting stops every one of them, so the quit asks first whenever any is running
 
 One other renderer change: a promoted command has no exit code yet, and treating a missing code as non-zero painted every still-running command as a failure — fixed in [`bash-exit-status.ts`](../../apps/studio/src/client/components/message-part/bash-exit-status.ts).
 
-**What is still missing:** the app itself shows nothing when the two-hour cap fires; the word comes only from the agent its ending wakes. And nothing outside a task's own page counts them, so a task you are not looking at can hold a running process invisibly.
+**What is still missing:** the app itself shows nothing when the two-hour cap fires; the word comes only from the agent its ending wakes. And only a chat's header and a task's page count them, so a chat whose tab is not open can hold a running process invisibly.
 
 ## Does ordinary `bash` behave worse?
 
